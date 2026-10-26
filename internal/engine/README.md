@@ -17,7 +17,9 @@ statements [`rolecmds`](rolecmds/README.md)'s, and the schema-object,
 routine, COMMENT, tablespace, LOAD, extension and foreign-data statements
 with the extension owner import [`schemacmds`](schemacmds/README.md)'s.
 Runtime state, admission, publication and the transaction lifecycle are
-core's. No package imports the root except tests and `enginetest`.
+core's. No package imports the root except tests and `enginetest`; the driver
+imports it only for the constructors and the controls, and names core types
+for everything else.
 
 ## Composition
 
@@ -25,15 +27,12 @@ core's. No package imports the root except tests and `enginetest`.
 `NewWithCatalogProviders`) seeds the state with `core.NewEngine` and then sets
 `Engine.Statements` to `familyStatements` (`statements_dispatch.go`), which
 implements `Execute` and `ExecuteLocked` in the historical case order, and
-`Engine.Factory` to `newSettingsEngine`. `Reset(ctx, e)`, `Dump(ctx, e, dst)`
-and `Restore(ctx, e, src)` (`control.go`) are composition functions over a
-`*core.Engine`.
-
-Trigger DDL is [`viewcmds`](viewcmds/README.md#triggers)'s. Each DML
-activation captures the current owner-private trigger list, not a list cached
-by its prepared handle. Dump emits current trigger definitions post-data
-followed by local dependency metadata; Restore admits only qualified positive
-trigger dependency ALTERs, never arbitrary rename/drop utilities.
+`Engine.Factory` to `newSettingsEngine`. `NewWithCatalogProviders` registers
+feature-owned catalog providers before the builtin namespace descriptors.
+`Reset(ctx, e)`, `Dump(ctx, e, dst)` and `Restore(ctx, e, src)` (`control.go`)
+are composition functions over a `*core.Engine`; `Reset` and `Restore`
+publish through core's catalog replacement (`ReplaceCatalog`,
+`ReplaceCatalogInOperation`).
 
 ## Hosts
 
@@ -45,20 +44,17 @@ The family hosts live with their families: `TableHost`, `AlterHost` and
 The root keeps `restoreHost` (`restore_run.go`), which implements
 `control.Host`.
 
-## Row mutation
-
-MultiXact records, counters and history belong to the lock manager. CHECK and
-branch admission precede the physical event; index and RETURNING evaluation
-follow it. Shared mutations journal successor/deletion events while private
-roots are locked and flush after the engine/owner unlock. No `Engine.Mu` →
-manager-mutex acquisition exists. Finish discards private stages on failure.
-VACUUM is [`tablecmds`](tablecmds/README.md#vacuum)'s.
-
 ## Native Dump and Restore
 
-Drivers, the Emit table and hook entry types live in [`control`](control/README.md);
-the root keeps Dump's `Engine.Mu` window and Collect tables, the restore stage,
-`restoreRun` with every `restoreHooks` entry, and the atomic `replaceCatalog`.
+Drivers, the Emit table and hook entry types live in [`control`](control/README.md).
+The root keeps Dump's `Engine.Mu` window and Collect inputs
+(`captureDumpLocked`, `dump_capture.go`), the restore stage, and `restoreRun`
+with every `restoreHooks` entry (`restore_hooks.go`; an entry's position
+fixes when it runs within its phase).
+
+Dump emits current trigger definitions post-data followed by local dependency
+metadata; Restore admits only qualified positive trigger dependency ALTERs,
+never arbitrary rename/drop utilities.
 
 Private Restore definition lookups capture the live authenticated bootstrap
 through the existing trusted-destination/import marker. Only the lookup permission
@@ -68,21 +64,17 @@ authority.
 
 ## Testing
 
-Table-metadata producer units reuse the engine-seeded catalog and authorization
-fixture through the real producer registry. They assert source-owned domain
-cells, retained captures, typed empty results and rejection of malformed or
-foreign capture authority: `RUN='^TestInfoTables'`. Public SQL and native-control
-witnesses belong to the corresponding `reference/information_schema` family.
-
-Root tests name only exported core and family members, plus the inspection
-accessors in core's `inspect.go`: the Restore hook units (the ISN type owner
-replay installs the extension and moves its types through SQL) and units
-that reach no family internals. Tests that
-reach a family's internals live in its `*cmds` directory; tests that reach
-only core live in `core/`.
+The root holds only tests of the composition: the controls' round trip and
+failure contract (`control_test.go`), constructor composition
+(`composition_test.go`) and the Restore hooks (`restore_hooks_test.go`, and
+the ISN type owner replay in `ean13_restore_owner_test.go` and
+`upc_coercion_test.go`, which installs the extension and moves its types
+through SQL). They use the fixture helpers in `engine_test.go`. Every other
+engine test lives beside its owner ([docs/TESTING.md](../../docs/TESTING.md)):
+core runtime tests in `core/`, family tests in their `*cmds` directory and
+lower-package tests in `<package>/enginetests/`.
 
 ```sh
-make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # producers; one catalog: ^TestPG<Name>
+make check RUN='^Test(ControlsRoundTripAndFailurePreservation|CatalogProviderRegistersBeforeInitialization|RestoreAdmitsForeignDefaultRepair)$'  # controls, constructors, Restore hooks
 make check RUN='^Test(Ean13|Isbn|Ismn|Ismn13|Issn|Issn13)RestoreOwnerReplay|^TestUpcCoercion'  # Restore owner replay of installed ISN types
-make check RUN='^TestTransactionalSchema(Admission|PrivateProviders|Publication|DropManifest)$'  # utility policy and private catalog stages
 ```

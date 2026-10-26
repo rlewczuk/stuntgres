@@ -219,6 +219,17 @@ owned records; no user constraints, codecs or physical block mapping run.
 mutex is innermost and never taken under `Engine.Mu`. Callbacks and external I/O
 run outside these locks ([full rules](../lock/README.md#mutex-ownership-and-lock-order)).
 
+## Row mutation
+
+MultiXact records, counters and history belong to the lock manager. CHECK and
+branch admission precede the physical event; index and RETURNING evaluation
+follow it. Shared mutations journal successor/deletion events while private
+roots are locked and flush after the engine/owner unlock. No `Engine.Mu` →
+manager-mutex acquisition exists. Finish discards private stages on failure.
+Each DML activation captures the current owner-private trigger list, not a
+list cached by its prepared handle. VACUUM is
+[`tablecmds`](../tablecmds/README.md#vacuum)'s.
+
 ## Prepared statements
 
 - Ordinary prepared SQL keeps one private analysis-identity cell
@@ -690,7 +701,10 @@ for the composition (`engine.New`, `Reset`, `Dump`, `Restore`).
 
 A test beside family code cannot see these accessors. It asserts through the
 exported API or SQL, or, as a last resort, through the exported inspection
-accessors in production `inspect.go`; remove one once no test uses it:
+accessors in production `inspect.go`. An accessor that only core's tests use
+belongs in an accessor file, and one no test uses is removed; likewise an
+exported name that only core's tests use returns to an unexported name with
+an accessor. The inspection accessors are:
 - catalog stages and publication: `CatalogDependencyPreflight`,
   `CatalogDiscarded`, `CatalogPublished`, `EngineCaptureCatalogStageLocked`,
   `EnginePreparePrivateCatalog`, `EngineStageCatalogChangesLocked`,
@@ -702,11 +716,11 @@ accessors in production `inspect.go`; remove one once no test uses it:
 - statement scope, transactions and roles: `CaptureSavepoint`,
   `RestoreSavepoint`, `ScopeAcquireMaterializedRefresh`, `ScopeAcquireRow`,
   `ScopeExecuteSavepoint`, `ScopeSnapshotPhase`, `SetScopeWorked`,
-  `CursorStage`, `EnginePreparedRef`, `EnginePublishDatabaseFrozenXIDLocked`,
+  `EnginePreparedRef`, `EnginePublishDatabaseFrozenXIDLocked`,
   `EngineRefreshOperationRolesLocked`, `EngineRoleRetirementPreflightLocked`;
 - binding, query tables and catalog sources:
-  `AuthorizationMaterializedPopulation`, `BindingHostView`,
-  `EngineOpenRelationSourceLocked`, `EnginePrepareQueryTableLocked`,
+  `AuthorizationMaterializedPopulation`, `EngineOpenRelationSourceLocked`,
+  `EnginePrepareQueryTableLocked`,
   `NewCatalogRuntime`, `ProcedureReturnsSet`;
 - materialized-view source fences: `EngineMaterializedSourceFenceCurrent`,
   `MaterializedSourceFences`, `MaterializedSourceFenceRef`,
@@ -748,5 +762,6 @@ make check RUN='^Test(Serial|SourceProtocol|ViewLiteralProtocol)'  # sequences, 
 make check RUN='^Test([A-Za-z]+RoutineOriginalAuthority|SQLRoutine|UnavailableFunctionIdentityBoundary)'  # routines
 make check RUN='^Test(Extension|PGDepend|CatalogDrop|DropOwned)'  # extensions, drop fences
 make check RUN='^Test(Protocol|SessionTimeout|StatementTimeoutAdmission)'  # protocol, timeouts
-```
+make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # catalog source capture and producers; one catalog: ^TestPG<Name>
+make check RUN='^TestTransactionalSchema(Admission|PrivateProviders|Publication|DropManifest)$'  # utility policy and private catalog stages
 ```

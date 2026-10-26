@@ -478,8 +478,8 @@ presentation without rewriting column qualifiers as relation names.
 
 Package units here run without an engine. Producer behavior tests need an
 engine-seeded catalog, so they run on a composed engine in `enginetests/`
-(those not yet moved stay in `internal/engine`) and reach producers through the
-real registry; see the
+(or in `core/` when they reach core's capture runtime) and reach producers
+through the real registry; see the
 [core Testing section](../core/README.md#system-catalog-producer-contract). Public
 catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 (large objects in `reference/object_grants`, settings in
