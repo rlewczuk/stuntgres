@@ -54,6 +54,8 @@ func SamePreparedTypeDefinition(old, current *Type) bool {
 		return b.IsCube()
 	case a.IsHstore():
 		return b.IsHstore()
+	case a.IsSeg():
+		return b.IsSeg()
 	case a.IsQueryInt():
 		return b.IsQueryInt()
 	case a.IsLquery():

@@ -364,7 +364,7 @@ func (d *Descriptor) unavailableBinaryProvider(output bool) error {
 	}
 	// The same actual codec boundary serves metadata initialization and the
 	// binary receive/send dispatchers, not a second supported-type inventory.
-	if d.id == ACLItem || d.IsHstore() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree() || d.IsLtxtquery()) || d.IsCube() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() {
+	if d.id == ACLItem || d.IsHstore() || d.IsSeg() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree() || d.IsLtxtquery()) || d.IsCube() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() {
 		return failure("42883", fmt.Sprintf("no binary %s function available for type %s", direction, d.name))
 	}
 	if d.IsCatalogVector() || d.id == PgSnapshot || d.id == Tid || d.id == Macaddr || d.id == Macaddr8 || d.id == Lseg {

@@ -133,6 +133,7 @@ type Descriptor struct {
 	delimiter                           byte
 	enum                                *enumDefinition
 	queryInt                            bool
+	seg                                 bool
 	lquery                              bool
 	ltree                               bool
 	ltxtquery                           bool
@@ -183,6 +184,9 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 	}
 	if d.IsEnum() {
 		return 4
+	}
+	if d.IsSeg() {
+		return 12
 	}
 	if d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() {
 		return 8
@@ -497,6 +501,7 @@ type Value struct {
 	network         networkDatum
 	aclitem         aclitemDatum
 	queryInt        *queryIntPayload
+	seg             SegDatum
 	lquery          *lqueryPayload
 	ltree           *ltreePayload
 	ltxtquery       *ltxtqueryPayload
@@ -561,6 +566,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 		if _, ok := toEnum.enum.ranks[v.integer]; !ok {
 			return Value{}, fmt.Errorf("foreign enum member")
 		}
+	}
+	if fromEnum.IsSeg() != toEnum.IsSeg() || fromEnum.IsSeg() && !v.null && !v.seg.valid() {
+		return Value{}, fmt.Errorf("incompatible seg payload")
 	}
 	if fromEnum.IsQueryInt() != toEnum.IsQueryInt() {
 		return Value{}, fmt.Errorf("incompatible query_int declaration")
@@ -867,7 +875,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsHstore() || d.IsCube() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree() || d.IsLtxtquery()) || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Char || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsSeg() || d.IsHstore() || d.IsCube() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree() || d.IsLtxtquery()) || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Char || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -876,6 +884,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsEnum() {
 		return d.enumInput(text, env)
+	}
+	if d.IsSeg() {
+		return d.segInput(ctx, text)
 	}
 	if d.IsHstore() {
 		return d.hstoreInput(ctx, text)
@@ -1215,6 +1226,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsEnum() {
 		return d.enumOutput(v)
 	}
+	if d.IsSeg() {
+		return d.segOutput(ctx, v)
+	}
 	if d.IsHstore() {
 		return d.hstoreOutput(ctx, v)
 	}
@@ -1490,6 +1504,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	}
+	if d.IsSeg() {
+		text, err := d.segOutput(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
 	}
 	if d.IsHstore() {
 		text, err := d.hstoreOutput(ctx, v)

@@ -16,6 +16,9 @@ func SameDatum(a, b Value) bool {
 	if a.null || b.null {
 		return a.null == b.null
 	}
+	if a.typ.BaseType().IsSeg() {
+		return a.seg.valid() && b.seg.valid() && a.seg == b.seg
+	}
 	if a.typ.BaseType().IsLquery() {
 		return a.validLquery() && b.validLquery() && a.lquery.text == b.lquery.text
 	}

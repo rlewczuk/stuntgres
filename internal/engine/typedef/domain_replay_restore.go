@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -20,20 +21,21 @@ import (
 // DomainReplayCells are called without Engine.mu. The walk has already
 // checked the statement shape, and rejects a NULL or mistyped result itself.
 type DomainReplayEnv struct {
-	Context context.Context
-	Catalog catalog.Read
-	Input   sqltype.InputEnvironment
-	Output  sqltype.OutputEnvironment
-	Scalar  func(raw parser.Expr, u sqltype.Usage) (sqltype.Value, error)
+	Context      context.Context
+	Catalog      catalog.Read
+	Input        sqltype.InputEnvironment
+	Output       sqltype.OutputEnvironment
+	ValidateType func(catalog.Read, catalog.Descriptor) error
+	Scalar       func(raw parser.Expr, u sqltype.Usage) (sqltype.Value, error)
 }
 
 // DomainReplayProvenance is accumulated only after destination-owned
-// reconstruction. Only an authentic domain NULL admits private cell replay;
-// constructor-only circles use portable SQL and cannot independently
-// authorize a sidecar.
+// reconstruction. Authentic domain NULLs and exact Seg cells admit distinct
+// private replay shapes; constructor-only circles cannot authorize a sidecar.
 type DomainReplayProvenance uint8
 
 const DomainReplayDomainNull DomainReplayProvenance = 1
+const DomainReplaySeg DomainReplayProvenance = 2
 
 // RestoreDomainReplayNode rebuilds the value of n for usage u: domain and
 // domain-NULL nodes against the domain's captured identity, NULL, array and
@@ -86,6 +88,27 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 	}
 	if u.Type.IsDomain() {
 		return bad()
+	}
+	if n.Shape("seg") {
+		declared, ok := env.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
+		if !ok || declared.SQLType != u.Type || !u.Type.IsSeg() {
+			return bad()
+		}
+		installation, ok := env.Catalog.Extension(declared.Extension)
+		if !ok || installation.Name() != "seg" || len(installation.Members) != 3 || installation.Members[0] != declared.Address() {
+			return bad()
+		}
+		if env.ValidateType == nil {
+			return bad()
+		}
+		if err := env.ValidateType(env.Catalog, declared); err != nil {
+			return bad()
+		}
+		value, err := sqltype.SegValue(u.Type, *n.Seg)
+		if err != nil {
+			return bad()
+		}
+		return value, DomainReplaySeg, nil
 	}
 	if n.Shape("array") {
 		if !u.Type.IsArray() {
@@ -161,8 +184,8 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 }
 
 // DomainReplayLiteral is one admitted captured cell: the literal that
-// replaces its NULL placeholder, typed by the destination column and placed
-// at the placeholder.
+// replaces the emitted SQL item, typed by the destination column and placed
+// at that item's source position.
 type DomainReplayLiteral struct {
 	expr.Info
 	Value sqltype.Value
@@ -170,10 +193,10 @@ type DomainReplayLiteral struct {
 
 // DomainReplayCells admits the captured cells of a native replay INSERT s
 // into relation, whose single VALUES row maps position i to column slot
-// slots[i]. Each cell must name a whole, non-generated column targeted
-// exactly once whose VALUES item is an exact NULL placeholder, and its
-// reconstruction must carry authentic domain-NULL provenance. The result
-// maps VALUES positions to the admitted literals.
+// slots[i]. Each cell names a whole, non-generated column targeted exactly once.
+// Domain-NULL provenance requires an exact NULL placeholder; Seg provenance
+// requires exact emitted canonical text. Reinputtable Seg literals also bind
+// independently; derived infinity/inverted outputs have no stock text input.
 func DomainReplayCells(env *DomainReplayEnv, s *parser.Insert, cells []DomainReplayCell, relation *catalog.Relation, slots []int) (map[int]DomainReplayLiteral, error) {
 	admitted := make(map[int]DomainReplayLiteral, len(cells))
 	for _, cell := range cells {
@@ -203,16 +226,42 @@ func DomainReplayCells(env *DomainReplayEnv, s *parser.Insert, cells []DomainRep
 			return nil, fmt.Errorf("stuntgres: generated native replay cell")
 		}
 		raw, ok := s.Rows[0][position].(parser.LiteralExpr)
-		if !ok || raw.Value.Kind != parser.NullValue {
-			return nil, fmt.Errorf("stuntgres: native replay requires an exact NULL placeholder")
+		seg := cell.Value.Shape("seg")
+		if !ok || !seg && raw.Value.Kind != parser.NullValue || seg && raw.Value.Kind != parser.StringValue {
+			return nil, fmt.Errorf("stuntgres: native replay requires its exact emitted literal")
 		}
 		usage := relation.Columns[slot].Usage
 		value, count, err := RestoreDomainReplayNode(env, usage, cell.Value)
 		if err != nil {
 			return nil, err
 		}
-		if count&DomainReplayDomainNull == 0 || value.Type() != usage.Type {
-			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted domain NULL")
+		if value.Type() != usage.Type || !seg && count&DomainReplayDomainNull == 0 || seg && count != DomainReplaySeg {
+			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted provenance")
+		}
+		if seg {
+			exactText, err := usage.Type.OutputWithEnvironment(env.Context, value, env.Output)
+			if err != nil {
+				return nil, err
+			}
+			if raw.Value.Text != exactText {
+				return nil, fmt.Errorf("stuntgres: mismatched canonical seg replay literal")
+			}
+			if cell.Value.Seg.Reinputtable() {
+				ordinary, err := env.Scalar(raw, usage)
+				if err != nil {
+					return nil, err
+				}
+				if ordinary.Type() != usage.Type || ordinary.IsNull() {
+					return nil, fmt.Errorf("stuntgres: invalid seg replay literal")
+				}
+				ordinaryText, err := usage.Type.OutputWithEnvironment(env.Context, ordinary, env.Output)
+				if err != nil {
+					return nil, err
+				}
+				if ordinaryText != exactText {
+					return nil, fmt.Errorf("stuntgres: mismatched canonical seg replay literal")
+				}
+			}
 		}
 		admitted[position] = DomainReplayLiteral{Info: expr.Info{Usage: usage, Pos: raw.SourcePosition()}, Value: value}
 	}

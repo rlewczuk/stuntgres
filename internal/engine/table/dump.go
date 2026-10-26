@@ -138,6 +138,14 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 				}
 				replayCells = append(replayCells, typedef.DomainReplayCell{Column: t.Columns[i].Name, Value: &node})
 				literal = "NULL"
+			} else if destination.IsSeg() && !v.IsNull() {
+				payload, captureErr := v.SegDatum()
+				if captureErr != nil {
+					return captureErr
+				}
+				node := typedef.DomainReplayNode{Kind: "seg", Seg: &payload}
+				replayCells = append(replayCells, typedef.DomainReplayCell{Column: t.Columns[i].Name, Value: &node})
+				literal, err = destination.SQLLiteral(ctx, v)
 			} else if destination.IsDomain() && (base == sqltype.Int4Range || base == sqltype.Int8Range || base == sqltype.NumRange || base == sqltype.DateRange || base == sqltype.TimestampRange || base == sqltype.TimestamptzRange || base == sqltype.Int4Multirange || base == sqltype.Int8Multirange || base == sqltype.NumMultirange) {
 				// The INSERT destination reconstructs the domain via ordinary
 				// contextual input without unsupported range/multirange casts;

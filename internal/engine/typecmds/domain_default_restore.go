@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -51,7 +52,7 @@ func DomainReplayEnv(e *core.Engine, c *exec.Context, op *session.Operation, aut
 		}
 		return node.Eval(&local)
 	}
-	return &typedef.DomainReplayEnv{Context: c.Context, Catalog: auth.Catalog, Input: c.Input, Output: c.Output, Scalar: scalar}
+	return &typedef.DomainReplayEnv{Context: c.Context, Catalog: auth.Catalog, Input: c.Input, Output: c.Output, Scalar: scalar, ValidateType: (stored.TypeProvider{}).Validate}
 }
 
 // CaptureDomainReplay checks that a private Restore INSERT into relation

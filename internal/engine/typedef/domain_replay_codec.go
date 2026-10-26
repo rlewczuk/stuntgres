@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -37,6 +38,7 @@ type DomainReplayNode struct {
 	Members    *[]DomainReplayMember    `json:"members,omitempty"`
 	Dimensions *[]DomainReplayDimension `json:"dimensions,omitempty"`
 	Elements   *[]DomainReplayNode      `json:"elements,omitempty"`
+	Seg        *sqltype.SegDatum        `json:"seg,omitempty"`
 }
 
 type DomainReplayMember struct {
@@ -137,6 +139,13 @@ func validateDomainReplayJSON(decoder *json.Decoder) error {
 		if seen["lower"] != seen["length"] {
 			return fmt.Errorf("incomplete native domain replay dimension")
 		}
+		if seen["lower_bits"] || seen["upper_bits"] || seen["l_sigd"] || seen["u_sigd"] || seen["l_ext"] || seen["u_ext"] {
+			for _, field := range []string{"lower_bits", "upper_bits", "l_sigd", "u_sigd", "l_ext", "u_ext"} {
+				if !seen[field] {
+					return fmt.Errorf("incomplete native seg replay payload")
+				}
+			}
+		}
 	case '[':
 		for decoder.More() {
 			if err := validateDomainReplayJSON(decoder); err != nil {
@@ -165,6 +174,9 @@ func DecodeDomainReplay(comment string) (DomainReplayRecord, bool, error) {
 	raw, err := base64.StdEncoding.Strict().DecodeString(parts[1])
 	if err != nil {
 		return fail(err)
+	}
+	if !utf8.Valid(raw) {
+		return fail(fmt.Errorf("invalid UTF8 payload"))
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	if err = validateDomainReplayJSON(decoder); err != nil {
@@ -220,6 +232,12 @@ func PairDomainReplay(script string, statements []parser.Statement, records []Po
 
 func (n *DomainReplayNode) Shape(kind string) bool {
 	if n == nil || n.Kind != kind {
+		return false
+	}
+	if kind == "seg" {
+		return n.Seg != nil && n.Type == nil && n.Scalar == nil && n.Base == nil && n.Members == nil && n.Dimensions == nil && n.Elements == nil
+	}
+	if n.Seg != nil {
 		return false
 	}
 	switch kind {

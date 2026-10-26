@@ -377,7 +377,7 @@ func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 	if err := (stored.TypeProvider{}).Validate(c.CatalogView, t); err != nil {
 		return err
 	}
-	if t.SQLType.IsHstore() || t.SQLType.IsQueryInt() || (t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery()) || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() || t.Extension != (ids.ObjectAddress{}) {
+	if t.SQLType.IsHstore() || t.SQLType.IsSeg() || t.SQLType.IsQueryInt() || (t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery()) || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() || t.Extension != (ids.ObjectAddress{}) {
 		return (stored.TypeProvider{}).Validate(c.CatalogView, t)
 	}
 	if t.SQLType.IsUserDefined() && !t.SQLType.IsComposite() {

@@ -102,6 +102,13 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   remapping shares immutable pairs without reparsing stored text. The parser
   establishes text validity, canonical order and uniqueness once; consumers
   check the private immutable carrier without rescanning those invariants.
+- Seg owns an inline fixed pair of binary32 words, significant-digit counts
+  and endpoint markers. Its strict scanner and precision-aware formatter share
+  the ordinary type I/O and coercion seams. Representation identity includes all
+  six fields even when canonical output collapses equal endpoints to a point.
+  `SegValue` validates portable payloads; `RemapSeg` preserves them under
+  source-authorized destination ownership without text reinput. Scalar storage
+  grants no SQL comparison, indexing, executable array or binary-codec authority.
 - Lquery owns immutable canonical text validated by the C-locale label grammar,
   item/variant/label limits and aligned level-size checks. Input preserves label
   spelling, alternative order/multiplicity and explicit non-star quantifiers;
@@ -166,7 +173,7 @@ continue owning their original descriptors. Fresh metadata and diagnostics name
 the current type; prepared occurrence capture/recreation policy belongs to the
 engine, not a codec-level stale-name retry.
 
-Installed hstore/cube/query_int/lquery/ltree/ltxtquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
+Installed seg/hstore/cube/query_int/lquery/ltree/ltxtquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
 Neither a logical OID nor lifecycle support introduces a new range provider,
@@ -511,6 +518,7 @@ match engine tests of the same mechanism):
 - Cube constructors, coordinates and spatial kernels: `RUN='^TestCube'`
 - Installed label-query codecs, identity and cancellation: `RUN='^Test(Lquery|Ltxtquery)'`
 - Installed ltree codecs, identity and cancellation: `RUN='^TestLtree'`
+- Installed interval scalar codec and exact representation: `RUN='^TestSeg'`
 - Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|PointKernel)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`

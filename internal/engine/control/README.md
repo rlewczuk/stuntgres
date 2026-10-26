@@ -197,6 +197,15 @@ function references once into the destination authority.
   (`table.PrepareGenerationPlaceholders`) use the same windows.
 - **Raw FLOAT4 words** (noncanonical NaN only, `regobj.NeedsFloat4RawReplay`)
   replay through a binary `xid → real` cast; Restore has no raw-datum decoder.
+- **Exact Seg cells** share the bounded private row-replay record. A tagged
+  six-field payload preserves endpoint words, precision and markers, paired
+  immediately with a one-row INSERT containing the canonical quoted literal.
+  Genuine destination-provider validation and exact canonical text precede
+  substitution; reinputtable finite/open values additionally bind independently.
+  Only derived infinity/inverted payloads bypass stock text input, which rejects
+  their own canonical output. Malformed metadata never reaches replacement
+  publication. PostgreSQL ignores the comment; the ordinary SQL replay corpus
+  therefore uses reinputtable values, while native controls retain both classes.
 - **Installed type identity replay** (`type_identity_replay.go`): canonical
   extension installations follow prerequisite order before ordinary consumer
   declarations. Every installed scalar role's renamed/moved identity is reconstructed with

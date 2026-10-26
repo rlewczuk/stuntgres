@@ -39,9 +39,12 @@ programs, type generations and TEMP collation cleanup are core's.
 - Dump: `ValidateTemporaryCollationDump` fails a Dump when an object outside
   a temporary namespace depends on a temporary collation.
 - Restore hooks: `ExecuteDomainReplayInsert` runs a private Restore INSERT
-  paired with a native domain replay record; `CaptureRestoredTypeOwner` and
+  paired with a native domain/seg replay record; `CaptureRestoredTypeOwner` and
   `RestoreTypeOwner` pair a created type with its captured owner. Each
   admits only a trusted private import.
+  Seg replay additionally validates the genuine destination provider and exact
+  canonical literal. Reinputtable values bind independently; derived infinity
+  and inverted endpoints use only the checked private typed substitution.
 - Shared with the view family: `CaptureDomainReplay` and `DomainReplayEnv`.
 - For the `schemacmds` tests that stage through the schema statements and the
   root's typed-table fixture: `TypedStage`, `TypedMutation` and

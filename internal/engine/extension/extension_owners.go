@@ -66,6 +66,9 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if IntarrayProviderOf(d) != nil && symbol == "bqarr_out" {
 				member.Signature = "query_int"
 			}
+			if SegProviderOf(d) != nil && symbol == "seg_out" {
+				member.Signature = "seg"
+			}
 			if LtreeProviderOf(d) != nil && slot%3 == 2 {
 				member.Signature = ltreeRecipes[slot/3].name
 			}
@@ -225,6 +228,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = 5
 	case record.Name == "hstore" && record.Version == "1.8":
 		expectedMembers = 3
+	case record.Name == "seg" && record.Version == "1.4":
+		expectedMembers = 3
 	case record.Name == "intarray" && record.Version == "1.5":
 		expectedMembers = 3
 	case record.Name == "ltree" && record.Version == "1.3":
@@ -300,7 +305,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		case "procedure":
 			// Mutable procedure labels are checked against the current installed
 			// slot by ImportOwners, not used as installation identity.
-			if record.Name == "lo" || record.Name == "earthdistance" && member.Slot < 2 || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "hstore" || record.Name == "intarray" || record.Name == "ltree" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
+			if record.Name == "lo" || record.Name == "earthdistance" && member.Slot < 2 || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "seg" || record.Name == "hstore" || record.Name == "intarray" || record.Name == "ltree" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
 				return invalid()
 			}
 			if signature, ok := ownerProcedureSignature(record.Name, record.Version, member.Slot); !ok || signature != member.Signature {
@@ -325,7 +330,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if (record.Name != "hstore" || member.Name != "hstore") && (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "ltree" || member.Name != "lquery" && member.Name != "ltree" && member.Name != "ltxtquery") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn" && member.Name != "isbn13" && member.Name != "ismn" && member.Name != "ismn13" && member.Name != "issn" && member.Name != "issn13" && member.Name != "upc") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
+			if (record.Name != "seg" || member.Name != "seg") && (record.Name != "hstore" || member.Name != "hstore") && (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "ltree" || member.Name != "lquery" && member.Name != "ltree" && member.Name != "ltxtquery") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn" && member.Name != "isbn13" && member.Name != "ismn" && member.Name != "ismn13" && member.Name != "issn" && member.Name != "issn13" && member.Name != "upc") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
 				return invalid()
 			}
 			if record.Name == "isn" {
@@ -342,7 +347,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 			if record.Name == "ltree" && !((member.Slot == 0 && member.Name == "lquery") || (member.Slot == 3 && member.Name == "ltree") || (member.Slot == 6 && member.Name == "ltxtquery")) {
 				return invalid()
 			}
-			if (record.Name == "citext" || record.Name == "hstore") && member.Slot != 0 {
+			if (record.Name == "seg" || record.Name == "citext" || record.Name == "hstore") && member.Slot != 0 {
 				return invalid()
 			}
 			if record.Name == "lo" && member.Name != [...]string{"lo", "lo[]"}[member.Slot] {
@@ -439,7 +444,7 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 				return recipe.name, true
 			}
 		}
-	case "hstore", "intarray", "citext":
+	case "seg", "hstore", "intarray", "citext":
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
 			return "citext,citext", true
 		}

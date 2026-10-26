@@ -63,7 +63,7 @@ func EnumWithMembers(id ID, name, declaration string, members []EnumMember) (*De
 }
 func (d *Descriptor) IsEnum() bool { return d != nil && d.enum != nil }
 func (d *Descriptor) IsUserDefined() bool {
-	return d != nil && !d.IsBuiltin() && (d.IsDomain() || !d.lookupOnly && (d.IsEnum() || d.IsComposite() || d.IsHstore() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree() || d.IsLtxtquery()) || d.IsCube() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || d.IsRange() || d.IsMultirange()))
+	return d != nil && !d.IsBuiltin() && (d.IsDomain() || !d.lookupOnly && (d.IsEnum() || d.IsComposite() || d.IsSeg() || d.IsHstore() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree() || d.IsLtxtquery()) || d.IsCube() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || d.IsRange() || d.IsMultirange()))
 }
 func (d *Descriptor) EnumLabels() []string {
 	if !d.IsEnum() {

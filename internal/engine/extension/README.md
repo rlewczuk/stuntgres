@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for the fifteen bundled extensions (amcheck, citext, cube,
-earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
+and control data for the sixteen bundled extensions (amcheck, citext, cube,
+earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pgcrypto, pgrowlocks, seg, unaccent, uuid-ossp),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
@@ -51,6 +51,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `catalog.ExtensionMembership`. `extension_type_validation.go` validates an
   installed codec's array through the type provider registered in the catalog
   owner.
+- **Seg members** (`seg_provider.go`, `seg_stage.go`): the trusted relocatable
+  1.4 provider owns the twelve-byte scalar and strict immutable C input/output
+  roles. Its reciprocal array is lookup-only, not an extension member. Staging,
+  validation, symbolic owner signatures and import use the shared installation
+  authority; mutable labels never grant codec execution.
 - **Ltree members** (`ltree_provider.go`, `ltree_stage.go`): the current 1.3
   manifest owns lquery, ltree and ltxtquery, each with a strict immutable C text input/output
   pair. Fixed type/input/output triples preserve existing slots; all are staged
@@ -259,7 +264,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   that is also a source does not trigger another mapping step.
 
 Type identity is its validated manifest role, not its mutable name or namespace.
-`InstalledTypes`/`MemberTypeRole` resolve hstore/cube/query_int/lquery/ltree/ltxtquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo through the
+`InstalledTypes`/`MemberTypeRole` resolve seg/hstore/cube/query_int/lquery/ltree/ltxtquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo through the
 existing manifest/provider and reciprocal array checks. Member ALTER retains
 installation membership; direct DROP remains protected. The owner metadata codec
 keeps canonical type role keys (including earth[] and lo[]) across rename/move, preserving

@@ -57,6 +57,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='lo' AND version='1.2'", true, [][]any{{"lo", "1.2", false, true, true, true, nil, nil, "Large Object maintenance"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='hstore'", false, [][]any{{"hstore", "1.8", nil, "data type for storing sets of (key, value) pairs"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='hstore' AND version='1.8'", true, [][]any{{"hstore", "1.8", false, true, true, true, nil, nil, "data type for storing sets of (key, value) pairs"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='seg'", false, [][]any{{"seg", "1.4", nil, "data type for representing line segments or floating-point intervals"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='seg' AND version='1.4'", true, [][]any{{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}}, pg))
 			if !pg {
 				// Native availability is its real embedded registry, not PostgreSQL's
 				// larger system package installation or bootstrap plpgsql descriptor.
@@ -81,6 +83,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions[:6:6], append([][]any{{"hstore", "1.8", false, true, true, true, nil, nil, "data type for storing sets of (key, value) pairs"}}, wantVersions[6:]...)...)
 				wantAvailable = append(wantAvailable[:10:10], append([][]any{{"ltree", "1.3", nil, "data type for hierarchical tree-like structures"}}, wantAvailable[10:]...)...)
 				wantVersions = append(wantVersions[:11:11], append([][]any{{"ltree", "1.3", false, true, true, true, nil, nil, "data type for hierarchical tree-like structures"}}, wantVersions[11:]...)...)
+				wantAvailable = append(wantAvailable[:13:13], append([][]any{{"seg", "1.4", nil, "data type for representing line segments or floating-point intervals"}}, wantAvailable[13:]...)...)
+				wantVersions = append(wantVersions[:14:14], append([][]any{{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}}, wantVersions[14:]...)...)
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw", "plpgsql"} {

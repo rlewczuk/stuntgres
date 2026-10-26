@@ -24,8 +24,13 @@ func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole
 	case "intarray":
 		name = "query_int"
 		err = StockIntarray.ValidateExtension(v, ext)
+	case "seg":
+		name = "seg"
+		err = StockSeg.ValidateExtension(v, ext)
 	case "ltree":
-		if err := StockLtree.ValidateExtension(v, ext); err != nil { return nil, err }
+		if err := StockLtree.ValidateExtension(v, ext); err != nil {
+			return nil, err
+		}
 		roles := make([]InstalledTypeRole, len(ltreeRecipes))
 		for i, recipe := range ltreeRecipes {
 			roles[i] = InstalledTypeRole{recipe.name, v.MustType(ext.Members[recipe.slot])}

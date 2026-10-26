@@ -17,6 +17,11 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 	if v.null || other.null {
 		return v.null == other.null, nil
 	}
+	if v.typ != nil && other.typ != nil && (v.typ.BaseType().IsSeg() || other.typ.BaseType().IsSeg()) {
+		if !v.typ.BaseType().IsSeg() || !other.typ.BaseType().IsSeg() || !v.seg.valid() || !other.seg.valid() || v.seg != other.seg {
+			return false, nil
+		}
+	}
 	if v.typ != nil && other.typ != nil && v.typ.BaseType().id == Regclass && other.typ.BaseType().id == Regclass && v.integer == 1 && other.integer == 1 {
 		// Canonical decimal text is optional for inline numeric identities.
 		v.text, other.text = "", ""
@@ -54,7 +59,9 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 		v.lquery, other.lquery = nil, nil
 	}
 	if v.ltxtquery != nil || other.ltxtquery != nil {
-		if !v.validLtxtquery() || !other.validLtxtquery() || v.ltxtquery.text != other.ltxtquery.text { return false, nil }
+		if !v.validLtxtquery() || !other.validLtxtquery() || v.ltxtquery.text != other.ltxtquery.text {
+			return false, nil
+		}
 		v.ltxtquery, other.ltxtquery = nil, nil
 	}
 	if v.ltree != nil || other.ltree != nil {

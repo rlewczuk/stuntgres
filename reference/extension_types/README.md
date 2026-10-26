@@ -1,6 +1,6 @@
 # reference/extension_types
 
-Dual-mode tests for extension types: `hstore`, `cube`, `earth`, `query_int`, `lquery`, `ltree`, `ltxtquery`,
+Dual-mode tests for extension types: `seg`, `hstore`, `cube`, `earth`, `query_int`, `lquery`, `ltree`, `ltxtquery`,
 `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
 
 Other type families: [reference/domain_types](../domain_types/README.md#testing)
@@ -127,6 +127,7 @@ Rules:
 - `cube` (scalar/codecs, coordinate extraction and spatial predicates/distances): `RUN='^TestReferenceCube'`
 - <a id="earth-domain-contract"></a>`earth` domain, coordinates and conversions: `RUN='^TestReferenceEarth'`
 - `query_int`: `RUN='^TestReferenceQueryInt'`
+- `seg`: `RUN='^TestReferenceSeg'`
 - `lquery` declarations, canonical text codecs, assignment, metadata and controls:
   `RUN='^TestReference(Lquery|Ltxtquery)'`. Fixtures preserve explicit non-star quantifiers,
   normalize modifier flags and quantifier bounds, and assert complete diagnostics

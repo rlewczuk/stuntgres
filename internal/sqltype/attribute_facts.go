@@ -111,7 +111,7 @@ func (v Value) ValidResult(u Usage) bool {
 	if v.typ == u.Type && v.null && u.QueryNullUsage() {
 		return true
 	}
-	if v.typ != nil && !v.null && (v.typ.BaseType().IsCatalogVector() && !v.validCatalogVectorPayload() || v.typ.BaseType().IsHstore() && !v.validHstore()) {
+	if v.typ != nil && !v.null && (v.typ.BaseType().IsSeg() && !v.seg.valid() || v.typ.BaseType().IsCatalogVector() && !v.validCatalogVectorPayload() || v.typ.BaseType().IsHstore() && !v.validHstore()) {
 		return false
 	}
 	return v.typ != nil && v.typ == u.Type && (v.typ.Concrete() || v.null && u.CatalogNullUsage()) && (v.null || (!v.typ.BaseType().IsEan13() || v.validEan13()) && (!v.typ.BaseType().IsIsbn() || v.validIsbn()) && (!v.typ.BaseType().IsIsbn13() || v.validIsbn13()) && (!v.typ.BaseType().IsIsmn() || v.validIsmn()) && (!v.typ.BaseType().IsIsmn13() || v.validIsmn13()) && (!v.typ.BaseType().IsIssn() || v.validIssn()) && (!v.typ.BaseType().IsIssn13() || v.validIssn13()) && (!v.typ.BaseType().IsUpc() || v.validUpc()))

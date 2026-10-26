@@ -1,3 +1,10 @@
+`CREATE EXTENSION seg` installs the interval scalar and its genuine text codecs.
+Literal and bound values preserve endpoint annotations and significant digits;
+results expose canonical text (including derived `Infinity`/`-Infinity`), SEG
+metadata, installed codec catalog identities and SQL NULLs. Native
+Dump/Reset/Restore retains exact binary32 endpoints and precision independently
+of canonical SQL output.
+
 Native active JSONB existence cancellation coverage synchronizes at the real
 provider cancellation poll before observing its live worker stack, rather than
 racing finite search completion against stack sampling. PostgreSQL cancellation

@@ -250,6 +250,7 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | installed `lquery` | canonical query-syntax `string` |
 | installed `ltree` | exact path-text `string`, including the empty path |
 | installed `ltxtquery` | canonical Boolean label-query `string` |
+| installed `seg` | canonical interval `string` |
 | `reg*` types | symbolic `string` |
 
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
@@ -281,6 +282,19 @@ with suffix modifiers and precedence; empty input is invalid. Results report
 `LTREE`/`LQUERY`/`LTXTQUERY`, string scan types
 and stored column nullability even for empty results. Native Dump/Reset/Restore
 preserves values and typed NULLs with destination-owned scalar and codec identities.
+
+After `CREATE EXTENSION seg`, seg columns accept literal and bound text or
+non-nil bytes; nil and typed-nil bytes are SQL NULL. Results expose `SEG`, string
+scan types and stored-column nullability, including empty results. Length and
+decimal precision metadata remain unknown. Native Dump/Reset/Restore preserves
+the exact binary32 endpoint words, significant-digit counts and annotations
+under destination-owned identities; ordinary emitted SQL carries canonical text.
+Derived infinity and inverted endpoints retain their canonical spelling through
+native controls: `3.4e38(+-)3.4e38` yields `0.0 .. Infinity`, and `0(+-)-1`
+yields `1 .. -1`. Negative overflow is spelled `-Infinity`. Stock seg text input
+rejects these canonical outputs; SQL recreation must reinsert the original valid
+spellings. Ordinary SQL replay is a canonical-text round trip only for
+reinputtable values; native records retain all these representations exactly.
 
 After `CREATE EXTENSION isn`, EAN13, ISBN, ISBN13, ISMN, ISMN13, ISSN, ISSN13 and UPC columns
 accept textual literals and bound strings or bytes, including NULL. Results
