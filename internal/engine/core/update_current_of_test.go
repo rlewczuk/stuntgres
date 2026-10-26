@@ -66,7 +66,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	if result.Rows != nil {
 		defer result.Rows.Close()
 	}
-	if err != nil || result.Count != 1 || core.ScopeSessionCompleted(scope) || !core.WriteStageReplacing(&scope.Stage) || len(scope.Stage.Rows) == 0 {
+	if err != nil || result.Count != 1 || core.ScopeSessionCompleted(scope) || !scope.Stage.Replacing || len(scope.Stage.Rows) == 0 {
 		scope.Finish(context.Canceled)
 		op.Done()
 		t.Fatal("replacement not privately staged", result, err)

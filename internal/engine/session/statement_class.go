@@ -39,6 +39,12 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "DROP OWNED"
 	case *parser.RefreshMaterializedView:
 		return "REFRESH MATERIALIZED VIEW"
+	case *parser.CreateEventTrigger:
+		return "CREATE EVENT TRIGGER"
+	case *parser.AlterEventTrigger:
+		return "ALTER EVENT TRIGGER"
+	case *parser.DropEventTrigger:
+		return "DROP EVENT TRIGGER"
 	case *parser.CreateTrigger:
 		return "CREATE TRIGGER"
 	case *parser.AlterTrigger:
@@ -229,6 +235,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		}
 	}
 	switch stmt.(type) {
+	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
+		return true
 	case *parser.CreateDatabaseStmt:
 		return true
 	case *parser.CreateTablespace:
@@ -266,6 +274,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 // source.
 func TransactionalSchemaUtility(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
+	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
+		return true
 	case *parser.CreateFunction:
 		return !s.Procedure
 	case *parser.CreateAggregate, *parser.AlterRoutine, *parser.DropRoutine,

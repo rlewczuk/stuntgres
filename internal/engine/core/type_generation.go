@@ -88,7 +88,7 @@ func (e *Engine) ReownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			for i, column := range relation.Columns {
 				columnsChanged = columnsChanged || old.Columns[i].Usage.Type != column.Usage.Type
 			}
-			if columnsChanged {
+			if columnsChanged && !stage.deferredAlterRows[address] {
 				store := e.StageStorageLocked(stage, address)
 				if shape, ok := stage.RowShapes[address]; ok {
 					store = shape.Replacement

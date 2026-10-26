@@ -14,17 +14,20 @@ import (
 	"stuntgres/internal/engine/view"
 )
 
-func (e *Engine) StageCatalogBaseLocked(s *CatalogStage) *catalog.State {
-	if s.AuthSession != nil && (s.AuthSession.Transactions.State == session.TxActive || s.AuthSession.Transactions.RetainsTransaction()) {
-		return e.PrivateCatalogLocked(s.AuthSession.Transactions.Catalog).State()
+func stageJournalLocked(s *CatalogStage) *session.Journal {
+	if s.statement != nil && !s.statement.Finished && s.statement.Catalog != nil {
+		return s.statement.Catalog
 	}
-	return e.Catalog.State
+	if s.AuthSession != nil && (s.AuthSession.Transactions.State == session.TxActive || s.AuthSession.Transactions.RetainsTransaction()) {
+		return s.AuthSession.Transactions.Catalog
+	}
+	return nil
+}
+func (e *Engine) StageCatalogBaseLocked(s *CatalogStage) *catalog.State {
+	return e.PrivateCatalogLocked(stageJournalLocked(s)).State()
 }
 func (e *Engine) StageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *storage.Relation {
-	if s.AuthSession != nil && (s.AuthSession.Transactions.State == session.TxActive || s.AuthSession.Transactions.RetainsTransaction()) {
-		return e.PrivateStorageLocked(s.AuthSession.Transactions.Catalog, a)
-	}
-	return e.Storage.Relations[a]
+	return e.PrivateStorageLocked(stageJournalLocked(s), a)
 }
 func (e *Engine) storageReadsValidLocked(stage *CatalogStage) bool {
 	for _, read := range stage.StorageReads {
@@ -202,7 +205,7 @@ func (e *Engine) stageMessageCatalog(op *session.Operation, p *PreparedCatalogPu
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
 	op.Session.Mu.Lock()
-	scope := ScopeOfLease(op.Lease)
+	scope := ActiveScopeOfLease(op.Lease)
 	op.Session.Mu.Unlock()
 	if scope == nil || scope.Op != op || scope.Owner != op.Session.Transactions || !scope.ownsMessageScope() || !scope.Owner.RetainsTransaction() {
 		return ChangeSet{}, fmt.Errorf("stuntgres: missing message scope")
@@ -210,7 +213,7 @@ func (e *Engine) stageMessageCatalog(op *session.Operation, p *PreparedCatalogPu
 	if token.Epoch != p.epoch {
 		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
-	if err := e.StageCatalogOverlay(scope, p.stage, scope.Owner.Catalog.Clone()); err != nil {
+	if err := e.StageCatalogOverlay(scope, p.stage, scope.PendingCatalog().Clone()); err != nil {
 		return ChangeSet{}, err
 	}
 	return catalogStageChanges(p.stage), nil

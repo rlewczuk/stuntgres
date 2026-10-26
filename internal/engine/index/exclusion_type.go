@@ -113,7 +113,7 @@ func RebuildAlterExclusions(h Host, parent *catalog.Relation, transformations []
 			next = &copy
 		}
 		c := &next.Constraints.Exclusion[i]
-		if err := h.RemoveObject(stageRef(h, old.Index), false); err != nil {
+		if err := h.RemoveInternalObject(stageRef(h, old.Index), false); err != nil {
 			return nil, err
 		}
 		c.OID, err = h.AllocateOID()

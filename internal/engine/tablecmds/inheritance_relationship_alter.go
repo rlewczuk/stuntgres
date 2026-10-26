@@ -102,7 +102,7 @@ func inheritanceRelationshipCandidate(s *core.StatementScope, stage *core.Catalo
 		if _, staged := stage.Find(capture.Ref.Address); !staged && parent != capture.Relation && table.InheritanceMarkerPublication(parent, capture.Relation) {
 			// Consume the genuine intervening marker, rather than issuing a
 			// second first-child marker from the stage's older base snapshot.
-			if err := stage.Replace(capture.Relation); err != nil {
+			if err := stage.ConsumeInheritanceMarkerReceipt(capture); err != nil {
 				return nil, err
 			}
 			view = s.Engine().StageRead(stage)

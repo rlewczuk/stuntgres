@@ -25,11 +25,11 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	current, ok := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
-	if !ok || !index.SameRelationRowShape(admission.Relation, current) || e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) != admission.Storage {
+	current, ok := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
+	if !ok || !index.SameRelationRowShape(admission.Relation, current) || e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) != admission.Storage {
 		return ids.ErrCatalogReplaced
 	}
-	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	view := e.PrivateCatalogLocked(s.PendingCatalog())
 	for _, captured := range admission.Jobs {
 		if err := dml.RefreshForeignActionJob(view, &captured); err != nil {
 			return err
@@ -79,12 +79,12 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *dml.ForeignK
 	if !held {
 		return errors.New("stuntgres: internal action admission requires its relation grant")
 	}
-	current, ok := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
-	storage := e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
+	current, ok := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
+	storage := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
 	if !ok || !index.SameRelationRowShape(current, job.Child) || storage == nil {
 		return ids.ErrCatalogReplaced
 	}
-	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	view := e.PrivateCatalogLocked(s.PendingCatalog())
 	if err := dml.RefreshForeignActionJob(view, job); err != nil {
 		return err
 	}

@@ -33,7 +33,7 @@ func AcquireTypedSources(scope *core.StatementScope, stage *core.CatalogStage, d
 			}
 			e := stage.Owner
 			e.Mu.Lock()
-			valid := e.PrivateCatalogLocked(scope.Owner.Catalog).Get(source) == typ
+			valid := e.PrivateCatalogLocked(scope.PendingCatalog()).Get(source) == typ
 			e.Mu.Unlock()
 			if !valid {
 				return catalog.Conflict{}
@@ -52,7 +52,7 @@ func AcquireTypedSources(scope *core.StatementScope, stage *core.CatalogStage, d
 		// neither a new generation nor a same-name source can be adopted.
 		e := stage.Owner
 		e.Mu.Lock()
-		current := e.PrivateCatalogLocked(scope.Owner.Catalog)
+		current := e.PrivateCatalogLocked(scope.PendingCatalog())
 		valid := current.Get(source) == typ && current.Get(resource) == stage.Base.Get(resource)
 		e.Mu.Unlock()
 		if !valid {

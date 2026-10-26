@@ -16,7 +16,7 @@ import (
 
 // ExecuteRule alternates canonical locked definition phases with unlocked lock
 // admission. The partial definition and lexical manifests are statement-local;
-// neither held handles nor the Host cache authority or wait under Engine.mu.
+// neither held handles nor the Host cache authority or wait under core.Engine.mu.
 func ExecuteRule(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	e.Mu.Lock()
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
@@ -90,7 +90,7 @@ func ExecuteRule(e *core.Engine, scope *core.StatementScope, stmt parser.Stateme
 			}
 		}
 		for _, source := range consumed {
-			current, err := core.CurrentQuerySourceLocked(e, auth.Catalog, scope.Owner.Catalog, source)
+			current, err := core.CurrentQuerySourceLocked(e, auth.Catalog, scope.PendingCatalog(), source)
 			if err != nil {
 				return err
 			}
@@ -133,7 +133,7 @@ func ExecuteRule(e *core.Engine, scope *core.StatementScope, stmt parser.Stateme
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			retain(exec.Leaf{Ref: ref, Relation: d, Storage: e.PrivateStorageLocked(scope.Owner.Catalog, ref.Address)})
+			retain(exec.Leaf{Ref: ref, Relation: d, Storage: e.PrivateStorageLocked(scope.PendingCatalog(), ref.Address)})
 		}
 		e.Mu.Unlock()
 		err := acquireBoundViewRelations(scope, refs)
@@ -175,7 +175,7 @@ func ExecuteRule(e *core.Engine, scope *core.StatementScope, stmt parser.Stateme
 		if len(qualification.TableQueries) != 0 {
 			admissions = append(admissions, qualification)
 		}
-		retain(exec.Leaf{Ref: event.LockedRef, Relation: event.LockedDescriptor.(*catalog.Relation), Storage: e.PrivateStorageLocked(scope.Owner.Catalog, event.LockedRef.Address)})
+		retain(exec.Leaf{Ref: event.LockedRef, Relation: event.LockedDescriptor.(*catalog.Relation), Storage: e.PrivateStorageLocked(scope.PendingCatalog(), event.LockedRef.Address)})
 		if err := holdBinding(condition); err != nil {
 			return fail(err)
 		}
@@ -189,7 +189,7 @@ func ExecuteRule(e *core.Engine, scope *core.StatementScope, stmt parser.Stateme
 				}
 				targets = append(targets, scope.MutationTarget)
 				e.Mu.Lock()
-				scope.QuerySources = append(scope.QuerySources, exec.Leaf{Ref: scope.LockedRef, Relation: scope.LockedDescriptor.(*catalog.Relation), Only: table.SourceOnly(command), Storage: e.PrivateStorageLocked(scope.Owner.Catalog, scope.LockedRef.Address)})
+				scope.QuerySources = append(scope.QuerySources, exec.Leaf{Ref: scope.LockedRef, Relation: scope.LockedDescriptor.(*catalog.Relation), Only: table.SourceOnly(command), Storage: e.PrivateStorageLocked(scope.PendingCatalog(), scope.LockedRef.Address)})
 				e.Mu.Unlock()
 				return nil
 			})
@@ -245,7 +245,7 @@ func ExecuteRule(e *core.Engine, scope *core.StatementScope, stmt parser.Stateme
 }
 
 // publishRelationChangeLocked finishes a planned RULE, POLICY or TRIGGER change.
-// Engine.mu is held on entry and released on every return. A skip ends in its
+// core.Engine.mu is held on entry and released on every return. A skip ends in its
 // fenced NOTICE; otherwise the change is staged with its query sources and,
 // after the unlock, replaced, validated and published against the epoch of
 // the relation reference.
@@ -274,6 +274,9 @@ func publishRelationChangeLocked(e *core.Engine, scope *core.StatementScope, aut
 	if err != nil {
 		return core.Result{}, err
 	}
-	scope.Completed = true
+	if change.Deleted != (ids.ObjectAddress{}) {
+		scope.RecordEventDrop(change.Deleted)
+	}
+	scope.CompleteUtility()
 	return core.Result{}, nil
 }

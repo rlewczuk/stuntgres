@@ -27,7 +27,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
-	captures, err := index.SelectOverlayCapturesLocked(&e.Storage, view, &stage.Candidate, stage.IndexesOrZero(), scope.Owner.Catalog, c)
+	captures, err := index.SelectOverlayCapturesLocked(&e.Storage, view, &stage.Candidate, stage.IndexesOrZero(), scope.PendingCatalog(), c)
 	e.Mu.Unlock()
 	if err != nil {
 		return err
@@ -35,6 +35,9 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	for i := range captures {
 		capture := &captures[i]
 		idx, parent := capture.Index, capture.Parent
+		if stage.deferredAlterRows[parent.Address()] {
+			continue
+		}
 		building := true
 		indexAuth := auth
 		if r := stage.MaterializedOrZero().Replacement; r != nil && r.Concurrent && r.Original.Address() == parent.Address() {

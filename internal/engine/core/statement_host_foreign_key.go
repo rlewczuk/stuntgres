@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
@@ -25,15 +24,6 @@ func (h *statementHost) Staged() (map[ids.ObjectAddress][]storage.RowVersion, ma
 	return h.Stage.Rows, h.Stage.Deletes
 }
 
-// foreignKeyChanges is the transaction catalog FK capture reads: the
-// statement's own during DDL, the owner's otherwise.
-func (s *StatementScope) foreignKeyChanges() *session.Journal {
-	if s.Catalog != nil {
-		return s.Catalog
-	}
-	return s.Owner.Catalog
-}
-
 func (h *statementHost) ForeignKeyJobs() ([]dml.ForeignKeyJob, map[ids.ObjectRef]lock.Mode, dml.Authority, error) {
 	s := h.scope()
 	e := s.Engine()
@@ -43,7 +33,7 @@ func (h *statementHost) ForeignKeyJobs() ([]dml.ForeignKeyJob, map[ids.ObjectRef
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	auth.Catalog = e.PrivateCatalogLocked(s.foreignKeyChanges())
+	auth.Catalog = e.PrivateCatalogLocked(s.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	rows, deletes := s.Stage.Rows, s.Stage.Deletes
 	if s.effectCommand != 0 {
@@ -78,7 +68,7 @@ func (h *statementHost) RecaptureAuthority(a dml.Authority) dml.Authority {
 	e := s.Engine()
 	auth := *foreignAuthorizationOf(a)
 	e.Mu.Lock()
-	auth.Catalog = e.PrivateCatalogLocked(s.foreignKeyChanges())
+	auth.Catalog = e.PrivateCatalogLocked(s.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	e.Mu.Unlock()
 	return &auth
@@ -92,7 +82,7 @@ func (h *statementHost) ForeignKeyAuthority() (dml.Authority, error) {
 	}
 	e := s.Engine()
 	e.Mu.Lock()
-	auth.Catalog = e.PrivateCatalogLocked(s.foreignKeyChanges())
+	auth.Catalog = e.PrivateCatalogLocked(s.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	e.Mu.Unlock()
 	return &auth, nil
@@ -137,7 +127,7 @@ func (h *statementHost) RefreshForeignActionJob(job *dml.ForeignKeyJob) error {
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return dml.RefreshForeignActionJob(e.PrivateCatalogLocked(s.Owner.Catalog), job)
+	return dml.RefreshForeignActionJob(e.PrivateCatalogLocked(s.PendingCatalog()), job)
 }
 
 func (h *statementHost) AdmitForeignAction(ref ids.ObjectRef, job *dml.ForeignKeyJob, writable bool) error {

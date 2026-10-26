@@ -41,7 +41,7 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *index.Wri
 	return row, nil
 }
 func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate visibility.DeleteCandidate) {
-	parent, ok := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(candidate.Ref.Address)
+	parent, ok := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(candidate.Ref.Address)
 	if !ok || len(parent.Constraints.Exclusion) == 0 {
 		return
 	}

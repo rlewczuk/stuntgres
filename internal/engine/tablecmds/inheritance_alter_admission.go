@@ -35,7 +35,7 @@ func (r *Engine) admitInheritanceAlter(scope *core.StatementScope, op *session.O
 	}
 	for {
 		e.Mu.Lock()
-		current := e.PrivateCatalogLocked(scope.Owner.Catalog)
+		current := e.PrivateCatalogLocked(scope.PendingCatalog())
 		if current.Epoch() != auth.Catalog.Epoch() {
 			e.Mu.Unlock()
 			return ids.ErrCatalogReplaced
@@ -64,7 +64,7 @@ func (r *Engine) admitInheritanceAlter(scope *core.StatementScope, op *session.O
 				locked[observed.Address()] = true
 			}
 			e.Mu.Lock()
-			actualCatalog := e.PrivateCatalogLocked(scope.Owner.Catalog)
+			actualCatalog := e.PrivateCatalogLocked(scope.PendingCatalog())
 			actual, _ := actualCatalog.Relation(observed.Address())
 			if actualCatalog.Epoch() != auth.Catalog.Epoch() || !table.InheritanceMarkerPublication(observed, actual) {
 				e.Mu.Unlock()
@@ -123,7 +123,7 @@ func (r *Engine) admitInheritanceAlter(scope *core.StatementScope, op *session.O
 		// Every prepared ancestor is protected by its real acquired grant. A final
 		// actual closure capture contains growth admitted during the last wait.
 		e.Mu.Lock()
-		current = e.PrivateCatalogLocked(scope.Owner.Catalog)
+		current = e.PrivateCatalogLocked(scope.PendingCatalog())
 		for _, prepared := range state.Prepared {
 			if err := prepared.Reader.Validate(current); err != nil {
 				e.Mu.Unlock()

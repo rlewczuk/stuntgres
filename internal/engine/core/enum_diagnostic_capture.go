@@ -23,10 +23,11 @@ func CaptureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string,
 // it. Inputs are never retained across admissions, so an existing callback is
 // already the current scope's capture and can be shared without another closure.
 func CaptureEnumOperationSafety(op *session.Operation, input *sqltype.InputEnvironment) {
-	if input.EnumMemberSafe != nil || op == nil || op.Session == nil || op.Session.Transactions == nil || op.Session.Transactions.Catalog == nil {
+	journal := OperationCatalog(op)
+	if input.EnumMemberSafe != nil || journal == nil {
 		return
 	}
-	input.EnumMemberSafe = typedef.EnumSafety(typedef.EnumJournalOf(op.Session.Transactions.Catalog.Enum).UnsafeMembers())
+	input.EnumMemberSafe = typedef.EnumSafety(typedef.EnumJournalOf(journal.Enum).UnsafeMembers())
 }
 
 // Capture naming only after the caller supplies its coherent catalog authority.

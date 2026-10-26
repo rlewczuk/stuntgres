@@ -25,7 +25,7 @@ func (s *StatementScope) AcquireViewSources(retainProviders bool) (providers []e
 	}()
 	e := s.Engine()
 	e.Mu.Lock()
-	catalogView := e.PrivateCatalogLocked(s.Owner.Catalog)
+	catalogView := e.PrivateCatalogLocked(s.PendingCatalog())
 	d, _ := catalogView.Relation(s.LockedRef.Address)
 	hasView := d != nil && (d.RelationKind == catalog.ViewRelation || s.MaterializedOrZero().Refresh && d.RelationKind == catalog.MaterializedViewRelation)
 	for _, leaf := range s.QuerySources {
@@ -46,7 +46,7 @@ func (s *StatementScope) AcquireViewSources(retainProviders bool) (providers []e
 	if err == nil && retainProviders {
 		for ref := range seen {
 			d := catalogView.MustRelation(ref.Address)
-			providers = append(providers, exec.Leaf{Ref: ref, Relation: d, Storage: e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)})
+			providers = append(providers, exec.Leaf{Ref: ref, Relation: d, Storage: e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)})
 		}
 	}
 	if err == nil && s.MaterializedOrZero().Refresh && closure.MaterializedSource {
@@ -74,10 +74,10 @@ func (s *StatementScope) AcquireViewSources(retainProviders bool) (providers []e
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	catalogView = e.PrivateCatalogLocked(s.Owner.Catalog)
+	catalogView = e.PrivateCatalogLocked(s.PendingCatalog())
 	if s.MaterializedOrZero().Refresh {
 		for _, observed := range s.MaterializedOrZero().Sources {
-			if !view.MaterializedSourceCurrent(s.MaterializedOrZero().SourceView, observed, catalogView.State(), e.PrivateStorageLocked(s.Owner.Catalog, observed.Address())) {
+			if !view.MaterializedSourceCurrent(s.MaterializedOrZero().SourceView, observed, catalogView.State(), e.PrivateStorageLocked(s.PendingCatalog(), observed.Address())) {
 				return providers, ids.ErrCatalogReplaced
 			}
 		}
@@ -108,7 +108,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
 	for _, ref := range refs {
 		e.Mu.Lock()
-		d, _ := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
+		d, _ := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
 		unsupported := d != nil && catalog.HierarchyRelation(d) && modes[ref] != 0
 		e.Mu.Unlock()
 		if unsupported {
@@ -144,7 +144,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 			s.ReplacementRead = true
 		}
 		e.Mu.Lock()
-		current, exists := e.PrivateCatalogLocked(s.Owner.Catalog).Find(ref.Address)
+		current, exists := e.PrivateCatalogLocked(s.PendingCatalog()).Find(ref.Address)
 		valid := ref.Domain() == e.Catalog.Domain && ref.Epoch == e.Catalog.State.Epoch() && exists
 		if valid && d != nil && PreparedDefinitionStamp(current, s.Op.Session) != PreparedDefinitionStamp(d, s.Op.Session) {
 			s.prepared.changedDuringAdmission = true

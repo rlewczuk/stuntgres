@@ -105,7 +105,7 @@ func ExecuteCreateView(e *core.Engine, scope *core.StatementScope, createView *p
 	}
 	_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return core.Result{}, err
 }

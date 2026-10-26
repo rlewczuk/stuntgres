@@ -154,7 +154,7 @@ func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 	if core.RoutineAnalysisPLProcedure(&retained) != &replacement || core.RoutineAnalysisPLDiagnostic(&retained) != "cache_fn()" {
 		t.Fatal("replacement carrier did not own recaptured signature")
 	}
-	restore := core.ScopeActivateSQLRoutine(s, nil, read)
+	restore := s.ActivateSQLRoutine(nil, read)
 	if core.RoutineDemandPLDiagnostic(core.ScopeSQLRoutineRef(s)) != "" {
 		t.Fatal("nested SQL activation inherited PL identity")
 	}

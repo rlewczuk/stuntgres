@@ -25,6 +25,15 @@ type Spec struct {
 }
 
 var Specs = [...]Spec{
+	{ids.EventTriggerClassID, ids.PGCatalogNamespaceOID, "pg_event_trigger", []ColumnSpec{
+		{"oid", sqltype.Oid, false, 0, 0, -1},
+		{"evtname", sqltype.Name, false, 0, 0, -1},
+		{"evtevent", sqltype.Name, false, 0, 0, -1},
+		{"evtowner", sqltype.Oid, false, 0, 0, -1},
+		{"evtfoid", sqltype.Oid, false, 0, 0, -1},
+		{"evtenabled", sqltype.Char, false, 0, 0, -1},
+		{"evttags", sqltype.ID(1009), true, 0, 1, -1},
+	}, false, CatalogHasIndexes(ids.EventTriggerClassID), true, false, "stuntgres: missing catalog source type"},
 	{StatAllTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_all_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatSysTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_sys_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatUserTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_user_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},

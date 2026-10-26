@@ -16,7 +16,9 @@ BEGIN ATOMIC is an ordered SQL program, not a transaction or procedural return.
 Checked standard-body and declaration-default recipes live in `stored`, above
 this package, never as cached values or catalog dependencies in proc.
 
-PL trigger definitions carry an explicit trigger contract and zero formals.
+`Definition.Invocation` and `PLProgram.Invocation` explicitly distinguish
+ordinary routines, DML triggers and event triggers; none is inferred from a
+single trigger boolean. PL DML-trigger definitions have zero formals.
 Their fixed OLD/NEW and TG lexical slots are separate from SQL parameters;
 invocations supply fresh physical row shapes, typed absent records and owned
 zero-based text-array arguments. The engine validates final trigger row returns
@@ -32,6 +34,16 @@ equivalence retains the trigger contract as well as the FOUND owner.
 Trigger assignment diagnostics retain binding-versus-execution provenance:
 binding failures identify the complete assignment, while an executed arithmetic
 failure retains its causal error and PL statement frame.
+
+Event functions use a separate zero-formal contract with only `TG_EVENT` and
+`TG_TAG` as injected `pg_catalog.text` datums, followed by ordinary private FOUND
+and declared locals. `NewPLEventTriggerFrame` owns fresh values; `EventTrigger`
+has void-like bare RETURN/fallthrough semantics, never scalar pseudotype or
+DML composite-row return coercion. Both compilation and checked-layout validation
+allow bare RETURN for the explicit event invocation kind, while retaining the
+expression-return prohibition and ordinary nonvoid return requirements.
+Compiler/provider/layout validation retains the invocation kind through copying,
+definition replacement and remapping.
 
 Complete parsing closes positional formals even after an unresolved call stops
 semantic binding. Private Restore may defer only a structured terminal missing
@@ -225,7 +237,8 @@ names, queries and rendered-coordinate metadata without trusting a stored counte
 `ValidateDefinition` checks cursor recipe/argument/target associations, implicit
 slot roles and lexical scopes as well as the exact all-formal namespace.
 Canonical ordinary-routine root bindings retain only numeric/named formal slots;
-trigger roots retain their fixed OLD/NEW/TG namespace instead. The separate
+DML-trigger roots retain their OLD/NEW/TG namespace; event-trigger roots retain
+their separate two-TEXT namespace. The separate
 function-scope FOUND overlay shadows a formal named `found` for bare and
 function-qualified lookup, after inner locals; `$n` and OUT/INOUT return slots
 still address the original formal. Alias and `%TYPE` lookup use the same overlay.
@@ -272,8 +285,9 @@ caller-resolved `PLTriggerRelation`; `(*PLFrame).CursorName` reads a cursor slot
 
 `PLRun{Host, Definition, Frame}` walks one invocation of a checked program
 (`plpgsql_walk*.go`). Entry points: `Invoke` (fresh frame, result selection and
-the missing-RETURN diagnostic), `Trigger` (caller's trigger frame, then
-`TriggerReturn` against the current row type), `Block` and `Statements`.
+the missing-RETURN diagnostic), `Trigger` (caller's DML frame, then
+`TriggerReturn` against the current row type), `EventTrigger` (caller's event
+frame and void-like exit), `Block` and `Statements`.
 `AssignVariable`, `PrepareVariable` and `AssignRow` are exported for the host's
 cursor and target code. The walk holds no lock; element traversal allocates no
 enumerator or source copy. Published record rows and proper trailing slices own

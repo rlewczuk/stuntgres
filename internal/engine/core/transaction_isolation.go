@@ -70,7 +70,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 				return Result{}, err
 			}
 		}
-		s.Completed = true
+		s.CompleteUtility()
 		return Result{}, nil
 	}
 	t.Mu.Lock()
@@ -83,7 +83,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	}
 	err := assignModes(t, stmt.Modes)
 	if err == nil {
-		s.Completed = true
+		s.CompleteUtility()
 	}
 	return Result{}, err
 }

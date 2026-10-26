@@ -166,11 +166,11 @@ func triggerUnitFixtureContext(t *testing.T, ctx context.Context, source string)
 	}
 	t.Cleanup(func() { s.Finish(nil) })
 	trigger, _ := e.CatalogRead().LookupType(2279)
-	d := triggerUnitProcedure(t, e, s, "trigger_unit_fn", 9500003, trigger, true, source)
+	d := triggerUnitProcedure(t, e, s, "trigger_unit_fn", 9500003, trigger, proc.DMLTriggerInvocation, source)
 	return e, s, e.CatalogRead(), relation, d
 }
 
-func triggerUnitProcedure(t *testing.T, e *core.Engine, s *core.StatementScope, name string, oid ids.OID, result *sqltype.Descriptor, trigger bool, source string) *catalog.Procedure {
+func triggerUnitProcedure(t *testing.T, e *core.Engine, s *core.StatementScope, name string, oid ids.OID, result *sqltype.Descriptor, invocation proc.InvocationKind, source string) *catalog.Procedure {
 	t.Helper()
 	read := e.CatalogRead()
 	language, err := catalog.LookupLanguage(read, "plpgsql")
@@ -182,7 +182,7 @@ func triggerUnitProcedure(t *testing.T, e *core.Engine, s *core.StatementScope, 
 		t.Fatal(err)
 	}
 	namespace := read.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
-	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, Owner: e.Roles().LookupRef("postgres"), Language: language.Address(), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.ID()), Volatility: expr.Volatile, SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Trigger: trigger, Name: name, Source: source, Result: result.Usage(), PLSyntax: raw}}
+	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, Owner: e.Roles().LookupRef("postgres"), Language: language.Address(), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.ID()), Volatility: expr.Volatile, SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Invocation: invocation, Name: name, Source: source, Result: result.Usage(), PLSyntax: raw}}
 	if err := d.SQL.SetFormals(nil); err != nil {
 		t.Fatal(err)
 	}

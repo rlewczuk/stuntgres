@@ -95,7 +95,7 @@ func stageDefaultPrivilegesLocked(e *core.Engine, scope *core.StatementScope, au
 	if _, err := e.RoleStore.RevisionCandidateLocked(); err != nil {
 		return core.Result{}, err
 	}
-	changes := scope.Owner.Catalog.Clone()
+	changes := scope.PendingCatalog().Clone()
 	for key, record := range updates {
 		defaultACLChangeLocked(e, changes, key, record)
 	}

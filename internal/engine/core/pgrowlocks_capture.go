@@ -48,7 +48,7 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 	}
 	if err == nil {
 		descriptor, _ = auth.Catalog.Relation(ref.Address)
-		stored = e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
+		stored = e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -123,8 +123,8 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 	}
 	e.Mu.Lock()
 	valid := e.Catalog.State.Epoch() == ref.Epoch &&
-		e.PrivateCatalogLocked(s.Owner.Catalog).Get(ref.Address) == descriptor &&
-		e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) == stored
+		e.PrivateCatalogLocked(s.PendingCatalog()).Get(ref.Address) == descriptor &&
+		e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == stored
 	e.Mu.Unlock()
 	if !valid {
 		return nil, ids.ErrCatalogReplaced
@@ -136,7 +136,7 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 // replacement incarnation, even if the original descriptor was dropped.
 func (s *StatementScope) pgrowlocksReadmitLocked(e *Engine, auth AuthorizationView, name parser.ObjectName, ref ids.ObjectRef, descriptor *catalog.Relation, stored *storage.Relation) error {
 	if ref.Domain() != e.Catalog.Domain || ref.Epoch != auth.Catalog.Epoch() ||
-		auth.Catalog.Get(ref.Address) != descriptor || e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) != stored {
+		auth.Catalog.Get(ref.Address) != descriptor || e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) != stored {
 		return ids.ErrCatalogReplaced
 	}
 	current, err := resolveRelationSnapshot(auth, name, true)

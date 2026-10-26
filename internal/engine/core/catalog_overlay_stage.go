@@ -22,7 +22,11 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		e.Mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	err := e.captureCatalogStageLocked(stage, changes, e.PrivateCatalogLocked(scope.Owner.Catalog).State(), scope.CatalogAuthority)
+	prior := scope.Catalog
+	if prior == nil {
+		prior = scope.Owner.Catalog
+	}
+	err := e.captureCatalogStageLocked(stage, changes, e.PrivateCatalogLocked(prior).State(), scope.CatalogAuthority)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -31,7 +35,7 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		return err
 	}
 	if stage.RemovalCount() > 0 {
-		scope.discardRemovedWrites(stage)
+		scope.DiscardRemovedWrites(stage)
 	}
 	if err = scope.projectCatalogOverlayShapes(stage, changes); err != nil {
 		return err
@@ -66,17 +70,24 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err == nil && scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
-	if err == nil && stage.AuthSession != nil && (stage.AuthSession != scope.Op.Session || scope.Op.Session.Authorization.Revision != stage.AuthRevision || e.OperationRolesLocked(scope.Op).Revision != stage.RoleRevision) {
-		err = fmt.Errorf("stuntgres: authorization changed before publication")
-	}
+	// Descriptor predecessors retain conflict precedence when an ACL update
+	// also advances role authority. Both proofs remain required for transfer.
 	if err == nil {
 		err = e.CatalogPreflightLocked(changes)
+	}
+	if err == nil && stage.AuthSession != nil && (stage.AuthSession != scope.Op.Session || scope.Op.Session.Authorization.Revision != stage.AuthRevision || e.OperationRolesLocked(scope.Op).Revision != stage.RoleRevision) {
+		err = fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	if err == nil {
 		err = e.AssignTransactionXIDLocked(scope.TxRef)
 	}
 	if err == nil {
 		scope.Catalog = changes
+		for address, removal := range stage.Removals() {
+			if !removal.Internal {
+				scope.RecordEventDrop(address)
+			}
+		}
 		stage.Lifecycle = catalogPublished
 	}
 	scope.Op.Session.Mu.Unlock()
@@ -123,12 +134,11 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 	}
 }
 
-func (s *StatementScope) discardRemovedWrites(stage *CatalogStage) {
-	rows, deletes := s.OwnWrites, s.OwnDeletes
-	if s.projectedRoots {
-		rows, deletes = s.Stage.Rows, s.Stage.Deletes
-	}
-	s.projectedRoots = true
+// DiscardRemovedWrites retains complete private roots for surviving relations,
+// including the current callback suffix, and removes roots retired by stage.
+func (s *StatementScope) DiscardRemovedWrites(stage *CatalogStage) {
+	s.projectPrivateRoots()
+	rows, deletes := s.Stage.Rows, s.Stage.Deletes
 	s.Stage.Rows = make(map[ids.ObjectAddress][]storage.RowVersion, len(rows))
 	for a, values := range rows {
 		if _, removed := stage.Removal(a); !removed {

@@ -14,6 +14,9 @@ import (
 // Engine.mu protects committed and pending immutable role roots; statement
 // admission prevents concurrent mutation of this session's transaction overlay.
 func (e *Engine) OperationRolesLocked(op *session.Operation) *access.RoleRecord {
+	if c := OperationCatalog(op); c != nil && c.Roles != nil {
+		return c.Roles
+	}
 	if op != nil {
 		return e.sessionRolesLocked(op.Session)
 	}
@@ -38,18 +41,19 @@ func InstallOperationRolesLocked(e *Engine, op *session.Operation, next *access.
 	next.Revision = revision
 	e.RoleStore.InstallRevisionFrontierLocked(revision + 1)
 	t := op.Session.Transactions
-	if !t.RetainsTransaction() && t.State != session.TxActive {
+	scope := ActiveScopeOfLease(op.Lease)
+	if !t.RetainsTransaction() && t.State != session.TxActive && (scope == nil || scope.Catalog == nil) {
 		e.RoleStore.PublishLocked(next)
 		return nil
 	}
-	c := t.Catalog.Clone()
+	c := OperationCatalog(op).Clone()
 	if c.Roles == nil {
 		// Completed metadata and producer read fences do not supply this
 		// first installed role root's write predecessor.
 		c.RolesBase = e.OperationRolesLocked(op)
 	}
 	c.Roles = next
-	t.Catalog = c
+	installOperationCatalog(op, c)
 	return nil
 }
 
@@ -95,37 +99,37 @@ func (e *Engine) mergedJournalRolesLocked(ctx context.Context, c *session.Journa
 }
 
 func (e *Engine) refreshOperationRolesLocked(op *session.Operation) error {
-	t := op.Session.Transactions
-	if t == nil || t.Catalog == nil || t.Catalog.Roles == nil || t.Catalog.RolesBase == e.RoleStore.Published {
+	current := OperationCatalog(op)
+	if current == nil || current.Roles == nil || current.RolesBase == e.RoleStore.Published {
 		return nil
 	}
 	// A peer ACL publication changed no principal graph. Preserve the owner's
 	// exact private root/base and logical ACL delta until final publication.
-	if e.RoleStore.Published.SameAuthority(t.Catalog.RolesBase) {
+	if e.RoleStore.Published.SameAuthority(current.RolesBase) {
 		return nil
 	}
-	if t.Catalog.Roles.SameAuthority(t.Catalog.RolesBase) {
+	if current.Roles.SameAuthority(current.RolesBase) {
 		// Completed ACL work has no actual principal delta. Refresh its view
 		// through the incoming merge, preserving the original logical delta
 		// without reserving the allocator frontier during a read.
-		if _, err := e.journalRolePublicationLocked(t.Catalog, false); err != nil {
+		if _, err := e.journalRolePublicationLocked(current, false); err != nil {
 			return err
 		}
-		c := t.Catalog.Clone()
+		c := current.Clone()
 		next := e.RoleStore.Published.Advance()
 		next.Revision = e.RoleStore.Published.Revision + (c.Roles.Revision - c.RolesBase.Revision)
 		c.Roles, c.RolesBase = next, e.RoleStore.Published
-		t.Catalog = c
+		installOperationCatalog(op, c)
 		return nil
 	}
-	next, err := e.mergedJournalRolesLocked(op.Context(), t.Catalog)
+	next, err := e.mergedJournalRolesLocked(op.Context(), current)
 	if err != nil {
 		return err
 	}
-	c := t.Catalog.Clone()
+	c := current.Clone()
 	c.Roles, c.RolesBase = next, e.RoleStore.Published
 	e.RoleStore.AdvanceRevisionFrontierLocked(next.Revision)
-	t.Catalog = c
+	installOperationCatalog(op, c)
 	return nil
 }
 

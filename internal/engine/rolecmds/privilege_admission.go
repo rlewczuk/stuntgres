@@ -76,7 +76,7 @@ func admitObjectGrant(s *core.StatementScope, req role.GrantRequest, statement *
 	var scratch [8]privilegeClaim
 	claims := scratch[:0]
 	e.Mu.Lock()
-	current := e.PrivateCatalogLocked(s.Owner.Catalog)
+	current := e.PrivateCatalogLocked(s.PendingCatalog())
 	for i, descriptor := range targets {
 		address := descriptor.Address()
 		fresh := current.Get(address)

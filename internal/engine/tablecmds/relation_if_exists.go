@@ -18,7 +18,7 @@ func SkipMissingRelationLocked(e *core.Engine, scope *core.StatementScope, op *s
 		if err != nil {
 			return core.Result{}, err
 		}
-		scope.Completed = true
+		scope.CompleteUtility()
 	} else {
 		if err == nil {
 			err = op.Context().Err()
@@ -27,7 +27,7 @@ func SkipMissingRelationLocked(e *core.Engine, scope *core.StatementScope, op *s
 			e.Mu.Unlock()
 			return core.Result{}, err
 		}
-		scope.Completed = true
+		scope.CompleteUtility()
 		e.Mu.Unlock()
 	}
 	op.EmitNotice(session.LevelNotice, session.MissingRelation(name))

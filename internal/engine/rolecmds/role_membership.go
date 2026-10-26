@@ -18,7 +18,7 @@ func membershipLocked(e *core.Engine, op *session.Operation, v core.Authorizatio
 		if err != nil {
 			return core.Result{}, err
 		}
-		if scope := core.ScopeOfLease(op.Lease); scope != nil && !scope.Finished {
+		if scope := core.ActiveScopeOfLease(op.Lease); scope != nil {
 			e.Mu.Unlock()
 			lockErr := acquireMembershipLocks(scope, v, s, &n)
 			e.Mu.Lock()

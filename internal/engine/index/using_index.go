@@ -186,7 +186,7 @@ func CaptureUsingIndexes(h Host, parent *catalog.Relation, actions []parser.Alte
 					break
 				}
 			}
-			err = h.RemoveObject(stageRef(h, idx.Address()), false)
+			err = h.RemoveInternalObject(stageRef(h, idx.Address()), false)
 			if err == nil {
 				err = h.Stage().Create(&clone)
 			}

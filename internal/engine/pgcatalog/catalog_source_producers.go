@@ -50,6 +50,7 @@ var producers = [...]Registration{
 	{3079, captureExtensionCatalog},
 	{3118, captureForeignCatalog},
 	{3456, capturePGCollation},
+	{3466, capturePGEventTrigger},
 	{3501, capturePGEnum},
 	{3541, capturePGRange},
 	{TransformOID, capturePGTransform},

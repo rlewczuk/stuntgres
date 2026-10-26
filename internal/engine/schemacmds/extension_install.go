@@ -34,7 +34,7 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 		return core.Result{}, err
 	}
 	e.Mu.Lock()
-	changes := scope.Owner.Catalog.Clone()
+	changes := scope.PendingCatalog().Clone()
 	for a, d := range stage.Descriptors() {
 		// Validation ran without the mutex. Capture the stage's exact
 		// predecessor, never whatever a peer published during validation.

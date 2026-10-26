@@ -19,11 +19,6 @@ func FinalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.S
 // MaxSQLRoutineDepth is maxSQLRoutineDepth.
 const MaxSQLRoutineDepth = maxSQLRoutineDepth
 
-// ScopeActivateSQLRoutine calls x.activateSQLRoutine.
-func ScopeActivateSQLRoutine(x *StatementScope, inputs []sqltype.Usage, largeObjectRead catalog.Read) func(error) error {
-	return x.activateSQLRoutine(inputs, largeObjectRead)
-}
-
 // ScopeEnterSQLRoutine calls x.enterSQLRoutine.
 func ScopeEnterSQLRoutine(x *StatementScope) error {
 	return x.enterSQLRoutine()

@@ -135,7 +135,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		err = indexes.Repair(ctx, &evaluation, relations, changed, moved, auth.View, DisclosureEnv(&auth))
 	}
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	err = scope.Finish(err)
 	if err != nil {

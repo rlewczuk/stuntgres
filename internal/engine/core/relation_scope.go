@@ -401,7 +401,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if ref.Domain() != nil {
 		err = s.ObservePartitionRelationLocked(e, ref)
 		if action, ok := stmt.(*parser.AlterTable); ok && err == nil {
-			d, exists := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
+			d, exists := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
 			partitionDrop = exists && catalog.HierarchyRelation(d) && index.PartitionConstraintDropActions(d, action.Actions)
 		}
 	}
@@ -457,7 +457,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	descriptor, live := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
+	descriptor, live := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
 	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || txref.Epoch() != e.Catalog.State.Epoch() || !live {
 		return ids.ErrCatalogReplaced
 	}
@@ -480,7 +480,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		s.prepared.changedDuringAdmission = true
 	}
 	if source {
-		s.QuerySources = append(s.QuerySources, exec.Leaf{Ref: ref, Relation: descriptor, Only: table.SourceOnly(stmt), Storage: e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)})
+		s.QuerySources = append(s.QuerySources, exec.Leaf{Ref: ref, Relation: descriptor, Only: table.SourceOnly(stmt), Storage: e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)})
 	} else {
 		s.LockedRef = ref
 		s.LockedDescriptor = descriptor
@@ -494,7 +494,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			storageTarget = descriptor.RelationKind == catalog.TableRelation && (len(s.mutations) != 0 || statement.Conflict != nil && statement.Conflict.Update)
 		}
 		if storageTarget {
-			s.LockedStorage = e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
+			s.LockedStorage = e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
 			if s.LockedStorage == nil {
 				return errors.New("stuntgres: relation storage is missing")
 			}
@@ -588,21 +588,21 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 	if len(s.QuerySources) == 0 && s.LockedRef.Domain() == nil && len(s.PartitionRelations) == 0 {
 		return nil
 	}
-	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	view := e.PrivateCatalogLocked(s.PendingCatalog())
 	for _, source := range s.Inheritance.relations {
-		if _, err := CurrentQuerySourceLocked(e, view, s.Owner.Catalog, source); err != nil {
+		if _, err := CurrentQuerySourceLocked(e, view, s.PendingCatalog(), source); err != nil {
 			return err
 		}
 	}
 	for i, source := range s.QuerySources {
-		current, err := CurrentQuerySourceLocked(e, view, s.Owner.Catalog, source)
+		current, err := CurrentQuerySourceLocked(e, view, s.PendingCatalog(), source)
 		if err != nil {
 			return err
 		}
 		if refreshSources && (current.RelationKind != catalog.MaterializedViewRelation || s.View == nil) {
 			s.QuerySources[i].Relation = current
 			if current.RelationKind == catalog.MaterializedViewRelation {
-				s.QuerySources[i].Storage = e.PrivateStorageLocked(s.Owner.Catalog, source.Ref.Address)
+				s.QuerySources[i].Storage = e.PrivateStorageLocked(s.PendingCatalog(), source.Ref.Address)
 			}
 		}
 	}
@@ -616,7 +616,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	if s.LockedRef.Domain() == nil {
 		return nil
 	}
-	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	view := e.PrivateCatalogLocked(s.PendingCatalog())
 	if s.LockedRef.Domain() != e.Catalog.Domain || s.LockedRef.Epoch != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
@@ -628,14 +628,14 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	} else if s.LockedStorage != nil {
 		relation, ok := current.(*catalog.Relation)
 		captured, capturedOK := s.LockedDescriptor.(*catalog.Relation)
-		if !ok || !capturedOK || s.LockedRef.Address.SubID != 0 || e.PrivateStorageLocked(s.Owner.Catalog, s.LockedRef.Address) != s.LockedStorage || !index.SameRelationRowShape(captured, relation) {
+		if !ok || !capturedOK || s.LockedRef.Address.SubID != 0 || e.PrivateStorageLocked(s.PendingCatalog(), s.LockedRef.Address) != s.LockedStorage || !index.SameRelationRowShape(captured, relation) {
 			return ids.ErrCatalogReplaced
 		}
 	} else if current != s.LockedDescriptor {
 		return ids.ErrCatalogReplaced
 	}
 	for _, target := range s.InheritedTargets {
-		if _, err := CurrentQuerySourceLocked(e, view, s.Owner.Catalog, target); err != nil {
+		if _, err := CurrentQuerySourceLocked(e, view, s.PendingCatalog(), target); err != nil {
 			return err
 		}
 	}

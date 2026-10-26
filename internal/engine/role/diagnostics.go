@@ -71,6 +71,8 @@ func DependencyDescription(v access.View, path []ids.ObjectAddress, dep access.R
 		kind = "tablespace "
 	case *catalog.Language:
 		kind = "language "
+	case *catalog.EventTrigger:
+		kind = "event trigger "
 	case *catalog.LargeObject:
 		kind, name = "large object ", d.Name()
 	case *catalog.Extension:

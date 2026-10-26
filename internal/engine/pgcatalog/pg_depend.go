@@ -58,6 +58,8 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			add(descriptor.Address(), membership, 'e')
 		}
 		switch d := descriptor.(type) {
+		case *catalog.EventTrigger:
+			add(d.Address(), d.Function.Address, 'n')
 		case *catalog.AccessMethod:
 			if !catalog.AccessMethodSeeded(d) {
 				for _, dependency := range catalog.AccessMethodDependencies(d) {

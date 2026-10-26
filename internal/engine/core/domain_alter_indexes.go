@@ -4,7 +4,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -29,10 +28,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 			sourceRoots[address] = e.domainStageIndexRootLocked(stage, address)
 		}
 	}
-	var private *session.Journal
-	if stage.AuthSession != nil && (stage.AuthSession.Transactions.State == session.TxActive || stage.AuthSession.Transactions.RetainsTransaction()) {
-		private = stage.AuthSession.Transactions.Catalog
-	}
+	private := stageJournalLocked(stage)
 	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter.AlterContext(), stage.Base, sources, sourceRoots, e.Visibility.CommitSeq(), stores, private)
 	if err != nil {
 		return err

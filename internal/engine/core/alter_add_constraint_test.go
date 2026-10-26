@@ -45,7 +45,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	if core.ScopeProjectedRoots(scope) {
+	if scope.ProjectedRoots {
 		t.Fatal("ordinary UPDATE acquired historical provenance")
 	}
 	current := scope.Stage.Rows[child.Address()][0]
@@ -83,7 +83,7 @@ func TestAlterAddConstraintProjectionProvenance(t *testing.T) {
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	if !core.ScopeProjectedRoots(scope) || !core.WriteStageReplacing(&scope.Stage) || len(scope.Stage.Rows[tDesc.Address()]) != 1 || len(scope.Stage.Rows[uDesc.Address()]) != 1 {
+	if !scope.ProjectedRoots || !scope.Stage.Replacing || len(scope.Stage.Rows[tDesc.Address()]) != 1 || len(scope.Stage.Rows[uDesc.Address()]) != 1 {
 		t.Fatal("projection not complete historical overlay", scope.Stage.Rows)
 	}
 	if !reflect.DeepEqual(scope.Stage.Rows[uDesc.Address()], scope.OwnWrites[uDesc.Address()]) {
@@ -98,7 +98,7 @@ func TestAlterAddConstraintProjectionProvenance(t *testing.T) {
 		_ = write.Finish(err)
 		t.Fatal(err)
 	}
-	if core.ScopeProjectedRoots(write) {
+	if write.ProjectedRoots {
 		t.Fatal("fresh DML got projection exemption")
 	}
 	err = write.Finish(nil)

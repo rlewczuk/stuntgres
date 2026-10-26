@@ -83,9 +83,9 @@ func (s *StatementScope) ValidateQuerySources(leaves []exec.Leaf) error {
 			}
 		}
 		e := s.Engine()
-		catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+		catalog := e.PrivateCatalogLocked(s.PendingCatalog())
 		for _, leaf := range leaves {
-			if _, err := CurrentQuerySourceLocked(e, catalog, s.Owner.Catalog, leaf); err != nil {
+			if _, err := CurrentQuerySourceLocked(e, catalog, s.PendingCatalog(), leaf); err != nil {
 				return err
 			}
 		}
@@ -164,7 +164,7 @@ func (s *StatementScope) commentEngine() *Engine {
 // query providers and completed-row CHECK evaluation. The caller holds e.mu.
 func (e *Engine) CaptureCommentSnapshotLocked(scope *StatementScope) error {
 	if scope.Inquiry.CommentCatalog.State() == nil {
-		scope.Inquiry.CommentCatalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
+		scope.Inquiry.CommentCatalog = e.PrivateCatalogLocked(scope.PendingCatalog())
 		scope.Inquiry.commentRoles = e.RoleStore.Read(&e.Catalog.Owner, scope.Inquiry.CommentCatalog, e.OperationRolesLocked(scope.Op))
 	}
 	scope.Output.ACLItem = scope

@@ -50,7 +50,7 @@ func (provider *DropProvider) removePartitionHierarchyLocked(relation *catalog.R
 func (s *StatementScope) AcquirePartitionDropLocks(ref ids.ObjectRef) error {
 	e := s.Engine()
 	e.Mu.Lock()
-	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	view := e.PrivateCatalogLocked(s.PendingCatalog())
 	ancestors, err := partition.Ancestors(view, ref)
 	hierarchy := err == nil && catalog.HierarchyRelation(view.MustRelation(ref.Address))
 	e.Mu.Unlock()

@@ -27,6 +27,7 @@ func icProviderInventory(c *icCase) {
 		"pg_shdescription": fixture.PGShDescriptionColumns, "pg_transform": fixture.PGTransformColumns,
 		"pg_ts_config": fixture.PGTSConfigColumns, "pg_user": fixture.PGUserColumns,
 		"pg_inherits":                            fixture.PGInheritsColumns,
+		"pg_event_trigger":                       strings.Fields("oid evtname evtevent evtowner evtfoid evtenabled evttags"),
 		"pg_attrdef":                             strings.Fields("oid adrelid adnum adbin"),
 		"pg_proc":                                strings.Fields("oid proname pronamespace proowner pronargs prorettype provolatile proisstrict proparallel prokind proargnames prolang proretset prorows prosrc proargtypes provariadic"),
 		"pg_index":                               strings.Fields("indexrelid indrelid indisunique indisprimary indisvalid indisready indislive indnullsnotdistinct indkey indcollation indclass indoption"),
@@ -108,7 +109,7 @@ func icProviderInventory(c *icCase) {
 		for i, field := range inventory[name] {
 			ordinal := i + 1
 			if table == "pg_proc" {
-				if n := map[string]int{"prolang": 5, "pronargs": 17, "prorettype": 19, "provolatile": 15, "proisstrict": 13, "proparallel": 16, "prokind": 12, "proargnames": 23, "proretset": 14, "prorows": 7, "prosrc": 26, "proargtypes":20, "provariadic":8}[field]; n != 0 {
+				if n := map[string]int{"prolang": 5, "pronargs": 17, "prorettype": 19, "provolatile": 15, "proisstrict": 13, "proparallel": 16, "prokind": 12, "proargnames": 23, "proretset": 14, "prorows": 7, "prosrc": 26, "proargtypes": 20, "provariadic": 8}[field]; n != 0 {
 					ordinal = n
 				}
 			}
@@ -119,7 +120,7 @@ func icProviderInventory(c *icCase) {
 				ordinal = 10
 			}
 			if table == "pg_index" {
-				if n := map[string]int{"indisunique": 5, "indisprimary": 7, "indisvalid": 11, "indisready": 13, "indislive": 14, "indnullsnotdistinct": 6, "indkey":16, "indcollation":17, "indclass":18, "indoption":19}[field]; n != 0 {
+				if n := map[string]int{"indisunique": 5, "indisprimary": 7, "indisvalid": 11, "indisready": 13, "indislive": 14, "indnullsnotdistinct": 6, "indkey": 16, "indcollation": 17, "indclass": 18, "indoption": 19}[field]; n != 0 {
 					ordinal = n
 				}
 			}

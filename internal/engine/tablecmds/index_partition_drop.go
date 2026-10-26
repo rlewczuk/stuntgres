@@ -38,6 +38,6 @@ func executePartitionConstraintDropLocked(e *core.Engine, scope *core.StatementS
 	if err != nil {
 		return core.Result{}, err
 	}
-	err = e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
+	err = e.StageCatalogOverlay(scope, stage, scope.PendingCatalog().Clone())
 	return core.Result{}, err
 }

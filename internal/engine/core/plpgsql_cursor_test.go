@@ -66,7 +66,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		outer := &proc.PLFrame{}
 		core.SetRoutineDemandLexical(core.ScopeSQLRoutineRef(s), outer)
 		parentAuthority := core.ScopeAuthority(s)
-		restore := core.ScopeActivateSQLRoutine(s, nil, read)
+		restore := s.ActivateSQLRoutine(nil, read)
 		core.SetScopeAuthority(s, &exec.Authority{Host: core.HostOf(s)})
 		s.Inquiry.CommentCatalog = read
 		source := &exec.Source{Singleton: true, Locks: &exec.LockContext{}}

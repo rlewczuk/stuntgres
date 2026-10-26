@@ -115,7 +115,7 @@ func TestPLpgSQLSelectIntoRuntime(t *testing.T) {
 	t.Run("close_and_activation_unwind", func(t *testing.T) {
 		s, _, f, read := loopUnitFrame(t, `BEGIN RETURN 7; END`)
 		previous := core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s))
-		restore := core.ScopeActivateSQLRoutine(s, nil, read)
+		restore := s.ActivateSQLRoutine(nil, read)
 		core.SetRoutineDemandLexical(core.ScopeSQLRoutineRef(s), f)
 		fatal := errors.New("fatal close")
 		main := &captureCloseRows{failure: fatal}

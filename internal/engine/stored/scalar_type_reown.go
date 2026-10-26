@@ -68,6 +68,19 @@ func ReownScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*stor
 			next.SetDescriptor(address, &copy)
 		}
 	}
+	return reownScalarRows(next, relations, mapping)
+}
+
+// Row transport reads immutable catalog generations and owns only copy-on-change
+// output stores. It must not normalize descriptors in a published private view.
+func reownScalarRows(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+	collation := typedef.RemappedCollationCapabilities(next, mapping)
+	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
+			return d.SQLType
+		}
+		return nil
+	}
 	for address, relation := range relations {
 		var versions []storage.RowVersion
 		for i, row := range relation.Versions {
@@ -177,16 +190,16 @@ func ReownScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*stor
 }
 
 // ReownVersions points private writes and retained owner snapshots at the
-// current type generations of next. Engine.mu and statement admission are
-// held. Reuse the catalog's established copy-on-change datum remapper.
-// Logical row identities, end roots and commit frontiers are not rewritten.
+// current type generations of next, an immutable catalog snapshot. Statement
+// admission protects the input slice; output values are copied only on change.
+// It never mutates next or rewrites logical row identities/end roots/frontiers.
 func ReownVersions(next *catalog.State, versions []storage.RowVersion) ([]storage.RowVersion, error) {
 	if len(versions) == 0 {
 		return versions, nil
 	}
 	address := ids.ObjectAddress{}
 	stores := map[ids.ObjectAddress]*storage.Relation{address: {Versions: versions}}
-	if err := ReownScalarTypes(next, stores, nil); err != nil {
+	if err := reownScalarRows(next, stores, nil); err != nil {
 		return nil, err
 	}
 	return stores[address].Versions, nil

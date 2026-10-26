@@ -43,7 +43,7 @@ func (e *Engine) refreshPolicyAuthorityLocked(s *StatementScope, consumer *catal
 	if err != nil {
 		return auth, err
 	}
-	auth.Recapture(e.PrivateCatalogLocked(s.Owner.Catalog))
+	auth.Recapture(e.PrivateCatalogLocked(s.PendingCatalog()))
 	auth.State.CurrentUser = principal
 	return auth, view.CheckPolicyAuthority(auth.View, auth, consumer, policy)
 }
@@ -52,7 +52,7 @@ func (e *Engine) refreshPolicyAuthorityLocked(s *StatementScope, consumer *catal
 // Ordinary same-shape table ACL/RLS metadata is refreshed after this identity
 // proof; no source is ever reopened by a current SQL name.
 func (e *Engine) validatePolicySourceLocked(s *StatementScope, read catalog.Read, leaf exec.Leaf) error {
-	live, err := CurrentQuerySourceLocked(e, read, s.Owner.Catalog, leaf)
+	live, err := CurrentQuerySourceLocked(e, read, s.PendingCatalog(), leaf)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (e *Engine) fenceRowSecurityProgramsLocked(s *StatementScope) error {
 	if err != nil {
 		return err
 	}
-	auth.Recapture(e.PrivateCatalogLocked(s.Owner.Catalog))
+	auth.Recapture(e.PrivateCatalogLocked(s.PendingCatalog()))
 	for _, p := range s.rlsPrograms {
 		if !p.complete {
 			return ids.ErrCatalogReplaced

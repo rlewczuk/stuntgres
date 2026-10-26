@@ -55,6 +55,7 @@ type Capture struct {
 	AccessMethods       []*catalog.AccessMethod
 	OperatorFamilies    []catalog.Descriptor
 	OwnedRoutines       []*catalog.Procedure
+	EventTriggers       []*catalog.EventTrigger
 	Providers           []providerReplay
 	Tables              []table.DumpRelation
 	LargeObjects        []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.
@@ -103,22 +104,6 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 	for _, section := range dumpSections {
 		if err := section.emit(ctx, script, w); err != nil {
 			return err
-		}
-	}
-	if script.rawFloat4 {
-		final, exists := capture.CatalogView.Cast(sqltype.Xid, sqltype.Float4)
-		if script.rawHelper {
-			if err := w.forceOwner("postgres"); err != nil {
-				return err
-			}
-			if err := w.emit("DROP CAST (pg_catalog.xid AS pg_catalog.float4);\n"); err != nil {
-				return err
-			}
-			if exists && final.Method != "b" {
-				if err := w.emit(script.declarations[final.OID].SQL); err != nil {
-					return err
-				}
-			}
 		}
 	}
 	if w.comparisonContext {

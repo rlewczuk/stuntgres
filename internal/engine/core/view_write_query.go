@@ -11,7 +11,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 	if err != nil {
 		return err
 	}
-	auth.Catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(scope.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	original := len(view.ViewWriteOf(b.ViewWrite).Logical.QuerySources)
 	for i := original; i < len(b.QuerySources); i++ {
@@ -26,7 +26,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 			continue
 		}
 		source := &b.QuerySources[i]
-		source.Storage = e.PrivateStorageLocked(scope.Owner.Catalog, source.Ref.Address)
+		source.Storage = e.PrivateStorageLocked(scope.PendingCatalog(), source.Ref.Address)
 		for key, ordinal := range view.ViewWriteOf(b.ViewWrite).QueryOccurrences {
 			if ordinal != i {
 				continue

@@ -25,6 +25,7 @@ const (
 	fenceTruncateGraph                                      // truncateGraphFence
 	fenceMaterializedSource                                 // materializedSourceFence
 	fenceCatalogRoleRead                                    // catalogRoleReadFence
+	fenceAlterTypeUse                                       // alterTypeUseFence
 )
 
 // catalogFencesCurrentLocked checks the fences of each kind in turn, each kind

@@ -329,9 +329,9 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 		return err
 	}
 	if s.QueryLockContext != nil {
-		catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+		catalog := e.PrivateCatalogLocked(s.PendingCatalog())
 		for _, entry := range s.QueryLockContext.Leaves {
-			if _, err := CurrentQuerySourceLocked(e, catalog, s.Owner.Catalog, entry.Leaf); err != nil {
+			if _, err := CurrentQuerySourceLocked(e, catalog, s.PendingCatalog(), entry.Leaf); err != nil {
 				return err
 			}
 		}

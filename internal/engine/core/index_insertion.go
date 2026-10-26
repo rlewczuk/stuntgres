@@ -15,7 +15,7 @@ func (s *StatementScope) readmitProgramsAfterWait() error {
 	if err == nil {
 		auth, err = s.writeAuthorizationLocked(e)
 		if err == nil {
-			auth.Recapture(e.PrivateCatalogLocked(s.Owner.Catalog))
+			auth.Recapture(e.PrivateCatalogLocked(s.PendingCatalog()))
 		}
 	}
 	e.Mu.Unlock()

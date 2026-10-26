@@ -201,6 +201,7 @@ type StatementScope struct {
 	// it is neither prepared-plan state nor a cached permission decision.
 	RoutineAuth                 AuthorizationView
 	Stage                       WriteStage
+	alterNames                  map[ids.NameKey]ids.ObjectRef // Phased ALTER claims acquired only at Finish.
 	notificationActions         []session.NotificationAction
 	notificationEvents          []session.Notification
 	View                        *visibility.View
@@ -238,9 +239,10 @@ type StatementScope struct {
 	effectCommand, effectSerial uint64                      // admission-private command event ownership; never rewound
 	quoteCaptures               *exec.QuoteCaptureCandidate // sealed before executor/source publication
 	Catalog                     *session.Journal
-	largeObjectRead             catalog.Read // Immutable active-query READ view, saved/restored by SQL body activation.
+	EventCommand                *EventCommand // Borrowed lexical boundary; never publication authority.
+	largeObjectRead             catalog.Read  // Immutable active-query READ view, saved/restored by SQL body activation.
 	CatalogAuthority            *session.CatalogAuthority
-	projectedRoots              bool
+	ProjectedRoots              bool // Stage owns complete private roots, not append-only suffixes.
 	ForeignActionAuth           *AuthorizationView
 	Identity                    exec.IdentitySnapshot
 	// Feature state lives in slots. Groups that every statement writes are
@@ -261,7 +263,7 @@ type StatementScope struct {
 	foreignActionsSlot *dml.ForeignActionScope
 	ForeignKeysSlot    *table.ForeignKeyCreation
 	viewCreationSlot   *view.CreationScope
-	materializedSlot   *view.MaterializedRefreshScope
+	MaterializedSlot   *view.MaterializedRefreshScope // Lexical admission; routine activation restores exact identity.
 	indexesSlot        *index.Scope
 	partitionsSlot     *partition.Scope
 	foreignTablesSlot  *foreignTableScope
@@ -280,7 +282,7 @@ type WriteStage struct {
 	scope     *StatementScope
 	Rows      map[ids.ObjectAddress][]storage.RowVersion
 	Deletes   map[ids.ObjectAddress]*visibility.PrivateDeletes
-	replacing bool
+	Replacing bool // Rows replace complete private roots instead of appending.
 }
 
 func (e *Engine) StartStatement(op *session.Operation) (*StatementScope, error) {
@@ -677,6 +679,22 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, err
 		}
 	}
+	if tag, eligible := session.EventCommand(stmt); eligible {
+		if !earlyEligibility {
+			if err := s.executionEligibility(stmt); err != nil {
+				return Result{}, err
+			}
+			earlyEligibility = true
+		}
+		if !queryCreation && count != 0 {
+			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		}
+		previous, beginErr := s.BeginEventCommand(tag)
+		if beginErr != nil {
+			return Result{}, beginErr
+		}
+		defer func() { err = s.FinishEventCommand(previous, err) }()
+	}
 	if err := s.selectPreparedAnalysis(stmt); err != nil {
 		return Result{}, err
 	}
@@ -757,5 +775,15 @@ func ScopeOfLease(l *session.StatementLease) *StatementScope {
 		return nil
 	}
 	s, _ := l.Statement.(*StatementScope)
+	return s
+}
+
+// ActiveScopeOfLease returns only unfinished statement authority. A finished
+// lease remains available for protocol/timeout bookkeeping, not catalog mutation.
+func ActiveScopeOfLease(l *session.StatementLease) *StatementScope {
+	s := ScopeOfLease(l)
+	if s == nil || s.Finished {
+		return nil
+	}
 	return s
 }

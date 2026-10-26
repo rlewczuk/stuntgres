@@ -121,7 +121,7 @@ func (h *plHost) AssignValue(f *proc.PLFrame, target proc.PLTarget, value sqltyp
 }
 
 func (h *plHost) BeginException() (proc.PLCheckpoint, error) {
-	c, err := h.s.beginPLException()
+	c, err := h.s.BeginPLException()
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (h *plHost) EndException(c proc.PLCheckpoint, rollback bool, primary error)
 	if err != nil {
 		return err
 	}
-	return h.s.endPLException(checkpoint, rollback, primary)
+	return h.s.EndPLException(checkpoint, rollback, primary)
 }
 
 func (h *plHost) OpenQuery(f *proc.PLFrame, in proc.PLInstruction) (proc.PLRows, error) {

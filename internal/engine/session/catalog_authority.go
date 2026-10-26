@@ -13,8 +13,10 @@ import (
 type CatalogAuthority struct {
 	Session              *Session
 	Authorization, Roles uint64
+	PublishedRoles       *access.RoleRecord
 	// Only selected ACL/default stages may survive revision-only peer ACL work.
-	// Other statement authority retains its exact numeric revision fence.
+	// Other statements fence both the captured session revision and the exact
+	// published root; provisional private revision numbers are not authority.
 	ACLRoles, ACLPublishedRoles            *access.RoleRecord
 	Ref                                    ids.ObjectRef
 	Descriptor                             catalog.Descriptor
@@ -37,7 +39,7 @@ func (a *CatalogAuthority) PreflightLocked(committed *catalog.State, roles, publ
 		if !roles.SameAuthority(a.ACLRoles) || !published.SameAuthority(a.ACLPublishedRoles) {
 			return catalog.Conflict{}
 		}
-	} else if roles.Revision != a.Roles {
+	} else if roles.Revision != a.Roles || a.PublishedRoles != nil && published != a.PublishedRoles {
 		return catalog.Conflict{}
 	}
 	if a.DatabasePredecessor != nil {

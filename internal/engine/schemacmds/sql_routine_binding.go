@@ -18,7 +18,7 @@ import (
 func ExecuteSQLRoutineDDL(e *core.Engine, scope *core.StatementScope, s parser.Statement, count int) (core.Result, error) {
 	result, err := ExecuteSchema(e, scope, scope.Op, s, count, scope.Input)
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return result, err
 }

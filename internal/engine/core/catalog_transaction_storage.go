@@ -9,7 +9,11 @@ import (
 
 // Caller holds Engine.mu; never derive entry authority from a later live view.
 func (v AuthorizationView) CatalogAuthorityLocked(ref ids.ObjectRef, descriptor catalog.Descriptor) *session.CatalogAuthority {
-	return &session.CatalogAuthority{Session: v.Session, Authorization: v.Revision, Roles: v.RoleRecord.Revision, Ref: ref, Descriptor: descriptor, DatabaseAuthority: v.Catalog.Get(v.Owner.DatabaseAddress()), DatabasePredecessor: v.DatabasePredecessor}
+	roles := v.roleAuthority
+	if roles == nil {
+		roles = v.RoleRecord
+	}
+	return &session.CatalogAuthority{Session: v.Session, Authorization: v.Revision, Roles: roles.Revision, PublishedRoles: v.publishedRoleAuthority, Ref: ref, Descriptor: descriptor, DatabaseAuthority: v.Catalog.Get(v.Owner.DatabaseAddress()), DatabasePredecessor: v.DatabasePredecessor}
 }
 
 // catalogAuthorityPreflightLocked fences a statement's catalog authority (nil

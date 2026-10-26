@@ -20,6 +20,9 @@ type DDLHost interface {
 	// SelectFunction selects the routines with exactly signature on the
 	// function path, as regprocedure input does.
 	SelectFunction(auth ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error)
+	// RoutineSignatureSpelling renders canonical regprocedure output using the
+	// authority's reference path, including signature masking and type visibility.
+	RoutineSignatureSpelling(ddl.Authority, ids.OID) (string, error)
 	// ResolveRegtype resolves a type name as regtype input does.
 	ResolveRegtype(ddl.Authority, parser.TypeName) (ids.OID, error)
 	SelectAggregateSupport(ddl.Authority, parser.ObjectName, []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error)

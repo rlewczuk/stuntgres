@@ -104,7 +104,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 	s.Owner.Mu.Lock()
 	e := s.Engine()
 	e.Mu.Lock()
-	admission := e.PrivateCatalogLocked(s.Owner.Catalog).State()
+	admission := e.PrivateCatalogLocked(s.PendingCatalog()).State()
 	if binding := s.UniqueBinding; binding != nil && binding.Catalog != admission {
 		e.Mu.Unlock()
 		s.Owner.Mu.Unlock()
@@ -129,8 +129,8 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 			return false, err
 		}
 	}
-	relation, ok := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
-	if !ok || e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) == nil || len(old) != len(rows) {
+	relation, ok := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
+	if !ok || e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil || len(old) != len(rows) {
 		return false, errors.New("stuntgres: invalid update stage")
 	}
 	for i, row := range rows {
@@ -197,8 +197,8 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 		} else {
 			w.Rows[ref.Address] = visibility.MergePrivateRows(w.Rows[ref.Address], versions, true)
 		}
-		w.replacing = true
-		relevant := s.foreignEffectRelevant(ref, e.PrivateCatalogLocked(s.Owner.Catalog))
+		w.Replacing = true
+		relevant := s.foreignEffectRelevant(ref, e.PrivateCatalogLocked(s.PendingCatalog()))
 		for i, next := range versions {
 			mode := batch.ActionMode
 			if mode == 0 {
@@ -223,7 +223,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	s.Owner.Mu.Lock()
 	e := s.Engine()
 	e.Mu.Lock()
-	admission := e.PrivateCatalogLocked(s.Owner.Catalog).State()
+	admission := e.PrivateCatalogLocked(s.PendingCatalog()).State()
 	if binding := s.UniqueBinding; binding != nil && binding.Catalog != admission {
 		e.Mu.Unlock()
 		s.Owner.Mu.Unlock()
@@ -245,17 +245,17 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 			return false, err
 		}
 		store := s.mutationStorage(ref)
-		if store == nil || store != e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) || s.View == nil || s.View.Data().GenerationAt(ref.Address) != store {
+		if store == nil || store != e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) || s.View == nil || s.View.Data().GenerationAt(ref.Address) != store {
 			return false, ids.ErrCatalogReplaced
 		}
 		if !e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: ref}, lock.RowExclusive) {
 			return false, errors.New("stuntgres: routed update requires its destination grant")
 		}
 	}
-	if e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) == nil {
+	if e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil {
 		return false, errors.New("stuntgres: relation storage is missing")
 	}
-	relation, ok := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
+	relation, ok := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
 	if !ok {
 		return false, errors.New("stuntgres: invalid relation descriptor")
 	}
@@ -311,7 +311,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	} else {
 		w.Rows[ref.Address] = append(w.Rows[ref.Address], versions...)
 	}
-	if s.foreignEffectRelevant(ref, e.PrivateCatalogLocked(s.Owner.Catalog)) {
+	if s.foreignEffectRelevant(ref, e.PrivateCatalogLocked(s.PendingCatalog())) {
 		for _, next := range versions {
 			s.recordForeignEffect(ref, storage.RowVersion{}, next)
 		}
@@ -339,7 +339,7 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	if ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.Owner.Ref.Epoch() {
 		return false, false, ids.ErrCatalogReplaced
 	}
-	catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+	catalog := e.PrivateCatalogLocked(s.PendingCatalog())
 	if s.UniqueBinding == nil || s.UniqueBinding.Catalog != catalog.State() {
 		return false, true, nil
 	}
@@ -347,7 +347,7 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	if !ok || !index.SameRelationRowShape(s.UniqueBinding.Parent, parent) {
 		return false, false, ids.ErrCatalogReplaced
 	}
-	if e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) == nil {
+	if e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil {
 		return false, false, errors.New("stuntgres: relation storage is missing")
 	}
 	if len(row) != len(parent.Columns) {

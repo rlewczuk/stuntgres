@@ -82,7 +82,7 @@ func (s *StatementScope) AcquirePartitionLock(ref ids.ObjectRef, mode lock.Mode)
 // A SELECT's admitted topology is immutable even though AS permits ATTACH SUE.
 // Accept only same-authority append growth; all replacement/decrease fences stay.
 func (s *StatementScope) ObservePartitionRelationLocked(e *Engine, ref ids.ObjectRef) error {
-	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	view := e.PrivateCatalogLocked(s.PendingCatalog())
 	d, ok := view.Relation(ref.Address)
 	if !ok || ref.Domain() != e.Catalog.Domain || ref.Epoch != view.Epoch() {
 		return ids.ErrCatalogReplaced
@@ -105,7 +105,7 @@ func (s *StatementScope) ObservePartitionRelationLocked(e *Engine, ref ids.Objec
 func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 	e := s.Engine()
 	e.Mu.Lock()
-	ancestors, err := partition.Ancestors(e.PrivateCatalogLocked(s.Owner.Catalog), ref)
+	ancestors, err := partition.Ancestors(e.PrivateCatalogLocked(s.PendingCatalog()), ref)
 	e.Mu.Unlock()
 	if err != nil {
 		return err
@@ -123,7 +123,7 @@ func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 func (s *StatementScope) AcquirePartitionDescendants(ref ids.ObjectRef, mode lock.Mode) error {
 	e := s.Engine()
 	e.Mu.Lock()
-	catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+	catalog := e.PrivateCatalogLocked(s.PendingCatalog())
 	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Epoch != catalog.Epoch() {
 		e.Mu.Unlock()
@@ -156,7 +156,7 @@ func (s *StatementScope) AcquirePartitionDescendants(ref ids.ObjectRef, mode loc
 func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef) error {
 	e := s.Engine()
 	e.Mu.Lock()
-	catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+	catalog := e.PrivateCatalogLocked(s.PendingCatalog())
 	d, ok := catalog.Relation(parent.Address)
 	if !ok || parent.Epoch != catalog.Epoch() {
 		e.Mu.Unlock()

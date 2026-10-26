@@ -94,7 +94,7 @@ func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.State
 	}
 	result, err := publishDatabaseTargetLocked(e, ctx, name, target, owner)
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return result, err
 }

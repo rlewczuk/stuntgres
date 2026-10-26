@@ -32,6 +32,7 @@ type dumpScript struct {
 
 	policyGroups, ruleGroups, securityGroups  []dump.Group
 	triggerGroups                             []dump.Group
+	eventTriggerReplay                        []eventTriggerReplay
 	domainNodes                               map[ids.OID]*catalog.Type
 	collationStatements, conversionStatements []dump.Statement
 	seedStatements, conversionSeeds           []string
@@ -98,6 +99,9 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if s.objectACLStatements, err = prepareObjectACLs(ctx, s.Capture); err != nil {
+		return nil, err
+	}
+	if err := s.prepareEventTriggers(ctx); err != nil {
 		return nil, err
 	}
 	return s, nil

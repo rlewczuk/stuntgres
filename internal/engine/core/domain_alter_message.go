@@ -60,11 +60,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 }
 
 func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
-	var changes *session.Journal
-	if stage.AuthSession != nil && (stage.AuthSession.Transactions.State == session.TxActive || stage.AuthSession.Transactions.RetainsTransaction()) {
-		changes = stage.AuthSession.Transactions.Catalog
-	}
-	return index.EffectiveRoot(e.Storage.IndexRoots, changes, address)
+	return index.EffectiveRoot(e.Storage.IndexRoots, stageJournalLocked(stage), address)
 }
 
 func (scope *StatementScope) reownTypeOverlayRows(stage *CatalogStage, changes *session.Journal) error {

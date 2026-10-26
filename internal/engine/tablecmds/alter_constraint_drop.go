@@ -19,7 +19,7 @@ func stageDroppedConstraintIndexes(e *core.Engine, scope *core.StatementScope, a
 	}
 	if stage == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
-		stage.AuthSession, stage.AuthRevision, stage.RoleRevision = scope.Op.Session, auth.Revision, auth.RoleRecord.Revision
+		stage.AuthorizeLocked(auth, scope.Op.Session)
 	}
 	next, err := table.DropConstraintIndexes(core.StageDropProvider(scope.Op.Context(), stage, scope, changes, nil), old, next, actions)
 	return next, stage, err

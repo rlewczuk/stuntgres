@@ -51,6 +51,8 @@ type DropDependencyReader interface {
 	ApplyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...DomainDependency) error
 	// Remove removes ref with this drop.
 	Remove(ref ids.ObjectRef) error
+	// RemoveInternal removes a generated implementation object without sql_drop.
+	RemoveInternal(ref ids.ObjectRef) error
 	// ExpressionDependencies drops or rejects what depends on roots on behalf
 	// of subject.
 	ExpressionDependencies(roots []ids.ObjectAddress, mode parser.DropMode, subject ids.ObjectAddress) error

@@ -31,7 +31,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 	e := s.Engine()
 	for {
 		e.Mu.Lock()
-		view := e.PrivateCatalogLocked(s.Owner.Catalog)
+		view := e.PrivateCatalogLocked(s.PendingCatalog())
 		root, ok := view.Relation(s.LockedRef.Address)
 		if !ok {
 			e.Mu.Unlock()
@@ -42,7 +42,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			return nil
 		}
 		for _, target := range s.InheritedTargets {
-			if _, err := CurrentQuerySourceLocked(e, view, s.Owner.Catalog, target); err != nil {
+			if _, err := CurrentQuerySourceLocked(e, view, s.PendingCatalog(), target); err != nil {
 				e.Mu.Unlock()
 				return err
 			}
@@ -59,7 +59,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 			ref := s.LockedRef
 			ref.Address = child.Address()
-			pending = append(pending, exec.Leaf{Ref: ref, Relation: child, Storage: e.PrivateStorageLocked(s.Owner.Catalog, child.Address()), Only: true})
+			pending = append(pending, exec.Leaf{Ref: ref, Relation: child, Storage: e.PrivateStorageLocked(s.PendingCatalog(), child.Address()), Only: true})
 			return nil
 		}
 		var err error
@@ -98,7 +98,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 				s.ReplacementRead = true
 			}
 			e.Mu.Lock()
-			_, err = CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.Owner.Catalog), s.Owner.Catalog, target)
+			_, err = CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.PendingCatalog()), s.PendingCatalog(), target)
 			if err == nil {
 				err = s.ObservePartitionRelationLocked(e, target.Ref)
 			}

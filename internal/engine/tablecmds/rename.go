@@ -121,6 +121,6 @@ func RenameRelationLocked(e *core.Engine, scope *core.StatementScope, op *sessio
 	if err != nil {
 		return core.Result{}, err
 	}
-	scope.Completed = true
+	scope.CompleteUtility()
 	return core.Result{}, nil
 }

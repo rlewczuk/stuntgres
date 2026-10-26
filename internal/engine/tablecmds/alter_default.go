@@ -14,7 +14,7 @@ import (
 
 // The owner-authorized AX grant protects identity; publication changes only the
 // immutable descriptor and never evaluates a default or rewrites row storage.
-// Every return releases Engine.mu.
+// Every return releases core.Engine.mu.
 func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTableDefault, count int) (core.Result, error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
@@ -59,7 +59,7 @@ func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 			err = op.Context().Err()
 		}
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		e.Mu.Unlock()
 		return core.Result{}, err
@@ -100,11 +100,14 @@ func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 	if _, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 		return core.Result{}, err
 	}
-	scope.Completed = true
+	if s.Action == parser.DropDefault {
+		scope.RecordEventDrop(ids.ObjectAddress{ClassID: 2604, ObjectID: old.ColumnMeta.Defaults[attr].OID})
+	}
+	scope.CompleteUtility()
 	return core.Result{}, nil
 }
 
-// CookAlterDefaultLocked cooks SET DEFAULT; the caller holds Engine.mu.
+// CookAlterDefaultLocked cooks SET DEFAULT; the caller holds core.Engine.mu.
 func CookAlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
 	return table.CookAlterDefault(AlterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, old, slot, expression)
 }

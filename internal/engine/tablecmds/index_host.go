@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -20,6 +21,14 @@ var _ index.Host = TableHost{}
 func (h TableHost) IndexStage() *index.Stage { return h.CatalogStage.Indexes() }
 
 func (h TableHost) DescriptorStage() index.DescriptorStage { return h.CatalogStage }
+
+func (h TableHost) RemoveInternalObject(ref ids.ObjectRef, namespace bool) error {
+	if err := h.CatalogStage.RemoveObjectLocked(ref, namespace); err != nil {
+		return err
+	}
+	h.CatalogStage.MarkRemovalInternal(ref.Address)
+	return nil
+}
 
 func (h TableHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
 	owner := &h.E.Catalog.Owner

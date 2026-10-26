@@ -68,10 +68,10 @@ func (s *StatementScope) retainSnapshotTargetRootsLocked(e *Engine) {
 			return
 		}
 		// Private schema projections keep their existing snapshot owner.
-		if s.Owner.Catalog != nil && s.Owner.Catalog.Storage[address].Rewritten {
+		if changes := s.PendingCatalog(); changes != nil && changes.Storage[address].Rewritten {
 			return
 		}
-		stored := e.PrivateStorageLocked(s.Owner.Catalog, address)
+		stored := e.PrivateStorageLocked(s.PendingCatalog(), address)
 		if stored == nil {
 			return
 		}
@@ -119,12 +119,12 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 		if ref.Epoch != e.Catalog.State.Epoch() {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) == nil {
+		if e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil {
 			return nil, errors.New("stuntgres: relation storage is missing")
 		}
 	}
 	in := session.DataViewInput{
-		Published: e.Catalog.State, Owner: &e.Catalog.Owner, Store: &e.Storage, Journal: s.Owner.Catalog,
+		Published: e.Catalog.State, Owner: &e.Catalog.Owner, Store: &e.Storage, Journal: s.PendingCatalog(),
 		SameLineage: view.SameMaterializedLineage, SameRowShape: index.SameRelationRowShape,
 	}
 	existing := s.View
@@ -156,7 +156,7 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 	if base != nil {
 		in.Frontier = base.Frontier
 	}
-	in.Read = e.PrivateCatalogLocked(s.Owner.Catalog)
+	in.Read = e.PrivateCatalogLocked(s.PendingCatalog())
 	if base == nil && !latest {
 		var err error
 		in.RetainDynamic, err = stored.HasDynamicSourceDependency(in.Read, s.RoutineDependencies, s.QuerySources)

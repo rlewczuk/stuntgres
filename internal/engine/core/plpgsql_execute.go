@@ -67,7 +67,7 @@ func (s *StatementScope) executePLExpressionQuery(f *proc.PLFrame, statement *pa
 
 func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment, origin plNoticeOrigin) (value sqltype.Value, usage sqltype.Usage, present bool, err error) {
 	noticeStart := len(s.Op.Notices)
-	restore := s.activateSQLRoutine(nil, read)
+	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() {
 		err = restore(err)
 		s.appendPLNoticeContext(noticeStart, origin)

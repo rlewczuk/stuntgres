@@ -34,6 +34,12 @@ are composition functions over a `*core.Engine`; `Reset` and `Restore`
 publish through core's catalog replacement (`ReplaceCatalog`,
 `ReplaceCatalogInOperation`).
 
+
+Event-trigger definitions are dispatched to `schemacmds` through the ordinary
+schema path. Core owns callback frames, journal lifetime and atomic publication;
+family executors report consumed drops and semantic rewrite boundaries through
+that runtime rather than publishing an alternate event catalog.
+
 ## Hosts
 
 The family hosts live with their families: `TableHost`, `AlterHost` and

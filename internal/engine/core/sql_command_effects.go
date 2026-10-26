@@ -26,7 +26,7 @@ func (s *StatementScope) completeCommandEffects(allExclusions, bounded bool) err
 			return err
 		}
 	}
-	if !s.projectedRoots {
+	if !s.ProjectedRoots {
 		return dml.CheckForeignKeys(s.WriteHost())
 	}
 	return nil

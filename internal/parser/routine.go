@@ -21,6 +21,7 @@ type CreateFunction struct {
 	Procedure       bool
 	Strict          bool
 	Volatility      string
+	Replace         bool
 	Standard        []Statement // Non-nil for a definition-analyzed SQL-standard body.
 	Pos             Position
 }
@@ -100,12 +101,12 @@ func (*CreateFunction) statement() {}
 // CreateAggregate retains the declaration split independently of its canonical
 // flattened identity, including ordered aggregates with no direct arguments.
 type CreateAggregate struct {
-	Name      ObjectName
-	Arguments []GrantRoutineArgument
-	Ordered   bool
+	Name       ObjectName
+	Arguments  []GrantRoutineArgument
+	Ordered    bool
 	DirectArgs int
-	Options   []OperatorOption
-	Pos       Position
+	Options    []OperatorOption
+	Pos        Position
 }
 
 func (*CreateAggregate) statement() {}

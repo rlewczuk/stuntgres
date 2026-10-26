@@ -56,7 +56,7 @@ func renameInheritanceColumnLocked(e *core.Engine, scope *core.StatementScope, o
 		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return core.Result{}, err
 }
@@ -95,7 +95,7 @@ func renameInheritanceConstraintLocked(e *core.Engine, scope *core.StatementScop
 		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return core.Result{}, err
 }

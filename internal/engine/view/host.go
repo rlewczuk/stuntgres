@@ -78,6 +78,7 @@ type RelationChange struct {
 	Next        *catalog.Relation
 	Sources     []catalog.Descriptor
 	Replacement TriggerReplacement
+	Deleted     ids.ObjectAddress // Actual payload deletion; replacement/rename never sets this fact.
 }
 
 // TriggerReplacement authorizes local-child replacement only for the exact

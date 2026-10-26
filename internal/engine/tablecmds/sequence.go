@@ -76,7 +76,7 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 				return core.Result{}, err
 			}
 		}
-		changes := scope.Owner.Catalog.Clone()
+		changes := scope.PendingCatalog().Clone()
 		ns, err := e.RelationCreationNamespaceLocked(auth, s.Name, s.Persistence, changes)
 		if err != nil {
 			e.Mu.Unlock()
@@ -220,7 +220,7 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 				return core.Result{}, op.Context().Err()
 			}
 		}
-		changes := scope.Owner.Catalog.Clone()
+		changes := scope.PendingCatalog().Clone()
 		state := e.SequenceGeneratorLocked(scope, ref.Address)
 		if state == nil {
 			return core.Result{}, fmt.Errorf("stuntgres: sequence state missing")
@@ -387,7 +387,7 @@ func dropSequences(e *core.Engine, scope *core.StatementScope, s *parser.DropSeq
 		e.Mu.Unlock()
 		return core.Result{}, err
 	}
-	changes := scope.Owner.Catalog.Clone()
+	changes := scope.PendingCatalog().Clone()
 	targets := make([]ids.ObjectAddress, len(refs))
 	for i, ref := range refs {
 		targets[i] = ref.Address

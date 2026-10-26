@@ -38,7 +38,7 @@ func DropIdentity(provider DropDependencyReader, old *catalog.Relation, action p
 	if err := provider.ApplyViewDependents([]ids.ObjectAddress{identity.Sequence}, parser.DropRestrict); err != nil {
 		return old, err
 	}
-	if err := provider.Remove(ref); err != nil {
+	if err := provider.RemoveInternal(ref); err != nil {
 		return old, err
 	}
 	provider.TombstoneIdentity(identity.Sequence)

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
@@ -165,7 +166,7 @@ func TestTriggerCorePartitionPath(t *testing.T) {
 func TestTriggerCoreWhenProvider(t *testing.T) {
 	e, scope, _, relation, trigger := triggerUnitFixture(t, "BEGIN RETURN NEW; END")
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	helper := triggerUnitProcedure(t, e, scope, "trigger_when_helper", 9500004, boolean, false, "BEGIN RETURN true; END")
+	helper := triggerUnitProcedure(t, e, scope, "trigger_when_helper", 9500004, boolean, proc.OrdinaryInvocation, "BEGIN RETURN true; END")
 	read := e.CatalogRead()
 	syntax, err := parser.Parse("SELECT public.trigger_when_helper() AND NEW.v>5")
 	if err != nil {

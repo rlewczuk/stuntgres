@@ -117,7 +117,7 @@ func OwnershipRoot(view catalog.Read, d catalog.Descriptor, operatorSeeded func(
 		return !operatorSeeded(t)
 	case *catalog.Procedure:
 		return !t.Seeded() && t.Foreign == nil && t.RangeConstructor == nil
-	case *catalog.Database, *catalog.Extension, *catalog.TSDictionary:
+	case *catalog.Database, *catalog.Extension, *catalog.TSDictionary, *catalog.EventTrigger:
 		return true
 	}
 	return false

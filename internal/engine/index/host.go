@@ -42,8 +42,8 @@ type Host interface {
 	// AddDomainBase records d among the stage's observed dependencies, so a
 	// concurrent change to it rejects the publication.
 	AddDomainBase(d catalog.Descriptor)
-	// RemoveObject stages the removal of ref.
-	RemoveObject(ref ids.ObjectRef, namespace bool) error
+	// RemoveInternalObject stages a rebuild's PERFORM_DELETION_INTERNAL operation.
+	RemoveInternalObject(ref ids.ObjectRef, namespace bool) error
 	// TrustedRestoreDestination reports whether the statement restores into
 	// a trusted table destination, and fails when that Restore lacks its
 	// bootstrap superuser authority ("invalid trusted restore <what>

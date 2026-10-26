@@ -18,6 +18,22 @@ admits the current declaration and privileges before suppressing a NULL-input
 body; aggregate supports retain their transition/final-specific strict rules.
 Explicit VOLATILE selects the ordinary effectful SQL routine mode.
 
+PL/pgSQL event functions separately admit zero-formal `RETURNS event_trigger`,
+inject only TEXT `TG_EVENT`/`TG_TAG`, and cannot be invoked as scalar functions.
+`event_trigger_ddl.go` owns database-global CREATE and bounded ENABLE/DISABLE/DROP
+decisions; creation checks actual superuser authority before event/filter/function
+resolution, while state/drop use normal owner-role authority after lookup.
+The engine owns phase scheduling, genuine private utility publication and
+unlocked implicit invocation; no replication modes or helper SRFs are fabricated.
+
+`CREATE OR REPLACE FUNCTION` uses the same SQL/PL declaration, default and body
+binders as creation. Exact name/namespace/input identity retains OID, owner, ACL
+and extension membership. Owner/kind/result checks, existing named inputs and
+trailing default compatibility precede tentative replacement; body-validation
+failure leaves the checked predecessor intact. SQL/PL language changes keep
+ordinary validation. Builtin/externally implemented function replacement and
+unrelated procedure/language admission are not added by this bounded contract.
+
 ## Routine ALTER contract
 
 `ALTER FUNCTION`, `ALTER PROCEDURE`, `ALTER ROUTINE` and `ALTER AGGREGATE`
@@ -218,10 +234,13 @@ Missing zero-input errors render `(*)`, while missing notices retain `()`.
 The handlers run under `Engine.Mu` without a statement scope and reach the
 engine only through `DDLHost` (`host.go`): the shared
 [`ddl.Host`](../ddl/README.md) plus `DefinitionType`, `DefinitionLookup`,
-`SelectFunction`, `SelectAggregateSupport`, `ResolveRegtype`, `BindSQLRoutine`
-and `BindSQLDefaults`. The engine implements it on `schemacmds.RoutineHost`,
-which embeds the core `DDLHost` and is built once per DDL statement
-(`routine_host.go`); `RoutineHost` also implements `index.FamilyDDLHost`.
+`SelectFunction`, `RoutineSignatureSpelling`, `SelectAggregateSupport`,
+`ResolveRegtype`, `BindSQLRoutine` and `BindSQLDefaults`. The engine implements
+it on `schemacmds.RoutineHost`, which embeds the core `DDLHost` and is built once per DDL
+statement (`routine_host.go`); `RoutineHost` also implements
+`index.FamilyDDLHost`. Canonical regprocedure rendering stays behind this same
+host boundary: handlers do not depend on `regobj` or its analysis/execution
+dependencies.
 
 - **`ddl.Authority`** is an opaque value kept by value. Host methods that change
   it (`CreationNamespace`, `Recapture`) return a new one, so an implicit

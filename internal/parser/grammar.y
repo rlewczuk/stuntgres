@@ -9,6 +9,8 @@ package parser
  trigger *CreateTrigger
  triggerEvent TriggerEvent
  triggerEvents []TriggerEvent
+ eventFilters []EventTriggerFilter
+ eventFilter EventTriggerFilter
  foreignDDL *ForeignDDL
  foreignOptions []ForeignOption
  databaseOptions []DatabaseOption
@@ -247,7 +249,7 @@ package parser
 %token <tok> PL_TARGETS_ENTRY
 %token <tok> PL_THEN PL_WHEN PL_WHEN_COMMA
 %token <tok> PL_ASSERT PL_RAISE_LEVEL PL_MESSAGE_COMMA PL_RAISE_USING
-%token <tok> TRIGGER
+%token <tok> TRIGGER EVENT
 %token <tok> PL_OPEN PL_LOOP PL_NEXT PL_PRIOR PL_LAST PL_EXIT PL_CONTINUE
 %token <tok> PL_FOREACH PL_SLICE
 %token <tok> PL_INTEGER_FOR PL_REVERSE PL_BY
@@ -442,6 +444,10 @@ package parser
 %type <stmt> create_policy alter_policy drop_policy
 %type <stmt> create_rule alter_rule drop_rule rule_action
 %type <stmt> create_trigger alter_trigger drop_trigger
+%type <stmt> create_event_trigger alter_event_trigger drop_event_trigger
+%type <eventFilters> event_filters event_filter_clauses
+%type <eventFilter> event_filter
+%type <names> event_tag_list
 %type <trigger> trigger_head
 %type <triggerEvent> trigger_event
 %type <triggerEvents> trigger_events
@@ -956,6 +962,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | create_policy | alter_policy | drop_policy
  | create_rule | alter_rule | drop_rule
  | create_trigger | alter_trigger | drop_trigger
+ | create_event_trigger | alter_event_trigger | drop_event_trigger
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
  | generic_statement_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -1037,6 +1044,21 @@ drop_trigger: DROP TRIGGER name ON relation_name drop_mode {
 } | DROP TRIGGER IF EXISTS name ON relation_name drop_mode {
  $$=&DropTrigger{Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,IfExists:true,Mode:$8,Pos:$1.pos}
 } ;
+create_event_trigger: CREATE EVENT TRIGGER name ON name event_filters EXECUTE trigger_function relation_name '(' ')' {
+ $$=&CreateEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Event:Identifier{Text:$6.text,Pos:$6.pos},Filters:$7,Function:$10,Pos:$1.pos}
+} ;
+event_filters: /* empty */ {$$=nil} | WHEN event_filter_clauses {$$=$2} ;
+event_filter_clauses: event_filter {$$=[]EventTriggerFilter{$1}}
+ | event_filter_clauses AND event_filter {$$=append($1,$3)} ;
+event_filter: name IN '(' event_tag_list ')' {$$=EventTriggerFilter{Name:Identifier{Text:$1.text,Pos:$1.pos},Values:$4}} ;
+event_tag_list: STRING {$$=[]string{$1.text}}
+ | event_tag_list ',' STRING {$$=append($1,$3.text)} ;
+alter_event_trigger: ALTER EVENT TRIGGER name name {
+ if $5.keyword==nil || ($5.text!="enable" && $5.text!="disable") {sqllex.(*lexer).syntax($5);return 1}
+ $$=&AlterEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Enabled:$5.text=="enable",Pos:$1.pos}
+} ;
+drop_event_trigger: DROP EVENT TRIGGER name drop_mode {$$=&DropEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Mode:$5,Pos:$1.pos}}
+ | DROP EVENT TRIGGER IF EXISTS name drop_mode {$$=&DropEventTrigger{Name:Identifier{Text:$6.text,Pos:$6.pos},IfExists:true,Mode:$7,Pos:$1.pos}} ;
 rule_head: CREATE RULE name AS ON rule_event TO relation_name {
  sqllex.(*lexer).ruleDefinition=true
  $$=&CreateRule{Name:Identifier{Text:$3.text,Pos:$3.pos},Event:$6.text,Table:$8,Pos:$1.pos}
@@ -1704,7 +1726,10 @@ create_function: CREATE FUNCTION relation_name '(' function_arguments ')' functi
  | CREATE PROCEDURE relation_name '(' function_arguments ')' AS routine_as LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$8.Body.text,BodyPos:routineBodyPosition($8.Body),Symbol:$8.Symbol.text,SymbolSpecified:$8.HasSymbol,SymbolPos:$8.Symbol.pos,Pos:$1.pos}}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:"sql"},Standard:$7,Pos:$1.pos}}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Standard:$9,Pos:$1.pos}}
- | CREATE OR replace_word FUNCTION {sqllex.(*lexer).failAt("0A000","CREATE OR REPLACE FUNCTION is unsupported",$1.pos.Offset);return 1} ;
+ | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes AS routine_as function_attributes {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,Language:Identifier{Text:$12.text,Pos:$12.pos},Body:$15.Body.text,BodyPos:routineBodyPosition($15.Body),Symbol:$15.Symbol.text,SymbolSpecified:$15.HasSymbol,SymbolPos:$15.Symbol.pos,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10,$13,$16){return 1};$$=node}
+ | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes AS routine_as function_attributes LANGUAGE name function_attributes {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,Language:Identifier{Text:$15.text,Pos:$15.pos},Body:$12.Body.text,BodyPos:routineBodyPosition($12.Body),Symbol:$12.Symbol.text,SymbolSpecified:$12.HasSymbol,SymbolPos:$12.Symbol.pos,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10,$13,$16){return 1};$$=node}
+ | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes standard_routine_body {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,Language:Identifier{Text:"sql"},Standard:$11,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10){return 1};$$=node}
+ | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes standard_routine_body {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,Language:Identifier{Text:$12.text,Pos:$12.pos},Standard:$14,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10,$13){return 1};$$=node} ;
 routine_as: STRING {$$=routineAS{Body:$1}}
  | STRING ',' STRING {$$=routineAS{Body:$1,Symbol:$3,HasSymbol:true}} ;
 function_attributes: /* empty */ {$$=nil}
@@ -3323,7 +3348,7 @@ setting_word: setting_word_without_between | BETWEEN ;
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
 non_between_name: window_name | PARTITION | FRAME_UNIT | MATCH | PERIOD ;
 window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD
- | TRIGGER
+ | TRIGGER | EVENT
  | VACUUM
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
@@ -3343,7 +3368,7 @@ transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | PL_SLICE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
- | TRIGGER
+ | TRIGGER | EVENT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | SQLJSON_PARSE
  | CONVERSION
@@ -3387,7 +3412,7 @@ generic_word_without_frame: generic_word_base_without_vacuum_frame | VACUUM | WI
 generic_word_base_without_vacuum: generic_word_base_without_vacuum_frame | FRAME_UNIT ;
 generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
- | TRIGGER
+ | TRIGGER | EVENT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | CONVERSION
  | RECURSIVE | XML

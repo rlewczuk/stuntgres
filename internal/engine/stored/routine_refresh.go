@@ -252,7 +252,7 @@ func reownRoutineDefinition(source *proc.Definition, usage func(sqltype.Usage) (
 	if err != nil {
 		return nil, err
 	}
-	if result.Type == nil || (!result.Type.Concrete() && !(source.Trigger && result.Type.ID() == 2279)) {
+	if result.Type == nil || (!result.Type.Concrete() && !(source.Invocation != proc.OrdinaryInvocation && (result.Type.ID() == 2279 || result.Type.ID() == 3838))) {
 		return nil, fmt.Errorf("stuntgres: missing SQL routine result generation")
 	}
 	if result != source.Result {

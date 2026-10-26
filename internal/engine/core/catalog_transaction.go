@@ -35,7 +35,7 @@ func (e *Engine) SequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress)
 			return g
 		}
 	}
-	if c := s.Owner.Catalog; c != nil {
+	if c := s.PendingCatalog(); c != nil {
 		if descriptor, exists := c.Descriptors[a]; exists && descriptor == nil {
 			return nil
 		}
@@ -120,6 +120,9 @@ func (e *Engine) CatalogPreflightLocked(c *session.Journal) error {
 	if err := catalogDependencyPreflight(e.Catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
 		return err
 	}
+	if err := e.catalogFencesCurrentLocked(c, fenceAlterTypeUse); err != nil {
+		return err
+	}
 	if err := e.catalogFencesCurrentLocked(c, fenceTruncateGraph); err != nil {
 		return err
 	}
@@ -177,6 +180,10 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 					return err
 				}
 				switch owner := owner.(type) {
+				case *catalog.EventTrigger:
+					if candidate.Get(target) == nil && owner.Function.Address == target {
+						return catalog.Conflict{}
+					}
 				case *catalog.Procedure:
 					if (target.ClassID != ids.TypeClassID || candidate.Get(target) == nil) && catalog.ProcedureDefinitionDependsOn(owner, target) {
 						return catalog.Conflict{}

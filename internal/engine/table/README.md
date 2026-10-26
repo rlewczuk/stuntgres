@@ -197,10 +197,12 @@ ALTER stage.
 
 Orchestration ([`tablecmds`](../tablecmds/README.md)): `CreateTableLocked`,
 `DropTableLocked`, `AlterTableLocked` with its pass loop, the lazy stage
-(`authorizedStage`), the stage-to-journal merge (`mergeStageJournalLocked`)
-and the IF EXISTS no-op (`SkipMissingRelationLocked`), and the other statement
-handlers; the wrappers that take `Engine.Mu` across a `table` call and build
-the host; the row evaluation
+(`authorizedStage`), read-only sequence-original admission
+(`validateAlterSequenceOriginalsLocked`), and core's metadata publication
+(`PublishAlterMetadata`) as the sole sequence installation/retirement owner before
+the fresh physical stage (`finishAlterPhysical`), and the IF EXISTS no-op
+(`SkipMissingRelationLocked`).
+The statement handlers build the narrowed hosts under `Engine.Mu`; the row evaluation
 template; lock admission and post-wait checks (`acquireDefinitionProviders`,
 `admitInheritanceAlter`, `acquireRelationTarget` around `AdmitTarget`, ...);
 identity sequence waits; the prepare host and prepared-drop consumers; the
@@ -223,14 +225,19 @@ recaptures exact identities after waits before publishing their candidates.
 
 - ALTER TABLE keeps its nine-pass order, the inheritance pass order and
   per-node re-entry, so every action list reports the same first error.
-  Definition preparation uses ordered provider results once, before the sole
-  stage and row rewrite; no partially prepared stage is rebased or patched.
+  Definition preparation uses ordered provider results once. Canonical checked
+  metadata enters the real journal before callbacks; fresh physical successors
+  retain old tuple layouts and original fences. Final registered providers run
+  once after the complete physical demand, without rebasing pending stages.
 - Constraint order: index attachments stage first; physical builds follow index
   declaration order, then CHECK scans in declaration order. Ordinary DML
   enforces NOT NULL first and CHECKs in constraint-name order. TYPE rewrites
   check each converted row before converting the next. Everything validates
   before publication; failure leaves identities, constraints, rows and roots
   intact.
+  Scheduled CHECK scans reselect only their original name/ordinal identities
+  from the authentic final descriptor, retaining assigned OIDs and cooked
+  provenance. Descriptor name order is separate from scheduled execution order.
 - Dump output is byte-stable: `DumpRelation` emitters keep their order and
   never iterate maps into output; each Restore syntax parser stays next to the
   emitter whose output it reads.

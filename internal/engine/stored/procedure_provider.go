@@ -101,7 +101,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 
 func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	invalid := extension.InvalidProviderDescriptor
-	if (!d.SQL.Result.Valid() && !(d.SQL.Trigger && d.SQL.Result.Type != nil && d.SQL.Result.Type.ID() == 2279 && d.SQL.Result.Typmod == -1 && d.SQL.Result.Collation.ID == 0)) || d.SQL.Standard != (d.SQLBody != nil) || len(d.SQL.Names) != len(d.SQL.Inputs) {
+	if (!d.SQL.Result.Valid() && !(d.SQL.Invocation != proc.OrdinaryInvocation && d.SQL.Result.Type != nil && (d.SQL.Result.Type.ID() == 2279 || d.SQL.Result.Type.ID() == 3838) && d.SQL.Result.Typmod == -1 && d.SQL.Result.Collation.ID == 0)) || d.SQL.Standard != (d.SQLBody != nil) || len(d.SQL.Names) != len(d.SQL.Inputs) {
 		return invalid()
 	}
 	language, validLanguage := v.Get(d.Language).(*catalog.Language)
@@ -168,10 +168,10 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 		return invalid()
 	}
 	result, ok := v.LookupType(d.SQL.Result.Type.ID())
-	if !ok || (!result.Concrete() && !(d.SQL.Trigger && result.ID() == 2279)) || result != d.SQL.Result.Type {
+	if !ok || (!result.Concrete() && !(d.SQL.Invocation != proc.OrdinaryInvocation && (result.ID() == 2279 || result.ID() == 3838))) || result != d.SQL.Result.Type {
 		return invalid()
 	}
-	if d.SQL.Trigger != (result.ID() == 2279) || d.SQL.Trigger && (d.SQL.Kind != proc.PLpgSQLBody || len(d.SQL.Formals) != 0 || d.RoutineKind != catalog.FunctionRoutine) {
+	if (d.SQL.Invocation == proc.DMLTriggerInvocation) != (result.ID() == 2279) || (d.SQL.Invocation == proc.EventTriggerInvocation) != (result.ID() == 3838) || d.SQL.Invocation != proc.OrdinaryInvocation && (d.SQL.Kind != proc.PLpgSQLBody || len(d.SQL.Formals) != 0 || d.RoutineKind != catalog.FunctionRoutine) {
 		return invalid()
 	}
 	layout := &proc.Definition{}

@@ -29,7 +29,7 @@ func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *par
 	}
 	if old == nil {
 		e.Mu.Unlock()
-		scope.Completed = true
+		scope.CompleteUtility()
 		return core.Result{}, nil
 	}
 	if s.Owner != nil {

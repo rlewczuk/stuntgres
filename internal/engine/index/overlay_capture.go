@@ -54,6 +54,13 @@ func SelectOverlayCapturesLocked(published *storage.Store, view catalog.Read, st
 		if previous, ok := staged.Base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && stage.Rebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && SameIndexKeySemantics(previous, idx) {
 			continue
 		}
+		if previous, ok := staged.Base.Relation(a); ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && !previous.SQLIndex.Valid && !idx.SQLIndex.Valid && stage.Rebuilds[a] == nil && SameIndexKeySemantics(previous, idx) {
+			if _, produced := stage.Candidates[a]; !produced {
+				// A generic parent heap replacement is not repair authority for
+				// an existing ready-invalid index or its retained phase root.
+				continue
+			}
+		}
 		store := session.PrivateStorage(published, c, parent.Address())
 		if store == nil {
 			return nil, catalog.Conflict{}

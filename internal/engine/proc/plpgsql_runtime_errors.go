@@ -43,7 +43,7 @@ func PLBodyDiagnostic(source string, start, end parser.Position, callback PLDiag
 // runs only when err carries a SQL diagnostic.
 func PLRuntimeError(err error, d *Definition, identity func() string, start, end, origin parser.Position, action string, expression bool) error {
 	query := PLDiagnosticQuery{}
-	if expression && PLExpressionCallback(err) && (!d.Trigger || PLTriggerExpressionBinding(err)) {
+	if expression && PLExpressionCallback(err) && (d.Invocation != DMLTriggerInvocation || PLTriggerExpressionBinding(err)) {
 		query = PLBodyDiagnostic(d.Source, start, end, PLExpressionCallbackKind)
 	}
 	return PLRuntimeQueryError(err, d, identity, origin, action, query)

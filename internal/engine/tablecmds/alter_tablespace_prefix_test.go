@@ -206,7 +206,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					t.Cleanup(func() { scope.Inheritance.Alter = nil; e.DiscardCatalogStage(stage) })
 				}
 				e.Mu.Lock()
-				_, err := tablecmds.AlterTableLocked(e, scope, c.op, c.auth, c.raw, 0)
+				_, err := tablecmds.AlterTableLocked(e, scope, c.op, c.auth, c.raw, 0, nil)
 				if invalidAS {
 					diagnostic := tablespacePrefixCode(t, err, "22023")
 					if diagnostic.Message != "MAXVALUE (40000) is out of range for sequence data type smallint" || *memoryA != cacheA {

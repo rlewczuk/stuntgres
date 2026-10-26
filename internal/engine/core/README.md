@@ -28,6 +28,10 @@ fields, shared by every database target:
 - `Engine.Factory` (`EngineFactory`), the composed constructor that builds the
   private `template1` seed and the Restore stage.
 
+Event-trigger definition DDL also goes through `Statements.Execute` to the
+schema family. Its successful completion uses `CompleteUtility`, preserving any
+pending statement journal; core owns callback execution, not schema execution.
+
 Code shared by families with no arrow between them sits here: relation
 ownership (`ExecuteRelationOwnership`, `OwnershipStage`, `PublishOwnership`)
 and operation role installation (`InstallOperationRolesLocked`). Family code
@@ -35,6 +39,44 @@ waits on relation targets and bound view relations through
 `StatementScope.AcquireRelationTarget` and `AcquireBoundViewRelationModes`;
 their unexported bodies keep the frames that read-only reference fixtures
 match.
+
+## Event-trigger command ownership
+
+`session.EventCommand` classifies eligible transactional utilities before target
+lookup, independently of completion tags. Core opens a genuine statement-private
+journal before `ddl_command_start`; main DDL, consumed logical drops, semantic
+rewrites and `ddl_command_end` retain it through ordinary `Finish`. Nested SQL
+shares that journal and the write stage, but owns fresh lexical command scratch.
+`CompleteUtility` never marks a pending journal as already published.
+
+Each phase captures matching enabled definitions in name order under `Engine.Mu`
+and invokes checked current functions unlocked. Prepared handles retain neither
+callback lists nor function bodies. Exception checkpoints restore command-local
+drop facts alongside the catalog, row and effect roots. Internal replacement
+effects do not become user-visible drops.
+
+`PublishAlterMetadata` consumes structurally validated metadata before heap work.
+`TransferAlterStage` retains ordinary normalization and admission; one fresh
+`FinishAlterValidation` stage demands registered providers after all physical
+work, over exact final descriptors without another revision or resurrection.
+`BeginAlterPhysical` checks exact descriptor, provider, index-set and private
+storage successors before and after the rewrite callback, separately from the
+journal's original committed storage and publication fences. Only this ALTER's
+admitted touched topology receipts advance to authentic private successors.
+Destination-name claims remain pending until Finish; exception rollback restores
+their suffix. General authority retains the published role root and installed
+session revision. Shared transfer methods live in core; family executors retain
+their physical work records and old tuple layouts.
+`ActiveScopeOfLease` alone supplies unfinished statement authority; a retained
+finished lease remains useful for accounting, not private catalog or role lookup.
+
+`EventCommand` holds lexical tag/drop facts, not publication authority.
+`BeginEventCommand`, `RecordEventDrop` and `FinishEventCommand` pair entry with
+exact enclosing-command restoration. `ProjectedRoots` and `WriteStage.Replacing`
+distinguish complete private roots from appended suffixes; `DiscardRemovedWrites`
+uses the same conversion as column projection. `ActivateSQLRoutine` owns fresh
+lexical admission and restores the exact outer `MaterializedSlot` once on exit.
+
 
 ## Procedural exception boundaries
 
@@ -46,6 +88,9 @@ before the boundary. Success releases it; failure restores effects before matchi
 and runs the handler outside the failed mark. Provider callbacks run unlocked,
 cleanup ignores cancellation, and failed cleanup prevents further handler execution
 while preserving the originating diagnostic and secondary failure.
+`BeginPLException` returns an opaque statement-owned mark; `EndPLException`
+consumes it once in LIFO order, releasing success or restoring the failed suffix
+before handler execution.
 The statement walk is `proc.PLRun` ([proc README](../proc/README.md)); `plpgsql_host.go`
 adapts it per invocation (`plHost`, allocated once with its run) and keeps
 expression execution, conversion, checkpoints, cursors and RAISE/ASSERT here.
@@ -675,6 +720,10 @@ Public scenarios use `RUN='^TestReferenceAmcheckHeap'` in `reference/indexes`.
 
 Trigger payload/frame/runtime/remap/stage units share
 `RUN='^TestTriggerCore(Catalog|Frame|Return|Runtime|Persistence|AtomicStage|PartitionPath|WhenProvider)$'`.
+
+Event-trigger journal, frame, projection, drop and rewrite units share
+`RUN='^TestEventTrigger'`; public direct/prepared behavior belongs in the
+dual-mode reference suite.
 
 Core tests are package-level units of these contracts; public SQL behavior is
 tested only in `reference/` ([docs/TESTING.md](../../../docs/TESTING.md)). SHOW ALL

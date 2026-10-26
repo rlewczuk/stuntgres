@@ -66,6 +66,9 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		if err := e.publishRows(s.Op, s.TxRef, s.Stage.Rows, s.Stage.Deletes, s.Catalog, s.CatalogAuthority, s); err != nil {
 			return Result{}, err
 		}
+		// This journal has been consumed by the combined publisher. Finish must
+		// not replay its original descriptor/storage predecessors.
+		s.Catalog = nil
 		e.Mu.Lock()
 		sess.Settings.Mu.Lock()
 		sess.Mu.Lock()
@@ -149,7 +152,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		e.Mu.Unlock()
 		return nil
 	}
-	changes := s.Owner.Catalog.Clone()
+	changes := s.PendingCatalog().Clone()
 	stage := e.BeginCatalogStage(base)
 	stage.AuthorizeLocked(auth, session)
 	for address := range owned {

@@ -45,7 +45,7 @@ func (s *StatementScope) acquireRow(candidate visibility.DeleteCandidate) error 
 	if err = s.ValidateLockedRelation(e); err != nil {
 		return err
 	}
-	if candidate.Ref.Domain() != e.Catalog.Domain || candidate.Ref.Epoch != e.Catalog.State.Epoch() || candidate.Storage != e.PrivateStorageLocked(s.Owner.Catalog, candidate.Ref.Address) {
+	if candidate.Ref.Domain() != e.Catalog.Domain || candidate.Ref.Epoch != e.Catalog.State.Epoch() || candidate.Storage != e.PrivateStorageLocked(s.PendingCatalog(), candidate.Ref.Address) {
 		return ids.ErrCatalogReplaced
 	}
 	return nil
@@ -82,7 +82,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if candidate.Ref.Domain() != e.Catalog.Domain || candidate.Ref.Address.SubID != 0 || candidate.Row == 0 || candidate.Version == 0 {
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
-	if candidate.Ref.Epoch != e.Catalog.State.Epoch() || candidate.Ref.Epoch != s.TxRef.Epoch() || candidate.Storage == nil || candidate.Storage != e.PrivateStorageLocked(s.Owner.Catalog, candidate.Ref.Address) {
+	if candidate.Ref.Epoch != e.Catalog.State.Epoch() || candidate.Ref.Epoch != s.TxRef.Epoch() || candidate.Storage == nil || candidate.Storage != e.PrivateStorageLocked(s.PendingCatalog(), candidate.Ref.Address) {
 		return false, ids.ErrCatalogReplaced
 	}
 	if s.View == nil {
@@ -100,7 +100,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 		return false, errors.New("stuntgres: deletion is outside its candidate view")
 	}
 	rows := s.OwnWrites[candidate.Ref.Address]
-	store := e.PrivateStorageLocked(s.Owner.Catalog, candidate.Ref.Address)
+	store := e.PrivateStorageLocked(s.PendingCatalog(), candidate.Ref.Address)
 	if store == nil {
 		return false, errors.New("stuntgres: relation storage is missing")
 	}
@@ -108,7 +108,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 		rows = store.Versions
 	}
 	original, slot, found := storage.RowByID(rows, candidate.Row, candidate.Ordinal)
-	relation, ok := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(candidate.Ref.Address)
+	relation, ok := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(candidate.Ref.Address)
 	if !found || !ok || len(original.Values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
@@ -148,7 +148,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 		w.Deletes[candidate.Ref.Address] = root
 	}
 	root.Rows[candidate.Row] = candidate
-	if s.foreignEffectRelevant(candidate.Ref, e.PrivateCatalogLocked(s.Owner.Catalog)) {
+	if s.foreignEffectRelevant(candidate.Ref, e.PrivateCatalogLocked(s.PendingCatalog())) {
 		s.recordForeignEffect(candidate.Ref, original, storage.RowVersion{})
 	}
 	s.projectExclusionDeletionLocked(e, candidate)

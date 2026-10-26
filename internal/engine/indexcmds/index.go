@@ -76,7 +76,7 @@ func ExecuteCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.Cr
 			e.Mu.Unlock()
 			e.DiscardCatalogStage(stage)
 			scope.Op.ExistingRelationNotice(name)
-			scope.Completed = true
+			scope.CompleteUtility()
 			return core.Result{}, nil
 		}
 		d := created.Relation
@@ -120,7 +120,7 @@ func ExecuteCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.Cr
 			if s.IfNotExists {
 				e.Mu.Lock()
 				currentAuth, authErr := e.StatementAuthorizationLocked(scope.Op, s)
-				current := e.PrivateCatalogLocked(scope.Owner.Catalog)
+				current := e.PrivateCatalogLocked(scope.PendingCatalog())
 				_, exists := current.LookupName(key)
 				same := current.Epoch() == base.Epoch() && current.Get(parent.Address()) != nil
 				if authErr == nil && same {
@@ -135,7 +135,7 @@ func ExecuteCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.Cr
 				}
 				if same && exists {
 					scope.Op.ExistingRelationNotice(name)
-					scope.Completed = true
+					scope.CompleteUtility()
 					return core.Result{}, nil
 				}
 			}
@@ -148,7 +148,7 @@ func ExecuteCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.Cr
 			return executeConcurrentIndex(e, scope, s, d)
 		}
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return core.Result{}, err
 	}

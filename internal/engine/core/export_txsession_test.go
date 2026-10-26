@@ -257,9 +257,6 @@ func ScopeMutations(x *StatementScope) []StatementMutation { return x.mutations 
 // ScopeNotificationEvents returns x.notificationEvents.
 func ScopeNotificationEvents(x *StatementScope) []session.Notification { return x.notificationEvents }
 
-// ScopeProjectedRoots returns x.projectedRoots.
-func ScopeProjectedRoots(x *StatementScope) bool { return x.projectedRoots }
-
 // ScopeRoutinePrograms returns x.routinePrograms.
 func ScopeRoutinePrograms(x *StatementScope) []commandRoutineProgram { return x.routinePrograms }
 
@@ -329,12 +326,6 @@ func SetScopeNotificationEvents(x *StatementScope, v []session.Notification) {
 
 // SetScopeSelf sets x.self.
 func SetScopeSelf(x *StatementScope, v *StatementScope) { x.self = v }
-
-// SetWriteStageReplacing sets x.replacing.
-func SetWriteStageReplacing(x *WriteStage, v bool) { x.replacing = v }
-
-// WriteStageReplacing returns x.replacing.
-func WriteStageReplacing(x *WriteStage) bool { return x.replacing }
 
 // OwnerExtensionCursorCleanup returns x.cursorCleanup.
 func OwnerExtensionCursorCleanup(x *ownerExtension) []*sqlCursor { return x.cursorCleanup }

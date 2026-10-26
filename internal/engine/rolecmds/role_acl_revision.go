@@ -8,7 +8,8 @@ import (
 // Session.mu is held, and all revision checks have reserved rollback capacity.
 func touchOperationIdentityLocked(op *session.Operation) {
 	t := op.Session.Transactions
-	if (t.RetainsTransaction() || t.State == session.TxActive) && !t.IdentityCaptured {
+	scope := core.ActiveScopeOfLease(op.Lease)
+	if (scope != nil && scope.Catalog != nil || t.RetainsTransaction() || t.State == session.TxActive) && !t.IdentityCaptured {
 		t.IdentityEntry = op.Session.Authorization.State
 		t.IdentityCaptured = true
 	}

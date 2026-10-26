@@ -23,17 +23,18 @@ import (
 // A preparation records real ordered effects; it is not a catalog or stage.
 // Only the execution adapter can publish metadata or project physical rows.
 type DropProvider struct {
-	Base           catalog.Read
-	Owner          *Engine
-	SearchPath     []ids.ObjectAddress
-	Stage          *CatalogStage
-	Prepared       *table.DropPreparation
-	Ctx            context.Context
-	Scope          *StatementScope
-	Changes        *session.Journal
-	project        func(*catalog.Relation, *catalog.Relation) error
-	identitySource *catalog.Relation   // Actual grant-time identity provider only.
-	IdentityDrop   identityDropCapture // The sequence DROP IDENTITY captured at its grant.
+	Base            catalog.Read
+	Owner           *Engine
+	SearchPath      []ids.ObjectAddress
+	Stage           *CatalogStage
+	Prepared        *table.DropPreparation
+	Ctx             context.Context
+	Scope           *StatementScope
+	Changes         *session.Journal
+	project         func(*catalog.Relation, *catalog.Relation) error
+	identitySource  *catalog.Relation   // Actual grant-time identity provider only.
+	IdentityDrop    identityDropCapture // The sequence DROP IDENTITY captured at its grant.
+	InternalRemoval bool
 }
 
 func StageDropProvider(ctx context.Context, stage *CatalogStage, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error) *DropProvider {
@@ -239,6 +240,19 @@ func (p *DropProvider) Remove(ref ids.ObjectRef) error {
 	return p.removeObjectLocked(ref, false)
 }
 
+func (p *DropProvider) RemoveInternal(ref ids.ObjectRef) error {
+	previous := p.InternalRemoval
+	p.InternalRemoval = true
+	defer func() { p.InternalRemoval = previous }()
+	if err := p.Remove(ref); err != nil {
+		return err
+	}
+	if p.Stage != nil {
+		p.Stage.MarkRemovalInternal(ref.Address)
+	}
+	return nil
+}
+
 func (p *DropProvider) RecordRemoval(ref ids.ObjectRef, namespace bool) error {
 	d := p.Base.Get(ref.Address)
 	key := catalog.DescriptorNameKey(d)
@@ -247,11 +261,16 @@ func (p *DropProvider) RecordRemoval(ref ids.ObjectRef, namespace bool) error {
 	}
 	p.Observe(ref.Address)
 	if p.Stage == nil {
-		p.Prepared.RecordEffect(table.DropEffect{Remove: ref})
+		p.Prepared.RecordEffect(table.DropEffect{Remove: ref, Internal: p.InternalRemoval})
 		return nil
 	}
 	stage := p.Stage
 	stage.RecordRemoval(ref, d)
+	if p.InternalRemoval {
+		stage.MarkRemovalInternal(ref.Address)
+	} else if p.Scope != nil {
+		p.Scope.RecordEventDrop(ref.Address)
+	}
 	if namespace {
 		stage.RemoveSchemaDefaults(ref.Address)
 	}
@@ -280,6 +299,9 @@ func (p *DropProvider) ProjectColumn(old, next *catalog.Relation) error {
 		return nil
 	}
 	stage, e, ctx := p.Stage, p.Owner, p.Ctx
+	if p.Scope != nil {
+		p.Scope.RecordEventDrop(old.Address())
+	}
 	if old.RelationKind == catalog.CompositeRelation || old.RelationKind == catalog.ForeignRelation {
 		return stage.Replace(next)
 	}

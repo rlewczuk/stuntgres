@@ -32,12 +32,15 @@ type plExceptionCheckpoint struct {
 	ownDeletes                                  map[ids.ObjectAddress]*visibility.PrivateDeletes
 	catalog                                     *session.Journal
 	catalogAuthority                            *session.CatalogAuthority
+	alterNames                                  map[ids.NameKey]ids.ObjectRef
+	EventCommand                                *EventCommand
+	eventDropped                                bool
 	foreignActions                              *dml.ForeignActionScope
 	indexes                                     *index.Scope
 	multiEvents                                 []lock.MultiEvent
 	notificationActions                         []session.NotificationAction
 	notificationEvents                          []session.Notification
-	completed, sessionCompleted, projectedRoots bool
+	completed, sessionCompleted, ProjectedRoots bool
 	foreignModifications                        int
 	holdPromotions                              []*sqlCursor
 	truncate                                    *dml.TruncateScope
@@ -105,7 +108,9 @@ func exceptionIndexes(scope *index.Scope) *index.Scope {
 	return &copy
 }
 
-func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
+// BeginPLException captures an unnamed, statement-owned exception checkpoint.
+// The returned mark must be consumed once by EndPLException in LIFO order.
+func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 	t := s.Owner
 	t.Mu.Lock()
 	if err := t.Validate(s.TxRef); err != nil {
@@ -123,12 +128,17 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 	if err := foreignSavepoint(t, s.Op.Context(), 0, mark.Serial); err != nil {
 		return nil, &proc.PLExceptionCleanupError{Primary: err, Cleanup: errors.New("exception mark acquisition failed")}
 	}
-	c := &plExceptionCheckpoint{scope: s, owner: t, serial: mark.Serial, rows: exceptionRows(s.Stage.Rows), deletes: exceptionDeletes(s.Stage.Deletes), replacing: s.Stage.replacing,
+	c := &plExceptionCheckpoint{scope: s, owner: t, serial: mark.Serial, rows: exceptionRows(s.Stage.Rows), deletes: exceptionDeletes(s.Stage.Deletes), replacing: s.Stage.Replacing,
 		ownWrites: exceptionRows(s.OwnWrites), ownDeletes: exceptionDeletes(s.OwnDeletes), catalog: s.Catalog, catalogAuthority: s.CatalogAuthority,
 		foreignActions: exceptionForeignActions(s.foreignActionsSlot), indexes: exceptionIndexes(s.indexesSlot), multiEvents: slices.Clone(s.multiEvents),
-		notificationActions: slices.Clone(s.notificationActions), notificationEvents: slices.Clone(s.notificationEvents), completed: s.Completed, sessionCompleted: s.sessionCompleted, projectedRoots: s.projectedRoots,
+		notificationActions: slices.Clone(s.notificationActions), notificationEvents: slices.Clone(s.notificationEvents), completed: s.Completed, sessionCompleted: s.sessionCompleted, ProjectedRoots: s.ProjectedRoots,
 		foreignModifications: len(s.foreignTablesOrZero().modifications)}
 	c.holdPromotions = slices.Clone(s.foreignTablesOrZero().holdPromotions)
+	c.alterNames = maps.Clone(s.alterNames)
+	c.EventCommand = s.EventCommand
+	if s.EventCommand != nil {
+		c.eventDropped = s.EventCommand.Dropped
+	}
 	if s.CatalogAuthority != nil {
 		owned := *s.CatalogAuthority
 		owned.Observations = slices.Clone(owned.Observations)
@@ -156,8 +166,8 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 		}
 		c.viewCreation = &owned
 	}
-	if s.materializedSlot != nil {
-		owned := *s.materializedSlot
+	if s.MaterializedSlot != nil {
+		owned := *s.MaterializedSlot
 		owned.Sources = slices.Clone(owned.Sources)
 		c.materialized = &owned
 	}
@@ -172,7 +182,9 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 	return c, nil
 }
 
-func (s *StatementScope) endPLException(c *plExceptionCheckpoint, rollback bool, primary error) error {
+// EndPLException releases the mark, restoring its effect suffix when rollback is
+// true. Cleanup preserves primary and does not publish the enclosing statement.
+func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool, primary error) error {
 	if c == nil || c.scope != s || c.owner != s.Owner || c.disposed {
 		return errors.New("stuntgres: foreign or disposed exception checkpoint")
 	}
@@ -207,9 +219,14 @@ func (s *StatementScope) endPLException(c *plExceptionCheckpoint, rollback bool,
 	t.Mu.Lock()
 	if rollback {
 		restoreSavepoint(t, mark, mark.Settings.Clone())
-		s.Stage.Rows, s.Stage.Deletes, s.Stage.replacing = c.rows, c.deletes, c.replacing
+		s.Stage.Rows, s.Stage.Deletes, s.Stage.Replacing = c.rows, c.deletes, c.replacing
 		s.OwnWrites, s.OwnDeletes = c.ownWrites, c.ownDeletes
 		s.Catalog, s.CatalogAuthority = c.catalog, c.catalogAuthority
+		s.alterNames = c.alterNames
+		s.EventCommand = c.EventCommand
+		if s.EventCommand != nil {
+			s.EventCommand.Dropped = c.eventDropped
+		}
 		if c.foreignActions != nil && s.foreignActionsSlot != nil {
 			*s.foreignActionsSlot = *c.foreignActions
 		} else {
@@ -221,13 +238,13 @@ func (s *StatementScope) endPLException(c *plExceptionCheckpoint, rollback bool,
 			s.indexesSlot = c.indexes
 		}
 		s.truncateSlot, s.DropsSlot, s.ForeignKeysSlot = c.truncate, c.drops, c.foreignKeys
-		s.viewCreationSlot, s.materializedSlot = c.viewCreation, c.materialized
+		s.viewCreationSlot, s.MaterializedSlot = c.viewCreation, c.materialized
 		if s.foreignTablesSlot != nil {
 			s.foreignTablesSlot.holdPromotions = c.holdPromotions
 		}
 		s.multiEvents = c.multiEvents
 		s.notificationActions, s.notificationEvents = c.notificationActions, c.notificationEvents
-		s.Completed, s.sessionCompleted, s.projectedRoots = c.completed, c.sessionCompleted, c.projectedRoots
+		s.Completed, s.sessionCompleted, s.ProjectedRoots = c.completed, c.sessionCompleted, c.ProjectedRoots
 	}
 	t.TruncateSavepoints(n)
 	t.Mu.Unlock()

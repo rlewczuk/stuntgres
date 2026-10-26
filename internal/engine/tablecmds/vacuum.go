@@ -150,7 +150,7 @@ func ExecuteVacuum(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, c
 			return core.Result{}, err
 		}
 		e.UpdateDatabaseMaintenanceLocked()
-		s.Completed = true
+		s.CompleteUtility()
 		return core.Result{}, nil
 	}
 	targets, err := vacuumTargets(e, s, raw, options.SkipLocked)
@@ -187,7 +187,7 @@ func ExecuteVacuum(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, c
 			return core.Result{}, err
 		}
 	}
-	s.Completed = true
+	s.CompleteUtility()
 	return core.Result{}, nil
 }
 

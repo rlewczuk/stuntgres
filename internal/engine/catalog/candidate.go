@@ -36,6 +36,7 @@ type Candidate struct {
 type Removal struct {
 	Ref        ids.ObjectRef
 	Descriptor Descriptor
+	Internal   bool // Operation-internal replacement, not an INTERNAL dependency edge.
 }
 
 // NewCandidate returns an empty candidate over base.
@@ -193,11 +194,14 @@ func (c *Candidate) State() *State {
 	}
 	next := &State{epoch: c.Base.Epoch(), namespaceGeneration: base.namespaceGeneration, descriptors: ds.Persistent(), names: ns.Persistent(), relations: rs.Persistent(), operatorNames: operators.Index, procedureNames: procedures.Index, castPairs: casts.castPairs, defaultACLs: overlayDefaultACLs(base.defaultACLs, c.defaultACLs), dumpPriorities: base.dumpPriorities}
 	next.defaultClasses = base.defaultClasses
+	next.eventTriggers = base.eventTriggers
 	for a := range c.removals {
 		next.updateDefaultClasses(c.Base.Get(a), nil)
+		next.updateEventTriggers(c.Base.Get(a), nil)
 	}
 	for a, d := range c.descriptors {
 		next.updateDefaultClasses(c.Base.Get(a), d)
+		next.updateEventTriggers(c.Base.Get(a), d)
 	}
 	if len(base.dumpPriorities) != 0 && len(c.removals) != 0 {
 		next.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(base.dumpPriorities))
@@ -285,6 +289,17 @@ func (c *Candidate) DefaultRecordsUnchanged(current *State) bool {
 // Create/Replace, allocating revisions, or synchronizing rowtypes. CatalogStage
 // still owns lifecycle checks and publication validation.
 func (c *Candidate) UpdateDescriptor(d Descriptor) { c.descriptors[d.Address()] = d }
+
+// MarkRemovalInternal records the deletion caller's operation flag. Rebuilding
+// an index for ALTER TYPE is not a user-visible sql_drop, unlike DROP CASCADE.
+func (c *Candidate) MarkRemovalInternal(address ids.ObjectAddress) {
+	removal, exists := c.removals[address]
+	if !exists {
+		panic("stuntgres: internal deletion has no removal effect")
+	}
+	removal.Internal = true
+	c.removals[address] = removal
+}
 
 // RenameStagedDescriptor rebinds an existing private/reminted identity using its
 // actual keys, including an array's explicit namespace override.

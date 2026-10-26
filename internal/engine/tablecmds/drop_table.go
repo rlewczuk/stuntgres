@@ -88,7 +88,7 @@ func DropTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Ope
 	base := auth.Catalog
 	var changes *session.Journal
 	if temporary {
-		changes = scope.Owner.Catalog.Clone()
+		changes = scope.PendingCatalog().Clone()
 	}
 	stage := e.BeginCatalogStage(base)
 	stage.AuthorizeLocked(auth, op.Session)
@@ -138,7 +138,7 @@ func DropTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Ope
 	if err != nil {
 		return core.Result{}, err
 	}
-	scope.Completed = true
+	scope.CompleteUtility()
 	view.EmitCascade(op, append(stage.SchemaCascadeNames, stage.DropCascadeNames...))
 	for _, notice := range notices {
 		op.EmitNotice(session.LevelNotice, notice)

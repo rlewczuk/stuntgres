@@ -212,7 +212,7 @@ func (r *PLRun) returnValue(instruction PLInstruction) (sqltype.Value, error) {
 	value, _, err := r.Host.Evaluate(r.Frame, instruction.Query, at)
 	expressionError := err != nil
 	if err == nil {
-		if r.Definition.Trigger {
+		if r.Definition.Invocation == DMLTriggerInvocation {
 			if !value.IsNull() && (value.Type() == nil || !value.Type().BaseType().IsComposite()) {
 				err = plError("42804", "cannot return non-composite value from function returning composite type")
 			}
@@ -246,14 +246,14 @@ func (r *PLRun) assign(instruction PLInstruction) error {
 	var diagnostic *sqlstate.Error
 	var domain interface{ PLAssignmentDomain() }
 	query := PLDiagnosticQuery{}
-	triggerBinding := d.Trigger && PLTriggerExpressionBinding(err) && plAssignmentExpressionCallback(err)
-	if !errors.As(err, &domain) && errors.As(err, &diagnostic) && ((!expressionError || d.Trigger) && strings.HasPrefix(diagnostic.Context, "SQL function ") || triggerBinding) {
+	triggerBinding := d.Invocation == DMLTriggerInvocation && PLTriggerExpressionBinding(err) && plAssignmentExpressionCallback(err)
+	if !errors.As(err, &domain) && errors.As(err, &diagnostic) && ((!expressionError || d.Invocation == DMLTriggerInvocation) && strings.HasPrefix(diagnostic.Context, "SQL function ") || triggerBinding) {
 		callback := PLAssignmentContext
 		if triggerBinding {
 			callback = PLAssignmentBinding
 		}
 		query = PLBodyDiagnostic(d.Source, statement.Pos, statement.ExpressionEnd, callback)
-	} else if expressionError && !d.Trigger && plAssignmentExpressionCallback(err) {
+	} else if expressionError && d.Invocation != DMLTriggerInvocation && plAssignmentExpressionCallback(err) {
 		query = PLBodyDiagnostic(d.Source, statement.Pos, statement.ExpressionEnd, PLAssignmentCallback)
 	}
 	return PLRuntimeQueryError(err, d, r.Host.Identity, statement.Pos, "at assignment", query)
@@ -276,7 +276,7 @@ func (r *PLRun) PrepareVariable(slot int, value sqltype.Value, at PLOrigin) (sql
 	var err error
 	if variable.Record {
 		if value.IsNull() {
-			if f.Program.Trigger && slot < 2 {
+			if f.Program.Invocation == DMLTriggerInvocation && slot < 2 {
 				value = sqltype.Null(f.Values[slot].Type())
 			} else {
 				value = sqltype.Value{}

@@ -184,6 +184,12 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "ALTER ROLE"
 	case *parser.DropRole:
 		base = "DROP ROLE"
+	case *parser.CreateEventTrigger:
+		base = "CREATE EVENT TRIGGER"
+	case *parser.AlterEventTrigger:
+		base = "ALTER EVENT TRIGGER"
+	case *parser.DropEventTrigger:
+		base = "DROP EVENT TRIGGER"
 	case *parser.CreateTrigger:
 		base = "CREATE TRIGGER"
 	case *parser.AlterTrigger:

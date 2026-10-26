@@ -62,13 +62,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	case *parser.Set, *parser.Show, *parser.Reset:
 		result, err := e.executeSetting(op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, err
 	case *parser.SettingCall:
 		result, err := e.executeSettingCall(op, stmt.(*parser.SettingCall), count, importFrame, scope.Input, scope.Output)
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, err
 	default:
@@ -203,7 +203,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	b, err := e.describeScoped(scope, stmt, auth, expected)
 	if err != nil {
 		e.Mu.Unlock()
-		if scope.sqlRoutine.lexical != nil && scope.sqlRoutine.lexical.Program.Trigger {
+		if scope.sqlRoutine.lexical != nil && scope.sqlRoutine.lexical.Program.Invocation != proc.OrdinaryInvocation {
 			return Result{}, &proc.PLExpressionBindingError{Err: err}
 		}
 		return Result{}, err

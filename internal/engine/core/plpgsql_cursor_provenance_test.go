@@ -150,7 +150,7 @@ func TestPLpgSQLCursorInstallationNames(t *testing.T) {
 	root.QuerySchema = []catalog.Column{{Name: "i", Usage: integer.Usage()}}
 	declaration := &parser.DeclareCursor{Name: parser.Identifier{Text: "immutable_request"}}
 	install := func(name *string, closed *int) (*core.SQLCursor, string, error) {
-		restore := core.ScopeActivateSQLRoutine(s, nil, read)
+		restore := s.ActivateSQLRoutine(nil, read)
 		core.SetScopeAuthority(s, &exec.Authority{Host: core.HostOf(s)})
 		s.Inquiry.CommentCatalog = read
 		source := &exec.Source{Singleton: true, Locks: &exec.LockContext{}, NestedStage: &exec.Stage{Finish: func() error { (*closed)++; return nil }}}

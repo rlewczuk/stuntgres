@@ -74,7 +74,7 @@ func finishDropDefinition(scope *core.StatementScope, provider *core.DropProvide
 	prepared.Finish(next)
 	e := provider.Owner
 	e.Mu.Lock()
-	err := validateColumnDropObservationsLocked(scope, prepared, e.PrivateCatalogLocked(scope.Owner.Catalog))
+	err := validateColumnDropObservationsLocked(scope, prepared, e.PrivateCatalogLocked(scope.PendingCatalog()))
 	e.Mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func consumePreparedDrop(scope *core.StatementScope, stage *core.CatalogStage, p
 	e.Mu.Lock()
 	err := validateColumnDropObservationsLocked(scope, prepared, stage.Base)
 	if err == nil {
-		err = validateColumnDropObservationsLocked(scope, prepared, e.PrivateCatalogLocked(scope.Owner.Catalog))
+		err = validateColumnDropObservationsLocked(scope, prepared, e.PrivateCatalogLocked(scope.PendingCatalog()))
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -142,7 +142,9 @@ func consumePreparedDrop(scope *core.StatementScope, stage *core.CatalogStage, p
 			}
 		case effect.Remove.Address != (ids.ObjectAddress{}):
 			e.Mu.Lock()
+			provider.InternalRemoval = effect.Internal
 			err = provider.RecordRemoval(effect.Remove, false)
+			provider.InternalRemoval = false
 			e.Mu.Unlock()
 			if err != nil {
 				return nil, err
@@ -151,6 +153,7 @@ func consumePreparedDrop(scope *core.StatementScope, stage *core.CatalogStage, p
 			if err := projectPreparedColumn(provider, effect.Before, effect.After); err != nil {
 				return nil, err
 			}
+			scope.RecordEventDrop(effect.Before.Address())
 		case effect.Notice != "":
 			stage.DropCascadeNames = append(stage.DropCascadeNames, effect.Notice)
 		case effect.Missing != nil:

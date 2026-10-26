@@ -112,7 +112,7 @@ func (h *statementHost) SchemaName(ns ids.ObjectAddress) (string, bool) {
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if d := e.PrivateCatalogLocked(s.Owner.Catalog).Get(ns); d != nil {
+	if d := e.PrivateCatalogLocked(s.PendingCatalog()).Get(ns); d != nil {
 		return d.Name(), true
 	}
 	return "", false

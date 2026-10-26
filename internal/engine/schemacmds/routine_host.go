@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -33,6 +34,14 @@ func (h RoutineHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.De
 
 func (h RoutineHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
 	return core.DDLAuthorityOf(a).DefinitionLookup(key)
+}
+
+func (h RoutineHost) RoutineSignatureSpelling(a ddl.Authority, id ids.OID) (string, error) {
+	path, err := a.ReferencePath()
+	if err != nil {
+		return "", err
+	}
+	return regobj.RoutineSpelling(h.AccessView(a).Catalog, path, id, true, false), nil
 }
 
 func (h RoutineHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName, inputs []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error) {

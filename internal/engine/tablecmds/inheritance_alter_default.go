@@ -12,7 +12,7 @@ import (
 
 // The ordinary default provider is metadata-only. Cook each physical default
 // against its own column Usage, but publish the complete hierarchy only once.
-// The caller holds Engine.mu; every return releases it.
+// The caller holds core.Engine.mu; every return releases it.
 func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableDefault, root *catalog.Relation) (core.Result, error) {
 	targets, auth, err := acquireInheritanceDefinitions(scope, root, !raw.Only)
 	if err != nil {
@@ -26,7 +26,7 @@ func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, o
 		ref := scope.LockedRef
 		ref.Address = old.Address()
 		e.Mu.Lock()
-		current := e.PrivateCatalogLocked(scope.Owner.Catalog)
+		current := e.PrivateCatalogLocked(scope.PendingCatalog())
 		fresh, err := e.StatementAuthorizationLocked(op, raw)
 		if err == nil && current.Get(old.Address()) != old {
 			err = ids.ErrCatalogReplaced
@@ -51,7 +51,7 @@ func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, o
 			e.Mu.Unlock()
 			return core.Result{}, err
 		}
-		store := e.PrivateStorageLocked(scope.Owner.Catalog, old.Address())
+		store := e.PrivateStorageLocked(scope.PendingCatalog(), old.Address())
 		if store == nil {
 			e.Mu.Unlock()
 			return core.Result{}, ids.ErrCatalogReplaced
@@ -60,6 +60,11 @@ func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, o
 		e.Mu.Unlock()
 		if err := stage.AlterRelation(op.Context(), ref, next, store, store, length, generation, ends); err != nil {
 			return core.Result{}, err
+		}
+		if raw.Action == parser.DropDefault {
+			if previous, present := old.ColumnMeta.Defaults[old.Attributes[childSlot]]; present {
+				scope.RecordEventDrop(ids.ObjectAddress{ClassID: 2604, ObjectID: previous.OID})
+			}
 		}
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
@@ -70,7 +75,7 @@ func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, o
 		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return core.Result{}, err
 }

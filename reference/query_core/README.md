@@ -13,6 +13,9 @@ NULL predicates in [types](../types/README.md); windows, ordering, LIMIT and
 DISTINCT in [query_order](../query_order/README.md); grouping sets in
 [aggregates](../aggregates/README.md).
 
+Routine declarations share creation and identity-preserving replacement contracts,
+including STRICT attributes, named/mode signatures and SQL bodies.
+
 Column qualification selects visible relation identities, including eligible
 outer frames. Schema-qualified names do not add FROM sources, and a matched
 inner qualifier owns its missing-column diagnostic rather than retrying outer

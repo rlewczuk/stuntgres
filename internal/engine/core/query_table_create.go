@@ -160,13 +160,13 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
 		if scope.cteInvocation != nil {
-			err = e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
+			err = e.StageCatalogOverlay(scope, stage, scope.PendingCatalog().Clone())
 		} else {
 			_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 		}
 	}
 	if err == nil && scope.cteInvocation == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return err
 }

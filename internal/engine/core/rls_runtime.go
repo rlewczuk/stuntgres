@@ -35,7 +35,7 @@ func (e *Engine) captureRowSecurityLocked(s *StatementScope, d *catalog.Relation
 	if err != nil {
 		return nil, err
 	}
-	auth.Recapture(e.PrivateCatalogLocked(s.Owner.Catalog))
+	auth.Recapture(e.PrivateCatalogLocked(s.PendingCatalog()))
 	if principal == (authorization.PrincipalRef{}) {
 		principal = auth.State.CurrentUser
 	}
@@ -105,11 +105,11 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 	}
 	definition, binding, node, closure, refs := policy.Presentation(), &imported.Binding, imported.Node, imported.Closure, imported.Refs
 	for i := range binding.QuerySources {
-		binding.QuerySources[i].Storage = e.PrivateStorageLocked(s.Owner.Catalog, binding.QuerySources[i].Ref.Address)
+		binding.QuerySources[i].Storage = e.PrivateStorageLocked(s.PendingCatalog(), binding.QuerySources[i].Ref.Address)
 	}
 	admitted := make([]exec.Leaf, 0, len(closure.Modes))
 	for ref := range closure.Modes {
-		admitted = append(admitted, exec.Leaf{Ref: ref, Relation: read.MustRelation(ref.Address), Storage: e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)})
+		admitted = append(admitted, exec.Leaf{Ref: ref, Relation: read.MustRelation(ref.Address), Storage: e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)})
 	}
 	if len(refs) != 0 {
 		roots := binding.QuerySources
@@ -120,7 +120,7 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 			return err
 		}
 		for _, leaf := range admitted {
-			if err := e.validatePolicySourceLocked(s, e.PrivateCatalogLocked(s.Owner.Catalog), leaf); err != nil {
+			if err := e.validatePolicySourceLocked(s, e.PrivateCatalogLocked(s.PendingCatalog()), leaf); err != nil {
 				return err
 			}
 		}
@@ -189,7 +189,7 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 		return err
 	}
 	if s.Owner.ReadOnly {
-		mode, err := view.FirstQueryRowMode(e.PrivateCatalogLocked(s.Owner.Catalog), nil, binding.QuerySources)
+		mode, err := view.FirstQueryRowMode(e.PrivateCatalogLocked(s.PendingCatalog()), nil, binding.QuerySources)
 		if err != nil {
 			return err
 		}

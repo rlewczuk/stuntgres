@@ -145,5 +145,9 @@ func PlanPolicy(h Host, auth ddl.Authority, stmt parser.Statement, locked ids.Ob
 			}
 		}
 	}
-	return RelationChange{Ref: ref, Next: &next, Sources: sources}, nil
+	change := RelationChange{Ref: ref, Next: &next, Sources: sources}
+	if drop {
+		change.Deleted = ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: old.Security.Policies[index].OID}
+	}
+	return change, nil
 }

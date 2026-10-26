@@ -47,7 +47,7 @@ func RenameConstraintLocked(e *core.Engine, scope *core.StatementScope, op *sess
 		e.DiscardCatalogStage(stage)
 		return fail(err)
 	}
-	changes := scope.Owner.Catalog.Clone()
+	changes := scope.PendingCatalog().Clone()
 	grantCatalog := e.Catalog.State
 	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, grantCatalog.Get(ref.Address))
 	e.Mu.Unlock()

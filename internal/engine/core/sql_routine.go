@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -80,7 +81,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	if err != nil {
 		return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
 	}
-	if d.SQL.Trigger {
+	if d.SQL.Invocation != proc.OrdinaryInvocation {
 		return value, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "trigger functions can only be called as triggers", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", d.Name())}
 	}
 	if d.Strict {
@@ -145,7 +146,7 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 			s.appendNoticeContext(noticeStart, exec.SQLRoutineStatementFrame(d.Name(), index+1))
 		}
 	}()
-	restore := s.activateSQLRoutine(d.SQL.Inputs, read)
+	restore := s.ActivateSQLRoutine(d.SQL.Inputs, read)
 	defer func() { err = restore(err) }()
 	finishCommand, err := s.beginRoutineCommand()
 	if err != nil {
@@ -164,6 +165,19 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 	}
 	if _, savepoint := statement.(*parser.SavepointControl); savepoint {
 		return value, SQLError("0A000", RoutineCommandTag(statement)+" is not allowed in an SQL function")
+	}
+	if tag, eligible := session.EventCommand(statement); eligible {
+		if err := s.readOnlyUtilityEligibility(statement); err != nil {
+			return value, err
+		}
+		if err := s.executionEligibility(statement); err != nil {
+			return value, err
+		}
+		previous, beginErr := s.BeginEventCommand(tag)
+		if beginErr != nil {
+			return value, beginErr
+		}
+		defer func() { err = s.FinishEventCommand(previous, err) }()
 	}
 	if program != nil {
 		if err = s.admitSQLRoutineCommand(d, program, index); err != nil {

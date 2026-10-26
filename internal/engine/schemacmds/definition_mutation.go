@@ -35,12 +35,13 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	}
 	alter := false
 	switch stmt.(type) {
-	case *parser.AlterCollation, *parser.AlterConversion:
+	case *parser.AlterCollation, *parser.AlterConversion, *parser.AlterEventTrigger:
 		alter = true
 	}
 	switch stmt.(type) {
 	case *parser.AlterCollation, *parser.DropCollation,
-		*parser.AlterConversion, *parser.DropConversion, *parser.DropCast, *parser.DropRoutine:
+		*parser.AlterConversion, *parser.DropConversion, *parser.DropCast, *parser.DropRoutine,
+		*parser.CreateFunction, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 	default:
 		return stage, nil
 	}
@@ -99,10 +100,15 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 		}
 		key := catalog.DescriptorNameKey(original)
 		if alter {
-			namespace := stage.Base.Get(key.Namespace)
-			if auth.Catalog.NameAddress(key) != address || namespace == nil ||
-				auth.Catalog.NameAddress(catalog.DescriptorNameKey(namespace)) != key.Namespace {
+			if auth.Catalog.NameAddress(key) != address {
 				return stage, ids.ErrCatalogReplaced
+			}
+			// Database-global definitions have no namespace predecessor.
+			if key.Namespace != (ids.ObjectAddress{}) {
+				namespace := stage.Base.Get(key.Namespace)
+				if namespace == nil || auth.Catalog.NameAddress(catalog.DescriptorNameKey(namespace)) != key.Namespace {
+					return stage, ids.ErrCatalogReplaced
+				}
 			}
 		}
 		if current := auth.Catalog.NameAddress(key); current != (ids.ObjectAddress{}) && current != address {

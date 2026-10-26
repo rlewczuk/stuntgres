@@ -56,7 +56,7 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			s.Op.Session.Settings.Values["application_name"] = "outer"
 			ref, command, frontier := s.TxRef, s.Owner.Command, e.Visibility.CommitSeq()
 			rowFrontier, versionFrontier := e.Storage.RowFrontier(), e.Storage.VersionFrontier()
-			mark, err := core.ScopeBeginPLException(s)
+			mark, err := s.BeginPLException()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,22 +78,22 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			core.SetScopeNotificationEvents(s, append(core.ScopeNotificationEvents(s), session.Notification{}))
 			s.Op.Session.Settings.Values["application_name"] = "inner"
 			core.SetScopeEffectSerial(s, 9)
-			inner, err := core.ScopeBeginPLException(s)
+			inner, err := s.BeginPLException()
 			if err != nil {
 				t.Fatal(err)
 			}
 			s.Stage.Rows[a] = []storage.RowVersion{{Row: 1, Version: 11}, {Row: 3, Version: 3}}
-			core.SetWriteStageReplacing(&s.Stage, true)
-			if err := core.ScopeEndPLException(s, inner, false, nil); err != nil {
+			s.Stage.Replacing = true
+			if err := s.EndPLException(inner, false, nil); err != nil {
 				t.Fatal(err)
 			}
-			if !core.WriteStageReplacing(&s.Stage) || s.Stage.Rows[a][0].Version != 11 {
+			if !s.Stage.Replacing || s.Stage.Rows[a][0].Version != 11 {
 				t.Fatal("successful inner release discarded effects")
 			}
-			if err := core.ScopeEndPLException(s, mark, true, errors.New("body")); err != nil {
+			if err := s.EndPLException(mark, true, errors.New("body")); err != nil {
 				t.Fatal(err)
 			}
-			if len(s.Stage.Rows[a]) != 1 || s.Stage.Rows[a][0].Version != 1 || core.WriteStageReplacing(&s.Stage) || len(s.Stage.Deletes[a].Rows) != 1 || s.Stage.Deletes[a].Rows[7].Version != 7 {
+			if len(s.Stage.Rows[a]) != 1 || s.Stage.Rows[a][0].Version != 1 || s.Stage.Replacing || len(s.Stage.Deletes[a].Rows) != 1 || s.Stage.Deletes[a].Rows[7].Version != 7 {
 				t.Fatal("stage prefix/deletion root not restored")
 			}
 			s.Stage.Rows[a] = append(s.Stage.Rows[a], storage.RowVersion{Row: 9, Version: 9})
@@ -112,28 +112,28 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			if s.TxRef != ref || s.Owner.Command != command || e.Visibility.CommitSeq() != frontier || core.ScopeEffectSerial(s) != 9 || e.Storage.RowFrontier() != rowFrontier || e.Storage.VersionFrontier() != versionFrontier {
 				t.Fatal("checkpoint rewound/advanced snapshot or identity")
 			}
-			if err := core.ScopeEndPLException(s, mark, true, nil); err == nil {
+			if err := s.EndPLException(mark, true, nil); err == nil {
 				t.Fatal("double disposition accepted")
 			}
-			next, err := core.ScopeBeginPLException(s)
+			next, err := s.BeginPLException()
 			if err != nil {
 				t.Fatal(err)
 			}
 			foreign := &core.StatementScope{Owner: s.Owner}
-			if err := core.ScopeEndPLException(foreign, next, true, nil); err == nil {
+			if err := foreign.EndPLException(next, true, nil); err == nil {
 				t.Fatal("foreign statement checkpoint accepted")
 			}
-			nested, err := core.ScopeBeginPLException(s)
+			nested, err := s.BeginPLException()
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := core.ScopeEndPLException(s, next, true, nil); err == nil {
+			if err := s.EndPLException(next, true, nil); err == nil {
 				t.Fatal("out-of-order checkpoint accepted")
 			}
-			if err := core.ScopeEndPLException(s, nested, true, nil); err != nil {
+			if err := s.EndPLException(nested, true, nil); err != nil {
 				t.Fatal(err)
 			}
-			if err := core.ScopeEndPLException(s, next, false, nil); err != nil {
+			if err := s.EndPLException(next, false, nil); err != nil {
 				t.Fatal(err)
 			}
 			if len(s.Owner.Savepoints) != 0 {

@@ -31,7 +31,7 @@ func (h *statementHost) UniqueParent(ref ids.ObjectRef) (*catalog.Relation, cata
 	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.TxRef.Epoch() {
 		return nil, catalog.Read{}, ids.ErrCatalogReplaced
 	}
-	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	view := e.PrivateCatalogLocked(s.PendingCatalog())
 	parent, ok := view.Relation(ref.Address)
 	if !ok {
 		return nil, catalog.Read{}, errors.New("stuntgres: invalid unique parent")
@@ -43,7 +43,7 @@ func (h *statementHost) BindingAuthority(b *index.UniqueWriteBinding, view catal
 	s := h.scope()
 	e := s.Engine()
 	e.Mu.Lock()
-	if e.PrivateCatalogLocked(s.Owner.Catalog).State() != view.State() {
+	if e.PrivateCatalogLocked(s.PendingCatalog()).State() != view.State() {
 		e.Mu.Unlock()
 		return true, nil
 	}
@@ -119,7 +119,7 @@ func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWri
 		e.Mu.Unlock()
 		return index.UniqueProbe{}, ids.ErrCatalogReplaced
 	}
-	current := e.PrivateCatalogLocked(s.Owner.Catalog)
+	current := e.PrivateCatalogLocked(s.PendingCatalog())
 	if current.State() != b.Catalog {
 		e.Mu.Unlock()
 		return index.UniqueProbe{Stale: true}, nil
@@ -135,10 +135,10 @@ func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWri
 	auth.Catalog = current
 	auth.Recapture(auth.Catalog)
 	namespace, _ := current.Namespace(parent.Namespace())
-	root := index.EffectiveRoot(e.Storage.IndexRoots, s.Owner.Catalog, idx.Address())
+	root := index.EffectiveRoot(e.Storage.IndexRoots, s.PendingCatalog(), idx.Address())
 	var versions []storage.RowVersion
 	if heads {
-		if stored := e.PrivateStorageLocked(s.Owner.Catalog, ref.Address); stored != nil {
+		if stored := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address); stored != nil {
 			versions = stored.Versions
 		}
 	}
@@ -157,12 +157,12 @@ func (h *statementHost) ExistingIndexRoot(idx *catalog.Relation) (*storage.Index
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	current := e.PrivateCatalogLocked(s.Owner.Catalog)
+	current := e.PrivateCatalogLocked(s.PendingCatalog())
 	currentIndex, ok := current.Relation(idx.Address())
 	if !ok || !index.SameIndexKeySemantics(idx, currentIndex) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	return index.EffectiveRoot(e.Storage.IndexRoots, s.Owner.Catalog, idx.Address()), nil
+	return index.EffectiveRoot(e.Storage.IndexRoots, s.PendingCatalog(), idx.Address()), nil
 }
 
 // CaptureExclusionScan captures the scan and its write authority in one
@@ -172,7 +172,7 @@ func (h *statementHost) CaptureExclusionScan(ref ids.ObjectRef, b *index.UniqueW
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	view := e.PrivateCatalogLocked(s.PendingCatalog())
 	if ref.Epoch != e.Catalog.State.Epoch() || view.State() != b.Catalog {
 		return index.ExclusionScan{}, ids.ErrCatalogReplaced
 	}
@@ -185,12 +185,12 @@ func (h *statementHost) CaptureExclusionScan(ref ids.ObjectRef, b *index.UniqueW
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
-	root := index.EffectiveRoot(e.Storage.IndexRoots, s.Owner.Catalog, idx.Address())
+	root := index.EffectiveRoot(e.Storage.IndexRoots, s.PendingCatalog(), idx.Address())
 	ns, ok := view.Namespace(b.Parent.Namespace())
 	if !ok {
 		return index.ExclusionScan{}, fmt.Errorf("stuntgres: missing exclusion namespace")
 	}
-	store := e.PrivateStorageLocked(s.Owner.Catalog, b.Parent.Address())
+	store := e.PrivateStorageLocked(s.PendingCatalog(), b.Parent.Address())
 	if store == nil {
 		return index.ExclusionScan{}, fmt.Errorf("stuntgres: missing exclusion row storage")
 	}
@@ -203,9 +203,9 @@ func (h *statementHost) ExclusionScanCurrent(scan index.ExclusionScan, idx ids.O
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	root := index.EffectiveRoot(e.Storage.IndexRoots, s.Owner.Catalog, idx)
-	store := e.PrivateStorageLocked(s.Owner.Catalog, scan.Parent)
-	return e.Exclusions.CurrentLocked(scan.Generation) && scan.View.State() == e.PrivateCatalogLocked(s.Owner.Catalog).State() && scan.Root == root && store == scan.Store && store.Generation == scan.StoreGeneration && len(store.Versions) == len(scan.Versions) && store.Ends == scan.Ends
+	root := index.EffectiveRoot(e.Storage.IndexRoots, s.PendingCatalog(), idx)
+	store := e.PrivateStorageLocked(s.PendingCatalog(), scan.Parent)
+	return e.Exclusions.CurrentLocked(scan.Generation) && scan.View.State() == e.PrivateCatalogLocked(s.PendingCatalog()).State() && scan.Root == root && store == scan.Store && store.Generation == scan.StoreGeneration && len(store.Versions) == len(scan.Versions) && store.Ends == scan.Ends
 }
 
 func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State, proposal index.WriteCandidate, edit index.ExclusionEdit) (storage.RowVersion, error) {
@@ -213,7 +213,7 @@ func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if ref.Epoch != e.Catalog.State.Epoch() || e.PrivateCatalogLocked(s.Owner.Catalog).State() != state {
+	if ref.Epoch != e.Catalog.State.Epoch() || e.PrivateCatalogLocked(s.PendingCatalog()).State() != state {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	s.BeginExclusionProjectionLocked(e)

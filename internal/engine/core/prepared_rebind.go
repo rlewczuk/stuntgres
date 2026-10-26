@@ -54,7 +54,7 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 		return err
 	}
 	s.prepared.namespace = auth.Catalog.State().NamespaceGeneration()
-	s.prepared.private = auth.Session.Transactions.Catalog
+	s.prepared.private = auth.PendingCatalog()
 	s.prepared.epoch = auth.Catalog.Epoch()
 	if s.Expected == nil {
 		return nil
@@ -68,7 +68,7 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 }
 
 func (e *Engine) preparedAnalysisEnvironmentValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment) bool {
-	return analysis != nil && !analysis.needsReanalysis && analysis.domain == e.Catalog.Domain && analysis.epoch == auth.Catalog.Epoch() && analysis.session == auth.Session.SessionToken && analysis.private == auth.Session.Transactions.Catalog && analysis.namespace == auth.Catalog.State().NamespaceGeneration() && sequence.SameEnvironment(analysis.path, path)
+	return analysis != nil && !analysis.needsReanalysis && analysis.domain == e.Catalog.Domain && analysis.epoch == auth.Catalog.Epoch() && analysis.session == auth.Session.SessionToken && analysis.private == auth.PendingCatalog() && analysis.namespace == auth.Catalog.State().NamespaceGeneration() && sequence.SameEnvironment(analysis.path, path)
 }
 
 func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment) bool {

@@ -57,92 +57,102 @@ func dcRetained(t *testing.T, rows *sql.Rows, want [][]any) {
 }
 
 func TestReferenceInfoDomainConstraintsNativeControls(t *testing.T) {
-	dcScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder, database string) {
-		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
-		dcSeed(run)
-		s := dcProjection(b.PG, "domain_schema='dc_scope'", dcSeedRows(database))
-		held := dcHold(t, p, c, s.Query)
-		dcCheck(t, p, c, r, held, s)
-		dcIdentity(t, p, c, r)
-		if b.PG {
-			return // PostgreSQL has no process-local Reset/Dump/Restore API.
-		}
-		var dump bytes.Buffer
-		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
-			t.Fatal(err)
-		}
-		retained, err := b.DB.QueryContext(p.Ctx, s.Query)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer retained.Close()
-		columns, err := retained.ColumnTypes()
-		if err != nil {
-			t.Fatal(err)
-		}
-		dcMetadata(t, columns, false)
-		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-			t.Fatal(err)
-		}
-		run(dcProjection(false, "domain_schema='dc_scope'", nil))
-		run(dcProjection(false, "domain_schema='information_schema' AND domain_name IN ('cardinal_number','yes_or_no')", [][]any{
-			dcRow(database, "information_schema", "cardinal_number_domain_check", "cardinal_number"),
-			dcRow(database, "information_schema", "yes_or_no_check", "yes_or_no"),
-		}))
-		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
-			t.Fatal(err)
-		}
-		// Fresh preparation after replacement, not a promise of retained analysis.
-		run(s)
-		run(fixture.Prepared(s))
-		dcIdentity(t, p, c, r)
-		dcRetained(t, retained, dcSeedRows(database))
-		dcMetadata(t, columns, false)
-		target := fixture.NewFixture(t, false, true)
-		if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(dump.Bytes())); err != nil {
-			t.Fatal(err)
-		}
-		var targetDatabase string
-		if err := target.Memory.QueryRowContext(target.Ctx, "SELECT current_database()").Scan(&targetDatabase); err != nil {
-			t.Fatal(err)
-		}
-		targetStep := dcProjection(false, "domain_schema='dc_scope'", dcSeedRows(targetDatabase))
-		checkTarget := func() {
-			fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, targetStep)
-			fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Prepared(targetStep))
-			dcIdentity(t, target, target.Memory, target.MemoryRecord)
-		}
-		checkTarget()
-		bad := "CREATE SCHEMA staged; CREATE DOMAIN staged.d AS integer; CREATE TABLE staged.t(v staged.d); INSERT INTO staged.t VALUES(-1); ALTER DOMAIN staged.d ADD CONSTRAINT positive CHECK(missing>0) NOT VALID;"
-		fixture.State(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(bad)), "42703")
-		checkTarget()
-		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname='staged'", []string{"nspname"}, []string{"NAME"}, nil))
-		ctx, cancel := context.WithCancel(target.Ctx)
-		cancel()
-		if err := stuntgres.Restore(ctx, target.Native, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) {
-			t.Fatalf("canceled Restore=%v", err)
-		}
-		checkTarget()
-		ctx, cancel = context.WithCancel(p.Ctx)
-		cancel()
-		freshHeld := dcHold(t, p, c, s.Query)
-		for _, x := range []fixture.Executor{c, freshHeld} {
-			rows, err := x.QueryContext(ctx, s.Query)
-			if rows != nil {
-				rows.Close()
-				t.Fatal("canceled query published rows")
-			}
-			if !errors.Is(err, context.Canceled) {
-				t.Fatalf("canceled query=%v", err)
-			}
-			var state interface{ SQLState() string }
-			if errors.As(err, &state) {
-				t.Fatal("ordinary cancellation exposed SQLSTATE", state.SQLState())
-			}
-		}
-		run(s)
-		run(fixture.Prepared(s))
-	})
+	for _, phase := range []string{"same_engine_restore", "independent_target_restore", "canceled_reads"} {
+		t.Run(phase, func(t *testing.T) {
+			dcScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder, database string) {
+				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
+				dcSeed(run)
+				s := dcProjection(b.PG, "domain_schema='dc_scope'", dcSeedRows(database))
+				held := dcHold(t, p, c, s.Query)
+				dcCheck(t, p, c, r, held, s)
+				dcIdentity(t, p, c, r)
+				if b.PG {
+					return // PostgreSQL has no process-local Reset/Dump/Restore API.
+				}
+				if phase == "canceled_reads" {
+					ctx, cancel := context.WithCancel(p.Ctx)
+					cancel()
+					freshHeld := dcHold(t, p, c, s.Query)
+					for _, x := range []fixture.Executor{c, freshHeld} {
+						rows, err := x.QueryContext(ctx, s.Query)
+						if rows != nil {
+							rows.Close()
+							t.Fatal("canceled query published rows")
+						}
+						if !errors.Is(err, context.Canceled) {
+							t.Fatalf("canceled query=%v", err)
+						}
+						var state interface{ SQLState() string }
+						if errors.As(err, &state) {
+							t.Fatal("ordinary cancellation exposed SQLSTATE", state.SQLState())
+						}
+					}
+					run(s)
+					run(fixture.Prepared(s))
+					return
+				}
+				var dump bytes.Buffer
+				if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+					t.Fatal(err)
+				}
+				if phase == "same_engine_restore" {
+					retained, err := b.DB.QueryContext(p.Ctx, s.Query)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer retained.Close()
+					columns, err := retained.ColumnTypes()
+					if err != nil {
+						t.Fatal(err)
+					}
+					dcMetadata(t, columns, false)
+					if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+						t.Fatal(err)
+					}
+					run(dcProjection(false, "domain_schema='dc_scope'", nil))
+					run(dcProjection(false, "domain_schema='information_schema' AND domain_name IN ('cardinal_number','yes_or_no')", [][]any{
+						dcRow(database, "information_schema", "cardinal_number_domain_check", "cardinal_number"),
+						dcRow(database, "information_schema", "yes_or_no_check", "yes_or_no"),
+					}))
+					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
+						t.Fatal(err)
+					}
+					// Fresh preparation after replacement, not a promise of retained analysis.
+					run(s)
+					run(fixture.Prepared(s))
+					dcIdentity(t, p, c, r)
+					dcRetained(t, retained, dcSeedRows(database))
+					dcMetadata(t, columns, false)
+					return
+				}
+				target := fixture.NewFixture(t, false, true)
+				if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(dump.Bytes())); err != nil {
+					t.Fatal(err)
+				}
+				var targetDatabase string
+				if err := target.Memory.QueryRowContext(target.Ctx, "SELECT current_database()").Scan(&targetDatabase); err != nil {
+					t.Fatal(err)
+				}
+				targetStep := dcProjection(false, "domain_schema='dc_scope'", dcSeedRows(targetDatabase))
+				checkTarget := func() {
+					fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, targetStep)
+					fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Prepared(targetStep))
+					dcIdentity(t, target, target.Memory, target.MemoryRecord)
+				}
+				checkTarget()
+				bad := "CREATE SCHEMA staged; CREATE DOMAIN staged.d AS integer; CREATE TABLE staged.t(v staged.d); INSERT INTO staged.t VALUES(-1); ALTER DOMAIN staged.d ADD CONSTRAINT positive CHECK(missing>0) NOT VALID;"
+				fixture.State(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(bad)), "42703")
+				checkTarget()
+				fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname='staged'", []string{"nspname"}, []string{"NAME"}, nil))
+				ctx, cancel := context.WithCancel(target.Ctx)
+				cancel()
+				if err := stuntgres.Restore(ctx, target.Native, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) {
+					t.Fatalf("canceled Restore=%v", err)
+				}
+				checkTarget()
+			})
+		})
+	}
 }
 
 func TestReferenceInfoDomainConstraintsFeatureSmoke(t *testing.T) {

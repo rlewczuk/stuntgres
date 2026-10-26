@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
@@ -22,8 +21,8 @@ import (
 )
 
 // The strictest captured ALTER grant protects the incarnation until Finish.
-// The caller holds Engine.mu. Every return releases it before callbacks/scanning.
-func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTable, count int) (core.Result, error) {
+// The caller holds core.Engine.mu. Every return releases it before callbacks/scanning.
+func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTable, count int, physicalWork *[]AlterTablePhysical) (core.Result, error) {
 	scope.RoutineAuth = auth
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
@@ -122,9 +121,9 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next)
 	}
-	changes := scope.Owner.Catalog.Clone()
-	if scope.Inheritance.Alter != nil {
-		changes = scope.Inheritance.Alter.Changes
+	changes := scope.PendingCatalog()
+	if scope.Inheritance.Alter == nil {
+		changes = changes.Clone()
 	}
 	relationshipOnly := table.RelationshipOnly(s.Actions)
 	// Virtual partition nodes share the candidate/provider/publication pipeline,
@@ -133,13 +132,10 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	physicalRows := old.Partition == nil
 	var original, store *storage.Relation
 	var shape session.StorageChange
-	var versions []storage.RowVersion
-	var ends *storage.DeletionRoot
 	var frontier ids.CommitSeq
 	var snapshot visibility.Root
 	var snapshotExists bool
 	grantCatalog := e.Catalog.State
-	schema := auth.Catalog.Get(old.Namespace()).Name()
 	if !relationshipOnly && physicalRows {
 		original = e.Storage.Relations[ref.Address]
 		store = e.PrivateStorageLocked(changes, ref.Address)
@@ -153,7 +149,8 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if !exists {
 			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: old}
 		}
-		versions, ends, frontier = store.Versions, store.Ends, e.Visibility.CommitSeq()
+		changes.AddFence(session.NewStorageReadFence(ref.Address, original))
+		frontier = e.Visibility.CommitSeq()
 		snapshot, snapshotExists = scope.Owner.Roots[ref.Address]
 	}
 	var stage *core.CatalogStage
@@ -255,7 +252,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			} else if action.Action == parser.AddUnique {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.Catalog)
-					stage.AuthSession, stage.AuthRevision, stage.RoleRevision = op.Session, auth.Revision, auth.RoleRecord.Revision
+					stage.AuthorizeLocked(auth, op.Session)
 				}
 				next, err = stageAddedUnique(e, op, auth, stage, next, action.Unique)
 				if err == nil {
@@ -281,6 +278,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			if err != nil {
 				return core.Result{}, err
 			}
+			scope.RecordAlterDeletion(before, next, action)
 			inheritancePlan(scope).RecordAction(before, next, action)
 		}
 		if pass == 0 {
@@ -349,7 +347,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			raw := table.AddedCheckSyntax(s.Actions, additions)
 			if len(raw) != 0 && stage == nil {
 				stage = e.BeginCatalogStage(auth.Catalog)
-				stage.AuthSession, stage.AuthRevision, stage.RoleRevision = op.Session, auth.Revision, auth.RoleRecord.Revision
+				stage.AuthorizeLocked(auth, op.Session)
 			}
 			next, err = stageAddedChecks(e, scope, op, auth, stage, next, raw, &addedChecks)
 		}
@@ -380,16 +378,16 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	if finish.NoOp {
 		return core.Result{}, nil
 	}
-	// USING/CHECK demand must allocate from the AS replacement, not the live
-	// generator. This statement overlay is discarded on failure, never installed
-	// in the owner before Finish. Keep the exact generator pointers through merge.
+	// The actual identity-AS validation/cache prephase has already run. Keep
+	// its exact staged metadata/generators for the ordinary validated transfer
+	// before rewrite callbacks and volatile DEFAULT/USING execution.
 	e.Mu.Lock()
 	if ref.Epoch != e.Catalog.State.Epoch() {
 		e.Mu.Unlock()
 		return core.Result{}, ids.ErrCatalogReplaced
 	}
 	if stage != nil {
-		if err := mergeStageJournalLocked(e, stage, changes, grantCatalog, true); err != nil {
+		if err := validateAlterSequenceOriginalsLocked(e, stage, grantCatalog); err != nil {
 			e.Mu.Unlock()
 			return core.Result{}, err
 		}
@@ -512,193 +510,48 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, err
 		}
 	}
-	storageOwner := old
-	if accumulated, exists := changes.Storage[ref.Address]; physicalRows && exists {
-		shape = accumulated
-		store = accumulated.Replacement
-		storageOwner = accumulated.Relation
-		versions, ends = store.Versions, store.Ends
-	}
-	shape.MergeFills(fills, next)
-	replacement := store
-	projectedWrites, projectedDeletes := scope.ColumnProjectionRoots(ref.Address)
-	validator := table.NewAlterRowValidator(next, schema)
-	if len(storedReplacements) != 0 {
-		typeChecks = table.ValidCheckTraversal(next).Constraints.Check
-	}
-	if len(typeChecks) != 0 {
-		traversal := *next
-		traversal.Constraints.Check = typeChecks
-		validator.Checks = &traversal
-		if err := CaptureCheckSnapshots(e, scope, &traversal); err != nil {
-			return core.Result{}, err
-		}
-	}
-	if rewrite {
-		// A rewrite creates the destination heap before evaluating old rows.
-		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
-			return core.Result{}, err
-		}
-		writes, deletes := scope.ColumnProjectionRoots(storageOwner.Address())
-		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(AlterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), storageOwner, next, store, frontier, writes, deletes, transformations, additions, storedReplacements, validator)
-		if err != nil {
-			return core.Result{}, err
-		}
-		versions, ends = replacement.Versions, replacement.Ends
-		shape.Rewritten, shape.Frontier = true, frontier
-		shape.Snapshot, shape.HasSnapshot = nil, false
-	} else if !slices.Equal(storageOwner.Attributes, next.Attributes) {
-		shape, projectedWrites, projectedDeletes, err = projectColumnShape(scope, storageOwner, next, store, shape, snapshot, snapshotExists)
-		if err != nil {
-			return core.Result{}, err
-		}
-		replacement = shape.Replacement
-		versions, ends = replacement.Versions, replacement.Ends
-	}
 	for _, oid := range index.DroppedUniqueOIDs(old, s.Actions) {
 		if err := stagePartitionConstraintDrop(e, stage, oid); err != nil {
 			return core.Result{}, err
 		}
 	}
-	// Recapture effective authority after provider waits and row rewriting.
-	// The immutable snapshot is used outside metadata locks for disclosure.
-	e.Mu.Lock()
-	err = scope.ValidateLockedRelation(e)
-	var disclosure core.AuthorizationView
-	if err == nil {
-		disclosure, err = e.AuthorizationLocked(op)
-		disclosure.Catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
-		disclosure.Recapture(disclosure.Catalog)
-	}
-	e.Mu.Unlock()
-	if err != nil {
-		return core.Result{}, err
-	}
-	indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	indexBuilds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, disclosure.View, core.DisclosureEnv(&disclosure), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, transformations, storedReplacements, addedIndexes, rewrite)
-	if err != nil {
-		return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, disclosure, err)
-	}
-	var indexOutputRows bool
-	projectedWrites, indexOutputRows, err = index.AttachIndexBuildOutputs(op.Context(), projectedWrites, indexBuilds)
-	if err != nil {
-		return core.Result{}, err
-	}
-	if scanValidator, scan := table.PlanAlterScan(old, next, schema, rewrite, physicalRows, typeChecks, addedChecks, replacements, validator.NotNull); scan {
-		if scanValidator.Checks != nil {
-			if err := CaptureCheckSnapshots(e, scope, scanValidator.Checks); err != nil {
-				return core.Result{}, err
-			}
-		}
-		if err := table.ValidateAddedConstraintRows(AlterRowEvaluation(scope, scope.Op, catalog.Read{}), scanValidator, versions, ends, frontier, projectedWrites, projectedDeletes); err != nil {
-			return core.Result{}, err
-		}
-	}
-	// Without a rewrite, old-row CHECK/NOT NULL validation precedes movement.
-	if err := table.ValidateAlterTablespaceMove(destination); err != nil {
-		return core.Result{}, err
-	}
+	changes = scope.PendingCatalog()
 	dependencyTargets := table.DependencyTargets(ref.Address, old, next, transformations, replacements)
 	for a := range stage.Removals() {
-		if _, identity := stage.Sequence.IdentityOriginal(a); identity {
-			continue
+		if _, identity := stage.Sequence.IdentityOriginal(a); !identity {
+			dependencyTargets = append(dependencyTargets, a)
 		}
-		dependencyTargets = append(dependencyTargets, a)
 	}
 	if len(dependencyTargets) != 0 {
 		changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{grantCatalog, dependencyTargets})
 	}
-	changes.Dependencies = append(changes.Dependencies, stage.Sequence.IdentityDependencyList()...)
-	if scope.Inheritance.Alter == nil {
-		if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
-			return core.Result{}, err
-		}
+	storageOwner := old
+	if accumulated, exists := changes.Storage[ref.Address]; physicalRows && exists {
+		shape, store, storageOwner = accumulated, accumulated.Replacement, accumulated.Relation
 	}
-	// Validation closes the type graph before transferring it to private catalog
-	// changes. Include dependent holder stores as well as the directly altered row.
-	for address, rebound := range stage.RowShapes {
-		consumer := stage.Get(address).(*catalog.Relation)
-		changes.Storage[address] = session.StorageChange{Original: rebound.Original, Root: rebound.Original.Versions, Ends: rebound.ObservedEnds, Generation: rebound.Generation, Replacement: rebound.Replacement, Relation: consumer}
+	physical := AlterTablePhysical{
+		mutation: scope.StatementMutation, ref: ref, old: old, storageOwner: storageOwner, store: store, shape: shape,
+		frontier: frontier, snapshot: snapshot, snapshotExists: snapshotExists,
+		transformations: transformations, additions: additions, storedReplacements: storedReplacements, replacements: replacements,
+		typeChecks: typeChecks, addedChecks: addedChecks, addedIndexes: addedIndexes, addedForeignKeys: addedForeignKeys,
+		fills: fills, rewrite: rewrite, rewriteEvent: physicalRows && table.AlterEventRewrite(transformations, storedReplacements, perRowAdd),
+		physicalRows: physicalRows, hasAttachments: hasAttachments, changedValues: changedValues, destination: destination,
 	}
-	// Keep the pre-callback originals; Reset cannot restamp captured authority.
-	e.Mu.Lock()
-	if ref.Epoch != e.Catalog.State.Epoch() {
-		e.Mu.Unlock()
-		return core.Result{}, ids.ErrCatalogReplaced
+	if physicalWork != nil {
+		*physicalWork = append(*physicalWork, physical)
+		return core.Result{}, nil
 	}
-	if hasAttachments || len(addedIndexes) != 0 {
-		for name := range stage.Touched() {
-			if e.Catalog.State.NameAddress(name) != grantCatalog.NameAddress(name) {
-				e.Mu.Unlock()
-				return core.Result{}, catalog.Conflict{}
-			}
-		}
-	}
-	if err := mergeStageJournalLocked(e, stage, changes, grantCatalog, false); err != nil {
-		e.Mu.Unlock()
+	layouts := stage.IndexesOrZero().Layouts
+	phase, err := e.PublishAlterMetadata(scope, stage, map[ids.ObjectAddress]bool{ref.Address: true})
+	if err != nil {
 		return core.Result{}, err
 	}
-	shape, record, metadataOnly := table.AlterStorageShape(shape, replacement, old, next, changedValues, len(additions), physicalRows, hasAttachments)
-	if record {
-		changes.Storage[ref.Address] = shape
+	result, err := finishAlterPhysical(e, scope, phase, &physical, layouts)
+	if err == nil {
+		err = e.FinishAlterValidation(scope, phase)
 	}
-	e.Mu.Unlock()
-	if physicalRows && !rewrite {
-		sourceWrites, _ := scope.ColumnProjectionRoots(ref.Address)
-		var transported bool
-		projectedWrites, transported, err = core.TransportIndexLayouts(&indexEvaluation, stage, changes, next, store, replacement, sourceWrites, projectedWrites)
-		if err != nil {
-			return core.Result{}, err
-		}
-		indexOutputRows = indexOutputRows || transported
-	}
-	if err := index.PrepareAlterIndexRoots(&indexEvaluation, changes, stage.Base, next, replacement, indexBuilds, metadataOnly); err != nil {
-		return core.Result{}, err
-	}
-	if err := prepareExclusionShape(scope, old, next, e.StageRead(stage), projectedWrites, projectedDeletes); err != nil {
-		return core.Result{}, err
-	}
-	// A shape statement replaces prior own roots only on the successful merge.
-	if replacement != store || indexOutputRows {
-		scope.StageProjectedColumnRoots(ref.Address, projectedWrites, projectedDeletes)
-	}
-	if changedValues {
-		candidate := e.StageRead(stage)
-		if err := validateForeignKeys(scope, candidate, table.ReferencingForeignKeys(candidate, ref.Address)); err != nil {
-			return core.Result{}, err
-		}
-	}
-	if len(transformations) == 0 && len(addedForeignKeys) != 0 {
-		if err := validateForeignKeys(scope, e.StageRead(stage), table.AddedForeignKeys(next, addedForeignKeys)); err != nil {
-			return core.Result{}, err
-		}
-	}
-	if generators := stage.Sequence.StagedGenerators(); len(generators) != 0 {
-		e.Mu.Lock()
-		for address, generator := range generators {
-			if memory := core.PayloadOf(op.Session).Sequences.Memory(address); memory != nil {
-				memory.DiscardStaleTailLocked(generator.Generation)
-			}
-		}
-		e.Mu.Unlock()
-	}
-	if rewrite {
-		scope.Owner.Mu.Lock()
-		e.Mu.Lock()
-		err = scope.ValidateLockedRelation(e)
-		if err == nil {
-			event := [1]visibility.SerializableWrite{{Rewrite: true}}
-			err = e.SerializableWriteLocked(scope, ref, event[:])
-		}
-		e.Mu.Unlock()
-		scope.Owner.Mu.Unlock()
-		if err != nil {
-			return core.Result{}, err
-		}
-	}
-	scope.Catalog = changes
-	if scope.Inheritance.Alter == nil {
+	if err == nil {
 		view.EmitCascade(op, stage.DropCascadeNames)
 	}
-	return core.Result{}, nil
+	return result, err
 }

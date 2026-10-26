@@ -32,7 +32,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Bin
 	if scope.ruleAction.Auth != nil {
 		auth.State.CurrentUser = scope.ruleAction.Auth.State.CurrentUser
 	}
-	auth.Catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(scope.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	principal := access.RowSecurityPrincipal(auth.State.CurrentUser, view.RowSecurityLayers(auth.Catalog, b))
 	if _, merge := stmt.(*parser.Merge); merge || b.Insert.Conflict != nil {

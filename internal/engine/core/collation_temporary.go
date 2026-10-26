@@ -183,7 +183,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 	}
 	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return false, err
 }

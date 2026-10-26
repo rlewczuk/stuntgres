@@ -93,7 +93,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		if scope.Owner.SequenceCatalog != nil {
 			runtime.sequenceBase = scope.Owner.SequenceCatalog
 		}
-		runtime.sequenceOwn = scope.Owner.Catalog
+		runtime.sequenceOwn = scope.PendingCatalog()
 	default:
 		switch oid {
 		case 2609, 3079, ids.ParameterClassID:
@@ -106,7 +106,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 				in.Catalog = scope.Inquiry.CommentCatalog
 			}
 		default:
-			in.Catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
+			in.Catalog = e.PrivateCatalogLocked(scope.PendingCatalog())
 		}
 		if oid == ids.ParameterClassID {
 			in.Roles = scope.Inquiry.commentRoles

@@ -165,7 +165,7 @@ func TestPLpgSQLQueryLoopCancellation(t *testing.T) {
 		t.Fatal("empty-body cancellation retained producer authority", flow, err)
 	}
 	// The same scope/frame can acquire fresh lexical demand after cancellation.
-	restore := core.ScopeActivateSQLRoutine(s, nil, read)
+	restore := s.ActivateSQLRoutine(nil, read)
 	core.SetRoutineDemandLexical(core.ScopeSQLRoutineRef(s), f)
 	if err := restore(nil); err != nil || core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s)) != nil {
 		t.Fatal("caller scratch did not recover", err)

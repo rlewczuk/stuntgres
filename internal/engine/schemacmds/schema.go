@@ -355,6 +355,10 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 	host := core.DDLHost{E: e, Op: op, CatalogStage: stage}
 	typeHost, routineHost, schemaHost := tablecmds.TypeHost{tablecmds.TableHost{host}}, RoutineHost{host}, SchemaHost{host}
 	switch s := stmt.(type) {
+	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
+		if err = routine.StageEventTrigger(host, auth, stmt); err != nil {
+			return nil, err
+		}
 	case *parser.CreateAccessMethod:
 		if err = index.StageCreateAccessMethod(routineHost, auth, s); err != nil {
 			return nil, err

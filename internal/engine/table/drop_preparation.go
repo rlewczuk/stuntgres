@@ -22,6 +22,7 @@ type DropEffect struct {
 	IdentityState *catalog.State // nil: the preparation's base state
 	Index         ids.ObjectAddress
 	Layout        *index.LayoutLineage
+	Internal      bool // PERFORM_DELETION_INTERNAL on this removal operation.
 }
 
 // Slots index only real ordered effects, never a second descriptor/name catalog.

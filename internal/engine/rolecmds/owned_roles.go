@@ -34,7 +34,7 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 	}
 	if plan.Noop {
 		e.Mu.Unlock()
-		scope.Completed = true
+		scope.CompleteUtility()
 		return core.Result{}, scope.Op.Context().Err()
 	}
 	reassign, sources, mode, roots, primaryRoot := plan.Reassign, plan.Sources, plan.Mode, plan.Roots, plan.PrimaryRoot

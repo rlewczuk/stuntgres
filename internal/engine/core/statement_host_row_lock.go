@@ -54,7 +54,7 @@ func (h *statementHost) AcquireQueryRow(leaf exec.Leaf, row ids.RowID, mark plan
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	_, err = CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.Owner.Catalog), s.Owner.Catalog, leaf)
+	_, err = CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.PendingCatalog()), s.PendingCatalog(), leaf)
 	if err == nil {
 		err = e.AssignTransactionXIDLocked(s.TxRef)
 	}
@@ -80,7 +80,7 @@ func (h *statementHost) LatestQueryRow(leaf exec.Leaf, candidate storage.RowVers
 	}()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if _, err := CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.Owner.Catalog), s.Owner.Catalog, leaf); err != nil {
+	if _, err := CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.PendingCatalog()), s.PendingCatalog(), leaf); err != nil {
 		return storage.RowVersion{}, false, err
 	}
 	store := leaf.Storage

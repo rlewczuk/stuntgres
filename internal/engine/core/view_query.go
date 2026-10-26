@@ -49,7 +49,7 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 	if err != nil {
 		return nil, err
 	}
-	catalog := e.PrivateCatalogLocked(scope.Owner.Catalog)
+	catalog := e.PrivateCatalogLocked(scope.PendingCatalog())
 	consumer, ok := catalog.Relation(ref.Address)
 	if !ok || stored.ViewOf(consumer) != definition {
 		return nil, ids.ErrCatalogReplaced
@@ -72,7 +72,7 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 	if auth, err = e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark); err != nil {
 		return nil, err
 	}
-	catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
+	catalog = e.PrivateCatalogLocked(scope.PendingCatalog())
 	consumer = catalog.MustRelation(ref.Address)
 	relationPrincipal := consumer.Owner
 	if definition.Invoker() {
@@ -85,7 +85,7 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 		if err != nil {
 			return nil, err
 		}
-		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, Principal: relationPrincipal, Storage: e.PrivateStorageLocked(scope.Owner.Catalog, leaf.Ref.Address), Mark: stored.ViewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.AnalysisOnly}
+		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, Principal: relationPrincipal, Storage: e.PrivateStorageLocked(scope.PendingCatalog(), leaf.Ref.Address), Mark: stored.ViewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.AnalysisOnly}
 		leaves[i].TableOIDRead = leaf.TableOIDRead
 		leaves[i].Uses, err = analyze.QuerySourceReadUses(reads[i], relation.Attributes)
 		if err != nil {

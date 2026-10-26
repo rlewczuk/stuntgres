@@ -41,7 +41,7 @@ func (s *StatementScope) schemaInquiryPathLocked(e *Engine) (AuthorizationView, 
 	}
 	changes := s.Catalog
 	if changes == nil {
-		changes = s.Owner.Catalog.Clone()
+		changes = s.PendingCatalog().Clone()
 	}
 	ref, err := e.temporaryNamespaceStagedLocked(auth, changes)
 	if err != nil {

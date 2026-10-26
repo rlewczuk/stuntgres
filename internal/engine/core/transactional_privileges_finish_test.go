@@ -70,6 +70,17 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				if scope.Catalog == nil || scope.CatalogAuthority == nil || scope.CatalogAuthority.ACLRoles != oldRoles || op.Session.Transactions.Catalog != nil {
 					t.Fatal("selected candidate escaped its statement or lost captured authority")
 				}
+				if general.PublishedRoles != oldRoles || general.Roles != oldRoles.Revision {
+					t.Fatal("general authority captured provisional statement roles")
+				}
+				e.Mu.Lock()
+				op.Session.Mu.Lock()
+				err = core.EngineCatalogAuthorityPreflightLocked(e, general, nil)
+				op.Session.Mu.Unlock()
+				e.Mu.Unlock()
+				if err != nil {
+					t.Fatal("unchanged installed authority rejected before peer publication", err)
+				}
 				if roleMutation {
 					roleAttributeCreate(t, e, peer, "finish_peer_role", false, parser.RoleOptions{})
 				} else if _, err := e.Execute(peer, second, 0, nil); err != nil {

@@ -122,7 +122,7 @@ func (v *QueryRenderer) aggregateRecipeName(read catalog.Read, path analyze.View
 }
 
 func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation func(sqltype.CollationRef) (sqltype.CollationRef, error)) (bool, error) {
-	if current.SQL == nil || captured.SQL == nil || current.Strict != captured.Strict || current.Display != captured.Display || current.SQL.Kind != captured.SQL.Kind || current.PLHandler != captured.PLHandler || current.SQL.Standard != captured.SQL.Standard || current.SQL.Source != captured.SQL.Source || !slices.Equal(current.SQL.Names, captured.SQL.Names) || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
+	if current.SQL == nil || captured.SQL == nil || current.Strict != captured.Strict || current.Display != captured.Display || current.SQL.Kind != captured.SQL.Kind || current.SQL.Invocation != captured.SQL.Invocation || current.PLHandler != captured.PLHandler || current.SQL.Standard != captured.SQL.Standard || current.SQL.Source != captured.SQL.Source || !slices.Equal(current.SQL.Names, captured.SQL.Names) || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
 		return false, nil
 	}
 	if captured.SQL.Standard && !slices.Equal(current.SQL.Statements, captured.SQL.Statements) {

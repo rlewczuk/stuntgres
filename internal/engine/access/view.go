@@ -99,6 +99,8 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 		return d.Owner, d.ACL, nil
 	case *catalog.Language:
 		return d.Owner, d.ACL, nil
+	case *catalog.EventTrigger:
+		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Parameter:
 		return d.Owner, d.ACL, nil
 	case *catalog.Tablespace:
@@ -336,6 +338,8 @@ func (v View) Check(env Environment, req Requirement) error {
 			kind = "operator class"
 		} else if d.Kind() == ids.OperatorObject {
 			kind = "operator"
+		} else if d.Kind() == ids.EventTriggerObject {
+			kind = "event trigger"
 		} else if d.Kind() == ids.ProcedureObject {
 			kind = "function"
 		} else if d.Kind() == ids.DatabaseObject {
@@ -399,6 +403,8 @@ func (v View) Check(env Environment, req Requirement) error {
 		kind = "tablespace"
 	} else if d.Kind() == ids.LanguageObject {
 		kind = "language"
+	} else if d.Kind() == ids.EventTriggerObject {
+		kind = "event trigger"
 	} else if d.Kind() == ids.ProcedureObject {
 		kind = "function"
 	} else if d.Kind() == ids.ForeignWrapperObject {

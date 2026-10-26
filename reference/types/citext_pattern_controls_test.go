@@ -123,18 +123,45 @@ func citextPatternRoundTrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 }
 
 func TestReferenceCitextPatternControls(t *testing.T) {
-	for _, phase := range []string{"same_engine_and_emitted_replay", "independent_driver", "failed_restore", "owner_corruption"} {
+	for _, phase := range []string{"same_engine_roundtrip", "emitted_replay", "independent_driver", "failed_restore", "owner_corruption"} {
 		t.Run(phase, func(t *testing.T) {
 			citextPatternScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 				citextPatternStoredSetup(t, p, b, c)
 				citextPatternStoredChecks(t, p, b, c)
-				citextPatternCatalogChecks(t, p, b, c)
+				// The emitted-stream witness checks the original catalog inventory;
+				// the same-engine witness checks it after the genuine Restore.
+				if phase != "same_engine_roundtrip" {
+					citextPatternCatalogChecks(t, p, b, c)
+				}
 				if b.PG {
 					return
 				} // Native APIs are not PostgreSQL SQL behavior.
+				if phase == "same_engine_roundtrip" {
+					citextPatternRoundTrip(t, p, b, c)
+					citextPatternStoredChecks(t, p, b, c)
+					citextPatternCatalogChecks(t, p, b, c)
+					return
+				}
 				var dump bytes.Buffer
 				if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 					t.Fatal(err)
+				}
+				if phase == "emitted_replay" {
+					if p.Postgres != nil {
+						if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := p.Postgres.ExecContext(p.Ctx, dump.String()); err != nil {
+							t.Fatal("actual emitted pattern SQL replay", err)
+						}
+						pg := fixture.Backend{PG: true, DB: p.Postgres, Recorder: p.PostgresRecord}
+						citextPatternStoredChecks(t, p, pg, p.Postgres)
+						citextPatternCatalogChecks(t, p, pg, p.Postgres)
+						if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
+							t.Fatal(err)
+						}
+					}
+					return
 				}
 				if phase == "independent_driver" {
 					target := fixture.NewFixture(t, false, true)
@@ -157,9 +184,7 @@ func TestReferenceCitextPatternControls(t *testing.T) {
 					}
 					return
 				}
-				if phase == "same_engine_and_emitted_replay" {
-					citextPatternRoundTrip(t, p, b, c)
-				} else {
+				{
 					old, err := c.QueryContext(p.Ctx, citextPatternViewStep().Query)
 					if err != nil {
 						t.Fatal(err)
@@ -207,20 +232,6 @@ func TestReferenceCitextPatternControls(t *testing.T) {
 				}
 				citextPatternStoredChecks(t, p, b, c)
 				citextPatternCatalogChecks(t, p, b, c)
-				if phase == "same_engine_and_emitted_replay" && p.Postgres != nil {
-					if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
-						t.Fatal(err)
-					}
-					if _, err := p.Postgres.ExecContext(p.Ctx, dump.String()); err != nil {
-						t.Fatal("actual emitted pattern SQL replay", err)
-					}
-					pg := fixture.Backend{PG: true, DB: p.Postgres, Recorder: p.PostgresRecord}
-					citextPatternStoredChecks(t, p, pg, p.Postgres)
-					citextPatternCatalogChecks(t, p, pg, p.Postgres)
-					if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
-						t.Fatal(err)
-					}
-				}
 			})
 		})
 	}

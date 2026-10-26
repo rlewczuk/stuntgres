@@ -26,7 +26,7 @@ type plTargetDatum struct {
 
 func (s *StatementScope) assignPLTarget(f *proc.PLFrame, checked proc.PLTarget, raw parser.Expr, query *parser.Select, read catalog.Read, origin plNoticeOrigin) (value sqltype.Value, err error) {
 	noticeStart := len(s.Op.Notices)
-	restore := s.activateSQLRoutine(nil, read)
+	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() {
 		err = restore(err)
 		s.appendPLNoticeContext(noticeStart, origin)
@@ -52,7 +52,7 @@ func (s *StatementScope) preparePLTargetValue(run *proc.PLRun, f *proc.PLFrame, 
 	if len(checked.Steps) == 0 {
 		return run.PrepareVariable(checked.Slot, value, proc.PLOrigin{})
 	}
-	restore := s.activateSQLRoutine(nil, read)
+	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	s.sqlRoutine.lexical = f
 	prepared, err := s.preparePLTargetDatum(f, checked, current, nil, &value)

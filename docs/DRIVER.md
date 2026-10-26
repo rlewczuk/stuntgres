@@ -89,13 +89,18 @@ ordinary SQL errors leave the connection reusable.
   CREATE/ALTER/DROP MATERIALIZED VIEW, CREATE DOMAIN/composite TYPE, domain
   rule changes, composite attribute evolution, type/domain rename, schema move
   and DROP, CREATE/OR REPLACE, ALTER RENAME and DROP RULE, shipped function
-  and aggregate creation, routine identity ALTER/DROP, operator CREATE/ALTER/DROP,
+  creation/replacement and aggregate creation, routine identity ALTER/DROP,
+  bounded CREATE/ENABLE/DISABLE/DROP EVENT TRIGGER, operator CREATE/ALTER/DROP,
   CREATE/ALTER/DROP COLLATION and CONVERSION, and CREATE/DROP CAST see earlier
   successful own changes. Direct and held prepared commands use the same transaction; subsequent
   owner consumers use private definitions without exposing them to peers.
   Ordinary and concurrent REFRESH consume earlier own source writes and keep
   stored rows, indexes and population private until commit. Peers see complete
   definitions, constraints, consuming rows and logical keys only after commit.
+  Eligible transactional DDL starts event callbacks before target resolution;
+  callback rows and DDL stay private through end callbacks and one Finish.
+  Callback failure rolls back the statement, including autocommit DDL. Shared
+  objects and event-trigger DDL do not recursively fire command callbacks.
   Rollback/savepoints restore definitions, dependencies, row layouts and data
   together; sequence counters are not rewound. Autocommit and retained simple-query
   messages use the same supported forms. Feature-specific collation and conversion

@@ -116,5 +116,5 @@ func DetachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 	if _, err = e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		return core.Result{}, err
 	}
-	return core.Result{}, e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
+	return core.Result{}, e.StageCatalogOverlay(scope, stage, scope.PendingCatalog().Clone())
 }

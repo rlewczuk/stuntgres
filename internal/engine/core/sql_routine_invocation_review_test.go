@@ -125,7 +125,7 @@ func TestSQLRoutineResultScratchUnwind(t *testing.T) {
 	s := core.NewScope(core.ScopeFields{SQLRoutine: core.NewRoutineDemand(core.RoutineDemandFields{Result: enginetest.Usage(e, sqltype.Int8)}), ActiveSQLRoutineDepth: 7})
 	outer := core.RoutineDemandResult(core.ScopeSQLRoutineRef(s))
 	for _, primary := range []error{nil, errors.New("body failure"), context.Canceled} {
-		restore := core.ScopeActivateSQLRoutine(s, nil, catalog.Read{})
+		restore := s.ActivateSQLRoutine(nil, catalog.Read{})
 		if core.ScopeActiveSQLRoutineDepth(s) != 7 || !core.RoutineDemandScalar(core.ScopeSQLRoutineRef(s)) || core.RoutineDemandResult(core.ScopeSQLRoutineRef(s)).Type != nil {
 			t.Fatal("activation leaked owner or result")
 		}

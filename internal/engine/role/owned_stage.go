@@ -1,6 +1,7 @@
 package role
 
 import (
+	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
@@ -36,6 +37,15 @@ func StageOwned(h StageHost, auth ddl.Authority, plan OwnedPlan) error {
 		// PostgreSQL's schema and generic collation handlers retain their
 		// own eligibility checks; relation/type bulk recursion does not SET.
 		switch d.(type) {
+		case *catalog.EventTrigger:
+			err = view.Check(auth, access.Requirement{Object: stage.BaseRef(a), OwnerOnly: true})
+			if err == nil {
+				successor, failure := view.Roles.Descriptor(target)
+				err = failure
+				if err == nil && !successor.Superuser {
+					err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: fmt.Sprintf(`permission denied to change owner of event trigger "%s"`, d.Name()), Hint: "The owner of an event trigger must be a superuser."}
+				}
+			}
 		case *catalog.ForeignObject:
 			foreign := d.(*catalog.ForeignObject)
 			err = access.ForeignOwnershipEligibility(view, auth, foreign, target)

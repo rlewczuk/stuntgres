@@ -42,16 +42,6 @@ func ScopeAssignPLCursorTargets(x *StatementScope, run *proc.PLRun, f *proc.PLFr
 	return x.assignPLCursorTargets(run, f, targets, cursor, fields, read)
 }
 
-// ScopeBeginPLException calls x.beginPLException.
-func ScopeBeginPLException(x *StatementScope) (*plExceptionCheckpoint, error) {
-	return x.beginPLException()
-}
-
-// ScopeEndPLException calls x.endPLException.
-func ScopeEndPLException(x *StatementScope, c *plExceptionCheckpoint, rollback bool, primary error) error {
-	return x.endPLException(c, rollback, primary)
-}
-
 // ScopeEvaluatePLExpression calls x.evaluatePLExpression.
 func ScopeEvaluatePLExpression(x *StatementScope, f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment, origin plNoticeOrigin) (sqltype.Value, sqltype.Usage, bool, error) {
 	return x.evaluatePLExpression(f, statement, read, assignment, origin)

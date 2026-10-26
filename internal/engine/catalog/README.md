@@ -31,6 +31,18 @@ private frames, not catalog authority.
   capabilities are validated by `LanguageProvider`; PL installation OIDs are
   allocated, not universal constants. `Procedure.DeclarationDependencies` stores
   replay-only type/collation and `%TYPE`/`%ROWTYPE` sources, not `pg_depend` edges.
+- **Event triggers.** `EventTriggerProvider` validates immutable, globally named
+  database-local class 3466 descriptors, actual principal ownership and a
+  current zero-argument checked event-function reference. Four command phases,
+  O/D state and ordered uppercase TAG values (duplicates preserved; nil means
+  no filter) project through the real seven-column `pg_event_trigger` source.
+  Released recognized/eligible TAG inventory is distinct from native execution
+  coverage. Function dependencies use ordinary RESTRICT/CASCADE and `pg_depend`;
+  ownership and replacement remapping preserve provenance, never numeric-only
+  cross-engine references.
+  An immutable descriptor-derived class index follows the same canonical state
+  setters, candidate overlays and reset/remap paths; dispatch and projection
+  do not scan unrelated descriptors. It is neither a name registry nor a cache.
 - **Relation layout.** `Relation` keeps identity and the live column shape at the
   top level, the sub-records `ColumnMeta`, `Constraints`, `Security` and
   `History`, and the kind payloads (`SQLIndex`, `Partition`, `Sequence`, `View`,
@@ -125,6 +137,9 @@ private frames, not catalog authority.
   `Get`/`Find`, bindings, observations, counts and iterators expose **overlay
   entries only**; reads never merge, clone, scan the base or return writable
   maps. `State` merges into a new unpublished state without changing the base.
+  `Removal.Internal` and `MarkRemovalInternal` retain an operation-internal
+  replacement flag, distinct from dependency INTERNAL ownership, so TYPE index
+  rebuilds and identity implementation removals do not claim public deletion.
   For default ACLs, `ObserveDefault` records the base input once (including
   absence), `SetDefaultACL` stages output (present nil means removal) and
   `DefaultRecordsUnchanged` checks the observed inputs.

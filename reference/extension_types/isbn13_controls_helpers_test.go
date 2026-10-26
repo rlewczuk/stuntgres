@@ -35,7 +35,10 @@ func isbn13ControlSetup(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 
 func isbn13ControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
-	for _, tc := range []struct{ query string; rows [][]any }{
+	for _, tc := range []struct {
+		query string
+		rows  [][]any
+	}{
 		{isbn13ControlQuery, isbn13ControlRows},
 		{"SELECT id,e,v FROM isbn13_control WHERE id=99", [][]any{}},
 	} {

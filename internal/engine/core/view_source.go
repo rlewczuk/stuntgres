@@ -19,7 +19,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.Mu.Unlock()
 		return nil, err
 	}
-	d, exists := e.PrivateCatalogLocked(scope.Owner.Catalog).Relation(ref.Address)
+	d, exists := e.PrivateCatalogLocked(scope.PendingCatalog()).Relation(ref.Address)
 	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || !exists {
 		e.Mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
@@ -89,7 +89,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 	if err != nil {
 		return AuthorizationView{}, err
 	}
-	auth.Catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(scope.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	return auth, view.AuthorizeSource(auth.View, auth, ref, definition, invoker, mark)
 }

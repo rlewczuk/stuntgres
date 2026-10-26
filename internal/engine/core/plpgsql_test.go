@@ -425,7 +425,7 @@ func TestPLpgSQLDepthUnwind(t *testing.T) {
 	outer := &proc.PLFrame{Program: &proc.PLProgram{}, InputCollation: unicode}
 	s := core.NewScope(core.ScopeFields{SQLRoutine: core.NewRoutineDemand(core.RoutineDemandFields{Lexical: outer}), ActiveSQLRoutineDepth: 3})
 	for _, primary := range []error{nil, context.Canceled, errors.New("reached expression failure")} {
-		restore := core.ScopeActivateSQLRoutine(s, nil, e.CatalogRead())
+		restore := s.ActivateSQLRoutine(nil, e.CatalogRead())
 		core.SetRoutineDemandLexical(core.ScopeSQLRoutineRef(s), &proc.PLFrame{InputCollation: c})
 		if err := core.ScopeEnterSQLRoutine(s); err != nil {
 			t.Fatal(err)

@@ -55,7 +55,7 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 		bodyRead := e.PrivateCatalogLocked(candidate)
 		e.Mu.Unlock()
 		scope := core.NewScope(core.ScopeFields{Owner: owner, Catalog: candidate, LargeObjectRead: outerRead})
-		restoreOuter := core.ScopeActivateSQLRoutine(scope, nil, bodyRead)
+		restoreOuter := scope.ActivateSQLRoutine(nil, bodyRead)
 		if got := bytesIn(core.ScopeLargeObjectRead(scope)); got != "bb" {
 			t.Fatalf("body read %q, want calling-command bytes bb", got)
 		}
@@ -74,7 +74,7 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 		if got := bytesIn(core.ScopeLargeObjectRead(scope)); got != "bb" {
 			t.Fatalf("active body saw later effect %q", got)
 		}
-		restoreBody := core.ScopeActivateSQLRoutine(scope, nil, nestedRead)
+		restoreBody := scope.ActivateSQLRoutine(nil, nestedRead)
 		if got := bytesIn(core.ScopeLargeObjectRead(scope)); got != "cc" {
 			t.Fatalf("nested query read %q, want cc", got)
 		}

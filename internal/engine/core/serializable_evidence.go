@@ -30,7 +30,7 @@ func (e *Engine) SerializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 	}
 	// Relevance is the cheap test; most readers are not serializable.
 	node := e.Visibility.RelevantSerializableLocked(s.TxRef)
-	if node == nil || !e.serializableEligibleLocked(ref, s.Owner.Catalog) {
+	if node == nil || !e.serializableEligibleLocked(ref, s.PendingCatalog()) {
 		return nil
 	}
 	return e.Visibility.SerializableReadLocked(node, ref.Address)
@@ -48,7 +48,7 @@ func (e *Engine) SerializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 			return errors.New("stuntgres: invalid SSI write identity")
 		}
 	}
-	if !e.serializableEligibleLocked(ref, s.Owner.Catalog) {
+	if !e.serializableEligibleLocked(ref, s.PendingCatalog()) {
 		return nil
 	}
 	node := e.Visibility.RelevantSerializableLocked(s.TxRef)

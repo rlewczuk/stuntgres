@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (core.Result, error) {
+func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (result core.Result, err error) {
 	root := scope.LockedDescriptor.(*catalog.Relation)
 	plan, preparatory, err := table.PlanInheritanceAlter(auth.Catalog, root, raw)
 	if err != nil {
@@ -21,13 +21,19 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 	actions := plan.Actions
 	original := scope.StatementMutation
 	var stage *core.CatalogStage
+	var successors map[ids.ObjectAddress]bool
 	plan.Tablespace, plan.Types = tablespace, types
-	state := &core.InheritanceAlterState{Changes: scope.Owner.Catalog.Clone(), InheritanceAlterPlan: plan}
+	state := &core.InheritanceAlterState{InheritanceAlterPlan: plan}
 	scope.Inheritance.Alter = state
-	scope.Catalog = state.Changes
+	scope.Catalog = scope.PendingCatalog().Clone()
 	e.Mu.Unlock()
 	defer func() {
 		scope.StatementMutation = original
+		if err == nil && successors != nil {
+			e.Mu.Lock()
+			err = e.AdvanceAlterGrantsLocked(scope, successors)
+			e.Mu.Unlock()
+		}
 		scope.Inheritance.Alter = nil
 		e.DiscardCatalogStage(stage)
 	}()
@@ -44,17 +50,21 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 	state.Events = make(map[ids.ObjectAddress][]table.InheritanceAlterEvent)
 	state.Selected = make(map[ids.ObjectAddress]bool)
 	e.Mu.Lock()
-	current := e.PrivateCatalogLocked(scope.Owner.Catalog)
+	current := e.PrivateCatalogLocked(scope.PendingCatalog())
 	stage = e.BeginCatalogStage(current)
 	stage.AuthorizeLocked(auth, op.Session)
 	state.Stage = stage
 	e.Mu.Unlock()
+	var physicalWork []AlterTablePhysical
+	if !table.RelationshipOnly(actions) {
+		physicalWork = make([]AlterTablePhysical, 0, len(state.Targets))
+	}
 	for index, old := range state.Targets {
 		if index != 0 && len(table.InheritanceParentActions(&state.InheritanceAlterPlan, old)) == 0 {
 			continue
 		}
 		e.Mu.Lock()
-		current := e.PrivateCatalogLocked(scope.Owner.Catalog)
+		current := e.PrivateCatalogLocked(scope.PendingCatalog())
 		if current.Get(old.Address()) != old {
 			e.Mu.Unlock()
 			return core.Result{}, ids.ErrCatalogReplaced
@@ -99,7 +109,7 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 		}
 		scope.LockedRef, scope.LockedDescriptor = ref, old
 		e.Mu.Lock()
-		scope.LockedStorage = e.PrivateStorageLocked(scope.Owner.Catalog, old.Address())
+		scope.LockedStorage = e.PrivateStorageLocked(scope.PendingCatalog(), old.Address())
 		e.Mu.Unlock()
 		if len(planned) == 0 {
 			next, err := finishInheritanceAlterCandidate(scope, old, old)
@@ -121,39 +131,34 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 		childAuth.Catalog = e.StageRead(stage)
 		childAuth.Recapture(childAuth.Catalog)
 		e.Mu.Lock()
-		if _, err := AlterTableLocked(e, scope, op, childAuth, &command, count); err != nil {
+		if _, err := AlterTableLocked(e, scope, op, childAuth, &command, count, &physicalWork); err != nil {
 			return core.Result{}, err
 		}
 	}
 	scope.StatementMutation = original
-	if err := scope.AcquireDefinitionProviders(stage); err != nil {
+	parents := make(map[ids.ObjectAddress]bool, len(physicalWork))
+	for i := range physicalWork {
+		parents[physicalWork[i].ref.Address] = true
+	}
+	layouts := stage.IndexesOrZero().Layouts
+	phase, err := e.PublishAlterMetadata(scope, stage, parents)
+	if err != nil {
 		return core.Result{}, err
 	}
-	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
-		return core.Result{}, err
-	}
-	e.Mu.Lock()
-	if err := scope.ValidateLockedRelation(e); err != nil {
-		e.Mu.Unlock()
-		return core.Result{}, err
-	}
-	for _, old := range state.Targets {
-		if state.Selected[old.Address()] && e.PrivateCatalogLocked(scope.Owner.Catalog).Get(old.Address()) != old {
-			e.Mu.Unlock()
-			return core.Result{}, ids.ErrCatalogReplaced
+	successors = phase.Targets
+	for i := range physicalWork {
+		if _, err := finishAlterPhysical(e, scope, phase, &physicalWork[i], layouts); err != nil {
+			return core.Result{}, err
 		}
 	}
-	for address, d := range stage.Descriptors() {
-		e.CatalogChangeLocked(state.Changes, address, d)
+	for i := range physicalWork {
+		if err := validateAlterPhysical(e, scope, phase, &physicalWork[i]); err != nil {
+			return core.Result{}, err
+		}
 	}
-	for address := range stage.Removals() {
-		e.CatalogChangeLocked(state.Changes, address, nil)
+	if err := e.FinishAlterValidation(scope, phase); err != nil {
+		return core.Result{}, err
 	}
-	for address, rebound := range stage.RowShapes {
-		state.Changes.Storage[address] = session.StorageChange{Original: rebound.Original, Root: rebound.Original.Versions, Ends: rebound.ObservedEnds, Generation: rebound.Generation, Replacement: rebound.Replacement, Relation: stage.Get(address).(*catalog.Relation)}
-	}
-	scope.Catalog = state.Changes
-	e.Mu.Unlock()
 	view.EmitCascade(op, stage.DropCascadeNames)
 	return core.Result{}, nil
 }

@@ -82,7 +82,7 @@ func stageObjectGrantLocked(e *core.Engine, scope *core.StatementScope, auth cor
 	if _, err := e.RoleStore.RevisionCandidateLocked(); err != nil {
 		return core.Result{}, err
 	}
-	changes := scope.Owner.Catalog.Clone()
+	changes := scope.PendingCatalog().Clone()
 	for address, change := range plan.Changed {
 		e.CatalogChangeLocked(changes, address, change.Descriptor)
 	}

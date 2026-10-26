@@ -25,7 +25,7 @@ func PublishOwnership(e *Engine, scope *StatementScope, stage *CatalogStage) (Re
 		if err := e.validateOperation(scope.Op); err != nil {
 			return Result{}, err
 		}
-		scope.Completed = true
+		scope.CompleteUtility()
 		return Result{}, scope.Op.Context().Err()
 	}
 	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
@@ -33,7 +33,7 @@ func PublishOwnership(e *Engine, scope *StatementScope, stage *CatalogStage) (Re
 		_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return Result{}, err
 }
@@ -54,7 +54,7 @@ func ExecuteRelationOwnership(e *Engine, scope *StatementScope, name parser.Obje
 	ref, err := e.ResolveRelationReference(auth, name, true)
 	if ifExists && table.RenameMissing(err) {
 		e.Mu.Unlock()
-		scope.Completed = true
+		scope.CompleteUtility()
 		scope.Op.EmitNotice(session.LevelNotice, session.MissingRelation(name.Parts[len(name.Parts)-1].Text))
 		return Result{}, scope.Op.Context().Err()
 	}
@@ -76,7 +76,7 @@ func ExecuteRelationOwnership(e *Engine, scope *StatementScope, name parser.Obje
 	}
 	if change.Object == nil {
 		e.Mu.Unlock()
-		scope.Completed = true
+		scope.CompleteUtility()
 		return Result{}, scope.Op.Context().Err()
 	}
 	stage := OwnershipStage(e, auth, scope.Op)

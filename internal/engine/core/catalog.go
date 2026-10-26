@@ -79,13 +79,20 @@ const (
 type CatalogStage struct {
 	Owner *Engine
 	catalog.Candidate
-	RowShapes           map[ids.ObjectAddress]storage.RowShape
-	StorageReads        []session.StorageReadFence
+	RowShapes    map[ids.ObjectAddress]storage.RowShape
+	StorageReads []session.StorageReadFence
+	// Metadata of these ALTER work items precedes their separately owned heap
+	// and index work. This consumed stage must not build roots from old tuples.
+	deferredAlterRows map[ids.ObjectAddress]bool
+	// Fresh physical successors have a new catalog base but still read tuples
+	// with the genuinely captured pre-ALTER physical column layout.
+	AlterRowSources     map[ids.ObjectAddress]*catalog.Relation
 	Sequence            *sequence.Stage
 	Typed               *typedef.TypedStage
 	Lifecycle           catalogLifecycle
 	Invalid             error
 	AuthSession         *session.Session
+	statement           *StatementScope
 	AuthRevision        uint64
 	RoleRevision        uint64
 	ExtensionSlot       any // Opaque; owned by the extension host that began the stage.
@@ -112,9 +119,12 @@ type CatalogStage struct {
 	InitialTx         ids.TxRef
 	QuerySources      []catalog.Descriptor
 	definitionSources []catalog.Descriptor // Checked routine/operator definition inputs.
-	TableSlot         *table.Stage
-	indexesSlot       *index.Stage
-	MaterializedSlot  *view.MaterializedStage
+	// Phased ALTER's final stage validates these exact, already privately
+	// installed descriptors without restaging them or minting another revision.
+	alterFinal       []catalog.Descriptor
+	TableSlot        *table.Stage
+	indexesSlot      *index.Stage
+	MaterializedSlot *view.MaterializedStage
 }
 
 // Only terminal dependency removal can saturate. Other DDL retains its ordinary
@@ -147,6 +157,7 @@ func (e *Engine) BeginCatalogStage(base catalog.Read) *CatalogStage {
 // already captured by authorizationLocked; building a stage needs no live read.
 func (s *CatalogStage) AuthorizeLocked(auth AuthorizationView, session *session.Session) {
 	s.AuthSession, s.AuthRevision, s.RoleRevision = session, auth.Revision, auth.RoleRecord.Revision
+	s.statement = auth.Statement
 	s.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
 	s.DatabasePredecessor = auth.DatabasePredecessor
 }
@@ -316,27 +327,30 @@ func (provider *DropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 func (e *Engine) StageRead(s *CatalogStage) catalog.Read {
 	return e.Catalog.Read(s.Candidate.State())
 }
-func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*PreparedCatalogPublication, error) {
+
+// normalizeCatalogStage is shared by ordinary publication and ALTER's private
+// structural transfers. Registered providers remain the final publication veto.
+func (e *Engine) normalizeCatalogStage(ctx context.Context, s *CatalogStage) error {
 	if s == nil || s.Owner != e || s.Lifecycle != CatalogOpen || s.Invalid != nil {
-		return nil, fmt.Errorf("stuntgres: invalid catalog stage")
+		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	if err := table.ValidateInitialTables(s.initialTables, s.Get, s.Base); err != nil {
-		return nil, err
+		return err
 	}
 	if err := s.validateMaterializedReplacement(); err != nil {
-		return nil, err
+		return err
 	}
 	e.Mu.Lock()
 	if err := view.SynchronizeTriggersLocked(&s.Candidate, func() catalog.Read { return e.StageRead(s) }, &e.Catalog, s.TriggerReplacement); err != nil {
 		e.Mu.Unlock()
-		return nil, err
+		return err
 	}
 	if err := s.validateRoleCandidate(e.sessionRolesLocked(s.AuthSession)); err != nil {
 		e.Mu.Unlock()
-		return nil, err
+		return err
 	}
 	for address, descriptor := range s.Descriptors() {
 		typ, ok := descriptor.(*catalog.Type)
@@ -347,72 +361,130 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		if old == nil || old.SQLType != typ.SQLType {
 			if err := e.ReownStagedTypeGenerationsLocked(s); err != nil {
 				e.Mu.Unlock()
-				return nil, err
+				return err
 			}
 			break
 		}
 	}
 	if !e.storageReadsValidLocked(s) {
 		e.Mu.Unlock()
-		return nil, catalog.Conflict{}
+		return catalog.Conflict{}
 	}
 	if err := s.validateIndexMaintenance(e.StageCatalogBaseLocked(s)); err != nil {
 		e.Mu.Unlock()
-		return nil, err
+		return err
 	}
 	if err := e.EvolveStageIndexesLocked(s, ids.ObjectAddress{}, nil); err != nil {
 		e.Mu.Unlock()
-		return nil, err
+		return err
 	}
 	if err := s.MarkIndexHistoryLocked(e.Catalog.RevisionLocked, s.Replace); err != nil {
 		e.Mu.Unlock()
-		return nil, err
+		return err
 	}
 	if err := s.MarkSubclassHistoryLocked(e.Catalog.RevisionLocked, s.Replace); err != nil {
 		e.Mu.Unlock()
-		return nil, err
+		return err
 	}
 	for address, shape := range s.RowShapes {
 		if !shape.Matches(e.StageStorageLocked(s, address)) {
 			e.Mu.Unlock()
-			return nil, catalog.Conflict{}
+			return catalog.Conflict{}
 		}
 	}
 	if r := s.MaterializedOrZero().Replacement; r != nil {
 		if err := s.materializedReplacementCurrent(e.StageCatalogBaseLocked(s), e.StageStorageLocked(s, r.Original.Address())); err != nil {
 			e.Mu.Unlock()
-			return nil, err
+			return err
 		}
 	}
 	e.Mu.Unlock()
-	var view catalog.Read
-	if s.DescriptorCount() != 0 {
-		view = e.StageRead(s)
-	}
-	if view.State() != nil {
-		if err := catalog.ValidateDefinitionOIDs(view); err != nil {
-			return nil, err
+	return nil
+}
+
+func (e *Engine) catalogStageValidationRead(s *CatalogStage) (catalog.Read, error) {
+	var read catalog.Read
+	if s.DescriptorCount() != 0 || len(s.alterFinal) != 0 {
+		read = e.StageRead(s)
+		if err := catalog.ValidateDefinitionOIDs(read); err != nil {
+			return catalog.Read{}, err
 		}
+	}
+	return read, nil
+}
+
+func (e *Engine) validateCatalogDescriptor(s *CatalogStage, read catalog.Read, d catalog.Descriptor, p catalog.Provider) error {
+	if p == nil {
+		return fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
+	}
+	if err := p.Validate(read, d); err != nil {
+		return err
+	}
+	e.Mu.Lock()
+	roles := e.sessionRolesLocked(s.AuthSession)
+	err := access.ValidateACL(s.roleRead(roles, read), d)
+	e.Mu.Unlock()
+	return err
+}
+
+func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*PreparedCatalogPublication, error) {
+	if err := e.normalizeCatalogStage(ctx, s); err != nil {
+		return nil, err
+	}
+	read, err := e.catalogStageValidationRead(s)
+	if err != nil {
+		return nil, err
 	}
 	for _, d := range s.Descriptors() {
-		p := e.Catalog.Provider(d.Address().ClassID)
-		if p == nil {
-			return nil, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
-		}
-		if err := p.Validate(view, d); err != nil {
+		if err := e.validateCatalogDescriptor(s, read, d, e.Catalog.Provider(d.Address().ClassID)); err != nil {
 			return nil, err
 		}
-		e.Mu.Lock()
-		roles := e.sessionRolesLocked(s.AuthSession)
-		authErr := access.ValidateACL(s.roleRead(roles, view), d)
-		e.Mu.Unlock()
-		if authErr != nil {
-			return nil, authErr
+	}
+	for _, d := range s.alterFinal {
+		if read.Get(d.Address()) != d {
+			return nil, catalog.Conflict{}
+		}
+		if err := e.validateCatalogDescriptor(s, read, d, e.Catalog.Provider(d.Address().ClassID)); err != nil {
+			return nil, err
 		}
 	}
 	s.Lifecycle = catalogValidated
 	return &PreparedCatalogPublication{stage: s, epoch: s.Base.Epoch(), ctx: ctx}, nil
 }
+
+func (s *StatementScope) acquireCatalogStageInputs(stage *CatalogStage) error {
+	if err := s.acquireDefinitionObjectDependencies(stage); err != nil {
+		return err
+	}
+	if err := s.acquireStageRoleDependencies(stage); err != nil {
+		return err
+	}
+	if err := s.acquireRoutineRetirements(stage); err != nil {
+		return err
+	}
+	if err := s.acquireDefinitionDependencyLocks(stage); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *StatementScope) acquireCatalogStageAdmissions(stage *CatalogStage) error {
+	if err := s.acquireCatalogStageInputs(stage); err != nil {
+		return err
+	}
+	if err := s.acquireCatalogNames(stage); err != nil {
+		return err
+	}
+	return s.AcquireRoutineDefinitionProviders(stage)
+}
+
+func (s *StatementScope) releaseCatalogReservation() {
+	if s.ReplacementRead {
+		s.Engine().ReplacementMu.RUnlock()
+		s.ReplacementRead = false
+	}
+}
+
 func (e *Engine) PublishCatalogOperation(op *session.Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if p == nil || p.stage == nil || p.stage.Owner != e || p.stage.Lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
@@ -424,36 +496,26 @@ func (e *Engine) PublishCatalogOperation(op *session.Operation, scope *Statement
 		if scope.Op != op || op == nil {
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication scope")
 		}
-		if err := scope.acquireDefinitionObjectDependencies(p.stage); err != nil {
-			return ChangeSet{}, err
-		}
-		if err := scope.acquireStageRoleDependencies(p.stage); err != nil {
-			return ChangeSet{}, err
-		}
-		if err := scope.acquireRoutineRetirements(p.stage); err != nil {
-			return ChangeSet{}, err
-		}
-		if err := scope.acquireDefinitionDependencyLocks(p.stage); err != nil {
-			return ChangeSet{}, err
-		}
-		if err := scope.acquireCatalogNames(p.stage); err != nil {
-			return ChangeSet{}, err
-		}
-		if err := scope.AcquireRoutineDefinitionProviders(p.stage); err != nil {
+		if err := scope.acquireCatalogStageAdmissions(p.stage); err != nil {
 			return ChangeSet{}, err
 		}
 	}
-	if op != nil && op.Session.Transactions.RetainsTransaction() {
+	if op != nil && op.Session.Transactions.RetainsTransaction() && (scope == nil || scope.EventCommand == nil && scope.Catalog == nil) {
 		return e.stageMessageCatalog(op, p, token)
 	}
-	if scope != nil && scope.Owner.State == session.TxActive {
+	if scope != nil && (scope.Owner.State == session.TxActive || scope.EventCommand != nil || scope.Catalog != nil) {
+		defer scope.releaseCatalogReservation()
 		if scope.Op == nil || scope.Op != op || p == nil || p.stage == nil || p.stage.Owner != e || p.stage.Lifecycle != catalogValidated {
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 		}
 		if token.Epoch != p.epoch {
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
-		if err := e.StageCatalogOverlay(scope, p.stage, scope.Owner.Catalog.Clone()); err != nil {
+		prior := scope.Catalog
+		if prior == nil {
+			prior = scope.Owner.Catalog
+		}
+		if err := e.StageCatalogOverlay(scope, p.stage, prior.Clone()); err != nil {
 			return ChangeSet{}, err
 		}
 		return catalogStageChanges(p.stage), nil

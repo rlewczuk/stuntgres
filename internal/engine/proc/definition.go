@@ -15,11 +15,20 @@ const (
 	PLpgSQLBody
 )
 
+// InvocationKind is the function's immutable call and result contract.
+type InvocationKind uint8
+
+const (
+	OrdinaryInvocation InvocationKind = iota
+	DMLTriggerInvocation
+	EventTriggerInvocation
+)
+
 // Definition contains syntax, not executable resources or permission decisions.
 // Standard bodies additionally require a checked catalog-owned frozen program.
 type Definition struct {
 	Kind          BodyKind
-	Trigger       bool // PL trigger-call/result contract, never a scalar result.
+	Invocation    InvocationKind
 	PLSyntax      *parser.PLBlock
 	PL            *PLProgram
 	Source        string

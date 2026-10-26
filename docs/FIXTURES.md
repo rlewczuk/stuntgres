@@ -57,6 +57,12 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
 - Dump fails before writing anything when it cannot serialize faithfully, for
   example explicit relation or column ACLs, invalid indexes, or cyclic view
   dependencies (`stuntgres: cyclic view dump dependencies`).
+- Event triggers replay in the final DDL section, after saved data/defaults and
+  attribute metadata, initially disabled and activated only after all definitions.
+  Owner, function references, ordered TAG filters and O/D states survive logical
+  replacement without running callbacks over the replay prefix. An event-trigger
+  owner demoted from superuser is unrepresentable unchanged portable SQL; Dump
+  rejects that state before writing, without changing the live role or trigger.
 - User-mapping options are written as stored, including credentials.
 - Materialized view contents are carried in `-- stuntgres-matview-v1 <base64>`
   comments (JSON fields `schema`, `name`, `populated`, `rows`). Native Restore

@@ -2,6 +2,7 @@ package table
 
 import (
 	"slices"
+	"strings"
 
 	"stuntgres/internal/engine/catalog"
 )
@@ -41,4 +42,23 @@ func PlanAlterScan(old, next *catalog.Relation, schema string, rewrite, physical
 		validator.Checks = &traversal
 	}
 	return validator, true
+}
+
+// ResolveAlterChecks preserves the scheduled traversal while taking identity,
+// compiled expression and provenance from the authentic final descriptor.
+func ResolveAlterChecks(next *catalog.Relation, scheduled []catalog.CheckConstraint) ([]catalog.CheckConstraint, error) {
+	if len(scheduled) == 0 {
+		return scheduled, nil
+	}
+	resolved := make([]catalog.CheckConstraint, len(scheduled))
+	for i, check := range scheduled {
+		slot, found := slices.BinarySearchFunc(next.Constraints.Check, check.Name, func(candidate catalog.CheckConstraint, name string) int {
+			return strings.Compare(candidate.Name, name)
+		})
+		if !found || next.Constraints.Check[slot].Ordinal != check.Ordinal || next.Constraints.Check[slot].OID == 0 {
+			return nil, catalog.Conflict{}
+		}
+		resolved[i] = next.Constraints.Check[slot]
+	}
+	return resolved, nil
 }

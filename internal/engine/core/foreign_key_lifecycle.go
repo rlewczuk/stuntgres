@@ -23,7 +23,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	}
 	e := stage.Owner
 	e.Mu.Lock()
-	auth.Catalog = e.PrivateCatalogLocked(s.Owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(s.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	e.Mu.Unlock()
 	return table.CheckForeignKeyDefinitionProviders(auth.View, auth, stage.Base, stage.Descriptors())

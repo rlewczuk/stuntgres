@@ -2,7 +2,6 @@ package core
 
 import (
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 )
 
@@ -11,8 +10,7 @@ import (
 // Nothing is installed in the transaction owner or live catalog between nodes.
 type InheritanceAlterState struct {
 	table.InheritanceAlterPlan
-	Stage   *CatalogStage
-	Changes *session.Journal
+	Stage *CatalogStage
 	// Prepared holds the root's prepared nodes, keyed by relation.
 	Prepared map[ids.ObjectAddress]*table.InheritancePreparedNode
 }

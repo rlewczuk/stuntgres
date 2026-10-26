@@ -36,7 +36,7 @@ func ExecuteOwnership(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 	}
 	if change.Object == nil {
 		e.Mu.Unlock()
-		scope.Completed = true
+		scope.CompleteUtility()
 		return core.Result{}, scope.Op.Context().Err()
 	}
 	stage := core.OwnershipStage(e, auth, scope.Op)
@@ -75,7 +75,7 @@ func executeDatabaseOwnership(e *core.Engine, scope *core.StatementScope, s *par
 	}
 	if change.Object == nil {
 		e.Mu.Unlock()
-		scope.Completed = true
+		scope.CompleteUtility()
 		return core.Result{}, scope.Op.Context().Err()
 	}
 	stage := core.OwnershipStage(e, auth, scope.Op)

@@ -150,7 +150,11 @@ func (p *RulePlan) Finish(h Host, auth ddl.Authority) (RelationChange, error) {
 	if p.next.View != p.old.View {
 		p.next.View = stored.ViewOf(&p.next).With(func(v *stored.ViewParts) { v.QuoteRevision = p.next.Revision() })
 	}
-	return RelationChange{Ref: p.ref, Next: &p.next, Sources: p.sources}, nil
+	change := RelationChange{Ref: p.ref, Next: &p.next, Sources: p.sources}
+	if _, drop := p.stmt.(*parser.DropRule); drop {
+		change.Deleted = ids.ObjectAddress{ClassID: 2618, ObjectID: stored.RulesOf(p.old)[p.index].OID}
+	}
+	return change, nil
 }
 
 // checkSelectRule preserves the structural checks before source admission.

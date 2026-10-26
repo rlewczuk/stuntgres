@@ -220,7 +220,7 @@ var keywords = [...]keyword{
 	{"enum", Unreserved, true, 0},
 	{"error", Unreserved, true, 0},
 	{"escape", Unreserved, true, ESCAPE},
-	{"event", Unreserved, true, 0},
+	{"event", Unreserved, true, EVENT},
 	{"except", Reserved, false, EXCEPT},
 	{"exclude", Unreserved, true, EXCLUDE},
 	{"excluding", Unreserved, true, EXCLUDING},

@@ -11,7 +11,7 @@ import (
 // visibility snapshot demand, and a query lock context when rows are locked.
 // Called before any source expression is opened.
 func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) error {
-	demand, err := view.QueryLocks(e.PrivateCatalogLocked(scope.Owner.Catalog), root, leaves)
+	demand, err := view.QueryLocks(e.PrivateCatalogLocked(scope.PendingCatalog()), root, leaves)
 	scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || demand.Visibility
 	if err != nil {
 		return err

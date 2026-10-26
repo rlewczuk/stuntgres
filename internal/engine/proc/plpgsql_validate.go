@@ -29,10 +29,29 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 	controls := map[*PLControl]bool{p.Root.Control: true}
 	bindings := p.FormalCount
 	formalBindings := make(map[string]int)
-	if p.Trigger != d.Trigger || d.Trigger && (p.Procedure || len(d.Formals) != 0 || d.Result.Type == nil || d.Result.Type.ID() != 2279 || len(p.Variables) < TriggerSlotCount) {
+	if p.Invocation != d.Invocation || d.Invocation > EventTriggerInvocation {
 		return invalid()
 	}
-	if d.Trigger {
+	if d.Invocation != OrdinaryInvocation && (p.Procedure || len(d.Formals) != 0 || d.Result.Type == nil) {
+		return invalid()
+	}
+	if d.Invocation == EventTriggerInvocation {
+		if d.Result.Type.ID() != 3838 || len(p.Variables) < len(eventTriggerNames) {
+			return invalid()
+		}
+		bindings = len(eventTriggerNames)
+		for i, name := range eventTriggerNames {
+			v := p.Variables[i]
+			if v.Name != name || v.Record || v.Constant || v.NotNull || v.InheritInputCollation || v.Role != PLOrdinarySlot || v.Cursor != nil || v.Usage.Type == nil || v.Usage.Type.ID() != 25 || v.Usage != v.Usage.Type.Usage() {
+				return invalid()
+			}
+			formalBindings[name] = i
+		}
+	}
+	if d.Invocation == DMLTriggerInvocation {
+		if d.Result.Type.ID() != 2279 || len(p.Variables) < TriggerSlotCount {
+			return invalid()
+		}
 		bindings = TriggerSlotCount
 		for i, name := range triggerNames {
 			v := p.Variables[i]
@@ -394,7 +413,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 						return invalid()
 					}
 					policy := PLReturnPolicy(d.Result, len(d.OutputFormals), p.Procedure)
-					if raw.Expression != nil && policy.Code != "" || raw.Expression == nil && !p.Procedure && !d.Void() && len(d.OutputFormals) == 0 {
+					if raw.Expression != nil && policy.Code != "" || raw.Expression == nil && !p.Procedure && !d.Void() && d.Invocation != EventTriggerInvocation && len(d.OutputFormals) == 0 {
 						return invalid()
 					}
 				}
@@ -662,7 +681,7 @@ func (p *PLProgram) SameLayout(other *PLProgram) bool {
 	if p == nil || other == nil {
 		return p == other
 	}
-	if p.FormalCount != other.FormalCount || p.FoundSlot != other.FoundSlot || p.SearchCount != other.SearchCount || p.Trigger != other.Trigger || p.Function != other.Function || p.Procedure != other.Procedure || p.Source != other.Source || len(p.Variables) != len(other.Variables) || !reflect.DeepEqual(p.Root, other.Root) {
+	if p.FormalCount != other.FormalCount || p.FoundSlot != other.FoundSlot || p.SearchCount != other.SearchCount || p.Invocation != other.Invocation || p.Function != other.Function || p.Procedure != other.Procedure || p.Source != other.Source || len(p.Variables) != len(other.Variables) || !reflect.DeepEqual(p.Root, other.Root) {
 		return false
 	}
 	for i, v := range p.Variables {

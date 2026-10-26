@@ -26,11 +26,7 @@ func (v AuthorizationView) AsUser(principal authorization.PrincipalRef) view.Rul
 // session's private storage, else the engine's published storage. The caller
 // holds Engine.mu.
 func (v AuthorizationView) StorageLocked(a ids.ObjectAddress) *storage.Relation {
-	var journal *session.Journal
-	if v.Session != nil && v.Session.Transactions != nil {
-		journal = v.Session.Transactions.Catalog
-	}
-	return session.PrivateStorage(v.inputs.Storage, journal, a)
+	return session.PrivateStorage(v.inputs.Storage, v.PendingCatalog(), a)
 }
 
 // ruleAuthorizationOf recovers the full authorization view of a rule

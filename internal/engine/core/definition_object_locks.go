@@ -10,7 +10,7 @@ import (
 )
 
 func DefinitionObjectClass(class ids.OID) bool {
-	return class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID
+	return class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID
 }
 
 func CompareDefinitionAddress(a, b ids.ObjectAddress) int {
@@ -30,6 +30,8 @@ func (s *StatementScope) acquireDefinitionObjectDependencies(stage *CatalogStage
 	addresses := scratch[:0]
 	for _, descriptor := range stage.Descriptors() {
 		switch d := descriptor.(type) {
+		case *catalog.EventTrigger:
+			addresses = append(addresses, d.Function.Address)
 		case *catalog.Cast:
 			addresses = append(addresses, catalog.CastDependencies(d)...)
 		case *catalog.Conversion:

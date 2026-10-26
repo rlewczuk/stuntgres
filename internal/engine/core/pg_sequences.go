@@ -17,7 +17,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 	if scope.Owner.SequenceCatalog != nil {
 		base = scope.Owner.SequenceCatalog
 	}
-	own := scope.Owner.Catalog
+	own := scope.PendingCatalog()
 	namespace := func(address ids.ObjectAddress) catalog.Descriptor {
 		descriptor := base.Get(address)
 		if own != nil {
@@ -70,7 +70,7 @@ func (h *statementHost) CompletePGSequence(ctx context.Context, ref ids.ObjectRe
 	if err != nil {
 		return err
 	}
-	auth.Catalog = e.PrivateCatalogLocked(s.Owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(s.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	relation, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || relation.RelationKind != catalog.SequenceRelation {

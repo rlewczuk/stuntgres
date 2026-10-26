@@ -160,6 +160,72 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	return nil
 }
 
+// deferAlterCatalogNames retains only genuine changed destinations and their
+// original epoch. New relation identities still receive ordinary admission;
+// only prospective logical names are deferred, never object ownership.
+func (s *StatementScope) deferAlterCatalogNames(stage *CatalogStage) error {
+	var namespaces []ids.ObjectAddress
+	for key, address := range stage.Names() {
+		if address == (ids.ObjectAddress{}) || stage.Base.NameAddress(key) == address {
+			continue
+		}
+		if s.alterNames == nil {
+			s.alterNames = make(map[ids.NameKey]ids.ObjectRef)
+		}
+		if _, exists := s.alterNames[key]; !exists {
+			s.alterNames[key] = stage.Owner.Catalog.Domain.Ref(stage.Base.Epoch(), key.Namespace)
+		}
+		if key.Namespace != (ids.ObjectAddress{}) && stage.Base.Get(key.Namespace) != nil {
+			namespaces = append(namespaces, key.Namespace)
+		}
+	}
+	slices.SortFunc(namespaces, func(a, b ids.ObjectAddress) int { return cmp.Compare(a.ObjectID, b.ObjectID) })
+	for _, address := range slices.Compact(namespaces) {
+		if err := s.AcquireCatalogNamespace(stage.Base, address, stage.CreationName); err != nil {
+			return err
+		}
+	}
+	for key, address := range stage.Names() {
+		if key.ClassID != ids.RelationClassID || address == (ids.ObjectAddress{}) || stage.Base.NameAddress(key) == address || stage.Base.Get(address) != nil {
+			continue
+		}
+		ref := stage.Owner.Catalog.Domain.Ref(stage.Base.Epoch(), address)
+		if err := s.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *StatementScope) acquireAlterCatalogNames() error {
+	if len(s.alterNames) == 0 {
+		return nil
+	}
+	keys := make([]ids.NameKey, 0, len(s.alterNames))
+	for key := range s.alterNames {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(a, b ids.NameKey) int {
+		if n := cmp.Compare(a.ClassID, b.ClassID); n != 0 {
+			return n
+		}
+		if n := cmp.Compare(a.Namespace.ObjectID, b.Namespace.ObjectID); n != 0 {
+			return n
+		}
+		if n := cmp.Compare(a.Name, b.Name); n != 0 {
+			return n
+		}
+		return cmp.Compare(a.Signature, b.Signature)
+	})
+	for _, key := range keys {
+		resource := lock.Resource{ObjectRef: s.alterNames[key], Name: key}
+		if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *StatementScope) AcquireCatalogNamespace(base catalog.Read, address ids.ObjectAddress, name parser.ObjectName) error {
 	ref := s.Engine().Catalog.Domain.Ref(base.Epoch(), address)
 	if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {

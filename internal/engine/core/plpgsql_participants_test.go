@@ -60,11 +60,11 @@ func plExceptionUnlocked(t *testing.T, e *core.Engine, s *core.StatementScope) f
 func TestPLExceptionParticipants(t *testing.T) {
 	t.Run("late_enlistment_and_balanced_marks", func(t *testing.T) {
 		e, s := plExceptionUnitScope(t)
-		outer, err := core.ScopeBeginPLException(s)
+		outer, err := s.BeginPLException()
 		if err != nil {
 			t.Fatal(err)
 		}
-		inner, err := core.ScopeBeginPLException(s)
+		inner, err := s.BeginPLException()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -74,10 +74,10 @@ func TestPLExceptionParticipants(t *testing.T) {
 		if _, err := core.ScopeEnlistForeign(s, s.Op.Context(), provider, request, true); err != nil {
 			t.Fatal(err)
 		}
-		if err := core.ScopeEndPLException(s, inner, true, errors.New("body")); err != nil {
+		if err := s.EndPLException(inner, true, errors.New("body")); err != nil {
 			t.Fatal(err)
 		}
-		if err := core.ScopeEndPLException(s, outer, false, nil); err != nil {
+		if err := s.EndPLException(outer, false, nil); err != nil {
 			t.Fatal(err)
 		}
 		want := []string{"save:" + fdw.MarkName(core.PLExceptionCheckpointSerial(outer)), "save:" + fdw.MarkName(core.PLExceptionCheckpointSerial(inner)), "begin-statement", "rollback:" + fdw.MarkName(core.PLExceptionCheckpointSerial(inner)), "release:" + fdw.MarkName(core.PLExceptionCheckpointSerial(inner)), "release:" + fdw.MarkName(core.PLExceptionCheckpointSerial(outer))}
@@ -133,14 +133,14 @@ func TestPLExceptionParticipants(t *testing.T) {
 		tx := &plExceptionFaultTx{}
 		tx.check = plExceptionUnlocked(t, e, s)
 		core.OwnerExtensionForeignRef(core.OwnerExtensionOf(s.Owner)).Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
-		mark, err := core.ScopeBeginPLException(s)
+		mark, err := s.BeginPLException()
 		if err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(s.Op.Context())
 		cancel()
 		s.Op.Ctx = ctx
-		if err := core.ScopeEndPLException(s, mark, true, context.Canceled); err != nil {
+		if err := s.EndPLException(mark, true, context.Canceled); err != nil {
 			t.Fatal(err)
 		}
 		if tx.canceledRollback {

@@ -26,7 +26,7 @@ func ExecuteForeignGrant(e *core.Engine, scope *core.StatementScope, s *parser.O
 	if err != nil {
 		return core.Result{}, err
 	}
-	changes := scope.Owner.Catalog.Clone()
+	changes := scope.PendingCatalog().Clone()
 	plan, warnings, err := fdw.PlanGrant(op.Context(), auth.View, s, changes.Descriptors, e.Catalog.RevisionLocked)
 	for _, warning := range warnings {
 		op.EmitNotice(session.LevelWarning, warning)

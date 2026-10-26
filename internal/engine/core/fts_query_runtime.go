@@ -50,7 +50,7 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 	}
 	statement := statements[0]
 	view, refs := s.View, s.rlsDataRefs
-	restore := s.activateSQLRoutine(nil, read)
+	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	s.View, s.rlsDataRefs = view, refs
 	s.sqlRoutine.scalar, s.sqlRoutine.rewrite = false, true
@@ -92,7 +92,7 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 
 func (s *StatementScope) prepareRewriteStatement(statement parser.Statement, read catalog.Read) (err error) {
 	view, refs := s.View, s.rlsDataRefs
-	restore := s.activateSQLRoutine(nil, read)
+	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	s.View, s.rlsDataRefs = view, refs
 	s.sqlRoutine.scalar = false

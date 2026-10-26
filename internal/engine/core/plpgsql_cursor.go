@@ -32,7 +32,7 @@ func (s *StatementScope) executePLCursor(d *catalog.Procedure, run *proc.PLRun, 
 		var name string
 		name, err = f.CursorName(in.Cursor.Slot)
 		if err == nil {
-			restore := s.activateSQLRoutine(nil, read)
+			restore := s.ActivateSQLRoutine(nil, read)
 			_, err = s.closeCursor(&parser.CloseCursor{Name: parser.Identifier{Text: name}})
 			err = restore(err)
 		}
@@ -147,7 +147,7 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 		}
 		command = parser.PLExpressionSource(f.Program.Source, queryStart, queryEnd)
 	}
-	restore := s.activateSQLRoutine(inputs, read)
+	restore := s.ActivateSQLRoutine(inputs, read)
 	defer func() { err = restore(err) }()
 	if !dynamic {
 		s.sqlRoutine.lexical = f
@@ -224,7 +224,7 @@ func (s *StatementScope) movePLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 }
 
 func (s *StatementScope) movePLCursorPortal(run *proc.PLRun, f *proc.PLFrame, targets []proc.PLTarget, cursor *sqlCursor, motion *parser.FetchCursor, read catalog.Read) (err error) {
-	restore := s.activateSQLRoutine(nil, read)
+	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	result, err := s.fetchCursorPortal(cursor, motion)
 	if err != nil {
@@ -394,7 +394,7 @@ func plCursorArgumentDiagnostic(program *proc.PLProgram, in *proc.PLCursorInstru
 // No second-row probe: bound cursor arguments use nonSTRICT INTO semantics,
 // unlike scalar RETURN/assignment expressions.
 func (s *StatementScope) evaluatePLArgumentRow(f *proc.PLFrame, query *parser.Select, read catalog.Read) (values []sqltype.Value, present bool, err error) {
-	restore := s.activateSQLRoutine(nil, read)
+	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	s.sqlRoutine.lexical, s.sqlRoutine.plArgumentRow = f, true
 	result, err := s.executePLExpressionQuery(f, query, nil)

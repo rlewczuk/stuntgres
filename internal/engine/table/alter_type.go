@@ -160,6 +160,7 @@ func CompleteAlterType(h AlterHost, auth ddl.Authority, original *catalog.Relati
 	oldUsage := original.Columns[source].Usage
 	prepared.Transformation.Expression = node
 	prepared.Transformation.Rewrite = a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod
+	prepared.Transformation.EventRewrite = ColumnTypeEventRewrite(node, original, source, h.Input().Zone)
 	return prepared, nil
 }
 

@@ -103,7 +103,7 @@ func (s *StatementScope) acquireStageRoleDependencies(stage *CatalogStage) error
 // lanes join the same statement ticket before retaining their candidate journal.
 func (s *StatementScope) AcquireJournalRoleDependenciesLocked(changes *session.Journal) error {
 	e := s.Engine()
-	base := e.PrivateCatalogLocked(s.Owner.Catalog)
+	base := e.PrivateCatalogLocked(s.PendingCatalog())
 	references := roleDependencyReferences(base, func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range changes.Descriptors {
 			if !yield(address, descriptor) {

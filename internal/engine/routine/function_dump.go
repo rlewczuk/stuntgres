@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 )
 
 // RoutineDumpEvents orders owned SQL bodies and real transition aggregates by
@@ -127,7 +128,9 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	sql.WriteString(")")
 	if d.RoutineKind != catalog.ProcedureRoutine {
 		result := "pg_catalog.trigger"
-		if !d.SQL.Trigger {
+		if d.SQL.Invocation == proc.EventTriggerInvocation {
+			result = "pg_catalog.event_trigger"
+		} else if d.SQL.Invocation == proc.OrdinaryInvocation {
 			var err error
 			result, err = p.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
 			if err != nil {

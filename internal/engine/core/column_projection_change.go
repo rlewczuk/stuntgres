@@ -14,31 +14,50 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-// Nested cascades may have already projected this statement's private roots.
-func (scope *StatementScope) ColumnProjectionRoots(address ids.ObjectAddress) ([]storage.RowVersion, *visibility.PrivateDeletes) {
-	if scope.projectedRoots {
-		return scope.Stage.Rows[address], scope.Stage.Deletes[address]
+// Projection owns complete private roots, including earlier commands and the
+// current statement's callback suffix. Retained predecessors stay immutable.
+func (scope *StatementScope) projectPrivateRoots() {
+	if scope.ProjectedRoots {
+		return
 	}
-	return scope.OwnWrites[address], scope.OwnDeletes[address]
+	rows := maps.Clone(scope.OwnWrites)
+	for address, staged := range scope.Stage.Rows {
+		if rows == nil {
+			rows = make(map[ids.ObjectAddress][]storage.RowVersion)
+		}
+		rows[address] = visibility.MergePrivateRows(rows[address], staged, true)
+	}
+	deletes := visibility.MergeDeletions(scope.OwnDeletes, scope.Stage.Deletes)
+	if len(scope.Stage.Deletes) == 0 {
+		deletes = maps.Clone(deletes)
+	}
+	scope.Stage.Rows, scope.Stage.Deletes = rows, deletes
+	scope.ProjectedRoots, scope.Stage.Replacing = true, true
+}
+
+func (scope *StatementScope) ColumnProjectionRoots(address ids.ObjectAddress) ([]storage.RowVersion, *visibility.PrivateDeletes) {
+	scope.projectPrivateRoots()
+	return scope.Stage.Rows[address], scope.Stage.Deletes[address]
 }
 
 func (scope *StatementScope) StageProjectedColumnRoots(address ids.ObjectAddress, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) {
-	if !scope.projectedRoots {
-		scope.Stage.Rows = maps.Clone(scope.OwnWrites)
-		scope.Stage.Deletes = maps.Clone(scope.OwnDeletes)
-	}
-	scope.projectedRoots = true
-	if len(scope.OwnWrites) != 0 {
+	scope.projectPrivateRoots()
+	if len(writes) == 0 {
+		delete(scope.Stage.Rows, address)
+	} else {
 		if scope.Stage.Rows == nil {
 			scope.Stage.Rows = make(map[ids.ObjectAddress][]storage.RowVersion)
 		}
 		scope.Stage.Rows[address] = writes
-		scope.Stage.replacing = true
 	}
-	if scope.Stage.Deletes == nil {
-		scope.Stage.Deletes = make(map[ids.ObjectAddress]*visibility.PrivateDeletes)
+	if deletes == nil || len(deletes.Rows) == 0 {
+		delete(scope.Stage.Deletes, address)
+	} else {
+		if scope.Stage.Deletes == nil {
+			scope.Stage.Deletes = make(map[ids.ObjectAddress]*visibility.PrivateDeletes)
+		}
+		scope.Stage.Deletes[address] = deletes
 	}
-	scope.Stage.Deletes[address] = deletes
 }
 
 func (scope *StatementScope) stagePrivateColumnShape(stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation) error {
@@ -129,33 +148,36 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, changes *session.Journal) error {
 	for address, rowShape := range stage.RowShapes {
 		old, oldOK := stage.Base.Relation(address)
+		if source := stage.AlterRowSources[address]; source != nil {
+			old, oldOK = source, true
+		}
 		next, nextOK := stage.Get(address).(*catalog.Relation)
 		if !oldOK || !nextOK || slices.Equal(old.Attributes, next.Attributes) {
 			continue
 		}
 		shape := changes.Storage[address]
 		shape.MergeFills(rowShape.Fills, next)
-		projection, err := session.NewColumnProjection(old, next, shape.Fills)
-		if err != nil {
-			return err
-		}
 		if !rowShape.OwnProjected {
-			writes, deletes := scope.ColumnProjectionRoots(address)
-			writes, err = projection.Versions(scope.Op.Context(), writes)
+			projection, err := session.NewColumnProjection(old, next, shape.Fills)
 			if err != nil {
 				return err
 			}
-			scope.StageProjectedColumnRoots(address, writes, session.ProjectDeletions(deletes, rowShape.Replacement))
+			writes, deletes := scope.ColumnProjectionRoots(address)
+			projected, err := projection.Versions(scope.Op.Context(), writes)
+			if err != nil {
+				return err
+			}
+			scope.StageProjectedColumnRoots(address, projected, session.ProjectDeletions(deletes, rowShape.Replacement))
 		}
 		stage.Owner.Mu.Lock()
 		snapshot, snapshotExists := scope.Owner.Roots[address]
 		stage.Owner.Mu.Unlock()
 		if scope.Owner.Isolation.Stable() && snapshotExists && !shape.Rewritten {
-			shape.Snapshot, err = session.ProjectVersions(scope.Op.Context(), snapshot.Versions, snapshot.Relation, next, shape.Fills)
+			projected, err := session.ProjectVersions(scope.Op.Context(), snapshot.Versions, snapshot.Relation, next, shape.Fills)
 			if err != nil {
 				return err
 			}
-			shape.HasSnapshot = true
+			shape.Snapshot, shape.HasSnapshot = projected, true
 		}
 		changes.Storage[address] = shape
 	}

@@ -41,7 +41,7 @@ func ExecuteDatabaseGrant(e *core.Engine, scope *core.StatementScope, s *parser.
 			continue
 		}
 		if changes == nil {
-			changes = scope.Owner.Catalog.Clone()
+			changes = scope.PendingCatalog().Clone()
 		}
 		e.CatalogChangeLocked(changes, next.Address(), next)
 	}

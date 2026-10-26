@@ -21,7 +21,7 @@ type PLProgram struct {
 	Function    string
 	Procedure   bool
 	SearchCount int
-	Trigger     bool
+	Invocation  InvocationKind
 	FoundSlot   int
 	Source      string
 }
@@ -166,7 +166,7 @@ func PLReturnPolicy(result sqltype.Usage, outputs int, procedure bool) parser.PL
 		return parser.PLReturnPolicy{Code: "42601", Message: "RETURN cannot have a parameter in a procedure"}
 	case outputs != 0:
 		return parser.PLReturnPolicy{Code: "42804", Message: "RETURN cannot have a parameter in function with OUT parameters"}
-	case result.Type != nil && result.Type.ID() == sqltype.Void:
+	case result.Type != nil && (result.Type.ID() == sqltype.Void || result.Type.ID() == 3838):
 		return parser.PLReturnPolicy{Code: "42804", Message: "RETURN cannot have a parameter in function returning void"}
 	default:
 		return parser.PLReturnPolicy{}
@@ -185,15 +185,30 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 	var diagnostics plDiagnosticDatums
 	outer := &PLBlock{Label: definition.Name, Bindings: make(map[string]int), FunctionScope: true, Control: &PLControl{ID: 1}}
 	p.Root = outer
-	if definition.Trigger {
-		if procedure || len(definition.Formals) != 0 || definition.Result.Type == nil || definition.Result.Type.ID() != 2279 {
+	if definition.Invocation != OrdinaryInvocation {
+		if procedure || len(definition.Formals) != 0 || definition.Result.Type == nil {
 			return nil, fmt.Errorf("stuntgres: invalid PL trigger declaration")
 		}
-		variables, err := TriggerVariables(resolve)
+		var variables []PLVariable
+		var err error
+		switch definition.Invocation {
+		case DMLTriggerInvocation:
+			if definition.Result.Type.ID() != 2279 {
+				return nil, fmt.Errorf("stuntgres: invalid DML trigger result")
+			}
+			variables, err = TriggerVariables(resolve)
+		case EventTriggerInvocation:
+			if definition.Result.Type.ID() != 3838 {
+				return nil, fmt.Errorf("stuntgres: invalid event trigger result")
+			}
+			variables, err = EventTriggerVariables(resolve)
+		default:
+			return nil, fmt.Errorf("stuntgres: invalid PL invocation kind")
+		}
 		if err != nil {
 			return nil, err
 		}
-		p.Trigger = true
+		p.Invocation = definition.Invocation
 		p.Variables = variables
 		for i, v := range variables {
 			outer.Bindings[v.Name] = i
@@ -417,7 +432,7 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 				message, code := "", ""
 				if statement.Expression != nil {
 					message, code = returnPolicy.Message, returnPolicy.Code
-				} else if !procedure && !definition.Void() && len(definition.OutputFormals) == 0 {
+				} else if !procedure && !definition.Void() && definition.Invocation != EventTriggerInvocation && len(definition.OutputFormals) == 0 {
 					message, code = "missing expression at or near \";\"", "42601"
 				}
 				if message != "" {

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -36,45 +37,46 @@ func (s *StatementScope) leaveSQLRoutine() {
 // existing waits/providers alone release/reacquire it and Finish sees its real flag.
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
-	command              ruleCommandScratch
-	mutations            []StatementMutation
-	activeMutation       int
-	cteInvocation        *exec.CTEInvocation
-	activeViews          []ids.ObjectAddress
-	inheritanceRelations []exec.Leaf
-	inheritanceCatalog   catalog.Read
-	largeObjectRead      catalog.Read
-	authority            *exec.Authority
-	routineAuth          AuthorizationView
-	routineDependencies  []catalog.ExpressionDependency
-	expected             *StatementDescription
-	prepared             preparedRebind
-	admissionWaited      bool
-	sqlRoutine           sqlRoutineDemand
-	inquiry              inquirySnapshot
-	initialParameters    []sqltype.Usage
-	protocol             *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
-	input                sqltype.InputEnvironment
-	output               sqltype.OutputEnvironment
-	view, partitionView  *visibility.View
-	rlsDataRefs          []ids.ObjectRef // Same lexical snapshot owner as view; not a global source cache.
-	ownWrites            map[ids.ObjectAddress][]storage.RowVersion
-	ownDeletes           map[ids.ObjectAddress]*visibility.PrivateDeletes
-	domainEvaluation     *exec.Context
-	domainInputCatalog   catalog.Read
-	foreignOwner         *exec.ForeignScanOwner
-	foreignCursor        *sqlCursor
-	presentation         *presentationCaches // Swapped as a unit: a nested body starts with empty caches.
-	identity             exec.IdentitySnapshot
-	completed            bool // Nested utility outcome, not root row publication.
-	sessionCompleted     bool
+	command             ruleCommandScratch
+	mutations           []StatementMutation
+	activeMutation      int
+	cteInvocation       *exec.CTEInvocation
+	activeViews         []ids.ObjectAddress
+	inheritance         inheritanceScope
+	materialized        *view.MaterializedRefreshScope
+	largeObjectRead     catalog.Read
+	authority           *exec.Authority
+	routineAuth         AuthorizationView
+	routineDependencies []catalog.ExpressionDependency
+	expected            *StatementDescription
+	prepared            preparedRebind
+	admissionWaited     bool
+	sqlRoutine          sqlRoutineDemand
+	inquiry             inquirySnapshot
+	initialParameters   []sqltype.Usage
+	protocol            *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
+	input               sqltype.InputEnvironment
+	output              sqltype.OutputEnvironment
+	view, partitionView *visibility.View
+	rlsDataRefs         []ids.ObjectRef // Same lexical snapshot owner as view; not a global source cache.
+	ownWrites           map[ids.ObjectAddress][]storage.RowVersion
+	ownDeletes          map[ids.ObjectAddress]*visibility.PrivateDeletes
+	domainEvaluation    *exec.Context
+	domainInputCatalog  catalog.Read
+	foreignOwner        *exec.ForeignScanOwner
+	foreignCursor       *sqlCursor
+	presentation        *presentationCaches // Swapped as a unit: a nested body starts with empty caches.
+	identity            exec.IdentitySnapshot
+	completed           bool // Nested utility outcome, not root row publication.
+	sessionCompleted    bool
 }
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	return sqlRoutineScratch{
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.ActiveMutation, cteInvocation: s.cteInvocation,
-		activeViews: s.ViewCreationOrZero().Active, inheritanceRelations: s.Inheritance.relations, inheritanceCatalog: s.Inheritance.catalog,
-		authority: s.authority, routineAuth: s.RoutineAuth, expected: s.Expected,
+		activeViews: s.ViewCreationOrZero().Active, inheritance: s.Inheritance,
+		materialized: s.MaterializedSlot,
+		authority:    s.authority, routineAuth: s.RoutineAuth, expected: s.Expected,
 		routineDependencies: s.RoutineDependencies,
 		prepared:            s.prepared, admissionWaited: s.admissionWaited,
 		initialParameters: s.initialParameters, input: s.Input, output: s.Output,
@@ -92,7 +94,8 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.installRuleScratch(c.command)
 	s.mutations, s.ActiveMutation, s.cteInvocation = c.mutations, c.activeMutation, c.cteInvocation
 	s.setActiveViews(c.activeViews)
-	s.Inheritance.relations, s.Inheritance.catalog = c.inheritanceRelations, c.inheritanceCatalog
+	s.Inheritance = c.inheritance
+	s.MaterializedSlot = c.materialized
 	s.authority, s.RoutineAuth, s.Expected = c.authority, c.routineAuth, c.expected
 	s.RoutineDependencies = c.routineDependencies
 	s.prepared, s.admissionWaited = c.prepared, c.admissionWaited
@@ -110,7 +113,9 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.Completed, s.sessionCompleted = c.completed, c.sessionCompleted
 }
 
-func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectRead catalog.Read) func(error) error {
+// ActivateSQLRoutine borrows the statement journal with fresh lexical command
+// scratch. The caller must invoke the returned restoration exactly once.
+func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectRead catalog.Read) func(error) error {
 	saved := s.sqlRoutineScratch()
 	// Preserve the live operation's presentation/time policy, but create fresh
 	// provider/capture/query state. The parameter frame itself is proc-owned.

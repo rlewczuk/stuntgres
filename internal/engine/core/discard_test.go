@@ -324,7 +324,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	if scope.Completed || core.ScopeSessionCompleted(scope) || scope.Catalog == nil || !core.ScopeProjectedRoots(scope) {
+	if scope.Completed || core.ScopeSessionCompleted(scope) || scope.Catalog == nil || !scope.ProjectedRoots {
 		t.Fatal("TEMP bypasses private publication")
 	}
 	if scope.Catalog.Originals[relation.Address()] != relation || scope.Catalog.Descriptors[relation.Address()] != nil || e.Storage.Relations[relation.Address()] != storage {
@@ -417,7 +417,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					op.Done()
 					t.Fatal(err)
 				}
-				if scope.Completed || core.ScopeSessionCompleted(scope) || !core.ScopeProjectedRoots(scope) || scope.Catalog.Originals[survivor.Address()] != survivor || scope.Catalog.Originals[providerAddress] != provider || scope.Catalog.Originals[indexAddress] != index {
+				if scope.Completed || core.ScopeSessionCompleted(scope) || !scope.ProjectedRoots || scope.Catalog.Originals[survivor.Address()] != survivor || scope.Catalog.Originals[providerAddress] != provider || scope.Catalog.Originals[indexAddress] != index {
 					scope.Finish(errors.New("invalid projection"))
 					op.Done()
 					t.Fatal("private projection lost original descriptor fences")
@@ -473,7 +473,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 			catalog, namespace := e.Catalog.State, s.TemporaryNamespace
 			op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardTemp)
 			_, err := core.ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardTemp}, 0)
-			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.Catalog != nil || core.ScopeProjectedRoots(scope) || e.Catalog.State != catalog || s.TemporaryNamespace != namespace || core.CursorRoot(cursor) == nil {
+			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.Catalog != nil || scope.ProjectedRoots || e.Catalog.State != catalog || s.TemporaryNamespace != namespace || core.CursorRoot(cursor) == nil {
 				scope.Finish(err)
 				op.Done()
 				t.Fatal("live cursor preflight installed effects or lost source", err)

@@ -60,7 +60,7 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 	if err != nil {
 		return nil, err
 	}
-	auth.Recapture(partition.CaptureCatalog(s.inheritanceRead(e.PrivateCatalogLocked(s.Owner.Catalog)), s.PartitionRelations))
+	auth.Recapture(partition.CaptureCatalog(s.inheritanceRead(e.PrivateCatalogLocked(s.PendingCatalog())), s.PartitionRelations))
 	p.refs, err = e.QueryTableRefsLocked(auth, invoker, leaves, nil, s.Op.Session.SessionToken, inherited)
 	if err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func (e *Engine) prepareCommandSourcesLocked(s *StatementScope, bRef ids.ObjectR
 		return err
 	}
 	auth.State.CurrentUser = command.auth.State.CurrentUser
-	auth.Recapture(s.inheritanceRead(e.PrivateCatalogLocked(s.Owner.Catalog)))
+	auth.Recapture(s.inheritanceRead(e.PrivateCatalogLocked(s.PendingCatalog())))
 	if binding.Relation != nil && binding.Relation.RelationKind.Stored() {
 		s.rlsDataRefs, err = e.QueryTableRefsLocked(auth, auth.State.CurrentUser, nil, append(s.rlsDataRefs, s.Command.TargetRefs(bRef)...), s.Op.Session.SessionToken, plan.RowMark{})
 		if err != nil {

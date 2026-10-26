@@ -205,7 +205,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 					}
 				}
 			}
-			if !core.WriteStageReplacing(&scope.Stage) || staged != 1 {
+			if !scope.Stage.Replacing || staged != 1 {
 				t.Fatal("missing single real private replacement", staged)
 			}
 			if got := committed(); got.Version != successor.Version || enginetest.Export(got.Values[1]) != "owner" {

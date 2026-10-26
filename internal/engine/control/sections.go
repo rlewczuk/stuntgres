@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/sqltype"
 )
 
 // dumpSection is one fixed part of the Dump script.
@@ -48,6 +49,8 @@ var dumpSections = [...]dumpSection{
 	{"foreign defaults", emitDumpForeignDefaults},
 	{"attribute ranks", emitDumpAttributeRanks},
 	{"object ACLs", emitDumpObjectACLs},
+	{"raw codec completion", emitDumpRawCodecCompletion},
+	{"event triggers", emitDumpEventTriggers},
 }
 
 func emitDumpRoutineDirective(_ context.Context, s *dumpScript, w *dumpWriter) error {
@@ -296,6 +299,23 @@ func emitDumpGroups(view catalog.Read, w *dumpWriter, groups []dump.Group) error
 		if err := w.emitDefinition(view, dump.Statement{SQL: group.SQL, Binding: group.Binding}); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func emitDumpRawCodecCompletion(_ context.Context, s *dumpScript, w *dumpWriter) error {
+	if !s.rawFloat4 || !s.rawHelper {
+		return nil
+	}
+	final, exists := s.CatalogView.Cast(sqltype.Xid, sqltype.Float4)
+	if err := w.forceOwner("postgres"); err != nil {
+		return err
+	}
+	if err := w.emit("DROP CAST (pg_catalog.xid AS pg_catalog.float4);\n"); err != nil {
+		return err
+	}
+	if exists && final.Method != "b" {
+		return w.emit(s.declarations[final.OID].SQL)
 	}
 	return nil
 }

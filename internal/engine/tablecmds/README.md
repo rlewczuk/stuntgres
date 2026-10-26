@@ -38,6 +38,15 @@ TEMP preservation, relation admission and publication.
   are lock-domain continuations: entered with `Engine.Mu` held, they release
   it on every return and run admission waits, provider work and row
   evaluation unlocked.
+  `AlterTableLocked` takes a nil physical-work collector for an ordinary
+  statement; inheritance supplies its command-local collector so every target's
+  metadata is installed privately before any rewrite callback or heap work.
+  Physical work retains its original source layout and storage fences, and
+  merges only into the latest private journal.
+  Sequence prephase admission checks exact grant-time originals without
+  transferring effects. Ordinary metadata transfer installs sequence descriptors,
+  generators and retirements once before identity or volatile physical recipes;
+  AS validation and cache-tail demand retain their earlier ordering.
 - Dispatch (`core.Statements.Execute`): `ExecuteSequenceDDL`,
   `ExecuteSequenceComment` and `ExecuteVacuum` are entered with nothing held;
   they take `Engine.Mu` in short windows and release it around lock waits.

@@ -54,7 +54,7 @@ func schemaPartitionTableLocked(e *core.Engine, scope *core.StatementScope, auth
 	pending := &PendingPartitionDefinition{Definition: *definition, Stage: stage, Auth: auth}
 	if parent != nil && !pending.Bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
 		for _, ref := range pending.DefaultLeaves {
-			storage := e.PrivateStorageLocked(scope.Owner.Catalog, ref.Address)
+			storage := e.PrivateStorageLocked(scope.PendingCatalog(), ref.Address)
 			if storage == nil {
 				return nil, ids.ErrCatalogReplaced
 			}

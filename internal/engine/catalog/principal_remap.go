@@ -59,6 +59,14 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 				return err
 			}
 			state.SetDescriptor(addr, &n)
+		case *EventTrigger:
+			n := *d
+			var err error
+			n.Owner, err = remap(d.Owner)
+			if err != nil {
+				return err
+			}
+			state.SetDescriptor(addr, &n)
 		case *ForeignObject:
 			n := *d
 			var err error

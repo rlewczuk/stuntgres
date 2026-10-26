@@ -203,6 +203,28 @@ or long textual input and always-long canonical output. Literal and bound
 values retain check-digit validity, invalid markers, issue digits and NULLs
 through prepared execution, extension recreation and native Reset/Dump/Restore.
 
+Database-local event triggers support transactional DDL start/end, actual
+sql_drop and semantic table_rewrite phases, TAG filters, ordered event-function
+frames and bounded ENABLE/DISABLE/DROP lifecycle. Callback and DDL effects share
+one private statement journal; native logical replay installs saved triggers
+only in its final section. Same-identity SQL/PL function replacement preserves
+OID, owner and ACL while validating the new body.
+Nested SQL utilities use the same pre-resolution boundary; shape projection and
+drop cleanup preserve earlier callback row effects.
+Materialized-refresh callbacks isolate parent admission scratch, and direct/no-op
+USING expressions retain their non-rewriting event semantics.
+Finished statement leases no longer supply Restore catalog/role authority.
+Phased ALTER retains original fences and demands final providers after physical
+work; metadata-only updates preserve heaps and ready-invalid index roots.
+Prospective ALTER names remain unlocked across reentrant providers until Finish,
+without rebasing collision observations. Semantic TYPE work rejects late stored
+row consumers, and general authority fences the actual published role root.
+DISCARD ALL consumes its temporary cleanup journal exactly once. Typed TYPE
+admission preserves existing stored-row diagnostics before generation transfer,
+and stale generated-expression descriptors retain their conflict diagnostic.
+Inherited partition ALTER and replay retain their admitted topology through
+private successors; typed projections preserve canonical nested composite values.
+
 Installed isn now provides independently identified issn columns with literal
 and bound string/byte input, canonical short or lossless long output, and ISSN
 result metadata. Check digits, invalid markers, nonzero issue digits and NULLs

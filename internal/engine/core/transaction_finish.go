@@ -72,6 +72,13 @@ func (s *StatementScope) Finish(err error) error {
 		}
 		return err
 	}
+	// Provider reentry and the Execute-to-Finish interval must not retain
+	// prospective ALTER name claims. Acquire them at the real publication
+	// boundary; the unchanged original name observations still reject a peer
+	// collision after admission.
+	if err == nil {
+		err = s.acquireAlterCatalogNames()
+	}
 	t := s.Owner
 	e := s.Engine()
 	published := false
@@ -79,7 +86,7 @@ func (s *StatementScope) Finish(err error) error {
 	// Parsing can fail before classification; admitted failures still abort
 	// explicit work. Completed row/catalog/session utilities have already passed
 	// their installation preflight; later cancellation cannot retract success.
-	if err == nil && s.worked && !s.Completed {
+	if err == nil && s.worked && (!s.Completed || s.Catalog != nil) {
 		err = e.validateOperation(s.Op)
 	}
 	if err == nil && s.worked && s.Catalog != nil {
@@ -118,7 +125,7 @@ func (s *StatementScope) Finish(err error) error {
 			catalog = s.Catalog
 		}
 		if t.State == session.TxImplicit && !t.RetainsTransaction() {
-			if !s.Completed {
+			if !s.Completed || s.Catalog != nil {
 				t.Mu.Unlock()
 				err = e.publishRows(s.Op, t.Ref, s.Stage.Rows, s.Stage.Deletes, catalog, s.CatalogAuthority, s)
 				published = err == nil
@@ -127,7 +134,7 @@ func (s *StatementScope) Finish(err error) error {
 		} else if !s.sessionCompleted {
 			var deletes map[ids.ObjectAddress]*visibility.PrivateDeletes
 			var writes map[ids.ObjectAddress][]storage.RowVersion
-			if s.projectedRoots {
+			if s.ProjectedRoots {
 				writes, deletes = s.Stage.Rows, s.Stage.Deletes
 			} else {
 				deletes = visibility.MergeDeletions(t.Deletes, s.Stage.Deletes)
@@ -139,8 +146,8 @@ func (s *StatementScope) Finish(err error) error {
 			}
 			t.Mu.Lock()
 			if err == nil {
-				if !s.projectedRoots {
-					writes = visibility.PrepareOwnWrites(t.Writes, s.Stage.Rows, s.Stage.replacing)
+				if !s.ProjectedRoots {
+					writes = visibility.PrepareOwnWrites(t.Writes, s.Stage.Rows, s.Stage.Replacing)
 				}
 				notificationActions, notificationEvents := t.MergeNotifications(s.notificationActions, s.notificationEvents)
 				session := s.Op.Session
@@ -175,7 +182,7 @@ func (s *StatementScope) Finish(err error) error {
 				}
 				if err == nil {
 					for a, rows := range s.Stage.Rows {
-						if !s.Stage.replacing && len(t.Writes[a]) != 0 {
+						if !s.Stage.Replacing && len(t.Writes[a]) != 0 {
 							copy(writes[a][len(t.Writes[a]):], rows)
 						}
 					}

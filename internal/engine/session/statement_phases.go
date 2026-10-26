@@ -77,6 +77,8 @@ func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 // operation description after Describe's analysis snapshot.
 func DescribeAfterSnapshot(stmt parser.Statement) bool {
 	switch stmt.(type) {
+	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
+		return true
 	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
 		return true
 	case *parser.CreateTable, *parser.DropTable, *parser.CreateView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterComposite, *parser.AlterType, *parser.DropType:

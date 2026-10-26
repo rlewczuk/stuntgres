@@ -127,7 +127,7 @@ func TestTriggerCoreFrame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.SQL.PL.FormalCount != 0 || len(d.SQL.Formals) != 0 || !d.SQL.PL.Trigger || !f.Values[0].IsNull() || f.Values[0].Type() != f.Values[1].Type() {
+	if d.SQL.PL.FormalCount != 0 || len(d.SQL.Formals) != 0 || d.SQL.PL.Invocation != proc.DMLTriggerInvocation || !f.Values[0].IsNull() || f.Values[0].Type() != f.Values[1].Type() {
 		t.Fatal("trigger/formal or absent-record contract")
 	}
 	if len(f.Values[11].ArrayDimensions()) != 1 || f.Values[11].ArrayDimensions()[0].Lower != 0 {
@@ -195,7 +195,7 @@ func TestTriggerCoreFrame(t *testing.T) {
 			case "redirect_old":
 				root.Bindings["old"] = root.Bindings["new"]
 			case "trigger_flag":
-				candidate.Trigger = false
+				candidate.Invocation = proc.OrdinaryInvocation
 			}
 			definition := *d.SQL
 			definition.PL = &candidate

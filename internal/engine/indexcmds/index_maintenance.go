@@ -46,7 +46,7 @@ func ExecuteIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 		if err != nil {
 			return core.Result{}, err
 		}
-		scope.Completed = true
+		scope.CompleteUtility()
 		if reindex {
 			scope.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.Descriptors[g.Targets[0].Address].Name())})
 		}
@@ -96,7 +96,7 @@ func ExecuteIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 	if err != nil {
 		return core.Result{}, err
 	}
-	scope.Completed = true
+	scope.CompleteUtility()
 	for _, notice := range g.Notices {
 		scope.Op.EmitNotice(session.LevelNotice, notice)
 	}

@@ -21,7 +21,7 @@ func CreateTableLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 		e.Mu.Unlock()
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	changes := scope.Owner.Catalog.Clone()
+	changes := scope.PendingCatalog().Clone()
 	persistence := s.Persistence
 	if persistence == "" {
 		persistence = "logged"
@@ -117,7 +117,7 @@ func CreateTableLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 	}
 	_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	if err != nil && s.IfNotExists {
 		skipped, failure := scope.SkipConcurrentRelation(base, key, s.Name, err)

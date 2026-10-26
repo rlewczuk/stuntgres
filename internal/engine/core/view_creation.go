@@ -42,7 +42,7 @@ func (s *StatementScope) prepareViewCreation(createView *parser.CreateView) erro
 	if err := view.CheckColumnCollations(b.Query.Root); err != nil {
 		return err
 	}
-	changes := s.Owner.Catalog.Clone()
+	changes := s.PendingCatalog().Clone()
 	ns, err := e.RelationCreationNamespaceLocked(auth, createView.Name, persistence, changes)
 	if err != nil {
 		return err

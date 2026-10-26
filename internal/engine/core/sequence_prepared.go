@@ -17,9 +17,7 @@ func journalOf(c *session.Journal) sequence.JournalIdentity {
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequence.Environment, error) {
 	key := sequence.PathKey{Role: auth.State.CurrentUser, Authorization: auth.Revision, Roles: auth.RoleRecord.Revision, Namespace: auth.Catalog.State().NamespaceGeneration(), Epoch: auth.Catalog.Epoch(), Temp: temporaryNamespace(auth), Prefix: auth.PathPrefix, Database: auth.Catalog.Get(auth.Owner.DatabaseAddress())}
-	if auth.Session != nil && auth.Session.Transactions != nil {
-		key.Private = journalOf(auth.Session.Transactions.Catalog)
-	}
+	key.Private = journalOf(auth.PendingCatalog())
 	if auth.settings != nil {
 		auth.settings.Mu.Lock()
 		key.Text = auth.settings.TypedValue("search_path").Text
@@ -52,7 +50,7 @@ func (e *Engine) SequenceObservationLocked(auth AuthorizationView) (sequence.Obs
 	if err != nil {
 		return sequence.Observation{}, err
 	}
-	return sequence.Observation{Domain: e.Catalog.Domain, Read: auth.Catalog, Session: auth.Session.SessionToken, Journal: journalOf(auth.Session.Transactions.Catalog), Path: path, Memory: &PayloadOf(auth.Session).Sequences}, nil
+	return sequence.Observation{Domain: e.Catalog.Domain, Read: auth.Catalog, Session: auth.Session.SessionToken, Journal: journalOf(auth.PendingCatalog()), Path: path, Memory: &PayloadOf(auth.Session).Sequences}, nil
 }
 func (e *Engine) sequenceAnalysisLocked(auth AuthorizationView, constants []sequence.Constant) (sequence.Analysis, error) {
 	if len(constants) == 0 {

@@ -42,7 +42,7 @@ func (s *StatementScope) acquireViewWriteTarget(w *view.Write) error {
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	read := e.PrivateCatalogLocked(s.Owner.Catalog)
+	read := e.PrivateCatalogLocked(s.PendingCatalog())
 	current, ok := read.Relation(w.Ref.Address)
 	if !ok || w.Ref.Domain() != e.Catalog.Domain || w.Ref.Epoch != e.Catalog.State.Epoch() || !index.SameRelationRowShape(current, w.BaseRelation) {
 		return ids.ErrCatalogReplaced
@@ -53,7 +53,7 @@ func (s *StatementScope) acquireViewWriteTarget(w *view.Write) error {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	storage := e.PrivateStorageLocked(s.Owner.Catalog, w.Ref.Address)
+	storage := e.PrivateStorageLocked(s.PendingCatalog(), w.Ref.Address)
 	if storage == nil && current.RelationKind != catalog.ForeignRelation {
 		return ids.ErrCatalogReplaced
 	}

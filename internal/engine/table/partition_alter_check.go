@@ -3,6 +3,7 @@ package table
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
@@ -86,6 +87,7 @@ func preparePartitionChecks(h AlterHost, plan *InheritanceAlterPlan, auth ddl.Au
 			result.Scans = append(result.Scans, c)
 		}
 	}
+	slices.SortFunc(next.Constraints.Check, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	result.Next = &next
 	return result, nil
 }

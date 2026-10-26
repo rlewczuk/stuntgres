@@ -83,7 +83,7 @@ func ExecuteAlterView(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 		}
 	}
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return core.Result{}, err
 }
@@ -193,7 +193,7 @@ func ExecuteDropView(e *core.Engine, scope *core.StatementScope, s *parser.DropV
 	if err != nil {
 		return core.Result{}, err
 	}
-	scope.Completed = true
+	scope.CompleteUtility()
 	view.EmitCascade(scope.Op, append(stage.SchemaCascadeNames, stage.DropCascadeNames...))
 	for _, notice := range notices {
 		scope.Op.EmitNotice(session.LevelNotice, notice)

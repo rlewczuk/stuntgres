@@ -19,7 +19,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 	roots := s.QuerySources
 	if s.MaterializedOrZero().Refresh {
 		e.Mu.Lock()
-		catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+		catalog := e.PrivateCatalogLocked(s.PendingCatalog())
 		d, ok := catalog.Relation(s.LockedRef.Address)
 		if !ok || d.View == nil {
 			e.Mu.Unlock()
@@ -44,9 +44,9 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 	}
 	for {
 		e.Mu.Lock()
-		view := e.PrivateCatalogLocked(s.Owner.Catalog)
+		view := e.PrivateCatalogLocked(s.PendingCatalog())
 		for _, leaf := range s.Inheritance.relations {
-			if _, err := CurrentQuerySourceLocked(e, view, s.Owner.Catalog, leaf); err != nil {
+			if _, err := CurrentQuerySourceLocked(e, view, s.PendingCatalog(), leaf); err != nil {
 				e.Mu.Unlock()
 				return err
 			}
@@ -54,7 +54,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 		pending, next, err := table.InheritancePendingGrants(view, roots, s.Op.Session.SessionToken, grants)
 		grants = next
 		for i := range pending {
-			pending[i].Storage = e.PrivateStorageLocked(s.Owner.Catalog, pending[i].Ref.Address)
+			pending[i].Storage = e.PrivateStorageLocked(s.PendingCatalog(), pending[i].Ref.Address)
 		}
 		if err == nil && len(pending) == 0 {
 			s.Inheritance.catalog = view
@@ -95,7 +95,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 				s.ReplacementRead = true
 			}
 			e.Mu.Lock()
-			_, err = CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.Owner.Catalog), s.Owner.Catalog, leaf)
+			_, err = CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.PendingCatalog()), s.PendingCatalog(), leaf)
 			if err == nil {
 				e.markTemporaryAccessLocked(s, leaf.Ref, temporaryOwnAccess)
 				s.Inheritance.relations = append(s.Inheritance.relations, leaf)

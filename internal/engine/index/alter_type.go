@@ -223,6 +223,7 @@ type ColumnTransformation struct {
 	Expression   expr.Expr
 	Dependencies []catalog.ExpressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
 	Rewrite      bool
+	EventRewrite bool // PostgreSQL semantic heap rewrite, independent of native representation replacement.
 }
 
 // A TYPE action rebuilds each affected constraint/backing relation as one
@@ -258,7 +259,7 @@ func RebuildAlterUniques(h Host, parent *catalog.Relation, transformations []Col
 			next = &clone
 		}
 		c := &next.Constraints.Unique[i]
-		if err := h.RemoveObject(stageRef(h, old.Index), false); err != nil {
+		if err := h.RemoveInternalObject(stageRef(h, old.Index), false); err != nil {
 			return nil, err
 		}
 		var err error

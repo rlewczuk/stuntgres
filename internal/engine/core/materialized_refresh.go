@@ -96,16 +96,16 @@ func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, s
 
 // materialized returns the statement's materialized slot, allocating it on first use.
 func (s *StatementScope) materialized() *view.MaterializedRefreshScope {
-	if s.materializedSlot == nil {
-		s.materializedSlot = new(view.MaterializedRefreshScope)
+	if s.MaterializedSlot == nil {
+		s.MaterializedSlot = new(view.MaterializedRefreshScope)
 	}
-	return s.materializedSlot
+	return s.MaterializedSlot
 }
 
 // MaterializedOrZero reads the materialized slot; a nil slot reads as zero.
 func (s *StatementScope) MaterializedOrZero() view.MaterializedRefreshScope {
-	if s.materializedSlot == nil {
+	if s.MaterializedSlot == nil {
 		return view.MaterializedRefreshScope{}
 	}
-	return *s.materializedSlot
+	return *s.MaterializedSlot
 }

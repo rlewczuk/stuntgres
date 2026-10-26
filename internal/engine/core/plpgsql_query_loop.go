@@ -39,7 +39,7 @@ func (h *plHost) beginQueryRows(f *proc.PLFrame, in proc.PLInstruction) *plQuery
 	s := h.s
 	diagnosticIdentity := s.sqlRoutine.plDiagnostic
 	*q = plQueryRows{host: h, position: in.Syntax.Pos, origin: s.plNoticeOrigin(f, in.Syntax.Pos, proc.PLQueryLoopAction)}
-	q.restore = s.activateSQLRoutine(nil, h.read)
+	q.restore = s.ActivateSQLRoutine(nil, h.read)
 	s.sqlRoutine.lexical, s.sqlRoutine.scalar, s.sqlRoutine.rows = f, false, true
 	s.sqlRoutine.plDiagnostic = diagnosticIdentity
 	return q

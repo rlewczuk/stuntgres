@@ -30,7 +30,7 @@ func executeConcurrentIndex(e *core.Engine, scope *core.StatementScope, syntax *
 	if err := publishConcurrentIndexValid(e, scope, syntax, initial.Address()); err != nil {
 		return core.Result{}, err
 	}
-	scope.Completed = true
+	scope.CompleteUtility()
 	return core.Result{}, nil
 }
 

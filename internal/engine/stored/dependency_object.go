@@ -17,6 +17,9 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 	base := target
 	base.SubID = 0
 	if d, ok := read.Find(base); ok {
+		if event, ok := d.(*catalog.EventTrigger); ok {
+			return "event trigger " + catalog.DependencyIdentifier(event.Name())
+		}
 		if cast, ok := d.(*catalog.Cast); ok {
 			source := read.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(cast.Source)})
 			target := read.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(cast.Target)})

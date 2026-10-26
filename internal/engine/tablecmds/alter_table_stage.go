@@ -17,18 +17,11 @@ func authorizedStage(e *core.Engine, stage *core.CatalogStage, auth core.Authori
 	return stage
 }
 
-// mergeStageJournalLocked moves stage's descriptors and removals into changes
-// after checking that each still has its original in the live catalog: base's
-// descriptor, or an identity sequence's captured original. sequencesOnly
-// merges only sequences and installs each merged sequence's generator;
-// otherwise every staged generator of a kept object is installed. A changed
-// original is a catalog.Conflict; changes may then be partly merged. The
-// caller holds Engine.mu.
-func mergeStageJournalLocked(e *core.Engine, stage *core.CatalogStage, changes *session.Journal, base *catalog.State, sequencesOnly bool) error {
-	selected := func(d catalog.Descriptor) bool {
-		sequence, ok := d.(*catalog.Relation)
-		return !sequencesOnly || ok && sequence.RelationKind == catalog.SequenceRelation
-	}
+// validateAlterSequenceOriginalsLocked checks the sequence changes admitted by
+// this stage against their grant-time committed originals. It transfers no
+// effects: ordinary metadata transfer consumes descriptors, generators and
+// removals together before physical recipes run. The caller holds Engine.Mu.
+func validateAlterSequenceOriginalsLocked(e *core.Engine, stage *core.CatalogStage, base *catalog.State) error {
 	unchanged := func(address ids.ObjectAddress) bool {
 		original := base.Get(address)
 		if captured, identity := stage.Sequence.IdentityOriginal(address); identity {
@@ -37,32 +30,13 @@ func mergeStageJournalLocked(e *core.Engine, stage *core.CatalogStage, changes *
 		return e.Catalog.State.Get(address) == original
 	}
 	for address, descriptor := range stage.Descriptors() {
-		if !selected(descriptor) {
-			continue
-		}
-		if !unchanged(address) {
+		if sequence, ok := descriptor.(*catalog.Relation); ok && sequence.RelationKind == catalog.SequenceRelation && !unchanged(address) {
 			return catalog.Conflict{}
-		}
-		e.CatalogChangeLocked(changes, address, descriptor)
-		if sequencesOnly {
-			changes.Generators[address] = stage.Sequence.Generator(address)
 		}
 	}
 	for address, removal := range stage.Removals() {
-		if !selected(removal.Descriptor) {
-			continue
-		}
-		if !unchanged(address) {
+		if sequence, ok := removal.Descriptor.(*catalog.Relation); ok && sequence.RelationKind == catalog.SequenceRelation && !unchanged(address) {
 			return catalog.Conflict{}
-		}
-		e.CatalogChangeLocked(changes, address, nil)
-		delete(changes.Generators, address)
-	}
-	if !sequencesOnly {
-		for address, generator := range stage.Sequence.StagedGenerators() {
-			if _, removed := stage.Removal(address); !removed {
-				changes.Generators[address] = generator
-			}
 		}
 	}
 	return nil

@@ -172,6 +172,10 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				continue
 			}
 			switch d := descriptor.(type) {
+			case *catalog.EventTrigger:
+				if d.Function.Address == target {
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+				}
 			case *catalog.AccessMethod:
 				for _, dependency := range catalog.AccessMethodDependencies(d) {
 					if dependency.Address == target {

@@ -181,6 +181,20 @@ func ExecuteAlterComposite(e *core.Engine, scope *core.StatementScope, op *sessi
 	if err := checkOwners(); err != nil {
 		return core.Result{}, err
 	}
+	// Diagnose consumers already present in the admitted catalog before type
+	// normalization can reown their stored values. The publication fence below
+	// separately rejects consumers introduced after this semantic admission.
+	for _, action := range s.Actions {
+		if action.Action != parser.AlterColumnType {
+			continue
+		}
+		for _, target := range targets {
+			if err := typedef.RowRewriteError(auth.Catalog, target); err != nil {
+				return core.Result{}, err
+			}
+		}
+		break
+	}
 	if err := stage.Replace(sourceMutation.Next); err != nil {
 		return core.Result{}, err
 	}
@@ -195,6 +209,8 @@ func ExecuteAlterComposite(e *core.Engine, scope *core.StatementScope, op *sessi
 			}
 		}
 	}
+	rowWork := make([]TypedRelationMutation, 0, len(targets))
+	physicalParents := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, tbl := range targets {
 		var actions []typedef.TypedColumnAction
 		var renames map[int32]string
@@ -247,24 +263,61 @@ func ExecuteAlterComposite(e *core.Engine, scope *core.StatementScope, op *sessi
 		if err := stage.Replace(mutation.Next); err != nil {
 			return core.Result{}, err
 		}
-		if err := stageTypedRows(e, scope, auth, stage, mutation); err != nil {
+		if err := finishTypedMetadata(e, scope, auth, stage, &mutation); err != nil {
 			return core.Result{}, err
 		}
+		if mutation.Old.RelationKind == catalog.TableRelation {
+			rowWork = append(rowWork, mutation)
+			physicalParents[mutation.Old.Address()] = true
+		}
 	}
-	if err := scope.AcquireDefinitionProviders(stage); err != nil {
+	for _, action := range s.Actions {
+		if action.Action != parser.AlterColumnType {
+			continue
+		}
+		e.Mu.Lock()
+		if scope.Catalog == nil {
+			scope.Catalog = scope.PendingCatalog().Clone()
+		}
+		scope.Catalog.AddFence(core.AlterTypeUseFence{Source: source, Targets: targets})
+		e.Mu.Unlock()
+		break
+	}
+	layouts := stage.IndexesOrZero().Layouts
+	phase, err := e.PublishAlterMetadata(scope, stage, physicalParents)
+	if err != nil {
 		return core.Result{}, err
 	}
-	if scope.ReplacementRead {
-		e.ReplacementMu.RUnlock()
-		scope.ReplacementRead = false
+	for _, mutation := range rowWork {
+		mutation.Next = phase.View.MustRelation(mutation.Old.Address())
+		// Composite attribute additions cannot declare DEFAULT expressions;
+		// only checked TYPE transformations can request a typed heap rewrite.
+		auth, physical, physicalErr := e.BeginAlterPhysical(scope, phase, mutation.Old.Address(), nil, table.AlterEventRewrite(mutation.Transforms, nil, false))
+		if physicalErr != nil {
+			return core.Result{}, physicalErr
+		}
+		core.CarryAlterLayouts(physical, layouts, mutation.Old.Address())
+		physicalErr = stageTypedRows(e, scope, auth, physical, mutation)
+		if physicalErr == nil {
+			physicalErr = e.TransferAlterStage(scope, physical)
+			if physicalErr == nil {
+				phase.Record(physical)
+			}
+		}
+		if physicalErr == nil {
+			e.Mu.Lock()
+			physicalErr = e.AdvanceAlterGrantsLocked(scope, phase.Targets)
+			e.Mu.Unlock()
+		}
+		e.DiscardCatalogStage(physical)
+		if physicalErr != nil {
+			return core.Result{}, physicalErr
+		}
 	}
-	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
-	if err == nil {
-		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+	if err := e.FinishAlterValidation(scope, phase); err != nil {
+		return core.Result{}, err
 	}
-	if err == nil {
-		view.EmitCascade(op, stage.DropCascadeNames)
-		scope.Completed = true
-	}
+	view.EmitCascade(op, stage.DropCascadeNames)
+	scope.CompleteUtility()
 	return core.Result{}, err
 }

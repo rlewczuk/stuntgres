@@ -90,9 +90,13 @@ type AuthorizationView struct {
 	// named destination owner, session identity, ACLs or creation authority.
 	restoreDefinitionLookup bool
 	// An owned TEMP table builder may see its namespace before session publication.
-	StagedTemporary        ids.ObjectAddress
-	Session                *session.Session
-	materializedPopulation bool
+	StagedTemporary ids.ObjectAddress
+	Session         *session.Session
+	Statement       *StatementScope // Transient owner-private DDL journal, never descriptor authority.
+	// Entry publication authority is distinct from a provisional statement role
+	// candidate, whose reserved numeric revision a peer may also consume.
+	roleAuthority, publishedRoleAuthority *access.RoleRecord
+	materializedPopulation                bool
 }
 
 // live reports whether the engine built v (authorityView); zero views and
@@ -277,6 +281,9 @@ func (e *Engine) AuthorizationLocked(op *session.Operation) (AuthorizationView, 
 	if s.Transactions != nil {
 		view = e.PrivateCatalogLocked(s.Transactions.Catalog)
 	}
+	if scope := ActiveScopeOfLease(op.Lease); scope != nil && scope.Catalog != nil {
+		view = e.PrivateCatalogLocked(scope.Catalog)
+	}
 	r := e.RoleStore.Read(&e.Catalog.Owner, view, e.OperationRolesLocked(op))
 	bootstrap, err := r.Descriptor(a.State.Authenticated)
 	if err != nil {
@@ -297,6 +304,9 @@ func (e *Engine) AuthorizationLocked(op *session.Operation) (AuthorizationView, 
 		identity.CurrentUser = OperationReplayOrZero(op).MaterializedOwner
 	}
 	authorization := e.operationAuthority(op, access.View{Owner: &e.Catalog.Owner, PairedCatalog: view, RoleRecord: e.OperationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.Catalog.State.Get(e.Catalog.Owner.DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
+	authorization.Statement = ActiveScopeOfLease(op.Lease)
+	authorization.roleAuthority = e.sessionRolesLocked(s)
+	authorization.publishedRoleAuthority = e.RoleStore.Published
 	if OperationReplayOrZero(op).TableDestination {
 		if !bootstrap.Superuser || e.ImportTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore definition lookup authority")

@@ -129,7 +129,7 @@ func TestFTSQueryFunctionsScratchRestoration(t *testing.T) {
 	s.RoutineDependencies = dependencies
 	expected := s.Expected
 	prior := s.OwnWrites[address]
-	restore := s.activateSQLRoutine(nil, catalog.Read{})
+	restore := s.ActivateSQLRoutine(nil, catalog.Read{})
 	if s.RoutineDependencies != nil {
 		t.Fatal("inner scope inherited outer dependencies")
 	}
@@ -139,7 +139,7 @@ func TestFTSQueryFunctionsScratchRestoration(t *testing.T) {
 	if len(s.OwnWrites[address]) != 2 || len(prior) != 1 {
 		t.Fatal("private staged visibility")
 	}
-	nested := s.activateSQLRoutine(nil, catalog.Read{})
+	nested := s.ActivateSQLRoutine(nil, catalog.Read{})
 	s.sqlRoutine.rewrite = false
 	if err := nested(nil); err != nil || !s.sqlRoutine.rewrite || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &innerDependencies[0] {
 		t.Fatal("stackwise restore", err)

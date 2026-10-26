@@ -67,7 +67,7 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 				err = fmt.Errorf("stuntgres: stale trigger function identity")
 			} else {
 				d, _ := current.Catalog.Get(p.Procedure.Address).(*catalog.Procedure)
-				if d == nil || d.SQL == nil || !d.SQL.Trigger {
+				if d == nil || d.SQL == nil || d.SQL.Invocation != proc.DMLTriggerInvocation {
 					err = fmt.Errorf("stuntgres: invalid installed trigger function")
 				} else {
 					_, err = exec.ValidateRoutineDescriptor(current.Catalog, current.Roles, d)

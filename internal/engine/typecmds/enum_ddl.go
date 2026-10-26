@@ -53,7 +53,7 @@ func ExecuteEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Stat
 	if err != nil {
 		return core.Result{}, err
 	}
-	changes := scope.Owner.Catalog.Clone()
+	changes := scope.PendingCatalog().Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	host := tablecmds.TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}

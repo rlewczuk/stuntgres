@@ -49,7 +49,7 @@ func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, calle
 		previous = *scope.LockedStorage
 		var root *storage.IndexRoot
 		if len(indices) != 0 {
-			root = index.EffectiveRoot(e.Storage.IndexRoots, scope.Owner.Catalog, indices[0].Address())
+			root = index.EffectiveRoot(e.Storage.IndexRoots, scope.PendingCatalog(), indices[0].Address())
 		}
 		if root == nil {
 			e.Mu.Unlock()
@@ -104,7 +104,7 @@ func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, calle
 		_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
-		scope.Completed = true
+		scope.CompleteUtility()
 	}
 	return core.Result{}, err
 }

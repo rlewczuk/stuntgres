@@ -34,7 +34,7 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 	if s.largeObjectRead.State() == nil {
 		s.largeObjectRead = s.RoutineAuth.Catalog
 		if s.largeObjectRead.State() == nil {
-			s.largeObjectRead = e.PrivateCatalogLocked(s.Owner.Catalog)
+			s.largeObjectRead = e.PrivateCatalogLocked(s.PendingCatalog())
 		}
 	}
 	auth, err := s.writeAuthorizationLocked(e)
@@ -61,9 +61,9 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 	changes := s.Catalog
 	if changes == nil {
 		if r.Name == "lo_put" && len(r.Data) == 0 {
-			changes = s.Owner.Catalog
+			changes = s.PendingCatalog()
 		} else {
-			changes = s.Owner.Catalog.Clone()
+			changes = s.PendingCatalog().Clone()
 		}
 	}
 	view := e.PrivateCatalogLocked(changes)

@@ -46,7 +46,7 @@ func (h *statementHost) LatestRow(r dml.RowRequest) (dml.LatestRow, error) {
 // dml readers. Caller holds Engine.mu.
 func (s *StatementScope) latestRowSourceLocked(e *Engine, address ids.ObjectAddress) dml.LatestRowSource {
 	return dml.LatestRowSource{
-		Store:      e.PrivateStorageLocked(s.Owner.Catalog, address),
+		Store:      e.PrivateStorageLocked(s.PendingCatalog(), address),
 		OwnWrites:  s.OwnWrites[address],
 		OwnDeletes: s.OwnDeletes[address],
 		CommitSeq:  e.Visibility.CommitSeq(),
@@ -68,9 +68,9 @@ func (s *StatementScope) latestConflictUpdateRowLocked(e *Engine, r dml.RowReque
 	if ref.Epoch != e.Catalog.State.Epoch() {
 		return dml.LatestRow{}, ids.ErrCatalogReplaced
 	}
-	catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+	catalog := e.PrivateCatalogLocked(s.PendingCatalog())
 	parent, ok := catalog.Relation(ref.Address)
-	store := e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
+	store := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
 	if !ok || store == nil || !index.SameRelationRowShape(r.Parent, parent) {
 		return dml.LatestRow{}, ids.ErrCatalogReplaced
 	}

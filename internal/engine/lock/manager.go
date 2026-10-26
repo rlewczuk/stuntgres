@@ -579,7 +579,7 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 			key.ClassID == ids.NamespaceClassID && key.Namespace == (ids.ObjectAddress{}) ||
 			key.ClassID == ids.CastClassID && key.Namespace == (ids.ObjectAddress{}) && validCastName(key.Name)
 		switch key.ClassID {
-		case ids.AccessMethodClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID:
+		case ids.AccessMethodClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.EventTriggerClassID:
 			validClass = key.Namespace == (ids.ObjectAddress{})
 		case ids.OperatorFamilyClassID, ids.OperatorClassCatalogID:
 			validClass = validNamespace
@@ -635,7 +635,7 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 			return nil, errors.New("stuntgres: invalid type lock request")
 		}
 	} else if ref.Address.ClassID == ids.CollationClassID || ref.Address.ClassID == ids.ConversionClassID ||
-		ref.Address.ClassID == ids.CastClassID {
+		ref.Address.ClassID == ids.CastClassID || ref.Address.ClassID == ids.EventTriggerClassID {
 		if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 ||
 			ref.RoleTuple || ref.Row != 0 || ref.key != nil || mode != AccessShare && mode != AccessExclusive {
 			m.mu.Unlock()

@@ -51,7 +51,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 							err = access.CheckTemporaryStorageAccess(auth.Catalog, before, s.Op.Session.SessionToken)
 						}
 						if err == nil {
-							store = e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
+							store = e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
 						}
 					}
 				}
@@ -92,7 +92,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var d *catalog.Relation
 		if err == nil {
 			d, _ = auth.Catalog.Relation(ref.Address)
-			current := e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
+			current := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
 			if ref.Epoch != e.Catalog.State.Epoch() || s.TxRef.Epoch() != ref.Epoch || d == nil || before.Namespace() != d.Namespace() || !index.SameRelationRowShape(before, d) || store != current && !store.SameTruncateLineage(current) {
 				err = ids.ErrCatalogReplaced
 			} else if name != nil {
@@ -183,7 +183,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	}
 	for {
 		e.Mu.Lock()
-		catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+		catalog := e.PrivateCatalogLocked(s.PendingCatalog())
 		inbound := dml.TruncateReferencers(catalog, selected)
 		e.Mu.Unlock()
 		if len(inbound) == 0 {

@@ -78,3 +78,43 @@ func TestAggregateOrderedVolatileSupportDeclaration(t *testing.T) {
 		t.Fatal("duplicate volatility accepted", diagnostic, err)
 	}
 }
+
+func TestFunctionReplacementAttributes(t *testing.T) {
+	for _, suffix := range []string{
+		"STRICT VOLATILE LANGUAGE SQL AS $$SELECT $1$$",
+		"LANGUAGE SQL STRICT VOLATILE AS $$SELECT $1$$",
+		"LANGUAGE SQL AS $$SELECT $1$$ STRICT VOLATILE",
+		"STRICT AS $$SELECT $1$$ VOLATILE LANGUAGE SQL",
+		"AS $$SELECT $1$$ STRICT LANGUAGE SQL VOLATILE",
+		"AS $$SELECT $1$$ LANGUAGE SQL VOLATILE STRICT",
+		"STRICT VOLATILE RETURN $1",
+		"STRICT LANGUAGE SQL VOLATILE RETURN $1",
+		"VOLATILE LANGUAGE SQL STRICT BEGIN ATOMIC SELECT $1; END",
+	} {
+		statements, err := Parse("CREATE OR REPLACE FUNCTION step(integer) RETURNS integer " + suffix)
+		if err != nil {
+			t.Fatal(suffix, err)
+		}
+		declaration := statements[0].(*CreateFunction)
+		if !declaration.Replace || !declaration.Strict || declaration.Volatility != "volatile" || declaration.Language.Text != "sql" || declaration.Body != "SELECT $1" && declaration.Standard == nil {
+			t.Fatal("replacement lost declaration attributes or body", suffix, declaration)
+		}
+	}
+	statements, err := Parse("CREATE OR REPLACE FUNCTION event_fn() RETURNS event_trigger STRICT VOLATILE LANGUAGE plpgsql AS $$BEGIN RETURN; END$$")
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := statements[0].(*CreateFunction)
+	if !event.Replace || !event.Strict || event.Volatility != "volatile" || event.Language.Text != "plpgsql" || event.Body != "BEGIN RETURN; END" {
+		t.Fatal("event replacement lost independent declaration attributes", event)
+	}
+	for _, attribute := range []string{"STRICT", "VOLATILE"} {
+		query := "/*é*/ CREATE OR REPLACE FUNCTION step(integer) RETURNS integer " + attribute + " LANGUAGE SQL AS $$SELECT $1$$ " + attribute
+		_, err := Parse(query)
+		var diagnostic *sqlstate.Error
+		position := strconv.Itoa(utf8.RuneCountInString(query[:strings.LastIndex(query, attribute)]) + 1)
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || diagnostic.Message != "conflicting or redundant options" || diagnostic.Position != position {
+			t.Fatal("replacement lost duplicate attribute diagnostic", attribute, diagnostic, err)
+		}
+	}
+}

@@ -101,6 +101,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"parameter", isDumpParameter, collectParameterDump},
 	{"tablespace", isDumpTablespace, collectTablespaceDump},
 	{"language", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Language); return ok }, collectLanguageDump},
+	{"event trigger", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.EventTrigger); return ok }, collectEventTriggerDump},
 	{"large object", isDumpLargeObject, collectLargeObjectDump},
 	{"access method", isDumpAccessMethod, collectAccessMethodDump},
 	{"operator family", isDumpOperatorFamily, collectOperatorFamilyDump},

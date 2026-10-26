@@ -67,15 +67,18 @@ func routineExcludedDeclarations(t *testing.T) {
 			{"CREATE FUNCTION routine_named(a integer) RETURNS integer LANGUAGE SQL AS $$SELECT a$$", "SELECT routine_named(4) AS v"},
 			{"CREATE FUNCTION routine_mode(IN integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_mode(4) AS v"},
 			{"CREATE FUNCTION routine_multi() RETURNS integer LANGUAGE SQL AS $$SELECT 1; SELECT 4$$", "SELECT routine_multi() AS v"},
+			{"CREATE OR REPLACE FUNCTION routine_replace(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_replace(4) AS v"},
+			{"CREATE FUNCTION routine_strict(integer) RETURNS integer LANGUAGE SQL STRICT AS $$SELECT $1$$", "SELECT routine_strict(4) AS v"},
 		} {
 			routineExec(t, p, b, c, tc.create)
 			routineValue(t, p, b, c, tc.call, "v", "INT4", int64(4))
 		}
+		routineExec(t, p, b, c, "CREATE OR REPLACE FUNCTION routine_replace(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+1$$")
+		routineValue(t, p, b, c, "SELECT routine_replace(4) AS v", "v", "INT4", int64(5))
 		for _, tc := range []struct {
 			create, call string
 			value        int64
 		}{
-			{"CREATE OR REPLACE FUNCTION routine_replace(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_replace(4) AS v", 4},
 			{"CREATE FUNCTION routine_security(integer) RETURNS integer LANGUAGE SQL SECURITY DEFINER AS $$SELECT $1$$", "SELECT routine_security(4) AS v", 4},
 		} {
 			if b.PG {

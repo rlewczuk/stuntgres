@@ -42,7 +42,7 @@ func (s *StatementScope) checkExclusionCommandEvents(all bool, selected map[ids.
 			}
 		}
 		e.Mu.Lock()
-		view := e.PrivateCatalogLocked(s.Owner.Catalog)
+		view := e.PrivateCatalogLocked(s.PendingCatalog())
 		parent, live := view.Relation(event.Parent.Address)
 		idx, exists := view.Relation(event.Index.Address)
 		e.Mu.Unlock()
@@ -105,7 +105,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		return Result{}, err
 	}
 	e.Mu.Lock()
-	auth.Catalog = e.PrivateCatalogLocked(s.Owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(s.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	s.BeginExclusionProjectionLocked(e)
 	e.Mu.Unlock()

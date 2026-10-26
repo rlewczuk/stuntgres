@@ -111,7 +111,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	ancestors = append(ancestors, ref)
 	for _, source := range stored.ViewOf(d).Sources() {
 		e.Mu.Lock()
-		view := e.PrivateCatalogLocked(s.Owner.Catalog)
+		view := e.PrivateCatalogLocked(s.PendingCatalog())
 		child, ok := view.Relation(source.Ref.Address)
 		use, useErr := stored.ViewUseReference(view, d, source.Ref)
 		valid := ok && useErr == nil

@@ -314,8 +314,11 @@ host methods.
   `RemapRuleConstraintIdentities`), policies (`RemapPolicies`) and views. The
   rule tree mapper (`NewRuleTreeMapper`, `MapRuleBindingRecipes`,
   `RefreshRuleBinding`) is shared with rule rewriting. `ReownScalarTypes`
-  points relation column types and stored datums at current type generations;
-  `ReownVersions` applies it after an enum or domain change.
+  points relation column types and stored datums at current type generations.
+  `ReownVersions` uses only its copy-on-change row transport against an immutable
+  catalog snapshot; it does not normalize shared descriptors. Deferred typed
+  projections transport produced nested values before CHECK/index consumers,
+  while old source tuples and SQL assignment coercions keep their own authority.
   `NewRoutineRemap` initializes one scoped `analyze.RecordTypeMapper` before
   any current/historical payload, query or scalar transform. Its existing
   `catalog.RoutineRemap` carries the complete Type/Collation transformation,

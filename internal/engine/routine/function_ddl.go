@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
@@ -49,10 +50,10 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			return sqltype.Usage{}, err
 		}
 		typ, ok := h.DefinitionType(auth, sqltype.ID(id))
+		if result && typ != nil && typ.ID() == 3838 && !s.Procedure {
+			return typ.Usage(), nil
+		}
 		if result && typ != nil && typ.ID() == 2279 && s.Language.Text == "plpgsql" && !s.Procedure {
-			if len(s.Arguments) != 0 {
-				return sqltype.Usage{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "trigger functions cannot have declared arguments", Hint: "The arguments of the trigger can be accessed through TG_NARGS and TG_ARGV instead.", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", s.Name.Parts[len(s.Name.Parts)-1].Text)}
-			}
 			return typ.Usage(), nil
 		}
 		if !ok || !typ.Concrete() || typ.BaseType().IsComposite() {
@@ -126,14 +127,57 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if s.Procedure {
 		d.RoutineKind = catalog.ProcedureRoutine
 	}
-	if h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) {
-		return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", name))
+	var previous *catalog.Procedure
+	if address := h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)); address != (ids.ObjectAddress{}) {
+		if !s.Replace {
+			return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", name))
+		}
+		previous, _ = h.AccessView(auth).Catalog.Get(address).(*catalog.Procedure)
+		if previous == nil {
+			return fmt.Errorf("stuntgres: existing function definition has no descriptor")
+		}
+		if err := ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, address), OwnerOnly: true}); err != nil {
+			return err
+		}
+		if previous.RoutineKind != d.RoutineKind {
+			noun := "function"
+			if previous.RoutineKind == catalog.ProcedureRoutine {
+				noun = "procedure"
+			} else if previous.RoutineKind == catalog.AggregateRoutine {
+				noun = "aggregate function"
+			}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot change routine kind", Detail: fmt.Sprintf("%q is a %s.", previous.Name(), noun)}
+		}
+		if err := checkFunctionReplacement(h, auth, previous, d.Result, layout); err != nil {
+			return err
+		}
+		d.ObjectAddress, d.Owner, d.ACL, d.Extension = previous.Address(), previous.Owner, previous.ACL, previous.Extension
+	}
+	// Language/compiler contracts follow the existing identity's authority and
+	// compatibility checks, just like validation of its replacement body.
+	if !s.Procedure && result.Type.ID() == 3838 {
+		if s.Language.Text != "plpgsql" {
+			return sqlError("42P13", "SQL functions cannot return type event_trigger")
+		}
+		if len(s.Arguments) != 0 {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "event trigger functions cannot have declared arguments", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", name)}
+		}
+	}
+	if !s.Procedure && result.Type.ID() == 2279 && s.Language.Text == "plpgsql" && len(s.Arguments) != 0 {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "trigger functions cannot have declared arguments", Hint: "The arguments of the trigger can be accessed through TG_NARGS and TG_ARGV instead.", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", name)}
 	}
 	var definition *proc.Definition
 	if s.Language.Text == "plpgsql" {
 		var syntax *parser.PLBlock
 		syntax, err = parser.ParsePLpgSQL(s.Body, proc.PLReturnPolicy(result, len(layout.OutputFormals), s.Procedure))
-		definition = &proc.Definition{Kind: proc.PLpgSQLBody, Trigger: result.Type.ID() == 2279, Source: s.Body, Position: s.BodyPos, Inputs: inputs, Result: result, PLSyntax: syntax}
+		invocation := proc.OrdinaryInvocation
+		if result.Type.ID() == 2279 {
+			invocation = proc.DMLTriggerInvocation
+		}
+		if result.Type.ID() == 3838 {
+			invocation = proc.EventTriggerInvocation
+		}
+		definition = &proc.Definition{Kind: proc.PLpgSQLBody, Invocation: invocation, Source: s.Body, Position: s.BodyPos, Inputs: inputs, Result: result, PLSyntax: syntax}
 	} else {
 		definition, err = proc.New(s.Body, s.BodyPos, inputs, result)
 	}
@@ -166,22 +210,31 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if s.Standard != nil {
 		definition.Standard, definition.Statements = true, s.Standard
 	}
-	oid, err := h.AllocateOID()
-	if err != nil {
-		return err
+	if previous == nil {
+		oid, allocationErr := h.AllocateOID()
+		if allocationErr != nil {
+			return allocationErr
+		}
+		d.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 	}
-	d.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 	d.ObjectRevision, err = h.Revision()
 	if err != nil {
 		return err
 	}
-	d.ACL = h.CreationACL(d.Owner, d.Namespace(), authorization.DefaultRoutines)
+	if previous == nil {
+		d.ACL = h.CreationACL(d.Owner, d.Namespace(), authorization.DefaultRoutines)
+	}
 	// Defaults see the legitimate pre-declaration stage. The new declaration
 	// becomes visible only afterwards, including to its own body validation.
 	if err = h.BindSQLDefaults(auth, d, s.Arguments, input); err != nil {
 		return err
 	}
-	if err = h.Stage().Create(d); err != nil {
+	if previous == nil {
+		err = h.Stage().Create(d)
+	} else {
+		err = h.Stage().Replace(d)
+	}
+	if err != nil {
 		return err
 	}
 	err = h.BindSQLRoutine(auth, d, input)

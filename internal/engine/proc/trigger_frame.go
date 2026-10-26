@@ -18,7 +18,7 @@ type PLTriggerRelation struct {
 // NewPLTriggerFrame owns one invocation. OLD and NEW are both typed records even
 // when their tuple is absent; no table shape is written into the shared program.
 func NewPLTriggerFrame(d *Definition, rel PLTriggerRelation, name, event string, args []string, old, next []sqltype.Value) (*PLFrame, error) {
-	if d == nil || !d.Trigger || d.PL == nil || !d.PL.Trigger {
+	if d == nil || d.Invocation != DMLTriggerInvocation || d.PL == nil || d.PL.Invocation != DMLTriggerInvocation {
 		return nil, fmt.Errorf("stuntgres: missing checked trigger program")
 	}
 	shape := rel.Shape

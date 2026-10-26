@@ -88,6 +88,9 @@ Scratch reuse is an allocation optimization, not a parsed-result cache.
   LANGUAGE/AS orders and before SQL-standard bodies. Repeated clauses report
   their own source position; attribute words remain ordinary unreserved
   identifiers outside the declaration clause.
+  CREATE OR REPLACE FUNCTION uses those same attribute clauses and diagnostics
+  in every admitted body form, retaining replacement separately from strictness
+  and volatility.
 - SQL/JSON clause words are contextual to the selected call's own parenthesis
   depth. Wrapper introducers use scoped tokens so `::jsonpath` does not consume
   WITH/WITHOUT as a type-name tail; DEFAULT expressions ending in TRUE/FALSE/NULL

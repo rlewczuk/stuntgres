@@ -240,13 +240,13 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		if len(core.ScopeForeignActionsSlot(scope).Transitions) != count || e.Storage.VersionFrontier() != frontier {
 			t.Fatal("root replayed completed cascade")
 		}
-		mark, err := core.ScopeBeginPLException(scope)
+		mark, err := scope.BeginPLException()
 		if err != nil {
 			t.Fatal(err)
 		}
 		core.ScopeForeignActionsSlot(scope).Transitions[0].Checked = false
 		core.ScopeForeignActionsSlot(scope).Transitions[0].ActionsDone = false
-		if err := core.ScopeEndPLException(scope, mark, true, errors.New("body")); err != nil {
+		if err := scope.EndPLException(mark, true, errors.New("body")); err != nil {
 			t.Fatal(err)
 		}
 		if !core.ScopeForeignActionsSlot(scope).Transitions[0].Checked || !core.ScopeForeignActionsSlot(scope).Transitions[0].ActionsDone {

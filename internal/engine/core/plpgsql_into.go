@@ -18,7 +18,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	s := h.s
 	raw, checked := in.Syntax.Into, in.Into
 	diagnosticIdentity := s.sqlRoutine.plDiagnostic
-	restore := s.activateSQLRoutine(nil, h.read)
+	restore := s.ActivateSQLRoutine(nil, h.read)
 	s.sqlRoutine.lexical, s.sqlRoutine.scalar, s.sqlRoutine.rows = f, false, true
 	s.sqlRoutine.plDiagnostic = diagnosticIdentity
 	var result Result

@@ -36,7 +36,7 @@ func (s *StatementScope) CaptureForeignKeyRows(ref ids.ObjectRef, idx ids.Object
 			return table.ForeignKeyRows{}, fmt.Errorf("stuntgres: ready foreign-key index root is missing")
 		}
 	}
-	if s.projectedRoots {
+	if s.ProjectedRoots {
 		r.Own = nil
 		r.PriorDeletes = nil
 	}
@@ -99,7 +99,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		return err
 	}
 	e.Mu.Lock()
-	auth.Catalog = e.PrivateCatalogLocked(s.Owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(s.PendingCatalog())
 	auth.Recapture(auth.Catalog)
 	temporary := raw.Persistence == "temporary" || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == "pg_temp"
 	var destination ids.ObjectAddress

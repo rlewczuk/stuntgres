@@ -48,7 +48,7 @@ func finishPolicyNoticeLocked(e *core.Engine, scope *core.StatementScope, messag
 	if err != nil {
 		return core.Result{}, err
 	}
-	scope.Completed = true
+	scope.CompleteUtility()
 	op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
 	return core.Result{}, nil
 }

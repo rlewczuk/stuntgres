@@ -18,7 +18,7 @@ func stageRowSecurityFlagsLocked(e *core.Engine, scope *core.StatementScope, op 
 		e.Mu.Unlock()
 		return core.Result{}, op.Context().Err()
 	}
-	changes := scope.Owner.Catalog.Clone()
+	changes := scope.PendingCatalog().Clone()
 	e.Mu.Unlock()
 	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return core.Result{}, fmt.Errorf("stuntgres: definition revision exhausted")

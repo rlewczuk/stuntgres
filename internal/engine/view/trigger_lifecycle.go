@@ -73,7 +73,9 @@ func planTriggerLifecycle(h Host, auth ddl.Authority, stmt parser.Statement, loc
 			}
 			return RelationChange{}, TriggerPartitionDropError(catalogAccess.Catalog, old, list[index], path)
 		}
-		return triggerListChange(h, ref, old, append(slices.Clone(list[:index]), list[index+1:]...), nil)
+		change, err := triggerListChange(h, ref, old, append(slices.Clone(list[:index]), list[index+1:]...), nil)
+		change.Deleted = ids.ObjectAddress{ClassID: 2620, ObjectID: list[index].OID()}
+		return change, err
 	}
 	p, sources, changed, err := alterTriggerParts(catalogAccess, alter, old, list, list[index].Parts())
 	if err != nil {

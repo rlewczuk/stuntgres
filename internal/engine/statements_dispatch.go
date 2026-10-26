@@ -26,10 +26,16 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return dispatched(viewcmds.ExecuteTrigger(e, scope, stmt, count))
 	case *parser.CreateFunction, *parser.CreateAggregate:
 		return dispatched(schemacmds.ExecuteSQLRoutineDDL(e, scope, stmt, count))
+	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
+		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
+		if err == nil {
+			scope.CompleteUtility()
+		}
+		return result, true, err
 	case *parser.ForeignDDL:
 		result, err := schemacmds.ExecuteForeignDDL(e, scope, stmt.(*parser.ForeignDDL), count)
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, true, err
 	case *parser.CreateDatabaseStmt:
@@ -85,7 +91,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 			result, err = typecmds.ExecuteAlterDomain(e, scope, domain, count)
 		}
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, true, err
 	case *parser.AlterComposite:
@@ -96,31 +102,31 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		}
 		result, err := schemacmds.ExecuteComment(e, scope, stmt.(*parser.Comment), count)
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, true, err
 	case *parser.CreateSchema, *parser.CreateLanguage, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.AlterType, *parser.DropType, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, true, err
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
 		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, true, err
 	case *parser.CreateCast, *parser.DropCast, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
 		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, true, err
 	case *parser.CreateRole, *parser.AlterRole:
 		result, err := rolecmds.ExecuteRoleAttributes(e, scope, stmt, count)
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, true, err
 	case *parser.ObjectGrant:
@@ -142,7 +148,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		}
 		result, err := rolecmds.ExecuteRole(e, op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {
-			scope.Completed = true
+			scope.CompleteUtility()
 		}
 		return result, true, err
 	}
@@ -153,7 +159,7 @@ func (familyStatements) ExecuteLocked(e *core.Engine, scope *core.StatementScope
 	op := scope.Op
 	switch s := stmt.(type) {
 	case *parser.AlterTable:
-		return dispatched(tablecmds.AlterTableLocked(e, scope, op, auth, s, count))
+		return dispatched(tablecmds.AlterTableLocked(e, scope, op, auth, s, count, nil))
 	case *parser.AlterTableDefault:
 		return dispatched(tablecmds.AlterDefaultLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableAllInTablespace:

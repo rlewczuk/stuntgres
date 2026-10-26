@@ -48,13 +48,13 @@ func (s *StatementScope) stageTruncate() error {
 			return lookupErr
 		}
 	}
-	changes := s.Owner.Catalog.Clone()
+	changes := s.PendingCatalog().Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, s.Op.Session)
 	for _, selected := range s.truncateOrZero().Relations {
 		ref := selected.Ref
 		d, ok := auth.Catalog.Relation(ref.Address)
-		store := e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
+		store := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
 		if !ok || d.Namespace() != selected.Relation.Namespace() || !index.SameRelationRowShape(d, selected.Relation) || store != selected.Storage {
 			err = ids.ErrCatalogReplaced
 			break

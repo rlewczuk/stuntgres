@@ -34,6 +34,18 @@ and saved rows, so Restore never transforms stored data twice. Partition clones
 are derived through catalog publication rather than serialized independently;
 definition OIDs, parent provenance and WHEN captures remap with the destination.
 
+Event-trigger collection retains validated immutable descriptors and real owner/
+function authority. `prepareEventTriggers` renders the complete final section
+before any writer I/O; an existing owner demoted from superuser is explicitly
+unrepresentable portable state and rejects Dump without an output prefix.
+Representable owners, qualified functions, ordered filters and O/D state replay
+unchanged. All ordinary DDL, data, defaults, attribute metadata and temporary
+raw-codec CAST cleanup precede this section. Each definition is created and
+disabled, then the saved enabled states are installed after every declaration.
+No eligible replay DDL follows activation. Source callback frames and private
+transaction definitions are not captured; replacement remaps global object and
+function references once into the destination authority.
+
 - **Collect tables** (`collect*.go`): `dumpCollectors` is an ordered list of
   `{name, matches, collect}`. Temporary-namespace objects are skipped, the first
   matching entry collects a descriptor and an unmatched one fails with
@@ -80,8 +92,8 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   names stay qualified, with no numeric missing-type fallback. Naming a
   pseudotype enables neither SQL storage nor native ABI execution.
 - **Script** (`script.go`): `buildDumpScript` renders policies, rules,
-  row-security and types, completes the event graph, decides default deferral
-  and orders events with `dump.Order`.
+  row-security, types and event-trigger declarations, completes the event graph,
+  decides default deferral and orders events with `dump.Order`.
 - **Sections and emit table** (`sections.go`, `emit*.go`): `dumpSections` is
   the script in order; its `events` section writes each event through
   `dumpPhaseEmitters`, indexed by `dump.Phase`. The loop sets an entry's `owner`
