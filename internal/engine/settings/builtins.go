@@ -17,6 +17,11 @@ var applicationName = Definition{
 }
 var builtins = []Definition{
 	applicationName,
+	{Name: "deadlock_timeout", Type: Integer, Access: Privileged, Unit: Milliseconds, IntegerMin: 1, IntegerMax: math.MaxInt32, BootDefault: "1000", Description: "Sets the time to wait on a lock before checking for deadlock."},
+	{Name: "max_locks_per_transaction", Type: Integer, Access: StartupOnly, IntegerMin: 10, IntegerMax: math.MaxInt32, BootDefault: "64", Description: "Sets the maximum number of locks per transaction."},
+	{Name: "max_pred_locks_per_page", Type: Integer, Access: Sighup, IntegerMax: math.MaxInt32, BootDefault: "2", Description: "Sets the maximum number of predicate-locked tuples per page."},
+	{Name: "max_pred_locks_per_relation", Type: Integer, Access: Sighup, IntegerMin: math.MinInt32, IntegerMax: math.MaxInt32, BootDefault: "-2", Description: "Sets the maximum number of predicate-locked pages and tuples per relation."},
+	{Name: "max_pred_locks_per_transaction", Type: Integer, Access: StartupOnly, IntegerMin: 10, IntegerMax: math.MaxInt32, BootDefault: "64", Description: "Sets the maximum number of predicate locks per transaction."},
 	{Name: "config_file", Type: String, Access: StartupOnly, BootDefaultNull: true, ReadRestricted: true, NativeStartup: &StartupDefault{Value: "/stuntgres/simulated/postgresql.conf"}, Description: "Sets the server's main configuration file."},
 	{Name: "data_directory", Type: String, Access: StartupOnly, BootDefaultNull: true, ReadRestricted: true, NativeStartup: &StartupDefault{Value: "/stuntgres/simulated/data"}, Description: "Sets the server's data directory."},
 	{Name: "external_pid_file", Type: String, Access: StartupOnly, BootDefaultNull: true, ReadRestricted: true, NativeStartup: &StartupDefault{ResetNull: true}, Description: "Writes the postmaster PID to the specified file."},

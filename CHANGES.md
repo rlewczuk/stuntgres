@@ -1,3 +1,8 @@
+Five lock-management settings now expose typed PostgreSQL 18 metadata, validation,
+context restrictions and effective parameter SET permissions. They are
+setting-only simulations: no deadlock scheduling, lock-table sizing, lock budget
+or predicate-lock tracking/promotion mechanism is changed.
+
 Quoted internal `"char"` columns now use ordinary type resolution, distinct from
 SQL `char(n)`, with one-byte input, prepared parameters, empty versus NULL values,
 precise encoding errors and native Dump/Restore round trips.

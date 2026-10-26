@@ -39,6 +39,8 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 // builtins. Custom privileged definitions and logging remain deny-only.
 func parameterGrantSetting(name string) bool {
 	switch name {
+	case "deadlock_timeout":
+		return true
 	case "lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role", "lo_compat_privileges":
 		return true
 	case "allow_in_place_tablespaces", "allow_system_table_mods", "backtrace_functions", "debug_discard_caches", "ignore_checksum_failure", "jit_dump_bitcode", "wal_consistency_checking", "zero_damaged_pages":

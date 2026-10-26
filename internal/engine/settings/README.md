@@ -55,6 +55,23 @@ import this package directly.
   messages, SQLSTATEs, hints and unit conversions are compatibility
   contracts; `SHOW ALL` and the reference suite observe them.
 
+## Lock settings
+
+`deadlock_timeout`, `max_locks_per_transaction`, `max_pred_locks_per_page`,
+`max_pred_locks_per_relation` and `max_pred_locks_per_transaction` are typed,
+unrestricted-read `Lock Management` settings. These are setting-only simulations:
+they do not schedule deadlock checks, size lock tables, enforce lock budgets,
+track predicate locks or promote predicate locks. Existing native deadlock
+detection and logical constraints remain active.
+
+`deadlock_timeout` uses millisecond parsing and effective superuser/parameter
+SET authority. The transaction limits have postmaster context; page and relation
+thresholds have sighup context. Every individual live mutation of those four
+immutable values is rejected before parsing, even with a SET grant. Providers
+may supply only normalized equivalent immutable defaults. Session overrides,
+LOCAL, savepoints, resets and physical-session capture reuse the ordinary store;
+RESET ALL skips immutable values and native controls do not serialize settings.
+
 ## Developer settings
 
 `developer.go` registers the 24 Developer Options available in the pinned
@@ -283,6 +300,7 @@ make check RUN='^Test(ClientSettings(BootAndStartup|KeywordLists|ProviderCapture
 make check RUN='^TestCompatible(Settings(Definitions|ProviderCapture|ResetAll)|BackslashQuoteNormalization)$$'
 make check RUN='^TestConnectionSettings'
 make check RUN='^TestDeveloperSettings'
+make check RUN='^TestLockSettings'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in

@@ -104,6 +104,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   attachment lifecycle, native controls and the seven setting-only simulations.
   Integer sentinel rows constrain logical-state preservation without claiming
   absent array, lexer, large-object security, rewrite or physical scan effects.
+- Lock settings: `RUN='^TestReferenceLockSettings'` covers independent selected
+  metadata, unrestricted visibility, typed validation, immutable contexts,
+  effective parameter grants, transactional/physical lifecycle and the
+  setting-only boundary without timing or lock-capacity claims.
 - Timeouts: `RUN='^TestReference(Timeout|SettingsPublicTimeout)'`
 - Physical-session adapter: `RUN='^TestReferenceSession(PhysicalControls|DecimalInteger|Reset|AdapterCancellation|ShowCommand)'`
 - Direct-message batches: `RUN='^TestReferenceDriverBatch'`

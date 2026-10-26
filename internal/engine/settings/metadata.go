@@ -5,6 +5,8 @@ package settings
 func builtinMetadata(d Definition) Definition {
 	d.Category = "Client Connection Defaults / Statement Behavior"
 	switch d.Name {
+	case "deadlock_timeout", "max_locks_per_transaction", "max_pred_locks_per_page", "max_pred_locks_per_relation", "max_pred_locks_per_transaction":
+		d.Category = "Lock Management"
 	case "config_file", "data_directory", "external_pid_file", "hba_file", "ident_file":
 		d.Category = "File Locations"
 	case "bonjour", "bonjour_name", "listen_addresses", "max_connections", "port", "reserved_connections", "superuser_reserved_connections", "unix_socket_directories", "unix_socket_group", "unix_socket_permissions":
@@ -41,6 +43,14 @@ func builtinMetadata(d Definition) Definition {
 		d.Category = "Query Tuning / Planner Method Configuration"
 	}
 	switch d.Name {
+	case "max_locks_per_transaction":
+		d.ExtraDescription = `The shared lock table is sized on the assumption that at most "max_locks_per_transaction" objects per server process or prepared transaction will need to be locked at any one time.`
+	case "max_pred_locks_per_page":
+		d.ExtraDescription = "If more than this number of tuples on the same page are locked by a connection, those locks are replaced by a page-level lock."
+	case "max_pred_locks_per_relation":
+		d.ExtraDescription = "If more than this total of pages and tuples in the same relation are locked by a connection, those locks are replaced by a relation-level lock."
+	case "max_pred_locks_per_transaction":
+		d.ExtraDescription = `The shared predicate lock table is sized on the assumption that at most "max_pred_locks_per_transaction" objects per server process or prepared transaction will need to be locked at any one time.`
 	case "bonjour_name":
 		d.ExtraDescription = "An empty string means use the computer name."
 	case "unix_socket_group":
