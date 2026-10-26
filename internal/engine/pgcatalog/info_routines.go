@@ -2,6 +2,7 @@ package pgcatalog
 
 import (
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -48,6 +49,11 @@ func captureInfoRoutines(in Input) ([][]sqltype.Value, error) {
 	}
 	rows := make([][]sqltype.Value, 0)
 	database := in.Runtime.DatabaseName()
+	columns := in.Source.Columns[:len(infoRoutinesColumns)]
+	nulls, err := domainNulls(columns)
+	if err != nil {
+		return nil, err
+	}
 	for address, descriptor := range in.Catalog.Descriptors() {
 		if err := in.Context.Err(); err != nil {
 			return nil, err
@@ -76,10 +82,7 @@ func captureInfoRoutines(in Input) ([][]sqltype.Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing routines namespace")
 		}
-		row := make([]sqltype.Value, len(infoRoutinesColumns))
-		for i := range row {
-			row[i] = sqltype.Null(in.Source.Columns[i].Usage.Type.BaseType())
-		}
+		row := slices.Clone(nulls)
 		text := func(i int, value string) {
 			row[i] = sqltype.String(in.Source.Columns[i].Usage.Type.BaseType(), value)
 		}
@@ -153,11 +156,8 @@ func captureInfoRoutines(in Input) ([][]sqltype.Value, error) {
 		}
 		text(53, "NO")
 		text(57, "NO")
-		for i, value := range row {
-			row[i], err = in.Source.Columns[i].Usage.Type.Wrap(value)
-			if err != nil {
-				return nil, err
-			}
+		if err := wrapDomainCells(columns, row); err != nil {
+			return nil, err
 		}
 		rows = append(rows, row)
 	}
