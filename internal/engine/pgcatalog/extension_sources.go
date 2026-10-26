@@ -203,6 +203,11 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
 			integer(2, int64(d.Namespace().ObjectID))
+			row[3], valueErr = sqltype.RegprocValue(source.Columns[3].Usage.Type, uint32(d.Init.ObjectID))
+			if valueErr != nil {
+				return nil, valueErr
+			}
+			row[4], valueErr = sqltype.RegprocValue(source.Columns[4].Usage.Type, uint32(d.Lexize.ObjectID))
 		case *catalog.TSDictionary:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())

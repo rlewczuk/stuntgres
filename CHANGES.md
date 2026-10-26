@@ -3,6 +3,13 @@ column with a constant or parameter (`WHERE oid = 16384`,
 `WHERE pronamespace = $1`, also inside derived subqueries) read only the
 matching rows of the shared catalog capture instead of comparing every row.
 
+`pg_ts_template` exposes all five catalog columns, including source-owned
+REGPROC references to the installed template's actual initialization and lexize
+helpers. Installed unaccent metadata follows transactions, removal and native
+Dump/Reset/Restore; an empty catalog remains fully typed without advertising
+unimplemented templates. Foreign or stale source authority is rejected before
+projection.
+
 `pg_ts_dict` now has dedicated native/PostgreSQL coverage for exact installed
 unaccent identity, template linkage, initialization options and six-column
 metadata, including transactional install/removal, held queries and immutable

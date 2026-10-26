@@ -44,7 +44,7 @@ func icProviderInventory(c *icCase) {
 		"pg_tablespace":                          strings.Fields("oid spcname spcowner spcacl spcoptions"),
 		"pg_largeobject":                         strings.Fields("loid pageno data"),
 		"pg_largeobject_metadata":                strings.Fields("oid lomowner lomacl"),
-		"pg_ts_template":                         strings.Fields("oid tmplname tmplnamespace"),
+		"pg_ts_template":                         strings.Fields("oid tmplname tmplnamespace tmplinit tmpllexize"),
 		"pg_ts_dict":                             strings.Fields("oid dictname dictnamespace dictowner dicttemplate dictinitoption"),
 		"pg_ts_parser":                           strings.Fields("oid prsname prsnamespace prsstart prstoken prsend prsheadline prslextype"),
 		"pg_foreign_data_wrapper":                strings.Fields("oid fdwname fdwowner fdwhandler fdwvalidator fdwacl fdwoptions"),

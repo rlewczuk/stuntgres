@@ -55,6 +55,13 @@ type Producer func(Input) ([][]sqltype.Value, error)
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
   `Roles.BelongsTo(Owner.Principals)` and `Source` identity must agree before
   rows are produced.
+- `pg_ts_template` projects only captured, installed executable template
+  descriptors. Its five nonnullable OID/NAME/OID/REGPROC/REGPROC columns retain
+  the actual namespace and helper procedure identities; absent initialization
+  is the non-NULL REGPROC identity zero. Installed unaccent descriptors own
+  availability, independently of lookup-only routine identities and available
+  modules. The empty source remains fully typed. Reads neither install or
+  execute providers nor allocate identities; extension publication owns visibility.
 - `pg_ts_dict` projects only captured, installed dictionary descriptors, with
   their actual namespace, owner and template identities. The stock unaccent
   provider supplies the exact `rules = 'unaccent'` initialization text; options
@@ -512,6 +519,7 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 - Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders)$'`
 - Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets))'`
+- Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
 - Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets)'`
 - Large objects: `RUN='^TestReferenceLargeObject'`
 - Settings view: `RUN='^TestReferenceStatisticsSettings'`

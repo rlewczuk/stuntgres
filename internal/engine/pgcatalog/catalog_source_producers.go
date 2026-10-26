@@ -57,7 +57,7 @@ var producers = [...]Registration{
 	{3600, capturePGTSDict},
 	{TSParserOID, capturePGTSParser},
 	{TSConfigOID, capturePGTSConfig},
-	{3764, captureExtensionCatalog},
+	{3764, capturePGTSTemplate},
 	{6243, capturePGParameterACL},
 	{12000, captureTableViewSummary},
 	{12001, capturePreparedSource},

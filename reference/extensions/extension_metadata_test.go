@@ -20,7 +20,7 @@ func TestReferenceExtensionMemberNullability(t *testing.T) {
 			nullableLast bool
 		}{
 			{"pg_proc", "1255", []string{"oid", "proname", "pronamespace", "proowner", "pronargs", "prorettype", "provolatile", "proisstrict", "proparallel"}, []string{"OID", "NAME", "OID", "OID", "INT2", "OID", "CHAR", "BOOL", "CHAR"}, "proname='unaccent'", 2, false},
-			{"pg_ts_template", "3764", []string{"oid", "tmplname", "tmplnamespace"}, []string{"OID", "NAME", "OID"}, "tmplname='unaccent'", 1, false},
+			{"pg_ts_template", "3764", []string{"oid", "tmplname", "tmplnamespace", "tmplinit", "tmpllexize"}, []string{"OID", "NAME", "OID", "REGPROC", "REGPROC"}, "tmplname='unaccent'", 1, false},
 			{"pg_ts_dict", "3600", []string{"oid", "dictname", "dictnamespace", "dictowner", "dicttemplate", "dictinitoption"}, []string{"OID", "NAME", "OID", "OID", "OID", "TEXT"}, "dictname='unaccent'", 1, true},
 		}
 		for _, spec := range specs {

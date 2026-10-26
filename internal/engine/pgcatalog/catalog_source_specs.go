@@ -188,6 +188,8 @@ var Specs = [...]Spec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"tmplname", sqltype.Name, false, 0, 0, -1},
 		{"tmplnamespace", sqltype.Oid, false, 0, 0, -1},
+		{"tmplinit", sqltype.Regproc, false, 0, 0, -1},
+		{"tmpllexize", sqltype.Regproc, false, 0, 0, -1},
 	}, false, CatalogHasIndexes(3764), false, false, "stuntgres: missing catalog source type"},
 	{3600, ids.PGCatalogNamespaceOID, "pg_ts_dict", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
