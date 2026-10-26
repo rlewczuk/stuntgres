@@ -1,6 +1,8 @@
 package typedef
 
 import (
+	"sync"
+
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -17,9 +19,14 @@ type BuiltinDomainDefaultSeed struct {
 	Expression parser.Expr
 }
 
-// BuiltinDomainCheckSeeds parses the CHECK constraints of the
-// information_schema domains, in installation order.
-func BuiltinDomainCheckSeeds() ([]BuiltinDomainCheckSeed, error) {
+// BuiltinDomainCheckSeeds returns the CHECK constraints of the
+// information_schema domains, in installation order. They are parsed once per
+// process and shared by every engine, so callers must not modify them.
+func BuiltinDomainCheckSeeds() ([]BuiltinDomainCheckSeed, error) { return builtinDomainCheckSeeds() }
+
+var builtinDomainCheckSeeds = sync.OnceValues(parseBuiltinDomainCheckSeeds)
+
+func parseBuiltinDomainCheckSeeds() ([]BuiltinDomainCheckSeed, error) {
 	declarations := [...]struct {
 		id          ids.OID
 		declaration string

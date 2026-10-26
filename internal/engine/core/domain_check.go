@@ -21,13 +21,34 @@ import (
 )
 
 func (e *Engine) BindDomainConstraintDefinitions(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	used := catalog.ConstraintNames(auth.Catalog, d.ObjectNamespace, nil)
+	// Only a generated CHECK name reads the namespace's constraint names, so
+	// explicitly named definitions skip that whole-catalog walk. Names claimed
+	// before the first generated name join the set when it is built.
+	var used map[string]bool
+	var claimed []string
+	claim := func(name string) {
+		if used == nil {
+			claimed = append(claimed, name)
+		} else {
+			used[name] = true
+		}
+	}
+	generatedName := func() string {
+		if used == nil {
+			used = catalog.ConstraintNames(auth.Catalog, d.ObjectNamespace, nil)
+			for _, name := range claimed {
+				used[name] = true
+			}
+		}
+		return catalog.GeneratedConstraintName(d.Name(), "", "check", used)
+	}
 	installed := make(map[string]bool)
 	for _, check := range d.DomainChecks {
 		installed[check.Name] = true
 	}
 	if d.DomainNotNull != nil {
-		installed[d.DomainNotNull.Name], used[d.DomainNotNull.Name] = true, true
+		installed[d.DomainNotNull.Name] = true
+		claim(d.DomainNotNull.Name)
 	}
 	firstOrdinal := len(d.DomainChecks)
 	for _, check := range d.DomainChecks {
@@ -41,7 +62,8 @@ func (e *Engine) BindDomainConstraintDefinitions(ctx context.Context, op *sessio
 			if err := typedef.BindDomainNotNull(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, d, column.Name.Text); err != nil {
 				return err
 			}
-			installed[d.DomainNotNull.Name], used[d.DomainNotNull.Name] = true, true
+			installed[d.DomainNotNull.Name] = true
+			claim(d.DomainNotNull.Name)
 			continue
 		}
 		check := column.Check
@@ -53,12 +75,13 @@ func (e *Engine) BindDomainConstraintDefinitions(ctx context.Context, op *sessio
 		}
 		name := check.Name.Text
 		if name == "" {
-			name = catalog.GeneratedConstraintName(d.Name(), "", "check", used)
+			name = generatedName()
 		}
 		if installed[name] {
 			return SQLError("42710", fmt.Sprintf("constraint %q for domain %q already exists", name, d.Name()))
 		}
-		installed[name], used[name] = true, true
+		installed[name] = true
+		claim(name)
 		b := NewExpressionBinder(ctx, e, input, op, nil)
 		b.Query.Auth = &auth
 		b.Query.Namespace = &analyze.QueryNamespace{}
