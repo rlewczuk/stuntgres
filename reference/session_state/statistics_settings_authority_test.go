@@ -3,6 +3,7 @@ package reference_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -12,6 +13,27 @@ func TestReferenceStatisticsSettingsAuthority(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
+			if b.PG {
+				t.Cleanup(func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer cancel()
+					cleanup, err := b.DB.Conn(ctx)
+					if err != nil {
+						t.Error("pg_settings cleanup connection", err)
+						return
+					}
+					defer cleanup.Close()
+					for _, query := range []string{
+						"RESET SESSION AUTHORIZATION",
+						"GRANT SELECT ON pg_catalog.pg_settings TO PUBLIC",
+						"DROP OWNED BY statistics_metadata_reader CASCADE",
+					} {
+						if _, err := cleanup.ExecContext(ctx, query); err != nil {
+							t.Error("pg_settings cleanup", err)
+						}
+					}
+				})
+			}
 			conn, err := b.DB.Conn(p.Ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -44,8 +66,8 @@ func TestReferenceStatisticsSettingsAuthority(t *testing.T) {
 			run(fixture.Select("SELECT name FROM pg_settings WHERE name IN ('role','session_authorization')", []string{"name"}, []string{"TEXT"}, nil))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			if b.PG {
-				// Native catalog-source grant SQL is not admitted. Its real ACL
-				// replacement/recheck seam is covered by TestPGSettingsCatalogACLRecheck.
+				// PostgreSQL supports source REVOKE; native retains its separate
+				// rejection boundary and internal ACL replacement/recheck coverage.
 				run(fixture.Exec("REVOKE SELECT ON pg_catalog.pg_settings FROM PUBLIC", 0))
 				defer func() {
 					conn.ExecContext(context.Background(), "RESET ROLE")
@@ -75,10 +97,10 @@ func TestReferenceStatisticsSettingsAuthority(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: held, SQL: nameQuery}, b.Recorder, denied)
 				run(fixture.Exec("RESET ROLE", 0))
 				run(fixture.Exec("GRANT SELECT ON pg_catalog.pg_settings TO PUBLIC", 0))
-			} else {
-				// Catalog-source ACL SQL stops at execution, including column
-				// targets. Actual native ACL replacement is an internal seam;
-				// rejection here must not modify the existing PUBLIC authority.
+			}
+			{
+				// Genuine catalog-source GRANT succeeds on both backends.
+				// Native REVOKE rejection must preserve the granted authority.
 				const metadataQuery = "SELECT name,setting,boot_val,reset_val,source FROM pg_catalog.pg_settings WHERE name='log_statement_stats'"
 				metadata := fixture.Select(metadataQuery, []string{"name", "setting", "boot_val", "reset_val", "source"}, []string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"log_statement_stats", "off", "off", "off", "default"}})
 				held, err := conn.PrepareContext(p.Ctx, metadataQuery)
@@ -93,8 +115,15 @@ func TestReferenceStatisticsSettingsAuthority(t *testing.T) {
 					"REVOKE SELECT(name) ON pg_catalog.pg_settings FROM statistics_metadata_reader",
 				} {
 					for _, prepared := range []bool{false, true} {
-						s := fixture.ImplicitError(query, fixture.ControlsReferenceDiagnostic("0A000", "statement is not supported"))
-						s.Prepared, s.ErrorStage = prepared, "execute"
+						s := fixture.Exec(query, 0)
+						if query == "REVOKE SELECT ON pg_catalog.pg_settings FROM PUBLIC" || query == "REVOKE SELECT(name) ON pg_catalog.pg_settings FROM statistics_metadata_reader" {
+							if b.PG {
+								continue // The source-revocation/held-denial phase above covers PostgreSQL.
+							}
+							s = fixture.ImplicitError(query, fixture.ControlsReferenceDiagnostic("0A000", "statement is not supported"))
+							s.ErrorStage = "execute"
+						}
+						s.Prepared = prepared
 						run(s)
 						run(metadata)
 						run(fixture.Prepared(metadata))

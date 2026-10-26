@@ -476,7 +476,7 @@ engine; an empty adapter is not an initialized maintenance capture.
 ## Exported helpers
 
 The engine calls `ClassKind`, `ClassACL`, `AttributeMetadata`,
-`HasSystemAttributes`, `AttributeNumber`, `InitializeAttributes`,
+`HasSystemAttributes`, `AttributeNumber`, `InitializeAttributes`, `RegisteredSource`,
 `CollationActualVersion`, `DatabaseCollationActualVersion`,
 `DescriptorComment`, `ForeignDependencies`, `VirtualViewWriteError`,
 `LockRows`, `CapturePGSequences`, `NewVacuumProgressViewer` (which progress
@@ -486,6 +486,10 @@ role or `pg_read_all_stats`) and the OID constants (`LocksOID`,
 helpers such as `CollectDepend`, `ClassRow`, `AttributeRow`, `TypeFacts` and
 `ConstraintOperator`. `CollationActualVersion` reads actual provider
 authority, never the recorded `Version`.
+`RegisteredSource` checks captured descriptor membership against `Specs`, including
+namespace/name, catalog/view kind, stable attributes and catalog-owned column
+types. Relation GRANT uses it before ordinary ACL planning; it does not authorize
+catalog writes or bypass a provider's independent backing-source checks.
 `CollectDepend` emits each direct extension-membership edge through
 `catalog.ExtensionMembership`; per-class branches add only their other edges.
 
@@ -779,7 +783,8 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
   Composed declaration captures live in `enginetests/`; SQL projection units
   remain here. Expectations include scalar OUT, canonical VARIADIC, one-based
   dimensions, typed all-IN NULL controls and declaration-owned default counts.
-- Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
+- Registry coverage and captured registration identity (engine):
+  `RUN='^TestCatalog(SourceProducerCoverage|GrantRegistration)$'`
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
 - Column-domain usage producer units (core): `RUN='^TestInfoColumnDomainUsage'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`

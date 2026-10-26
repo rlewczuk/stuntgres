@@ -44,10 +44,14 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   Narrow LANGUAGE USAGE resolves real catalog language identities and uses this
   same grant-option/revoke/cascade/role-dependency authority. It does not add
   language lifecycle or grant a native interpreter/ABI execution capability.
-  Explicit SELECT grants on the protected large-object page relation and the
-  two shared-memory allocation views use the same ACL planning/publication
-  path. This admission does not permit system-relation data writes or grants
-  on other catalog sources.
+  Named registered catalog tables and provider views use ordinary table/column
+  GRANT masks, grantor selection and atomic ACL publication. Admission checks the
+  captured descriptor against its source registration and stable attribute/type
+  identities; neither names/OIDs alone nor synthetic catalog descriptors suffice.
+  ACL replacement does not change registration identity. Catalog write guards,
+  backing-function EXECUTE and underlying-source ACLs remain independent.
+  Catalog REVOKE retains its explicit SELECT scope on the large-object page
+  relation and two shared-memory allocation views.
 - **Database GRANT** (`database_grant.go`): `PlanDatabaseGrant` returns the
   new database descriptor (nil: unchanged) and the warnings, also before a
   returned error.

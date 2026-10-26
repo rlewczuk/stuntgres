@@ -1,11 +1,13 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"reflect"
 	"sort"
 	"strconv"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -213,6 +215,22 @@ func TestReferencePGUserMappingMetadata(t *testing.T) {
 
 func TestReferencePGUserMappingSecurity(t *testing.T) {
 	fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, reader *fdwSQLReader, run func(fixture.Step)) {
+		if b.PG {
+			// Scoped to this scenario: catalog ACLs survive the public-schema reset.
+			// The borrowed fixture connection remains owned by fdwScenario.
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				for _, query := range []string{
+					"RESET SESSION AUTHORIZATION",
+					"DROP OWNED BY fdw_reader CASCADE",
+				} {
+					if _, err := c.ExecContext(ctx, query); err != nil {
+						t.Error("pg_user_mapping cleanup", err)
+					}
+				}
+			})
+		}
 		before := reader.snapshot()
 		pgUserMappingSetup(run)
 		run(fixture.Exec("ALTER USER MAPPING FOR fdw_other SERVER fdw_server OPTIONS(ADD secret 'other')", 0))
@@ -266,6 +284,14 @@ func TestReferencePGUserMappingSecurity(t *testing.T) {
 		view(nil, pgUserMappingPublicOptions, nil)
 		run(fixture.Exec("RESET ROLE", 0))
 
+		// Prepare both shapes before changing authority. Both must be denied
+		// initially, including the empty query; native GRANT persists for the
+		// remainder of this scenario because source REVOKE remains unsupported.
+		type mappingProbe struct {
+			step fixture.Step
+			held fixture.HeldStatement
+		}
+		var probes []mappingProbe
 		for _, query := range []string{"SELECT * FROM pg_user_mapping ORDER BY oid", "SELECT * FROM pg_user_mapping WHERE FALSE"} {
 			want := rows
 			if query == "SELECT * FROM pg_user_mapping WHERE FALSE" {
@@ -276,47 +302,57 @@ func TestReferencePGUserMappingSecurity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer statement.Close()
 			held := fixture.HeldStatement{Executor: c, Statement: statement, SQL: query}
-			func() {
-				defer statement.Close()
-				pgUserMappingBoth(run, s)
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
+			probes = append(probes, mappingProbe{s, held})
+			pgUserMappingBoth(run, s)
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
+			run(fixture.Exec("SET ROLE fdw_reader", 0))
+			denied := pgUserMappingDenied(query)
+			pgUserMappingBoth(run, denied)
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, denied)
+			run(fixture.Exec("RESET ROLE", 0))
+		}
+		if !b.PG {
+			run(fixture.Select("SELECT relacl FROM pg_class WHERE oid=1418", []string{"relacl"}, []string{"_ACLITEM"}, [][]any{{nil}}))
+		}
+		for _, prepared := range []bool{false, true} {
+			grant := fixture.Exec("GRANT SELECT ON pg_catalog.pg_user_mapping TO fdw_reader", 0)
+			grant.Prepared = prepared
+			run(grant)
+			run(fixture.Exec("SET ROLE fdw_reader", 0))
+			for _, probe := range probes {
+				pgUserMappingBoth(run, probe.step)
+				fixture.RunStep(t, p.Ctx, probe.held, b.Recorder, probe.step)
+			}
+			view(pgUserMappingReaderOptions, nil, nil)
+			run(fixture.Exec("RESET ROLE", 0))
+		}
+		if b.PG {
+			run(fixture.Exec("REVOKE SELECT ON pg_catalog.pg_user_mapping FROM fdw_reader", 0))
+			run(fixture.Exec("SET ROLE fdw_reader", 0))
+			for _, probe := range probes {
+				denied := pgUserMappingDenied(probe.step.Query)
+				fixture.RunStep(t, p.Ctx, probe.held, b.Recorder, denied)
+			}
+			run(fixture.Exec("RESET ROLE", 0))
+		} else {
+			// Native source REVOKE is still rejected, without undoing GRANT.
+			acl := fixture.Select("SELECT has_table_privilege('fdw_reader','pg_catalog.pg_user_mapping','SELECT') AS allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{true}})
+			run(acl)
+			for _, prepared := range []bool{false, true} {
+				unsupported := fixture.ErrorDiagnostic("REVOKE SELECT ON pg_catalog.pg_user_mapping FROM fdw_reader", fixture.ControlsReferenceDiagnostic("0A000", "statement is not supported"))
+				unsupported.Prepared, unsupported.ErrorStage = prepared, "execute"
+				run(unsupported)
+				run(acl)
 				run(fixture.Exec("SET ROLE fdw_reader", 0))
-				denied := pgUserMappingDenied(query)
-				pgUserMappingBoth(run, denied)
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, denied)
-				run(fixture.Exec("RESET ROLE", 0))
-				grant := "GRANT SELECT ON pg_catalog.pg_user_mapping TO fdw_reader"
-				revoke := "REVOKE SELECT ON pg_catalog.pg_user_mapping FROM fdw_reader"
-				if b.PG {
-					run(fixture.Exec(grant, 0))
-					run(fixture.Exec("SET ROLE fdw_reader", 0))
-					pgUserMappingBoth(run, s)
-					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
-					view(pgUserMappingReaderOptions, nil, nil)
-					run(fixture.Exec("RESET ROLE", 0))
-					run(fixture.Exec(revoke, 0))
-					run(fixture.Exec("SET ROLE fdw_reader", 0))
-					fixture.RunStep(t, p.Ctx, held, b.Recorder, denied)
-					run(fixture.Exec("RESET ROLE", 0))
-				} else {
-					// Native catalog-source GRANT/REVOKE SQL remains outside
-					// admission, as for pg_class. Rejection must not alter ACLs.
-					acl := fixture.Select("SELECT relacl FROM pg_class WHERE oid=1418", []string{"relacl"}, []string{"_ACLITEM"}, [][]any{{nil}})
-					run(acl)
-					for _, change := range []string{grant, revoke} {
-						unsupported := fixture.ErrorDiagnostic(change, fixture.ControlsReferenceDiagnostic("0A000", "statement is not supported"))
-						unsupported.ErrorStage = "execute"
-						run(unsupported)
-						run(acl)
-						run(fixture.Exec("SET ROLE fdw_reader", 0))
-						pgUserMappingBoth(run, denied)
-						fixture.RunStep(t, p.Ctx, held, b.Recorder, denied)
-						view(pgUserMappingReaderOptions, nil, nil)
-						run(fixture.Exec("RESET ROLE", 0))
-					}
+				for _, probe := range probes {
+					pgUserMappingBoth(run, probe.step)
+					fixture.RunStep(t, p.Ctx, probe.held, b.Recorder, probe.step)
 				}
-			}()
+				view(pgUserMappingReaderOptions, nil, nil)
+				run(fixture.Exec("RESET ROLE", 0))
+			}
 		}
 		if !b.PG && reader.snapshot() != before {
 			t.Fatal("mapping security checks invoked foreign provider", before, reader.snapshot())

@@ -14,9 +14,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Catalog GRANT/REVOKE SQL is not admitted natively. Exercise the actual owning
-// ACL publication/check seam, including fresh use of the same operation and
-// immutable retained authorization, rather than inventing successful SQL.
+// Exercise ACL publication and rechecks directly, including fresh use of the
+// same operation and immutable retained authorization. Public catalog GRANT
+// behavior is covered separately by the shared reference scenarios.
 func TestPgClassCatalogACLRecheck(t *testing.T) {
 	e := engine.New()
 	d := pgClassUnitSource(t, e)

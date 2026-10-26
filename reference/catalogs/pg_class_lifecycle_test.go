@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
+	"time"
 )
 
 func TestReferencePgClassLifecycle(t *testing.T) {
@@ -12,6 +13,29 @@ func TestReferencePgClassLifecycle(t *testing.T) {
 	fixture.SchemaReferenceCleanup(t, "pc18_life_moved", "pc18_life_shadow")
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.PGClassExec(t, p, b, b.DB, "CREATE ROLE pc18_life_owner", "CREATE ROLE pc18_life_reader", "CREATE SCHEMA pc18_life_moved", "CREATE TABLE pc18_life_moved.pc18_life_anchor(id integer)", "CREATE TABLE pc18_life_heap(id integer)")
+		if b.PG {
+			// Run after held statements and LockConnections borrowers close.
+			// PUBLIC restoration is required even when the denial witness fails.
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				cleanup, err := b.DB.Conn(ctx)
+				if err != nil {
+					t.Error("pg_class cleanup connection", err)
+					return
+				}
+				defer cleanup.Close()
+				for _, query := range []string{
+					"RESET SESSION AUTHORIZATION",
+					"GRANT SELECT ON pg_catalog.pg_class TO PUBLIC",
+					"DROP OWNED BY pc18_life_owner,pc18_life_reader CASCADE",
+				} {
+					if _, err := cleanup.ExecContext(ctx, query); err != nil {
+						t.Error("pg_class cleanup", err)
+					}
+				}
+			})
+		}
 		q := "SELECT relname,relkind,relowner,relhasindex FROM pg_class WHERE oid=$1"
 		var oid, owner int64
 		if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'pc18_life_heap'::regclass::oid,(SELECT oid FROM pg_roles WHERE rolname=$1)", fixture.PGTableViewsOwner(b)).Scan(&oid, &owner); err != nil {
@@ -66,20 +90,22 @@ func TestReferencePgClassLifecycle(t *testing.T) {
 		pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
 		if b.PG {
 			fixture.PGClassExec(t, p, b, a, "REVOKE SELECT ON pg_catalog.pg_class FROM PUBLIC")
-			defer a.ExecContext(context.Background(), "GRANT SELECT ON pg_catalog.pg_class TO PUBLIC")
 			denied := fixture.ImplicitError(empty, fixture.Diagnostic{Code: "42501", Message: "permission denied for table pg_class"})
 			denied.SelectRows, denied.ErrorStage = true, "execute"
 			fixture.RunStep(t, p.Ctx, readerHeld, b.Recorder, denied)
 			fixture.PGClassExec(t, p, b, a, "GRANT SELECT ON pg_catalog.pg_class TO PUBLIC")
 		} else {
-			// Catalog-source grant SQL remains outside native admission. The
-			// actual SetObjectACL recheck is covered by TestPgClassCatalogACLRecheck.
-			for _, query := range []string{"REVOKE SELECT ON pg_catalog.pg_class FROM PUBLIC", "GRANT SELECT ON pg_catalog.pg_class TO PUBLIC"} {
-				unsupported := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"})
-				unsupported.ErrorStage = "execute"
-				fixture.RunStep(t, p.Ctx, a, b.Recorder, unsupported)
-				pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
-			}
+			// REVOKE admission is separate from the named catalog GRANT repair.
+			unsupported := fixture.ImplicitError("REVOKE SELECT ON pg_catalog.pg_class FROM PUBLIC", fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"})
+			unsupported.ErrorStage = "execute"
+			fixture.RunStep(t, p.Ctx, a, b.Recorder, unsupported)
+			pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
+		}
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Exec("GRANT SELECT ON pg_catalog.pg_class TO PUBLIC", 0)
+			s.Prepared = prepared
+			fixture.RunStep(t, p.Ctx, a, b.Recorder, s)
+			pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
 		}
 		pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
 		// Unqualified source binding obeys existing explicit path semantics.

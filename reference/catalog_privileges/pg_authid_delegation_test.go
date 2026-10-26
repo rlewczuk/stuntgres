@@ -1,7 +1,9 @@
 package reference_test
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -10,6 +12,28 @@ func TestReferencePGAuthIDDelegation(t *testing.T) {
 	pgUserScenario(t, []string{"pga_delegate", "pga_delegate_target", "pga_delegate_owner"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		for _, name := range []string{"pga_delegate", "pga_delegate_target", "pga_delegate_owner"} {
 			pgUserCreate(t, p, b, name)
+		}
+		if b.PG {
+			// Catalog ACLs outlive public-schema reset. Return body handles
+			// before removing only this scenario's catalog dependencies.
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				cleanup, err := b.DB.Conn(ctx)
+				if err != nil {
+					t.Error("pg_authid cleanup connection", err)
+					return
+				}
+				defer cleanup.Close()
+				for _, query := range []string{
+					"RESET SESSION AUTHORIZATION",
+					"DROP OWNED BY pga_delegate,pga_delegate_target,pga_delegate_owner CASCADE",
+				} {
+					if _, err := cleanup.ExecContext(ctx, query); err != nil {
+						t.Error("pg_authid cleanup", err)
+					}
+				}
+			})
 		}
 		password := pgShadowMD5
 		pgShadowSetPassword(t, p, b, "pga_delegate_target", &password)
@@ -99,9 +123,8 @@ func TestReferencePGAuthIDDelegation(t *testing.T) {
 			run(pgAuthIDDenied(q, prepared))
 		}
 		run(fixture.Exec("RESET ROLE", 0))
-		// Catalog SQL grants remain outside native SQL admission. The real oracle
-		// alone supplies explicit relation/column grants, rolled back completely;
-		// native component tests exercise SetObjectACL with those same authorities.
+		// Preserve the real transaction REVOKE/schema rollback witness.
+		// Shared autocommit GRANT consumers below exercise both backends.
 		if b.PG {
 			tx, err := conn.BeginTx(p.Ctx, nil)
 			if err != nil {
@@ -157,19 +180,78 @@ func TestReferencePGAuthIDDelegation(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if !b.PG {
-			for _, q := range []string{"GRANT SELECT ON pg_catalog.pg_authid TO pga_delegate", "GRANT SELECT(rolname) ON pg_catalog.pg_authid TO pga_delegate"} {
-				for _, prepared := range []bool{false, true} {
-					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"})
-					s.Prepared, s.ErrorStage = prepared, "execute"
-					run(s)
-				}
+		nameQuery := "SELECT rolname FROM pg_authid WHERE rolname='pga_delegate_target'"
+		nameStmt, err := conn.PrepareContext(p.Ctx, nameQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer nameStmt.Close()
+		heldName := fixture.HeldStatement{Executor: conn, Statement: nameStmt, SQL: nameQuery}
+		nameRows := fixture.Select(nameQuery, []string{"rolname"}, []string{"NAME"}, [][]any{{"pga_delegate_target"}})
+		passwordRows := fixture.Select(q, []string{"rolpassword"}, []string{"TEXT"}, [][]any{{password}})
+		for _, role := range []string{"pga_delegate", "pga_delegate_target"} {
+			run(fixture.Exec("SET ROLE "+role, 0))
+			fixture.RunStep(t, p.Ctx, heldName, b.Recorder, pgAuthIDDenied(nameQuery, false))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgAuthIDDenied(q, false))
+			run(fixture.Exec("RESET ROLE", 0))
+		}
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Exec("GRANT SELECT(rolname) ON pg_catalog.pg_authid TO pga_delegate WITH GRANT OPTION", 0)
+			s.Prepared = prepared
+			run(s)
+			run(fixture.Exec("SET ROLE pga_delegate", 0))
+			s = nameRows
+			s.Prepared = prepared
+			run(s)
+			fixture.RunStep(t, p.Ctx, heldName, b.Recorder, nameRows)
+			s = fixture.Select("SELECT 1 AS n FROM pg_authid WHERE FALSE", []string{"n"}, []string{"INT4"}, nil)
+			s.Prepared = prepared
+			run(s)
+			for _, query := range []string{q, "SELECT rolpassword FROM pg_authid WHERE FALSE", "SELECT rolname FROM pg_authid WHERE rolpassword IS NOT NULL", "SELECT rolname FROM pg_authid ORDER BY rolpassword"} {
+				run(pgAuthIDDenied(query, prepared))
 			}
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgAuthIDDenied(q, false))
+			s = fixture.Exec("GRANT SELECT(rolname) ON pg_catalog.pg_authid TO pga_delegate_target", 0)
+			s.Prepared = prepared
+			run(s)
+			run(fixture.Exec("RESET ROLE", 0))
+			run(fixture.Exec("SET ROLE pga_delegate_target", 0))
+			s = nameRows
+			s.Prepared = prepared
+			run(s)
+			fixture.RunStep(t, p.Ctx, heldName, b.Recorder, nameRows)
+			run(pgAuthIDDenied(q, prepared))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgAuthIDDenied(q, false))
+			run(fixture.Exec("RESET ROLE", 0))
+		}
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Exec("GRANT SELECT ON pg_catalog.pg_authid TO pga_delegate WITH GRANT OPTION", 0)
+			s.Prepared = prepared
+			run(s)
+			run(fixture.Exec("SET ROLE pga_delegate", 0))
+			s = passwordRows
+			s.Prepared = prepared
+			run(s)
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, passwordRows)
+			s = fixture.Exec("GRANT SELECT ON pg_catalog.pg_authid TO pga_delegate_target", 0)
+			s.Prepared = prepared
+			run(s)
+			// Source permissions are independent in both directions: reading
+			// pg_authid does not grant access to the protected pg_shadow view.
+			run(pgShadowDenied("SELECT passwd FROM pg_catalog.pg_shadow WHERE FALSE", prepared))
+			run(fixture.Exec("RESET ROLE", 0))
+			run(fixture.Exec("SET ROLE pga_delegate_target", 0))
+			s = passwordRows
+			s.Prepared = prepared
+			run(s)
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, passwordRows)
+			run(pgShadowDenied("SELECT passwd FROM pg_catalog.pg_shadow WHERE FALSE", prepared))
+			run(fixture.Exec("RESET ROLE", 0))
 		}
 		if b.PG {
 			pgUserExec(t, p, b, "REVOKE USAGE ON SCHEMA public FROM pga_delegate,pga_delegate_owner")
 		}
-		for _, sql := range []string{"DROP VIEW pga_nested", "DROP VIEW pga_definer", "DROP VIEW pga_invoker", "REVOKE pg_read_all_data FROM pga_delegate_owner", "DROP ROLE pga_delegate", "DROP ROLE pga_delegate_owner", "DROP ROLE pga_delegate_target"} {
+		for _, sql := range []string{"DROP VIEW pga_nested", "DROP VIEW pga_definer", "DROP VIEW pga_invoker", "REVOKE pg_read_all_data FROM pga_delegate_owner"} {
 			pgUserExec(t, p, b, sql)
 		}
 	})

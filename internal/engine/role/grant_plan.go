@@ -185,6 +185,9 @@ func ObjectGrantPlan(ctx context.Context, view access.View, s *parser.ObjectGran
 			continue
 		}
 		relation := target.(*catalog.Relation)
+		if !s.Revoke && relation.RelationKind == catalog.CatalogRelation && !pgcatalog.RegisteredSource(view.Catalog, relation) {
+			return GrantPlan{}, warnings, sqlError("0A000", "statement is not supported")
+		}
 		prior := plan.Changed[address]
 		if prior.Descriptor != nil {
 			relation = prior.Descriptor.(*catalog.Relation)
@@ -226,8 +229,10 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 	case catalog.CompositeRelation:
 		return ObjectGrantChange{}, false, sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, relation.Name()))
 	case catalog.CatalogRelation:
-		// The protected large-object page relation and shared-memory views
-		// expose catalog SELECT through ordinary ACL mutation, not data writes.
+		if !s.Revoke {
+			break // Registered GRANT targets use the ordinary relation ACL path.
+		}
+		// Preserve the existing REVOKE admission and explicit SELECT scope.
 		oid := relation.Address().ObjectID
 		if oid != 2613 && oid != pgcatalog.ShmemAllocationsOID && oid != pgcatalog.ShmemAllocationsNUMAOID {
 			return ObjectGrantChange{}, false, sqlError("0A000", "statement is not supported")

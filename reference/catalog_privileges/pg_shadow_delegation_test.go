@@ -1,8 +1,10 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -25,6 +27,28 @@ func pgShadowViewSecret(t *testing.T, p *fixture.Pair, conn pgShadowQuerier, que
 func TestReferencePGShadowDelegation(t *testing.T) {
 	pgUserScenario(t, []string{"pgs_delegate", "pgs_delegate_target", "pgs_delegate_owner"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		for _, name := range []string{"pgs_delegate", "pgs_delegate_target", "pgs_delegate_owner"} { pgUserCreate(t, p, b, name) }
+		if b.PG {
+			// Registered before body handles: return every borrower before
+			// removing catalog ACL dependencies, then RoleReferenceCleanup drops roles.
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				cleanup, err := b.DB.Conn(ctx)
+				if err != nil {
+					t.Error("pg_shadow cleanup connection", err)
+					return
+				}
+				defer cleanup.Close()
+				for _, query := range []string{
+					"RESET SESSION AUTHORIZATION",
+					"DROP OWNED BY pgs_delegate,pgs_delegate_target,pgs_delegate_owner CASCADE",
+				} {
+					if _, err := cleanup.ExecContext(ctx, query); err != nil {
+						t.Error("pg_shadow cleanup", err)
+					}
+				}
+			})
+		}
 		password := pgShadowMD5; pgShadowSetPassword(t, p, b, "pgs_delegate_target", &password)
 		// The PostgreSQL fixture recreates public without default PUBLIC USAGE.
 		// Both callers and delegated owners must resolve the stored view chain.
@@ -71,9 +95,8 @@ func TestReferencePGShadowDelegation(t *testing.T) {
 		run(fixture.Exec("SET ROLE pgs_delegate", 0))
 		for _, prepared := range []bool{false, true} { pgShadowViewSecret(t, p, conn, "SELECT passwd FROM pgs_nested", password, prepared); run(pgShadowDenied(q, prepared)) }
 		run(fixture.Exec("RESET ROLE", 0))
-		// Catalog SQL grants remain outside native SQL admission. The real oracle
-		// alone supplies explicit relation/column grants, rolled back completely;
-		// native component tests exercise SetObjectACL with those same authorities.
+		// Keep the real rollback witness; shared autocommit GRANT consumers
+		// below independently cover native and PostgreSQL admission.
 		if b.PG {
 			tx, err := conn.BeginTx(p.Ctx, nil); if err != nil { t.Fatal(err) }; defer tx.Rollback()
 			if _, err := tx.ExecContext(p.Ctx, "GRANT SELECT(passwd) ON pg_catalog.pg_shadow TO pgs_delegate"); err != nil { t.Fatal(err) }
@@ -88,16 +111,30 @@ func TestReferencePGShadowDelegation(t *testing.T) {
 			pgShadowPassword(t, p, tx, true, "pgs_delegate_target", &password)
 			if err := tx.Rollback(); err != nil { t.Fatal(err) }
 		}
-		if !b.PG {
-			for _, q := range []string{"GRANT SELECT ON pg_catalog.pg_shadow TO pgs_delegate", "GRANT SELECT(passwd) ON pg_catalog.pg_shadow TO pgs_delegate"} {
-				for _, prepared := range []bool{false, true} {
-					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"})
-					s.Prepared, s.ErrorStage = prepared, "execute"
-					run(s)
-				}
-			}
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Exec("GRANT SELECT(passwd) ON pg_catalog.pg_shadow TO pgs_delegate", 0)
+			s.Prepared = prepared
+			run(s)
+			run(fixture.Exec("SET ROLE pgs_delegate", 0))
+			pgShadowViewSecret(t, p, conn, "SELECT passwd FROM pg_shadow WHERE passwd=$1", password, prepared, password)
+			run(fixture.Select("SELECT 1 AS n FROM pg_shadow WHERE FALSE", []string{"n"}, []string{"INT4"}, nil))
+			run(pgShadowDenied("SELECT usename FROM pg_shadow WHERE FALSE", prepared))
+			run(fixture.Exec("RESET ROLE", 0))
+		}
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Exec("GRANT SELECT ON pg_catalog.pg_shadow TO pgs_delegate", 0)
+			s.Prepared = prepared
+			run(s)
+			run(fixture.Exec("SET ROLE pgs_delegate", 0))
+			pgShadowPassword(t, p, conn, prepared, "pgs_delegate_target", &password)
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(q, []string{"passwd"}, []string{"TEXT"}, [][]any{{password}}))
+			denied := fixture.ImplicitError("SELECT rolname FROM pg_catalog.pg_authid WHERE FALSE", fixture.Diagnostic{Code: "42501", Message: "permission denied for table pg_authid"})
+			denied.SelectRows, denied.Prepared, denied.ErrorStage = true, prepared, "execute"
+			run(denied)
+			run(fixture.Exec("RESET ROLE", 0))
 		}
 		if b.PG { pgUserExec(t, p, b, "REVOKE USAGE ON SCHEMA public FROM pgs_delegate,pgs_delegate_owner") }
-		for _, sql := range []string{"DROP VIEW pgs_nested", "DROP VIEW pgs_definer", "DROP VIEW pgs_invoker", "REVOKE pg_read_all_data FROM pgs_delegate_owner", "DROP ROLE pgs_delegate", "DROP ROLE pgs_delegate_owner", "DROP ROLE pgs_delegate_target"} { pgUserExec(t, p, b, sql) }
+		// Scoped DROP OWNED cleanup also runs if an assertion exits early.
+		for _, sql := range []string{"DROP VIEW pgs_nested", "DROP VIEW pgs_definer", "DROP VIEW pgs_invoker", "REVOKE pg_read_all_data FROM pgs_delegate_owner"} { pgUserExec(t, p, b, sql) }
 	})
 }
