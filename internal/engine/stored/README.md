@@ -35,6 +35,14 @@ The operation's `catalog.ProcedureRemapper` is shared by the executable WHEN,
 its binding and its frozen presentation, including retained TEMP payloads.
 Partition cloning supplies one checked current-declaration mapper for the whole
 stage; projecting parent rows onto a child does not rewrite routine signatures.
+`VisitTriggerDefinitions` validates actual payload and routine/attribute provenance
+against one immutable root and renders metadata without invoking code. Its captured
+path resolves zero-argument routine names; WHEN uses current attribute labels and
+lowercase pseudo-row aliases. Action arguments double single quotes and, only
+when captured standard-conforming strings are off, backslashes; no E prefix is added.
+This presentation is distinct from portable, qualified declaration serialization;
+neither path changes executable recipes or their shared immutable backing.
+
 
 ## Imports
 

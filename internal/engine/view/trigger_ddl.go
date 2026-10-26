@@ -126,7 +126,7 @@ func triggerEvents(p *stored.TriggerParts, old *catalog.Relation, events []parse
 		for _, column := range event.Columns {
 			slot, ok := old.Index[column.Text]
 			if !ok {
-				return expr.ErrorAt("42703", fmt.Sprintf("column %q of relation %q does not exist", column.Text, old.Name()), column.Pos)
+				return sqlError("42703", fmt.Sprintf("column %q of relation %q does not exist", column.Text, old.Name()))
 			}
 			p.UpdateColumns = append(p.UpdateColumns, old.Attributes[slot])
 		}

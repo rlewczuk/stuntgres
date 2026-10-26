@@ -14,6 +14,13 @@ ownership visibility. Direct and prepared queries follow type, schema and ACL
 changes; view metadata and `pg_get_viewdef` expose its read-only definition,
 including PostgreSQL's explicit default and pretty forms.
 
+`information_schema.triggers` exposes seventeen domain-typed columns over stored
+trigger definitions, with per-event name ranks, current-identity action/WHEN
+presentation with captured path/string settings and trigger-specific privilege
+filtering. Held queries observe
+trigger and ACL lifecycle changes; nonowners see qualifying rows without WHEN
+conditions. Metadata reads do not execute routines or broaden trigger admission.
+
 `information_schema.usage_privileges` exposes typed USAGE grant origins for
 domains, sequences, collations, foreign data wrappers and foreign servers,
 including PUBLIC origins visible without an enabled grantor or named grantee.

@@ -53,6 +53,18 @@ type ForeignKeyComparison struct {
 	Comparison    sqltype.IndexForeignKeyComparison
 }
 
+// TriggerFact contains presentation values, never executable trigger recipes.
+type TriggerFact struct {
+	OID                      ids.OID
+	Name                     string
+	Insert, Update, Delete   bool
+	Timing, Orientation      string
+	OldTable, NewTable       string
+	HasOldTable, HasNewTable bool
+	Condition, Statement     string
+	HasCondition             bool
+}
+
 // Capabilities take values, not query bindings or live authority objects.
 // Constructing the adapter does not perform any of these operations.
 type Runtime interface {
@@ -87,6 +99,7 @@ type Runtime interface {
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	IndexVectors(context.Context, catalog.Read, *catalog.Relation, [4]*sqltype.Descriptor) ([4]sqltype.Value, error)
 	VisitRuleDefinitions(context.Context, catalog.Read, *catalog.Relation, func(catalog.RuleFact, string) error) error
+	VisitTriggerDefinitions(context.Context, catalog.Read, *catalog.Relation, bool, func(TriggerFact) error) error
 	IndexKey(*catalog.Relation, catalog.IndexKey) (int32, expr.Expr, error)
 	VisitSequenceDefinitions(context.Context, func(catalog.Descriptor) error) error
 	ExpressionTree(*sqltype.Descriptor, expr.Expr) (sqltype.Value, error)

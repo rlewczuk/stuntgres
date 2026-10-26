@@ -141,6 +141,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.InfoDomainsOID:                     "domains",
 	pgcatalog.InfoUserDefinedTypesOID:            "user_defined_types",
 	pgcatalog.InfoViewTableUsageOID:              "view_table_usage",
+	pgcatalog.InfoTriggersOID:                    "triggers",
 	pgcatalog.InfoUserMappingsOID:                "user_mappings",
 	pgcatalog.InfoUserMappingOptionsOID:          "user_mapping_options",
 	pgcatalog.DataTypePrivilegesOID:              "data_type_privileges",
@@ -342,6 +343,12 @@ func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view cat
 		}
 	}
 	return ctx.Err()
+}
+
+func (r EngineCatalogRuntime) VisitTriggerDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, disclose bool, visit func(pgcatalog.TriggerFact) error) error {
+	return stored.VisitTriggerDefinitions(ctx, view, relation, r.presentation, disclose, func(f stored.TriggerPresentation) error {
+		return visit(pgcatalog.TriggerFact{OID: f.OID, Name: f.Name, Insert: f.Insert, Update: f.Update, Delete: f.Delete, Timing: "BEFORE", Orientation: "ROW", Condition: f.Condition, HasCondition: f.HasCondition, Statement: f.Statement})
+	})
 }
 func (r EngineCatalogRuntime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {
 	return index.CatalogKey(parent, key)

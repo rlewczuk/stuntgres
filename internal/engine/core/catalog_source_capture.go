@@ -68,6 +68,12 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case 12014, 12007, 12008, pgcatalog.ShadowOID:
 		in.Roles = scope.Inquiry.commentRoles
 		unlockBefore = true
+	case pgcatalog.InfoTriggersOID:
+		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
+		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName
+		runtime.temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
+		runtime.presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
+		unlockBefore = true
 	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID, pgcatalog.InfoUserMappingOptionsOID, pgcatalog.KeyColumnUsageOID, pgcatalog.InfoRoutineSequenceUsageOID, pgcatalog.InfoRoutineRoutineUsageOID, pgcatalog.InfoCheckConstraintRoutineUsageOID, pgcatalog.InfoCharacterSetsOID, pgcatalog.InfoCollationsOID, pgcatalog.InfoSchemataOID, pgcatalog.InfoColumnOptionsOID, pgcatalog.ConstraintColumnUsageOID, pgcatalog.InfoEnabledRolesOID, pgcatalog.InfoViewTableUsageOID, pgcatalog.InfoColumnColumnUsageOID, pgcatalog.InfoColumnDomainUsageOID, pgcatalog.InfoDomainConstraintsOID, pgcatalog.InfoSequencesOID, pgcatalog.InfoRoleColumnGrantsOID, pgcatalog.InfoColumnsOID, pgcatalog.InfoDomainsOID, pgcatalog.InfoUserDefinedTypesOID, pgcatalog.InfoViewsOID, pgcatalog.InfoTablesOID, pgcatalog.InfoRoleTableGrantsOID, pgcatalog.InfoRoutinesOID, pgcatalog.InfoRoleRoutineGrantsOID, pgcatalog.InfoRoleUdtGrantsOID, pgcatalog.InfoSQLFeaturesOID, pgcatalog.InfoRoleUsageGrantsOID, pgcatalog.InfoSQLSizingOID, pgcatalog.InfoSQLImplementationInfoOID, pgcatalog.InfoSQLPartsOID, pgcatalog.InfoRoutinePrivilegesOID, pgcatalog.InfoUsagePrivilegesOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName

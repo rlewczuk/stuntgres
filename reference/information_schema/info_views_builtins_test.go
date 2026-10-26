@@ -30,6 +30,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"information_schema", "constraint_column_usage"}, {"information_schema", "enabled_roles"},
 	{"information_schema", "view_table_usage"}, {"information_schema", "column_column_usage"},
 	{"information_schema", "column_domain_usage"},
+	{"information_schema", "triggers"},
 	{"information_schema", "domain_constraints"}, {"information_schema", "sequences"},
 	{"information_schema", "role_column_grants"}, {"information_schema", "columns"},
 	{"information_schema", "role_table_grants"},

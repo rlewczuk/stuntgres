@@ -7,7 +7,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `constraint_column_usage`, `column_column_usage`, `column_domain_usage`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`,
-`character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
+`character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
@@ -140,6 +140,13 @@ type Producer func(Input) ([][]sqltype.Value, error)
   `role_routine_grants`, `routine_privileges`, `role_udt_grants`, `role_usage_grants` and `usage_privileges` use `sql_identifier`,
   `character_data` and `yes_or_no` from the captured type catalog.
   Numeric metadata likewise retains genuine `cardinal_number` domain values.
+- `triggers` projects real relation-owned definitions through a captured stored
+  presentation visitor. Each event has an independent name-order rank.
+  Enabled ownership or non-SELECT table/column write/reference/trigger privileges
+  expose rows; only enabled owners see WHEN expressions. Target-schema USAGE
+  is not required; other-session temporary relations are excluded. All seventeen
+  cells retain source-owned domains, including NULL transition/creation fields.
+  Reading metadata neither admits trigger declarations nor executes routines.
 - `role_column_grants` captures one catalog/role frontier and projects actual
   table/column ACL origins on live positive attributes. Its raw-origin UNION
   includes the grant-option bit before ownership determines grantability, so

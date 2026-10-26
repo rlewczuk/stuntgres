@@ -1,7 +1,7 @@
 # reference/information_schema
 
 `information_schema` object views: `views` (including builtin view definitions,
-shared with `pg_views`), `view_table_usage`, `routines`,
+shared with `pg_views`), `view_table_usage`, `triggers`, `routines`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`,
 `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
@@ -28,6 +28,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Foreign-column options: `RUN='^TestReferenceInfoColumnOptions'`
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`
+- Trigger metadata: `RUN='^TestReferenceInfoTriggers'`
 
 CHECK routine-usage scenarios assert complete six-column identity bags and
 source-owned identifier domains over actual table/domain CHECK semantic edges.
@@ -43,6 +44,15 @@ do not invent rows. Referenced-owner enabled roles alone govern disclosure.
 Direct, fresh-prepared and held reads cover lifecycle and role publication;
 native controls retain old rows and use a separate recorded destination pool
 for independent-driver Restore assertions.
+
+Trigger scenarios prescribe seventeen-column domain/driver shape, event ranks,
+current-identity presentation and owner-only WHEN disclosure independently.
+Physical held consumers observe DDL, role, ACL and presentation-setting changes.
+The presentation family includes a genuine Boolean-domain WHEN coercion and
+retains one full projection across path/name and standard-string transitions.
+Metadata reads
+never invoke trigger bodies; genuine firing and native control roundtrips are
+separate assertions over the same real definitions.
 
 Collation inquiry asserts the exact four-column projection, domain/base
 relationships and encoding applicability through existing catalogs. Shared
