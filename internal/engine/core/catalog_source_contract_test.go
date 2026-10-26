@@ -531,7 +531,7 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 			[]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}},
 		{1418, []string{"oid", "umuser", "umserver", "umoptions"}, []sqltype.ID{26, 26, 26, 1009}, []bool{false, false, false, true}, []uint32{0, 0, 0, 950}, []int32{-1, -1, -1, -1}},
 		{pgcatalog.RulesOID, []string{"schemaname", "tablename", "rulename", "definition"}, []sqltype.ID{19, 19, 19, 25}, []bool{true, true, true, true}, []uint32{950, 950, 950, 100}, []int32{-1, -1, -1, -1}},
-		{16200, []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}, []sqltype.ID{19, 19, 19, 19, 19, 1043, 1043, 1043}, []bool{true, true, true, true, true, true, true, true}, []uint32{950, 950, 950, 950, 950, 950, 950, 950}, []int32{-1, -1, -1, -1, -1, -1, 7, 7}},
+		{16200, []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}, []sqltype.ID{13248, 13248, 13248, 13248, 13248, 13246, 13256, 13256}, []bool{true, true, true, true, true, true, true, true}, []uint32{950, 950, 950, 950, 950, 950, 950, 950}, []int32{-1, -1, -1, -1, -1, -1, -1, -1}},
 		{16201, []string{"object_catalog", "object_schema", "object_name", "object_type", "dtd_identifier"}, []sqltype.ID{19, 19, 19, 1043, 19}, []bool{true, true, true, true, true}, []uint32{950, 950, 950, 950, 950}, []int32{-1, -1, -1, -1, -1}},
 		{16203, []string{"authorization_identifier", "foreign_server_catalog", "foreign_server_name"}, []sqltype.ID{13248, 13248, 13248}, []bool{true, true, true}, []uint32{950, 950, 950}, []int32{-1, -1, -1}},
 	} {

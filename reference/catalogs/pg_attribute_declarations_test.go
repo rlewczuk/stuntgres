@@ -298,14 +298,11 @@ func TestReferencePGAttributeDeclarationsCopiedRoutes(t *testing.T) {
 func TestReferencePGAttributeRepresentedBoundary(t *testing.T) {
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		id := pgAttributeID(t, p, b.DB, "information_schema.table_privileges")
-		types := []int64{19, 1043, 1043}
-		if b.PG {
-			// REL_18_0 information_schema.sql declares these C-collated domains.
-			// Their actual identity belongs to this backend, not its allocator.
-			for i, name := range []string{"sql_identifier", "character_data", "yes_or_no"} {
-				if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'information_schema."+name+"'::regtype::oid").Scan(&types[i]); err != nil || types[i] <= 0 {
-					t.Fatal("owning domain identity", name, types[i], err)
-				}
+		types := make([]int64, 3)
+		// Domain identities belong to each backend, not its allocator sequence.
+		for i, name := range []string{"sql_identifier", "character_data", "yes_or_no"} {
+			if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'information_schema."+name+"'::regtype::oid").Scan(&types[i]); err != nil || types[i] <= 0 {
+				t.Fatal("owning domain identity", name, types[i], err)
 			}
 		}
 		var want [][]any
@@ -316,14 +313,9 @@ func TestReferencePGAttributeRepresentedBoundary(t *testing.T) {
 			}
 			if i >= 6 {
 				oid = types[2]
-				if !b.PG {
-					typmod = 7
-				}
 			}
 			want = append(want, pgAttributeRow(id, name, oid, length, int64(i+1), typmod, 0, false, align, storage, false, 950))
 		}
-		// Native source16200 owns primitive NAME/VARCHAR usages. This existing
-		// bounded representation is not silently relabeled as executable domains.
 		pgAttributeRead(t, p, b, b.DB, id, "", want)
 	})
 }

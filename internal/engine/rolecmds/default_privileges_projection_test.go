@@ -29,7 +29,11 @@ func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth core.Authori
 	}
 	var actual [][]string
 	for _, row := range rows.Anonymous {
-		name, err := row[4].Text()
+		nameBase, err := row[4].BaseValue()
+		if err != nil {
+			t.Fatal("projection name domain", err)
+		}
+		name, err := nameBase.Text()
 		if err != nil {
 			t.Fatal("projection name carrier", err)
 		}
@@ -38,8 +42,12 @@ func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth core.Authori
 		}
 		values := make([]string, len(row))
 		for i, value := range row {
-			values[i], err = value.Text()
-			if err != nil || value.Type() != source.Columns[i].Usage.Type {
+			base, baseErr := value.BaseValue()
+			if baseErr != nil {
+				t.Fatal("projection domain", i, value, baseErr)
+			}
+			values[i], err = base.Text()
+			if err != nil || value.Type() != source.Columns[i].Usage.Type || !value.Type().IsDomain() || !value.ValidResult(source.Columns[i].Usage) {
 				t.Fatal("projection type/null", i, value, err)
 			}
 		}
@@ -175,17 +183,22 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	names := []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}
 	for i, column := range source.Columns {
 		typ := sqltype.Name
+		domainID := sqltype.ID(13248)
 		length, known := int64(0), false
 		if i >= 5 {
 			typ = sqltype.VarChar
+			domainID = 13246
 			length, known = math.MaxInt64, true
 		}
 		if i >= 6 {
+			domainID = 13256
 			length = 3
 		}
 		actualLength, actualKnown := column.Usage.Length()
-		if column.Name != names[i] || column.Usage.Type.ID() != typ || column.Usage.Type.IsDomain() || actualLength != length || actualKnown != known || !column.Nullable || !column.NullabilityKnown || i >= 5 && column.Usage.Collation.ID != 950 {
-			t.Fatal("source carriers", i, column, actualLength, actualKnown)
+		domain, domainOK := view.LookupType(domainID)
+		base, baseOK := view.LookupType(typ)
+		if !domainOK || !baseOK || column.Name != names[i] || column.Usage.Type != domain || !column.Usage.Type.IsDomain() || column.Usage.Type.BaseType() != base || actualLength != length || actualKnown != known || !column.Nullable || !column.NullabilityKnown || column.Usage.Collation.ID != 950 || column.Usage.Typmod != -1 {
+			t.Fatal("source domains and base carriers", i, column, actualLength, actualKnown)
 		}
 	}
 	canceled, cancel := context.WithCancel(context.Background())

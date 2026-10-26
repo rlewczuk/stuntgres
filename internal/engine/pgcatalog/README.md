@@ -126,7 +126,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Absent and explicit-empty ACLs stay distinct: `ClassACL` returns NULL for an
   absent ACL and `{}` for an empty one.
 - Information-schema producers emit genuine source-owned domains, not bare
-  primitive carriers. `role_column_grants`, `role_table_grants`,
+  primitive carriers. `table_privileges`, `role_column_grants`, `role_table_grants`,
   `role_routine_grants`, `routine_privileges`, `role_udt_grants` and `role_usage_grants` use `sql_identifier`,
   `character_data` and `yes_or_no` from the captured type catalog.
   Numeric metadata likewise retains genuine `cardinal_number` domain values.
@@ -137,14 +137,16 @@ type Producer func(Input) ([][]sqltype.Value, error)
   or enabled named grantee, including PUBLIC origins with an enabled grantor;
   it does not reuse table/column data-access predicates. Membership closures
   and grantee/owner authority are cached within that capture.
-- `role_table_grants` projects only real relation ACL origins, including
-  zero-column relations, with enabled grantor-or-grantee visibility and no
-  schema-USAGE or data-readability filter. PUBLIC origins require an enabled
-  grantor; an actual current superuser sees all origins. INHERIT closures and
-  grantee/owner authority use one captured frontier. Absent ACLs supply seven
-  owner origins; explicit-empty ACLs supply none. MAINTAIN, column ACLs and
-  partition-parent expansion do not contribute rows. Grant options or immediately
-  usable owner authority determine grantability; only SELECT has hierarchy.
+- `table_privileges` and `role_table_grants` share a projector over real relation
+  ACL origins, including zero-column relations, without schema-USAGE or
+  data-readability filters. Both expose enabled grantors or named grantees;
+  `table_privileges` additionally exposes every PUBLIC origin. The sister view
+  requires an enabled grantor for PUBLIC. An actual current superuser sees all.
+  INHERIT closures and grantee/owner authority use one captured frontier.
+  Absent ACLs supply seven owner origins; explicit-empty ACLs supply none.
+  MAINTAIN, column ACLs and partition-parent expansion do not contribute rows.
+  Grant options or immediately usable owner authority determine grantability;
+  only SELECT has hierarchy.
 - `routine_privileges` and `role_routine_grants` share one EXECUTE ACL projector
   over actual Procedure descriptors of every represented kind, without inspecting
   or executing bodies or requiring schema USAGE. Both expose enabled grantor or

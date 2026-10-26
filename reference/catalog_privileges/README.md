@@ -4,7 +4,7 @@ Role, database and privilege catalogs: `pg_roles`, `pg_user`, `pg_shadow`, `pg_g
 `pg_db_role_setting`, `pg_database` and database creation, `pg_default_acl`,
 `pg_parameter_acl`, `pg_get_acl`, tablespaces, VACUUM and size functions, and the
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
-views (`role_column_grants`, `role_table_grants`, `role_udt_grants`,
+views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_grants`,
 `role_usage_grants`, `enabled_roles`, `data_type_privileges`, `user_mappings`,
 `key_column_usage`, `constraint_column_usage`, `sql_features`, `sql_sizing`,
 `sql_implementation_info`, `sql_parts`). The other catalog families are listed
@@ -38,6 +38,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - ACL catalogs and `pg_get_acl`: `RUN='^TestReferencePGDefaultACL'`, `RUN='^TestReferencePGParameterACL'`, `RUN='^TestReferenceObjectACL'`
 - Information schema: `RUN='^TestReferenceInfo'` (shared with `reference/information_schema`), `RUN='^TestReferenceDataTypePrivileges'`
 - Role table grants: `RUN='^TestReferenceInfoRoleTableGrants'`
+- Table privileges: `RUN='^TestReferenceInfoTablePrivileges'`
 - Tablespaces: `RUN='^TestReferenceTablespace'`
 - Size functions: `RUN='^TestReferenceSize'`
 - VACUUM: `RUN='^TestReferenceVacuum'`
@@ -133,3 +134,13 @@ absent, materialized and empty ACLs, enabled endpoints, named-grantee
 grantability, lifecycle frontiers, NULL extension and complete diagnostics.
 
 - Usage grants: `RUN='^TestReferenceInfoRoleUsageGrants'`
+
+### Table privilege metadata
+
+`info_table_privileges_helpers_test.go` owns exact eight-column ACL-origin bags,
+captured domain/adapter metadata and direct/fresh/held reads. The family
+distinguishes unconditional PUBLIC visibility from the sister role view,
+preserves grantor origins and grantee grantability, and checks live membership,
+object lifecycle, cancellation and native controls. PostgreSQL target ACL
+revocation is rollback-contained; native units exercise real ACL publication
+and retained authorization without expanding catalog-source SQL admission.

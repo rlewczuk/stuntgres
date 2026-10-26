@@ -124,6 +124,7 @@ func (r EngineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 // sharedCaptureNames names the information_schema sources that share one
 // capture check; only the error names them apart.
 var sharedCaptureNames = map[ids.OID]string{
+	pgcatalog.TablePrivilegesOID:                 "table_privileges",
 	pgcatalog.InfoEnabledRolesOID:                "enabled_roles",
 	pgcatalog.InfoCharacterSetsOID:               "character_sets",
 	pgcatalog.InfoCollationsOID:                  "collations",
@@ -169,10 +170,6 @@ func (r EngineCatalogRuntime) ValidateCapture(view catalog.Read, roles authoriza
 		return a.Roles.ValidatePrincipal(a.State.CurrentUser)
 	}
 	switch oid {
-	case pgcatalog.TablePrivilegesOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog.State() != view.State() || a.RoleRecord == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid table_privileges capture")
-		}
 	case 12002:
 		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog.State() != view.State() || a.Catalog.Owner() != view.Owner() || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address.SubID != 0 || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
 			return fmt.Errorf("stuntgres: invalid pg_indexes capture")

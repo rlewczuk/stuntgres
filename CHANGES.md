@@ -19,6 +19,12 @@ Metadata refreshes across held queries, routine lifecycle changes and native
 Dump/Reset/Restore, without inferring dependencies from quoted or PL body text
 or flattening aggregate execution-support captures into direct routine edges.
 
+`information_schema.table_privileges` now exposes genuine identifier, character
+and yes-or-no domains while preserving individual table ACL grant origins.
+PUBLIC origins remain visible to unrelated readers; the sister role view keeps
+its enabled-grantor policy. Held reads follow grant options and role membership
+without overstating ownership or synthesizing grants.
+
 `pg_settings` has focused coverage for all 17 metadata fields, including
 descriptions, typed enum arrays and empty results. Session defaults, SET/RESET
 provenance, held readers and independent read/SET authority are checked without

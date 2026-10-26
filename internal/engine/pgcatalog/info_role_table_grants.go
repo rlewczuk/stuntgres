@@ -16,15 +16,21 @@ const InfoRoleTableGrantsOID ids.OID = 16218
 // not an effective-rights summary: PUBLIC access alone does not reveal origins,
 // and owner authority changes grantability without inventing ACL entries.
 func captureInfoRoleTableGrants(in Input) ([][]sqltype.Value, error) {
+	return captureTableGrantPrivileges(in, InfoRoleTableGrantsOID, "role_table_grants", false)
+}
+
+// The two views share ACL origins and grantability, but only table_privileges
+// exposes PUBLIC origins independently of an enabled grantor.
+func captureTableGrantPrivileges(in Input, sourceOID ids.OID, sourceName string, includePublic bool) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := in.Runtime.ValidateCapture(in.Catalog, in.Roles, in.Ref, in.Source, InfoRoleTableGrantsOID); err != nil {
+	if err := in.Runtime.ValidateCapture(in.Catalog, in.Roles, in.Ref, in.Source, sourceOID); err != nil {
 		return nil, err
 	}
 	if in.Owner != in.Catalog.Owner() || len(in.Source.Columns) != 8 {
-		return nil, fmt.Errorf("stuntgres: invalid role_table_grants source")
+		return nil, fmt.Errorf("stuntgres: invalid %s source", sourceName)
 	}
 	var domains, bases [8]*sqltype.Descriptor
 	for i, id := range [...]sqltype.ID{13248, 13248, 13248, 13248, 13248, 13246, 13256, 13256} {
@@ -35,7 +41,7 @@ func captureInfoRoleTableGrants(in Input) ([][]sqltype.Value, error) {
 		domain, ok := in.Catalog.LookupType(id)
 		base, baseOK := in.Catalog.LookupType(baseID)
 		if !ok || !baseOK || !domain.IsDomain() || domain.BaseType() != base || in.Source.Columns[i].Usage.Type != domain {
-			return nil, fmt.Errorf("stuntgres: invalid role_table_grants domain")
+			return nil, fmt.Errorf("stuntgres: invalid %s domain", sourceName)
 		}
 		domains[i], bases[i] = domain, base
 	}
@@ -98,7 +104,7 @@ func captureInfoRoleTableGrants(in Input) ([][]sqltype.Value, error) {
 				return nil, err
 			}
 			granteeName := "PUBLIC"
-			visible := actor.Superuser || contains(actorClosure, entry.Grantor)
+			visible := actor.Superuser || contains(actorClosure, entry.Grantor) || (includePublic && entry.Grantee.Public)
 			ownerGrantee := false
 			if !entry.Grantee.Public {
 				grantee, err := in.Roles.Descriptor(entry.Grantee.Role)

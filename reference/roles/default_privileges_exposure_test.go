@@ -163,14 +163,14 @@ func TestReferenceRoleDefaultPrivilegesMetadata(t *testing.T) {
 				length, known := typ.Length()
 				wantLength, wantKnown := int64(0), false
 				if i == 5 {
-					// character_data is unbounded: pq preserves its typmod length quirk;
-					// native uses its existing scalar VARCHAR carrier.
+					// character_data retains an unbounded VARCHAR base; pq
+					// preserves its independently specified typmod length quirk.
 					wantLength, wantKnown = int64(9223372036854775807), true
 					if b.PG {
 						wantLength = -5
 					}
 				}
-				// yes_or_no contributes VARCHAR(3) base typmod without implementing domains.
+				// The genuine yes_or_no domain contributes its VARCHAR(3) base typmod.
 				if i >= 6 {
 					wantLength, wantKnown = 3, true
 				}

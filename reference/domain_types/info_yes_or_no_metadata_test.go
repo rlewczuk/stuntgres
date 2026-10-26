@@ -94,12 +94,8 @@ func TestReferenceInfoYesOrNoIdentity(t *testing.T) {
 			})
 		}
 		t.Run("ExistingProviderBoundary", func(t *testing.T) {
-			identity := "a.atttypid=1043"
-			typmod := int64(7)
-			if backend.PG {
-				identity = "a.atttypid='information_schema.yes_or_no'::regtype::oid"
-				typmod = -1
-			}
+			identity := "a.atttypid='information_schema.yes_or_no'::regtype::oid"
+			typmod := int64(-1)
 			infoYesOrNoBoth(t, p, conn, recorder, fixture.Select(`SELECT a.attname AS name,(`+identity+`) AS identity,a.atttypmod AS typmod,a.attcollation::integer AS collation,a.attnotnull AS required FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class r ON r.oid=a.attrelid JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='information_schema' AND r.relname='table_privileges' AND (a.attname='is_grantable' OR a.attname='with_hierarchy') ORDER BY a.attname`, []string{"name", "identity", "typmod", "collation", "required"}, []string{"NAME", "BOOL", "INT4", "INT4", "BOOL"}, [][]any{{"is_grantable", true, typmod, int64(950), false}, {"with_hierarchy", true, typmod, int64(950), false}}))
 			for _, name := range []string{"is_grantable", "with_hierarchy"} {
 				infoYesOrNoBoth(t, p, conn, recorder, infoYesOrNoRows(backend.PG, "SELECT "+name+" AS v FROM information_schema.table_privileges WHERE table_schema='public' AND table_name='info_yes_or_no_witness' AND privilege_type='SELECT'", [][]any{{"YES"}}))
