@@ -101,9 +101,6 @@ func TestReferenceStatisticsSettingsUnsupportedCollectors(t *testing.T) {
 			{"track_functions", "enum", "none", "superuser"},
 			{"stats_fetch_consistency", "enum", "cache", "user"},
 			{"compute_query_id", "enum", "auto", "superuser"},
-			{"log_parser_stats", "bool", "off", "superuser"},
-			{"log_planner_stats", "bool", "off", "superuser"},
-			{"log_executor_stats", "bool", "off", "superuser"},
 		} {
 			var want [][]any
 			if pg {
@@ -123,7 +120,7 @@ func TestReferenceStatisticsSettingsUnsupportedCollectors(t *testing.T) {
 					enums = "{auto,regress,on,off}"
 				}
 				switch tc.name {
-				case "compute_query_id", "log_parser_stats", "log_planner_stats", "log_executor_stats":
+				case "compute_query_id":
 					category = "Statistics / Monitoring"
 				}
 				run(fixture.Select("SELECT unit,category,min_val,max_val,enumvals FROM pg_settings WHERE name=$1",

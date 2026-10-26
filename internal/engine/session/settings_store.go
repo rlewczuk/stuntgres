@@ -139,6 +139,12 @@ func (s *SettingsStore) Touch(name string, local bool) {
 	} else if a.kind == settingSession {
 		a.kind = settingSessionLocal
 		a.candidate = s.override(name)
+		if !a.candidate.Present {
+			// PostgreSQL restores a masked SET value with source=session,
+			// even when that SET restored a cached default. Preserve the
+			// effective typed value, not an absent override or parsed display.
+			a.candidate = settingOverride{Present: true, Text: s.Value(name), Typed: s.TypedValue(name)}
+		}
 	}
 	s.Actions[name] = a
 }
@@ -215,7 +221,7 @@ func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]s
 				normalized = d.Format(v)
 			}
 		}
-		if (d.FixedDefault || d.Access == settings.StartupOnly || d.Access == settings.Sighup || d.Name == "log_statement_stats") && normalized != initial {
+		if (d.FixedDefault || d.Access == settings.StartupOnly || d.Access == settings.Sighup) && normalized != initial {
 			return errors.New("stuntgres: default provider cannot change " + d.Name)
 		}
 		if err := ctx.Err(); err != nil {

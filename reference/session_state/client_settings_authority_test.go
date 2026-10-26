@@ -130,7 +130,7 @@ func TestReferenceClientSettingsAuthority(t *testing.T) {
 	// Host-registered privileged definitions remain deny-only, even for the
 	// native bootstrap identity. PostgreSQL has no registration counterpart.
 	db := sessionPool(t, settingsTestDriver(t), "client-deny-only")
-	for _, name := range []string{"demo.priv", "log_statement_stats"} {
+	for _, name := range []string{"demo.priv"} {
 		for _, query := range []string{"SET " + name + "='broken'", "SET " + name + "=DEFAULT", "RESET " + name} {
 			_, err := db.ExecContext(context.Background(), query)
 			fixture.AssertDiagnostic(t, err, func() *fixture.Diagnostic { d := clientSetDenied(name); return &d }())

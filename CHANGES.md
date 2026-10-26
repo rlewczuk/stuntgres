@@ -71,6 +71,15 @@ retain their source identities while identical projected rows are deduplicated;
 domain `pg_depend` routine edges use the same semantic expression authority,
 including typed regproc/regprocedure literal references.
 
+Short-option SQL counterparts now include eight planner-method booleans, fsync
+and three stage-statistics flags with typed values and release metadata.
+All four statistics flags honor effective superuser/parameter SET authority;
+explicit assignments enforce statement/stage exclusion before publication,
+while cached resets preserve PostgreSQL's check-hook bypass semantics.
+These are setting-only simulations, not physical planner, logging or fsync effects.
+Mixed session-default/LOCAL assignments retain exact typed defaults and restore
+session provenance on commit without altering rollback/savepoint originals.
+
 `pg_lsn` columns, literals and parameters preserve the full unsigned 64-bit WAL
 position range with canonical slash-hex results and metadata. Comparisons and
 ordering use unsigned magnitude; differences and numeric byte offsets are exact,

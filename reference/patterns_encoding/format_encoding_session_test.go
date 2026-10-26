@@ -71,9 +71,10 @@ func TestReferenceFormatEncodingPrivileges(t *testing.T) {
 		run(fixture.Exec("SET lc_messages TO 'POSIX'", 0))
 		run(fixture.Exec("RESET ALL", 0))
 		run(formatEncodingText("SHOW lc_messages", "lc_messages", "C"))
-		if !b.PG {
-			run(fixture.ImplicitError("SET log_statement_stats TO on", fixture.Diagnostic{Code: "42501", Message: `permission denied to set parameter "log_statement_stats"`}))
-		}
+		run(fixture.Exec("SET log_statement_stats TO on", 0))
+		run(formatEncodingText("SHOW log_statement_stats", "log_statement_stats", "on"))
+		run(fixture.Exec("RESET log_statement_stats", 0))
+		run(formatEncodingText("SHOW log_statement_stats", "log_statement_stats", "off"))
 	})
 }
 

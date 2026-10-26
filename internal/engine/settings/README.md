@@ -309,8 +309,7 @@ not a simulated restart or load.
 
 Privileged selected builtins honor superuser or effective parameter SET ACLs;
 restricted reads independently require pg_read_all_settings. SET privilege
-alone never grants read access. Registered Privileged definitions and
-log_statement_stats remain deny-only.
+alone never grants read access. Registered Privileged definitions remain deny-only.
 
 AM/default tablespace name settings apply PostgreSQL GUC_IS_NAME truncation at
 63 UTF8-safe bytes, without folding case. Its NOTICE42622 precedes catalog
@@ -332,7 +331,7 @@ captures fresh defaults. Native Reset/Dump/Restore never serialize or reset
 live settings.
 RESET ALL restores previously SET eligible privileged builtins even after their
 SET grant is revoked, as PostgreSQL does; individual RESET still checks current
-authority. This does not unlock deny-only custom definitions or log_statement_stats.
+authority. This does not unlock deny-only custom definitions.
 
 The internal trusted native SessionDefaultProvider retains its pure typed
 capture contract, not a PostgreSQL startup/catalog hook. AM/tablespace/FTS
@@ -341,6 +340,26 @@ those objects exist. Explicit SQL assigning an unknown name still fails.
 DEFAULT/RESET restores the captured value without provider reentry or catalog
 lookup. Providers still use pure parsing/normalization (including name clipping)
 with silent initialization; replacement physical sessions capture defaults anew.
+
+## Short-option counterparts
+
+The 26 documented short-option spellings identify 25 ordinary SQL settings;
+there is no command-line parser. Eight planner-method flags, fsync and the four
+performance-statistics flags use shared typed metadata and session storage.
+They do not select physical scan/join plans, write performance logs, synchronize
+files, or change listeners, TLS, authentication delays or catalog safety.
+Existing DateStyle formatting and parsing consumers remain operative.
+
+All four statistics flags use effective superuser or parameter SET authority.
+Explicit true assignments reject statement statistics combined with any stage
+statistics before publishing overrides or transaction actions. Stage statistics
+may coexist. RESET, DEFAULT, NULL set_config and RESET ALL restore captured typed
+defaults without rerunning check hooks; a reset can therefore restore a
+conflicting combination, which subsequent explicit assignments must still check.
+Rollback/savepoint restoration likewise restores state without revalidation.
+Trusted providers may capture statistics defaults; fixed, postmaster and sighup
+defaults retain their existing restrictions.
+
 
 
 ## Connection and authentication settings

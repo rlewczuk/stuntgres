@@ -40,6 +40,7 @@ func TestReferenceSettingsLocalDiagnostics(t *testing.T) {
 				{"SET LOCAL absent_setting TO 'a','b'", "22023", "SET absent_setting takes only one argument", ""},
 				{"SET LOCAL server_encoding='UTF8'", "55P02", `parameter "server_encoding" cannot be changed`, ""},
 				{"SET LOCAL standard_conforming_strings='bogus'", "22023", `parameter "standard_conforming_strings" requires a Boolean value`, ""},
+				{"SET LOCAL log_statement_stats='bogus'", "22023", `parameter "log_statement_stats" requires a Boolean value`, ""},
 				{"SET LOCAL client_min_messages='bogus'", "22023", `invalid value for parameter "client_min_messages": "bogus"`, "Available values: debug5, debug4, debug3, debug2, debug1, log, notice, warning, error."},
 				{"SET LOCAL statement_timeout='-1'", "22023", `-1 ms is outside the valid range for parameter "statement_timeout" (0 ms .. 2147483647 ms)`, ""},
 				{"SET LOCAL statement_timeout='1 MS'", "22023", `invalid value for parameter "statement_timeout": "1 MS"`, `Valid units for this parameter are "us", "ms", "s", "min", "h", and "d".`},
@@ -51,17 +52,6 @@ func TestReferenceSettingsLocalDiagnostics(t *testing.T) {
 				want := fixture.Diagnostic{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"}
 				if len(notices) != before+1 || notices[before] != want {
 					t.Fatal("warning ordering", notices)
-				}
-			}
-		}
-		if !postgres {
-			for _, prepared := range []bool{false, true} {
-				before := len(notices)
-				step := settingsReferenceError("SET LOCAL log_statement_stats='bogus'", "42501", `permission denied to set parameter "log_statement_stats"`, "", "")
-				execute(step, prepared)
-				want := fixture.Diagnostic{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"}
-				if len(notices) != before+1 || notices[before] != want {
-					t.Fatal(notices[before:])
 				}
 			}
 		}

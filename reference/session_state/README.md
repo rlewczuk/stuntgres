@@ -97,6 +97,11 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Shared logical sentinel setup, reads and DML explicitly target `public`.
   Changes to the shared numeric consumer helper also select its existing
   `TestReferenceSettingsPublicTypedSQL` caller in both modes.
+- Short-option counterparts: `RUN='^TestReferenceShortSettings'` covers the
+  independently specified 25-name metadata/read inventory, typed validation,
+  context and privilege filtering, statistics cross-setting checks and cached
+  reset semantics, transactions, physical-session reuse and logical native controls.
+  Run bounded top-level definitions in both native and `REFERENCE=1` modes.
 - Preset settings: `RUN='^TestReferencePresetSettings(Inventory|Context|Authority|Lifecycle|Smoke)$$'`
   covers all 20 independently expected release descriptors, full catalog metadata,
   direct/prepared text presentation, context-first 55P02 refusals, unrestricted

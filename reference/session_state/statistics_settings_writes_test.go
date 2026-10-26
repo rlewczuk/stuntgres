@@ -83,17 +83,18 @@ func TestReferenceStatisticsSettingsWriteBoundary(t *testing.T) {
 			}
 		}
 		for _, query := range []string{"SET track_commit_timestamp='invalid'", "SET server_encoding='invalid'", "SET log_statement_stats='invalid'"} {
-			if pg {
-				continue
-			} // PostgreSQL bootstrap may set the real logging collector.
 			code, message := "55P02", `parameter "track_commit_timestamp" cannot be changed without restarting the server`
 			if query == "SET server_encoding='invalid'" {
 				message = `parameter "server_encoding" cannot be changed`
 			}
 			if query == "SET log_statement_stats='invalid'" {
-				code, message = "42501", `permission denied to set parameter "log_statement_stats"`
+				code, message = "22023", `parameter "log_statement_stats" requires a Boolean value`
 			}
-			run(fixture.ImplicitError(query, fixture.ControlsReferenceDiagnostic(code, message)))
+			for _, prepared := range []bool{false, true} {
+				step := fixture.ImplicitError(query, fixture.ControlsReferenceDiagnostic(code, message))
+				step.Prepared, step.ErrorStage = prepared, "execute"
+				run(step)
+			}
 		}
 	})
 }

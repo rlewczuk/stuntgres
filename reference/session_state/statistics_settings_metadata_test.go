@@ -222,10 +222,12 @@ func TestReferenceStatisticsSettingsFeatureSmoke(t *testing.T) {
 		run(fixture.Exec("RESET application_name", 0))
 		restoredSource := "default"
 		run(fixture.Select("SELECT setting,source FROM pg_settings WHERE name='application_name'", []string{"setting", "source"}, []string{"TEXT", "TEXT"}, [][]any{{"", restoredSource}}))
+		run(fixture.Exec("SET log_statement_stats=on", 0))
+		run(fixture.Select("SHOW log_statement_stats", []string{"log_statement_stats"}, []string{"TEXT"}, [][]any{{"on"}}))
+		run(fixture.Exec("RESET log_statement_stats", 0))
+		run(fixture.Select("SHOW log_statement_stats", []string{"log_statement_stats"}, []string{"TEXT"}, [][]any{{"off"}}))
 		if !pg {
 			run(fixture.ImplicitError("SHOW track_counts", fixture.ControlsReferenceDiagnostic("42704", `unrecognized configuration parameter "track_counts"`)))
-			run(fixture.ImplicitError("SET log_statement_stats=on", fixture.ControlsReferenceDiagnostic("42501", `permission denied to set parameter "log_statement_stats"`)))
-			run(fixture.Select("SHOW log_statement_stats", []string{"log_statement_stats"}, []string{"TEXT"}, [][]any{{"off"}}))
 			run(fixture.Select("SELECT name FROM pg_settings WHERE name='track_counts'", []string{"name"}, []string{"TEXT"}, nil))
 			s := fixture.ErrorDiagnostic("UPDATE pg_settings SET setting='smoke' WHERE name='application_name'", statisticsSettingsWriteDiagnostic("update", "updating the view"))
 			run(s)

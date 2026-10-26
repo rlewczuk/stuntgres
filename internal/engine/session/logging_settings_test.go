@@ -89,7 +89,7 @@ func TestLoggingSettingsAccessAndReset(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"custom.privileged", "log_statement_stats"} {
+	for _, name := range []string{"custom.privileged"} {
 		calls := 0
 		err := SettingAccess(settings.Definition{Name: name, Access: settings.Privileged}, func(string) (bool, error) { calls++; return true, nil })
 		if err == nil || calls != 0 {

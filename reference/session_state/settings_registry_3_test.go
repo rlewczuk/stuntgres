@@ -244,7 +244,6 @@ func TestReferenceSettingsAuthenticatedAccessClasses(t *testing.T) {
 		}
 		for _, definition := range []struct{ name, value, code, message string }{
 			{"server_encoding", "UTF8", "55P02", `parameter "server_encoding" cannot be changed`},
-			{"log_statement_stats", "off", "42501", `permission denied to set parameter "log_statement_stats"`},
 			{"demo.fixed", "locked", "55P02", `parameter "demo.fixed" cannot be changed`},
 			{"demo.priv", "off", "42501", `permission denied to set parameter "demo.priv"`},
 		} {

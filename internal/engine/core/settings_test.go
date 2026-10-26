@@ -218,11 +218,8 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 		t.Fatal(got)
 	}
 	sessionSQL(t, b, "SET demo.mode TO FAST") // Provider could not corrupt shared enum definitions.
-	for _, name := range []string{"server_encoding", "log_statement_stats"} {
-		value := "LATIN1"
-		if name == "log_statement_stats" {
-			value = "on"
-		}
+	for _, tc := range []struct{ name, value string }{{"server_encoding", "LATIN1"}, {"shared_buffers", "32768"}, {"fsync", "off"}} {
+		name, value := tc.name, tc.value
 		bad := &settingsDefaultProviderForTest{values: map[string]string{name: value}, calls: map[string]int{}}
 		if s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
 			t.Fatal("intrinsic default changed", s, err)

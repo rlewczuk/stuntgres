@@ -175,10 +175,10 @@ func TestReferenceSettingsErrorsAndAtomicity(t *testing.T) {
 			settingsDiagnostic(t, err, "22023", tc.message, tc.hint, "", "")
 			settingsRows(t, a, "SHOW "+tc.name, prepared, tc.name, tc.want)
 		}
-		for _, name := range []string{"server_encoding", "demo.fixed", "log_statement_stats", "demo.priv"} {
+		for _, name := range []string{"server_encoding", "demo.fixed", "demo.priv"} {
 			code := "55P02"
 			message := `parameter "` + name + `" cannot be changed`
-			if name == "log_statement_stats" || name == "demo.priv" {
+			if name == "demo.priv" {
 				code = "42501"
 				message = `permission denied to set parameter "` + name + `"`
 			}

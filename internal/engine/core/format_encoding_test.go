@@ -92,7 +92,10 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	if err := core.SettingAccess(messages, op); err != nil {
 		t.Fatal("real bootstrap superuser denied", err)
 	}
-	for _, definition := range []settings.Definition{stats, {Name: "demo.privileged", Access: settings.Privileged}} {
+	if err := core.SettingAccess(stats, op); err != nil {
+		t.Fatal("statistics superuser denied", err)
+	}
+	for _, definition := range []settings.Definition{{Name: "demo.privileged", Access: settings.Privileged}} {
 		var d *sqlstate.Error
 		if err := core.SettingAccess(definition, op); !errors.As(err, &d) || d.Code != "42501" {
 			t.Fatal("unrelated privileged setting relaxed", definition, err)

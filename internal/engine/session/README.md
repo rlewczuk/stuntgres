@@ -90,9 +90,18 @@ implement its slots, so either import would form a cycle.
   `Operation.FinishDiscardRoleResetLocked` installs it after publication. The
   root keeps the lock windows and the authorization behind `SettingAccess`'s
   `allowed` callback.
-  Eligible selected privileged builtins use effective superuser/parameter SET
-  authority; custom Privileged definitions and log_statement_stats stay
-  deny-only. Restricted reads remain independent of parameter SET grants.
+  Eligible selected privileged builtins, including all four performance-statistics
+  flags, use effective superuser/parameter SET authority; custom Privileged
+  definitions stay deny-only. Restricted reads are independent of SET grants.
+  Explicit true statistics assignments check effective typed peers after admission
+  and before Touch/install. Cached RESET/DEFAULT/NULL, RESET ALL and transaction
+  restoration bypass those hooks, including when captured defaults conflict with
+  current overrides. Stage flags can coexist; statement statistics cannot be
+  explicitly enabled alongside them. These flags have no logging consumer.
+  A session assignment of a cached default subsequently masked by SET LOCAL
+  retains the exact effective typed default as its commit candidate. Committed
+  masked restoration has session source; rollback/savepoint originals and the
+  captured default remain unchanged. A later explicit RESET restores reset source.
   `lo_compat_privileges` uses the same SET authority and unrestricted reads.
   Builtin-only Sighup refuses live mutation before parsing or ACL callbacks;
   providers may capture only its normalized initial value. Backend and

@@ -41,6 +41,8 @@ func parameterGrantSetting(name string) bool {
 	switch name {
 	case "commit_delay", "wal_compression", "wal_init_zero", "wal_recycle":
 		return true
+	case "log_statement_stats", "log_parser_stats", "log_planner_stats", "log_executor_stats":
+		return true
 	case "deadlock_timeout", "output_plugin_libraries", "max_stack_depth", "temp_file_limit":
 		return true
 	case "lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role", "lo_compat_privileges":
