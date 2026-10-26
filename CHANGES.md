@@ -5,6 +5,11 @@ Dump/Reset/Restore, type rename/move and SQL extension recreation. Parsing
 preserves precedence and suffix modifiers and enforces released storage bounds;
 matching operations are not part of scalar storage.
 
+Replication settings now expose typed SQL values and metadata, context restrictions,
+and separate examination and parameter SET permissions. The 25 additions are
+setting-only simulations without physical replication or plugin-loading effects;
+existing commit-timestamp tracking remains operative.
+
 `CREATE EXTENSION ltree` also installs the `ltree` scalar and text codecs.
 Declared columns, literal/prepared/bound input, empty paths and NULLs retain exact
 path spelling and result metadata through native Dump/Reset/Restore and SQL

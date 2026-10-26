@@ -66,7 +66,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 			e.Mu.Lock()
 			d := e.Settings.Definitions()[name]
 			e.Mu.Unlock()
-			if _, err := e.applySetting(s.Op, t.Session.Settings, d, &value, false); err != nil {
+			if _, err := e.applySetting(s.Op, t.Session.Settings, d, &value, false, ""); err != nil {
 				return Result{}, err
 			}
 		}

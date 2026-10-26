@@ -73,7 +73,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rule
   `TestReferenceStatisticsSettingsMetadata` keeps the complete selected native
   tuples, including boot/startup source distinctions, and the same released
   isolation enum order in both modes. Internal `TestPhysicalSettingsReadAccess`
-  independently names all twenty-two restricted builtins and asserts every aggregate
+  independently names all twenty-four restricted builtins and asserts every aggregate
   membership and individual read, not merely a filtered row count.
 - `TestReferenceSettingsPrivilegeAndTimeoutOracle` and
   `TestReferenceSettingsLocalPrivilegeOracle` carry the legacy `reference` build
@@ -107,6 +107,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   NULL file fields; RESET restores the actual captured client/config source;
   unauthorized readers never see file fields. Ordinary-login scenarios use
   the fixture's role-core-fixture password convention.
+- Replication settings: `RUN='^TestReferenceReplicationSettings'` covers the exact
+  26-name family, independently expected metadata, immutable contexts, mutable
+  values/list quoting, read versus SET authority, physical-session capture and
+  logical native controls. Run bounded top-level tests in both modes.
 - Compatibility settings: `RUN='^TestReferenceCompatibleSettings'` covers all
   nine released descriptors and unrestricted reads, Boolean/hidden-enum input,
   sighup precedence, parameter SET authority, transaction/savepoint and physical

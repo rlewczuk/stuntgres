@@ -376,6 +376,9 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 	for _, def := range loggingSettings {
 		expected[def.name] = def.initial
 	}
+	for _, def := range replicationSettings {
+		expected[def.name] = def.initial
+	}
 	for _, v := range settingsDefinitionsForTest() {
 		value := v.Default
 		switch v.Name {

@@ -374,6 +374,51 @@ typed provider defaults normally, without provider reentry on RESET.
 hidden aliases true/yes/1 and false/no/0 canonicalize to on/off. Unlike Boolean
 settings, enum prefixes and padded values are rejected.
 
+## Replication settings
+
+`replication.go` supplies 25 replication descriptors alongside the existing
+`track_commit_timestamp`: `hot_standby`, `hot_standby_feedback`,
+`idle_replication_slot_timeout`, `max_active_replication_origins`,
+`max_logical_replication_workers`, `max_parallel_apply_workers_per_subscription`,
+`max_replication_slots`, `max_slot_wal_keep_size`, `max_standby_archive_delay`,
+`max_standby_streaming_delay`, `max_sync_workers_per_subscription`,
+`max_wal_senders`, `output_plugin_libraries`, `primary_conninfo`,
+`primary_slot_name`, `recovery_min_apply_delay`, `sync_replication_slots`,
+`synchronized_standby_slots`, `synchronous_standby_names`, `wal_keep_size`,
+`wal_receiver_create_temp_slot`, `wal_receiver_status_interval`,
+`wal_receiver_timeout`, `wal_retrieve_retry_interval` and `wal_sender_timeout`.
+The registry contains 26 unique family names: six postmaster, eighteen sighup,
+one user and one superuser context. Immutable contexts reject individual live
+changes before parsing or authority checks; RESET ALL skips them.
+
+Numeric values use the shared int32 parser and inclusive release bounds:
+worker/slot/origin counts cap at262143, parallel apply workers at1024,
+receiver status seconds at2147483, and other integers at2147483647.
+Retry interval starts at1; standby delays and slot WAL size allow-1.
+WAL sizes use MB, idle-slot/receiver-status intervals use seconds, and the
+remaining durations use milliseconds. SHOW formats units; catalog values use
+base units. Boot/reset strings are non-NULL, including empty strings.
+
+Only primary_conninfo and output_plugin_libraries restrict examination;
+effective read-all-settings authority is independent of parameter SET authority.
+wal_sender_timeout is user-settable; output_plugin_libraries uses effective
+superuser/parameter SET authority. Its SQL SET list quotes identifier arguments,
+while set_config preserves raw text, without validating or loading libraries.
+set_config also requires examination authority for its returned value; a denied
+return leaves the previous override/default/source intact. SQL SET needs no
+examination permission.
+synchronous_standby_names and synchronized_standby_slots flatten raw SET lists.
+Providers may supply only normalized equivalents for immutable defaults;
+mutable defaults are captured once per physical session. LOCAL/savepoints,
+RESET/default, session isolation and reuse share the ordinary settings store.
+Logical Reset/Dump/Restore neither clear nor serialize live settings.
+
+The additions are setting-only simulations, not WAL generation/retention, slots,
+origins, workers, connections, feedback, replay delay, synchronous waiting,
+timeouts, restarts or plugin loading. Logical constraints remain active.
+track_commit_timestamp retains its genuine native timestamp consumer and driver
+configuration; in_hot_standby is unchanged.
+
 ## What stays in the engine
 
 SET/RESET/SHOW execution, `current_setting`/`set_config` and RESET ALL stay
@@ -398,6 +443,7 @@ make check RUN='^TestConnectionSettings'
 make check RUN='^TestDeveloperSettings'
 make check RUN='^TestLoggingSettings'
 make check RUN='^TestLockSettings'
+make check RUN='^TestReplicationSettings'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in

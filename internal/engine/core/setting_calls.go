@@ -197,9 +197,13 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		if err != nil {
 			return Result{}, err
 		}
+		resultName, err := inputs[0].Text()
+		if err != nil {
+			return Result{}, err
+		}
 		unlock()
 		locked = false
-		value, err := e.applySetting(op, owner, d, input, local)
+		value, err := e.applySetting(op, owner, d, input, local, resultName)
 		if err != nil {
 			return Result{}, err
 		}

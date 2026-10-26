@@ -377,6 +377,34 @@ connection retains its settings; replacement captures fresh defaults.
 Reset/Dump/Restore remain logical controls and do not reset or serialize live
 connection settings.
 
+## Replication settings
+
+The [replication family](../internal/engine/settings/README.md#replication-settings)
+uses the same typed SQL registry. `wal_sender_timeout` is user-settable and
+`output_plugin_libraries` requires effective superuser or parameter SET authority.
+The other 24 settings reject individual live changes with55P02 according to
+postmaster/sighup context, including same-value assignments and resets.
+Only `primary_conninfo` and `output_plugin_libraries` restrict examination;
+SET permission does not grant read permission. Unauthorized aggregate readers
+omit those rows. SQL SET reconstructs the plugin identifier list with quoting;
+set_config stores its supplied text verbatim without loading libraries, but also
+requires examination permission for its returned value. If that read is denied,
+the statement fails and preserves the previous setting/source; SQL SET alone
+does not require examination permission.
+
+Immutable defaults accept only normalized-equivalent provider answers.
+Mutable defaults are captured at physical connection creation; RESET/default
+restores that capture, not a new provider answer. LOCAL, transactions and
+savepoints use ordinary setting semantics. Same-physical pool reuse retains
+overrides; replacement captures fresh defaults. Logical Reset/Dump/Restore
+does not reset or serialize live settings or authorization.
+
+These values do not activate physical WAL, replication slots/origins/workers,
+receiver connections, feedback, replay delays, synchronous waiting, timeout
+termination, restart or plugin-loading effects. Logical data and constraints
+remain active. `DriverConfig.TrackCommitTimestamp` and its genuine native
+commit-timestamp tracking remain unchanged.
+
 ## Preset options
 
 The [20 preset settings](../internal/engine/settings/README.md#preset-options)

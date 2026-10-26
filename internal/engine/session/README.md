@@ -112,6 +112,15 @@ implement its slots, so either import would form a cycle.
   rechecking SET grants (including after revoke); individual RESET still
   checks current SET authority. The same setting action stack makes that reset
   transactional. Immutable and deny-only definitions remain excluded.
+  Replication shares the store: wal_sender_timeout is user-settable and
+  output_plugin_libraries uses parameter SET authority independently of its
+  restricted reads. primary_conninfo also restricts reads. Plugin SQL SET
+  reconstructs quoted identifier lists; synchronous_standby_names and
+  synchronized_standby_slots flatten raw lists. No physical replication or
+  plugin-loading consumer is installed by setting capture or mutation.
+  set_config validates SET/context/value authority before checking permission
+  to examine its result, and preflights that read before atomic installation.
+  A denied result therefore cannot leave a changed setting or source behind.
 - **Statement classification** (pure functions of the AST and owner values):
   command tags (`command_tag.go`); admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,

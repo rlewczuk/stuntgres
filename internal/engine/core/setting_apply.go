@@ -12,7 +12,7 @@ import (
 
 // applySetting stages callbacks without publication locks, then installs the
 // parsed value in one Engine.mu -> Settings.Mu -> Session.Mu window.
-func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool) (string, error) {
+func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool, resultName string) (string, error) {
 	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" || d.Name == "transaction_deferrable" {
 		return e.applyCurrentCharacteristic(op, d, input)
 	}
@@ -39,6 +39,22 @@ func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStor
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
+	// set_config returns an examined value. PostgreSQL checks that after SET,
+	// rolling the statement back on denial. Preflight it after validation but
+	// before installation so the same error cannot leave an override behind.
+	if resultName != "" && d.ReadRestricted {
+		auth, err := e.AuthorizationLocked(op)
+		if err != nil {
+			return "", err
+		}
+		allowed, err := auth.canReadRestrictedSettings()
+		if err != nil {
+			return "", err
+		}
+		if err := session.SettingReadAccess(d, resultName, allowed); err != nil {
+			return "", err
+		}
+	}
 	owner.Mu.Lock()
 	defer owner.Mu.Unlock()
 	op.Session.Mu.Lock()
@@ -124,7 +140,7 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 		}
 		unlock()
 		locked = false
-		_, err = e.applySetting(op, owner, d, input, local)
+		_, err = e.applySetting(op, owner, d, input, local, "")
 		return Result{}, err
 	}
 	if err := session.SettingReadAccess(d, name, readRestricted); err != nil {

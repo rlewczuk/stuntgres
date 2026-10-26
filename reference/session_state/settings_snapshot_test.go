@@ -170,6 +170,11 @@ func settingsSnapshotExpectedRows(postgres bool) [][]string {
 		initial, _, _ := view.loggingInitial(def)
 		rows = append(rows, []string{def.name, initial})
 	}
+	for _, def := range replicationSettings {
+		if def.name != "track_commit_timestamp" {
+			rows = append(rows, []string{def.name, def.initial})
+		}
+	}
 	sort.Slice(rows, func(i, j int) bool { return strings.ToLower(rows[i][0]) < strings.ToLower(rows[j][0]) })
 	return rows
 }
