@@ -37,7 +37,7 @@ func TestReferenceMergeDeleteServerCancellation(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer stmt.Close()
-					fixture.LockExec(t, p.Ctx, worker, "SET LOCAL "+tc.setting+"='50ms'", 0)
+					fixture.LockExec(t, p.Ctx, worker, "SET LOCAL "+tc.setting+"='"+map[string]string{"lock_timeout": "10ms", "statement_timeout": "50ms"}[tc.setting]+"'", 0)
 					var out fixture.RelationOutcome
 					if prepared {
 						out = mergeUpdateOperation(p.Ctx, worker, stmt, q)

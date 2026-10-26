@@ -3,6 +3,8 @@ package reference_test
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
@@ -113,7 +115,11 @@ func TestReferenceMergeNothingConcurrency(t *testing.T) {
 	}
 }
 func TestReferenceMergeNothingCancellation(t *testing.T) {
-	for _, setting := range []struct{ name, code, message string }{{"lock_timeout", "55P03", "canceling statement due to lock timeout"}, {"statement_timeout", "57014", "canceling statement due to statement timeout"}} {
+	for _, setting := range []struct{ name, timer, code, message string }{
+		{"lock_timeout", "10ms", "55P03", "canceling statement due to lock timeout"},
+		{"statement_timeout", "100ms", "57014", "canceling statement due to statement timeout"},
+		{"cancel", "", "57014", "canceling statement due to user request"},
+	} {
 		t.Run(setting.name, func(t *testing.T) {
 			mergeNothingRoutes(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 				run := fixture.MergeRun(t, p, b, prepared)
@@ -131,7 +137,6 @@ func TestReferenceMergeNothingCancellation(t *testing.T) {
 				fixture.LockExec(t, p.Ctx, holder, "UPDATE t SET v=99 WHERE id=3", 1)
 				fixture.LockExec(t, p.Ctx, worker, "BEGIN", 0)
 				defer worker.ExecContext(p.Ctx, "ROLLBACK")
-				fixture.LockExec(t, p.Ctx, worker, "SET LOCAL "+setting.name+"='500ms'", 0)
 				q := "MERGE INTO t USING (SELECT id FROM (VALUES(1),(2),(3)) x(id) ORDER BY id) s ON t.id=s.id WHEN NOT MATCHED AND s.id=1 THEN DO NOTHING WHEN NOT MATCHED THEN INSERT VALUES(s.id,20) WHEN MATCHED THEN UPDATE SET v=t.v+1 RETURNING t.id"
 				d := fixture.ControlsReferenceDiagnostic(setting.code, setting.message)
 				if b.PG {
@@ -146,26 +151,64 @@ func TestReferenceMergeNothingCancellation(t *testing.T) {
 					}
 					defer held.Close()
 				}
-				var out fixture.RelationOutcome
+				var hp, wp int
 				if b.PG {
-					hp, wp := fixture.LockPID(t, p.Ctx, holder), fixture.LockPID(t, p.Ctx, worker)
-					await := fixture.LockOperation(t, p.Ctx, func(ctx context.Context) fixture.RelationOutcome {
-						return mergeUpdateOperation(ctx, worker, held, q)
-					})
-					fixture.RowWait(t, p.Ctx, wp, hp)
-					out = await()
-				} else {
-					out = mergeUpdateOperation(p.Ctx, worker, held, q)
+					hp, wp = fixture.LockPID(t, p.Ctx, holder), fixture.LockPID(t, p.Ctx, worker)
 				}
+				// Setup and Prepare finish at timeout 0. A lock timer counts only
+				// the lock wait; a statement timer also counts parse and plan time.
+				if setting.timer != "" {
+					fixture.LockExec(t, p.Ctx, worker, "SET LOCAL "+setting.name+"='"+setting.timer+"'", 0)
+				}
+				ctx, cancel := context.WithCancel(p.Ctx)
+				defer cancel()
+				completed := make(chan struct{})
+				await := fixture.LockOperation(t, ctx, func(ctx context.Context) fixture.RelationOutcome {
+					defer close(completed)
+					return mergeUpdateOperation(ctx, worker, held, q)
+				})
+				// A timer's exact outcome proves the wait; never race an observer
+				// against the short timer. Cancel observes the parked waiter first.
+				if setting.timer == "" {
+					if b.PG {
+						fixture.RowWait(t, p.Ctx, wp, hp)
+						var canceled bool
+						if e := fixture.Admin.QueryRowContext(p.Ctx, "SELECT pg_cancel_backend($1)", wp).Scan(&canceled); e != nil || !canceled {
+							t.Fatal("cancel", canceled, e)
+						}
+					} else {
+						fixture.NativeUpdateRowWait(t, p.Ctx, completed)
+						cancel()
+					}
+				}
+				out := await()
 				if out.Result != nil {
-					t.Fatal("timeout exposed result")
+					t.Fatal("interrupted MERGE exposed result")
 				}
-				fixture.AssertDiagnostic(t, out.Err, &d)
-				s := fixture.ImplicitError("SELECT * FROM t", fixture.TransactionAborted())
-				s.SelectRows = true
-				fixture.RunStep(t, p.Ctx, worker, b.Recorder, s)
+				if setting.timer == "" && !b.PG {
+					if !errors.Is(out.Err, context.Canceled) {
+						t.Fatal("native cancellation", out.Err)
+					}
+				} else {
+					fixture.AssertDiagnostic(t, out.Err, &d)
+				}
+				if setting.name == "statement_timeout" {
+					// Once a statement timer is armed even ROLLBACK can time out:
+					// dispose of the owner, whose transaction rolls back.
+					if e := worker.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(e, driver.ErrBadConn) {
+						t.Fatal("disposing timer-armed owner", e)
+					}
+				} else {
+					// The failed-block probe and ROLLBACK take no lock, so an armed
+					// lock timer cannot fire.
+					s := fixture.ImplicitError("SELECT * FROM t", fixture.TransactionAborted())
+					s.SelectRows = true
+					fixture.RunStep(t, p.Ctx, worker, b.Recorder, s)
+				}
 				run(fixture.Select("SELECT * FROM t", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(3), int64(30)}}))
-				fixture.LockExec(t, p.Ctx, worker, "ROLLBACK", 0)
+				if setting.name != "statement_timeout" {
+					fixture.LockExec(t, p.Ctx, worker, "ROLLBACK", 0)
+				}
 				fixture.LockExec(t, p.Ctx, holder, "ROLLBACK", 0)
 				run(fixture.Exec(q, 2))
 				run(fixture.Select("SELECT * FROM t ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(20)}, {int64(3), int64(31)}}))

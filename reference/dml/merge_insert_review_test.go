@@ -78,7 +78,7 @@ func TestReferenceMergeInsertConcurrentUnique(t *testing.T) {
 							}
 						}
 						if !b.PG {
-							fixture.InsertSelectRun(t, p.Ctx, worker, b.Recorder, fixture.Exec("SET lock_timeout='100ms'", 0))
+							fixture.InsertSelectRun(t, p.Ctx, worker, b.Recorder, fixture.Exec("SET lock_timeout='10ms'", 0))
 							o := call(p.Ctx)
 							d := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
 							fixture.AssertDiagnostic(t, o.Err, &d)

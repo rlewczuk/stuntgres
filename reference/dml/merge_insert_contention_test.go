@@ -23,7 +23,6 @@ func TestReferenceMergeInsertContention(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer c.Close()
-						fixture.InsertSelectRun(t, p.Ctx, c, b.Recorder, fixture.Exec("SET lock_timeout='500ms'", 0))
 						var call func(context.Context) fixture.RelationOutcome
 						if prepared {
 							stmt, err := c.PrepareContext(p.Ctx, q)
@@ -47,14 +46,11 @@ func TestReferenceMergeInsertContention(t *testing.T) {
 						}
 						defer holder.Rollback()
 						fixture.InsertSelectRun(t, p.Ctx, holder, b.Recorder, fixture.Exec("LOCK TABLE "+table+" IN ACCESS EXCLUSIVE MODE", 0))
-						var pid int
-						if b.PG {
-							pid = fixture.LockPID(t, p.Ctx, c)
-						}
+						// A lock timer counts only the lock wait, so its exact outcome
+						// proves the queue; TestReferenceMergeInsertCancellation observes
+						// the parked waiter before canceling it.
+						fixture.InsertSelectRun(t, p.Ctx, c, b.Recorder, fixture.Exec("SET lock_timeout='10ms'", 0))
 						join := fixture.LockOperation(t, p.Ctx, call)
-						if b.PG {
-							fixture.LockWait(t, p.Ctx, pid)
-						}
 						o := join()
 						if o.Result != nil || o.Stmt != nil {
 							if o.Stmt != nil {
