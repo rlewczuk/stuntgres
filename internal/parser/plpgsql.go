@@ -57,6 +57,7 @@ type PLStatement struct {
 	Raise               *PLRaise
 	Assert              *PLAssert
 	Into                *PLIntoStatement
+	SQL                 *PLSQLStatement
 }
 
 // PLQueryLoop retains the ordinary SQL syntax and its original source boundary.
@@ -125,6 +126,50 @@ type PLIntoStatement struct {
 	IntoStart, TargetsStart, TargetsEnd Position
 	Text                                string
 }
+
+type PLSQLKind uint8
+
+const (
+	PLCommandSQL PLSQLKind = iota
+	PLPerformSQL
+	PLCallSQL
+)
+
+// PLSQLStatement retains ordinary SQL syntax, never an executable plan.
+type PLSQLStatement struct {
+	Kind                  PLSQLKind
+	Query                 Statement
+	Start, End, Delimiter Position
+	Text                  string
+	admitted              plSQLAdmission
+}
+
+// plSQLAdmission records the association established by pl_static_statement,
+// not a second list of executable statement types. It contains immutable syntax
+// references and source values only, with no separate allocation or parser state.
+type plSQLAdmission struct {
+	kind       PLSQLKind
+	query      Statement
+	start, end Position
+	text       string
+}
+
+// ValidPLSQLStatement reports whether the payload retains the statement category,
+// AST and source boundary admitted by the procedural static-statement grammar.
+// Checked-program consumers use this even when raw and checked AST pointers agree.
+func ValidPLSQLStatement(q *PLSQLStatement) bool {
+	return q != nil && q.Query != nil && q.Query == q.admitted.query &&
+		q.Kind == q.admitted.kind && q.Start == q.admitted.start &&
+		q.End == q.admitted.end && q.Delimiter == q.admitted.end &&
+		q.Text == q.admitted.text
+}
+
+func (q *PLSQLStatement) finishSQL(source string, delimiter Position) {
+	q.End, q.Delimiter = delimiter, delimiter
+	q.Text = source[q.Start.Offset:delimiter.Offset]
+	q.admitted = plSQLAdmission{kind: q.Kind, query: q.Query, start: q.Start, end: delimiter, text: q.Text}
+}
+
 type PLBlock struct {
 	Label        Identifier
 	EndLabel     Identifier
@@ -297,7 +342,7 @@ func (l *lexer) plSourceStart(end, delimiter Position, predecessor lexeme) Posit
 		input: l.input[:delimiter.Offset], offset: predecessor.pos.Offset,
 		positionOffset: predecessor.pos.Offset, positionCharacters: predecessor.pos.Character - 1,
 		options: Options{StandardConformingStrings: true},
-		plMode: true,
+		plMode:  true,
 	}
 	probe.nextRaw()
 	first := probe.nextRaw()

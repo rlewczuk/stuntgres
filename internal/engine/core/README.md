@@ -264,6 +264,15 @@ an activation-local capture mode. Writable CTE auxiliaries complete without a
 row cap before the primary SELECT opens its lazy producer; its CTE resources
 remain owned by that producer until close. Ordinary SQL and query-loop demand
 keep their separate completion policies.
+Static PL commands use ordinary statement admission and utility effects under a
+fresh lexical activation. Commands and PERFORM fully drain projections before
+publishing status or diagnosing an unhandled tuple descriptor; all producers
+close before scratch restoration. PL CALL keeps its one common selected binding,
+validates every coerced output destination/constant before input/default demand,
+then consumes the handler's detached tuple. Copyback publishes successful
+assignments in formal order through the assignment owner; a later failed value
+does not undo earlier locals or alter the failed destination. CALL and utilities
+preserve caller FOUND. Exception/database rollback remains with the shared scope.
 The command-level SELECT-CTE invocation owns its own captured sources, separate
 from each modifier's input. Raw selection and frozen-layout bridging run outside
 `Engine.Mu`, before any auxiliary effects, followed by grant/context revalidation.
@@ -1042,6 +1051,9 @@ cases live with stored. Select `^TestPrepared(Rebind|Fold)` and
 PL cursor compiler/provider/ownership units: `RUN='^TestPLpgSQLCursor'`.
 Internal producer lifetime/cancellation units use `RUN='^TestPLpgSQLQueryLoop(Lifetime|Cancellation)$'`.
 Static capture demand/cancellation/cleanup units use `RUN='^TestPLpgSQLSelectIntoRuntime$'`.
+Static command ownership, validation, remapping, sequential assignment and
+producer cleanup use `RUN='^Test(PLpgSQLSQLExecution|SQLCallableProcedureOutputAssociation)'`
+with `RACE=1`.
 
 - Fixtures never enter `Engine.Execute` while owning admission (that acquires
   its mutex recursively); create stored recipes before retaining admission.

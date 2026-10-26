@@ -20,11 +20,14 @@ type SQLCallable struct {
 	Procedure *catalog.Procedure
 	Inputs    []sqltype.Usage
 	// targets are family-resolved applicability usages, never ranking inputs.
-	Targets          []sqltype.Usage
-	Path             int
-	Variadic         bool
-	polymorphic      bool
-	InputMap         []plan.RoutineInput
+	Targets     []sqltype.Usage
+	Path        int
+	Variadic    bool
+	polymorphic bool
+	InputMap    []plan.RoutineInput
+	// OutputMap is nonexecuting, in declaration output order. A negative
+	// Start records an omitted default, not an executable destination.
+	OutputMap        []plan.RoutineInput
 	NamedDeclaration []sqltype.Usage
 	Signature        proc.InvocationSignature
 }
@@ -894,6 +897,9 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		assembly := selected.InputMap
 		writtenCount := len(raw.Args)
 		argNames := raw.ArgNames
+		if raw.ProcedureCall && b.PL != nil {
+			b.capturePLCallOutputs(selected)
+		}
 		if raw.ProcedureCall && len(d.SQL.OutputFormals) != 0 {
 			// Analysis has coerced every position. Compact only the private
 			// winning arguments; OUT nodes never become executable/fold children.

@@ -52,6 +52,8 @@ type Binder struct {
 	dependencyPurpose catalog.DependencyPurpose
 	PL                *proc.PLFrame // Private reached-expression lexical inputs; never retained.
 	plAssignmentDatum *PLAssignment
+	plDatums          []plCallDatum
+	plCallOutputs     []PLCallOutput
 	plAssignmentQuery *parser.Select
 	normalizingSyntax map[StoredExpressionSyntaxKey]bool
 

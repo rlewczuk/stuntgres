@@ -217,6 +217,18 @@ the broader assignment/FETCH target grammar. The bounded targets use the
 generated PL target-list entry; SQL table-creation INTO remains a separate AST.
 An isolated procedural target without an assignment operator is rejected at its
 original head token, not at the following statement delimiter.
+Static commands, contextual PERFORM and PL CALL retain distinct `PLSQLKind`
+policies with ordinary statement ASTs and original source spans/text. No-INTO
+SQL is parsed without deciding its runtime destination policy. Statement-head
+recognition excludes DECLARE sections, including names after declaration
+semicolons. PERFORM changes only the grammar head; its diagnostic SELECT
+coordinates belong to the host.
+Utility statements share the ordinary SQL command grammar, while dynamic
+EXECUTE and transaction commands do not enter this static-command path.
+The completed static-statement grammar reduction retains an unexported,
+by-value admission association. `ValidPLSQLStatement` checks the original AST
+identity, variant and source interval/text without reparsing or a second
+statement-type whitelist. This syntax-only association is shared with the AST.
 
 Statement-list boundaries also retain an unknown identifier head until a real
 assignment operator clears it. On grammar failure only, a bounded scanner checks
@@ -245,6 +257,8 @@ text is sliced from these boundaries and never rescanned into executable syntax.
 
 Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
 Static capture AST/boundary units use `RUN='^TestPLpgSQLSelectIntoParser$'`.
+Embedded static SQL variants and per-call syntax ownership use
+`RUN='^TestPLpgSQLSQLExecutionParser$'`.
 Routine declarations and positioned CALL/notation/full-input ownership units use
 `RUN='^TestRoutine(ResultDeclarations|ProcedureCall)$'`.
 

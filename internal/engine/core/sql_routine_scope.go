@@ -168,6 +168,7 @@ type sqlRoutineDemand struct {
 	name               string // Live declaration qualifier, separate from immutable body syntax.
 	terminal           bool
 	binding            *analyze.Binding
+	plCallBinding      *analyze.Binding     // One reached winner; never a frozen SQL-body recipe.
 	inputCollation     sqltype.CollationRef // Only quoted aggregate-support formal annotation.
 	cursor             *parser.DeclareCursor
 	cursorName         *string // nil means allocate only at actual installation; explicit empty stays distinct.

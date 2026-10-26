@@ -216,6 +216,11 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 }
 
 func reownRoutineDefinition(source *proc.Definition, usage func(sqltype.Usage) (sqltype.Usage, error), programs map[*proc.PLProgram]*proc.PLProgram) (*proc.Definition, error) {
+	if source.PL != nil {
+		if err := source.PL.ValidateDefinition(source); err != nil {
+			return nil, err
+		}
+	}
 	next := source
 	detach := func() {
 		if next == source {
@@ -293,6 +298,11 @@ func reownRoutineDefinition(source *proc.Definition, usage func(sqltype.Usage) (
 		if program != source.PL {
 			detach()
 			next.PL = program
+		}
+	}
+	if next.PL != nil {
+		if err := next.PL.ValidateDefinition(next); err != nil {
+			return nil, err
 		}
 	}
 	return next, nil

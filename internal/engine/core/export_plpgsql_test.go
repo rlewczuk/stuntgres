@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
@@ -19,6 +20,10 @@ func ClosePLCapture(result Result, primary error, format func(error) error) erro
 // DemandPLCapture calls demandPLCapture.
 func DemandPLCapture(ctx context.Context, rows plCaptureRows, columns plColumns, exact bool) ([]sqltype.Value, bool, bool, error) {
 	return demandPLCapture(ctx, rows, columns, exact)
+}
+
+func DrainPLSQL(ctx context.Context, rows exec.RowResult) (bool, error) {
+	return drainPLSQL(ctx, rows)
 }
 
 // PLColumns names plColumns.

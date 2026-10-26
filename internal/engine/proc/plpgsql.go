@@ -89,6 +89,7 @@ type PLInstruction struct {
 	Raise      *PLRaise
 	Assert     *PLAssert
 	Into       *PLInto
+	SQL        *PLSQL
 }
 type PLQueryLoop struct {
 	Target PLTarget
@@ -107,6 +108,11 @@ type PLInto struct {
 	Query   parser.Statement
 	Targets []PLTarget
 	Strict  bool
+}
+
+type PLSQL struct {
+	Kind  parser.PLSQLKind
+	Query parser.Statement
 }
 type PLIntegerFor struct {
 	Lower, Upper, Step *parser.Select
@@ -316,6 +322,9 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 			}
 			var err error
 			switch {
+			case statement.SQL != nil:
+				instruction.SQL = &PLSQL{Kind: statement.SQL.Kind, Query: statement.SQL.Query}
+				err = diagnostics.expression(p, definition.Source, statement.SQL.Start, statement.SQL.End, scopes)
 			case statement.Into != nil:
 				instruction.Into, err = p.compileInto(statement.Into, scopes)
 				if err == nil {

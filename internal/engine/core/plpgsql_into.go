@@ -178,14 +178,15 @@ func closePLCapture(result Result, primary error, format func(error) error) erro
 			return
 		}
 		if primary == nil {
-			primary = format(closeErr)
+			primary = &proc.PLExceptionCleanupError{Primary: format(closeErr), Cleanup: closeErr}
 			return
 		}
+		causal := &proc.PLExceptionCleanupError{Primary: primary, Cleanup: closeErr}
 		var diagnostic *sqlstate.Error
 		if errors.As(primary, &diagnostic) {
-			primary = sqlstate.WithDiagnostic(errors.Join(primary, closeErr), diagnostic)
+			primary = sqlstate.WithDiagnostic(causal, diagnostic)
 		} else {
-			primary = errors.Join(primary, closeErr)
+			primary = causal
 		}
 	}
 	if result.Rows != nil {

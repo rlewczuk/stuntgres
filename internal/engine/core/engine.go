@@ -433,6 +433,13 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if scope.Expected != nil {
 		analyze.ReuseRecordConstructors(b.Prepared.Types, scope.Expected.Types)
 	}
+	// Keep the selected invocation and its nonexecuting output projection in
+	// this activation only. Execution must not choose a second CALL winner.
+	if scope.sqlRoutine.lexical != nil {
+		if _, call := stmt.(*parser.Call); call {
+			scope.sqlRoutine.plCallBinding = &b
+		}
+	}
 	return Description{Parameters: b.Parameters, Results: results, CatalogOwner: auth.Catalog.Owner(), CatalogEpoch: auth.Catalog.Epoch(), Temporals: b.Prepared.Temporals, Types: b.Prepared.Types, Sequences: cell, Regtypes: regtypes, Analysis: prepared, Folds: NewPreparedFolds(), PlanOwner: op.Session.SessionToken, PlanGeneration: op.Session.DiscardPlansGeneration}, nil
 }
 
@@ -448,6 +455,9 @@ func DescribeWithRule(ctx context.Context, host analyze.Host, stmt parser.Statem
 }
 
 func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *Description) (analyze.Binding, error) {
+	if scope.sqlRoutine.plCallBinding != nil {
+		return *scope.sqlRoutine.plCallBinding, nil
+	}
 	if scope.sqlRoutine.binding != nil {
 		return *scope.sqlRoutine.binding, nil
 	}

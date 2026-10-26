@@ -62,6 +62,7 @@ type lexer struct {
 	plEntry, plMode            bool
 	plResult                   *PLBlock
 	plExpression               bool
+	plDeclaring                bool // DECLARE through BEGIN, excluding SQL/default expressions.
 	plThen                     bool
 	plReturnPolicy             PLReturnPolicy
 	plReturnPending            bool
@@ -75,6 +76,7 @@ type lexer struct {
 	plAfterForeach             bool
 	plAssignmentHead           lexeme
 	plCapture                  *PLIntoStatement
+	plSQL                      *PLSQLStatement
 	plTargetsEntry             bool
 	plTargetsResult            []Expr
 	plStatementBoundaryPending bool
@@ -874,8 +876,40 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		return 0
 	}
 	token := l.nextRaw()
-	if l.plMode && !l.plExpression && l.plStatementStart() && (token.code == SELECT || token.code == INSERT || token.code == UPDATE || token.code == DELETE || token.code == WITH) {
-		l.plBeginCapture(token)
+	if l.plMode && !l.plExpression {
+		switch token.code {
+		case DECLARE:
+			l.plDeclaring = true
+		case BEGIN:
+			l.plDeclaring = false
+		}
+	}
+	if l.plMode && !l.plExpression && token.code == CALL && (!l.plStatementStart() || l.plHeadAssignment(token)) {
+		token.code = IDENT
+	}
+	if l.plMode && !l.plExpression && l.plStatementStart() {
+		perform := token.code == IDENT && token.lexeme.text == "perform" && !quotedIdentifierLexeme(token.lexeme)
+		if perform {
+			// PERFORM is contextual; assignment to a variable of that name
+			// still belongs to the ordinary PL assignment grammar.
+			perform = !l.plHeadAssignment(token)
+		}
+		switch {
+		case perform:
+			token.code = SELECT
+			l.plBeginCapture(token)
+			if l.plCapture != nil {
+				at := l.plCapture.IntoStart.Offset
+				l.scannerError("syntax error", at, at+4)
+			}
+			if l.plSQL != nil {
+				l.plSQL.Kind = PLPerformSQL
+			}
+		case token.code == SELECT || token.code == VALUES || token.code == TABLE || token.code == '(' || token.code == INSERT || token.code == UPDATE || token.code == DELETE || token.code == WITH || token.code == MERGE:
+			l.plBeginCapture(token)
+		case plSQLHead(token.code):
+			l.plBeginCommand(token)
+		}
 	}
 	if l.plCapture != nil && token.lexeme.pos.Offset == l.plCapture.IntoStart.Offset {
 		for token.code != 0 && token.lexeme.pos.Offset < l.plCapture.TargetsEnd.Offset {

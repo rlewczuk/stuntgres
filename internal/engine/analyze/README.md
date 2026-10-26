@@ -30,6 +30,11 @@ builtin series providers; the CALL context survives ordinary argument binding.
 CALL schema uses the checked invocation tuple's exact member usages, retaining
 declaration-owned labels and order without rebuilding a shape or exposing
 declaration pseudo-types.
+Reached PL CALL retains the winner's output-formal source projection separately
+from its input-only executable assembly. Only selected coerced lexical-datum
+occurrences qualify as scalar/record-field destinations; defaults, subscripts
+and wrapping conversions do not inherit writable provenance. Destination recipes
+belong to the invocation-private Binding, never declarations or retained plans.
 
 Nominal typed literals for installed ltree and lquery resolve through the ordinary
 type lookup before admission. Their resolved scalar descriptors, not their written

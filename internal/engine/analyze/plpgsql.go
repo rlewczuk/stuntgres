@@ -53,6 +53,14 @@ func (b *Binder) plLocal(names []string, pos parser.Position) (expr.Expr, bool, 
 				return nil, true, err
 			}
 		}
+		if b.Consumer.CallArguments && len(names)-count <= 1 {
+			target := proc.PLTarget{Slot: slot}
+			if count < len(names) {
+				field := parser.Identifier{Text: names[count], Pos: pos}
+				target.Steps = []parser.TargetStep{{Field: &field}}
+			}
+			b.plDatums = append(b.plDatums, plCallDatum{node: node, target: target})
+		}
 		return node, true, nil
 	}
 	return nil, false, nil

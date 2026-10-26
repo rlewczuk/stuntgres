@@ -67,7 +67,9 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		}
 	}
 	if len(d.OutputFormals) == 0 && (d.PolymorphicResult || sqltype.PolymorphicFamily(d.Result.Type.ID()) != 0) {
-		if len(p.Variables) <= bindings { return invalid() }
+		if len(p.Variables) <= bindings {
+			return invalid()
+		}
 		v := p.Variables[bindings]
 		if v.Name != "$0" || v.Usage != d.Result || v.Record || v.Constant || v.NotNull || !v.InheritInputCollation || v.Role != PLOrdinarySlot || v.Cursor != nil {
 			return invalid()
@@ -202,6 +204,9 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			if instruction.Syntax != raw || raw.Pos.Offset < 0 || raw.Pos.Offset >= len(d.Source) || raw.Pos.Character <= 0 || !plSourceSpan(d.Source, raw.Expression, raw.ExpressionStart, raw.ExpressionEnd, raw.ExpressionDelimiter) {
 				return invalid()
 			}
+			if (instruction.SQL != nil) != (raw.SQL != nil) {
+				return invalid()
+			}
 			if (instruction.Into != nil) != (raw.Into != nil) {
 				return invalid()
 			}
@@ -221,7 +226,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			variants := 0
-			for _, present := range []bool{raw.Into != nil, raw.IntegerFor != nil, raw.Foreach != nil, raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
+			for _, present := range []bool{raw.SQL != nil, raw.Into != nil, raw.IntegerFor != nil, raw.Foreach != nil, raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
 				if present {
 					variants++
 				}
@@ -230,6 +235,16 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			switch {
+			case raw.SQL != nil:
+				q, checked := raw.SQL, instruction.SQL
+				empty := instruction
+				empty.SQL = nil
+				if checked == nil || checked.Query != q.Query || checked.Kind != q.Kind || instruction.Block != nil || raw.Expression != nil || !emptyPLInstructionPayload(empty) || !validPLSQLSource(d.Source, raw.Pos, q) {
+					return invalid()
+				}
+				if diagnostics.expression(p, d.Source, q.Start, q.End, scopes) != nil {
+					return invalid()
+				}
 			case raw.Into != nil:
 				q, checked := raw.Into, instruction.Into
 				empty := instruction
@@ -780,5 +795,5 @@ func (p *PLProgram) validCursorInstruction(raw *parser.PLCursorStatement, in *PL
 }
 
 func emptyPLInstructionPayload(in PLInstruction) bool {
-	return in.Into == nil && in.IntegerFor == nil && in.Foreach == nil && in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
+	return in.SQL == nil && in.Into == nil && in.IntegerFor == nil && in.Foreach == nil && in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
 }

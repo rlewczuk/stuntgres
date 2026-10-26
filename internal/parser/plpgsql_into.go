@@ -3,11 +3,20 @@ package parser
 // Statement-head recognition must not steal lookahead from the empty grammar
 // entries that open cursor and query-FOR SQL expressions.
 func (l *lexer) plStatementStart() bool {
+	if l.plDeclaring {
+		return false
+	}
 	switch l.previousToken {
 	case BEGIN, ';', THEN, PL_THEN, ELSE, PL_LOOP:
 		return true
 	}
 	return false
+}
+
+func (l *lexer) plHeadAssignment(first rawToken) bool {
+	probe := lexer{input: l.input, offset: first.end, options: l.options}
+	next := probe.nextRaw()
+	return next.code == '=' || next.lexeme.text == ":=" || next.code == '.' || next.code == '['
 }
 
 // plBeginCapture probes raw tokens only. SQL is still consumed by its ordinary
@@ -111,7 +120,7 @@ func (l *lexer) plBeginCapture(first rawToken) {
 		return
 	}
 	if l.plCapture == nil {
-		l.failAt("42601", "query has no destination for result data", first.lexeme.pos.Offset)
+		l.plSQL = &PLSQLStatement{Query: nil, Start: first.lexeme.pos, End: delimiter, Delimiter: delimiter, Text: l.input[first.lexeme.pos.Offset:delimiter.Offset]}
 		return
 	}
 	raw := l.plCapture
@@ -125,4 +134,40 @@ func (l *lexer) plBeginCapture(first rawToken) {
 		}
 	}
 	raw.Text = string(text)
+}
+
+// Utilities use their ordinary grammar without procedural INTO stripping.
+func (l *lexer) plBeginCommand(first rawToken) {
+	l.plExpression = true
+	kind := PLCommandSQL
+	if first.code == CALL {
+		kind = PLCallSQL
+	}
+	l.plSQL = &PLSQLStatement{Kind: kind, Start: first.lexeme.pos}
+}
+
+func plSQLHead(code int) bool {
+	switch code {
+	case CREATE, ALTER, DROP, SET, RESET, SHOW, CALL, TRUNCATE, COMMENT, GRANT, REVOKE, LOCK, VACUUM, ANALYZE, REINDEX, REFRESH, COPY, DISCARD, DO, PREPARE, DEALLOCATE, NOTIFY, LISTEN, UNLISTEN, LOAD, REASSIGN, FDW_IMPORT:
+		return true
+	}
+	return false
+}
+
+func (l *lexer) plSQLStatement(query Statement) PLStatement {
+	if raw := l.plCapture; raw != nil {
+		raw.Query = query
+		l.plCapture = nil
+		l.plExpression = false
+		return PLStatement{Into: raw, Pos: raw.Start}
+	}
+	raw := l.plSQL
+	if raw == nil {
+		l.failAt("42601", "invalid embedded SQL statement", l.current.pos.Offset)
+		return PLStatement{}
+	}
+	raw.Query = query
+	l.plSQL = nil
+	l.plExpression = false
+	return PLStatement{SQL: raw, Pos: raw.Start}
 }

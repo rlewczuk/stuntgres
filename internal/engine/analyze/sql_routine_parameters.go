@@ -128,5 +128,11 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 			candidate.InputMap[input] = source
 		}
 	}
+	if raw.ProcedureCall {
+		candidate.OutputMap = make([]plan.RoutineInput, len(d.SQL.OutputFormals))
+		for i, formal := range d.SQL.OutputFormals {
+			candidate.OutputMap[i] = sources[formal]
+		}
+	}
 	return candidate, true
 }

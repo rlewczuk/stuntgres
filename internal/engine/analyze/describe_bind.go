@@ -127,6 +127,7 @@ func describe(ctx context.Context, host Host, stmt parser.Statement, auth Author
 			}
 		}
 		b.Expressions = [][]expr.Expr{{node}}
+		b.PLCallOutputs = binder.plCallOutputs
 	case *parser.CreateTable:
 		if err := bindCreateTable(host, auth, s, &b); err != nil {
 			return b, err

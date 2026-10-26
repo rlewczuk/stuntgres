@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -19,6 +20,9 @@ type ParameterInfo struct {
 // statement kind may use; kind payloads and capture groups are held by value
 // (see binding_groups.go), so copying a binding copies them too.
 type Binding struct {
+	// PLCallOutputs belongs only to a reached lexical CALL's private binding.
+	// It is not part of the executable input expression graph.
+	PLCallOutputs      []PLCallOutput
 	Relation           *catalog.Relation
 	Storage            *storage.Relation
 	Ref                ids.ObjectRef
@@ -53,3 +57,9 @@ type Binding struct {
 }
 
 func (*Binding) CTEMutationPayload() {}
+
+type PLCallOutput struct {
+	Target proc.PLTarget // Slot -1 means the selected coerced actual is not a datum.
+	Name   string
+	Formal int
+}

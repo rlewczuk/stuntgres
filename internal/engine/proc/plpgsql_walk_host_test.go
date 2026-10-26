@@ -43,6 +43,10 @@ func (h *walkHost) Capture(*PLRun, *PLFrame, PLInstruction) error {
 	return fmt.Errorf("walk unit has no SQL capture producer")
 }
 
+func (h *walkHost) Command(*PLRun, *PLFrame, PLInstruction) error {
+	return fmt.Errorf("walk unit has no SQL command producer")
+}
+
 func (h *walkHost) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	switch id {
 	case sqltype.Bool:

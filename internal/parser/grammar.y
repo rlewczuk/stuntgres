@@ -579,7 +579,7 @@ package parser
 %type <expr> pl_foreach_target
 %type <tok> pl_foreach_array
 %type <stmt> pl_query_loop_statement
-%type <stmt> pl_capture_statement
+%type <stmt> embedded_sql_statement pl_static_statement
 %type <tok> pl_cursor_for pl_cursor_from
 %type <row> pl_cursor_targets
 %type <plExpressions> pl_using pl_using_values
@@ -958,7 +958,11 @@ optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
 statement: nontransaction_statement | transaction_control ;
-nontransaction_statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment
+nontransaction_statement: embedded_sql_statement | select | declare_cursor | fetch_cursor | close_cursor | execute_sql
+ | generic_statement_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
+ | DROP %prec NAME_LIST { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
+ | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 } ;
+embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment
  | with_mutation
  | do_statement
  | CALL relation_name '(' function_args ')' {call:=$4;call.Name=$2;call.Pos=$2.Parts[0].Pos;call.ProcedureCall=true;$$=&Call{Function:call,Pos:$1.pos}}
@@ -971,8 +975,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | drop_domain
  | alter_domain
  | set_constraints
- | declare_cursor | fetch_cursor | close_cursor
- | prepare_sql | execute_sql | deallocate_sql | discard
+ | prepare_sql | deallocate_sql | discard
  | create_extension | drop_extension | alter_extension_update
  | create_tablespace
  | create_database
@@ -993,10 +996,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | create_event_trigger | alter_event_trigger | drop_event_trigger
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
- | generic_statement_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | notify | listen | unlisten | load
- | DROP %prec NAME_LIST { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
- | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
 load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
 create_database: CREATE DATABASE name database_options {
@@ -1854,9 +1854,9 @@ pl_type: declared_type {$$=PLType{Type:$1}}
  | declared_type '%' PL_ROW_COPY {$$=plCopiedType($1,true)} ;
 pl_default: /* empty */ {$$=PLExpression{}} | DEFAULT pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | PL_ASSIGN pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | '=' pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} ;
 pl_statements: /* empty */ {sqllex.(*lexer).plStatementBoundaryPending=true;$$=nil}
- | pl_statements pl_statement ';' {l:=sqllex.(*lexer);if loop:=$2.IntegerFor;loop!=nil{l.plCheckEndLabel(loop.Body.Label,loop.Body.EndLabel);if l.err!=nil{return 1}};l.plStatementBoundaryPending=true;$$=append($1,$2)} ;
+ | pl_statements pl_statement ';' {l:=sqllex.(*lexer);if command:=$2.SQL;command!=nil{command.finishSQL(l.input,$<tok>3.pos)};if loop:=$2.IntegerFor;loop!=nil{l.plCheckEndLabel(loop.Body.Label,loop.Body.EndLabel);if l.err!=nil{return 1}};l.plStatementBoundaryPending=true;$$=append($1,$2)} ;
 pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
- | pl_capture_statement {l:=sqllex.(*lexer);raw:=l.plCapture;if raw==nil {l.failAt("42601","INTO used with a command that cannot return data",l.current.pos.Offset);return 1};raw.Query=$1;l.plCapture=nil;l.plExpression=false;$$=PLStatement{Into:raw,Pos:raw.Start}}
+ | pl_static_statement {l:=sqllex.(*lexer);$$=l.plSQLStatement($1);if l.err!=nil{return 1}}
  | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}}
  | PL_RAISE pl_raise_body {$$=PLStatement{Raise:$2,Pos:$1.pos}}
  | PL_RAISE PL_RAISE_LEVEL pl_raise_body {$3.Level=plRaiseLevel($2);$$=PLStatement{Raise:$3,Pos:$1.pos}}
@@ -1942,7 +1942,7 @@ pl_cursor_for: FOR | IS ;
 pl_cursor_query: pl_expression_start query_select {l:=sqllex.(*lexer);l.plExpression=false;$$=plCursorQuery{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
 pl_query_loop_source: pl_query_loop_start pl_query_loop_statement {l:=sqllex.(*lexer);l.plExpression=false;$$=&PLQueryLoop{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
 pl_query_loop_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | merge {$$=$1} | with_mutation {$$=$1} ;
-pl_capture_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | with_rule_mutation {$$=$1} ;
+pl_static_statement: embedded_sql_statement {$$=$1} | query_select {$$=$1} ;
 pl_query_loop_start: /* empty */ {sqllex.(*lexer).plBeginExpression(plLoopBoundary)} ;
 pl_integer_targets: pl_target {$$=&PLIntegerFor{Targets:[]Expr{$1}}}
  | pl_integer_targets ',' pl_target {$$=$1;$$.Targets=append($$.Targets,$3);$$.TargetCommas=append($$.TargetCommas,$2.pos)} ;

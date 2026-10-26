@@ -176,6 +176,11 @@ with ordered elements, bounded trailing slices, sequential list assignments,
 domain identity, private control/FOUND and original-held/replay witnesses.
 Family selector: `RUN='^TestReferencePLpgSQLForeach'`; add `REFERENCE=1` for the oracle.
 
+Embedded SQL/PERFORM/PL CALL scenarios share the same value, complete-diagnostic,
+metadata and lifecycle helpers, including held handles and native replay.
+Family selector: `RUN='^TestReferencePLpgSQLSQLExecution'`; add `REFERENCE=1`
+for the pinned oracle.
+
 ### PL/pgSQL exception blocks
 
 The exception family reuses `plpgsqlScenario`, value/complete-diagnostic helpers

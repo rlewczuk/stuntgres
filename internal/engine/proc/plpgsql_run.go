@@ -64,6 +64,8 @@ type PLHost interface {
 	// OpenQuery opens a static query-FOR producer; its errors are already formatted.
 	OpenQuery(f *PLFrame, in PLInstruction) (PLRows, error)
 	Capture(r *PLRun, f *PLFrame, in PLInstruction) error
+	// Command executes static SQL, PERFORM or CALL with its own result policy.
+	Command(r *PLRun, f *PLFrame, in PLInstruction) error
 	// Cursor runs a cursor instruction. Cursor-FOR re-enters r.Block.
 	Cursor(r *PLRun, f *PLFrame, in PLInstruction) (sqltype.Value, PLFlow, error)
 	// Message runs RAISE or ASSERT.

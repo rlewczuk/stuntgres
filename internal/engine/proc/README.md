@@ -254,6 +254,14 @@ reconstructs lexical query/target accounting, source boundaries and target
 legality; a suffix INTO has no post-target SQL span to visit. Nonempty spans
 still use the strict bounded-token visitor. No capture evaluator or runtime
 shape is persisted.
+Static command/PERFORM/CALL instructions share ordinary SQL syntax, but retain
+distinct checked result policies. Validation checks exact raw/checked association
+and the parser-owned static-category/source admission, as well as variant
+exclusions, original spans and the diagnostic-datum ledger, including unreachable
+SQL and CALL actuals. Agreement between raw and checked pointers alone cannot
+admit a replacement query. No selected procedure, output association,
+frame or executable graph enters these immutable recipes. `PLHost.Command`
+owns reached binding, execution, discard/destination checks and CALL copyback.
 Checked ordered branches cache syntax queries, never bound
 evaluators. Simple CASE search slots are separate invocation-private Value/Usage
 pairs, not declarations, formals or persisted type dependencies. Their canonical

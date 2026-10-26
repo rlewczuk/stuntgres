@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -18,6 +19,12 @@ func ScopeEnlistForeign(x *StatementScope, ctx context.Context, wrapper catalog.
 func ScopeForeignTablesOrZero(x *StatementScope) foreignTableScope {
 	return x.foreignTablesOrZero()
 }
+
+// ForeignTableScopeOwner returns x.owner.
+func ForeignTableScopeOwner(x foreignTableScope) *exec.ForeignScanOwner { return x.owner }
+
+// SetForeignTableScopeOwner sets x.owner.
+func SetForeignTableScopeOwner(x *foreignTableScope, v *exec.ForeignScanOwner) { x.owner = v }
 
 // ForeignTableScopeCursor returns x.cursor.
 func ForeignTableScopeCursor(x foreignTableScope) *sqlCursor { return x.cursor }
