@@ -125,6 +125,19 @@ type concurrentIndexWorker struct {
 
 func ConcurrentIndexStart(t *testing.T, p *Pair, c *sql.Conn, q string, held bool) *concurrentIndexWorker {
 	t.Helper()
+	return concurrentIndexStart(t, p, c, q, held, "")
+}
+
+// ConcurrentIndexStartTimed starts q as a held statement like
+// ConcurrentIndexStart. A nonempty arm (a timer SET) runs on c after Prepare
+// and the catalog check, so only the held execution runs under the timer.
+func ConcurrentIndexStartTimed(t *testing.T, p *Pair, c *sql.Conn, q, arm string) *concurrentIndexWorker {
+	t.Helper()
+	return concurrentIndexStart(t, p, c, q, true, arm)
+}
+
+func concurrentIndexStart(t *testing.T, p *Pair, c *sql.Conn, q string, held bool, arm string) *concurrentIndexWorker {
+	t.Helper()
 	ctx, cancel := context.WithCancel(p.Ctx)
 	var stmt *sql.Stmt
 	if held {
@@ -142,6 +155,9 @@ func ConcurrentIndexStart(t *testing.T, p *Pair, c *sql.Conn, q string, held boo
 				break
 			}
 		}
+	}
+	if arm != "" {
+		RunStep(t, ctx, c, &Recorder{}, Exec(arm, 0))
 	}
 	w := &concurrentIndexWorker{make(chan error, 1), cancel}
 	go func() {

@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -31,15 +32,22 @@ func TestReferenceConcurrentIndexCancellation(t *testing.T) {
 						fixture.ConcurrentIndexExec(t, p, b, a, "BEGIN ISOLATION LEVEL REPEATABLE READ", 0)
 						fixture.ConcurrentIndexRows(t, p, b, a, "SELECT n FROM u ORDER BY n", 9)
 					}
+					// Only the held execution runs under the timer. A 100 ms timer
+					// leaves no room for an observer: the exact 57014 and the index
+					// state below prove the wait, and the cancel variant keeps the
+					// strict admission observer.
+					arm := ""
 					if timeout {
-						fixture.ConcurrentIndexExec(t, p, b, builder, "SET statement_timeout='2000ms'", 0)
+						arm = "SET statement_timeout='100ms'"
 					}
-					w := fixture.ConcurrentIndexStart(t, p, builder, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t(n)", true)
-					if phase == "before" {
+					w := fixture.ConcurrentIndexStartTimed(t, p, builder, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t(n)", arm)
+					switch {
+					case timeout:
+					case phase == "before":
 						if b.PG {
 							fixture.LockWaitBehind(t, p.Ctx, bp, ap, fixture.LockOID(t, p.Ctx, "t"), "ShareUpdateExclusiveLock")
 						}
-					} else {
+					default:
 						state := stuntgres.IndexState{Live: true}
 						wait := "waiting for writers before build"
 						if phase == "snapshot" {
@@ -97,8 +105,18 @@ func TestReferenceConcurrentIndexCancellation(t *testing.T) {
 					if phase != "first" {
 						fixture.ConcurrentIndexExec(t, p, b, a, "ROLLBACK", 0)
 					}
-					fixture.ConcurrentIndexExec(t, p, b, builder, "SET statement_timeout=0", 0)
-					fixture.ConcurrentIndexExec(t, p, b, builder, "CREATE INDEX CONCURRENTLY ui ON t(n)", 0)
+					final := builder
+					if timeout {
+						// The armed timer also bounds the SET that would disarm it,
+						// so the armed builder is discarded instead of reset.
+						if err := builder.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
+							t.Fatal("discarding timer-armed builder", err)
+						}
+						final = c
+					} else {
+						fixture.ConcurrentIndexExec(t, p, b, builder, "SET statement_timeout=0", 0)
+					}
+					fixture.ConcurrentIndexExec(t, p, b, final, "CREATE INDEX CONCURRENTLY ui ON t(n)", 0)
 				})
 			})
 		}
@@ -109,7 +127,7 @@ func TestReferenceConcurrentIndexCancellation(t *testing.T) {
 			fixture.ConcurrentIndexExec(t, p, b, c, "CREATE TABLE t(n INTEGER)", 0)
 			fixture.ConcurrentIndexExec(t, p, b, a, "BEGIN", 0)
 			fixture.ConcurrentIndexExec(t, p, b, a, "LOCK TABLE t IN SHARE MODE", 0)
-			fixture.ConcurrentIndexExec(t, p, b, c, "SET lock_timeout='100ms'", 0)
+			fixture.ConcurrentIndexExec(t, p, b, c, "SET lock_timeout='10ms'", 0)
 			fixture.ConcurrentIndexError(t, p, b, c, "CREATE INDEX CONCURRENTLY ix ON t(n)", fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout"))
 			if _, found := fixture.ConcurrentIndexState(t, p, b, "ix"); found {
 				t.Fatal("lock-timeout index exists")
@@ -131,7 +149,7 @@ func TestReferenceConcurrentIndexSerialization(t *testing.T) {
 		fixture.ConcurrentIndexRows(t, p, b, a, "SELECT n FROM u ORDER BY n")
 		w := fixture.ConcurrentIndexStart(t, p, builder, "CREATE INDEX CONCURRENTLY ix ON t(n)", false)
 		fixture.ConcurrentIndexWait(t, p, b, "ix", stuntgres.IndexState{Ready: true, Live: true}, bp, ap, "waiting for old snapshots")
-		fixture.ConcurrentIndexExec(t, p, b, c, "SET lock_timeout='100ms'", 0)
+		fixture.ConcurrentIndexExec(t, p, b, c, "SET lock_timeout='10ms'", 0)
 		want := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
 		fixture.ConcurrentIndexError(t, p, b, c, "CREATE INDEX CONCURRENTLY iy ON t(n)", want)
 		if _, found := fixture.ConcurrentIndexState(t, p, b, "iy"); found {

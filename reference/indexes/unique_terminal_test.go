@@ -1,6 +1,8 @@
 package reference_test
 
 import (
+	"database/sql/driver"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -28,30 +30,7 @@ func uniqueReferenceStatementTimeout(t *testing.T, standalone bool) {
 					uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", "CREATE TABLE t(k INT)", "CREATE UNIQUE INDEX u ON t(k)")
 					run(fixture.Exec("BEGIN", 0))
 					run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
-					var ap, bp int
-					if b.PG {
-						if err := a.QueryRowContext(p.Ctx, "SELECT pg_backend_pid()").Scan(&ap); err != nil {
-							t.Fatal(err)
-						}
-						if err := peer.QueryRowContext(p.Ctx, "SELECT pg_backend_pid()").Scan(&bp); err != nil {
-							t.Fatal(err)
-						}
-					}
-					fixture.LockExec(t, p.Ctx, peer, "SET statement_timeout='500ms'", 0)
-					done := fixture.RowAsync(t, p.Ctx, peer, "INSERT INTO t VALUES(1)", prepared, false)
-					if b.PG {
-						fixture.RowWait(t, p.Ctx, bp, ap)
-					}
-					outcome := fixture.LockResult(t, done)
-					want := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to statement timeout")
-					if b.PG {
-						want.Context = `while inserting index tuple (0,2) in relation "u"`
-					}
-					fixture.AssertDiagnostic(t, outcome.Err, &want)
-					if outcome.Result != nil {
-						t.Fatal("failed INSERT returned a result", outcome.Result)
-					}
-					fixture.LockExec(t, p.Ctx, peer, "RESET statement_timeout", 0)
+					uniqueReferenceTimedInsert(t, p, b, prepared)
 					fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Exec("INSERT INTO t VALUES(9)", 1))
 					run(fixture.Exec("ROLLBACK", 0))
 					fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT k FROM t ORDER BY k", []string{"k"}, []string{"INT4"}, [][]any{{int64(9)}}))
@@ -61,6 +40,44 @@ func uniqueReferenceStatementTimeout(t *testing.T, standalone bool) {
 				})
 			}
 		})
+	}
+}
+
+// uniqueReferenceTimedInsert times out a same-key INSERT behind the caller's
+// uncommitted key on a dedicated worker. The held statement is prepared before
+// the 100 ms timer is armed, so only its execution is timed; the exact
+// diagnostic (in PostgreSQL with the index-tuple Context) proves the wait. The
+// armed timer also bounds the SET that would disarm it, so the worker is
+// discarded instead of reset.
+func uniqueReferenceTimedInsert(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
+	t.Helper()
+	const query = "INSERT INTO t VALUES(1)"
+	worker, err := b.DB.Conn(p.Ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	var x fixture.Executor = worker
+	if prepared {
+		stmt, err := worker.PrepareContext(p.Ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stmt.Close()
+		x = fixture.HeldStatement{Executor: worker, Statement: stmt, SQL: query}
+	}
+	fixture.LockExec(t, p.Ctx, worker, "SET statement_timeout='100ms'", 0)
+	outcome := fixture.RowExecute(p.Ctx, x, query, false)
+	want := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to statement timeout")
+	if b.PG {
+		want.Context = `while inserting index tuple (0,2) in relation "u"`
+	}
+	fixture.AssertDiagnostic(t, outcome.Err, &want)
+	if outcome.Result != nil {
+		t.Fatal("failed INSERT returned a result")
+	}
+	if err := worker.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
+		t.Fatal("discarding timer-armed worker", err)
 	}
 }
 
