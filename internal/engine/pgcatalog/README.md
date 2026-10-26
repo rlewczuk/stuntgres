@@ -4,7 +4,7 @@ Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
-`constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
+`constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`,
 `character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
@@ -379,6 +379,14 @@ authority, never the recorded `Version`.
   checks on different objects. All six nullable cells use the captured
   `sql_identifier` domain; empty captures are typed and non-nil, and cancellation
   discards the entire prefix.
+- `routine_routine_usage`: distinct direct hard-definition edges from stored SQL
+  bodies and parameter defaults, using the shared procedure dependency walker.
+  Both endpoints must be functions or procedures; pinned callees are excluded.
+  Only referenced-owner enabled-role membership filters disclosure, never caller
+  ownership, EXECUTE or schema USAGE. All six cells use captured `sql_identifier`
+  domains with exact domain usages, current namespaces and OID-suffixed specific
+  names at both ends. Aggregate execution-support captures do not become direct
+  edges; an explicit scalar call to the same support routine remains an edge.
 - `enabled_roles` (16208): the paired catalog/role capture and
   `CurrentPrincipal`; an ordinary actor uses one cancellation-aware inherited
   `RoleClosure` (self, INHERIT paths, implicit database-owner hop), a current
@@ -586,9 +594,9 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
   remain here. Expectations include scalar OUT, canonical VARIADIC, one-based
   dimensions and typed all-IN NULL controls.
 - Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
-- Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets|Collations))'`
+- Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
-- Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets|Collations)'`
+- Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations)'`
 - Schema inquiry units: `RUN='^TestInfoSchemata'`
 - Schema inquiry SQL: `RUN='^TestReferenceInfoSchemata'`
 - Large objects: `RUN='^TestReferenceLargeObject'`

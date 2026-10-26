@@ -2,7 +2,7 @@
 
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `routines`,
-`routine_sequence_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
+`routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_options`, `character_sets`, `collations`, `schemata`, `domains`,
 `domain_constraints` and `sequences`. Grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
@@ -22,6 +22,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Builtin `pg_views`/`pg_tables` definitions: `RUN='^TestReferencePGTableViewsBuiltins$'`
 - Collation inquiry: `RUN='^TestReferenceInfoCollations'`
 - CHECK routine usage: `RUN='^TestReferenceInfoCheckConstraintRoutineUsage'`
+- Routine dependency usage: `RUN='^TestReferenceInfoRoutineRoutineUsage'`
 - Schema inquiry: `RUN='^TestReferenceInfoSchemata'`
 - Foreign-column options: `RUN='^TestReferenceInfoColumnOptions'`
 
@@ -31,6 +32,14 @@ They distinguish routine-owner visibility from table/schema/EXECUTE grants,
 direct edges from called bodies, and individual constraint identity from final
 DISTINCT. Held reads cover catalog and role publication; native retained eager
 rows survive Reset. Companion catalogs carry definition and validation facts.
+
+Routine dependency scenarios assert exact six-column direct function/procedure
+pairs from stored bodies and defaults, with both endpoints' specific identities.
+Quoted and PL body text, pinned callees and aggregate execution-support captures
+do not invent rows. Referenced-owner enabled roles alone govern disclosure.
+Direct, fresh-prepared and held reads cover lifecycle and role publication;
+native controls retain old rows and use a separate recorded destination pool
+for independent-driver Restore assertions.
 
 Collation inquiry asserts the exact four-column projection, domain/base
 relationships and encoding applicability through existing catalogs. Shared

@@ -11,6 +11,14 @@ NULL, ordinary readers are denied even for empty-demand queries, and public
 role views remain masked. Shared credentials survive native controls without
 entering SQL dumps.
 
+information_schema.routine_routine_usage now exposes distinct direct routine
+dependencies from stored SQL bodies and parameter defaults through six nullable
+sql_identifier columns. Both endpoints retain current specific identities;
+referenced-owner enabled roles control disclosure independently of caller access.
+Metadata refreshes across held queries, routine lifecycle changes and native
+Dump/Reset/Restore, without inferring dependencies from quoted or PL body text
+or flattening aggregate execution-support captures into direct routine edges.
+
 `pg_settings` has focused coverage for all 17 metadata fields, including
 descriptions, typed enum arrays and empty results. Session defaults, SET/RESET
 provenance, held readers and independent read/SET authority are checked without

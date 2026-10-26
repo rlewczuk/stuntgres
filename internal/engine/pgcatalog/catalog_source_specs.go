@@ -756,6 +756,14 @@ var Specs = [...]Spec{
 		{"sequence_schema", 13248, true, 950, 0, -1},
 		{"sequence_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing routine sequence identifier domain"},
+	{InfoRoutineRoutineUsageOID, 13229, "routine_routine_usage", []ColumnSpec{
+		{"specific_catalog", 13248, true, 950, 0, -1},
+		{"specific_schema", 13248, true, 950, 0, -1},
+		{"specific_name", 13248, true, 950, 0, -1},
+		{"routine_catalog", 13248, true, 950, 0, -1},
+		{"routine_schema", 13248, true, 950, 0, -1},
+		{"routine_name", 13248, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing routine routine identifier domain"},
 	{InfoCharacterSetsOID, 13229, "character_sets", []ColumnSpec{
 		{"character_set_catalog", 13248, true, 950, 0, -1},
 		{"character_set_schema", 13248, true, 950, 0, -1},
