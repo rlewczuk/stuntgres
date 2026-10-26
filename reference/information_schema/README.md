@@ -2,10 +2,10 @@
 
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `triggers`, `routines`, `parameters`,
-`routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
+`routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`,
 `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
-`domain_constraints`, `referential_constraints`, `table_constraints` and `sequences`. Grant, key, constraint and SQL metadata
+`domain_constraints`, `referential_constraints`, `table_constraints` and `sequences`. Other grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
 
@@ -31,6 +31,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Builtin `pg_views`/`pg_tables` definitions: `RUN='^TestReferencePGTableViewsBuiltins$'`
 - Collation inquiry: `RUN='^TestReferenceInfoCollations'`
 - CHECK routine usage: `RUN='^TestReferenceInfoCheckConstraintRoutineUsage'`
+- CHECK definitions: `RUN='^TestReferenceInfoCheckConstraints'`
 - Routine dependency usage: `RUN='^TestReferenceInfoRoutineRoutineUsage'`
 - Schema inquiry: `RUN='^TestReferenceInfoSchemata'`
 - Table constraints: `RUN='^TestReferenceInfoTableConstraints'`
@@ -128,6 +129,16 @@ Constraint/table rename, schema/owner changes and transactional rename rollback
 refresh held readers. Native control phases preserve eager rows and logical
 metadata across Reset and same-engine or independent-driver Dump/Restore.
 
+### Check constraints
+
+CHECK-definition scenarios prescribe the exact nullable four-column projection
+and logical identifier/character-data domains. They preserve duplicate tuple
+multiplicity across actual table/domain CHECK and NOT NULL definitions, use only
+enabled owner authority, and distinguish a NULL-valued CHECK expression from a
+SQL-NULL result. Direct, fresh and held consumers cover definition, privilege,
+presentation and table/domain transaction rollback; companion catalogs witness
+identities, validation and routine dependencies. Native control phases assert
+detached rows/types, fresh-target restore and failed replacement atomicity.
 
 ### Domain constraints
 

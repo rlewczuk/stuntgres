@@ -22,6 +22,17 @@ func (r EngineCatalogRuntime) ColumnExpression(ctx context.Context, capture cata
 	return renderer.SQL(ctx, expression, stored.DeparseParent{})
 }
 
+func (r EngineCatalogRuntime) DomainExpression(ctx context.Context, capture catalog.Read, domain *catalog.Type, expression expr.Expr) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if capture != r.Auth.Catalog || domain == nil || !domain.SQLType.IsDomain() || capture.Get(domain.Address()) != domain {
+		return "", ids.ErrCatalogReplaced
+	}
+	renderer := stored.Deparser{View: capture, Path: r.presentation.Path, Output: r.presentation.Output, NonstandardStrings: r.presentation.NonstandardStrings}
+	return renderer.SQL(ctx, expression, stored.DeparseParent{})
+}
+
 func (r EngineCatalogRuntime) ColumnUpdatable(ctx context.Context, capture catalog.Read, relation *catalog.Relation, attribute int32) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err

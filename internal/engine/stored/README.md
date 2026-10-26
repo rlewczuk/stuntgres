@@ -302,6 +302,9 @@ host methods.
   (`constraint_sql.go`) and `DeparseAttribute`. `ScalarRenderer`
   (`scalar_*.go`): stored scalar SQL for defaults, checks and dumps, recording
   the references it prints (`DefaultSQL`, `RenderColumnDefault`).
+  Scalar-array presentation exposes selected-operator input casts; homogeneous
+  implicit IN-item conversions render around their common-type array, without
+  changing the executable items or the scalar replay path.
   `QueryRenderer` and `Presentation` (`view_deparse*.go`,
   `view_render_sources.go`, `sqljson_deparse.go`): whole queries,
   `View.SelectSQL`, `ViewDefinitionSQL` (`pg_get_viewdef`) and `PolicySQL`.

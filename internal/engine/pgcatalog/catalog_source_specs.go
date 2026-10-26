@@ -886,6 +886,12 @@ var Specs = [...]Spec{
 		{"specific_schema", 13248, true, 950, 0, -1},
 		{"specific_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing check constraint routine usage domain"},
+	{InfoCheckConstraintsOID, 13229, "check_constraints", []ColumnSpec{
+		{"constraint_catalog", 13248, true, 950, 0, -1},
+		{"constraint_schema", 13248, true, 950, 0, -1},
+		{"constraint_name", 13248, true, 950, 0, -1},
+		{"check_clause", 13246, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing check constraints domain"},
 	{InfoDomainConstraintsOID, 13229, "domain_constraints", []ColumnSpec{
 		{"constraint_catalog", 13248, true, 950, 0, -1},
 		{"constraint_schema", 13248, true, 950, 0, -1},

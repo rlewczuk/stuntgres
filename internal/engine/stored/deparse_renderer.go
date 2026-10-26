@@ -639,7 +639,13 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		}
 		return renderRowComparison(n, child, spelling)
 	case plan.ScalarArrayComparisonExpr:
-		return renderScalarArrayComparison(n, child, r.Identifier)
+		operandRenderer := r
+		operandRenderer.ShowImplicit = true
+		return renderScalarArrayComparison(n, func(node expr.Expr) (string, error) {
+			return operandRenderer.SQL(ctx, node, DeparseParent{})
+		}, r.Identifier, func(items []expr.Expr) (string, error) {
+			return r.scalarArrayItems(ctx, items)
+		})
 	case plan.UnnestExpr:
 		if n.Procedure == nil {
 			spec, err := n.Render()
@@ -982,7 +988,7 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 	}
 }
 
-func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
+func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(expr.Expr) (string, error), identifier func(string) string, itemsSQL func([]expr.Expr) (string, error)) (string, error) {
 	left, err := child(n.Left)
 	if err != nil {
 		return "", err
@@ -990,6 +996,11 @@ func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(ex
 	var right string
 	if n.Array != nil {
 		right, err = child(n.Array)
+		if err != nil {
+			return "", err
+		}
+	} else if itemsSQL != nil && !n.Left.ResultUsage().Type.IsCube() {
+		right, err = itemsSQL(n.Items)
 		if err != nil {
 			return "", err
 		}

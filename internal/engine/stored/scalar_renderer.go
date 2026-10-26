@@ -607,7 +607,7 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		if err != nil || !predicate.Equal(n.Predicate) {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate binding")
 		}
-		return renderScalarArrayComparison(n, func(child expr.Expr) (string, error) { return r.SQL(ctx, view, child) }, catalog.QuoteIdentifier)
+		return renderScalarArrayComparison(n, func(child expr.Expr) (string, error) { return r.SQL(ctx, view, child) }, catalog.QuoteIdentifier, nil)
 	case plan.ComparisonExpr:
 		if u.Type.ID() != sqltype.Bool || n.Left == nil || n.Right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")
