@@ -20,7 +20,7 @@ import this package directly.
   `SessionDefaultProvider`. Validation errors use the same `"stuntgres: "`
   prefix as the engine's `RegistrationError`, which stays in the engine
   because foreign-data registration shares it.
-- **Builtins** (`builtins.go`, `messages.go`, `format_encoding.go`): the
+- **Builtins** (`builtins.go`, `developer.go`, `messages.go`, `format_encoding.go`): the
   private builtin table in PostgreSQL 18 English `short_desc` wording, the
   `application_name`, `client_min_messages` (`ClientMinMessages`),
   encoding, locale and `icu_validation_level` normalizers. `MessageLevelRank`
@@ -54,6 +54,32 @@ import this package directly.
 - **Stable output.** Builtin order, boot values and descriptions, validation
   messages, SQLSTATEs, hints and unit conversions are compatibility
   contracts; `SHOW ALL` and the reference suite observe them.
+
+## Developer settings
+
+`developer.go` registers the 24 Developer Options available in the pinned
+PostgreSQL release build. The eleven compile-conditional debug names absent
+from that build remain unknown parameters, including for privileged readers.
+All available rows have unrestricted reads and exact typed boot/reset metadata;
+`debug_discard_caches` has the release-build domain 0..0.
+
+These are setting-only simulations. They do not enable system-table bypass,
+physical tablespaces, WAL checking/recovery, direct I/O, cache eviction, JIT,
+parallel workers, debugger hooks, tracing, signals or authentication delays.
+Logical constraints, ACLs and query behavior remain active.
+
+Backtrace strings use the ASCII character whitelist without identifier lookup.
+WAL lists validate mask-capable builtin resource managers with identifier-list
+syntax; direct-I/O lists use non-folding/non-truncating GUC-list syntax.
+All preserve accepted input spelling. Only WAL and direct-I/O settings flatten
+multiple SET arguments; backtrace takes exactly one argument.
+
+Builtin-only Backend and SuperuserBackend access project `backend` and
+`superuser-backend`; both reject live mutation before parsing or authority.
+Trusted session-default capture may assign these once, without implementing
+client startup authentication. StartupOnly and Sighup still accept only their
+normalized initial values from providers. Developer superuser settings use
+effective parameter SET authority; grants never unlock immutable contexts.
 
 ## Simulated file-location defaults
 
@@ -256,6 +282,7 @@ make check RUN='^Test(ParseAndFormatTypedInput|EncodingLocaleAndLevelNormalizers
 make check RUN='^Test(ClientSettings(BootAndStartup|KeywordLists|ProviderCapture)|ClientCatalogNameNormalization|ClientPrivilegedResetAll|Settings(XMLOption|ClientListFlattening)|SettingAccessAllowedCallback)$$'
 make check RUN='^TestCompatible(Settings(Definitions|ProviderCapture|ResetAll)|BackslashQuoteNormalization)$$'
 make check RUN='^TestConnectionSettings'
+make check RUN='^TestDeveloperSettings'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in

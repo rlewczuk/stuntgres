@@ -1240,6 +1240,7 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{3278, ids.PGCatalogNamespaceOID, "array_position", "5078,5077,23"}, catalog.FunctionRoutine, 23, false, expr.Immutable, 's', false, 0, 0, functions.ArrayRoutineProvider},
 	{catalog.RoutineIdentity{3279, ids.PGCatalogNamespaceOID, "array_positions", "5078,5077"}, catalog.FunctionRoutine, 1007, false, expr.Immutable, 's', false, 0, 0, functions.ArrayRoutineProvider},
 	{catalog.RoutineIdentity{3281, ids.PGCatalogNamespaceOID, "scale", "1700"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.MathRoutineProvider},
+	{catalog.RoutineIdentity{3294, ids.PGCatalogNamespaceOID, "current_setting", "25,16"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.SettingRoutineProvider},
 	{catalog.RoutineIdentity{3298, ids.PGCatalogNamespaceOID, "row_security_active", "26"}, catalog.FunctionRoutine, 16, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{3299, ids.PGCatalogNamespaceOID, "row_security_active", "25"}, catalog.FunctionRoutine, 16, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{3304, ids.PGCatalogNamespaceOID, "jsonb_delete_path", "3802,1009"}, catalog.FunctionRoutine, 3802, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

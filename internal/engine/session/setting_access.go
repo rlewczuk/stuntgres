@@ -12,6 +12,8 @@ import (
 // allowed reports current operation authority for explicitly eligible builtins.
 func SettingAccess(d settings.Definition, allowed func(name string) (bool, error)) error {
 	switch d.Access {
+	case settings.Backend, settings.SuperuserBackend:
+		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be set after connection start`, d.Name))
 	case settings.Sighup:
 		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed now`, d.Name))
 	case settings.StartupOnly:
@@ -38,6 +40,8 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 func parameterGrantSetting(name string) bool {
 	switch name {
 	case "lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role", "lo_compat_privileges":
+		return true
+	case "allow_in_place_tablespaces", "allow_system_table_mods", "backtrace_functions", "debug_discard_caches", "ignore_checksum_failure", "jit_dump_bitcode", "wal_consistency_checking", "zero_damaged_pages":
 		return true
 	}
 	return false

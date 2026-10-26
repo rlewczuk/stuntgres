@@ -128,19 +128,21 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 			}
 		}
 		for name := range restrictedNames {
-			value, err := store.CurrentSettingLocked(t.Context(), registry, text, sqltype.String(text, name), allowed)
-			if allowed {
-				if err != nil {
-					t.Fatal(err)
-				}
-				if got, err := value.Text(); err != nil || got != store.Defaults[name] {
-					t.Fatal(name, got, err)
-				}
-			} else {
-				want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: `permission denied to examine "` + name + `"`, Detail: `Only roles with privileges of the "pg_read_all_settings" role may examine this parameter.`}
-				var got *sqlstate.Error
-				if !errors.As(err, &got) || *got != *want {
-					t.Fatal(tc.role, name, err)
+			for _, missingOK := range []bool{false, true} {
+				value, err := store.CurrentSettingLocked(t.Context(), registry, text, sqltype.String(text, name), missingOK, allowed)
+				if allowed {
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got, err := value.Text(); err != nil || got != store.Defaults[name] {
+						t.Fatal(name, got, err)
+					}
+				} else {
+					want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: `permission denied to examine "` + name + `"`, Detail: `Only roles with privileges of the "pg_read_all_settings" role may examine this parameter.`}
+					var got *sqlstate.Error
+					if !errors.As(err, &got) || *got != *want {
+						t.Fatal(tc.role, name, err)
+					}
 				}
 			}
 		}
@@ -168,7 +170,13 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 	if rows, err := store.ShowAllRowsLocked(ctx, registry, text, false); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled filtered registry", rows, err)
 	}
-	if value, err := store.CurrentSettingLocked(t.Context(), registry, text, sqltype.Null(text), false); err != nil || !value.IsNull() {
+	if value, err := store.CurrentSettingLocked(t.Context(), registry, text, sqltype.Null(text), false, false); err != nil || !value.IsNull() {
 		t.Fatal("NULL current_setting changed", value, err)
+	}
+	if value, err := store.CurrentSettingLocked(t.Context(), registry, text, sqltype.String(text, "debug_deadlocks"), true, false); err != nil || !value.IsNull() {
+		t.Fatal("missing_ok did not return typed NULL", value, err)
+	}
+	if _, err := store.CurrentSettingLocked(ctx, registry, text, sqltype.String(text, "debug_deadlocks"), true, false); !errors.Is(err, context.Canceled) {
+		t.Fatal("missing_ok lost cancellation", err)
 	}
 }

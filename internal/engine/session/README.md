@@ -95,8 +95,11 @@ implement its slots, so either import would form a cycle.
   deny-only. Restricted reads remain independent of parameter SET grants.
   `lo_compat_privileges` uses the same SET authority and unrestricted reads.
   Builtin-only Sighup refuses live mutation before parsing or ACL callbacks;
-  providers may capture only its normalized initial value. RESET ALL skips
-  Sighup along with startup-only settings.
+  providers may capture only its normalized initial value. Backend and
+  SuperuserBackend likewise refuse all live writes, but the trusted native
+  provider may capture changed typed defaults once at physical startup.
+  This does not authenticate client startup options or sleep for delay values.
+  RESET ALL skips every immutable context regardless of parameter grants.
   SET list flattening distinguishes raw keyword lists from quote-reconstructed
   tablespace/preload lists. Catalog-dependent client setting checks run in the
   root before the atomic install window, not under session locks. Simulated
@@ -104,7 +107,7 @@ implement its slots, so either import would form a cycle.
   RESET ALL resets previously assigned eligible privileged builtins without
   rechecking SET grants (including after revoke); individual RESET still
   checks current SET authority. The same setting action stack makes that reset
-  transactional. Startup and deny-only definitions remain excluded.
+  transactional. Immutable and deny-only definitions remain excluded.
 - **Statement classification** (pure functions of the AST and owner values):
   command tags (`command_tag.go`); admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,

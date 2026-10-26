@@ -481,6 +481,13 @@ to it, and descriptor validation and grant-name canonicalization use the same
 registry. Notice levels, physical-session values, the settings journal and
 timeout publication belong to [`session`](../session/README.md).
 
+Standalone `current_setting(text)` and `current_setting(text,boolean)` share
+the typed setting-call binder, coherent session lookup and routine EXECUTE
+admission. Each overload has its own builtin identity and ACL. Both are strict:
+a NULL name or optional Boolean returns typed TEXT NULL without invocation.
+The optional true flag returns NULL only for unknown names; it does not bypass
+restricted-read authority. Generic expression-provider boundaries are unchanged.
+
 ## System catalog producer contract
 
 Producers, the OID registry and descriptor specs live in

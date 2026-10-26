@@ -8,9 +8,10 @@ import (
 )
 
 // CurrentSettingLocked decodes the evaluated current_setting argument and
-// returns the effective value, or a null of typ for a null name. Caller
-// holds Settings.Mu; readRestricted is the captured effective-user authority.
-func (s *SettingsStore) CurrentSettingLocked(ctx context.Context, registry settings.Registry, typ *sqltype.Descriptor, arg sqltype.Value, readRestricted bool) (sqltype.Value, error) {
+// returns the effective value, or a null of typ for a null name or an unknown
+// name when missingOK is true. Caller holds Settings.Mu; readRestricted is the
+// captured effective-user authority and is never bypassed by missingOK.
+func (s *SettingsStore) CurrentSettingLocked(ctx context.Context, registry settings.Registry, typ *sqltype.Descriptor, arg sqltype.Value, missingOK, readRestricted bool) (sqltype.Value, error) {
 	output := sqltype.Null(typ)
 	if !arg.IsNull() {
 		name, err := arg.Text()
@@ -19,6 +20,12 @@ func (s *SettingsStore) CurrentSettingLocked(ctx context.Context, registry setti
 		}
 		d, err := s.LookupDefinition(registry, name, false)
 		if err != nil {
+			if missingOK {
+				if err := ctx.Err(); err != nil {
+					return sqltype.Value{}, err
+				}
+				return output, nil
+			}
 			return sqltype.Value{}, err
 		}
 		if err := SettingReadAccess(d, name, readRestricted); err != nil {

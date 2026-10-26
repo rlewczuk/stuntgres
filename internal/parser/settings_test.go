@@ -8,13 +8,13 @@ import (
 )
 
 func TestSettingsGrammar(t *testing.T) {
-	for _, q := range []string{"RESET application_name", "RESET ALL", "SHOW ALL", "SET demo.deep.value TO '3.5'", "SHOW demo.deep.value", "SELECT current_setting($1)", "SELECT current_setting(NULL)", "SELECT set_config($1,$2,$3)"} {
+	for _, q := range []string{"RESET application_name", "RESET ALL", "SHOW ALL", "SET demo.deep.value TO '3.5'", "SHOW demo.deep.value", "SELECT current_setting($1)", "SELECT current_setting(NULL)", "SELECT current_setting('a',true)", "SELECT current_setting($1,$2)", "SELECT current_setting('a',NULL)", "SELECT set_config($1,$2,$3)"} {
 		s, err := Parse(q)
 		if err != nil || len(s) != 1 {
 			t.Errorf("%s: %v %v", q, s, err)
 		}
 	}
-	for _, q := range []string{"SELECT current_setting()", "SELECT current_setting('a',true)", "SELECT set_config('a','b')", "SELECT current_setting(true)"} {
+	for _, q := range []string{"SELECT current_setting()", "SELECT current_setting('a',true,false)", "SELECT set_config('a','b')", "SELECT current_setting(true)"} {
 		_, err := Parse(q)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "unsupported setting function signature" || d.Position != "8" {

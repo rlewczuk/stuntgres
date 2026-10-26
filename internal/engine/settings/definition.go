@@ -33,6 +33,8 @@ const (
 	Privileged
 	StartupOnly
 	Sighup
+	Backend
+	SuperuserBackend
 )
 
 // Unit is the base unit of a numeric setting.

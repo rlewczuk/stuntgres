@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// BindSettingCall binds the arguments of current_setting(text) or
+// BindSettingCall binds current_setting(text [, bool]) or
 // set_config(text, text, bool): builtin visibility first, then each argument
 // in assignment context to its fixed formal, then the routine identity.
 func BindSettingCall(b Binder, function string, name parser.ObjectName, args []parser.Expr) ([]expr.Expr, ids.ObjectRef, error) {
@@ -21,6 +21,9 @@ func BindSettingCall(b Binder, function string, name parser.ObjectName, args []p
 		return nil, ids.ObjectRef{}, b.CallSignatureError(parser.FunctionExpr{Name: name, Args: args, Pos: name.Parts[0].Pos})
 	}
 	formals := [3]sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Bool}
+	if function == "current_setting" {
+		formals[1] = sqltype.Bool
+	}
 	bound := make([]expr.Expr, len(args))
 	for i, raw := range args {
 		switch raw.(type) {

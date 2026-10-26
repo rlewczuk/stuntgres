@@ -11,10 +11,7 @@ func TestReferenceObjectGrantSettingCallAuthority(t *testing.T) {
 	objectGrantScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		readTarget := "pg_catalog.current_setting(text)"
 		writeTarget := "pg_catalog.set_config(text,text,boolean)"
-		targets := []string{readTarget, writeTarget}
-		if b.PG {
-			targets = append(targets, "pg_catalog.current_setting(text,boolean)")
-		}
+		targets := []string{readTarget, writeTarget, "pg_catalog.current_setting(text,boolean)"}
 		// Builtin ACLs survive PostgreSQL's public-schema reset. Register this
 		// before any mutation, including failures while preparing a held reader.
 		defer objectGrantRoutineCleanup(t, p, c, targets)
@@ -51,14 +48,9 @@ func TestReferenceObjectGrantSettingCallAuthority(t *testing.T) {
 			return s
 		}
 
-		// REL_18_0 pg_proc.dat gives both current_setting signatures the
-		// pg_proc.h strict=true default. set_config explicitly overrides it to
-		// false. Native projects proisstrict for its two genuine declarations;
-		// the unavailable two-IN sibling has no native pg_proc row.
-		strictness := [][]any{{true}, {false}}
-		if b.PG {
-			strictness = append(strictness, []any{true})
-		}
+		// Both released current_setting overloads are strict; set_config is
+		// nonstrict. Each overload owns its independent routine ACL.
+		strictness := [][]any{{true}, {false}, {true}}
 		run(fixture.Select("SELECT proisstrict FROM pg_proc WHERE oid IN (2077,2078,3294) ORDER BY oid",
 			[]string{"proisstrict"}, []string{"BOOL"}, strictness))
 		run(fixture.Exec("SET application_name='og_setting_public'", 0))
@@ -107,7 +99,6 @@ func TestReferenceObjectGrantSettingCallAuthority(t *testing.T) {
 				run(s)
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 				// The released sibling has its own ACL and true strictness.
-				// Native's existing unavailable signature remains explicit.
 				for _, tc := range []struct {
 					q    string
 					want any
@@ -117,13 +108,6 @@ func TestReferenceObjectGrantSettingCallAuthority(t *testing.T) {
 					{"SELECT current_setting('application_name',NULL)", nil},
 				} {
 					sibling := value(tc.q, "current_setting", tc.want)
-					if !b.PG {
-						sibling = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: "unsupported setting function signature", Position: "8"})
-						sibling.SelectRows, sibling.ErrorStage = true, "execute"
-						if prepared {
-							sibling.ErrorStage = "prepare"
-						}
-					}
 					run(sibling)
 				}
 			})
@@ -135,6 +119,70 @@ func TestReferenceObjectGrantSettingCallAuthority(t *testing.T) {
 		readPhase(true, "og_setting_granted")
 		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+readTarget+" FROM og_object_reader", 0))
 		readPhase(false, "og_setting_granted")
+		// The optional overload has its own EXECUTE ACL. Strict NULLs bypass
+		// invocation, not a non-NULL missing setting.
+		optionalTarget := "pg_catalog.current_setting(text,boolean)"
+		optionalQuery := "SELECT current_setting($1,$2)"
+		var optionalHeld fixture.HeldStatement
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			stmt, err := c.PrepareContext(p.Ctx, optionalQuery)
+			if err != nil {
+				t.Fatal(err)
+			}
+			optionalHeld = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: optionalQuery}
+		})
+		defer optionalHeld.Statement.Close()
+		optionalRead := func(allowed bool) {
+			step := value(optionalQuery, "current_setting", "og_setting_granted", "application_name", false)
+			if !allowed {
+				step = denied(optionalQuery, "current_setting", "application_name", false)
+			}
+			fixture.RunStep(t, p.Ctx, optionalHeld, b.Recorder, step)
+		}
+		// Warm this exact statement with non-NULL arguments before changing
+		// authority. Strict-NULL checks below use fresh calls, not this plan.
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			for range 6 {
+				optionalRead(true)
+			}
+		})
+		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+optionalTarget+" FROM PUBLIC", 0))
+		for _, allowed := range []bool{false, true, false} {
+			if allowed {
+				run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+optionalTarget+" TO og_object_reader", 0))
+			} else {
+				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+optionalTarget+" FROM og_object_reader", 0))
+			}
+			fixture.RoleGrantActor(run, "og_object_reader", func() {
+				run(value("SELECT current_setting(NULL,true)", "current_setting", nil))
+				run(value("SELECT current_setting('application_name',NULL)", "current_setting", nil))
+				if allowed {
+					run(value("SELECT current_setting('application_name',true)", "current_setting", "og_setting_granted"))
+					run(value("SELECT current_setting('og_missing_setting',true)", "current_setting", nil))
+				} else {
+					run(denied("SELECT current_setting('application_name',true)", "current_setting"))
+					run(denied("SELECT current_setting('og_missing_setting',true)", "current_setting"))
+				}
+				optionalRead(allowed)
+				// Granting the optional overload cannot authorize its sibling.
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, denied(query, "current_setting", "application_name"))
+			})
+			// The same warmed handle must also follow effective SET ROLE,
+			// rather than retain either the preparing or last executing user.
+			optionalRead(true)
+			run(fixture.Exec("SET ROLE og_object_reader", 0))
+			run(fixture.Select("SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{"og_object_reader"}}))
+			optionalRead(allowed)
+			run(fixture.Exec("RESET ROLE", 0))
+			optionalRead(true)
+		}
+		// The inverse grant must likewise leave the optional overload denied.
+		run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+readTarget+" TO og_object_reader", 0))
+		run(fixture.Exec("SET ROLE og_object_reader", 0))
+		fixture.RunStep(t, p.Ctx, held, b.Recorder, value(query, "current_setting", "og_setting_granted", "application_name"))
+		optionalRead(false)
+		run(fixture.Exec("RESET ROLE", 0))
+		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+readTarget+" FROM og_object_reader", 0))
 
 		// set_config is a different, NONSTRICT routine. Even a NULL name
 		// requires EXECUTE; granting it restores the real 22004 body error.

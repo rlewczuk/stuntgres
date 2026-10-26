@@ -2,6 +2,15 @@ Quoted internal `"char"` columns now use ordinary type resolution, distinct from
 SQL `char(n)`, with one-byte input, prepared parameters, empty versus NULL values,
 precise encoding errors and native Dump/Restore round trips.
 
+Developer settings expose the pinned release's 24 available parameters with
+typed metadata, preserved string validation, context-first refusals and current
+parameter SET authority; eleven compile-conditional debug names remain unknown.
+These are settings-only simulations, not physical storage, WAL, recovery, JIT,
+worker, tracing, signal or authentication-delay effects.
+The standalone `current_setting(text,boolean)` overload now supports missing-name
+NULL results and strict NULL arguments through the shared typed settings path,
+with its own routine EXECUTE privilege.
+
 Table queries, writes, commits and index publication no longer scan every
 routine, operator and type in the catalog to find a table's inheritance
 children, partial indexes or unique indexes; they visit relations only.

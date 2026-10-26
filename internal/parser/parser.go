@@ -913,13 +913,13 @@ func settingCall(l sqlLexer, name lexeme, args []Expr) (Statement, bool) {
 		l.(*lexer).failAt("0A000", "functions are unsupported", name.pos.Offset)
 		return nil, false
 	}
-	valid := n == "current_setting" && len(args) == 1 || n == "set_config" && len(args) == 3
+	valid := n == "current_setting" && (len(args) == 1 || len(args) == 2) || n == "set_config" && len(args) == 3
 	for i, raw := range args {
 		switch v := raw.(type) {
 		case ParameterExpr:
 		case TypedLiteralExpr:
 		case LiteralExpr:
-			if v.Value.Kind != NullValue && v.Value.Kind != StringValue && !(i == 2 && v.Value.Kind == BooleanValue) {
+			if v.Value.Kind != NullValue && v.Value.Kind != StringValue && !((i == 2 || n == "current_setting" && i == 1) && v.Value.Kind == BooleanValue) {
 				valid = false
 			}
 		}

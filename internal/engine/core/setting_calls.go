@@ -35,7 +35,7 @@ type settingCallBinding struct {
 
 // The caller holds e.mu over descriptor lookup and binding.
 func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall, input *sqltype.InputEnvironment, op *session.Operation) (settingCallBinding, error) {
-	if !(s.Name == "current_setting" && len(s.Args) == 1 || s.Name == "set_config" && len(s.Args) == 3) {
+	if !(s.Name == "current_setting" && (len(s.Args) == 1 || len(s.Args) == 2) || s.Name == "set_config" && len(s.Args) == 3) {
 		return settingCallBinding{}, SQLError("0A000", "unsupported setting function signature")
 	}
 	binder := NewExpressionBinder(ctx, e, *input, op, nil)
@@ -104,11 +104,16 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}
 	invoke := true
 	if s.Name == "current_setting" {
-		knownNull, err := exec.ExecutionKnownNullArgument(&evaluation, bound[0])
-		if err != nil {
-			return Result{}, err
+		for _, argument := range bound {
+			knownNull, err := exec.ExecutionKnownNullArgument(&evaluation, argument)
+			if err != nil {
+				return Result{}, err
+			}
+			if knownNull {
+				invoke = false
+				break
+			}
 		}
-		invoke = !knownNull
 	}
 	if invoke {
 		if err := exec.AdmitRoutineReference(&evaluation, binding.routine, nil, "function"); err != nil {
@@ -175,7 +180,16 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}
 	var output sqltype.Value
 	if s.Name == "current_setting" {
-		if output, err = owner.CurrentSettingLocked(op.Ctx, e.Settings, typ, inputs[0], readRestricted); err != nil {
+		missingOK := false
+		if len(bound) == 2 && !inputs[1].IsNull() {
+			missingOK, err = inputs[1].Boolean()
+			if err != nil {
+				return Result{}, err
+			}
+		}
+		if len(bound) == 2 && inputs[1].IsNull() {
+			output = sqltype.Null(typ)
+		} else if output, err = owner.CurrentSettingLocked(op.Ctx, e.Settings, typ, inputs[0], missingOK, readRestricted); err != nil {
 			return Result{}, err
 		}
 	} else {

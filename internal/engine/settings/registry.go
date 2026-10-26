@@ -17,11 +17,13 @@ type Registry struct {
 // NewRegistry captures builtin boot values and adds validated registered
 // definitions. track_commit_timestamp boots from trackCommitTimestamps.
 func NewRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
-	r := Registry{definitions: make(map[string]Definition, len(builtins)+len(registered))}
-	for i, list := range [][]Definition{builtins, registered} {
+	r := Registry{definitions: make(map[string]Definition, len(builtins)+len(developerBuiltins)+len(registered))}
+	for i, list := range [][]Definition{builtins, developerBuiltins, registered} {
 		for _, d := range list {
-			if i == 0 {
-				d = builtinMetadata(d)
+			if i < 2 {
+				if i == 0 {
+					d = builtinMetadata(d)
+				}
 				if d.Name == "track_commit_timestamp" && trackCommitTimestamps {
 					d.BootDefault = "on"
 				}
