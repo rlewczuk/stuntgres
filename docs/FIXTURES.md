@@ -40,9 +40,10 @@ if err := stuntgres.Restore(ctx, db, bytes.NewReader(seed.Bytes())); err != nil 
 
 Atomically replaces the catalog with a freshly initialized one: user objects and
 data are removed and the built-in `pg_catalog`, `pg_toast`, `public` and
-`information_schema` namespaces are recreated. Database identity, roles and their
-committed shared comments, live sessions and their settings, existing pools and
-non-reusable counters (such as transaction IDs) are kept.
+`information_schema` namespaces are recreated. Database identity and attachment
+owner/ACL authority, roles and their committed shared comments, live sessions and
+their settings, existing pools and non-reusable counters (such as transaction
+IDs) are kept.
 
 ## Dump
 
@@ -78,18 +79,26 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   metadata during native Restore, including owner-only defaults, named/PUBLIC
   grants, grant options and explicit-empty ACLs. These native metadata comments
   do not apply ACL changes when the SQL stream is replayed on PostgreSQL.
-- Supported SQL routines/procedures/aggregates, retained languages and foreign
-  wrappers/servers preserve raw ACLs, named grantors/grantees, grant options and
-  absent versus explicit-empty/default-equivalent arrays. Definitions and owner
-  moves precede bounded administrative catalog UPDATE repairs; routine locators
-  use destination-resolved qualified regprocedure identities, never allocated
-  source OIDs. Retained language owner changes use named regrole repairs.
+- Supported SQL routines/procedures/aggregates, retained languages, foreign
+  wrappers/servers, schemas, types and retained tablespaces preserve raw ACLs,
+  named grantors/grantees, grant options and absent versus
+  explicit-empty/default-equivalent arrays. Generated type companions retain
+  their own raw ACLs independently of effective type-USAGE delegation.
+  Exact captured schema/tablespace authority is installed before object recipes;
+  type ACLs follow their identity's declaration and precede dependent consumers.
+  Final bounded administrative catalog UPDATE repairs reconcile owner moves.
+  Routine/type locators use destination-resolved qualified
+  regprocedure/regtype identities, never allocated source OIDs. Retained
+  language, namespace and tablespace owner changes use named regrole repairs.
   Provision every named role before Restore. These generated repairs also work
   under administrative PostgreSQL replay; ordinary native UPDATE remains
   unsupported for these catalogs.
   Empty ACL repairs use a fixed lossless empty-ACL constructor rather than an
   ordinary `'{}'::aclitem[]` literal, whose zero-dimensional shape is not valid
   for PostgreSQL privilege checks. Empty remains distinct from absent NULL.
+  Database registrations and destination attachment owners/ACLs are never
+  serialized or changed by Restore/Reset; provision destination authority
+  independently.
 - Custom range declarations include their selected subtype class, collation,
   optional diff and generated multirange name. Restore rebuilds destination-owned
   family descriptors and endpoint values rather than retaining source captures.
@@ -135,8 +144,6 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   normalization outside the catalog lock before publication. Only genuinely
   unsatisfiable endpoint/ordinary capacity constraints reject atomically:
   dangling numeric identities stay fixed and target TEMP objects never move.
-  Explicit unsupported namespace/type ACLs still reject Dump before output;
-  this family delegation does not expand ACL serialization.
 
 ## Restore
 

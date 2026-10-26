@@ -1,6 +1,7 @@
 package rolecmds_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"reflect"
@@ -207,23 +208,30 @@ func TestRoleOwnershipPublicationFinalInstallCancellation(t *testing.T) {
 	}
 }
 
-type ownershipCountingWriter struct{ calls int }
+type ownershipCountingWriter struct {
+	calls  int
+	output bytes.Buffer
+}
 
-func (w *ownershipCountingWriter) Write(p []byte) (int, error) { w.calls++; return len(p), nil }
-func TestRoleOwnershipNamespaceACLPrewriterGuard(t *testing.T) {
-	e, _, _ := ownershipCleanupStage(t)
+func (w *ownershipCountingWriter) Write(p []byte) (int, error) { w.calls++; return w.output.Write(p) }
+func TestRoleOwnershipNamespaceACLDumpSnapshot(t *testing.T) {
+	e, _, original := ownershipCleanupStage(t)
 	state, roles := e.Catalog.State, e.RoleStore.Published
 	writer := &ownershipCountingWriter{}
 	err := engine.Dump(context.Background(), e, writer)
-	if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit namespace ACL" || writer.calls != 0 {
-		t.Fatal("namespace ACL silently lost or writer invoked", err, writer.calls)
-	}
-	var sql interface{ SQLState() string }
-	if errors.As(err, &sql) {
-		t.Fatal("ordinary control error became SQL diagnostic", err)
+	if err != nil || writer.calls == 0 {
+		t.Fatal("namespace ACL not serialized", err, writer.calls)
 	}
 	if e.Catalog.State != state || e.RoleStore.Published != roles {
-		t.Fatal("failed Dump mutated state")
+		t.Fatal("Dump mutated state")
+	}
+	if err := engine.Restore(context.Background(), e, bytes.NewReader(writer.output.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: original.Name()})
+	current := e.Catalog.State.MustNamespace(address)
+	if current.Owner != original.Owner || !reflect.DeepEqual(current.ACL, original.ACL) {
+		t.Fatal("namespace owner/grantor chain changed", current, original)
 	}
 }
 

@@ -52,9 +52,9 @@ these are shared across families:
 - `range_type_*remedy*`, companion ACL, schema retirement, recipe-collision,
   alias-ordering, ownership and generated-cast scenarios cover the full family
   lifecycle. Companion grants reject independently; real type-use checks and
-  internal Effective-right tests prove delegation rather than a fabricated
-  privilege-inquiry builtin. Explicit unsupported ACLs reject Dump before output;
-  baseline family replacement is a separate real roundtrip.
+  privilege inquiries prove range/array/multirange delegation. Explicit range
+  ACLs retain exact grantor/grantee provenance through emitted catalog repairs
+  and native replacement, alongside baseline family roundtrips.
   Alias collision fixtures match both TEMP namespace allocations, assert actual
   object identities and preserve finite bounds and multirange ordering.
   Dangling-numeric witnesses derive their sentinels from the source catalog:

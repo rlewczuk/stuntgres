@@ -18,62 +18,134 @@ import (
 // command cannot reach this literal-only catalog repair capability.
 func restoreObjectACL(e *core.Engine, op *session.Operation, raw *parser.Update) error {
 	repair, ok := control.ParseObjectACLRepair(raw)
-	if !ok { return core.SQLError("0A000", "restore accepts only generated object ACL repairs") }
+	if !ok {
+		return core.SQLError("0A000", "restore accepts only generated object ACL repairs")
+	}
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
-	if err != nil { e.Mu.Unlock(); return err }
+	if err != nil {
+		e.Mu.Unlock()
+		return err
+	}
 	address := ids.ObjectAddress{ClassID: repair.Class}
 	if repair.Class == ids.ProcedureClassID {
 		types, failure := core.CaptureRegtypeInput(auth, op)
-		if failure != nil { e.Mu.Unlock(); return failure }
+		if failure != nil {
+			e.Mu.Unlock()
+			return failure
+		}
 		input, failure := core.CaptureRoutineInput(auth, types)
-		if failure != nil { e.Mu.Unlock(); return failure }
+		if failure != nil {
+			e.Mu.Unlock()
+			return failure
+		}
 		oid, failure := input.ResolveRegprocedure(op.Context(), repair.Identity)
-		if failure != nil { e.Mu.Unlock(); return failure }
+		if failure != nil {
+			e.Mu.Unlock()
+			return failure
+		}
+		address.ObjectID = ids.OID(oid)
+	} else if repair.Class == ids.TypeClassID {
+		input, failure := core.CaptureRegtypeInput(auth, op)
+		if failure != nil {
+			e.Mu.Unlock()
+			return failure
+		}
+		oid, failure := input.ResolveRegtype(op.Context(), repair.Identity)
+		if failure != nil {
+			e.Mu.Unlock()
+			return failure
+		}
 		address.ObjectID = ids.OID(oid)
 	} else {
 		address = auth.Catalog.NameAddress(ids.NameKey{ClassID: repair.Class, Name: repair.Identity})
 	}
 	old := auth.Catalog.Get(address)
-	if old == nil { e.Mu.Unlock(); return fmt.Errorf("stuntgres: missing object ACL repair target") }
+	if old == nil {
+		e.Mu.Unlock()
+		return fmt.Errorf("stuntgres: missing object ACL repair target")
+	}
 	var next catalog.Descriptor
 	var acl *authorization.ACLValue
 	var revision *ids.DefinitionRevision
 	switch d := old.(type) {
 	case *catalog.Procedure:
-		x := *d; next, acl, revision = &x, &x.ACL, &x.ObjectRevision
+		x := *d
+		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
 	case *catalog.Language:
 		x := *d
 		if repair.Owner {
 			oid, failure := (regobj.RoleInput{Roles: auth.Roles}).ResolveRegrole(op.Context(), repair.Text)
-			if failure != nil { e.Mu.Unlock(); return failure }
+			if failure != nil {
+				e.Mu.Unlock()
+				return failure
+			}
 			x.Owner = e.RoleStore.Domain.Principal(uint64(oid))
 		}
 		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
 	case *catalog.ForeignObject:
-		x := *d; next, acl, revision = &x, &x.ACL, &x.ObjectRevision
+		x := *d
+		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
+	case *catalog.Namespace:
+		x := *d
+		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
+	case *catalog.Tablespace:
+		x := *d
+		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
+	case *catalog.Type:
+		x := *d
+		x.ACLSyntheticDefault = false
+		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
 	default:
-		e.Mu.Unlock(); return fmt.Errorf("stuntgres: invalid object ACL repair target")
+		e.Mu.Unlock()
+		return fmt.Errorf("stuntgres: invalid object ACL repair target")
+	}
+	if repair.Owner && repair.Class != ids.LanguageClassID {
+		oid, failure := (regobj.RoleInput{Roles: auth.Roles}).ResolveRegrole(op.Context(), repair.Text)
+		if failure != nil {
+			e.Mu.Unlock()
+			return failure
+		}
+		owner := e.RoleStore.Domain.Principal(uint64(oid))
+		switch x := next.(type) {
+		case *catalog.Namespace:
+			x.Owner = owner
+		case *catalog.Tablespace:
+			x.Owner = owner
+		}
 	}
 	if !repair.Owner {
 		*acl = authorization.ACLValue{Explicit: !repair.Absent}
 		if !repair.Absent {
 			output := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: auth.Roles}
 			acl.Entries, err = regobj.ObjectACL(op.Context(), auth.Catalog, repair.Text, e.CaptureACLItemInput(auth, op), output, access.ClassPrivileges(next))
-			if err != nil { e.Mu.Unlock(); return err }
+			if err != nil {
+				e.Mu.Unlock()
+				return err
+			}
 		}
 	}
-	if err = access.ValidateACL(auth.Roles, next); err != nil { e.Mu.Unlock(); return err }
+	if err = access.ValidateACL(auth.Roles, next); err != nil {
+		e.Mu.Unlock()
+		return err
+	}
 	*revision, err = e.Catalog.RevisionLocked()
-	if err != nil { e.Mu.Unlock(); return err }
+	if err != nil {
+		e.Mu.Unlock()
+		return err
+	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	epoch := auth.Catalog.Epoch()
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	if err = stage.Replace(next); err != nil { return err }
+	if err = stage.Replace(next); err != nil {
+		return err
+	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: epoch})
 	return err
 }

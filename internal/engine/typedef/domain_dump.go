@@ -14,9 +14,6 @@ func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Rea
 	if err := ctx.Err(); err != nil {
 		return dump.Statement{}, err
 	}
-	if !DefaultDomainACL(d) {
-		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
-	}
 	qualified, err := p.TypeDeclaration(view, nil, d.SQLType.Usage())
 	if err != nil {
 		return dump.Statement{}, err

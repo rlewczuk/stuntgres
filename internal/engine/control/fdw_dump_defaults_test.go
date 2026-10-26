@@ -32,6 +32,7 @@ func TestFDWDumpDeferredDefaults(t *testing.T) {
 				source.CatalogView = catalog.NewRead(&owner, source.State)
 				source.OriginalCatalog = source.CatalogView
 				var regclass, boolean, integer *sqltype.Descriptor
+				var types []*sqltype.Descriptor
 				for _, typ := range sqltype.Builtins() {
 					switch typ.ID() {
 					case sqltype.Regclass:
@@ -40,13 +41,19 @@ func TestFDWDumpDeferredDefaults(t *testing.T) {
 						boolean = typ
 					case sqltype.Int4:
 						integer = typ
-					default:
-						continue
 					}
-					declaration := &catalog.Type{SQLType: typ, Comment: catalog.BuiltinTypeComment(typ.ID()), Owner: source.Bootstrap, Array: typ.AssociatedArray()}
-					source.State.SetDescriptor(declaration.Address(), declaration)
-					source.State.BindName(catalog.DescriptorNameKey(declaration), declaration.Address())
+					element := typ
+					if typ.IsArray() {
+						element = typ.Element()
+					}
+					switch element.ID() {
+					case sqltype.Regclass, sqltype.Bool, sqltype.Int4:
+						types = append(types, typ)
+					}
 				}
+				// Keep this a partial catalog, but include the genuine associated
+				// arrays required by each selected scalar's provider contract.
+				catalog.InstallBuiltinTypes(source.State, types, source.Bootstrap)
 				if regclass == nil || boolean == nil || integer == nil {
 					t.Fatal("missing genuine builtin codec")
 				}
@@ -129,5 +136,41 @@ func TestFDWDumpDeferredDefaults(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestFDWDumpTypeAssociations(t *testing.T) {
+	for _, mismatched := range []bool{false, true} {
+		name := "missing-associated-array"
+		if mismatched {
+			name = "mismatched-associated-array"
+		}
+		t.Run(name, func(t *testing.T) {
+			source, _, _, _ := fdwUnitSource()
+			var boolean *sqltype.Descriptor
+			for _, typ := range sqltype.Builtins() {
+				if typ.ID() == sqltype.Bool {
+					boolean = typ
+					break
+				}
+			}
+			if boolean == nil {
+				t.Fatal("missing genuine builtin codec")
+			}
+			catalog.InstallBuiltinTypes(source.State, []*sqltype.Descriptor{boolean}, source.Bootstrap)
+			if mismatched {
+				descriptor, ok := source.CatalogView.Descriptor(fdwUnitAddress(ids.TypeClassID, ids.OID(sqltype.Bool)))
+				if !ok {
+					t.Fatal("missing installed boolean")
+				}
+				// ACLITEM's genuine array exists, but cannot be BOOL's companion.
+				descriptor.(*catalog.Type).Array = sqltype.ACLItemArray
+			}
+			var output bytes.Buffer
+			err := fdwUnitDump(source, &output)
+			if err == nil || err.Error() != "stuntgres: invalid element array association" || output.Len() != 0 {
+				t.Fatalf("invalid builtin association must reject before output: err=%v bytes=%d", err, output.Len())
+			}
+		})
 	}
 }

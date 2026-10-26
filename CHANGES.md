@@ -242,6 +242,14 @@ vectors distinct from NULL. Native logical Dump/Restore preserves these values.
 Catalog routine signatures and index key/class/collation/option vectors use the
 same typed representation.
 
+Database, schema, type and tablespace privilege inquiries support all name/OID
+overloads with nullable BOOL metadata, current ACL authority, comma-list ANY
+and grant options. Type names use regtype resolution and array/range delegation;
+schema inquiries honor predefined data roles and physical-session TEMP rights.
+Native Dump/Restore preserves schema/type/tablespace owners and exact raw ACLs
+with destination-local identities and dependency-ordered ACL replay, without
+replacing database attachment authority.
+
 The `stuntgres` server's command line now uses cobra and viper. Every option
 can also be set with a `STUNTGRES_<OPTION>` environment variable or a
 `--config` YAML/TOML/JSON file (flag, then environment, then file, then default),

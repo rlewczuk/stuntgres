@@ -207,62 +207,6 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 	}
 }
 
-func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
-	e := engine.New()
-	admin, done := enginetest.RoleOperation(t, e, "postgres")
-	defer done()
-	for _, q := range []string{"CREATE USER owner", "CREATE USER reader", "CREATE SCHEMA owned AUTHORIZATION owner CREATE TABLE t(id INT)", "CREATE SCHEMA usable", "CREATE SCHEMA create_only"} {
-		enginetest.RoleExecute(t, e, admin, q)
-	}
-	owner, _ := e.Roles().Lookup("owner")
-	reader, _ := e.Roles().Lookup("reader")
-	enginetest.RoleExecute(t, e, admin, "SET SESSION AUTHORIZATION owner")
-	enginetest.RoleExecute(t, e, admin, "CREATE TABLE owned.u(id INT)")
-	enginetest.RoleExecute(t, e, admin, "INSERT INTO owned.t VALUES(7)")
-	enginetest.RoleError(t, e, admin, "CREATE SCHEMA denied", "42501", "permission denied for database stuntgres", "")
-	enginetest.RoleError(t, e, admin, "ALTER SCHEMA owned RENAME TO renamed", "42501", "permission denied for database stuntgres", "")
-	enginetest.RoleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO owner")
-	enginetest.RoleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
-	bootstrap := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	for _, tc := range []struct {
-		name   string
-		rights authorization.Privileges
-	}{{"usable", authorization.UsagePrivilege}, {"create_only", authorization.CreatePrivilege}} {
-		if err := enginetest.SetObjectACL(e, context.Background(), schemaRef(t, e, tc.name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: tc.rights}}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	enginetest.RoleExecute(t, e, admin, "SET SESSION AUTHORIZATION reader")
-	enginetest.RoleExecute(t, e, admin, "CREATE TABLE create_only.t(id INT)")
-	enginetest.RoleExecute(t, e, admin, "SET search_path TO owned,usable,public")
-	if got := enginetest.Tuples(enginetest.RoleExecute(t, e, admin, "SELECT current_schema")); !reflect.DeepEqual(got, [][]driver.Value{{"usable"}}) {
-		t.Fatal(got)
-	}
-	schemaFail(t, e, admin, "CREATE TABLE no_fallback(id INT)", "42501")
-	enginetest.RoleErrorPosition(t, e, admin, "CREATE TABLE no_fallback(id INT)", "42501", "permission denied for schema usable", "", "14")
-	enginetest.RoleErrorPosition(t, e, admin, "/* é */ CREATE TABLE usable.denied(id INT)", "42501", "permission denied for schema usable", "", "22")
-	enginetest.RoleExecute(t, e, admin, "SET search_path TO ''")
-	enginetest.RoleErrorPosition(t, e, admin, "CREATE TABLE no_destination(id INT)", "3F000", "no schema has been selected to create in", "", "14")
-	enginetest.RoleErrorPosition(t, e, admin, "/* é */ CREATE TABLE no_destination(id INT)", "3F000", "no schema has been selected to create in", "", "22")
-	_, err := e.Describe(admin, enginetest.Statement(t, "SELECT missing FROM owned.t"))
-	enginetest.State(t, err, "42501")
-	_, err = e.Describe(admin, enginetest.Statement(t, "INSERT INTO create_only.t VALUES('invalid')"))
-	enginetest.State(t, err, "42501")
-	enginetest.RoleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
-	table := enginetest.RoleTableRef(t, e, "owned.t")
-	enginetest.RoleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO reader")
-	if e.Catalog.State.MustRelation(table.Address).Owner != owner.Ref {
-		t.Fatal("schema transfer changed table owner")
-	}
-	schemaFail(t, e, admin, "ALTER SCHEMA owned OWNER TO absent", "42704")
-	var out bytes.Buffer
-	if err = engine.Dump(context.Background(), e, &out); err == nil || out.Len() != 0 {
-		t.Fatal("ACL dump wrote output", err, out.String())
-	}
-	enginetest.RoleExecute(t, e, admin, "SET SESSION AUTHORIZATION reader")
-	enginetest.RoleExecute(t, e, admin, "DROP SCHEMA owned CASCADE")
-}
-
 func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	e := engine.New()
 	enginetest.Run(t, e, "CREATE USER schema_owner")

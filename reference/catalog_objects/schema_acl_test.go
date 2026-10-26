@@ -1,54 +1,50 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"fmt"
-	"stuntgres/reference/fixture"
 	"testing"
+
+	"stuntgres/reference/fixture"
 )
 
 func TestReferenceSchemaACLOracle(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"sacl_reader"})
-	p := fixture.NewPair(t)
 	fixture.SchemaReferenceCleanup(t, "sacl_usage", "sacl_create")
-	for _, q := range []string{"CREATE USER sacl_reader", "CREATE SCHEMA sacl_usage", "CREATE SCHEMA sacl_create"} {
-		p.Step(t, fixture.Exec(q, 0))
+	p := fixture.NewScenario(t)
+	for _, backend := range p.Backends() {
+		t.Run(backend.Name, func(t *testing.T) {
+			c, err := backend.DB.Conn(p.Ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			defer c.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
+			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, backend.Recorder, s) }
+			for _, q := range []string{"CREATE USER sacl_reader", "CREATE SCHEMA sacl_usage", "CREATE SCHEMA sacl_create", "GRANT USAGE ON SCHEMA sacl_usage TO sacl_reader", "GRANT CREATE ON SCHEMA sacl_create TO sacl_reader", "SET SESSION AUTHORIZATION sacl_reader"} {
+				run(fixture.Exec(q, 0))
+			}
+			run(fixture.Prepared(fixture.Exec("CREATE TABLE sacl_create.t(id INT)", 0)))
+			denied := fixture.RoleReferenceError("SELECT id FROM sacl_create.t", "42501", "permission denied for schema sacl_create", "", true, "prepare")
+			denied.Diagnostic.Position = "16"
+			run(denied)
+			run(fixture.Exec("SET search_path TO sacl_usage,public", 0))
+			run(fixture.Select("SELECT current_schema", []string{"current_schema"}, []string{"NAME"}, [][]any{{"sacl_usage"}}))
+			for _, prepared := range []bool{false, true} {
+				run(fixture.SchemaReferenceCreationError("CREATE TABLE denied(id INT)", "42501", "permission denied for schema sacl_usage", prepared, "14"))
+				run(fixture.SchemaReferenceCreationError("/* é */ CREATE TABLE sacl_usage.denied(id INT)", "42501", "permission denied for schema sacl_usage", prepared, "22"))
+			}
+		})
 	}
-	oracle, err := p.Postgres.Conn(p.Ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer oracle.Close()
-	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, oracle, p.PostgresRecord, s) }
-	for _, q := range []string{"GRANT USAGE ON SCHEMA sacl_usage TO sacl_reader", "GRANT CREATE ON SCHEMA sacl_create TO sacl_reader", "SET SESSION AUTHORIZATION sacl_reader"} {
-		if _, err = oracle.ExecContext(p.Ctx, q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	defer oracle.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
-	run(fixture.Prepared(fixture.Exec("CREATE TABLE sacl_create.t(id INT)", 0)))
-	denied := fixture.RoleReferenceError("SELECT id FROM sacl_create.t", "42501", "permission denied for schema sacl_create", "", true, "prepare")
-	denied.Diagnostic.Position = "16"
-	run(denied)
-	run(fixture.Exec("SET search_path TO sacl_usage,public", 0))
-	run(fixture.Select("SELECT current_schema", []string{"current_schema"}, []string{"NAME"}, [][]any{{"sacl_usage"}}))
-	for _, prepared := range []bool{false, true} {
-		run(fixture.SchemaReferenceCreationError("CREATE TABLE denied(id INT)", "42501", "permission denied for schema sacl_usage", prepared, "14"))
-		run(fixture.SchemaReferenceCreationError("/* é */ CREATE TABLE sacl_usage.denied(id INT)", "42501", "permission denied for schema sacl_usage", prepared, "22"))
-	}
-	// Native real-ACL counterpart is TestSchemaAuthorizationAndIndependentOwners;
-	// production SQL GRANT is deliberately not implemented by this selected part.
 }
 func TestReferenceSchemaNotices(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := fixture.NewPair(t)
 			fixture.SchemaReferenceCleanup(t, "snotice")
-			for _, postgres := range []bool{false, true} {
-				t.Run(fmt.Sprint(postgres), func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			for _, backend := range p.Backends() {
+				t.Run(backend.Name, func(t *testing.T) {
 					var notices []fixture.Diagnostic
-					_, c, record := fixture.NoticeReferencePool(t, p, postgres, &notices)
+					_, c, record := fixture.NoticeReferencePool(t, p, backend.PG, &notices)
 					run := func(s fixture.Step) { s.Prepared = prepared; fixture.RunStep(t, p.Ctx, c, record, s) }
 					run(fixture.Exec("CREATE SCHEMA snotice CREATE TABLE t(id INT)", 0))
 					run(fixture.Exec("CREATE SCHEMA IF NOT EXISTS snotice", 0))

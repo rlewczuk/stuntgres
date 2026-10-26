@@ -62,17 +62,23 @@ function references once into the destination authority.
   Owner changes follow relabeling, then stable-slot owner metadata. Authentic
   installed routine ACLs use that metadata's named grantor/grantee codec during
   native Restore, preserving absent/explicit-empty ACLs and grant options.
-  Other supported routine, language, wrapper and server raw ACLs use
-  destination-resolved administrative catalog repairs (`object_acl.go`), after
-  definitions, identity moves and owner reconciliation. The role-aware ACLITEM
-  codec preserves grantors/options and NULL versus explicit-empty/default ACLs.
+  Other supported routine, language, wrapper, server, namespace, type and
+  tablespace raw ACLs use destination-resolved administrative catalog repairs
+  (`object_acl.go`). Namespace/tablespace owner and ACL repairs run after schema
+  creation, before dependent definitions. Type ACLs run at their definition or
+  owning-family identity-ready event, before consumers requiring USAGE. Final
+  repairs reconcile exact provenance after later identity and owner operations.
+  Named regrole repairs preserve retained namespace/tablespace owners. Type
+  locators use exact regtype identities, including generated companions. The
+  role-aware ACLITEM codec preserves grantors/options and NULL versus
+  explicit-empty/default-equivalent ACLs without collapsing raw provenance.
   Explicit-empty repairs use the existing lossless
   `pg_catalog.acldefault('c',0)` constructor, with qualified argument types, to
   preserve PostgreSQL's one-dimensional empty ACL representation. Isolated
   admission recognizes only that fixed constant shape, never evaluates arbitrary
   functions, and does not accept zero-dimensional `'{}'` repairs.
   ACL capture shares declaration collection's temporary-namespace exclusion:
-  omitted temporary routines never leave dangling raw-ACL repairs in the stream.
+  omitted temporary objects never leave dangling raw-ACL repairs in the stream.
   Installed extension slots retain their existing metadata path, without
   duplicate raw replay. `object_acl_repair.go` admits only fixed generated shapes;
   ordinary public UPDATE gains no catalog write capability.
@@ -120,10 +126,11 @@ function references once into the destination authority.
 
 ### Ordering and replay rules
 
-- Anything Dump cannot serialize exactly (relation/column/type/namespace ACLs,
-  default privileges, invalid indexes or unsupported loose providers) is
-  rejected before any output, never silently reset. Selected routine, language,
-  wrapper and server ACL rendering is fully preflighted before writer I/O.
+- Anything Dump cannot serialize exactly (relation/column ACLs, default
+  privileges, invalid indexes or unsupported loose providers) is rejected before
+  any output, never silently reset. Supported object ACL rendering and provider
+  validation are fully preflighted before writer I/O. Database registration and
+  destination attachment authority are excluded, not replaced by ACL repairs.
 - **Default deferral** breaks table → routine → table cycles as CREATE TABLE,
   CREATE FUNCTION, then ALTER TABLE SET DEFAULT. Replaying a default definition
   does not evaluate it; staged DML uses ordinary default evaluation.

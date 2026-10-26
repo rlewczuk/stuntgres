@@ -16,7 +16,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
 package.
 
 Namespace controls replay nominal declarations and exercise owner-authorized
-type removal.
+type removal. Schema authorization scenarios share direct/prepared creation and
+lookup diagnostics across backends, including character positions. Schema notice
+scenarios assert complete notice records through the shared notice-enabled pool.
 
 - Expected data comes from released inventories, never from native output:
   `docs/design/pg-operator-pg18-supported.tsv` (shared by

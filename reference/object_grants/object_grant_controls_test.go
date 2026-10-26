@@ -49,22 +49,34 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 					}
 				}
 			}
-			routineRoundTrip:=func(target string){
+			routineRoundTrip := func(target string) {
 				var owner string
-				if err:=c.QueryRowContext(p.Ctx,"SELECT proowner::regrole::text FROM pg_proc WHERE oid=$1::regprocedure",target).Scan(&owner);err!=nil {t.Fatal(err)}
-				check:=func(){
-					run(fixture.Select("SELECT pg_get_acl(1255,oid,0)::text AS acl FROM pg_proc WHERE oid=$1::regprocedure",[]string{"acl"},[]string{"TEXT"},[][]any{{"{"+owner+"=X/"+owner+"}"}},target))
-					run(objectGrantAccessValue("SELECT has_function_privilege('public',$1::text,'EXECUTE') AS v",false,target))
+				if err := c.QueryRowContext(p.Ctx, "SELECT proowner::regrole::text FROM pg_proc WHERE oid=$1::regprocedure", target).Scan(&owner); err != nil {
+					t.Fatal(err)
+				}
+				check := func() {
+					run(fixture.Select("SELECT pg_get_acl(1255,oid,0)::text AS acl FROM pg_proc WHERE oid=$1::regprocedure", []string{"acl"}, []string{"TEXT"}, [][]any{{"{" + owner + "=X/" + owner + "}"}}, target))
+					run(objectGrantAccessValue("SELECT has_function_privilege('public',$1::text,'EXECUTE') AS v", false, target))
 				}
 				check()
-				if b.PG {return}
+				if b.PG {
+					return
+				}
 				var output bytes.Buffer
-				if err:=stuntgres.Dump(p.Ctx,p.Native,&output);err!=nil || output.Len()==0 {t.Fatal("routine ACL Dump must publish exact replayable authority",target,err)}
-				if err:=stuntgres.Reset(p.Ctx,p.Native);err!=nil {t.Fatal(err)}
-				if err:=stuntgres.Restore(p.Ctx,p.Native,bytes.NewReader(output.Bytes()));err!=nil {t.Fatal("routine ACL Restore",target,err)}
+				if err := stuntgres.Dump(p.Ctx, p.Native, &output); err != nil || output.Len() == 0 {
+					t.Fatal("routine ACL Dump must publish exact replayable authority", target, err)
+				}
+				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+					t.Fatal(err)
+				}
+				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(output.Bytes())); err != nil {
+					t.Fatal("routine ACL Restore", target, err)
+				}
 				check()
 				var again bytes.Buffer
-				if err:=stuntgres.Dump(p.Ctx,p.Native,&again);err!=nil || !bytes.Equal(again.Bytes(),output.Bytes()) {t.Fatal("routine raw ACL replay is not canonical",target,err)}
+				if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(again.Bytes(), output.Bytes()) {
+					t.Fatal("routine raw ACL replay is not canonical", target, err)
+				}
 			}
 			for _, tc := range []struct {
 				target, query, typ string
@@ -88,8 +100,8 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 				// convert_to is an ordinary builtin; conversion member routines are
 				// covered independently below, not conflated with SQL conversion.
 				routineRoundTrip(tc.target)
-				run(fixture.Select(tc.query,[]string{"v"},[]string{tc.typ},tc.rows))
-				fixture.RoleGrantActor(run,"og_object_reader",func(){fixture.RoleGrantPermissionDenied(run,tc.query,kind,name)})
+				run(fixture.Select(tc.query, []string{"v"}, []string{tc.typ}, tc.rows))
+				fixture.RoleGrantActor(run, "og_object_reader", func() { fixture.RoleGrantPermissionDenied(run, tc.query, kind, name) })
 				run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+tc.target+" TO PUBLIC", 0))
 				baseline()
 			}
@@ -104,7 +116,7 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 				run(fixture.Exec("CREATE SCHEMA og_control_members AUTHORIZATION og_object_reader", 0))
 				run(fixture.Exec("CREATE EXTENSION "+ext.name+" SCHEMA og_control_members", 0))
 				name := strings.Split(ext.target, "(")[0]
-				target := "og_control_members."+ext.target
+				target := "og_control_members." + ext.target
 				value := fixture.Select(ext.query, []string{"v"}, []string{ext.typ}, ext.rows)
 				owned := fixture.Select("SELECT r.rolname=current_user AS owned FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE n.nspname='og_control_members' AND p.proname=$1", []string{"owned"}, []string{"BOOL"}, ext.owners, name)
 				owned.Bag = true
@@ -112,18 +124,32 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 					run(owned)
 					run(value)
 					fixture.RoleGrantActor(run, "og_object_reader", func() {
-						if allowed { run(value) } else { fixture.RoleGrantPermissionDenied(run, ext.query, "function", name) }
+						if allowed {
+							run(value)
+						} else {
+							fixture.RoleGrantPermissionDenied(run, ext.query, "function", name)
+						}
 					})
 				}
 				roundTrip := func(allowed bool) {
-					if b.PG { return }
+					if b.PG {
+						return
+					}
 					var output bytes.Buffer
-					if err := stuntgres.Dump(p.Ctx, p.Native, &output); err != nil || output.Len() == 0 { t.Fatal("installed member ACL Dump must publish a nonempty replayable stream", ext.name, err, output.Len()) }
-					if err := stuntgres.Reset(p.Ctx, p.Native); err != nil { t.Fatal(err) }
-					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(output.Bytes())); err != nil { t.Fatal("installed member ACL Restore", ext.name, err) }
+					if err := stuntgres.Dump(p.Ctx, p.Native, &output); err != nil || output.Len() == 0 {
+						t.Fatal("installed member ACL Dump must publish a nonempty replayable stream", ext.name, err, output.Len())
+					}
+					if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+						t.Fatal(err)
+					}
+					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(output.Bytes())); err != nil {
+						t.Fatal("installed member ACL Restore", ext.name, err)
+					}
 					check(allowed)
 					var again bytes.Buffer
-					if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(again.Bytes(), output.Bytes()) { t.Fatal("installed member owner/ACL replay is not canonical", ext.name, err) }
+					if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(again.Bytes(), output.Bytes()) {
+						t.Fatal("installed member owner/ACL replay is not canonical", ext.name, err)
+					}
 				}
 				check(true)
 				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+target+" FROM PUBLIC", 0))
@@ -165,12 +191,31 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 			run(fixture.Exec("REVOKE ALL ON PARAMETER lc_messages FROM CURRENT_USER", 0))
 			reject()
 			baseline()
+			tablespaceRoundTrip := func(want bool) {
+				check := func() {
+					run(objectGrantAccessValue("SELECT has_tablespace_privilege('og_object_reader','pg_default','CREATE') AS v", want))
+				}
+				check()
+				if b.PG {
+					return
+				}
+				var out bytes.Buffer
+				if err := stuntgres.Dump(p.Ctx, p.Native, &out); err != nil {
+					t.Fatal(err)
+				}
+				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(out.Bytes())); err != nil {
+					t.Fatal(err)
+				}
+				check()
+				var again bytes.Buffer
+				if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(out.Bytes(), again.Bytes()) {
+					t.Fatal("tablespace ACL provenance lost", err)
+				}
+			}
 			run(fixture.Exec("GRANT CREATE ON TABLESPACE pg_default TO og_object_reader", 0))
-			reject()
+			tablespaceRoundTrip(true)
 			run(fixture.Exec("REVOKE CREATE ON TABLESPACE pg_default FROM og_object_reader", 0))
-			// Even explicit default-equivalent tablespace ACLs cannot be silently
-			// discarded, unlike sparse default-equivalent parameter entries.
-			reject()
+			tablespaceRoundTrip(false)
 			baseline()
 		})
 	})

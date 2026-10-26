@@ -117,16 +117,22 @@ func TestReferenceTimeoutPrecedence(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				f := newTimeoutReferenceFixture(t, p, b)
-				f.set("statement_timeout", tc.statement)
-				f.set("idle_in_transaction_session_timeout", tc.idle)
+				f.beginPrivate()
+				var release func()
+				if tc.idle == "0" {
+					release = f.holdBlocked()
+				}
+				// Finish private-data and peer-lock setup before arming timers.
+				// SET transaction_timeout arms the already-active transaction;
+				// arm the competing idle or statement timer last.
 				f.set("lock_timeout", tc.lock)
 				f.set("transaction_timeout", "250ms")
-				f.beginPrivate()
 				if tc.idle != "0" {
+					f.set("idle_in_transaction_session_timeout", tc.idle)
 					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
 					f.fatalProbe(tc.code)
 				} else {
-					release := f.holdBlocked()
+					f.set("statement_timeout", tc.statement)
 					o := f.blocked("utility", "LOCK TABLE timeout_blocked IN ACCESS EXCLUSIVE MODE", nil)
 					f.diagnostic(o.Err, tc.code)
 					if tc.code == "25P04" {

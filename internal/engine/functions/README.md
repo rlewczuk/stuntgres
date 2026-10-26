@@ -22,14 +22,17 @@ evaluates the written siblings before testing strictness or borrowing the
 session generator.
 
 `AccessInquiry` uses a closed kind for role membership, row security and routine,
-language, wrapper and server privilege inquiries. Role NAME/OID and object
-TEXT/OID axes bind independently to exact selected declarations. Arguments
-evaluate once in written order before strict NULL handling; the BOOL recipe
-retains neither a role snapshot nor a decision. `ACLRuntime.ObjectPrivilege`
-borrows the executing statement's current private catalog and expression
-principal, including on every reuse of a held prepared statement. Text routine
-identities use the existing regprocedure resolver. Inquiry-specific PUBLIC
-defaults and unknown role OIDs do not change creation or execution admission.
+language, wrapper, server, database, schema, type and tablespace privilege
+inquiries. Role NAME/OID and object TEXT/OID axes bind independently to exact
+selected declarations. Arguments evaluate once in written order before strict
+NULL handling; the nullable BOOL recipe retains neither a role snapshot nor a
+decision. `ACLRuntime.ObjectPrivilege` borrows the executing statement's current
+private catalog and expression principal on every invocation, including held
+prepared statements. Text routine and type identities use the existing
+regprocedure and regtype resolvers with the executing invoker's namespace
+authority. Independent ordinary and grant-option masks implement comma-list
+ANY after complete token validation. Inquiry-specific PUBLIC defaults and raw
+unknown role OIDs do not change creation or execution admission.
 
 
 ## Imports and layering

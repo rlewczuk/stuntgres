@@ -56,6 +56,14 @@ func bindAccessInquiry(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		n.Kind = AccessForeignWrapper
 	case "has_server_privilege":
 		n.Kind = AccessServer
+	case "has_database_privilege":
+		n.Kind = AccessDatabase
+	case "has_schema_privilege":
+		n.Kind = AccessSchema
+	case "has_type_privilege":
+		n.Kind = AccessType
+	case "has_tablespace_privilege":
+		n.Kind = AccessTablespace
 	}
 	if !visible || name != n.Name() || len(raw.ArgNames) != 0 || n.Kind == AccessRowSecurity && n.Count != 1 || n.Kind != AccessRowSecurity && n.Count != 2 && n.Count != 3 {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)

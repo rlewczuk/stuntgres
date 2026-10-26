@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"reflect"
+	"slices"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -142,8 +143,8 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("explicit baseline collapsed to NULL", acl, err)
 	}
 	var output bytes.Buffer
-	if err := engine.Dump(context.Background(), e, &output); err == nil || output.Len() != 0 {
-		t.Fatal("Dump discarded explicit-baseline provenance", output.String(), err)
+	if err := engine.Dump(context.Background(), e, &output); err != nil || output.Len() == 0 {
+		t.Fatal("Dump failed to preserve explicit-baseline provenance", output.String(), err)
 	}
 	invalid := explicit
 	invalid.ACLSyntheticDefault = true
@@ -225,18 +226,15 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 						t.Error("genuine explicit ACL is considered regenerable")
 					}
 
-					// Both callback routes must remain untouched, including an
-					// io.StringWriter fast path. The gate is released so a broken
-					// guard reports callbacks rather than blocking the test.
 					sink := new(concurrentUnitSink)
-					if err := engine.Dump(context.Background(), e, sink); err == nil || sink.calls != 0 || sink.bytes != 0 {
-						t.Error("Dump did not reject before Write", err, sink)
+					if err := engine.Dump(context.Background(), e, sink); err != nil || sink.calls == 0 || sink.bytes == 0 {
+						t.Error("Dump failed to serialize explicit ACL", err, sink)
 					}
 					release := make(chan struct{})
 					close(release)
 					writer := &commentGateWriter{entered: make(chan struct{}), release: release}
-					if err := engine.Dump(context.Background(), e, writer); err == nil || writer.first || writer.Len() != 0 {
-						t.Error("Dump did not reject before writer callbacks", err, writer.first, writer.String())
+					if err := engine.Dump(context.Background(), e, writer); err != nil || !writer.first || writer.Len() == 0 {
+						t.Error("Dump StringWriter failed", err, writer.first, writer.String())
 					}
 
 					// Retained readers must still see the original constructor
@@ -250,6 +248,13 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					}
 					if err := (stored.TypeProvider{}).Validate(oldView, retained); err != nil {
 						t.Error("old catalog descriptor became invalid", err)
+					}
+					if err := engine.Restore(context.Background(), e, bytes.NewReader(writer.Bytes())); err != nil {
+						t.Fatal(err)
+					}
+					replayed := domainUnitType(t, e.CatalogRead(), "acl_setter_type")
+					if replayed.ACLSyntheticDefault || replayed.ACL.Explicit != want.Explicit || !slices.Equal(replayed.ACL.Entries, want.Entries) {
+						t.Fatal("setter raw provenance lost in replay", replayed.ACL, want)
 					}
 				})
 			}

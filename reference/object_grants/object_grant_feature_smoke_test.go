@@ -155,10 +155,8 @@ func TestReferenceObjectGrantFeatureSmoke(t *testing.T) {
 				t.Fatal("explicit ACL Dump must reject before writer callbacks", err, writer.calls)
 			}
 			switch err.Error() {
-			case "stuntgres: dump cannot serialize explicit namespace ACL",
-				"stuntgres: dump cannot serialize explicit relation or column ACL",
-				"stuntgres: dump cannot serialize parameter ACL",
-				"stuntgres: dump cannot serialize altered tablespace authority":
+			case "stuntgres: dump cannot serialize explicit relation or column ACL",
+				"stuntgres: dump cannot serialize parameter ACL":
 				// Owning descriptor traversal does not promise an offender order.
 			default:
 				t.Fatal("unexpected Dump failure instead of explicit ACL boundary", err)

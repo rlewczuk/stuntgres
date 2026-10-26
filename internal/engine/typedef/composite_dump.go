@@ -12,10 +12,6 @@ import (
 )
 
 func compositeDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, relation *catalog.Relation) (dump.Statement, error) {
-	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-	if !DefaultDomainACL(row) {
-		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize changed composite ACL")
-	}
 	owner, err := roles.Descriptor(relation.Owner)
 	if err != nil {
 		return dump.Statement{}, err

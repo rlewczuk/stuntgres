@@ -42,7 +42,12 @@ func TestReferenceDomainIdentityNativeControls(t *testing.T) {
 			fixture.RunStep(t, pair.Ctx, x, record, fixture.Error("SELECT 1::di_src.d", "42704"))
 			fixture.RunStep(t, pair.Ctx, x, record, fixture.Error("SELECT 1::di_src.removed", "42704"))
 			fixture.RunStep(t, pair.Ctx, x, record, fixture.Select("SELECT 9::di_dst.renamed AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(9)}}))
+			acl := fixture.Select("SELECT unnest(typacl)::text AS acl FROM pg_type WHERE oid='di_dst.renamed'::regtype", []string{"acl"}, []string{"TEXT"}, [][]any{{"di_replay_new=U/di_replay_new"}, {"=U/di_replay_new"}, {"di_replay_owner=U/di_replay_new"}})
+			acl.Bag = true
+			fixture.RunStep(t, pair.Ctx, x, record, acl)
+			fixture.RunStep(t, pair.Ctx, x, record, fixture.Select("SELECT has_type_privilege('di_replay_owner','di_dst.renamed','USAGE') AS usage,has_type_privilege('di_replay_owner','di_dst.renamed','USAGE WITH GRANT OPTION') AS options", []string{"usage", "options"}, []string{"BOOL", "BOOL"}, [][]any{{true, false}}))
 		}
+		domainIdentityDDL(t, p, c, r, "GRANT USAGE ON DOMAIN di_dst.renamed TO di_replay_owner")
 		check(p, c, r)
 		// PostgreSQL supplies the ordinary SQL oracle above; process-local
 		// replacement controls have no invented PostgreSQL API counterpart.
@@ -64,6 +69,14 @@ func TestReferenceDomainIdentityNativeControls(t *testing.T) {
 		var dump bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 			t.Fatal(err)
+		}
+		var rawACL string
+		if err := c.QueryRowContext(p.Ctx, "SELECT typacl::text FROM pg_type WHERE oid='di_dst.renamed'::regtype").Scan(&rawACL); err != nil {
+			t.Fatal(err)
+		}
+		repair := "UPDATE pg_catalog.pg_type SET typacl=E'" + rawACL + "'::pg_catalog.aclitem[] WHERE oid=E'di_dst.renamed'::pg_catalog.regtype;"
+		if !strings.Contains(dump.String(), repair) {
+			t.Fatalf("dump omitted exact current-domain ACL repair %q", repair)
 		}
 		check(p, c, r)
 		if !strings.Contains(dump.String(), "renamed") {
@@ -134,14 +147,5 @@ func TestReferenceDomainIdentityNativeControls(t *testing.T) {
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT v FROM public.sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(42)}}))
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Error("SELECT 1::staged.d", "3F000"))
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT v FROM di_other.t ORDER BY id", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}, {nil}, {int64(7)}}))
-		// Arbitrary changed ACLs remain a documented pre-output boundary.
-		domainIdentityDDL(t, p, c, r, "GRANT USAGE ON DOMAIN di_dst.renamed TO di_replay_owner")
-		var rejected bytes.Buffer
-		if err := stuntgres.Dump(p.Ctx, p.Native, &rejected); err == nil {
-			t.Fatal("unrepresentable domain ACL was silently dumped")
-		}
-		if rejected.Len() != 0 {
-			t.Fatalf("failed dump wrote %d bytes", rejected.Len())
-		}
 	})
 }

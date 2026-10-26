@@ -85,20 +85,55 @@ func rangeTypeCompanionAuthorization(t *testing.T) {
 			rangeTypeCompanionUse(t, p, backend, executor, "range_acl_reader", true)
 			rangeTypeCompanionUse(t, p, backend, executor, "range_acl_outsider", false)
 			fixture.RunStep(t, p.Ctx, executor, backend.Recorder, fixture.Select("SELECT k,r::text AS r,m::text AS m FROM range_acl_source.saved", []string{"k", "r", "m"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(1), "[1,3]", "{[1,3],[8,9]}"}}))
+			fixture.RunStep(t, p.Ctx, executor, backend.Recorder, fixture.Select("SELECT range_acl_source.many(range_acl_source.span(1,3,'[]'))::text AS m", []string{"m"}, []string{"TEXT"}, [][]any{{"{[1,3]}"}}))
+			acl := fixture.Select("SELECT unnest(typacl)::text AS acl FROM pg_type WHERE oid='range_acl_source.span'::regtype", []string{"acl"}, []string{"TEXT"}, [][]any{{"range_acl_creator=U/range_acl_creator"}, {"range_acl_reader=U/range_acl_creator"}})
+			acl.Bag = true
+			fixture.RunStep(t, p.Ctx, executor, backend.Recorder, acl)
+			for _, schema := range []string{"range_acl_source", "range_acl_companion"} {
+				namespaceACL := fixture.Select("SELECT unnest(nspacl)::text AS acl FROM pg_namespace WHERE nspname=$1::name", []string{"acl"}, []string{"TEXT"}, [][]any{{"range_acl_creator=UC/range_acl_creator"}, {"range_acl_reader=UC/range_acl_creator"}, {"range_acl_outsider=UC/range_acl_creator"}}, schema)
+				namespaceACL.Bag = true
+				fixture.RunStep(t, p.Ctx, executor, backend.Recorder, namespaceACL)
+			}
+			for _, typ := range []string{"range_acl_source.span", "range_acl_source.span[]", "range_acl_companion.many", "range_acl_companion.many[]"} {
+				fixture.RunStep(t, p.Ctx, executor, backend.Recorder, fixture.Select("SELECT has_type_privilege('range_acl_reader',$1::text,'USAGE') AS reader,has_type_privilege('range_acl_reader',$1::text,'USAGE WITH GRANT OPTION') AS options,has_type_privilege('range_acl_outsider',$1::text,'USAGE') AS outsider", []string{"reader", "options", "outsider"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, false, false}}, typ))
+			}
 		}
 		check(b, c)
 		if !b.PG {
-			var rejected bytes.Buffer
-			if err := stuntgres.Dump(p.Ctx, p.Native, &rejected); err == nil || !strings.Contains(err.Error(), "dump cannot serialize") || rejected.Len() != 0 {
-				t.Fatal("explicit ACL must reject before output", err, rejected.String())
+			var script bytes.Buffer
+			if err := stuntgres.Dump(p.Ctx, p.Native, &script); err != nil {
+				t.Fatal(err)
+			}
+			const repair = "UPDATE pg_catalog.pg_type SET typacl=E'{range_acl_creator=U/range_acl_creator,range_acl_reader=U/range_acl_creator}'::pg_catalog.aclitem[] WHERE oid=E'range_acl_source.span'::pg_catalog.regtype;"
+			if !strings.Contains(script.String(), repair) {
+				t.Fatal("dump omitted exact range ACL repair", script.String())
+			}
+			stream := script.String()
+			typeDefinition := strings.Index(stream, `CREATE TYPE "range_acl_source"."span"`)
+			readerTable := strings.Index(stream, `CREATE TABLE "range_acl_companion"."held"`)
+			firstRepair := strings.Index(stream, repair)
+			if typeDefinition < 0 || firstRepair <= typeDefinition || readerTable <= firstRepair {
+				t.Fatal("range authority must follow its declaration and precede nonowner consumers", stream)
+			}
+			for _, schema := range []string{"range_acl_source", "range_acl_companion"} {
+				namespaceRepair := "UPDATE pg_catalog.pg_namespace SET nspacl=E'{range_acl_creator=UC/range_acl_creator,range_acl_reader=UC/range_acl_creator,range_acl_outsider=UC/range_acl_creator}'::pg_catalog.aclitem[] WHERE nspname=E'" + schema + "'::pg_catalog.name;"
+				if at := strings.Index(stream, namespaceRepair); at < 0 || at >= typeDefinition {
+					t.Fatal("schema authority must precede object recipes", stream)
+				}
+			}
+			if !strings.Contains(stream, `"range_acl_source"."many"("range_acl_source"."span"(`) || strings.Contains(stream, `"range_acl_companion"."many"(`) {
+				t.Fatal("multirange constructor must use its owning range namespace", stream)
+			}
+			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(script.Bytes())); err != nil {
+				t.Fatal(err)
 			}
 			check(b, c)
 		}
 	})
 }
 
-// Type USAGE has no executable privilege-inquiry builtin in the admitted
-// inventory. Exercise the actual column-creation authority, not a fake inquiry.
+// Exercise column-creation authority in addition to privilege inquiries, so
+// companion delegation is witnessed by actual direct and prepared consumers.
 func rangeTypeCompanionUse(t *testing.T, p *fixture.Pair, b fixture.Backend, executor fixture.Executor, role string, allowed bool) {
 	t.Helper()
 	if db, ok := executor.(*sql.DB); ok {
@@ -178,12 +213,27 @@ func rangeTypeCompanionBaseline(t *testing.T) {
 		}
 		rangeTypeRemedyReplay(t, p, b, c, nil, check, fixture.Step{}, nil)
 		fixture.RangeConsumeHeld(t, held, saved)
-		if !b.PG {
-			run(fixture.Exec("REVOKE USAGE ON TYPE acl_baseline FROM PUBLIC", 0))
-			var rejected bytes.Buffer
-			if err := stuntgres.Dump(p.Ctx, p.Native, &rejected); err == nil || !strings.Contains(err.Error(), "changed type ACL") || rejected.Len() != 0 {
-				t.Fatal("range ACL must not be silently omitted", err, rejected.String())
+		run(fixture.Exec("REVOKE USAGE ON TYPE acl_baseline FROM PUBLIC", 0))
+		checkACL := func() {
+			run(fixture.Select("SELECT typacl IS NULL AS absent,cardinality(typacl) AS entries,typacl[1]::text=pg_get_userbyid(typowner)||'=U/'||pg_get_userbyid(typowner) AS owner_entry FROM pg_type WHERE oid='acl_baseline'::regtype", []string{"absent", "entries", "owner_entry"}, []string{"BOOL", "INT4", "BOOL"}, [][]any{{false, int64(1), true}}))
+			for _, typ := range []string{"acl_baseline", "acl_baseline[]", "acl_baselines", "acl_baselines[]"} {
+				run(fixture.Select("SELECT has_type_privilege('public',$1::text,'USAGE') AS usage", []string{"usage"}, []string{"BOOL"}, [][]any{{false}}, typ))
 			}
+		}
+		checkACL()
+		if !b.PG {
+			var script bytes.Buffer
+			if err := stuntgres.Dump(p.Ctx, p.Native, &script); err != nil {
+				t.Fatal(err)
+			}
+			const repair = "UPDATE pg_catalog.pg_type SET typacl=E'{postgres=U/postgres}'::pg_catalog.aclitem[] WHERE oid=E'public.acl_baseline'::pg_catalog.regtype;"
+			if !strings.Contains(script.String(), repair) {
+				t.Fatal("dump omitted exact revoked range ACL repair", script.String())
+			}
+			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(script.Bytes())); err != nil {
+				t.Fatal(err)
+			}
+			checkACL()
 			check(b, c)
 		}
 	})

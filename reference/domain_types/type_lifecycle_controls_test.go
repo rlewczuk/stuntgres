@@ -43,7 +43,12 @@ func TestReferenceTypeLifecycleControls(t *testing.T) {
 				want.DataType = "child"
 				want.Constraint = "positive"
 				fixture.RunStep(t, pair.Ctx, x, record, fixture.ErrorDiagnostic("INSERT INTO public.tl_replay(id,d) VALUES(3,0)", want))
+				acl := fixture.Select("SELECT unnest(typacl)::text AS acl FROM pg_type WHERE oid='tl_dst.moved_mood'::regtype", []string{"acl"}, []string{"TEXT"}, [][]any{{"tl_replay_owner=U/tl_replay_owner"}, {"=U/tl_replay_owner"}, {"tl_acl_reader=U/tl_replay_owner"}})
+				acl.Bag = true
+				fixture.RunStep(t, pair.Ctx, x, record, acl)
+				fixture.RunStep(t, pair.Ctx, x, record, fixture.Select("SELECT has_type_privilege('tl_acl_reader','tl_dst.moved_mood','USAGE') AS usage,has_type_privilege('tl_acl_reader','tl_dst.moved_mood','USAGE WITH GRANT OPTION') AS options", []string{"usage", "options"}, []string{"BOOL", "BOOL"}, [][]any{{true, false}}))
 			}
+			domainIdentityDDL(t, p, c, r, "CREATE ROLE tl_acl_reader", "GRANT USAGE ON TYPE tl_dst.moved_mood TO tl_acl_reader")
 			check(p, c, r)
 			if b.PG {
 				return
@@ -51,6 +56,14 @@ func TestReferenceTypeLifecycleControls(t *testing.T) {
 			var dump bytes.Buffer
 			if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 				t.Fatal(err)
+			}
+			var rawACL string
+			if err := c.QueryRowContext(p.Ctx, "SELECT typacl::text FROM pg_type WHERE oid='tl_dst.moved_mood'::regtype").Scan(&rawACL); err != nil {
+				t.Fatal(err)
+			}
+			repair := "UPDATE pg_catalog.pg_type SET typacl=E'" + rawACL + "'::pg_catalog.aclitem[] WHERE oid=E'tl_dst.moved_mood'::pg_catalog.regtype;"
+			if !strings.Contains(dump.String(), repair) {
+				t.Fatalf("dump omitted exact moved-enum ACL repair %q", repair)
 			}
 			// Restore executes dependency-ordered current-name recipes, not a
 			// successful read of values saved before the identity changes.
@@ -69,7 +82,7 @@ func TestReferenceTypeLifecycleControls(t *testing.T) {
 				t.Fatal("representable dump not stable after replay")
 			}
 			target := fixture.NewFixture(t, false, true)
-			domainIdentityDDL(t, target, target.Memory, target.MemoryRecord, "CREATE ROLE tl_spacer", "CREATE ROLE tl_replay_owner")
+			domainIdentityDDL(t, target, target.Memory, target.MemoryRecord, "CREATE ROLE tl_spacer", "CREATE ROLE tl_replay_owner", "CREATE ROLE tl_acl_reader")
 			if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(dump.Bytes())); err != nil {
 				t.Fatal(err)
 			}
@@ -90,12 +103,6 @@ func TestReferenceTypeLifecycleControls(t *testing.T) {
 			fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT v FROM public.tl_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(42)}}))
 			check(target, target.Memory, target.MemoryRecord)
 			typeLifecycleCount(t, target, target.Memory, target.MemoryRecord, "SELECT count(*) AS n FROM pg_class WHERE relnamespace='public'::regnamespace::oid AND relname='tl_invalid'", 0)
-			// Explicit nonportable ACL refusal must be pre-output.
-			domainIdentityDDL(t, p, c, r, "CREATE ROLE tl_acl_reader", "GRANT USAGE ON TYPE tl_dst.moved_mood TO tl_acl_reader")
-			var rejected bytes.Buffer
-			if err := stuntgres.Dump(p.Ctx, p.Native, &rejected); err == nil || rejected.Len() != 0 {
-				t.Fatalf("ACL dump error=%v bytes=%d", err, rejected.Len())
-			}
 		})
 	})
 	t.Run("extension_canonical_name_cycle_and_companion_displacement", func(t *testing.T) {

@@ -26,30 +26,52 @@ func TestReferenceObjectGrantTypeControls(t *testing.T) {
 				}
 			}
 		}()
-		rejectDump := func() {
-			if b.PG {
-				return // Native host controls have no PostgreSQL counterpart.
+		roundTrip := func(target string, allowed bool) {
+			var owner string
+			if err := c.QueryRowContext(p.Ctx, "SELECT typowner::regrole::text FROM pg_type WHERE oid=$1::regtype", target).Scan(&owner); err != nil {
+				t.Fatal(err)
 			}
-			var writer objectGrantWriteProbe
-			err := stuntgres.Dump(p.Ctx, p.Native, &writer)
-			if err == nil || writer.calls != 0 {
-				t.Fatal("type ACL Dump must reject before every writer callback", err, writer.calls)
+			check := func() {
+				want := [][]any{{owner + "=U/" + owner}}
+				if allowed {
+					want = append(want, []any{"=U/" + owner})
+				}
+				s := fixture.Select("SELECT unnest(typacl)::text AS acl FROM pg_type WHERE oid=$1::regtype", []string{"acl"}, []string{"TEXT"}, want, target)
+				s.Bag = true
+				run(s)
+				run(objectGrantAccessValue("SELECT has_type_privilege('og_object_reader',$1::text,'USAGE') AS v", allowed, target))
+			}
+			check()
+			if b.PG {
+				return
+			}
+			var saved bytes.Buffer
+			if err := stuntgres.Dump(p.Ctx, p.Native, &saved); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(saved.Bytes())); err != nil {
+				t.Fatal(err)
+			}
+			check()
+			var again bytes.Buffer
+			if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(saved.Bytes(), again.Bytes()) {
+				t.Fatal("type raw ACL provenance changed", target, err)
 			}
 		}
 		run(fixture.Exec("REVOKE USAGE ON TYPE pg_catalog.int4 FROM PUBLIC", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			fixture.RoleGrantPermissionDenied(run, "CREATE TEMP TABLE og_builtin_denied(x INT)", "type", "integer")
 		})
-		rejectDump()
+		roundTrip("pg_catalog.int4", false)
 		run(fixture.Exec("GRANT USAGE ON TYPE pg_catalog.int4 TO PUBLIC", 0))
 		run(fixture.Exec("CREATE TYPE og_control_enum AS ENUM('a')", 0))
 		run(fixture.Exec("REVOKE USAGE ON TYPE og_control_enum FROM PUBLIC", 0))
-		rejectDump()
+		roundTrip("og_control_enum", false)
 		run(fixture.Exec("GRANT USAGE ON TYPE og_control_enum TO PUBLIC", 0))
+		roundTrip("og_control_enum", true)
 		if !b.PG {
 			// Regrant retains an explicit ACL even when effective rights match
 			// creation defaults; Dump cannot discard that raw provenance.
-			rejectDump()
 			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 				t.Fatal("Reset explicit type ACL provenance", err)
 			}

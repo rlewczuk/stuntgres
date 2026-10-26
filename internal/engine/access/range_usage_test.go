@@ -1,6 +1,7 @@
 package access
 
 import (
+	"context"
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -58,6 +59,14 @@ func TestRangeTypeEffectiveUsageDelegation(t *testing.T) {
 					got, err := v.Effective(env, v.Ref(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}), options)
 					if err != nil || got != want {
 						t.Fatal("range authority must decide range/companion/both arrays, including inherited grant options", id, options, got, want, err)
+					}
+					ordinaryMask, optionMask := authorization.UsagePrivilege, authorization.Privileges(0)
+					if options {
+						ordinaryMask, optionMask = 0, authorization.UsagePrivilege
+					}
+					inquiry, exists, err := v.ObjectPrivilege(context.Background(), env, actor.ID(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}, ordinaryMask, optionMask)
+					if err != nil || !exists || inquiry != granted {
+						t.Fatal("raw inquiry lost current inherited range/array authority", id, options, inquiry, exists, err)
 					}
 				}
 			}

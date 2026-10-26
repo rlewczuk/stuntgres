@@ -445,7 +445,7 @@ func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 	}
 }
 
-func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
+func TestAuthorizationDumpPreservesChangedNamespaceState(t *testing.T) {
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
@@ -489,19 +489,25 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	}
 	before := e.Catalog.State
 	dump.Reset()
-	if err := engine.Dump(context.Background(), e, &dump); err == nil || dump.Len() != 0 {
-		t.Fatal("changed namespace ACL silently lost", err, dump.String())
+	if err := engine.Dump(context.Background(), e, &dump); err != nil || dump.Len() == 0 {
+		t.Fatal("changed namespace ACL not serialized", err, dump.String())
 	}
 	if e.Catalog.State != before {
 		t.Fatal("dump mutated namespace")
 	}
+	if err := engine.Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.Catalog.State.MustNamespace(namespace.Address).ACL; !reflect.DeepEqual(got, changed) {
+		t.Fatal("changed namespace ACL lost", got, changed)
+	}
+	namespace = e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), namespace.Address)
 	if err := enginetest.SetObjectACL(e, context.Background(), namespace, original); err != nil {
 		t.Fatal(err)
 	}
 	enginetest.RoleExecute(t, e, op, "CREATE ROLE namespace_owner")
-	// A raw descriptor-owner rewrite without the matching ACL substitution is
-	// genuinely unrepresentable. Normal ALTER OWNER's canonical transform is
-	// accepted and roundtripped by TestSchemaPublicLifecycleControls.
+	// Independent owner/grantor identities are representable without rewriting
+	// the authentic raw ACL to the new owner's default.
 	owner, _ := e.Roles().Lookup("namespace_owner")
 	replacement := catalog.CloneState(e.Catalog.State)
 	ns := *replacement.MustNamespace(namespace.Address)
@@ -510,8 +516,16 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.Catalog.Read(replacement)); err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.Dump(context.Background(), e, &dump); err == nil || dump.Len() != 0 {
-		t.Fatal("inconsistent namespace owner/ACL silently lost", err, dump.String())
+	dump.Reset()
+	if err := engine.Dump(context.Background(), e, &dump); err != nil || dump.Len() == 0 {
+		t.Fatal("independent namespace owner/ACL not serialized", err, dump.String())
+	}
+	if err := engine.Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	got := e.Catalog.State.MustNamespace(namespace.Address)
+	if got.Owner != owner.Ref || !reflect.DeepEqual(got.ACL, original) {
+		t.Fatal("independent owner/grantor lost", got)
 	}
 }
 

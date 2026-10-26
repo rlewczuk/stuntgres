@@ -17,6 +17,10 @@ const (
 	AccessLanguage
 	AccessForeignWrapper
 	AccessServer
+	AccessDatabase
+	AccessSchema
+	AccessType
+	AccessTablespace
 )
 
 // AccessInquiry retains only typed operands, never authority or decisions.
@@ -45,6 +49,14 @@ func (n AccessInquiry) Name() string {
 		return "has_foreign_data_wrapper_privilege"
 	case AccessServer:
 		return "has_server_privilege"
+	case AccessDatabase:
+		return "has_database_privilege"
+	case AccessSchema:
+		return "has_schema_privilege"
+	case AccessType:
+		return "has_type_privilege"
+	case AccessTablespace:
+		return "has_tablespace_privilege"
 	}
 	return ""
 }
@@ -130,7 +142,7 @@ func accessRoleValue(arg expr.Expr, value sqltype.Value) (AccessRole, error) {
 
 // Validate checks the stored recipe: arity, formals and result.
 func (n AccessInquiry) Validate() error {
-	if n.Kind > AccessServer || n.Kind == AccessRowSecurity && n.Count != 1 || n.Kind != AccessRowSecurity && n.Count != 2 && n.Count != 3 {
+	if n.Kind > AccessTablespace || n.Kind == AccessRowSecurity && n.Count != 1 || n.Kind != AccessRowSecurity && n.Count != 2 && n.Count != 3 {
 		return fmt.Errorf("stuntgres: invalid stored access inquiry arity")
 	}
 	properties := expr.Properties{Volatility: expr.Stable}

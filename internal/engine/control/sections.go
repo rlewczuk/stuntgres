@@ -30,6 +30,7 @@ var dumpSections = [...]dumpSection{
 	{"preamble", emitDumpPreamble},
 	{"schemas", emitDumpSchemas},
 	{"conversion schemas", emitDumpConversionSchemas},
+	{"initial object authority", emitDumpInitialACLs},
 	{"provider alterations", emitDumpProviderReplay},
 	{"collation seeds", emitDumpCollationSeeds},
 	{"conversion seeds", emitDumpConversionSeeds},

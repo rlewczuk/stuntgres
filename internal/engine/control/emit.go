@@ -107,6 +107,11 @@ func emitDumpEvents(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 				return err
 			}
 		}
+		if event.Phase == dump.Declaration {
+			if err := emitObjectACLStatements(ctx, w, s.typeACLStatements[event.OID]); err != nil {
+				return err
+			}
+		}
 		if err := s.closeCastWindow(w, castConsumer{Event: event}); err != nil {
 			return err
 		}

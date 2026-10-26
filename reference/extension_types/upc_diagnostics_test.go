@@ -80,20 +80,15 @@ func TestReferenceUpcAtomicity(t *testing.T) {
 		q := "INSERT INTO upc_atomic VALUES(2,$1),(3,$2)"
 		held := ean13Held(t, p, c, q)
 		seed := upcSelect(b, "SELECT id,v FROM upc_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "UPC"}, [][]any{{int64(1), "123456789012"}}, []bool{false, false})
-		stamps := map[string][4]int64{}
-		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13", "upc"} {
-			stamps[typ] = isbnIdentityStamp(t, p, c, typ)
-		}
+		stamps := upcAtomicIdentityStamps(t, p, c)
 		var extension int64
 		if err := c.QueryRowContext(p.Ctx, "SELECT oid FROM pg_extension WHERE extname='isn'").Scan(&extension); err != nil {
 			t.Fatal(err)
 		}
 		checkSeed := func() {
 			run(seed)
-			for typ, stamp := range stamps {
-				if got := isbnIdentityStamp(t, p, c, typ); got != stamp {
-					t.Fatalf("rejected insert changed %s identities: %v, want %v", typ, got, stamp)
-				}
+			if got := upcAtomicIdentityStamps(t, p, c); got != stamps {
+				t.Fatalf("rejected insert changed ISN identities: %v, want %v", got, stamps)
 			}
 			var got int64
 			if err := c.QueryRowContext(p.Ctx, "SELECT oid FROM pg_extension WHERE extname='isn'").Scan(&got); err != nil || got != extension {
@@ -157,8 +152,55 @@ func TestReferenceUpcAtomicity(t *testing.T) {
 		run(upcSelect(b, "SELECT v FROM upc_atomic_nullable", []string{"v"}, []string{"UPC"}, [][]any{}, []bool{true}))
 		fixture.RunStep(t, p.Ctx, nullable, b.Recorder, fixture.Exec(nullable.SQL, 3, "123456789012", []byte("123456789010!"), nil))
 		run(upcSelect(b, "SELECT id,v FROM upc_atomic_nullable ORDER BY id", []string{"id", "v"}, []string{"INT4", "UPC"}, [][]any{{int64(1), "123456789012"}, {int64(2), "123456789012!"}, {int64(3), nil}}, []bool{false, true}))
-		for typ, stamp := range stamps {
-			if got := isbnIdentityStamp(t, p, c, typ); got != stamp { t.Fatalf("nullable insert changed %s identity: %v, want %v", typ, got, stamp) }
+		if got := upcAtomicIdentityStamps(t, p, c); got != stamps {
+			t.Fatalf("nullable insert changed ISN identities: %v, want %v", got, stamps)
 		}
 	})
+}
+
+func upcAtomicIdentityStamps(t *testing.T, p *fixture.Pair, c *sql.Conn) [8][4]int64 {
+	t.Helper()
+	names := [...]string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13", "upc"}
+	rows, err := c.QueryContext(p.Ctx, `SELECT typname,oid,typarray,typinput::oid,typoutput::oid
+		FROM pg_type WHERE typnamespace='public'::regnamespace
+		AND typname IN ('ean13','isbn','isbn13','ismn','ismn13','issn','issn13','upc')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var stamps [8][4]int64
+	var seen [8]bool
+	for rows.Next() {
+		var name string
+		var stamp [4]int64
+		if err := rows.Scan(&name, &stamp[0], &stamp[1], &stamp[2], &stamp[3]); err != nil {
+			t.Fatal(err)
+		}
+		index := -1
+		for i, want := range names {
+			if name == want {
+				index = i
+				break
+			}
+		}
+		if index < 0 {
+			t.Fatalf("unexpected public ISN type %q", name)
+		}
+		if seen[index] {
+			t.Fatalf("duplicate public ISN type %q", name)
+		}
+		seen[index], stamps[index] = true, stamp
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for i, found := range seen {
+		if !found {
+			t.Fatalf("missing public ISN type %q", names[i])
+		}
+	}
+	return stamps
 }

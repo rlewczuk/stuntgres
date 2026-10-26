@@ -113,6 +113,15 @@ No parallel language-permission table or cached grant decision exists.
 - **Privileges** (`privileges.go`): `DatabaseRights`, `PredefinedPrivileges`,
   `RawObjectACL` and `ObjectACLClass`. `CheckDatabaseConnect`
   (`database_connect.go`) is the CONNECT check of physical session start.
+- **SQL inquiries** (`object_inquiry.go`): `ObjectPrivilege` accepts a raw actor
+  OID and independent ordinary/grant-option ANY masks. Missing actors still
+  receive PUBLIC rights; live superusers bypass missing object OIDs. Other
+  actors receive an absent result for a missing object. Type checks delegate
+  array then multirange authority; absent database/type/routine/language ACLs
+  retain inquiry defaults, while explicit-empty ACLs do not. Schema checks
+  include predefined data roles and physical-session TEMP authority, with
+  CREATE contingent on the queried actor's database TEMP right. These rules
+  do not broaden admission or change database attachment authority.
 
 `access` keeps its own `SQLError`. Type and identifier names in its messages
 come from the `catalog` diagnostic name helpers it shares with the engine.
@@ -124,7 +133,8 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
 - A view is paired with its exact `catalog.Read`. There is no cached ACL
   decision. A view rejects references and catalogs its owner does not back,
   stale epochs and an unpaired role read, before any superuser shortcut.
-  Zero, foreign and stale principals are rejected first.
+  Zero, foreign and stale principals are rejected first by admission checks;
+  the raw-OID SQL inquiry boundary deliberately accepts nonexistent actors.
 - Absent and empty ACLs stay distinct.
 - No mutex and no engine callback: callers hold whatever lock their reads
   need (`DatabaseRights` on live roots needs the engine mutex).

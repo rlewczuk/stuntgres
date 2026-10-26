@@ -120,9 +120,11 @@ func TestReferencePGNamespaceControls(t *testing.T) {
 		// Existing schemas keep materialized ACLs after creator defaults are revoked.
 		pgNamespaceExec(t, p, b, b.DB, "ALTER DEFAULT PRIVILEGES REVOKE USAGE ON SCHEMAS FROM ns18_control_reader")
 		var out bytes.Buffer
-		if err := stuntgres.Dump(p.Ctx, p.Native, &out); err == nil || err.Error() != "stuntgres: dump cannot serialize explicit namespace ACL" || out.Len() != 0 {
-			t.Fatal("honest ACL preflight", err, out.String())
+		if err := stuntgres.Dump(p.Ctx, p.Native, &out); err != nil || out.Len() == 0 {
+			t.Fatal("explicit schema ACL serialization", err, out.String())
 		}
+		fixture.ViewRestore(t, p, out.Bytes())
+		pgNamespaceCheck(t, p, b, b.DB, fixture.Select("SELECT nspacl::text AS acl FROM pg_namespace WHERE nspname='ns18_control_acl'", []string{"acl"}, []string{"TEXT"}, [][]any{{"{postgres=UC/postgres,ns18_control_reader=U/postgres}"}}))
 	})
 }
 

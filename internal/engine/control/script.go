@@ -50,6 +50,8 @@ type dumpScript struct {
 	providerStatements                        []string
 	extensionMetadata                         map[ids.OID]string
 	objectACLStatements                       []string
+	initialACLStatements                      []string
+	typeACLStatements                         map[ids.OID][]string
 }
 
 // buildDumpScript renders the captured groups and statements and orders
@@ -98,7 +100,7 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 	if err := s.prepareProviderReplay(); err != nil {
 		return nil, err
 	}
-	if s.objectACLStatements, err = prepareObjectACLs(ctx, s.Capture); err != nil {
+	if err = prepareObjectACLs(ctx, s); err != nil {
 		return nil, err
 	}
 	if err := s.prepareEventTriggers(ctx); err != nil {

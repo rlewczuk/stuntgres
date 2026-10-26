@@ -5,22 +5,48 @@ import (
 	"strings"
 )
 
-// ParseObjectPrivileges validates the entire list before returning its two ANY
-// alternatives. The inquiry grammar deliberately does not normalize whitespace.
-func ParseObjectPrivileges(text, privilege string) (ordinary, options bool, err error) {
+// ParseObjectPrivileges validates every list item and returns independent ANY
+// masks for ordinary rights and grant options. Internal whitespace is exact.
+func ParseObjectPrivileges(text string, allowed Privileges) (ordinary, options Privileges, err error) {
 	for {
 		token, rest, more := strings.Cut(text, ",")
-		for len(token) > 0 && rolePrivilegeSpace(token[0]) { token = token[1:] }
-		for len(token) > 0 && rolePrivilegeSpace(token[len(token)-1]) { token = token[:len(token)-1] }
-		switch {
-		case rolePrivilegeEqual(token, privilege):
-			ordinary = true
-		case len(token) == len(privilege)+len(" WITH GRANT OPTION") && rolePrivilegeEqual(token[:len(privilege)], privilege) && rolePrivilegeEqual(token[len(privilege):], " WITH GRANT OPTION"):
-			options = true
-		default:
-			return false, false, sqlError("22023", fmt.Sprintf(`unrecognized privilege type: "%s"`, token))
+		for len(token) > 0 && rolePrivilegeSpace(token[0]) {
+			token = token[1:]
 		}
-		if !more { return ordinary, options, nil }
+		for len(token) > 0 && rolePrivilegeSpace(token[len(token)-1]) {
+			token = token[:len(token)-1]
+		}
+		name := token
+		grant := false
+		const suffix = " WITH GRANT OPTION"
+		if len(name) >= len(suffix) && rolePrivilegeEqual(name[len(name)-len(suffix):], suffix) {
+			name = name[:len(name)-len(suffix)]
+			grant = true
+		}
+		var mask Privileges
+		switch {
+		case rolePrivilegeEqual(name, "CREATE"):
+			mask = CreatePrivilege
+		case rolePrivilegeEqual(name, "CONNECT"):
+			mask = ConnectPrivilege
+		case rolePrivilegeEqual(name, "TEMPORARY"), rolePrivilegeEqual(name, "TEMP"):
+			mask = TemporaryPrivilege
+		case rolePrivilegeEqual(name, "USAGE"):
+			mask = UsagePrivilege
+		case rolePrivilegeEqual(name, "EXECUTE"):
+			mask = ExecutePrivilege
+		}
+		if mask == 0 || mask&allowed == 0 {
+			return 0, 0, sqlError("22023", fmt.Sprintf(`unrecognized privilege type: "%s"`, token))
+		}
+		if grant {
+			options |= mask
+		} else {
+			ordinary |= mask
+		}
+		if !more {
+			return ordinary, options, nil
+		}
 		text = rest
 	}
 }

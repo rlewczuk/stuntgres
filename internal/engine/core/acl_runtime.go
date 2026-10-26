@@ -117,22 +117,45 @@ func (h *statementHost) ObjectPrivilege(c *exec.Context, kind functions.AccessKi
 		}
 	}
 	var class ids.OID
-	var noun, token string
+	var noun string
+	var allowed authorization.Privileges
 	switch kind {
 	case functions.AccessFunction:
-		class, noun, token = ids.ProcedureClassID, "function", "EXECUTE"
+		class, noun, allowed = ids.ProcedureClassID, "function", authorization.ExecutePrivilege
 	case functions.AccessLanguage:
-		class, noun, token = ids.LanguageClassID, "language", "USAGE"
+		class, noun, allowed = ids.LanguageClassID, "language", authorization.UsagePrivilege
 	case functions.AccessForeignWrapper:
-		class, noun, token = ids.ForeignWrapperClassID, "foreign-data wrapper", "USAGE"
+		class, noun, allowed = ids.ForeignWrapperClassID, "foreign-data wrapper", authorization.UsagePrivilege
 	case functions.AccessServer:
-		class, noun, token = ids.ForeignServerClassID, "server", "USAGE"
+		class, noun, allowed = ids.ForeignServerClassID, "server", authorization.UsagePrivilege
+	case functions.AccessDatabase:
+		class, noun, allowed = ids.DatabaseClassID, "database", authorization.CreatePrivilege|authorization.ConnectPrivilege|authorization.TemporaryPrivilege
+	case functions.AccessSchema:
+		class, noun, allowed = ids.NamespaceClassID, "schema", authorization.CreatePrivilege|authorization.UsagePrivilege
+	case functions.AccessType:
+		class, noun, allowed = ids.TypeClassID, "type", authorization.UsagePrivilege
+	case functions.AccessTablespace:
+		class, noun, allowed = ids.TablespaceClassID, "tablespace", authorization.CreatePrivilege
 	default:
 		return false, false, fmt.Errorf("stuntgres: invalid object privilege inquiry")
 	}
 	address := ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(object.OID)}
 	if !object.ByOID {
-		if kind == functions.AccessFunction {
+		if kind == functions.AccessType {
+			auth.State.CurrentUser = expressionPrincipal(c)
+			input, failure := CaptureRegtypeInput(auth, scope.Op)
+			if failure != nil {
+				return false, false, failure
+			}
+			oid, failure := input.ResolveRegtype(c.Context, object.Name)
+			if failure != nil {
+				return false, false, failure
+			}
+			if oid == 0 {
+				return false, false, SQLError("42704", fmt.Sprintf(`type "%s" does not exist`, object.Name))
+			}
+			address.ObjectID = ids.OID(oid)
+		} else if kind == functions.AccessFunction {
 			auth.State.CurrentUser = expressionPrincipal(c)
 			types, failure := CaptureRegtypeInput(auth, scope.Op)
 			if failure != nil {
@@ -153,17 +176,25 @@ func (h *statementHost) ObjectPrivilege(c *exec.Context, kind functions.AccessKi
 		} else {
 			address = auth.Catalog.NameAddress(ids.NameKey{ClassID: class, Name: object.Name})
 			if address == (ids.ObjectAddress{}) {
-				return false, false, SQLError("42704", fmt.Sprintf(`%s "%s" does not exist`, noun, object.Name))
+				state := "42704"
+				if kind == functions.AccessDatabase {
+					state = "3D000"
+				} else if kind == functions.AccessSchema {
+					state = "3F000"
+				}
+				return false, false, SQLError(state, fmt.Sprintf(`%s "%s" does not exist`, noun, object.Name))
 			}
 		}
 	}
-	ordinary, options, err := authorization.ParseObjectPrivileges(privilege, token)
+	ordinary, options, err := authorization.ParseObjectPrivileges(privilege, allowed)
 	if err != nil {
 		return false, false, err
 	}
-	value, exists, err := auth.View.ObjectPrivilege(c.Context, actorID, address, ordinary, options)
+	value, exists, err := auth.View.ObjectPrivilege(c.Context, auth, actorID, address, ordinary, options)
 	if err == nil && !exists && !object.ByOID && kind == functions.AccessFunction {
 		err = SQLError("XX000", fmt.Sprintf("cache lookup failed for function %d", address.ObjectID))
+	} else if err == nil && !exists && !object.ByOID && kind == functions.AccessType {
+		err = SQLError("42704", fmt.Sprintf("type with OID %d does not exist", address.ObjectID))
 	}
 	return value, exists, err
 }

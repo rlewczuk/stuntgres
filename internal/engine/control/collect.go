@@ -18,7 +18,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/typedef"
 )
 
 // Source is what the Collect tables read: the capture's catalog and role
@@ -225,9 +224,6 @@ func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 	if err := (catalog.TablespaceProvider{}).Validate(c.CatalogView, t); err != nil {
 		return err
 	}
-	if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
-		return fmt.Errorf("stuntgres: dump cannot serialize altered tablespace authority")
-	}
 	return nil
 }
 
@@ -348,16 +344,8 @@ func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 	if t.SQLType.IsMultirange() && t.SQLType.IsUserDefined() {
 		return (stored.TypeProvider{}).Validate(c.CatalogView, t)
 	}
-	// A recipe can regenerate synthetic type defaults, never a real
-	// explicit ACL (even one equal to the effective baseline).
-	if t.ACL.Explicit && !typedef.DefaultDomainACL(t) {
-		message := "stuntgres: dump cannot serialize changed type ACL"
-		if t.SQLType.IsDomain() || t.SQLType.IsEnum() {
-			message = "stuntgres: dump cannot serialize changed domain ACL"
-		} else if t.SQLType.IsComposite() {
-			message = "stuntgres: dump cannot serialize changed composite ACL"
-		}
-		return fmt.Errorf("%s", message)
+	if err := (stored.TypeProvider{}).Validate(c.CatalogView, t); err != nil {
+		return err
 	}
 	if t.SQLType.IsHstore() || t.SQLType.IsQueryInt() || (t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery()) || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() || t.Extension != (ids.ObjectAddress{}) {
 		return (stored.TypeProvider{}).Validate(c.CatalogView, t)
@@ -413,17 +401,13 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 	if valid && ns.Temporary != (ids.SessionToken{}) {
 		return nil
 	}
+	if err := (catalog.NamespaceProvider{}).Validate(c.CatalogView, d); err != nil {
+		return err
+	}
 	if valid && ns.Comment != catalog.NamespaceCommentBaseline(a.ObjectID) {
 		c.SchemaComments = append(c.SchemaComments, SchemaComment{ns.Name(), ns.Comment})
 	}
-	if valid && (a.ObjectID == ids.PublicNamespaceOID || a.ObjectID == ids.PGCatalogNamespaceOID || a.ObjectID == ids.PGToastNamespaceOID || a.ObjectID == 13229) &&
-		!BootstrapNamespaceDumpable(ns) {
-		return fmt.Errorf("stuntgres: dump cannot serialize changed builtin namespace ACL")
-	}
 	if valid && a.ObjectID != ids.PublicNamespaceOID && a.ObjectID != ids.PGCatalogNamespaceOID && a.ObjectID != ids.PGToastNamespaceOID && a.ObjectID != 13229 {
-		if ns.ACL.Explicit {
-			return fmt.Errorf("stuntgres: dump cannot serialize explicit namespace ACL")
-		}
 		role, err := c.DomainRoles.Descriptor(ns.Owner)
 		if err != nil {
 			return err
@@ -434,10 +418,9 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 	return nil
 }
 
-// BootstrapNamespaceDumpable reports whether a builtin namespace keeps an ACL
-// Restore reproduces. Namespace ACL entry order and split entries do not
-// affect reproducibility. Principal/grantor references do: losing them would
-// change DROP dependencies.
+// BootstrapNamespaceDumpable compares the effective bootstrap ACL payload for
+// baseline consumers. It is not an admission gate: serialization preserves raw
+// entry multiplicity and all changed authority through exact catalog repairs.
 func BootstrapNamespaceDumpable(d *catalog.Namespace) bool {
 	if d.Address().ObjectID == ids.PGToastNamespaceOID {
 		return !d.ACL.Explicit && len(d.ACL.Entries) == 0
