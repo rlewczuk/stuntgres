@@ -8,7 +8,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `check_constraint_routine_usage`,
 `character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
-`role_udt_grants`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
+`role_udt_grants`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
 capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -191,6 +191,15 @@ type Producer func(Input) ([][]sqltype.Value, error)
   while C link symbols remain visible to executors. Declared result identity is
   not domain-unwrapped and does not admit a codec or execute a provider. All 82
   cells, including NULLs, retain their captured information-schema domains.
+
+`user_defined_types` traverses actual standalone composite relations and validates
+their reciprocal type descriptors before applying immediately usable ownership
+or effective type USAGE. Schema, member-type and relation-read privileges do not
+gate disclosure. All 29 cells retain captured information-schema domains,
+including the fixed-width `yes_or_no` carrier and the 24 typed NULL tail fields.
+Each capture owns detached rows; malformed metadata or cancellation publishes
+none. Its read-only builtin definition uses the shared explicit spelling parts
+for both view-definition consumers, independently of query execution.
 
 ### Wait-event definitions
 
@@ -594,16 +603,20 @@ base-table structural events; this does not change catalog write admission.
 
 `builtin_views*.go` owns one closed inventory of builtin view definitions,
 including `information_schema.columns`, `information_schema.domains`,
-`information_schema.tables`, `information_schema.usage_privileges` and
-`pg_catalog.pg_rules`, with classification and per-output capability facts.
+`information_schema.user_defined_types`, `information_schema.tables`,
+`information_schema.usage_privileges` and `pg_catalog.pg_rules`, with
+classification and per-output capability facts.
 Its canonical literal fragments contain explicit object-name and identifier
 occurrences. `pg_rules` uses the same definition authority as both consumers;
 its `pg_get_ruledef(oid)` reference captures stable routine identity, while
 column and relation aliases remain identifier-only annotations. Its structural
 update and insert flags are NO; this does not change rule visitation or DDL.
-`SummaryViewDefinition` supplies canonical metadata; `BuiltinViewDefinition`
-formats those occurrences using the engine's captured naming and identifier
-formatters. The same runtime authority renders `pg_views` and `views`.
+`SummaryViewDefinition` supplies canonical default metadata;
+`BuiltinViewDefinition` selects explicit default or pretty fragments and formats
+their occurrences using captured naming and identifier formatters. UDT inquiry
+owns both released forms; absent pretty fragments never become a synthesized
+definition. The same runtime authority renders `pg_views` and `views` in default
+format and serves the boolean `pg_get_viewdef` presentation selector.
 Routine occurrences capture their original OID from the existing released
 identity registry. Represented targets use the current name, namespace and
 signature from that same captured catalog before exact-signature qualification;

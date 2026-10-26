@@ -3,7 +3,7 @@
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `routines`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
-`columns`, `column_column_usage`, `column_options`, `character_sets`, `collations`, `schemata`, `domains`,
+`columns`, `column_column_usage`, `column_options`, `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
 `domain_constraints` and `sequences`. Grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
@@ -25,6 +25,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Routine dependency usage: `RUN='^TestReferenceInfoRoutineRoutineUsage'`
 - Schema inquiry: `RUN='^TestReferenceInfoSchemata'`
 - Foreign-column options: `RUN='^TestReferenceInfoColumnOptions'`
+- Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 
 CHECK routine-usage scenarios assert complete six-column identity bags and
 source-owned identifier domains over actual table/domain CHECK semantic edges.

@@ -1,3 +1,9 @@
+`information_schema.user_defined_types` exposes standalone composite identities
+through 29 nullable domain-typed columns, with effective type-USAGE and inherited
+ownership visibility. Direct and prepared queries follow type, schema and ACL
+changes; view metadata and `pg_get_viewdef` expose its read-only definition,
+including PostgreSQL's explicit default and pretty forms.
+
 `information_schema.usage_privileges` exposes typed USAGE grant origins for
 domains, sequences, collations, foreign data wrappers and foreign servers,
 including PUBLIC origins visible without an enabled grantor or named grantee.

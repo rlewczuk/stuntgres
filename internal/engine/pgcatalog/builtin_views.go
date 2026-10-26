@@ -23,12 +23,13 @@ type builtinViewPart struct {
 	name BuiltinViewName
 }
 type builtinView struct {
-	oid       ids.OID
-	parts     []builtinViewPart
-	canonical string
-	rules     uint32
-	delete    bool
-	writable  []int32
+	oid         ids.OID
+	parts       []builtinViewPart
+	prettyParts []builtinViewPart
+	canonical   string
+	rules       uint32
+	delete      bool
+	writable    []int32
 }
 
 func viewText(text string) builtinViewPart { return builtinViewPart{text: text} }
@@ -94,14 +95,21 @@ func SummaryViewDefinition(oid ids.OID) string { return builtinViews[oid].canoni
 // BuiltinViewDefinition formats only the inventory's explicit object-name and
 // identifier occurrences. Expressions, keywords and syntax remain literal;
 // this is not a query deparser or a SQL token-replacement mechanism.
-func BuiltinViewDefinition(oid ids.OID, spelling func(BuiltinViewName) string) string {
+func BuiltinViewDefinition(oid ids.OID, pretty bool, spelling func(BuiltinViewName) string) string {
 	record, ok := builtinViews[oid]
 	if !ok {
 		return ""
 	}
+	parts := record.parts
+	if pretty {
+		parts = record.prettyParts
+	}
+	if len(parts) == 0 {
+		return ""
+	}
 	var text strings.Builder
 	text.Grow(len(record.canonical))
-	for _, part := range record.parts {
+	for _, part := range parts {
 		if part.name.Class == 0 && !part.name.IdentifierOnly {
 			text.WriteString(part.text)
 		} else {

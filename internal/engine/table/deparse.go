@@ -31,10 +31,10 @@ type DeparseInputs struct {
 	Temporary func() ids.ObjectAddress
 	// ResolveRelation resolves a TEXT relation name as a utility lookup.
 	ResolveRelation func(parser.ObjectName) (ids.ObjectRef, error)
-	// BuiltinViewDefinition renders canonical default-format definitions from
-	// the same captured catalog and presentation authority as catalog sources.
-	// Empty text means the relation has no builtin view definition.
-	BuiltinViewDefinition func(context.Context, catalog.Read, *catalog.Relation) (string, error)
+	// BuiltinViewDefinition renders explicitly owned default or pretty fragments
+	// from the same captured authority as catalog sources. The bool selects pretty;
+	// empty text means no definition is owned for the requested format.
+	BuiltinViewDefinition func(context.Context, catalog.Read, *catalog.Relation, bool) (string, error)
 }
 
 // Deparse answers one deparse inquiry over in.
@@ -240,10 +240,10 @@ func deparseRelation(c *exec.Context, in DeparseInputs, signature functions.Depa
 		text, err = index.DefinitionSQL(c.Context, view, relation, index.Presentation{Column: column, Pretty: pretty, Path: in.Path, Temporary: in.Temporary(), Output: in.Output})
 	} else {
 		if relation.View == nil {
-			if in.BuiltinViewDefinition == nil || signature != functions.DeparseViewOID && signature != functions.DeparseViewText {
+			if in.BuiltinViewDefinition == nil || signature != functions.DeparseViewOID && signature != functions.DeparseViewText && signature != functions.DeparseViewOIDPretty && signature != functions.DeparseViewTextPretty {
 				return sqltype.Null(result), nil
 			}
-			text, err := in.BuiltinViewDefinition(c.Context, view, relation)
+			text, err := in.BuiltinViewDefinition(c.Context, view, relation, pretty)
 			if err != nil {
 				return sqltype.Value{}, err
 			}

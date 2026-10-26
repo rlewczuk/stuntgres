@@ -75,7 +75,7 @@ func (r EngineCatalogRuntime) builtinViewDefinition(ctx context.Context, read ca
 		return "", ids.ErrCatalogReplaced
 	}
 	var spellingErr error
-	definition := pgcatalog.BuiltinViewDefinition(relation.Address().ObjectID, func(name pgcatalog.BuiltinViewName) string {
+	definition := pgcatalog.BuiltinViewDefinition(relation.Address().ObjectID, r.presentation.Pretty, func(name pgcatalog.BuiltinViewName) string {
 		if spellingErr != nil {
 			return ""
 		}
@@ -86,7 +86,7 @@ func (r EngineCatalogRuntime) builtinViewDefinition(ctx context.Context, read ca
 	if spellingErr != nil {
 		return "", spellingErr
 	}
-	if definition == "" {
+	if definition == "" && !r.presentation.Pretty {
 		return "", fmt.Errorf("stuntgres: missing builtin view definition")
 	}
 	return strings.TrimSuffix(definition, ";"), nil

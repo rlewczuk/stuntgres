@@ -156,10 +156,12 @@ call live here.
   belongs to exactly one `TargetEntry`, so entry order cannot change a result),
   `CheckExplicitLock` (LOCK TABLE) and the `Stage` slot (LIKE sources checked
   at publication by `ValidateLikeSources`).
-  Default OID/TEXT view-definition inquiries use the captured
-  `DeparseInputs.BuiltinViewDefinition` capability for builtin views without
-  stored payloads; ordinary nonviews still return NULL. Stored-view rendering
-  retains its own pretty/wrap presentation path.
+  OID/TEXT view-definition inquiries, including boolean format selectors, use
+  captured `DeparseInputs.BuiltinViewDefinition` authority for builtin views
+  without stored payloads. Default format uses canonical fragments; pretty
+  format requires explicitly owned pretty fragments. Ordinary nonviews return
+  NULL. Stored-view rendering retains its own pretty/wrap presentation path;
+  builtin callbacks do not claim wrap-width support.
 
 ## Hosts
 
