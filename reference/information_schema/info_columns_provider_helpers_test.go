@@ -16,6 +16,7 @@ func icProviderInventory(c *icCase) {
 	inventory := map[string][]string{
 		"pg_aggregate": fixture.PGAggregateColumns, "pg_am": fixture.PGAMColumns,
 		"pg_attribute": fixture.PGAttributeColumns, "pg_class": fixture.PGClassColumns,
+		"pg_authid":    strings.Fields("oid rolname rolsuper rolinherit rolcreaterole rolcreatedb rolcanlogin rolreplication rolbypassrls rolconnlimit rolpassword rolvaliduntil"),
 		"pg_collation": fixture.PGCollationColumns, "pg_constraint": fixture.PGConstraintColumns,
 		"pg_database": fixture.PGDatabaseColumns, "pg_db_role_setting": fixture.PGDBRoleSettingColumns,
 		"pg_default_acl": fixture.PGDefaultACLColumns, "pg_description": fixture.PGDescriptionColumns,
@@ -166,6 +167,35 @@ func icProviderInventory(c *icCase) {
 				kind = "v"
 			}
 			child.run(child.conn, fixture.Select("SELECT relkind FROM pg_catalog.pg_class WHERE oid=$1::regclass::oid", []string{"relkind"}, []string{"CHAR"}, [][]any{{kind}}, schema+"."+table))
+			if table == "pg_authid" {
+				// Independently prescribed real-table facts, not merely presence in
+				// the provider-name bag. No credential values are read here.
+				dataTypes := []string{"oid", "name", "boolean", "boolean", "boolean", "boolean", "boolean", "boolean", "boolean", "integer", "text", "timestamp with time zone"}
+				udts := []string{"oid", "name", "bool", "bool", "bool", "bool", "bool", "bool", "bool", "int4", "text", "timestamptz"}
+				var rows [][]any
+				for i, field := range inventory[table] {
+					facts := map[string]any{}
+					if i < 10 {
+						facts["is_nullable"] = "NO"
+					}
+					if i == 1 || i == 10 {
+						facts["collation_catalog"], facts["collation_schema"], facts["collation_name"] = c.database, "pg_catalog", "C"
+					}
+					switch i {
+					case 9:
+						facts["numeric_precision"], facts["numeric_precision_radix"], facts["numeric_scale"] = int64(32), int64(2), int64(0)
+					case 10:
+						facts["character_octet_length"] = int64(1073741824)
+					case 11:
+						facts["datetime_precision"] = int64(6)
+					}
+					rows = append(rows, icRow(c.database, schema, table, field, i+1, dataTypes[i], "pg_catalog", udts[i], facts))
+				}
+				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_authid'", rows)
+				child.run(child.conn, s)
+				child.run(child.conn, fixture.Prepared(s))
+				child.run(child.hold(s.Query), s)
+			}
 		})
 	}
 	if !c.b.PG {
@@ -185,27 +215,29 @@ func icProviderInventory(c *icCase) {
 	}
 	// Metadata visibility follows genuine authority, including on a statement
 	// prepared by the administrator before switching to an ordinary reader.
-	query := "SELECT column_name,ordinal_position FROM information_schema.columns WHERE table_schema='pg_catalog' AND table_name='pg_shadow' ORDER BY ordinal_position"
+	query := "SELECT table_name,column_name,ordinal_position FROM information_schema.columns WHERE table_schema='pg_catalog' AND table_name IN ('pg_authid','pg_shadow') ORDER BY table_name,ordinal_position"
 	held := c.hold(query)
-	checkShadow := func(visible bool) {
+	checkProtectedRoles := func(visible bool) {
 		c.t.Helper()
 		var want [][]any
 		if visible {
-			for i, name := range inventory["pg_shadow"] {
-				want = append(want, []any{name, int64(i + 1)})
+			for _, table := range []string{"pg_authid", "pg_shadow"} {
+				for i, name := range inventory[table] {
+					want = append(want, []any{table, name, int64(i + 1)})
+				}
 			}
 		}
-		s := fixture.Select(query, []string{"column_name", "ordinal_position"}, []string{"NAME", "INT4"}, want)
+		s := fixture.Select(query, []string{"table_name", "column_name", "ordinal_position"}, []string{"NAME", "NAME", "INT4"}, want)
 		c.run(c.conn, s)
 		c.run(c.conn, fixture.Prepared(s))
 		c.run(held, s)
 	}
-	checkShadow(true)
+	checkProtectedRoles(true)
 	c.exec("CREATE ROLE ic_reader", "SET ROLE ic_reader")
-	checkShadow(false)
+	checkProtectedRoles(false)
 	c.exec("RESET ROLE", "GRANT pg_read_all_data TO ic_reader", "SET ROLE ic_reader")
-	checkShadow(true)
+	checkProtectedRoles(true)
 	c.exec("RESET ROLE", "REVOKE pg_read_all_data FROM ic_reader", "SET ROLE ic_reader")
-	checkShadow(false)
+	checkProtectedRoles(false)
 	c.exec("RESET ROLE")
 }

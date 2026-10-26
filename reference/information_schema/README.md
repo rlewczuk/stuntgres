@@ -16,6 +16,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
 `fixture.Main(m, fixture.WithLegacyCryptoProvider())`, as in every catalog
 package. The column inventory (`info_columns_provider_helpers_test.go`) reads the
 other families' column vectors from `reference/fixture/catalog_columns.go`.
+Protected role catalogs retain exact real-table or view classification;
+`pg_authid` carries the complete twelve-column source facts, and current
+authority filters role-catalog metadata on direct and retained consumers.
 
 Every query of these views builds the whole view before filtering, so an
 inventory of builtin or installed objects (view definitions per display mode,

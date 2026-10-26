@@ -82,8 +82,11 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Both read-only builtin definitions use the common identity-aware fragments
   for pg_views, pg_get_viewdef and information-schema consumers; default and
   pretty forms agree and retain actual search-path/identifier-quoting rules.
-- `pg_shadow` reads genuine stored passwords and expirations from the immutable
-  statement role frontier. Missing passwords, expirations and unstored role-wide
+- `pg_authid` projects all roles and their direct typed attributes, genuine stored
+  passwords and expirations from the immutable statement role frontier.
+  Its real-table descriptor has no PUBLIC SELECT authority. `pg_shadow` uses the
+  same captured role frontier but includes only LOGIN roles. Missing passwords,
+  expirations and unstored role-wide
   configuration remain typed SQL NULL. The common relation ACL/column manifest
   and stored-view owner/invoker checks authorize access, including genuine
   delegated authority; the producer creates neither credentials nor permissions.

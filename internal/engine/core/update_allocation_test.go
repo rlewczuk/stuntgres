@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -50,17 +51,37 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 			q.WriteString(",1)")
 		}
 		sessionSQL(t, s, q.String())
+		// Measure UPDATE execution, as the benchmark does, not GC-evictable
+		// parser receiver checkouts inside these small byte envelopes.
+		noMatchFalse := enginetest.Statement(t, "UPDATE t SET v=2 WHERE FALSE")
+		noMatchPredicate := enginetest.Statement(t, "UPDATE t SET v=2 WHERE id=-1")
+		oneMatch := enginetest.Statement(t, "UPDATE t SET v=2 WHERE id=0")
+		execute := func(statement parser.Statement, want int64) {
+			op, err := s.Acquire(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := e.Execute(op, statement, 0, nil)
+			op.Done()
+			if result.Rows != nil {
+				result.Rows.Close()
+				t.Fatal("UPDATE without RETURNING exposed rows")
+			}
+			if err != nil || result.Count != want {
+				t.Fatal("UPDATE affected count", result.Count, want, err)
+			}
+		}
 		ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 		before := e.Storage.Relations[ref.Address].Versions
-		zero = allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE FALSE") })
-		absent := allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE id=-1") })
+		zero = allocated(func() { execute(noMatchFalse, 0) })
+		absent := allocated(func() { execute(noMatchPredicate, 0) })
 		if absent > zero {
 			zero = absent
 		}
 		if &before[0] != &e.Storage.Relations[ref.Address].Versions[0] {
 			t.Fatal("zero-match UPDATE replaced root")
 		}
-		sparse = allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE id=0") })
+		sparse = allocated(func() { execute(oneMatch, 1) })
 		if len(e.Storage.Relations[ref.Address].Versions) != n || enginetest.Export(before[0].Values[1]) != int64(1) {
 			t.Fatal("root retention/cardinality")
 		}

@@ -116,6 +116,8 @@ func InitializeAttributes(d *catalog.Relation) {
 				fact.NotNull = i < 29
 			case 1213:
 				fact.NotNull = i < 3
+			case ids.RoleClassID:
+				fact.NotNull = i < 10
 			case 1262:
 				fact.NotNull = i < 14
 			case 2964:

@@ -3,6 +3,11 @@ Builtin view definitions (`pg_views`, `information_schema.views`,
 longer walk every catalog object to find intagg's aggregate helper functions;
 they check only the aggregates that have them.
 
+`pg_authid` exposes typed all-role identities, direct attributes and stored
+credentials through restricted catalog-table access. Reads use immutable
+statement snapshots and current central ACL authority; public role-view
+password masks remain independent.
+
 `pg_amproc` publishes only owner-asserted implemented support memberships, with
 exact OID/INT2/REGPROC columns and operator-family/type associations. Native
 comparator/hash, genuine internal BRIN and installed cube support remain visible;

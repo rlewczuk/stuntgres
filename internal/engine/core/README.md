@@ -1009,6 +1009,9 @@ Static capture demand/cancellation/cleanup units use `RUN='^TestPLpgSQLSelectInt
 - Snapshot units publish controlled registry/tuple frontiers and select through
   real retained views and heap sources. Utility timing observes an actual queued
   target lock; safe-snapshot units check accepted and discarded public/root pairs.
+- UPDATE auxiliary-storage measurements preparse their fixed SQL before measuring
+  bytes, then use real session acquisition and engine execution. Parser scratch
+  pool retention is not an execution-memory invariant.
 
 Core tests are external (`package core_test`) except the accessor files
 `export_<area>_test.go` and the pure units that build no engine
