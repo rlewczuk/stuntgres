@@ -156,6 +156,13 @@ declared domains, with exact identifier-domain metadata and enabled domain-owner
 visibility. Held reads track definition and ownership changes; domain USAGE and
 table privileges alone do not expose rows.
 
+`information_schema.referential_constraints` exposes nine domain-typed columns
+for actual foreign keys, including match/update/delete rules and the referenced
+constraint identified through its real supporting index. Standalone unique
+indexes retain a NULL constraint-identity triple; duplicate projected rows are
+preserved. Visibility follows referencing-table ownership or qualifying
+table/column privileges, not SELECT or schema access.
+
 Statements that only add types, such as CREATE TABLE, CREATE VIEW and CREATE
 TYPE, no longer rewrite every type, rule and trigger in the catalog to reown
 type generations; only replacing an existing type's definition does.

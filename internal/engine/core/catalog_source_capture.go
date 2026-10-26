@@ -87,6 +87,10 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case 12014, 12007, 12008, pgcatalog.ShadowOID:
 		in.Roles = scope.Inquiry.commentRoles
 		unlockBefore = true
+	case pgcatalog.InfoReferentialConstraintsOID:
+		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
+		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName
+		unlockBefore = true
 	case pgcatalog.InfoTriggersOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName

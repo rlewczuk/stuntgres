@@ -121,6 +121,7 @@ var producers = [...]Registration{
 	{InfoColumnDomainUsageOID, captureInfoColumnDomainUsage},
 	{InfoTriggersOID, captureInfoTriggers},
 	{InfoParametersOID, captureInfoParameters},
+	{InfoReferentialConstraintsOID, captureInfoReferentialConstraints},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.
