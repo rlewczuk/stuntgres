@@ -9,7 +9,7 @@ import (
 )
 
 // PostgreSQL's public-schema reset does not remove database-wide extensions.
-// Cleanup is oracle setup only; DROP EXTENSION is not part of the native surface.
+// Clean the oracle's extension and non-public schemas before and after each case.
 func extensionCase(t *testing.T, body func(*testing.T, *fixture.Pair, *sql.Conn, *fixture.Recorder, bool)) {
 	t.Helper()
 	p := fixture.NewScenario(t)

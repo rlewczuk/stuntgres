@@ -54,6 +54,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
   `Roles.BelongsTo(Owner.Principals)` and `Source` identity must agree before
   rows are produced.
+- `pg_ts_dict` projects only captured, installed dictionary descriptors, with
+  their actual namespace, owner and template identities. The stock unaccent
+  provider supplies the exact `rules = 'unaccent'` initialization text; options
+  remain nullable catalog text. Extension installation/removal and transaction
+  publication own row visibility; catalog reads allocate no identities and
+  neither install nor execute a provider. `pg_available_extensions` advertises
+  module availability independently of installed dictionary rows. Dictionary
+  execution remains owned by the extension/FTS provider, not this projection.
 - `pg_ts_parser` projects the immutable stock parser identity and its five
   internal handler references with installed OID/NAME/REGPROC descriptors.
   These rows are builtin metadata, not mutable parser definitions or ACLs.

@@ -1,3 +1,11 @@
+`pg_ts_dict` now has dedicated native/PostgreSQL coverage for exact installed
+unaccent identity, template linkage, initialization options and six-column
+metadata, including transactional install/removal, held queries and immutable
+native captures. Available modules remain distinct from installed dictionaries;
+empty catalog reads and ordinary binding diagnostics are independently specified.
+Dictionary captures reject foreign/stale source authority and foreign type
+generations before projection, including empty catalogs, without publishing rows.
+
 `pg_lsn` columns, literals and parameters preserve the full unsigned 64-bit WAL
 position range with canonical slash-hex results and metadata. Comparisons and
 ordering use unsigned magnitude; differences and numeric byte offsets are exact,
