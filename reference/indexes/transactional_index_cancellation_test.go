@@ -40,7 +40,7 @@ func TestReferenceTransactionalIndexCancellation(t *testing.T) {
 					run(fixture.ErrorDiagnostic("SELECT 1", transactionalIndexAborted()))
 					run(fixture.Exec("ROLLBACK TO recover", 0))
 					run(transactionalIndexName("idx", false))
-					run(fixture.Exec("SET LOCAL lock_timeout='100ms'", 0))
+					run(fixture.Exec("SET LOCAL lock_timeout='10ms'", 0))
 					s := fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout"))
 					s.ErrorStage = "execute"
 					fixture.RunStep(t, p.Ctx, e, b.Recorder, s)

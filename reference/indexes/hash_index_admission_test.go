@@ -54,7 +54,7 @@ func TestReferenceHashIndexBuildAdmission(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer stmt.Close()
-				run(fixture.Exec("SET lock_timeout='50ms'", 0))
+				run(fixture.Exec("SET lock_timeout='10ms'", 0))
 				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "55P03", Message: "canceling statement due to lock timeout"})
 				s.ErrorStage = "execute"
 				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}, b.Recorder, s)

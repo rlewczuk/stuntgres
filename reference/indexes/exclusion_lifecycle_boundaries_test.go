@@ -40,7 +40,7 @@ func TestReferenceExclusionPreparedPeerOutcome(t *testing.T) {
 				run(a, fixture.Exec("BEGIN", 0))
 				run(a, fixture.Exec("INSERT INTO t VALUES(1)", 1))
 				run(a, fixture.Exec("PREPARE TRANSACTION '"+gid+"'", 0))
-				run(peer, fixture.Exec("SET lock_timeout='100ms'", 0))
+				run(peer, fixture.Exec("SET lock_timeout='10ms'", 0))
 				outcome := fixture.RowExecute(p.Ctx, peer, "INSERT INTO t VALUES(1)", false)
 				if outcome.Result != nil {
 					t.Fatal("timed-out exclusion insert returned result")

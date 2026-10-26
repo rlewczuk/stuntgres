@@ -21,7 +21,7 @@ func TestReferenceUniqueIndexBuildLocks(t *testing.T) {
 					{"lock_timeout", "55P03", "canceling statement due to lock timeout"},
 					{"statement_timeout", "57014", "canceling statement due to statement timeout"},
 				} {
-					fixture.LockExec(t, p.Ctx, builder, "SET "+c.setting+"='100ms'", 0)
+					fixture.LockExec(t, p.Ctx, builder, "SET "+c.setting+"='"+timerValue(c.setting)+"'", 0)
 					s := fixture.Prepared(fixture.ImplicitError("CREATE UNIQUE INDEX ui_key ON ui_t(k)", fixture.Diagnostic{Code: c.code, Message: c.message}))
 					s.ErrorStage = "execute"
 					fixture.RunStep(t, p.Ctx, builder, b.Recorder, s)

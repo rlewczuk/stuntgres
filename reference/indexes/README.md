@@ -45,9 +45,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   replay; never assume they are stable.
 - Timeout witnesses (`HashIndexBuildAdmission`, `BtreeIndexBuildTimeouts`,
   `IndexMaintenanceLocks`) prepare the held CREATE INDEX/REINDEX/DROP, and any
-  timer-reset `SET`, at timeout 0, then arm the 20–50 ms timer. The 55P03/57014
-  diagnostic is expected at Execute, never Prepare; the failed utility leaves no
-  effects, and the same physical owner later runs it successfully.
+  timer-reset `SET`, at timeout 0, then arm a 10–20 ms lock or 20–50 ms statement
+  timer. The 55P03/57014 diagnostic is expected at Execute, never Prepare; the
+  failed utility leaves no effects, and the same physical owner later runs it
+  successfully.
 - Query results do not prove that an index is used. Index structure, lookup and
   native lock-queue order are asserted by engine units:
   `make check RUN='^Test(AccessMethod|OperatorClass|OperatorFamily|HashIndex|ConcurrentIndex|PartialIndex|UsingIndex|PrimaryKey|Exclusion)'`.

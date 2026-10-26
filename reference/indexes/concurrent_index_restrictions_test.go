@@ -34,7 +34,7 @@ func TestReferenceConcurrentIndexTransactionRestrictions(t *testing.T) {
 							fixture.ConcurrentIndexExec(t, p, b, blocker, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE", 0)
 							release = func() { fixture.ConcurrentIndexExec(t, p, b, blocker, "ROLLBACK", 0) }
 						}
-						fixture.ConcurrentIndexExec(t, p, b, c, "SET lock_timeout='100ms'", 0)
+						fixture.ConcurrentIndexExec(t, p, b, c, "SET lock_timeout='10ms'", 0)
 						q := "CREATE INDEX CONCURRENTLY ix ON " + actual + "(n)"
 						var execute fixture.Executor = c
 						if held {
@@ -129,7 +129,7 @@ func TestReferenceConcurrentIndexOrdinaryBoundary(t *testing.T) {
 					w := fixture.ConcurrentIndexStart(t, p, builder, "CREATE INDEX idx ON t(n)", held)
 					if b.PG {
 						fixture.LockWaitBehind(t, p.Ctx, bp, ap, fixture.LockOID(t, p.Ctx, "t"), "ShareLock")
-						fixture.ConcurrentIndexExec(t, p, b, c, "SET lock_timeout='100ms'", 0)
+						fixture.ConcurrentIndexExec(t, p, b, c, "SET lock_timeout='10ms'", 0)
 						timeout := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
 						timeout.Position = "13"
 						fixture.ConcurrentIndexError(t, p, b, c, "INSERT INTO t VALUES(3)", timeout)

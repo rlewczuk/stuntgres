@@ -39,7 +39,7 @@ func uniqueReferenceRowLockStrength(t *testing.T, standalone bool) {
 					run(fixture.Exec("INSERT INTO t VALUES("+c.seed+",1,10)", 1))
 					run(fixture.Exec("BEGIN", 0))
 					run(fixture.Select("SELECT v FROM t FOR KEY SHARE", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}}))
-					fixture.LockExec(t, p.Ctx, b, "SET lock_timeout='100ms'", 0)
+					fixture.LockExec(t, p.Ctx, b, "SET lock_timeout='10ms'", 0)
 					outcome := fixture.RowExecute(p.Ctx, b, c.update, true)
 					if c.blocked {
 						want := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
@@ -107,7 +107,7 @@ func uniqueReferenceContention(t *testing.T, standalone bool) {
 						if !backend.PG {
 							// Native has no physical wait catalog. A bounded SQL timeout
 							// independently proves equal-key blocking before peer outcome.
-							fixture.LockExec(t, p.Ctx, b, "SET lock_timeout='100ms'", 0)
+							fixture.LockExec(t, p.Ctx, b, "SET lock_timeout='10ms'", 0)
 							timeout := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
 							fixture.RunStep(t, p.Ctx, b, backend.Recorder, fixture.Prepared(fixture.ErrorDiagnostic("INSERT INTO t VALUES(1)", timeout)))
 							fixture.LockExec(t, p.Ctx, b, "SET lock_timeout=0", 0)

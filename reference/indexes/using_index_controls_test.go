@@ -34,7 +34,7 @@ func TestReferenceUsingIndexLocks(t *testing.T) {
 				} else {
 					fixture.LockExec(c.t, c.p.Ctx, holder, holderSQL, 1)
 				}
-				fixture.LockExec(c.t, c.p.Ctx, waiter, "SET lock_timeout='100ms'", 0)
+				fixture.LockExec(c.t, c.p.Ctx, waiter, "SET lock_timeout='10ms'", 0)
 				s := fixture.ErrorDiagnostic("ALTER TABLE ux_t ADD CONSTRAINT ux_owned UNIQUE USING INDEX ux_idx", usingIndexDiagnostic("55P03", "canceling statement due to lock timeout"))
 				s.ErrorStage = "execute"
 				if c.prepared {
@@ -80,7 +80,7 @@ func TestReferenceUsingIndexLocks(t *testing.T) {
 				if c.ids("ux_owned")[2] != old {
 					c.t.Fatal("retry replaced index")
 				}
-				fixture.LockExec(c.t, c.p.Ctx, waiter, "SET lock_timeout='100ms'", 0)
+				fixture.LockExec(c.t, c.p.Ctx, waiter, "SET lock_timeout='10ms'", 0)
 				readerTimeout := usingIndexDiagnostic("55P03", "canceling statement due to lock timeout")
 				readerTimeout.Position = "15"
 				fixture.RunStep(c.t, c.p.Ctx, waiter, c.b.Recorder, fixture.ErrorDiagnostic("SELECT a FROM ux_t", readerTimeout))

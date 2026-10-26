@@ -41,7 +41,7 @@ func TestReferenceExclusionConcurrency(t *testing.T) {
 							t.Fatal(err)
 						}
 					} else {
-						run(peer, fixture.Exec("SET lock_timeout='100ms'", 0))
+						run(peer, fixture.Exec("SET lock_timeout='10ms'", 0))
 						run(peer, fixture.ErrorDiagnostic("INSERT INTO t VALUES(1)", fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")))
 						run(peer, fixture.Exec("SET lock_timeout=0", 0))
 					}
@@ -159,7 +159,7 @@ func TestReferenceExclusionAlterAdmission(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer stmt.Close()
-		run(peer, fixture.Exec("SET lock_timeout='100ms'", 0))
+		run(peer, fixture.Exec("SET lock_timeout='10ms'", 0))
 		held := fixture.HeldStatement{Executor: peer, Statement: stmt, SQL: "ALTER TABLE t ADD CONSTRAINT ex EXCLUDE(v WITH =)"}
 		run(held, fixture.ErrorDiagnostic(held.SQL, fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")))
 		run(peer, fixture.Exec("SET lock_timeout=0", 0))

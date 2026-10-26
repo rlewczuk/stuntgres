@@ -173,7 +173,7 @@ func TestReferenceTransactionalIndexMaintenanceCancellation(t *testing.T) {
 						defer owner.ExecContext(p.Ctx, "ROLLBACK")
 						run(fixture.Exec("SAVEPOINT recover", 0))
 						if kind != "cancel" {
-							run(fixture.Exec("SET LOCAL "+kind+"='100ms'", 0))
+							run(fixture.Exec("SET LOCAL "+kind+"='"+timerValue(kind)+"'", 0))
 						}
 						ctx, cancel := context.WithCancel(p.Ctx)
 						defer cancel()

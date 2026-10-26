@@ -53,7 +53,7 @@ func TestReferencePartialIndexUniqueRowLockStrength(t *testing.T) {
 						lock = fixture.Prepared(lock)
 					}
 					run(lock)
-					fixture.LockExec(t, p.Ctx, peer, "SET lock_timeout='100ms'", 0)
+					fixture.LockExec(t, p.Ctx, peer, "SET lock_timeout='10ms'", 0)
 					o := fixture.RowExecute(p.Ctx, peer, c.update, held)
 					if c.blocked {
 						want := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
@@ -218,7 +218,7 @@ func TestReferencePartialIndexUniqueSavepointTimeoutResources(t *testing.T) {
 						}
 					}
 				} else {
-					run(fixture.Exec("SET LOCAL "+setting+"='100ms'", 0))
+					run(fixture.Exec("SET LOCAL "+setting+"='"+timerValue(setting)+"'", 0))
 					code, message := "55P03", "canceling statement due to lock timeout"
 					if setting == "statement_timeout" {
 						code, message = "57014", "canceling statement due to statement timeout"

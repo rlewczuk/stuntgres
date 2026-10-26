@@ -7,9 +7,9 @@ import (
 
 func TestReferenceIndexMaintenanceLocks(t *testing.T) {
 	for _, q := range []string{"REINDEX INDEX ix", "REINDEX TABLE t", "DROP INDEX ix"} {
-		for _, timer := range []struct{ setting, code, message string }{
-			{"lock_timeout", "55P03", "canceling statement due to lock timeout"},
-			{"statement_timeout", "57014", "canceling statement due to statement timeout"},
+		for _, timer := range []struct{ setting, value, code, message string }{
+			{"lock_timeout", "10ms", "55P03", "canceling statement due to lock timeout"},
+			{"statement_timeout", "50ms", "57014", "canceling statement due to statement timeout"},
 		} {
 			t.Run(q+"/"+timer.setting, func(t *testing.T) {
 				indexMaintenanceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
@@ -33,7 +33,7 @@ func TestReferenceIndexMaintenanceLocks(t *testing.T) {
 					}
 					defer reset.Close()
 					resetHeld := fixture.HeldStatement{Executor: c, Statement: reset, SQL: resetSQL}
-					fixture.LockExec(t, p.Ctx, c, "SET "+timer.setting+"='50ms'", 0)
+					fixture.LockExec(t, p.Ctx, c, "SET "+timer.setting+"='"+timer.value+"'", 0)
 					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: timer.code, Message: timer.message})
 					s.ErrorStage = "execute"
 					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
@@ -59,7 +59,7 @@ func TestReferenceIndexMaintenanceLocks(t *testing.T) {
 					fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
 					fixture.LockExec(t, p.Ctx, a, "INSERT INTO t VALUES(2)", 1)
 					// First establish conflict independently, including native without pg_locks.
-					fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='50ms'", 0)
+					fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='10ms'", 0)
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ImplicitError(q, fixture.Diagnostic{Code: "55P03", Message: "canceling statement due to lock timeout"}))
 					fixture.LockExec(t, p.Ctx, c, "SET lock_timeout=0", 0)
 					var holder, waiter int
@@ -191,7 +191,7 @@ func TestReferenceIndexMaintenanceLockModesOracle(t *testing.T) {
 						}
 						fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT c.relname,l.mode,l.granted FROM pg_locks l JOIN pg_class c ON c.oid=l.relation WHERE l.pid="+fixture.Position(pid)+" AND c.relname IN ('t','ix','fresh') ORDER BY c.relname,l.mode", []string{"relname", "mode", "granted"}, []string{"NAME", "TEXT", "BOOL"}, wantLocks))
 					}
-					fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='50ms'", 0)
+					fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='10ms'", 0)
 					if q == "DROP INDEX ix" {
 						s := fixture.ImplicitError("SELECT n FROM t", fixture.Diagnostic{Code: "55P03", Message: "canceling statement due to lock timeout", Position: "15"})
 						s.SelectRows = true

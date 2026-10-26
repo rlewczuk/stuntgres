@@ -31,7 +31,7 @@ func TestReferenceConcurrentIndexKeyLockEligibility(t *testing.T) {
 					fixture.ConcurrentIndexWait(t, p, b, "ui", stuntgres.IndexState{Live: true}, bp, ap, "waiting for writers before build")
 					fixture.ConcurrentIndexExec(t, p, b, reader, "BEGIN ISOLATION LEVEL READ COMMITTED", 0)
 					fixture.RunStep(t, p.Ctx, reader, b.Recorder, fixture.Select("SELECT n FROM t WHERE n=1 FOR KEY SHARE", []string{"n"}, []string{"INT4"}, [][]any{{int64(1)}}))
-					fixture.ConcurrentIndexExec(t, p, b, updater, "SET lock_timeout='100ms'", 0)
+					fixture.ConcurrentIndexExec(t, p, b, updater, "SET lock_timeout='10ms'", 0)
 					outcome := fixture.RowExecute(p.Ctx, updater, tc.update, held)
 					if tc.blocked {
 						want := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")

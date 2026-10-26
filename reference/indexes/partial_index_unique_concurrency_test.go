@@ -37,9 +37,19 @@ func partialUniqueLockFailure(t *testing.T, o fixture.RelationOutcome, want fixt
 	fixture.AssertDiagnostic(t, o.Err, &want)
 }
 
+// timerValue is the shortest armed timer that still proves a wait:
+// lock_timeout counts only the lock wait, statement_timeout also counts parse
+// and plan time.
+func timerValue(setting string) string {
+	if setting == "lock_timeout" {
+		return "10ms"
+	}
+	return "100ms"
+}
+
 func partialUniqueLockTimeout(t *testing.T, p *fixture.Pair, b fixture.Backend, x fixture.Executor, query, setting, code, message, pgContext string, held bool) {
 	t.Helper()
-	fixture.LockExec(t, p.Ctx, x, "SET "+setting+"='100ms'", 0)
+	fixture.LockExec(t, p.Ctx, x, "SET "+setting+"='"+timerValue(setting)+"'", 0)
 	want := fixture.ControlsReferenceDiagnostic(code, message)
 	if b.PG {
 		want.Context = pgContext
@@ -275,7 +285,7 @@ func TestReferencePartialIndexUniqueKeyDeadlock(t *testing.T) {
 				} else {
 					// Prove the first edge without losing A's premark claim.
 					run(fixture.Exec("SAVEPOINT admission", 0))
-					fixture.LockExec(t, p.Ctx, a, "SET LOCAL lock_timeout='100ms'", 0)
+					fixture.LockExec(t, p.Ctx, a, "SET LOCAL lock_timeout='10ms'", 0)
 					partialUniqueLockFailure(t, fixture.RowExecute(p.Ctx, a, "INSERT INTO t VALUES(3,8,TRUE)", held), fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout"))
 					run(fixture.Exec("ROLLBACK TO admission", 0))
 					run(fixture.Exec("RELEASE SAVEPOINT admission", 0))
