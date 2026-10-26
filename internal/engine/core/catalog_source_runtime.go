@@ -151,6 +151,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.InfoTablesOID:                      "tables",
 	pgcatalog.InfoRoleTableGrantsOID:             "role_table_grants",
 	pgcatalog.InfoRoutinesOID:                    "routines",
+	pgcatalog.InfoParametersOID:                  "parameters",
 	pgcatalog.InfoRoleRoutineGrantsOID:           "role_routine_grants",
 	pgcatalog.InfoRoleUdtGrantsOID:               "role_udt_grants",
 	pgcatalog.InfoSQLFeaturesOID:                 "sql_features",

@@ -124,8 +124,9 @@ type Producer func(Input) ([][]sqltype.Value, error)
   `proargtypes` built from each routine's input signature, and OID `provariadic`.
   SQL/PL formal names/types/modes come from `proc.Formals`; fixed native OUT
   types and complete names come from the actual builtin or installed declaration.
-  `proallargtypes` and `proargmodes` retain all declaration slots in order through
-  one typed-array materializer; argument count and identity remain input-only.
+  Builtin input names have one immutable declaration owner. `parameters` and
+  `pg_proc` share the ordered formal walk and name projection; argument count
+  and identity remain input-only.
   All-IN declarations return typed NULL arrays before allocating element slices.
   Non-SQL VARIADIC uses the existing `ProcedureVariadic` owner and terminal input
   slot, retaining its declared array/ANY type rather than the element OID.
@@ -230,6 +231,16 @@ type Producer func(Input) ([][]sqltype.Value, error)
   while C link symbols remain visible to executors. Declared result identity is
   not domain-unwrapped and does not admit a codec or execute a provider. All 82
   cells, including NULLs, retain their captured information-schema domains.
+- `parameters` expands actual declaration formals of every represented routine
+  language and kind, never invocation operands or SQL PREPARE placeholders.
+  All 32 cells retain their captured nullable domains, including NULLs.
+  Enabled ownership or effective EXECUTE admits rows without schema/type USAGE;
+  only enabled ownership discloses default expressions. OUT/TABLE positions
+  count in ordinals but never shift input-indexed defaults. Declared type
+  classification shares routines' generation checks without codec admission.
+  Checked defaults and finite builtin/installed literal recipes are rendered
+  through captured `stored.Deparser` presentation, never evaluated or replay
+  serialized. Cancellation or malformed authority publishes no partial rows.
 
 `user_defined_types` traverses actual standalone composite relations and validates
 their reciprocal type descriptors before applying immediately usable ownership

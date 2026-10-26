@@ -3,6 +3,13 @@ provider cancellation poll before observing its live worker stack, rather than
 racing finite search completion against stack sampling. PostgreSQL cancellation
 diagnostics and same-connection recovery assertions remain unchanged.
 
+`information_schema.parameters` exposes all represented routine declaration
+formals through 32 nullable domain-typed columns, including OUT/INOUT names,
+declared types and owner-visible deparsed defaults. EXECUTE-only readers see
+redacted defaults; SQL PREPARE parameters never add rows. Builtin and installed
+literal defaults use the same captured presentation machinery as checked SQL
+defaults without evaluating expressions or changing native replay.
+
 `information_schema.user_mapping_options` exposes actual user-mapping options
 through five nullable domain-typed columns. Server access controls visible
 identities and option names; exact mapped-user, PUBLIC-owner and superuser rules

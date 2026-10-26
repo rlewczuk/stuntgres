@@ -14,8 +14,7 @@ import (
 // Non-SQL inputs reuse the already materialized Signature vector.
 func procedureFormalArrays(ctx context.Context, d *catalog.Procedure, types, modes *sqltype.Descriptor, variadic ids.OID, inputTypes sqltype.Value) (sqltype.Value, sqltype.Value, error) {
 	allTypes, allModes := sqltype.Null(types), sqltype.Null(modes)
-	count, inputs := 0, 0
-	outputs := d.OutputDeclaration()
+	count := 0
 	if d.SQL != nil {
 		mixed := false
 		for _, formal := range d.SQL.Formals {
@@ -26,49 +25,34 @@ func procedureFormalArrays(ctx context.Context, d *catalog.Procedure, types, mod
 		}
 		count = len(d.SQL.Formals)
 	} else {
+		outputs := d.OutputDeclaration()
 		if outputs == nil && variadic == 0 {
 			return allTypes, allModes, nil
 		}
-		inputs = inputTypes.ArrayLen()
+		inputs := inputTypes.ArrayLen()
+		if inputs != int(ProcedureArity(d)) {
+			return sqltype.Value{}, sqltype.Value{}, fmt.Errorf("stuntgres: invalid routine input vector")
+		}
 		count = inputs
 		if outputs != nil {
-			if outputs.Inputs() != inputs || variadic != 0 {
-				return sqltype.Value{}, sqltype.Value{}, fmt.Errorf("stuntgres: invalid fixed output declaration")
-			}
 			count += outputs.Len()
-		} else if inputs == 0 {
-			return sqltype.Value{}, sqltype.Value{}, fmt.Errorf("stuntgres: missing variadic input declaration")
 		}
 	}
 	typeValues := make([]sqltype.Value, count)
 	modeValues := make([]sqltype.Value, count)
-	for i := range count {
-		if err := ctx.Err(); err != nil {
-			return sqltype.Value{}, sqltype.Value{}, err
+	if err := visitProcedureFormals(ctx, d, inputTypes, func(f procedureFormal) error {
+		if f.Index >= count {
+			return fmt.Errorf("stuntgres: invalid formal array width")
 		}
-		var id uint32
-		mode := "i"
-		if d.SQL != nil {
-			formal := d.SQL.Formals[i]
-			id, mode = uint32(formal.Usage.Type.ID()), formal.Mode
-		} else if i < inputs {
-			n, err := inputTypes.ArrayElement(i).OID()
-			if err != nil {
-				return sqltype.Value{}, sqltype.Value{}, err
-			}
-			id = n
-			if variadic != 0 && i == inputs-1 {
-				mode = "v"
-			}
-		} else {
-			id, mode = uint32(outputs.Type(i-inputs)), "o"
-		}
-		value, err := sqltype.OIDValue(types.Element(), id)
+		value, err := sqltype.OIDValue(types.Element(), uint32(f.Type))
 		if err != nil {
-			return sqltype.Value{}, sqltype.Value{}, err
+			return err
 		}
-		typeValues[i] = value
-		modeValues[i] = sqltype.String(modes.Element(), mode)
+		typeValues[f.Index] = value
+		modeValues[f.Index] = sqltype.String(modes.Element(), f.Mode)
+		return nil
+	}); err != nil {
+		return sqltype.Value{}, sqltype.Value{}, err
 	}
 	dimensions := []sqltype.ArrayDimension{{Lower: 1, Length: int32(count)}}
 	var err error

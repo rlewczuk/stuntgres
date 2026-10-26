@@ -66,6 +66,8 @@ func BuiltinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
 			ObjectRevision:  1, ObjectName: declaration.Identity.Name, Signature: declaration.Identity.Signature,
 			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner, Display: display,
 			Result: declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
+			LiteralDefaults: builtinRoutineLiteralDefaults[declaration.Identity.ID],
+			InputNames:      builtinRoutineInputNames[declaration.Identity.ID],
 		}
 	}
 	attachBuiltinRoutineBodies(procedures)

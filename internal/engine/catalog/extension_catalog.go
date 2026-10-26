@@ -70,6 +70,8 @@ type Procedure struct {
 	DeclarationDependencies []ids.ObjectAddress
 	SQLBody                 RoutineProgram
 	SQLDefaults             RoutineDefaults
+	LiteralDefaults         *RoutineLiteralDefaults
+	InputNames              *RoutineInputNames
 	Body                    []RoutineBodyEdge
 	Owner                   authorization.PrincipalRef
 	Result                  ids.OID

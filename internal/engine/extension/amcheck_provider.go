@@ -17,6 +17,14 @@ const VerifyHeapamSignature catalog.ProcedureSignature = "2205,16,16,25,20,20"
 var verifyHeapamOutputs = catalog.NewRoutineOutputs([]ids.OID{20, 23, 23, 25},
 	"relation", "on_error_stop", "check_toast", "skip", "startblock", "endblock", "blkno", "offnum", "attnum", "msg")
 
+var verifyHeapamDefaults = catalog.NewRoutineLiteralDefaults(
+	catalog.RoutineLiteral{SourceType: 16, Text: "false"},
+	catalog.RoutineLiteral{SourceType: 16, Text: "false"},
+	catalog.RoutineLiteral{SourceType: 25, Text: "none"},
+	catalog.RoutineLiteral{SourceType: 20, Null: true},
+	catalog.RoutineLiteral{SourceType: 20, Null: true},
+)
+
 func verifyHeapamDeclaration() catalog.InstalledRoutineDeclaration {
 	return catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000, Defaults: 5, Outputs: verifyHeapamOutputs}
 }
@@ -169,6 +177,7 @@ func (p *AmcheckProvider) Stage(stage Stage, ext *catalog.Extension, owner autho
 		if slot == 0 {
 			proc.ObjectName, proc.Signature, proc.Result = "verify_heapam", VerifyHeapamSignature, 2249
 			proc.Installed = verifyHeapamDeclaration()
+			proc.LiteralDefaults = verifyHeapamDefaults
 		} else {
 			member := AmcheckMembers[slot-1]
 			proc.ObjectName, proc.Signature, proc.Result = member.Name, member.Signature, 2278

@@ -1,0 +1,220 @@
+package pgcatalog
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/sqltype"
+)
+
+// A declaration formal is independent of invocation expansion and result shape.
+// Usage is present for checked SQL/PL formals; other types are catalog identities.
+type procedureFormal struct {
+	Type         ids.OID
+	Usage        sqltype.Usage
+	Mode         string
+	Index, Input int
+	HasDefault   bool
+}
+
+func visitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes sqltype.Value, visit func(procedureFormal) error) error {
+	if d.SQL != nil {
+		if len(d.SQL.Formals) != len(d.SQL.FormalInputs) || len(d.SQL.Inputs) != len(d.SQL.InputFormals) {
+			return fmt.Errorf("stuntgres: invalid routine formal layout")
+		}
+		input := 0
+		for i, f := range d.SQL.Formals {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if f.Usage.Type == nil {
+				return fmt.Errorf("stuntgres: missing routine formal type")
+			}
+			slot := -1
+			switch f.Mode {
+			case "i", "b", "v":
+				slot = input
+				input++
+			case "o", "t":
+				if f.HasDefault {
+					return fmt.Errorf("stuntgres: output formal has default")
+				}
+			default:
+				return fmt.Errorf("stuntgres: invalid routine formal mode")
+			}
+			if d.SQL.FormalInputs[i] != slot || slot >= 0 && (slot >= len(d.SQL.InputFormals) || d.SQL.InputFormals[slot] != i || d.SQL.Inputs[slot] != f.Usage) {
+				return fmt.Errorf("stuntgres: invalid routine input projection")
+			}
+			if err := visit(procedureFormal{ids.OID(f.Usage.Type.ID()), f.Usage, f.Mode, i, slot, f.HasDefault}); err != nil {
+				return err
+			}
+		}
+		if input != len(d.SQL.Inputs) {
+			return fmt.Errorf("stuntgres: invalid routine input count")
+		}
+		return nil
+	}
+	variadic, err := ProcedureVariadic(d)
+	if err != nil {
+		return err
+	}
+	inputs := int(ProcedureArity(d))
+	outputs := d.OutputDeclaration()
+	if outputs != nil && (outputs.Inputs() != inputs || variadic != 0) {
+		return fmt.Errorf("stuntgres: invalid fixed output declaration")
+	}
+	defaults := int(d.Installed.Defaults)
+	if d.Builtin != nil {
+		defaults = int(d.Builtin.Defaults)
+	}
+	if defaults > inputs {
+		return fmt.Errorf("stuntgres: invalid routine default count")
+	}
+	remaining := string(d.Signature)
+	if inputTypes.Type() != nil {
+		if !inputTypes.Type().IsCatalogVector() || inputTypes.IsNull() || inputTypes.ArrayLen() != inputs {
+			return fmt.Errorf("stuntgres: invalid routine input vector")
+		}
+		remaining = ""
+	}
+	for i := range inputs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		var n uint32
+		if inputTypes.Type() != nil {
+			var err error
+			n, err = inputTypes.ArrayElement(i).OID()
+			if err != nil {
+				return err
+			}
+		} else {
+			token, rest, _ := strings.Cut(remaining, ",")
+			remaining = rest
+			parsed, err := strconv.ParseUint(token, 10, 32)
+			if err != nil || parsed == 0 {
+				return fmt.Errorf("stuntgres: invalid routine signature")
+			}
+			n = uint32(parsed)
+		}
+		mode := "i"
+		if variadic != 0 && i == inputs-1 {
+			mode = "v"
+		}
+		if err := visit(procedureFormal{Type: ids.OID(n), Mode: mode, Index: i, Input: i, HasDefault: i >= inputs-defaults}); err != nil {
+			return err
+		}
+	}
+	if remaining != "" || variadic != 0 && inputs == 0 {
+		return fmt.Errorf("stuntgres: invalid routine signature layout")
+	}
+	if outputs != nil {
+		for i := range outputs.Len() {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err := visit(procedureFormal{Type: ids.OID(outputs.Type(i)), Mode: "o", Index: inputs + i, Input: -1}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// One name projection serves pg_proc arrays and parameter rows. It borrows only
+// immutable declaration data, never a provider binding or inferred output.
+type procedureNames struct {
+	sql        *proc.Definition
+	names      []string
+	inputNames *catalog.RoutineInputNames
+	outputs    *catalog.RoutineOutputs
+	installed  [4]string
+	uuid       [2]string
+	count      int
+	present    bool
+}
+
+func (n procedureNames) at(i int) string {
+	if n.sql != nil {
+		return n.sql.Formals[i].Name
+	}
+	if n.names != nil {
+		return n.names[i]
+	}
+	if n.outputs != nil {
+		return n.outputs.Name(i)
+	}
+	if n.installed[0] != "" {
+		return n.installed[i]
+	}
+	if n.inputNames != nil {
+		return n.inputNames.At(i)
+	}
+	if n.uuid[0] != "" {
+		return n.uuid[i]
+	}
+	return ""
+}
+func procedureNameProjection(view catalog.Read, d *catalog.Procedure) (procedureNames, error) {
+	n := procedureNames{count: int(ProcedureArity(d))}
+	if d.SQL != nil {
+		n.sql = d.SQL
+		n.count = len(d.SQL.Formals)
+		for _, f := range d.SQL.Formals {
+			n.present = n.present || f.Name != ""
+		}
+	} else if d.Aggregate != nil && len(d.Aggregate.ArgumentNames) > 0 {
+		n.names = d.Aggregate.ArgumentNames
+		n.present = true
+		if len(n.names) != n.count {
+			return n, fmt.Errorf("stuntgres: invalid aggregate argument-name declaration")
+		}
+	} else if outputs := d.OutputDeclaration(); outputs != nil {
+		if outputs.Inputs() != n.count {
+			return n, fmt.Errorf("stuntgres: invalid fixed output names")
+		}
+		n.outputs = outputs
+		n.count += outputs.Len()
+		n.present = true
+	} else if d.InputNames != nil {
+		if d.InputNames.Len() != n.count {
+			return n, fmt.Errorf("stuntgres: invalid builtin input names")
+		}
+		n.inputNames = d.InputNames
+		n.present = true
+	} else if ext, ok := view.Extension(d.Extension); ok && ext.Name() == "uuid-ossp" && d.Implementation != nil && slices.Contains(ext.Members, d.Address()) {
+		if err := d.Implementation.ValidateExtension(view, ext); err != nil {
+			return n, err
+		}
+		slot := slices.Index(ext.Members, d.Address())
+		if slot >= len(functions.UUIDOsspMembers) {
+			return n, fmt.Errorf("stuntgres: invalid UUID routine manifest slot")
+		}
+		member := functions.UUIDOsspMembers[slot]
+		if member.Signature == string(d.Signature) && member.Signature != "" {
+			n.uuid = member.ArgumentNames
+			n.present = true
+			if n.count != 2 {
+				return n, fmt.Errorf("stuntgres: invalid UUID routine names")
+			}
+		}
+	}
+	if d.Installed.Outputs == nil && d.Installed.ArgumentNames[0] != "" {
+		if n.count > len(n.installed) {
+			return n, fmt.Errorf("stuntgres: invalid installed routine names")
+		}
+		n.sql = nil
+		n.names = nil
+		n.outputs = nil
+		n.installed = d.Installed.ArgumentNames
+		n.present = true
+	}
+	return n, nil
+}

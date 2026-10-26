@@ -94,6 +94,7 @@ type Runtime interface {
 	PartitionReferences(context.Context, catalog.Read, *catalog.Relation) ([]ids.ObjectAddress, error)
 	ViewDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	ColumnExpression(context.Context, catalog.Read, *catalog.Relation, expr.Expr) (string, error)
+	RoutineDefault(context.Context, catalog.Read, *catalog.Procedure, int) (string, error)
 	ColumnUpdatable(context.Context, catalog.Read, *catalog.Relation, int32) (bool, error)
 	ViewCapabilities(context.Context, catalog.Read, *catalog.Relation) (ViewCapability, error)
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)

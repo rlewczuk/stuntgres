@@ -111,30 +111,9 @@ func captureInfoRoutines(in Input) ([][]sqltype.Value, error) {
 			if err := in.Runtime.ValidateType(in.Catalog, result); err != nil {
 				return nil, err
 			}
-			// Declared shape is independent of pg_type admission and codecs.
-			// In particular nominal anyelement and handler returns remain valid
-			// metadata; domains do not acquire their base's array classification.
-			typ := result.SQLType
-			if typ.IsArray() {
-				element, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Element().ID())})
-				if !ok || element.SQLType != typ.Element() || !typ.IsCatalogVector() && element.Array != typ.ID() {
-					return nil, fmt.Errorf("stuntgres: foreign routines result element")
-				}
-			}
-			if typ.IsDomain() {
-				base, ok := in.Catalog.LookupType(typ.DomainBase().Type.ID())
-				if !ok || base != typ.DomainBase().Type {
-					return nil, fmt.Errorf("stuntgres: foreign routines result base")
-				}
-			}
-			dataType := "USER-DEFINED"
-			if typ.IsArray() && typ.AttributeFacts().Length == -1 {
-				dataType = "ARRAY"
-			} else if resultNamespace.Name() == "pg_catalog" {
-				dataType, err = infoDomainsBaseName(in.Catalog, result, in.TypeNamePath)
-				if err != nil {
-					return nil, err
-				}
+			dataType, err := routineDataType(in, result, resultNamespace)
+			if err != nil {
+				return nil, err
 			}
 			text(13, dataType)
 			text(28, database)

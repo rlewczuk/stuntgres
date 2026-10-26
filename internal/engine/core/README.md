@@ -721,6 +721,11 @@ Producers, the OID registry and descriptor specs live in
   AuthorizationView or bindings. Settings rows capture one coherent
   physical-session snapshot after unlocking `Engine.Mu`; `pg_locks_capture.go`
   keeps an unlock/capture/relock epoch fence.
+  Routine-default presentation validates the paired capture and exact Procedure,
+  then renders checked expressions or declaration-owned finite literals through
+  `stored.Deparser` with captured path/output/string settings. Source literals
+  retain their type and spelling across validated assignment coercion; no
+  expression evaluation, provider binding or replay-renderer change occurs.
 - `catalog_sources.go` registers descriptors from `pgcatalog.Specs`, preserving
   registration order, OIDs, columns and row/array links.
 - Provenance is same-pointer authority (`&e.catalog.Owner`), never equal

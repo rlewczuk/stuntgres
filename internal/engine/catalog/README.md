@@ -30,6 +30,12 @@ private frames, not catalog authority.
   formal names. `RoutineOutputs` freezes private backing once at declaration
   creation; input types remain solely in `Procedure.Signature`. Immutable facts
   survive descriptor/principal/address copies without a type-generation remap.
+  `Procedure.InputNames` owns otherwise unrepresented builtin input names.
+  `Procedure.LiteralDefaults` owns finite trailing-input source literals by
+  immutable pointer: source type ID, input text and an explicit NULL marker,
+  never a captured descriptor/datum or rendered SQL. Assignment coercion to
+  the declared input is validated when presented. Checked SQL defaults retain
+  their existing expression/dependency authority and replay API.
   Generated constructors instead derive their signatures from their owning
   type generation. None of this metadata grants execution authority; installed
   providers retain exact manifest identity validation.

@@ -5,6 +5,7 @@ package reference_test
 var ivBuiltinPathDefinitions = map[string]string{
 	"information_schema.triggers":              itPathDefinition,
 	"information_schema.routine_routine_usage": " SELECT DISTINCT (current_database())::sql_identifier AS specific_catalog,\n    (np.nspname)::sql_identifier AS specific_schema,\n    (nameconcatoid(p.proname, p.oid))::sql_identifier AS specific_name,\n    (current_database())::sql_identifier AS routine_catalog,\n    (np1.nspname)::sql_identifier AS routine_schema,\n    (nameconcatoid(p1.proname, p1.oid))::sql_identifier AS routine_name\n   FROM pg_namespace np,\n    pg_proc p,\n    pg_depend d,\n    pg_proc p1,\n    pg_namespace np1\n  WHERE ((np.oid = p.pronamespace) AND (p.oid = d.objid) AND (d.classid = ('pg_proc'::regclass)::oid) AND (d.refobjid = p1.oid) AND (d.refclassid = ('pg_proc'::regclass)::oid) AND (p1.pronamespace = np1.oid) AND (p.prokind = ANY (ARRAY['f'::\"char\", 'p'::\"char\"])) AND (p1.prokind = ANY (ARRAY['f'::\"char\", 'p'::\"char\"])) AND pg_has_role(p1.proowner, 'USAGE'::text));",
+	"information_schema.parameters":            ipView_information_schema_path,
 	"information_schema.schemata": ` SELECT (current_database())::sql_identifier AS catalog_name,
     (n.nspname)::sql_identifier AS schema_name,
     (u.rolname)::sql_identifier AS schema_owner,

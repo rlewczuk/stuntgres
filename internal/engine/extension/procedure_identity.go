@@ -296,6 +296,13 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name, signature, result, strict = m.Name, m.Signature, 2278, true
 			declaration = m.Declaration
 		}
+		expectedDefaults := (*catalog.RoutineLiteralDefaults)(nil)
+		if slot == 0 {
+			expectedDefaults = verifyHeapamDefaults
+		}
+		if p.LiteralDefaults != expectedDefaults {
+			return invalid()
+		}
 		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()
 		}

@@ -111,6 +111,10 @@ package or the engine.
   rows as immutable `catalog.RoutineOutputs`, checked against the sole input
   signature. VARIADIC retains the existing declared signature and element/ANY
   identity; projection does not infer OUT layouts from result types or setness.
+  Builtin input names and finite literal defaults are attached by immutable
+  declaration identity, without installing lookup-only identities. Literal
+  recipes preserve source type/spelling for presentation (including implicit
+  assignment coercions), independently of call binding and default evaluation.
   Selected aggregate support descriptors also retain genuine signature/ACL facts
   with zero scalar-provider flags: opaque string-state capabilities own their
   execution, and diagnostic-only GiST/final signatures never gain fake bodies.

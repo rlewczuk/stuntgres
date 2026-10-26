@@ -1,6 +1,7 @@
 package pgcatalog
 
 var infoBuiltinViews = [...]builtinView{
+	parametersBuiltinView,
 	infoUsagePrivilegesView,
 	// information_schema.column_domain_usage — REL_18_6 information_schema.sql.
 	{oid: InfoColumnDomainUsageOID, parts: []builtinViewPart{

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -152,54 +151,14 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			if argumentErr != nil {
 				return nil, argumentErr
 			}
-			if d.SQL != nil {
-				named := false
-				elements := make([]sqltype.Value, len(d.SQL.Formals))
-				for i, formal := range d.SQL.Formals {
-					named = named || formal.Name != ""
-					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), formal.Name)
-				}
-				if named {
-					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
-				}
-			} else if d.Aggregate != nil && len(d.Aggregate.ArgumentNames) > 0 {
-				names := d.Aggregate.ArgumentNames
-				if int64(len(names)) != arity {
-					return nil, fmt.Errorf("stuntgres: invalid aggregate argument-name declaration")
-				}
-				elements := make([]sqltype.Value, len(names))
-				for i, name := range names {
-					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), name)
-				}
-				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
-			} else if outputs := d.OutputDeclaration(); outputs != nil {
-				count := outputs.Inputs() + outputs.Len()
-				elements := make([]sqltype.Value, count)
-				for i := range elements {
-					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), outputs.Name(i))
-				}
-				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(count)}}, elements)
-			} else if ext, ok := view.Extension(d.Extension); ok && ext.Name() == "uuid-ossp" && d.Implementation != nil && slices.Contains(ext.Members, d.Address()) {
-				// Use the catalog's existing validation capability and the
-				// released manifest slot, without importing an upper owner.
-				if err := d.Implementation.ValidateExtension(view, ext); err != nil {
-					return nil, err
-				}
-				slot := slices.Index(ext.Members, d.Address())
-				if slot >= len(functions.UUIDOsspMembers) {
-					return nil, fmt.Errorf("stuntgres: invalid UUID routine manifest slot")
-				}
-				member := functions.UUIDOsspMembers[slot]
-				if member.Signature == string(d.Signature) && member.Signature != "" {
-					element := source.Columns[10].Usage.Type.Element()
-					values := []sqltype.Value{sqltype.String(element, member.ArgumentNames[0]), sqltype.String(element, member.ArgumentNames[1])}
-					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, values)
-				}
+			names, err := procedureNameProjection(view, d)
+			if err != nil {
+				return nil, err
 			}
-			if d.Installed.Outputs == nil && d.Installed.ArgumentNames[0] != "" {
-				elements := make([]sqltype.Value, arity)
+			if names.present {
+				elements := make([]sqltype.Value, names.count)
 				for i := range elements {
-					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), d.Installed.ArgumentNames[i])
+					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), names.at(i))
 				}
 				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 			}

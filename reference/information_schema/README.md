@@ -1,7 +1,7 @@
 # reference/information_schema
 
 `information_schema` object views: `views` (including builtin view definitions,
-shared with `pg_views`), `view_table_usage`, `triggers`, `routines`,
+shared with `pg_views`), `view_table_usage`, `triggers`, `routines`, `parameters`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`,
 `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
@@ -29,6 +29,13 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`
 - Trigger metadata: `RUN='^TestReferenceInfoTriggers'`
+- Routine parameter inquiry: `RUN='^TestReferenceInfoParameters'`
+
+Parameter scenarios prescribe the complete nullable 32-domain projection,
+declared formal order/names/modes, type identity, owner-visible expression
+presentation and EXECUTE-only redaction. SQL PREPARE does not participate.
+Direct, fresh-prepared and held consumers cover role/catalog publication,
+typed empty results, complete diagnostics and native control round trips.
 
 CHECK routine-usage scenarios assert complete six-column identity bags and
 source-owned identifier domains over actual table/domain CHECK semantic edges.
