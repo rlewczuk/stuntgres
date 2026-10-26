@@ -188,10 +188,7 @@ func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]s
 	for _, name := range names {
 		d := definitions[name]
 		v := d.DefaultValue()
-		initial := d.BootDefault
-		if d.NativeStartup != nil {
-			initial = d.NativeStartup.Value
-		}
+		initial := d.Format(v)
 		normalized := initial
 		if provider != nil {
 			copy := d

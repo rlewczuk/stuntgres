@@ -340,6 +340,24 @@ There is no configuration/HBA/ident file loading, data-directory selection,
 PID-file creation, reload or restart effect. These strings neither change
 logical database contents nor configure authentication or persistence.
 
+The builtin connection/authentication family also exposes stored, typed
+simulations through the same SQL registry. Startup-only and sighup parameters
+reject individual live changes with 55P02; the eight user-context settings retain
+ordinary SET/LOCAL, rollback/savepoint and captured-default semantics. Restricted
+reads use the same effective-user authority and aggregate omission described
+above. The [settings owner contract](../internal/engine/settings/README.md#connection-and-authentication-settings)
+lists the names, simulated build labels and metadata/presentation rules.
+
+These values do not configure listeners, connection admission, kernel sockets,
+TLS/SSL, authentication timers, password hashing/storage, MD5 warnings,
+OAuth/Kerberos/GSS loaders, files, passphrase commands or Bonjour advertisement.
+In particular, native TCP values retain requested numeric settings, with zero
+defaults and no OS probes. Existing trusted connectors, real role/database
+admission checks and password/warning behavior are unchanged. Returning a
+connection retains its settings; replacement captures fresh defaults.
+Reset/Dump/Restore remain logical controls and do not reset or serialize live
+connection settings.
+
 ## Foreign data wrappers
 
 Register a handler and validator implemented in Go, then create the SQL objects:

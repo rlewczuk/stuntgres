@@ -73,7 +73,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rule
   `TestReferenceStatisticsSettingsMetadata` keeps the complete selected native
   tuples, including boot/startup source distinctions, and the same released
   isolation enum order in both modes. Internal `TestPhysicalSettingsReadAccess`
-  independently names all ten restricted builtins and asserts every aggregate
+  independently names all twenty restricted builtins and asserts every aggregate
   membership and individual read, not merely a filtered row count.
 - `TestReferenceSettingsPrivilegeAndTimeoutOracle` and
   `TestReferenceSettingsLocalPrivilegeOracle` carry the legacy `reference` build

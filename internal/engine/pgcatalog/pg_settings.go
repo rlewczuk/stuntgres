@@ -31,7 +31,7 @@ func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 			row[index] = sqltype.String(source.Columns[index].Usage.Type, value)
 		}
 		text(0, settings.DisplayName(d.Name))
-		text(1, d.Raw(fact.Value))
+		text(1, d.CurrentRaw(fact.Value))
 		if d.Unit != settings.UnitNone {
 			text(2, [...]string{"", "B", "kB", "MB", "ms", "s", "min"}[d.Unit])
 		}

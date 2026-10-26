@@ -147,6 +147,9 @@ func TestReferenceSettingsShowAllCurrentOverrides(t *testing.T) {
 		for _, def := range physicalSettings {
 			expected[def.name] = def.value
 		}
+		for _, def := range connectionSettings {
+			expected[def.name] = connectionInitial(def, false)
+		}
 		for _, tc := range []struct{ name, input string }{{"demo.flag", "YES"}, {"demo.text", "current"}, {"demo.count", "3.5"}, {"demo.ratio", "2.1234567"}, {"demo.mode", "FAST"}, {"demo.memory", "2048"}} {
 			sessionSet(t, c, "SET "+tc.name+" TO '"+tc.input+"'", prepared)
 		}

@@ -36,7 +36,7 @@ func predefinedNativeBoundaries(s *membershipScenario) {
 		predefinedMissingFunction(s, tc.q, tc.signature)
 	}
 	predefinedFailure(s, "SELECT query FROM pg_stat_activity", fixture.Diagnostic{Code: "42P01", Message: `relation "pg_stat_activity" does not exist`, Position: "19"}, true, "prepare")
-	predefinedFailure(s, "SHOW reserved_connections", fixture.Diagnostic{Code: "42704", Message: `unrecognized configuration parameter "reserved_connections"`}, true, "prepare")
+	predefinedSelect(s, "SHOW reserved_connections", []string{"reserved_connections"}, []string{"TEXT"}, [][]any{{"0"}})
 }
 
 func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {

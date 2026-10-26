@@ -87,7 +87,7 @@ func SetInput(op *Operation, s *parser.Set, implicit bool) (*string, error) {
 	if !s.Default && s.Interval == nil {
 		name := s.Name.Text
 		switch settings.FoldName(name) {
-		case "search_path", "datestyle", "temp_tablespaces", "createrole_self_grant", "restrict_nonsystem_relation_kind", "local_preload_libraries", "session_preload_libraries", "shared_preload_libraries":
+		case "search_path", "datestyle", "temp_tablespaces", "createrole_self_grant", "restrict_nonsystem_relation_kind", "local_preload_libraries", "session_preload_libraries", "shared_preload_libraries", "listen_addresses", "unix_socket_directories", "oauth_validator_libraries":
 			value := strings.Join(s.Values, ", ")
 			input = &value
 		default:

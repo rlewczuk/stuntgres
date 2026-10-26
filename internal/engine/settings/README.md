@@ -30,8 +30,9 @@ import this package directly.
   `Customized Options` metadata. Procedural execution reads its effective session
   value; registry construction does not capture an assertion decision.
 - **Values** (`value.go`, `number.go`, `units.go`): `Value` and
-  `Definition.Parse`/`Format` and base-unit `Raw`, PostgreSQL-compatible number
-  scanning (`ParseNumber`, also used for storage options) and memory/time units.
+  `Definition.Parse`/`Format`, base-unit `Raw` and current-catalog `CurrentRaw`,
+  PostgreSQL-compatible number scanning (`ParseNumber`, also used for storage
+  options) and memory/time units.
 - **Search path** (`search_path.go`): the pure list parser. Namespace and ACL
   resolution are in `analyze` (`search_path.go`).
 - **Registry** (`registry.go`): `NewRegistry(registered,
@@ -148,6 +149,65 @@ lookup. Providers still use pure parsing/normalization (including name clipping)
 with silent initialization; replacement physical sessions capture defaults anew.
 
 
+## Connection and authentication settings
+
+The connection family uses this same registry, typed session store, context
+checks and effective-user read authority. All 38 values are setting-only
+simulations, not physical configuration consumers.
+
+- Startup-only: `bonjour`, `bonjour_name`, `listen_addresses`, `max_connections`,
+  `port`, `reserved_connections`, `superuser_reserved_connections`,
+  `unix_socket_directories`, `unix_socket_group`, `unix_socket_permissions`.
+- Sighup: `authentication_timeout`, `gss_accept_delegation`, `krb_caseins_users`,
+  `krb_server_keyfile`, `oauth_validator_libraries`, `ssl`, `ssl_ca_file`,
+  `ssl_cert_file`, `ssl_ciphers`, `ssl_crl_dir`, `ssl_crl_file`,
+  `ssl_dh_params_file`, `ssl_groups`, `ssl_key_file`, `ssl_max_protocol_version`,
+  `ssl_min_protocol_version`, `ssl_passphrase_command`,
+  `ssl_passphrase_command_supports_reload`, `ssl_prefer_server_ciphers`,
+  `ssl_tls13_ciphers`.
+- Ordinary user-settable: `client_connection_check_interval`,
+  `md5_password_warnings`, `password_encryption`, `scram_iterations`,
+  `tcp_keepalives_count`, `tcp_keepalives_idle`, `tcp_keepalives_interval`,
+  `tcp_user_timeout`.
+
+Every individual startup/sighup mutation fails 55P02 before value parsing,
+including same values, DEFAULT, RESET and set_config. RESET ALL skips them.
+The three LIST_INPUT names `listen_addresses`, `unix_socket_directories` and
+`oauth_validator_libraries` reach that same context refusal for multi-value SET;
+other scalar settings retain the one-argument error.
+
+The simulated Linux/OpenSSL-style build labels are `/tmp` for socket
+directories and `FILE:/etc/krb5.keytab` for the Kerberos keyfile; SSL descriptor
+defaults use the SSL-enabled branch. These labels need not exist and do not
+describe host build capabilities. All connection boot/reset values are non-NULL,
+including empty strings. Initial source is `default`, with no source file/line
+or pending restart, unless an eligible captured provider supplies a value.
+Startup/sighup providers may supply only normalized equivalents of the immutable
+initial value, including permissions `511`/`0777` and authentication timeout
+`60s`/`1min`. User defaults are captured once per physical session; RESET does not
+reenter the provider and replacement captures fresh defaults.
+
+Exactly ten names restrict reads: `unix_socket_directories`, `krb_server_keyfile`,
+`oauth_validator_libraries`, `ssl_ciphers`, `ssl_dh_params_file`, `ssl_groups`,
+`ssl_max_protocol_version`, `ssl_min_protocol_version`, `ssl_passphrase_command`
+and `ssl_tls13_ciphers`. They require effective superuser or INHERIT-effective
+pg_read_all_settings privileges. SET grants do not grant read authority or remove
+context refusals; held statements recheck execution-time authority, and aggregate
+reads omit restricted rows.
+
+Current `unix_socket_permissions` is four-digit octal; Raw boot/reset/bounds
+remain decimal (`511`, `0`..`511`). The four TCP settings expose stored requested
+numeric values on SHOW, current_setting and pg_settings.setting, initially zero.
+They do not probe kernel defaults. Other time settings keep human-unit SHOW
+formatting and base-unit pg_settings values.
+
+No listener, socket, TLS, authentication timer, password-hashing or warning
+consumer, OAuth/Kerberos loader, passphrase command, Bonjour service or admission
+limit is installed. Existing authentication, native controls and logical state
+remain independent. The explanatory manual anchors `ssl_ciphers_high`,
+`ssl_ciphers_medium`, `ssl_ciphers_not_anull` and `ssl_ciphers_plus_3des` remain
+unknown parameters, not aliases.
+
 ## Compatibility settings
 
 `allow_alter_system`, `array_nulls`, `backslash_quote`,
@@ -195,6 +255,7 @@ parsing, registry metadata, simulated startup defaults and raw integer/real form
 make check RUN='^Test(ParseAndFormatTypedInput|EncodingLocaleAndLevelNormalizers|ApplicationNameNormalizer|ParseSearchPath|SettingsMetadata(Raw|Registry)|PhysicalSettingsDefinitions)$$'
 make check RUN='^Test(ClientSettings(BootAndStartup|KeywordLists|ProviderCapture)|ClientCatalogNameNormalization|ClientPrivilegedResetAll|Settings(XMLOption|ClientListFlattening)|SettingAccessAllowedCallback)$$'
 make check RUN='^TestCompatible(Settings(Definitions|ProviderCapture|ResetAll)|BackslashQuoteNormalization)$$'
+make check RUN='^TestConnectionSettings'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in

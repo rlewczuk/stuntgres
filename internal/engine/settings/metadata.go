@@ -7,6 +7,14 @@ func builtinMetadata(d Definition) Definition {
 	switch d.Name {
 	case "config_file", "data_directory", "external_pid_file", "hba_file", "ident_file":
 		d.Category = "File Locations"
+	case "bonjour", "bonjour_name", "listen_addresses", "max_connections", "port", "reserved_connections", "superuser_reserved_connections", "unix_socket_directories", "unix_socket_group", "unix_socket_permissions":
+		d.Category = "Connections and Authentication / Connection Settings"
+	case "authentication_timeout", "gss_accept_delegation", "krb_caseins_users", "krb_server_keyfile", "md5_password_warnings", "oauth_validator_libraries", "password_encryption", "scram_iterations":
+		d.Category = "Connections and Authentication / Authentication"
+	case "client_connection_check_interval", "tcp_keepalives_count", "tcp_keepalives_idle", "tcp_keepalives_interval", "tcp_user_timeout":
+		d.Category = "Connections and Authentication / TCP Settings"
+	case "ssl", "ssl_ca_file", "ssl_cert_file", "ssl_ciphers", "ssl_crl_dir", "ssl_crl_file", "ssl_dh_params_file", "ssl_groups", "ssl_key_file", "ssl_max_protocol_version", "ssl_min_protocol_version", "ssl_passphrase_command", "ssl_passphrase_command_supports_reload", "ssl_prefer_server_ciphers", "ssl_tls13_ciphers":
+		d.Category = "Connections and Authentication / SSL"
 	case "plpgsql.check_asserts":
 		d.Category = "Customized Options"
 	case "application_name":
@@ -33,6 +41,26 @@ func builtinMetadata(d Definition) Definition {
 		d.Category = "Query Tuning / Planner Method Configuration"
 	}
 	switch d.Name {
+	case "bonjour_name":
+		d.ExtraDescription = "An empty string means use the computer name."
+	case "unix_socket_group":
+		d.ExtraDescription = "The owning user of the socket is always the user that starts the server. An empty string means use the user's default group."
+	case "unix_socket_permissions":
+		d.ExtraDescription = "Unix-domain sockets use the usual Unix file system permission set. The parameter value is expected to be a numeric mode specification in the form accepted by the chmod and umask system calls. (To use the customary octal format the number must start with a 0 (zero).)"
+	case "client_connection_check_interval":
+		d.ExtraDescription = "0 disables connection checks."
+	case "tcp_keepalives_idle", "tcp_keepalives_interval", "tcp_user_timeout":
+		d.ExtraDescription = "0 means use the system default."
+	case "tcp_keepalives_count":
+		d.ExtraDescription = "Number of consecutive keepalive retransmits that can be lost before a connection is considered dead. 0 means use the system default."
+	case "ssl_tls13_ciphers":
+		d.ExtraDescription = "An empty string means use the default cipher suites."
+	case "ssl_groups":
+		d.ExtraDescription = "Multiple groups can be specified using a colon-separated list."
+	case "ssl_dh_params_file":
+		d.ExtraDescription = "An empty string means use compiled-in default parameters."
+	case "ssl_passphrase_command":
+		d.ExtraDescription = "An empty string means use the built-in prompting mechanism."
 	case "allow_alter_system":
 		d.ExtraDescription = "Can be set to off for environments where global configuration changes should be made using a different method."
 	case "array_nulls":

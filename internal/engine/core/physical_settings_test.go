@@ -54,6 +54,11 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 		"hba_file": true, "ident_file": true, "dynamic_library_path": true,
 		"extension_control_path": true, "jit_provider": true,
 		"session_preload_libraries": true, "shared_preload_libraries": true,
+		"unix_socket_directories": true, "krb_server_keyfile": true,
+		"oauth_validator_libraries": true, "ssl_ciphers": true,
+		"ssl_dh_params_file": true, "ssl_groups": true,
+		"ssl_max_protocol_version": true, "ssl_min_protocol_version": true,
+		"ssl_passphrase_command": true, "ssl_tls13_ciphers": true,
 	}
 	for name := range restrictedNames {
 		d, err := registry.Lookup(name)

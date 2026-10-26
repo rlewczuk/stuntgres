@@ -12,6 +12,14 @@ Repeated `pg_type`, `pg_proc` and `pg_depend` reads between catalog changes
 reuse one captured row set instead of rebuilding the whole catalog per
 statement.
 
+Connection and authentication settings now expose all 38 genuine parameters
+through the typed registry, with context-first refusals, restricted-read filtering,
+octal socket-permission presentation and stored numeric TCP values. These are
+explicit setting-only simulations: no listener, socket, TLS, authentication,
+password/warning, file, loader or admission mechanism is configured. Transactional
+settings, physical-session reuse/replacement and native controls retain their
+existing semantics; the four explanatory ssl_ciphers anchors remain unknown.
+
 Compatibility settings now cover all nine names through the typed registry,
 including hidden backslash_quote aliases, sighup mutation precedence and
 lo_compat_privileges parameter SET authority. Seven newly exposed switches are

@@ -160,6 +160,12 @@ func (d Definition) Parse(input string) (Value, error) {
 
 // Format renders a typed value as SHOW displays it.
 func (d Definition) Format(v Value) string {
+	switch d.Name {
+	case "unix_socket_permissions":
+		return fmt.Sprintf("%04o", int64(v.Number))
+	case "tcp_keepalives_count", "tcp_keepalives_idle", "tcp_keepalives_interval", "tcp_user_timeout":
+		return d.Raw(v)
+	}
 	switch d.Type {
 	case Boolean:
 		if v.Boolean {
@@ -203,4 +209,13 @@ func (d Definition) Raw(v Value) string {
 		return realText(v.Number)
 	}
 	return d.Format(v)
+}
+
+// CurrentRaw renders pg_settings.setting. Hook-style current presentation is
+// separate from the numeric base-unit boot/reset values and bounds.
+func (d Definition) CurrentRaw(v Value) string {
+	if d.Name == "unix_socket_permissions" {
+		return d.Format(v)
+	}
+	return d.Raw(v)
 }
