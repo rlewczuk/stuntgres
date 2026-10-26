@@ -45,6 +45,7 @@ type Definition struct {
 	InputFormals  []int
 	OutputFormals []int
 	FormalInputs  []int
+	PolymorphicResult bool
 }
 
 func New(source string, position parser.Position, inputs []sqltype.Usage, result sqltype.Usage) (*Definition, error) {
@@ -52,11 +53,11 @@ func New(source string, position parser.Position, inputs []sqltype.Usage, result
 	if err != nil {
 		return nil, err
 	}
-	if !result.Valid() || !result.Type.Concrete() {
+	if !DeclarationUsage(result) {
 		return nil, fmt.Errorf("invalid SQL routine result usage")
 	}
 	for _, input := range inputs {
-		if !input.Valid() || !input.Type.Concrete() {
+		if !DeclarationUsage(input) {
 			return nil, fmt.Errorf("invalid SQL routine input usage")
 		}
 	}

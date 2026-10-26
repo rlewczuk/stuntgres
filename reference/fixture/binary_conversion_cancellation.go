@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -14,7 +15,49 @@ import (
 // caller closes its held statements or physical connection.
 func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider string, operation func(context.Context) RelationOutcome) {
 	t.Helper()
-	activeProviderCancel(t, p, b, c, query, provider, "", "", nil, operation)
+	activeProviderCancel(t, p, b, c, query, provider, "", "", nil, func(ctx context.Context) RelationOutcome {
+		if !b.PG {
+			ctx = &nativeProviderPollContext{Context: ctx, provider: []byte(provider), worker: []byte("activeProviderCancel")}
+		}
+		return operation(ctx)
+	})
+}
+
+// nativeProviderPollContext holds a real cancellation poll on the operation's
+// provider stack until the observer cancels the underlying context. Finite work
+// cannot run between samples and escape admission. Other callers of Err remain
+// ordinary context observers; no cancellation error is manufactured here.
+// Progress-callback and sleep helpers deliberately retain their existing routes.
+type nativeProviderPollContext struct {
+	context.Context
+	provider, worker []byte
+	mu               sync.Mutex
+	stacks           []byte
+}
+
+func (c *nativeProviderPollContext) Err() error {
+	if err := c.Context.Err(); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	if len(c.stacks) == 0 {
+		c.stacks = make([]byte, 16<<10)
+	}
+	n := runtime.Stack(c.stacks, false)
+	for n == len(c.stacks) {
+		c.stacks = make([]byte, len(c.stacks)*2)
+		n = runtime.Stack(c.stacks, false)
+	}
+	frames := c.stacks[:n]
+	if created := bytes.Index(frames, []byte("\ncreated by ")); created >= 0 {
+		frames = frames[:created]
+	}
+	admitted := bytes.Contains(frames, c.provider) && bytes.Contains(frames, c.worker)
+	c.mu.Unlock()
+	if admitted {
+		<-c.Context.Done()
+	}
+	return c.Context.Err()
 }
 
 // BinaryConversionActiveCancelAfter additionally observes caller-defined progress

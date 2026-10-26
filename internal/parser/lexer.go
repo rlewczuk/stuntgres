@@ -616,7 +616,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.fail("42601", "parameter number too large")
 			return 0
 		}
-		if n == 0 {
+		if n == 0 && !l.plMode {
 			l.fail("42P02", "there is no parameter $0")
 			return 0
 		}

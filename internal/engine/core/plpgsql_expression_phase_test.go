@@ -25,7 +25,7 @@ func TestPLExceptionExpressionProvenance(t *testing.T) {
 	if !ok {
 		t.Fatal("missing boolean")
 	}
-	program := &proc.PLProgram{FoundSlot: 0, Variables: []proc.PLVariable{
+	program := &proc.PLProgram{Root: &proc.PLBlock{}, FoundSlot: 0, Variables: []proc.PLVariable{
 		{Name: "found", Usage: boolean.Usage(), Role: proc.PLFoundSlot},
 		{Name: "x", Usage: integer.Usage()},
 	}}

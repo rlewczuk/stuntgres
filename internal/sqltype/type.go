@@ -166,6 +166,8 @@ type Descriptor struct {
 	ftsChar, ftsTextArray, ftsCharArray *Descriptor
 	lookupOnly                          bool
 	catalogNullOwner                    *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
+	queryNullOwner                      *Descriptor // Self only on canonical query-only pseudo NULL identities.
+	polymorphicOwner                    *Descriptor // Self only on canonical polymorphic signature identities.
 	namespace                           string
 }
 
@@ -229,8 +231,11 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 }
 
 func (d *Descriptor) DiagnosticName() string {
-	if d.id == 2249 {
-		return "record" // Anonymous expression shapes are not named user types.
+	if IsPseudo(d.id) {
+		if d.id == 2276 {
+			return `"any"`
+		}
+		return d.name
 	}
 	if d.IsUserDefined() {
 		return d.sql
@@ -658,7 +663,7 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	return v, nil
 }
 func Null(d *Descriptor) Value {
-	if !d.Concrete() {
+	if d == nil || !d.Concrete() && !d.Usage().QueryNullUsage() {
 		panic("invalid NULL descriptor")
 	}
 	return Value{typ: d, null: true}
@@ -690,7 +695,7 @@ func Boolean(d *Descriptor, b bool) Value {
 	return Value{typ: d, boolean: b}
 }
 func String(d *Descriptor, s string) Value {
-	if d == nil || (!IsCharacter(d.id) && !d.IsCitext() && d.id != Refcursor && d.id != Name && d.id != Regclass && d.id != Regtype && d.id != Char) {
+	if d == nil || (!IsCharacter(d.id) && !d.IsCitext() && d.id != 2275 && d.id != Refcursor && d.id != Name && d.id != Regclass && d.id != Regtype && d.id != Char) {
 		panic("invalid string descriptor")
 	}
 	v := Value{typ: d, text: s}
@@ -810,6 +815,11 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 			return Value{}, err
 		}
 		return d.Wrap(value)
+	}
+	// Dummy pseudo input routines report their SQL diagnostic without granting
+	// the lookup-only identity ordinary datum or codec authority.
+	if IsPseudo(d.id) && d.id != Void && d.id != Unknown && d.id != 2275 && d.id != 2249 {
+		return Value{}, failure("0A000", "cannot accept a value of type "+d.DiagnosticName())
 	}
 	if !d.Concrete() || !d.validTypmod(typmod) {
 		return Value{}, fmt.Errorf("invalid input usage")
@@ -945,7 +955,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	case JSONPath:
 		return d.jsonpathInput(ctx, text)
 	case Void:
-		return Value{}, failure("0A000", "input of type void is not supported")
+		return VoidValue(d), nil
 	case PgSnapshot:
 		return d.snapshotInput(text)
 	case PgLSN:
@@ -980,7 +990,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.numericInput(text, typmod)
 	case Timestamp, Timestamptz:
 		return d.civilInput(text, typmod, env)
-	case Refcursor:
+	case Refcursor, 2275:
 		return String(d, text), nil
 	case Text, BPChar, VarChar:
 		return sizeCharacter(String(d, text), typmod, false)
@@ -1195,6 +1205,10 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsArray() {
 		return d.arrayOutput(ctx, v, env)
 	}
+	if d.IsDeferredRecord() && v.composite != nil && v.composite.shape != nil {
+		v.typ = v.composite.shape
+		return v.typ.OutputWithEnvironment(ctx, v, env)
+	}
 	if d.IsComposite() {
 		return d.compositeOutput(ctx, v, env)
 	}
@@ -1397,7 +1411,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return env.Regclass.FormatRegclass(uint32(n))
 		}
 		return v.Text()
-	case Refcursor, Text, BPChar, VarChar, Name, JSON:
+	case Refcursor, Text, BPChar, VarChar, Name, JSON, 2275:
 		return v.text, nil
 	case JSONB:
 		if v.jsonb == nil {
@@ -1697,7 +1711,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
-	case Refcursor, Text, BPChar, VarChar, Name, JSON:
+	case Refcursor, Text, BPChar, VarChar, Name, JSON, 2275:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case JSONB, JSONPath:
 		text, err := d.Output(ctx, v)
@@ -2126,9 +2140,6 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, nil
 	}
 	if context >= Assignment && castStringCategory(target.Type) || context == Explicit && castStringCategory(source.Type) {
-		if target.Type.id == Void {
-			return p, failure("0A000", "input of type void is not supported")
-		}
 		p.method = viaIO
 		return p, nil
 	}

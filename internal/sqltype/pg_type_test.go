@@ -38,13 +38,15 @@ func TestPGTypeBuiltinFacts(t *testing.T) {
 		{Box, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{32, false, "d", "p"}, Kind: "b", Category: "G", Element: Point, Subscript: 6180, Input: 123, Output: 124, Receive: 2484, Send: 2485, Modifier: -1}},
 		{1017, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "d", "x"}, Kind: "b", Category: "A", Element: Point, Subscript: 6179, Input: 750, Output: 751, Receive: 2400, Send: 2401, Analyze: 3816, Modifier: -1}},
 		{1020, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "d", "x"}, Kind: "b", Category: "A", Element: Box, Subscript: 6179, Input: 750, Output: 751, Receive: 2400, Send: 2401, Analyze: 3816, Modifier: -1}},
+		{2276, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{4, true, "i", "p"}, Kind: "p", Category: "P", Input: 2294, Output: 2295, Modifier: -1}},
+		{2281, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{8, true, "d", "p"}, Kind: "p", Category: "P", Input: 2304, Output: 2305, Modifier: -1}},
 	} {
 		got, ok := types[c.id].PGTypeMetadata()
 		if !ok || got != c.want {
 			t.Fatal(c.id, got, ok, c.want)
 		}
 	}
-	for _, id := range []ID{142, 143, 2201, 4533, 4534, 4535, 6152, 6153, 6155, 2276, 2281} {
+	for _, id := range []ID{142, 143, 2201, 4533, 4534, 4535, 6152, 6153, 6155} {
 		if got, ok := types[id].PGTypeMetadata(); ok {
 			t.Fatal("unsupported family metadata", id, got)
 		}

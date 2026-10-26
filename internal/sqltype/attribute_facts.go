@@ -108,6 +108,9 @@ func ResultNull(u Usage) Value {
 // ValidResult preserves exact captured descriptor identity, including the
 // narrowly nullable catalog carrier. No nonnull pseudo value can escape.
 func (v Value) ValidResult(u Usage) bool {
+	if v.typ == u.Type && v.null && u.QueryNullUsage() {
+		return true
+	}
 	if v.typ != nil && !v.null && (v.typ.BaseType().IsCatalogVector() && !v.validCatalogVectorPayload() || v.typ.BaseType().IsHstore() && !v.validHstore()) {
 		return false
 	}

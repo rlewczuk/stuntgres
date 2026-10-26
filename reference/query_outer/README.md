@@ -3,6 +3,9 @@
 Public database/sql reference scenarios cover outer-join composition, metadata,
 restriction placement, diagnostics, persistence and source lifecycle. SQL routine
 result sources share the same query composition and fixture entry points.
+Polymorphic routine outputs reuse these owners for declaration-preserving OUT,
+INOUT, TABLE and SETOF specialization, including duplicate rows, typed NULLs,
+held argument frames and native emitted-script replay.
 
 ## Testing
 
@@ -30,8 +33,8 @@ owner, not pinned to another backend's allocation sequence. Raw formal-array
 checks retain oid[] and internal "char"[] metadata even for NULL values.
 
 ```sh
-make check RUN='^TestReferenceRoutineResults'
-make check RUN='^TestReferenceRoutineResults' REFERENCE=1
+make check RUN='^(TestReferenceRoutineResults|TestReferencePseudoTypes(Result|Record))'
+make check RUN='^(TestReferenceRoutineResults|TestReferencePseudoTypes(Result|Record))' REFERENCE=1
 make check RUN='^TestReferenceQueryOuterJoin'
 make check RUN='^TestReferenceQueryOuterJoin' REFERENCE=1
 ```

@@ -31,6 +31,7 @@ func (n SQLRoutineExpr) Collate(derive func(expr.Info, ...expr.Expr) (expr.Info,
 		n.CollationExplicit = input.CollationExplicit
 		n.CollationConflict = input.CollationConflict
 		n.CollationLeft, n.CollationRight, n.CollationConflictPos = input.CollationLeft, input.CollationRight, input.CollationConflictPos
+		n.Signature.Result = n.Usage
 	}
 	return n, nil
 }

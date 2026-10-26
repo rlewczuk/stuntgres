@@ -297,6 +297,7 @@ func (l *lexer) plSourceStart(end, delimiter Position, predecessor lexeme) Posit
 		input: l.input[:delimiter.Offset], offset: predecessor.pos.Offset,
 		positionOffset: predecessor.pos.Offset, positionCharacters: predecessor.pos.Character - 1,
 		options: Options{StandardConformingStrings: true},
+		plMode: true,
 	}
 	probe.nextRaw()
 	first := probe.nextRaw()

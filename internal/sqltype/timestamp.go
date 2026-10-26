@@ -86,6 +86,9 @@ func (d *Descriptor) validTypmod(p int32) bool {
 	return p == -1 || isBitString(d.id) && p >= 1 && p <= maximumBitLength || d.id == Interval && intervalTypmodValid(p) || (d.id == Timestamp || d.id == Time || d.id == Timestamptz || d.id == Timetz) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p) || (d.id == BPChar || d.id == VarChar) && p >= 5 && p <= maximumCharacterLength+4
 }
 func (u Usage) Valid() bool {
+	if u.QueryNullUsage() {
+		return true
+	}
 	if !u.Type.Concrete() || !u.Type.validTypmod(u.Typmod) {
 		return false
 	}

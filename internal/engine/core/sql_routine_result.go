@@ -34,6 +34,14 @@ func SQLRoutineFinalError(result sqltype.Usage, names ...func(sqltype.ID) string
 }
 
 func ValidateSQLRoutineTerminal(statement parser.Statement, b analyze.Binding, result sqltype.Usage, auth AuthorizationView) (proc.ResultPlan, error) {
+	// CREATE/Restore may supply the catalog's declaration-only RECORD.
+	// Only that admitted identity becomes a private executable result usage;
+	// shaped records and foreign same-OID descriptors retain their own checks.
+	if result.Type != nil && result.Type.ID() == 2249 && !result.Type.IsComposite() && !result.Type.IsDeferredRecord() {
+		if declared, ok := auth.Catalog.LookupType(2249); ok && declared == result.Type {
+			result.Type = sqltype.DeferredRecord()
+		}
+	}
 	// Naming is error-only. Successful execution does not acquire a display
 	// snapshot or retain a callback in the immutable row-adaptation plan.
 	name := b.Resolvers.TypeDiagnosticName
@@ -63,9 +71,9 @@ func ValidateSQLRoutineTerminal(statement parser.Statement, b analyze.Binding, r
 }
 
 func validateSQLRoutineResult(columns []catalog.Column, result sqltype.Usage, names ...func(sqltype.ID) string) (proc.ResultPlan, error) {
-	usages := make([]sqltype.Usage, len(columns))
+	members := make([]sqltype.CompositeMember, len(columns))
 	for i, column := range columns {
-		usages[i] = column.Usage
+		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: column.Name, Usage: column.Usage}
 	}
-	return proc.PlanResult(usages, result, names...)
+	return proc.PlanNamedResult(members, result, names...)
 }

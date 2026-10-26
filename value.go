@@ -234,6 +234,8 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
+	case 2275, 2249:
+		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point, sqltype.Line, sqltype.Lseg, sqltype.Path:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.ACLItem:
@@ -289,13 +291,15 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 }
 
 func scanType(d *sqltype.Descriptor) reflect.Type {
-	if d.Usage().CatalogNullUsage() {
+	if d.Usage().CatalogNullUsage() || d.Usage().QueryNullUsage() {
 		return reflect.TypeFor[any]()
 	}
 	if d.BaseType().IsHstore() || d.BaseType().IsEan13() || d.BaseType().IsIsbn() || d.BaseType().IsIsbn13() || d.BaseType().IsIsmn() || d.BaseType().IsIsmn13() || d.BaseType().IsIssn() || d.BaseType().IsIssn13() || d.BaseType().IsUpc() || d.BaseType().IsCitext() || d.BaseType().IsCube() || d.BaseType().IsQueryInt() || (d.BaseType().IsLquery() || d.BaseType().IsLtree() || d.BaseType().IsLtxtquery()) || d.BaseType().IsArray() || d.BaseType().IsEnum() || d.BaseType().IsComposite() || d.BaseType().IsRange() || d.BaseType().IsMultirange() || d.IsDeferredRecord() {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {
+	case 2275:
+		return reflect.TypeFor[string]()
 	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point, sqltype.Line, sqltype.Lseg, sqltype.Path:
 		return reflect.TypeFor[string]()
 	case sqltype.ACLItem:

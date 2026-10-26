@@ -219,7 +219,7 @@ func SameDatum(a, b Value) bool {
 			return a.integer == 1 && b.integer == 1 && a.oid == b.oid
 		}
 		return a.text == b.text
-	case Refcursor, Bit, VarBit, Text, VarChar, BPChar, Name, Bytea, Char, JSON:
+	case Refcursor, Bit, VarBit, Text, VarChar, BPChar, Name, Bytea, Char, JSON, 2275:
 		return a.text == b.text
 	case UUID:
 		return a.uuid == b.uuid

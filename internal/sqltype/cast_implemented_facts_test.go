@@ -31,7 +31,7 @@ func castUnitUniverse(t *testing.T) []castUnitFact {
 		"B": "bool:16", "Z": "char:18 pg_node_tree:194", "S": "name:19 text:25 varchar:1043 bpchar:1042",
 		"N": "int2:21 int4:23 int8:20 float4:700 float8:701 numeric:1700 money:790 oid:26 regclass:2205 regtype:2206 regproc:24 regprocedure:2202 regrole:4096 regoper:2203 regoperator:2204 regcollation:4191 regnamespace:4089 regconfig:3734 regdictionary:3769",
 		"U": "bytea:17 uuid:2950 refcursor:1790 tid:27 xid:28 cid:29 xid8:5069 pg_lsn:3220 pg_snapshot:5038 inet:869 cidr:650 macaddr:829 macaddr8:774 aclitem:1033 json:114 jsonb:3802 jsonpath:4072 tsvector:3614 tsquery:3615",
-		"D": "date:1082 time:1083 timetz:1266 timestamp:1114 timestamptz:1184", "T": "interval:1186", "V": "bit:1560 varbit:1562", "G": "point:600 lseg:601 path:602 box:603 polygon:604 line:628 circle:718", "P": "void:2278",
+		"D": "date:1082 time:1083 timetz:1266 timestamp:1114 timestamptz:1184", "T": "interval:1186", "V": "bit:1560 varbit:1562", "G": "point:600 lseg:601 path:602 box:603 polygon:604 line:628 circle:718", "P": "cstring:2275 void:2278",
 	} {
 		for _, item := range strings.Fields(list) {
 			name, id, _ := strings.Cut(item, ":")
@@ -248,9 +248,9 @@ func castUnitRank(c CoercionContext) int {
 	}
 	panic("unknown context")
 }
-func castUnitExpected(source, target castUnitFact, context CoercionContext, all map[string]castUnitFact, edges []castUnitEdge) (bool, bool) {
+func castUnitExpected(source, target castUnitFact, context CoercionContext, all map[string]castUnitFact, edges []castUnitEdge) bool {
 	if source.typ == target.typ {
-		return true, false
+		return true
 	}
 	if source.base != "" {
 		source = all[source.base]
@@ -269,7 +269,7 @@ func castUnitExpected(source, target castUnitFact, context CoercionContext, all 
 			if e.context == 'e' {
 				rank = 2
 			}
-			return castUnitRank(context) >= rank, false
+			return castUnitRank(context) >= rank
 		}
 	}
 	// Type-only RECORD values have no RowExpr permission, and concrete target
@@ -277,8 +277,10 @@ func castUnitExpected(source, target castUnitFact, context CoercionContext, all 
 	if source.element != "" && target.element != "" {
 		return castUnitExpected(all[source.element], all[target.element], context, all, edges)
 	}
-	admitted := target.category == "S" && context != Implicit || source.category == "S" && context == Explicit
-	return admitted, admitted && target.name == "void"
+	// parse_coerce.c's CoerceViaIO fallback uses category S, not pseudo kind:
+	// explicit string input can reach real CSTRING/VOID codecs, while their
+	// result carriers do not acquire implicit string conversion or storage.
+	return target.category == "S" && context != Implicit || source.category == "S" && context == Explicit
 }
 func castUnitLabel(source, target castUnitFact, c CoercionContext) string {
 	return fmt.Sprintf("%s/%s/%d", source.name, target.name, c)

@@ -56,7 +56,7 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 			t.Fatal(err)
 		}
 		wanted := map[ids.OID]bool{3717: true, 3718: true, 3719: true, 3720: true, 3721: true}
-		for _, oid := range []ids.OID{40, 41, 54, 55, 2410, 2411, 2420, 2421} {
+		for _, oid := range []ids.OID{40, 41, 54, 55, 2410, 2411, 2420, 2421, 88} {
 			wanted[oid] = true
 		}
 		if represented != nil {
@@ -96,9 +96,9 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 				}
 			}
 		}
-		wantCount := 13
+		wantCount := 14
 		if represented != nil {
-			wantCount = 12
+			wantCount = 13
 		}
 		if supplements != wantCount || len(wanted) != 0 || len(selected) != 5 {
 			t.Fatalf("supplement boundary: count=%d missing=%v selected=%d", supplements, wanted, len(selected))

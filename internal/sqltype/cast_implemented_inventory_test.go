@@ -18,7 +18,7 @@ func TestCastImplementedInventory(t *testing.T) {
 		1042: "bpchar", 1043: "varchar", 700: "float4", 701: "float8", 1700: "numeric", 790: "money", 1560: "bit", 1562: "varbit", 2950: "uuid",
 		1082: "date", 1083: "time", 1266: "timetz", 1114: "timestamp", 1184: "timestamptz", 1186: "interval",
 		869: "inet", 650: "cidr", 829: "macaddr", 774: "macaddr8", 1033: "aclitem", 114: "json", 3802: "jsonb", 4072: "jsonpath", 3614: "tsvector", 3615: "tsquery",
-		600: "point", 601: "lseg", 602: "path", 603: "box", 604: "polygon", 628: "line", 718: "circle", 194: "pg_node_tree", 2278: "void",
+		600: "point", 601: "lseg", 602: "path", 603: "box", 604: "polygon", 628: "line", 718: "circle", 194: "pg_node_tree", 2275: "cstring", 2278: "void",
 		3904: "int4range", 3926: "int8range", 3906: "numrange", 3912: "daterange", 3908: "tsrange", 3910: "tstzrange", 4451: "int4multirange", 4536: "int8multirange", 4532: "nummultirange",
 	}
 	arrayIDs := map[ID]ID{
@@ -86,7 +86,7 @@ func TestCastImplementedInventory(t *testing.T) {
 		}
 	}
 	// These are explicit lookup-only boundaries, not inferred from a companion ID.
-	forbidden := "_pg_lsn _money _macaddr _macaddr8 _tid _inet _cidr _refcursor _tsvector _tsquery _point _lseg _path _box _polygon _line _circle _pg_snapshot _xid8 _cid _regoper _regoperator _regconfig _regdictionary datemultirange tsmultirange tstzmultirange"
+	forbidden := "_cstring _pg_lsn _money _macaddr _macaddr8 _tid _inet _cidr _refcursor _tsvector _tsquery _point _lseg _path _box _polygon _line _circle _pg_snapshot _xid8 _cid _regoper _regoperator _regconfig _regdictionary datemultirange tsmultirange tstzmultirange"
 	boundaries := map[string]bool{}
 	for _, name := range strings.Fields(forbidden) {
 		boundaries[name] = false

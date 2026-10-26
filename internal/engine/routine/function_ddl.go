@@ -55,20 +55,11 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			return sqltype.Usage{}, err
 		}
 		typ, ok := h.DefinitionType(auth, sqltype.ID(id))
-		if result && typ != nil && typ.ID() == 3838 && !s.Procedure {
-			return typ.Usage(), nil
-		}
-		if result && typ != nil && typ.ID() == 2279 && s.Language.Text == "plpgsql" && !s.Procedure {
-			return typ.Usage(), nil
-		}
 		if (s.Procedure || s.Language.Text != "sql") && typ != nil && typ.BaseType().IsComposite() {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL functions require concrete scalar types", raw.Pos)
 		}
-		if !ok || !typ.Concrete() {
+		if !ok || !typ.Concrete() && !sqltype.IsPseudo(typ.ID()) {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL functions require concrete types", raw.Pos)
-		}
-		if facts, known := typ.PGTypeMetadata(); known && facts.Kind == "p" && !(result && typ.ID() == sqltype.Void) {
-			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL function pseudo-types are unsupported", raw.Pos)
 		}
 		return typ.Usage(), nil
 	}
@@ -168,6 +159,13 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if s.Procedure {
 		d.RoutineKind = catalog.ProcedureRoutine
 	}
+	outputs := []sqltype.Usage{result}
+	for _, index := range layout.OutputFormals {
+		outputs = append(outputs, formals[index].Usage)
+	}
+	if err = proc.ValidatePseudoResultSafety(inputs, outputs); err != nil {
+		return err
+	}
 	var previous *catalog.Procedure
 	if address := h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)); address != (ids.ObjectAddress{}) {
 		if !s.Replace {
@@ -193,6 +191,16 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			return err
 		}
 		d.ObjectAddress, d.Owner, d.ACL, d.Extension = previous.Address(), previous.Owner, previous.ACL, previous.Extension
+	}
+	if err = proc.ValidatePseudoLanguageSignature(inputs, outputs, formals, s.Language.Text, s.Standard != nil); err != nil {
+		return err
+	}
+	if s.Language.Text == "plpgsql" {
+		for _, formal := range formals {
+			if formal.Usage.Type.ID() == 4538 {
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "PL/pgSQL functions cannot accept type anycompatiblemultirange", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", name)}
+			}
+		}
 	}
 	// Language/compiler contracts follow the existing identity's authority and
 	// compatibility checks, just like validation of its replacement body.

@@ -203,12 +203,6 @@ func TestReferenceDatetimeSleepStored(t *testing.T) {
 					return
 				}
 				d := datetimeSleepError(tc.code, tc.message)
-				// VOID table-column support is an adjacent type-DDL boundary,
-				// not expanded by implementing the sleep scalar family.
-				if !b.PG && tc.q == "CREATE TABLE sleep_void_column(v void)" {
-					d = datetimeSleepError("0A000", "unsupported column type")
-					d.Position = "34"
-				}
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ErrorDiagnostic(tc.q, d))
 			})
 		}

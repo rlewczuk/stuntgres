@@ -31,15 +31,9 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	var target sqltype.Usage
 	var err error
 	var boundChild expr.Expr
-	annotation, err := b.TypeCastAnnotation(raw)
+	annotation, err := b.castAnnotation(raw)
 	if err != nil {
 		return nil, err
-	}
-	if b.Clause.JSONBRecordBase {
-		annotation, err = b.JSONBRecordCastAnnotation(raw)
-		if err != nil {
-			return nil, err
-		}
 	}
 	if outerPolicy.thresholdArrayInput {
 		target, err = b.Host.ResolveAnnotationTypeInput(annotation, unknownNull, false, false, true)
@@ -62,6 +56,33 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		target = resolved
 		err = nil
 	}
+	if target.Type.ID() == 2281 {
+		source := "unknown"
+		if !isNull || rawNull.Value.Kind != parser.NullValue && rawNull.Value.Kind != parser.StringValue {
+			child, bindErr := b.Bind(raw.Child, ExpressionPolicy{Context: ProjectionContext})
+			if bindErr != nil {
+				return nil, bindErr
+			}
+			source = b.DiagnosticTypeName(child.ResultUsage().Type)
+		}
+		return nil, expr.ErrorAt("42846", "cannot cast type "+source+" to internal", raw.Pos)
+	}
+	if literal, ok := raw.Child.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.NullValue || literal.Value.Kind == parser.StringValue) {
+		switch target.Type.ID() {
+		case 2276, 2283, 2776, 5077, 5079:
+			return b.Bind(raw.Child, outerPolicy)
+		case 3500:
+			return nil, expr.ErrorAt("42846", "cannot cast type unknown to anyenum", raw.Pos)
+		case 269, 325, 2280, 3115, 3310, 2279, 3838:
+			return nil, expr.ErrorAt("0A000", "cannot accept a value of type "+target.Type.Name(), literal.Value.Pos)
+		}
+		if literal.Value.Kind == parser.NullValue && target.QueryNullUsage() {
+			return plan.LiteralExpr{Info: b.Info(target, raw.Pos, expr.Properties{}), Value: sqltype.Null(target.Type)}, nil
+		}
+	}
+	if literal, ok := raw.Child.(parser.LiteralExpr); ok && literal.Value.Kind == parser.StringValue && sqltype.IsPseudo(target.Type.ID()) && target.Type.ID() != sqltype.Void && target.Type.ID() != sqltype.Unknown && target.Type.ID() != 2275 && target.Type.ID() != 2249 {
+		return nil, expr.ErrorAt("0A000", "cannot accept a value of type "+target.Type.Name(), literal.Value.Pos)
+	}
 	if b.Clause.JSONBRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
 		b.Prepared.CaptureComposite(PreparedTypeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}, target, nil)
 	}
@@ -77,7 +98,23 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		b.Prepared.Types[key] = TypeOccurrence{Kind: kind, Base: target}
 	}
 	if target.Type.ID() == sqltype.Unknown {
-		// UNKNOWN is syntax provenance only, never an executable datum type.
+		// Only an unresolved input can retain UNKNOWN syntax provenance.
+		// A known SQL type must not gain a cast merely because no datum is built.
+		source, err := b.comparisonOperand(raw.Child)
+		if err != nil {
+			return nil, err
+		}
+		if typ := source.descriptor(); typ != nil {
+			if _, parameter := raw.Child.(parser.ParameterExpr); parameter && b.Expected.Held {
+				// The accepted recipe already admitted this UNKNOWN no-op before
+				// output inference. Its retained parameter type is not a new cast.
+				return b.Bind(raw.Child, outerPolicy)
+			}
+			if raw.Syntax == parser.FunctionCast {
+				return nil, functionCastError(raw, b.DiagnosticTypeName(typ), false)
+			}
+			return nil, expr.ErrorAt("42846", "cannot cast type "+b.DiagnosticTypeName(typ)+" to unknown", raw.Pos)
+		}
 		return b.Bind(raw.Child, outerPolicy)
 	}
 	if row, ok := raw.Child.(parser.RowExpr); ok && target.Type.BaseType().IsComposite() && target.Type.ID() != 2249 {

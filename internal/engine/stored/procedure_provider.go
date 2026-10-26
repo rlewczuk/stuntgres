@@ -101,7 +101,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 
 func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	invalid := extension.InvalidProviderDescriptor
-	if (!d.SQL.Result.Valid() && !(d.SQL.Invocation != proc.OrdinaryInvocation && d.SQL.Result.Type != nil && (d.SQL.Result.Type.ID() == 2279 || d.SQL.Result.Type.ID() == 3838) && d.SQL.Result.Typmod == -1 && d.SQL.Result.Collation.ID == 0)) || d.SQL.Standard != (d.SQLBody != nil) || len(d.SQL.Names) != len(d.SQL.Inputs) {
+	if !proc.DeclarationUsage(d.SQL.Result) || d.SQL.Standard != (d.SQLBody != nil) || len(d.SQL.Names) != len(d.SQL.Inputs) {
 		return invalid()
 	}
 	language, validLanguage := v.Get(d.Language).(*catalog.Language)
@@ -153,7 +153,7 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 			if variable.Record {
 				continue
 			}
-			if !variable.Usage.Valid() {
+			if !variable.Usage.Valid() && !(proc.DeclarationUsage(variable.Usage) && sqltype.PolymorphicFamily(variable.Usage.Type.ID()) != 0) {
 				return invalid()
 			}
 			typ, exists := v.LookupType(variable.Usage.Type.ID())
@@ -174,7 +174,7 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 		}
 	} else {
 		owned, ok := v.LookupType(result.ID())
-		if !ok || (!owned.Concrete() && !(d.SQL.Invocation != proc.OrdinaryInvocation && (owned.ID() == 2279 || owned.ID() == 3838))) || owned != result {
+		if !ok || !proc.DeclarationUsage(owned.Usage()) || owned != result {
 			return invalid()
 		}
 	}
@@ -193,6 +193,13 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	}
 	if d.SQL.ReturnsSet && (d.SQL.Kind != proc.SQLBody || d.RoutineKind != catalog.FunctionRoutine) {
 		return invalid()
+	}
+	outputs := []sqltype.Usage{d.SQL.Result}
+	for _, slot := range d.SQL.OutputFormals {
+		outputs = append(outputs, d.SQL.Formals[slot].Usage)
+	}
+	if err := proc.ValidatePseudoSignature(d.SQL.Inputs, outputs, d.SQL.Formals, language.Name(), d.SQL.Standard); err != nil {
+		return err
 	}
 	for _, formal := range d.SQL.Formals {
 		typ, ok := v.LookupType(formal.Usage.Type.ID())
@@ -244,11 +251,11 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	}
 	var signature strings.Builder
 	for i, input := range d.SQL.Inputs {
-		if !input.Valid() {
+		if !proc.DeclarationUsage(input) {
 			return invalid()
 		}
 		typ, ok := v.LookupType(input.Type.ID())
-		if !ok || !typ.Concrete() {
+		if !ok || typ != input.Type {
 			return invalid()
 		}
 		if i != 0 {

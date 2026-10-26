@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
 // RoutineDefaults owns typed immutable declaration expressions and their hard
@@ -91,7 +92,7 @@ func (p *RoutineDefaults) ValidateDefinition(d *catalog.Procedure) error {
 			return fmt.Errorf("invalid routine default formal projection")
 		}
 		node, ok := p.Default(slot)
-		if ok != d.SQL.Formals[formal].HasDefault || ok && node.ResultUsage() != d.SQL.Inputs[slot] {
+		if ok != d.SQL.Formals[formal].HasDefault || ok && (sqltype.PolymorphicFamily(d.SQL.Inputs[slot].Type.ID()) == 0 && node.ResultUsage() != d.SQL.Inputs[slot] || !node.ResultUsage().Valid()) {
 			return fmt.Errorf("inconsistent routine declaration default")
 		}
 	}

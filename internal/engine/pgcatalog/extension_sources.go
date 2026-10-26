@@ -54,7 +54,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 	sort.Slice(descriptors, func(i, j int) bool { return descriptors[i].Address().ObjectID < descriptors[j].Address().ObjectID })
 	capacity := len(descriptors)
 	if source.Address().ObjectID == ids.ProcedureClassID {
-		capacity += 13
+		capacity += 14
 	}
 	rows := make([][]sqltype.Value, 0, capacity)
 	for _, descriptor := range descriptors {

@@ -9,8 +9,11 @@ import (
 
 // Candidate maps are private and producer-free. Only supplied usages rank;
 // missing defaults are appended after the unique winner has been selected.
-func sqlRoutineParameterShape(d *catalog.Procedure, raw parser.FunctionExpr) (SQLCallable, bool) {
+func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader, d *catalog.Procedure, raw parser.FunctionExpr) (SQLCallable, bool) {
 	candidate := SQLCallable{Procedure: d, Inputs: make([]sqltype.Usage, len(raw.Args)), InputMap: make([]plan.RoutineInput, len(d.SQL.Inputs))}
+	for _, input := range d.SQL.Inputs {
+		candidate.polymorphic = candidate.polymorphic || sqltype.PolymorphicFamily(input.Type.ID()) != 0 || input.Type.ID() == 2249
+	}
 	for i := range candidate.InputMap {
 		candidate.InputMap[i].Start = -1
 	}
@@ -58,7 +61,16 @@ func sqlRoutineParameterShape(d *catalog.Procedure, raw parser.FunctionExpr) (SQ
 			}
 			source.Count++
 			candidate.Variadic = true
-			usage = usage.Type.Element().Usage()
+			switch usage.Type.ID() {
+			case 2277, 5078:
+				id := sqltype.ID(2283)
+				if usage.Type.ID() == 5078 { id = 5077 }
+				element, ok := catalog.DefinitionTypeAt(view, reader, id)
+				if !ok { return candidate, false }
+				usage = element.Usage()
+			default:
+				usage = usage.Type.Element().Usage()
+			}
 		} else {
 			if source.Start >= 0 {
 				return candidate, false

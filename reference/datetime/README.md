@@ -42,6 +42,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   and bound every join input before joining. Each native Dump, Reset and Restore
   is observed separately under the 30-second scenario context; admission requires
   the worker and the sleep provider in the same live goroutine stack.
+  VOID columns and view results share the exact pseudo-type storage diagnostic;
+  defaults and checks retain their sleep value and side-effect witnesses.
 - **Frame names matched by tests.** `sqltype.addTimestampInterval`,
   `functions.datetimeSleepWaitRemaining` and the test worker
   `datetime_test.storedSleepControlWorker`. Update the probes when renaming them.

@@ -9,7 +9,9 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -24,6 +26,7 @@ type SQLCallable struct {
 	polymorphic      bool
 	InputMap         []plan.RoutineInput
 	NamedDeclaration []sqltype.Usage
+	Signature        proc.InvocationSignature
 }
 type sqlCallableSelection struct {
 	SQLCallable
@@ -36,6 +39,20 @@ type sqlCallableSelection struct {
 	typeNameTarget  sqltype.Usage
 	typeNamePlan    sqltype.CoercionPlan
 	typeNameOperand ComparisonOperand
+}
+
+// internalCallError runs only after lawful applicability and winner selection.
+// Lookup-only signatures cannot reach provider dispatch through this boundary.
+func (candidate SQLCallable) internalCallError(pos parser.Position) error {
+	for _, input := range candidate.Inputs {
+		if input.Type.ID() == 2281 {
+			return expr.ErrorAt("0A000", `functions accepting type "internal" cannot be called explicitly`, pos)
+		}
+	}
+	if candidate.Procedure.Result == 2281 {
+		return expr.ErrorAt("0A000", `functions returning type "internal" cannot be called explicitly`, pos)
+	}
+	return nil
 }
 
 func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, error) {
@@ -69,7 +86,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := cast != nil || b.typeNameCallable(raw.Name)
-	if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
+	if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -108,6 +125,11 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if seen != nil {
 				seen[d.Signature] = true
 			}
+			internalSignature := d.Result == 2281
+			for part := range strings.SplitSeq(string(d.Signature), ",") {
+				internalSignature = internalSignature || part == "2281"
+			}
+			if internalSignature { hasSQL = true }
 			if d.DynamicCallable() {
 				hasSQL = true
 			}
@@ -117,13 +139,50 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if extension.CitextProviderOf(d) == extension.StockCitext {
 				hasSQL = true
 			}
-			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil {
+			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil && !internalSignature {
 				continue
 			}
 			candidate, valid := SQLCallableShape(auth.ReadCatalog(), b.Host.DefinitionOf(auth), d, raw)
 			if valid {
 				candidate.Path = i
 				candidates = append(candidates, candidate)
+			}
+		}
+		if path.At(i).ObjectID == ids.PGCatalogNamespaceOID && len(raw.ArgNames) == 0 {
+			for _, identity := range catalog.BuiltinRoutineIdentitiesNamed(name) {
+				if seen[identity.Signature] {
+					continue
+				}
+				result, ok := catalog.BuiltinRoutineResultByOID(identity.ID)
+				if !ok {
+					continue
+				}
+				internalSignature := result == 2281
+				for part := range strings.SplitSeq(string(identity.Signature), ",") {
+					internalSignature = internalSignature || part == "2281"
+				}
+				if !internalSignature {
+					continue
+				}
+				// Released signature facts participate only in type selection.
+				// They carry no provider authority and every applicable winner
+				// is rejected by the INTERNAL guards before execution routing.
+				declaration := &catalog.Procedure{
+					ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID},
+					ObjectNamespace: path.At(i),
+					ObjectName: identity.Name,
+					Signature: identity.Signature,
+					RoutineKind: catalog.FunctionRoutine,
+					Result: result,
+				}
+				candidate, valid := SQLCallableShape(auth.ReadCatalog(), b.Host.DefinitionOf(auth), declaration, raw)
+				if valid {
+					candidate.Path = i
+					candidate.polymorphic = true // Run the type-only INTERNAL applicability probe.
+					candidates = append(candidates, candidate)
+				}
+				seen[identity.Signature] = true
+				hasSQL = true
 			}
 		}
 	}
@@ -240,6 +299,19 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			return selection, true, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, len(candidates) > 1)
 		}
 		selection.SQLCallable = candidates[0]
+	}
+	if selection.Procedure.SQL != nil && selection.polymorphic && selection.Signature.Result.Type == nil {
+		return selection, true, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+	}
+	if selection.Procedure.SQL != nil && selection.polymorphic {
+		for _, input := range selection.Signature.Inputs {
+			if input.Type == nil {
+				return selection, true, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+			}
+		}
+	}
+	if err := selection.internalCallError(raw.Pos); err != nil {
+		return selection, true, err
 	}
 	// The actual winner's kind determines whether decorations are legal,
 	// before an unknown literal is converted to its selected formal type.
@@ -708,7 +780,37 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
 		b.dependency(ref, d.Revision())
-		info := b.Info(d.SQL.Result, raw.Pos, selected.properties)
+		resultUsage := d.SQL.Result
+		if selected.Signature.Result.Type != nil {
+			resultUsage = selected.Signature.Result
+		}
+		if !d.SQL.DerivedResult() && selected.Signature.Result.Type != nil {
+			id := d.SQL.Result.Type.ID()
+			typ := resultUsage.Type
+			if id == 3500 && !typ.BaseType().IsEnum() {
+				return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "type matched to anyenum is not an enum type: " + typ.DiagnosticName()}
+			}
+			if (id == 2776 || id == 5079) && typ.BaseType().IsArray() {
+				return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "type matched to " + d.SQL.Result.Type.Name() + " is an array type: " + typ.DiagnosticName()}
+			}
+		}
+		// The catalog RECORD identity is declaration-only. Give this call its
+		// own deferred transport, without inventing a result tuple or changing
+		// the published declaration. Same-OID foreign descriptors are not grants.
+		if resultUsage.Type.ID() == 2249 && !resultUsage.Type.IsComposite() {
+			if !resultUsage.Type.IsDeferredRecord() {
+				owned, ok := selected.auth.ReadCatalog().LookupType(2249)
+				if !ok || owned != resultUsage.Type {
+					return nil, fmt.Errorf("SQL routine call has a foreign record declaration")
+				}
+			}
+			resultUsage = sqltype.DeferredRecord().Usage()
+			if selected.Signature.Result.Type == nil {
+				selected.Signature = proc.InvocationSignature{Inputs: d.SQL.Inputs}
+			}
+			selected.Signature.Result = resultUsage
+		}
+		info := b.Info(resultUsage, raw.Pos, selected.properties)
 		info.RoutineReference = d
 		if b.Params.NoParameters || b.Consumer.frozenDefinition {
 			namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
@@ -737,6 +839,11 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			if !ok {
 				return nil, fmt.Errorf("missing selected routine default slot")
 			}
+			if selected.Signature.Inputs != nil && node.ResultUsage() != selected.Signature.Inputs[slot] {
+				var failure error
+				node, failure = b.CoerceSelected(node, selected.Signature.Inputs[slot], sqltype.Implicit, node.SourcePosition(), nil)
+				if failure != nil { return nil, failure }
+			}
 			assembly[slot] = plan.RoutineInput{Start: len(args), Count: 1}
 			args = append(args, node)
 			for _, dependency := range d.SQLDefaults.Dependencies() {
@@ -749,7 +856,11 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 				return nil, err
 			}
 		}
-		node := plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: args, WrittenCount: len(raw.Args), ArgNames: raw.ArgNames, Variadic: raw.Variadic, InputMap: assembly}
+		signature := selected.Signature
+		if signature.Result.Type == nil {
+			signature = proc.InvocationSignature{Inputs: d.SQL.Inputs, Result: resultUsage}
+		}
+		node := plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: args, WrittenCount: len(raw.Args), ArgNames: raw.ArgNames, Variadic: raw.Variadic, InputMap: assembly, Signature: signature}
 		node, err := node.Collate(b.CollatedInfo)
 		if err != nil {
 			return nil, err

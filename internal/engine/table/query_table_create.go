@@ -67,6 +67,9 @@ func QueryTableColumns(view access.View, env access.Environment, s *parser.Creat
 		}
 		names[column.Name] = i
 		typ := column.Usage.Type
+		if err := sqltype.CheckStoredColumn(column.Name, column.Usage); err != nil {
+			return nil, nil, nil, err
+		}
 		if sqltype.OccurrenceRecordArray(typ) || typ != nil && typ.ID() == 2249 && typ.IsComposite() {
 			typeName := "record"
 			if sqltype.OccurrenceRecordArray(typ) {

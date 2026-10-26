@@ -164,7 +164,13 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 		return nil, name, err
 	}
 	_, err = s.Engine().executeStatement(s, query, len(parameters), func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
-		copy(dst, parameters)
+		if dynamic {
+			copy(dst, parameters)
+		} else {
+			for i := range dst {
+				dst[i] = f.Parameter(i)
+			}
+		}
 		return nil
 	})
 	if err != nil {

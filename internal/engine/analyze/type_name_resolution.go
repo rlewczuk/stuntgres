@@ -69,14 +69,17 @@ func ResolveTypeName(raw parser.TypeName, name string, object parser.ObjectName,
 	if in.JSONReturning && functions.JSONReturningPseudoType(d) {
 		return sqltype.Usage{}, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 	}
-	if in.DomainBase && (!d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Void) {
+	if in.DomainBase && (!d.Concrete() || sqltype.IsPseudo(d.ID()) || d.IsArray() && d.Element().IsEnum()) {
 		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42804", fmt.Sprintf(`"%s" is not a valid base type for a domain`, d.Name()))
 	}
 	if in.UnknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
 		return d.Usage(), nil
 	}
-	if in.UnknownNull && d.ID() == 2249 && len(raw.Modifiers) == 0 && len(raw.ArrayBounds) == 0 {
+	if d.ID() == 2249 && len(raw.Modifiers) == 0 && len(raw.ArrayBounds) == 0 {
 		return sqltype.DeferredRecord().Usage(), nil
+	}
+	if sqltype.IsPseudo(d.ID()) && len(raw.Modifiers) == 0 && len(raw.ArrayBounds) == 0 {
+		return d.Usage(), nil
 	}
 	if in.CastSource != nil && len(raw.Modifiers) == 0 {
 		actual := d

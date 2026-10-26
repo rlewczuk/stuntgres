@@ -37,7 +37,7 @@ func TestAttributeCatalogNullCarrier(t *testing.T) {
 			canonical = d
 		}
 	}
-	if canonical == nil || canonical.Concrete() || canonical.Usage().Valid() || !canonical.Usage().CatalogNullUsage() {
+	if canonical == nil || canonical.Concrete() || !canonical.Usage().Valid() || !canonical.Usage().QueryNullUsage() || !canonical.Usage().CatalogNullUsage() {
 		t.Fatal("bounded pseudo identity", canonical)
 	}
 	u := canonical.Usage()
@@ -57,14 +57,11 @@ func TestAttributeCatalogNullCarrier(t *testing.T) {
 			t.Fatal("forged/modified usage escaped", bad)
 		}
 	}
-	func() {
-		defer func() {
-			if recover() == nil {
-				t.Fatal("ordinary NULL admitted ANYARRAY")
-			}
-		}()
-		_ = Null(canonical)
-	}()
+	queryNull := Null(canonical)
+	if !queryNull.IsNull() || !queryNull.ValidResult(u) || queryNull.Type() != canonical {
+		t.Fatal("query NULL lost ANYARRAY identity", queryNull)
+	}
+	castUnitError(t, CheckStoredColumn("v", u), "42P16", `column "v" has pseudo-type anyarray`)
 	if _, err := canonical.Input(t.Context(), "{}", -1); err == nil {
 		t.Fatal("pseudo input became executable")
 	}

@@ -35,14 +35,19 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   result once before unsigned range validation. The numeric-left addition
   signature retains its SQL-wrapper diagnostic context. Companion identity
   does not grant executable arrays or hash providers.
-- `Composite` freezes catalog members and rejects VOID storage attributes.
+- `Composite` freezes catalog members and rejects pseudo-type storage attributes.
   `RecordShape` freezes an anonymous expression/query-result occurrence and
   retains VOID members, including their exact typed NULLs for empty results.
   Anonymous shapes use the SQL diagnostic name `record`, independently of
   their public database type name `RECORD` and member descriptor identity.
+  `RecordSignatureShape` additionally admits canonical polymorphic declaration
+  members. Unresolved shapes are lookup-only, never executable values; concrete
+  specialization builds an ordinary `RecordShape` with the declared labels.
   Both preserve complete member usages and coherent descriptor generations;
   `CompositeValue` copies borrowed fields, while `OwnedCompositeValue` takes
   exclusive ownership without copying. Neither exposes mutable field backing.
+  Generic scalar RECORD can retain an immutable actual tuple shape and payload
+  behind a deferred query descriptor, without inventing a catalog row type.
 - Domains delegate physical codecs to their base, keep their logical identity
   and check fresh input; `Descriptor.RebindDomain` rebuilds a same-ID
   generation with current naming and base authority.
@@ -59,8 +64,16 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
   diagnostic; nothing falls back to text while claiming binary format.
-  VOID has runtime identity and output authority but no input provider; non-NULL
-  text import owns `0A000`, while input-free identity needs no input capability.
+  Pseudo identity metadata grants neither storage nor executable handlers.
+  CSTRING owns text I/O and exact text-carrier datum identity without ordering;
+  VOID discards text input and outputs non-NULL empty text. Their real
+  result/input carriers grant no stored columns.
+  Narrow builtin query-NULL usages, including ANYARRAY, require canonical
+  descriptor self-ownership: copies and modified usages cannot inherit it.
+  This capability is separate from polymorphic declaration authority; these
+  expression usages remain non-concrete and grant neither codecs nor storage.
+  Dummy pseudo input reports its SQL diagnostic before concrete codec admission;
+  this does not make handlers or other signature-only identities concrete.
 - `IndexClass` retains the catalog-selected method, family, input and storage
   identities. GiST classes admit exact owning geometry, network, range,
   multirange and text-search datums without a B-tree comparator. Logical

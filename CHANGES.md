@@ -1,3 +1,8 @@
+Native active JSONB existence cancellation coverage synchronizes at the real
+provider cancellation poll before observing its live worker stack, rather than
+racing finite search completion against stack sampling. PostgreSQL cancellation
+diagnostics and same-connection recovery assertions remain unchanged.
+
 `information_schema.user_mapping_options` exposes actual user-mapping options
 through five nullable domain-typed columns. Server access controls visible
 identities and option names; exact mapped-user, PUBLIC-owner and superuser rules
@@ -20,6 +25,11 @@ presentation with captured path/string settings and trigger-specific privilege
 filtering. Held queries observe
 trigger and ACL lifecycle changes; nonowners see qualifying rows without WHEN
 conditions. Metadata reads do not execute routines or broaden trigger admission.
+
+Polymorphic routine signatures retain exact array and range-subtype generations
+through private specialization and stored calls. Query-only pseudo-type NULLs
+require their canonical builtin descriptor, without granting storage or codec
+authority to copied type metadata.
 
 `information_schema.usage_privileges` exposes typed USAGE grant origins for
 domains, sequences, collations, foreign data wrappers and foreign servers,
@@ -64,6 +74,15 @@ and yes-or-no domains while preserving individual table ACL grant origins.
 PUBLIC origins remain visible to unrelated readers; the sister role view keeps
 its enabled-grantor policy. Held reads follow grant options and role membership
 without overstating ownership or synthesizing grants.
+
+SQL routines returning scalar RECORD validate and pack their terminal rows,
+including a single scalar column. Calls retain an invocation-private RECORD
+signature through FROM completion and stored generation transport, without
+granting executable authority to catalog declarations or foreign type generations.
+Stored polymorphic calls retain their accepted concrete result generations
+and checked signatures.
+Bound PL cursor arguments retain the complete first-row projection and its
+evaluation-before-conversion diagnostics.
 
 `pg_settings` has focused coverage for all 17 metadata fields, including
 descriptions, typed enum arrays and empty results. Session defaults, SET/RESET
@@ -193,6 +212,26 @@ while cached resets preserve PostgreSQL's check-hook bypass semantics.
 These are setting-only simulations, not physical planner, logging or fsync effects.
 Mixed session-default/LOCAL assignments retain exact typed defaults and restore
 session provenance on commit without altering rollback/savepoint originals.
+
+Pseudo-type routine signatures retain declared catalog identities while SQL and
+PL/pgSQL calls resolve concrete polymorphic inputs and results independently per
+invocation. Simple and common-type families specialize ordered OUT/INOUT and TABLE
+members as well as scalar and SETOF results, without changing declared input
+identities or earlier held calls. Named scalar RECORD packing and positional
+output conversion share the result planner; declaration-only polymorphic tuples
+retain their member identities through native Dump/Restore and type remapping.
+Derived enum/nonarray OUT members follow the input family solution, while scalar
+results retain their separate enum/nonarray diagnostics.
+CSTRING and VOID values use the existing coercion and routine owners. Pseudo
+columns and explicit INTERNAL calls/casts are rejected without granting handler
+execution.
+Typed SQL PREPARE declarations reach INTERNAL call-safety diagnostics even for
+lookup-only builtin signatures; unknown arguments still follow ordinary overload
+admission. Lawful query-only pseudo NULL literals retain exact type identity
+without acquiring concrete-value or storage authority. Scalar pseudo-family literal
+casts preserve UNKNOWN until final TEXT projection, including unresolved parameter
+outputs, while enum, container and handler inputs retain their distinct cast/input diagnostics. Public metadata
+assertions retain lib/pq's finite type-name and raw-transport distinctions.
 
 `pg_lsn` columns, literals and parameters preserve the full unsigned 64-bit WAL
 position range with canonical slash-hex results and metadata. Comparisons and

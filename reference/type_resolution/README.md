@@ -58,6 +58,10 @@ typed column conversions by source and input; family `Matrix` and `Functions`
 definitions cover distinct codecs and actual signatures. Focused cases retain
 context, sizing, domains, shapes, environments, atomicity and lifecycle behavior.
 `ProtocolRoles` shares one real server fixture for nonstorage/input roles.
+Scalar RECORD cases retain genuine result metadata for lawful typename
+shortcuts and distinguish anonymous-composite input errors from missing
+functions. UNKNOWN cases retain final TEXT and inferred parameter metadata;
+VOID protocol cases distinguish non-NULL empty output from SQL NULL.
 The SERVICE_CERTIFICATES public and server regressions retain all five arguments,
 repeated/NULL/error frames and protocol metadata independently of matrix sizing.
 Focused review regressions retain numeric-leading temporal callable resolution

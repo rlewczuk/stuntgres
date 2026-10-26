@@ -29,6 +29,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.PgLSN:      {"0/0", "0/1", "80000000/0", "FFFFFFFF/FFFFFFFF"},
 		sqltype.PgSnapshot: {"10:10:", "12:20:13,15,18", "1:18446744073709551615:3"},
 		sqltype.Refcursor:  {"", "portal name", "é🙂"},
+		2275:               {"", "abc", "é🙂", "tail  "},
 		sqltype.Tid:        {"(0,0)", "(1,2)", "(4294967295,65535)", "(-1,0)"},
 		sqltype.Macaddr:    {"00:00:00:00:00:00", "08002b010203", "80:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"},
 		sqltype.Box:        {"(1,4),(3,2)", "(1.0000005,1),(0,0)", "(-0,-0),(-0,-0)", "(5e-324,1),(0,0)", "(NaN,Infinity),(-Infinity,0)"},

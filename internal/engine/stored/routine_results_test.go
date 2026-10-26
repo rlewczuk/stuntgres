@@ -173,12 +173,13 @@ func TestSQLRoutineResultRemap(t *testing.T) {
 	if remap.Type(shape) != mapped.SQL.Result.Type {
 		t.Fatal("declaration and expression have competing record occurrences")
 	}
-	literal := plan.LiteralExpr{Info: expr.Info{Usage: types[1].Usage()}, Value: sqltype.Null(types[1])}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: types[0].Usage()}, Value: sqltype.Null(types[0])}
 	call := plan.SQLRoutineExpr{Info: expr.Info{Usage: definition.Result, RoutineReference: &source, Property: expr.Properties{Volatility: expr.Volatile}}, Procedure: &source, Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Args: []expr.Expr{literal}, WrittenCount: 1, InputMap: []plan.RoutineInput{{Start: 0, Count: 1}}, ChildSlots: []int{0}}
-	info := call.Info
-	info.Usage.Type = remap.Type(info.Usage.Type)
-	info.RoutineReference = mapped
-	rebuilt, err := call.Rebuild(info, call.Args)
+	call.Signature = proc.InvocationSignature{Inputs: definition.Inputs, Result: definition.Result}
+	if err := call.ValidateStoredProvider(); err != nil {
+		t.Fatal("original call provenance", err)
+	}
+	rebuilt, _, err := mapExpressionWithProcedure(read, nil, call, remap.Type, nil, nil, false, nil, remap.Procedure, remap.Collation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,5 +199,168 @@ func TestSQLRoutineResultRemap(t *testing.T) {
 	}
 	if err := remap.Finish(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPseudoRoutineResultRemap(t *testing.T) {
+	read, _ := resultProviderFixture(t)
+	var generations [2]map[sqltype.ID]*sqltype.Descriptor
+	for i := range generations {
+		generations[i] = make(map[sqltype.ID]*sqltype.Descriptor)
+		for _, typ := range sqltype.Builtins() {
+			generations[i][typ.ID()] = typ
+		}
+	}
+	for _, id := range []sqltype.ID{2283, 2277, 2776, 3500, 3831, 4537, 5077, 5078, 5079, 5080, 4538} {
+		definition := &proc.Definition{Name: "pseudo_outputs"}
+		if err := definition.SetFormals([]proc.Formal{
+			{Mode: "b", Name: "first", Usage: generations[0][id].Usage()},
+			{Mode: "o", Name: "label", Usage: generations[0][sqltype.Text].Usage()},
+		}); err != nil {
+			t.Fatal(id, err)
+		}
+		shape, err := definition.OutputTuple()
+		if err != nil {
+			t.Fatal(id, err)
+		}
+		definition.Result = shape.Usage()
+		remap := NewRoutineRemap(read, nil, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			if old != nil && generations[0][old.ID()] == old {
+				return generations[1][old.ID()]
+			}
+			return old
+		}, nil, true)
+		mapped, err := remap.Definition(definition)
+		if err != nil {
+			t.Fatal(id, err)
+		}
+		if mapped == definition || mapped.Inputs[0].Type != generations[1][id] ||
+			mapped.Formals[0].Usage != generations[1][id].Usage() ||
+			mapped.Formals[1].Usage != generations[1][sqltype.Text].Usage() ||
+			!mapped.MatchesOutputTuple(mapped.Result.Type) {
+			t.Fatal("declaration members lost mapped provenance", id)
+		}
+		if mapped.Result.Type == shape || mapped.Result.Type.Concrete() || mapped.Result.Valid() {
+			t.Fatal("declaration remapping granted executable authority", id)
+		}
+		if remap.Type(shape) != mapped.Result.Type {
+			t.Fatal("original output occurrence acquired competing shapes", id)
+		}
+		again, err := remap.Definition(definition)
+		if err != nil || again != mapped {
+			t.Fatal("original declaration lost operation memo identity", id, err)
+		}
+		if definition.Inputs[0].Type != generations[0][id] ||
+			definition.Result.Type != shape || !definition.MatchesOutputTuple(shape) {
+			t.Fatal("remapping mutated published declaration", id)
+		}
+		foreign := *generations[1][id]
+		invalid := NewRoutineRemap(read, nil, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			if old == generations[0][id] {
+				return &foreign
+			}
+			return old
+		}, nil, true)
+		if _, err := invalid.Definition(definition); err == nil {
+			t.Fatal("foreign same-OID polymorphic member admitted", id)
+		}
+	}
+}
+
+func TestSQLRoutineScalarRecordRemap(t *testing.T) {
+	read, original := resultProviderFixture(t)
+	record, _ := read.LookupType(2249)
+	integer, _ := read.LookupType(sqltype.Int4)
+	source := *original
+	source.SQL = &proc.Definition{Name: source.Name(), Result: record.Usage()}
+	source.Signature = ""
+	if err := source.SQL.SetFormals(nil); err != nil {
+		t.Fatal(err)
+	}
+	read.State().SetDescriptor(source.Address(), &source)
+	if err := validateSQLProcedure(read, &source); err != nil {
+		t.Fatal("original catalog RECORD declaration", err)
+	}
+	// A fresh builtin generation changes declaration/member authority, while
+	// deferred transport remains the original call's occurrence-owned artifact.
+	destination := make(map[sqltype.ID]*sqltype.Descriptor)
+	for _, typ := range sqltype.Builtins() {
+		destination[typ.ID()] = typ
+	}
+	leaf := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		if old == nil {
+			return nil
+		}
+		if next := destination[old.ID()]; next != nil {
+			return next
+		}
+		return old
+	}
+	shape, err := sqltype.RecordShape([]sqltype.CompositeMember{{Attribute: 1, Name: "a", Usage: integer.Usage()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range []sqltype.Usage{sqltype.DeferredRecord().Usage(), shape.Usage()} {
+		remap := NewRoutineRemap(read, nil, leaf, nil, true)
+		// Stabilize declaration projections before remapping any consumer, as
+		// required by the catalog remap lifecycle.
+		procedure, err := remap.Procedure(&source)
+		if err != nil {
+			t.Fatal("prepare scalar RECORD declaration", err)
+		}
+		if err := remap.Declarations(); err != nil {
+			t.Fatal("stabilize scalar RECORD declaration", err)
+		}
+		call := plan.SQLRoutineExpr{
+			Info: expr.Info{Usage: result, RoutineReference: &source, Property: expr.Properties{Volatility: expr.Volatile}},
+			Procedure: &source, Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()),
+			Signature: proc.InvocationSignature{Result: result},
+		}
+		if err := call.ValidateStoredProvider(); err != nil {
+			t.Fatal("original scalar RECORD occurrence", err)
+		}
+		node, _, err := mapExpressionWithProcedure(read, nil, call, remap.Type, nil, nil, false, nil, remap.Procedure, remap.Collation)
+		if err != nil {
+			t.Fatal("scalar RECORD generation transport", err)
+		}
+		mapped := node.(plan.SQLRoutineExpr)
+		if mapped.Procedure != procedure || mapped.RoutineReference != procedure || mapped.Ref != call.Ref {
+			t.Fatalf("mapped provider provenance diverged: procedure=%p want=%p reference=%p ref=%v want=%v",
+				mapped.Procedure, procedure, mapped.RoutineReference, mapped.Ref, call.Ref)
+		}
+		if mapped.Procedure.SQL.Result.Type != destination[2249] || mapped.Procedure.SQL == source.SQL {
+			t.Fatalf("mapped declaration generation diverged: result=%p want=%p definition=%p original=%p",
+				mapped.Procedure.SQL.Result.Type, destination[2249], mapped.Procedure.SQL, source.SQL)
+		}
+		if mapped.Signature.Result != mapped.Usage {
+			t.Fatalf("mapped signature result diverged: signature=%v usage=%v", mapped.Signature.Result, mapped.Usage)
+		}
+		if result.Type.IsDeferredRecord() {
+			if mapped.Usage != result {
+				t.Fatal("deferred transport was replaced by a catalog descriptor")
+			}
+		} else if mapped.Usage.Type == shape || mapped.Usage.Type.CompositeMember(0).Usage.Type != destination[sqltype.Int4] {
+			t.Fatal("completed FROM member retained its old generation")
+		}
+		if err := mapped.ValidateStoredProvider(); err != nil {
+			t.Fatal("transport lost private call authority", err)
+		}
+		if _, err := mapped.Procedure.SQL.Specialize(mapped.Signature); err != nil {
+			t.Fatal("transport lost private invocation authority", err)
+		}
+		if source.SQL.Result.Type != record || call.Usage != result || shape.CompositeMember(0).Usage.Type != integer {
+			t.Fatal("transport mutated the source declaration or occurrence")
+		}
+		if err := remap.Finish(); err != nil {
+			t.Fatal("finish scalar RECORD transport", err)
+		}
+	}
+	foreign := *record
+	bad := source
+	definition := *source.SQL
+	definition.Result = foreign.Usage()
+	bad.SQL = &definition
+	if err := validateSQLProcedure(read, &bad); err == nil {
+		t.Fatal("foreign same-OID scalar RECORD declaration accepted")
 	}
 }

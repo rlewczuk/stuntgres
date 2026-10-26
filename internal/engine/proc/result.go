@@ -24,7 +24,7 @@ func (d *Definition) OutputTuple() (*sqltype.Descriptor, error) {
 		}
 		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: name, Usage: f.Usage}
 	}
-	return sqltype.RecordShape(members)
+	return sqltype.RecordSignatureShape(members)
 }
 
 // DerivedResult reports a function's formal-derived anonymous record policy.
@@ -58,6 +58,7 @@ type ResultPlan struct {
 	result      sqltype.Usage
 	whole       bool
 	conversions []sqltype.CoercionPlan
+	tuple       *sqltype.Descriptor
 }
 
 func PlanResult(columns []sqltype.Usage, result sqltype.Usage, names ...func(sqltype.ID) string) (ResultPlan, error) {
@@ -66,6 +67,28 @@ func PlanResult(columns []sqltype.Usage, result sqltype.Usage, names ...func(sql
 		name = names[0]
 	}
 	return planResult(columns, result, true, name)
+}
+
+// PlanNamedResult retains projected labels when a scalar RECORD derives its
+// actual tuple shape from the terminal statement.
+func PlanNamedResult(columns []sqltype.CompositeMember, result sqltype.Usage, names ...func(sqltype.ID) string) (ResultPlan, error) {
+	usages := make([]sqltype.Usage, len(columns))
+	for i, column := range columns {
+		usages[i] = column.Usage
+	}
+	if !result.Type.IsDeferredRecord() || len(columns) == 1 && (columns[0].Usage.Type.BaseType().IsComposite() || columns[0].Usage.Type.IsDeferredRecord()) {
+		return PlanResult(usages, result, names...)
+	}
+	shape, err := sqltype.RecordShape(columns)
+	if err != nil {
+		return ResultPlan{}, err
+	}
+	p, err := PlanTuple(usages, shape)
+	if err != nil {
+		return ResultPlan{}, err
+	}
+	p.result, p.tuple = result, shape
+	return p, nil
 }
 
 // PlanTuple always preserves the output tuple, even for one composite member.
@@ -83,6 +106,21 @@ func planResult(columns []sqltype.Usage, result sqltype.Usage, whole bool, name 
 		return ResultPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "return type mismatch in function declared to return " + ResultDiagnosticName(result.Type, name), Detail: detail}
 	}
 	// Domains (including composite domains) require a whole value conversion.
+	if whole && result.Type.IsDeferredRecord() {
+		if len(columns) == 1 && (columns[0].Type.BaseType().IsComposite() || columns[0].Type.IsDeferredRecord()) {
+			conversion, err := sqltype.PlanCoercion(columns[0], columns[0], sqltype.Assignment)
+			if err != nil {
+				return ResultPlan{}, err
+			}
+			p.whole, p.conversions = true, []sqltype.CoercionPlan{conversion}
+			return p, nil
+		}
+		members := make([]sqltype.CompositeMember, len(columns))
+		for i, column := range columns {
+			members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: "column" + strconv.Itoa(i+1), Usage: column}
+		}
+		return PlanNamedResult(members, result)
+	}
 	if whole && len(columns) == 1 {
 		if conversion, err := sqltype.PlanCoercion(columns[0], result, sqltype.Assignment); err == nil {
 			p.whole = true
@@ -125,7 +163,14 @@ func (p ResultPlan) Apply(ctx context.Context, row []sqltype.Value, input sqltyp
 		return sqltype.Value{}, fmt.Errorf("invalid routine result row width")
 	}
 	if p.whole {
-		return p.conversions[0].Apply(ctx, row[0], input, output)
+		value, err := p.conversions[0].Apply(ctx, row[0], input, output)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if p.result.Type.IsDeferredRecord() {
+			return sqltype.RecordValue(p.result.Type, value)
+		}
+		return value, nil
 	}
 	fields := make([]sqltype.Value, len(row))
 	for i, value := range row {
@@ -135,7 +180,18 @@ func (p ResultPlan) Apply(ctx context.Context, row []sqltype.Value, input sqltyp
 		}
 		fields[i] = converted
 	}
-	return sqltype.OwnedCompositeValue(p.result.Type, fields)
+	tuple := p.result.Type
+	if p.tuple != nil {
+		tuple = p.tuple
+	}
+	value, err := sqltype.OwnedCompositeValue(tuple, fields)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if p.result.Type.IsDeferredRecord() {
+		return sqltype.RecordValue(p.result.Type, value)
+	}
+	return value, nil
 }
 
 // ResultDiagnosticName uses the admitted search-path snapshot when available.

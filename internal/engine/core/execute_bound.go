@@ -692,7 +692,8 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{Rows: rows}, err
 		}
 		if scope.sqlRoutine.scalar || scope.sqlRoutine.plArgumentRow {
-			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical)
+			scalar := !scope.sqlRoutine.plArgumentRow && (scope.sqlRoutine.result.Type == nil || scope.sqlRoutine.result.Type.ID() != 2249 && !scope.sqlRoutine.result.Type.BaseType().IsComposite())
+			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical, scalar)
 			return Result{Count: int64(count), Rows: rows}, err
 		}
 		rows, count, queryErr := exec.FinalizeSelect(ctx, queryRoot, source, canonical, op.ParallelWorkers)

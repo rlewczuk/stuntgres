@@ -9,13 +9,14 @@ import (
 // returning a Value detaches from the slots without copying scalar/tree data.
 type Frame struct {
 	Parameters []sqltype.Value
+	Inputs     []sqltype.Usage
 	inline     [4]sqltype.Value
 	result     sqltype.Value
 	closed     bool
 }
 
 func NewFrame(inputs []sqltype.Usage) *Frame {
-	f := &Frame{}
+	f := &Frame{Inputs: inputs}
 	if len(inputs) <= len(f.inline) {
 		f.Parameters = f.inline[:len(inputs)]
 	} else {

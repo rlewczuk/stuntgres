@@ -47,6 +47,16 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		for _, r := range pgTypeBuiltinFacts {
 			expected[r[0].(int64)] = true
 		}
+		// Released pseudo-type declaration identities are catalog metadata,
+		// not blanket storage, codec or callable-provider authority. Include
+		// only the selected finite inventory and its canonical companions.
+		for _, id := range []int64{
+			32, 269, 325, 705, 1263, 2249, 2275, 2276, 2277, 2278,
+			2279, 2280, 2281, 2283, 2287, 2776, 3115, 3310, 3500,
+			3831, 3838, 4537, 4538, 5077, 5078, 5079, 5080,
+		} {
+			expected[id] = true
+		}
 		expected[13254], expected[13253] = true, true
 		expected[13248], expected[13247] = true, true
 		expected[13256], expected[13255] = true, true

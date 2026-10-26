@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -173,7 +174,7 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 		for slot := range assembly {
 			assembly[slot] = plan.RoutineInput{Start: slot, Count: 1}
 		}
-		node := plan.SQLRoutineExpr{Info: ri, Procedure: p, Ref: ref, Args: args, WrittenCount: len(args), InputMap: assembly}
+		node := plan.SQLRoutineExpr{Info: ri, Procedure: p, Ref: ref, Args: args, WrittenCount: len(args), InputMap: assembly, Signature: proc.InvocationSignature{Inputs: p.SQL.Inputs, Result: ri.Usage}}
 		node, err = node.Collate(b.CollatedInfo)
 		if err != nil {
 			return nil, true, err

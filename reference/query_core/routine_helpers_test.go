@@ -37,10 +37,30 @@ func routineValue(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 
 func routineValueWithNativeNullability(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, q, name, typ string, value any, nativeNullable, nativeNullableKnown bool, args ...any) {
 	t.Helper()
-	s := fixture.Select(q, []string{name}, []string{typ}, [][]any{{value}}, args...)
+	s := routineSelect(b,q,name,typ,value,args...)
 	s.CheckMetadata = routineScalarMetadata(b, name, typ, nativeNullable, nativeNullableKnown)
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
+}
+
+func routineTypeName(b fixture.Backend, typ string) string {
+	if b.PG {
+		switch typ {
+		case "INT4MULTIRANGE", "ANYMULTIRANGE", "ANYCOMPATIBLEARRAY", "ANYCOMPATIBLERANGE", "ANYCOMPATIBLEMULTIRANGE":
+			return ""
+		}
+	}
+	return typ
+}
+
+func routineSelect(b fixture.Backend, query, name, typ string, value any, args ...any) fixture.Step {
+	s := fixture.Select(query, []string{name}, []string{routineTypeName(b,typ)}, [][]any{{value}}, args...)
+	s.RawTypes = []string{typ}
+	if typ == "" {
+		// User enums have no client database type name on either backend.
+		s.RawTypes[0] = "_ENUM"
+	}
+	return s
 }
 
 func routineScalarMetadata(b fixture.Backend, name, typ string, nativeNullable, nativeNullableKnown bool) func(*testing.T, *sql.Rows) {
@@ -53,8 +73,13 @@ func routineScalarMetadata(b fixture.Backend, name, typ string, nativeNullable, 
 			t.Fatal("routine column count", len(columns))
 		}
 		col := columns[0]
-		if col.Name() != name || col.DatabaseTypeName() != typ {
+		if col.Name() != name || col.DatabaseTypeName() != routineTypeName(b,typ) {
 			t.Fatal("routine declared metadata", col)
+		}
+		switch typ {
+		case "TEXT", "NUMERIC", "RECORD", "VOID", "CSTRING", "_INT4", "_NUMERIC", "INT4RANGE", "INT4MULTIRANGE", "", "ANYARRAY", "ANYRANGE", "ANYMULTIRANGE", "ANYCOMPATIBLEARRAY", "ANYCOMPATIBLERANGE", "ANYCOMPATIBLEMULTIRANGE", "PG_DDL_COMMAND":
+			routineExtendedMetadata(t, b, col, typ, nativeNullable, nativeNullableKnown)
+			return
 		}
 		if b.PG {
 			// Independently observed on pinned18.6 in tests-1.md/tests-2.md.

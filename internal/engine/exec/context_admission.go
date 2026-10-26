@@ -72,7 +72,7 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 	if err = EvaluationContext(c); err != nil {
 		return value, err
 	}
-	frame := proc.NewFrame(n.Procedure.SQL.Inputs)
+	frame := proc.NewFrame(n.Signature.Inputs)
 	defer frame.Close()
 	var tail []sqltype.Value
 	var expandedSlot = -1
@@ -102,7 +102,7 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 		}
 	}
 	if expandedSlot >= 0 {
-		usage := n.Procedure.SQL.Inputs[expandedSlot]
+		usage := n.Signature.Inputs[expandedSlot]
 		packed, failure := sqltype.OwnedArrayValue(usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(tail))}}, tail)
 		if failure != nil {
 			return value, failure

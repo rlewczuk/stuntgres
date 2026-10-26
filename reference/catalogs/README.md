@@ -41,6 +41,8 @@ retire obsolete lookup names.
   from native output: literal REL_18 catalog tuples in the inventories. Admitting
   a type changes the shared TSV and every consumer, including
   `TestReferencePGTypeAdmission`.
+  Pseudo-type declaration identities and their canonical companions are a finite
+  metadata inventory; catalog presence grants no storage or codec authority.
 - Native inventory reads stay unfiltered, so extra native rows fail; PostgreSQL
   reads restrict to the supported candidate identities, because the oracle
   legitimately has more rows. Never assert whole-cluster row-count parity.

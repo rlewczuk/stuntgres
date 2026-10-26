@@ -127,6 +127,9 @@ func AddColumnCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation, 
 			return fail(err)
 		}
 	}
+	if err := sqltype.CheckStoredColumn(column.Name, usage); err != nil {
+		return fail(err)
+	}
 	declaration, err := analyze.BindCreateColumnDeclaration(column, old.Name())
 	if err != nil {
 		return fail(err)

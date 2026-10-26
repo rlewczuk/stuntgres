@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Stock parser handlers and the two vector families' I/O routines have real
+// Stock parser handlers, vector I/O and the genuine pg_ddl_command receiver have
 // internal catalog identities without granting standalone callable providers.
 // A represented Procedure always takes precedence over these selected facts.
 func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype.Value, error) {
@@ -21,7 +21,7 @@ func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype
 	if language == (ids.ObjectAddress{}) {
 		return nil, fmt.Errorf("stuntgres: missing parser handler language")
 	}
-	for _, oid := range [13]ids.OID{p.Start, p.Token, p.End, p.Headline, p.LexType, 40, 41, 54, 55, 2410, 2411, 2420, 2421} {
+	for _, oid := range [14]ids.OID{p.Start, p.Token, p.End, p.Headline, p.LexType, 40, 41, 54, 55, 2410, 2411, 2420, 2421, 88} {
 		if err := in.Context.Err(); err != nil {
 			return nil, err
 		}

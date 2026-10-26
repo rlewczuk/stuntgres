@@ -180,17 +180,30 @@ func TestDeparseConstraintsReviewUnknownNullConsumerBoundary(t *testing.T) {
 			}
 		}
 	}
-	for _, tc := range []struct{ expression, code, message string }{
-		{"'x'::unknown", "0A000", "unsupported column type"},
-		{"$1::unknown", "0A000", "unsupported column type"},
-		{"1::unknown", "0A000", "unsupported column type"},
-		{"CAST(NULL AS missing_schema.unknown)", "3F000", `schema "missing_schema" does not exist`},
+	for _, expression := range []string{"'x'::unknown", "$1::unknown"} {
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		raw := enginetest.Statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0]
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err == nil {
+			node, err = b.FinalizeProjection(node)
+		}
+		if err != nil || node.ResultUsage().Type == nil || node.ResultUsage().Type.ID() != sqltype.Text {
+			t.Fatal(expression, node, err)
+		}
+		if expression == "$1::unknown" && b.Params.Parameters[1].Type.ID() != sqltype.Text {
+			t.Fatal("UNKNOWN parameter did not infer TEXT", b.Params.Parameters)
+		}
+	}
+	for _, tc := range []struct{ expression, code, message, hint, position string }{
+		{"1::unknown", "42846", "cannot cast type integer to unknown", "", "9"},
+		{"unknown(1)", "42883", "function unknown(integer) does not exist", "No function matches the given name and argument types. You might need to add explicit type casts.", "8"},
+		{"CAST(NULL AS missing_schema.unknown)", "3F000", `schema "missing_schema" does not exist`, "", ""},
 	} {
 		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := enginetest.Statement(t, "SELECT "+tc.expression+" FROM t").(*parser.Select).Targets[0]
 		_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		diagnostic, ok := err.(*sqlstate.Error)
-		if !ok || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
+		if !ok || diagnostic.Code != tc.code || diagnostic.Message != tc.message || diagnostic.Hint != tc.hint || tc.position != "" && diagnostic.Position != tc.position {
 			t.Fatal(tc.expression, err)
 		}
 	}

@@ -9,6 +9,20 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
+Routine invocation activates concrete checked inputs/results without changing
+catalog declarations. Session-private SQL analysis and PL program retention each
+keep only the last specialization, keyed by complete usages, declaration/name
+and input collation. Nested invocations retain their own frames and immutable
+program projections. RECORD input projections unwrap actual tuple descriptors
+before PL compilation, so retained `%TYPE` copies and parameter frames agree
+without changing caller transport metadata. Scalar RECORD packing and result
+coercions are planned before producers open. Terminal validation converts only
+the admitted catalog's unshaped RECORD declaration to a private executable
+usage; it does not grant authority to foreign same-OID descriptors. First-row
+demand retains every projected column for composite SQL results and PL cursor
+actuals, while scalar SQL results retain their one-column width check. All
+projected expressions are evaluated before ordinal result/argument conversion.
+
 ## Hooks
 
 `NewEngine` (`engine.go`) seeds one engine's state: the stores, settings,

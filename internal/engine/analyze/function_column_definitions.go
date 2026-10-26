@@ -3,6 +3,7 @@ package analyze
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,9 +14,12 @@ import (
 func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.Expr, definitions []parser.FunctionColumnDefinition) (expr.Expr, error) {
 	record, isRecord := call.(functions.JSONRecord)
 	jsonb, isJSONB := call.(functions.JSONBRecord)
-	anonymous := (isRecord || isJSONB) && call.ResultUsage().Type.ID() == 2249
+	routine, isRoutine := call.(plan.SQLRoutineExpr)
+	// Formal-derived tuples already own their shape, despite prorettype RECORD.
+	isRoutine = isRoutine && routine.Procedure.Result == 2249 && !routine.Procedure.SQL.DerivedResult()
+	anonymous := (isRecord || isJSONB || isRoutine) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
-		if isRecord && anonymous || JSONBRecordUnresolved(call) {
+		if isRecord && anonymous || JSONBRecordUnresolved(call) || isRoutine {
 			return nil, expr.ErrorAt("42601", `a column definition list is required for functions returning "record"`, raw.Pos)
 		}
 		return call, nil
@@ -50,6 +54,11 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 	shape, err := sqltype.RecordShape(members)
 	if err != nil {
 		return nil, err
+	}
+	if isRoutine {
+		routine.Usage = shape.Usage()
+		routine.Signature.Result = routine.Usage
+		return routine, nil
 	}
 	info := record.Info
 	info.Usage = shape.Usage()

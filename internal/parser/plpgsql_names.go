@@ -19,6 +19,7 @@ func VisitPLCompoundNames(source string, start, end Position, parts *[3]Identifi
 		input: source[:end.Offset], offset: start.Offset,
 		positionOffset: start.Offset, positionCharacters: start.Character - 1,
 		options: Options{StandardConformingStrings: true},
+		plMode: true,
 	}}
 	for {
 		first := s.next()

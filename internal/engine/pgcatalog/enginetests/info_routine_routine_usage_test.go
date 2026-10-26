@@ -100,7 +100,7 @@ func TestInfoRoutineRoutineUsageProducer(t *testing.T) {
 	retained := check(input(view, auth), want)
 	// Real declaration-default capture, independently constructed from a typed
 	// public routine expression rather than a stand-in manifest implementation.
-	call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: leaf, Property: expr.Properties{Volatility: expr.Volatile}}, Procedure: leaf, Ref: view.Owner().Domain.Ref(view.Epoch(), leaf.Address())}
+	call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: leaf, Property: expr.Properties{Volatility: expr.Volatile}}, Procedure: leaf, Ref: view.Owner().Domain.Ref(view.Epoch(), leaf.Address()), Signature: proc.InvocationSignature{Result: integer.Usage()}}
 	defaults, err := stored.NewRoutineDefaults(t.Context(), view, nil, []expr.Expr{call})
 	if err != nil {
 		t.Fatal(err)

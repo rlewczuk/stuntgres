@@ -66,12 +66,21 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			}
 		}
 	}
+	if len(d.OutputFormals) == 0 && (d.PolymorphicResult || sqltype.PolymorphicFamily(d.Result.Type.ID()) != 0) {
+		if len(p.Variables) <= bindings { return invalid() }
+		v := p.Variables[bindings]
+		if v.Name != "$0" || v.Usage != d.Result || v.Record || v.Constant || v.NotNull || !v.InheritInputCollation || v.Role != PLOrdinarySlot || v.Cursor != nil {
+			return invalid()
+		}
+		formalBindings["$0"] = bindings
+		bindings++
+	}
 	if p.FoundSlot != bindings || len(p.Variables) <= bindings {
 		return invalid()
 	}
 	for i, formal := range d.Formals {
 		v := p.Variables[i]
-		if v.Name != formal.Name || v.Usage != formal.Usage || v.Record || v.Constant || v.NotNull || v.Role != PLOrdinarySlot || v.Cursor != nil || v.InheritInputCollation != (formal.Usage.Collation.ID != 0) {
+		if v.Name != formal.Name || v.Usage != formal.Usage || v.Record != (formal.Usage.Type.ID() == 2249) || v.Constant || v.NotNull || v.Role != PLOrdinarySlot || v.Cursor != nil || v.InheritInputCollation != (formal.Usage.Collation.ID != 0 || sqltype.PolymorphicFamily(formal.Usage.Type.ID()) != 0) {
 			return invalid()
 		}
 		positional := "$" + strconv.Itoa(i+1)
@@ -522,7 +531,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				}
 				visible.Bindings[decl.Name.Text] = cursorSlot
 			} else {
-				if v.Cursor != nil || v.Record && v.Usage != (sqltype.Usage{}) {
+				if v.Cursor != nil || v.Record && v.Usage != (sqltype.Usage{}) && (v.Usage.Type == nil || v.Usage.Type.ID() != 2249) {
 					return invalid()
 				}
 				inherit := !v.Record && v.Usage.Collation.ID != 0 && len(decl.Type.Copy.Parts) == 0

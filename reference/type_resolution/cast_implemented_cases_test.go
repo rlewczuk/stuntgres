@@ -54,7 +54,7 @@ func castRuntimeCases(function bool) []castRuntimeCase {
 			if !castHasDirect(fact.name, "text") {
 				add(fact.name, "text", fact.family)
 			}
-			if !fact.target || fact.oid == 2249 {
+			if !fact.target || fact.oid == 2249 || fact.name == "void" {
 				add(fact.name, fact.name, fact.family)
 			}
 		}

@@ -135,6 +135,12 @@ func TestExplicitVoidTextCoercion(t *testing.T) {
 			t.Fatal("successful VOID text output", mode, text, err)
 		}
 	}
+	plan, err := PlanCoercion(types[Text].Usage(), types[Void].Usage(), Explicit)
+	if err != nil { t.Fatal(err) }
+	value, err := plan.Apply(ctx, String(types[Text], "discarded"), InputEnvironment{}, OutputEnvironment{})
+	if err != nil || value.Type() != types[Void] || value.IsNull() {
+		t.Fatal("explicit text input must produce a real VOID", value, err)
+	}
 	for _, tc := range []struct {
 		source, target ID
 		mode           CoercionContext
@@ -143,7 +149,6 @@ func TestExplicitVoidTextCoercion(t *testing.T) {
 		{Void, Text, Implicit, "42804"},
 		{Text, Void, Implicit, "42804"},
 		{Text, Void, Assignment, "42804"},
-		{Text, Void, Explicit, "0A000"},
 	} {
 		_, err := PlanCoercion(types[tc.source].Usage(), types[tc.target].Usage(), tc.mode)
 		var diagnostic *sqlstate.Error
@@ -158,12 +163,11 @@ func TestVoidInputCapability(t *testing.T) {
 	ctx := context.Background()
 	for _, text := range []string{"", "nonempty"} {
 		value, err := d.InputWithEnvironment(ctx, text, -1, InputEnvironment{})
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" ||
-			diagnostic.Message != "input of type void is not supported" ||
-			diagnostic.Severity != "ERROR" || diagnostic.SeverityUnlocalized != "ERROR" ||
-			diagnostic.Position != "" || diagnostic.Context != "" || value.Type() != nil {
-			t.Fatalf("VOID input capability diagnostic/value: %#v %#v", value, err)
+		if err != nil || value.Type() != d || value.IsNull() {
+			t.Fatalf("VOID input: value=%#v error=%v", value, err)
+		}
+		if output, err := d.Output(ctx, value); err != nil || output != "" {
+			t.Fatalf("VOID input/output: output=%q error=%v", output, err)
 		}
 	}
 	canceled, cancel := context.WithCancel(ctx)
@@ -171,8 +175,7 @@ func TestVoidInputCapability(t *testing.T) {
 	if _, err := d.InputWithEnvironment(canceled, "", -1, InputEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal("input capability masked cancellation", err)
 	}
-	// An existing runtime VOID still has its real output provider. Refusing
-	// input must not invalidate its non-NULL result or input-free identity.
+	// Discarded input still produces a real non-NULL result.
 	p, err := PlanCoercion(d.Usage(), d.Usage(), Explicit)
 	if err != nil {
 		t.Fatal(err)

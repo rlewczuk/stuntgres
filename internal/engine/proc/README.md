@@ -16,6 +16,28 @@ BEGIN ATOMIC is an ordered SQL program, not a transaction or procedural return.
 Checked standard-body and declaration-default recipes live in `stored`, above
 this package, never as cached values or catalog dependencies in proc.
 
+Declaration usages admit pseudo signature identities separately from executable
+values. Result-safety and language-admission validators have separate DDL ordering;
+stored-definition validation composes both checks without executing a body.
+`InvocationSignature` retains concrete input/result usages on checked calls.
+`ValidFor` checks the declaration's family relationships and every derived output
+member's label, ordinal and complete usage, including descriptor generations.
+Array occurrences within each solved family retain the exact array descriptor,
+not merely a shared element. Range and multirange occurrences retain reciprocal
+companion descriptors and the exact subtype descriptor used by scalar members.
+`ResolveResult` applies the caller's input-family solution to those output members;
+outputs never supply independent type inference. Derived OUT members project that
+solution without applying actual-input or scalar-result enum/nonarray restrictions.
+`Definition.Specialize` projects
+concrete inputs, result and formals into an invocation-private definition, sharing
+unchanged immutable syntax and leaving published declarations untouched.
+PL polymorphic result `$0` is a private NULL-initialized slot only when there are
+no OUT placeholders. Aliases share that result slot; invocation-specialized
+formals and transitive `%TYPE` copies share immutable syntax, not mutable
+runtime types. Dynamic RECORD formals expose their current tuple descriptor
+to SQL parameter analysis and transport; named-composite NULL retains its
+shape, while generic RECORD NULL remains indeterminate.
+
 `Definition.Invocation` and `PLProgram.Invocation` explicitly distinguish
 ordinary routines, DML triggers and event triggers; none is inferred from a
 single trigger boolean. PL DML-trigger definitions have zero formals.
@@ -62,13 +84,23 @@ Only the actual nonvoid terminal SELECT or DML RETURNING supplies results.
 `ResultPlan` validates scalar/whole-value or positional member Assignment
 conversions before producers, including empty inputs. `OutputTuple` derives an
 immutable ordered record from OUT/INOUT/TABLE formals, synthesizing unnamed output
-labels by output ordinal. Function policy collapses one output; `PlanTuple`
-preserves even one composite output as a tuple member for other routine owners.
+labels by output ordinal. `RecordSignatureShape` admits canonical polymorphic
+declaration members without granting value or storage authority; specialization
+builds an ordinary concrete `RecordShape`. `MatchesOutputTuple` checks exact
+formal provenance. Function policy collapses one output; `PlanTuple` preserves
+even one composite output as a tuple member for other routine owners.
 Derived records have no catalog storage identity; their children retain exact
-type generations and Usages. VOID discards every output and yields typed SQL NULL.
+type generations and usages. VOID discards every output and yields typed SQL NULL.
 Result mismatch rendering accepts an admitted type-name capability without
 retaining it in the plan; named types follow the captured search path, while
 anonymous records keep their SQL diagnostic identity.
+`PlanNamedResult` derives a scalar RECORD's actual tuple from the named terminal
+schema and uses the same `ResultPlan.Apply` conversion as concrete output tuples.
+One composite expression travels whole; scalar columns, including a single scalar,
+pack into one owned record with ordered names and usages, without inventing a
+catalog identity.
+Scalar calls take the first row, while set calls retain every row; VOID never
+reuses an earlier result.
 
 Each invocation owns an input-sized `Frame`. Supplied expressions retain written
 order; a validated plan assembly maps them and hidden selected defaults into
@@ -81,8 +113,10 @@ closure without an unnecessary payload copy. Driver mutable-byte export stays
 with the type/driver owner. Closing a frame clears slots and result and is
 idempotent; no closed frame admits a value.
 
-Engine shares per-command prepared-analysis retention for quoted bodies and
-checks live EXECUTE/invoker authority and data. Eligible non-set terminal SELECT
+Engine retains one session-private quoted-body analysis specialization, keyed by
+the declaration, live name, input collation and complete concrete invocation
+signature, including descriptor generations and record shapes. It checks live
+EXECUTE/invoker authority and data. Eligible non-set terminal SELECT
 uses first-row demand; nonterminal/VOID SELECT, set results and every DML command
 run fully. Required sort/aggregate/auxiliary work remains query/DML-owned.
 No scalar row yields whole typed NULL; a present all-NULL tuple remains present.

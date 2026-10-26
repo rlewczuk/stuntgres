@@ -102,7 +102,6 @@ var castImplementedTypes = func() []castImplementedType {
 		case "void":
 			types[i].storage = false
 			types[i].parameter = false
-			types[i].target = false
 			types[i].kind = "p"
 			types[i].source = "pg_sleep(0)"
 		}
@@ -222,7 +221,7 @@ var castImplementedTypes = func() []castImplementedType {
 		v.kind = "p"
 		v.storage = false
 		v.parameter = false
-		v.target = false
+		v.target = r.name != "record[]"
 		v.source = r.source
 		if r.name == "record[]" {
 			v.oid = 2287

@@ -42,6 +42,8 @@ func TestReferenceJSONBExistsCancellation(t *testing.T) {
 		// Stored operands force work inside existence rather than input parsing.
 		// Equal-length long prefixes defeat cheap length mismatches; every request
 		// must scan all immediate strings, and no request matches.
+		// The fixture holds an actual native provider cancellation poll until
+		// live-stack admission; finite search work need not outlast sampling.
 		prefix := strings.Repeat("a", 255)
 		doc := "[" + strings.TrimSuffix(strings.Repeat(`"`+prefix+`x",`, 4096), ",") + "]"
 		keys := "{" + strings.TrimSuffix(strings.Repeat(prefix+"y,", 512), ",") + "}"

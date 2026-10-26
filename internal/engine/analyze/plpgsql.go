@@ -59,7 +59,7 @@ func (b *Binder) plLocal(names []string, pos parser.Position) (expr.Expr, bool, 
 }
 
 func (b *Binder) plParameter(raw parser.ParameterExpr) (expr.Expr, error) {
-	if raw.Number > 0 {
+	if raw.Number >= 0 {
 		node, found, err := b.plLocal([]string{"$" + strconv.Itoa(raw.Number)}, raw.Pos)
 		if found || err != nil {
 			return node, err

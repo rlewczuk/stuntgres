@@ -30,6 +30,9 @@ type sqlRoutineAnalysis struct {
 	inputCollation sqltype.CollationRef // Quoted aggregate-support analysis context, not caller explicitness.
 	plProcedure    *catalog.Procedure   // Session-private validator/first-use signature owner.
 	plDiagnostic   string
+	signature      proc.InvocationSignature
+	plSpecialized  *catalog.Procedure
+	activation     *proc.Definition
 }
 
 // InvokeSQLRoutine runs a SQL-language routine body inside the statement.
@@ -123,7 +126,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 		}
 	}
 	if d.SQL.Kind == proc.PLpgSQLBody {
-		return parent.invokePLRoutine(d, frame, read, inputCollation)
+		return parent.invokePLRoutineSpecialized(d, frame, read, inputCollation, resultUsage)
 	}
 	statements := d.SQL.Statements
 	if d.SQL.Standard {
@@ -147,13 +150,18 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 			return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
 		}
 	}
-	if retained.definition != d.SQL || retained.name != d.Name() || retained.inputCollation != inputCollation || len(retained.descriptions) != len(statements) {
-		retained = sqlRoutineAnalysis{definition: d.SQL, name: d.Name(), statements: statements, descriptions: make([]Description, len(statements)), inputCollation: inputCollation}
+	signature := proc.InvocationSignature{Inputs: frame.Inputs, Result: resultUsage}
+	if retained.definition != d.SQL || retained.name != d.Name() || retained.inputCollation != inputCollation || !retained.signature.Equal(signature) || len(retained.descriptions) != len(statements) {
+		retained = sqlRoutineAnalysis{definition: d.SQL, name: d.Name(), statements: statements, descriptions: make([]Description, len(statements)), inputCollation: inputCollation, signature: signature}
+		retained.activation, err = d.SQL.Specialize(signature)
+		if err != nil {
+			return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
+		}
 	}
 	value = sqltype.Null(resultUsage.Type)
 	for i, statement := range statements {
 		terminal := i == len(statements)-1 && !d.SQL.Void()
-		value, err = parent.executeSQLRoutineCommand(d, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning, values)
+		value, err = parent.executeSQLRoutineCommand(d, retained.activation, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning, values)
 		if err != nil {
 			// Preserve the reached support statement frame when the root's
 			// genuine statement timer fires. Only CommandError classifies the
@@ -173,7 +181,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	return value, nil
 }
 
-func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *Description, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
+func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, activation *proc.Definition, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *Description, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
 	if err := s.parallelExecutionEligibility(statement); err != nil {
 		return value, err
 	}
@@ -183,14 +191,14 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 			s.appendNoticeContext(noticeStart, exec.SQLRoutineStatementFrame(d.Name(), index+1))
 		}
 	}()
-	restore := s.ActivateSQLRoutine(d.SQL.Inputs, read)
+	restore := s.ActivateSQLRoutine(frame.Inputs, read)
 	defer func() { err = restore(err) }()
 	finishCommand, err := s.BeginRoutineCommand()
 	if err != nil {
 		return value, err
 	}
 	defer func() { err = finishCommand(err) }()
-	s.sqlRoutine.definition, s.sqlRoutine.terminal = d.SQL, terminal
+	s.sqlRoutine.definition, s.sqlRoutine.terminal = activation, terminal
 	s.sqlRoutine.name = d.Name()
 	s.sqlRoutine.assignmentPlanning = assignmentPlanning
 	s.sqlRoutine.inputCollation = inputCollation
@@ -371,7 +379,7 @@ func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *s
 
 // Query demand is selected before opening producers. Sort/aggregate semantics
 // remain query-owned; only unnecessary later projected output is not requested.
-func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value) (rows exec.RowResult, count int, err error) {
+func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value, scalar bool) (rows exec.RowResult, count int, err error) {
 	defer source.Close()
 	defer func() {
 		finishErr := exec.FinishForeignSources(ctx, source)
@@ -382,6 +390,9 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.S
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		return nil, 0, fmt.Errorf("invalid SQL routine projection")
+	}
+	if scalar && len(project.Schema()) != 1 {
+		return nil, 0, fmt.Errorf("invalid scalar SQL routine projection")
 	}
 	state := exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
 	defer state.ReleaseMemberships()

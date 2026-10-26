@@ -33,6 +33,11 @@ func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.Autho
 		}
 		return last, resultPlan, d.SQLBody.Validate(auth.Catalog)
 	}
+	if d.SQL.Polymorphic() && !d.SQL.Standard {
+		// Syntax and closed-formal validation already ran in proc.New. Type
+		// analysis requires the actual call signature, never invented arguments.
+		return last, resultPlan, nil
+	}
 	var actions []stored.RuleAction
 	if d.SQL.Standard {
 		actions = make([]stored.RuleAction, 0, len(d.SQL.Statements))

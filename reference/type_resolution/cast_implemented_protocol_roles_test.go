@@ -30,10 +30,6 @@ func castRoleImportError(name string, format int16, pg bool) *fixture.Diagnostic
 			message = "binary input is not supported for type record"
 		}
 		d = &fixture.Diagnostic{Code: "0A000", Message: message}
-	case "void":
-		if !pg && format == 0 {
-			d = &fixture.Diagnostic{Code: "0A000", Message: "input of type void is not supported"}
-		}
 	}
 	if d != nil {
 		d.Context = "unnamed portal parameter $1"

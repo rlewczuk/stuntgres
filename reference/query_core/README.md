@@ -39,10 +39,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   `routineValueWithNativeNullability` where a stored column is projected.
   Client quirks asserted here: lib/pq reports unbounded VARCHAR `Length` as
   `(-5,true)` (native `(MaxInt64,true)`; TEXT is `(MaxInt64,true)` on both),
-  unconstrained NUMERIC `DecimalSize` as `(65535,65531,true)` (native unknown),
-  RECORD/`_RECORD`, internal `"char"` and VOID with `ScanType` `interface {}`
-  (native `string`), and RECORD/`_RECORD` cells as `[]byte` (native string; the
-  fixture raw-array validator checks each backend's form).
+  unconstrained NUMERIC and `_NUMERIC` `DecimalSize` as `(65535,65531,true)`
+  (native unknown), RECORD/`_RECORD`, internal `"char"`, CSTRING and VOID with
+  `ScanType` `interface {}` (native `string`), and their cells as `[]byte`
+  (native string). Its OID inventory omits multiranges and the query-only
+  compatible array/range identities: their database type names are empty, while
+  raw transport and logical result usages are asserted separately.
 - Create committed predecessors before BEGIN when testing restoration; private
   source/table chains construct their definitions inside the owner's block.
 - Parallel scans: matching rows do not prove that workers ran. Concurrent
@@ -69,6 +71,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   diagnostics and positive family in both modes:
   `make check RUN='^TestReferenceRoutineCore(Diagnostics|StrictDeclarations)$'`
   and the same command with `REFERENCE=1`.
+- Pseudo-type metadata, signature families and scalar record callers:
+  `RUN='^TestReferencePseudoTypes'`. Result usages are concrete specializations;
+  catalog signatures stay declared. Query-only typed pseudo NULLs grant no storage
+  or handler execution authority. Native canonical database type names establish
+  result identity; PostgreSQL SQL identity probes supplement lib/pq's finite OID
+  names. Unnamed user enum results additionally use inferred CTAS column identity.
+  Scalar-family literal casts retain UNKNOWN until final TEXT projection;
+  enum casts and dummy container/handler inputs have separate exact diagnostics.
 - <a id="ordered-sql-routine-bodies"></a>Ordered and SQL-standard routine bodies, procedures: `RUN='^TestReferenceRoutineSQLBodies'`
   `TestReferenceRoutineSQLBodiesMergeSourceCompaction` keeps its MERGE target
   unchanged while dropping an unused leading source column. Direct and genuinely

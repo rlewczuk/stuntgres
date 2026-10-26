@@ -89,18 +89,13 @@ func TestReferencePGAggregateIntaggIdentity(t *testing.T) {
 		pgAggregateInstall(t, p, b, c, "pga_identity_addon")
 		ids := pgAggregateIntaggCheck(t, p, b, c, "pga_identity_addon")
 		pgAggregateBoth(t, p, b, c, fixture.Select("SELECT 'pga_identity_addon.int_array_aggregate(integer)'::regprocedure::oid AS aggregate_id,'pga_identity_addon.int_agg_state(internal,integer)'::regprocedure::oid AS state_id,'pga_identity_addon.int_agg_final_array(internal)'::regprocedure::oid AS final_id", []string{"aggregate_id", "state_id", "final_id"}, []string{"OID", "OID", "OID"}, [][]any{{ids[0], ids[1], ids[2]}}))
-		if !b.PG {
-			// These lookup-only helpers require internal state arguments.
-			// Native SQL rejects that pseudo-type before function admission;
-			// do not pretend this is PostgreSQL's function-resolution result.
-			for _, q := range []string{
-				"SELECT pga_identity_addon.int_agg_state(NULL::internal,1)",
-				"SELECT pga_identity_addon.int_agg_final_array(NULL::internal)",
-			} {
-				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "unsupported column type", Position: fixture.Position(strings.Index(q, "internal") + 1)})
-				s.SelectRows, s.ErrorStage = true, "execute"
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-			}
+		for _, q := range []string{
+			"SELECT pga_identity_addon.int_agg_state(NULL::internal,1)",
+			"SELECT pga_identity_addon.int_agg_final_array(NULL::internal)",
+		} {
+			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42846", Message: "cannot cast type unknown to internal", Position: fixture.Position(strings.Index(q, "::internal") + 1)})
+			s.SelectRows, s.ErrorStage = true, "execute"
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("DROP EXTENSION intagg", 0))
 		pgAggregateBoth(t, p, b, c, fixture.Select(fmt.Sprintf("SELECT aggfnoid::oid AS id FROM pg_aggregate WHERE aggfnoid::oid=%d", ids[0]), []string{"id"}, []string{"OID"}, [][]any{}))

@@ -664,9 +664,19 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 			}
 			byID[fact.id] = d
 		}
+		if fact.id == 2275 {
+			d.lookupOnly = false
+		}
 		d.associatedArray, d.namespace = fact.array, fact.namespace
 		if fact.id == 2277 {
 			d.catalogNullOwner = d
+		}
+		switch fact.id {
+		case 2277, 5078, 3831, 5080, 4537, 4538, 32:
+			d.queryNullOwner = d
+		}
+		if PolymorphicFamily(fact.id) != 0 {
+			d.polymorphicOwner = d
 		}
 		if fact.id == 603 {
 			d.delimiter = ';'

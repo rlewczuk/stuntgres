@@ -7,7 +7,9 @@ and policy DDL decisions and rule rewriting live in [`view`](../view/README.md).
 
 SQL/PL routines share callable captures. Language/body kind, declaration replay
 sources and typed local Usages participate in validation, equivalence and remap;
-no activation values or evaluated PL expressions enter stored payloads.
+declared pseudo signatures pass the same determinability and language checks as
+creation, separately from concrete invocation validation. No activation values or
+evaluated PL expressions enter stored payloads.
 
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
@@ -392,8 +394,11 @@ host methods.
   Formal-derived routine records use this same original-occurrence memo as
   their call expressions and frozen presentations. Mapped output formals and
   result members must agree exactly; no secondary reconstruction creates a
-  competing shape or maps an already mapped child. Provider validation checks
-  ordered names/attributes/Usages, TABLE/set policy and child catalog ownership.
+  competing shape or maps an already mapped child. Unresolved polymorphic
+  declaration tuples rebuild through `RecordSignatureShape`, retaining canonical
+  member admission and no executable authority; concrete tuples continue through
+  `RecordShape`. Provider validation checks ordered names/attributes/Usages,
+  TABLE/set policy and child catalog ownership.
   Named results retain their exact catalog descriptor fence; RECORD OID alone
   grants no provenance exemption.
   `ReownExpressions` consumes a supplied prebound replacement context, or

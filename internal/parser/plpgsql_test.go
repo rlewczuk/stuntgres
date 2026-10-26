@@ -42,7 +42,7 @@ func TestPLpgSQLParserFullConsumption(t *testing.T) {
 	if raw.Declarations[0].Name.Pos.Character != 9 || raw.Statements[0].Pos.Character != 26 {
 		t.Fatal("lost original character positions", raw)
 	}
-	for _, expression := range []string{"1/0", "r.a IS NULL AND r.b IS NULL", "NOT r.a IS NULL OR r.b IS NULL", "r.a IS DISTINCT FROM r.b"} {
+	for _, expression := range []string{"1/0", "$0", "r.a IS NULL AND r.b IS NULL", "NOT r.a IS NULL OR r.b IS NULL", "r.a IS DISTINCT FROM r.b"} {
 		source := "DECLARE \"é\" integer; BEGIN RETURN " + expression + "; END"
 		block, err := ParsePLpgSQL(source, PLReturnPolicy{})
 		if err != nil {
@@ -56,5 +56,8 @@ func TestPLpgSQLParserFullConsumption(t *testing.T) {
 		if start.Offset != len("DECLARE \"é\" integer; BEGIN RETURN ") || start.Character != len("DECLARE \"e\" integer; BEGIN RETURN ")+1 {
 			t.Fatalf("lost byte/character expression origin: %v", start)
 		}
+	}
+	if _, err := Parse("SELECT $0"); err == nil {
+		t.Fatal("PL result-placeholder admission leaked into ordinary SQL")
 	}
 }

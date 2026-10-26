@@ -76,7 +76,9 @@ func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
 		return q.Close(err)
 	}
 	result, executionErr := s.Engine().executeStatement(s, query, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
-		copy(dst, f.Values[:f.Program.FormalCount])
+		for i := range dst {
+			dst[i] = f.Parameter(i)
+		}
 		return nil
 	})
 	// DML and modifying WITH have completed eagerly. Settle their command before

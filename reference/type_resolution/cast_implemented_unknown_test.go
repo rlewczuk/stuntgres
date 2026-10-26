@@ -13,6 +13,29 @@ func TestReferenceCastImplementedUnknownParameters(t *testing.T) {
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+			for _, form := range []string{"'x'::unknown", "CAST('x' AS unknown)"} {
+				s := castResultStep(t, "SELECT "+form+" AS v", castInventoryType("text"), "x", b.PG)
+				run(s)
+				run(fixture.Prepared(s))
+			}
+			castWitnessRoutes(t, p, b,
+				castResultStep(t, "SELECT $1::unknown AS v", castInventoryType("text"), "x", b.PG, "x"),
+				castResultStep(t, "SELECT $1::unknown AS v", castInventoryType("text"), "y", b.PG, "y"),
+				castResultStep(t, "SELECT $1::unknown AS v", castInventoryType("text"), nil, b.PG, nil))
+			for _, tc := range []struct {
+				query      string
+				diagnostic fixture.Diagnostic
+			}{
+				{"SELECT 1::unknown AS v", fixture.Diagnostic{Code: "42846", Message: "cannot cast type integer to unknown", Position: "9"}},
+				{"SELECT unknown(1) AS v", fixture.Diagnostic{Code: "42883", Message: "function unknown(integer) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
+			} {
+				s := fixture.ImplicitError(tc.query, tc.diagnostic)
+				s.SelectRows = true
+				s.ErrorStage = "execute"
+				run(s)
+				s.ErrorStage = "prepare"
+				run(fixture.Prepared(s))
+			}
 			for _, q := range []string{
 				"SELECT CAST('00000000000000000000000000000001' AS uuid) AS v",
 				"SELECT '00000000000000000000000000000001'::uuid AS v",

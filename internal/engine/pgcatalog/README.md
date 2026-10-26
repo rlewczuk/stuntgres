@@ -114,8 +114,9 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Zero arguments produce an empty non-NULL argument vector. `provariadic`
   projects the selected builtin declaration, SQL variadic array element, range
   constructor, or owned aggregate's VARIADIC ANY identity; nonvariadic
-  declarations report zero. Selected internal parser and vector-I/O metadata
-  supplements retain genuine identities without installing callable providers;
+  declarations report zero. Selected internal parser/vector-I/O metadata and
+  the genuine `pg_ddl_command_recv(internal)` signature retain actual identities
+  without installing callable providers;
   represented descriptors take precedence. Installed codec source symbols stay
   independent of mutable public names.
   Owned aggregate `proargnames` follows the canonical flattened declaration,

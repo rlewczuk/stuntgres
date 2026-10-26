@@ -50,7 +50,7 @@ func SameSQLRoutineDemand(a, b sqlRoutineDemand) bool {
 
 // FinalizeSQLRoutineQuery calls finalizeSQLRoutineQuery.
 func FinalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value) (exec.RowResult, int, error) {
-	return finalizeSQLRoutineQuery(ctx, root, source, parameters)
+	return finalizeSQLRoutineQuery(ctx, root, source, parameters, false)
 }
 
 // MaxSQLRoutineDepth is maxSQLRoutineDepth.

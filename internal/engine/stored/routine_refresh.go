@@ -34,7 +34,7 @@ func currentRoutineCall(read catalog.Read, call plan.SQLRoutineExpr) (*catalog.P
 		return nil, ids.ErrCatalogReplaced
 	}
 	current, ok := read.Procedure(call.Ref.Address)
-	if !ok || current.SQL == nil || !exec.SameRoutineDeclaration(current, call.Procedure) || current.RoutineKind != catalog.FunctionRoutine {
+	if !ok || current.SQL == nil || !exec.SameRoutineDeclaration(current, call.Procedure) || current.RoutineKind != catalog.FunctionRoutine || !call.Signature.ValidFor(current.SQL) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	derived, err := call.Collate(func(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
@@ -228,7 +228,7 @@ func reownRoutineDefinition(source *proc.Definition, usage func(sqltype.Usage) (
 		if err != nil {
 			return nil, err
 		}
-		if mapped.Type == nil || !mapped.Type.Concrete() {
+		if !proc.DeclarationUsage(mapped) {
 			return nil, fmt.Errorf("stuntgres: missing SQL routine formal generation")
 		}
 		if mapped != formal.Usage {
@@ -257,7 +257,7 @@ func reownRoutineDefinition(source *proc.Definition, usage func(sqltype.Usage) (
 	if source.DerivedResult() && !next.MatchesOutputTuple(result.Type) {
 		return nil, fmt.Errorf("stuntgres: mapped routine output shape disagrees with formals")
 	}
-	if result.Type == nil || (!result.Type.Concrete() && !(source.Invocation != proc.OrdinaryInvocation && (result.Type.ID() == 2279 || result.Type.ID() == 3838))) {
+	if !proc.DeclarationUsage(result) {
 		return nil, fmt.Errorf("stuntgres: missing SQL routine result generation")
 	}
 	if result != source.Result {
@@ -269,14 +269,14 @@ func reownRoutineDefinition(source *proc.Definition, usage func(sqltype.Usage) (
 		if !found {
 			program = source.PL
 			for i, variable := range source.PL.Variables {
-				if variable.Record {
+				if variable.Record && variable.Usage.Type == nil {
 					continue
 				}
 				mapped, err := usage(variable.Usage)
 				if err != nil {
 					return nil, err
 				}
-				if mapped.Type == nil || !mapped.Type.Concrete() {
+				if !proc.DeclarationUsage(mapped) {
 					return nil, fmt.Errorf("stuntgres: missing PL local type generation")
 				}
 				if mapped != variable.Usage {

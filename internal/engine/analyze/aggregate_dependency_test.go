@@ -133,6 +133,7 @@ func TestSQLRoutineGroupProperties(t *testing.T) {
 			d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90001}, ObjectRevision: 1, Result: ids.OID(sqltype.Int4), Volatility: volatility, SQL: &proc.Definition{Inputs: []sqltype.Usage{integer.Usage()}, Result: integer.Usage()}}
 			properties := expr.MergeProperties(expr.Properties{Volatility: volatility}, child.Properties())
 			call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: d, Property: properties}, Procedure: d, Ref: read.Owner().Domain.Ref(read.Epoch(), d.Address()), Args: []expr.Expr{child}, WrittenCount: 1, InputMap: []plan.RoutineInput{{Start: 0, Count: 1}}, ChildSlots: []int{0}}
+			call.Signature = proc.InvocationSignature{Inputs: d.SQL.Inputs, Result: integer.Usage()}
 			b := &Binder{Ctx: context.Background(), Query: QueryScopeState{Frame: 1}}
 			rewritten, err := b.RewriteGroup(call, nil)
 			if err != nil {

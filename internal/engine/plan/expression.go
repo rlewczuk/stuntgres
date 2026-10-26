@@ -18,7 +18,8 @@ func (e LiteralExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || e.Value.Type() != e.Usage.Type ||
+	if e.Usage.Type == nil || e.Value.Type() != e.Usage.Type ||
+		!e.Usage.Type.Concrete() && !(e.Value.IsNull() && e.Usage.QueryNullUsage()) ||
 		e.UnknownNull && (!e.Value.IsNull() || e.Usage.Type.ID() != sqltype.Text) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid literal expression")
 	}

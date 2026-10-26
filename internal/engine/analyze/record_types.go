@@ -64,7 +64,11 @@ func RecordTypeMapper(leaf func(*sqltype.Descriptor) *sqltype.Descriptor, collat
 		mapped := old
 		if members != nil {
 			var err error
-			mapped, err = sqltype.RecordShape(members)
+			if old.Concrete() {
+				mapped, err = sqltype.RecordShape(members)
+			} else {
+				mapped, err = sqltype.RecordSignatureShape(members)
+			}
 			if err != nil {
 				return nil
 			}

@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"slices"
+	"strings"
 
 	"stuntgres/internal/engine/ids"
 )
@@ -63,6 +64,22 @@ func BuiltinRoutineResultByOID(id ids.OID) (ids.OID, bool) {
 // builtin routine identities with this name, in source order.
 func BuiltinRoutineIdentitiesNamed(name string) []RoutineIdentity {
 	return slices.Clone(builtinRoutineIdentitiesByName[name])
+}
+
+// HasBuiltinInternalRoutine reports lookup-only INTERNAL signatures. It routes
+// explicit calls through type selection and safety checks, never provider lookup.
+func HasBuiltinInternalRoutine(name string) bool {
+	for _, identity := range builtinRoutineIdentitiesByName[name] {
+		if builtinRoutineIdentityByOID[identity.ID].Result == 2281 {
+			return true
+		}
+		for part := range strings.SplitSeq(string(identity.Signature), ",") {
+			if part == "2281" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // BuiltinRoutineIdentityBySignature returns the released lookup-only builtin

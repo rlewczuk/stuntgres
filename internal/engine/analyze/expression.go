@@ -322,3 +322,4 @@ func (b *Binder) columnAtOf(relation *catalog.Relation, i int, pos parser.Positi
 }
 
 
+

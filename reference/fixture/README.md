@@ -139,6 +139,13 @@ production dependency is involved.
   the world, so after a miss it waits 1 ms on a reusable timer. Native admission
   matches function names, so **update the probes when renaming or moving a
   provider or worker**; a stale name makes the observer wait on a runaway query.
+  `BinaryConversionActiveCancel` also holds a native provider's actual context
+  cancellation poll until cancellation, only when that poll's complete current
+  stack contains both the requested provider and operation worker. The external
+  live-stack observer still establishes admission before canceling; unrelated
+  context callers remain unblocked and underlying context semantics are retained.
+  Finite provider work therefore cannot escape between observer samples. Progress
+  callbacks and sleep helpers keep their existing observation routes.
   - `SleepActiveCancelWithContext` and `PLpgSQLLoopActiveCancel` accept an
     independently observed PostgreSQL diagnostic Context. The loop wrapper admits
     the actual `executePLLoop` worker, including an empty body, without a sleep wait

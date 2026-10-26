@@ -84,6 +84,9 @@ func AdmitAlterType(h AlterHost, auth ddl.Authority, original *catalog.Relation,
 			return fail(err)
 		}
 	}
+	if err := sqltype.CheckStoredColumn(a.Column.Text, usage); err != nil {
+		return fail(err)
+	}
 	usage, err = h.ResolveColumnCollation(usage, a.Collation)
 	if err != nil {
 		return fail(err)

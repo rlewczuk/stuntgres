@@ -515,6 +515,7 @@ func TestPLpgSQLCheckedCallCollation(t *testing.T) {
 	usage.Collation = unicode
 	arg := plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.String(text, "Straße")}
 	node := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: procedure}, Procedure: procedure, Args: []expr.Expr{arg}, WrittenCount: 1, InputMap: []plan.RoutineInput{{Start: 0, Count: 1}}}
+	node.Signature = proc.InvocationSignature{Inputs: definition.Inputs, Result: integer.Usage()}
 	derive := func(info expr.Info, args ...expr.Expr) (expr.Info, error) {
 		return analyze.CollatedInfo(read, info, args...)
 	}

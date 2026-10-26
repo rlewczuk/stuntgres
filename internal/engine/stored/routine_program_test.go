@@ -267,6 +267,7 @@ func routineMergeCaptureFixture(t *testing.T) (catalog.Read, *RoutineProgram, *c
 	read.State().SetDescriptor(callee.Address(), callee)
 	ref := read.Owner().Domain.Ref(read.Epoch(), callee.Address())
 	call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: callee, Property: expr.Properties{Volatility: expr.Volatile}}, Ref: ref, Procedure: callee}
+	call.Signature = proc.InvocationSignature{Inputs: callee.SQL.Inputs, Result: integer.Usage()}
 	condition := plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}
 	syntax := &parser.Merge{Arms: []parser.MergeArm{{Match: parser.MergeMatched, Action: parser.MergeUpdateAction}}}
 	binding := analyze.Binding{Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Relation: relation, Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: 1}}, Merge: &analyze.MergeBinding{Source: &plan.SingletonNode{}, On: condition, Arms: []analyze.MergeArm{{Match: parser.MergeMatched, Action: parser.MergeUpdateAction, Condition: condition, Input: analyze.Binding{Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Relation: relation, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{call}}}}}}}

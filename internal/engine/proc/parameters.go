@@ -40,7 +40,7 @@ func (d *Definition) SetFormals(formals []Formal) error {
 		if f.Mode != "i" && f.Mode != "o" && f.Mode != "b" && f.Mode != "v" && f.Mode != "t" {
 			return fmt.Errorf("invalid routine parameter mode")
 		}
-		if !f.Usage.Valid() || !f.Usage.Type.Concrete() {
+		if !DeclarationUsage(f.Usage) {
 			return fmt.Errorf("invalid routine formal usage")
 		}
 		for _, earlier := range formals[:i] {
@@ -54,7 +54,7 @@ func (d *Definition) SetFormals(formals []Formal) error {
 				return fail("VARIADIC parameter must be the last input parameter")
 			}
 			if f.Mode == "v" {
-				if !f.Usage.Type.IsArray() {
+				if !f.Usage.Type.IsArray() && f.Usage.Type.ID() != 2277 && f.Usage.Type.ID() != 5078 {
 					return fail("VARIADIC parameter must be an array")
 				}
 				variadic = true

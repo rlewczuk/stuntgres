@@ -71,6 +71,9 @@ func bindCreateTable(host Host, auth Authority, s *parser.CreateTable, b *Bindin
 			if err != nil {
 				return err
 			}
+			if err := sqltype.CheckStoredColumn(c.Name, u); err != nil {
+				return err
+			}
 			u, err = host.ResolveColumnCollation(u, c.Collation)
 			if err != nil {
 				return err

@@ -53,7 +53,9 @@ func (s *StatementScope) executePLExpressionQuery(f *proc.PLFrame, statement *pa
 		}
 	}
 	result, err := s.Engine().executeStatement(s, statement, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
-		copy(dst, f.Values[:f.Program.FormalCount])
+		for i := range dst {
+			dst[i] = f.Parameter(i)
+		}
 		return nil
 	})
 	if err != nil {

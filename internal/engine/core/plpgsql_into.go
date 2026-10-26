@@ -75,7 +75,9 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 		return e
 	}
 	result, e = s.Engine().executeStatement(s, checked.Query, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
-		copy(dst, f.Values[:f.Program.FormalCount])
+		for i := range dst {
+			dst[i] = f.Parameter(i)
+		}
 		return nil
 	})
 	e = finish(e)

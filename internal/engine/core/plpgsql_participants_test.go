@@ -109,7 +109,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		if !ok {
 			t.Fatal("missing boolean")
 		}
-		program := &proc.PLProgram{FoundSlot: 2, Variables: []proc.PLVariable{
+		program := &proc.PLProgram{Root: &proc.PLBlock{}, FoundSlot: 2, Variables: []proc.PLVariable{
 			{Usage: text.Usage()},
 			{Usage: text.Usage()},
 			{Name: "found", Usage: boolean.Usage(), Role: proc.PLFoundSlot},

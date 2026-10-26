@@ -22,6 +22,28 @@ Nominal typed literals for installed ltree and lquery resolve through the ordina
 type lookup before admission. Their resolved scalar descriptors, not their written
 names, authorize input alongside domains.
 
+Routine family probing is producer-free and leaves parameter inference untouched.
+Declared inputs own namespace masking and overload ranking; separate concrete
+targets and invocation signatures own actual coercion, defaults and variadic
+packing. Simple and compatible variables are independent. Derived output members
+use that input-family solution without supplying new inference. Scalar
+enum/nonarray result restrictions are checked after selecting the winning
+declaration, separately from actual-input applicability. INTERNAL signature
+lookup admits only a declared INTERNAL actual, never UNKNOWN. Released builtin
+signature-only facts enter the same selector even without a dynamic routine or
+executable provider. They can select an explicit-call safety diagnostic, but
+carry no provider authority; accepting then returning guards precede argument
+conversion.
+FROM completion retains the accepted multiple-OUT/TABLE result shape and original
+routine declaration. These formal-derived tuples reject redundant column
+definitions; scalar RECORD results still require caller-supplied definitions.
+Scalar RECORD calls normalize the exact catalog-owned declaration identity to
+an occurrence-owned deferred transport before argument assembly. The accepted
+signature follows that transport or its completed FROM shape into private
+invocation; the published declaration and provider reference remain unchanged.
+Unknown string and NULL casts to scalar-family pseudo identities preserve their
+UNKNOWN provenance rather than constructing pseudo datums.
+
 ## Imports
 
 Layer L10 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
@@ -260,6 +282,9 @@ library, and never the root engine or `session`. The engine, the root driver
   is unavailable. Named composite-to-record and composite-array-to-record[]
   passthrough includes domains over composites and preserves source descriptors,
   domain identities and result metadata.
+  Generic scalar RECORD annotations use a query-only deferred descriptor:
+  typed string casts reach its anonymous-composite input diagnostic, while
+  RECORD identity and typename shortcuts preserve the source occurrence owner.
   Exact callable signatures precede typename shortcuts; unknown constants,
   binary compatibility and restricted IO are distinct from unresolved Params
   and array element conversion. Declared base-type pairs determine shortcut

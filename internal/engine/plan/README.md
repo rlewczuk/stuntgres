@@ -46,8 +46,19 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   `SubqueryExpr`, `WindowExpr`, ...) with their `Eval` methods, and the
   set-returning `UnnestExpr`, `SeriesExpr` and `SubscriptsExpr` with their source
   protocol and cursors.
+  Literal evaluation requires exact descriptor identity and concrete values,
+  except for the finite, canonically owned query-only pseudo NULL capability.
+  Copied descriptors and modified usages cannot inherit this exception; it does
+  not admit unresolved UNKNOWN provenance, handler datums or stored pseudo types.
   Invocation-only PL assignment wrappers preserve constant-planning error origin
   and reuse datum IO/sizing/volatility; stored-provider validation rejects them.
+  Stored SQL routine calls retain their original provider and checked invocation
+  signature. Fixed results require the declaration-owned descriptor occurrence;
+  polymorphic outputs and unshaped RECORD use the signature's accepted result
+  with exact input-family, member-label, ordinal and descriptor-generation
+  provenance wherever constrained by the declaration. Family validation includes
+  exact array occurrences, range subtype generations and reciprocal multirange
+  companions; sharing element pointers or subtype OIDs alone grants no authority.
   The mutation projection exposes its captured datum, bounds and RHS to ordinary
   expression lowering, while shared targets evaluate runtime bounds before the
   leaf. Each output row privately reconstructs the same original datum; activation

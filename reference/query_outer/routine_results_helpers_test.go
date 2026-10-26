@@ -64,6 +64,11 @@ func resultsMetadata(b fixture.Backend, names, types []string, stored bool, nati
 				scan = reflect.TypeFor[bool]()
 			case "TEXT":
 				scan = reflect.TypeFor[string]()
+			case "_INT4":
+				scan = reflect.TypeFor[string]()
+				if b.PG {
+					scan = reflect.TypeFor[any]()
+				}
 			case "RECORD", "":
 				scan = reflect.TypeFor[string]()
 				if b.PG {

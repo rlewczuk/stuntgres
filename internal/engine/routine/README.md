@@ -25,6 +25,16 @@ retains output-only mode `t` for metadata and replay. Replacement checks actual
 row shape and setness, not just the shared RECORD OID. Dump renders TABLE/SETOF
 and orders real formal child types and named result types before their callers.
 
+Declaration safety checks result/output determinability and INTERNAL input
+requirements before replacement compatibility. Language admission follows the
+existing declaration's ownership and compatibility checks. SQL admits polymorphic arguments and
+polymorphic/RECORD/VOID results. PL keeps its own RECORD/polymorphic whitelist
+and compiler validation. Unquoted SQL polymorphic bodies cannot freeze a concrete
+analysis. Published signatures remain pseudo identities through Dump/Restore;
+the existing presenter spells them independently of column admission.
+PL compiler validation rejects `anycompatiblemultirange` formal slots, including
+OUT, without excluding determinable result-only or SQL-family specializations.
+
 PL/pgSQL event functions separately admit zero-formal `RETURNS event_trigger`,
 inject only TEXT `TG_EVENT`/`TG_TAG`, and cannot be invoked as scalar functions.
 `event_trigger_ddl.go` owns database-global CREATE and bounded ENABLE/DISABLE/DROP

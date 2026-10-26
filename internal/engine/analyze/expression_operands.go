@@ -280,19 +280,27 @@ func (b *Binder) comparisonOperandPolicy(raw parser.Expr, policy ExpressionPolic
 	if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 		return ComparisonOperand{raw: raw}, nil
 	}
-	if annotation, ok := raw.(parser.CastExpr); ok && unknownNullSyntax(raw) {
-		var target sqltype.Usage
-		var err error
-		if policy.thresholdArrayInput {
-			target, err = b.Host.ResolveAnnotationTypeInput(annotation.TypeName, true, false, false, true)
-		} else {
-			target, err = b.Host.ResolveAnnotationType(annotation.TypeName, true)
-		}
-		if err != nil {
-			return ComparisonOperand{}, err
-		}
-		if target.Type.ID() == sqltype.Unknown {
-			return ComparisonOperand{raw: annotation.Child}, nil
+	if annotation, ok := raw.(parser.CastExpr); ok {
+		literal, unknownLiteral := annotation.Child.(parser.LiteralExpr)
+		if unknownLiteral && (literal.Value.Kind == parser.NullValue || literal.Value.Kind == parser.StringValue) {
+			var target sqltype.Usage
+			typeName, err := b.castAnnotation(annotation)
+			if err != nil {
+				return ComparisonOperand{}, err
+			}
+			null := literal.Value.Kind == parser.NullValue
+			if policy.thresholdArrayInput {
+				target, err = b.Host.ResolveAnnotationTypeInput(typeName, null, false, false, true)
+			} else {
+				target, err = b.Host.ResolveAnnotationType(typeName, null)
+			}
+			if err != nil {
+				return ComparisonOperand{}, err
+			}
+			switch target.Type.ID() {
+			case sqltype.Unknown, 2276, 2283, 2776, 5077, 5079:
+				return ComparisonOperand{raw: annotation.Child}, nil
+			}
 		}
 	}
 	switch raw.(type) {

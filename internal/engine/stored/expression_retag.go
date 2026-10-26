@@ -228,6 +228,19 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 	}
 	var rebound expr.Expr
 	switch n := node.(type) {
+	case plan.SQLRoutineExpr:
+		n.Args = children(n.Args)
+		inputs := make([]sqltype.Usage, len(n.Signature.Inputs))
+		for i, usage := range n.Signature.Inputs {
+			inputs[i] = usage
+			inputs[i].Type = retainedType(usage.Type)
+			inputs[i].Collation = comparisonCollation(usage.Collation)
+			changed = changed || inputs[i] != usage
+		}
+		n.Signature.Inputs, n.Signature.Result = inputs, info.Usage
+		n.InputCollation = comparisonCollation(n.InputCollation)
+		if err != nil { return nil, false, err }
+		rebound, err = n.Rebuild(info, n.Args)
 	case plan.AssignmentValueExpr:
 		n.Base, n.Value = child(n.Base), child(n.Value)
 		targets, failure := MapRuleAssignmentTargets([]*plan.ArrayAssignmentTarget{n.Target}, mapChild, func(usage sqltype.Usage) (sqltype.Usage, error) {

@@ -38,6 +38,9 @@ func (r *PLRun) Invoke(input *Frame, collation sqltype.CollationRef) (sqltype.Va
 		return sqltype.Value{}, nil
 	}
 	if len(d.OutputFormals) == 1 {
+		if d.Result.Type.IsDeferredRecord() {
+			return sqltype.RecordValue(d.Result.Type, f.Values[d.OutputFormals[0]])
+		}
 		return f.Values[d.OutputFormals[0]], nil
 	}
 	if d.Void() {
@@ -212,9 +215,12 @@ func (r *PLRun) returnValue(instruction PLInstruction) (sqltype.Value, error) {
 	value, _, err := r.Host.Evaluate(r.Frame, instruction.Query, at)
 	expressionError := err != nil
 	if err == nil {
-		if r.Definition.Invocation == DMLTriggerInvocation {
+		if r.Definition.Invocation == DMLTriggerInvocation || r.Definition.Result.Type.ID() == 2249 {
 			if !value.IsNull() && (value.Type() == nil || !value.Type().BaseType().IsComposite()) {
 				err = plError("42804", "cannot return non-composite value from function returning composite type")
+			}
+			if err == nil && r.Definition.Result.Type.IsDeferredRecord() {
+				value, err = sqltype.RecordValue(r.Definition.Result.Type, value)
 			}
 		} else {
 			value, err = r.Host.Convert(value, r.Definition.Result, at)

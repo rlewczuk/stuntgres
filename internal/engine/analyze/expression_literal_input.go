@@ -103,6 +103,10 @@ func ExpressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 		if name, strong := ExpressionName(r.Child, usage, bound); strong {
 			return name, true
 		}
+		if usage.Type == nil {
+			// UNKNOWN-preserving casts can precede parameter finalization.
+			return r.TypeName.Name, false
+		}
 		return usage.Type.Name(), false
 	case parser.TypedLiteralExpr:
 		return usage.Type.Name(), false

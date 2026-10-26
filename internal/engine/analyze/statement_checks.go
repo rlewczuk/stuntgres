@@ -33,8 +33,8 @@ func BindViewOutput(query *plan.Query, view *parser.CreateView) error {
 
 func CheckViewOutputTypes(columns []catalog.Column) error {
 	for _, column := range columns {
-		if column.Usage.Type.ID() == sqltype.Void {
-			return sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type void`, column.Name))
+		if err := sqltype.CheckStoredColumn(column.Name, column.Usage); err != nil {
+			return err
 		}
 	}
 	return nil

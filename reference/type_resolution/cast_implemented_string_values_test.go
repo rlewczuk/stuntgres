@@ -50,7 +50,7 @@ func castFunctionTargetBoundary(cell castMatrixCell, query string, postgres bool
 	if postgres || !decision.admitted || decision.operation != "typename-shortcut" || castInputFreeTarget(cell) {
 		return nil
 	}
-	unavailable := target.name == "void" || target.name == "cast_anonymous_record" || target.name == "cast_deferred_record" || target.name == "record[]"
+	unavailable := target.name == "record[]"
 	if target.element != "" && castInventoryType(target.element).kind == "e" {
 		unavailable = true
 	}

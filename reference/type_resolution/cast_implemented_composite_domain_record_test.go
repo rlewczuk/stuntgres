@@ -14,6 +14,40 @@ func TestReferenceCastImplementedCompositeDomainRecord(t *testing.T) {
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+			// RECORD is a lawful typename shortcut, not an executable handler.
+			// Keep actual RECORD metadata; no outer TEXT cast hides its result.
+			for _, tc := range []struct {
+				expression string
+				value      any
+			}{
+				{"record(ROW(1,'x'))", "(1,x)"},
+				{"record(NULL::record)", nil},
+				{"record(NULL::text)", nil},
+			} {
+				s := castResultStep(t, "SELECT "+tc.expression+" AS v", castInventoryType("cast_anonymous_record"), tc.value, b.PG)
+				run(s)
+				run(fixture.Prepared(s))
+			}
+			for _, form := range []string{"CAST('(1,x)'::text AS record)", "record('(1,x)'::text)"} {
+				s := fixture.ImplicitError("SELECT "+form+" AS v", fixture.Diagnostic{Code: "0A000", Message: "input of anonymous composite types is not implemented"})
+				s.SelectRows = true
+				s.ErrorStage = "execute"
+				castWitnessRoutes(t, p, b, s)
+			}
+			for _, tc := range []struct {
+				expression string
+				diagnostic fixture.Diagnostic
+			}{
+				{"record(NULL::integer)", fixture.Diagnostic{Code: "42883", Message: "function record(integer) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
+				{"record('x')", fixture.Diagnostic{Code: "0A000", Message: "input of anonymous composite types is not implemented", Position: "15"}},
+			} {
+				s := fixture.ImplicitError("SELECT "+tc.expression+" AS v", tc.diagnostic)
+				s.SelectRows = true
+				s.ErrorStage = "execute"
+				run(s)
+				s.ErrorStage = "prepare"
+				run(fixture.Prepared(s))
+			}
 			for _, q := range []string{
 				"CREATE TYPE cast_record_pair AS (n integer,s text)",
 				"CREATE DOMAIN cast_record_domain AS cast_record_pair",

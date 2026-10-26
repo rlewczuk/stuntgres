@@ -44,6 +44,9 @@ func (n SQLRoutineExpr) ValidateArguments(children []expr.Expr) error {
 	if n.Procedure == nil || n.Procedure.SQL == nil || n.WrittenCount < 0 || n.WrittenCount > len(children) || len(n.InputMap) != len(n.Procedure.SQL.Inputs) || len(n.ArgNames) != 0 && len(n.ArgNames) != n.WrittenCount {
 		return fmt.Errorf("invalid SQL routine input assembly")
 	}
+	if !n.Signature.ValidFor(n.Procedure.SQL) {
+		return fmt.Errorf("invalid SQL routine invocation signature")
+	}
 	if len(n.ChildSlots) != len(children) {
 		return fmt.Errorf("invalid SQL routine child projection")
 	}
@@ -51,7 +54,7 @@ func (n SQLRoutineExpr) ValidateArguments(children []expr.Expr) error {
 		if source.Start < 0 || source.Count < 1 || source.Start > len(children)-source.Count || !source.Expanded && source.Count != 1 {
 			return fmt.Errorf("invalid SQL routine input source")
 		}
-		usage := n.Procedure.SQL.Inputs[slot]
+		usage := n.Signature.Inputs[slot]
 		if source.Expanded {
 			if slot != len(n.InputMap)-1 || !usage.Type.IsArray() || source.Start+source.Count > n.WrittenCount || n.Variadic {
 				return fmt.Errorf("invalid SQL routine variadic source")
@@ -123,5 +126,5 @@ func (n SQLRoutineExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) 
 func (n SQLRoutineExpr) ScalarSourceOutName() string { return n.Procedure.SQL.OutputName() }
 
 func (n SQLRoutineExpr) SameArguments(o SQLRoutineExpr) bool {
-	return n.WrittenCount == o.WrittenCount && n.Variadic == o.Variadic && slices.Equal(n.InputMap, o.InputMap) && slices.Equal(n.ChildSlots, o.ChildSlots) && slices.EqualFunc(n.ArgNames, o.ArgNames, func(a, b parser.Identifier) bool { return a.Text == b.Text })
+	return n.Signature.Equal(o.Signature) && n.WrittenCount == o.WrittenCount && n.Variadic == o.Variadic && slices.Equal(n.InputMap, o.InputMap) && slices.Equal(n.ChildSlots, o.ChildSlots) && slices.EqualFunc(n.ArgNames, o.ArgNames, func(a, b parser.Identifier) bool { return a.Text == b.Text })
 }

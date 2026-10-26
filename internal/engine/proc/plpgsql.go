@@ -215,7 +215,7 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 		}
 	}
 	for i, f := range definition.Formals {
-		p.Variables = append(p.Variables, PLVariable{Name: f.Name, Usage: f.Usage, InheritInputCollation: f.Usage.Collation.ID != 0})
+		p.Variables = append(p.Variables, PLVariable{Name: f.Name, Usage: f.Usage, Record: f.Usage.Type.ID() == 2249, InheritInputCollation: f.Usage.Collation.ID != 0 || sqltype.PolymorphicFamily(f.Usage.Type.ID()) != 0})
 		for _, name := range [2]string{"$" + strconv.Itoa(i+1), f.Name} {
 			if name == "" {
 				continue
@@ -225,6 +225,10 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 			}
 			outer.Bindings[name] = i
 		}
+	}
+	if len(definition.OutputFormals) == 0 && (definition.PolymorphicResult || sqltype.PolymorphicFamily(definition.Result.Type.ID()) != 0) {
+		outer.Bindings["$0"] = len(p.Variables)
+		p.Variables = append(p.Variables, PLVariable{Name: "$0", Usage: definition.Result, InheritInputCollation: true})
 	}
 	found, record, err := resolve(parser.PLType{Type: parser.TypeName{Name: "bool", Schema: &parser.Identifier{Text: "pg_catalog"}}})
 	if err != nil {
@@ -688,8 +692,16 @@ func NewPLFrame(p *PLProgram, d *Definition, input *Frame, collation sqltype.Col
 	}
 	for formal, index := range d.FormalInputs {
 		if index >= 0 {
-			f.Values[formal] = input.Parameters[index]
+			value := input.Parameters[index]
+			if p.Variables[formal].Record && value.IsNull() && value.Type().IsDeferredRecord() {
+				f.Values[formal] = sqltype.Value{}
+			} else {
+				f.Values[formal] = value.ActualRecord()
+			}
 		}
+	}
+	if slot, ok := p.Root.Bindings["$0"]; ok {
+		f.Values[slot] = sqltype.Null(p.Variables[slot].Usage.Type)
 	}
 	f.SetFound(false)
 	return f
@@ -738,10 +750,24 @@ func (f *PLFrame) HandledError() *sqlstate.Error { return f.handled }
 func (f *PLFrame) Usage(slot int) sqltype.Usage {
 	variable := f.Program.Variables[slot]
 	usage := variable.Usage
+	if variable.Record && f.Values[slot].Type() != nil {
+		usage = f.Values[slot].Type().Usage()
+	}
 	if variable.InheritInputCollation && f.InputCollation.ID != 0 {
 		usage.Collation = f.InputCollation
 	}
 	return usage
+}
+
+// Parameter exports a lexical formal through the ordinary SQL parameter frame.
+// An indeterminate RECORD has no tuple shape, but still needs its declared
+// typed NULL at that transport boundary. Assigned records use Usage's real shape.
+func (f *PLFrame) Parameter(slot int) sqltype.Value {
+	value := f.Values[slot]
+	if value.Type() == nil {
+		return sqltype.Null(f.Usage(slot).Type)
+	}
+	return value
 }
 
 func plExpressionQuery(raw parser.Expr) *parser.Select {

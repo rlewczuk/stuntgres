@@ -13,7 +13,7 @@ import (
 
 func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *catalog.Procedure, raw parser.FunctionExpr) (SQLCallable, bool) {
 	if d.SQL != nil {
-		return sqlRoutineParameterShape(d, raw)
+		return sqlRoutineParameterShape(view, reader, d, raw)
 	}
 	candidate := SQLCallable{Procedure: d}
 	var declared []sqltype.Usage
@@ -123,6 +123,17 @@ func AppendSQLCallable(candidates []SQLCallable, candidate SQLCallable) []SQLCal
 }
 
 func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.Argument, candidate *SQLCallable) bool {
+	if candidate.Procedure.SQL != nil {
+		return b.probeRoutineSignature(operands, candidate)
+	}
+	if candidate.Procedure.Result == 2281 {
+		return b.probeRoutineSignature(operands, candidate)
+	}
+	for _, input := range candidate.Inputs {
+		if input.Type.ID() == 2281 {
+			return b.probeRoutineSignature(operands, candidate)
+		}
+	}
 	if candidate.Procedure.Aggregate != nil && candidate.Procedure.Aggregate.Variadic {
 		candidate.Targets = append([]sqltype.Usage(nil), candidate.Inputs...)
 		for i, operand := range operands {

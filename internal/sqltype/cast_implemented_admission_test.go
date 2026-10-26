@@ -23,9 +23,9 @@ func TestCastImplementedAdmission(t *testing.T) {
 		for _, target := range facts {
 			for _, mode := range []CoercionContext{Implicit, Assignment, Explicit} {
 				t.Run(castUnitLabel(source, target, mode), func(t *testing.T) {
-					admitted, unavailable := castUnitExpected(source, target, mode, byName, edges)
+					admitted := castUnitExpected(source, target, mode, byName, edges)
 					plan, err := PlanCoercion(source.typ.Usage(), target.typ.Usage(), mode)
-					if admitted && !unavailable {
+					if admitted {
 						if err != nil {
 							t.Fatal("released kernel operation refused", err)
 						}
@@ -40,18 +40,14 @@ func TestCastImplementedAdmission(t *testing.T) {
 						return
 					}
 					if err == nil {
-						t.Fatal("forbidden/unavailable kernel operation admitted")
+						t.Fatal("forbidden kernel operation admitted")
 					}
 					var diagnostic *sqlstate.Error
 					if !errors.As(err, &diagnostic) {
 						t.Fatal("missing owned SQL diagnostic", err)
 					}
-					code := "42804"
-					if unavailable {
-						code = "0A000"
-					}
-					if diagnostic.Code != code {
-						t.Fatalf("kernel classification=%s want %s: %v", diagnostic.Code, code, err)
+					if diagnostic.Code != "42804" {
+						t.Fatalf("kernel classification=%s want 42804: %v", diagnostic.Code, err)
 					}
 				})
 				visited++

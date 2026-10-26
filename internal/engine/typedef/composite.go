@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 // Declaration members, relation identity and reciprocal codecs publish in the
@@ -65,6 +66,9 @@ func StageCreateCompositeLocked(h StageHost, auth ddl.Authority, s *parser.Creat
 		raw.Pos = parser.Position{}
 		usage, err := h.ResolveType(raw)
 		if err != nil {
+			return err
+		}
+		if err := sqltype.CheckStoredColumn(member.Name, usage); err != nil {
 			return err
 		}
 		collation := member.Collation

@@ -22,25 +22,38 @@ type compositeDefinition struct {
 	members    []CompositeMember
 	attributes map[int32]int
 }
-type compositePayload struct{ fields []Value }
+type compositePayload struct {
+	fields []Value
+	shape  *Descriptor
+}
 
 // Composite freezes the catalog's coherent, ordered live-member projection.
 // Catalog ownership and relation reciprocity are validated by the provider.
 func Composite(id ID, name, declaration string, associatedArray ID, members []CompositeMember) (*Descriptor, error) {
-	return compositeDescriptor(id, name, declaration, associatedArray, members, 1600, true)
+	return compositeDescriptor(id, name, declaration, associatedArray, members, 1600, true, false)
 }
 
 // RecordShape is an expression occurrence, never a catalog storage identity.
 // Query-result attributes may have type VOID; catalog composites may not.
 func RecordShape(members []CompositeMember) (*Descriptor, error) {
-	d, err := compositeDescriptor(2249, "record", "RECORD", 2287, members, 1664, false)
+	d, err := compositeDescriptor(2249, "record", "RECORD", 2287, members, 1664, false, false)
 	if err == nil {
 		d.database = "RECORD"
 	}
 	return d, err
 }
 
-func compositeDescriptor(id ID, name, declaration string, associatedArray ID, members []CompositeMember, maximum int, catalog bool) (*Descriptor, error) {
+// RecordSignatureShape owns declaration-only polymorphic output members. It
+// grants no value or codec authority until every member has been specialized.
+func RecordSignatureShape(members []CompositeMember) (*Descriptor, error) {
+	d, err := compositeDescriptor(2249, "record", "RECORD", 2287, members, 1664, false, true)
+	if err == nil {
+		d.database = "RECORD"
+	}
+	return d, err
+}
+
+func compositeDescriptor(id ID, name, declaration string, associatedArray ID, members []CompositeMember, maximum int, catalog, signature bool) (*Descriptor, error) {
 	if id == 0 || id == Unknown || name == "" || declaration == "" || len(members) > maximum || associatedArray == id {
 		return nil, fmt.Errorf("invalid composite descriptor")
 	}
@@ -77,8 +90,15 @@ func compositeDescriptor(id ID, name, declaration string, associatedArray ID, me
 		}
 		return true
 	}
+	deferred := false
 	for i, member := range definition.members {
-		if member.Attribute <= 0 || member.Name == "" || len(member.Name) > 63 || !member.Usage.Valid() || catalog && member.Usage.Type.BaseType().id == Void || !coherent(member.Usage.Type) {
+		admitted := member.Usage.Valid()
+		if signature && member.Usage.Type != nil && PolymorphicFamily(member.Usage.Type.id) != 0 {
+			d := member.Usage.Type
+			admitted = d.polymorphicOwner == d && member.Usage == d.Usage()
+			deferred = true
+		}
+		if member.Attribute <= 0 || member.Name == "" || len(member.Name) > 63 || !admitted || catalog && IsPseudo(member.Usage.Type.BaseType().id) || !coherent(member.Usage.Type) {
 			return nil, fmt.Errorf("invalid composite member")
 		}
 		if err := ValidateTextInput(member.Name); err != nil {
@@ -95,7 +115,7 @@ func compositeDescriptor(id ID, name, declaration string, associatedArray ID, me
 		}
 		definition.attributes[member.Attribute] = i
 	}
-	return &Descriptor{id: id, name: name, sql: declaration, associatedArray: associatedArray, composite: definition}, nil
+	return &Descriptor{id: id, name: name, sql: declaration, associatedArray: associatedArray, composite: definition, lookupOnly: deferred}, nil
 }
 
 func (d *Descriptor) IsComposite() bool { return d != nil && d.composite != nil }
@@ -134,7 +154,7 @@ func OwnedCompositeValue(d *Descriptor, fields []Value) (Value, error) {
 			return Value{}, fmt.Errorf("foreign composite field generation")
 		}
 	}
-	return Value{typ: d, composite: &compositePayload{fields: fields}}, nil
+	return Value{typ: d, composite: &compositePayload{fields: fields, shape: d}}, nil
 }
 func (v Value) CompositeLen() int {
 	if v.null || v.composite == nil {

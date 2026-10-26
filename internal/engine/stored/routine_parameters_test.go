@@ -34,7 +34,7 @@ func parameterCaptureFixture(t *testing.T) plan.SQLRoutineExpr {
 	}
 	args := []expr.Expr{literal(2), literal(1), literal(7)}
 	d.SQLDefaults = &RoutineDefaults{entries: []expr.Expr{nil, args[2], literal(9)}}
-	return plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: d, Property: expr.Properties{Volatility: expr.Volatile}}, Procedure: d, Ref: read.Owner().Domain.Ref(read.Epoch(), d.Address()), Args: args, WrittenCount: 2, ArgNames: []parser.Identifier{{Text: "c"}, {Text: "a"}}, InputMap: []plan.RoutineInput{{Start: 1, Count: 1}, {Start: 2, Count: 1}, {Start: 0, Count: 1}}, ChildSlots: []int{2, 0, 1}}
+	return plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: d, Property: expr.Properties{Volatility: expr.Volatile}}, Procedure: d, Ref: read.Owner().Domain.Ref(read.Epoch(), d.Address()), Args: args, WrittenCount: 2, ArgNames: []parser.Identifier{{Text: "c"}, {Text: "a"}}, InputMap: []plan.RoutineInput{{Start: 1, Count: 1}, {Start: 2, Count: 1}, {Start: 0, Count: 1}}, ChildSlots: []int{2, 0, 1}, Signature: proc.InvocationSignature{Inputs: d.SQL.Inputs, Result: integer.Usage()}}
 }
 
 func TestSQLRoutineWrittenCapture(t *testing.T) {
@@ -71,6 +71,7 @@ func TestSQLRoutineParameterRemap(t *testing.T) {
 	n := parameterCaptureFixture(t)
 	callee := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 94000}, SQL: &proc.Definition{Result: n.Usage}}
 	hidden := plan.SQLRoutineExpr{Info: expr.Info{Usage: n.Usage, RoutineReference: callee, Property: expr.Properties{Volatility: expr.Volatile}}, Procedure: callee, Ref: n.Ref.Domain().Ref(n.Ref.Epoch, callee.Address())}
+	hidden.Signature = proc.InvocationSignature{Inputs: callee.SQL.Inputs, Result: n.Usage}
 	n.Args = append([]expr.Expr(nil), n.Args...)
 	n.Args[2] = hidden
 	d := *n.Procedure
@@ -309,6 +310,7 @@ func TestSQLRoutineDomainRecipeTypeGeneration(t *testing.T) {
 				read.State().SetDescriptor(source.Address(), source)
 				ref := read.Owner().Domain.Ref(read.Epoch(), source.Address())
 				call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: source, Property: expr.Properties{Volatility: expr.Volatile}}, Procedure: source, Ref: ref, Args: []expr.Expr{literal}, InputMap: []plan.RoutineInput{{Start: 0, Count: 1}}, ChildSlots: []int{0}}
+				call.Signature = proc.InvocationSignature{Inputs: source.SQL.Inputs, Result: integer.Usage()}
 				var recipe expr.Expr = call
 				if kind == "CHECK" {
 					recipe = plan.NullTestExpr{Info: expr.Info{Usage: boolean.Usage(), Property: call.Properties()}, Child: call, Not: true}

@@ -38,7 +38,7 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 					if !ok {
 						t.Fatal("missing boolean")
 					}
-					program := &proc.PLProgram{FoundSlot: 0, Variables: []proc.PLVariable{
+					program := &proc.PLProgram{Root: &proc.PLBlock{}, FoundSlot: 0, Variables: []proc.PLVariable{
 						{Name: "found", Usage: boolean.Usage(), Role: proc.PLFoundSlot},
 					}}
 					frame := proc.NewPLFrame(program, &proc.Definition{}, &proc.Frame{}, sqltype.CollationRef{})

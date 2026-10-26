@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -48,6 +49,7 @@ type SQLRoutineExpr struct {
 	InputMap       []RoutineInput
 	ChildSlots     []int // Validated inverse of InputMap, built once during binding.
 	InputCollation sqltype.CollationRef
+	Signature      proc.InvocationSignature
 }
 
 func (n SQLRoutineExpr) Children() []expr.Expr { return n.Args }
@@ -87,10 +89,15 @@ func (n SQLRoutineExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Exp
 }
 
 func (n SQLRoutineExpr) ValidateStoredProvider() error {
-	if n.Procedure == nil || n.Procedure.SQL == nil || n.Info.RoutineReference != n.Procedure || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Usage.Type == nil || !n.Usage.Valid() || n.Usage.Type.ID() != sqltype.ID(n.Procedure.Result) {
+	if n.Procedure == nil || n.Procedure.SQL == nil || n.Info.RoutineReference != n.Procedure || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Usage.Type == nil || !n.Usage.Valid() || n.Signature.Result != n.Usage || !n.Signature.ValidFor(n.Procedure.SQL) {
 		return fmt.Errorf("invalid stored SQL routine provider")
 	}
-	if n.Usage.Type != n.Procedure.SQL.Result.Type {
+	// Fixed results retain their declaration-owned occurrence. Polymorphic
+	// outputs and unshaped RECORD instead retain the checked call's concrete
+	// signature; ValidFor above proves the original declaration's constraints.
+	declared := n.Procedure.SQL.Result.Type
+	unshapedRecord := declared.ID() == 2249 && !declared.IsComposite()
+	if !unshapedRecord && (!n.Procedure.SQL.Polymorphic() || declared.Concrete()) && n.Usage.Type != declared {
 		return fmt.Errorf("SQL routine call has a foreign result generation")
 	}
 	if n.InputCollation.ID != 0 && !n.InputCollation.Valid() {

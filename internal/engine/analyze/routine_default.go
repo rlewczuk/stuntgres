@@ -13,6 +13,9 @@ func (b *Binder) BindRoutineDefault(raw parser.Expr, usage sqltype.Usage) (expr.
 	previous := b.Consumer
 	b.Consumer.DefaultConsumer, b.Consumer.RoutineDefault = true, true
 	defer func() { b.Consumer = previous }()
+	if sqltype.PolymorphicFamily(usage.Type.ID()) != 0 {
+		return b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
+	}
 	node, err := b.Bind(raw, ExpressionPolicy{Context: ProjectionContext, Expected: usage.Type.Usage()})
 	if err != nil {
 		return nil, err

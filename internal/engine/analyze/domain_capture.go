@@ -7,6 +7,15 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// castAnnotation is shared by operand classification and final cast binding.
+// Classification must preserve the same retained identity as the selected cast.
+func (b *Binder) castAnnotation(raw parser.CastExpr) (parser.TypeName, error) {
+	if b.Clause.JSONBRecordBase {
+		return b.JSONBRecordCastAnnotation(raw)
+	}
+	return b.TypeCastAnnotation(raw)
+}
+
 // TypeCastAnnotation reconstructs a held explicit user-type occurrence from
 // its admitted logical identity. Normal annotation lookup, authority and coercion
 // still run. Environment/definition invalidation retires this occurrence group.

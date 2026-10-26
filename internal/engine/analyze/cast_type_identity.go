@@ -31,7 +31,7 @@ func (b *Binder) resolveCastIdentity(raw parser.TypeName, source *sqltype.Descri
 }
 
 func recordCastPassthrough(source, target *sqltype.Descriptor) bool {
-	return target.ID() == 2249 && source.BaseType().IsComposite() ||
+	return target.ID() == 2249 && (source.BaseType().IsComposite() || source.IsDeferredRecord()) ||
 		target.ID() == 2287 && source.IsArray() && source.Element().BaseType().IsComposite()
 }
 

@@ -49,9 +49,6 @@ func (p CoercionPlan) planCitext() (CoercionPlan, error) {
 		p.method = stringConversion
 		return p, nil
 	case from.IsCitext() && (p.context == Explicit || p.context >= Assignment && castStringCategory(to)):
-		if to.id == Void {
-			return p, failure("0A000", "input of type void is not supported")
-		}
 		p.method = viaIO
 		return p, nil
 	}

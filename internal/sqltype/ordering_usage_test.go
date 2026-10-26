@@ -16,6 +16,12 @@ func TestOrderingUsage(t *testing.T) {
 				return
 			}
 			// Concrete means a valid runtime result, not a sortable SQL type.
+			if d.ID() == 2275 {
+				if err == nil {
+					t.Fatal("cstring carrier granted ordering")
+				}
+				return
+			}
 			if d.ID() == PgSnapshot {
 				if err == nil {
 					t.Fatal("pg_snapshot ordering admitted")

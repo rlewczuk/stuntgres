@@ -59,6 +59,9 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 	if d == nil {
 		return PGTypeMetadata{}, false
 	}
+	if f, ok := pseudoPGTypeMetadata(d); ok {
+		return f, true
+	}
 	if d.IsCatalogVector() && d.IsBuiltin() {
 		f := PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "A", Element: d.element.id, Subscript: 6179, Modifier: -1}
 		if d.id == Int2Vector {
