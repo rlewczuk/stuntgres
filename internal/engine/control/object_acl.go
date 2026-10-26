@@ -22,6 +22,7 @@ import (
 func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 	c := s.Capture
 	bootstrap, _ := c.OriginalRoles.Lookup("postgres")
+	stats, _ := c.OriginalRoles.Lookup("pg_read_all_stats")
 	var statements []string
 	s.typeACLStatements = make(map[ids.OID][]string)
 	for _, d := range c.OriginalCatalog.Descriptors() {
@@ -57,7 +58,10 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 			table, column = "pg_type", "typacl"
 			locator = "oid=" + dump.CommentLiteral(regobj.TypeSpelling(c.OriginalCatalog, nil, d.Address().ObjectID)) + "::pg_catalog.regtype"
 		case *catalog.Relation:
-			if d.RelationKind == catalog.CatalogRelation {
+			if d.RelationKind == catalog.CatalogRelation && d.Address().ObjectID != pgcatalog.ShmemAllocationsOID && d.Address().ObjectID != pgcatalog.ShmemAllocationsNUMAOID {
+				continue
+			}
+			if sharedMemoryACLReconstructed(d, bootstrap.Ref, stats.Ref) {
 				continue
 			}
 			if err := access.ValidateACL(c.OriginalRoles, d); err != nil {
@@ -68,7 +72,7 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 				return fmt.Errorf("stuntgres: missing ACL relation namespace")
 			}
 			identity := dump.CommentLiteral(catalog.QuoteIdentifier(ns.Name())+"."+catalog.QuoteIdentifier(d.Name())) + "::pg_catalog.regclass"
-			if acl.Explicit {
+			if acl.Explicit || d.Address().ObjectID == pgcatalog.ShmemAllocationsOID || d.Address().ObjectID == pgcatalog.ShmemAllocationsNUMAOID {
 				literal, err := objectACLLiteral(ctx, c, acl)
 				if err != nil {
 					return err
@@ -91,7 +95,10 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 			if catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
 				continue
 			}
-			if !acl.Explicit && d.SQL == nil && d.Aggregate == nil {
+			if sharedMemoryACLReconstructed(d, bootstrap.Ref, stats.Ref) {
+				continue
+			}
+			if !acl.Explicit && d.SQL == nil && d.Aggregate == nil && d.Address().ObjectID != 5052 && d.Address().ObjectID != 4100 {
 				continue
 			}
 			ns, ok := c.OriginalCatalog.Namespace(d.Namespace())

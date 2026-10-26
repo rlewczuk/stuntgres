@@ -1764,13 +1764,17 @@ func BuiltinRoutine(id ids.OID) *catalog.BuiltinRoutineDeclaration {
 }
 
 func indexBuiltinRoutineDeclarations() map[ids.OID]*catalog.BuiltinRoutineDeclaration {
-	byOID := make(map[ids.OID]*catalog.BuiltinRoutineDeclaration, len(BuiltinRoutineDeclarations))
-	for i := range BuiltinRoutineDeclarations {
-		d := &BuiltinRoutineDeclarations[i]
-		if d.Outputs != nil && (!d.Outputs.MatchesInputs(d.Identity.Signature) || d.Variadic != 0) {
-			panic("stuntgres: invalid builtin fixed output declaration")
+	byOID := make(map[ids.OID]*catalog.BuiltinRoutineDeclaration, len(BuiltinRoutineDeclarations)+len(sharedMemoryDeclarations))
+	// Metadata-only backing declarations share canonical pointer validation,
+	// not the separate provider/formal selector index.
+	for _, declarations := range [...][]catalog.BuiltinRoutineDeclaration{BuiltinRoutineDeclarations, sharedMemoryDeclarations[:]} {
+		for i := range declarations {
+			d := &declarations[i]
+			if d.Outputs != nil && (!d.Outputs.MatchesInputs(d.Identity.Signature) || d.Variadic != 0) {
+				panic("stuntgres: invalid builtin fixed output declaration")
+			}
+			byOID[d.Identity.ID] = d
 		}
-		byOID[d.Identity.ID] = d
 	}
 	return byOID
 }

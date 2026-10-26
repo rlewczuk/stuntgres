@@ -706,6 +706,9 @@ Producers, the OID registry and descriptor specs live in
   Information-schema domain and column inquiry sources use the statement's
   paired catalog and authorization roots, including `column_domain_usage`;
   source opening preserves that pair rather than resampling publication.
+  Shared-memory view capture additionally checks the current EXECUTE ACL of
+  its metadata-only backing routine, after ordinary view SELECT admission and
+  before the pure producer. Neither grant is retained in prepared artifacts.
 - `catalog_source_cache.go` keeps the latest `pg_type`, `pg_proc` and
   `pg_depend` rows per engine, owned by `Engine.Mu`, keyed by the published
   `*catalog.State`, the published `*access.RoleRecord`, the source relation and

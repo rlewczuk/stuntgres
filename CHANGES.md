@@ -13,6 +13,18 @@ RLS proposed-row checks have expanded direct/prepared PostgreSQL reference
 coverage for finalized trigger/generated values, implicit policy checks, constraint
 precedence and atomic INSERT/UPDATE rejection with transaction/savepoint recovery.
 
+`pg_shmem_allocations` and `pg_shmem_allocations_numa` expose nonempty,
+deterministic simulated allocation and NUMA metadata through exact nullable
+schemas, catalog identities and role-controlled access. The named simulated
+arena, offsets, requested/allocated/free bytes, virtual node and page coverage
+are approximations, not measured PostgreSQL shared memory or host NUMA placement.
+Held prepared execution observes current grants, revokes and role membership
+for both view SELECT and backing-routine EXECUTE privileges. The backing
+declarations expose exact metadata/ACLs without installing callable providers.
+Default system ACLs add no Dump output; changed view SELECT and backing EXECUTE
+ACLs round-trip through existing native controls. Both views expose their exact
+identity-aware definitions to catalog and information-schema consumers.
+
 `information_schema.user_defined_types` exposes standalone composite identities
 through 29 nullable domain-typed columns, with effective type-USAGE and inherited
 ownership visibility. Direct and prepared queries follow type, schema and ACL

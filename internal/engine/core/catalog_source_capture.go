@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -37,6 +38,24 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
+	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID:
+		auth, err := e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		procedure := ids.OID(5052)
+		if oid == pgcatalog.ShmemAllocationsNUMAOID {
+			procedure = 4100
+		}
+		// The common query manifest has already admitted view SELECT. Its
+		// backing routine has independent current EXECUTE authority; no
+		// provider or simulated row is evaluated before this check.
+		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: procedure}), Privileges: authorization.ExecutePrivilege}); err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 	case pgcatalog.ProgressVacuumOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

@@ -188,7 +188,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	catalog.InstallBuiltinNamespaces(e.Catalog.State, principals.LookupRef("postgres"), principals.LookupRef("pg_database_owner"))
 	catalog.InstallBuiltinTypes(e.Catalog.State, types, bootstrap)
 	catalog.InstallBuiltinCollations(e.Catalog.State, bootstrap)
-	catalog.InstallBuiltinProcedures(e.Catalog.State, typedef.BuiltinConversionProcedures(bootstrap), routine.BuiltinProcedures(bootstrap), routine.NativeAccessMethodProcedures(bootstrap))
+	catalog.InstallBuiltinProcedures(e.Catalog.State, typedef.BuiltinConversionProcedures(bootstrap), routine.BuiltinProcedures(bootstrap), routine.NativeAccessMethodProcedures(bootstrap), routine.SharedMemoryProcedures(bootstrap, principals.LookupRef("pg_read_all_stats")))
 	catalog.InstallBuiltinDictionaries(e.Catalog.State, bootstrap, functions.DefaultSimpleDictionary)
 	if err := e.Catalog.InstallBuiltinLanguagesLocked(bootstrap); err != nil {
 		return nil, err

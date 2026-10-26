@@ -11,7 +11,7 @@ func builtinRoutineRows(d *catalog.BuiltinRoutineDeclaration) float64 {
 		return 1
 	case 1689, 2764, 3035, 3425: // ACL expansion, flagged matches, channels, ancestors
 		return 10
-	case 5064: // pg_snapshot_xip
+	case 4100, 5052, 5064: // shared-memory allocations and pg_snapshot_xip
 		return 50
 	case 1293, 2331, // multirange and array unnest
 		3084, // extension update paths

@@ -3,7 +3,8 @@
 `pg_catalog` relation and type catalogs: `pg_class`, `pg_attribute`, `pg_attrdef`,
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, `pg_inherits`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
-`pg_depend`, `pg_sequence`/`pg_sequences`, `pg_wait_events`, catalog foreign keys and the catalog
+`pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
+`pg_wait_events`, catalog foreign keys and the catalog
 controls migrated from the root package. The other catalog packages:
 namespaces, schemas, `search_path`, visibility inquiries, operator, cast,
 aggregate, access-method, collation, language, transform, text-search,
@@ -110,6 +111,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   (`TestReferencePGTableViewsBuiltins` lives in `reference/information_schema`)
 - Rule summaries: `RUN='^TestReferencePGRules'`
 - `pg_sequence`, `pg_sequences`: `RUN='^TestReferencePGSequence'`
+- Shared-memory allocation projections: `RUN='^TestReferencePGShmem'`
 - Wait-event definitions: `RUN='^TestReferencePGWaitEvents'`
 - Catalog foreign keys, `pg_get_userbyid`: `RUN='^TestReferenceCatalogRelations'`
 - Catalog and control scenarios migrated from the root package:

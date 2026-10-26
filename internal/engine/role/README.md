@@ -12,7 +12,7 @@ checks over a captured view are in [`access`](../access/README.md).
 The package is an upper feature at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture): it
 imports `access`, `analyze` (types and pure functions), `authorization`,
-`catalog`, `ddl`, `extension`, `ids`, `regobj`, `routine`, `sequence`,
+`catalog`, `ddl`, `extension`, `ids`, `pgcatalog`, `regobj`, `routine`, `sequence`,
 `session`, `settings`, `stored`, `parser`, `sqlstate` and the standard
 library, and never the engine, `analyze`'s binder or another upper feature.
 
@@ -44,6 +44,10 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   Narrow LANGUAGE USAGE resolves real catalog language identities and uses this
   same grant-option/revoke/cascade/role-dependency authority. It does not add
   language lifecycle or grant a native interpreter/ABI execution capability.
+  Explicit SELECT grants on the protected large-object page relation and the
+  two shared-memory allocation views use the same ACL planning/publication
+  path. This admission does not permit system-relation data writes or grants
+  on other catalog sources.
 - **Database GRANT** (`database_grant.go`): `PlanDatabaseGrant` returns the
   new database descriptor (nil: unchanged) and the warnings, also before a
   returned error.

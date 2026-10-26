@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -225,9 +226,10 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 	case catalog.CompositeRelation:
 		return ObjectGrantChange{}, false, sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, relation.Name()))
 	case catalog.CatalogRelation:
-		// Only the protected large-object page relation exposes catalog SELECT.
-		// Reuse ordinary table/column ACL mutation without opening catalog writes.
-		if relation.Address().ObjectID != 2613 {
+		// The protected large-object page relation and shared-memory views
+		// expose catalog SELECT through ordinary ACL mutation, not data writes.
+		oid := relation.Address().ObjectID
+		if oid != 2613 && oid != pgcatalog.ShmemAllocationsOID && oid != pgcatalog.ShmemAllocationsNUMAOID {
 			return ObjectGrantChange{}, false, sqlError("0A000", "statement is not supported")
 		}
 		for i, item := range s.Privileges {

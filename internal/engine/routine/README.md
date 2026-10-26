@@ -114,6 +114,12 @@ package or the engine.
   Selected aggregate support descriptors also retain genuine signature/ACL facts
   with zero scalar-provider flags: opaque string-state capabilities own their
   execution, and diagnostic-only GiST/final signatures never gain fake bodies.
+  The shared-memory view backing declarations likewise retain exact OUT,
+  setness, display and EXECUTE ACL metadata with zero provider flags. Their
+  descriptors share the canonical OID/pointer validation authority but remain
+  outside the scalar provider/formal selector index. They authorize view
+  materialization through common ACL checks, without callable functions or a
+  shared-memory subsystem.
   `int4larger` has a real strict scalar maximum provider for SFUNC/COMBINEFUNC.
   Builtin string text/bytea supports share their exact `StringAggregateDefinition`
   with catalog rows and binding. Real support descriptors are retained in the

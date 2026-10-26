@@ -25,6 +25,17 @@ type Spec struct {
 }
 
 var Specs = [...]Spec{
+	{ShmemAllocationsOID, ids.PGCatalogNamespaceOID, "pg_shmem_allocations", []ColumnSpec{
+		{"name", sqltype.Text, true, 0, 0, -1},
+		{"off", sqltype.Int8, true, 0, 0, -1},
+		{"size", sqltype.Int8, true, 0, 0, -1},
+		{"allocated_size", sqltype.Int8, true, 0, 0, -1},
+	}, true, false, true, true, "stuntgres: missing shared-memory source type"},
+	{ShmemAllocationsNUMAOID, ids.PGCatalogNamespaceOID, "pg_shmem_allocations_numa", []ColumnSpec{
+		{"name", sqltype.Text, true, 0, 0, -1},
+		{"numa_node", sqltype.Int4, true, 0, 0, -1},
+		{"size", sqltype.Int8, true, 0, 0, -1},
+	}, true, false, true, true, "stuntgres: missing shared-memory source type"},
 	{ids.EventTriggerClassID, ids.PGCatalogNamespaceOID, "pg_event_trigger", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"evtname", sqltype.Name, false, 0, 0, -1},

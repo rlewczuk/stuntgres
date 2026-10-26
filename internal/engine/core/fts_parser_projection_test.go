@@ -51,7 +51,7 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 	}
 	capture := func(t *testing.T, read catalog.Read, represented *catalog.Procedure) map[ids.OID][]sqltype.Value {
 		t.Helper()
-		rows, err := produce(pgcatalog.Input{Context: context.Background(), Catalog: read, Source: source, Owner: read.Owner(), Runtime: core.EngineCatalogRuntime{}})
+		rows, err := produce(pgcatalog.Input{Context: context.Background(), Catalog: read, Roles: e.RoleStore.PublishedRead(read.Owner(), read), Source: source, Owner: read.Owner(), Runtime: core.EngineCatalogRuntime{}})
 		if err != nil {
 			t.Fatal(err)
 		}

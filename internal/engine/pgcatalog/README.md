@@ -61,6 +61,27 @@ type Producer func(Input) ([][]sqltype.Value, error)
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
   `Roles.BelongsTo(Owner.Principals)` and `Source` identity must agree before
   rows are produced.
+- `pg_shmem_allocations` and `pg_shmem_allocations_numa` materialize a fixed,
+  nonempty virtual 1 MiB profile, not process memory or host measurements. The
+  named identity `stuntgres simulated arena` is a simulation label. Allocation
+  `off`, `size` and `allocated_size`, and NUMA `numa_node` and `size`, are all
+  approximate physical fields. A 4096-byte anonymous reservation precedes the
+  named 65537-byte request, rounded to 65600 bytes at 64-byte alignment; the free
+  frontier is 69696 with 978880 bytes remaining. Anonymous offset and free name
+  are NULL. The named range covers 17 virtual 4096-byte pages (69632 bytes),
+  assigned to simulated node 0; its NULL-node bucket is present with zero bytes.
+  Neither the node nor page size describes host topology or residency. No arena
+  is allocated, no provider is installed and workloads do not alter the profile.
+  Schema/type/catalog identities and current-role ACL admission remain exact:
+  bootstrap owner privileges and pg_read_all_stats SELECT are seeded through
+  central authority, with no PUBLIC grant. Reads also require current EXECUTE
+  on their actual pg_get_shmem_allocations/pg_get_shmem_allocations_numa backing
+  declarations. These retain exact OUT metadata and bootstrap/pg_read_all_stats
+  EXECUTE ACLs without a callable provider. View SELECT alone is insufficient;
+  both admissions precede materialization. Captures own fresh typed row backing.
+  Both read-only builtin definitions use the common identity-aware fragments
+  for pg_views, pg_get_viewdef and information-schema consumers; default and
+  pretty forms agree and retain actual search-path/identifier-quoting rules.
 - `pg_shadow` reads genuine stored passwords and expirations from the immutable
   statement role frontier. Missing passwords, expirations and unstored role-wide
   configuration remain typed SQL NULL. The common relation ACL/column manifest

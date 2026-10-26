@@ -19,6 +19,17 @@ func (e *Engine) initializeCatalogSources() error {
 		if spec.NoPublic {
 			d.Security.ACL = authorization.ACLValue{}
 		}
+		if spec.OID == pgcatalog.ShmemAllocationsOID || spec.OID == pgcatalog.ShmemAllocationsNUMAOID {
+			roles := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
+			stats := roles.LookupRef("pg_read_all_stats")
+			d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+				{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Role: d.Owner}, Privileges: authorization.TableGrantPrivileges},
+				{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Role: stats}, Privileges: authorization.SelectPrivilege},
+			}}
+			if err := authorization.ValidateACL(roles, d.Security.ACL, authorization.TableGrantPrivileges); err != nil {
+				return err
+			}
+		}
 		for i, column := range spec.Columns {
 			typ, ok := e.Catalog.Current().LookupType(column.Type)
 			if !ok {

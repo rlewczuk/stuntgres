@@ -95,6 +95,12 @@ function references once into the destination authority.
   locators use exact regtype identities, including generated companions. The
   role-aware ACLITEM codec preserves grantors/options and NULL versus
   explicit-empty/default-equivalent ACLs without collapsing raw provenance.
+  Shared-memory view and backing-routine ACLs omit only the exact destination
+  seed baseline: bootstrap owner, namespace/identity and ordered explicit
+  bootstrap/pg_read_all_stats entries, without grant options or column ACLs.
+  Changed raw authority uses the existing repairs; reordering, duplicates and
+  explicit absence/emptiness are not effective-rights normalization. Defaults
+  therefore add no dump noise, while custom SELECT/EXECUTE grants survive replay.
   Explicit-empty repairs use the existing lossless
   `pg_catalog.acldefault('c',0)` constructor, with qualified argument types, to
   preserve PostgreSQL's one-dimensional empty ACL representation. Isolated

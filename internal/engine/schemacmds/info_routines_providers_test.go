@@ -25,6 +25,13 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		}
 		seen[p.Address().ObjectID] = true
 	}
+	for _, oid := range []ids.OID{4100, 5052} {
+		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
+		if seen[oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(oid) || p.Builtin.Providers != 0 || !p.Builtin.ReturnsSet || !p.Display.Valid() || p.Display.SecurityDefiner {
+			t.Fatal("incomplete metadata-only backing declaration", p)
+		}
+		seen[oid] = true
+	}
 	for _, d := range view.Descriptors() {
 		if p, ok := d.(*catalog.Procedure); ok {
 			if !p.Display.Valid() || p.Display.SecurityDefiner {
