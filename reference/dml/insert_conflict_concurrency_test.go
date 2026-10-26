@@ -48,7 +48,7 @@ func TestReferenceInsertConflictContention(t *testing.T) {
 						}
 						fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT k FROM t ORDER BY k", []string{"k"}, []string{"INT4"}, rows))
 						if !b.PG {
-							fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='100ms'", 0)
+							fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='10ms'", 0)
 							want := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
 							fixture.RunStep(t, p.Ctx, x, b.Recorder, fixture.ErrorDiagnostic(q, want))
 							fixture.LockExec(t, p.Ctx, c, "SET lock_timeout=0", 0)
@@ -278,7 +278,7 @@ func TestReferenceInsertConflictOmittedReservations(t *testing.T) {
 				run(fixture.Exec("BEGIN", 0))
 				run(fixture.Exec("INSERT INTO t VALUES(2) ON CONFLICT DO NOTHING", 1))
 				run(fixture.Exec("INSERT INTO t VALUES(1),(2) ON CONFLICT DO NOTHING", 0))
-				fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='100ms'", 0)
+				fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='10ms'", 0)
 				fixture.LockExec(t, p.Ctx, c, op, 1)
 				want := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
 				s := fixture.ErrorDiagnostic("INSERT INTO t VALUES(2) ON CONFLICT DO NOTHING", want)
@@ -299,7 +299,7 @@ func TestReferenceInsertConflictOmittedReservations(t *testing.T) {
 			fixture.LockExec(t, p.Ctx, a, "INSERT INTO t VALUES(1)", 1)
 			fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
 			fixture.RunStep(t, p.Ctx, a, b.Recorder, fixture.Select("SELECT k FROM t FOR UPDATE", []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}}))
-			fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='100ms'", 0)
+			fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='10ms'", 0)
 			fixture.LockExec(t, p.Ctx, c, "INSERT INTO t VALUES(1) ON CONFLICT DO NOTHING", 0)
 			fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
 		})
