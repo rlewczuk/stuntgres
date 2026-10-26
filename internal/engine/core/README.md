@@ -651,7 +651,9 @@ Producers, the OID registry and descriptor specs live in
   `*catalog.State`, the published `*access.RoleRecord`, the source relation and
   its ref. Statements reading the published catalog and roles share these rows
   read-only; private transaction catalogs or role records capture fresh. Errors
-  are never stored, and a hit still returns the caller's context error.
+  are never stored, and a hit still returns the caller's context error. The slot
+  also keeps an `exec.CatalogKeyIndex` of its rows; hits and misses attach it as
+  `Source.CatalogKeys`, so oid equality filters visit only matching rows.
 - `EngineCatalogRuntime` exposes values per call, never Engine, StatementScope,
   AuthorizationView or bindings. Settings rows capture one coherent
   physical-session snapshot after unlocking `Engine.Mu`; `pg_locks_capture.go`

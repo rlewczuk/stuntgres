@@ -22,6 +22,7 @@ type catalogCaptureKey struct {
 type catalogCaptureSlot struct {
 	key  catalogCaptureKey
 	rows [][]sqltype.Value // Shared read-only by every statement that hits the key.
+	keys *exec.CatalogKeyIndex
 }
 
 // dependOID is pg_depend's relation OID.
@@ -49,7 +50,8 @@ func (c *catalogCaptureCache) slot(oid ids.OID) *catalogCaptureSlot {
 // captureCatalogSourceRowsLocked reuses the slot's rows when the input is the
 // published catalog and role record it was built from. Transaction-private
 // catalogs or roles always capture fresh. Errors are never stored, and a hit
-// still reports the caller's cancellation. Caller holds Engine.Mu.
+// still reports the caller's cancellation. Both return the slot's key index,
+// so oid equality filters visit only matching rows. Caller holds Engine.Mu.
 func (e *Engine) captureCatalogSourceRowsLocked(in pgcatalog.Input, produce pgcatalog.Producer, roles *access.RoleRecord) (*exec.Source, error) {
 	slot := e.catalogCaptures.slot(in.Source.Address().ObjectID)
 	state := in.Catalog.State()
@@ -61,11 +63,12 @@ func (e *Engine) captureCatalogSourceRowsLocked(in pgcatalog.Input, produce pgca
 		if err := in.Context.Err(); err != nil {
 			return nil, err
 		}
-		return &exec.Source{Ref: in.Ref, Anonymous: slot.rows}, nil
+		return &exec.Source{Ref: in.Ref, Anonymous: slot.rows, CatalogKeys: slot.keys}, nil
 	}
 	source, err := CaptureCatalogSourceRows(in, produce)
 	if err == nil {
-		slot.key, slot.rows = key, source.Anonymous
+		slot.key, slot.rows, slot.keys = key, source.Anonymous, exec.NewCatalogKeyIndex(source.Anonymous)
+		source.CatalogKeys = slot.keys
 	}
 	return source, err
 }
