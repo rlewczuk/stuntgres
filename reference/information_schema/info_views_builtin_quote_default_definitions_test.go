@@ -2,6 +2,16 @@ package reference_test
 
 // Independent PostgreSQL 18.6 quote_all_identifiers definition expectations.
 var ivBuiltinQuoteDefaultDefinitions = map[string]string{
+	"information_schema.schemata": ` SELECT ("current_database"())::"information_schema"."sql_identifier" AS "catalog_name",
+    ("n"."nspname")::"information_schema"."sql_identifier" AS "schema_name",
+    ("u"."rolname")::"information_schema"."sql_identifier" AS "schema_owner",
+    (NULL::"name")::"information_schema"."sql_identifier" AS "default_character_set_catalog",
+    (NULL::"name")::"information_schema"."sql_identifier" AS "default_character_set_schema",
+    (NULL::"name")::"information_schema"."sql_identifier" AS "default_character_set_name",
+    (NULL::character varying)::"information_schema"."character_data" AS "sql_path"
+   FROM "pg_namespace" "n",
+    "pg_authid" "u"
+  WHERE (("n"."nspowner" = "u"."oid") AND ("pg_has_role"("n"."nspowner", 'USAGE'::"text") OR "has_schema_privilege"("n"."oid", 'CREATE, USAGE'::"text")));`,
 	"information_schema.collations": ` SELECT ("current_database"())::"information_schema"."sql_identifier" AS "collation_catalog",
     ("nc"."nspname")::"information_schema"."sql_identifier" AS "collation_schema",
     ("c"."collname")::"information_schema"."sql_identifier" AS "collation_name",

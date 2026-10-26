@@ -108,6 +108,7 @@ var producers = [...]Registration{
 	{InfoRoutinePrivilegesOID, captureInfoRoutinePrivileges},
 	{InfoCheckConstraintRoutineUsageOID, captureInfoCheckConstraintRoutineUsage},
 	{InfoCollationsOID, captureInfoCollations},
+	{InfoSchemataOID, captureInfoSchemata},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

@@ -6,7 +6,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `check_constraint_routine_usage`,
-`character_sets`, `collations`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
+`character_sets`, `collations`, `schemata`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `role_usage_grants`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
@@ -171,6 +171,25 @@ type Producer func(Input) ([][]sqltype.Value, error)
   while C link symbols remain visible to executors. Declared result identity is
   not domain-unwrapped and does not admit a codec or execute a provider. All 82
   cells, including NULLs, retain their captured information-schema domains.
+
+### Schema inquiry
+
+`schemata` enumerates actual captured namespaces once, using the paired role
+descriptor for the owner name and the runtime's actual current database name.
+Immediately usable owner authority or any effective schema CREATE/USAGE exposes
+the row. Direct, inherited and PUBLIC rights use existing namespace authorization;
+table/type/routine rights and search-path inclusion do not reveal namespaces.
+There is no name-based or other-session TEMP exclusion.
+
+All seven columns are nullable source-owned domains: six `sql_identifier`
+columns followed by `character_data`. The default-character-set fields and SQL
+path are typed SQL NULL, not empty strings or synthesized settings. Reads never
+install namespaces. Domain/base generations, namespace bindings and owner
+authority are validated before projection; cancellation or malformed authority
+discards the entire capture. Retained rows and descriptions remain immutable.
+The released builtin display definition uses the common identifier, type,
+relation and routine spelling tokens, independently of executable query storage.
+
 
 ## SQL feature metadata
 
@@ -553,6 +572,8 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets|Collations))'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
 - Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets|Collations)'`
+- Schema inquiry units: `RUN='^TestInfoSchemata'`
+- Schema inquiry SQL: `RUN='^TestReferenceInfoSchemata'`
 - Large objects: `RUN='^TestReferenceLargeObject'`
 - Settings view: `RUN='^TestReferenceStatisticsSettings'`
 - Transforms: `RUN='^TestReferencePGTransform'`

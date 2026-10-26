@@ -761,6 +761,15 @@ var Specs = [...]Spec{
 		{"collation_name", 13248, true, 950, 0, -1},
 		{"pad_attribute", 13246, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing collation metadata domain"},
+	{InfoSchemataOID, 13229, "schemata", []ColumnSpec{
+		{"catalog_name", 13248, true, 950, 0, -1},
+		{"schema_name", 13248, true, 950, 0, -1},
+		{"schema_owner", 13248, true, 950, 0, -1},
+		{"default_character_set_catalog", 13248, true, 950, 0, -1},
+		{"default_character_set_schema", 13248, true, 950, 0, -1},
+		{"default_character_set_name", 13248, true, 950, 0, -1},
+		{"sql_path", 13246, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing schemata metadata domain"},
 	{ConstraintColumnUsageOID, 13229, "constraint_column_usage", []ColumnSpec{
 		{"table_catalog", 13248, true, 950, 0, -1},
 		{"table_schema", 13248, true, 950, 0, -1},

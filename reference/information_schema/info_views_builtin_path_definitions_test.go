@@ -3,6 +3,16 @@ package reference_test
 // Exact pg_get_viewdef presentation observed on pinned PostgreSQL 18.6.
 // These consumer expectations are independent of the native builtin inventory.
 var ivBuiltinPathDefinitions = map[string]string{
+	"information_schema.schemata": ` SELECT (current_database())::sql_identifier AS catalog_name,
+    (n.nspname)::sql_identifier AS schema_name,
+    (u.rolname)::sql_identifier AS schema_owner,
+    (NULL::name)::sql_identifier AS default_character_set_catalog,
+    (NULL::name)::sql_identifier AS default_character_set_schema,
+    (NULL::name)::sql_identifier AS default_character_set_name,
+    (NULL::character varying)::character_data AS sql_path
+   FROM pg_namespace n,
+    pg_authid u
+  WHERE ((n.nspowner = u.oid) AND (pg_has_role(n.nspowner, 'USAGE'::text) OR has_schema_privilege(n.oid, 'CREATE, USAGE'::text)));`,
 	"information_schema.collations": ` SELECT (current_database())::sql_identifier AS collation_catalog,
     (nc.nspname)::sql_identifier AS collation_schema,
     (c.collname)::sql_identifier AS collation_name,

@@ -3,7 +3,7 @@
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `routines`,
 `routine_sequence_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
-`columns`, `column_column_usage`, `character_sets`, `collations`, `domains`,
+`columns`, `column_column_usage`, `character_sets`, `collations`, `schemata`, `domains`,
 `domain_constraints` and `sequences`. Grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
@@ -22,6 +22,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Builtin `pg_views`/`pg_tables` definitions: `RUN='^TestReferencePGTableViewsBuiltins$'`
 - Collation inquiry: `RUN='^TestReferenceInfoCollations'`
 - CHECK routine usage: `RUN='^TestReferenceInfoCheckConstraintRoutineUsage'`
+- Schema inquiry: `RUN='^TestReferenceInfoSchemata'`
 
 CHECK routine-usage scenarios assert complete six-column identity bags and
 source-owned identifier domains over actual table/domain CHECK semantic edges.
@@ -37,6 +38,19 @@ lifecycle and complete diagnostics. Actual owner and reader sessions see
 private-schema collation metadata without schema USAGE, while ordinary
 qualified relation lookup still denies access. Native retained eager rows
 preserve their original values and metadata across catalog mutations.
+
+Schema inquiry uses independently prescribed seven-column identities and nullable
+domain metadata, including raw NAME transport and the four SQL NULL tail fields.
+Direct, fresh-prepared and held consumers cover namespace creation, rename,
+ownership transfer, removal and current role/ACL publication. Visibility tests
+separate immediately usable ownership and schema CREATE/USAGE from unrelated
+object grants and search-path names. Empty and nil predicates preserve the
+description; complete binder diagnostics are checked before filtering.
+Native control phases retain eager rows and metadata across replacement and
+exercise atomic Dump/Reset/Restore, independent-driver ownership and cancellation.
+Builtin column inventories and all view-definition consumers include this view.
+See the [producer contract](../../internal/engine/pgcatalog/README.md#schema-inquiry).
+
 
 ### Domain constraints
 
