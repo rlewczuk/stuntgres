@@ -20,6 +20,15 @@ import (
 // A nil h evaluates without statement authority.
 func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h Host) (index.WriteBatch, error) {
 	defer source.Close()
+	state := &exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
+	defer state.ReleaseMemberships()
+	return evaluateInsertQuery(ctx, b, state, schema, h)
+}
+
+// evaluateInsertQuery assembles against the caller's invocation. Foreign INSERT
+// borrows its live command source through checks and RETURNING; the public
+// evaluator above still consumes its source and owns its memberships.
+func evaluateInsertQuery(ctx context.Context, b analyze.Binding, state *exec.State, schema string, h Host) (index.WriteBatch, error) {
 	project, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
 		return index.WriteBatch{}, fmt.Errorf("stuntgres: INSERT query lacks final projection")
@@ -35,13 +44,11 @@ func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 		}
 		unique = len(bound.Keys) != 0 || bound.Checked
 	}
-	state := &exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
-	defer state.ReleaseMemberships()
 	stage, err := exec.OpenQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return index.WriteBatch{}, err
 	}
-	return AssembleInsertRows(ctx, b, &stage, -1, schema, input, output, h, unique, parameters, state)
+	return AssembleInsertRows(ctx, b, &stage, -1, schema, state.Input, state.Output, h, unique, state.Parameters, state)
 }
 
 // AssembleInsertRows produces, validates and admits the destination rows of

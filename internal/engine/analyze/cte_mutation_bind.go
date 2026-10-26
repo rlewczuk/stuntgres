@@ -32,7 +32,7 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 			return b, TableKindError(b.Relation, "insert into")
 		}
 		binder.Target.InsertTarget = b.Relation
-		if binder.Target.RuleNamespace != nil {
+		if binder.Target.RuleNamespace != nil || binder.Consumer.frozenDefinition {
 			// Reserve a mutation lexical frame without exposing INSERT's target.
 			binder.Query.Frame = 1
 			// SELECT frame allocation stays monotonic across stored modifiers.
@@ -204,6 +204,21 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 			if syntax.Source != nil && syntax.Source.Values != nil {
 				syntax.Source.Values = binder.normalizeInListValues(syntax.Source.Values)
 			}
+		}
+	}
+	if binder.cte.scanOrdinal != 0 {
+		// Mutation FROM/USING/source roots are executable without being SELECT
+		// query registrations. Activate only their genuinely reached CTE leaves;
+		// the incumbent walk excludes unused analysis-only definition edges.
+		if b.Query != nil {
+			activateCTESources(b.Query.Root, b.QuerySources)
+		}
+		if b.Update != nil {
+			activateCTESources(b.Update.From, b.QuerySources)
+		}
+		activateCTESources(b.Delete.Using, b.QuerySources)
+		if b.Merge != nil {
+			activateCTESources(b.Merge.Source, b.QuerySources)
 		}
 	}
 	return b, nil

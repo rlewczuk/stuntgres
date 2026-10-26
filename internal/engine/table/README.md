@@ -66,27 +66,45 @@ call live here.
 - **DROP dependency decisions** (`composite_field_dependency.go`,
   `owned_sequences.go`, `drop_removal.go`, the CHECK, DEFAULT, foreign-key and
   identity drop files): passes over `DropDependencyReader`, the drop stage the
-  root `DropProvider` implements. `OrdinaryColumnDrop`, `CheckDependents`,
-  `DefaultDependents`, `ForeignKeyDependents`, `DropIdentity`,
-  `CompositeFieldDependencies` (CHECKs that use a dropped composite field),
-  `RemoveDomainCheck`, `OwnedSequences` and `OwnedExpressionDependencies` (the
-  AUTO sequences of the targets, including removed inheritance owners) keep
-  the reader's call order, so prepared-drop effects and notices keep theirs.
-  `CheckRemovalLocked` admits a whole-object removal under `Engine.Mu`
-  (objects the system requires, then the registered class provider);
-  `ClosureTargetClass` and `RetiredProviderClass` are the class lists of the
-  root's expression-dependency pass; `CascadeColumnDrops` is that pass's
-  column, domain-CHECK and retired-provider steps, with the root projecting
-  each new shape.
+  `core.DropProvider` implements. `OrdinaryColumnDrop` passes its original live
+  stable attribute to `ColumnDependencies` before metadata compaction. That
+  controller shares the complete expression closure, preflight, admissions and
+  retirement executor; local AUTO CHECK/default/index/sequence payload and the
+  root's physical shape remain column-owned. NORMAL same-table dependents and
+  recursive generated columns are not ownership exemptions.
+  `CheckDependents`, `DefaultDependents`, `ForeignKeyDependents`, `DropIdentity`,
+  `PruneCompositeFieldChecks`, `RemoveDomainCheck`, `OwnedSequences` and
+  `OwnedExpressionDependencies` preserve ordered preparation effects. Composite
+  CHECK pruning consumes preflighted identities, retaining inherited origin maps
+  and admitted typed-table ownership; it never discovers a second closure.
+  `CheckRemovalLocked` admits whole-object removal under `Engine.Mu`;
+  `ClosureTargetClass` and `RetiredProviderClass` classify retirement providers.
+  `CascadeColumnDrops` consumes already captured columns, domain CHECKs and
+  providers without re-entering a dependency controller. Each surviving relation
+  cooks all selected stable attributes before remapping surviving CHECK/generation
+  recipes, then receives one physical projection from its captured predecessor.
+  Captured closure identity/revision remains the physical candidate authority;
+  the reread staged maps carry earlier CHECK/default/policy pruning but neither
+  replace the projector's predecessor nor allocate a second revision for those
+  effects. The existing physical +1, descriptor-identity and immutable storage-root
+  guards remain unchanged.
+  `SequenceOwnedBy` is the exact ownership predicate shared by closure discovery
+  and `OwnedSequences`; `RemoveColumnSequences` consumes admitted payload after
+  metadata cooking without discovering another closure. AUTO index descriptors
+  remain readable until UNIQUE/exclusion pruning and the incumbent index evolution.
+  Whole-provider callers retain their genuine separate
+  `OwnedExpressionDependencies` phase and intermediate index-layout lineage;
+  already captured column batches never initiate that phase again.
 - **Prepared DROP log** (`drop_preparation.go`, `drop_preparation_view.go`):
   `DropPreparation` records, in order, the `DropEffect`s of a drop prepared
   before the statement's stage exists (ALTER TABLE DROP COLUMN, DROP IDENTITY
   and constraint-index drops over an inheritance tree), chained to the node's
-  `Prior` preparation. It is the prepared drop's `DefinitionReader`,
-  `PreparedDrop` and `DefinitionDelta`. `Observe` captures an address's
-  original descriptor before any read returns it, and `ValidateObservations`
-  fences those captures and the statement, transaction, domain and epoch
-  against a catalog; additive members are not replacements. `RewindNotices`
+  `Prior` preparation, including routine retirements and surviving-owner pruning.
+  It is the prepared drop's `DefinitionReader`, `PreparedDrop` and
+  `DefinitionDelta`. `Observe` captures an address's original descriptor before
+  any read returns it, and `ValidateObservations` fences those captures and the
+  statement, transaction, domain and epoch against a catalog; additive members
+  are not replacements. `RewindNotices`
   positions index effects, not notices. `DropPreparationView` is the root
   `DropProvider`'s prepared-mode reads (replacement, removal, enumeration,
   index layouts, input descriptors) over a base, a preparation (nil for a bare
@@ -207,8 +225,9 @@ template; lock admission and post-wait checks (`acquireDefinitionProviders`,
 `admitInheritanceAlter`, `acquireRelationTarget` around `AdmitTarget`, ...);
 identity sequence waits; the prepare host and prepared-drop consumers; the
 DROP pipeline (`DropProvider`'s stage mode and lock waits, the prepared-drop
-admission and the `consumePreparedDrop` replay into the stage, and the lock
-waits and projection of `ExpressionDependencies`); Finish;
+admission and the `consumePreparedDrop` replay into the stage, and the unlocked
+controllers `ColumnDependencies`/`ExpressionDependencies` with their waits and
+projection); Finish;
 VACUUM's lock loop, `Engine.Mu` windows, retry, install and progress map;
 the binder bodies; and the Restore hook bodies (authorization, the `Engine.Mu`
 window, trust checks, `PublishRestoreRepairLocked`, `restore_replay.go`). The
@@ -244,8 +263,9 @@ recaptures exact identities after waits before publishing their candidates.
 - Restore replays separate ADD CHECK and DEFAULT statements through normal
   binding, ownership, propagation, row validation and cancellation, never a
   replay marker, and never promotes NOT VALID constraints.
-- The package holds no engine state and no mutex. Functions here never wait;
-  root callers own `Engine.Mu` and lock waits.
+- The package holds no engine state and no mutex. Functions may call the
+  reader's waiting controllers only with no engine/session mutex held; the root
+  owns admissions, mutex windows and publication.
 
 ## Testing
 
@@ -265,7 +285,7 @@ TABLE in [reference/alter](../../../reference/alter/README.md#testing); add
 ```sh
 make check RUN='^Test(TableHost|AlterHost|RelationValidatorsOrder|GeneratedRemapCheckCapture|TableTargetAdmission|AdmitTargetAsksEachEntry)'
 make check RUN='^Test(CheckCreateShape|TypedSources|PlanAlterScan|ValidateAddedConstraintRows|RelationOptions|PrepareInheritanceNode|InheritancePendingGrants|InheritanceDropClosure|DefinitionProviders|Deparse(SerialSequence|MissingObjects)|ValidateSelectedDomainRows|OwnedSequenceName)'
-make check RUN='^Test(DropPreparation|DropReaderSeam|InheritanceAlterAdmission|ReferenceAlterDropColumn)'
+make check RUN='^Test(DropPreparation|DropColumnRoutine|DropReaderSeam|InheritanceAlterAdmission|ReferenceAlterDropColumn)'
 make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|Scan(Restored)?ForeignKeys|RestoredForeignKeyTarget|RestoreInherited|AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit)'
 make check RACE=1 RUN='^Test(NotNull|PhysicalNotNull|Inheritance)'
 make check RUN='^Test(Reference)?Vacuum'

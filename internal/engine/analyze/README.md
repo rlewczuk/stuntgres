@@ -115,6 +115,19 @@ library, and never the root engine or `session`. The engine, the root driver
   regtype captures a prepared statement re-resolves), `RuleBinding`,
   `DefaultOrigin`. `domain_casts.go` swaps a held description's domain cast
   group without mutating a shared map.
+  Contextual INSERT query outputs capture only previously unknown literals after
+  assignment establishes their final Usage, at the original raw target ordinal
+  and actual producer frame. Already typed outputs are not recaptured. Frozen
+  child INSERT definitions share the rule namespace's existing frame reservation;
+  lexical allocation remains monotonic. Mutation frame 1 can own genuine
+  FROM/USING VALUES, function and JOIN-ON occurrences independently of its target
+  row. A modifying CTE scan has no SELECT Query: its actual MutationBinding and
+  RETURNING schema supply the definition output, including declared aliases.
+  Common mutation finalization activates genuine CTE source demand from its
+  actual query, UPDATE FROM, DELETE USING and MERGE source roots through the
+  incumbent executable-query walk. These roots need not be registered SELECT
+  queries. Main and child mutations share this rule; unused named SELECT CTEs
+  retain analysis-only leaves and do not acquire runtime source demand.
 - **`Authority`** (`authority.go`): the catalog and search-path authority a
   binding runs under; the binder reads only its catalog and hands it back to
   the host.

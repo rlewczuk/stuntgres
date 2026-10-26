@@ -36,15 +36,16 @@ type ForeignCommand struct {
 // root has captured the foreign target and the query sources, released
 // Engine.mu and the replacement read: it plans the modification, enters it,
 // then inserts the evaluated rows or updates and deletes the rows the
-// identity scan returns. The caller closes Inputs.
+// identity scan returns. It owns Inputs, including any frozen-layout wrapper.
 func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	b, op, inputs, parameters := in.Binding, in.Op, in.Inputs, in.Parameters
+	defer func() { inputs.Close() }()
 	m, err := fdw.PlanModification(h.Context(), in.Foreign, op, false)
 	if err != nil {
 		return Outcome{}, err
 	}
 	input, output := h.Environments()
-	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Ctes: h.CTEInvocation()}
+	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Ctes: h.CTEInvocation(), Locking: inputs.Locks != nil}
 	defer state.ReleaseMemberships()
 	defer outcome.finishSources(state, &err)
 	m.Request.Parameters, err = exec.ForeignParameters(h.Context(), state, in.Foreign)
@@ -57,6 +58,8 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	if err = exec.SelectQuerySources(h.Context(), inputs); err != nil {
 		return Outcome{}, err
 	}
+	inputs = view.FreezeWriteSources(inputs, b.QuerySources, h.QueryAuthority(), h)
+	state.Source = inputs
 	evaluation := in.Evaluation
 	evaluation.Query = state
 	evaluation.Scope, evaluation.Frame = 1, 1
@@ -82,8 +85,10 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 		var rows [][]sqltype.Value
 		if b.CommandQuery {
 			b.Query = &plan.Query{Root: in.QueryRoot}
-			input, output := h.Environments()
-			batch, err := EvaluateInsertQuery(h.Context(), b, inputs, parameters, in.Catalog.Get(b.Relation.Namespace()).Name(), input, output, h)
+			borrowed := *state
+			borrowed.SourceMode = exec.SourceBorrowed
+			defer borrowed.ReleaseMemberships()
+			batch, err := evaluateInsertQuery(h.Context(), b, &borrowed, in.Catalog.Get(b.Relation.Namespace()).Name(), h)
 			if err != nil {
 				return Outcome{}, err
 			}
@@ -244,7 +249,7 @@ func foreignTargetRows(ctx context.Context, h Host, m *fdw.Modification) ([]Fore
 			}
 		}
 		input, output := h.Environments()
-		values, err := f.ImportValues(ctx, row, execution.Slots, input, output, nil)
+		values, err := f.ImportValues(ctx, row, execution.Slots, input, output, nil, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -70,6 +70,24 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `make check RUN='^TestReferenceRoutineCore(Diagnostics|StrictDeclarations)$'`
   and the same command with `REFERENCE=1`.
 - <a id="ordered-sql-routine-bodies"></a>Ordered and SQL-standard routine bodies, procedures: `RUN='^TestReferenceRoutineSQLBodies'`
+  `TestReferenceRoutineSQLBodiesMergeSourceCompaction` keeps its MERGE target
+  unchanged while dropping an unused leading source column. Direct and genuinely
+  held invocations must update target `(1,0)` to `(1,7)`, retaining the exact source
+  id2/v3 dependency bag and used-column RESTRICT enforcement. Savepoint/outer
+  rollback and committed compaction share those assertions. The incumbent
+  `sqlBodiesReplayTwice` snapshots the original three-column baseline, performs
+  two native replacements and replays each unchanged SQL stream on PostgreSQL;
+  fresh handles compact the source anew in every phase.
+  Run `make check RUN='^TestReferenceRoutineSQLBodiesMergeSourceCompaction$'`
+  and the same selector with `REFERENCE=1` before review.
+  `TestReferenceRoutineSQLBodiesCTESourceCompaction` covers the separate
+  SELECT-CTE command owner, mixed modifying SELECT and actual nested UPDATE-FROM
+  and INSERT-SELECT bindings. Its six cases include `main_update_values` and
+  `child_update_values`, genuine UPDATE FROM sources, each reseeding before direct/preheld
+  calls that return and store 7. Exact attribute-2 dependencies, used-column
+  RESTRICT, savepoint/outer rollback, committed compaction and two replacement
+  rounds retain those assertions. The same replay helper emits the unchanged
+  native SQL stream for PostgreSQL; select the exact name in both modes.
 - DROP FUNCTION/PROCEDURE: `RUN='^TestReferenceRoutineDrop'`
 - Transactional routine/operator/aggregate matrix: `RUN='^TestReferenceTransactionalRoutine'`.
   The shared direct/held × autocommit/SQL/Go route helper retains actual handles;

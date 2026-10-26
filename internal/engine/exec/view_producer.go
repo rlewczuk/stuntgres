@@ -45,8 +45,14 @@ func QueryTreeOccurrences(node plan.Node, inputs *Source, dst []int) []int {
 }
 
 func OpenSourceStage(ctx context.Context, state *State, source *Source, schema []catalog.Column) (Stage, error) {
+	return openSourceStage(ctx, state, source, schema, nil)
+}
+
+// The actual source node owns foreign occurrence/async identity even when a
+// frozen layout wraps its physical source. Keep that identity through Input.
+func openSourceStage(ctx context.Context, state *State, source *Source, schema []catalog.Column, node *plan.SourceNode) (Stage, error) {
 	if source.Input != nil {
-		child, err := OpenSourceStage(ctx, state, source.Input, schema)
+		child, err := openSourceStage(ctx, state, source.Input, schema, node)
 		if err != nil {
 			return Stage{}, err
 		}
@@ -61,6 +67,12 @@ func OpenSourceStage(ctx context.Context, state *State, source *Source, schema [
 			return true, ctx.Err()
 		}
 		return out, nil
+	}
+	if source.Foreign != nil {
+		if node == nil {
+			return Stage{}, fmt.Errorf("stuntgres: foreign source requires its query occurrence")
+		}
+		return OpenForeignStage(ctx, state, source, node)
 	}
 	if source.NestedRoot == nil {
 		child := Stage{Source: source, Columns: schema}

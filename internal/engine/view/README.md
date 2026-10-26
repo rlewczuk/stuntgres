@@ -84,6 +84,27 @@ imports `view`.
   frozen-occurrence graft: it translates frozen read attributes to live uses once
   per occurrence, keeps required view keys demanded after renames, and still
   prunes unrequested projections.
+  Frozen standard-routine actions use the same source-layout bridge as rules
+  and view writes, including MERGE source openings with unchanged targets.
+  Raw prefixes are selected before wrapping; executors close the returned bundle
+  head, not only its pre-bridge input, after ordinary source finalization.
+  Source openings consult each leaf's retained attributes, not rule-template
+  status; nil/identical layouts allocate neither a bridge nor scratch.
+  Routine creation also captures the actual modifying-CTE child bindings through
+  the existing memoized immutable rule-tree mapper. Child executable source lists,
+  declarations and scans stay connected without mutating a published graph.
+  Routine presentations project all ten occurrence maps by checked original raw
+  expression roots, using the stored validator's source enumeration. The
+  synthetic target row is lexical authority, not a raw source owner; genuine
+  frame-1 FROM/USING VALUES, function and JOIN-ON captures remain eligible.
+  Shared SELECT-CTE owners need not be disjoint, and every original capture key
+  must have an owner. Recursive path/count validation remains strict. Original
+  captures, namespaces, dependencies and read/target authority stay intact.
+  `VisitRuleModifiers` shares actual definition enumeration between freezing and
+  validation; each routine presentation retains its exact `ActionSyntax`.
+  Their original global source ordinals remain unchanged. Main and associated
+  child roots jointly cover the full action source manifest; a child-only source
+  is validated through its actual modifier graph, not a fabricated SELECT edge.
 - **Column metadata** (`column_updatability.go`): `ColumnUpdatable` computes
   structural UPDATE plus DELETE capability from the supplied immutable catalog.
   It unions unconditional INSTEAD rules with automatic capability, maps direct
@@ -123,18 +144,31 @@ imports `view`.
   dependency closure (edges are `table.DomainDependency`); `DependentViews`,
   `KeepRules`, `KeepPolicies` and the `Drop*Dependents` helpers find dependents.
   Ordinary routine edges come from the shared catalog definition visitor, not
-  the complete runtime capture manifest. Procedure-only root sets use descending
-  discovery/reverse postorder so shared and mixed edges retain the actual
-  diagnostic parent while each dependent is retired/noticed only once.
-  Mixed containing-owner/member root sets retain their owner's traversal;
-  contained procedures never change an extension/schema retirement's ordering.
+  the complete runtime capture manifest. Exact positive relation-attribute roots,
+  procedure-only roots and domains use descending discovery/reverse postorder:
+  shared descendants retain their actual diagnostic parent and retire once.
+  Column roots never widen to the containing relation or row type. Mixed
+  containing-owner/member roots retain their owner's traversal; contained
+  procedures never change extension/schema retirement ordering.
   `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view. For the
   root's expression-dependency pass, `DropRoots` adds the relations the drop
   already removed, `PlanDrop` classifies the closure into targets, surviving
   relations and inheritance owners (`DropPlan.LockRelations` are the ones a
-  statement locks) and `IdentityObservationTargets` picks the provider
-  identities the drop fences. They read only `RetirementDescriptor` and change
-  nothing; the root keeps the lock waits and effects in today's order.
+  statement locks). `ColumnDropEffects` defers local AUTO payload for the original
+  column and every captured surviving column; full edges and targets remain
+  diagnostic, observation and admission authority. Indexes stay readable through
+  metadata pruning. Owned-sequence adjacency uses the exact `table.SequenceOwnedBy`
+  predicate when the current target or original traversal root is a positive
+  relation attribute. Column effects preflight sequence descendants in the same
+  closure; whole-provider/whole-target pairs retain the incumbent later owned
+  phase. Captured trigger payload identities remain execution targets even for
+  automatic-only retirement; their owners are not extra physical drop targets.
+  Mixed siblings sort by genuine dependent identity; declaration ordering permutes
+  only same-owner CHECK slots on their actual immediate target. Reverse-postorder
+  families use inverse CHECK visitation without moving unrelated mixed siblings
+  or changing reached parents.
+  `IdentityObservationTargets` selects provider fences. These functions do not
+  wait or publish; both provider adapters share the same effect-only executor.
 - **Materialized views** (`materialized_*.go`): refresh scope and stage records,
   concurrent-refresh row matching and index eligibility, the replacement cores
   and the snapshot codec (`EmitMaterializedSnapshot`,

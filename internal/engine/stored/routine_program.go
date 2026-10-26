@@ -121,16 +121,8 @@ func (p *RoutineProgram) ValidateAction(view catalog.Read, i int) error {
 	if err := validateRoutineActionScalars(action, view); err != nil {
 		return err
 	}
-	if err := validateRoutinePresentation(view, action.presentation); err != nil {
+	if err := validateRoutineModifiers(action, view); err != nil {
 		return err
-	}
-	for _, presentation := range action.modifierPresentations {
-		if presentation == nil {
-			return fmt.Errorf("stuntgres: incomplete routine modifier capture")
-		}
-		if err := validateRoutinePresentation(view, presentation); err != nil {
-			return err
-		}
 	}
 	return validateRoutineCapture(action, p.actionDependencies[i], view)
 }
@@ -182,6 +174,9 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 			return nil, err
 		}
 		if err := validateRoutineActionScalars(*a, catalog.Read{}); err != nil {
+			return nil, err
+		}
+		if err := validateRoutineModifiers(*a, catalog.Read{}); err != nil {
 			return nil, err
 		}
 		a.binding, err = remapRuleBinding(view, a.binding, ref, typ, collation, len(a.presentation.routineInputs), addressMapper, procedure)

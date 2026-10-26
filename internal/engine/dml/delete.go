@@ -52,9 +52,7 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 		if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 			return Outcome{}, err
 		}
-		if b.ViewWrite != nil || b.Rule.Template {
-			inputs = view.FreezeWriteSources(inputs, b.QuerySources, h.QueryAuthority(), h)
-		}
+		inputs = view.FreezeWriteSources(inputs, b.QuerySources, h.QueryAuthority(), h)
 		defer inputs.Close()
 		state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Locking: inputs.Locks != nil}
 		defer state.ReleaseMemberships()

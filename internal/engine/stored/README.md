@@ -65,6 +65,39 @@ host methods.
   maps and slices instead of copying them: callers never write through an
   accessor.
 - **Routine recipes.** `RoutineProgram` owns checked SQL-standard actions.
+  Routine action leaves retain their creation-time `FrozenAttributes`, just as
+  rule leaves do. Invocation refreshes live read/admission slots, while the
+  existing source-layout bridge presents rows in the retained recipe layout.
+  Every supported action source opening, including MERGE with an unchanged
+  target, consumes this provenance after raw-source selection. Its executor owns
+  the returned bridge/bundle through normal finalization and close; no activation
+  state enters the stored program. Unused or CASCADE-retired source columns cannot
+  shift a surviving body's reads. No rendering, reparsing or name rebind is involved.
+  Actual modifying-CTE child bindings retain the same source provenance, using
+  the existing immutable recipe/definition mapper rather than substituting an
+  outer source list at invocation. Independent SELECT-CTE owner states and
+  foreign target/input openings consume that provenance through their real
+  source lifetimes, not a routine-specific scan or alternate evaluator.
+  Per-presentation occurrence maps retain genuine raw source owners, including
+  mutation frame-1 VALUES/function/JOIN-ON syntax. `LiteralRoots` shares the
+  checked raw/source enumeration with strict recursive validation; missing,
+  extra and malformed paths/counts remain errors. Every full original capture
+  key has an owner, and shared CTE occurrences may belong to several parts.
+  Original Capture, namespaces, dependencies and read/target authority remain
+  complete. A Query-less DerivedNode is valid only for an actual nonrecursive
+  MutationBinding with supported statement and coherent RETURNING, definition
+  and scan widths/Usages. Ordinary derived queries retain their QueryRoot checks.
+  Shared `VisitRuleModifiers` enumeration requires a complete statement-to-
+  presentation association; immutable `ActionSyntax` rejects swapped or orphan
+  modifier presentations and survives With/remap. No synthetic executable Query
+  or snapshot-format change supplies this association.
+  The main and exactly associated modifier presentations jointly cover the full
+  action source manifest, including sources reachable only from a child. The
+  incumbent leaf traversal validates each node against its own ordinal leaf and
+  the original outer binding authority; child prefix manifests keep global
+  ordinals. Coverage finalizes once after all roots, while frame/rowmark and
+  duplicate-node checks remain local to each presentation. Ordinary
+  `ValidateViewLeaves` still requires complete per-view source coverage.
   `RoutineDefaults` owns an immutable input-indexed declaration-default recipe
   and its source-domain/epoch manifest, never evaluated values. Default
   dependencies are hard even for quoted bodies. Named composite fields retain

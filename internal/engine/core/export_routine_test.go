@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -99,4 +100,9 @@ type RoutineDemandFields struct {
 // NewRoutineDemand builds a sqlRoutineDemand from f.
 func NewRoutineDemand(f RoutineDemandFields) sqlRoutineDemand {
 	return sqlRoutineDemand{lexical: f.Lexical, result: f.Result}
+}
+
+// ScopeAdmitSQLRoutineCommand calls the real bound-command admission owner.
+func ScopeAdmitSQLRoutineCommand(s *StatementScope, d *catalog.Procedure, program *stored.RoutineProgram, index int) error {
+	return s.admitSQLRoutineCommand(d, program, index)
 }

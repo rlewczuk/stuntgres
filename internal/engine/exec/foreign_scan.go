@@ -298,6 +298,10 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 		started = true
 		return nil
 	}
+	var occurrence *Source
+	if node != nil && state.Source != nil {
+		occurrence = QuerySourceAt(state.Source, node.Occurrence)
+	}
 	importRow := func(ctx context.Context, row catalog.ForeignRow) ([]sqltype.Value, error) {
 		if len(row) != len(execution.Plan.Attributes) {
 			return nil, fmt.Errorf("stuntgres: foreign scan row width does not match its plan")
@@ -306,7 +310,7 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 		if host := source.LiveHost(); host != nil {
 			input, output = host.Environments()
 		}
-		return f.ImportValues(ctx, row, execution.Slots, input, output, node)
+		return f.ImportValues(ctx, row, execution.Slots, input, output, node, occurrence)
 	}
 	if execution.async.capable {
 		execution.async.start = start
@@ -416,14 +420,17 @@ func FinishForeignSources(ctx context.Context, source *Source) error {
 	return failure
 }
 
-func (f *ForeignQuerySource) columnDiagnostic(err error, node *plan.SourceNode, slot int) error {
+func (f *ForeignQuerySource) columnDiagnostic(err error, node *plan.SourceNode, source *Source, slot int) error {
 	var record *sqlstate.Error
 	if !errors.As(err, &record) {
 		return err
 	}
 	column := f.Columns[slot].Name
-	if slot < len(node.ColumnAliases) {
-		column = node.ColumnAliases[slot]
+	// Layout is the incumbent stable-attribute bridge: retained slot -> live
+	// physical slot. Diagnostics use the retained alias, not the import slot.
+	aliasSlot := foreignAliasSlot(source, slot)
+	if aliasSlot >= 0 && aliasSlot < len(node.ColumnAliases) {
+		column = node.ColumnAliases[aliasSlot]
 	}
 	relation := node.RangeName
 	if relation == "" {
@@ -436,6 +443,22 @@ func (f *ForeignQuerySource) columnDiagnostic(err error, node *plan.SourceNode, 
 	}
 	result.Context += line
 	return &result
+}
+
+func foreignAliasSlot(source *Source, slot int) int {
+	if source == nil || source.Input == nil {
+		return slot
+	}
+	input := foreignAliasSlot(source.Input, slot)
+	if input < 0 {
+		return -1
+	}
+	for retained, live := range source.Layout {
+		if live == input {
+			return retained
+		}
+	}
+	return -1
 }
 
 // One statement or logical SQL cursor owns each captured foreign source. A

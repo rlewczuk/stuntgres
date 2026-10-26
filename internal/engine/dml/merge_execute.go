@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -30,7 +31,8 @@ type MergeInput struct {
 func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 	ctx, b, target, inputs := in.Context, in.Binding, in.Target, in.Inputs
 	defer target.Close()
-	defer inputs.Close()
+	// Freezing can replace the bundle head; cleanup follows its current owner.
+	defer func() { inputs.Close() }()
 	unique, err := BindUniqueWrite(h, b.Ref)
 	if err != nil {
 		return Outcome{}, err
@@ -38,6 +40,7 @@ func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 	if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 		return Outcome{}, err
 	}
+	inputs = view.FreezeWriteSources(inputs, b.QuerySources, h.QueryAuthority(), h)
 	input, output := h.Environments()
 	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: in.Parameters, Input: input, Output: output, Locking: inputs.Locks != nil, IdentityReads: MergeHasIdentityReads(b.Merge)}
 	if b.Returning != nil {

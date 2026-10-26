@@ -336,7 +336,15 @@ func (p *DropProvider) ProjectColumn(old, next *catalog.Relation) error {
 	}
 	replacement := &storage.Relation{Versions: projected, Ends: ends, Generation: nextGeneration}
 	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
-	return stage.AlterRelation(ctx, ref, next, stored, replacement, len(rows), generation, ends)
+	if err := stage.AlterRelation(ctx, ref, next, stored, replacement, len(rows), generation, ends); err != nil {
+		return err
+	}
+	// The batch retained AUTO index descriptors until metadata cooking.
+	// Bare stages need the same post-cook index owner as preparation and SQL.
+	e.Mu.Lock()
+	err = e.EvolveStageIndexesLocked(stage, old.Address(), nil)
+	e.Mu.Unlock()
+	return err
 }
 
 func (p *DropProvider) lockInheritanceClosure(roots []ids.ObjectAddress) error {

@@ -91,6 +91,43 @@ configuration-file effects. Existing standard-string parsing and identifier
 quoting consumers remain active; settings retain transactional and physical
 session lifecycle semantics.
 
+ALTER TABLE DROP COLUMN now enforces stored SQL routine body and default
+dependencies through the shared recursive DROP closure. RESTRICT preserves the
+column and all dependents; CASCADE retires only the reached routines and their
+dependents, with per-column notices and ordinary transaction/savepoint rollback.
+Composite fields, inherited columns and native Dump/Restore use the same stable
+attribute dependencies without changing the snapshot format.
+Surviving standard-routine actions, including MERGE, foreign-target writes and
+modifying CTEs, use the same frozen source-layout bridge, so removing an unused
+source column does not shift matching or assigned values. Actual child bindings
+retain immutable source provenance; independent SELECT-CTE owners select and
+bridge their own inputs before effects. Foreign inputs retain genuine scan
+opening below the layout bridge, and normal returned-source cleanup remains
+authoritative through checks and RETURNING.
+Main and modifying-CTE presentations jointly retain their complete source
+manifest, including sources reached only by a child command.
+Frozen modifying-CTE targets receive their own real admission grants and command
+contexts without resolving their retained names again.
+Actual mutation FROM/USING/MERGE CTE sources retain executable source demand,
+while genuinely unused SELECT CTEs remain unopened.
+Foreign routine targets retain their real lock admission without entering local
+heap capture; their local query sources retain ordinary data-view ownership.
+Genuine FROM/USING literals and modifying-CTE RETURNING scans retain their own
+checked presentations through source compaction. Foreign conversion errors in
+surviving routines preserve the original column alias and SQL-function context.
+Captured generated-column effects now cook and project each surviving owner once,
+without recursively rediscovering retired providers. Earlier staged CHECK pruning
+retains its metadata effects without changing the captured physical predecessor
+or double-incrementing its guarded revision. Column-owned sequence descendants
+participate in the same complete preflight; whole-provider drops retain their
+separate owned-sequence phase and intermediate index layouts. Local index/sequence
+payload retirement follows metadata pruning. Attached trigger payload identities
+remain retirement targets even for automatic-only extension dependencies.
+Mixed DEFAULT/CHECK diagnostics use real dependent
+identities while preserving CHECK declaration order. Low-level staged column
+effects do not invent SQL lock admission; admitted SQL keeps its full grants and
+publication fences.
+
 Client connection defaults now cover the complete 46-setting family through
 the existing typed registry, with released metadata, boot/startup distinctions,
 catalog-aware AM/tablespace validation, parameter SET authority, independent

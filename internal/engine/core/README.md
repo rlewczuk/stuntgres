@@ -133,6 +133,23 @@ an activation-local capture mode. Writable CTE auxiliaries complete without a
 row cap before the primary SELECT opens its lazy producer; its CTE resources
 remain owned by that producer until close. Ordinary SQL and query-loop demand
 keep their separate completion policies.
+The command-level SELECT-CTE invocation owns its own captured sources, separate
+from each modifier's input. Raw selection and frozen-layout bridging run outside
+`Engine.Mu`, before any auxiliary effects, followed by grant/context revalidation.
+Every installed CTE state and any `CTEOwnedRows` transfer retains that returned
+head. Modifier-only programs keep their source-free authority-header fast path.
+Frozen routine admission sends the main command and its actual immutable modifier
+bindings through the existing bound-command grant/readmission owner. Only after
+real target/source grants does it install exact statement-keyed mutation contexts.
+Main SELECT keeps an empty target; main DML and each child keep their own physical
+reference, descriptor, storage and view-write state. Bound view/hierarchy targets
+use incumbent admission outside `Engine.Mu`, followed by all-context identity and
+authorization revalidation before effects. Lexical names never reacquire or
+retarget a frozen child, and ordinary command scratch restores the caller.
+Target lock requests are separate from returned local data-view roots. Foreign
+targets retain real RX grants and current ACL/identity checks, while only
+`RelationKind.Stored()` targets enter heap capture, matching source collection.
+Their local query inputs still acquire and capture their actual stored roots.
 DML installs a command-private capture counter: the second successful RETURNING
 projection signals cardinality immediately, before a third candidate. Projection
 errors precede that signal; existing checkpoints discard the staged prefix.
@@ -256,6 +273,38 @@ AccessShare contribution, readmits the same descriptor/storage after waiting,
 and scans immutable unfiltered captures outside metadata locks. Sequence
 targets use sequence state. A final incarnation fence precedes returning the
 owned records; no user constraints, codecs or physical block mapping run.
+
+`DropProvider.ColumnDependencies` and `ExpressionDependencies` share one canonical
+closure discovery, full RESTRICT preflight, retirement admissions and
+stage/preparation effects. Both are unlocked controllers: only their leaf mutation
+methods take `Engine.Mu`. Column-root/positive-attribute traversal includes owned
+sequence AUTO adjacency and its NORMAL descendants before effects. Whole-provider
+roots retain their distinct later owned-expression phase, including genuinely
+reached hierarchy owners; their intermediate index layouts remain immutable.
+Full captured targets retain admission and observation authority even when local
+payload execution is deferred. Captured trigger payload identities join those
+targets before effect classification, including automatic-only retirement.
+`table.CascadeColumnDrops` consumes captured stable attributes in one metadata
+cook and projection per surviving owner; it never re-enters a dependency controller.
+The batch cooks the authoritative current staged descriptor, preserving earlier
+CHECK/default/policy pruning, but projects from the captured physical predecessor
+and allocates its candidate revision from that captured closure descriptor. It
+neither increments already revised metadata again nor relaxes
+`CatalogStage.AlterRelation`'s +1/identity/storage-root guards.
+The original column's shape remains `table.OrdinaryColumnDrop`'s responsibility.
+Indexes remain readable through UNIQUE/exclusion pruning, and owned sequences
+retire after their column's metadata is cooked, without rediscovery. Scope-free
+commit uses its supplied physical projector, not an invented SQL scope.
+A successful column closure reports its existing `view.EmitCascade` group once
+after admissions/effects, before the next action. Preparation captures and replays
+these operation notices once; later action failure does not erase an already
+reported group. Only real lock tickets enter closure grant acquisition, including
+definition retirement, surviving relations and owned sequences. A low-level
+operation scope is not an admitted transaction: its private effects/observations
+and ordinary final identity/dependency publication fences remain intact.
+The locked ALTER owner captures `ReferencePath` for column diagnostics and
+passes it through the ordinary stage/preparation adapters. Moved objects use
+the shared visibility-sensitive dependency labels, never a bare-name fallback.
 
 ## Lock order
 

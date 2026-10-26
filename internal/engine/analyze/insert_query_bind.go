@@ -82,6 +82,22 @@ func bindInsertSource(out *Binding, binder *Binder, auth Authority, s *parser.In
 			return err
 		}
 		project.Expressions[i] = assigned
+		// Contextual SELECT outputs were untyped when the query captured its
+		// syntax. Assignment now owns their final literal usage, just as set
+		// operand finalization does. Match the original target, not an expanded
+		// output slot, and retain the producer's actual lexical frame.
+		if unknown, ok := expr.(plan.UnknownOutput); ok && (binder.Params.NoParameters || binder.Consumer.frozenDefinition) && project.Syntax != nil {
+			for target, raw := range project.Syntax.Targets {
+				if raw == unknown.Raw {
+					path := ViewLiteralPath{Query: project.Frame, Clause: ViewTargetLiteral, Target: target}
+					ordinal := 0
+					if err := binder.CaptureViewLiteralTree(raw, assigned, path, &ordinal); err != nil {
+						return err
+					}
+					break
+				}
+			}
+		}
 		if usage := assigned.ResultUsage(); usage != project.QuerySchema[i].Usage {
 			// The output schema may share backing with source nodes. Assignment
 			// owns only the final projection, never source validation or set keys.

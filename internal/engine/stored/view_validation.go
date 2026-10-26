@@ -2,6 +2,7 @@ package stored
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -86,6 +87,33 @@ func (definition *View) Validate(v catalog.Read, d *catalog.Relation) error {
 }
 
 func ValidateViewLeaves(catalog catalog.Read, definition *View) error {
+	return validateViewLeaves(catalog, definition, nil, nil)
+}
+
+// A routine action's associated presentations share one original source
+// manifest. Coverage is local to this validation, never retained by a recipe.
+type viewSourceCoverage struct {
+	leaves []ViewLeaf
+	seen   []bool
+}
+
+func sameViewLeaf(a, b ViewLeaf) bool {
+	return a.Ref == b.Ref && a.Only == b.Only && a.AnalysisOnly == b.AnalysisOnly &&
+		a.TableOIDRead == b.TableOIDRead && a.Mark == b.Mark &&
+		slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Reads, b.Reads)
+}
+
+func validateViewLeaves(catalog catalog.Read, definition *View, modifier func(*plan.CTEDefinition) error, coverage *viewSourceCoverage) error {
+	if coverage != nil {
+		if len(definition.sources) > len(coverage.leaves) {
+			return fmt.Errorf("stuntgres: extra routine source manifest")
+		}
+		for occurrence, leaf := range definition.sources {
+			if !sameViewLeaf(leaf, coverage.leaves[occurrence]) {
+				return fmt.Errorf("stuntgres: inconsistent routine source manifest")
+			}
+		}
+	}
 	seen := make([]*plan.SourceNode, len(definition.sources))
 	projects := make(map[uint32]*plan.ProjectNode, len(definition.frames))
 	marked := make(map[uint32]bool)
@@ -300,8 +328,25 @@ func ValidateViewLeaves(catalog catalog.Read, definition *View) error {
 			}
 			marked[frame] = true
 		case *plan.DerivedNode:
-			if n.Query == nil || n.Query.Root == nil || len(n.Schema()) != len(n.Query.Root.Schema()) {
-				return fmt.Errorf("stuntgres: invalid stored derived frame")
+			if n.Query != nil {
+				if n.Query.Root == nil || n.CTE != nil && n.CTE.Mutation != nil || len(n.Schema()) != len(n.Query.Root.Schema()) {
+					return fmt.Errorf("stuntgres: invalid stored derived frame")
+				}
+			} else {
+				mutation, err := checkedMutationDefinition(n.CTE)
+				if err != nil || mutation.Returning == nil || n.Table == nil || n.Ordinal >= 0 || n.ScanFrame == 0 || len(n.Schema()) != len(n.CTE.OutputSchema()) {
+					return fmt.Errorf("stuntgres: invalid stored mutation scan")
+				}
+				for i, column := range n.Schema() {
+					if column.Usage != n.CTE.OutputSchema()[i].Usage {
+						return fmt.Errorf("stuntgres: invalid stored mutation scan usage")
+					}
+				}
+				if modifier != nil {
+					if err := modifier(n.CTE); err != nil {
+						return err
+					}
+				}
 			}
 		case *plan.WorktableScanNode:
 			if n.Query != nil || n.CTE == nil || !n.CTE.Recursive || len(n.Schema()) != len(n.CTE.OutputSchema()) {
@@ -404,9 +449,13 @@ func ValidateViewLeaves(catalog catalog.Read, definition *View) error {
 	if err := visit(definition.query.Root, 0); err != nil {
 		return err
 	}
-	for _, source := range seen {
+	for occurrence, source := range seen {
 		if source == nil {
-			return fmt.Errorf("stuntgres: invalid view source manifest")
+			if coverage == nil {
+				return fmt.Errorf("stuntgres: invalid view source manifest")
+			}
+		} else if coverage != nil {
+			coverage.seen[occurrence] = true
 		}
 	}
 	if len(projects) != len(definition.frames) {

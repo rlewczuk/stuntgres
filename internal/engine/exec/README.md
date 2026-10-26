@@ -49,6 +49,15 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   retained stage and lazy flat prefix; later readers replay the prefix, then
   resume the one producer frontier. Failures stay terminal; `Source.Close`
   disposes the producer once, and reopening a reader never recaptures it.
+  Frozen Input layout wrappers preserve the original actual `SourceNode` through
+  recursive opening. A foreign input therefore still opens its genuine scan,
+  with the same occurrence/async key and import diagnostics, below the layout
+  projection. The schema-only `OpenSourceStage` entry serves manually owned
+  nested-view/layout stages; physical query nodes enter through `OpenNode`.
+  Foreign conversion diagnostics invert the occurrence's existing stable-
+  attribute-derived Input Layout to select its original column alias. Physical
+  import slots and remote widths remain unchanged; the same actual SourceNode,
+  async key and ordinary codec/cleanup path are preserved.
 - **Row locks** (`query_locks.go`, `query_pending_locks.go`, `query_lock_*.go`):
   view-row arbitration, recheck of locked rows, pending marks and locked-order
   refresh.

@@ -65,6 +65,21 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Foreign keys (also selects alter/dml callers): `RUN='^TestReferenceForeignKey'`
 - Referential actions: `RUN='^TestReferenceForeignActions'`
 - Foreign tables: `RUN='^TestReferenceFDW'`
+  `TestReferenceFDWRoutineSourceCompaction` exercises six real foreign-target
+  INSERT/UPDATE/DELETE source forms with direct/held routine calls, exact rows,
+  dependency bags, RESTRICT, remote/local rollback and native controls.
+  `TestReferenceFDWRoutineInputCompaction` drops only local FOREIGN TABLE metadata
+  over unchanged real remote rows, preserving literal 7 through the frozen input
+  bridge, genuine scan lifecycle and later progress. Both use real native SQL
+  handlers and PostgreSQL `postgres_fdw`; select each exact name in native and
+  `REFERENCE=1` modes. Registered-handler controls remain native-only, never
+  translated into synthetic PostgreSQL replay.
+  `TestReferenceFDWConversion` retains ordinary conversion cases and composes a
+  frozen routine's original aliases with local-only foreign-column compaction.
+  Direct/preheld calls retain 7; invalid remote text has two-line Context
+  `column "picked" of foreign table "f"` followed by
+  `SQL function "fdw_alias_conversion_run" statement 1`. Restore/progress checks
+  retain the unchanged three-column remote row and balanced actual scan ownership.
 - Async foreign scans: `RUN='^TestReferenceFDWAsync'`
 - `pg_user_mapping`: `RUN='^TestReferencePGUserMapping'`
 

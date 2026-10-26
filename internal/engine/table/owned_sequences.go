@@ -6,6 +6,16 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// SequenceOwnedBy is the canonical AUTO ownership match for both closure
+// discovery and sequence retirement. SubIDs are stable attributes, not slots.
+func SequenceOwnedBy(relation *catalog.Relation, target ids.ObjectAddress) bool {
+	if relation.RelationKind != catalog.SequenceRelation || relation.Sequence.Owned == (ids.ObjectAddress{}) {
+		return false
+	}
+	owned := relation.Sequence.Owned
+	return owned.ClassID == target.ClassID && owned.ObjectID == target.ObjectID && (target.SubID == 0 || owned.SubID == target.SubID)
+}
+
 // OwnedSequences calls prepare, then removes, each sequence that a target of
 // the drop owns and the drop has not already removed.
 func OwnedSequences(provider DropDependencyReader, targets []ids.ObjectAddress, prepare func(ids.ObjectRef) error) error {
@@ -17,13 +27,12 @@ func OwnedSequences(provider DropDependencyReader, targets []ids.ObjectAddress, 
 			d = replacement
 		}
 		r, ok := d.(*catalog.Relation)
-		if !ok || r.RelationKind != catalog.SequenceRelation || r.Sequence.Owned == (ids.ObjectAddress{}) {
+		if !ok {
 			continue
 		}
-		owned := r.Sequence.Owned
 		remove := false
 		for _, target := range targets {
-			if owned.ClassID == target.ClassID && owned.ObjectID == target.ObjectID && (target.SubID == 0 || owned.SubID == target.SubID) {
+			if SequenceOwnedBy(r, target) {
 				remove = true
 				break
 			}
@@ -38,8 +47,18 @@ func OwnedSequences(provider DropDependencyReader, targets []ids.ObjectAddress, 
 		if err := provider.Remove(ref); err != nil {
 			return err
 		}
+		if r.Sequence.Identity {
+			provider.TombstoneIdentity(a)
+		}
 	}
 	return nil
+}
+
+// RemoveColumnSequences consumes already-preflighted and admitted column
+// ownership effects. It deliberately does not rediscover dependencies or grant
+// resources after column effects have begun.
+func RemoveColumnSequences(provider DropDependencyReader, targets []ids.ObjectAddress) error {
+	return OwnedSequences(provider, targets, func(ids.ObjectRef) error { return nil })
 }
 
 // OwnedExpressionDependencies removes the sequences that targets own, after

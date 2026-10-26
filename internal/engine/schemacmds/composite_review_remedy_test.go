@@ -100,12 +100,14 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	original := domainUnitType(t, before, "checked_pair")
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	err := table.CompositeFieldDependencies(core.StageDropProvider(nil, stage, nil, nil, nil), source, source.Attributes[0], parser.DropRestrict)
+	target := source.Address()
+	target.SubID = source.Attributes[0]
+	err := core.StageDropProvider(nil, stage, nil, nil, nil).ColumnDependencies(target, parser.DropRestrict)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop column id of composite type pair because other objects depend on it")
 	if stage.DescriptorCount() != 0 {
 		t.Fatal("RESTRICT staged removal")
 	}
-	if err := table.CompositeFieldDependencies(core.StageDropProvider(nil, stage, nil, nil, nil), source, source.Attributes[0], parser.DropCascade); err != nil {
+	if err := core.StageDropProvider(nil, stage, nil, nil, nil).ColumnDependencies(target, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	next := stage.Get(original.Address()).(*catalog.Type)
@@ -149,7 +151,9 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	typecmds.TypedStage(stage).Source = tbl.OfType
 	typecmds.TypedStage(stage).Observed = table.TypedClosure(before, tbl.OfType)
-	if err := table.CompositeFieldDependencies(core.StageDropProvider(nil, stage, nil, nil, nil), source, source.Attributes[0], parser.DropCascade); err != nil {
+	target := source.Address()
+	target.SubID = source.Attributes[0]
+	if err := core.StageDropProvider(nil, stage, nil, nil, nil).ColumnDependencies(target, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	for _, original := range []*catalog.Relation{left, right, child} {

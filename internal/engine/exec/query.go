@@ -637,7 +637,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 			return openPGSequencesStage(state, source, n.Schema()), nil
 		}
 		if source.Final != nil || source.Input != nil || source.NestedRoot != nil {
-			return OpenSourceStage(ctx, state, source, n.Schema())
+			return openSourceStage(ctx, state, source, n.Schema(), n)
 		}
 		if source.Anonymous == nil {
 			if source.View == nil {

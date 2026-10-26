@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -33,104 +32,70 @@ func OrdinaryColumnDrop(provider DropDependencyReader, old *catalog.Relation, re
 		}
 		return old, nil
 	}
-	history := pgcatalog.AttributeMetadata(old, slot)
-	history.Name = fmt.Sprintf("........pg.dropped.%d........", history.Number)
-	history.TypeID, history.NotNull, history.HasDefault, history.Generated, history.Dropped = 0, false, false, "", true
 	target := ref.Address
 	target.SubID = old.Attributes[slot]
-	for _, attribute := range old.Attributes {
-		definition, generated := old.ColumnMeta.Generations[attribute]
-		if !generated || attribute == target.SubID {
-			continue
-		}
-		dependent := false
-		for _, dependency := range definition.Dependencies {
-			if dependency.Address == target {
-				dependent = true
-				break
-			}
-		}
-		if !dependent {
-			continue
-		}
-		generatedSlot := old.IndexForAttribute(attribute)
-		if a.Mode == parser.DropRestrict {
-			message := "cannot drop desired object(s) because other objects depend on them"
-			if !provider.RecursingInheritance() {
-				message = fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.Name())
-			}
-			diagnostic := sqlError("2BP01", message).(*sqlstate.Error)
-			diagnostic.Detail = fmt.Sprintf("column %s of table %s depends on column %s of table %s", old.Columns[generatedSlot].Name, old.Name(), a.Column.Text, old.Name())
-			diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
-			return nil, diagnostic
-		}
-		dependentAction := a
-		dependentAction.Column = parser.Identifier{Text: old.Columns[generatedSlot].Name}
-		remaining, err := OrdinaryColumnDrop(provider, old, ref, dependentAction)
-		if err != nil {
-			return nil, err
-		}
-		return OrdinaryColumnDrop(provider, remaining, ref, a)
-	}
 	// Dependency passes must see preceding actions in this same ALTER list.
 	if err := provider.Replace(old); err != nil {
 		return nil, err
 	}
-	if old.RelationKind == catalog.CompositeRelation {
-		if err := CompositeFieldDependencies(provider, old, target.SubID, a.Mode); err != nil {
-			return nil, err
-		}
-	}
-	foreign, err := foreignKeyColumnDependencies(provider, target, a.Mode)
-	if err != nil {
-		return nil, err
-	}
-	if err := provider.ApplyViewDependents([]ids.ObjectAddress{target}, a.Mode, foreign...); err != nil {
+	if err := provider.ColumnDependencies(target, a.Mode); err != nil {
 		return nil, err
 	}
 	// The dependency pass can prune surviving definitions on this same table.
 	// Its staged descriptor, not the pre-cascade maps, owns the remaining shape.
 	old = provider.Descriptor(ref.Address).(*catalog.Relation)
-	next, err := dropColumnMetadata(ctx, provider.BaseRead(), provider.Descriptor, old, target, history)
+	next, err := dropColumnsMetadata(ctx, provider.BaseRead(), provider.Descriptor, old, []int32{target.SubID})
 	if err != nil {
 		return nil, err
 	}
 
-	// Publish the private shape to dependency passes before removing its AUTO
-	// sequences: CHECKs on the dropped column are already gone.
+	// Stage the cooked shape before consuming its already-preflighted AUTO
+	// sequence payload. No dependency controller is re-entered here.
 	if err := provider.Replace(next); err != nil {
 		return nil, err
 	}
-	if err := OwnedExpressionDependencies(provider, []ids.ObjectAddress{target}, a.Mode); err != nil {
+	if err := RemoveColumnSequences(provider, []ids.ObjectAddress{target}); err != nil {
 		return nil, err
 	}
 	return provider.Descriptor(ref.Address).(*catalog.Relation), nil
 }
 
-// dropColumnMetadata cooks the stable-slot migration once. Dependency effects
-// supply the actual surviving provider descriptor and index identities.
-func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(ids.ObjectAddress) catalog.Descriptor, old *catalog.Relation, target ids.ObjectAddress, history catalog.AttributeMetadata) (*catalog.Relation, error) {
-	slot := old.IndexForAttribute(target.SubID)
+// dropColumnsMetadata cooks one final stable-slot migration. All captured
+// generated attributes are removed before any surviving recipe is remapped.
+// Index descriptors must remain readable until their owner metadata is pruned.
+func dropColumnsMetadata(ctx context.Context, view catalog.Read, descriptor func(ids.ObjectAddress) catalog.Descriptor, old *catalog.Relation, attributes []int32) (*catalog.Relation, error) {
+	dropped := func(attribute int32) bool { return slices.Contains(attributes, attribute) }
 	next := *old
+	next.ColumnMeta.Dropped = maps.Clone(old.ColumnMeta.Dropped)
+	if next.ColumnMeta.Dropped == nil {
+		next.ColumnMeta.Dropped = make(map[int32]catalog.AttributeMetadata, len(attributes))
+	}
+	for _, attribute := range attributes {
+		slot := old.IndexForAttribute(attribute)
+		if slot < 0 {
+			return nil, fmt.Errorf("stuntgres: missing captured drop attribute")
+		}
+		history := pgcatalog.AttributeMetadata(old, slot)
+		history.Name = fmt.Sprintf("........pg.dropped.%d........", history.Number)
+		history.TypeID, history.NotNull, history.HasDefault, history.Generated, history.Dropped = 0, false, false, "", true
+		next.ColumnMeta.Dropped[history.Number] = history
+	}
 	if old.Foreign != nil {
 		foreign := *old.Foreign
 		foreign.Columns = maps.Clone(old.Foreign.Columns)
-		delete(foreign.Columns, target.SubID)
+		for _, attribute := range attributes {
+			delete(foreign.Columns, attribute)
+		}
 		next.Foreign = &foreign
 	}
-	next.ColumnMeta.Dropped = maps.Clone(old.ColumnMeta.Dropped)
-	if next.ColumnMeta.Dropped == nil {
-		next.ColumnMeta.Dropped = make(map[int32]catalog.AttributeMetadata)
-	}
-	next.ColumnMeta.Dropped[history.Number] = history
-	next.Columns = make([]catalog.Column, 0, len(old.Columns)-1)
-	next.Attributes = make([]int32, 0, len(old.Attributes)-1)
-	next.Index = make(map[string]int, len(old.Index)-1)
+	next.Columns = make([]catalog.Column, 0, len(old.Columns)-len(attributes))
+	next.Attributes = make([]int32, 0, len(old.Attributes)-len(attributes))
+	next.Index = make(map[string]int, len(old.Index)-len(attributes))
 	for i, column := range old.Columns {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if i == slot {
+		if dropped(old.Attributes[i]) {
 			continue
 		}
 		next.Index[column.Name] = len(next.Columns)
@@ -139,26 +104,27 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 	}
 	next.Constraints.NotNull = nil
 	for _, constraint := range old.Constraints.NotNull {
-		if constraint.Attribute != old.Attributes[slot] {
+		if !dropped(constraint.Attribute) {
 			next.Constraints.NotNull = append(next.Constraints.NotNull, constraint)
 		}
 	}
 	next.Constraints.Unique = nil
 	for _, constraint := range old.Constraints.Unique {
-		dependent := false
-		for _, attribute := range constraint.Attributes {
-			if attribute == old.Attributes[slot] {
-				dependent = true
-				break
-			}
-		}
-		index, ok := descriptor(constraint.Index).(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
+		dependent := slices.ContainsFunc(constraint.Attributes, dropped)
+		idx, ok := descriptor(constraint.Index).(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column unique index")
 		}
-		dependent = dependent || slices.Contains(index.SQLIndex.Include, old.Attributes[slot])
+		dependent = dependent || slices.ContainsFunc(idx.SQLIndex.Include, dropped)
 		if !dependent {
 			next.Constraints.Unique = append(next.Constraints.Unique, constraint)
+		}
+	}
+	var transformations []index.ColumnTransformation
+	if len(old.Constraints.Exclusion) != 0 {
+		transformations = make([]index.ColumnTransformation, len(attributes))
+		for i, attribute := range attributes {
+			transformations[i].Attribute = attribute
 		}
 	}
 	next.Constraints.Exclusion = nil
@@ -167,61 +133,51 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 		if !ok || idx.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column exclusion index")
 		}
-		if !index.UniqueIndexTypeAffected(idx.SQLIndex, []index.ColumnTransformation{{Attribute: old.Attributes[slot]}}) {
+		if !index.UniqueIndexTypeAffected(idx.SQLIndex, transformations) {
 			next.Constraints.Exclusion = append(next.Constraints.Exclusion, constraint)
 		}
 	}
 	next.Constraints.ForeignKeys = nil
 	for _, f := range old.Constraints.ForeignKeys {
-		if !slices.Contains(f.Attributes, old.Attributes[slot]) {
+		if !slices.ContainsFunc(f.Attributes, dropped) {
 			next.Constraints.ForeignKeys = append(next.Constraints.ForeignKeys, f)
 		}
 	}
-	next.Constraints.Check = nil
-	if len(old.Constraints.Check) != 0 {
-		slots := make(map[int32]int, len(next.Attributes))
-		for i, attr := range next.Attributes {
-			slots[attr] = i
-		}
-		for _, c := range old.Constraints.Check {
-			dependent := false
-			for _, dep := range c.Dependencies {
-				if dep.Ref.Address == target {
-					dependent = true
-					break
-				}
-			}
-			if dependent {
-				continue
-			}
-			expression, err := stored.RemapExpression(c.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
-			if err != nil {
-				return nil, err
-			}
-			c.Expression = expression
-			next.Constraints.Check = append(next.Constraints.Check, c)
+	var slots map[int32]int
+	if len(old.Constraints.Check) != 0 || len(old.ColumnMeta.Generations) != 0 {
+		slots = make(map[int32]int, len(next.Attributes))
+		for i, attribute := range next.Attributes {
+			slots[attribute] = i
 		}
 	}
-	if _, exists := old.ColumnMeta.Defaults[old.Attributes[slot]]; exists {
-		next.ColumnMeta.Defaults = nil
-		if len(old.ColumnMeta.Defaults) > 1 {
-			next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(old.ColumnMeta.Defaults)-1)
-			for attribute, definition := range old.ColumnMeta.Defaults {
-				if attribute != old.Attributes[slot] {
-					next.ColumnMeta.Defaults[attribute] = definition
-				}
-			}
+	next.Constraints.Check = nil
+	for _, c := range old.Constraints.Check {
+		if slices.ContainsFunc(c.Dependencies, func(dep catalog.ExpressionDependency) bool {
+			return dep.Ref.Address.ClassID == old.Address().ClassID && dep.Ref.Address.ObjectID == old.Address().ObjectID && dropped(dep.Ref.Address.SubID)
+		}) {
+			continue
+		}
+		expression, err := stored.RemapExpression(c.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
+		if err != nil {
+			return nil, err
+		}
+		c.Expression = expression
+		next.Constraints.Check = append(next.Constraints.Check, c)
+	}
+	if slices.ContainsFunc(attributes, func(attribute int32) bool {
+		_, exists := old.ColumnMeta.Defaults[attribute]
+		return exists
+	}) {
+		next.ColumnMeta.Defaults = maps.Clone(old.ColumnMeta.Defaults)
+		for _, attribute := range attributes {
+			delete(next.ColumnMeta.Defaults, attribute)
 		}
 	}
 	next.ColumnMeta.Generations = nil
 	if len(old.ColumnMeta.Generations) != 0 {
-		slots := make(map[int32]int, len(next.Attributes))
-		for i, attribute := range next.Attributes {
-			slots[attribute] = i
-		}
 		next.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration, len(old.ColumnMeta.Generations))
 		for attribute, definition := range old.ColumnMeta.Generations {
-			if attribute == target.SubID {
+			if dropped(attribute) {
 				continue
 			}
 			planned, err := stored.RemapExpression(definition.Planned, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
@@ -240,42 +196,31 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 	if err := stored.RefreshGenerationChecks(&next, view); err != nil {
 		return nil, err
 	}
-	if _, exists := old.ColumnMeta.Identities[old.Attributes[slot]]; exists {
-		next.ColumnMeta.Identities = make(map[int32]catalog.ColumnIdentity, len(old.ColumnMeta.Identities)-1)
-		for attribute, identity := range old.ColumnMeta.Identities {
-			if attribute != old.Attributes[slot] {
-				next.ColumnMeta.Identities[attribute] = identity
-			}
+	if slices.ContainsFunc(attributes, func(attribute int32) bool {
+		_, exists := old.ColumnMeta.Identities[attribute]
+		return exists
+	}) {
+		next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
+		for _, attribute := range attributes {
+			delete(next.ColumnMeta.Identities, attribute)
 		}
 	}
-	if _, exists := old.Security.ColumnACL[old.Attributes[slot]]; exists {
-		next.Security.ColumnACL = nil
-		for sub, acl := range old.Security.ColumnACL {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			if sub == old.Attributes[slot] {
-				continue
-			}
-			if next.Security.ColumnACL == nil {
-				next.Security.ColumnACL = make(map[int32]authorization.ACLValue, len(old.Security.ColumnACL)-1)
-			}
-			next.Security.ColumnACL[sub] = acl
+	if slices.ContainsFunc(attributes, func(attribute int32) bool {
+		_, exists := old.Security.ColumnACL[attribute]
+		return exists
+	}) {
+		next.Security.ColumnACL = maps.Clone(old.Security.ColumnACL)
+		for _, attribute := range attributes {
+			delete(next.Security.ColumnACL, attribute)
 		}
 	}
-	if _, exists := old.ColumnMeta.Comments[old.Attributes[slot]]; exists {
-		next.ColumnMeta.Comments = nil
-		for sub, text := range old.ColumnMeta.Comments {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			if sub == old.Attributes[slot] {
-				continue
-			}
-			if next.ColumnMeta.Comments == nil {
-				next.ColumnMeta.Comments = make(map[int32]string, len(old.ColumnMeta.Comments)-1)
-			}
-			next.ColumnMeta.Comments[sub] = text
+	if slices.ContainsFunc(attributes, func(attribute int32) bool {
+		_, exists := old.ColumnMeta.Comments[attribute]
+		return exists
+	}) {
+		next.ColumnMeta.Comments = maps.Clone(old.ColumnMeta.Comments)
+		for _, attribute := range attributes {
+			delete(next.ColumnMeta.Comments, attribute)
 		}
 	}
 	TransitionPhysicalNotNull(old, &next)

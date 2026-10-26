@@ -286,9 +286,22 @@ func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *s
 		return err
 	}
 	commands := view.RuleProgram{Commands: []view.RuleCommand{{Syntax: action.Syntax(), Binding: b, Auth: auth}}}
+	if err := stored.VisitRuleModifiers(b, func(definition *plan.CTEDefinition, mutation *analyze.Binding) error {
+		commands.Commands = append(commands.Commands, view.RuleCommand{Syntax: definition.Statement, Binding: *mutation, Auth: auth})
+		return nil
+	}); err != nil {
+		e.Mu.Unlock()
+		return err
+	}
 	refs, err := e.AdmitRuleCommandsLocked(s, action.Syntax(), &commands)
 	if err != nil {
 		return err
+	}
+	if len(commands.Commands) > 1 {
+		refs, err = s.admitSQLRoutineCTETargetsLocked(&commands, refs)
+		if err != nil {
+			return err
+		}
 	}
 	if len(refs) != 0 {
 		if _, err = s.AcquireDataViewsLocked(e, refs); err != nil {
@@ -297,8 +310,10 @@ func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *s
 		}
 	}
 	b = commands.Commands[0].Binding
-	physical := view.PhysicalBinding(b)
-	s.installRuleScratch(ruleCommandScratch{Mutation: StatementMutation{Statement: action.Syntax()}, Ref: physical.Ref, Descriptor: physical.Relation, Storage: physical.Storage, ViewWrite: view.ViewWriteOf(b.ViewWrite), Sources: b.QuerySources})
+	if len(commands.Commands) == 1 {
+		physical := view.PhysicalBinding(b)
+		s.installRuleScratch(ruleCommandScratch{Mutation: StatementMutation{Statement: action.Syntax()}, Ref: physical.Ref, Descriptor: physical.Relation, Storage: physical.Storage, ViewWrite: view.ViewWriteOf(b.ViewWrite), Sources: b.QuerySources})
+	}
 	s.sqlRoutine.binding = &b
 	e.Mu.Unlock()
 	return nil

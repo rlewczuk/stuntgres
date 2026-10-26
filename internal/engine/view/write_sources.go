@@ -5,7 +5,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// FreezeWriteSources installs the frozen-layout bridges of a view write's
+// FreezeWriteSources installs the frozen-layout bridges of retained query
 // leaves. Raw prefixes must be selected before the bridges are installed.
 // Detach bundle ownership while replacing occurrences, as stored view opening
 // does; the returned head owns every input and each bridge's private scratch.
@@ -14,8 +14,17 @@ import (
 // does for every source it opens.
 func FreezeWriteSources(source *exec.Source, leaves []exec.Leaf, auth *exec.Authority, host exec.Host) *exec.Source {
 	sources := source.Sources
-	source.Sources = nil
+	detached := false
 	for i, leaf := range leaves {
+		// Ordinary freshly bound sources have no retained layout. Leave their
+		// ownership untouched and allocate no bridge or scratch.
+		if leaf.FrozenAttributes == nil {
+			continue
+		}
+		if !detached {
+			source.Sources = nil
+			detached = true
+		}
 		child := source
 		if sources != nil {
 			child = sources[i]
@@ -27,7 +36,7 @@ func FreezeWriteSources(source *exec.Source, leaves []exec.Leaf, auth *exec.Auth
 			source = child
 		}
 	}
-	if sources != nil {
+	if detached && sources != nil {
 		source = sources[0]
 		source.Sources = sources
 	}

@@ -33,10 +33,10 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 		err = e.CaptureCommentSnapshotLocked(s)
 	}
 	e.Mu.Unlock()
-	if inputs != nil {
-		defer inputs.Close()
-	}
 	if err != nil {
+		if inputs != nil {
+			inputs.Close()
+		}
 		return Result{}, err
 	}
 	s.foreignUnlocked()

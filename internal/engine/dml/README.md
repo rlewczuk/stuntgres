@@ -114,6 +114,19 @@ Package-internal helpers keep lower-case names.
   any action wait. Per candidate they take the row lock, reread the latest
   version, recheck the predicate if the row moved, then evaluate, validate,
   claim unique keys and stage. MERGE stages its actions in action order.
+- Retained routine/rule query sources use the existing `view.FreezeWriteSources`
+  bridge after raw-source selection and before opening their immutable plans.
+  MERGE applies this to its actual `Binding.QuerySources` even when the target's
+  layout is unchanged. Its input cleanup follows the returned bridge/bundle head,
+  including early errors, rather than closing only the pre-bridge source.
+  Existing membership and `Outcome.finishSources` finalization still run before
+  input/target cleanup, preserving foreign producer errors and admission authority.
+  Nil/identical source layouts keep the bridge's no-allocation fast path.
+  Foreign INSERT/UPDATE/DELETE owns the same returned head after the engine
+  hands off captured inputs; planning/begin failures close the original input.
+  Foreign INSERT borrows its command invocation for query-project assembly, so
+  closing that reader cannot finish sources before checks and RETURNING. The
+  exported `EvaluateInsertQuery` remains consuming for ordinary INSERT callers.
 - `ApplyValidated` and `ReplaceRows` own the work around the `Stage` windows.
   After a stale unique binding they run `ReadmitRevalidation`, reprobe every row
   (or readmit DO NOTHING) and retry.

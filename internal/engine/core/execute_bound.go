@@ -680,9 +680,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			scope.sqlRoutine.openedCursor, scope.sqlRoutine.openedCursorName = installed, name
 			return Result{}, err
 		}
-		if b.Rule.Template {
-			source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, HostOf(scope))
-		}
+		source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, HostOf(scope))
 		if scope.protocolOrZero().bind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)
 		}

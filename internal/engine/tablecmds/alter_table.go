@@ -153,6 +153,16 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		frontier = e.Visibility.CommitSeq()
 		snapshot, snapshotExists = scope.Owner.Roots[ref.Address]
 	}
+	var columnDropPath []ids.ObjectAddress
+	for _, action := range s.Actions {
+		if action.Action == parser.DropColumn {
+			columnDropPath, err = core.ReferencePath(auth)
+			if err != nil {
+				return fail(err)
+			}
+			break
+		}
+	}
 	var stage *core.CatalogStage
 	if scope.Inheritance.Alter == nil || !scope.Inheritance.Alter.Descendant {
 		scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, e.Catalog.State.Get(ref.Address))
@@ -230,6 +240,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			} else if action.Action == parser.DropColumn {
 				if _, exists := next.Index[action.Column.Text]; exists {
 					stage = authorizedStage(e, stage, auth, op.Session)
+					stage.DependencyPath = columnDropPath
 				}
 				next, err = DropColumnCandidate(scope, stage, next, ref, action, changes)
 			} else if action.Action == parser.AddColumn {

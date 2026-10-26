@@ -130,7 +130,7 @@ func TestFDWAsyncProtocol(t *testing.T) {
 		scan := &asyncUnitScan{request: request}
 		e := asyncUnitExecution(scan)
 		e.async.importRow = func(ctx context.Context, row catalog.ForeignRow) ([]sqltype.Value, error) {
-			return f.ImportValues(ctx, row, nil, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+			return f.ImportValues(ctx, row, nil, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, nil)
 		}
 		if err := e.requestAsync(context.Background()); err != nil {
 			t.Fatal(err)

@@ -13,7 +13,7 @@ import (
 // The scan and actual mutation-result paths share one codec/domain/typmod
 // authority. Nil slots denotes the full declared tuple; nonnil denotes a scan
 // plan's precomputed sparse layout, including a genuine zero-width layout.
-func (f *ForeignQuerySource) ImportValues(ctx context.Context, row catalog.ForeignRow, slots []int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, node *plan.SourceNode) ([]sqltype.Value, error) {
+func (f *ForeignQuerySource) ImportValues(ctx context.Context, row catalog.ForeignRow, slots []int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, node *plan.SourceNode, source *Source) ([]sqltype.Value, error) {
 	width := len(f.Columns)
 	if slots != nil {
 		width = len(slots)
@@ -43,7 +43,7 @@ func (f *ForeignQuerySource) ImportValues(ctx context.Context, row catalog.Forei
 		value, err := f.ImportValue(ctx, cell, usage, input)
 		if err != nil {
 			if node != nil {
-				err = f.columnDiagnostic(err, node, slot)
+				err = f.columnDiagnostic(err, node, source, slot)
 			}
 			return nil, err
 		}
@@ -56,7 +56,7 @@ func (f *ForeignQuerySource) ImportValues(ctx context.Context, row catalog.Forei
 			value, err = plan.Apply(ctx, value, input, output)
 			if err != nil {
 				if node != nil {
-					err = f.columnDiagnostic(err, node, slot)
+					err = f.columnDiagnostic(err, node, source, slot)
 				}
 				return nil, err
 			}

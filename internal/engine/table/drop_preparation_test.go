@@ -260,3 +260,64 @@ func TestDropPreparationView(t *testing.T) {
 		t.Fatalf("DescriptorsOver yielded %d descriptors, want the 4 base ones", count)
 	}
 }
+
+// Routine retirement and surviving-owner replacement are definition effects,
+// not relation-only overlays. A later action must not resurrect a prior tombstone
+// from either its input or an attempted replacement effect.
+func TestDropPreparationRoutinePrior(t *testing.T) {
+	f := newPreparationFixture()
+	provider := &catalog.Procedure{
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 500},
+		ObjectName:    "provider",
+	}
+	caller := &catalog.Procedure{
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 501},
+		ObjectName:    "caller",
+		Body:          []catalog.RoutineBodyEdge{{Routine: provider}},
+	}
+	pruned := *caller
+	pruned.Body = nil
+	base := f.read(preparationEpoch, f.a, provider, caller)
+	prior := &DropPreparation{Base: base, Discovery: base}
+	prior.RecordEffect(DropEffect{Descriptor: &pruned})
+	prior.RecordEffect(DropEffect{Remove: f.domain.Ref(preparationEpoch, provider.Address())})
+	prior.RecordEffect(DropEffect{Notice: "drop cascades to function provider()"})
+	input := fakeDefinitionInput{
+		f.a.Address(): f.a, provider.Address(): provider, caller.Address(): caller,
+	}
+	next := &DropPreparation{Base: base, Discovery: base, Prior: prior, Input: input}
+	view := DropPreparationView{Base: base, Preparation: next}
+	if _, present := next.Descriptor(provider.Address()); present || !view.Removed(provider.Address()) {
+		t.Fatal("a later input resurrected the retired routine")
+	}
+	if got, present := next.Descriptor(caller.Address()); !present || got != &pruned {
+		t.Fatal("a later input hid the surviving owner's replacement")
+	}
+	if got := maps.Collect(next.Descriptors()); len(got) != 2 || got[caller.Address()] != &pruned || got[provider.Address()] != nil {
+		t.Fatalf("later action definitions = %v; want table and pruned caller", got)
+	}
+	next.RecordEffect(DropEffect{Descriptor: provider})
+	next.RecordEffect(DropEffect{Remove: f.domain.Ref(preparationEpoch, caller.Address())})
+	final := &DropPreparation{Base: base, Discovery: base, Prior: next}
+	if _, present := final.Descriptor(provider.Address()); present {
+		t.Fatal("a later replacement resurrected the prior retirement")
+	}
+	if _, present := final.Descriptor(caller.Address()); present {
+		t.Fatal("a later retirement did not hide the prior owner replacement")
+	}
+	if got, want := effectKinds(prior.Effects()), []string{"replace", "remove", "notice:drop cascades to function provider()"}; !slices.Equal(got, want) {
+		t.Fatalf("prior ordered effects = %v; want %v", got, want)
+	}
+	if got, want := effectKinds(next.Effects()), []string{"replace", "remove"}; !slices.Equal(got, want) {
+		t.Fatalf("later ordered effects = %v; want %v", got, want)
+	}
+	if effects := prior.Effects(); effects[0].Descriptor != &pruned || effects[1].Remove.Address != provider.Address() {
+		t.Fatal("ordered replay lost actual routine replacement/removal descriptors")
+	}
+	if got := maps.Collect(final.Descriptors()); len(got) != 1 || got[f.a.Address()] != f.a {
+		t.Fatalf("final definitions = %v; want only original table", got)
+	}
+	if base.Get(provider.Address()) != provider || base.Get(caller.Address()) != caller || len(caller.Body) != 1 || caller.Body[0].Routine != provider || len(pruned.Body) != 0 {
+		t.Fatal("preparation changed retained immutable routine definitions")
+	}
+}

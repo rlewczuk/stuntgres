@@ -30,6 +30,7 @@ func ViewPayload(v *View) catalog.ViewPayload {
 type ViewParts struct {
 	Query             *plan.Query
 	Syntax            *parser.Select
+	ActionSyntax      parser.Statement
 	ExpressionSyntax  parser.Expr
 	MutationFrame     bool
 	Sources           []ViewLeaf
@@ -65,6 +66,7 @@ func NewView(p ViewParts) *View {
 	return &View{
 		query:             p.Query,
 		syntax:            p.Syntax,
+		actionSyntax:      p.ActionSyntax,
 		expressionSyntax:  p.ExpressionSyntax,
 		mutationFrame:     p.MutationFrame,
 		sources:           p.Sources,
@@ -101,6 +103,7 @@ func (v *View) Parts() ViewParts {
 	return ViewParts{
 		Query:             v.query,
 		Syntax:            v.syntax,
+		ActionSyntax:      v.actionSyntax,
 		ExpressionSyntax:  v.expressionSyntax,
 		MutationFrame:     v.mutationFrame,
 		Sources:           v.sources,

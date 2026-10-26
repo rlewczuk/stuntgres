@@ -209,6 +209,27 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 			e.Mu.Unlock()
 			return Result{}, err
 		}
+		// A SELECT CTE owns a separate invocation from each command's input.
+		// Select and bridge that actual owner before any producer or effect,
+		// without holding Engine.mu while source selection may execute code.
+		e.Mu.Unlock()
+		err = exec.SelectQuerySources(scope.Op.Context(), source)
+		if err == nil {
+			source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, HostOf(scope))
+		}
+		if err != nil {
+			source.Close()
+			return Result{}, err
+		}
+		e.Mu.Lock()
+		if err = scope.RefreshRelationGrantsLocked(e); err == nil {
+			err = scope.Op.Context().Err()
+		}
+		if err != nil {
+			e.Mu.Unlock()
+			source.Close()
+			return Result{}, err
+		}
 	} else {
 		// Completed modifiers need only a lifetime/authority header, not a
 		// second physical capture of every command's own input sources.

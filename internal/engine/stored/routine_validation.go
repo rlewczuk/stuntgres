@@ -2,8 +2,10 @@ package stored
 
 import (
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -69,6 +71,72 @@ func validateRoutineActionShape(action RuleAction) error {
 	return nil
 }
 
+func validateRoutineModifiers(action RuleAction, read catalog.Read) error {
+	var statements map[parser.Statement]bool
+	err := VisitRuleModifiers(action.binding, func(definition *plan.CTEDefinition, mutation *analyze.Binding) error {
+		presentation := action.modifierPresentations[definition.Statement]
+		if presentation == nil || presentation.actionSyntax != definition.Statement || statements[definition.Statement] {
+			return fmt.Errorf("stuntgres: mismatched routine modifier presentation")
+		}
+		if statements == nil {
+			statements = make(map[parser.Statement]bool)
+		}
+		statements[definition.Statement] = true
+		child := RuleAction{syntax: definition.Statement, binding: *mutation, presentation: presentation}
+		if err := validateRoutineActionShape(child); err != nil {
+			return err
+		}
+		if err := validateRoutineActionScalars(child, read); err != nil {
+			return err
+		}
+		if read.State() == nil {
+			return validateRoutineScalars(presentation, read)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if len(statements) != len(action.modifierPresentations) {
+		return fmt.Errorf("stuntgres: extra routine modifier presentation")
+	}
+	var coverage *viewSourceCoverage
+	if len(statements) != 0 && read.State() != nil {
+		if err := validateRoutineSourceManifest(action); err != nil {
+			return err
+		}
+		coverage = &viewSourceCoverage{leaves: action.presentation.sources, seen: make([]bool, len(action.presentation.sources))}
+	}
+	modifier := func(definition *plan.CTEDefinition) error {
+		if !statements[definition.Statement] {
+			return fmt.Errorf("stuntgres: orphan routine modifier scan")
+		}
+		return nil
+	}
+	check := func(presentation *View) error {
+		if read.State() == nil {
+			return nil // Full leaf/identity validation follows remapping.
+		}
+		return validateRoutinePresentation(read, presentation, modifier, coverage)
+	}
+	if err := check(action.presentation); err != nil {
+		return err
+	}
+	for _, presentation := range action.modifierPresentations {
+		if err := check(presentation); err != nil {
+			return err
+		}
+	}
+	if coverage != nil {
+		for _, seen := range coverage.seen {
+			if !seen {
+				return fmt.Errorf("stuntgres: invalid routine source manifest")
+			}
+		}
+	}
+	return nil
+}
+
 func validateRoutineActionScalars(action RuleAction, read catalog.Read) error {
 	if action.presentation == nil || action.presentation.query == nil {
 		return fmt.Errorf("stuntgres: missing routine command presentation")
@@ -108,17 +176,44 @@ func validateRoutineActionScalars(action RuleAction, read catalog.Read) error {
 	return nil
 }
 
-func validateRoutinePresentation(read catalog.Read, presentation *View) error {
-	if presentation.query == nil || presentation.query.Root == nil {
+func validateRoutinePresentation(read catalog.Read, presentation *View, modifier func(*plan.CTEDefinition) error, coverage *viewSourceCoverage) error {
+	if presentation == nil || presentation.query == nil || presentation.query.Root == nil {
 		return fmt.Errorf("stuntgres: missing routine query capture")
 	}
 	if err := presentation.ValidateLiterals(read); err != nil {
 		return err
 	}
-	if err := ValidateViewLeaves(read, presentation); err != nil {
+	if err := validateViewLeaves(read, presentation, modifier, coverage); err != nil {
 		return err
 	}
 	return validateRoutineScalars(presentation, read)
+}
+
+func validateRoutineSourceManifest(action RuleAction) error {
+	if len(action.presentation.sources) != len(action.binding.QuerySources) {
+		return fmt.Errorf("stuntgres: mismatched routine source manifest")
+	}
+	for occurrence, source := range action.binding.QuerySources {
+		leaf := action.presentation.sources[occurrence]
+		if source.Relation == nil {
+			return fmt.Errorf("stuntgres: missing routine source descriptor")
+		}
+		attributes := source.FrozenAttributes
+		if attributes == nil {
+			attributes = source.Relation.Attributes
+		}
+		if leaf.Ref != source.Ref || leaf.Only != source.Only || leaf.AnalysisOnly != source.AnalysisOnly ||
+			leaf.TableOIDRead != source.TableOIDRead || leaf.Mark != source.Mark ||
+			!slices.Equal(leaf.Attributes, attributes) || len(leaf.Reads) != len(source.Uses) {
+			return fmt.Errorf("stuntgres: mismatched routine source provenance")
+		}
+		for i, slot := range source.Uses {
+			if slot < 0 || slot >= len(source.Relation.Attributes) || leaf.Reads[i] != source.Relation.Attributes[slot] {
+				return fmt.Errorf("stuntgres: mismatched routine source reads")
+			}
+		}
+	}
+	return nil
 }
 
 // Rebind uses the zero read only for pre-remap structural validation: original

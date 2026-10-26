@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sort"
 
@@ -11,6 +12,7 @@ import (
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // PostgreSQL dependency traversal visits a dependent domain's descendants before
@@ -36,6 +38,46 @@ func StageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 }
 
 func (provider *DropProvider) ExpressionDependencies(roots []ids.ObjectAddress, mode parser.DropMode, subject ids.ObjectAddress) error {
+	return provider.expressionDependencies(roots, mode, subject, ids.ObjectAddress{})
+}
+
+// ColumnDependencies shares discovery, admissions and retirement with provider
+// drops, but leaves the original column's AUTO payload and shape to its owner.
+// Like ExpressionDependencies, it is a controller: callers hold no engine lock.
+func (provider *DropProvider) ColumnDependencies(target ids.ObjectAddress, mode parser.DropMode) error {
+	if target.ClassID != ids.RelationClassID || target.SubID <= 0 {
+		return fmt.Errorf("stuntgres: invalid column dependency target")
+	}
+	address := target
+	address.SubID = 0
+	relation, ok := provider.Descriptor(address).(*catalog.Relation)
+	if !ok || relation.IndexForAttribute(target.SubID) < 0 {
+		return ids.ErrCatalogReplaced
+	}
+	start := provider.noticePosition()
+	err := provider.expressionDependencies([]ids.ObjectAddress{target}, mode, target, target)
+	if err != nil || provider.Scope == nil {
+		return err
+	}
+	// PostgreSQL reports each successful column action before the next action,
+	// even when that later action fails. Preparation captures these ordinary
+	// operation notices in its incumbent per-action replay, not another channel.
+	var names []string
+	if provider.Stage != nil {
+		names = provider.Stage.DropCascadeNames[start:]
+	} else {
+		for _, effect := range provider.Prepared.Effects()[start:] {
+			if effect.Notice != "" {
+				names = append(names, effect.Notice)
+			}
+		}
+	}
+	view.EmitCascade(provider.Scope.Op, names)
+	provider.rewindNotices(start)
+	return nil
+}
+
+func (provider *DropProvider) expressionDependencies(roots []ids.ObjectAddress, mode parser.DropMode, subject, column ids.ObjectAddress) error {
 	scope := provider.Scope
 	if len(roots) == 0 {
 		return nil
@@ -57,10 +99,16 @@ func (provider *DropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 		visible = visible || !edge.Automatic
 	}
 	if mode == parser.DropRestrict && visible {
-		return view.RestrictError(provider, roots, edges, originalRootCount, subject)
+		err := view.RestrictError(provider, roots, edges, originalRootCount, subject)
+		if column != (ids.ObjectAddress{}) && scope != nil && scope.Inheritance.Alter != nil && scope.Inheritance.Alter.ColumnDropMultiple(provider.Base, column) {
+			err.(*sqlstate.Error).Message = "cannot drop desired object(s) because other objects depend on them"
+		}
+		return err
 	}
 	plan := view.PlanDrop(provider, roots, edges)
-	targets, relations := plan.Targets, plan.Relations
+	// Full captured targets own observations and grants. Only execution
+	// defers local AUTO payload until all of its column metadata is cooked.
+	targets := plan.Targets
 	// Attached trigger retirement contributes payload identities, not relation
 	// deletion or column projection targets. Retain the extracted shared plan
 	// and extend its lock owners for these selected lifecycle edges.
@@ -69,21 +117,23 @@ func (provider *DropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 			targets = append(targets, edge.Address)
 		}
 	}
+	plan.Targets = targets
+	effectPlan, effectEdges := view.ColumnDropEffects(plan, edges, column)
 	if plan.ObserveIdentities || slices.ContainsFunc(targets, func(address ids.ObjectAddress) bool {
 		return address.ClassID == ids.TypeClassID || DefinitionObjectClass(address.ClassID)
 	}) {
 		provider.observeIdentityDependencies(targets)
 	}
 	e := provider.Owner
-	// Effect-free stage preparation may have a scope but no admitted transaction.
-	// Only execution with a real ticket schedules retirement locks; direct stage
-	// publication still checks the captured identities and dependency observations.
+	// Low-level stage callers can have an operation scope without an admitted
+	// transaction. Only real tickets enter closure grant acquisition; private
+	// effects, observations and final publication fences remain shared.
 	if scope != nil && scope.LockTicket != nil {
 		if err := scope.acquireRetiredDefinitionObjects(provider.Base, targets); err != nil {
 			return err
 		}
 	}
-	if scope != nil {
+	if scope != nil && scope.LockTicket != nil {
 		for _, address := range plan.Hierarchy {
 			if err := scope.AcquirePartitionDropLocks(e.Catalog.Domain.Ref(provider.Base.Epoch(), address)); err != nil {
 				return err
@@ -106,13 +156,31 @@ func (provider *DropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 				return err
 			}
 		}
+		for _, edge := range edges {
+			if edge.Relation == nil || edge.Relation.RelationKind != catalog.SequenceRelation || provider.Removed(edge.Address) {
+				continue
+			}
+			ref := provider.BaseRef(edge.Address)
+			owned := edge.Relation.Sequence.Owned
+			owner := owned
+			owner.SubID = 0
+			// Capture a surviving identity owner's authentic linkage at the
+			// real grant, before the batch removes its column metadata.
+			if relation, ok := provider.Descriptor(owner).(*catalog.Relation); ok && edge.Relation.Sequence.Identity {
+				if err := provider.CaptureIdentitySequence(relation, owned.SubID, ref); err != nil {
+					return err
+				}
+			} else if err := provider.Acquire(ref, false); err != nil {
+				return err
+			}
+		}
 	}
 	// The complete captured whole-relation closure is retirement authority before
 	// any surviving DEFAULT/CHECK or column mutation is classified. Keep explicit
 	// root removal policy and the original base/edges for discovery, owned objects,
 	// diagnostics and publication fences. Type/collation providers retire later,
 	// after surviving column candidates have finished binding against them.
-	for _, target := range targets[len(roots):] {
+	for _, target := range effectPlan.Targets[len(roots):] {
 		if target.ClassID == ids.RelationClassID && target.SubID == 0 {
 			if err = provider.Remove(e.Catalog.Domain.Ref(provider.Base.Epoch(), target)); err != nil {
 				break
@@ -122,14 +190,30 @@ func (provider *DropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	if err != nil {
 		return err
 	}
+	if column != (ids.ObjectAddress{}) {
+		owner := column
+		owner.SubID = 0
+		if relation := provider.Descriptor(owner).(*catalog.Relation); relation.RelationKind == catalog.CompositeRelation {
+			var prunedChecks []ids.ObjectAddress
+			prunedChecks, err = table.PruneCompositeFieldChecks(provider, effectEdges)
+			if err != nil {
+				return err
+			}
+			if len(prunedChecks) != 0 {
+				effectEdges = slices.DeleteFunc(slices.Clone(effectEdges), func(edge table.DomainDependency) bool {
+					return slices.Contains(prunedChecks, edge.Address)
+				})
+			}
+		}
+	}
 	noticeStart := provider.noticePosition()
-	if err = provider.ApplyViewDependents(targets, parser.DropCascade); err != nil {
+	if err = provider.ApplyViewDependents(effectPlan.Targets, parser.DropCascade); err != nil {
 		return err
 	}
-	if err := provider.applyForeignKeyDependents(edges); err != nil {
+	if err := provider.applyForeignKeyDependents(effectEdges); err != nil {
 		return err
 	}
-	if err := table.CascadeColumnDrops(provider, relations, edges, targets, provider.ProjectColumn); err != nil {
+	if err := table.CascadeColumnDrops(provider, effectPlan.Relations, effectEdges, effectPlan.Targets, provider.ProjectColumn); err != nil {
 		return err
 	}
 	provider.rewindNotices(noticeStart)
@@ -138,9 +222,8 @@ func (provider *DropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 			provider.cascadeNotice("drop cascades to " + edge.Label)
 		}
 	}
-	// Newly discovered hierarchy owners are not the caller's original roots.
-	// Stage their AUTO closure after removing them so recursive expression
-	// traversal cannot rediscover the same hierarchy during sequence preparation.
+	// Newly reached whole hierarchy owners retain the incumbent distinct
+	// owned-provider phase. Captured column effects above never rediscover.
 	if len(plan.Hierarchy) != 0 {
 		return table.OwnedExpressionDependencies(provider, plan.Hierarchy, mode)
 	}

@@ -58,9 +58,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 		if err := exec.SelectQuerySources(ctx, from); err != nil {
 			return Outcome{}, err
 		}
-		if b.ViewWrite != nil || b.Rule.Template {
-			from = view.FreezeWriteSources(from, b.QuerySources, h.QueryAuthority(), h)
-		}
+		from = view.FreezeWriteSources(from, b.QuerySources, h.QueryAuthority(), h)
 		inputs = from
 		defer from.Close()
 	}

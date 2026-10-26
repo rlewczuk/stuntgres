@@ -47,6 +47,3 @@ func (p *DropProvider) StatementBound() bool { return p.Scope != nil }
 func (p *DropProvider) TypedFieldCheckOwner(relation *catalog.Relation) bool {
 	return p.Stage != nil && typedef.TypedFieldCheckOwner(p.Stage.Typed, p.Stage.Base, relation)
 }
-func (p *DropProvider) RecursingInheritance() bool {
-	return p.Scope != nil && p.Scope.Inheritance.Alter != nil
-}

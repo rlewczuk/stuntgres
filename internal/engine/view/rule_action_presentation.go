@@ -62,7 +62,7 @@ func freezeRuleActionPresentation(catalogView catalog.Read, owner ids.SessionTok
 			from = target
 		} else {
 			schema := append(append(plan.QuerySchema(nil), target.Schema()...), from.Schema()...)
-			from = &plan.JoinNode{QuerySchema: schema, Left: target, Right: from, LeftWidth: len(target.Schema()), RightWidth: len(from.Schema())}
+			from = &plan.JoinNode{QuerySchema: schema, Left: target, Right: from, LeftWidth: len(target.Schema()), RightWidth: len(from.Schema()), ViewOrdinal: -1}
 		}
 	} else if from == nil {
 		from = &plan.SingletonNode{}
@@ -83,43 +83,30 @@ func freezeRuleActionPresentation(catalogView catalog.Read, owner ids.SessionTok
 // data-modifying CTE of a rule action, keyed by its statement.
 func freezeRuleModifierPresentations(catalogView catalog.Read, owner ids.SessionToken, b analyze.Binding) (map[parser.Statement]*stored.View, error) {
 	var presentations map[parser.Statement]*stored.View
-	var collect func(analyze.Binding) error
-	collect = func(body analyze.Binding) error {
-		for _, definition := range body.CTEs {
-			mutation, ok := analyze.MutationBinding(definition)
-			if !ok || presentations[definition.Statement] != nil {
-				continue
-			}
-			// Auxiliary bindings share the outer statement binder's capture
-			// tables. Those tables are published on the completed action binding,
-			// not on each mutation. Borrow them for freezing while retaining the
-			// modifier's own executable query and globally indexed source leaves.
-			metadata := *mutation
-			metadata.Dependencies = b.Dependencies
-			metadata.Capture.Literals, metadata.Capture.CastUsages = b.Capture.Literals, b.Capture.CastUsages
-			metadata.Capture.RoutineRefs = b.Capture.RoutineRefs
-			metadata.Capture.OperatorRefs = b.Capture.OperatorRefs
-			metadata.Capture.Composites = b.Capture.Composites
-			metadata.Capture.SimilarSubstrings, metadata.Capture.PosixSubstrings = b.Capture.SimilarSubstrings, b.Capture.PosixSubstrings
-			metadata.Capture.Collations = b.Capture.Collations
-			metadata.Capture.Columns, metadata.Capture.Stars = b.Capture.Columns, b.Capture.Stars
-			metadata.Capture.Namespaces = b.Capture.Namespaces
-			metadata.Prepared.SequenceConstants, metadata.Prepared.RegtypeConstants = b.Prepared.SequenceConstants, b.Prepared.RegtypeConstants
-			presentation, err := freezeRuleActionPresentation(catalogView, owner, definition.Statement, metadata)
-			if err != nil {
-				return err
-			}
-			if presentations == nil {
-				presentations = make(map[parser.Statement]*stored.View)
-			}
-			presentations[definition.Statement] = presentation
-			if err := collect(*mutation); err != nil {
-				return err
-			}
+	err := stored.VisitRuleModifiers(b, func(definition *plan.CTEDefinition, mutation *analyze.Binding) error {
+		// Borrow completed captures, retaining the modifier's own graph.
+		metadata := *mutation
+		metadata.Dependencies = b.Dependencies
+		metadata.Capture.Literals, metadata.Capture.CastUsages = b.Capture.Literals, b.Capture.CastUsages
+		metadata.Capture.RoutineRefs = b.Capture.RoutineRefs
+		metadata.Capture.OperatorRefs = b.Capture.OperatorRefs
+		metadata.Capture.Composites = b.Capture.Composites
+		metadata.Capture.SimilarSubstrings, metadata.Capture.PosixSubstrings = b.Capture.SimilarSubstrings, b.Capture.PosixSubstrings
+		metadata.Capture.Collations = b.Capture.Collations
+		metadata.Capture.Columns, metadata.Capture.Stars = b.Capture.Columns, b.Capture.Stars
+		metadata.Capture.Namespaces = b.Capture.Namespaces
+		metadata.Prepared.SequenceConstants, metadata.Prepared.RegtypeConstants = b.Prepared.SequenceConstants, b.Prepared.RegtypeConstants
+		presentation, err := freezeRuleActionPresentation(catalogView, owner, definition.Statement, metadata)
+		if err != nil {
+			return err
 		}
+		if presentations == nil {
+			presentations = make(map[parser.Statement]*stored.View)
+		}
+		presentations[definition.Statement] = presentation
 		return nil
-	}
-	if err := collect(b); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	return presentations, nil

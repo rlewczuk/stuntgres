@@ -136,7 +136,7 @@ func (m *Modification) Export(ctx context.Context, row []sqltype.Value, rt Write
 
 func (m *Modification) Returned(ctx context.Context, row catalog.ForeignRow, rt WriteRuntime) ([]sqltype.Value, error) {
 	input, output := rt.Environments()
-	return m.Source.ImportValues(ctx, row, nil, input, output, nil)
+	return m.Source.ImportValues(ctx, row, nil, input, output, nil, nil)
 }
 
 func (m *Modification) InsertRows(ctx context.Context, rt WriteRuntime, rows [][]sqltype.Value, rowByRow bool, accept func([]sqltype.Value) error) (int64, error) {

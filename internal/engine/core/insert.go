@@ -45,9 +45,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 		if err := exec.SelectQuerySources(ctx, source); err != nil {
 			return Result{}, err
 		}
-		if b.ViewWrite != nil || b.Rule.Template {
-			source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, HostOf(scope))
-		}
+		source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, HostOf(scope))
 		b.Query = &plan.Query{Root: execution.queryRoot}
 		in.Query, in.Parameters, in.Schema = source, canonical, schema
 	} else {
@@ -67,9 +65,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			if err := exec.SelectQuerySources(ctx, evaluation.Query.Source); err != nil {
 				return Result{}, err
 			}
-			if b.ViewWrite != nil || b.Rule.Template {
-				evaluation.Query.Source = view.FreezeWriteSources(evaluation.Query.Source, b.QuerySources, scope.authority, HostOf(scope))
-			}
+			evaluation.Query.Source = view.FreezeWriteSources(evaluation.Query.Source, b.QuerySources, scope.authority, HostOf(scope))
 			defer evaluation.Query.Source.Close()
 		}
 		in.Evaluation, in.Expressions = &evaluation, execution.expressions

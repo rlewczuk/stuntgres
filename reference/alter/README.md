@@ -28,6 +28,24 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   `referenceDDLNativeDump`/`referenceDDLPositionError`
   (`alter_ddl_controls_helpers_test.go`) and `referenceSchemaSequenceState`
   (`alter_schema_helpers_test.go`).
+- `dcrScenario` and `dcr*` helpers (`alter_drop_column_routine_helpers_test.go`)
+  share notice-enabled direct/held routine dependency scenarios, exact attribute
+  edge bags and native-control phases. Each column action owns its notice group;
+  failure of a later action does not erase an already reported group.
+  Precision retains a held survivor call across leading/trailing and depended
+  column compaction. The survivor has both a body and a default edge to the
+  remaining attribute: omitted/default calls still return 8, explicit 17 returns
+  25, and both physical dependency rows remain. The shared cascade survivor
+  assertions carry this witness through transaction/savepoint and native-control
+  phases without changing the retired closure or notice expectations.
+  `TestReferenceAlterDropColumnRoutineOwnedSequence` independently covers the
+  sequence-only body/view path for both an ordinary OWNED BY/default sequence
+  and an identity sequence. Direct/held RESTRICT preserves full identity/edge
+  bags and stable attributes after leading compaction; rollback/commit CASCADE
+  retires the recursive closure once while other-attribute and other-table
+  sequence owners survive. Discover its full diagnostics/notices first with
+  `make check REFERENCE=1 RUN='^TestReferenceAlterDropColumnRoutineOwnedSequence$'`,
+  then run the same selector natively before review.
 - `alterTypeIdentityOldRows` (`alter_type_identity_savepoints_test.go`) checks a
   retained pre-ALTER cursor (metadata, scan, exhaustion, `Rows.Err`, Close); it is
   shared by `alter_type_identity_test.go` and
@@ -52,6 +70,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - ADD CONSTRAINT: `RUN='^TestReferenceAlterAddConstraint'`
 - SET/DROP DEFAULT: `RUN='^TestReferenceAlterDefault'`
 - DROP COLUMN: `RUN='^TestReferenceAlterDropColumn'`
+- DROP COLUMN routine dependency closure, identity, rollback, admission and controls:
+  `RUN='^TestReferenceAlterDropColumnRoutine'`
 - Identity options: `RUN='^TestReferenceAlterIdentity'`
 - SET/DROP NOT NULL: `RUN='^TestReferenceAlterNullability'`
 - RENAME: `RUN='^TestReference(Smoke)?AlterRename'`

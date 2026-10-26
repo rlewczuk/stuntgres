@@ -103,6 +103,45 @@ func PlanDrop(r DropReader, roots []ids.ObjectAddress, edges []table.DomainDepen
 	return plan
 }
 
+// ColumnDropEffects defers AUTO indexes and sequences owned by any captured
+// surviving column until its metadata cook. Full edges/targets still own
+// diagnostics, observations and admission; this is only effect classification.
+func ColumnDropEffects(plan DropPlan, edges []table.DomainDependency, column ids.ObjectAddress) (DropPlan, []table.DomainDependency) {
+	cooked := func(target ids.ObjectAddress) bool {
+		if target == column && column != (ids.ObjectAddress{}) {
+			return true
+		}
+		return slices.ContainsFunc(edges, func(edge table.DomainDependency) bool {
+			return edge.Column != "" && edge.Address == target && !slices.Contains(plan.Targets, edge.Relation.Address())
+		})
+	}
+	owned := func(edge table.DomainDependency) bool {
+		if !edge.Automatic || edge.Relation == nil || edge.Column != "" || !cooked(edge.Target) {
+			return false
+		}
+		relation := edge.Relation
+		if relation.SQLIndex != nil {
+			return relation.SQLIndex.Parent.ClassID == edge.Target.ClassID && relation.SQLIndex.Parent.ObjectID == edge.Target.ObjectID
+		}
+		return table.SequenceOwnedBy(relation, edge.Target) || relation.Address().ClassID == edge.Target.ClassID && relation.Address().ObjectID == edge.Target.ObjectID
+	}
+	if !slices.ContainsFunc(edges, owned) {
+		return plan, edges
+	}
+	effects := make([]table.DomainDependency, 0, len(edges))
+	plan.Targets = slices.Clone(plan.Targets)
+	for _, edge := range edges {
+		if owned(edge) {
+			plan.Targets = slices.DeleteFunc(plan.Targets, func(address ids.ObjectAddress) bool {
+				return address != column && address == edge.Address
+			})
+		} else {
+			effects = append(effects, edge)
+		}
+	}
+	return plan, effects
+}
+
 // LockRelations are the relations a statement-bound drop locks, in OID
 // order: the plan's relations, plus each surviving policy owner and each
 // table or foreign table the closure removes. Lock owners are not deletion

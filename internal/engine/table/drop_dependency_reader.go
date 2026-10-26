@@ -17,9 +17,9 @@ import (
 // and the passes that stay with the pipeline. The engine's dropProvider
 // implements it.
 //
-// Callers hold nothing. Acquire, CaptureIdentitySequence and
-// ExpressionDependencies wait for locks; Remove and ApplyViewDependents take
-// Engine.mu; the other methods do neither.
+// Callers hold nothing. Acquire, CaptureIdentitySequence,
+// ColumnDependencies and ExpressionDependencies may wait for locks; Remove and
+// ApplyViewDependents take Engine.Mu; the other methods do neither.
 type DropDependencyReader interface {
 	Context() context.Context
 	BaseRead() catalog.Read
@@ -40,9 +40,6 @@ type DropDependencyReader interface {
 	// StatementBound reports whether a statement runs the drop (not a
 	// stage-only dependency query).
 	StatementBound() bool
-	// RecursingInheritance reports whether the statement is an inheritance
-	// ALTER TABLE recursion.
-	RecursingInheritance() bool
 	// TypedFieldCheckOwner reports whether the admitted typed-table closure
 	// of an ALTER TYPE owns relation's inherited CHECKs.
 	TypedFieldCheckOwner(*catalog.Relation) bool
@@ -56,6 +53,9 @@ type DropDependencyReader interface {
 	// ExpressionDependencies drops or rejects what depends on roots on behalf
 	// of subject.
 	ExpressionDependencies(roots []ids.ObjectAddress, mode parser.DropMode, subject ids.ObjectAddress) error
+	// ColumnDependencies preflights the full closure of the original live
+	// attribute. Its local AUTO payload and physical shape remain column-owned.
+	ColumnDependencies(target ids.ObjectAddress, mode parser.DropMode) error
 	// Notice emits notice, or records it for a prepared drop.
 	Notice(notice sqlstate.Error)
 	// CaptureIdentitySequence acquires the identity sequence seq of relation's

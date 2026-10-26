@@ -69,12 +69,51 @@ Literal validation and VALUES source rendering share the same checked source-roo
 selection before matching retained syntax to its graph; neither treats the
 synthetic target envelope as a raw FROM join or accepts a missing VALUES capture.
 
+Genuine frame-1 FROM/USING VALUES, function and JOIN-ON occurrences are raw
+owners even though the synthetic target carrier is not. Each main/modifier
+presentation projects all ten occurrence maps through the validator's checked
+raw-root enumeration; every original key must remain owned, and shared CTE
+owners need not form a partition. Recursive missing/extra/path/count checks and
+the full original binding captures, namespaces and dependency authority remain
+unchanged. Actual child bindings retain frozen sources through the incumbent
+memoized mapper. Query-less modifying-CTE scans require genuine MutationBinding,
+supported statement and coherent RETURNING/definition/scan schemas and Usages.
+Shared modifier enumeration pairs every actual statement with its immutable
+ActionSyntax presentation and rejects missing, extra or swapped associations.
+Ordinary derived queries still require their real QueryRoot; no fake producer
+or runtime rebind represents a mutation.
+
+Source-manifest completeness belongs to the entire associated action: a genuine
+Query-less mutation scan does not expose its child's FROM graph as a SELECT.
+One validation-local coverage set combines the main and exact modifier roots
+through the incumbent leaf traversal, then checks every original outer source
+ordinal. Each local leaf/prefix must retain original reference, stable attributes,
+reads and provenance. Frames, rowmarks and duplicate-node checks stay local to
+each presentation; ordinary view validation keeps complete per-view coverage.
+No source is discarded, renumbered or marked analysis-only to fill this boundary.
+Before freezing, common mutation binding activates CTE source demand from the
+actual query/FROM/USING/MERGE roots using the existing executable-query walk.
+An executable mutation source is not necessarily a registered SELECT query.
+Genuinely unused SELECT definitions remain analysis-only; actual main and child
+sources receive real capture rather than an identity-only analysis header.
+
 Invocation uses checked action bindings, current target/source refresh and the
 incumbent rule-command admission/ACL/data-view owners. It never renders, parses
 or reselects names/overloads from standard SQL at runtime. Opened sources, data,
 frames and authorization decisions are never stored in the payload. Ordinary
 relation/view renames and same-path shadows do not retarget the recipe; later
 more-specific overloads do not replace the creation-selected callee.
+The admitted bound command bundle includes actual modifying-CTE children, not
+only the main action or rule-rewritten children. Incumbent target/source grants
+and readmission precede installing exact statement-keyed mutation contexts.
+Each keeps its own physical target; main SELECT keeps none. Bound view/hierarchy
+admission and fresh identity/ACL/RLS/context checks precede effects under the
+same root ticket, data-view owner and scratch lifetime. No lexical name lookup
+or fabricated admission index replaces the immutable child target.
+Bound target grants do not imply local storage. The admission owner includes
+only canonical Stored relation kinds in returned heap roots, while retaining
+foreign target RX/ACL/identity authority and the real local source data roots.
+Foreign execution continues through its provider, never a manufactured heap.
 
 Standard source/callee/type dependencies enter DROP closure, pg_depend and dump
 events. Quoted incidental references remain soft. Captures require the actual

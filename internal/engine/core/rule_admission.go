@@ -15,6 +15,8 @@ import (
 
 // Enter with Engine.mu held. Success retains it; failure releases it. This
 // acquires the original ticket's locks, not data views or command effects.
+// Returned refs are local stored-data roots, not the target grant manifest:
+// foreign targets still acquire RX but have no heap for a data view to capture.
 func (e *Engine) AdmitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *view.RuleProgram) ([]ids.ObjectRef, error) {
 	commands, events := program.Commands, program.Events
 	var seen map[*plan.CTEDefinition]bool
@@ -64,7 +66,7 @@ func (e *Engine) AdmitRuleCommandsLocked(scope *StatementScope, statement parser
 				ref  ids.ObjectRef
 				mode lock.Mode
 			}{physical.Ref, lock.RowExclusive})
-			if !slices.Contains(refs, physical.Ref) {
+			if physical.Relation.RelationKind.Stored() && !slices.Contains(refs, physical.Ref) {
 				refs = append(refs, physical.Ref)
 			}
 		}

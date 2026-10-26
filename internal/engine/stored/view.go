@@ -18,6 +18,7 @@ import (
 type View struct {
 	query             *plan.Query
 	syntax            *parser.Select
+	actionSyntax      parser.Statement // Exact owning routine command, not its synthetic SELECT.
 	expressionSyntax  parser.Expr // Lexical outer frame for a frozen Boolean definition.
 	mutationFrame     bool        // Synthetic frame 1 includes a mutation target row.
 	sources           []ViewLeaf

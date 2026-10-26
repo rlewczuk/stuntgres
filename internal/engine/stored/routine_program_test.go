@@ -146,6 +146,86 @@ func TestRoutineProgramCaptureValidation(t *testing.T) {
 			}
 		}
 	})
+	for _, kind := range []string{"valid", "scan-alias", "definition-alias", "absent-mutation", "opaque-mutation", "missing-returning", "scan-width", "scan-usage", "output-width", "output-usage", "returning-usage", "unsupported-statement", "inconsistent-statement", "missing-modifier", "extra-modifier", "swapped-modifier", "wrong-association", "orphan-scan", "recursive-mutation", "query-mutation"} {
+		t.Run("mutation-scan/"+kind, func(t *testing.T) {
+			read, p, scan, definition, modifier, boolean := routineMutationCaptureFixture(t)
+			if err := p.Validate(read); err != nil {
+				t.Fatal("valid mutation RETURNING scan", err)
+			}
+			if kind == "valid" {
+				return
+			}
+			mutation, _ := analyze.MutationBinding(definition)
+			if kind == "scan-alias" || kind == "definition-alias" {
+				if kind == "scan-alias" {
+					scan.QuerySchema = append(plan.QuerySchema(nil), scan.QuerySchema...)
+					scan.QuerySchema[0].Name = "picked"
+				} else {
+					definition.Schema = append(plan.QuerySchema(nil), definition.Schema...)
+					definition.Schema[0].Name = "declared"
+					mutation.Returning.Schema = definition.Schema
+				}
+				if err := p.Validate(read); err != nil {
+					t.Fatal("legal mutation output alias", err)
+				}
+				return
+			}
+			switch kind {
+			case "absent-mutation":
+				definition.Mutation = nil
+			case "opaque-mutation":
+				definition.Mutation = opaqueRoutineMutation{}
+			case "missing-returning":
+				mutation.Returning, definition.Schema = nil, nil
+			case "scan-width":
+				scan.QuerySchema = nil
+			case "scan-usage":
+				scan.QuerySchema = append(plan.QuerySchema(nil), scan.QuerySchema...)
+				scan.QuerySchema[0].Usage = boolean.Usage()
+			case "output-width":
+				definition.Schema = nil
+			case "output-usage":
+				definition.Schema = append(plan.QuerySchema(nil), definition.Schema...)
+				definition.Schema[0].Usage = boolean.Usage()
+			case "returning-usage":
+				mutation.Returning.Expressions = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}}
+			case "unsupported-statement":
+				definition.Statement = &parser.Select{}
+			case "inconsistent-statement":
+				mutation.Update = nil
+			case "missing-modifier":
+				p.actions[0].modifierPresentations = nil
+			case "extra-modifier":
+				p.actions[0].modifierPresentations[&parser.Update{}] = modifier
+			case "swapped-modifier":
+				other := &parser.Update{}
+				copy := *definition
+				copy.Statement = other
+				p.actions[0].binding.CTEs = append(p.actions[0].binding.CTEs, &copy)
+				p.actions[0].modifierPresentations[other] = modifier.With(func(parts *ViewParts) { parts.ActionSyntax = other })
+				p.actions[0].modifierPresentations[definition.Statement], p.actions[0].modifierPresentations[other] = p.actions[0].modifierPresentations[other], modifier
+			case "wrong-association":
+				modifier.actionSyntax = &parser.Update{}
+			case "orphan-scan":
+				copy := *definition
+				copy.Statement = &parser.Update{}
+				scan.CTE = &copy
+			case "recursive-mutation":
+				definition.Recursive = true
+			case "query-mutation":
+				definition.Query = p.actions[0].binding.Query
+			}
+			if err := p.Validate(read); err == nil {
+				t.Fatal("corrupt mutation scan admitted")
+			}
+			if _, err := p.StatementSQL(context.Background(), read, 0); err == nil {
+				t.Fatal("corrupt mutation scan rendered")
+			}
+			if _, err := p.Rebind(read, nil, NewRoutineRemap(read, nil, nil, nil, false)); err == nil {
+				t.Fatal("corrupt mutation scan published by replacement")
+			}
+		})
+	}
 }
 
 func TestRoutineActionValidationBoundary(t *testing.T) {
@@ -270,4 +350,37 @@ func TestRoutineMergeCaptureValidation(t *testing.T) {
 			t.Fatal("replacement mutated original capture")
 		}
 	})
+}
+
+type opaqueRoutineMutation struct{}
+
+func (opaqueRoutineMutation) CTEMutationPayload() {}
+
+func routineMutationCaptureFixture(t *testing.T) (catalog.Read, *RoutineProgram, *plan.DerivedNode, *plan.CTEDefinition, *View, *sqltype.Descriptor) {
+	t.Helper()
+	read, relation, integer, boolean := routineCaptureFixture(t)
+	action := routineLiteralAction(t, integer)
+	project := action.presentation.query.Root.(*plan.ProjectNode)
+	literal := project.Expressions[0]
+	statement := &parser.Update{}
+	mutation := &analyze.Binding{
+		Relation: relation, Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()),
+		Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{literal}},
+		Returning: &analyze.Returning{Schema: relation.Columns, Expressions: []expr.Expr{literal}},
+	}
+	definition := &plan.CTEDefinition{Statement: statement, Mutation: mutation, Schema: relation.Columns, Name: "m"}
+	table := &parser.TableReference{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "m"}}}}
+	scan := &plan.DerivedNode{QuerySchema: relation.Columns, CTE: definition, Table: table, Ordinal: -1, ScanFrame: 2}
+	project.Child, project.Frame, project.Syntax.From = scan, 2, table
+	action.presentation.frames = map[uint32]*plan.ProjectNode{2: project}
+	action.presentation.literals = map[analyze.ViewLiteralPath]plan.LiteralExpr{{Query: 2, Clause: analyze.ViewTargetLiteral}: literal.(plan.LiteralExpr)}
+	action.binding.CTEs = []*plan.CTEDefinition{definition}
+	syntax := &parser.Select{}
+	modifierRoot := &plan.ProjectNode{Child: &plan.SingletonNode{QuerySchema: relation.Columns}, Expressions: []expr.Expr{literal, literal}, Syntax: syntax, Frame: 1}
+	modifier := NewView(ViewParts{
+		Query: &plan.Query{Root: modifierRoot}, Syntax: syntax, ActionSyntax: statement, MutationFrame: true,
+		Frames: map[uint32]*plan.ProjectNode{1: modifierRoot}, Queries: map[*parser.Select]*plan.ProjectNode{syntax: modifierRoot},
+	})
+	action.modifierPresentations = map[parser.Statement]*View{statement: modifier}
+	return read, NewRoutineProgram([]RuleAction{action}), scan, definition, modifier, boolean
 }

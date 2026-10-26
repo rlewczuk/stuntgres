@@ -135,10 +135,10 @@ func (v *QueryRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read,
 	return text, nil
 }
 
-func (v *viewLiteralValidator) validateValuesLiterals(catalog catalog.Read, source *parser.ValuesQuery, frame uint32, occurrence int, count, columns, composites, intaggCount *int) error {
+func walkValuesLiteralRoots(source *parser.ValuesQuery, frame uint32, occurrence int, visit func(parser.Expr, analyze.ViewLiteralPath, *int) error) error {
 	validate := func(raw parser.Expr, clause analyze.ViewLiteralClause, row, column int) error {
 		ordinal := 0
-		return v.validateLiteralTree(catalog, raw, analyze.ViewLiteralPath{Query: frame, Clause: clause, Source: occurrence, Row: row, Target: column}, &ordinal, count, columns, composites, intaggCount)
+		return visit(raw, analyze.ViewLiteralPath{Query: frame, Clause: clause, Source: occurrence, Row: row, Target: column}, &ordinal)
 	}
 	for i, row := range source.Rows {
 		for j, raw := range row {
