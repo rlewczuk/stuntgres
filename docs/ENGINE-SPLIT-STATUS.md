@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `49d1ca83a` (item 203 rebased on it).
+Last verified against `master` at `7b262861a` (item 204 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 204.
+- 205.
 
 ## Linear plan
 
@@ -374,8 +374,25 @@ ENGINE-SPLIT.md §4.
      `^TestReferenceFDW` passed in the merge chain; bench skipped (moved code
      unchanged; the escape diff shows only Dump's `captureDumpLocked`, see the
      prompt Status), racecheck and finalcheck skipped at user request
-204. [ ] Composition cleanup —
+204. [x] Composition cleanup —
      [core](ENGINE-SPLIT-core.md#item-204--composition-cleanup) · needs 203 · S
+     (`8f05b2dce`, `cb4b3802a`, `687bec9d6`, `7aba831ca`, `d4c49c11a`,
+     `a4770c3b1`, `c5ffc8d9b`, `87b4def91`, `e0eb6765d`, docs commit) · the root
+     now holds only the composition and its tests: 173 dead root test helper
+     files deleted (no test function among them), the root runtime tests (93
+     files, 321 tests and benchmarks) moved to `core` as `core_test` external
+     tests by `cmdmv` (none deleted under T2), the ISN Restore owner tests set
+     up through SQL, 9 core names and `schemacmds`' `StageSchemaLocked` and
+     `StageExtensionLocked` unexported behind accessor files, 2 inspection
+     accessors moved from `core/inspect.go` to an accessor file, and Dump's
+     foreign namespace check made allocation-free again; root production 17
+     files and 0.08 MB (+0.4 KB), root tests 8 files and 0.02 MB (−1.13 MB); the
+     moved tests (all and each alone), the root, `core`, `tablecmds` and
+     `schemacmds` packages, quickcheck, the §3 `go list` check and the library
+     deps check passed; `REFERENCE=1`
+     `^TestReference(Control|DumpRoundTrip|Ean13Controls)` passed in the merge
+     chain; startup bench unchanged (interleaved before/after binaries),
+     racecheck and finalcheck skipped at user request
 205. [ ] Closing review 5 (docs only) —
      [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-205--closing-review-5) · needs
      204
