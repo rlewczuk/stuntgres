@@ -147,7 +147,7 @@ func TestReferenceCopyTextAdmissionAndLocks(t *testing.T) {
 		observer := copyTextConnection{conn: peer, ctx: p.Ctx, pg: b.PG}
 		observer.exec(t, "BEGIN")
 		observer.exec(t, "LOCK TABLE copy_locks IN ACCESS EXCLUSIVE MODE")
-		c.exec(t, "SET lock_timeout TO '30ms'")
+		c.exec(t, "SET lock_timeout TO '10ms'")
 		for _, from := range []bool{true, false} {
 			var result copyTextResult
 			var err error

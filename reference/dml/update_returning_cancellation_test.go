@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -49,23 +50,28 @@ func TestReferenceUpdateReturningCancellation(t *testing.T) {
 					fixture.DeleteReferenceRows(t, p, b, backend.Recorder, 1, 2)
 					return
 				}
+				// A lock timer counts only the lock wait; a statement timer also
+				// counts parse and plan time.
 				if kind != "admin" {
-					fixture.LockExec(t, p.Ctx, b, "SET "+kind+"='500ms'", 0)
+					timer := map[string]string{"lock_timeout": "10ms", "statement_timeout": "100ms"}[kind]
+					fixture.LockExec(t, p.Ctx, b, "SET "+kind+"='"+timer+"'", 0)
 				}
 				await := fixture.LockOperation(t, p.Ctx, func(ctx context.Context) fixture.RelationOutcome {
 					rows, err := b.QueryContext(ctx, "UPDATE t SET id=id+1 RETURNING old.id,new.id")
 					return fixture.RelationOutcome{Rows: rows, Err: err}
 				})
-				updateFromPGWait(t, p.Ctx, bp)
-				var exactBlocker bool
-				if err = fixture.Admin.QueryRowContext(p.Ctx, "SELECT $2=ANY(pg_blocking_pids($1))", bp, ap).Scan(&exactBlocker); err != nil || !exactBlocker {
-					t.Fatal("unexpected tuple blocker", exactBlocker, err)
-				}
-				var earlierDeletion bool
-				if err = fixture.Admin.QueryRowContext(p.Ctx, "SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='transactionid' AND granted AND transactionid=(SELECT xmax FROM t WHERE id=1))", bp).Scan(&earlierDeletion); err != nil || !earlierDeletion {
-					t.Fatal("wait lacked independently observed earlier tuple deletion", earlierDeletion, err)
-				}
+				// A timer's exact outcome proves the wait; never race an observer
+				// against the short timer. The admin cancel observes the parked waiter.
 				if kind == "admin" {
+					updateFromPGWait(t, p.Ctx, bp)
+					var exactBlocker bool
+					if err = fixture.Admin.QueryRowContext(p.Ctx, "SELECT $2=ANY(pg_blocking_pids($1))", bp, ap).Scan(&exactBlocker); err != nil || !exactBlocker {
+						t.Fatal("unexpected tuple blocker", exactBlocker, err)
+					}
+					var earlierDeletion bool
+					if err = fixture.Admin.QueryRowContext(p.Ctx, "SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='transactionid' AND granted AND transactionid=(SELECT xmax FROM t WHERE id=1))", bp).Scan(&earlierDeletion); err != nil || !earlierDeletion {
+						t.Fatal("wait lacked independently observed earlier tuple deletion", earlierDeletion, err)
+					}
 					var canceled bool
 					if err = fixture.Admin.QueryRowContext(p.Ctx, "SELECT pg_cancel_backend($1)", bp).Scan(&canceled); err != nil || !canceled {
 						t.Fatal(canceled, err)
@@ -87,9 +93,18 @@ func TestReferenceUpdateReturningCancellation(t *testing.T) {
 				if err = holder.Rollback(); err != nil {
 					t.Fatal(err)
 				}
-				fixture.LockExec(t, p.Ctx, b, "SET lock_timeout=0", 0)
-				fixture.LockExec(t, p.Ctx, b, "SET statement_timeout=0", 0)
-				fixture.DeleteReferenceRows(t, p, b, backend.Recorder, 1, 2)
+				// Resetting a lock timer takes no lock. Once a statement timer is
+				// armed even SET can time out, so that owner is disposed instead.
+				survivor := b
+				if kind == "statement_timeout" {
+					if err = b.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
+						t.Fatal("disposing timer-armed owner", err)
+					}
+					survivor = a
+				} else {
+					fixture.LockExec(t, p.Ctx, b, "SET lock_timeout=0", 0)
+				}
+				fixture.DeleteReferenceRows(t, p, survivor, backend.Recorder, 1, 2)
 			})
 		}
 	}
