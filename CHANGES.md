@@ -1,3 +1,11 @@
+All 28 PostgreSQL 18 vacuum settings now expose typed values and complete
+catalog metadata through the shared registry. Ordinary logins can change the
+13 user-context controls, including the released-source USERSET eager-freeze
+failure rate; the 15 non-live autovacuum controls reject live changes even
+with parameter grants. These are setting-only physical simulations, not
+worker scheduling, I/O delays, tuple freezing or file truncation. Session
+lifetimes and logical constraints remain independent of physical descriptions.
+
 Queries of `pg_type`, `pg_proc` and `pg_depend` whose WHERE compares one oid
 column with a constant or parameter (`WHERE oid = 16384`,
 `WHERE pronamespace = $1`, also inside derived subqueries) read only the

@@ -31,7 +31,6 @@ func settingsPostgresNumericConsumers(t *testing.T, p *fixture.Pair) {
 			{"random_page_cost", "010", "10"}, {"random_page_cost", "0xA", "10"}, {"random_page_cost", "08.5", "8.5"}, {"random_page_cost", "0x1p0", "1"}, {"random_page_cost", " .5", "0.5"}, {"random_page_cost", "0e-999", "0"},
 			{"random_page_cost", "1.25", "1.25"}, {"random_page_cost", "2.1234567", "2.12346"}, {"random_page_cost", "1e-3", "0.001"},
 			{"random_page_cost", "0x1p-1074", "4.94066e-324"},
-			{"vacuum_cost_delay", "1500us", "1500us"}, {"vacuum_cost_delay", "0.0001", "0.1us"}, {"vacuum_cost_delay", "0.0001ms", "0"},
 			{"bytea_output", "HEX", "hex"},
 		} {
 			run(fixture.Exec("SET "+tc.name+" TO '"+tc.input+"'", 0))
@@ -60,7 +59,7 @@ func settingsPostgresNumericConsumers(t *testing.T, p *fixture.Pair) {
 		for _, input := range []string{"08.5", "0x1p0"} {
 			run(settingsReferenceError("SET statement_timeout TO '"+input+"'", "22023", `invalid value for parameter "statement_timeout": "`+input+`"`, `Valid units for this parameter are "us", "ms", "s", "min", "h", and "d".`, ""))
 		}
-		for _, name := range []string{"geqo_threshold", "random_page_cost", "vacuum_cost_delay", "bytea_output"} {
+		for _, name := range []string{"geqo_threshold", "random_page_cost", "bytea_output"} {
 			run(fixture.Exec("RESET "+name, 0))
 		}
 	}

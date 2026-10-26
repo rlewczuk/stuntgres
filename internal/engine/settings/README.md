@@ -101,6 +101,27 @@ public custom-unit registration remains unchanged. Physical sessions retain
 these values across pool reuse and logical native controls. The pinned comparison
 server is PostgreSQL18.6, independently of native's truthful18.0 identity.
 
+## Vacuum settings
+
+`vacuum.go` owns 28 unrestricted-read vacuum descriptors: 15 immutable
+autovacuum controls (12 sighup, three postmaster) and 13 user-context controls.
+All use the ordinary typed parser, base-unit catalog metadata and session
+store, without hooks or cross-setting clamps. In particular,
+`vacuum_max_eager_freeze_failure_rate` is user-settable, as defined by released
+PostgreSQL 18 source, including for ordinary logins.
+
+These are setting-only physical simulations: assignments never start workers,
+schedule vacuum, delay I/O, freeze tuples or multixacts, truncate files or
+restart a server. Logical data, constraints and authority remain operative.
+Immutable live assignments fail before parsing or authorization; SET grants
+cannot unlock them and RESET ALL skips them. Default providers may supply
+normalized equivalent immutable values only. Mutable defaults are captured
+once per physical session; resets restore the exact typed capture without
+calling the provider again. Pool reuse retains overrides; physical replacement
+recaptures defaults, while logical Dump/Reset/Restore never serializes live
+vacuum settings. Related resource/logging descriptors and relation storage
+options retain their separate ownership and domains.
+
 ## Lock settings
 
 `deadlock_timeout`, `max_locks_per_transaction`, `max_pred_locks_per_page`,
@@ -512,6 +533,7 @@ make check RUN='^TestDeveloperSettings'
 make check RUN='^TestLoggingSettings'
 make check RUN='^TestLockSettings'
 make check RUN='^TestReplicationSettings'
+make check RUN='^TestVacuumSettings'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in

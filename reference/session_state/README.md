@@ -84,6 +84,19 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Settings SQL, registry, SHOW ALL: `RUN='^TestReferenceSettings'`
 - SET LOCAL and transaction-scoped settings: `RUN='^TestReferenceSettingsLocal'`
 - `pg_settings` metadata and statistics settings: `RUN='^TestReferenceStatisticsSettings'`
+- Vacuum settings: `RUN='^TestReferenceVacuumSettings'` uses independent
+  released 28-row literals and the shared physical-session helpers for full
+  metadata, direct/prepared reads and assignments, immutable context/SET-grant
+  precedence, ordinary authority, typed validation and transactional lifetimes.
+  Native control phases use recorded public pools and retained catalog rows;
+  logical constraint/data witnesses assert the setting-only simulation boundary.
+  The pinned official image's initdb configuration writes
+  `autovacuum_worker_slots=16`, so only that PostgreSQL row has configuration-file
+  source; owner/inherited-reader file provenance is exact and ordinary-login
+  provenance stays NULL. Native retains default source without invented files.
+  Shared logical sentinel setup, reads and DML explicitly target `public`.
+  Changes to the shared numeric consumer helper also select its existing
+  `TestReferenceSettingsPublicTypedSQL` caller in both modes.
 - Preset settings: `RUN='^TestReferencePresetSettings(Inventory|Context|Authority|Lifecycle|Smoke)$$'`
   covers all 20 independently expected release descriptors, full catalog metadata,
   direct/prepared text presentation, context-first 55P02 refusals, unrestricted
