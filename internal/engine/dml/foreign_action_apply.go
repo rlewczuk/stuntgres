@@ -46,7 +46,7 @@ func planForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event F
 	for _, slot := range plan.Targets {
 		plan.DomainChecks = plan.DomainChecks || sqltype.ContainsDomainConstraints(job.Child.Columns[slot].Usage.Type)
 	}
-	if err := h.PlanForeignActionInput(auth, job, plan, action); err != nil {
+	if err := h.PlanForeignActionInput(auth, job, plan, event, action); err != nil {
 		return nil, err
 	}
 	if action == parser.ForeignKeySetNull && plan.DomainChecks {

@@ -257,7 +257,9 @@ func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, sl
 			return
 		}
 		record(captured)
-		if captured != nil {
+		// Keep the original call's provenance failure: a bodyless builtin's
+		// successful body walk cannot certify a missing or stale outer call.
+		if captured != nil && failure == nil {
 			failure = exec.WalkRoutineBody(captured, node, func(body *catalog.Procedure) error {
 				current, ok := view.Procedure(body.Address())
 				if !ok || !exec.SameRoutineDeclaration(current, body) {

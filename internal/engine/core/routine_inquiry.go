@@ -1,9 +1,12 @@
 package core
 
 import (
+	"errors"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqlstate"
 )
 
 // All SQL query/cursor evaluation borrowing exec.Authority is serialized by the
@@ -20,6 +23,7 @@ type commandRoutineProgram struct {
 	consumer  *catalog.Relation
 	ri        bool
 	admission *exec.RoutineProgram
+	riQuery   string // Action diagnostic after its live owner phase has unwound.
 }
 
 func admitInquiryBody(c *exec.Context, node expr.Info) error {
@@ -79,7 +83,19 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 
 func (s *StatementScope) readmitRoutinePrograms(auth exec.RoutineAccess) error {
 	for i := range s.routinePrograms {
-		if err := s.routinePrograms[i].admission.Readmit(auth); err != nil {
+		program := &s.routinePrograms[i]
+		if err := program.admission.Readmit(auth); err != nil {
+			// A live action owns its existing foreignActionError frame.
+			// Final publication runs after that phase has restored the caller.
+			var diagnostic *sqlstate.Error
+			if program.riQuery != "" && s.ForeignActionAuth == nil && errors.As(err, &diagnostic) {
+				copy := *diagnostic
+				if copy.Context != "" {
+					copy.Context += "\n"
+				}
+				copy.Context += `SQL statement "` + program.riQuery + `"`
+				return sqlstate.WithDiagnostic(err, &copy)
+			}
 			return err
 		}
 	}

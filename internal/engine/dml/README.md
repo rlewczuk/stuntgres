@@ -67,6 +67,16 @@ referencing-table owner's RI authority through description, prepared analysis
 and execution, including live role recapture after unlocked provider preflight.
 Each recapture checks current ACLs as that owner; neither the initiator nor
 trigger-function ownership supplies body privileges.
+SET DEFAULT actions evaluate the actual referencing-table recipe as its current
+owner and restore the initiating authority on every exit. Default preparation
+retains consumed original calls even when immutable folding erases their nodes.
+Readmission after a row or unique wait and at final publication rechecks those
+calls as the child owner without replaying default or CHECK truth; failure
+publishes neither staged rows nor counts.
+COPY uses its importing caller, never the target owner, through the same staging
+and final-publication fences. Input conversion/CHECK diagnostics own the active
+row text; buffered insertion retains only each candidate's origin line, so a
+post-wait admission failure has line context without raw input.
 
 ## Command state
 

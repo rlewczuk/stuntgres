@@ -21,6 +21,17 @@ through result metadata, private PL formals and native replay. Procedure options
 are parsed as complete clauses: malformed suffixes fail during parsing, while
 syntactically valid prohibited attributes retain their declaration diagnostic.
 
+Rule, actual SET DEFAULT referential-action and streaming COPY routine authority
+have independent PostgreSQL 18.6 regression coverage. The tests distinguish
+rule invokers, child owners and importing callers, including original DEFAULT
+manifest grafts, current authority after native waits, and atomic COPY failure
+without replaying consumed volatile checks. SET DEFAULT referential actions now
+retain original calls consumed by immutable default folding, so revoking child
+owner EXECUTE during a wait rejects publication instead of accepting a cooked
+default under stale authority. Rule NEW substitution preserves rejection of
+missing or incompatible original DEFAULT routine provenance, including calls
+to bodyless builtins.
+
 `CREATE EXTENSION seg` installs the interval scalar and its genuine text codecs.
 Literal and bound values preserve endpoint annotations and significant digits;
 results expose canonical text (including derived `Infinity`/`-Infinity`), SEG

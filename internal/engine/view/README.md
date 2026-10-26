@@ -76,6 +76,10 @@ imports `view`.
   authority a rewritten command carries, implemented by the engine's
   `AuthorizationView`), rule CTE normalization (`NormalizeRuleCTEsLocked`) and
   the rule DDL and dependency checks.
+  Rule-added relation access uses the event relation owner, but callable actions
+  retain the original routine invoker. A NEW graft loans only the containing
+  DEFAULT's certified original callable references and effective revisions;
+  source recipes, stored actions and their dependency slices remain immutable.
 - **Writes through views** (`write*.go`, `binding_slots.go`,
   `default_origin.go`): `Write` (base relation field `BaseRelation`, because
   `Base()` is the `analyze.ViewWriteSlot` method), `WriteLayer`, `BindViewWrite`,

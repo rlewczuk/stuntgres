@@ -145,8 +145,9 @@ func (h *statementHost) DeleteForeignAction(ref ids.ObjectRef, old storage.RowVe
 // PlanForeignActionInput reads the statement's input environment, captures
 // the type diagnostic names under Engine.mu when the targets carry domain
 // checks, and for SET DEFAULT binds the child's defaults with the root binder
-// and admits them. It works on a copy of a, as the plan always has.
-func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.ForeignKeyJob, plan *dml.ForeignActionPlan, action parser.ForeignKeyAction) error {
+// and retains their consumed original calls as the child-owner phase. It works
+// on a copy of a, as the plan always has.
+func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.ForeignKeyJob, plan *dml.ForeignActionPlan, event dml.ForeignActionTransition, action parser.ForeignKeyAction) error {
 	s := h.scope()
 	e := s.Engine()
 	auth := *foreignAuthorizationOf(a)
@@ -163,7 +164,8 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 	if action != parser.ForeignKeySetDefault {
 		return nil
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: plan.Input, Output: s.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	program := new(exec.RoutineProgram)
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: plan.Input, Output: s.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineProgram: program}}
 	b := analyze.Binding{Relation: job.Child}
 	analyze.BindInsertDefaults(&e.Catalog.Owner, &b, auth.Catalog, parser.OverrideNone)
 	plan.Defaults = make([]expr.Expr, len(plan.Targets))
@@ -196,6 +198,12 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 			return err
 		}
 		plan.Defaults[i] = folded
+	}
+	// Immutable folding may have erased the call from plan.Defaults. Retain
+	// its original manifest and actual owner actor, not the cooked value as
+	// evidence of authority. Existing wait/publication fences readmit it.
+	if len(program.Calls) != 0 {
+		s.routinePrograms = append(s.routinePrograms, commandRoutineProgram{consumer: job.Child, ri: true, admission: program, riQuery: dml.ForeignActionQuery(job, event, action, auth.Catalog)})
 	}
 	return nil
 }

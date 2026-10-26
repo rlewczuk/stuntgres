@@ -27,6 +27,14 @@ demand retains every projected column for composite SQL results and PL cursor
 actuals, while scalar SQL results retain their one-column width check. All
 projected expressions are evaluated before ordinal result/argument conversion.
 
+SET DEFAULT referential actions retain a statement-owned `exec.RoutineProgram`
+while preparing the child recipe, including original calls erased by immutable
+folding. Each call records the actual child-owner actor and defining manifest.
+The existing post-wait and final-publication fences readmit those originals
+against current authority without evaluating defaults or CHECK truth again.
+Action diagnostics retain the generated RI statement after caller restoration;
+neither initiating-user EXECUTE nor a cooked value substitutes for owner admission.
+
 ## Hooks
 
 `NewEngine` (`engine.go`) seeds one engine's state: the stores, settings,

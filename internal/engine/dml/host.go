@@ -102,8 +102,9 @@ type ForeignKeys interface {
 	DeleteForeignAction(ref ids.ObjectRef, old storage.RowVersion) error
 	// PlanForeignActionInput fills plan's input environment: the type
 	// diagnostic names when the targets carry domain checks, and for SET
-	// DEFAULT the bound, admitted defaults. Locks; never waits.
-	PlanForeignActionInput(a Authority, job *ForeignKeyJob, plan *ForeignActionPlan, action parser.ForeignKeyAction) error
+	// DEFAULT the bound defaults and retained original child-owner calls.
+	// event supplies the actual action diagnostic frame. Locks; never waits.
+	PlanForeignActionInput(a Authority, job *ForeignKeyJob, plan *ForeignActionPlan, event ForeignActionTransition, action parser.ForeignKeyAction) error
 	// SwapForeignActionAuthority installs next as the running RI action's
 	// authority (nil clears it) and returns the previous one, nil when none.
 	// Never locks.

@@ -35,6 +35,12 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   and `accessExecutionPairedHeld` hold statements in the `prepared` route only.
   Held witnesses that are the only check of a route-run statement (live authority,
   smoke, persistence and NULL-diagnostic tails) keep both routes.
+- Rule/RI/COPY consumers keep distinct principals: rule-added relation access
+  uses the event owner while routine calls use the invoker; actual SET DEFAULT
+  RI uses the child owner; COPY uses the importing session. NEW substitutions
+  demand omitted callable defaults. COPY borrows an unwrapped native connection
+  or the fixture's pgx stream connection, never the recording pq wrapper; gated
+  readers have an independent observer and are released and joined on every exit.
 - `ObjectGrantControls` retains canonical parameter ACL roundtrips and
   zero-output rejection for unrepresentable authority. Ordinary builtin and conversion routines, as well
   as authentic installed members, prove exact raw ACLs, owner identity and
@@ -88,6 +94,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Schemas and types: `RUN='^TestReferenceObjectGrantSchemasTypes$'`
 - Type targets, raw type ACLs and Dump controls: `RUN='^TestReferenceObjectGrantType'`
 - Routine EXECUTE (formals, operators, expansion, demand, SQL bodies): `RUN='^TestReferenceObjectGrantRoutine'`
+- Rule, RI and COPY authority: `RUN='^TestReferenceObjectGrant(Rule|RI|Copy)'`
 - SQL routine bodies: `RUN='^TestReferenceObjectGrantRoutineBody'`
 - JSON and JSONB providers: `RUN='^TestReferenceObjectGrantJSON'`
 - pgcrypto providers: `RUN='^TestReferenceObjectGrantPGCrypto'`
