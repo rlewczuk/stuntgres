@@ -333,15 +333,18 @@ The rejection formats the selected declaration through the current statement's
 regprocedure presenter, preserving visibility-aware qualification, identifier
 quoting and argument type spelling rather than reconstructing written syntax.
 
-`FinalizeWithContext` borrows the current statement runtime and invokes the real
-selected scalar final once per computed group without overwriting its state.
-Ordinary direct-argument count is zero: the final receives state, plus typed NULL
-extras when declared, never last-row values or enclosing query parameters.
-Strict skipping returns NULL of the result type. SQL finals share the statement's
-staged writes and cancellation boundary. Context-free `Finalize` is valid only
-without an actual final function. C memory contexts, expanded-datum pointers and
-`AggCheckCallContext`/`AggStateIsShared` belong to the external native ABI, not
-mutable SQL value carriers.
+`FinalizeWithContext` borrows the current statement runtime and evaluated direct
+vector, invoking the selected final once per group without replacing its state.
+Direct expressions evaluate left-to-right in the final group-key frame, even
+without a final or before strict suppression. Finals receive state, direct
+values and declared typed NULL row extras, never last-row values or outer params.
+SQL supports share the statement's staged writes and cancellation boundary.
+User ordered/hypothetical SFUNC streams admitted rows in child order; support
+routines own sorting. Ordinary ordered replay and builtin ordered providers
+retain their existing executor-owned sort contract. Selected native ordered
+support routines use immutable recipes and private per-group opaque state,
+never SQL INTERNAL datums; only their final requests the tuple comparator/sorter.
+C loading, fmgr pointers, memory-context ABI and physical spill remain external.
 
 ## What stays in the engine
 
@@ -386,7 +389,7 @@ unbounded query run until it exhausts memory.
 
 ```sh
 make check RUN='^Test(MissingPreparation|InstallPreparation|ViewProducer|SetArmSource|CorrelatedJoinSource|QueryBranchPruning|SortOrderedAggregate|PgcryptoNotice|PgrowlocksLogicalTID)'
-make check RUN='^Test(CreateAggregate|AggregateFinal|AggregateMoving)'
+make check RUN='^Test(CreateAggregate|AggregateFinal|AggregateMoving|AggregateOrdered)'
 make check RUN='^Test(PLpgSQLQueryLoopLifetime|FTSQueryFunctionsBatch)'  # row owners
 make check RUN='^TestReferenceQuery'   # public query execution; add REFERENCE=1 for the oracle
 ```

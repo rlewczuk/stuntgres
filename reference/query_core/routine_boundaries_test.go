@@ -58,8 +58,8 @@ func routineAuthority(t *testing.T) {
 	})
 }
 
-// PostgreSQL accepts these declarations. Native must reject the excluded syntax
-// without installing any signature; no PostgreSQL failure is fabricated.
+// Exercise admitted declarations before checking the remaining excluded syntax.
+// PostgreSQL accepts those exclusions; no PostgreSQL failure is fabricated.
 func routineExcludedDeclarations(t *testing.T) {
 	t.Helper()
 	routineScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
@@ -76,7 +76,6 @@ func routineExcludedDeclarations(t *testing.T) {
 			value        int64
 		}{
 			{"CREATE OR REPLACE FUNCTION routine_replace(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_replace(4) AS v", 4},
-			{"CREATE FUNCTION routine_strict(integer) RETURNS integer LANGUAGE SQL STRICT AS $$SELECT $1$$", "SELECT routine_strict(4) AS v", 4},
 			{"CREATE FUNCTION routine_security(integer) RETURNS integer LANGUAGE SQL SECURITY DEFINER AS $$SELECT $1$$", "SELECT routine_security(4) AS v", 4},
 		} {
 			if b.PG {

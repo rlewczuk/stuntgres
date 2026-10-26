@@ -28,7 +28,7 @@ func icProviderInventory(c *icCase) {
 		"pg_ts_config": fixture.PGTSConfigColumns, "pg_user": fixture.PGUserColumns,
 		"pg_inherits":                            fixture.PGInheritsColumns,
 		"pg_attrdef":                             strings.Fields("oid adrelid adnum adbin"),
-		"pg_proc":                                strings.Fields("oid proname pronamespace proowner pronargs prorettype provolatile proisstrict proparallel prokind proargnames prolang proretset prorows prosrc proargtypes"),
+		"pg_proc":                                strings.Fields("oid proname pronamespace proowner pronargs prorettype provolatile proisstrict proparallel prokind proargnames prolang proretset prorows prosrc proargtypes provariadic"),
 		"pg_index":                               strings.Fields("indexrelid indrelid indisunique indisprimary indisvalid indisready indislive indnullsnotdistinct indkey indcollation indclass indoption"),
 		"pg_rewrite":                             strings.Fields("oid rulename ev_class ev_type ev_enabled is_instead"),
 		"pg_cast":                                strings.Fields("oid castsource casttarget castfunc castcontext castmethod"),
@@ -108,7 +108,7 @@ func icProviderInventory(c *icCase) {
 		for i, field := range inventory[name] {
 			ordinal := i + 1
 			if table == "pg_proc" {
-				if n := map[string]int{"prolang": 5, "pronargs": 17, "prorettype": 19, "provolatile": 15, "proisstrict": 13, "proparallel": 16, "prokind": 12, "proargnames": 23, "proretset": 14, "prorows": 7, "prosrc": 26, "proargtypes":20}[field]; n != 0 {
+				if n := map[string]int{"prolang": 5, "pronargs": 17, "prorettype": 19, "provolatile": 15, "proisstrict": 13, "proparallel": 16, "prokind": 12, "proargnames": 23, "proretset": 14, "prorows": 7, "prosrc": 26, "proargtypes":20, "provariadic":8}[field]; n != 0 {
 					ordinal = n
 				}
 			}

@@ -204,6 +204,8 @@ func (v *View) Temporary() ids.SessionToken { return v.temporary }
 // QuoteRevision returns the frozen defining revision used for quoting.
 func (v *View) QuoteRevision() ids.DefinitionRevision { return v.quoteRevision }
 
+// DependsOn projects hard definition edges without discarding the complete
+// execution manifest. A written support call has its own definition capture.
 func (v *View) DependsOn(target ids.ObjectAddress) bool {
 	for _, leaf := range v.sources {
 		if target.SubID == 0 && leaf.Ref.Address == target {
@@ -211,6 +213,9 @@ func (v *View) DependsOn(target ids.ObjectAddress) bool {
 		}
 	}
 	for _, dependency := range v.dependencies {
+		if dependency.Purpose != catalog.DefinitionDependency {
+			continue
+		}
 		a := dependency.Ref.Address
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true

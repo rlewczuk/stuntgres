@@ -51,6 +51,7 @@ package parser
  routineParameters []RoutineParameter
  routineResult routineResult
  routineAS routineAS
+ routineAttributes []lexeme
  createLanguage *CreateLanguage
  plBlock *PLBlock
  plDeclarations []PLDeclaration
@@ -507,6 +508,7 @@ package parser
 %type <createLanguage> language_head language_flags
 %type <objectName> language_inline language_validator
 %type <routineAS> routine_as
+%type <routineAttributes> function_attributes
 %type <stmt> create_cast drop_cast
 %type <stmt> do_statement
 %type <plBlock> pl_block
@@ -1690,20 +1692,23 @@ alter_conversion: conversion_alter_head RENAME TO name {$1.Action="rename";$1.Ta
 drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP CONVERSION IF EXISTS relation_names drop_mode {$$=&DropConversion{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}}
  | DROP DEFAULT {sqllex.(*lexer).syntax($2);return 1} ;
-create_aggregate: CREATE AGGREGATE relation_name '(' aggregate_arguments ')' '(' operator_options ')' {$$=&CreateAggregate{Name:$3,Arguments:$5,Options:$8,Pos:$1.pos}} ;
+create_aggregate: CREATE AGGREGATE relation_name '(' aggregate_arguments ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments($5,nil);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Options:$8,Pos:$1.pos}}
+ | CREATE AGGREGATE relation_name '(' ORDER BY grant_routine_argument_list ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments(nil,$7);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Ordered:true,Options:$10,Pos:$1.pos}}
+ | CREATE AGGREGATE relation_name '(' grant_routine_argument_list ORDER BY grant_routine_argument_list ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments($5,$8);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Ordered:true,DirectArgs:len($5),Options:$11,Pos:$1.pos}} ;
 aggregate_arguments: '*' {$$=nil} | grant_routine_arguments {$$=$1} ;
-create_function: CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name AS routine_as {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$9.text,Pos:$9.pos},Body:$11.Body.text,BodyPos:routineBodyPosition($11.Body),Symbol:$11.Symbol.text,SymbolSpecified:$11.HasSymbol,SymbolPos:$11.Symbol.pos,Pos:$1.pos}}
- | CREATE FUNCTION relation_name '(' function_arguments ')' function_result AS routine_as LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$11.text,Pos:$11.pos},Body:$9.Body.text,BodyPos:routineBodyPosition($9.Body),Symbol:$9.Symbol.text,SymbolSpecified:$9.HasSymbol,SymbolPos:$9.Symbol.pos,Pos:$1.pos}}
- | CREATE FUNCTION relation_name '(' function_arguments ')' function_result standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:"sql"},Standard:$8,Pos:$1.pos}}
- | CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$9.text,Pos:$9.pos},Standard:$10,Pos:$1.pos}}
+create_function: CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes AS routine_as function_attributes {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$13.Body.text,BodyPos:routineBodyPosition($13.Body),Symbol:$13.Symbol.text,SymbolSpecified:$13.HasSymbol,SymbolPos:$13.Symbol.pos,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8,$11,$14){return 1};$$=node}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes AS routine_as function_attributes LANGUAGE name function_attributes {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$13.text,Pos:$13.pos},Body:$10.Body.text,BodyPos:routineBodyPosition($10.Body),Symbol:$10.Symbol.text,SymbolSpecified:$10.HasSymbol,SymbolPos:$10.Symbol.pos,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8,$11,$14){return 1};$$=node}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes standard_routine_body {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:"sql"},Standard:$9,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8){return 1};$$=node}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes standard_routine_body {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$10.text,Pos:$10.pos},Standard:$12,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8,$11){return 1};$$=node}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name AS routine_as {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Body:$10.Body.text,BodyPos:routineBodyPosition($10.Body),Symbol:$10.Symbol.text,SymbolSpecified:$10.HasSymbol,SymbolPos:$10.Symbol.pos,Pos:$1.pos}}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' AS routine_as LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$8.Body.text,BodyPos:routineBodyPosition($8.Body),Symbol:$8.Symbol.text,SymbolSpecified:$8.HasSymbol,SymbolPos:$8.Symbol.pos,Pos:$1.pos}}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:"sql"},Standard:$7,Pos:$1.pos}}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Standard:$9,Pos:$1.pos}}
- | CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name name {sqllex.(*lexer).failAt("0A000","SQL function attributes are unsupported",$10.pos.Offset);return 1}
  | CREATE OR replace_word FUNCTION {sqllex.(*lexer).failAt("0A000","CREATE OR REPLACE FUNCTION is unsupported",$1.pos.Offset);return 1} ;
 routine_as: STRING {$$=routineAS{Body:$1}}
  | STRING ',' STRING {$$=routineAS{Body:$1,Symbol:$3,HasSymbol:true}} ;
+function_attributes: /* empty */ {$$=nil}
+ | function_attributes KW_U {if $2.keyword==nil||($2.text!="strict"&&$2.text!="volatile") {sqllex.(*lexer).failAt("0A000","SQL function attributes are unsupported",$2.pos.Offset);return 1};$$=append($1,$2)} ;
 language_flags: LANGUAGE_TRUSTED {$$=&CreateLanguage{Trusted:true}}
  | LANGUAGE_PROCEDURAL {$$=&CreateLanguage{Procedural:true}}
  | LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL {$$=&CreateLanguage{Trusted:true,Procedural:true}} ;

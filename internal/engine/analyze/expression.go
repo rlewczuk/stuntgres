@@ -500,7 +500,7 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 					b.Grouping.Aggregates, b.Grouping.WindowCalls = parentAggregates, parentWindows
 				}
 			}()
-			if functions.HypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 && r.Window != nil {
+			if ownedAggregate == nil && functions.HypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 && r.Window != nil {
 				var err error
 				node, err = b.bindWindow(r, name)
 				if err != nil {
@@ -508,7 +508,7 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				}
 				break
 			}
-			if r.Within && !functions.OrderedSetName(r.Name) {
+			if r.Within && ownedAggregate == nil && !functions.OrderedSetName(r.Name) {
 				return b.rejectOrdinaryWithin(r)
 			}
 			if ownedAggregate != nil && r.Window != nil {
@@ -528,7 +528,7 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				break
 			}
 			// A window function without OVER resolves its signature first.
-			if function, ok := functions.LookupWindowFunction(r.Name); ok && (!functions.HypotheticalSetName(r.Name) || !r.Within && len(r.Args) == 0) {
+			if function, ok := functions.LookupWindowFunction(r.Name); ownedAggregate == nil && ok && (!functions.HypotheticalSetName(r.Name) || !r.Within && len(r.Args) == 0) {
 				if _, err := function.Signature(b, r, name); err != nil {
 					return nil, err
 				}

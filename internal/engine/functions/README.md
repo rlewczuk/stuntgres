@@ -258,18 +258,23 @@ host, which owns all locking and returns owned values.
 
 - `aggregateDefinitions` (`aggregate_registry.go`) is matched exactly by
   `LookupAggregate`; `windowFunctions` (`window_function_bind.go`) by
-  `LookupWindowFunction`. Owned ordinary aggregates keep their catalog
+  `LookupWindowFunction`. Owned aggregates keep their catalog
   declaration; the static table is not authority for a same-spelled owned
   routine.
 - `Bind` analyzes arguments, then FILTER, resolves the signature, selects the
   provider and calls `FinishAggregate` with an `AggregateCall`. Providers are
-  immutable, receive the ordered argument vector in `Advance`, and keep group
-  state execution-local. Ordered-set and hypothetical providers sit behind
-  `OrderedAggregate` and read the executor's sorted `OrderedInput`.
-  `ExecutionAggregateProvider` borrows the current `expr.Context` for both
-  initialization and finalization; executors use both contextual entries whenever
-  implemented. Owned moving inverse/restart capability belongs to the concrete
-  executor provider, not the generic builtin aggregate ABI.
+  immutable and keep group state execution-local. Builtin ordered-set and
+  hypothetical providers use `OrderedAggregate` with executor-sorted input.
+  `ExecutionAggregateProvider` borrows the current `expr.Context` and evaluated
+  direct vector; no provider caches execution values. User ordered supports
+  stream child-order rows. `AggregateContextSupport` binds genuine selected
+  support identities through `AggregateContextRoutineProvider`, owns private
+  per-group opaque tuple state and requests sorting only from its actual final.
+  Native support state is not an SQL datum or user-name alias to an aggregate.
+  Scalar lookup cannot convert ordinary SQL arguments to INTERNAL, including
+  unknown NULL. Its signature errors are distinct from the native entrypoint's
+  private aggregate-context validation.
+  Owned moving inverse/restart capability stays with the executor provider.
 - Providers a view may store implement `RemappableProvider`
   (`aggregate_remap.go`); without it view creation fails with "unpersistable
   view aggregate".
@@ -451,6 +456,10 @@ series, cancellation and publication) live in `enginetests/`; units of other
 engine mechanisms stay with their owner (`analyze`, `exec`). Public SQL
 behavior is tested only in `reference/`
 ([docs/TESTING.md](../../../docs/TESTING.md)).
+
+Native ordered support state, tuple ownership and cancellation units use
+`RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in
+`reference/aggregates`.
 
 - Unit fakes embed `expr.Info` (arguments) or the nil `unitCapabilities`
   (contexts), so they implement only what the code under test calls; any other

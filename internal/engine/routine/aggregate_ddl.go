@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
@@ -28,6 +29,9 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	var support, finalName, movingName, inverseName, movingFinalName parser.ObjectName
 	var stateSyntax, movingSyntax parser.TypeName
 	definition := &catalog.AggregateDefinition{Kind: "n", FinalModify: "r", MovingFinalModify: "r"}
+	if s.Ordered {
+		definition.Kind, definition.DirectArgs, definition.FinalModify, definition.MovingFinalModify = "o", int16(s.DirectArgs), "w", "w"
+	}
 	for _, option := range s.Options {
 		switch option.Name {
 		case "sfunc":
@@ -36,6 +40,15 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 			finalName, err = operatorOptionName(option)
 		case "finalfunc_extra":
 			definition.FinalExtra, err = aggregateOptionBoolean(option)
+		case "hypothetical":
+			var hypothetical bool
+			hypothetical, err = aggregateOptionBoolean(option)
+			if err == nil && hypothetical {
+				if !s.Ordered {
+					return sqlError("42P13", "only ordered-set aggregates can be hypothetical")
+				}
+				definition.Kind = "h"
+			}
 		case "finalfunc_modify":
 			definition.FinalModify, err = aggregateModify(option)
 		case "msfunc":
@@ -109,30 +122,99 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 			return sqltype.Usage{}, err
 		}
 		typ, ok := h.DefinitionType(auth, sqltype.ID(id))
-		if !ok || !typ.Concrete() {
+		if !ok || !typ.Concrete() && !(s.Ordered && (typ.ID() == 2276 || typ.ID() == 2281)) {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "aggregate types must be concrete", raw.Pos)
 		}
 		return typ.Usage(), nil
 	}
-	inputs := make([]sqltype.Usage, len(s.Arguments)+1)
+	declarations := make([]sqltype.Usage, len(s.Arguments))
+	inputs := make([]sqltype.Usage, 1, len(s.Arguments)+1)
 	inputs[0], err = resolve(stateSyntax)
 	if err != nil {
 		return err
 	}
+	if !inputs[0].Type.Concrete() && inputs[0].Type.ID() != 2281 { return sqlError("0A000", "aggregate state type must be concrete") }
 	signature := make([]string, len(s.Arguments))
-	for i, arg := range s.Arguments {
-		if arg.Mode != "" && arg.Mode != "in" {
-			return expr.ErrorAt("0A000", "aggregate arguments must be ordinary inputs", arg.Pos)
+	variadic := false
+	for i, argument := range s.Arguments {
+		if argument.Name.Text == "" { continue }
+		for _, prior := range s.Arguments[:i] {
+			if prior.Name.Text == argument.Name.Text { return sqlError("42P13", fmt.Sprintf("parameter name %q used more than once", argument.Name.Text)) }
 		}
-		inputs[i+1], err = resolve(arg.Type)
+	}
+	for i, arg := range s.Arguments {
+		if arg.Mode != "" && arg.Mode != "in" && arg.Mode != "variadic" {
+			return expr.ErrorAt("0A000", "aggregates cannot have output arguments", arg.Pos)
+		}
+		if variadic {
+			return expr.ErrorAt("42P13", "VARIADIC parameter must be the last input parameter", arg.Pos)
+		}
+		if !s.Ordered && arg.Mode == "variadic" { return expr.ErrorAt("0A000", "aggregate arguments must be ordinary inputs", arg.Pos) }
+		declarations[i], err = resolve(arg.Type)
 		if err != nil {
 			return err
 		}
-		signature[i] = strconv.FormatUint(uint64(inputs[i+1].Type.ID()), 10)
+		if arg.Mode == "variadic" {
+			variadic = true
+			if declarations[i].Type.ID() != 2276 && !declarations[i].Type.IsArray() {
+				return expr.ErrorAt("42P13", "VARIADIC parameter must be an array", arg.Pos)
+			}
+		} else if !declarations[i].Type.Concrete() {
+			return expr.ErrorAt("0A000", "aggregate types must be concrete", arg.Pos)
+		}
+		signature[i] = strconv.FormatUint(uint64(declarations[i].Type.ID()), 10)
 	}
+	// INTERNAL state is available only to a superuser creating the aggregate.
+	// This is not a requirement on its eventual owner or on execution.
+	checkCreatorState := func(state sqltype.Usage) error {
+		if state.Type.ID() != 2281 { return nil }
+		view := h.AccessView(auth)
+		actor, e := view.Roles.Descriptor(view.State.CurrentUser)
+		if e != nil { return e }
+		return checkAggregateCreatorState(state, actor.Superuser)
+	}
+	if err = checkCreatorState(inputs[0]); err != nil { return err }
+	var movingState sqltype.Usage
+	if movingSyntax.Name != "" {
+		movingState, err = resolve(movingSyntax)
+		if err != nil { return err }
+		if err = checkCreatorState(movingState); err != nil { return err }
+	}
+	// Function parameter rules precede aggregate-specific variadic restrictions.
+	if s.Ordered && variadic && declarations[len(declarations)-1].Type.ID() != 2276 {
+		return sqlError("0A000", "a variadic ordered-set aggregate must use VARIADIC type ANY")
+	}
+	if len(declarations) > 99 {
+		return sqlError("54023", "aggregates cannot have more than 99 arguments")
+	}
+	direct := s.DirectArgs
+	if direct < 0 || direct > len(declarations) {
+		return sqlError("42P13", "invalid aggregate direct argument count")
+	}
+	rows := declarations[direct:]
+	if variadic && direct == len(declarations) {
+		rows = declarations[len(declarations)-1:]
+	}
+	if definition.Kind == "h" {
+		if variadic && direct != len(declarations) {
+			return sqlError("42P13", "a hypothetical-set aggregate must have direct arguments matching its aggregated arguments")
+		}
+		if direct < len(rows) {
+			return sqlError("42P13", "a hypothetical-set aggregate must have direct arguments matching its aggregated arguments")
+		}
+		for i, row := range rows {
+			if declarations[direct-len(rows)+i].Type != row.Type {
+				return sqlError("42P13", "a hypothetical-set aggregate must have direct arguments matching its aggregated arguments")
+			}
+		}
+	}
+	inputs = append(inputs, rows...)
 	function, formals, result, err := h.SelectAggregateSupport(auth, support, inputs)
 	if err != nil {
 		return err
+	}
+	if inputs[0].Type.ID() == 2281 && !functions.IsAggregateContextSupport(uint32(function.Address().ObjectID)) {
+		return sqlError("0A000", "aggregate transition function has no aggregate-context implementation")
 	}
 	types := make([]string, len(formals))
 	for i, u := range formals {
@@ -145,6 +227,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	view := h.AccessView(auth).Catalog
 	var recipe *catalog.AggregateBinaryRecipe
 	capture := func(source, target sqltype.Usage) bool {
+		if source.Type == target.Type && (source.Type.ID() == 2276 || source.Type.ID() == 2281) { return true }
 		address, ok := catalog.ImplicitBinaryCast(view, source.Type.ID(), target.Type.ID())
 		if !ok {
 			return false
@@ -181,7 +264,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, function.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return err
 	}
-	if function.Strict && !definition.HasInitial && (len(inputs) == 1 || !capture(inputs[1], inputs[0])) {
+	if function.Strict && !definition.HasInitial && (len(declarations) == 0 || !capture(declarations[0], inputs[0])) {
 		return sqlError("42P13", "must not omit initial value when transition function is strict and transition type is not compatible with input type")
 	}
 	if definition.HasInitial {
@@ -191,10 +274,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	}
 	aggregateResult := inputs[0]
 	if len(finalName.Parts) != 0 {
-		finalInputs := inputs[:1]
-		if definition.FinalExtra {
-			finalInputs = inputs
-		}
+		finalInputs := aggregateFinalDeclarationInputs(inputs[0], declarations, direct, definition.FinalExtra)
 		final, finalFormals, finalResult, e := h.SelectAggregateSupport(auth, finalName, finalInputs)
 		if e != nil {
 			return e
@@ -229,10 +309,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	}
 	if movingSyntax.Name != "" {
 		movingInputs := append([]sqltype.Usage(nil), inputs...)
-		movingInputs[0], err = resolve(movingSyntax)
-		if err != nil {
-			return err
-		}
+		movingInputs[0] = movingState
 		selectSupport := func(name parser.ObjectName, actual []sqltype.Usage) (*catalog.Procedure, sqltype.Usage, error) {
 			selected, declared, result, e := h.SelectAggregateSupport(auth, name, actual)
 			if e != nil {
@@ -264,7 +341,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 		if movingResult.Type != movingInputs[0].Type {
 			return sqlError("42804", "return type of transition function "+catalog.ObjectNameText(movingName)+" is not "+movingInputs[0].Type.DiagnosticName())
 		}
-		if moving.Strict && !definition.HasMovingInitial && (len(movingInputs) == 1 || !capture(movingInputs[1], movingInputs[0])) {
+		if moving.Strict && !definition.HasMovingInitial && (len(declarations) == 0 || !capture(declarations[0], movingInputs[0])) {
 			return sqlError("42P13", "must not omit initial value when transition function is strict and transition type is not compatible with input type")
 		}
 		inverse, inverseResult, e := selectSupport(inverseName, movingInputs)
@@ -280,10 +357,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 		definition.Functions[5], definition.Functions[6] = moving.Address().ObjectID, inverse.Address().ObjectID
 		definition.MovingType = ids.OID(movingInputs[0].Type.ID())
 		if len(movingFinalName.Parts) != 0 {
-			finalInputs := movingInputs[:1]
-			if definition.MovingFinalExtra {
-				finalInputs = movingInputs
-			}
+			finalInputs := aggregateFinalDeclarationInputs(movingInputs[0], declarations, direct, definition.MovingFinalExtra)
 			final, result, e := selectSupport(movingFinalName, finalInputs)
 			if e != nil {
 				return e
@@ -317,6 +391,14 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	}
 	definition.Function, definition.Functions[0], definition.TransitionType = oid, function.Address().ObjectID, ids.OID(inputs[0].Type.ID())
 	d.Aggregate.Definition = *definition
+	d.Aggregate.Variadic = variadic
+	for _, argument := range s.Arguments {
+		if argument.Name.Text != "" {
+			d.Aggregate.ArgumentNames = make([]string, len(s.Arguments))
+			for i, argument := range s.Arguments { d.Aggregate.ArgumentNames[i] = argument.Name.Text }
+			break
+		}
+	}
 	d.Aggregate.BinaryRecipe = recipe
 	d.ACL = h.CreationACL(d.Owner, d.Namespace(), authorization.DefaultRoutines)
 	if err = h.Context().Err(); err != nil {
@@ -428,4 +510,11 @@ func aggregateSpace(option parser.OperatorOption) (int32, error) {
 		n = -n
 	}
 	return int32(n), nil
+}
+
+func checkAggregateCreatorState(state sqltype.Usage, superuser bool) error {
+	if state.Type.ID() == 2281 && !superuser {
+		return sqlError("42P13", "aggregate transition data type cannot be internal")
+	}
+	return nil
 }

@@ -136,6 +136,9 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 		}
 		sql.WriteString(" RETURNS " + result)
 	}
+	if d.Strict {
+		sql.WriteString(" STRICT")
+	}
 	language, ok := view.Get(d.Language).(*catalog.Language)
 	if !ok || (catalog.LanguageProvider{}).Validate(view, language) != nil {
 		return dump.Statement{}, fmt.Errorf("missing routine language authority")

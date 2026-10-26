@@ -13,7 +13,7 @@ import (
 // internal catalog identities without granting standalone callable providers.
 // A represented Procedure always takes precedence over these selected facts.
 func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype.Value,error) {
-	if len(in.Source.Columns)!=16 { return nil,fmt.Errorf("stuntgres: invalid procedure source shape") }
+	if len(in.Source.Columns)!=17 { return nil,fmt.Errorf("stuntgres: invalid procedure source shape") }
 	p:=catalog.DefaultTextParser()
 	language:=in.Catalog.NameAddress(ids.NameKey{ClassID:ids.LanguageClassID,Name:"internal"})
 	if language==(ids.ObjectAddress{}) { return nil,fmt.Errorf("stuntgres: missing parser handler language") }
@@ -23,8 +23,8 @@ func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype
 		identity,ok:=catalog.BuiltinRoutineIdentityByOID(oid)
 		result,resultOK:=catalog.BuiltinRoutineResultByOID(oid)
 		if !ok || !resultOK { return nil,fmt.Errorf("stuntgres: missing internal routine identity %d",oid) }
-		row:=make([]sqltype.Value,16)
-		fields:=[5]struct { index int; oid uint32 }{{0,uint32(oid)},{2,uint32(identity.Namespace)},{3,uint32(in.Source.Owner.ID())},{5,uint32(result)},{11,uint32(language.ObjectID)}}
+		row:=make([]sqltype.Value,17)
+		fields:=[6]struct { index int; oid uint32 }{{0,uint32(oid)},{2,uint32(identity.Namespace)},{3,uint32(in.Source.Owner.ID())},{5,uint32(result)},{11,uint32(language.ObjectID)},{16,0}}
 		for _,field:=range fields {
 			i:=field.index
 			v,err:=sqltype.OIDValue(in.Source.Columns[i].Usage.Type,field.oid)

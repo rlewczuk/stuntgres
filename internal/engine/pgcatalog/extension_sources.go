@@ -34,7 +34,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	if source.Address().ObjectID == ids.ProcedureClassID {
-		expected:=[16]sqltype.ID{sqltype.Oid,sqltype.Name,sqltype.Oid,sqltype.Oid,sqltype.Int2,sqltype.Oid,sqltype.Char,sqltype.Bool,sqltype.Char,sqltype.Char,1009,sqltype.Oid,sqltype.Bool,sqltype.Float4,sqltype.Text,sqltype.OidVector}
+		expected:=[17]sqltype.ID{sqltype.Oid,sqltype.Name,sqltype.Oid,sqltype.Oid,sqltype.Int2,sqltype.Oid,sqltype.Char,sqltype.Bool,sqltype.Char,sqltype.Char,1009,sqltype.Oid,sqltype.Bool,sqltype.Float4,sqltype.Text,sqltype.OidVector,sqltype.Oid}
 		if len(source.Columns)!=len(expected){return nil,fmt.Errorf("stuntgres: invalid procedure source shape")}
 		for i,id:=range expected {owned,ok:=view.LookupType(id);if !ok||owned!=source.Columns[i].Usage.Type{return nil,fmt.Errorf("stuntgres: foreign procedure source type")}}
 	}
@@ -132,6 +132,16 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				if named {
 					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 				}
+			} else if d.Aggregate != nil && len(d.Aggregate.ArgumentNames) > 0 {
+				names := d.Aggregate.ArgumentNames
+				if int64(len(names)) != ProcedureArity(d) {
+					return nil, fmt.Errorf("stuntgres: invalid aggregate argument-name declaration")
+				}
+				elements := make([]sqltype.Value, len(names))
+				for i, name := range names {
+					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), name)
+				}
+				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 			} else if d.Builtin != nil && d.Builtin.Providers&functions.FTSParserRoutineProvider != 0 {
 				names := [4]string{"parser_name", "tokid", "alias", "description"}
 				if strings.HasPrefix(string(d.Builtin.Identity.Signature), "26") {
@@ -186,6 +196,9 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			estimateValue, err := sqltype.Float(source.Columns[13].Usage.Type, estimate)
 			if err != nil { return nil, err }
 			row[13] = estimateValue
+			variadic, err := ProcedureVariadic(d)
+			if err != nil { return nil, err }
+			integer(16, int64(variadic))
 		case *catalog.TSTemplate:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
@@ -233,4 +246,27 @@ func procedureArgumentVector(ctx context.Context, vector *sqltype.Descriptor, si
 		text=rest
 	}
 	return sqltype.OwnedCatalogVectorValue(vector,elements)
+}
+
+// ProcedureVariadic projects declaration metadata, not expanded call operands.
+func ProcedureVariadic(p *catalog.Procedure) (ids.OID, error) {
+	if p.Builtin != nil {
+		return p.Builtin.Variadic, nil
+	}
+	if p.Aggregate != nil && p.Aggregate.Variadic {
+		return 2276, nil // VARIADIC ANY has no array-packing element type.
+	}
+	if p.RangeConstructor != nil {
+		return p.RangeConstructor.Variadic(), nil
+	}
+	if p.SQL != nil {
+		for _, formal := range p.SQL.Formals {
+			if formal.Mode != "v" { continue }
+			if formal.Usage.Type == nil || !formal.Usage.Type.IsArray() {
+				return 0, fmt.Errorf("stuntgres: invalid variadic routine declaration")
+			}
+			return ids.OID(formal.Usage.Type.Element().ID()), nil
+		}
+	}
+	return 0, nil
 }

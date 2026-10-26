@@ -1068,7 +1068,7 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 	}
 	invalid := func() error { return fmt.Errorf("stuntgres: mismatched transition frame specialization") }
 	inputs, err := routine.AggregateSignature(read, p.Aggregate.Signature)
-	if err != nil || len(p.Inputs) != len(inputs)+1 || p.Inputs[0] != p.StateUsage || p.StateUsage.Type == nil || !p.StateUsage.Valid() || p.StateUsage.Type.ID() != sqltype.ID(stateID) || p.Result.Type == nil || !p.Result.Valid() || p.Result.Type.ID() != sqltype.ID(p.Aggregate.Result) {
+	if err != nil || len(p.Inputs) == 0 || p.Inputs[0] != p.StateUsage || p.StateUsage.Type == nil || (!p.StateUsage.Valid() && !(p.ContextSupport != nil && p.StateUsage.Type.ID() == 2281 && p.StateUsage == p.StateUsage.Type.Usage())) || p.StateUsage.Type.ID() != sqltype.ID(stateID) || p.Result.Type == nil || !p.Result.Valid() || p.Result.Type.ID() != sqltype.ID(p.Aggregate.Result) {
 		return invalid()
 	}
 	stateType, stateFound := read.LookupType(sqltype.ID(stateID))
@@ -1080,11 +1080,20 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 	if !found || !exec.SameRoutineDeclaration(currentSupport, p.Support) {
 		return invalid()
 	}
-	for i, input := range inputs {
-		if p.Inputs[i+1].Type != input.Type {
-			return invalid()
-		}
+	directCount := int(p.Aggregate.Aggregate.Definition.DirectArgs)
+	if directCount > len(inputs) { return invalid() }
+	declaredRows := inputs[directCount:]
+	if p.Aggregate.Aggregate.Variadic && directCount == len(inputs) { declaredRows = inputs[len(inputs)-1:] }
+	matches := func(declared, actual []sqltype.Usage) bool {
+		variadic := len(declared)>0 && declared[len(declared)-1].Type.ID()==2276
+		fixed := len(declared)
+		if variadic { fixed-- }
+		if len(actual)<fixed || !variadic && len(actual)!=fixed { return false }
+		for i:=range fixed { if actual[i].Type!=declared[i].Type { return false } }
+		for _, usage := range actual { if usage.Type==nil || !usage.Type.Concrete() || !usage.Valid() { return false } }
+		return true
 	}
+	if !matches(inputs[:directCount],p.DirectInputs) || !matches(declaredRows,p.Inputs[1:]) { return invalid() }
 	formals, result, err := routine.AggregateSupportTypes(read, nil, p.Support, p.Aggregate.Aggregate, p.Inputs)
 	if err != nil || result.Type != p.StateUsage.Type || len(formals) != len(p.Formals) {
 		return invalid()
@@ -1110,7 +1119,7 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 		}
 	}
 	if p.Final != nil {
-		if p.Final.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[finalSlot] || len(p.FinalConversions) != len(p.FinalFormals) {
+		if p.Final.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[finalSlot] || p.ContextSupport == nil && len(p.FinalConversions) != len(p.FinalFormals) {
 			return invalid()
 		}
 		currentFinal, found := read.Procedure(p.Final.Address())
@@ -1125,6 +1134,7 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 			if formal != p.FinalFormals[i] {
 				return invalid()
 			}
+			if p.ContextSupport != nil { continue }
 			expected, err := catalog.AggregateConversion(p.Aggregate.Aggregate.BinaryRecipe, p.FinalInputs[i], formal)
 			if err != nil || !p.FinalConversions[i].Equal(expected) {
 				return invalid()

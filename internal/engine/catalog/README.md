@@ -175,6 +175,10 @@ private frames, not catalog authority.
   take precedence, a context-ineligible pair blocks generic fallback, and there
   is no transitive search. Aggregate binary adapters keep their own
   `AggregateBinaryRecipe` and never borrow current cast rows.
+  `SameAggregateDefinition` owns complete immutable aggregate declaration identity
+  for admission and copy-on-change remapping: definitions, helper identities,
+  retained binary-recipe ownership, variadic mode and canonical argument names.
+  Name slices compare by value, not backing-storage identity.
   Class DEFAULT membership is an immutable derived `(SQL method,input)` bucket
   of actual descriptor OIDs, ordered by name, namespace OID and OID, not a unique
   name or absent-default publication fence. Canonical writes, clone/candidate

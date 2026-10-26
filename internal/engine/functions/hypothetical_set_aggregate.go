@@ -27,6 +27,13 @@ func (p *HypotheticalSet) PrepareOrdered(ctx context.Context, _ []sqltype.Value,
 	return OrderedPreparation{}, ctx.Err()
 }
 func (p *HypotheticalSet) FinalizeOrdered(ctx context.Context, _ OrderedPreparation, in OrderedInput, env sqltype.InputEnvironment) (sqltype.Value, error) {
+	return finalizeHypotheticalTuple(ctx, p.usage, p.operation, in, env)
+}
+
+// finalizeHypotheticalTuple is the shared pure placement/formula algorithm.
+// Callers supply already sorted borrowed tuples and their comparison authority;
+// it neither constructs an aggregate provider nor owns any execution state.
+func finalizeHypotheticalTuple(ctx context.Context, usage sqltype.Usage, operation AggregateOperation, in OrderedInput, env sqltype.InputEnvironment) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -41,14 +48,14 @@ func (p *HypotheticalSet) FinalizeOrdered(ctx context.Context, _ OrderedPreparat
 			break
 		}
 		if sign == 0 {
-			if p.operation != AggregateHypotheticalCumeDist {
+			if operation != AggregateHypotheticalCumeDist {
 				break
 			}
 			equal++
 			continue
 		}
 		before++
-		if p.operation == AggregateHypotheticalDenseRank {
+		if operation == AggregateHypotheticalDenseRank {
 			if i == 0 {
 				distinct++
 			} else {
@@ -65,19 +72,19 @@ func (p *HypotheticalSet) FinalizeOrdered(ctx context.Context, _ OrderedPreparat
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	switch p.operation {
+	switch operation {
 	case AggregateHypotheticalRank:
-		return sqltype.Integer(p.usage.Type, before+1)
+		return sqltype.Integer(usage.Type, before+1)
 	case AggregateHypotheticalDenseRank:
-		return sqltype.Integer(p.usage.Type, distinct+1)
+		return sqltype.Integer(usage.Type, distinct+1)
 	case AggregateHypotheticalPercentRank:
 		value := float64(0)
 		if in.Len() > 0 {
 			value = float64(before) / float64(in.Len())
 		}
-		return sqltype.Float(p.usage.Type, value)
+		return sqltype.Float(usage.Type, value)
 	case AggregateHypotheticalCumeDist:
-		return sqltype.Float(p.usage.Type, float64(before+equal+1)/float64(in.Len()+1))
+		return sqltype.Float(usage.Type, float64(before+equal+1)/float64(in.Len()+1))
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid hypothetical aggregate operation")
 }

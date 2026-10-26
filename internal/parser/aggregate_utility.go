@@ -2,8 +2,7 @@ package parser
 
 import "slices"
 
-// aggregateUtilityArguments normalizes utility identity only; ORDER BY does not
-// grant ordered-set declaration or invocation capabilities.
+// aggregateUtilityArguments normalizes the shared declaration/utility identity.
 func (l *lexer) aggregateUtilityArguments(direct, ordered []GrantRoutineArgument) ([]GrantRoutineArgument, bool) {
 	for _, arguments := range [][]GrantRoutineArgument{direct, ordered} {
 		for _, argument := range arguments {

@@ -70,7 +70,7 @@ func remapOwnedAggregate(owned *catalog.OwnedAggregate, owner ids.ObjectAddress,
 		n.Helpers[i] = helper
 	}
 	n.Definition.Functions[0], n.Definition.Functions[1] = n.Helpers[0].ID, n.Helpers[1].ID
-	if n == *owned {
+	if catalog.SameAggregateDefinition(&n, owned) {
 		return owned
 	}
 	return &n

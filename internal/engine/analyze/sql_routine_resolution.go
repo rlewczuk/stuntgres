@@ -253,6 +253,33 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			return selection, true, err
 		}
 	}
+	if aggregate := selection.Procedure.Aggregate; aggregate != nil && aggregate.Definition.Kind != "n" && raw.Within {
+		if len(raw.Args) > 99 { return selection, true, expr.ErrorAt("54023", "aggregates cannot have more than 99 arguments", raw.Pos) }
+		direct := len(raw.Args)-len(raw.Order)
+		required := int(aggregate.Definition.DirectArgs)
+		fixed := required-1
+		if !OwnedAggregateDirectCountValid(selection.Procedure, direct, len(raw.Order)) {
+			diagnostic := b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, false).(*sqlstate.Error)
+			noun := "arguments"; if required == 1 { noun = "argument" }
+			diagnostic.Hint = fmt.Sprintf("There is an ordered-set aggregate %s, but it requires %d direct %s, not %d.", catalog.ObjectNameText(raw.Name), required, noun, direct)
+			if aggregate.Variadic && aggregate.Definition.Kind == "h" { diagnostic.Hint = fmt.Sprintf("To use the hypothetical-set aggregate %s, the number of hypothetical direct arguments (here %d) must match the number of ordering columns (here %d).",catalog.ObjectNameText(raw.Name),direct-fixed,len(raw.Order)) }
+			return selection, true, diagnostic
+		}
+	}
+	if aggregate := selection.Procedure.Aggregate; aggregate != nil && aggregate.Variadic && aggregate.Definition.Kind == "h" && raw.Within {
+		direct := len(raw.Args)-len(raw.Order)
+		prefix := direct-len(raw.Order)
+		if prefix >= 0 {
+			selection.Targets = append([]sqltype.Usage(nil), selection.Targets...)
+			if len(selection.Targets) == 0 { selection.Targets = append(selection.Targets, selection.Inputs...) }
+			for i := range raw.Order {
+				pair := []functions.Argument{familyArgs[direct+i], familyArgs[prefix+i]}
+				usage, e := b.CommonArgumentUsage(pair, "WITHIN GROUP")
+				if e != nil { return selection, true, e }
+				selection.Targets[direct+i], selection.Targets[prefix+i] = usage, usage
+			}
+		}
+	}
 	selection.args = make([]expr.Expr, len(operands))
 	selection.properties = expr.Properties{Volatility: selection.Procedure.Volatility}
 	for i, o := range operands {
@@ -752,7 +779,16 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 		aggregate.Schema = &parser.Identifier{Text: namespace.Name()}
 		aggregate.Name = symbol
-		aggregate.Args = args
+		if aggregate.Within {
+			count := len(aggregate.Args)
+			aggregate.Order = append([]parser.OrderKey(nil), aggregate.Order...)
+			for i := range aggregate.Order {
+				aggregate.Order[i].Expr = args[count+i]
+			}
+			aggregate.Args = args[:count]
+		} else {
+			aggregate.Args = args
+		}
 		return b.Bind(aggregate, policy)
 	}
 	if d.RoutineKind == catalog.AggregateRoutine || d.RoutineKind == catalog.WindowRoutine {

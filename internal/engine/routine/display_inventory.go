@@ -11,6 +11,11 @@ import (
 // matched by original name and declared input types; their stored source is empty.
 // This table never creates routines or grants execution admission.
 var builtinRoutineDisplay = map[ids.OID]catalog.RoutineDisplay{
+	3971: {Language: catalog.InternalRoutineLanguage, Source: "ordered_set_transition_multi"},
+	3987: {Language: catalog.InternalRoutineLanguage, Source: "hypothetical_rank_final"},
+	3989: {Language: catalog.InternalRoutineLanguage, Source: "hypothetical_percent_rank_final"},
+	3991: {Language: catalog.InternalRoutineLanguage, Source: "hypothetical_cume_dist_final"},
+	3993: {Language: catalog.InternalRoutineLanguage, Source: "hypothetical_dense_rank_final"},
 	2256: {Language: catalog.InternalRoutineLanguage, Source: "has_function_privilege_name_name"},
 	2257: {Language: catalog.InternalRoutineLanguage, Source: "has_function_privilege_name_id"},
 	2258: {Language: catalog.InternalRoutineLanguage, Source: "has_function_privilege_id_name"},

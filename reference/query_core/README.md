@@ -59,6 +59,13 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   source owner from its caller and SQL-standard invoker routines, including
   column-only grants and retained callers across source SELECT revoke/regrant.
 - Scalar SQL routines: `RUN='^TestReferenceRoutine(Core|StoredArgumentIdentity|Review)'`
+  `TestReferenceRoutineCoreStrictDeclarations` covers admitted STRICT declaration
+  orderings and SQL-standard bodies, NULL body suppression versus a nonstrict
+  control, non-NULL execution, any-NULL multiargument suppression, and exact
+  `pg_proc.proisstrict` through direct and fresh-prepared queries. Run the changed
+  diagnostics and positive family in both modes:
+  `make check RUN='^TestReferenceRoutineCore(Diagnostics|StrictDeclarations)$'`
+  and the same command with `REFERENCE=1`.
 - <a id="ordered-sql-routine-bodies"></a>Ordered and SQL-standard routine bodies, procedures: `RUN='^TestReferenceRoutineSQLBodies'`
 - DROP FUNCTION/PROCEDURE: `RUN='^TestReferenceRoutineDrop'`
 - Transactional routine/operator/aggregate matrix: `RUN='^TestReferenceTransactionalRoutine'`.

@@ -184,7 +184,7 @@ func TestAggregateMovingCancellation(t *testing.T) {
 				p.FinalCall = interrupted
 				state.finalFrame = state.frame
 				var result sqltype.Value
-				result, err = p.FinalizeWithContext(ctx, state, evaluation)
+				result, err = p.FinalizeWithContext(ctx, state, nil, evaluation)
 				if result.Type() != nil {
 					t.Fatal("canceled final exposed result")
 				}

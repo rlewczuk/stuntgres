@@ -30,6 +30,9 @@ standard library, and holds no state, no mutex and no engine callback.
 - **Records** (`records.go`): `Statement{Owner, SQL}` (one statement and the
   role that owns its objects), `Group{Owner, Table, SQL}` (a table's statement
   block) and `CommentLiteral` (an explicit `E'...'` string).
+  A statement's `PrivilegedCreation` uses authenticated administrator authority
+  for its definition and following ownership transfer; emission then restores
+  the actual `Owner`, without remapping owners or assuming a bootstrap name.
 - **Restore scalar validation** (`restore_scalar.go`): `RestoreScalar` in two
   modes (stored CREATE expressions keep the binder's admission rules; INSERT
   values keep the Restore whitelist) and `RestoreSQLJSONQuery`. Both reject

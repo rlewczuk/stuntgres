@@ -488,7 +488,7 @@ func (s *WindowAggregates) Evaluate(ctx context.Context, state *State, child *St
 		var value sqltype.Value
 		var err error
 		if contextual, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
-			value, err = contextual.FinalizeWithContext(ctx, entry.Aggregate, &evaluation)
+			value, err = contextual.FinalizeWithContext(ctx, entry.Aggregate, nil, &evaluation)
 		} else {
 			value, err = call.Provider.Finalize(ctx, entry.Aggregate)
 		}

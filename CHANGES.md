@@ -47,6 +47,30 @@ rebuilds installed type authority, including retained readers and metadata.
 Held literal assignments retain values across type rename/schema movement;
 recreated consumers bind original literals under the new installed authority.
 
+User-defined ordered-set and hypothetical aggregates retain direct versus row
+arguments through CREATE, binding, execution and native Dump/Restore. Real
+transition/final routines receive the declared vectors, including typed NULL
+FINALFUNC_EXTRA inputs; ordered support routines own sorting. Legal VARIADIC ANY
+declarations invoke genuine native ordered transition and rank-family final
+supports with execution-private internal state and current support privileges.
+SQL support STRICT declarations retain their execution semantics and native
+replay flags; frozen ordered calls preserve the declared direct/row partition.
+Hypothetical declarations retain a true option across later false options, and
+support lookup preserves canonical variadic declaration arity.
+Ordering diagnostics precede pair-collation errors, and scalar support lookup
+does not manufacture SQL INTERNAL state.
+INTERNAL state creation requires the current role to be a superuser. Transferred
+non-superuser owners retain live support checks; native replay legally creates
+the aggregate as the authenticated administrator before restoring its owner.
+Ordered declarations default both final modification modes to READ_WRITE.
+Ordinary/moving strict declaration checks use the first canonical argument,
+while runtime seeding remains row-based. Moving-final lookup retains canonical
+direct arguments and complete canonical EXTRA inputs just like ordinary-final
+lookup.
+Stored views retain aggregate support captures for execution without treating
+them as direct DROP dependencies; explicitly written support calls keep their
+own dependency edges.
+
 File-location settings now expose deterministic, explicitly simulated startup
 labels through SHOW, current_setting and pg_settings, including exact nullable
 boot/reset metadata. Effective-user read privileges filter aggregate rows and

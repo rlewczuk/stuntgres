@@ -1324,6 +1324,12 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{3961, ids.PGCatalogNamespaceOID, "json_populate_recordset", "2283,114,16"}, catalog.FunctionRoutine, 2283, false, expr.Stable, 's', true, 0, 1, functions.JSONRoutineProvider},
 	{catalog.RoutineIdentity{3968, ids.PGCatalogNamespaceOID, "json_typeof", "114"}, catalog.FunctionRoutine, 25, true, expr.Immutable, 's', false, 0, 0, functions.JSONRoutineProvider},
 	{catalog.RoutineIdentity{3969, ids.PGCatalogNamespaceOID, "json_array_elements_text", "114"}, catalog.FunctionRoutine, 25, true, expr.Immutable, 's', true, 0, 0, functions.JSONRoutineProvider},
+	// Real REL_18_6 aggregate-context support routines, not aggregate aliases.
+	{catalog.RoutineIdentity{3971, ids.PGCatalogNamespaceOID, "ordered_set_transition_multi", "2281,2276"}, catalog.FunctionRoutine, 2281, false, expr.Immutable, 's', false, 2276, 0, functions.AggregateContextRoutineProvider},
+	{catalog.RoutineIdentity{3987, ids.PGCatalogNamespaceOID, "rank_final", "2281,2276"}, catalog.FunctionRoutine, 20, false, expr.Immutable, 's', false, 2276, 0, functions.AggregateContextRoutineProvider},
+	{catalog.RoutineIdentity{3989, ids.PGCatalogNamespaceOID, "percent_rank_final", "2281,2276"}, catalog.FunctionRoutine, 701, false, expr.Immutable, 's', false, 2276, 0, functions.AggregateContextRoutineProvider},
+	{catalog.RoutineIdentity{3991, ids.PGCatalogNamespaceOID, "cume_dist_final", "2281,2276"}, catalog.FunctionRoutine, 701, false, expr.Immutable, 's', false, 2276, 0, functions.AggregateContextRoutineProvider},
+	{catalog.RoutineIdentity{3993, ids.PGCatalogNamespaceOID, "dense_rank_final", "2281,2276"}, catalog.FunctionRoutine, 20, false, expr.Immutable, 's', false, 2276, 0, functions.AggregateContextRoutineProvider},
 	{catalog.RoutineIdentity{3972, ids.PGCatalogNamespaceOID, "percentile_disc", "701,2283"}, catalog.AggregateRoutine, 2283, false, expr.Immutable, 's', false, 0, 0, functions.AggregateRoutineProvider},
 	{catalog.RoutineIdentity{3974, ids.PGCatalogNamespaceOID, "percentile_cont", "701,701"}, catalog.AggregateRoutine, 701, false, expr.Immutable, 's', false, 0, 0, functions.AggregateRoutineProvider},
 	{catalog.RoutineIdentity{3976, ids.PGCatalogNamespaceOID, "percentile_cont", "701,1186"}, catalog.AggregateRoutine, 1186, false, expr.Immutable, 's', false, 0, 0, functions.AggregateRoutineProvider},

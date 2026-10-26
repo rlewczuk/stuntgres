@@ -96,7 +96,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 		if len(call.Direct) > directWidth {
 			directWidth = len(call.Direct)
 		}
-		if call.StageWidth > orderedWidth {
+		if !ownedOrderedAggregate(call.Provider) && call.StageWidth > orderedWidth {
 			orderedWidth = call.StageWidth
 		}
 	}
@@ -253,7 +253,8 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 					return Stage{}, err
 				}
 			}
-			if len(call.Order) > 0 {
+			bufferOrdered := len(call.Order) > 0 && !ownedOrderedAggregate(call.Provider)
+			if bufferOrdered {
 				copy(tuple, values)
 				for _, key := range call.Order {
 					if key.Slot < 0 {
@@ -284,7 +285,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 						continue
 					}
 				}
-				if len(call.Order) > 0 {
+				if bufferOrdered {
 					if len(values) == 0 || !values[0].IsNull() || call.IncludeNulls {
 						groups[index].ordered[p] = append(groups[index].ordered[p], tuple[:call.StageWidth]...)
 					}
@@ -313,17 +314,13 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 		for p, call := range n.Calls {
 			var value sqltype.Value
 			var err error
+			direct := directValues[2 : 2+len(call.Direct)]
+			for j, expression := range call.Direct {
+				direct[j], err = expression.Eval(&evaluation)
+				if err == nil { err = ctx.Err() }
+				if err != nil { return Stage{}, err }
+			}
 			if provider, ordered := call.Provider.(functions.OrderedAggregate); ordered {
-				direct := directValues[2 : 2+len(call.Direct)]
-				for j, expr := range call.Direct {
-					direct[j], err = expr.Eval(&evaluation)
-					if err == nil {
-						err = ctx.Err()
-					}
-					if err != nil {
-						return Stage{}, err
-					}
-				}
 				var prepared functions.OrderedPreparation
 				prepared, err = provider.PrepareOrdered(ctx, direct, len(group.ordered[p])/call.StageWidth)
 				if err == nil {
@@ -338,12 +335,12 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 					}
 				}
 			} else {
-				if len(call.Order) > 0 {
+				if len(call.Order) > 0 && !ownedOrderedAggregate(call.Provider) {
 					err = replayOrderedAggregate(ctx, state, call, group.states[p], group.ordered[p])
 				}
 				if err == nil {
 					if contextual, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
-						value, err = contextual.FinalizeWithContext(ctx, group.states[p], &evaluation)
+						value, err = contextual.FinalizeWithContext(ctx, group.states[p], direct, &evaluation)
 					} else {
 						value, err = call.Provider.Finalize(ctx, group.states[p])
 					}
@@ -480,4 +477,9 @@ func replayOrderedAggregate(ctx context.Context, state *State, call plan.Aggrega
 		}
 	}
 	return ctx.Err()
+}
+
+func ownedOrderedAggregate(provider functions.AggregateProvider) bool {
+	p, ok := provider.(*TransitionAggregate)
+	return ok && p.Aggregate.Aggregate.Definition.Kind != "n"
 }

@@ -36,20 +36,37 @@ func aggregateDumpStatement(p dump.Presenter, view catalog.Read, roles authoriza
 	if err != nil {
 		return dump.Statement{}, err
 	}
+	const createPrefix = "CREATE AGGREGATE "
+	privileged := !owner.Superuser && (d.Aggregate.Definition.TransitionType == 2281 || d.Aggregate.Definition.MovingType == 2281)
 	var sql strings.Builder
-	sql.WriteString("CREATE AGGREGATE " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name()) + "(")
-	if len(inputs) == 0 {
+	sql.WriteString(createPrefix + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name()) + "(")
+	if len(inputs) == 0 && d.Aggregate.Definition.Kind == "n" {
 		sql.WriteByte('*')
 	}
 	for i, input := range inputs {
-		if i > 0 {
+		if d.Aggregate.Definition.Kind != "n" && i == int(d.Aggregate.Definition.DirectArgs) {
+			sql.WriteString(" ORDER BY ")
+		} else if i > 0 {
 			sql.WriteString(", ")
 		}
-		name, err := p.ColumnDeclaration(view, catalog.Column{Usage: input})
+		if d.Aggregate.Variadic && i == len(inputs)-1 { sql.WriteString("VARIADIC ") }
+		if len(d.Aggregate.ArgumentNames) != 0 && d.Aggregate.ArgumentNames[i] != "" { sql.WriteString(catalog.QuoteIdentifier(d.Aggregate.ArgumentNames[i])+" ") }
+		name := `pg_catalog."any"`
+		var err error
+		if input.Type.ID() != 2276 { name, err = p.ColumnDeclaration(view, catalog.Column{Usage: input}) }
 		if err != nil {
 			return dump.Statement{}, err
 		}
 		sql.WriteString(name)
+	}
+	if d.Aggregate.Variadic && int(d.Aggregate.Definition.DirectArgs) == len(inputs) {
+		sql.WriteString(` ORDER BY VARIADIC pg_catalog."any"`)
+	}
+	ownership := ""
+	if privileged {
+		// Reuse the actual declaration signature, including paired VARIADIC ANY,
+		// rather than an expanded invocation signature.
+		ownership = "ALTER AGGREGATE " + sql.String()[len(createPrefix):] + ") OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n"
 	}
 	state, ok := view.LookupType(sqltype.ID(d.Aggregate.Definition.TransitionType))
 	if !ok {
@@ -73,6 +90,9 @@ func aggregateDumpStatement(p dump.Presenter, view catalog.Read, roles authoriza
 	}
 	if d.Aggregate.Definition.FinalExtra {
 		sql.WriteString(", FINALFUNC_EXTRA = true")
+	}
+	if d.Aggregate.Definition.Kind == "h" {
+		sql.WriteString(", HYPOTHETICAL = true")
 	}
 	mode := "READ_ONLY"
 	switch d.Aggregate.Definition.FinalModify {
@@ -132,5 +152,5 @@ func aggregateDumpStatement(p dump.Presenter, view catalog.Read, roles authoriza
 		mode = "READ_WRITE"
 	}
 	sql.WriteString(", MFINALFUNC_MODIFY = " + mode + ");\n")
-	return dump.Statement{Owner: owner.Name, SQL: sql.String()}, nil
+	return dump.Statement{Owner: owner.Name, SQL: sql.String(), FollowingSQL: ownership, PrivilegedCreation: privileged}, nil
 }

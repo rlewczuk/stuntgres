@@ -78,11 +78,16 @@ Scratch reuse is an allocation optimization, not a parsed-result cache.
 - Aggregate ALTER/DROP signatures lower to the shared routine utility AST with
   kind `aggregate`, independently of GRANT/REVOKE syntax. They require a
   nonempty identity or `(*)`, reject output modes at the argument position,
-  and flatten ordered-set identity syntax without changing CREATE admission.
-  Duplicate ordered VARIADIC arguments compare parsed type names, including
+  and share flattened ordered-set declaration identity with CREATE. CREATE also
+  retains the ordered discriminator and direct count, including zero direct
+  inputs. Duplicate paired VARIADIC arguments compare parsed type names, including
   implicit pg_catalog components of SQL aliases, not resolved type OIDs.
   Aggregate utility heads retain generic declaration-name components so
   canonical operand labels cannot erase that parsed qualification distinction.
+- Function STRICT and VOLATILE clauses retain their declaration facts in both
+  LANGUAGE/AS orders and before SQL-standard bodies. Repeated clauses report
+  their own source position; attribute words remain ordinary unreserved
+  identifiers outside the declaration clause.
 - SQL/JSON clause words are contextual to the selected call's own parenthesis
   depth. Wrapper introducers use scoped tokens so `::jsonpath` does not consume
   WITH/WITHOUT as a type-name tail; DEFAULT expressions ending in TRUE/FALSE/NULL

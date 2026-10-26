@@ -53,6 +53,9 @@ func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 		defaults = int(d.Builtin.Defaults)
 		variadic = sqltype.ID(d.Builtin.Variadic)
 	}
+	if d.Aggregate != nil && d.Aggregate.Variadic {
+		variadic = 2276
+	}
 	if d.RangeConstructor != nil {
 		variadic = sqltype.ID(d.RangeConstructor.Variadic())
 	}
@@ -120,6 +123,16 @@ func AppendSQLCallable(candidates []SQLCallable, candidate SQLCallable) []SQLCal
 }
 
 func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.Argument, candidate *SQLCallable) bool {
+	if candidate.Procedure.Aggregate != nil && candidate.Procedure.Aggregate.Variadic {
+		candidate.Targets = append([]sqltype.Usage(nil), candidate.Inputs...)
+		for i, operand := range operands {
+			if candidate.Inputs[i].Type.ID() == 2276 {
+				candidate.Targets[i] = operand.Usage
+				if candidate.Targets[i].Type == nil { candidate.Targets[i] = b.Type(sqltype.Text).Usage() }
+			}
+		}
+		return true
+	}
 	if candidate.Procedure.Installed.ArgumentNames[0] != "" {
 		declared := candidate.Inputs
 		if candidate.NamedDeclaration != nil { declared = candidate.NamedDeclaration }

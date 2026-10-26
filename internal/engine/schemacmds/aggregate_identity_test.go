@@ -174,7 +174,7 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900002 + i)}
 	}
 	remapped := extension.RemapDescriptor(proc, mapping).(*catalog.Procedure)
-	if remapped == proc || remapped.Aggregate == proc.Aggregate || remapped.Address().ObjectID != 900000 || remapped.Namespace().ObjectID != 900001 || *proc.Aggregate != original {
+	if remapped == proc || remapped.Aggregate == proc.Aggregate || remapped.Address().ObjectID != 900000 || remapped.Namespace().ObjectID != 900001 || !catalog.SameAggregateDefinition(proc.Aggregate, &original) {
 		t.Fatal("copy-on-change metadata remap")
 	}
 	if remapped.Aggregate.Definition.Function != 900000 || remapped.Aggregate.Definition.Functions[0] != 900002 || remapped.Aggregate.Definition.Functions[1] != 900003 {

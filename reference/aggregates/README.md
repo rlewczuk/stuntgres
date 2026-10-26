@@ -108,6 +108,40 @@ Add `REFERENCE=1` for the oracle.
   [query_core](../query_core/README.md#testing), reusing its held-handle routes.
   Aggregate results keep their explicit native nullable/known metadata contract
   rather than inheriting scalar SQL-function metadata.
+- User ordered-set/hypothetical declarations:
+  `RUN='^TestReferenceAggregateOrdered'`. These untagged public scenarios cover
+  fixed direct/row support vectors, zero-direct and no-final definitions,
+  support-owned sorting (including a contrary WITHIN direction), typed-NULL
+  FINALFUNC_EXTRA inputs, grouped/direct demand and strict suppression,
+  direct/fresh-prepared/same-held execution, metadata, stored consumers,
+  live support/aggregate/type authorization, dependencies, statement atomicity
+  and reached SQL-final cancellation. The legal paired VARIADIC ANY witnesses
+  invoke the actual transition_multi and all four rank-family final supports,
+  with independent scalar/multikey/NULL/empty outcomes. Canonical collapsed
+  signatures use regprocedure lookup plus pronargs/provariadic, not an
+  unavailable oidvector codec.
+  `Modes` asserts both final/moving-final modification defaults and independent
+  overrides, even without either final implementation. `StrictDeclaration`
+  distinguishes PostgreSQL's canonical-first-declared-input no-seed admission
+  from runtime row-only transition vectors, for ordinary and moving state.
+  `MovingSupport` selects real state/direct/EXTRA moving-final signatures and
+  preserves ordered OVER rejection. Their metadata, selected support identities
+  and seeded values also run through the actual-stream persistence checks.
+  `Persistence` replays the actual native Dump stream unchanged on PostgreSQL,
+  including domain/collation/support identities, default/explicit final modes,
+  strict SQL support metadata and NULL/no-reseed behavior, raw ACLs and
+  ownership, including INTERNAL-state aggregates created by a superuser and
+  transferred to a nonsuperuser. Native phases retain old Rows and held statements,
+  restore twice, reject invalid/canceled replacement, check stable redump and
+  restore into an independent driver. `FeatureSmoke` exercises the new fixed
+  and legal variadic behavior, not only prerequisite aggregate checks.
+  Native C extension loading, fmgr pointers and PostgreSQL memory-context ABI,
+  physical storage/spill and parallel workers are external mechanisms, not
+  substitutes for these executable SQL-visible support routines. Ordinary SQL
+  cannot manufacture their opaque INTERNAL state: the scalar transition call
+  witness fails lookup before support execution. Private aggregate-context
+  checks are distinct from this public boundary; final support NULL behavior
+  is not replaced by an invented blanket out-of-context rejection.
 - DISTINCT, local ORDER BY, FILTER: `RUN='^TestReferenceAggregateModifiers'`
 - `any_value`: `RUN='^TestReferenceAnyValue'`
 - `min`, `max`: `RUN='^TestReferenceExtrema'`

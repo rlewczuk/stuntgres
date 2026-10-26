@@ -549,6 +549,17 @@ func (b *Binder) BindFunction(raw parser.FunctionExpr) (result expr.Expr, failur
 		for _, key := range raw.Order {
 			combined.Args = append(combined.Args, key.Expr)
 		}
+		selected, handled, err := b.selectSQLCallable(combined, nil)
+		if err != nil {
+			return nil, err
+		}
+		if handled && selected.Procedure != nil && selected.Procedure.Aggregate != nil {
+			original := parser.AggregateExpr{Name: raw.Name.Parts[len(raw.Name.Parts)-1].Text, Args: raw.Args, Order: raw.Order, Within: true, WithinPos: raw.WithinPos, Pos: raw.Pos, Filter: raw.Filter, Window: raw.Window, Star: raw.Star, Distinct: raw.Distinct, Variadic: raw.Variadic}
+			if len(raw.Name.Parts) == 2 {
+				original.Schema = &raw.Name.Parts[0]
+			}
+			return b.finishSQLCallable(combined, selected, original, ExpressionPolicy{Context: ProjectionContext})
+		}
 		combined.Within, combined.Order, combined.Window = false, nil, nil
 		if _, err := b.BindFunction(combined); err != nil {
 			return nil, err

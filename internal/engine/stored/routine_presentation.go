@@ -75,10 +75,24 @@ func (v *View) AggregateRecipeProcedure(read catalog.Read, path analyze.ViewLite
 	if !ok || !d.DynamicCallable() || d.Aggregate == nil || raw.Schema == nil {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate procedure")
 	}
-	if raw.Within || raw.Variadic || raw.JSON != nil || raw.Star != (len(raw.Args) == 0) || raw.Window != nil && (raw.Distinct || len(raw.Order) != 0 || raw.Filter != nil) {
+	ordered := d.Aggregate.Definition.Kind != "n"
+	if raw.Within != ordered || raw.Variadic || raw.JSON != nil {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate call shape")
 	}
-	if _, valid := analyze.SQLCallableShape(read, nil, d, parser.FunctionExpr{Args: raw.Args}); !valid {
+	arguments := raw.Args
+	if ordered {
+		if raw.Window != nil || raw.Distinct || raw.Star && len(raw.Args) != 0 || !analyze.OwnedAggregateDirectCountValid(d, len(raw.Args), len(raw.Order)) || len(raw.Args)+len(raw.Order) > 99 {
+			return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate call shape")
+		}
+		arguments = make([]parser.Expr, 0, len(raw.Args)+len(raw.Order))
+		arguments = append(arguments, raw.Args...)
+		for _, key := range raw.Order {
+			arguments = append(arguments, key.Expr)
+		}
+	} else if raw.Star != (len(raw.Args) == 0) || raw.Window != nil && (raw.Distinct || len(raw.Order) != 0 || raw.Filter != nil) {
+		return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate call shape")
+	}
+	if _, valid := analyze.SQLCallableShape(read, nil, d, parser.FunctionExpr{Args: arguments}); !valid {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate call shape")
 	}
 	if _, err := exec.ValidateStoredRoutineDescriptor(read, d); err != nil {
@@ -108,7 +122,7 @@ func (v *QueryRenderer) aggregateRecipeName(read catalog.Read, path analyze.View
 }
 
 func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation func(sqltype.CollationRef) (sqltype.CollationRef, error)) (bool, error) {
-	if current.SQL == nil || captured.SQL == nil || current.Display != captured.Display || current.SQL.Kind != captured.SQL.Kind || current.PLHandler != captured.PLHandler || current.SQL.Standard != captured.SQL.Standard || current.SQL.Source != captured.SQL.Source || !slices.Equal(current.SQL.Names, captured.SQL.Names) || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
+	if current.SQL == nil || captured.SQL == nil || current.Strict != captured.Strict || current.Display != captured.Display || current.SQL.Kind != captured.SQL.Kind || current.PLHandler != captured.PLHandler || current.SQL.Standard != captured.SQL.Standard || current.SQL.Source != captured.SQL.Source || !slices.Equal(current.SQL.Names, captured.SQL.Names) || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
 		return false, nil
 	}
 	if captured.SQL.Standard && !slices.Equal(current.SQL.Statements, captured.SQL.Statements) {

@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -13,6 +14,20 @@ type OwnedAggregate struct {
 	Definition   AggregateDefinition
 	Helpers      [2]RoutineIdentity
 	BinaryRecipe *AggregateBinaryRecipe
+	Variadic     bool // Terminal VARIADIC ANY; paired ordered declarations share this slot.
+	ArgumentNames []string // Canonical flattened declaration; nil when entirely unnamed.
+}
+
+// SameAggregateDefinition compares complete immutable declaration identity.
+// Binary recipes remain pointer-owned evidence; argument names are canonical
+// declaration values, independent of their backing slice.
+func SameAggregateDefinition(a, b *OwnedAggregate) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Definition == b.Definition && a.Helpers == b.Helpers &&
+		a.BinaryRecipe == b.BinaryRecipe && a.Variadic == b.Variadic &&
+		slices.Equal(a.ArgumentNames, b.ArgumentNames)
 }
 
 // AggregateBinaryRecipe retains the admitted direct declared edges, not a

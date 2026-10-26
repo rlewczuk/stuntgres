@@ -43,4 +43,5 @@ const (
 	CastRoutineProvider
 	FTSParserRoutineProvider
 	FTSVectorRoutineProvider
+	AggregateContextRoutineProvider
 )

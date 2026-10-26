@@ -25,7 +25,7 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 	var cast *parser.CastExpr
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
-  if r.JSON != nil || r.Within || r.Variadic || (!b.hasDynamicProcedureName(r.Name) && !b.hasProviderProcedureOverride(r.Name) && !functions.CubeFunctionName(r.Name) && !functions.EarthFunctionName(r.Name) && !extension.CubeComparisonName(r.Name) && !extension.CitextComparisonName(r.Name) && !extension.CitextPatternName(r.Name) && !extension.CitextRegexpName(r.Name) && !extension.CitextStringName(r.Name)) {
+		if r.JSON != nil || r.Variadic || (!b.hasDynamicProcedureName(r.Name) && !b.hasProviderProcedureOverride(r.Name) && !functions.CubeFunctionName(r.Name) && !functions.EarthFunctionName(r.Name) && !extension.CubeComparisonName(r.Name) && !extension.CitextComparisonName(r.Name) && !extension.CitextPatternName(r.Name) && !extension.CitextRegexpName(r.Name) && !extension.CitextStringName(r.Name)) {
 			return nil, false, nil
 		}
 		parts := []parser.Identifier{{Text: r.Name, Pos: r.Pos}}
@@ -45,6 +45,12 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 		cast = &r
 	default:
 		return nil, false, nil
+	}
+	if call.Within {
+		call.Args = append([]parser.Expr(nil), call.Args...)
+		for _, key := range call.Order {
+			call.Args = append(call.Args, key.Expr)
+		}
 	}
 	call = b.elideVoidParameters(call)
 	selected, handled, err := b.selectSQLCallable(call, cast)

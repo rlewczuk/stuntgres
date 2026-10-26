@@ -37,7 +37,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	if next.Get(namespace.Address()) != namespace || imported == proc || imported.Aggregate == proc.Aggregate || imported.Aggregate.Helpers[0].ID == original.Helpers[0].ID || imported.Aggregate.Definition.Functions[0] != imported.Aggregate.Helpers[0].ID {
 		t.Fatal("helper collision did not preserve TEMP/remap owner metadata")
 	}
-	if imported.Aggregate.Helpers[1].ID != original.Helpers[1].ID || imported.Aggregate.Helpers[0].Namespace != proc.Namespace().ObjectID || *proc.Aggregate != original {
+	if imported.Aggregate.Helpers[1].ID != original.Helpers[1].ID || imported.Aggregate.Helpers[0].Namespace != proc.Namespace().ObjectID || !catalog.SameAggregateDefinition(proc.Aggregate, &original) {
 		t.Fatal("unrelated helper/source changed")
 	}
 	for _, helper := range imported.Aggregate.Helpers {

@@ -11,6 +11,10 @@ type Statement struct {
 	Owner, SQL string
 	// FollowingSQL contains owner/comment metadata outside the definition window.
 	FollowingSQL string
+	// PrivilegedCreation replays SQL and FollowingSQL as the authenticated
+	// administrator, then restores Owner. FollowingSQL must transfer ownership
+	// before any dependent declaration or owner-sensitive metadata is emitted.
+	PrivilegedCreation bool
 	Binding      *DefinitionBinding
 }
 

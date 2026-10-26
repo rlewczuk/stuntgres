@@ -48,14 +48,14 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 			}
 		}
 	}
-	if _, ordered := call.Provider.(functions.OrderedAggregate); !ordered {
+	if _, ordered := call.Provider.(functions.OrderedAggregate); !ordered && !raw.Within {
 		call.Order = make([]plan.SortKey, len(raw.Order))
 	}
 	if len(raw.Order) > 0 && call.StageWidth == 0 {
 		call.StageWidth = len(call.Arguments)
 	}
 	for i, key := range raw.Order {
-		if _, ordered := call.Provider.(functions.OrderedAggregate); ordered {
+		if _, ordered := call.Provider.(functions.OrderedAggregate); ordered || raw.Within {
 			break
 		}
 		expression, err := b.Bind(key.Expr, ExpressionPolicy{Context: ProjectionContext})
@@ -233,7 +233,7 @@ func (b *Binder) SameAggregateCall(a, other plan.AggregateCall) bool {
 	}
 	for i, key := range a.Order {
 		o := other.Order[i]
-		if key.Desc != o.Desc || key.NullsFirst != o.NullsFirst || key.Slot != o.Slot || key.Cache != o.Cache || !b.SameGroupExpression(key.Expression, o.Expression) {
+		if key.Desc != o.Desc || key.NullsFirst != o.NullsFirst || key.Slot != o.Slot || key.Cache != o.Cache || !key.Comparison.Equal(o.Comparison) || !b.SameGroupExpression(key.Expression, o.Expression) {
 			return false
 		}
 	}

@@ -83,6 +83,16 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	if d.SQL.Trigger {
 		return value, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "trigger functions can only be called as triggers", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", d.Name())}
 	}
+	if d.Strict {
+		for _, argument := range frame.Parameters {
+			if argument.IsNull() {
+				if err = parent.Op.Context().Err(); err != nil {
+					return value, err
+				}
+				return sqltype.Null(resultUsage.Type), nil
+			}
+		}
+	}
 	if d.SQL.Kind == proc.PLpgSQLBody {
 		return parent.invokePLRoutine(d, frame, read, inputCollation)
 	}

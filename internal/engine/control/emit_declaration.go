@@ -70,6 +70,16 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 // declaration under its owner.
 func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration dump.Statement) error {
 	declaration.Binding = s.comparisonBindings[castConsumer{Event: dump.Event{OID: oid}}]
+	if declaration.PrivilegedCreation {
+		if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
+			return err
+		}
+		w.currentOwner = ""
+		if err := w.emitDefinition(s.CatalogView, declaration); err != nil {
+			return err
+		}
+		return w.setOwner(declaration.Owner)
+	}
 	if typ := s.domainNodes[oid]; typ != nil && (typ.SQLType.IsDomain() || typ.SQLType.IsRange()) && declaration.Owner != "postgres" {
 		// Owner metadata does not imply schema CREATE/USAGE. Preserve its
 		// captured identity, construct as bootstrap, then transfer only the

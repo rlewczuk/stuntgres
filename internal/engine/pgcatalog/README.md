@@ -58,12 +58,18 @@ type Producer func(Input) ([][]sqltype.Value, error)
   internal handler references with installed OID/NAME/REGPROC descriptors.
   These rows are builtin metadata, not mutable parser definitions or ACLs.
   `pg_proc.proretset` comes from actual routine declaration metadata.
-  Its condensed row includes FLOAT4 `prorows`, declaration `prosrc` and OIDVECTOR
-  `proargtypes` built from each routine's input signature. Zero arguments produce
-  an empty non-NULL vector. Selected internal parser and vector-I/O metadata
+  Its condensed row includes FLOAT4 `prorows`, declaration `prosrc`, OIDVECTOR
+  `proargtypes` built from each routine's input signature, and OID `provariadic`.
+  Zero arguments produce an empty non-NULL argument vector. `provariadic`
+  projects the selected builtin declaration, SQL variadic array element, range
+  constructor, or owned aggregate's VARIADIC ANY identity; nonvariadic
+  declarations report zero. Selected internal parser and vector-I/O metadata
   supplements retain genuine identities without installing callable providers;
   represented descriptors take precedence. Installed codec source symbols stay
   independent of mutable public names.
+  Owned aggregate `proargnames` follows the canonical flattened declaration,
+  including retained direct and ordered argument names; unnamed declarations
+  retain NULL rather than an invented list.
 - `pg_index` vector cells use the runtime's captured index metadata projection,
   then shared typed constructors: all key/INCLUDE attributes in `indkey`,
   key-only `indcollation`, `indclass` and `indoption`. No textual vector store or

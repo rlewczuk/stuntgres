@@ -115,6 +115,13 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Volatile}
+	d.Strict = s.Strict
+	if s.Volatility != "" {
+		if s.Volatility != "volatile" {
+			return expr.ErrorAt("0A000", "SQL function attributes are unsupported", s.Pos)
+		}
+		d.Volatility = expr.Volatile
+	}
 	d.Language = h.AccessView(auth).Catalog.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: s.Language.Text})
 	if s.Procedure {
 		d.RoutineKind = catalog.ProcedureRoutine

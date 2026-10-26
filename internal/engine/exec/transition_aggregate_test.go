@@ -279,7 +279,7 @@ func TestAggregateFinalFrame(t *testing.T) {
 			}
 			state := opaque.(*transitionAggregateState)
 			before := state.value
-			result, err := p.FinalizeWithContext(ctx, opaque, evaluation)
+			result, err := p.FinalizeWithContext(ctx, opaque, nil, evaluation)
 			if kind == "wrong-result" || kind == "failure" {
 				if err == nil || kind == "failure" && !errors.Is(err, sentinel) {
 					t.Fatal("invalid final accepted", result, err)
@@ -327,13 +327,13 @@ func TestAggregateFinalCancellation(t *testing.T) {
 		cancel()
 		return sqltype.String(text, "not published"), nil
 	}}
-	if value, err := p.FinalizeWithContext(ctx, opaque, evaluation); !errors.Is(err, context.Canceled) || value.Type() != nil {
+	if value, err := p.FinalizeWithContext(ctx, opaque, nil, evaluation); !errors.Is(err, context.Canceled) || value.Type() != nil {
 		t.Fatal("canceled final published output", value, err)
 	}
 	if opaque.(*transitionAggregateState).value != before {
 		t.Fatal("canceled final changed state")
 	}
-	if _, err := p.FinalizeWithContext(ctx, opaque, evaluation); !errors.Is(err, context.Canceled) {
+	if _, err := p.FinalizeWithContext(ctx, opaque, nil, evaluation); !errors.Is(err, context.Canceled) {
 		t.Fatal("pre-canceled final admitted", err)
 	}
 }
@@ -406,7 +406,7 @@ func TestAggregateFinalPrivateState(t *testing.T) {
 	results := make([]sqltype.Value, 2)
 	errs := make([]error, 2)
 	for i := range states {
-		wg.Go(func() { results[i], errs[i] = p.FinalizeWithContext(ctx, states[i], evaluations[i]) })
+		wg.Go(func() { results[i], errs[i] = p.FinalizeWithContext(ctx, states[i], nil, evaluations[i]) })
 	}
 	var frames [2]*Context
 	for i := range frames {
@@ -436,7 +436,7 @@ func TestAggregateFinalPrivateState(t *testing.T) {
 		}
 	}
 	other := *p
-	if _, err := other.FinalizeWithContext(ctx, states[0], evaluations[0]); err == nil {
+	if _, err := other.FinalizeWithContext(ctx, states[0], nil, evaluations[0]); err == nil {
 		t.Fatal("another declaration consumed private state")
 	}
 	opaque, err := p.InitWithContext(ctx, evaluations[0])
@@ -476,7 +476,7 @@ func TestAggregateFinalCurrentHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, evaluation := range []*Context{second, first, second} {
-		result, err := p.FinalizeWithContext(ctx, state, evaluation)
+		result, err := p.FinalizeWithContext(ctx, state, nil, evaluation)
 		if err != nil {
 			t.Fatal(err)
 		}

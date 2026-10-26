@@ -75,11 +75,16 @@ library, and never the root engine or `session`. The engine, the root driver
   recursive CYCLE-mark grouping keys, and window partition/peer equality.
   Equality selection keeps the checked declaration after any existing coercion;
   it does not perform a later lookup by the routine's mutable name.
-  Owned aggregates derive input collation from ordinary arguments only,
-  excluding FILTER and ORDER BY. Ordinary state, moving state and final result
+  Owned aggregates derive support collation from their admitted direct and row
+  inputs, excluding FILTER. Hypothetical ordering keeps independent per-pair
+  comparison collations. Selected catalog kind, not name, admits WITHIN GROUP,
+  its declaration split and grouped direct expressions. State and final result
   retain separate type identities and descriptor fallbacks. Each selected
-  forward/inverse/final call owns a closed typed formal namespace. Window
-  implementation selection occurs after the complete frame resolves: a safe
+  forward/inverse/final call owns a closed typed formal namespace.
+  Owned binding completes signature/type coercion before resolving every ordering
+  capability, then checks pair collations and derives support collation. An
+  earlier pair's collation cannot mask a later key's missing ordering provider.
+  Window implementation selection occurs after the complete frame resolves: a safe
   moving final overrides ordinary unsafe modes; otherwise unbounded starts,
   volatile inputs and subqueries select ordinary execution. Support volatility
   does not change that selection. Grouped calls always use ordinary supports.

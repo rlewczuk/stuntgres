@@ -289,7 +289,7 @@ func (b *Binder) resolveWindows() error {
 				}
 			}
 			moving := MovingAggregateSelected(call.Procedure.Aggregate.Definition, spec.Frame, call.Arguments)
-			call.Provider, err = b.ownedAggregateProvider(call.Procedure, call.Arguments, call.Expression.ResultUsage(), collation, moving, call.Expression.Pos, inputInfo)
+			call.Provider, err = b.ownedAggregateProvider(call.Procedure, call.Arguments, nil, call.Expression.ResultUsage(), collation, moving, call.Expression.Pos, inputInfo)
 			if err != nil {
 				return err
 			}

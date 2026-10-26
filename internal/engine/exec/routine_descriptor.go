@@ -88,7 +88,7 @@ func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.Conversion == captured.Conversion && current.SQL == captured.SQL && current.SQLBody == captured.SQLBody &&
 		current.SQLDefaults == captured.SQLDefaults && current.RangeConstructor == captured.RangeConstructor && current.Extension == captured.Extension &&
 		current.AccessMethod == captured.AccessMethod && current.Dictionary == captured.Dictionary &&
-		current.Foreign == captured.Foreign && sameRoutineBody(current.Body, captured.Body) && sameAggregateDefinition(current.Aggregate, captured.Aggregate)
+		current.Foreign == captured.Foreign && sameRoutineBody(current.Body, captured.Body) && catalog.SameAggregateDefinition(current.Aggregate, captured.Aggregate)
 }
 
 func sameRoutineBody(a, b []catalog.RoutineBodyEdge) bool {
@@ -113,12 +113,6 @@ func sameRoutineBody(a, b []catalog.RoutineBodyEdge) bool {
 	return true
 }
 
-func sameAggregateDefinition(a, b *catalog.OwnedAggregate) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
-}
 
 func ExpressionRecipeDescriptor(node any) (expr.RoutineRecipeReference, error) {
 	carrier, ok := node.(interface {

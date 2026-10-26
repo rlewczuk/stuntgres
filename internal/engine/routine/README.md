@@ -13,6 +13,10 @@ PL/pgSQL admits RETURNS trigger only for zero-formal trigger functions, never as
 a scalar-storable pseudotype. Trigger installation checks function EXECUTE;
 the admitted trigger entry does not recheck it at firing. Ordinary calls and
 helper calls retain their normal effective-actor EXECUTE checks.
+Function STRICT is descriptor-owned and serialized by native Dump. Invocation
+admits the current declaration and privileges before suppressing a NULL-input
+body; aggregate supports retain their transition/final-specific strict rules.
+Explicit VOLATILE selects the ordinary effectful SQL routine mode.
 
 ## Routine ALTER contract
 
@@ -128,15 +132,33 @@ package or the engine.
   DROP records every root before the engine's shared dependency closure and
   single publication. Language admission never loads a library or probes a
   symbol.
-- **Ordinary and moving aggregates** (`aggregate_*.go`): stage selected forward,
-  inverse and final declarations with independent ordinary state, moving state
-  and result types, atomically. `AggregateSupportTypes` specializes exact declared
-  vectors without execution, default insertion or variadic expansion. Retained
-  binary recipes govern every support vector after cast-row changes. Detached
-  validation is shared by publication, Dump and replacement; it is not live
-  EXECUTE authority. Dump preserves qualified support identities, both state
-  types and external seeds, signed space estimates, EXTRA and modification flags,
-  including flags without a final. Space estimates never size executor buffers.
+- **Ordinary, ordered-set, hypothetical and moving aggregates** (`aggregate_*.go`):
+  stage genuine selected support routines with independent state/result types.
+  Ordered declarations retain the direct/row split and canonical variadic
+  identity. SFUNC receives state and row inputs; FINAL receives state, direct
+  inputs and typed NULL row extras when requested. Support specialization never
+  supplies defaults or packs arrays. INTERNAL/ANY slots require the selected
+  aggregate-context support capability, not general pseudo-type coercion.
+  Ordinary and moving final support lookup share state plus canonical direct
+  declaration slots, or state plus the complete declaration for EXTRA, including
+  collapsed paired ANY exactly once. Execution specializes independent expanded
+  direct and row vectors. Strict transition declarations without an initial value
+  check the first canonical declared argument (including directs) against state;
+  execution-time strict seeding still consumes only the first admitted row.
+  Ordered/hypothetical declarations default both final modification fields to
+  READ_WRITE even without final/moving functions; ordinary declarations retain
+  READ_ONLY, and each explicit override is independent.
+  Creating an INTERNAL transition state requires the actual current role to be
+  a superuser; inherited membership is not sufficient. This creation-only rule
+  does not prohibit a later non-superuser owner or bypass live support privileges.
+  Retained binary recipes govern scalar/SQL support conversions after cast changes.
+  Detached validation is shared by publication, Dump and replacement; it is not
+  live EXECUTE authority. Dump retains named declaration splits, qualified
+  supports, seeds, EXTRA, HYPOTHETICAL and modification modes, even without a final.
+  A transferred non-superuser-owned INTERNAL aggregate is replayed as the
+  authenticated administrator and transferred with ordinary ALTER AGGREGATE
+  OWNER before restoring owner authority and emitting dependents.
+  Space estimates never size executor buffers.
 - **Cast DDL** (`cast.go`): CREATE/DROP CAST with endpoint ownership/USAGE and
   signature checks; declaration neither evaluates the routine nor requires its
   EXECUTE privilege. Actual use checks current EXECUTE authority. Casts depend
@@ -237,10 +259,17 @@ Public SQL lives in [reference/operators](../../../reference/operators/README.md
 [reference/query_core](../../../reference/query_core/README.md#testing) (routine
 drop) and [reference/aggregates](../../../reference/aggregates/README.md#testing).
 
+Ordered declaration units distinguish canonical lookup from expanded execution:
+`FinalDeclarationVectors` checks independent storage and collapsed ANY slots;
+`CanonicalStrictDeclaration` checks normal/moving no-seed admission in both
+compatibility directions; `MovingFinalDetachedDefinition` checks independent
+ordinary/moving EXTRA flags against real overloads and collapsed ANY supports.
+
 ```sh
 make check RUN='^Test(BuiltinRoutineLookup|OperatorRoutineLookup|SeededOperatorNames|UserOperator(Option|CatalogEstimator)|OperatorFamilySupportDeclarations)'
 make check RACE=1 RUN='^Test(OperatorClassMethodIdentity|ExclusionOperatorFamilyMembership|RoutineDrop)'
 make check RUN='^Test(Aggregate(Final|Moving)DetachedDefinition|CreateAggregate(DetachedDeclaredCastSupport|Retained)|SQLRoutineDumpEventsUseResolver|OperatorDumpLinksUsePresenter|UserOperatorDumpFinalGraph)'
+make check RUN='^TestAggregateOrdered(FinalDeclarationVectors|CanonicalStrictDeclaration|MovingFinalDetachedDefinition|DetachedDefinition)$'
 make check RUN='^Test(BuiltinCatalogValidatesForEveryEngineConfiguration|BuiltinProcedureNamesMatchSeed|OperatorDependsOnMatchesDependencyAddresses)'
 make check RUN='^TestReference(RoutineDrop|UserOperator|CastDefinition)'
 ```

@@ -87,8 +87,11 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   `dumpPhaseEmitters`, indexed by `dump.Phase`. The loop sets an entry's `owner`
   before `emit` runs (`nil`: the emitter sets it); an emitter that can fail
   renders before switching owner so an error writes nothing. `dumpWriter`
-  tracks the `SET SESSION AUTHORIZATION` owner. **Adding a dumped object:**
-  export the feature's dump function and name it at the matching table position.
+  tracks the `SET SESSION AUTHORIZATION` owner. Privileged routine creation uses
+  `DEFAULT` (the authenticated administrator), emits the actual owner transfer,
+  then restores tracked owner authority before any dependent event.
+  **Adding a dumped object:** export the feature's dump function and name it at
+  the matching table position.
 - **Adapters** (`resolver.go`, `presenter.go`): `Resolver` (`dump.Resolver`)
   and `Presenter` (`dump.Presenter`) read only their arguments.
   Unmodified builtin scalar declarations use the existing machine-identity

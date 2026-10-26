@@ -161,6 +161,9 @@ host methods.
   checks complete action occurrence counts and the program-wide set. Missing support-only captures
   cannot be repaired by a plausible direct graph or a fresh name lookup.
   Remapping preserves both lanes, original stamps and source immutability.
+  Stored views likewise project only definition captures in `DependsOn`;
+  support-only execution captures do not bypass the aggregate's transitive edge.
+  An explicitly written support call keeps its independent direct edge.
   Regproc/regprocedure definition references are validated from checked retained
   literal occurrences and the presentation's original Ref/Revision, then matched
   to the action's complete triple. A shared aggregate-support address neither
@@ -431,12 +434,14 @@ host methods.
   argument syntax and actual aggregate catalog reference/epoch; capture, count
   and render share `AggregateRecipeProcedure`, not provider-symbol lookup.
   Window membership stays with the captured complete specification. Forward,
-  inverse and final remaps validate exact
-  source/destination closed formal vectors, retained conversions and selected
-  declaration identities. Selected mode, independent ordinary/moving state
-  types and result type survive replacement without live-name lookup. Mapping
-  never mutates the source provider. Ordinary stored parameters retain their
-  zero-bound rejection.
+  inverse and final remaps validate exact closed source/destination namespaces,
+  row/direct partitions, expanded variadic usages, retained conversions and
+  selected declarations. Actual final vectors retain direct inputs before typed
+  NULL extras. Opaque ordered-support recipes rebuild with destination tuple
+  comparisons and contain no execution state. Kind, direct count, modes and
+  independent state/result identities survive replacement without name lookup.
+  Mapping never mutates the source provider. Ordinary stored parameters retain
+  their zero-bound rejection.
 - **Policies.** Policy runtime consumes `Policy.Expression`/`Presentation`
   through `RewriteViewExpression`/`MapExpression` and never mutates the payload
   or reparses its SQL. A presentation keeps the binder's full execution
@@ -567,7 +572,7 @@ make check RUN='^TestRoutineHistorical(BuiltinReplacementRemap|TemporaryPrincipa
 current body/default semantics from valid equivalent COW: old hard captures
 reject, while healthy fresh current manifests remain usable.
 
-- Payload API and stored row marks: `RUN='^Test(ViewPartsRoundTrip|RulePartsRoundTrip|QuerySetStoredInheritedMarks)$'`
+- Payload API, definition dependency projection and stored row marks: `RUN='^Test(ViewPartsRoundTrip|ViewDependencyPurpose|RulePartsRoundTrip|QuerySetStoredInheritedMarks)$'`
 - Rule display and replay separation: `RUN='^TestRuleDefinition(Presentation|ReplaySeparation|ReturningLabels)$'`
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`
 - PL array-loop usage remap and immutable controls: `RUN='^TestPLpgSQLForeachRemap$'`

@@ -227,7 +227,7 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if string(d.Signature) != signature.String() {
 		return invalid()
 	}
-	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine || d.RoutineKind == catalog.ProcedureRoutine && !d.SQL.Void() || d.Strict || d.Volatility != expr.Volatile || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
+	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine || d.RoutineKind == catalog.ProcedureRoutine && (!d.SQL.Void() || d.Strict) || d.Volatility != expr.Volatile || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
 		return invalid()
 	}
 	return nil

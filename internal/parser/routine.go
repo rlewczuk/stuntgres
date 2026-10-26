@@ -19,8 +19,28 @@ type CreateFunction struct {
 	SymbolSpecified bool
 	SymbolPos       Position
 	Procedure       bool
+	Strict          bool
+	Volatility      string
 	Standard        []Statement // Non-nil for a definition-analyzed SQL-standard body.
 	Pos             Position
+}
+
+func (l *lexer) functionAttributes(declaration *CreateFunction, groups ...[]lexeme) bool {
+	for _, clauses := range groups {
+		for _, clause := range clauses {
+			if clause.text == "strict" && declaration.Strict || clause.text == "volatile" && declaration.Volatility != "" {
+				l.failAt("42601", "conflicting or redundant options", clause.pos.Offset)
+				return false
+			}
+			switch clause.text {
+			case "strict":
+				declaration.Strict = true
+			case "volatile":
+				declaration.Volatility = clause.text
+			}
+		}
+	}
+	return true
 }
 
 // RoutineParameter is declaration syntax; identity-only DROP/GRANT arguments
@@ -77,11 +97,13 @@ func routineBodyPosition(token lexeme) Position {
 
 func (*CreateFunction) statement() {}
 
-// CreateAggregate declares an ordinary fixed-arity transition aggregate.
-// Definition elements retain their lexical node kind for SSPACE validation.
+// CreateAggregate retains the declaration split independently of its canonical
+// flattened identity, including ordered aggregates with no direct arguments.
 type CreateAggregate struct {
 	Name      ObjectName
 	Arguments []GrantRoutineArgument
+	Ordered   bool
+	DirectArgs int
 	Options   []OperatorOption
 	Pos       Position
 }

@@ -37,7 +37,16 @@ func (h RoutineHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.Obje
 
 func (h RoutineHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName, inputs []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error) {
 	v := core.DDLAuthorityOf(a)
-	path, err := h.E.LookupNamespaces(v, name, analyze.FunctionLookup)
+	// Catalog support lookup is not a parser call transformation. Preserve
+	// written names, but do not attribute namespace failures to call positions.
+	lookupName := name
+	var localParts [3]parser.Identifier
+	lookupName.Parts = localParts[:0]
+	for _, part := range name.Parts {
+		part.Pos = parser.Position{}
+		lookupName.Parts = append(lookupName.Parts, part)
+	}
+	path, err := h.E.LookupNamespaces(v, lookupName, analyze.FunctionLookup)
 	if err != nil {
 		return nil, nil, sqltype.Usage{}, err
 	}

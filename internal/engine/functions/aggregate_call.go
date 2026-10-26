@@ -29,7 +29,7 @@ type ContextualAggregateProvider interface {
 // initialization and finalization, never a retained session pointer.
 type ExecutionAggregateProvider interface {
 	InitWithContext(context.Context, expr.Context) (any, error)
-	FinalizeWithContext(context.Context, any, expr.Context) (sqltype.Value, error)
+	FinalizeWithContext(context.Context, any, []sqltype.Value, expr.Context) (sqltype.Value, error)
 }
 
 // AggregateOperation identifies the selected aggregate algorithm. The engine
