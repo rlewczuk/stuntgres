@@ -448,7 +448,7 @@ func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 		// No changed root to install; the publisher keeps its actual predecessor.
 		return nil, ctx.Err()
 	}
-	if d.Method == catalog.GistMethod {
+	if d.Method == catalog.GistMethod || d.Method == catalog.SpgistMethod {
 		// Preserve immutable predecessor entries and cached produced keys.
 		// Validation needs the complete candidate membership even in PREPARE.
 		entries := make([]storage.IndexEntry, 0, len(old)+len(added))

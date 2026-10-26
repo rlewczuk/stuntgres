@@ -42,7 +42,7 @@ func BindExclusionOperator(u Usage, class IndexClass, name string, member uint32
 	}
 	t := u.Type.BaseType()
 	id := t.ID()
-	if class.IsGiST() {
+	if class.IsGiST() || class.IsSPGiST() {
 		if member == 0 {
 			return ExclusionOperator{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`operator %s(%s,%s) is not a member of operator family "%s"`, name, t.DiagnosticName(), t.DiagnosticName(), class.Family), Detail: "The exclusion operator must be related to the index operator class for the constraint."}
 		}

@@ -128,7 +128,7 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 		return key, supportErr
 	}
 	key.Class = c
-	if method == catalog.GistMethod {
+	if method == catalog.GistMethod || method == catalog.SpgistMethod {
 		if err := ValidateUnorderedKeyDirection(raw, fact.Name()); err != nil {
 			return key, err
 		}
@@ -252,7 +252,7 @@ func bindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 				} else if err := validateSystemKey(h, auth, raw, d.MethodOID); err != nil {
 					return fail(err)
 				}
-				if !included && (d.Method == catalog.HashMethod || d.Method == catalog.BrinMethod || d.Method == catalog.GistMethod) {
+				if !included && (d.Method == catalog.HashMethod || d.Method == catalog.BrinMethod || d.Method == catalog.GistMethod || d.Method == catalog.SpgistMethod) {
 					if err := ValidateUnorderedKeyDirection(raw, method.Name()); err != nil {
 						return fail(err)
 					}

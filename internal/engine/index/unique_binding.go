@@ -190,7 +190,7 @@ func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view c
 			return nil, err
 		}
 		n := len(idx.SQLIndex.Keys)
-		if idx.SQLIndex.Method != catalog.GistMethod {
+		if idx.SQLIndex.Method != catalog.GistMethod && idx.SQLIndex.Method != catalog.SpgistMethod {
 			bound.Grouping = make([]sqltype.Grouping, n)
 		}
 		bound.Key, bound.Scratch = make([]sqltype.Value, n), make([]sqltype.Value, n)
@@ -199,7 +199,7 @@ func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view c
 			if usageErr != nil {
 				return nil, usageErr
 			}
-			if idx.SQLIndex.Method == catalog.GistMethod {
+			if idx.SQLIndex.Method == catalog.GistMethod || idx.SQLIndex.Method == catalog.SpgistMethod {
 				continue
 			}
 			// Network datums own comparison, but no generic grouping provider.

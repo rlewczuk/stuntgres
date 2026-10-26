@@ -29,7 +29,7 @@ func pgAMUnitSource(t *testing.T, e *core.Engine) (*catalog.Relation, ids.Object
 
 func pgAMUnitFacts(t *testing.T, source *exec.Source, d *catalog.Relation) [][]any {
 	t.Helper()
-	if len(source.Anonymous) != 5 {
+	if len(source.Anonymous) != 6 {
 		t.Fatal("access-method count", len(source.Anonymous))
 	}
 	got := make([][]any, len(source.Anonymous))
@@ -56,7 +56,7 @@ func pgAMUnitFacts(t *testing.T, source *exec.Source, d *catalog.Relation) [][]a
 			}
 		}
 	}
-	want := [][]any{{uint32(2), "heap", uint32(3), "t"}, {uint32(403), "btree", uint32(330), "i"}, {uint32(405), "hash", uint32(331), "i"}, {uint32(783), "gist", uint32(332), "i"}, {uint32(3580), "brin", uint32(335), "i"}}
+	want := [][]any{{uint32(2), "heap", uint32(3), "t"}, {uint32(403), "btree", uint32(330), "i"}, {uint32(405), "hash", uint32(331), "i"}, {uint32(783), "gist", uint32(332), "i"}, {uint32(3580), "brin", uint32(335), "i"}, {uint32(4000), "spgist", uint32(334), "i"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("access-method identities: got %v want %v", got, want)
 	}

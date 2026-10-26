@@ -83,7 +83,7 @@ func (r Read) IndexClassForMethod(oid ids.OID, method *AccessMethod) (sqltype.In
 		return sqltype.IndexClass{}, false
 	}
 	physical, _ := method.IndexImplementation()
-	return sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: uint32(oid), Method: uint32(d.Method), Family: uint32(d.Family), Input: uint32(d.InputType), Storage: uint32(d.StorageType), Name: d.Name(), FamilyName: f.Name(), Hash: physical == HashMethod, GiST: physical == GistMethod, Brin: physical == BrinMethod}), true
+	return sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: uint32(oid), Method: uint32(d.Method), Family: uint32(d.Family), Input: uint32(d.InputType), Storage: uint32(d.StorageType), Name: d.Name(), FamilyName: f.Name(), Hash: physical == HashMethod, GiST: physical == GistMethod, Brin: physical == BrinMethod, SPGiST: physical == SpgistMethod}), true
 }
 func (r Read) DefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sqltype.IndexClass, bool, error) {
 	if t == nil || !t.Concrete() {
@@ -99,12 +99,12 @@ func (r Read) DefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sqltype.
 		c, ok := r.uniqueDefaultIndexClassID(method, 3500)
 		return c, ok, nil
 	}
-	if m, ok := r.AccessMethod(method); ok && m.Native == GistAccessMethod {
+	if m, ok := r.AccessMethod(method); ok && (m.Native == GistAccessMethod || m.Native == SpgistAccessMethod) {
 		if t.IsRange() {
 			c, ok := r.uniqueDefaultIndexClassID(method, 3831)
 			return c, ok, nil
 		}
-		if t.IsMultirange() {
+		if t.IsMultirange() && m.Native == GistAccessMethod {
 			c, ok := r.uniqueDefaultIndexClassID(method, 4537)
 			return c, ok, nil
 		}

@@ -40,7 +40,21 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 	if !ok || family.Method != fact.Method {
 		return class, fmt.Errorf("stuntgres: invalid index family method")
 	}
-	if class.IsGiST() {
+	if class.IsSPGiST() {
+		supported := false
+		switch sqltype.ID(class.InputOID()) {
+		case sqltype.Inet, sqltype.Point, sqltype.Box, sqltype.Polygon, sqltype.Text, 3831:
+			supported = true
+		default:
+			if input, exists := view.LookupType(sqltype.ID(class.InputOID())); exists {
+				supported = input.BaseType().IsRange()
+			}
+		}
+		if !supported {
+			return class, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "index operator class is unsupported"}
+		}
+	}
+	if class.IsGiST() || class.IsSPGiST() {
 		return class, nil
 	}
 	if class.IsBrin() {
@@ -217,7 +231,7 @@ func BindExclusionOperator(view catalog.Read, usage sqltype.Usage, class sqltype
 	if t.IsEnum() {
 		input = 3500 // Released polymorphic anyenum operator input.
 	}
-	if class.IsGiST() {
+	if class.IsGiST() || class.IsSPGiST() {
 		if name == "!=" {
 			name = "<>"
 		}
@@ -290,7 +304,7 @@ func RangeTypeRebinder(next *catalog.State, mapping map[ids.ObjectAddress]ids.Ob
 			}
 			return oid
 		}
-		capture := sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: mapped(ids.OperatorClassCatalogID, class.OID()), Method: mapped(ids.AccessMethodClassID, class.MethodOID()), Family: mapped(ids.OperatorFamilyClassID, class.FamilyOID()), Input: mapped(ids.TypeClassID, class.InputOID()), Storage: mapped(ids.TypeClassID, class.StorageOID()), Name: class.Name, FamilyName: class.Family, Hash: class.IsHash(), GiST: class.IsGiST(), Brin: class.IsBrin()})
+		capture := sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: mapped(ids.OperatorClassCatalogID, class.OID()), Method: mapped(ids.AccessMethodClassID, class.MethodOID()), Family: mapped(ids.OperatorFamilyClassID, class.FamilyOID()), Input: mapped(ids.TypeClassID, class.InputOID()), Storage: mapped(ids.TypeClassID, class.StorageOID()), Name: class.Name, FamilyName: class.Family, Hash: class.IsHash(), GiST: class.IsGiST(), Brin: class.IsBrin(), SPGiST: class.IsSPGiST()})
 		support := class.Support(1)
 		support.Family = mapped(ids.OperatorFamilyClassID, support.Family)
 		support.Member = mapped(ids.AccessMethodProcedureClassID, support.Member)

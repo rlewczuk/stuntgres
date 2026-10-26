@@ -181,7 +181,7 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 				return err
 			}
 			if storage != class.InputType {
-				if physical != catalog.GistMethod {
+				if physical != catalog.GistMethod && physical != catalog.SpgistMethod {
 					return familyError("42P17", fmt.Sprintf(`storage type cannot be different from data type for access method "%s"`, familyMethodName(view, family.Method)))
 				}
 				class.StorageType = storage
@@ -192,7 +192,7 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 		kind := "operator"
 		if physical == catalog.HashMethod {
 			maximum = 1
-		} else if physical == catalog.GistMethod {
+		} else if physical == catalog.GistMethod || physical == catalog.SpgistMethod {
 			maximum = 32767
 		}
 		if item.Function {
@@ -204,6 +204,8 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 				maximum = 3
 			case 783:
 				maximum = 12
+			case 4000:
+				maximum = 7
 			}
 		}
 		number, err := strconv.ParseInt(item.Number, 10, 64)
@@ -266,7 +268,7 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 				return familyError("42P17", "index operators must be binary")
 			}
 			if purpose == 'o' {
-				if physical != catalog.GistMethod {
+				if physical != catalog.GistMethod && physical != catalog.SpgistMethod {
 					return familyError("42P17", fmt.Sprintf(`access method "%s" does not support ordering operators`, familyMethodName(view, family.Method)))
 				}
 			} else if operator.Result != 16 {

@@ -382,6 +382,11 @@ publication and lock-manager tickets stay in the engine.
   TEXT-typed literal's datum identity.
 - **pgcrypto**: `sqltype` owns the plans and kernels. Plans retain no password,
   salt, entropy, key or IV.
+- **TEXT pattern comparisons** (`text_pattern.go`): `TextPatternComparison`
+  owns strict lt/le/ge/gt scalar providers and their symbolic operator entry.
+  Rebuild, stored validation and replay retain genuine TEXT-to-BOOL routine
+  identity. Its comparison binds C byte ordering independently of expression
+  collation, preserving prefix length, case, UTF8 bytes and trailing spaces.
 - **MAC operations**: `trunc` keeps one registry owner in `math_bind.go`;
   exact one-argument typed MACADDR/MACADDR8 calls delegate to `MACUnary` using
   the already analyzed child. Numeric/unknown selection stays with the existing

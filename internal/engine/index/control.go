@@ -141,6 +141,17 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 			}
 			sql.WriteString(identifier(parent.Columns[slot].Name))
 		}
+		if !presentation.Dump && index.SQLIndex.Method == catalog.SpgistMethod {
+			// Catalog inquiry describes the stored class relative to the
+			// current default; PostgreSQL does not store CREATE's lexical
+			// explicit-default spelling. Dump separately retains that intent.
+			actual, err := KeyUsage(parent, key)
+			if err != nil {
+				return "", err
+			}
+			defaultClass, exists := view.UniqueDefaultIndexClass(index.SQLIndex.MethodIdentity(), actual.Type)
+			presented.ExplicitClass = !exists || !key.Class.SameIdentity(defaultClass)
+		}
 		if presented.Collation != 0 {
 			sql.WriteString(" COLLATE ")
 			if presentation.Dump {

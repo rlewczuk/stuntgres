@@ -95,11 +95,11 @@ func TestReferenceAccessMethodDefinitions(t *testing.T) {
 			}
 			run(amCount(`SELECT count(*) FROM pg_am WHERE amname=$1`, 1, tc.name))
 		}
-		// Released pg_proc.dat inherits strict=true/parallel-safe for all four
+		// Released pg_proc.dat inherits strict=true/parallel-safe for these
 		// native handlers. Utility capability metadata does not make them
 		// scalar-callable or manufacture a PostgreSQL internal return pointer.
 		classRoutes(t, p, b, conn, fixture.Select(
-			`SELECT oid::bigint,proname,pronamespace::bigint,pronargs,prorettype::bigint,provolatile,proisstrict,proparallel,prokind FROM pg_proc WHERE oid IN (3,330,331,332) ORDER BY oid`,
+			`SELECT oid::bigint,proname,pronamespace::bigint,pronargs,prorettype::bigint,provolatile,proisstrict,proparallel,prokind FROM pg_proc WHERE oid IN (3,330,331,332,334) ORDER BY oid`,
 			[]string{"oid", "proname", "pronamespace", "pronargs", "prorettype", "provolatile", "proisstrict", "proparallel", "prokind"},
 			[]string{"INT8", "NAME", "INT8", "INT2", "INT8", "CHAR", "BOOL", "CHAR", "CHAR"},
 			[][]any{
@@ -107,6 +107,7 @@ func TestReferenceAccessMethodDefinitions(t *testing.T) {
 				{int64(330), "bthandler", int64(11), int64(1), int64(325), "v", true, "s", "f"},
 				{int64(331), "hashhandler", int64(11), int64(1), int64(325), "v", true, "s", "f"},
 				{int64(332), "gisthandler", int64(11), int64(1), int64(325), "v", true, "s", "f"},
+				{int64(334), "spghandler", int64(11), int64(1), int64(325), "v", true, "s", "f"},
 			}))
 		props := classHeld(t, p, conn, amPropertySQL)
 		for _, name := range []string{"am_def_index", "am_def_table"} {
@@ -145,7 +146,7 @@ func TestReferenceAccessMethodDefinitions(t *testing.T) {
 		run(fixture.Exec(`CREATE ACCESS METHOD am_def_index TYPE TABLE HANDLER heap_tableam_handler`, 0))
 		fixture.RunStep(t, p.Ctx, props, b.Recorder, amProperties(amPropertySQL, [][]any{{nil, nil, nil, nil, nil, nil}}, "am_def_index"))
 		run(fixture.Exec(`DROP ACCESS METHOD am_def_index`, 0))
-		want := int64(5)
+		want := int64(6)
 		if b.PG {
 			want = 7
 		}

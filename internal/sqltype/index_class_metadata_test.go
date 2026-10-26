@@ -121,6 +121,13 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 		{10072, 783, 3655, 3614, 3642, "tsvector_ops", true},
 		{10075, 783, 3702, 3615, 20, "tsquery_ops", true},
 		{10082, 783, 6158, 4537, 3831, "multirange_ops", true},
+		{10018, 4000, 3794, 869, 0, "inet_ops", true},
+		{10079, 4000, 3474, 3831, 0, "range_ops", true},
+		{10083, 4000, 5000, 603, 0, "box_ops", true},
+		{10084, 4000, 4015, 600, 0, "quad_point_ops", true},
+		{10085, 4000, 4016, 600, 0, "kd_point_ops", false},
+		{10086, 4000, 4017, 25, 0, "text_ops", true},
+		{10087, 4000, 5008, 604, 603, "poly_ops", true},
 	} {
 		want[m.OID] = m
 	}
@@ -129,7 +136,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 137 || len(want) != 137 {
+	if IndexClassMetadataCount() != 144 || len(want) != 144 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -159,7 +166,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("metadata got %#v want %#v", got, want)
 	}
-	for _, i := range []int{-1, 137, 138} {
+	for _, i := range []int{-1, 144, 145} {
 		if m, ok := IndexClassMetadataAt(i); ok || m != (IndexClassMetadata{}) {
 			t.Fatal("bounds", i, m, ok)
 		}
@@ -193,6 +200,13 @@ func TestIndexClassMetadataProviders(t *testing.T) {
 			}
 			if BrinMinmaxIdentity(c) != strings.HasSuffix(m.Name, "_minmax_ops") {
 				t.Fatal("BRIN algorithm capability", m, c)
+			}
+			continue
+		}
+		if m.Method == 4000 {
+			c, ok := LookupSPGiSTIndexClass(m.Name)
+			if !ok || !c.IsSPGiST() || c.IsGiST() || c.OID() != m.OID || c.FamilyOID() != m.Family || c.StorageOID() != m.KeyType {
+				t.Fatal("SP-GiST identity", m, c)
 			}
 			continue
 		}

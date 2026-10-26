@@ -47,6 +47,8 @@ func (b *Binder) bindBuiltinOperator(r parser.OperatorExpr, policy ExpressionPol
 		return b.circleOperator(r, [2]expr.Expr{b.Clause.SelectedOperatorArgs[0], b.Clause.SelectedOperatorArgs[1]})
 	}
 	switch {
+	case name == "~<~" || name == "~<=~" || name == "~>=~" || name == "~>~":
+		return functions.BindTextPatternOperator(b, r)
 	case name == "~=":
 		return b.bindBoxSame(r)
 	case rangeSharedOperator(r):

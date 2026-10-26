@@ -1,6 +1,6 @@
 # internal/engine/index
 
-Index records and algorithms: B-tree, hash and GiST keys and roots, BRIN min/max
+Index records and algorithms: B-tree, hash, GiST and SP-GiST keys and roots, BRIN min/max
 range summaries, unique and exclusion enforcement, publication and snapshots,
 write-time maintenance, operator-family/access-method DDL and partition propagation.
 
@@ -35,23 +35,31 @@ builds a binder.
   `predicate.go`, `expression.go`, `program.go`, `clauses.go`, `options.go`,
   `property.go`): `BindIndexOrdering`, `BuildIndexRoot`, `MergeIndexRoot`,
   `BindHashIndex`, `BuildHashIndexRoot`, `MergeHashIndexRoot`, `BindIndexKeys`
-  (GiST), `PrepareIndexRecipe`, `ResolveIndexMethod`, the clause and option
+  (GiST and SP-GiST), `PrepareIndexRecipe`, `ResolveIndexMethod`, the clause and option
   validators, and `CaptureHashIndexesLocked` (published hash roots that exactly
   cover a plain table query source; caller holds `Engine.Mu`).
   BRIN uses `BindBrinIndex`, `BuildBrinIndexRoot`, `MergeBrinIndexRoot` and
   `BrinConsistent`; `BuildRelationIndexRoot` carries descriptor reloption intent
   into method dispatch. Summary support is not B-tree comparator support.
-  GiST roots are unsorted exact live memberships for the nine built-in classes;
-  owning scalar predicates and distance operators remain query authority.
+  GiST and SP-GiST roots share unsorted exact live membership extraction and
+  immutable delta maintenance; scalar predicates and distances remain query authority.
   They contain original typed values, not bounding boxes or signatures.
   `ClassOptions` captures each key's explicit siglen independently; relation
   fillfactor/buffering and key siglen retain logical configuration without
   physical pages. Catalog inquiry and replay preserve explicit defaults and
   absent defaults distinctly. Column capabilities use the selected catalog's
   actual family ordering/fetch/compress support, not fixed class names.
+  SP-GiST ordering members may match the class input on either operand; GiST
+  retains its left-input and distance-support requirements. Both require a
+  live ordering-purpose member and a sortable result family.
+  SP-GiST keeps its distinct method/class identity, accepts one key plus INCLUDE
+  and relation fillfactor only. Its seven classes preserve exact typed payloads,
+  including polygon values despite BOX storage metadata. Distance eligibility
+  uses actual ordering family members and their sortable result family; returnability
+  uses SP-GiST compression metadata, never GiST callback slots.
   LIKE and partition copies retain immutable relation and per-key configuration;
   their roots are rebuilt against destination row and descriptor identities.
-  Ordinary GiST partitioned indexes use the same parent/child publication and
+  Ordinary GiST and SP-GiST partitioned indexes use the same parent/child publication and
   attachment path as partitioned constraint indexes.
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
   `row_publication.go`, `layout_*.go`, `snapshot*.go`, `remint.go`,
@@ -62,6 +70,9 @@ builds a binder.
   transaction's private root, else the committed one), `AlterIndexBuild` and
   `RebindExclusionOperators`. The engine fills capture inputs under `Engine.Mu`
   after its epoch checks and holds the lock across the call.
+  Key reconstruction resolves the destination type's default within the declared
+  method and rejects an absent default before replacing the captured class;
+  it never publishes a zero class for a later provider to interpret.
 - **Catalog publication captures** (`publication_stores.go`,
   `overlay_capture.go`): `CandidatesMatch` (the concurrent root-candidate
   fence of catalog publication and of overlay capture; the caller picks each
@@ -204,7 +215,7 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
 
 ## Invariants
 
-- **Immutable roots.** Roots are ordered entries, unsorted GiST memberships,
+- **Immutable roots.** Roots are ordered entries, unsorted GiST/SP-GiST memberships,
   equality buckets or logical range summaries, maintained at the same
   Finish/commit frontier as rows. Derived keys evaluate
   at Execute, after predicate qualification and before rows are installed;
@@ -217,8 +228,9 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
   compatibility is captured once in the ordering's key mask, never per row.
 - **Family members.** `InternalOwner` is the insertion-time class or family
   address, not a current-class search. Required GiST support1,2,5,6,7 belongs to
-  the creating class or, for ALTER FAMILY, to the family; GiST operators and
-  optional support stay loose. Btree/hash retain their required same-type versus
+  the creating class or, for ALTER FAMILY, to the family; SP-GiST support1–5
+  follows the same hard-ownership rule. Their operators and optional support stay
+  loose. Btree/hash retain required same-type versus
   optional/cross-type rules, including physical403/405 ALTER lookup rather than
   SQL-alias adoption. The common closure rejects standalone hard-member deletion
   and promotes dependencies through the actual owner. Dump folds class-owned
@@ -279,6 +291,10 @@ not replay recipes, while admitted replacement repair produces destination
 truth once before locked remint. Replacement also forces retained TEMP identity
 collisions and checks later summary maintenance. Publication inspects both
 rollback isolation and the root installed by a successful private-write commit.
+SP-GiST structural coverage includes destination-domain ownership and exact
+RowID/VersionID/position/value membership after real Dump/Restore with a retained
+TEMP relation collision. Source, removed target and subsequently replaced roots
+remain immutable; later writes in either engine cannot alter the other engine.
 Run concurrency,
 exclusion and unique-claim selections with `RACE=1`. Private units assert
 support IDs/routines and root membership, never ORDER BY results as evidence of
@@ -295,6 +311,7 @@ make check RUN='^Test(Index|EffectiveRoot)'   # keys, clauses, properties, maint
 make check RUN='^Test(CandidatesMatch|DriverBatch|PartitionAttachPublicationFences)'   # catalog publication captures
 make check RACE=1 RUN='^Test(Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex)'   # enforcement
 make check RUN='^TestBrinIndex'   # range summaries, consistency, publication and transport
+make check RUN='^TestSPGiST'   # genuine method, membership, publication and destination transport
 ```
 
 Operator families, classes and access methods:

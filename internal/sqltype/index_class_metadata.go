@@ -86,6 +86,13 @@ var supportedIndexClasses = [...]struct {
 	{"tsquery_ops", 783, 3702, 20, false},
 	{"range_ops", 783, 3919, 0, false},
 	{"multirange_ops", 783, 6158, 3831, false},
+	{"inet_ops", 4000, 3794, 0, false},
+	{"range_ops", 4000, 3474, 0, false},
+	{"box_ops", 4000, 5000, 0, false},
+	{"quad_point_ops", 4000, 4015, 0, false},
+	{"kd_point_ops", 4000, 4016, 0, true},
+	{"text_ops", 4000, 4017, 0, false},
+	{"poly_ops", 4000, 5008, 603, false},
 }
 
 func IndexClassMetadataCount() int { return len(supportedIndexClasses) + len(brinIndexClasses) }
@@ -106,6 +113,8 @@ func IndexClassMetadataAt(index int) (IndexClassMetadata, bool) {
 		class, ok = LookupIndexClass(fact.name)
 	} else if fact.method == 405 {
 		class, ok = LookupHashIndexClass(fact.name)
+	} else if fact.method == 4000 {
+		class, ok = LookupSPGiSTIndexClass(fact.name)
 	} else {
 		class, ok = LookupGiSTIndexClass(fact.name)
 	}
@@ -135,6 +144,20 @@ func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
 	var name string
 	var method uint32
 	switch oid {
+	case 3794:
+		name, method = "network_ops", 4000
+	case 3474:
+		name, method = "range_ops", 4000
+	case 5000:
+		name, method = "box_ops", 4000
+	case 4015:
+		name, method = "quad_point_ops", 4000
+	case 4016:
+		name, method = "kd_point_ops", 4000
+	case 4017:
+		name, method = "text_ops", 4000
+	case 5008:
+		name, method = "poly_ops", 4000
 	case 1029:
 		name, method = "point_ops", 783
 	case 2593:

@@ -81,6 +81,10 @@ func bindGiSTExclusion(u Usage, class IndexClass, name string) (ExclusionOperato
 	t := u.Type.BaseType()
 	p := ExclusionOperator{Name: name, Left: t.id, Right: t.id, usage: u, operatorInputs: [2]ID{class.input, class.input}}
 	base := t.Usage()
+	if class.IsSPGiST() && class.input == Text && (t.id == Text || t.id == VarChar) && name == "=" {
+		p.comparison = Comparison{left: u.Type, right: u.Type, inputCollation: u.Collation}
+		return p, nil
+	}
 	if class.input == Inet && (t.id == Inet || t.id == Cidr) && (name == "=" || name == "<>" || name == "&&") {
 		if name != "&&" {
 			p.comparison = Comparison{left: u.Type, right: u.Type, inputCollation: u.Collation}

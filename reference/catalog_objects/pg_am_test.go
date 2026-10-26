@@ -26,10 +26,8 @@ func pgAMFacts(pg bool, numeric bool) [][]any {
 	}
 	rows = append(rows, []any{int64(3580), "brin", int64(335), "i"})
 	names = append(names, "brinhandler")
-	if pg {
-		rows = append(rows, []any{int64(4000), "spgist", int64(334), "i"})
-		names = append(names, "spghandler")
-	}
+	rows = append(rows, []any{int64(4000), "spgist", int64(334), "i"})
+	names = append(names, "spghandler")
 	if !numeric {
 		for i := range rows {
 			rows[i][2] = names[i]
@@ -160,7 +158,7 @@ func pgAMInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		s := fixture.Select("SELECT oid,amname,amhandler::oid AS amhandler,amtype FROM pg_catalog.pg_am ORDER BY oid", fixture.PGAMColumns, []string{"OID", "NAME", "OID", "CHAR"}, pgAMFacts(b.PG, true))
 		s.Prepared = prepared
 		fixture.PgDescriptionRows(t, p, b, s)
-		pgAMRows(t, p, b, b.DB, "SELECT * FROM pg_am WHERE oid IN (2,403,405,783,3580) ORDER BY oid", pgAMFacts(false, false), prepared)
+		pgAMRows(t, p, b, b.DB, "SELECT * FROM pg_am WHERE oid IN (2,403,405,783,3580,4000) ORDER BY oid", pgAMFacts(false, false), prepared)
 	}
 	s := pgAMStep(b, "SELECT * FROM pg_catalog.pg_am", pgAMFacts(b.PG, false))
 	s.Bag = true

@@ -7,9 +7,13 @@ const (
 	HashMethod
 	GistMethod
 	BrinMethod
+	SpgistMethod
 )
 
 func (m IndexMethod) String() string {
+	if m == SpgistMethod {
+		return "spgist"
+	}
 	if m == BrinMethod {
 		return "brin"
 	}

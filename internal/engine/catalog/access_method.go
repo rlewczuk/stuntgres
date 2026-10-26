@@ -33,13 +33,14 @@ const (
 	HashAccessMethod
 	GistAccessMethod
 	BrinAccessMethod
+	SpgistAccessMethod
 )
 
 func (n NativeAccessMethod) MethodKind() string {
 	if n == HeapAccessMethod {
 		return "t"
 	}
-	if n >= BtreeAccessMethod && n <= BrinAccessMethod {
+	if n >= BtreeAccessMethod && n <= SpgistAccessMethod {
 		return "i"
 	}
 	return ""
@@ -54,6 +55,8 @@ func (n NativeAccessMethod) IndexImplementation() (IndexMethod, bool) {
 		return GistMethod, true
 	case BrinAccessMethod:
 		return BrinMethod, true
+	case SpgistAccessMethod:
+		return SpgistMethod, true
 	}
 	return 0, false
 }
@@ -84,6 +87,7 @@ var builtinAccessMethods = [...]AccessMethod{
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 405}, ObjectRevision: 1, ObjectName: "hash", Handler: 331, Native: HashAccessMethod},
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 783}, ObjectRevision: 1, ObjectName: "gist", Handler: 332, Native: GistAccessMethod},
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 3580}, ObjectRevision: 1, ObjectName: "brin", Handler: 335, Native: BrinAccessMethod},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 4000}, ObjectRevision: 1, ObjectName: "spgist", Handler: 334, Native: SpgistAccessMethod},
 }
 
 func InstallBuiltinAccessMethods(s *State) {
@@ -111,6 +115,8 @@ func (m IndexMethod) OID() ids.OID {
 		return 783
 	case BrinMethod:
 		return 3580
+	case SpgistMethod:
+		return 4000
 	}
 	return 0
 }

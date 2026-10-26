@@ -202,8 +202,8 @@ private frames, not catalog authority.
   independently admitted distinct defaults can both commit. Required
   `DefaultIndexClass`/`DefaultIndexClassID` return `(class,found,error)`: multiple
   exact defaults for the domain-base input report 42710; nonunique compatible
-  defaults yield no selection. Only applicable enum, binary-alias and GiST
-  range/multirange descriptor fallbacks participate, after exact lookup.
+  defaults yield no selection. Applicable enum and binary-alias fallbacks, GiST
+  range/multirange and SP-GiST range fallbacks participate only after exact lookup.
   Named classes bypass that lookup.
   Exact ambiguity carries the flattened input identity in `DefaultClassAmbiguity`;
   authority-bearing callers present it with `RenderDefaultClassAmbiguity` and the

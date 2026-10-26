@@ -340,16 +340,36 @@ func TestReferencePGOperatorBoundaries(t *testing.T) {
 		for _, tc := range []struct {
 			oid       int64
 			signature string
-		}{{517, "<->(point,point)"}, {664, "<(text,text)"}, {2314, "~<~(text,text)"}, {2988, "=(record,record)"}, {3636, "@@(tsvector,tsquery)"}} {
-			// POINT distance, TEXT and RECORD are executable controls among identity-only cases.
+		}{{517, "<->(point,point)"}, {664, "<(text,text)"}, {2314, "~<~(text,text)"}, {2315, "~<=~(text,text)"}, {2317, "~>=~(text,text)"}, {2318, "~>~(text,text)"}, {2988, "=(record,record)"}, {3636, "@@(tsvector,tsquery)"}} {
+			// Executable POINT, TEXT (including pattern), and RECORD controls
+			// remain distinct from identity-only cases.
 			q := fmt.Sprintf("SELECT '%s'::regoperator::oid AS identity FROM operator_catalog_seed", tc.signature)
 			fixture.PgDescriptionRows(t, p, b, fixture.Select(q, []string{"identity"}, []string{"OID"}, [][]any{{tc.oid}}))
 			q = fmt.Sprintf("SELECT oid FROM pg_operator WHERE oid=%d", tc.oid)
 			var want [][]any
-			if b.PG || tc.oid == 517 || tc.oid == 664 || tc.oid == 2988 {
+			if b.PG || tc.oid == 517 || tc.oid == 664 || tc.oid == 2314 || tc.oid == 2315 || tc.oid == 2317 || tc.oid == 2318 || tc.oid == 2988 {
 				want = [][]any{{tc.oid}}
 			}
 			fixture.PgDescriptionRows(t, p, b, fixture.Select(q, []string{"oid"}, []string{"OID"}, want))
+		}
+		providers := fixture.Select(
+			"SELECT o.oid,o.oprcode::oid AS procedure,p.proname,p.prorettype,p.proargtypes::text AS arguments,p.proisstrict,p.provolatile,p.proparallel,p.prolang,p.prosrc FROM pg_operator o JOIN pg_proc p ON p.oid=o.oprcode WHERE o.oid IN (2314,2315,2317,2318) ORDER BY o.oid",
+			[]string{"oid", "procedure", "proname", "prorettype", "arguments", "proisstrict", "provolatile", "proparallel", "prolang", "prosrc"},
+			[]string{"OID", "OID", "NAME", "OID", "TEXT", "BOOL", "CHAR", "CHAR", "OID", "TEXT"},
+			[][]any{
+				{int64(2314), int64(2160), "text_pattern_lt", int64(16), "25 25", true, "i", "s", int64(12), "text_pattern_lt"},
+				{int64(2315), int64(2161), "text_pattern_le", int64(16), "25 25", true, "i", "s", int64(12), "text_pattern_le"},
+				{int64(2317), int64(2163), "text_pattern_ge", int64(16), "25 25", true, "i", "s", int64(12), "text_pattern_ge"},
+				{int64(2318), int64(2164), "text_pattern_gt", int64(16), "25 25", true, "i", "s", int64(12), "text_pattern_gt"},
+			})
+		scalars := fixture.Select(
+			"SELECT 'a'::text ~<~ 'aa'::text AS prefix,'a'::text ~<=~ 'a'::text AS equal,'é'::text ~>=~ 'b'::text AS utf8,'a '::text ~>~ 'a'::text AS spaces,text_pattern_lt('A','a') AS case_order,text_pattern_le(NULL::text,'a') AS strict_left,text_pattern_ge('a',NULL::text) AS strict_right,text_pattern_gt('a ','a') AS callable",
+			[]string{"prefix", "equal", "utf8", "spaces", "case_order", "strict_left", "strict_right", "callable"},
+			[]string{"BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL"},
+			[][]any{{true, true, true, true, true, nil, nil, true}})
+		for _, step := range []fixture.Step{providers, scalars} {
+			fixture.PgDescriptionRows(t, p, b, step)
+			fixture.PgDescriptionRows(t, p, b, fixture.Prepared(step))
 		}
 	})
 }

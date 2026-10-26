@@ -92,6 +92,15 @@ func FamilyMemberInternalOwner(view Read, method, family, left, right ids.OID, n
 	if !ok {
 		return ids.ObjectAddress{}
 	}
+	if fact.Native == SpgistAccessMethod {
+		if !function || number < 1 || number > 5 {
+			return ids.ObjectAddress{}
+		}
+		if creating != nil {
+			return creating.Address()
+		}
+		return ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: family}
+	}
 	if fact.Native == GistAccessMethod {
 		if !function || number != 1 && number != 2 && number != 5 && number != 6 && number != 7 {
 			return ids.ObjectAddress{}

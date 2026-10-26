@@ -154,8 +154,8 @@ func TestReferenceAccessMethodControls(t *testing.T) {
 			}
 			run(amCount(`SELECT count(*) FROM pg_am WHERE amname IN ('AM Control','am_control_heap')`, 0))
 			run(amCount(`SELECT count(*) FROM pg_class WHERE relname IN ('am_control_i','am_control_rows')`, 0))
-			run(amCount(`SELECT count(*) FROM pg_am`, 5))
-			run(fixture.Select(`SELECT amname,amhandler::oid::bigint,amtype FROM pg_am WHERE amname IN ('btree','heap') ORDER BY amname`, []string{"amname", "amhandler", "amtype"}, []string{"NAME", "INT8", "CHAR"}, [][]any{{"btree", int64(330), "i"}, {"heap", int64(3), "t"}}))
+			run(amCount(`SELECT count(*) FROM pg_am`, 6))
+			run(fixture.Select(`SELECT amname,amhandler::oid::bigint,amtype FROM pg_am WHERE amname IN ('btree','heap','spgist') ORDER BY amname`, []string{"amname", "amhandler", "amtype"}, []string{"NAME", "INT8", "CHAR"}, [][]any{{"btree", int64(330), "i"}, {"heap", int64(3), "t"}, {"spgist", int64(334), "i"}}))
 			if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(emitted)); err != nil {
 				t.Fatal("Restore after Reset", err)
 			}

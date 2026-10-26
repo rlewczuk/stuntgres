@@ -23,12 +23,14 @@ func KeyCollation(u sqltype.Usage, key catalog.IndexKey) sqltype.Usage {
 func ReconstructIndexKey(view catalog.Read, key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, methodOID ids.OID) (catalog.IndexKey, error) {
 	oldDefault, _ := view.UniqueDefaultIndexClass(methodOID, oldUsage.Type)
 	if key.Class.Name == "" || key.Class.SameIdentity(oldDefault) {
-		var err error
-		key.Class, _, err = view.DefaultIndexClass(methodOID, newUsage.Type)
+		class, found, err := view.DefaultIndexClass(methodOID, newUsage.Type)
 		if err != nil {
 			return key, err
 		}
-		key.ExplicitClass = false
+		if !found {
+			return key, DefaultClassError(newUsage.Type.DiagnosticName(), familyMethodName(view, methodOID))
+		}
+		key.Class, key.ExplicitClass = class, false
 	}
 	if key.Collation == oldUsage.Collation.ID {
 		key.Collation = 0
@@ -121,9 +123,12 @@ func validateIndexMethod(s *parser.CreateIndex, physical catalog.IndexMethod, me
 			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support included columns`, methodName))
 		}
 		return nil
-	case catalog.GistMethod:
+	case catalog.GistMethod, catalog.SpgistMethod:
 		if s.Unique {
 			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support unique indexes`, methodName))
+		}
+		if physical == catalog.SpgistMethod && len(s.Keys) > 1 {
+			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support multicolumn indexes`, methodName))
 		}
 		for _, key := range s.Keys {
 			if key.DirectionExplicit {
@@ -143,12 +148,9 @@ func validateIndexMethod(s *parser.CreateIndex, physical catalog.IndexMethod, me
 // native capability boundary. A registered descriptor always wins first.
 func unresolvedIndexMethod(s *parser.CreateIndex) error {
 	switch s.Method {
-	case "gin", "spgist":
-		if len(s.Include) > 0 && s.Method == "gin" {
+	case "gin":
+		if len(s.Include) > 0 {
 			return sqlError("0A000", `access method "gin" does not support included columns`)
-		}
-		if len(s.Keys) > 1 && s.Method == "spgist" {
-			return sqlError("0A000", `access method "spgist" does not support multicolumn indexes`)
 		}
 		for _, key := range s.Keys {
 			if key.DirectionExplicit {

@@ -84,7 +84,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 		if err := ValidateIndexReloptions(s.Options, definition.Method, false); err != nil {
 			return err
 		}
-		if definition.Method != catalog.GistMethod {
+		if definition.Method != catalog.GistMethod && definition.Method != catalog.SpgistMethod {
 			return Capability("index storage parameters are unsupported", s.WithPos)
 		}
 		options, err = TransformIndexOptions(catalog.RelationOptions{}, &parser.AlterIndex{Action: "set", Options: s.Options}, definition.Method)

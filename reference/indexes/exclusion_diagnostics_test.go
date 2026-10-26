@@ -103,10 +103,6 @@ func TestReferenceExclusionMethodBoundaries(t *testing.T) {
 		fixture.ExclusionReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			q := "CREATE TABLE t(v TEXT,CONSTRAINT ex EXCLUDE USING spgist(v WITH =))"
 			run := func(s fixture.Step) { fixture.ExclusionReferenceRun(t, p, b, b.DB, s) }
-			if !b.PG {
-				run(fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("0A000", "non-btree indexes are unsupported")))
-				return
-			}
 			run(fixture.Exec(q, 0))
 			run(fixture.Exec("INSERT INTO t VALUES('a'),('b')", 2))
 			run(fixture.ErrorDiagnostic("INSERT INTO t VALUES('a')", fixture.ExclusionReferenceConflict("t", "ex", "v", "a", "a")))

@@ -13,6 +13,8 @@ func MethodProperty(method catalog.IndexMethod, property string) (bool, bool) {
 		exclude = true
 	case catalog.GistMethod:
 		multi, exclude, include = true, true, true
+	case catalog.SpgistMethod:
+		exclude, include = true, true
 	case catalog.BrinMethod:
 		multi = true
 	default:

@@ -18,7 +18,7 @@ func ColumnCapability(view catalog.Read, index *catalog.IndexDefinition, ordinal
 		}
 		return false, false
 	}
-	if index.Method == catalog.GistMethod {
+	if index.Method == catalog.GistMethod || index.Method == catalog.SpgistMethod {
 		key := ordinal <= int64(len(index.Keys))
 		switch property {
 		case "orderable":
@@ -29,6 +29,9 @@ func ColumnCapability(view catalog.Read, index *catalog.IndexDefinition, ordinal
 			return key, key
 		case "distance_orderable", "returnable":
 			if !key {
+				if index.Method == catalog.SpgistMethod && property == "returnable" {
+					return true, true
+				}
 				// GiST's property callback finds no opclass for INCLUDE,
 				// before the generic nonkey-column fallback can run.
 				return false, false
@@ -40,13 +43,30 @@ func ColumnCapability(view catalog.Read, index *catalog.IndexDefinition, ordinal
 			}
 			family, input := ids.OID(class.FamilyOID()), ids.OID(class.InputOID())
 			if property == "returnable" {
+				if index.Method == catalog.SpgistMethod {
+					_, compress := view.FamilySupport(family, input, input, 6)
+					return !compress, true
+				}
 				_, fetch := view.FamilySupport(family, input, input, 9)
 				_, compress := view.FamilySupport(family, input, input, 3)
 				return fetch || !compress, true
 			}
-			if _, distance := view.FamilySupport(family, input, input, 8); distance {
+			_, distance := view.FamilySupport(family, input, input, 8)
+			if distance || index.Method == catalog.SpgistMethod {
 				for _, descriptor := range view.Descriptors() {
-					if member, ok := descriptor.(*catalog.OperatorFamilyOperator); ok && member.Family == family && member.Left == input && member.Method == ids.OID(class.MethodOID()) && member.Purpose == 'o' && member.SortFamily != 0 {
+					member, ok := descriptor.(*catalog.OperatorFamilyOperator)
+					if !ok {
+						continue
+					}
+					inputMember := member.Left == input || index.Method == catalog.SpgistMethod && member.Right == input
+					if member.Family == family && inputMember && member.Method == ids.OID(class.MethodOID()) && member.Purpose == 'o' && member.SortFamily != 0 {
+						operator, exists := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: member.Operator})
+						if !exists {
+							continue
+						}
+						if _, sortable := view.FamilySupport(member.SortFamily, operator.Result, operator.Result, 1); !sortable {
+							continue
+						}
 						return true, true
 					}
 				}
@@ -108,12 +128,12 @@ func Property(view catalog.Read, def *catalog.IndexDefinition, whole bool, ordin
 		return false, false
 	}
 	switch def.Method {
-	case catalog.BtreeMethod, catalog.HashMethod, catalog.GistMethod:
+	case catalog.BtreeMethod, catalog.HashMethod, catalog.GistMethod, catalog.SpgistMethod:
 		switch property {
 		case "clusterable":
-			return def.Method != catalog.HashMethod, true
+			return def.Method != catalog.HashMethod && def.Method != catalog.SpgistMethod, true
 		case "backward_scan":
-			return def.Method != catalog.GistMethod, true
+			return def.Method != catalog.GistMethod && def.Method != catalog.SpgistMethod, true
 		case "index_scan", "bitmap_scan":
 			return true, true
 		}

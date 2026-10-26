@@ -24,6 +24,18 @@ quantifier, alternative, negation and modifier syntax, typed NULLs and result
 metadata through native Dump/Reset/Restore and SQL extension recreation. Held
 literals rebind to a recreated installation without retaining retired type data.
 
+SP-GiST indexes now retain exact logical memberships for all seven shipped
+operator classes, including network, ranges, text, both point classes, boxes
+and polygons. Method/class catalogs, distance capabilities, exclusion constraints,
+options, transactional maintenance, copies and native replay share the ordinary
+index lifecycle. TEXT pattern comparison operators and their callable routines
+use strict bytewise semantics independently of collation.
+Type changes reject a missing destination operator class with the declared
+method's diagnostic before replacing retained index providers or memberships.
+Custom SP-GiST ordering members recognize the class input on either operand.
+Handler aliases and user families/classes preserve their own identities and
+configuration through native replacement and PostgreSQL SQL replay.
+
 Quoted internal `"char"` columns now use ordinary type resolution, distinct from
 SQL `char(n)`, with one-byte input, prepared parameters, empty versus NULL values,
 precise encoding errors and native Dump/Restore round trips.

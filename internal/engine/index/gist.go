@@ -9,11 +9,11 @@ import (
 	"stuntgres/internal/engine/routine"
 )
 
-// The shared extraction program owns keys, not an ordering. No comparator is
-// bound for logical GiST membership and callers must never sort these entries.
-func bindLogicalGiSTKeys(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
-	if d.Method != catalog.GistMethod || d.Unique {
-		return Ordering{}, fmt.Errorf("stuntgres: invalid logical GiST definition")
+// The shared extraction program owns exact keys, not an ordering. Neither
+// logical method binds a comparator or sorts its membership.
+func bindLogicalKeys(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
+	if (d.Method != catalog.GistMethod && d.Method != catalog.SpgistMethod) || d.Unique || d.Method == catalog.SpgistMethod && len(d.Keys) != 1 {
+		return Ordering{}, fmt.Errorf("stuntgres: invalid logical index definition")
 	}
 	o := Ordering{Slots: make([]int, len(d.Keys)), Keys: d.Keys}
 	for i, key := range d.Keys {
@@ -22,20 +22,21 @@ func bindLogicalGiSTKeys(view catalog.Read, parent *catalog.Relation, d *catalog
 			return o, err
 		}
 		if key.Class.MethodOID() != uint32(d.MethodIdentity()) {
-			return o, fmt.Errorf("stuntgres: GiST operator class method mismatch")
+			return o, fmt.Errorf("stuntgres: logical operator class method mismatch")
 		}
 		if _, err := routine.BindClassSupport(view, key.Class); err != nil {
 			return o, err
 		}
-		if !key.Class.IsGiST() || !key.Class.Accepts(u.Type) || key.Desc || key.NullsFirst {
-			return o, fmt.Errorf("stuntgres: invalid logical GiST key")
+		admitted := d.Method == catalog.GistMethod && key.Class.IsGiST() || d.Method == catalog.SpgistMethod && key.Class.IsSPGiST()
+		if !admitted || !key.Class.Accepts(u.Type) || key.Desc || key.NullsFirst {
+			return o, fmt.Errorf("stuntgres: invalid logical index key")
 		}
 		if err := validateClassOptions(view, key); err != nil {
 			return o, err
 		}
 		if key.Derived != nil {
 			if key.Derived.Definition == nil || key.Derived.Execution == nil {
-				return o, fmt.Errorf("stuntgres: missing logical GiST expression")
+				return o, fmt.Errorf("stuntgres: missing logical index expression")
 			}
 			if o.Derived == nil {
 				o.Derived = make([]expr.Expr, len(d.Keys))
@@ -44,7 +45,7 @@ func bindLogicalGiSTKeys(view catalog.Read, parent *catalog.Relation, d *catalog
 		} else {
 			o.Slots[i] = slices.Index(parent.Attributes, key.Attribute)
 			if o.Slots[i] < 0 {
-				return o, fmt.Errorf("stuntgres: missing logical GiST attribute")
+				return o, fmt.Errorf("stuntgres: missing logical index attribute")
 			}
 		}
 	}
@@ -59,8 +60,8 @@ func BindIndexKeys(view catalog.Read, parent *catalog.Relation, d *catalog.Index
 		}
 		return brinKeyProgram(bindings, d), nil
 	}
-	if d.Method == catalog.GistMethod {
-		return bindLogicalGiSTKeys(view, parent, d)
+	if d.Method == catalog.GistMethod || d.Method == catalog.SpgistMethod {
+		return bindLogicalKeys(view, parent, d)
 	}
 	return BindIndexOrdering(view, parent, d)
 }

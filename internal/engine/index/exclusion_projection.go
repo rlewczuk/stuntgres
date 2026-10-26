@@ -68,8 +68,8 @@ func ExclusionDefinition(parent *catalog.Relation, index *catalog.Relation) *cat
 }
 
 func BindExclusionOrdering(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
-	if d.Method == catalog.GistMethod {
-		return bindLogicalGiSTKeys(view, parent, d)
+	if d.Method == catalog.GistMethod || d.Method == catalog.SpgistMethod {
+		return bindLogicalKeys(view, parent, d)
 	}
 	if d.Method == catalog.BtreeMethod {
 		return BindIndexOrdering(view, parent, d)

@@ -19,7 +19,7 @@ import (
 func TestOperatorFamilyProviderInventory(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
-	if sqltype.IndexClassMetadataCount() != 137 {
+	if sqltype.IndexClassMetadataCount() != 144 {
 		t.Fatal("incomplete released class inventory", sqltype.IndexClassMetadataCount())
 	}
 	for i := range sqltype.IndexClassMetadataCount() {
@@ -39,9 +39,9 @@ func TestOperatorFamilyProviderInventory(t *testing.T) {
 		if err != nil {
 			t.Fatalf("class %d: %v", fact.OID, err)
 		}
-		if fact.Method == 783 {
+		if fact.Method == 783 || fact.Method == 4000 {
 			if selected.Support(1).Routine != 0 {
-				t.Fatal("logical GiST acquired a physical callback", fact)
+				t.Fatal("logical method acquired a physical callback", fact)
 			}
 			continue
 		}

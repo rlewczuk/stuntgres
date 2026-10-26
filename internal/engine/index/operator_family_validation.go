@@ -14,7 +14,7 @@ func familySupportTypes(method ids.OID, slot int16, args []ids.OID, result ids.O
 
 func classSupportTypes(method ids.OID, slot int16, args []ids.OID, result ids.OID, left, right, input ids.OID) (ids.OID, ids.OID, error) {
 	fail := func(message string) (ids.OID, ids.OID, error) { return 0, 0, familyError("42P17", message) }
-	options := method == 403 && slot == 5 || method == 405 && slot == 3 || method == 783 && slot == 10
+	options := method == 403 && slot == 5 || method == 405 && slot == 3 || method == 783 && slot == 10 || method == 4000 && slot == 7
 	if input != 0 {
 		if options && left != 0 && (left != input || right != input) {
 			return fail("associated data types for operator class options parsing functions must match opclass input type")

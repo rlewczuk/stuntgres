@@ -120,6 +120,8 @@ package or the engine.
   commutator/negator fields with positionsel/positionjoinsel estimators; the
   mathematical inverse is not an inferred catalog link. POINT/CIRCLE rows keep
   their existing provider ownership.
+  TEXT pattern lt/le/ge/gt own explicit scalar associations and cancellable
+  bytewise comparisons, independent of locale, without BPCHAR provider admission.
 - **Registered index support** (`index_support*.go`): the one catalog-aware
   class/member selector (`BindClassSupport`, `BindIndexOrdering`,
   `BindPartitionHash`, `BindIndexForeignKey`, `BindExclusionOperator`). It
@@ -128,6 +130,9 @@ package or the engine.
   operations. There is no name/default/key-type fallback and no per-datum
   catalog lookup; `functions` stays catalog-free. Captures include actual
   member/family/routine revisions from the current private or committed view and remain immutable.
+  GiST and SP-GiST select distinct logical classes without granting scalar
+  ordering or executing physical support callbacks. SP-GiST family membership
+  governs exclusion predicates; method aliases retain their actual SQL identities.
   BRIN captures four genuine internal minmax summary operations through
   `catalog.ValidateBrinSupport`, not `NativeIndexRoutine` scalar comparator
   dispatch. Live class/family members remain authority for both supported minmax

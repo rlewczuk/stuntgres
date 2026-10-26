@@ -116,7 +116,7 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 	}
 	var storageOptions catalog.RelationOptions
 	if len(s.Options) != 0 {
-		if physical != catalog.BrinMethod && physical != catalog.GistMethod {
+		if physical != catalog.BrinMethod && physical != catalog.GistMethod && physical != catalog.SpgistMethod {
 			return CreatePlan{}, Capability("index storage parameters are unsupported", s.WithPos)
 		}
 		storageOptions, err = TransformIndexOptions(catalog.RelationOptions{}, &parser.AlterIndex{Action: "set", Options: s.Options}, physical)

@@ -36,6 +36,8 @@ func TestConsumerBoundaryCapturedGiSTIdentity(t *testing.T) {
 	}{
 		{"canonical", &catalog.AccessMethod{ObjectName: "gist", ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 783}, Native: catalog.GistAccessMethod}, true},
 		{"alias", &catalog.AccessMethod{ObjectName: "gist_alias", ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 90001}, Native: catalog.GistAccessMethod}, true},
+		{"spgist", &catalog.AccessMethod{ObjectName: "spgist", ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 4000}, Native: catalog.SpgistAccessMethod}, true},
+		{"spgist_alias", &catalog.AccessMethod{ObjectName: "spgist_alias", ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 90002}, Native: catalog.SpgistAccessMethod}, true},
 		{"name_and_oid_spoof", &catalog.AccessMethod{ObjectName: "gist", ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 783}, Native: catalog.BtreeAccessMethod}, false},
 		{"brin", &catalog.AccessMethod{ObjectName: "brin", ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 3580}, Native: catalog.BrinAccessMethod}, false},
 		{"missing", nil, false},
@@ -128,7 +130,7 @@ func TestConsumerBoundaryLeavesGiSTOptionValidationToBinder(t *testing.T) {
 	statement := &parser.CreateIndex{
 		Method: "gist",
 		Options: []parser.IndexOption{{
-			Name: parser.Identifier{Text: "unknown"},
+			Name:  parser.Identifier{Text: "unknown"},
 			Value: parser.Value{Kind: parser.IntegerValue, Integer: 1},
 		}},
 	}

@@ -77,6 +77,13 @@ func pgOpclassFacts() [][]any {
 		[]any{int64(10075), int64(783), "tsquery_ops", int64(11), int64(10), int64(3702), int64(3615), true, int64(20)},
 		[]any{int64(10078), int64(783), "range_ops", int64(11), int64(10), int64(3919), int64(3831), true, int64(0)},
 		[]any{int64(10082), int64(783), "multirange_ops", int64(11), int64(10), int64(6158), int64(4537), true, int64(3831)},
+		[]any{int64(10018), int64(4000), "inet_ops", int64(11), int64(10), int64(3794), int64(869), true, int64(0)},
+		[]any{int64(10079), int64(4000), "range_ops", int64(11), int64(10), int64(3474), int64(3831), true, int64(0)},
+		[]any{int64(10083), int64(4000), "box_ops", int64(11), int64(10), int64(5000), int64(603), true, int64(0)},
+		[]any{int64(10084), int64(4000), "quad_point_ops", int64(11), int64(10), int64(4015), int64(600), true, int64(0)},
+		[]any{int64(10085), int64(4000), "kd_point_ops", int64(11), int64(10), int64(4016), int64(600), false, int64(0)},
+		[]any{int64(10086), int64(4000), "text_ops", int64(11), int64(10), int64(4017), int64(25), true, int64(0)},
+		[]any{int64(10087), int64(4000), "poly_ops", int64(11), int64(10), int64(5008), int64(604), true, int64(603)},
 	)
 	rows = append(rows, pgOpclassBrinFacts()...)
 	sort.Slice(rows, func(i, j int) bool { return rows[i][0].(int64) < rows[j][0].(int64) })
@@ -165,7 +172,7 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			defaults[key] = true
 		}
 	}
-	if len(facts) != 137 {
+	if len(facts) != 144 {
 		t.Fatal("inventory", len(facts))
 	}
 	for _, name := range []string{"array_ops", "record_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "tsquery_ops", "tsvector_ops"} {
@@ -177,7 +184,7 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(q, []string{"opcname"}, []string{"NAME"}, want))
 	}
 	if !b.PG {
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT opcname FROM pg_opclass WHERE opcmethod NOT IN (403,405,783,3580)", []string{"opcname"}, []string{"NAME"}, nil))
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT opcname FROM pg_opclass WHERE opcmethod NOT IN (403,405,783,3580,4000)", []string{"opcname"}, []string{"NAME"}, nil))
 	}
 }
 

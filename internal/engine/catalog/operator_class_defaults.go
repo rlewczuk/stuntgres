@@ -132,10 +132,10 @@ func (r Read) UniqueDefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sq
 	if t.IsEnum() && r.defaultClassCount(method, ids.OID(input)) == 0 {
 		input = 3500
 	}
-	if m, ok := r.AccessMethod(method); ok && m.Native == GistAccessMethod && r.defaultClassCount(method, ids.OID(input)) == 0 {
+	if m, ok := r.AccessMethod(method); ok && (m.Native == GistAccessMethod || m.Native == SpgistAccessMethod) && r.defaultClassCount(method, ids.OID(input)) == 0 {
 		if t.IsRange() {
 			input = 3831
-		} else if t.IsMultirange() {
+		} else if t.IsMultirange() && m.Native == GistAccessMethod {
 			input = 4537
 		}
 	}
@@ -158,7 +158,7 @@ func (r Read) uniqueDefaultIndexClassID(method ids.OID, input sqltype.ID) (sqlty
 			return r.IndexClass(d.Address().ObjectID)
 		}
 	}
-	if m, ok := r.AccessMethod(method); ok && m.Native == GistAccessMethod {
+	if m, ok := r.AccessMethod(method); ok && (m.Native == GistAccessMethod || m.Native == SpgistAccessMethod) {
 		for _, polymorphic := range [...]ids.OID{3831, 4537} {
 			if d, ok := r.DefaultOperatorClass(method, polymorphic); ok {
 				if class, ok := r.IndexClass(d.Address().ObjectID); ok && class.AcceptsID(input) {

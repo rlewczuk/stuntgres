@@ -77,6 +77,10 @@ func builtinMemberInternalOwner(method, family, left, right ids.OID, number int1
 		if !function || number != 1 && number != 2 && number != 5 && number != 6 && number != 7 {
 			return ids.ObjectAddress{}
 		}
+	} else if method == 4000 {
+		if !function || number < 1 || number > 5 {
+			return ids.ObjectAddress{}
+		}
 	} else if method == 3580 {
 		if left != right || function && (number < 1 || number > 4) {
 			return ids.ObjectAddress{}
@@ -90,7 +94,7 @@ func builtinMemberInternalOwner(method, family, left, right ids.OID, number int1
 			return ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(f.OID)}
 		}
 	}
-	if method == 783 {
+	if method == 783 || method == 4000 {
 		return ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: family}
 	}
 	return ids.ObjectAddress{}

@@ -18,6 +18,7 @@ type IndexClass struct {
 	hash                    bool
 	gist                    bool
 	brin                    bool
+	spgist                  bool
 	support                 [4]IndexSupport
 }
 
@@ -40,18 +41,19 @@ func (c IndexClass) InputOID() uint32 {
 type IndexClassDefinition struct {
 	OID, Method, Family, Input, Storage uint32
 	Name, FamilyName                    string
-	Hash, GiST, Brin                    bool
+	Hash, GiST, Brin, SPGiST            bool
 }
 
 func NewIndexClass(d IndexClassDefinition) IndexClass {
 	return IndexClass{Name: d.Name, Family: d.FamilyName, oid: d.OID,
 		method: d.Method, family: d.Family, storage: d.Storage,
-		input: ID(d.Input), enum: d.Input == 3500, hash: d.Hash, gist: d.GiST, brin: d.Brin}
+		input: ID(d.Input), enum: d.Input == 3500, hash: d.Hash, gist: d.GiST, brin: d.Brin, spgist: d.SPGiST}
 }
 
-func (c IndexClass) IsHash() bool { return c.hash }
-func (c IndexClass) IsGiST() bool { return c.gist }
-func (c IndexClass) IsBrin() bool { return c.brin }
+func (c IndexClass) IsHash() bool   { return c.hash }
+func (c IndexClass) IsGiST() bool   { return c.gist }
+func (c IndexClass) IsBrin() bool   { return c.brin }
+func (c IndexClass) IsSPGiST() bool { return c.spgist }
 
 // SameIdentity compares the declared class, independently of the catalog
 // members captured for execution or current presentation names.
@@ -85,7 +87,7 @@ func (c IndexClass) OIDKeyValue(v Value, oid *Descriptor) (Value, error) {
 // Inference compares the declared input and family, not class aliases or
 // CREATE's broader binary-compatible admission set.
 func (c IndexClass) SameInferenceIdentity(other IndexClass) bool {
-	return c.family == other.family && c.method == other.method && c.input == other.input && c.enum == other.enum && c.hash == other.hash && c.gist == other.gist && c.brin == other.brin
+	return c.family == other.family && c.method == other.method && c.input == other.input && c.enum == other.enum && c.hash == other.hash && c.gist == other.gist && c.brin == other.brin && c.spgist == other.spgist
 }
 
 func LookupIndexClass(name string) (IndexClass, bool) {
@@ -306,7 +308,7 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 	if c.enum {
 		return t.BaseType().IsEnum()
 	}
-	if c.gist && c.input == 3831 {
+	if (c.gist || c.spgist) && c.input == 3831 {
 		return t.BaseType().IsRange()
 	}
 	if c.gist && c.input == 4537 {
@@ -317,7 +319,7 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 
 // AcceptsID checks released input identity only; it grants no runtime provider.
 func (c IndexClass) AcceptsID(id ID) bool {
-	if c.gist && c.input == 3831 {
+	if (c.gist || c.spgist) && c.input == 3831 {
 		return isRange(id)
 	}
 	if c.gist && c.input == 4537 {
@@ -396,7 +398,7 @@ type IndexComparison struct {
 }
 
 func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
-	if c.hash || c.gist || c.brin {
+	if c.hash || c.gist || c.brin || c.spgist {
 		return IndexComparison{}, fmt.Errorf("non-btree class has no ordering provider")
 	}
 	if !c.Accepts(u.Type) {

@@ -14,6 +14,7 @@ func TestAccessMethodProperty(t *testing.T) {
 		{catalog.BtreeMethod, [5]bool{true, true, true, true, true}},
 		{catalog.HashMethod, [5]bool{false, false, false, true, false}},
 		{catalog.GistMethod, [5]bool{false, false, true, true, true}},
+		{catalog.SpgistMethod, [5]bool{false, false, false, true, true}},
 	} {
 		for i, name := range properties {
 			value, known := MethodProperty(tc.method, name)
