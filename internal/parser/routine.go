@@ -12,6 +12,7 @@ type CreateFunction struct {
 	Arguments       []RoutineParameter
 	Result          TypeName
 	ResultSpecified bool
+	TableResult     []RoutineParameter
 	Language        Identifier
 	Body            string
 	BodyPos         Position
@@ -27,6 +28,14 @@ type CreateFunction struct {
 }
 
 func (l *lexer) functionAttributes(declaration *CreateFunction, groups ...[]lexeme) bool {
+	if declaration.TableResult != nil {
+		for _, argument := range declaration.Arguments {
+			if argument.Mode == "out" || argument.Mode == "inout" {
+				l.failAt("42601", "OUT and INOUT arguments aren't allowed in TABLE functions", argument.Pos.Offset)
+				return false
+			}
+		}
+	}
 	for _, clauses := range groups {
 		for _, clause := range clauses {
 			if clause.text == "strict" && declaration.Strict || clause.text == "volatile" && declaration.Volatility != "" {
@@ -54,6 +63,7 @@ type RoutineParameter struct {
 type routineResult struct {
 	Type      TypeName
 	Specified bool
+	Table     []RoutineParameter
 }
 
 type routineAS struct {

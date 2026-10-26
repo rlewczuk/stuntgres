@@ -163,7 +163,7 @@ type sqlRoutineDemand struct {
 	rows               bool                  // Private all-row PL demand; no rewrite policy or scalar cardinality.
 	plCapture          bool                  // Bounded primary SELECT capture, including after writable CTE completion.
 	result             sqltype.Usage
-	resultPlan         sqltype.CoercionPlan
+	resultPlan         proc.ResultPlan
 	definition         *proc.Definition
 	name               string // Live declaration qualifier, separate from immutable body syntax.
 	terminal           bool

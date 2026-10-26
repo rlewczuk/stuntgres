@@ -23,6 +23,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
 		return invalid()
 	}
+	if p.Installed.Outputs != nil && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck {
+		return invalid()
+	}
 	if _, ok := v.Namespace(p.Namespace()); !ok {
 		return invalid()
 	}
@@ -192,7 +195,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if !ok || !recipe.accept(base.SQLType) || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 {
 			return invalid()
 		}
-		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }
+		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+			return invalid()
+		}
 		name, signature, result = recipe.input, "2275", ids.OID(base.SQLType.ID())
 		if slot%3 == 2 {
 			name, signature, result = recipe.output, LquerySignature(base.SQLType.ID()), 2275
@@ -288,6 +293,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 	case StockPgrowlocks:
 		count = 1
 		name, signature, result, volatility = "pgrowlocks", "25", 2249, expr.Volatile
+		if p.Installed != pgrowlocksDeclaration() || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "pgrowlocks"}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+			return invalid()
+		}
 	case StockUnaccent:
 		count = 6
 		if len(ext.Members) != count || slot > 3 {

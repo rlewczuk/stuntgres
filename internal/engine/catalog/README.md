@@ -25,8 +25,14 @@ private frames, not catalog authority.
   ownership and replacement remapping by value. PL call handlers are nonstrict;
   inline and validator handlers are strict, all with zero execution Language.
   `InstalledRoutineDeclaration` retains immutable parallel/set/row-estimate and
-  trailing-default counts by value. These facts feed shared callable shape
-  selection; the installed provider still owns exact declaration authority.
+  trailing-default counts by value. Its comparable `Outputs` pointer and the
+  builtin declaration's `Outputs` own fixed native OUT type IDs and complete
+  formal names. `RoutineOutputs` freezes private backing once at declaration
+  creation; input types remain solely in `Procedure.Signature`. Immutable facts
+  survive descriptor/principal/address copies without a type-generation remap.
+  Generated constructors instead derive their signatures from their owning
+  type generation. None of this metadata grants execution authority; installed
+  providers retain exact manifest identity validation.
 - **Languages.** Real owner/ACL/trust and distinct call/inline/validator procedure
   capabilities are validated by `LanguageProvider`; PL installation OIDs are
   allocated, not universal constants. `Procedure.DeclarationDependencies` stores
@@ -100,9 +106,14 @@ private frames, not catalog authority.
   `InstallRevisionFrontierLocked`; the enum frontier has only
   `AllocateEnumMemberLocked`. `AllocateOIDLocked` skips reserved and used OIDs;
   an `OIDReservation` is a replacement's private cursor through
-  `AllocateOIDFromLocked`. Definition OIDs come from one set per descriptor map
-  of the published state, rebuilt when that map changes; during a bulk load,
-  which writes behind an unchanged map, the allocator scans instead. `ValidateObjectRefLocked` and
+  `AllocateOIDFromLocked`. Every descriptor's own OID except class-local large
+  objects, together with owned-definition OIDs, occupies the global allocation
+  space. One immutable set per published descriptor map records these identities;
+  descriptor writes invalidate it. During a bulk load, which writes behind an
+  unchanged map, the allocator scans with the same rules instead. Reserved
+  constants and default-ACL identities are also skipped. Private reservations
+  advance only their own cursor until installation; exhausted cursors never
+  recycle identities. `ValidateObjectRefLocked` and
   `ValidateCatalogViewLocked` check provenance and epoch. The engine holds the
   store by value and never copies it, because every `Read` points at its
   `Owner`.
@@ -391,6 +402,8 @@ publication, including the candidate publication helpers) are units in
 `internal/engine`.
 System-attribute eligibility and provenance use `RUN='^TestCatalogTableOID'`,
 including the bootstrap inventory in the existing external enginetests owner.
+Immutable fixed-OUT declaration backing and comparable installed identities use
+`RUN='^TestRoutineOutputDeclarationOwnership$'`, also with `RACE=1`.
 
 
 ```sh

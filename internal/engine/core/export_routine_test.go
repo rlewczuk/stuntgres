@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"reflect"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -13,9 +14,43 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// SameSQLRoutineDemand preserves the old scratch identity comparison while
+// including immutable row-plan slices. Pointer fields compare by identity,
+// never by following their pointees as reflect.DeepEqual would.
+func SameSQLRoutineDemand(a, b sqlRoutineDemand) bool {
+	var same func(reflect.Value, reflect.Value) bool
+	same = func(a, b reflect.Value) bool {
+		if a.Type().Comparable() {
+			return a.Equal(b)
+		}
+		switch a.Kind() {
+		case reflect.Struct:
+			for i := range a.NumField() {
+				if !same(a.Field(i), b.Field(i)) {
+					return false
+				}
+			}
+			return true
+		case reflect.Slice:
+			if a.IsNil() != b.IsNil() || a.Len() != b.Len() || a.Cap() != b.Cap() || a.Pointer() != b.Pointer() {
+				return false
+			}
+			for i := range a.Len() {
+				if !same(a.Index(i), b.Index(i)) {
+					return false
+				}
+			}
+			return true
+		default:
+			panic("unhandled SQL routine scratch comparison")
+		}
+	}
+	return same(reflect.ValueOf(a), reflect.ValueOf(b))
+}
+
 // FinalizeSQLRoutineQuery calls finalizeSQLRoutineQuery.
-func FinalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value, scalar bool) (exec.RowResult, int, error) {
-	return finalizeSQLRoutineQuery(ctx, root, source, parameters, scalar)
+func FinalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value) (exec.RowResult, int, error) {
+	return finalizeSQLRoutineQuery(ctx, root, source, parameters)
 }
 
 // MaxSQLRoutineDepth is maxSQLRoutineDepth.
@@ -81,7 +116,7 @@ func ScopeInstallSQLRoutineScratch(x *StatementScope, c sqlRoutineScratch) {
 
 // ScopeInvokeSQLRoutine calls x.invokeSQLRoutine.
 func ScopeInvokeSQLRoutine(x *StatementScope, d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool) (sqltype.Value, error) {
-	return x.invokeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning)
+	return x.invokeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning, nil)
 }
 
 // ScopeSQLRoutineScratch calls x.sqlRoutineScratch.
@@ -94,14 +129,15 @@ func CommandRoutineProgramRi(x *commandRoutineProgram) bool { return x.ri }
 
 // RoutineDemandFields holds the sqlRoutineDemand fields tests set.
 type RoutineDemandFields struct {
-	Lexical *proc.PLFrame
-	Result  sqltype.Usage
-	Scalar  bool
+	Lexical    *proc.PLFrame
+	Result     sqltype.Usage
+	ResultPlan proc.ResultPlan
+	Scalar     bool
 }
 
 // NewRoutineDemand builds a sqlRoutineDemand from f.
 func NewRoutineDemand(f RoutineDemandFields) sqlRoutineDemand {
-	return sqlRoutineDemand{lexical: f.Lexical, result: f.Result, scalar: f.Scalar}
+	return sqlRoutineDemand{lexical: f.Lexical, result: f.Result, resultPlan: f.ResultPlan, scalar: f.Scalar}
 }
 
 // ScopeAdmitSQLRoutineCommand calls the real bound-command admission owner.

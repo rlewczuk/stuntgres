@@ -188,6 +188,8 @@ cursors. Hook implementations are tested in `functions`
 ([README](../functions/README.md#testing)) and the engine; public behavior in
 `reference/` (result nullability in
 [reference/dml](../../../reference/dml/README.md#testing)).
+Routine tuple/frame/owned-source lifetime units use
+`RUN='^TestSQLRoutineSetOwnership$'`, also with `RACE=1`.
 
 ```sh
 make check RUN='^Test(MergeProperties|IntrinsicPropertyRules|InfoOf|ErrorAt|WithPosition|WalkVisitsPreOrderAndSkipsNil|Map(Unchanged|Changed|Propagates|Substituted)|SubstitutePrefersTheHook|CaptureOperands|SourceCursor(ScalarPresence|OwnedLifetime))'

@@ -83,6 +83,16 @@ type Producer func(Input) ([][]sqltype.Value, error)
   `pg_proc.proretset` comes from actual routine declaration metadata.
   Its condensed row includes FLOAT4 `prorows`, declaration `prosrc`, OIDVECTOR
   `proargtypes` built from each routine's input signature, and OID `provariadic`.
+  SQL/PL formal names/types/modes come from `proc.Formals`; fixed native OUT
+  types and complete names come from the actual builtin or installed declaration.
+  `proallargtypes` and `proargmodes` retain all declaration slots in order through
+  one typed-array materializer; argument count and identity remain input-only.
+  All-IN declarations return typed NULL arrays before allocating element slices.
+  Non-SQL VARIADIC uses the existing `ProcedureVariadic` owner and terminal input
+  slot, retaining its declared array/ANY type rather than the element OID.
+  Generated constructor signatures retain their actual owning type generation.
+  Setness and result shape never imply OUT parameters. SQL set declarations
+  report `proretset` and their declaration row estimate independently of shape.
   Zero arguments produce an empty non-NULL argument vector. `provariadic`
   projects the selected builtin declaration, SQL variadic array element, range
   constructor, or owned aggregate's VARIADIC ANY identity; nonvariadic
@@ -533,6 +543,12 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 [docs/TESTING.md](../../../docs/TESTING.md) and add `REFERENCE=1` for the oracle.
 
 - Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders)$'`
+- Ordered routine formal arrays, represented builtin/installed/generated
+  declarations and released attribute identities:
+  `RUN='^TestRoutineResultFormal(Builtin|Owned)?Catalog$'`, also with `RACE=1`.
+  Composed declaration captures live in `enginetests/`; SQL projection units
+  remain here. Expectations include scalar OUT, canonical VARIADIC, one-based
+  dimensions and typed all-IN NULL controls.
 - Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets|Collations))'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`

@@ -28,6 +28,8 @@ type lexer struct {
 	// Operator definition options share type syntax, including SETOF, without
 	// reserving that spelling in ordinary expression or identifier contexts.
 	operatorDDL bool
+	// Only RETURNS after a closed parameter list introduces a result type.
+	routineResultType bool
 	// SQL EXTRACT admits a field word, not an ordinary scalar call head.
 	extractField        bool
 	jsonParenDepth      int
@@ -999,6 +1001,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if l.operatorDDL && l.previousToken == int('=') && token.lexeme.keyword != nil && token.lexeme.text == "setof" {
 		token.code = SETOF_TYPE
 	}
+	if l.routineResultType && l.previousToken == RETURNS_CLAUSE && token.lexeme.keyword != nil && token.lexeme.text == "setof" {
+		token.code = SETOF_TYPE
+	}
 	if l.options.Context != nil {
 		if err := l.options.Context.Err(); err != nil {
 			l.err = err
@@ -1825,6 +1830,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	l.temporalLead = token.code == TIMESTAMP || token.code == TIME || token.code == IDENT && columnType(token.lexeme).Quoted && (token.lexeme.text == "timestamp" || token.lexeme.text == "time")
 	l.plClosingLoop = token.code == PL_LOOP && l.previousToken == END
+	l.routineResultType = token.code == RETURNS_CLAUSE && l.previousToken == int(')')
 	l.previousToken = token.code
 	return token.code
 }

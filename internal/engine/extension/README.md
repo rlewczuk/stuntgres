@@ -39,6 +39,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   daitch_mokotoff; 1.2 inserts it while retaining incumbent addresses. Detached
   unaccent retains exact immutable metadata shape admission, not installed
   execution or replay authority; `ProcedureSymbol` rejects detached declarations.
+  The pgrowlocks and amcheck manifest builders also own immutable fixed OUT
+  type IDs and complete formal names, including their input names. Their
+  comparable installed declaration carries the shared immutable payload through
+  relabeling, owner import and address remapping; identity validation rejects a
+  foreign payload even when its numeric formals happen to match.
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider` validates
   the extension, text search template and dictionary classes and installed
   member procedures; `ValidateProviderHeader` is the identity check it shares

@@ -248,9 +248,14 @@ func reownRoutineDefinition(source *proc.Definition, usage func(sqltype.Usage) (
 			next.Inputs[i] = next.Formals[formal].Usage
 		}
 	}
+	// Map the original occurrence through the operation-wide record memo.
+	// Never reconstruct a competing descriptor or map an already mapped usage.
 	result, err := usage(source.Result)
 	if err != nil {
 		return nil, err
+	}
+	if source.DerivedResult() && !next.MatchesOutputTuple(result.Type) {
+		return nil, fmt.Errorf("stuntgres: mapped routine output shape disagrees with formals")
 	}
 	if result.Type == nil || (!result.Type.Concrete() && !(source.Invocation != proc.OrdinaryInvocation && (result.Type.ID() == 2279 || result.Type.ID() == 3838))) {
 		return nil, fmt.Errorf("stuntgres: missing SQL routine result generation")

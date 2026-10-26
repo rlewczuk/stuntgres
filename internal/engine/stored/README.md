@@ -381,6 +381,13 @@ host methods.
   Bodies and defaults consume that same context, including binding, frozen and
   modifier presentations, PL locals and presentation collation inventories;
   no payload creates its own occurrence mapper or destination type lookup.
+  Formal-derived routine records use this same original-occurrence memo as
+  their call expressions and frozen presentations. Mapped output formals and
+  result members must agree exactly; no secondary reconstruction creates a
+  competing shape or maps an already mapped child. Provider validation checks
+  ordered names/attributes/Usages, TABLE/set policy and child catalog ownership.
+  Named results retain their exact catalog descriptor fence; RECORD OID alone
+  grants no provenance exemption.
   `ReownExpressions` consumes a supplied prebound replacement context, or
   creates and binds one for a standalone full-remap entry. Type-only entries
   retain their selective affected-payload rewrite. Independent exported view,
@@ -620,6 +627,13 @@ and `internal/engine/core`.
 Public behavior belongs in `reference/`; follow [docs/TESTING.md](../../../docs/TESTING.md) and
 add `REFERENCE=1` for the oracle.
 Frozen source-identity captures and remapping use `RUN='^TestStoredTableOID'`.
+Formal-derived routine result validation and shared occurrence remapping use
+`RUN='^TestSQLRoutineResult'`, also with `RACE=1`; malformed shapes and foreign
+child generations must fail without changing the original declaration.
+Installed declaration and generated constructor ownership use
+`RUN='^TestRoutineFormal(Installed|Constructor)OwnerRemap$'` with `RACE=1`.
+These units map real installed manifests and actual generated type families,
+preserving immutable declaration payloads while changing owner identities.
 
 
 Provider occurrence/shape proof:

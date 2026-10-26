@@ -28,49 +28,53 @@ type Store struct {
 	nextOID        ids.OID
 	nextRevision   ids.DefinitionRevision
 	nextEnumMember int64
-	definitionOIDs definitionOIDSet
+	allocatedOIDs  allocatedOIDSet
 	// seeding is set from BeginSeedLocked to FinishSeedLocked.
 	seeding bool
 }
 
-// definitionOIDSet holds the definition OIDs of one descriptor map. Every
-// descriptor write replaces a State's map value, so an equal map value has the
-// same descriptors. The set is never written after it is built, so Store copies
-// may share it.
-type definitionOIDSet struct {
+// allocatedOIDSet holds globally allocated descriptor and owned-definition
+// OIDs of one descriptor map. Every descriptor write replaces a State's map
+// value, so an equal map value has the same descriptors. The set is immutable
+// after construction.
+type allocatedOIDSet struct {
 	valid       bool
 	descriptors util.PersistentMap[ids.ObjectAddress, Descriptor]
 	used        map[ids.OID]bool
 }
 
-// definitionOIDUsedLocked reports whether a descriptor of the published state
-// owns id as a definition OID. It builds one set per descriptor map instead of
-// scanning every descriptor per candidate OID. A bulk load writes in place
-// behind an unchanged map, so it scans, except for the builtin seed: it holds
-// compiled builtins, whose OIDs are all below the first allocated OID, and the
-// definitions this allocator issued, which are below its cursor, so no seed
-// definition owns a candidate.
-func (s *Store) definitionOIDUsedLocked(id ids.OID) bool {
+// allocatedOIDUsedLocked reports whether the published state owns id in the
+// global allocation space. Large-object descriptor identities are class-local,
+// as in ValidateDefinitionOIDs. It builds one set per descriptor map instead of
+// scanning every descriptor per candidate. A bulk load writes in place behind
+// an unchanged map, so it scans using the same identity rules, except for the
+// builtin seed: compiled builtin OIDs are below the first allocated OID, and
+// seed descriptors and definitions take their OIDs from the same cursor, so
+// none owns a candidate.
+func (s *Store) allocatedOIDUsedLocked(id ids.OID) bool {
 	state := s.State
 	if s.seeding {
 		return false
 	}
 	if state.bulk != nil {
-		for _, descriptor := range state.Descriptors() {
-			if DefinitionOIDUsed(descriptor, id) {
+		for address, descriptor := range state.Descriptors() {
+			if address.ClassID != ids.LargeObjectClassID && address.ObjectID == id || DefinitionOIDUsed(descriptor, id) {
 				return true
 			}
 		}
 		return false
 	}
-	if !s.definitionOIDs.valid || s.definitionOIDs.descriptors != state.descriptors {
-		used := make(map[ids.OID]bool)
-		for _, descriptor := range state.Descriptors() {
+	if !s.allocatedOIDs.valid || s.allocatedOIDs.descriptors != state.descriptors {
+		used := make(map[ids.OID]bool, state.DescriptorCount())
+		for address, descriptor := range state.Descriptors() {
+			if address.ClassID != ids.LargeObjectClassID {
+				used[address.ObjectID] = true
+			}
 			ReserveDefinitionOIDs(used, descriptor)
 		}
-		s.definitionOIDs = definitionOIDSet{valid: true, descriptors: state.descriptors, used: used}
+		s.allocatedOIDs = allocatedOIDSet{valid: true, descriptors: state.descriptors, used: used}
 	}
-	return s.definitionOIDs.used[id]
+	return s.allocatedOIDs.used[id]
 }
 
 // NewStore returns a store with no published state, a fresh provenance
@@ -160,19 +164,7 @@ func (s *Store) AllocateOIDFromLocked(cursor *ids.OID, floor ids.OID) (ids.OID, 
 		if n == ids.NamespaceClassID || n == ids.RelationClassID || n == ids.PGCatalogNamespaceOID || n == ids.PublicNamespaceOID {
 			continue
 		}
-		if _, ok := s.State.Find(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}); ok {
-			continue
-		}
-		if _, ok := s.State.Find(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}); ok {
-			continue
-		}
-		if _, ok := s.State.Find(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}); ok {
-			continue
-		}
-		if _, ok := s.State.Find(ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: n}); ok {
-			continue
-		}
-		if s.definitionOIDUsedLocked(n) {
+		if s.allocatedOIDUsedLocked(n) {
 			continue
 		}
 		usedDefault := false

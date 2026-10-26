@@ -142,6 +142,40 @@ func TestDatetimeSleepWait(t *testing.T) {
 		t.Fatal("infinity arithmetic")
 	}
 }
+
+func TestDatetimeSleepScalarSource(t *testing.T) {
+	types := formatUnitTypes()
+	zero, err := sqltype.Float(types[sqltype.Float8], 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := DatetimeSleep{
+		Info:       expr.Info{Usage: types[sqltype.Void].Usage(), Property: expr.IntrinsicProperties(DatetimeSleepIntrinsicRule())},
+		Kind:       DatetimeSleepSeconds,
+		Arg:        datetimeSleepUnitArgument{Info: expr.Info{Usage: types[sqltype.Float8].Usage()}, value: zero},
+		ClockUsage: types[sqltype.Timestamptz].Usage(),
+	}
+	if admitted, set := node.SourceAdmission(); !admitted || set {
+		t.Fatal("sleep must remain scalar-once")
+	}
+	cursor, err := node.OpenSource(&datetimeSleepUnitContext{Context: context.Background()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, present, err := cursor.Next(context.Background())
+	if err != nil || !present || value.IsNull() || value.Type() != types[sqltype.Void] {
+		t.Fatal("scalar VOID source row", present, err)
+	}
+	if _, present, err := cursor.Next(context.Background()); err != nil || present {
+		t.Fatal("scalar source multiplicity", present, err)
+	}
+	cursor.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := node.OpenSource(&datetimeSleepUnitContext{Context: ctx}); !errors.Is(err, context.Canceled) {
+		t.Fatal("source open cancellation", err)
+	}
+}
 func TestDatetimeSleepCalendar(t *testing.T) {
 	types := formatUnitTypes()
 	stamp, span := types[sqltype.Timestamptz], types[sqltype.Interval]

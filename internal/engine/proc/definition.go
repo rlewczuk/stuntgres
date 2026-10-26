@@ -39,6 +39,8 @@ type Definition struct {
 	Names         []string
 	Inputs        []sqltype.Usage
 	Result        sqltype.Usage
+	ReturnsSet    bool
+	TableResult   bool
 	Formals       []Formal
 	InputFormals  []int
 	OutputFormals []int

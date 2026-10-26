@@ -58,6 +58,12 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
 - Dump fails before writing anything when it cannot serialize faithfully, for
   example invalid indexes, parameter/default-privilege ACLs or cyclic view
   dependencies (`stuntgres: cyclic view dump dependencies`).
+- SQL routine declarations preserve OUT/INOUT order, TABLE mode and SETOF
+  cardinality, with actual quoted or checked standard bodies. Named result and
+  formal child types precede their routines; anonymous output records are
+  reconstructed from formals, never emitted as independent named types.
+  Replacement maps each original record occurrence through the same context as
+  stored calls/views, preserving immutable old rows and current child ownership.
 - Event triggers replay in the final DDL section, after saved data/defaults and
   attribute metadata, initially disabled and activated only after all definitions.
   Owner, function references, ordered TAG filters and O/D states survive logical

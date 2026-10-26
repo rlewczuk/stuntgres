@@ -3,6 +3,12 @@ descriptions, typed enum arrays and empty results. Session defaults, SET/RESET
 provenance, held readers and independent read/SET authority are checked without
 advertising unregistered placeholders or unsupported settings.
 
+Routine formal metadata now includes declared OUT and VARIADIC arguments for
+represented native builtins, installed pgrowlocks and amcheck routines, owned
+aggregates and generated range constructors. Full argument names remain aligned
+with formal types and modes; invocation identities remain input-only. Genuinely
+all-IN declarations retain typed NULL formal arrays.
+
 Statements that only add types, such as CREATE TABLE, CREATE VIEW and CREATE
 TYPE, no longer rewrite every type, rule and trigger in the catalog to reown
 type generations; only replacing an existing type's definition does.
@@ -36,6 +42,12 @@ with parameter grants. These are setting-only physical simulations, not
 worker scheduling, I/O delays, tuple freezing or file truncation. Session
 lifetimes and logical constraints remain independent of physical descriptions.
 
+Native catalog allocation reserves all globally allocated descriptor identities,
+including routines restored into a fresh Driver, alongside owned definitions.
+New CREATE statements cannot reissue those live identities; invalid routine
+definitions reach their genuine SQL diagnostics after Restore. Explicit
+large-object identities remain local to their catalog class.
+
 Queries of `pg_type`, `pg_proc` and `pg_depend` whose WHERE compares one oid
 column with a constant or parameter (`WHERE oid = 16384`,
 `WHERE pronamespace = $1`, also inside derived subqueries) read only the
@@ -60,6 +72,18 @@ names, schemas, ordered options and owners through native Dump/Reset/Restore;
 installed unaccent templates retain their genuine lexize provider. The one-argument
 unaccent function follows the default dictionary in its current function schema
 after dictionary DDL.
+
+SQL functions support ordered OUT/INOUT records, RETURNS TABLE and scalar,
+record and named-composite SETOF results through direct/prepared calls and
+ordinary FROM/target-list sources. Composite inputs, member access, exact output
+metadata, empty-result boundaries and positional result diagnostics share the
+existing routine resolver and statement lifecycle. Native Dump/Restore preserves
+these declarations, named child types and dependent stored queries.
+Routine catalog output metadata includes ordered all-formal type/mode arrays;
+result-type SETOF spelling remains contextual rather than reserving an identifier.
+Named result diagnostics use captured search-path visibility; SQL set calls
+retain target occurrence and shared placement rules. Datetime sleep functions
+also admit scalar-once VOID table-source execution with ordinary cancellation.
 
 `pg_ts_dict` now has dedicated native/PostgreSQL coverage for exact installed
 unaccent identity, template linkage, initialization options and six-column

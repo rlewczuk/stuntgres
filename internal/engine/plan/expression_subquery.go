@@ -90,6 +90,9 @@ func (n SQLRoutineExpr) ValidateStoredProvider() error {
 	if n.Procedure == nil || n.Procedure.SQL == nil || n.Info.RoutineReference != n.Procedure || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Usage.Type == nil || !n.Usage.Valid() || n.Usage.Type.ID() != sqltype.ID(n.Procedure.Result) {
 		return fmt.Errorf("invalid stored SQL routine provider")
 	}
+	if n.Usage.Type != n.Procedure.SQL.Result.Type {
+		return fmt.Errorf("SQL routine call has a foreign result generation")
+	}
 	if n.InputCollation.ID != 0 && !n.InputCollation.Valid() {
 		return fmt.Errorf("invalid SQL routine input collation")
 	}

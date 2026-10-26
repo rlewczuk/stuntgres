@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -39,7 +40,7 @@ type SQLCursor = sqlCursor
 type StatementHost = statementHost
 
 // ValidateSQLRoutineResult calls validateSQLRoutineResult.
-func ValidateSQLRoutineResult(columns []catalog.Column, result sqltype.Usage) (sqltype.CoercionPlan, error) {
+func ValidateSQLRoutineResult(columns []catalog.Column, result sqltype.Usage) (proc.ResultPlan, error) {
 	return validateSQLRoutineResult(columns, result)
 }
 
@@ -489,8 +490,8 @@ func ProtocolPortalOf(binding *PreparedBinding) *protocolPortal {
 	return protocolPortalOf(binding)
 }
 
-func PortalProducerRef(p *protocolPortal) **sqlCursor { return &p.producer }
-func PortalRowsRef(p *protocolPortal) *exec.RowResult { return &p.rows }
-func PortalColumnsRef(p *protocolPortal) *[]catalog.Column { return &p.columns }
-func PortalStartedRef(p *protocolPortal) *bool { return &p.started }
+func PortalProducerRef(p *protocolPortal) **sqlCursor             { return &p.producer }
+func PortalRowsRef(p *protocolPortal) *exec.RowResult             { return &p.rows }
+func PortalColumnsRef(p *protocolPortal) *[]catalog.Column        { return &p.columns }
+func PortalStartedRef(p *protocolPortal) *bool                    { return &p.started }
 func PortalContextRef(p *protocolPortal) *session.ProtocolContext { return &p.context }

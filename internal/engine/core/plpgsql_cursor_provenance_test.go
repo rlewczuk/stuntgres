@@ -198,13 +198,13 @@ func TestPLpgSQLCursorFirstRowDemand(t *testing.T) {
 			plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: seven},
 		},
 	}
-	// The shared producer's wider argument-row demand must not relax the
-	// incumbent SQL scalar routine's one-column guard or evaluate its outputs.
-	rows, count, err := core.FinalizeSQLRoutineQuery(context.Background(), root, &exec.Source{Singleton: true}, nil, true)
-	if err == nil || rows != nil || count != 0 {
-		t.Fatal("scalar routine accepted a multi-column projection")
+	// Width policy belongs to terminal result validation, before producers.
+	// The shared first-row producer also serves composite SQL results and
+	// multi-column PL cursor arguments without collapsing either projection.
+	if _, err := core.ValidateSQLRoutineResult(root.Schema(), integer.Usage()); err == nil {
+		t.Fatal("scalar result validator accepted a multi-column projection")
 	}
-	rows, count, err = core.FinalizeSQLRoutineQuery(context.Background(), root, &exec.Source{Singleton: true}, nil, false)
+	rows, count, err := core.FinalizeSQLRoutineQuery(context.Background(), root, &exec.Source{Singleton: true}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

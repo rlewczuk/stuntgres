@@ -178,6 +178,8 @@ Public execution, ACLs and stored consumers use
 - Source-capable nodes implement `expr.Source` and `SourceOpening` beside their
   family (`*_source.go`); there is no central source registry. Admission is per
   family, never a scalar-FROM fallback.
+- Datetime sleep providers admit a scalar-once VOID source using the same
+  evaluation, wait, cancellation and authority path as scalar calls.
 - Arguments evaluate once per open in native order. Each invocation's state is
   released by close, EOF, error and cancellation without invalidating emitted
   values; set families convert a complete invocation privately before
@@ -485,6 +487,8 @@ series, cancellation and publication) live in `enginetests/`; units of other
 engine mechanisms stay with their owner (`analyze`, `exec`). Public SQL
 behavior is tested only in `reference/`
 ([docs/TESTING.md](../../../docs/TESTING.md)).
+Datetime sleep source admission and scalar-once lifetime use
+`RUN='^TestDatetimeSleepScalarSource$'`, also with `RACE=1`.
 
 Native ordered support state, tuple ownership and cancellation units use
 `RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in

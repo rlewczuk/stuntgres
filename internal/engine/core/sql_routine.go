@@ -33,18 +33,27 @@ type sqlRoutineAnalysis struct {
 
 // InvokeSQLRoutine runs a SQL-language routine body inside the statement.
 func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) (sqltype.Value, error) {
-	return h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, inputCollation, assignmentPlanning)
+	return h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, inputCollation, assignmentPlanning, nil)
+}
+
+func (h *statementHost) InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, collation sqltype.CollationRef, assignmentPlanning bool) ([]sqltype.Value, error) {
+	var values []sqltype.Value
+	_, err := h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, collation, assignmentPlanning, &values)
+	if err != nil {
+		return nil, err
+	}
+	return values, nil
 }
 
 // The owner supplies only top-level support EXECUTE. The body still runs in
 // the invoking scope, with its ordinary caller identity and relation rights.
 func (h *statementHost) InvokeAggregateSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
-	return h.scope().invokeSQLRoutine(d, frame, resultUsage, owner, collation, false)
+	return h.scope().invokeSQLRoutine(d, frame, resultUsage, owner, collation, false, nil)
 }
 
 // invokeSQLRoutine borrows the admitted operation/transaction. It never acquires
 // a driver connection, starts a root command, calls Finish or ends the operation.
-func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool) (value sqltype.Value, err error) {
+func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
 	if err = parent.enterSQLRoutine(); err != nil {
 		return value, err
 	}
@@ -125,7 +134,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	value = sqltype.Null(resultUsage.Type)
 	for i, statement := range statements {
 		terminal := i == len(statements)-1 && !d.SQL.Void()
-		value, err = parent.executeSQLRoutineCommand(d, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning)
+		value, err = parent.executeSQLRoutineCommand(d, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning, values)
 		if err != nil {
 			return value, exec.SQLRoutineStatementContext(err, d.Name(), i+1)
 		}
@@ -139,7 +148,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	return value, nil
 }
 
-func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *Description, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) (value sqltype.Value, err error) {
+func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *Description, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
 	noticeStart := len(s.Op.Notices)
 	defer func() {
 		if noticeStart != len(s.Op.Notices) {
@@ -158,7 +167,7 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 	s.sqlRoutine.assignmentPlanning = assignmentPlanning
 	s.sqlRoutine.inputCollation = inputCollation
 	_, selecting := statement.(*parser.Select)
-	s.sqlRoutine.scalar, s.sqlRoutine.result = terminal && selecting, resultUsage
+	s.sqlRoutine.scalar, s.sqlRoutine.result = terminal && selecting && values == nil, resultUsage
 	e := s.Engine()
 	if _, transaction := statement.(*parser.TransactionControl); transaction {
 		return value, SQLError("0A000", RoutineCommandTag(statement)+" is not allowed in an SQL function")
@@ -216,12 +225,22 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 		}()
 		if terminal {
 			row := make([]sqltype.Value, len(result.Rows.Schema()))
-			present, nextErr := result.Rows.Next(s.Op.Context(), row)
-			if nextErr != nil {
-				return value, nextErr
-			}
-			if present {
-				value, err = s.sqlRoutine.resultPlan.Apply(s.Op.Context(), row[0], s.Input, s.Output)
+			for {
+				present, nextErr := result.Rows.Next(s.Op.Context(), row)
+				if nextErr != nil {
+					return value, nextErr
+				}
+				if !present {
+					break
+				}
+				value, err = s.sqlRoutine.resultPlan.Apply(s.Op.Context(), row, s.Input, s.Output)
+				if err != nil {
+					return value, err
+				}
+				if values == nil {
+					break
+				}
+				*values = append(*values, value)
 			}
 		}
 	}
@@ -318,7 +337,7 @@ func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *s
 
 // Query demand is selected before opening producers. Sort/aggregate semantics
 // remain query-owned; only unnecessary later projected output is not requested.
-func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value, scalar bool) (rows exec.RowResult, count int, err error) {
+func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value) (rows exec.RowResult, count int, err error) {
 	defer source.Close()
 	defer func() {
 		finishErr := exec.FinishForeignSources(ctx, source)
@@ -327,7 +346,7 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.S
 		}
 	}()
 	project, ok := root.(*plan.ProjectNode)
-	if !ok || scalar && len(project.Schema()) != 1 {
+	if !ok {
 		return nil, 0, fmt.Errorf("invalid SQL routine projection")
 	}
 	state := exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}

@@ -18,6 +18,13 @@ admits the current declaration and privileges before suppressing a NULL-input
 body; aggregate supports retain their transition/final-specific strict rules.
 Explicit VOLATILE selects the ordinary effectful SQL routine mode.
 
+SQL result declarations retain set cardinality independently of scalar/composite
+shape. OUT/INOUT and TABLE fields use the same ordered formal projections and
+input-only signature. Multiple outputs derive a declaration-owned record; TABLE
+retains output-only mode `t` for metadata and replay. Replacement checks actual
+row shape and setness, not just the shared RECORD OID. Dump renders TABLE/SETOF
+and orders real formal child types and named result types before their callers.
+
 PL/pgSQL event functions separately admit zero-formal `RETURNS event_trigger`,
 inject only TEXT `TG_EVENT`/`TG_TAG`, and cannot be invoked as scalar functions.
 `event_trigger_ddl.go` owns database-global CREATE and bounded ENABLE/DISABLE/DROP
@@ -90,6 +97,10 @@ package or the engine.
   the builtin SQL-body edges. Each executable declaration names its routine
   provider with fixed OID, signature and attributes; lookup-only identities
   never become executable or grant a binding.
+  Fixed OUT type IDs and complete formal names live on those same declaration
+  rows as immutable `catalog.RoutineOutputs`, checked against the sole input
+  signature. VARIADIC retains the existing declared signature and element/ANY
+  identity; projection does not infer OUT layouts from result types or setness.
   `display_inventory.go` owns complete REL_18_6 source/language/security facts
   keyed by genuine declaration OID, including matched SQL-standard replacements.
   Materialization rejects missing facts; the display inventory never creates rows.

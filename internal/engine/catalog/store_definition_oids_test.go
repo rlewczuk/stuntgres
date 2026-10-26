@@ -96,6 +96,103 @@ func TestStoreOIDSkipsDefinitionOIDs(t *testing.T) {
 	}
 }
 
+// Descriptor identities share the allocator's global space with owned
+// definitions; only explicitly class-local large objects may overlap it.
+func TestStoreOIDSkipsDescriptorOIDs(t *testing.T) {
+	procedure := func(id ids.OID) Descriptor {
+		return &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}, ObjectName: "restored", ObjectRevision: 1}
+	}
+	for _, tc := range []struct {
+		name string
+		make func(ids.OID) Descriptor
+	}{
+		{"procedure", procedure},
+		{"language", func(id ids.OID) Descriptor {
+			return &Language{ObjectAddress: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: id}, ObjectName: "restored", ObjectRevision: 1}
+		}},
+		{"tablespace", func(id ids.OID) Descriptor {
+			return &Tablespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: id}, ObjectName: "restored", ObjectRevision: 1}
+		}},
+		{"collation", func(id ids.OID) Descriptor { return &Collation{OID: id, ObjectName: "restored"} }},
+		{"conversion", func(id ids.OID) Descriptor { return &Conversion{OID: id, ObjectName: "restored", ObjectRevision: 1} }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := storeFixture(30000)
+			// Prime the cache on a root without the restored descriptor.
+			if got := allocateOIDs(t, s, 1); got[0] != 30000 {
+				t.Fatal("initial free identity", got)
+			}
+			d := tc.make(30001)
+			publishDefinitionOIDs(s, d, definitionOIDDomain(950, 30002))
+			reservation := s.OIDReservationLocked()
+			got, err := s.AllocateOIDFromLocked(&reservation.Next, 30001)
+			if err != nil || got != 30004 || reservation.Base != 30001 || reservation.Next != 30005 || s.NextOID() != 30001 {
+				t.Fatal("private reservation must skip descriptor and owned identities without advancing live frontier", got, err, reservation, s.NextOID())
+			}
+			if got := allocateOIDs(t, s, 1); got[0] != 30004 {
+				t.Fatal("published descriptor and owned identities", got)
+			}
+			// In-place writes must invalidate a previously populated cache.
+			d = tc.make(30005)
+			s.State.SetDescriptor(d.Address(), d)
+			if got := allocateOIDs(t, s, 1); got[0] != 30006 {
+				t.Fatal("in-place descriptor identity", got)
+			}
+			s.State.BeginBulkLoad(2)
+			d = tc.make(30007)
+			s.State.SetDescriptor(d.Address(), d)
+			if got := allocateOIDs(t, s, 1); got[0] != 30008 {
+				t.Fatal("bulk-loaded descriptor identity", got)
+			}
+			s.State.EndBulkLoad()
+			// Rebuild against the final map, then remove an incumbent in place.
+			d = tc.make(30010)
+			publishDefinitionOIDs(s, d)
+			if got := allocateOIDs(t, s, 1); got[0] != 30009 {
+				t.Fatal("free identity before incumbent", got)
+			}
+			s.State.RemoveDescriptor(d.Address())
+			if got := allocateOIDs(t, s, 1); got[0] != 30010 {
+				t.Fatal("removed incumbent still reserved", got)
+			}
+		})
+	}
+	t.Run("class_local_large_object", func(t *testing.T) {
+		s := storeFixture(30000)
+		address := ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: 30000}
+		publishDefinitionOIDs(s, &LargeObject{ObjectAddress: address, ObjectName: "30000", ObjectRevision: 1})
+		if err := ValidateDefinitionOIDs(s.Current()); err != nil {
+			t.Fatal(err)
+		}
+		if got := allocateOIDs(t, s, 1); got[0] != 30000 {
+			t.Fatal("class-local large object consumed global identity", got)
+		}
+		address.ObjectID = 30001
+		publishDefinitionOIDs(s, procedure(30001), &LargeObject{ObjectAddress: address, ObjectName: "30001", ObjectRevision: 1})
+		if err := ValidateDefinitionOIDs(s.Current()); err != nil {
+			t.Fatal("class-local overlap with global descriptor", err)
+		}
+		if got := allocateOIDs(t, s, 1); got[0] != 30002 {
+			t.Fatal("large-object overlap hid global incumbent", got)
+		}
+		s.State.BeginBulkLoad(2)
+		address.ObjectID = 30003
+		s.State.SetDescriptor(address, &LargeObject{ObjectAddress: address, ObjectName: "30003", ObjectRevision: 1})
+		if got := allocateOIDs(t, s, 1); got[0] != 30003 {
+			t.Fatal("bulk class-local large object consumed global identity", got)
+		}
+		s.State.EndBulkLoad()
+	})
+	t.Run("terminal_procedure", func(t *testing.T) {
+		last := ^ids.OID(0)
+		s := storeFixture(last)
+		publishDefinitionOIDs(s, procedure(last))
+		if got, err := s.AllocateOIDLocked(); got != 0 || err != ErrObjectIdentityExhausted || s.NextOID() != 0 {
+			t.Fatal("occupied terminal descriptor did not exhaust", got, err, s.NextOID())
+		}
+	})
+}
+
 // DefinitionOIDUsed and ReserveDefinitionOIDs walk the same definitions.
 func TestDefinitionOIDWalksAgree(t *testing.T) {
 	for _, d := range []Descriptor{definitionOIDRelation(950, 30000), definitionOIDDomain(951, 30000)} {

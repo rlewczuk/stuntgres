@@ -12,15 +12,15 @@ import (
 
 // Formal is declaration metadata, never an executable default or invocation value.
 type Formal struct {
-	Mode       string // i, o, b, v
+	Mode       string // i, o, b, v, t
 	Name       string
 	Usage      sqltype.Usage
 	Position   parser.Position
 	HasDefault bool
 }
 
-func (f Formal) Input() bool  { return f.Mode != "o" }
-func (f Formal) Output() bool { return f.Mode == "o" || f.Mode == "b" }
+func (f Formal) Input() bool  { return f.Mode == "i" || f.Mode == "b" || f.Mode == "v" }
+func (f Formal) Output() bool { return f.Mode == "o" || f.Mode == "b" || f.Mode == "t" }
 
 // SetFormals installs one owned layout and derives every projection from it.
 // The definition must still be unpublished.
@@ -37,7 +37,7 @@ func (d *Definition) SetFormals(formals []Formal) error {
 			}
 			return d
 		}
-		if f.Mode != "i" && f.Mode != "o" && f.Mode != "b" && f.Mode != "v" {
+		if f.Mode != "i" && f.Mode != "o" && f.Mode != "b" && f.Mode != "v" && f.Mode != "t" {
 			return fmt.Errorf("invalid routine parameter mode")
 		}
 		if !f.Usage.Valid() || !f.Usage.Type.Concrete() {

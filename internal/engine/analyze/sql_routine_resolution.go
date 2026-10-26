@@ -249,28 +249,39 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		}
 	}
 	if aggregate := selection.Procedure.Aggregate; aggregate != nil && aggregate.Definition.Kind != "n" && raw.Within {
-		if len(raw.Args) > 99 { return selection, true, expr.ErrorAt("54023", "aggregates cannot have more than 99 arguments", raw.Pos) }
-		direct := len(raw.Args)-len(raw.Order)
+		if len(raw.Args) > 99 {
+			return selection, true, expr.ErrorAt("54023", "aggregates cannot have more than 99 arguments", raw.Pos)
+		}
+		direct := len(raw.Args) - len(raw.Order)
 		required := int(aggregate.Definition.DirectArgs)
-		fixed := required-1
+		fixed := required - 1
 		if !OwnedAggregateDirectCountValid(selection.Procedure, direct, len(raw.Order)) {
 			diagnostic := b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, false).(*sqlstate.Error)
-			noun := "arguments"; if required == 1 { noun = "argument" }
+			noun := "arguments"
+			if required == 1 {
+				noun = "argument"
+			}
 			diagnostic.Hint = fmt.Sprintf("There is an ordered-set aggregate %s, but it requires %d direct %s, not %d.", catalog.ObjectNameText(raw.Name), required, noun, direct)
-			if aggregate.Variadic && aggregate.Definition.Kind == "h" { diagnostic.Hint = fmt.Sprintf("To use the hypothetical-set aggregate %s, the number of hypothetical direct arguments (here %d) must match the number of ordering columns (here %d).",catalog.ObjectNameText(raw.Name),direct-fixed,len(raw.Order)) }
+			if aggregate.Variadic && aggregate.Definition.Kind == "h" {
+				diagnostic.Hint = fmt.Sprintf("To use the hypothetical-set aggregate %s, the number of hypothetical direct arguments (here %d) must match the number of ordering columns (here %d).", catalog.ObjectNameText(raw.Name), direct-fixed, len(raw.Order))
+			}
 			return selection, true, diagnostic
 		}
 	}
 	if aggregate := selection.Procedure.Aggregate; aggregate != nil && aggregate.Variadic && aggregate.Definition.Kind == "h" && raw.Within {
-		direct := len(raw.Args)-len(raw.Order)
-		prefix := direct-len(raw.Order)
+		direct := len(raw.Args) - len(raw.Order)
+		prefix := direct - len(raw.Order)
 		if prefix >= 0 {
 			selection.Targets = append([]sqltype.Usage(nil), selection.Targets...)
-			if len(selection.Targets) == 0 { selection.Targets = append(selection.Targets, selection.Inputs...) }
+			if len(selection.Targets) == 0 {
+				selection.Targets = append(selection.Targets, selection.Inputs...)
+			}
 			for i := range raw.Order {
 				pair := []functions.Argument{familyArgs[direct+i], familyArgs[prefix+i]}
 				usage, e := b.CommonArgumentUsage(pair, "WITHIN GROUP")
-				if e != nil { return selection, true, e }
+				if e != nil {
+					return selection, true, e
+				}
 				selection.Targets[direct+i], selection.Targets[prefix+i] = usage, usage
 			}
 		}
@@ -697,8 +708,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
 		b.dependency(ref, d.Revision())
-		result, _ := b.authorityType(selected.auth, sqltype.ID(d.Result))
-		info := b.Info(result.Usage(), raw.Pos, selected.properties)
+		info := b.Info(d.SQL.Result, raw.Pos, selected.properties)
 		info.RoutineReference = d
 		if b.Params.NoParameters || b.Consumer.frozenDefinition {
 			namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
@@ -733,6 +743,11 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 				b.captureDependency(dependency.Ref, dependency.Revision, dependency.Purpose)
 			}
 			info.Property = expr.MergeProperties(info.Property, node.Properties())
+		}
+		if d.SQL.ReturnsSet {
+			if err := b.AdmitSetReturning(raw.Pos); err != nil {
+				return nil, err
+			}
 		}
 		node := plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: args, WrittenCount: len(raw.Args), ArgNames: raw.ArgNames, Variadic: raw.Variadic, InputMap: assembly}
 		node, err := node.Collate(b.CollatedInfo)

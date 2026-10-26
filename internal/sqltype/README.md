@@ -38,6 +38,8 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
 - `Composite` freezes catalog members and rejects VOID storage attributes.
   `RecordShape` freezes an anonymous expression/query-result occurrence and
   retains VOID members, including their exact typed NULLs for empty results.
+  Anonymous shapes use the SQL diagnostic name `record`, independently of
+  their public database type name `RECORD` and member descriptor identity.
   Both preserve complete member usages and coherent descriptor generations;
   `CompositeValue` copies borrowed fields, while `OwnedCompositeValue` takes
   exclusive ownership without copying. Neither exposes mutable field backing.

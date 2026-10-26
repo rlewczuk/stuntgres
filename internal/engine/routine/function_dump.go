@@ -94,10 +94,15 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 		kind = "PROCEDURE"
 	}
 	sql.WriteString("CREATE " + kind + " " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(d.Name()) + "(")
+	written := 0
 	for i, formal := range d.SQL.Formals {
-		if i != 0 {
+		if formal.Mode == "t" {
+			continue
+		}
+		if written != 0 {
 			sql.WriteString(", ")
 		}
+		written++
 		switch formal.Mode {
 		case "o":
 			sql.WriteString("OUT ")
@@ -127,17 +132,39 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	}
 	sql.WriteString(")")
 	if d.RoutineKind != catalog.ProcedureRoutine {
-		result := "pg_catalog.trigger"
-		if d.SQL.Invocation == proc.EventTriggerInvocation {
-			result = "pg_catalog.event_trigger"
-		} else if d.SQL.Invocation == proc.OrdinaryInvocation {
-			var err error
-			result, err = p.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
-			if err != nil {
-				return dump.Statement{}, err
+		if d.SQL.TableResult {
+			sql.WriteString(" RETURNS TABLE(")
+			for i, index := range d.SQL.OutputFormals {
+				if i != 0 {
+					sql.WriteString(", ")
+				}
+				formal := d.SQL.Formals[index]
+				declaration, err := p.ColumnDeclaration(view, catalog.Column{Usage: formal.Usage})
+				if err != nil {
+					return dump.Statement{}, err
+				}
+				sql.WriteString(catalog.QuoteIdentifier(formal.Name) + " " + declaration)
 			}
+			sql.WriteString(")")
+		} else {
+			result := "pg_catalog.trigger"
+			if d.SQL.Invocation == proc.EventTriggerInvocation {
+				result = "pg_catalog.event_trigger"
+			} else if d.SQL.DerivedResult() {
+				result = "pg_catalog.record"
+			} else if d.SQL.Invocation == proc.OrdinaryInvocation {
+				var err error
+				result, err = p.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
+				if err != nil {
+					return dump.Statement{}, err
+				}
+			}
+			sql.WriteString(" RETURNS ")
+			if d.SQL.ReturnsSet {
+				sql.WriteString("SETOF ")
+			}
+			sql.WriteString(result)
 		}
-		sql.WriteString(" RETURNS " + result)
 	}
 	if d.Strict {
 		sql.WriteString(" STRICT")

@@ -192,7 +192,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	if scope.sqlRoutine.terminal {
-		scope.sqlRoutine.resultPlan, err = ValidateSQLRoutineTerminal(stmt, b, scope.sqlRoutine.result)
+		scope.sqlRoutine.resultPlan, err = ValidateSQLRoutineTerminal(stmt, b, scope.sqlRoutine.result, auth)
 		if err != nil {
 			e.Mu.Unlock()
 			return Result{}, err

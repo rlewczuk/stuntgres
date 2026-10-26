@@ -483,7 +483,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		if err == nil || errors.As(err, &planning) != tc.planning {
 			t.Fatal("reached query lost planning/runtime origin", tc.query, err)
 		}
-		if core.ScopeSQLRoutine(s) != previous || core.ScopeActiveSQLRoutineDepth(s) != depth {
+		if !core.SameSQLRoutineDemand(core.ScopeSQLRoutine(s), previous) || core.ScopeActiveSQLRoutineDepth(s) != depth {
 			t.Fatal("failed assignment query leaked borrowed demand/depth", tc.query)
 		}
 	}
@@ -492,7 +492,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		t.Fatal("recovery after planning/runtime failures", err)
 	}
 	n, err := value.Integer()
-	if err != nil || n != 7 || core.ScopeSQLRoutine(s) != previous || core.ScopeActiveSQLRoutineDepth(s) != depth {
+	if err != nil || n != 7 || !core.SameSQLRoutineDemand(core.ScopeSQLRoutine(s), previous) || core.ScopeActiveSQLRoutineDepth(s) != depth {
 		t.Fatal("successful assignment query leaked state", value, err)
 	}
 
@@ -527,7 +527,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 			t.Fatal("host origin propagation/domain suppression/restore", domain, err)
 		}
 	}
-	if core.ScopeSQLRoutine(s) != previous || core.ScopeActiveSQLRoutineDepth(s) != depth {
+	if !core.SameSQLRoutineDemand(core.ScopeSQLRoutine(s), previous) || core.ScopeActiveSQLRoutineDepth(s) != depth {
 		t.Fatal("nested host invocation leaked caller demand")
 	}
 	t.Run("domain_preflight_barrier", func(t *testing.T) {

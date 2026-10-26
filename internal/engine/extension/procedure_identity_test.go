@@ -72,7 +72,7 @@ func TestInstalledProcedureRelabelIdentity(t *testing.T) {
 }
 
 func TestInstalledProcedureForgery(t *testing.T) {
-	for _, kind := range []string{"signature", "result", "kind", "owner", "duplicate", "reorder", "foreign", "payload", "missing_namespace", "missing_index", "extension_owner"} {
+	for _, kind := range []string{"signature", "result", "kind", "owner", "duplicate", "reorder", "foreign", "payload", "outputs", "missing_namespace", "missing_index", "extension_owner"} {
 		t.Run(kind, func(t *testing.T) {
 			v, ext := identityFixture("1.2")
 			p := *v.MustProcedure(ext.Members[0])
@@ -96,6 +96,8 @@ func TestInstalledProcedureForgery(t *testing.T) {
 				p.Extension.ObjectID++
 			case "payload":
 				p.Implementation = StockPgcrypto
+			case "outputs":
+				p.Installed.Outputs = catalog.NewRoutineOutputs([]ids.OID{23}, "invented")
 			case "missing_namespace":
 				p.ObjectNamespace.ObjectID++
 				p.ObjectNamespace.ObjectID++

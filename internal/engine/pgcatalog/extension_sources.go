@@ -34,7 +34,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	if source.Address().ObjectID == ids.ProcedureClassID {
-		expected := [17]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid}
+		expected := [19]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid, 1028, 1002}
 		if len(source.Columns) != len(expected) {
 			return nil, fmt.Errorf("stuntgres: invalid procedure source shape")
 		}
@@ -133,12 +133,19 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			text(8, parallel)
 			text(9, string(d.RoutineKind))
 			text(14, d.Display.Source)
-			var argumentErr error
+			variadic, argumentErr := ProcedureVariadic(d)
+			if argumentErr != nil {
+				return nil, argumentErr
+			}
 			row[15], argumentErr = procedureArgumentVector(ctx, source.Columns[15].Usage.Type, d.Signature)
 			if argumentErr != nil {
 				return nil, argumentErr
 			}
 			row[10] = sqltype.Null(source.Columns[10].Usage.Type)
+			row[17], row[18], argumentErr = procedureFormalArrays(ctx, d, source.Columns[17].Usage.Type, source.Columns[18].Usage.Type, variadic, row[15])
+			if argumentErr != nil {
+				return nil, argumentErr
+			}
 			if d.SQL != nil {
 				named := false
 				elements := make([]sqltype.Value, len(d.SQL.Formals))
@@ -159,19 +166,13 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), name)
 				}
 				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
-			} else if d.Builtin != nil && d.Builtin.Providers&functions.FTSParserRoutineProvider != 0 {
-				names := [4]string{"parser_name", "tokid", "alias", "description"}
-				if strings.HasPrefix(string(d.Builtin.Identity.Signature), "26") {
-					names[0] = "parser_oid"
+			} else if outputs := d.OutputDeclaration(); outputs != nil {
+				count := outputs.Inputs() + outputs.Len()
+				elements := make([]sqltype.Value, count)
+				for i := range elements {
+					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), outputs.Name(i))
 				}
-				if d.Builtin.Identity.Name == "ts_parse" {
-					names[1], names[2], names[3] = "txt", "tokid", "token"
-				}
-				elements := make([]sqltype.Value, len(names))
-				for i, name := range names {
-					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), name)
-				}
-				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: 4}}, elements)
+				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(count)}}, elements)
 			} else if ext, ok := view.Extension(d.Extension); ok && ext.Name() == "uuid-ossp" && d.Implementation != nil && slices.Contains(ext.Members, d.Address()) {
 				// Use the catalog's existing validation capability and the
 				// released manifest slot, without importing an upper owner.
@@ -189,7 +190,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, values)
 				}
 			}
-			if d.Installed.ArgumentNames[0] != "" {
+			if d.Installed.Outputs == nil && d.Installed.ArgumentNames[0] != "" {
 				elements := make([]sqltype.Value, ProcedureArity(d))
 				for i := range elements {
 					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), d.Installed.ArgumentNames[i])
@@ -197,6 +198,9 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 			}
 			returnsSet, estimate := d.Installed.ReturnsSet, float64(d.Installed.Rows)
+			if d.SQL != nil && d.SQL.ReturnsSet {
+				returnsSet, estimate = true, 1000
+			}
 			if d.Builtin != nil && d.Builtin.ReturnsSet {
 				returnsSet, estimate = true, builtinRoutineRows(d.Builtin)
 			}
@@ -215,10 +219,6 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				return nil, err
 			}
 			row[13] = estimateValue
-			variadic, err := ProcedureVariadic(d)
-			if err != nil {
-				return nil, err
-			}
 			integer(16, int64(variadic))
 		case *catalog.TSTemplate:
 			integer(0, int64(d.Address().ObjectID))

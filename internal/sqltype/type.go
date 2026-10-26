@@ -229,6 +229,9 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 }
 
 func (d *Descriptor) DiagnosticName() string {
+	if d.id == 2249 {
+		return "record" // Anonymous expression shapes are not named user types.
+	}
 	if d.IsUserDefined() {
 		return d.sql
 	}

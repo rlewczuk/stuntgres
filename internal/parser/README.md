@@ -224,6 +224,8 @@ text is sliced from these boundaries and never rescanned into executable syntax.
 
 Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
 Static capture AST/boundary units use `RUN='^TestPLpgSQLSelectIntoParser$'`.
+Routine result declaration form, ordered TABLE syntax and conflict/full-input
+units use `RUN='^TestRoutineResultDeclarations$'`.
 
 Unit tests here drive the real lexer and generated parser and check AST shape,
 positions, ownership and complete-input rejection. Public SQL acceptance and

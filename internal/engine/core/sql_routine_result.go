@@ -3,6 +3,7 @@ package core
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -24,30 +25,47 @@ func RoutineCommandTag(statement parser.Statement) string {
 	return tag
 }
 
-func SQLRoutineFinalError(result sqltype.Usage) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "return type mismatch in function declared to return " + result.Type.DiagnosticName(), Detail: "Function's final statement must be SELECT or INSERT/UPDATE/DELETE/MERGE RETURNING."}
+func SQLRoutineFinalError(result sqltype.Usage, names ...func(sqltype.ID) string) error {
+	var name func(sqltype.ID) string
+	if len(names) != 0 {
+		name = names[0]
+	}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "return type mismatch in function declared to return " + proc.ResultDiagnosticName(result.Type, name), Detail: "Function's final statement must be SELECT or INSERT/UPDATE/DELETE/MERGE RETURNING."}
 }
 
-func ValidateSQLRoutineTerminal(statement parser.Statement, b analyze.Binding, result sqltype.Usage) (sqltype.CoercionPlan, error) {
+func ValidateSQLRoutineTerminal(statement parser.Statement, b analyze.Binding, result sqltype.Usage, auth AuthorizationView) (proc.ResultPlan, error) {
+	// Naming is error-only. Successful execution does not acquire a display
+	// snapshot or retain a callback in the immutable row-adaptation plan.
+	name := b.Resolvers.TypeDiagnosticName
+	var namingErr error
+	display := func(id sqltype.ID) string {
+		if name == nil && namingErr == nil {
+			name, namingErr = CaptureTypeDiagnosticName(auth)
+		}
+		if name != nil {
+			return name(id)
+		}
+		return ""
+	}
+	var plan proc.ResultPlan
+	var err error
 	if _, selecting := statement.(*parser.Select); selecting && b.Query != nil {
-		return validateSQLRoutineResult(b.Query.Root.Schema(), result)
+		plan, err = validateSQLRoutineResult(b.Query.Root.Schema(), result, display)
+	} else if b.Returning != nil {
+		plan, err = validateSQLRoutineResult(b.Returning.Schema, result, display)
+	} else {
+		err = SQLRoutineFinalError(result, display)
 	}
-	if b.Returning != nil {
-		return validateSQLRoutineResult(b.Returning.Schema, result)
+	if namingErr != nil {
+		return proc.ResultPlan{}, namingErr
 	}
-	return sqltype.CoercionPlan{}, SQLRoutineFinalError(result)
+	return plan, err
 }
 
-func validateSQLRoutineResult(columns []catalog.Column, result sqltype.Usage) (sqltype.CoercionPlan, error) {
-	mismatch := func(detail string) error {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "return type mismatch in function declared to return " + result.Type.DiagnosticName(), Detail: detail}
+func validateSQLRoutineResult(columns []catalog.Column, result sqltype.Usage, names ...func(sqltype.ID) string) (proc.ResultPlan, error) {
+	usages := make([]sqltype.Usage, len(columns))
+	for i, column := range columns {
+		usages[i] = column.Usage
 	}
-	if len(columns) != 1 {
-		return sqltype.CoercionPlan{}, mismatch("Final statement must return exactly one column.")
-	}
-	plan, err := sqltype.PlanCoercion(columns[0].Usage, result, sqltype.Assignment)
-	if err != nil {
-		return plan, mismatch("Actual return type is " + columns[0].Usage.Type.DiagnosticName() + ".")
-	}
-	return plan, nil
+	return proc.PlanResult(usages, result, names...)
 }

@@ -53,7 +53,22 @@ func (c *Context) EvalPLAssignment(n plan.PLAssignmentExpr) (sqltype.Value, erro
 	return n.Child.Eval(c)
 }
 
-func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, err error) {
+func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (sqltype.Value, error) {
+	if n.Procedure.SQL.ReturnsSet {
+		return sqltype.Value{}, fmt.Errorf("set-returning SQL routine requires source evaluation")
+	}
+	return c.evalSQLRoutine(n, nil)
+}
+
+func (c *Context) OpenSQLRoutine(n plan.SQLRoutineExpr) (expr.SourceCursor, error) {
+	var values []sqltype.Value
+	if _, err := c.evalSQLRoutine(n, &values); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	return expr.OwnedSource(n.Usage.Type, values), nil
+}
+
+func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value) (value sqltype.Value, err error) {
 	if err = EvaluationContext(c); err != nil {
 		return value, err
 	}
@@ -103,6 +118,10 @@ func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, er
 	}
 	if host == nil {
 		return value, fmt.Errorf("SQL routine invocation has no statement owner")
+	}
+	if values != nil {
+		*values, err = host.InvokeSQLRoutineSet(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive)
+		return value, err
 	}
 	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive)
 	if err != nil {

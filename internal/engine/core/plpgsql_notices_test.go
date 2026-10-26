@@ -126,7 +126,7 @@ func TestPLpgSQLRaiseNoticeContext(t *testing.T) {
 		if !reflect.DeepEqual(op.Notices[0], prior) {
 			t.Fatal("caller decorated an earlier buffered record")
 		}
-		if core.ScopeSQLRoutine(s) != original || core.ScopeActiveSQLRoutineDepth(s) != depth {
+		if !core.SameSQLRoutineDemand(core.ScopeSQLRoutine(s), original) || core.ScopeActiveSQLRoutineDepth(s) != depth {
 			t.Fatal("callee leaked execution scratch")
 		}
 	}

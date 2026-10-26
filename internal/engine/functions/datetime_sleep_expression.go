@@ -48,6 +48,16 @@ type DatetimeSleep struct {
 	Calendar   sqltype.Arithmetic
 }
 
+func (DatetimeSleep) SourceAdmission() (bool, bool) { return true, false }
+
+func (x DatetimeSleep) OpenSource(c expr.Context) (expr.SourceCursor, error) {
+	value, err := x.Eval(c)
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	return expr.ScalarSource(value), nil
+}
+
 func (x DatetimeSleep) Validate(intrinsicMatch, argPresent bool) bool {
 	_, id := DatetimeSleepDefinition(x.Kind.Name())
 	if id == 0 || !argPresent {

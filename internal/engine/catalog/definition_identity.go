@@ -94,8 +94,8 @@ func DefinitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 	return false
 }
 
-// Allocated descriptors and owned definitions reserve allocator candidates.
-// Fixed large-object identities remain local to their catalog class.
+// ReserveDefinitionOIDs reserves identities owned by the descriptor, not the
+// descriptor's own address. DefinitionOIDUsed probes the same owned identities.
 func ReserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 	d, relation := descriptor.(*Relation)
 	if !relation {

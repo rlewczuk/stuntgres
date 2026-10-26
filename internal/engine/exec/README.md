@@ -23,6 +23,13 @@ while language USAGE belongs to DO/CREATE admission rather than each call.
 PL execution stays with the root's existing lexical/root operation owner; no
 second SQLRoutineExpr family or fake handler scalar is introduced.
 
+SQL scalar and set openings share once-only written/default input evaluation and
+one private frame. The statement host runs the same borrowed routine runner;
+set opening completes all terminal rows privately before transferring immutable
+values to `expr.OwnedSource`. Errors expose no partial collection. Closing,
+exhausting or canceling a cursor releases its collection, independently of
+returned values and sibling invocations. The scalar path creates no set buffer.
+
 
 ## What it owns
 

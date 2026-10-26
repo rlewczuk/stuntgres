@@ -31,11 +31,16 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if err = admitFunctionLanguage(h, auth, s); err != nil {
 		return err
 	}
-	formals := make([]proc.Formal, len(s.Arguments))
+	if s.Language.Text != "sql" && s.Result.Setof {
+		return expr.ErrorAt("0A000", "set-returning SQL functions are unsupported", s.Result.Pos)
+	}
+	arguments := s.Arguments
+	if s.TableResult != nil {
+		arguments = append(append([]parser.RoutineParameter(nil), arguments...), s.TableResult...)
+	}
+	formals := make([]proc.Formal, len(arguments))
 	resolve := func(raw parser.TypeName, result bool) (sqltype.Usage, error) {
-		if raw.Setof {
-			return sqltype.Usage{}, expr.ErrorAt("0A000", "set-returning SQL functions are unsupported", raw.Pos)
-		}
+		raw.Setof = false
 		id, err := h.ResolveRegtype(auth, raw)
 		if err != nil {
 			var diagnostic *sqlstate.Error
@@ -56,15 +61,18 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		if result && typ != nil && typ.ID() == 2279 && s.Language.Text == "plpgsql" && !s.Procedure {
 			return typ.Usage(), nil
 		}
-		if !ok || !typ.Concrete() || typ.BaseType().IsComposite() {
+		if (s.Procedure || s.Language.Text != "sql") && typ != nil && typ.BaseType().IsComposite() {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL functions require concrete scalar types", raw.Pos)
+		}
+		if !ok || !typ.Concrete() {
+			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL functions require concrete types", raw.Pos)
 		}
 		if facts, known := typ.PGTypeMetadata(); known && facts.Kind == "p" && !(result && typ.ID() == sqltype.Void) {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL function pseudo-types are unsupported", raw.Pos)
 		}
 		return typ.Usage(), nil
 	}
-	for i, arg := range s.Arguments {
+	for i, arg := range arguments {
 		if s.Procedure && (arg.Mode != "" && arg.Mode != "in" || arg.Default != nil) {
 			return expr.ErrorAt("0A000", "procedure argument modes and defaults are unsupported", arg.Pos)
 		}
@@ -76,6 +84,8 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			mode = "b"
 		case "variadic":
 			mode = "v"
+		case "table":
+			mode = "t"
 		}
 		usage, failure := resolve(arg.Type, false)
 		if failure != nil {
@@ -92,25 +102,56 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	for i, input := range inputs {
 		signature[i] = strconv.FormatUint(uint64(input.Type.ID()), 10)
 	}
-	if !s.Procedure && len(layout.OutputFormals) > 1 {
+	if s.Language.Text != "sql" && len(layout.OutputFormals) > 1 {
 		return sqlError("0A000", "multiple-output SQL function execution is unsupported")
 	}
 	resultSyntax := s.Result
+	var result sqltype.Usage
 	if s.Procedure {
 		resultSyntax = parser.TypeName{Name: "void"}
-	} else if !s.ResultSpecified {
-		if len(layout.OutputFormals) == 0 {
-			return sqlError("42P13", "function result type must be specified")
+	} else if len(layout.OutputFormals) > 0 {
+		if layout.DerivedResult() {
+			if s.ResultSpecified && s.TableResult == nil {
+				explicit := resultSyntax
+				explicit.Setof = false
+				id, failure := h.ResolveRegtype(auth, explicit)
+				if failure != nil {
+					return failure
+				}
+				if id != 2249 {
+					return sqlError("42P13", "function result type must be record because of OUT parameters")
+				}
+				if failure := checkOperatorArgumentUsage(h, auth, id); failure != nil {
+					return failure
+				}
+			}
+			shape, failure := layout.OutputTuple()
+			if failure != nil {
+				return failure
+			}
+			result = shape.Usage()
+		} else {
+			result = formals[layout.OutputFormals[0]].Usage
+			if s.ResultSpecified && s.TableResult == nil {
+				explicit, failure := resolve(resultSyntax, true)
+				if failure != nil {
+					return failure
+				}
+				if explicit.Type != result.Type {
+					return sqlError("42P13", "function result type must be "+result.Type.DiagnosticName()+" because of OUT parameters")
+				}
+			}
 		}
-		resultSyntax = s.Arguments[layout.OutputFormals[0]].Type
+	} else if !s.ResultSpecified {
+		return sqlError("42P13", "function result type must be specified")
 	}
-	result, err := resolve(resultSyntax, true)
-	if err != nil {
-		return err
+	if result.Type == nil {
+		result, err = resolve(resultSyntax, true)
+		if err != nil {
+			return err
+		}
 	}
-	if !s.Procedure && len(layout.OutputFormals) == 1 && result.Type != formals[layout.OutputFormals[0]].Usage.Type {
-		return sqlError("42P13", "function result type must be "+formals[layout.OutputFormals[0]].Usage.Type.DiagnosticName()+" because of OUT parameters")
-	}
+	layout.Result, layout.ReturnsSet, layout.TableResult = result, s.Result.Setof, s.TableResult != nil
 	if err = checkRoutineBodyForm(s); err != nil {
 		return err
 	}
@@ -207,6 +248,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	definition.Name, definition.Names = name, names
 	definition.Formals, definition.InputFormals = layout.Formals, layout.InputFormals
 	definition.OutputFormals, definition.FormalInputs = layout.OutputFormals, layout.FormalInputs
+	definition.ReturnsSet, definition.TableResult = s.Result.Setof, s.TableResult != nil
 	if s.Standard != nil {
 		definition.Standard, definition.Statements = true, s.Standard
 	}
@@ -226,7 +268,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	// Defaults see the legitimate pre-declaration stage. The new declaration
 	// becomes visible only afterwards, including to its own body validation.
-	if err = h.BindSQLDefaults(auth, d, s.Arguments, input); err != nil {
+	if err = h.BindSQLDefaults(auth, d, arguments, input); err != nil {
 		return err
 	}
 	if previous == nil {

@@ -174,11 +174,11 @@ func (b *Binder) assignCompositeMember(node expr.Expr, target sqltype.Usage, mod
 func (b *Binder) SelectCompositeField(base expr.Expr, name string, pos parser.Position) (expr.Expr, error) {
 	typ := base.ResultUsage().Type
 	if typ == nil {
-		return nil, expr.ErrorAt("42809", "column notation ."+name+" applied to type unknown, which is not a composite type", pos)
+		return nil, expr.ErrorAt("42809", "column notation ."+name+" applied to type unknown, which is not a composite type", base.SourcePosition())
 	}
 	shape := typ.BaseType()
 	if !shape.IsComposite() {
-		return nil, expr.ErrorAt("42809", fmt.Sprintf("column notation .%s applied to type %s, which is not a composite type", name, b.DiagnosticTypeName(typ)), pos)
+		return nil, expr.ErrorAt("42809", fmt.Sprintf("column notation .%s applied to type %s, which is not a composite type", name, b.DiagnosticTypeName(typ)), base.SourcePosition())
 	}
 	index, found, err := compositeFieldIndex(base, name, pos)
 	if err != nil {

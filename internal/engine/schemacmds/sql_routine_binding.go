@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
@@ -25,7 +26,7 @@ func ExecuteSQLRoutineDDL(e *core.Engine, scope *core.StatementScope, s parser.S
 
 // CREATE and Restore inspect the complete body without opening any producer.
 // Runtime text binding uses only the reached command, never this validator.
-func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *core.StatementScope) (last analyze.Binding, resultPlan sqltype.CoercionPlan, err error) {
+func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *core.StatementScope) (last analyze.Binding, resultPlan proc.ResultPlan, err error) {
 	if d.SQLBody != nil {
 		if err := d.SQLBody.ValidateDefinition(d); err != nil {
 			return last, resultPlan, err
@@ -79,14 +80,18 @@ func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.Autho
 			}
 		}
 		if i == len(d.SQL.Statements)-1 && !d.SQL.Void() {
-			resultPlan, err = core.ValidateSQLRoutineTerminal(statement, last, d.SQL.Result)
+			resultPlan, err = core.ValidateSQLRoutineTerminal(statement, last, d.SQL.Result, auth)
 			if err != nil {
 				return last, resultPlan, exec.SQLRoutineContext(err, d.Name(), false)
 			}
 		}
 	}
 	if len(d.SQL.Statements) == 0 && !d.SQL.Void() {
-		return last, resultPlan, exec.SQLRoutineContext(core.SQLRoutineFinalError(d.SQL.Result), d.Name(), false)
+		name, err := core.CaptureTypeDiagnosticName(auth)
+		if err != nil {
+			return last, resultPlan, err
+		}
+		return last, resultPlan, exec.SQLRoutineContext(core.SQLRoutineFinalError(d.SQL.Result, name), d.Name(), false)
 	}
 	if d.SQL.Standard {
 		d.SQLBody = stored.NewRoutineProgram(actions)

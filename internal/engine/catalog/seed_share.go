@@ -46,7 +46,7 @@ func (s *Store) ShareProcedureNamesLocked(share *SeedShare) {
 
 // BeginSeedLocked starts the builtin seed of a fresh store: a bulk load with
 // room for capacity entries. Until FinishSeedLocked, OID allocation skips the
-// definition walk (see definitionOIDUsedLocked).
+// global identity walk (see allocatedOIDUsedLocked).
 func (s *Store) BeginSeedLocked(capacity int) {
 	s.State.BeginBulkLoad(capacity)
 	s.seeding = true

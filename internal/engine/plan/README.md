@@ -117,6 +117,13 @@ evaluation needs beyond it. `*exec.Context` is its only implementation.
   `EvalMergeAction`, `EvalCachedOrder`, `EvalWindow`, `EvalDomainValue`,
   `EvalUpdateOutput`, `EvalSubquery`, `EvalSQLRoutine`) holds that node's
   evaluation body in `exec`.
+- `SQLRoutineExpr` retains its declaration-owned result descriptor and genuine
+  setness. `OpenSQLRoutine` uses the same argument assembly as scalar evaluation
+  and returns a completed owned source. FROM expansion, target SRF placement,
+  aliases, ordinality and lateral composition use the common source machinery;
+  result width never implies cardinality.
+  Rebuilt target-set occurrences retain selected procedure/reference, result
+  shape and input-assembly identity through the common source-occurrence hook.
 - `EvalInstalledText`, `EvalInstalledCubeSpatial` and `EvalInstalledEarthPoint`
   run the prologue, validate captured provider authority and evaluate the kernel,
   including strict NULL calls. Spatial and point wrappers retain Procedure/Ref
@@ -197,6 +204,8 @@ and generation admission by an `enginetests/` test; public evaluation lives in
 the query reference packages and cast definitions in
 [reference/operators](../../../reference/operators/README.md#testing). Add
 `REFERENCE=1` for the oracle.
+Routine source occurrence reconstruction uses
+`RUN='^TestSQLRoutineResultSourceOccurrence$'`, also with `RACE=1`.
 
 ```sh
 make check RUN='^TestCastDefinitionIO'

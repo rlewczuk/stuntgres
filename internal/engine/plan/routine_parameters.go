@@ -98,9 +98,21 @@ func (n SQLRoutineExpr) ValidateArguments(children []expr.Expr) error {
 	return nil
 }
 
-func (SQLRoutineExpr) SourceAdmission() (bool, bool) { return true, false }
+func (n SQLRoutineExpr) SourceAdmission() (bool, bool) { return true, n.Procedure.SQL.ReturnsSet }
+
+func (n SQLRoutineExpr) SameSourceOccurrence(other expr.Expr) bool {
+	o, ok := other.(SQLRoutineExpr)
+	return ok && n.Ref == o.Ref && n.Procedure.SQL == o.Procedure.SQL && n.Usage == o.Usage && n.SameArguments(o)
+}
 
 func (n SQLRoutineExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
+	if n.Procedure.SQL.ReturnsSet {
+		runtime, err := nodeRuntimeOf(ctx)
+		if err != nil {
+			return expr.SourceCursor{}, err
+		}
+		return runtime.OpenSQLRoutine(n)
+	}
 	value, err := n.Eval(ctx)
 	if err != nil {
 		return expr.SourceCursor{}, err

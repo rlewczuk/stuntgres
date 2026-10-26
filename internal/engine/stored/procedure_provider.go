@@ -167,9 +167,16 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	} else if d.SQL.Kind != proc.SQLBody || language.Name() != "sql" || d.SQL.PL != nil || d.SQL.PLSyntax != nil || len(d.DeclarationDependencies) != 0 {
 		return invalid()
 	}
-	result, ok := v.LookupType(d.SQL.Result.Type.ID())
-	if !ok || (!result.Concrete() && !(d.SQL.Invocation != proc.OrdinaryInvocation && (result.ID() == 2279 || result.ID() == 3838))) || result != d.SQL.Result.Type {
-		return invalid()
+	result := d.SQL.Result.Type
+	if d.SQL.DerivedResult() {
+		if !d.SQL.MatchesOutputTuple(result) || d.SQL.Result != result.Usage() {
+			return invalid()
+		}
+	} else {
+		owned, ok := v.LookupType(result.ID())
+		if !ok || (!owned.Concrete() && !(d.SQL.Invocation != proc.OrdinaryInvocation && (owned.ID() == 2279 || owned.ID() == 3838))) || owned != result {
+			return invalid()
+		}
 	}
 	if (d.SQL.Invocation == proc.DMLTriggerInvocation) != (result.ID() == 2279) || (d.SQL.Invocation == proc.EventTriggerInvocation) != (result.ID() == 3838) || d.SQL.Invocation != proc.OrdinaryInvocation && (d.SQL.Kind != proc.PLpgSQLBody || len(d.SQL.Formals) != 0 || d.RoutineKind != catalog.FunctionRoutine) {
 		return invalid()
@@ -181,10 +188,35 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if !slices.Equal(layout.Inputs, d.SQL.Inputs) || !slices.Equal(layout.Names, d.SQL.Names) || !slices.Equal(layout.InputFormals, d.SQL.InputFormals) || !slices.Equal(layout.OutputFormals, d.SQL.OutputFormals) || !slices.Equal(layout.FormalInputs, d.SQL.FormalInputs) {
 		return invalid()
 	}
+	if len(layout.OutputFormals) == 1 && d.SQL.Result != layout.Formals[layout.OutputFormals[0]].Usage {
+		return invalid()
+	}
+	if d.SQL.ReturnsSet && (d.SQL.Kind != proc.SQLBody || d.RoutineKind != catalog.FunctionRoutine) {
+		return invalid()
+	}
 	for _, formal := range d.SQL.Formals {
 		typ, ok := v.LookupType(formal.Usage.Type.ID())
 		if !ok || typ != formal.Usage.Type {
 			return invalid()
+		}
+		if err := ValidateUsageCollation(v, formal.Usage); err != nil {
+			return err
+		}
+	}
+	if d.SQL.TableResult {
+		if !d.SQL.ReturnsSet || len(d.SQL.OutputFormals) == 0 {
+			return invalid()
+		}
+		for _, index := range d.SQL.OutputFormals {
+			if d.SQL.Formals[index].Mode != "t" {
+				return invalid()
+			}
+		}
+	} else {
+		for _, formal := range d.SQL.Formals {
+			if formal.Mode == "t" {
+				return invalid()
+			}
 		}
 	}
 	if (d.SQLDefaults != nil) != (d.SQL.DefaultCount() > 0) {

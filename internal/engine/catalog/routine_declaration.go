@@ -28,6 +28,7 @@ type BuiltinRoutineDeclaration struct {
 	Variadic   ids.OID
 	Defaults   uint8
 	Providers  expr.RoutineProvider
+	Outputs    *RoutineOutputs
 }
 
 func (d *Procedure) Seeded() bool {

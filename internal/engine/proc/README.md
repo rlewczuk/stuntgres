@@ -58,10 +58,17 @@ at invocation, so an earlier command can run before a later reanalysis error.
 Standard commands refresh checked recipes by identity, never render/reparse or
 reselect source names/overloads at invocation.
 
-Only the actual nonvoid terminal SELECT or DML RETURNING supplies the scalar
-result. Width and Assignment conversion are checked before that command's
-producers, including empty inputs. VOID discards every output and yields typed
-SQL NULL; it does not reuse an earlier SELECT result.
+Only the actual nonvoid terminal SELECT or DML RETURNING supplies results.
+`ResultPlan` validates scalar/whole-value or positional member Assignment
+conversions before producers, including empty inputs. `OutputTuple` derives an
+immutable ordered record from OUT/INOUT/TABLE formals, synthesizing unnamed output
+labels by output ordinal. Function policy collapses one output; `PlanTuple`
+preserves even one composite output as a tuple member for other routine owners.
+Derived records have no catalog storage identity; their children retain exact
+type generations and Usages. VOID discards every output and yields typed SQL NULL.
+Result mismatch rendering accepts an admitted type-name capability without
+retaining it in the plan; named types follow the captured search path, while
+anonymous records keep their SQL diagnostic identity.
 
 Each invocation owns an input-sized `Frame`. Supplied expressions retain written
 order; a validated plan assembly maps them and hidden selected defaults into
@@ -75,12 +82,14 @@ with the type/driver owner. Closing a frame clears slots and result and is
 idempotent; no closed frame admits a value.
 
 Engine shares per-command prepared-analysis retention for quoted bodies and
-checks live EXECUTE/invoker authority and data. Eligible terminal SELECT uses
-first-row demand; nonterminal/VOID SELECT and every DML command run fully.
-Required sort/aggregate/auxiliary work remains query/DML-owned. No row yields
-typed NULL. Persistence writes quoted declarations or actual standard bodies with
-checked current identities/implicit usages, never invocation values, opened
-executors, data snapshots or permission decisions.
+checks live EXECUTE/invoker authority and data. Eligible non-set terminal SELECT
+uses first-row demand; nonterminal/VOID SELECT, set results and every DML command
+run fully. Required sort/aggregate/auxiliary work remains query/DML-owned.
+No scalar row yields whole typed NULL; a present all-NULL tuple remains present.
+Set declarations retain every row and yield zero values when empty. Completed
+set values belong to the existing owned source protocol, not a suspended frame
+or statement scope. Persistence retains TABLE/SETOF and ordered formal modes,
+quoted source or checked standard bodies, never invocation resources.
 
 Invocation borrows the same admitted engine statement scope. A balanced lexical
 activation guard saves/restores query, parameter, view and protocol scratch;
@@ -323,11 +332,13 @@ diagnostics keep their own action, and source failures use the FOR action alone.
 
 ## Testing
 
-Package units cover frames and parameter layout; engine-level routine units live
-in `internal/engine`. Public SQL routine scenarios live in
-[reference/query_core](../../../reference/query_core/README.md#testing) (core,
-SQL bodies, review) and [reference/operators](../../../reference/operators/README.md#testing)
-(parameters). Add `REFERENCE=1` to reference selectors for the oracle.
+Package units cover frames, parameter layout and genuine result-schema/tuple
+adaptation (`RUN='^TestRoutineResult'`). Engine-level invocation units live in
+`internal/engine/core`. Public SQL routines live in
+[reference/query_core](../../../reference/query_core/README.md#testing) (bodies),
+[reference/operators](../../../reference/operators/README.md#testing) (parameters)
+and [reference/query_outer](../../../reference/query_outer/README.md#testing)
+(result sources). Add `REFERENCE=1` for the oracle.
 PL cursor units use `RUN='^TestPLpgSQLCursor'`; public scenarios live in
 [reference/cursors](../../../reference/cursors/README.md#testing).
 Static query-loop validation units use `RUN='^TestPLpgSQLQueryLoopValidation$'`.
