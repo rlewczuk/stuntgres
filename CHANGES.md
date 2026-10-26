@@ -1,3 +1,8 @@
+Builtin view definitions (`pg_views`, `information_schema.views`,
+`pg_get_viewdef`) and exact routine lookups such as `regprocedure` input no
+longer walk every catalog object to find intagg's aggregate helper functions;
+they check only the aggregates that have them.
+
 `pg_amproc` publishes only owner-asserted implemented support memberships, with
 exact OID/INT2/REGPROC columns and operator-family/type associations. Native
 comparator/hash, genuine internal BRIN and installed cube support remain visible;

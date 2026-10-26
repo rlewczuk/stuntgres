@@ -72,7 +72,7 @@ private frames, not catalog authority.
   `stored.TriggersOf`, `stored.PolicyOf`, ...) recover the concrete types.
 - **State and Read** (`read.go`, `state_access.go`). `State` is one catalog
   snapshot (epoch, namespace generation, descriptor and name maps, the derived
-  relation map, operator/procedure name indexes, derived class-default buckets,
+  relation and helper-owner maps, operator/procedure name indexes, derived class-default buckets,
   default ACL records, dump priorities, replacement translations); `Read` is a
   state plus its `Owner`. Fields are private. Typed accessors live once on
   `*State` and `Read` delegates: `Kind(a)` is the comma-ok assertion, `MustKind(a)`
@@ -80,7 +80,9 @@ private frames, not catalog authority.
   `Descriptors`/`Names`/`Relations` iterators and the counts read the maps. Walks
   that only look for relations (inheritance children, a table's indexes) use
   `Relations`, which visits the `*Relation` entries instead of every built-in
-  routine, operator and type. `Descriptor`, `Lookup`, `LookupType` and
+  routine, operator and type. Aggregate helper lookups use `HelperOwners`, the
+  procedures with both `Aggregate` and `Implementation` set (intagg's
+  aggregate). `Descriptor`, `Lookup`, `LookupType` and
   `LookupArray` guard a nil state, as do the default-bucket cardinality
   predicates.
 - **Write API** (`state_write.go`, setters in `state_access.go`), only for a state
@@ -93,7 +95,9 @@ private frames, not catalog authority.
   call, so a loop may write the state it iterates. The relation map
   (`relation_index.go`) holds exactly the descriptor entries whose value is a
   `*Relation`; `SetDescriptor`, `RemoveDescriptor` and `Candidate.State`
-  maintain it, and copies share it. Whole-catalog writers (bootstrap seed,
+  maintain it, and copies share it. The helper-owner map
+  (`helper_owner_index.go`) follows the same writes; writers set `Aggregate`
+  and `Implementation` only on new descriptor copies. Whole-catalog writers (bootstrap seed,
   `RemapPrincipals`, replacement remap) bracket the work with
   `BeginBulkLoad`/`EndBulkLoad`; a state in a bulk load is private to its writer
   and copying it panics.

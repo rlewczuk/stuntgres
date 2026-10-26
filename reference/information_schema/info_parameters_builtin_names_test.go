@@ -1,11 +1,13 @@
 package reference_test
 
 // Independent released all-formal names for the represented builtin inventory.
-var ipBuiltinNames = []struct {
+type ipBuiltinName struct {
 	oid   int
 	name  string
 	names []string
-}{
+}
+
+var ipBuiltinNames = []ipBuiltinName{
 	{1268, "parse_ident", []string{"str", "strict"}},
 	{1689, "aclexplode", []string{"acl", "grantor", "grantee", "privilege_type", "is_grantable"}},
 	{2284, "regexp_replace", []string{"string", "pattern", "replacement"}},

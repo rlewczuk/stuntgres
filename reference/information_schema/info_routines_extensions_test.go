@@ -2,13 +2,15 @@ package reference_test
 
 import (
 	"database/sql"
+	"slices"
+	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
 )
 
 func TestReferenceInfoRoutinesProvidersExtensions(t *testing.T) {
-	for _, tc := range []struct {
+	cases := []struct {
 		extension, version, name, inputs, kind, data, udtSchema, udt, lang, source string
 		immutable, strict                                                          bool
 	}{
@@ -42,38 +44,59 @@ func TestReferenceInfoRoutinesProvidersExtensions(t *testing.T) {
 		{"earthdistance", "1.2", "sec_to_gc", "double precision", "FUNCTION", "double precision", "pg_catalog", "float8", "SQL", "", true, true},
 		{"earthdistance", "1.2", "ll_to_earth", "double precision,double precision", "FUNCTION", "USER-DEFINED", "public", "earth", "SQL", "", true, true},
 		{"earthdistance", "1.2", "geo_distance", "point,point", "FUNCTION", "double precision", "pg_catalog", "float8", "C", "geo_distance", true, true},
-	} {
-		t.Run(tc.extension+"_"+tc.name+"_"+tc.inputs, func(t *testing.T) {
+	}
+	// One scenario per installed extension version: every selected member is
+	// checked after install, the moved unaccent symbol after relocation, and
+	// all members are absent after DROP EXTENSION.
+	for first := 0; first < len(cases); {
+		last := first + 1
+		for last < len(cases) && cases[last].extension == cases[first].extension && cases[last].version == cases[first].version {
+			last++
+		}
+		group := cases[first:last]
+		first = last
+		extension, version := group[0].extension, group[0].version
+		t.Run(extension+"_"+version, func(t *testing.T) {
 			irScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, db string) {
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 				// Register cleanup before install; dependencies are removed after their user.
 				defer func() {
-					_, _ = c.ExecContext(p.Ctx, "DROP EXTENSION IF EXISTS \""+tc.extension+"\" CASCADE")
-					if tc.extension == "earthdistance" {
+					_, _ = c.ExecContext(p.Ctx, "DROP EXTENSION IF EXISTS \""+extension+"\" CASCADE")
+					if extension == "earthdistance" {
 						_, _ = c.ExecContext(p.Ctx, "DROP EXTENSION IF EXISTS cube CASCADE")
 					}
 				}()
-				if tc.extension == "earthdistance" {
+				if extension == "earthdistance" {
 					run(fixture.Exec("CREATE EXTENSION cube", 0))
 				}
-				run(fixture.Exec("CREATE EXTENSION \""+tc.extension+"\" VERSION '"+tc.version+"'", 0))
-				id := rsuIdentity(t, p, c, "public", tc.name, tc.inputs)
-				var external any
-				if tc.lang == "C" {
-					external = tc.source
+				run(fixture.Exec("CREATE EXTENSION \""+extension+"\" VERSION '"+version+"'", 0))
+				var ids []string
+				var rows [][]any
+				var moved []any
+				for _, tc := range group {
+					id := rsuIdentity(t, p, c, "public", tc.name, tc.inputs)
+					var external any
+					if tc.lang == "C" {
+						external = tc.source
+					}
+					row := irRow(db, "public", tc.name, id, tc.kind, tc.data, tc.udtSchema, tc.udt, tc.lang, tc.source, external, tc.immutable, tc.strict)
+					ids = append(ids, "'"+id+"'")
+					rows = append(rows, row)
+					if tc.extension == "unaccent" && tc.name == "unaccent" {
+						moved = slices.Clone(row)
+					}
 				}
-				row := irRow(db, "public", tc.name, id, tc.kind, tc.data, tc.udtSchema, tc.udt, tc.lang, tc.source, external, tc.immutable, tc.strict)
-				where := "specific_schema='public' AND specific_name='" + id + "'"
-				irCheck(t, p, b, c, irProjection(b.PG, where, [][]any{row}))
-				if tc.extension == "unaccent" && tc.name == "unaccent" {
+				where := "specific_schema='public' AND specific_name IN (" + strings.Join(ids, ",") + ")"
+				irCheck(t, p, b, c, irProjection(b.PG, where, rows))
+				if moved != nil {
 					run(fixture.Exec("ALTER FUNCTION unaccent(text) RENAME TO ir_original_symbol", 0))
 					run(fixture.Exec("CREATE SCHEMA ir_moved", 0))
 					run(fixture.Exec("ALTER FUNCTION ir_original_symbol(text) SET SCHEMA ir_moved", 0))
-					row[1], row[4], row[5] = "ir_moved", "ir_moved", "ir_original_symbol"
-					row[2] = rsuIdentity(t, p, c, "ir_moved", "ir_original_symbol", "text")
-					irCheck(t, p, b, c, irProjection(b.PG, "routine_schema='ir_moved' AND routine_name='ir_original_symbol'", [][]any{row}))
+					moved[1], moved[4], moved[5] = "ir_moved", "ir_moved", "ir_original_symbol"
+					moved[2] = rsuIdentity(t, p, c, "ir_moved", "ir_original_symbol", "text")
+					irCheck(t, p, b, c, irProjection(b.PG, "routine_schema='ir_moved' AND routine_name='ir_original_symbol'", [][]any{moved}))
 				}
-				run(fixture.Exec("DROP EXTENSION \""+tc.extension+"\" CASCADE", 0))
+				run(fixture.Exec("DROP EXTENSION \""+extension+"\" CASCADE", 0))
 				irCheck(t, p, b, c, irProjection(b.PG, where, nil))
 			})
 		})

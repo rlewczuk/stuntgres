@@ -2,6 +2,7 @@ package pgcatalog
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	"stuntgres/internal/engine/authorization"
@@ -81,6 +82,11 @@ func captureInfoParameters(in Input) ([][]sqltype.Value, error) {
 	}
 	rows := make([][]sqltype.Value, 0)
 	database := in.Runtime.DatabaseName()
+	columns := in.Source.Columns[:len(infoParametersColumns)]
+	nulls, err := domainNulls(columns)
+	if err != nil {
+		return nil, err
+	}
 	for address, descriptor := range in.Catalog.Descriptors() {
 		if err := in.Context.Err(); err != nil {
 			return nil, err
@@ -159,10 +165,7 @@ func captureInfoParameters(in Input) ([][]sqltype.Value, error) {
 			if err != nil {
 				return err
 			}
-			row := make([]sqltype.Value, len(infoParametersColumns))
-			for i := range row {
-				row[i] = sqltype.Null(in.Source.Columns[i].Usage.Type.BaseType())
-			}
+			row := slices.Clone(nulls)
 			text := func(i int, value string) { row[i] = sqltype.String(in.Source.Columns[i].Usage.Type.BaseType(), value) }
 			text(0, database)
 			text(1, namespace.Name())
@@ -197,11 +200,8 @@ func captureInfoParameters(in Input) ([][]sqltype.Value, error) {
 				}
 				text(31, def)
 			}
-			for i, v := range row {
-				row[i], err = in.Source.Columns[i].Usage.Type.Wrap(v)
-				if err != nil {
-					return err
-				}
+			if err := wrapDomainCells(columns, row); err != nil {
+				return err
 			}
 			rows = append(rows, row)
 			return nil

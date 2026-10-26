@@ -167,6 +167,7 @@ type State struct {
 	castPairs           map[CastPair]*Cast
 	defaultClasses      util.PersistentMap[defaultClassPair, []ids.OID]
 	eventTriggers       util.PersistentMap[ids.ObjectAddress, *EventTrigger]
+	helperOwners        util.PersistentMap[ids.ObjectAddress, *Procedure]
 	defaultACLs         map[DefaultACLKey]*DefaultACLRecord
 	// Sparse replay identity provenance for collision-remapped declarations.
 	// Absent entries use their current OID; dependencies remain the order authority.
@@ -259,6 +260,7 @@ func CloneState(s *State) *State {
 	n.castPairs = s.castPairs
 	n.defaultClasses = s.defaultClasses
 	n.eventTriggers = s.eventTriggers
+	n.helperOwners = s.helperOwners
 	if len(s.dumpPriorities) != 0 {
 		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))
 		for address, priority := range s.dumpPriorities {
