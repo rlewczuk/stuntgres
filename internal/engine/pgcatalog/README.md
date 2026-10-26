@@ -70,9 +70,11 @@ type Producer func(Input) ([][]sqltype.Value, error)
   neither install nor execute a provider. `pg_available_extensions` advertises
   module availability independently of installed dictionary rows. Dictionary
   execution remains owned by the extension/FTS provider, not this projection.
-- `pg_ts_parser` projects the immutable stock parser identity and its five
-  internal handler references with installed OID/NAME/REGPROC descriptors.
-  These rows are builtin metadata, not mutable parser definitions or ACLs.
+- `pg_ts_parser` projects only the immutable stock `pg_catalog.default` parser
+  identity and its five genuine internal handler links with installed
+  OID/NAME/REGPROC descriptors. Catalog presence is independent of module
+  availability and parser execution; these rows are builtin metadata, not
+  mutable parser definitions or ACLs.
   `pg_proc.proretset` comes from actual routine declaration metadata.
   Its condensed row includes FLOAT4 `prorows`, declaration `prosrc`, OIDVECTOR
   `proargtypes` built from each routine's input signature, and OID `provariadic`.

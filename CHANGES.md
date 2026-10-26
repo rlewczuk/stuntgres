@@ -18,6 +18,11 @@ Dump/Reset/Restore; an empty catalog remains fully typed without advertising
 unimplemented templates. Foreign or stale source authority is rejected before
 projection.
 
+`pg_ts_parser` now has dedicated direct/prepared catalog acceptance coverage for
+the exact stock parser identity and five handler links, unsupported-name emptiness,
+OID boundaries, held parameter reuse and PostgreSQL diagnostics. Catalog metadata
+does not imply module availability or add parser execution.
+
 `pg_ts_dict` now has dedicated native/PostgreSQL coverage for exact installed
 unaccent identity, template linkage, initialization options and six-column
 metadata, including transactional install/removal, held queries and immutable

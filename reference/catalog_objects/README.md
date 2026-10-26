@@ -3,7 +3,7 @@
 Schema-object catalogs: `pg_namespace`, schemas and `search_path`, visibility
 inquiry functions, `pg_operator` (with the geometric and `lseg` operator
 catalogs), `pg_cast`, `pg_aggregate`, `pg_am`, `pg_opclass`, `pg_collation`,
-`pg_language`, `pg_transform`, `pg_ts_config`, `pg_largeobject`, and comments
+`pg_language`, `pg_transform`, `pg_ts_config`, `pg_ts_parser`, `pg_largeobject`, and comments
 (`pg_description`, `pg_shdescription`, comment inquiry functions and
 transactional comments). The other catalog families are listed in
 [reference/catalogs](../catalogs/README.md).
@@ -63,7 +63,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - <a id="geometric-relation-operator-catalog-proof"></a>Geometric relation catalogs: `RUN='^TestReferenceGeometryRelationOperatorCatalog$'`
 - Geometric position catalogs: `RUN='^TestReferenceGeometryPositionOperatorCatalog$'`
 - Casts: `RUN='^TestReferencePGCast'`
-- Collations, languages, transforms, text search: `RUN='^TestReferencePGCollation'`, `RUN='^TestReferencePGLanguage'`, `RUN='^TestReferencePGTransform'`, `RUN='^TestReferencePGTSConfig'`
+- Collations, languages, transforms, text search: `RUN='^TestReferencePGCollation'`, `RUN='^TestReferencePGLanguage'`, `RUN='^TestReferencePGTransform'`, `RUN='^TestReferencePGTSConfig'`, `RUN='^TestReferencePGTSParser'`
 - Large-object pages: `RUN='^TestReferencePGLargeobject'`
 - Visibility inquiries: `RUN='^TestReferenceVisibilityInquiry'`, `RUN='^TestReferenceBooleanCall'`
 - Catalog smoke scenarios migrated from the root package: `RUN='^TestReferenceSmoke'`
