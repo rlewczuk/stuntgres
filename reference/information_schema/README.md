@@ -5,7 +5,7 @@ shared with `pg_views`), `view_table_usage`, `triggers`, `routines`, `parameters
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`,
 `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
-`domain_constraints`, `referential_constraints` and `sequences`. Grant, key, constraint and SQL metadata
+`domain_constraints`, `referential_constraints`, `table_constraints` and `sequences`. Grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
 
@@ -25,6 +25,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - CHECK routine usage: `RUN='^TestReferenceInfoCheckConstraintRoutineUsage'`
 - Routine dependency usage: `RUN='^TestReferenceInfoRoutineRoutineUsage'`
 - Schema inquiry: `RUN='^TestReferenceInfoSchemata'`
+- Table constraints: `RUN='^TestReferenceInfoTableConstraints'`
 - Foreign-column options: `RUN='^TestReferenceInfoColumnOptions'`
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`
@@ -106,6 +107,19 @@ exercise actual FK actions and supporting-index identity, duplicate-name bags,
 standalone-index NULLs, exact referencing-table/column authority, publication,
 structured diagnostics and explicit native controls. Builtin view consumers
 independently specify all six search-path/quoting presentations.
+
+### Table constraints
+
+The shared table-constraint scenarios prescribe complete eleven-column bags,
+domain/base metadata, nullable UNIQUE null-distinctness and relation-distinguished
+duplicate names. Direct, fresh-prepared and held consumers cover actual constraint
+families, validation, partition/inheritance and session-local temporary objects.
+Visibility separates ownership and qualifying table/column privileges from
+SELECT, MAINTAIN and schema USAGE, including grant revocation and RLS boundaries.
+Constraint/table rename, schema/owner changes and transactional rename rollback
+refresh held readers. Native control phases preserve eager rows and logical
+metadata across Reset and same-engine or independent-driver Dump/Restore.
+
 
 ### Domain constraints
 

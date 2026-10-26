@@ -133,6 +133,12 @@ and checked signatures.
 Bound PL cursor arguments retain the complete first-row projection and its
 evaluation-before-conversion diagnostics.
 
+`information_schema.table_constraints` exposes actual table CHECK/NOT NULL,
+UNIQUE, PRIMARY KEY and foreign-key constraints through eleven domain-typed
+columns, including enforcement and UNIQUE null-distinctness. Visibility follows
+usable ownership and qualifying table or column privileges, independently of
+schema USAGE; duplicate names remain distinguishable by owning table.
+
 `pg_settings` has focused coverage for all 17 metadata fields, including
 descriptions, typed enum arrays and empty results. Session defaults, SET/RESET
 provenance, held readers and independent read/SET authority are checked without

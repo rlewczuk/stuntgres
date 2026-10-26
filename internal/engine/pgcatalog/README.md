@@ -7,7 +7,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `constraint_column_usage`, `column_column_usage`, `column_domain_usage`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `referential_constraints`,
-`character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`,
+`character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`, `table_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
@@ -176,6 +176,17 @@ type Producer func(Input) ([][]sqltype.Value, error)
   is not required; other-session temporary relations are excluded. All seventeen
   cells retain source-owned domains, including NULL transition/creation fields.
   Reading metadata neither admits trigger declarations nor executes routines.
+- `table_constraints` projects actual CHECK/NOT NULL, UNIQUE/PRIMARY KEY and
+  foreign-key records on ordinary and partitioned tables. Same-name constraints
+  retain their owning relation identity. Physical nullability, domain checks,
+  indexes and exclusions do not manufacture rows. Its eleven nullable columns
+  retain captured sql_identifier, character_data and yes_or_no domains, including
+  a domain-typed NULL nulls_distinct outside UNIQUE. Validation is independent
+  of enforcement. Immediately usable ownership, non-SELECT/non-MAINTAIN table
+  privileges or INSERT/UPDATE/REFERENCES on any live column disclose all table
+  constraints; schema USAGE is not required. Temporary rows belong only to the
+  captured session. One paired immutable catalog/role frontier owns every cell
+  and visibility decision, with cancellation discarding the whole result.
 - `role_column_grants` captures one catalog/role frontier and projects actual
   table/column ACL origins on live positive attributes. Its raw-origin UNION
   includes the grant-option bit before ownership determines grantability, so

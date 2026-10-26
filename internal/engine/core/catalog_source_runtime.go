@@ -137,6 +137,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.InfoRoutineSequenceUsageOID:        "routine_sequence_usage",
 	pgcatalog.InfoRoutineRoutineUsageOID:         "routine_routine_usage",
 	pgcatalog.InfoDomainConstraintsOID:           "domain_constraints",
+	pgcatalog.InfoTableConstraintsOID:            "table_constraints",
 	pgcatalog.InfoSequencesOID:                   "sequences",
 	pgcatalog.InfoDomainsOID:                     "domains",
 	pgcatalog.InfoUserDefinedTypesOID:            "user_defined_types",
