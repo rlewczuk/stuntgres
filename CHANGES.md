@@ -1,3 +1,9 @@
+`information_schema.user_mapping_options` exposes actual user-mapping options
+through five nullable domain-typed columns. Server access controls visible
+identities and option names; exact mapped-user, PUBLIC-owner and superuser rules
+control value disclosure. Direct and held prepared reads follow catalog and
+privilege changes without contacting a foreign server.
+
 `information_schema.user_defined_types` exposes standalone composite identities
 through 29 nullable domain-typed columns, with effective type-USAGE and inherited
 ownership visibility. Direct and prepared queries follow type, schema and ACL

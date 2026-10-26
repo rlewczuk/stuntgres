@@ -223,6 +223,16 @@ var infoBuiltinViews = [...]builtinView{
 		viewText("    (("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("attfdwoptions"), viewText("))."), viewIdentifier("option_value"), viewText(")::"), viewDomain("information_schema.character_data"), viewText(" AS "), viewIdentifier("option_value"), viewText("\n"),
 		viewText("   FROM "), viewClass("information_schema._pg_foreign_table_columns"), viewText(" "), viewIdentifier("c"), viewText(";"),
 	}},
+	// information_schema.user_mapping_options — REL_18_6 information_schema.sql.
+	{oid: InfoUserMappingOptionsOID, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("authorization_identifier"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_server_catalog"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_server_name"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("opts"), viewText("."), viewIdentifier("option_name"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("option_name"), viewText(",\n"),
+		viewText("    (\n        CASE\n            WHEN ((("), viewIdentifier("umuser"), viewText(" <> 0) AND (("), viewIdentifier("authorization_identifier"), viewText(")::"), viewType("name"), viewText(" = CURRENT_USER)) OR (("), viewIdentifier("umuser"), viewText(" = 0) AND "), viewRoutine("pg_has_role", "19,25"), viewText("(("), viewIdentifier("srvowner"), viewText(")::"), viewType("name"), viewText(", 'USAGE'::"), viewType("text"), viewText(")) OR ( SELECT "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolsuper"), viewText("\n                   FROM "), viewClass("pg_authid"), viewText("\n                  WHERE ("), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolname"), viewText(" = CURRENT_USER))) THEN "), viewIdentifier("opts"), viewText("."), viewIdentifier("option_value"), viewText("\n            ELSE NULL::"), viewType("text"), viewText("\n        END)::"), viewDomain("information_schema.character_data"), viewText(" AS "), viewIdentifier("option_value"), viewText("\n"),
+		viewText("   FROM "), viewClass("information_schema._pg_user_mappings"), viewText(" "), viewIdentifier("um"), viewText(",\n"),
+		viewText("    LATERAL "), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("um"), viewText("."), viewIdentifier("umoptions"), viewText(") "), viewIdentifier("opts"), viewText("("), viewIdentifier("option_name"), viewText(", "), viewIdentifier("option_value"), viewText(");"),
+	}},
 	// information_schema.constraint_column_usage — REL_18_6 information_schema.sql; pinned 18.6 display.
 	{oid: 16207, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_catalog"), viewText(",\n"),

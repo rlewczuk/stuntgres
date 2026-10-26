@@ -796,6 +796,7 @@ var Specs = [...]Spec{
 		{"sql_path", 13246, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing schemata metadata domain"},
 	{InfoColumnOptionsOID, 13229, "column_options", infoColumnOptionsColumns, true, false, false, false, "stuntgres: missing column options domain"},
+	{InfoUserMappingOptionsOID, 13229, "user_mapping_options", infoUserMappingOptionsColumns, true, false, false, false, "stuntgres: missing user mapping options domain"},
 	{ConstraintColumnUsageOID, 13229, "constraint_column_usage", []ColumnSpec{
 		{"table_catalog", 13248, true, 950, 0, -1},
 		{"table_schema", 13248, true, 950, 0, -1},

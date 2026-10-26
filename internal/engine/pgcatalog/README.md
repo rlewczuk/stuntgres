@@ -3,7 +3,7 @@
 Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
-`data_type_privileges`, `user_mappings`, `key_column_usage`,
+`data_type_privileges`, `user_mappings`, `user_mapping_options`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`,
 `character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
@@ -408,6 +408,14 @@ authority, never the recorded `Version`.
 - `information_schema.user_mappings`: real mapping identities; server owner or
   effective USAGE exposes all mappings. It never copies options or reuses
   `ForeignServerVisible`, which governs `pg_user_mappings` option redaction.
+- `information_schema.user_mapping_options`: actual mapping options in five
+  nullable source-owned domains. Server ownership or effective USAGE exposes
+  identities and option names; exact mapped-user identity, PUBLIC with inherited
+  server ownership, or superuser authority discloses values. Other visible values
+  remain domain-typed NULL, including harmless and empty options. Optionless
+  mappings contribute no rows. Paired immutable catalog/role captures retain
+  their names, values and redaction independently of later DDL or ACL publication;
+  reads neither create objects nor contact foreign servers.
 - `key_column_usage`: foreign-key positions follow the supporting index's
   ordered keys; visibility is owner inheritance or a column privilege.
 - `constraint_column_usage`: CHECK columns come from `ExpressionReferences`,

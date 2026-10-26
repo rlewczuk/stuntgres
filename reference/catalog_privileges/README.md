@@ -5,7 +5,7 @@ Role, database and privilege catalogs: `pg_roles`, `pg_user`, `pg_shadow`, `pg_g
 `pg_parameter_acl`, `pg_get_acl`, tablespaces, VACUUM and size functions, and the
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
 views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_grants`,
-`role_usage_grants`, `usage_privileges`, `enabled_roles`, `data_type_privileges`, `user_mappings`,
+`role_usage_grants`, `usage_privileges`, `enabled_roles`, `data_type_privileges`, `user_mappings`, `user_mapping_options`,
 `key_column_usage`, `constraint_column_usage`, `sql_features`, `sql_sizing`,
 `sql_implementation_info`, `sql_parts`). The other catalog families are listed
 in [reference/catalogs](../catalogs/README.md).
@@ -149,3 +149,14 @@ preserves grantor origins and grantee grantability, and checks live membership,
 object lifecycle, cancellation and native controls. PostgreSQL target ACL
 revocation is rollback-contained; native units exercise real ACL publication
 and retained authorization without expanding catalog-source SQL admission.
+
+### User mapping options
+
+`info_user_mapping_options_helpers_test.go` owns exact five-column option bags,
+domain/adapter metadata and direct/fresh/held readers. Scenarios distinguish
+server visibility from mapped-user/PUBLIC-owner value disclosure, including
+inherited versus exact identities, redacted NULL versus empty strings, real
+option lifecycle, live authority refresh and complete diagnostics. Native-only
+phases exercise retained results and logical controls with destination identities.
+
+- User mapping options: `RUN='^TestReferenceInfoUserMappingOptions'`

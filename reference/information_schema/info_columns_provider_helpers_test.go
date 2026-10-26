@@ -97,6 +97,7 @@ func icProviderInventory(c *icCase) {
 		"information_schema.sql_parts":                      fixture.SPColumns,
 		"information_schema.tables":                         itColumns,
 		"information_schema.user_mappings":                  fixture.IUMColumns,
+		"information_schema.user_mapping_options":           strings.Fields("authorization_identifier foreign_server_catalog foreign_server_name option_name option_value"),
 		"information_schema.view_table_usage":               vtuColumns,
 		"information_schema.views":                          ivColumns,
 		"information_schema.table_privileges":               strings.Fields("grantor grantee table_catalog table_schema table_name privilege_type is_grantable with_hierarchy"),
