@@ -13,14 +13,21 @@ func TestReferenceJSONBInsertCancellation(t *testing.T) {
 	jsonbInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 		run(fixture.Exec("CREATE TABLE jbi_active_input(id int,v jsonb)", 0))
-		run(fixture.Exec("CREATE TABLE jbi_active_out(id int,v jsonb)", 0))
+		run(fixture.Exec(`CREATE TABLE jbi_active_out(id int,v jsonb,
+			CHECK(pg_advisory_xact_lock(CASE WHEN length(v::text)>6 THEN 67108864::bigint ELSE 2::bigint END) IS NOT NULL))`, 0))
 		run(fixture.Exec("INSERT INTO jbi_active_out VALUES(0,'99')", 1))
 		run(fixture.Exec("INSERT INTO jbi_active_input VALUES(1,'[0]'),(2,'[0]'),(3,'[0]'),(4,'[0]'),(5,'[0]'),(6,'[0]'),(7,'[0]'),(8,'[0]'),(9,'[0]')", 9))
-		// Import typed payloads before cancellation; admission must be in the
-		// mutation provider, not the input lexer, with the real worker live.
+		// Keep the bounded typed payload: admission depends on completed
+		// jsonb_insert output, not catching a transient mutation-provider frame.
 		large := "[" + strings.Repeat("0,", 1<<16) + `"` + strings.Repeat("x", 32<<20) + `"]`
 		run(fixture.Prepared(fixture.Exec("UPDATE jbi_active_input SET v=$1 WHERE id>1", 8, large)))
-		readSQL := "SELECT sum(length(jsonb_insert(v,'{0}','9')::text)) AS n FROM jbi_active_input"
+		readSQL := `WITH produced AS MATERIALIZED (
+			SELECT jsonb_insert(v,'{0}','9') AS v FROM jbi_active_input
+		), gated AS MATERIALIZED (
+			SELECT v,pg_advisory_xact_lock(CASE WHEN length(v::text)>6 THEN 67108864::bigint ELSE 2::bigint END) AS gate FROM produced
+		) SELECT sum(length(v::text)) AS n FROM gated`
+		// The destination CHECK gates actual output after the ordered first
+		// small row; require its grant before canceling the large output.
 		writeSQL := "INSERT INTO jbi_active_out(id,v) SELECT id,jsonb_insert(v,'{0}','9') FROM jbi_active_input ORDER BY id"
 		read, err := c.PrepareContext(p.Ctx, readSQL)
 		if err != nil {
@@ -35,20 +42,27 @@ func TestReferenceJSONBInsertCancellation(t *testing.T) {
 		if !b.PG {
 			ctx, cancel := context.WithCancel(p.Ctx)
 			cancel()
-			rows, err := read.QueryContext(ctx)
-			if rows != nil {
-				rows.Close()
-				t.Fatal("precanceled read published cursor")
+			for _, route := range []struct {
+				name        string
+				read, write fixture.Executor
+			}{
+				{"direct", c, c},
+				{"held", fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}, fixture.HeldStatement{Executor: c, Statement: write, SQL: writeSQL}},
+			} {
+				rows, err := route.read.QueryContext(ctx, readSQL)
+				if rows != nil {
+					rows.Close()
+					t.Fatal(route.name, "precanceled read published cursor")
+				}
+				fixture.LexicalOrdinary(t, err, context.Canceled)
+				result, err := route.write.ExecContext(ctx, writeSQL)
+				if result != nil {
+					t.Fatal(route.name, "precanceled write published result")
+				}
+				fixture.LexicalOrdinary(t, err, context.Canceled)
 			}
-			fixture.LexicalOrdinary(t, err, context.Canceled)
-			result, err := write.ExecContext(ctx)
-			if result != nil {
-				t.Fatal("precanceled write published result")
-			}
-			fixture.LexicalOrdinary(t, err, context.Canceled)
 		}
-		provider := "sqltype.JSONBSetPlan.Evaluate"
-		fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, provider, func(ctx context.Context) fixture.RelationOutcome {
+		outputGateCancel(t, p, b, c, false, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := read.QueryContext(ctx)
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})
@@ -56,7 +70,7 @@ func TestReferenceJSONBInsertCancellation(t *testing.T) {
 		heldRead := fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}
 		fixture.RunStep(t, p.Ctx, heldRead, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(54)}}))
 		run(fixture.Prepared(fixture.Exec("UPDATE jbi_active_input SET v=$1 WHERE id>1", 8, large)))
-		fixture.BinaryConversionActiveCancel(t, p, b, c, writeSQL, provider, func(ctx context.Context) fixture.RelationOutcome {
+		outputGateCancel(t, p, b, c, true, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := write.ExecContext(ctx)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

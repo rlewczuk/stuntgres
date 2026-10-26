@@ -21,6 +21,19 @@ var ivBuiltinQuoteShadowDefinitions = map[string]string{
     (("pg_options_to_table"("attfdwoptions"))."option_value")::"information_schema"."character_data" AS "option_value"
    FROM "information_schema"."_pg_foreign_table_columns" "c";`,
 	"pg_catalog.pg_shadow": ivShadowQuoteQualifiedDefinition,
+	"information_schema.column_domain_usage": ` SELECT ("current_database"())::"information_schema"."sql_identifier" AS "domain_catalog",
+    ("nt"."nspname")::"information_schema"."sql_identifier" AS "domain_schema",
+    ("t"."typname")::"information_schema"."sql_identifier" AS "domain_name",
+    ("current_database"())::"information_schema"."sql_identifier" AS "table_catalog",
+    ("nc"."nspname")::"information_schema"."sql_identifier" AS "table_schema",
+    ("c"."relname")::"information_schema"."sql_identifier" AS "table_name",
+    ("a"."attname")::"information_schema"."sql_identifier" AS "column_name"
+   FROM "pg_type" "t",
+    "pg_catalog"."pg_namespace" "nt",
+    "pg_catalog"."pg_class" "c",
+    "pg_catalog"."pg_namespace" "nc",
+    "pg_catalog"."pg_attribute" "a"
+  WHERE (("t"."typnamespace" = "nt"."oid") AND ("c"."relnamespace" = "nc"."oid") AND ("a"."attrelid" = "c"."oid") AND ("a"."atttypid" = "t"."oid") AND ("t"."typtype" = 'd'::"char") AND ("c"."relkind" = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'p'::"char"])) AND ("a"."attnum" > 0) AND (NOT "a"."attisdropped") AND "pg_has_role"("t"."typowner", 'USAGE'::"text"));`,
 	"information_schema.collations": ` SELECT ("current_database"())::"information_schema"."sql_identifier" AS "collation_catalog",
     ("nc"."nspname")::"information_schema"."sql_identifier" AS "collation_schema",
     ("c"."collname")::"information_schema"."sql_identifier" AS "collation_name",

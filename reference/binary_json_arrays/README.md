@@ -24,12 +24,12 @@ standalone type rename. Relation-owned rowtype changes use the table's DDL route
   holds `outputGateCancel`.
 - **Active cancellation** uses one of three patterns:
   - `fixture.BinaryConversionActiveCancel` with the native provider frame name
-    (for example `sqltype.jsonbExists`, `sqltype.JSONBSetPlan.Evaluate`,
-    `sqltype.(*JSONEachCursor).Next`, `sqltype.(*jsonpathExecutor).walk`,
-    `sqltype.jsonbOutput`). `BinaryConversionActiveCancelAfter` adds a progress
-    callback when PostgreSQL admission must observe argument progress (a sequence
-    advance), as in the JSONPath query/method/operator, SQL/JSON query and
-    `JSON_TABLE` families. See the [fixture README](../fixture/README.md#helpers).
+    (for example `sqltype.jsonbExists`, `sqltype.(*JSONEachCursor).Next`,
+    `sqltype.(*jsonpathExecutor).walk`).
+    `BinaryConversionActiveCancelAfter` adds a progress callback when PostgreSQL
+    admission must observe argument progress (a sequence advance), as in the
+    JSONPath query/operator, SQL/JSON query and `JSON_TABLE` families. See the
+    [fixture README](../fixture/README.md#helpers).
     Provider names are matched at runtime: grep this package and update the
     strings when renaming or moving a provider.
   - `outputGateCancel`: a MATERIALIZED producer maps actual output length to an
@@ -38,11 +38,17 @@ standalone type rename. Relation-owned rowtype changes use the table's DDL route
     the holder's grant and `pg_blocking_pids`; writers also require the earlier
     small-output grant. It proves cancellation after output exists, not inside a
     provider. Used by `BinaryConversionActiveCancellation`,
-    `JSONElementsCancellation`, `JSONPathNavigateCancellation` and
-    `JSONPathArithmeticCancellation`;
+    `JSONElementsCancellation`, `JSONBInsertCancellation`,
+    `JSONBSetCancellation`, `JSONPathNavigateCancellation`,
+    `JSONPathMethodsCancellation` and `JSONPathArithmeticCancellation`;
     `JSONBConcatDeleteCancellation` has its own gate in
     `jsonb_concat_delete_gate_test.go`. Provider-internal cancellation belongs in
     internal units.
+    JSONB insert/set and item-method reads gate MATERIALIZED selected-operation
+    results by their actual text length; writes gate destination values in a
+    CHECK after the ordered small row. Both require completed large output
+    before cancellation; writers also require the earlier small-output grant
+    and assert no partial insertion.
   - `fixture.SleepActiveCancel` for ordinary predicates (`ArrayOrderCancellation`).
 - **Heavy workloads.** Each JSONPath path, JSONPath query consumer and JSONB
   record read/write/valid attempt gets its own 30-second scenario

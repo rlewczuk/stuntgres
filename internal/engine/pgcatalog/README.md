@@ -4,7 +4,8 @@ Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `user_mapping_options`, `key_column_usage`,
-`constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`, `routine_routine_usage`,
+`constraint_column_usage`, `column_column_usage`, `column_domain_usage`,
+`routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`,
 `character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
@@ -68,6 +69,15 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Public `pg_user` and `pg_roles` keep independent constant password masks.
   The `pg_shadow` password column preserves the source `pg_authid` C collation (OID 950),
   unlike the database-default collation of `pg_user`'s masked text literal.
+- `column_domain_usage` projects seven nullable `sql_identifier` columns from
+  live positive attributes of actual ordinary, view, foreign and partitioned
+  relations, including provider-backed views and temporary relations. Each
+  column contributes only its direct declared domain, never domain ancestors,
+  array elements or expression references. Captured enabled domain ownership
+  alone determines visibility; domain USAGE, relation ACLs and schema access
+  are not substitutes. Names and source-owned NAME/domain generations come
+  from the paired immutable catalog/role capture. Cancellation or malformed
+  authority discards every row, while successful empty captures stay typed.
 - `pg_ts_template` projects only captured, installed executable template
   descriptors. Its five nonnullable OID/NAME/OID/REGPROC/REGPROC columns retain
   the actual namespace and helper procedure identities; absent initialization
@@ -660,6 +670,7 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
   dimensions and typed all-IN NULL controls.
 - Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
+- Column-domain usage producer units (core): `RUN='^TestInfoColumnDomainUsage'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
 - Wait-event definition units: `RUN='^TestPGWaitEvents'`
 - Wait-event definition public scenarios: `RUN='^TestReferencePGWaitEvents'`

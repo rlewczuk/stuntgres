@@ -23,6 +23,10 @@ seven implemented advisory, object, relation, transaction/virtual-transaction,
 safe-snapshot and sleep waits. The definition view is independent of active
 waiters and does not advertise unavailable PostgreSQL server-internal mechanisms.
 
+JSONB insert/set cancellation tests use persistent locks derived from actual
+operation output, preserving exact cancellation errors, staged-write rollback
+and same-held-statement recovery without transient provider-frame sampling.
+
 Large-object and parameter privilege inquiries support all PostgreSQL 18
 overloads, current role/ACL authority, strict NULL handling and grant options.
 Large-object inquiries preserve active versus UPDATE-current snapshots, including
@@ -68,6 +72,16 @@ column see its actual option values; other identities see no rows. Held reads
 follow option, name and privilege changes without losing stable column identity.
 Its builtin view definition preserves PostgreSQL's unqualified helper-column
 references across search-path and identifier-quoting modes.
+
+JSONPath item-method cancellation tests observe a persistent lock wait derived
+from completed method output instead of sampling a transient rendering frame.
+Native context errors, PostgreSQL cancellation diagnostics, write atomicity and
+same-held-statement recovery remain fully asserted.
+
+`information_schema.column_domain_usage` exposes actual live columns' directly
+declared domains, with exact identifier-domain metadata and enabled domain-owner
+visibility. Held reads track definition and ownership changes; domain USAGE and
+table privileges alone do not expose rows.
 
 Statements that only add types, such as CREATE TABLE, CREATE VIEW and CREATE
 TYPE, no longer rewrite every type, rule and trigger in the catalog to reown

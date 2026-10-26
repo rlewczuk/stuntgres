@@ -2,6 +2,22 @@ package pgcatalog
 
 var infoBuiltinViews = [...]builtinView{
 	infoUsagePrivilegesView,
+	// information_schema.column_domain_usage — REL_18_6 information_schema.sql.
+	{oid: InfoColumnDomainUsageOID, parts: []builtinViewPart{
+		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("domain_catalog"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("nt"), viewText("."), viewIdentifier("nspname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("domain_schema"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("t"), viewText("."), viewIdentifier("typname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("domain_name"), viewText(",\n"),
+		viewText("    ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_catalog"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("nc"), viewText("."), viewIdentifier("nspname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_schema"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("c"), viewText("."), viewIdentifier("relname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_name"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("a"), viewText("."), viewIdentifier("attname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("column_name"), viewText("\n"),
+		viewText("   FROM "), viewClass("pg_type"), viewText(" "), viewIdentifier("t"), viewText(",\n"),
+		viewText("    "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("nt"), viewText(",\n"),
+		viewText("    "), viewClass("pg_class"), viewText(" "), viewIdentifier("c"), viewText(",\n"),
+		viewText("    "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("nc"), viewText(",\n"),
+		viewText("    "), viewClass("pg_attribute"), viewText(" "), viewIdentifier("a"), viewText("\n"),
+		viewText("  WHERE (("), viewIdentifier("t"), viewText("."), viewIdentifier("typnamespace"), viewText(" = "), viewIdentifier("nt"), viewText("."), viewIdentifier("oid"), viewText(") AND ("), viewIdentifier("c"), viewText("."), viewIdentifier("relnamespace"), viewText(" = "), viewIdentifier("nc"), viewText("."), viewIdentifier("oid"), viewText(") AND ("), viewIdentifier("a"), viewText("."), viewIdentifier("attrelid"), viewText(" = "), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(") AND ("), viewIdentifier("a"), viewText("."), viewIdentifier("atttypid"), viewText(" = "), viewIdentifier("t"), viewText("."), viewIdentifier("oid"), viewText(") AND ("), viewIdentifier("t"), viewText("."), viewIdentifier("typtype"), viewText(" = 'd'::"), viewType("\"char\""), viewText(") AND ("), viewIdentifier("c"), viewText("."), viewIdentifier("relkind"), viewText(" = ANY (ARRAY['r'::"), viewType("\"char\""), viewText(", 'v'::"), viewType("\"char\""), viewText(", 'f'::"), viewType("\"char\""), viewText(", 'p'::"), viewType("\"char\""), viewText("])) AND ("), viewIdentifier("a"), viewText("."), viewIdentifier("attnum"), viewText(" > 0) AND (NOT "), viewIdentifier("a"), viewText("."), viewIdentifier("attisdropped"), viewText(") AND "), viewRoutine("pg_has_role", "26,25"), viewText("("), viewIdentifier("t"), viewText("."), viewIdentifier("typowner"), viewText(", 'USAGE'::"), viewType("text"), viewText("));"),
+	}},
 	// information_schema.check_constraint_routine_usage — REL_18_6 information_schema.sql.
 	{oid: InfoCheckConstraintRoutineUsageOID, parts: []builtinViewPart{
 		viewText(" SELECT DISTINCT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("constraint_catalog"), viewText(",\n"),

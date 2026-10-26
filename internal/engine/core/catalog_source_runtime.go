@@ -133,6 +133,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.KeyColumnUsageOID:                  "key_column_usage",
 	pgcatalog.ConstraintColumnUsageOID:           "constraint_column_usage",
 	pgcatalog.InfoColumnColumnUsageOID:           "column_column_usage",
+	pgcatalog.InfoColumnDomainUsageOID:           "column_domain_usage",
 	pgcatalog.InfoRoutineSequenceUsageOID:        "routine_sequence_usage",
 	pgcatalog.InfoRoutineRoutineUsageOID:         "routine_routine_usage",
 	pgcatalog.InfoDomainConstraintsOID:           "domain_constraints",

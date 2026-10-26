@@ -16,10 +16,10 @@ func TestReferenceJSONPathMethodsCancellation(t *testing.T) {
 			jsonpathNavigateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 				run(fixture.Exec(`CREATE TABLE jpm_active(id int,v jsonb,p jsonpath,vars jsonb DEFAULT '{}')`, 0))
-				run(fixture.Exec(`CREATE TABLE jpm_cancel_out(id int,v jsonb)`, 0))
+				run(fixture.Exec(`CREATE TABLE jpm_cancel_out(id int,v jsonb,
+					CHECK(pg_advisory_xact_lock(CASE WHEN length(v::text)>5 THEN 67108864::bigint ELSE 2::bigint END) IS NOT NULL))`, 0))
 				run(fixture.Exec(`INSERT INTO jpm_active(id,v,p) VALUES(1,'[0]','$'),(2,'[0]','$'),(3,'[0]','$'),(4,'[0]','$'),(5,'[0]','$')`, 5))
 				run(fixture.Exec(`INSERT INTO jpm_cancel_out VALUES(0,'99')`, 1))
-				run(fixture.Exec(`CREATE SEQUENCE jpm_cancel_progress`, 0))
 				element := `"` + strings.Repeat("x", 4080) + `"`
 				small := `["x"]`
 				path := `$[*].string()`
@@ -31,37 +31,18 @@ func TestReferenceJSONPathMethodsCancellation(t *testing.T) {
 					want = `["1"]`
 				}
 				large := `[` + strings.Repeat(element+",", 8191) + element + `]`
-				// Every invocation, including the early-valid row, executes selected
-				// methods. Keep keyvalue's large values in the generated result so
-				// output materialization itself is an observable bounded workload.
+				// Keep the bounded stored payload: admission depends on completed
+				// selected-method output, never on catching a transient private frame.
 				run(fixture.Prepared(fixture.Exec(`UPDATE jpm_active SET v=$1,p=$2 WHERE id=1`, 1, small, path)))
-				call := `jsonb_path_query_array(v,p,vars,CASE WHEN nextval('jpm_cancel_progress')<0 THEN true ELSE false END)`
-				readSQL := `SELECT sum(length(` + call + `::text)) AS n FROM jpm_active`
+				call := `jsonb_path_query_array(v,p,vars,false)`
+				readSQL := `WITH produced AS MATERIALIZED (
+					SELECT ` + call + ` AS v FROM jpm_active
+				), gated AS MATERIALIZED (
+					SELECT v,pg_advisory_xact_lock(CASE WHEN length(v::text)>5 THEN 67108864::bigint ELSE 2::bigint END) AS gate FROM produced
+				) SELECT sum(length(v::text)) AS n FROM gated`
+				// The destination CHECK gates actual output after the ordered first
+				// small row. Its grant must be visible before canceling the large row.
 				writeSQL := `INSERT INTO jpm_cancel_out SELECT id,` + call + ` FROM jpm_active ORDER BY id`
-				resetProgress := func() {
-					run(fixture.Select(`SELECT setval('jpm_cancel_progress',1,false) AS progress`, []string{"progress"}, []string{"INT8"}, [][]any{{int64(1)}}))
-				}
-				admitted := func(ctx context.Context) {
-					if !b.PG {
-						return
-					}
-					// The third invocation cannot evaluate its silent argument until
-					// two prior calls completed. With only one small row, at least
-					// one large selected-method result has already materialized.
-					for {
-						var value int64
-						var called bool
-						if err := fixture.Admin.QueryRowContext(ctx, `SELECT last_value,is_called FROM public.jpm_cancel_progress`).Scan(&value, &called); err != nil {
-							t.Fatal("selected-method output progress", err)
-						}
-						if called && value >= 3 {
-							return
-						}
-						if ctx.Err() != nil {
-							t.Fatal("selected-method progress deadline", ctx.Err())
-						}
-					}
-				}
 				read, err := c.PrepareContext(p.Ctx, readSQL)
 				if err != nil {
 					t.Fatal(err)
@@ -72,6 +53,29 @@ func TestReferenceJSONPathMethodsCancellation(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer write.Close()
+				if !b.PG {
+					ctx, cancel := context.WithCancel(p.Ctx)
+					cancel()
+					for _, route := range []struct {
+						name        string
+						read, write fixture.Executor
+					}{
+						{"direct", c, c},
+						{"held", fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}, fixture.HeldStatement{Executor: c, Statement: write, SQL: writeSQL}},
+					} {
+						rows, err := route.read.QueryContext(ctx, readSQL)
+						if rows != nil {
+							rows.Close()
+							t.Fatal(route.name, "precanceled read published rows")
+						}
+						fixture.LexicalOrdinary(t, err, context.Canceled)
+						result, err := route.write.ExecContext(ctx, writeSQL)
+						if result != nil {
+							t.Fatal(route.name, "precanceled write published result")
+						}
+						fixture.LexicalOrdinary(t, err, context.Canceled)
+					}
+				}
 				defer func() {
 					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 					defer cancel()
@@ -79,20 +83,17 @@ func TestReferenceJSONPathMethodsCancellation(t *testing.T) {
 						t.Error(err)
 					}
 				}()
-				// All JSONB arguments are already typed stored values. The native
-				// jsonbOutput frame is Evaluate's result rendering after the path
-				// has completed, not input parsing or a JSON argument constructor.
+				// Typed inputs avoid measuring parsing. The persistent lock wait
+				// proves a large string/keyvalue result has actually materialized.
 				run(fixture.Prepared(fixture.Exec(`UPDATE jpm_active SET v=$1,p=$2 WHERE id>1`, 4, large, path)))
-				resetProgress()
-				fixture.BinaryConversionActiveCancelAfter(t, p, b, c, readSQL, "sqltype.jsonbOutput", admitted, func(ctx context.Context) fixture.RelationOutcome {
+				outputGateCancel(t, p, b, c, false, func(ctx context.Context) fixture.RelationOutcome {
 					rows, err := read.QueryContext(ctx)
 					return fixture.RelationOutcome{Rows: rows, Err: err}
 				})
 				run(fixture.Prepared(fixture.Exec(`UPDATE jpm_active SET v=$1,p=$2 WHERE id>1`, 4, small, path)))
 				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(25)}}))
 				run(fixture.Prepared(fixture.Exec(`UPDATE jpm_active SET v=$1,p=$2 WHERE id>1`, 4, large, path)))
-				resetProgress()
-				fixture.BinaryConversionActiveCancelAfter(t, p, b, c, writeSQL, "sqltype.jsonbOutput", admitted, func(ctx context.Context) fixture.RelationOutcome {
+				outputGateCancel(t, p, b, c, true, func(ctx context.Context) fixture.RelationOutcome {
 					result, err := write.ExecContext(ctx)
 					return fixture.RelationOutcome{Result: result, Err: err}
 				})

@@ -689,6 +689,9 @@ Producers, the OID registry and descriptor specs live in
   `pgcatalog.ProducerFor` and chooses the per-OID catalog/role roots,
   presentation and unlock timing; it is not a second dispatcher. Only `pg_locks`
   and lazy `pg_sequences` bypass producers.
+  Information-schema domain and column inquiry sources use the statement's
+  paired catalog and authorization roots, including `column_domain_usage`;
+  source opening preserves that pair rather than resampling publication.
 - `catalog_source_cache.go` keeps the latest `pg_type`, `pg_proc` and
   `pg_depend` rows per engine, owned by `Engine.Mu`, keyed by the published
   `*catalog.State`, the published `*access.RoleRecord`, the source relation and

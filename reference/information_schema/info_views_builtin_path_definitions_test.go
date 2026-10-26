@@ -22,6 +22,19 @@ var ivBuiltinPathDefinitions = map[string]string{
     ((pg_options_to_table(attfdwoptions)).option_value)::character_data AS option_value
    FROM _pg_foreign_table_columns c;`,
 	"pg_catalog.pg_shadow": ivShadowDefinition,
+	"information_schema.column_domain_usage": ` SELECT (current_database())::sql_identifier AS domain_catalog,
+    (nt.nspname)::sql_identifier AS domain_schema,
+    (t.typname)::sql_identifier AS domain_name,
+    (current_database())::sql_identifier AS table_catalog,
+    (nc.nspname)::sql_identifier AS table_schema,
+    (c.relname)::sql_identifier AS table_name,
+    (a.attname)::sql_identifier AS column_name
+   FROM pg_type t,
+    pg_namespace nt,
+    pg_class c,
+    pg_namespace nc,
+    pg_attribute a
+  WHERE ((t.typnamespace = nt.oid) AND (c.relnamespace = nc.oid) AND (a.attrelid = c.oid) AND (a.atttypid = t.oid) AND (t.typtype = 'd'::"char") AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'p'::"char"])) AND (a.attnum > 0) AND (NOT a.attisdropped) AND pg_has_role(t.typowner, 'USAGE'::text));`,
 	"information_schema.collations": ` SELECT (current_database())::sql_identifier AS collation_catalog,
     (nc.nspname)::sql_identifier AS collation_schema,
     (c.collname)::sql_identifier AS collation_name,
