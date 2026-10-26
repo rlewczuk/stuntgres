@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
@@ -87,12 +88,27 @@ func ClosedPgcryptoDefault(node expr.Expr) bool {
 	return valid
 }
 
-// Only fixed nextval leaves remain volatile inside constructor/field/cast wrappers.
+// Fixed nextval leaves remain volatile inside constructor/field/cast wrappers.
+// A validated strict literal-NULL array call can retain those leaves as original
+// dependencies: execution planning removes the call after visiting its children.
 func ClosedSequenceDefault(node expr.Expr) bool {
 	if node == nil || node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().StageDependent {
 		return false
 	}
 	switch n := node.(type) {
+	case functions.ArrayRandom:
+		if n.Validate() != nil {
+			return false
+		}
+		if _, folded, err := exec.FoldStrictParameterNull(&exec.Context{}, n); err != nil || !folded {
+			return false
+		}
+		for _, child := range n.Args {
+			if child.Properties().Volatility > expr.Stable && !ClosedSequenceDefault(child) {
+				return false
+			}
+		}
+		return true
 	case plan.CoercionExpr:
 		return ClosedSequenceDefault(n.Child)
 	case plan.RowExpr:

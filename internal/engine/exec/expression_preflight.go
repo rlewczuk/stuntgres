@@ -30,8 +30,18 @@ func PreflightCoercionsWithPolicy(c *Context, expression expr.Expr, decisiveDefa
 	if err != nil {
 		return nil, false, err
 	}
-	node, folded, err := FoldStrictParameterNull(c, node)
+	node, folded, err := preflightStrictParameterNull(c, node, decisiveDefaults)
 	return node, changed || folded, err
+}
+
+func preflightStrictParameterNull(c *Context, node expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
+	return foldStrictParameterNull(c, node, func(child expr.Expr) error {
+		// Conversion preflight is not ordinary constant planning. Complete
+		// that work before a proven NULL discards its executable siblings,
+		// without evaluating the parent or runtime-only child providers.
+		_, _, err := SimplifyConditional(c, child, decisiveDefaults)
+		return err
+	})
 }
 
 func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
@@ -380,7 +390,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		// A function-method coercion is subject to the same execution-known
 		// strict NULL pruning as other selected scalars. Do this after child
 		// input/domain preflight but before constant computation admits EXECUTE.
-		if folded, did, err := FoldStrictParameterNull(c, e); err != nil || did {
+		if folded, did, err := preflightStrictParameterNull(c, e, decisiveDefaults); err != nil || did {
 			return folded, did, err
 		}
 		p := e.Properties()
@@ -492,7 +502,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		// Network operators follow the release's custom-plan Execute frontier:
 		// imported parameters are available now, but retain their provenance.
 		if e.Usage.Type.ID() == sqltype.Inet && NetworkOperatorExecutionConstant(e, c) {
-			if folded, changed, err := FoldStrictParameterNull(c, e); err != nil || changed {
+			if folded, changed, err := preflightStrictParameterNull(c, e, decisiveDefaults); err != nil || changed {
 				return folded, changed, err
 			}
 			value, err := FoldPlanningExpression(c, e)
@@ -537,7 +547,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		if (e.Left.ResultUsage().Type.ID() == sqltype.Inet || e.Right != nil && e.Right.ResultUsage().Type.ID() == sqltype.Inet) && NetworkOperatorExecutionConstant(e, c) {
-			if folded, changed, err := FoldStrictParameterNull(c, e); err != nil || changed {
+			if folded, changed, err := preflightStrictParameterNull(c, e, decisiveDefaults); err != nil || changed {
 				return folded, changed, err
 			}
 			value, err := FoldPlanningExpression(c, e)

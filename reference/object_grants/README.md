@@ -14,6 +14,15 @@ FDW wrapper/server grants (`TestReferenceFDWObjectGrants`) in `reference/tables`
 the `pg_largeobject` page catalog in `reference/catalog_objects` and ACL inquiry functions in
 `reference/catalog_privileges`.
 
+Strict scalar demand covers post-child literal and fresh bound NULL elimination,
+including volatile `array_sample` with a discarded `nextval` sibling. Planning
+preserves immutable child failures/current EXECUTE and imported input errors
+before erasure. Runtime row NULL retains real sibling demand and effects;
+nonNULL volatile calls still execute. RECORD results, SRFs and compound
+NULL-aware operators are not scalar-NULL shortcuts. Original stored/default
+graphs and lifetime manifests remain intact, including dependencies erased only
+from the execution-private plan; this does not allow general volatile defaults.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
@@ -87,6 +96,14 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   distinct OIDs and actual old7/new9 recipient effects. Concurrent default
   writers distinguish absent-key uniqueness from existing-row update failure;
   independent keys preserve both ACLs and unrelated committed rows.
+- Strict-NULL demand scenarios assert exact typed rows, full diagnostics/stages,
+  complete sequence state and session currval/lastval, not only absence of a
+  permission error. They cover direct, fresh-prepared and actual same-held
+  handles, nil/nonNULL/nil frames, imports/domain boundaries, literal views and
+  defaults, runtime-row views, current invoker authority and denied-write
+  atomicity. PostgreSQL held-cache observations remain distinct from native
+  current-authority requirements; an erased literal call has no invocation in
+  either backend.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
@@ -94,6 +111,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Schemas and types: `RUN='^TestReferenceObjectGrantSchemasTypes$'`
 - Type targets, raw type ACLs and Dump controls: `RUN='^TestReferenceObjectGrantType'`
 - Routine EXECUTE (formals, operators, expansion, demand, SQL bodies): `RUN='^TestReferenceObjectGrantRoutine'`
+- Strict scalar NULL demand, precedence, imports and actual held/stored consumers:
+  `RUN='^TestReferenceObjectGrantStrictNull(Demand|Precedence|Imports|Held|Stored)$'`.
+  Run this whole-definition selection both natively and with `REFERENCE=1`;
+  the configured oracle is PostgreSQL 18.6, UTF8/C.
 - Rule, RI and COPY authority: `RUN='^TestReferenceObjectGrant(Rule|RI|Copy)'`
 - SQL routine bodies: `RUN='^TestReferenceObjectGrantRoutineBody'`
 - JSON and JSONB providers: `RUN='^TestReferenceObjectGrantJSON'`

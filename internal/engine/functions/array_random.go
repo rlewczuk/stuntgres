@@ -240,8 +240,9 @@ func (e ArrayRandom) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, 
 	return true
 }
 
-// PreflightFold implements expr.Preflighting.
-func (e ArrayRandom) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+// PreflightFold visits ordinary immutable child computations before the shared
+// strict-NULL proof; PlanningFold still prevents nonNULL volatile computation.
+func (e ArrayRandom) PreflightFold() expr.Preflight { return expr.PreflightSimplify }
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e ArrayRandom) LooksLikeFunction() bool { return false }

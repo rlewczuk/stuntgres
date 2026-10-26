@@ -327,6 +327,7 @@ func PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		// Projection initialization precedes opening its child. CHECK recipes
 		// may fail here, but checked conversion truth stays in each runtime row.
 		var expressions []expr.Expr
+		var analysis []expr.Expr
 		for i, expression := range n.Expressions {
 			folded, changed, err := exec.PreflightCoercions(c, expression)
 			if err != nil {
@@ -337,11 +338,29 @@ func PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 					expressions = append([]expr.Expr(nil), n.Expressions...)
 				}
 				expressions[i] = folded
+				// Retained originals must follow this occurrence's completed
+				// planning, not independently prepare unused value payloads.
+				// Keep unmatched carriers (such as unused window clauses) for
+				// their existing current-invoker admission and lifetime checks.
+				for j, original := range n.AnalysisExpressions {
+					if expr.InfoOf(expression) != expr.InfoOf(original) || !analyze.SameGroupExpression(expression, original) {
+						continue
+					}
+					if analysis == nil {
+						analysis = append([]expr.Expr(nil), n.AnalysisExpressions...)
+					}
+					analysis[j] = folded
+				}
 			}
 		}
-		if expressions != nil {
+		if expressions != nil || analysis != nil {
 			copy := *n
-			copy.Expressions = expressions
+			if expressions != nil {
+				copy.Expressions = expressions
+			}
+			if analysis != nil {
+				copy.AnalysisExpressions = analysis
+			}
 			n, node = &copy, &copy
 			expressions = nil
 		}

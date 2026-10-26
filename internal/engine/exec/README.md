@@ -265,7 +265,7 @@ commit, concurrent refresh), so they cannot hang off a nil-able host.
 
 `exec` owns the expression preflight that runs before execution:
 `PreflightCoercions` and `PreflightCoercionsWithPolicy`, conditional planning and
-folding (`conditional_*.go`), strict-NULL parameter folding, array and UPDATE
+folding (`conditional_*.go`), literal/bound strict-NULL folding, array and UPDATE
 value preflight, string variadic folding, view qualification mapping and the
 OVERLAPS route. Preflight reaches the engine only through `Preparation` and runs
 outside engine and publication locks. Conditional planning keeps every analyzed
@@ -281,10 +281,32 @@ error unchanged, including its direct SQL error interface. Opted-in failure wrap
 preserve the original cause for diagnostic decoration.
 
 `StrictRoutineArguments` maps expression children to actual nullable call
-formals for both permission admission and parameter-NULL folding. Expanded
+formals for both permission admission and literal/bound strict-NULL folding. Expanded
 generated multirange constructor members form one non-NULL variadic array:
 a NULL member must reach the constructor's `22004` check, while an explicit
 NULL VARIADIC array and the strict single-range overload retain NULL results.
+
+After recursive child planning and typed-input validation, a strict scalar call
+with a literal NULL or a proven NULL in the current typed parameter frame becomes
+a result-typed NULL even when its declaration is STABLE or VOLATILE. Immutable
+child errors and their current-actor EXECUTE checks still precede erasure; a
+runtime-only sibling, including a domain coercion, is discarded without execution.
+A domain conversion in the NULL-supplying argument is not a proof. Runtime row
+NULL is not a planning fact and retains sibling admission and effects.
+Declared RECORD results, SRFs and compound NULL-aware carriers are excluded.
+Bounded Random's specialized readiness/immutable-input rule remains first.
+The generic folded value preserves conservative metadata and recipe provenance
+but clears the callable carrier; the original graph and manifest remain intact.
+Generic coercion preflight completes ordinary planning of every physical child
+before erasing a proven strict-NULL parent; ArrayRandom also enters the existing
+conditional simplifier without making nonNULL volatile calls foldable.
+Query projection preflight replays a successfully changed executable expression
+onto its occurrence-correspondent analysis carrier using private copy-on-change.
+It does not compute unmatched unused analysis payloads. Surviving analysis demand
+still requires admission, while original carriers remain for lifetime validation.
+Closed literal-NULL array random defaults retain their original nextval leaves
+for stored rendering and lifetime validation, not as executable demand. This
+does not admit nonNULL volatile array defaults or fold nonNULL volatile calls.
 
 ## Invariants
 
@@ -451,6 +473,18 @@ consumers additionally use `RUN='^TestGeneratedVirtual'`. Catalog key index unit
 here and candidate admission units in `internal/engine/core` use
 `RUN='^TestCatalogKey'` (with `RACE=1`); their public outcomes are
 `reference/catalogs` `RUN='^TestReferencePG(CatalogKeyProbes|TypeProcRepeatedProbes)$'`.
+
+Strict scalar demand and original ownership use these selected definitions;
+add `RACE=1` for the concurrent-reuse proof. Public whole definitions require
+both native and `REFERENCE=1` runs against the pinned PostgreSQL 18.6 fixture.
+
+```sh
+make check RUN='^TestArrayRandomStrictNull(Planning|OriginalAuthority|ConcurrentReuse|StoredDefaultClosure)$'
+make check RUN='^TestArrayRandomStrictNullConcurrentReuse$' RACE=1
+make check RUN='^TestStrictParameterNull(Planning|Boundaries|CompoundSemantics)$'
+make check RUN='^TestReferenceObjectGrantStrictNull(Demand|Precedence|Imports|Held|Stored)$'
+make check RUN='^TestReferenceObjectGrantStrictNull(Demand|Precedence|Imports|Held|Stored)$' REFERENCE=1
+```
 
 
 **Frame names matched by tests.** `sortOrderedAggregate`

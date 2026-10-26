@@ -7,17 +7,26 @@ import (
 )
 
 // Child preflight has already preserved ordinary constant errors and parameter
-// input validation. A NULL proof cannot cross a domain conversion in that
-// argument, but a separate known-NULL argument can discard runtime siblings,
-// including domain coercions. Random first shares its required immutable-input
-// readiness/admission decision with both composite planning paths; the NULL
-// proof itself samples no domain truth or runtime-only provider. The analyzed
-// tree and its original dependency manifest remain untouched.
+// input validation. Literal NULL and typed parameter NULL share this post-child
+// proof. It cannot cross a domain conversion in that argument, but a separate
+// known-NULL argument can discard runtime siblings, including domain coercions.
+// Random first shares its required immutable-input readiness/admission decision
+// with both composite planning paths; the proof itself samples no domain truth
+// or runtime-only provider. The analyzed tree and its original manifest remain
+// untouched.
 func FoldStrictParameterNull(c *Context, node expr.Expr) (expr.Expr, bool, error) {
+	return foldStrictParameterNull(c, node, nil)
+}
+
+// planChild completes ordinary child planning when the caller has only
+// preflighted conversions. Definition eligibility callers leave it nil: their
+// NULL proof must not execute children. Conditional planning also leaves it nil
+// because it has already planned the children.
+func foldStrictParameterNull(c *Context, node expr.Expr, planChild func(expr.Expr) error) (expr.Expr, bool, error) {
 	if folded, changed, handled, err := foldRandomNullInputs(c, node); handled {
 		return folded, changed, err
 	}
-	if node == nil || len(c.Parameters) == 0 || !node.Properties().ParameterDependent {
+	if node == nil {
 		return node, false, nil
 	}
 	switch node.(type) {
@@ -46,6 +55,16 @@ func FoldStrictParameterNull(c *Context, node expr.Expr) (expr.Expr, bool, error
 	}
 	if !null {
 		return node, false, nil
+	}
+	if planChild != nil {
+		plan.ExpressionChildren(node, func(argument expr.Expr) {
+			if failure == nil {
+				failure = planChild(argument)
+			}
+		})
+		if failure != nil {
+			return nil, false, failure
+		}
 	}
 	info := foldedExpressionInfo(node)
 	return plan.LiteralExpr{Info: info, Value: sqltype.ResultNull(info.Usage)}, true, nil

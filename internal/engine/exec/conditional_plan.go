@@ -8,8 +8,9 @@ import (
 )
 
 // Conditional planning folds immutable SQL constants; the common post-child
-// strict-NULL rule can additionally eliminate a call using an execution-known
-// parameter. It neither substitutes parameters generally nor runs domain truth.
+// strict-NULL rule can additionally eliminate a call using a literal NULL or an
+// execution-known parameter. It neither substitutes parameters generally nor
+// runs domain truth.
 func SimplifyConditional(c *Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
 	node, changed, err := simplifyConditionalNode(c, expression, decisiveDefaults)
 	if err != nil {

@@ -61,7 +61,7 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 		// Parameter expressions deliberately remain symbolic after child
 		// preflight. Apply the ordinary typed-frame strict-NULL proof before
 		// planning computation can admit a routine that will not be invoked.
-		pruned, folded, err := FoldStrictParameterNull(c, next)
+		pruned, folded, err := preflightStrictParameterNull(c, next, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}

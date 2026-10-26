@@ -11,6 +11,15 @@ arithmetic. Installed identity and stored calls survive native catalog replay.
 `pg_proc` exposes FLOAT4 execution cost, preserving explicit builtin declaration
 costs and otherwise using routine language defaults.
 
+Strict scalar calls now eliminate literal-NULL as well as fresh typed bound-NULL
+demand after child planning, including volatile array_sample with a nextval
+sibling. Immutable child failures, current-actor child EXECUTE and input validation
+retain precedence; runtime row NULL still admits and executes its siblings.
+Erased calls retain original lifetime manifests but no executable callable carrier.
+Closed literal-NULL array defaults preserve their original sequence dependencies
+without permitting general volatile defaults. RECORD, SRF, compound NULL-aware
+semantics and specialized bounded-random planning remain unchanged.
+
 Builtin view definitions (`pg_views`, `information_schema.views`,
 `pg_get_viewdef`) and exact routine lookups such as `regprocedure` input no
 longer walk every catalog object to find intagg's aggregate helper functions;
