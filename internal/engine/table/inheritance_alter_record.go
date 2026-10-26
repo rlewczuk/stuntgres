@@ -16,6 +16,19 @@ func (plan *InheritanceAlterPlan) RecordAction(before, after *catalog.Relation, 
 	}
 	events := state.Events[before.Address()]
 	switch a.Action {
+	case parser.ValidateConstraint:
+		selected, err := SelectAlterConstraintValidation(before, a.Constraint.Text)
+		if err == nil && !state.Only && (selected.Recursive() || state.Descendant) {
+			if selected.Check != nil && !selected.Check.NoInherit {
+				events = append(events, InheritanceAlterEvent{Action: a, Constraint: selected.OID})
+			}
+			if selected.NotNull != nil && !selected.NotNull.NoInherit {
+				a.Column = parser.Identifier{Text: before.Columns[before.IndexForAttribute(selected.NotNull.Attribute)].Name}
+				events = append(events, InheritanceAlterEvent{Action: a, Attribute: selected.NotNull.Attribute, Constraint: selected.OID})
+			}
+		}
+		state.Events[before.Address()] = events
+		return
 	case parser.AddColumn:
 		if slot, exists := after.Index[a.Definition.Name]; exists {
 			if _, old := before.Index[a.Definition.Name]; !old {

@@ -154,6 +154,24 @@ Destination-name claims remain pending until Finish; exception rollback restores
 their suffix. General authority retains the published role root and installed
 session revision. Shared transfer methods live in core; family executors retain
 their physical work records and old tuple layouts.
+Existing FOREIGN KEY validation captures the stored target/supporting index,
+not a new REFERENCES declaration or privilege grant. Admission takes SUE on the
+child and RowShare on each deduplicated parent; stronger ADD/shape companions
+dominate, including self references. Captured identities and private storage are
+rechecked after unlocked waits. Validity-only promotion does not recreate a key
+or request ADD-provider SRE/REFERENCES authority. Selected historical scans use
+the ordinary RI comparison/disclosure and latest private effective rows.
+ADD FK retains its separate name/storage/supporting-key capture and reopens
+current REFERENCES authority after waits during ordinary definition cooking.
+Stored-key validation's exact descriptor-original fences do not apply to ADD-only
+targets; a queued ADD reports current privilege denial rather than an ACL-pointer
+replacement conflict.
+Pure validity-only metadata carries heap-pointer identity fences, not
+tuple-generation/root freezes or new storage shapes. Concurrent enforced DML can
+commit before or after promotion without a lost heap/index-root publication.
+Shape/ADD/TYPE companions and earlier own transaction shapes retain their strict
+fences. `PublishAlterMetadata` carries this explicit per-target distinction into
+the existing physical source proof; descriptor, provider and epoch fences remain.
 `ActiveScopeOfLease` alone supplies unfinished statement authority; a retained
 finished lease remains useful for accounting, not private catalog or role lookup.
 

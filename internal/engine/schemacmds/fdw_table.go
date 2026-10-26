@@ -67,7 +67,7 @@ func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *par
 			}
 		}
 	}
-	for pass := range 10 {
+	for pass := range 11 {
 		for _, action := range s.TableActions {
 			phase := 9
 			if action.Ordinary != nil {

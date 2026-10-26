@@ -34,17 +34,36 @@ type ForeignKeyCheck struct {
 	Key   catalog.ForeignKeyConstraint
 }
 
-// AddedForeignKeys are the valid keys of child whose OIDs are in added: the
-// keys an ALTER TABLE introduced, in declaration order.
-func AddedForeignKeys(child *catalog.Relation, added []ids.OID) []ForeignKeyCheck {
-	var checks []ForeignKeyCheck
-	for _, f := range child.Constraints.ForeignKeys {
-		if f.NotValid || !slices.Contains(added, f.OID) {
+// ResolveAlterForeignKeys resolves an execution-ordered historical worklist
+// against the authentic final child, retaining the existing required prefix.
+// Scheduled order is authoritative, not a membership filter over declaration
+// order. Repeated identities keep their first position.
+func ResolveAlterForeignKeys(child *catalog.Relation, scheduled []catalog.ForeignKeyConstraint, prefix []ForeignKeyCheck) ([]ForeignKeyCheck, error) {
+	if len(scheduled) == 0 {
+		return prefix, nil
+	}
+	checks := prefix
+	for _, selected := range scheduled {
+		slot := slices.IndexFunc(child.Constraints.ForeignKeys, func(c catalog.ForeignKeyConstraint) bool { return c.OID == selected.OID })
+		if selected.OID == 0 || slot < 0 {
+			return nil, ids.ErrCatalogReplaced
+		}
+		key := child.Constraints.ForeignKeys[slot]
+		if key.NotValid || key.Name != selected.Name || key.Target != selected.Target || key.Index != selected.Index || key.Full != selected.Full || key.UpdateAction != selected.UpdateAction || key.DeleteAction != selected.DeleteAction || !slices.Equal(key.Attributes, selected.Attributes) || !slices.Equal(key.Referenced, selected.Referenced) || !slices.Equal(key.DeleteAttributes, selected.DeleteAttributes) {
+			return nil, ids.ErrCatalogReplaced
+		}
+		if slices.ContainsFunc(checks, func(previous ForeignKeyCheck) bool {
+			return previous.Child.Address() == child.Address() && previous.Key.OID == key.OID
+		}) {
 			continue
 		}
-		checks = append(checks, ForeignKeyCheck{Child: child, Key: f})
+		if len(checks) == len(prefix) {
+			checks = make([]ForeignKeyCheck, len(prefix), len(prefix)+len(scheduled))
+			copy(checks, prefix)
+		}
+		checks = append(checks, ForeignKeyCheck{Child: child, Key: key})
 	}
-	return checks
+	return checks, nil
 }
 
 // ReferencingForeignKeys are the valid keys of view that the relation at

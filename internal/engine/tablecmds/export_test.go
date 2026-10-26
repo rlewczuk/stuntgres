@@ -1,6 +1,9 @@
 package tablecmds
 
-import "stuntgres/internal/engine/table"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/table"
+)
 
 // Exported names of tablecmds internals for the external tests in this
 // directory.
@@ -37,4 +40,10 @@ var (
 // NewPreparedIdentityDrop is a prepared identity DROP that projects drop.
 func NewPreparedIdentityDrop(drop *table.DropPreparation) *preparedIdentityDrop {
 	return &preparedIdentityDrop{drop: drop}
+}
+
+// AlterForeignKeyWorklist exposes the immutable scheduled work, not a catalog
+// mutation or scan hook, to the composed owner's structural invariant tests.
+func AlterForeignKeyWorklist(work AlterTablePhysical) ([]catalog.ForeignKeyConstraint, bool) {
+	return work.foreignKeyHistory, work.changedValues
 }

@@ -21,7 +21,7 @@ type AlterMetadataPhase struct {
 	sources map[ids.ObjectAddress]session.StorageReadFence
 }
 
-func (e *Engine) PublishAlterMetadata(scope *StatementScope, stage *CatalogStage, parents map[ids.ObjectAddress]bool) (AlterMetadataPhase, error) {
+func (e *Engine) PublishAlterMetadata(scope *StatementScope, stage *CatalogStage, parents, validityOnly map[ids.ObjectAddress]bool) (AlterMetadataPhase, error) {
 	stage.deferredAlterRows = parents
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		return AlterMetadataPhase{}, err
@@ -36,8 +36,13 @@ func (e *Engine) PublishAlterMetadata(scope *StatementScope, stage *CatalogStage
 	sources := make(map[ids.ObjectAddress]session.StorageReadFence, len(parents))
 	e.Mu.Lock()
 	for parent := range parents {
-		sources[parent] = session.NewStorageReadFence(parent, e.PrivateStorageLocked(scope.PendingCatalog(), parent))
-		scope.Catalog.AddFence(session.NewStorageReadFence(parent, e.Storage.Relations[parent]))
+		if validityOnly[parent] {
+			sources[parent] = session.NewStorageIdentityFence(parent, e.PrivateStorageLocked(scope.PendingCatalog(), parent))
+			scope.Catalog.AddFence(session.NewStorageIdentityFence(parent, e.Storage.Relations[parent]))
+		} else {
+			sources[parent] = session.NewStorageReadFence(parent, e.PrivateStorageLocked(scope.PendingCatalog(), parent))
+			scope.Catalog.AddFence(session.NewStorageReadFence(parent, e.Storage.Relations[parent]))
+		}
 	}
 	e.Mu.Unlock()
 	err := e.TransferAlterStage(scope, stage)

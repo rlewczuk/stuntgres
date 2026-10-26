@@ -2,7 +2,7 @@
 
 ALTER TABLE actions: ADD/DROP COLUMN, ADD CONSTRAINT (including NOT VALID,
 replacement and mixed RESTRICT/CASCADE drops), SET/DROP DEFAULT (with inheritance
-recursion), SET/DROP NOT NULL, identity column options, column TYPE changes
+recursion), SET/DROP NOT NULL, VALIDATE CONSTRAINT, identity column options, column TYPE changes
 (including identity columns under savepoints), RENAME, SET SCHEMA, SET TABLESPACE
 and constraint rename, plus foreign-key callers of DROP COLUMN and SET SCHEMA.
 Transactional table/schema integration covers CREATE/ALTER/DROP lifecycle,
@@ -23,6 +23,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 
 - Scenario helpers: `addConstraintScenario` and the catalog/backing/Dump
   snapshot helpers (`alter_add_constraint_helpers_test.go`),
+  reused by the validation scenarios with held commands, full historical
+  diagnostics, hierarchy validity/provenance, lock admission and native controls;
   `alterTablespaceScenario` (`alter_tablespace_helpers_test.go`),
   `constraintRenameScenario` (`constraint_rename_helpers_test.go`),
   `referenceDDLNativeDump`/`referenceDDLPositionError`
@@ -68,6 +70,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - ADD COLUMN: `RUN='^TestReferenceAlterAddColumn'`
 - ADD CONSTRAINT: `RUN='^TestReferenceAlterAddConstraint'`
+- VALIDATE CONSTRAINT: `RUN='^TestReferenceAlterValidateConstraint'`
 - SET/DROP DEFAULT: `RUN='^TestReferenceAlterDefault'`
 - DROP COLUMN: `RUN='^TestReferenceAlterDropColumn'`
 - DROP COLUMN routine dependency closure, identity, rollback, admission and controls:
@@ -87,4 +90,4 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - DDL conflict scheduling and captured admission: `RUN='^TestReferenceTransactionalSchema(Locks|NamespaceConflicts|QuotedNameConflicts|CompanionConflicts|DropAdmission)$'`
 - Native controls and physical lifecycle: `RUN='^TestReferenceTransactionalSchemaNativeControls$'`
 
-Engine and parser units: `make check RUN='^TestAlter(AddConstraint|Tablespace)'`.
+Engine and parser units: `make check RUN='^TestAlter(AddConstraint|ValidateConstraint|Tablespace)'`.

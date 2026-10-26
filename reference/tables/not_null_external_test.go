@@ -95,32 +95,50 @@ func TestReferenceNotNullExternalInheritance(t *testing.T) {
 }
 
 func TestReferenceNotNullExternalDeferredValidation(t *testing.T) {
-	p := fixture.NewScenario(t)
-	p.Step(t, fixture.Exec("CREATE TABLE nn_valid(a INT)", 0))
-	p.Step(t, fixture.Exec("INSERT INTO nn_valid VALUES(NULL)", 1))
-	p.Step(t, fixture.Prepared(fixture.Exec("ALTER TABLE nn_valid ADD CONSTRAINT nn NOT NULL a NOT VALID", 0)))
-	p.Step(t, fixture.ImplicitError("INSERT INTO nn_valid VALUES(NULL)", fixture.Diagnostic{Code: "23502", Message: `null value in column "a" of relation "nn_valid" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "nn_valid", Column: "a"}))
-	p.Step(t, fixture.Exec("INSERT INTO nn_valid VALUES(7)", 1))
-	if p.Postgres != nil {
-		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, s) }
-		run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='nn_valid'::regclass AND contype='n'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{false}}))
-		run(fixture.ImplicitError("ALTER TABLE nn_valid VALIDATE CONSTRAINT nn", fixture.Diagnostic{Code: "23502", Message: `column "a" of relation "nn_valid" contains null values`, Schema: "public", Table: "nn_valid", Column: "a"}))
-		run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='nn_valid'::regclass AND contype='n'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{false}}))
-		run(fixture.Exec("UPDATE nn_valid SET a=8 WHERE a IS NULL", 1))
-		run(fixture.Exec("ALTER TABLE nn_valid VALIDATE CONSTRAINT nn", 0))
-		run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='nn_valid'::regclass AND contype='n'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}))
-		run(fixture.Select("SELECT * FROM nn_valid ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(8)}}))
-	}
-	for _, q := range []string{"ALTER TABLE nn_valid VALIDATE CONSTRAINT nn"} {
-		token, message := "VALIDATE", "ALTER TABLE action is unsupported"
-		for _, prepared := range []bool{false, true} {
-			step := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: message, Position: strconv.Itoa(strings.Index(q, token) + 1)})
-			step.Prepared = prepared
-			if prepared {
-				step.ErrorStage = "prepare"
+	for _, prepared := range []bool{false, true} {
+		t.Run(strconv.FormatBool(prepared), func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			for _, backend := range p.Backends() {
+				t.Run(backend.Name, func(t *testing.T) {
+					conn, err := backend.DB.Conn(p.Ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer conn.Close()
+					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s) }
+					run(fixture.Exec("CREATE TABLE nn_valid(a INT)", 0))
+					run(fixture.Exec("INSERT INTO nn_valid VALUES(NULL)", 1))
+					run(fixture.Prepared(fixture.Exec("ALTER TABLE nn_valid ADD CONSTRAINT nn NOT NULL a NOT VALID", 0)))
+					run(fixture.ImplicitError("INSERT INTO nn_valid VALUES(NULL)", fixture.Diagnostic{Code: "23502", Message: `null value in column "a" of relation "nn_valid" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "nn_valid", Column: "a"}))
+					run(fixture.Exec("INSERT INTO nn_valid VALUES(7)", 1))
+					q := "ALTER TABLE nn_valid VALIDATE CONSTRAINT nn"
+					stmt, err := conn.PrepareContext(p.Ctx, q)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer stmt.Close()
+					held := fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}
+					validate := func(s fixture.Step) {
+						if prepared {
+							fixture.RunStep(t, p.Ctx, held, backend.Recorder, s)
+						} else {
+							run(s)
+						}
+					}
+					flags := func(valid bool) {
+						run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='nn_valid'::regclass AND contype='n'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{valid}}))
+					}
+					flags(false)
+					validate(fixture.ImplicitError(q, fixture.Diagnostic{Code: "23502", Message: `column "a" of relation "nn_valid" contains null values`, Schema: "public", Table: "nn_valid", Column: "a"}))
+					flags(false)
+					run(fixture.Select("SELECT * FROM nn_valid ORDER BY a NULLS LAST", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}, {nil}}))
+					run(fixture.Exec("UPDATE nn_valid SET a=8 WHERE a IS NULL", 1))
+					validate(fixture.Exec(q, 0))
+					flags(true)
+					run(fixture.Select("SELECT * FROM nn_valid ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(8)}}))
+					run(fixture.ImplicitError("INSERT INTO nn_valid VALUES(NULL)", fixture.Diagnostic{Code: "23502", Message: `null value in column "a" of relation "nn_valid" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "nn_valid", Column: "a"}))
+				})
 			}
-			fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, step)
-		}
+		})
 	}
-	fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Select("SELECT * FROM nn_valid ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}, {nil}}))
 }

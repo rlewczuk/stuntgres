@@ -9,16 +9,18 @@ import (
 
 // PlanAlterScan decides whether ALTER TABLE must scan the rows of a table
 // with physical rows, and returns the row validator for that scan. A rewrite
-// already checked NOT NULL and the type-changed CHECKs while copying, so it
-// scans only for added CHECKs; otherwise the type-changed and added CHECKs,
-// newly valid NOT NULL constraints and NOT NULL virtual columns whose
-// generation was replaced need a scan. notNull are the NOT NULL slots of the
-// statement's row validator. A validator with CHECKs needs its CHECK
-// snapshots captured before it runs.
-func PlanAlterScan(old, next *catalog.Relation, schema string, rewrite, physicalRows bool, typeChecks, addedChecks []catalog.CheckConstraint, replacements []int32, notNull []int) (AlterRowValidator, bool) {
+// already checked ordinary NOT NULL and type-changed CHECKs while copying.
+// Explicit validation remains selected even after a rewrite; other scans cover
+// added/type-changed CHECKs, newly valid NOT NULL and replaced nonnullable virtual
+// generations. notNull are the independently required row-validator slots.
+// A validator with CHECKs needs its CHECK snapshots captured before it runs.
+func PlanAlterScan(old, next *catalog.Relation, schema string, rewrite, physicalRows bool, typeChecks, addedChecks, validatedChecks []catalog.CheckConstraint, validatedNotNull []int32, replacements []int32, notNull []int) (AlterRowValidator, bool) {
 	scanChecks := addedChecks
 	if !rewrite {
 		scanChecks = append(typeChecks, addedChecks...)
+	}
+	if len(validatedChecks) != 0 {
+		scanChecks = append(slices.Clone(scanChecks), validatedChecks...)
 	}
 	virtualNotNullScan := false
 	if !rewrite {
@@ -29,12 +31,25 @@ func PlanAlterScan(old, next *catalog.Relation, schema string, rewrite, physical
 			}
 		}
 	}
-	if !physicalRows || len(scanChecks) == 0 && (rewrite || !NeedsNotNullScan(old, next) && !virtualNotNullScan) {
+	if !physicalRows || len(scanChecks) == 0 && len(validatedNotNull) == 0 && (rewrite || !NeedsNotNullScan(old, next) && !virtualNotNullScan) {
 		return AlterRowValidator{}, false
 	}
 	validator := NewAlterRowValidator(next, schema)
-	if rewrite {
-		validator.NotNull = nil
+	validator.NotNull = nil
+	if !rewrite {
+		for _, slot := range notNull {
+			attribute := next.Attributes[slot]
+			previouslyValid := slices.ContainsFunc(old.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.Attribute == attribute && !c.NotValid })
+			if !previouslyValid || slices.Contains(replacements, attribute) {
+				validator.NotNull = append(validator.NotNull, slot)
+			}
+		}
+	}
+	for _, attribute := range validatedNotNull {
+		slot := next.IndexForAttribute(attribute)
+		if slot >= 0 && !slices.Contains(validator.NotNull, slot) {
+			validator.NotNull = append(validator.NotNull, slot)
+		}
 	}
 	if len(scanChecks) != 0 {
 		traversal := *next
@@ -55,7 +70,7 @@ func ResolveAlterChecks(next *catalog.Relation, scheduled []catalog.CheckConstra
 		slot, found := slices.BinarySearchFunc(next.Constraints.Check, check.Name, func(candidate catalog.CheckConstraint, name string) int {
 			return strings.Compare(candidate.Name, name)
 		})
-		if !found || next.Constraints.Check[slot].Ordinal != check.Ordinal || next.Constraints.Check[slot].OID == 0 {
+		if !found || next.Constraints.Check[slot].Ordinal != check.Ordinal || next.Constraints.Check[slot].OID == 0 || check.OID != 0 && next.Constraints.Check[slot].OID != check.OID {
 			return nil, catalog.Conflict{}
 		}
 		resolved[i] = next.Constraints.Check[slot]

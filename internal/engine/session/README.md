@@ -297,6 +297,10 @@ implement its slots, so either import would form a cycle.
   only the published catalog and storage relations. The root declares its own
   kinds from `FenceRootKinds` on, and the order in which publication checks
   the kinds.
+  `NewStorageIdentityFence` is the narrow validity-only scan capture: it retains
+  heap pointer identity while permitting enforced DML tuple/generation evolution.
+  `NewStorageReadFence` retains its strict length/Ends semantics; independent
+  prior shape/read fences are never removed or relaxed.
 - **Slots**: journal slots (`journal_slots.go`: `EnumSlot`, `DomainSlot`,
   `IndexSlot`, implemented by `typedef` and `index`) and root slots
   (`root_slots.go`: `PayloadSlot`, `OwnerSlot`, `ExclusionMarkSlot`,

@@ -21,6 +21,12 @@ from stored-view nullability and lib/pq's INT2 scan type. Direct, fresh-prepared
 and owner-prepared catalog writes recheck reader authority before effects;
 native privileged writes remain unsupported.
 
+`ALTER TABLE ... VALIDATE CONSTRAINT` validates historical CHECK, NOT NULL and
+foreign-key rows atomically while preserving ongoing write enforcement. Validation
+retains constraint identities, propagates inheritable CHECK/NOT NULL validity,
+and persists promoted state through native Dump/Restore.
+Foreign-key historical failures follow ADD-pass then explicit validation order.
+
 Polymorphic SQL and PL procedure calls retain concrete invocation output types
 through result metadata, private PL formals and native replay. Procedure options
 are parsed as complete clauses: malformed suffixes fail during parsing, while

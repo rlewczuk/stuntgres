@@ -35,7 +35,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	if err == nil && ref != scope.LockedRef {
 		err = ids.ErrCatalogReplaced
 	}
-	if err == nil {
+	if err == nil && !(scope.Inheritance.Alter != nil && scope.Inheritance.Alter.Descendant && table.ValidationOnly(s.Actions)) {
 		err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	}
 	if err != nil {
@@ -97,6 +97,38 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		command.Actions = work
 		s = &command
 	}
+	if table.ValidationOnly(s.Actions) {
+		if scope.Inheritance.Alter != nil && scope.Inheritance.Alter.Descendant {
+			command := *s
+			command.Actions = slices.Clone(s.Actions)
+			for i, action := range command.Actions {
+				mapped, mapErr := table.ValidationChildAction(old, action)
+				if mapErr != nil {
+					return fail(mapErr)
+				}
+				command.Actions[i] = mapped
+			}
+			s = &command
+		}
+		allValid := true
+		for _, action := range s.Actions {
+			selected, selectErr := table.SelectAlterConstraintValidation(old, action.Constraint.Text)
+			if selectErr != nil {
+				return fail(selectErr)
+			}
+			allValid = allValid && !selected.Invalid()
+		}
+		if allValid {
+			// Relay original descendant intent without scanning this valid node.
+			if scope.Inheritance.Alter != nil && scope.Inheritance.Alter.Descendant {
+				for _, action := range s.Actions {
+					inheritancePlan(scope).RecordAction(old, old, action)
+				}
+			}
+			e.Mu.Unlock()
+			return core.Result{}, nil
+		}
+	}
 	if scope.Inheritance.Alter == nil && !access.RowSecurityActions(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
 		return alterInheritanceLocked(e, scope, op, auth, s, count, destination, prepared)
 	}
@@ -121,9 +153,28 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next)
 	}
+	validityOnly := table.ValidationOnly(s.Actions)
 	changes := scope.PendingCatalog()
 	if scope.Inheritance.Alter == nil {
 		changes = changes.Clone()
+	}
+	for _, capture := range foreignKeysOrZero(scope).ValidationKeys {
+		if e.PrivateStorageLocked(changes, capture.Target.Address) != capture.Storage {
+			return fail(ids.ErrCatalogReplaced)
+		}
+		if validityOnly {
+			changes.AddFence(session.NewStorageIdentityFence(capture.Target.Address, e.Storage.Relations[capture.Target.Address]))
+		} else {
+			changes.AddFence(session.NewStorageReadFence(capture.Target.Address, e.Storage.Relations[capture.Target.Address]))
+		}
+		for _, source := range []*catalog.Relation{capture.Parent, capture.Provider} {
+			if source == nil || auth.Catalog.Get(source.Address()) != source {
+				return fail(ids.ErrCatalogReplaced)
+			}
+			if _, recorded := changes.Originals[source.Address()]; !recorded {
+				changes.Originals[source.Address()] = e.Catalog.State.Get(source.Address())
+			}
+		}
 	}
 	relationshipOnly := table.RelationshipOnly(s.Actions)
 	// Virtual partition nodes share the candidate/provider/publication pipeline,
@@ -149,7 +200,11 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if !exists {
 			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: old}
 		}
-		changes.AddFence(session.NewStorageReadFence(ref.Address, original))
+		if validityOnly {
+			changes.AddFence(session.NewStorageIdentityFence(ref.Address, original))
+		} else {
+			changes.AddFence(session.NewStorageReadFence(ref.Address, original))
+		}
 		frontier = e.Visibility.CommitSeq()
 		snapshot, snapshotExists = scope.Owner.Roots[ref.Address]
 	}
@@ -195,12 +250,15 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	var typeChecks []catalog.CheckConstraint
 	var addedChecks []catalog.CheckConstraint
 	var addedIndexes []ids.ObjectAddress
-	var addedForeignKeys []ids.OID
+	var foreignKeyHistory []catalog.ForeignKeyConstraint
+	var validatedChecks []catalog.CheckConstraint
+	var validatedNotNull []catalog.NotNullConstraint
 	var additions []table.AddedColumn
 	var replacements []int32
 	var attachments []index.UsingIndexAttachment
 	hasAttachments := false
 	hasForeignKeys := len(foreignKeysOrZero(scope).AlterKeys) != 0
+	hasValidations := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.ValidateConstraint })
 	for _, action := range s.Actions {
 		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
 	}
@@ -374,7 +432,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		FinishInheritance: func(o, n *catalog.Relation) (*catalog.Relation, error) {
 			return finishInheritanceAlterCandidate(scope, o, n)
 		},
-		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys,
+		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys, ValidateConstraints: hasValidations,
 		StageEmpty:  stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.Sequence.StagedGenerators()) == 0,
 		Destination: destination,
 	})
@@ -466,8 +524,57 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if err != nil {
 			return core.Result{}, err
 		}
-		addedForeignKeys = append(addedForeignKeys, next.Constraints.ForeignKeys[len(next.Constraints.ForeignKeys)-1].OID)
+		added := next.Constraints.ForeignKeys[len(next.Constraints.ForeignKeys)-1]
+		// Capture ADD-pass eligibility before MISC can promote NOT VALID.
+		if !added.NotValid {
+			foreignKeyHistory = append(foreignKeyHistory, added)
+		}
 		fkIndex++
+	}
+	// Misc resolves only after every ADD definition, including deferred FKs.
+	for _, action := range s.Actions {
+		if action.Action != parser.ValidateConstraint {
+			continue
+		}
+		if plan := inheritancePlan(scope); plan != nil && plan.Descendant {
+			mapped, mapErr := table.ValidationChildAction(next, action)
+			if mapErr != nil {
+				return core.Result{}, mapErr
+			}
+			action = mapped
+		}
+		before := next
+		promoted, selected, selectErr := table.ValidateConstraintCandidate(next, action.Constraint.Text)
+		if selectErr != nil {
+			return core.Result{}, selectErr
+		}
+		plan := inheritancePlan(scope)
+		if plan != nil && !plan.Descendant && plan.Only && len(plan.Targets) > 1 && selected.Recursive() {
+			return core.Result{}, core.SQLError("42P16", "constraint must be validated on child tables too")
+		}
+		next = promoted
+		plan.RecordAction(before, next, action)
+		if before == next {
+			continue
+		}
+		switch {
+		case selected.Check != nil:
+			validatedChecks = append(validatedChecks, *selected.Check)
+		case selected.NotNull != nil:
+			validatedNotNull = append(validatedNotNull, *selected.NotNull)
+		case selected.ForeignKey != nil:
+			foreignKeyHistory = append(foreignKeyHistory, *selected.ForeignKey)
+		}
+	}
+	if hasValidations && next != old {
+		if err := stage.Replace(next); err != nil {
+			return core.Result{}, err
+		}
+		if next.Revision() == old.Revision() {
+			if err := table.BumpAlterRevision(old, next); err != nil {
+				return core.Result{}, err
+			}
+		}
 	}
 	if hasForeignKeys && next.Revision() == old.Revision() {
 		if err := table.BumpAlterRevision(old, next); err != nil {
@@ -544,16 +651,18 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		mutation: scope.StatementMutation, ref: ref, old: old, storageOwner: storageOwner, store: store, shape: shape,
 		frontier: frontier, snapshot: snapshot, snapshotExists: snapshotExists,
 		transformations: transformations, additions: additions, storedReplacements: storedReplacements, replacements: replacements,
-		typeChecks: typeChecks, addedChecks: addedChecks, addedIndexes: addedIndexes, addedForeignKeys: addedForeignKeys,
+		typeChecks: typeChecks, addedChecks: addedChecks, addedIndexes: addedIndexes,
+		validatedChecks: validatedChecks, validatedNotNull: validatedNotNull, foreignKeyHistory: foreignKeyHistory,
 		fills: fills, rewrite: rewrite, rewriteEvent: physicalRows && table.AlterEventRewrite(transformations, storedReplacements, perRowAdd),
 		physicalRows: physicalRows, hasAttachments: hasAttachments, changedValues: changedValues, destination: destination,
+		validityOnly: validityOnly,
 	}
 	if physicalWork != nil {
 		*physicalWork = append(*physicalWork, physical)
 		return core.Result{}, nil
 	}
 	layouts := stage.IndexesOrZero().Layouts
-	phase, err := e.PublishAlterMetadata(scope, stage, map[ids.ObjectAddress]bool{ref.Address: true})
+	phase, err := e.PublishAlterMetadata(scope, stage, map[ids.ObjectAddress]bool{ref.Address: true}, map[ids.ObjectAddress]bool{ref.Address: validityOnly})
 	if err != nil {
 		return core.Result{}, err
 	}

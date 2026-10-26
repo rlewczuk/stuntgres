@@ -76,9 +76,13 @@ func TestReferenceInfoConstraintColumnUsageLifecycle(t *testing.T) {
 			c.run(c.conn, fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='ccu_life_child_schema.ccu_life_child'::regclass::oid AND conname='ccu_life_renamed_fk'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{valid}}))
 		}
 		flags(false)
-		// Recreate rather than extending the existing VALIDATE CONSTRAINT surface.
-		c.exec("ALTER TABLE ccu_life_child_schema.ccu_life_child DROP CONSTRAINT ccu_life_renamed_fk", "ALTER TABLE ccu_life_child_schema.ccu_life_child ADD CONSTRAINT ccu_life_renamed_fk FOREIGN KEY(x,y) REFERENCES ccu_life_target.ccu_life_renamed(key_b,a)")
+		var invalidOID int64
+		if err := c.conn.QueryRowContext(c.p.Ctx, "SELECT oid FROM pg_constraint WHERE conrelid='ccu_life_child_schema.ccu_life_child'::regclass::oid AND conname='ccu_life_renamed_fk'").Scan(&invalidOID); err != nil || invalidOID <= 0 {
+			c.t.Fatal("invalid constraint identity", invalidOID, err)
+		}
+		c.exec("ALTER TABLE ccu_life_child_schema.ccu_life_child VALIDATE CONSTRAINT ccu_life_renamed_fk")
 		flags(true)
+		c.run(c.conn, fixture.Select("SELECT oid=$1::oid AS same_identity FROM pg_constraint WHERE conrelid='ccu_life_child_schema.ccu_life_child'::regclass::oid AND conname='ccu_life_renamed_fk'", []string{"same_identity"}, []string{"BOOL"}, [][]any{{true}}, invalidOID))
 		check()
 		c.exec("ALTER TABLE ccu_life_child_schema.ccu_life_child DROP CONSTRAINT ccu_life_renamed_fk", "ALTER TABLE ccu_life_target.ccu_life_renamed DROP CONSTRAINT ccu_life_renamed_u")
 		hasFK, hasUnique = false, false

@@ -4,7 +4,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -58,7 +57,7 @@ func (r *Engine) admitInheritanceAlter(scope *core.StatementScope, op *session.O
 			ref := original.LockedRef
 			ref.Address = observed.Address()
 			if !locked[observed.Address()] {
-				if err := scope.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
+				if err := scope.AcquireSequence(ref, table.AlterTableLockMode(&parser.AlterTable{Actions: raw.Actions}), true); err != nil {
 					return err
 				}
 				locked[observed.Address()] = true
@@ -98,7 +97,7 @@ func (r *Engine) admitInheritanceAlter(scope *core.StatementScope, op *session.O
 					return err
 				}
 			}
-			if index != 0 && !table.InheritanceEntryOwner(incoming) && len(planned) != 0 {
+			if index != 0 && !table.InheritanceEntryOwner(incoming) && len(planned) != 0 && !table.ValidationOnly(planned) {
 				e.Mu.Lock()
 				err = currentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 				e.Mu.Unlock()

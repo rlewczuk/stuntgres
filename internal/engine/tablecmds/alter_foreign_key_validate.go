@@ -7,9 +7,9 @@ import (
 )
 
 // validateForeignKeys scans the existing rows of checks, keys of the
-// candidate view, as the operation's authority over view. Only definitions an
-// ALTER introduced or whose values it changed get this initial historical
-// scan; the ordinary Finish checker remains responsible for later writes.
+// candidate view, as the operation's authority over view. Selected VALIDATE
+// identities join newly introduced and value-changed keys; the ordinary Finish
+// checker remains responsible for ongoing write enforcement.
 func validateForeignKeys(s *core.StatementScope, view catalog.Read, checks []table.ForeignKeyCheck) error {
 	auth, err := core.OperationAuthorization(s.Op)
 	if err != nil {

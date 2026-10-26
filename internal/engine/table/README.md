@@ -36,7 +36,7 @@ call live here.
   transaction admission and shared catalog/storage publication belong to the
   engine, not `CheckCreateShape`.
 - **ALTER TABLE** (`alter_*.go`, `rename.go`): `AlterActionPhase` (the
-  nine-pass order), `AlterTableLockMode`, `AlterTablePreparation`, candidates
+  provider-phase order), `AlterTableLockMode`, `AlterTablePreparation`, candidates
   over `AlterHost` (`AddColumnCandidate`, `AlterTypeCandidate`,
   `PrepareAlterTableActions`, ...), staging over `Host`, post-loop rebuilds
   over `ddl.Host`/`ddl.Stage` (`RebuildAlterNotNulls`,
@@ -50,6 +50,11 @@ call live here.
   lock, but expressions may reach host methods that take `Engine.Mu`, so
   callers hold nothing. `AlterCookingError` clones public diagnostics without
   mutating the source.
+  `ValidateConstraintCandidate` returns an immutable validity-only successor and
+  selected stable scan identities; eligible valid facts return the identical
+  predecessor. Misc resolution follows all ADD definitions, including deferred
+  foreign keys. `PlanAlterScan` unions selected validation with independently
+  required shape checks without scanning unrelated invalid facts.
 - **NOT NULL, CHECK, DEFAULT and generated columns** (`not_null_*.go`,
   `physical_not_null*.go`, `check*.go`, `default*.go`, `generated*.go`,
   `row_constraints.go`): `NotNullCandidate`, the physical NOT NULL transitions,
@@ -131,6 +136,10 @@ call live here.
   Restore (`RestoredForeignKeys`). A `ForeignKeyScan` carries a
   `ForeignKeyRowsCapture` callback that takes `Engine.Mu`, so callers hold
   nothing.
+  `ResolveAlterForeignKeys` resolves scheduled stable definitions in execution
+  order, preserving an independently required changed-value prefix and deduping
+  each child/OID at its first position. Authentic final names, keys, supporting
+  indexes and action semantics remain checked; descriptor order is not queue order.
 - **Inheritance** (`inheritance_*.go`, `typed_inheritance.go`,
   `partition_alter*.go`): the host-less recursion plan
   (`InheritanceAlterPlan`, `PlanInheritanceAlter`), `PrepareInheritanceNode`
@@ -140,6 +149,12 @@ call live here.
   OID-ordered tables a DROP locks), the query helpers
   `InheritanceQueryLeaves`/`InheritancePendingGrants`, and the partition
   CHECK/NOT NULL policy over the same plan and stage.
+  Validation propagates CHECK names and NOT NULL logical column names, preserving
+  provenance without ADD/SET localization. Invalid inheritable roots retain
+  all-descendant intent through valid intermediate nodes; valid roots and
+  NO INHERIT facts do not discover descendants. Recursive validity-only work uses
+  root-owner authority and SUE grants; nonvalidation companions retain their
+  ordinary owner checks and strongest modes.
 - **Dump and Restore** (`dump.go`, `constraint_dump.go`, `*_restore*.go`,
   `default_replay.go`): `DumpRelation` and its emitters, the Restore syntax
   parsers, `PrepareGenerationPlaceholders`, and the repair cores inside the root
@@ -244,7 +259,7 @@ recaptures exact identities after waits before publishing their candidates.
 
 ## Invariants
 
-- ALTER TABLE keeps its nine-pass order, the inheritance pass order and
+- ALTER TABLE keeps its provider-phase order, deferred misc and
   per-node re-entry, so every action list reports the same first error.
   Definition preparation uses ordered provider results once. Canonical checked
   metadata enters the real journal before callbacks; fresh physical successors
@@ -256,8 +271,8 @@ recaptures exact identities after waits before publishing their candidates.
   check each converted row before converting the next. Everything validates
   before publication; failure leaves identities, constraints, rows and roots
   intact.
-  Scheduled CHECK scans reselect only their original name/ordinal identities
-  from the authentic final descriptor, retaining assigned OIDs and cooked
+  Scheduled CHECK scans reselect their original name/ordinal and assigned OID
+  from the authentic final descriptor, retaining cooked
   provenance. Descriptor name order is separate from scheduled execution order.
 - Dump output is byte-stable: `DumpRelation` emitters keep their order and
   never iterate maps into output; each Restore syntax parser stays next to the

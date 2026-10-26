@@ -25,7 +25,7 @@ func inheritanceEventName(a parser.AlterTableAction) string {
 		return a.Definition.Name
 	case parser.AddCheck:
 		return a.Check.Name.Text
-	case parser.DropConstraint:
+	case parser.DropConstraint, parser.ValidateConstraint:
 		return a.Constraint.Text
 	}
 	return a.Column.Text
@@ -105,7 +105,7 @@ func InheritanceRemovedOrigin(state *InheritanceAlterPlan, origin catalog.Inheri
 	return false
 }
 
-func InheritancePreparatoryLocks(actions []parser.AlterTableAction, only bool) bool {
+func InheritancePreparatoryLocks(root *catalog.Relation, actions []parser.AlterTableAction, only bool) bool {
 	if only {
 		return false
 	}
@@ -113,6 +113,10 @@ func InheritancePreparatoryLocks(actions []parser.AlterTableAction, only bool) b
 		switch a.Action {
 		case parser.AddCheck, parser.AddNotNull, parser.AddUnique, parser.AddForeignKey, parser.AddExclusion, parser.AlterColumnType, parser.SetExpression, parser.DropExpression:
 			return true
+		case parser.ValidateConstraint:
+			if InheritanceRecursiveAction(root, a, only) {
+				return true
+			}
 		}
 	}
 	return false

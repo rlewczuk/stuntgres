@@ -28,6 +28,9 @@ and never the engine.
   two version roots by identity. `IndexIdentity` names the
   storage an index root was built from. `RowByID` finds a row by its stable
   `RowID`, trying a captured position first.
+  `Generation` advances on ordinary DML publication as well as physical changes;
+  it is a tuple-root revision, not an immutable heap-incarnation token. The heap
+  pointer identifies the storage incarnation; rewrites install a new pointer.
 - **Logical heap verification** (`verify_heapam.go`): `HeapVerification` borrows
   live column usages/stable attributes and immutable committed/own version/end
   roots. `VerifyHeapam` checks exact typed admission and bounded identity,

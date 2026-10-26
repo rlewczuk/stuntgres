@@ -40,7 +40,7 @@ func TestPlanAlterScan(t *testing.T) {
 		{name: "virtual NOT NULL replacement", old: virtual, next: virtual, physicalRows: true, replacements: []int32{2}, scan: true, notNull: 1},
 		{name: "virtual replacement without NOT NULL", old: virtual, next: relation(false, catalog.GenerationVirtual), physicalRows: true, replacements: []int32{2}},
 	} {
-		v, scan := PlanAlterScan(tc.old, tc.next, "public", tc.rewrite, tc.physicalRows, tc.typeChecks, tc.added, tc.replacements, NewAlterRowValidator(tc.next, "public").NotNull)
+		v, scan := PlanAlterScan(tc.old, tc.next, "public", tc.rewrite, tc.physicalRows, tc.typeChecks, tc.added, nil, nil, tc.replacements, NewAlterRowValidator(tc.next, "public").NotNull)
 		if scan != tc.scan {
 			t.Fatalf("%s: scan = %v", tc.name, scan)
 		}

@@ -284,7 +284,7 @@ func ExecuteAlterComposite(e *core.Engine, scope *core.StatementScope, op *sessi
 		break
 	}
 	layouts := stage.IndexesOrZero().Layouts
-	phase, err := e.PublishAlterMetadata(scope, stage, physicalParents)
+	phase, err := e.PublishAlterMetadata(scope, stage, physicalParents, nil)
 	if err != nil {
 		return core.Result{}, err
 	}

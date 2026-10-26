@@ -53,11 +53,13 @@ func TestReferenceInfoKeyColumnUsageLifecycle(t *testing.T) {
 			c.run(c.conn, fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='kcu_life_child'::regclass::oid AND conname='kcu_life_fk'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{valid}}))
 		}
 		flags(false)
-		// VALIDATE CONSTRAINT is outside the existing native DDL surface.
-		// Recreate through ordinary validated ADD instead; definition rows
-		// remain identical despite the changed constraint identity/state.
-		c.exec("ALTER TABLE kcu_life_child DROP CONSTRAINT kcu_life_fk", "ALTER TABLE kcu_life_child ADD CONSTRAINT kcu_life_fk FOREIGN KEY(x,y) REFERENCES kcu_life_schema.kcu_renamed(key_b,a)")
+		var invalidOID int64
+		if err := c.conn.QueryRowContext(c.p.Ctx, "SELECT oid FROM pg_constraint WHERE conrelid='kcu_life_child'::regclass::oid AND conname='kcu_life_fk'").Scan(&invalidOID); err != nil || invalidOID <= 0 {
+			t.Fatal("invalid constraint identity", invalidOID, err)
+		}
+		c.exec("ALTER TABLE kcu_life_child VALIDATE CONSTRAINT kcu_life_fk")
 		flags(true)
+		c.run(c.conn, fixture.Select("SELECT oid=$1::oid AS same_identity FROM pg_constraint WHERE conrelid='kcu_life_child'::regclass::oid AND conname='kcu_life_fk'", []string{"same_identity"}, []string{"BOOL"}, [][]any{{true}}, invalidOID))
 		c.check(c.conn, "kcu_life_child", fk...)
 		c.check(held, "kcu_life_child", fk...)
 		c.exec("ALTER TABLE kcu_life_child DROP CONSTRAINT kcu_life_fk")

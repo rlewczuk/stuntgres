@@ -33,10 +33,13 @@ type AlterTablePhysical struct {
 	storedReplacements, replacements                                   []int32
 	typeChecks, addedChecks                                            []catalog.CheckConstraint
 	addedIndexes                                                       []ids.ObjectAddress
-	addedForeignKeys                                                   []ids.OID
+	validatedChecks                                                    []catalog.CheckConstraint
+	validatedNotNull                                                   []catalog.NotNullConstraint
+	foreignKeyHistory                                                  []catalog.ForeignKeyConstraint
 	fills                                                              map[int32]sqltype.Value
 	rewrite, rewriteEvent, physicalRows, hasAttachments, changedValues bool
 	destination                                                        ids.ObjectRef
+	validityOnly                                                       bool
 }
 
 func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.AlterMetadataPhase, work *AlterTablePhysical, layouts map[ids.ObjectAddress]index.LayoutLineage) (result core.Result, err error) {
@@ -63,7 +66,9 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	var versions []storage.RowVersion
 	var ends *storage.DeletionRoot
 	if store != nil {
+		e.Mu.Lock()
 		versions, ends = store.Versions, store.Ends
+		e.Mu.Unlock()
 	}
 	frontier, snapshot, snapshotExists := work.frontier, work.snapshot, work.snapshotExists
 	schema := auth.Catalog.Get(next.Namespace()).Name()
@@ -78,6 +83,20 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	if err != nil {
 		return core.Result{}, err
 	}
+	validatedChecks, err := table.ResolveAlterChecks(next, work.validatedChecks)
+	if err != nil {
+		return core.Result{}, err
+	}
+	var validatedAttributes []int32
+	for _, selected := range work.validatedNotNull {
+		found := slices.ContainsFunc(next.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
+			return c.OID == selected.OID && c.Attribute == selected.Attribute && c.Name == selected.Name && !c.NotValid
+		})
+		if !found {
+			return core.Result{}, ids.ErrCatalogReplaced
+		}
+		validatedAttributes = append(validatedAttributes, selected.Attribute)
+	}
 	addedIndexes := work.addedIndexes
 	fills := work.fills
 	rewrite, physicalRows, hasAttachments, changedValues := work.rewrite, work.physicalRows, work.hasAttachments, work.changedValues
@@ -85,6 +104,26 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	shape.MergeFills(fills, next)
 	replacement := store
 	projectedWrites, projectedDeletes := scope.ColumnProjectionRoots(ref.Address)
+	if work.validityOnly {
+		if scanValidator, scan := table.PlanAlterScan(old, next, schema, false, physicalRows, nil, nil, validatedChecks, validatedAttributes, nil, nil); scan {
+			if scanValidator.Checks != nil {
+				if err := CaptureCheckSnapshots(e, scope, scanValidator.Checks); err != nil {
+					return core.Result{}, err
+				}
+			}
+			if err := table.ValidateAddedConstraintRows(AlterRowEvaluation(scope, op, catalog.Read{}), scanValidator, versions, ends, frontier, projectedWrites, projectedDeletes); err != nil {
+				return core.Result{}, err
+			}
+		}
+		// Metadata is already private. Validity-only history never installs a
+		// heap shape or freezes tuple/index roots through transaction end.
+		if scope.Inheritance.Alter == nil {
+			if err := validateAlterPhysical(e, scope, phase, work); err != nil {
+				return core.Result{}, err
+			}
+		}
+		return core.Result{}, nil
+	}
 	validator := table.NewAlterRowValidator(next, schema)
 	if len(storedReplacements) != 0 {
 		typeChecks = table.ValidCheckTraversal(next).Constraints.Check
@@ -162,7 +201,7 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	if err != nil {
 		return core.Result{}, err
 	}
-	if scanValidator, scan := table.PlanAlterScan(old, next, schema, rewrite, physicalRows, typeChecks, addedChecks, replacements, validator.NotNull); scan {
+	if scanValidator, scan := table.PlanAlterScan(old, next, schema, rewrite, physicalRows, typeChecks, addedChecks, validatedChecks, validatedAttributes, replacements, validator.NotNull); scan {
 		if scanValidator.Checks != nil {
 			if err := CaptureCheckSnapshots(e, scope, scanValidator.Checks); err != nil {
 				return core.Result{}, err
@@ -273,15 +312,20 @@ func validateAlterPhysical(e *core.Engine, scope *core.StatementScope, phase cor
 	if err = prepareExclusionShape(scope, work.old, next, auth.Catalog, writes, deletes); err != nil {
 		return err
 	}
+	var prefix []table.ForeignKeyCheck
 	if work.changedValues {
-		if err = validateForeignKeys(scope, auth.Catalog, table.ReferencingForeignKeys(auth.Catalog, work.ref.Address)); err != nil {
-			return err
-		}
+		// TYPE/rewrite companions keep their incumbent required traversal.
+		prefix = table.ReferencingForeignKeys(auth.Catalog, work.ref.Address)
 	}
-	if len(work.transformations) == 0 && len(work.addedForeignKeys) != 0 {
-		if err = validateForeignKeys(scope, auth.Catalog, table.AddedForeignKeys(next, work.addedForeignKeys)); err != nil {
-			return err
-		}
+	checks, err := table.ResolveAlterForeignKeys(next, work.foreignKeyHistory, prefix)
+	if err != nil {
+		return err
+	}
+	if len(checks) == 0 {
+		return nil
+	}
+	if err = validateForeignKeys(scope, auth.Catalog, checks); err != nil {
+		return err
 	}
 	return nil
 }

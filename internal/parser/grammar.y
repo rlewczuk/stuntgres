@@ -505,7 +505,7 @@ package parser
 %type <desc> set_modifier
 %type <stmt> create_domain drop_domain alter_domain create_enum create_composite alter_enum
 %type <check> domain_alter_check
-%type <tok> domain_validate_word
+%type <tok> validate_word
 %type <stmt> alter_composite drop_type alter_table_of
 %type <alterActions> composite_actions
 %type <alterAction> composite_action
@@ -1674,7 +1674,7 @@ drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode
  | DROP DOMAIN IF EXISTS relation_names drop_mode { $$=&DropDomain{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
 alter_domain: ALTER DOMAIN relation_name ADD domain_alter_check {$$=&AlterDomain{Name:$3,Action:DomainAddCheck,Check:$5,Constraint:$5.Name,Pos:$1.pos}}
  | ALTER DOMAIN relation_name DROP CONSTRAINT drop_target drop_mode {$$=&AlterDomain{Name:$3,Action:DomainDropCheck,Constraint:$6.Name,IfExists:$6.IfExists,Mode:$7,Pos:$1.pos}}
- | ALTER DOMAIN relation_name domain_validate_word CONSTRAINT name {$$=&AlterDomain{Name:$3,Action:DomainValidateCheck,Constraint:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER DOMAIN relation_name validate_word CONSTRAINT name {$$=&AlterDomain{Name:$3,Action:DomainValidateCheck,Constraint:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
  | ALTER DOMAIN relation_name RENAME TO name {$$=&AlterDomain{Name:$3,Action:DomainRename,Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
  | ALTER DOMAIN relation_name SET SCHEMA name {$$=&AlterDomain{Name:$3,Action:DomainSetSchema,Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
  | ALTER DOMAIN relation_name SET DEFAULT target_or {$$=&AlterDomain{Name:$3,Action:DomainSetDefault,Default:$6,Pos:$1.pos}}
@@ -1684,7 +1684,7 @@ alter_domain: ALTER DOMAIN relation_name ADD domain_alter_check {$$=&AlterDomain
 domain_alter_check: check_constraint {$$=$1}
  | domain_alter_check NOT nn_modifier {if $3.text!="valid" {sqllex.(*lexer).syntax($3);return 1};$1.NotValid=true;$$=$1}
  | domain_alter_check NO nn_inherit {$1.NoInherit=true;$$=$1} ;
-domain_validate_word: KW_U {if $1.text!="validate" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+validate_word: KW_U {if $1.keyword==nil || $1.text!="validate" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 drop_type: DROP TYPE relation_names drop_mode {$$=&DropType{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP TYPE IF EXISTS relation_names drop_mode {$$=&DropType{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 alter_composite: ALTER TYPE relation_name composite_actions {$$=&AlterComposite{Name:$3,Actions:$4,Pos:$1.pos}}
@@ -2307,7 +2307,7 @@ relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relat
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 /* All ALTER TABLE actions share one target prefix. Reducing alter_target on
  * some paths and rename_target on others steals action lookahead from peers. */
-alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
+alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
  | ALTER TABLE ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$6.text,Pos:$6.pos},Destination:Identifier{Text:$10.text,Pos:$10.pos},Owners:$7,Nowait:$11,Pos:$1.pos} }
  | alter_default_single { $$=$1 }
  | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
@@ -2338,7 +2338,7 @@ alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { fo
      }
      return 1
    }
- | ALTER TABLE rename_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
+ | ALTER TABLE rename_target alter_action { if $4.keyword==nil {sqllex.(*lexer).syntax($4)} else {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset)}; return 1 } ;
 tablespace_owners: /* empty */ { $$=nil } | OWNED BY membership_role_specs { $$=$3 } ;
 alter_actions: ordinary_alter_action { $$=[]AlterTableAction{*$1} }
  | alter_actions ',' ordinary_alter_action { $$=append($1,*$3) }
@@ -2363,6 +2363,7 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | ALTER optional_column name DROP generation_expression_word IF EXISTS { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropExpression,IfExists:true,Pos:$1.pos} }
  | alter_constraint {$$=$1}
  | DROP CONSTRAINT drop_target drop_mode { $$=&AlterTableAction{Constraint:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropConstraint,Pos:$1.pos} }
+ | validate_word CONSTRAINT name { $$=&AlterTableAction{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Action:ValidateConstraint,Pos:$1.pos} }
  | ALTER optional_column name ADD identity_definition { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AddIdentity,Identity:$5,Pos:$1.pos} }
  | ALTER optional_column name DROP IDENTITY { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,Pos:$1.pos} }
  | ALTER optional_column name DROP IDENTITY IF EXISTS { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,IfExists:true,Pos:$1.pos} }

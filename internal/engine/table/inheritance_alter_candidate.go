@@ -21,6 +21,9 @@ func InheritedAlterActions(plan *InheritanceAlterPlan, view, retired catalog.Rea
 	droppedColumns := make(map[string]bool)
 	for _, a := range InheritanceParentActions(state, old) {
 		switch a.Action {
+		case parser.ValidateConstraint:
+			// NN names resolve at misc, after this child's own ADD phases.
+			actions = append(actions, a)
 		case parser.AddColumn:
 			if state.Only {
 				continue
@@ -171,6 +174,9 @@ func InheritedAlterActions(plan *InheritanceAlterPlan, view, retired catalog.Rea
 // takes no part in inheritance. view reads the members as staged.
 func FinishInheritanceAlterCandidate(plan *InheritanceAlterPlan, view catalog.Read, old, next *catalog.Relation) (*catalog.Relation, error) {
 	state := plan
+	if state != nil && ValidationOnly(state.Actions) {
+		return next, nil
+	}
 	if state != nil && state.Partition {
 		return finishPartitionCandidate(state, view, old, next)
 	}

@@ -91,6 +91,9 @@ func InheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog
 
 func InheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableAction, only bool) bool {
 	switch a.Action {
+	case parser.ValidateConstraint:
+		selected, err := SelectAlterConstraintValidation(root, a.Constraint.Text)
+		return err == nil && selected.Recursive()
 	case parser.SetTablespace, parser.SetRelationOptions, parser.ResetRelationOptions:
 		return false // Assignment is always root-only, independent of ONLY/star.
 	case parser.AddColumn, parser.DropColumn, parser.AlterColumnType:
@@ -228,7 +231,7 @@ func PlanInheritanceAlter(view catalog.Read, root *catalog.Relation, raw *parser
 			return InheritanceAlterPlan{}, false, err
 		}
 	}
-	preparatory := InheritancePreparatoryLocks(actions, raw.Only)
+	preparatory := InheritancePreparatoryLocks(root, actions, raw.Only)
 	recurse := preparatory || slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool {
 		return InheritanceRecursiveAction(root, a, raw.Only) || a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint
 	})

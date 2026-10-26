@@ -10,11 +10,12 @@ import (
 // fails when that storage changed. Partition CREATE and ATTACH scans, journal
 // captures and overlay-index reads record it.
 type StorageReadFence struct {
-	address    ids.ObjectAddress
-	storage    *storage.Relation
-	length     int
-	ends       *storage.DeletionRoot
-	generation uint64
+	address      ids.ObjectAddress
+	storage      *storage.Relation
+	length       int
+	ends         *storage.DeletionRoot
+	generation   uint64
+	identityOnly bool
 }
 
 // NewStorageReadFence records store, the storage read at a; a nil store
@@ -27,14 +28,21 @@ func NewStorageReadFence(a ids.ObjectAddress, store *storage.Relation) StorageRe
 	return f
 }
 
+// NewStorageIdentityFence protects a validity-only scan's physical incarnation.
+// Enforced concurrent DML may publish new version/end roots and advance the
+// tuple generation. Heap replacement changes the storage pointer instead.
+func NewStorageIdentityFence(a ids.ObjectAddress, store *storage.Relation) StorageReadFence {
+	return StorageReadFence{address: a, storage: store, identityOnly: true}
+}
+
 func (StorageReadFence) Kind() FenceKind { return FenceStorageRead }
 
 // Address returns the address whose storage was read.
 func (f StorageReadFence) Address() ids.ObjectAddress { return f.address }
 
-// Matches reports whether s is the recorded storage, unchanged.
+// Matches checks the recorded incarnation and, for strict reads, tuple evolution.
 func (f StorageReadFence) Matches(s *storage.Relation) bool {
-	return s == f.storage && (s == nil || len(s.Versions) == f.length && s.Ends == f.ends && s.Generation == f.generation)
+	return s == f.storage && (s == nil || f.identityOnly || s.Generation == f.generation && len(s.Versions) == f.length && s.Ends == f.ends)
 }
 
 func (f StorageReadFence) Current(_ *catalog.State, relations map[ids.ObjectAddress]*storage.Relation) error {

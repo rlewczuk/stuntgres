@@ -47,6 +47,26 @@ TEMP preservation, relation admission and publication.
   transferring effects. Ordinary metadata transfer installs sequence descriptors,
   generators and retirements once before identity or volatile physical recipes;
   AS validation and cache-tail demand retain their earlier ordering.
+  VALIDATE resolves after deferred ADD FOREIGN KEY, carries only selected
+  identities into unlocked effective-row scans, and publishes through the same
+  fenced Finish. Eligible valid roots return without a stage or heap work.
+  Historical FK work is one ordered payload: ADD-time history-validating keys
+  precede action-ordered MISC selections. ADD NOT VALID is not retroactively
+  enrolled in the ADD prefix when MISC later promotes it. Resolution retains the
+  incumbent changed-value traversal as an earlier prefix, then deduplicates stable
+  child/OID identities without resorting scheduled work into descriptor order.
+  Recursive CHECK/NOT NULL validation admits the closure through the incumbent
+  non-pure provider path, then uses one metadata/physical/final-validation stage;
+  already-valid intermediates relay intent without scanning or replacement.
+  Only propagated validity-only actions omit descendant-owner checks.
+  Pure validation performs no heap-shape or index-root publication and preserves
+  earlier own transaction shape authorities. Its source fences protect heap
+  pointer identity while enforced DML may advance tuple generations and roots.
+  Descendant NOT NULL names resolve by logical column at actual misc, after that
+  descendant's ADD phases, rather than against its old descriptor.
+  These are logical row/catalog/transaction guarantees. External server trigger,
+  transport and physical-page/WAL/crash-recovery mechanisms remain outside this
+  executor; native persistence uses the incumbent logical Dump/Restore controls.
 - Dispatch (`core.Statements.Execute`): `ExecuteSequenceDDL`,
   `ExecuteSequenceComment` and `ExecuteVacuum` are entered with nothing held;
   they take `Engine.Mu` in short windows and release it around lock waits.
@@ -107,6 +127,7 @@ make check RUN='^TestAlter'                                # ALTER TABLE passes,
 make check RUN='^Test(InheritanceAlter|InheritanceMaint|InheritanceMetadata|TableInheritance)'  # inheritance ALTER admission
 make check RUN='^Test(TableLike|TableCore|PartitionConstraints|UsingIndex)'  # CREATE TABLE forms and constraints
 make check RUN='^Test(TableHost|AlterHost|IndexHost)'      # the hosts
+make check RUN='^TestAlterValidateConstraint'               # selection, publication, admission and parser invariants
 make check RUN='^Test(Sequence|Identity|Serial)'           # sequence, identity and serial DDL
 make check RUN='^TestVacuum'                               # VACUUM selection, phases, publication
 make check RACE=1 RUN='^TestVacuum(PublicationFences|AuthorizationLocks)$$'  # VACUUM lock and publication races

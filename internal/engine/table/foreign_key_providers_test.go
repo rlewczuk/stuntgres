@@ -108,9 +108,12 @@ func TestForeignKeyChecks(t *testing.T) {
 	f := newForeignKeyFixture()
 	c := *f.c
 	c.Constraints.ForeignKeys = append(slices.Clone(f.c.Constraints.ForeignKeys), catalog.ForeignKeyConstraint{OID: 7, Target: f.q.Address(), NotValid: true}, catalog.ForeignKeyConstraint{OID: 8, Target: f.q.Address()})
-	added := AddedForeignKeys(&c, []ids.OID{7, 8})
-	if len(added) != 1 || added[0].Child != &c || added[0].Key.OID != 8 {
+	added, err := ResolveAlterForeignKeys(&c, c.Constraints.ForeignKeys[len(c.Constraints.ForeignKeys)-1:], nil)
+	if err != nil || len(added) != 1 || added[0].Child != &c || added[0].Key.OID != 8 {
 		t.Fatalf("added checks %+v", added)
+	}
+	if _, err := ResolveAlterForeignKeys(&c, c.Constraints.ForeignKeys[len(c.Constraints.ForeignKeys)-2:len(c.Constraints.ForeignKeys)-1], nil); err == nil {
+		t.Fatal("scheduled invalid FK was silently dropped instead of rejected")
 	}
 	keys := func(checks []ForeignKeyCheck) []ids.OID {
 		var oids []ids.OID

@@ -157,6 +157,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 	if s.ForeignKeysSlot != nil {
 		owned := *s.ForeignKeysSlot
 		owned.KeyTargets, owned.AlterKeys = slices.Clone(owned.KeyTargets), slices.Clone(owned.AlterKeys)
+		owned.ValidationKeys = slices.Clone(owned.ValidationKeys)
 		c.foreignKeys = &owned
 	}
 	if s.viewCreationSlot != nil {

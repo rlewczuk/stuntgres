@@ -99,7 +99,7 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 				return core.Result{}, err
 			}
 		}
-		if index != 0 && !table.InheritanceEntryOwner(incoming) && len(planned) != 0 {
+		if index != 0 && !table.InheritanceEntryOwner(incoming) && len(planned) != 0 && !table.ValidationOnly(planned) {
 			e.Mu.Lock()
 			err = currentAuth.Check(access.Requirement{Object: refForOwner, OwnerOnly: true})
 			e.Mu.Unlock()
@@ -137,11 +137,13 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 	}
 	scope.StatementMutation = original
 	parents := make(map[ids.ObjectAddress]bool, len(physicalWork))
+	validityOnly := make(map[ids.ObjectAddress]bool)
 	for i := range physicalWork {
 		parents[physicalWork[i].ref.Address] = true
+		validityOnly[physicalWork[i].ref.Address] = physicalWork[i].validityOnly
 	}
 	layouts := stage.IndexesOrZero().Layouts
-	phase, err := e.PublishAlterMetadata(scope, stage, parents)
+	phase, err := e.PublishAlterMetadata(scope, stage, parents, validityOnly)
 	if err != nil {
 		return core.Result{}, err
 	}

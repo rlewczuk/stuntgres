@@ -64,6 +64,10 @@ single-statement limit of driver calls) belong to callers.
   ALTER/DROP retain positioned table-local trigger identities and explicit
   rename, extension-dependency, existence and drop-mode syntax. Preparing these
   utilities parses only; execution resolves relation, trigger and owner.
+- ALTER TABLE and ALTER DOMAIN share contextual `validate_word`, requiring
+  keyword identity rather than quoted-identifier spelling. Table validation
+  retains the action and constraint-name positions in ordinary complete-input
+  action lists; execution owns current constraint lookup and authority.
 
 ### Scratch receivers
 

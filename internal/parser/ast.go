@@ -1002,6 +1002,7 @@ const (
 	NoInheritTable
 	SetRelationOptions
 	ResetRelationOptions
+	ValidateConstraint
 )
 
 type AlterTableAction struct {

@@ -100,9 +100,10 @@ type AlterFinishInput struct {
 	Replacements    []int32
 	// FinishInheritance completes a recursing node's candidate; it runs with
 	// nothing held.
-	FinishInheritance func(old, next *catalog.Relation) (*catalog.Relation, error)
-	RelationshipOnly  bool
-	ForeignKeys       bool
+	FinishInheritance   func(old, next *catalog.Relation) (*catalog.Relation, error)
+	RelationshipOnly    bool
+	ForeignKeys         bool
+	ValidateConstraints bool
 	// StageEmpty reports that the statement staged no descriptor, removal or
 	// generator.
 	StageEmpty  bool
@@ -141,7 +142,7 @@ func FinishAlterCandidate(in AlterFinishInput) (AlterFinish, error) {
 	if in.RelationshipOnly {
 		return finish, nil
 	}
-	if !in.ForeignKeys && len(in.Transformations) == 0 && next == in.Old && in.StageEmpty {
+	if !in.ForeignKeys && !in.ValidateConstraints && len(in.Transformations) == 0 && next == in.Old && in.StageEmpty {
 		finish.NoOp = true
 		return finish, ValidateAlterTablespaceMove(in.Destination)
 	}
