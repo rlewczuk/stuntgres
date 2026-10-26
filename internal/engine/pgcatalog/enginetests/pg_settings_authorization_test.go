@@ -41,9 +41,9 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	domainUnitDiagnostic(t, denied.Check(requirement), "42501", "permission denied for table pg_settings")
+	domainUnitDiagnostic(t, denied.Check(requirement), "42501", "permission denied for view pg_settings")
 	for _, columns := range [][]int{nil, {0}, {0, 1}} {
-		domainUnitDiagnostic(t, denied.CheckColumns(ref, e.CatalogRead().MustRelation(d.Address()), authorization.SelectPrivilege, columns), "42501", "permission denied for table pg_settings")
+		domainUnitDiagnostic(t, denied.CheckColumns(ref, e.CatalogRead().MustRelation(d.Address()), authorization.SelectPrivilege, columns), "42501", "permission denied for view pg_settings")
 	}
 	if err := retained.Check(requirement); err != nil {
 		t.Fatal("retained authority changed", err)
@@ -61,7 +61,7 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	if err := columnReader.CheckColumns(ref, current, authorization.SelectPrivilege, []int{0}); err != nil {
 		t.Fatal(err)
 	}
-	domainUnitDiagnostic(t, columnReader.CheckColumns(ref, current, authorization.SelectPrivilege, []int{1}), "42501", "permission denied for table pg_settings")
+	domainUnitDiagnostic(t, columnReader.CheckColumns(ref, current, authorization.SelectPrivilege, []int{1}), "42501", "permission denied for view pg_settings")
 	if err := enginetest.SetObjectACL(e, t.Context(), column, authorization.ACLValue{}); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	if err := restored.Check(requirement); err != nil {
 		t.Fatal(err)
 	}
-	domainUnitDiagnostic(t, denied.Check(requirement), "42501", "permission denied for table pg_settings")
+	domainUnitDiagnostic(t, denied.Check(requirement), "42501", "permission denied for view pg_settings")
 }
 
 // These are engine/package seams, not public driver SQL witnesses. In particular,
@@ -101,7 +101,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 	deny := func(t *testing.T, err error) {
 		t.Helper()
 		var diagnostic *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table pg_settings"}
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for view pg_settings"}
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
 			t.Fatalf("denial: %#v (%v), want %#v", diagnostic, err, want)
 		}

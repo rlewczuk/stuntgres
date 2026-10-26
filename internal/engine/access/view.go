@@ -355,7 +355,7 @@ func (v View) Check(env Environment, req Requirement) error {
 		} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ForeignRelation {
 			kind = "foreign table"
 		}
-		if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ViewRelation {
+		if r, ok := d.(*catalog.Relation); ok && (r.RelationKind == catalog.ViewRelation || r.VirtualView) {
 			kind = "view"
 		}
 		if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.MaterializedViewRelation {
@@ -418,7 +418,7 @@ func (v View) Check(env Environment, req Requirement) error {
 	} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ForeignRelation {
 		kind = "foreign table"
 	}
-	if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ViewRelation {
+	if r, ok := d.(*catalog.Relation); ok && (r.RelationKind == catalog.ViewRelation || r.VirtualView) {
 		kind = "view"
 	}
 	if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.MaterializedViewRelation {

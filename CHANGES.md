@@ -5,6 +5,12 @@ across intervening privilege inquiries after argument-side SQL creation.
 Native Dump/Restore preserves parameter ACLs by canonical name alongside
 large-object ownership, raw grants and bytes.
 
+`pg_shadow` exposes stored LOGIN-role verifiers and expiration values through
+standard role, ACL and view-owner authorization. Missing credential fields stay
+NULL, ordinary readers are denied even for empty-demand queries, and public
+role views remain masked. Shared credentials survive native controls without
+entering SQL dumps.
+
 `pg_settings` has focused coverage for all 17 metadata fields, including
 descriptions, typed enum arrays and empty results. Session defaults, SET/RESET
 provenance, held readers and independent read/SET authority are checked without

@@ -25,6 +25,9 @@ No parallel language-permission table or cached grant decision exists.
   roots themselves are never written.
   - Checks: `Effective`, `Check`, `CanUse`, `CheckCreate` and `CheckColumns`,
     each taking an `Environment`. `Object` resolves a reference.
+    Virtual catalog views use the same effective ACL and column authority as
+    stored views and report the view noun in authorization diagnostics. Source
+    production never substitutes original authentication for current authority.
   - Identity: `Ref` mints a reference in the view's epoch, `Stamp` names the
     captured publication, `Recapture` binds a substituted catalog to the same
     role root.

@@ -221,6 +221,17 @@ var Specs = [...]Spec{
 		{"grosysid", sqltype.Oid, true, 0, 0, -1},
 		{"grolist", sqltype.ID(1028), true, 0, 0, -1},
 	}, true, CatalogHasIndexes(12008), false, false, "stuntgres: missing catalog source type"},
+	{ShadowOID, ids.PGCatalogNamespaceOID, "pg_shadow", []ColumnSpec{
+		{"usename", sqltype.Name, true, 0, 0, -1},
+		{"usesysid", sqltype.Oid, true, 0, 0, -1},
+		{"usecreatedb", sqltype.Bool, true, 0, 0, -1},
+		{"usesuper", sqltype.Bool, true, 0, 0, -1},
+		{"userepl", sqltype.Bool, true, 0, 0, -1},
+		{"usebypassrls", sqltype.Bool, true, 0, 0, -1},
+		{"passwd", sqltype.Text, true, 950, 0, -1},
+		{"valuntil", sqltype.Timestamptz, true, 0, 0, -1},
+		{"useconfig", sqltype.ID(1009), true, 950, 0, -1},
+	}, true, CatalogHasIndexes(ShadowOID), false, true, "stuntgres: missing catalog source type"},
 	{12014, ids.PGCatalogNamespaceOID, "pg_user", []ColumnSpec{
 		{"usename", sqltype.Name, true, 0, 0, -1},
 		{"usesysid", sqltype.Oid, true, 0, 0, -1},

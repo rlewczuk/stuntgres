@@ -65,7 +65,7 @@ func PGTableRow(schema, name, owner string, indexed bool) []any {
 	return []any{schema, name, owner, nil, indexed, false, false, false}
 }
 
-var PGViewBuiltinNames = []string{"pg_available_extension_versions", "pg_available_extensions", "pg_cursors", "pg_group", "pg_indexes", "pg_locks", "pg_matviews", "pg_prepared_xacts", "pg_roles", "pg_rules", "pg_sequences", "pg_settings", "pg_stat_all_tables", "pg_stat_progress_vacuum", "pg_stat_sys_tables", "pg_stat_user_tables", "pg_tables", "pg_timezone_abbrevs", "pg_timezone_names", "pg_user", "pg_user_mappings", "pg_views"}
+var PGViewBuiltinNames = []string{"pg_available_extension_versions", "pg_available_extensions", "pg_cursors", "pg_group", "pg_indexes", "pg_locks", "pg_matviews", "pg_prepared_xacts", "pg_roles", "pg_rules", "pg_sequences", "pg_settings", "pg_shadow", "pg_stat_all_tables", "pg_stat_progress_vacuum", "pg_stat_sys_tables", "pg_stat_user_tables", "pg_tables", "pg_timezone_abbrevs", "pg_timezone_names", "pg_user", "pg_user_mappings", "pg_views"}
 
 func PGTableViewsNames(column string, names []string) string {
 	terms := make([]string, len(names))

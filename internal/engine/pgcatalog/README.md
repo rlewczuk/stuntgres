@@ -60,6 +60,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
   `Roles.BelongsTo(Owner.Principals)` and `Source` identity must agree before
   rows are produced.
+- `pg_shadow` reads genuine stored passwords and expirations from the immutable
+  statement role frontier. Missing passwords, expirations and unstored role-wide
+  configuration remain typed SQL NULL. The common relation ACL/column manifest
+  and stored-view owner/invoker checks authorize access, including genuine
+  delegated authority; the producer creates neither credentials nor permissions.
+  Public `pg_user` and `pg_roles` keep independent constant password masks.
+  The `pg_shadow` password column preserves the source `pg_authid` C collation (OID 950),
+  unlike the database-default collation of `pg_user`'s masked text literal.
 - `pg_ts_template` projects only captured, installed executable template
   descriptors. Its five nonnullable OID/NAME/OID/REGPROC/REGPROC columns retain
   the actual namespace and helper procedure identities; absent initialization

@@ -65,7 +65,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case 12004, 12005:
 		runtime.input = scope.Input
 		unlockBefore = true
-	case 12014, 12007, 12008:
+	case 12014, 12007, 12008, pgcatalog.ShadowOID:
 		in.Roles = scope.Inquiry.commentRoles
 		unlockBefore = true
 	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID, pgcatalog.KeyColumnUsageOID, pgcatalog.InfoRoutineSequenceUsageOID, pgcatalog.InfoCheckConstraintRoutineUsageOID, pgcatalog.InfoCharacterSetsOID, pgcatalog.InfoCollationsOID, pgcatalog.InfoSchemataOID, pgcatalog.InfoColumnOptionsOID, pgcatalog.ConstraintColumnUsageOID, pgcatalog.InfoEnabledRolesOID, pgcatalog.InfoViewTableUsageOID, pgcatalog.InfoColumnColumnUsageOID, pgcatalog.InfoDomainConstraintsOID, pgcatalog.InfoSequencesOID, pgcatalog.InfoRoleColumnGrantsOID, pgcatalog.InfoColumnsOID, pgcatalog.InfoDomainsOID, pgcatalog.InfoViewsOID, pgcatalog.InfoTablesOID, pgcatalog.InfoRoleTableGrantsOID, pgcatalog.InfoRoutinesOID, pgcatalog.InfoRoleRoutineGrantsOID, pgcatalog.InfoRoleUdtGrantsOID, pgcatalog.InfoSQLFeaturesOID, pgcatalog.InfoRoleUsageGrantsOID, pgcatalog.InfoSQLSizingOID, pgcatalog.InfoSQLImplementationInfoOID, pgcatalog.InfoSQLPartsOID, pgcatalog.InfoRoutinePrivilegesOID:

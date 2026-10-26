@@ -1,6 +1,6 @@
 # reference/catalog_privileges
 
-Role, database and privilege catalogs: `pg_roles`, `pg_user`, `pg_group`,
+Role, database and privilege catalogs: `pg_roles`, `pg_user`, `pg_shadow`, `pg_group`,
 `pg_db_role_setting`, `pg_database` and database creation, `pg_default_acl`,
 `pg_parameter_acl`, `pg_get_acl`, tablespaces, VACUUM and size functions, and the
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
@@ -33,7 +33,7 @@ package.
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Databases and role settings: `RUN='^TestReferencePGDatabase'`, `RUN='^TestReferencePGDBRoleSetting'`
-- Role views: `RUN='^TestReferencePGRoles'`, `RUN='^TestReferencePGUser'`, `RUN='^TestReferencePGGroup'`
+- Role views: `RUN='^TestReferencePGRoles'`, `RUN='^TestReferencePGUser'`, `RUN='^TestReferencePGShadow'`, `RUN='^TestReferencePGGroup'`
 - Database creation, selection and targeted controls: `RUN='^TestReferenceDatabaseCreate'`
 - ACL catalogs and `pg_get_acl`: `RUN='^TestReferencePGDefaultACL'`, `RUN='^TestReferencePGParameterACL'`, `RUN='^TestReferenceObjectACL'`
 - Information schema: `RUN='^TestReferenceInfo'` (shared with `reference/information_schema`), `RUN='^TestReferenceDataTypePrivileges'`
@@ -41,6 +41,13 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Tablespaces: `RUN='^TestReferenceTablespace'`
 - Size functions: `RUN='^TestReferenceSize'`
 - VACUUM: `RUN='^TestReferenceVacuum'`
+
+`TestReferencePGShadowPreparedAuthorization` retains a credential statement
+prepared by an ordinary reader through denial, administrator-granted
+`pg_read_all_data` membership, and revocation. The same reader and statement
+must return the exact stored verifier with its TEXT metadata and one-row
+cardinality only while authorized; both denials check complete diagnostics
+and reject cursor exposure. Credential assertions remain redacted.
 
 ### SQL feature metadata
 

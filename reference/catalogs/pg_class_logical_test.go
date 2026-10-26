@@ -51,7 +51,7 @@ func TestReferencePgClassRelations(t *testing.T) {
 
 func TestReferencePgClassBuiltins(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		for _, name := range []string{"pg_class", "pg_cast", "pg_tablespace", "pg_shdescription", "pg_views", "pg_tables", "pg_indexes", "pg_matviews", "pg_prepared_xacts", "pg_roles", "pg_group", "pg_user", "pg_sequences", "pg_available_extensions", "table_privileges"} {
+		for _, name := range []string{"pg_class", "pg_cast", "pg_tablespace", "pg_shdescription", "pg_views", "pg_tables", "pg_indexes", "pg_matviews", "pg_prepared_xacts", "pg_roles", "pg_group", "pg_user", "pg_shadow", "pg_sequences", "pg_available_extensions", "table_privileges"} {
 			kind, rules, method, replica := "v", true, int64(0), "n"
 			if name == "pg_class" || name == "pg_cast" || name == "pg_tablespace" || name == "pg_shdescription" {
 				kind, rules, method = "r", false, 2

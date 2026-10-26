@@ -26,6 +26,7 @@ func icProviderInventory(c *icCase) {
 		"pg_sequence": fixture.PGSequenceColumns, "pg_sequences": fixture.PGSequencesColumns,
 		"pg_shdescription": fixture.PGShDescriptionColumns, "pg_transform": fixture.PGTransformColumns,
 		"pg_ts_config": fixture.PGTSConfigColumns, "pg_user": fixture.PGUserColumns,
+		"pg_shadow": strings.Fields("usename usesysid usecreatedb usesuper userepl usebypassrls passwd valuntil useconfig"),
 		"pg_inherits":                            fixture.PGInheritsColumns,
 		"pg_event_trigger":                       strings.Fields("oid evtname evtevent evtowner evtfoid evtenabled evttags"),
 		"pg_attrdef":                             strings.Fields("oid adrelid adnum adbin"),
@@ -143,7 +144,7 @@ func icProviderInventory(c *icCase) {
 			child.run(child.conn, s)
 			child.run(child.conn, fixture.Prepared(s))
 			kind := "r"
-			views := strings.Fields("pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_vacuum pg_roles pg_group pg_user pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_views pg_rules pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings")
+			views := strings.Fields("pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_views pg_rules pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings")
 			for _, view := range views {
 				if view == table {
 					kind = "v"
@@ -170,4 +171,29 @@ func icProviderInventory(c *icCase) {
 		s.Bag = true
 		c.run(c.conn, s)
 	}
+	// Metadata visibility follows genuine authority, including on a statement
+	// prepared by the administrator before switching to an ordinary reader.
+	query := "SELECT column_name,ordinal_position FROM information_schema.columns WHERE table_schema='pg_catalog' AND table_name='pg_shadow' ORDER BY ordinal_position"
+	held := c.hold(query)
+	checkShadow := func(visible bool) {
+		c.t.Helper()
+		var want [][]any
+		if visible {
+			for i, name := range inventory["pg_shadow"] {
+				want = append(want, []any{name, int64(i + 1)})
+			}
+		}
+		s := fixture.Select(query, []string{"column_name", "ordinal_position"}, []string{"NAME", "INT4"}, want)
+		c.run(c.conn, s)
+		c.run(c.conn, fixture.Prepared(s))
+		c.run(held, s)
+	}
+	checkShadow(true)
+	c.exec("CREATE ROLE ic_reader", "SET ROLE ic_reader")
+	checkShadow(false)
+	c.exec("RESET ROLE", "GRANT pg_read_all_data TO ic_reader", "SET ROLE ic_reader")
+	checkShadow(true)
+	c.exec("RESET ROLE", "REVOKE pg_read_all_data FROM ic_reader", "SET ROLE ic_reader")
+	checkShadow(false)
+	c.exec("RESET ROLE")
 }

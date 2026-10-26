@@ -16,6 +16,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"pg_catalog", "pg_matviews"}, {"pg_catalog", "pg_roles"}, {"pg_catalog", "pg_group"},
 	{"pg_catalog", "pg_stat_all_tables"}, {"pg_catalog", "pg_stat_sys_tables"}, {"pg_catalog", "pg_stat_user_tables"},
 	{"pg_catalog", "pg_stat_progress_vacuum"}, {"pg_catalog", "pg_user"}, {"pg_catalog", "pg_sequences"},
+	{"pg_catalog", "pg_shadow"},
 	{"pg_catalog", "pg_locks"}, {"pg_catalog", "pg_cursors"}, {"pg_catalog", "pg_available_extensions"},
 	{"pg_catalog", "pg_available_extension_versions"}, {"pg_catalog", "pg_user_mappings"}, {"pg_catalog", "pg_settings"},
 	{"information_schema", "table_privileges"}, {"information_schema", "data_type_privileges"},
@@ -145,7 +146,11 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 				if candidate.name == "pg_group" {
 					update, insert = "YES", "YES"
 				}
-				s := ivStep(b.PG, ivSelect, [][]any{ivRow(database, candidate.schema, candidate.name, nil, "NONE", update, insert)}, candidate.schema, candidate.name)
+				rows := [][]any{ivRow(database, candidate.schema, candidate.name, nil, "NONE", update, insert)}
+				if candidate.name == "pg_shadow" {
+					rows = [][]any{}
+				}
+				s := ivStep(b.PG, ivSelect, rows, candidate.schema, candidate.name)
 				run(s)
 				run(fixture.Prepared(s))
 				held(s)

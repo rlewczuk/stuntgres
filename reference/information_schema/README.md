@@ -128,6 +128,10 @@ Foreign capability uses genuine installed handlers and explicit native public
 interface phases without external scans. Native controls replay actual Dump
 bytes, preserve old eager rows and roundtrip explicit raw ACLs, generated and
 identity data, privilege inquiries and the reader's filtered column metadata.
+The provider inventory includes all nine documented `pg_shadow` fields and its
+view classification without relaxing the complete native relation bag. Direct,
+fresh-prepared and held metadata reads hide these fields from an ordinary role,
+expose them under genuine read-all membership, and hide them again on revocation.
 
 - Column metadata: `RUN='^TestReferenceInfoColumns'`
 

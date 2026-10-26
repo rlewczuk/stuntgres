@@ -265,6 +265,21 @@ var pgBuiltinViews = [...]builtinView{
 		viewText("   FROM ("), viewRoutine("pg_stat_get_progress_info", "25"), viewText("('VACUUM'::"), viewType("text"), viewText(") "), viewIdentifier("s"), viewText("("), viewIdentifier("pid"), viewText(", "), viewIdentifier("datid"), viewText(", "), viewIdentifier("relid"), viewText(", "), viewIdentifier("param1"), viewText(", "), viewIdentifier("param2"), viewText(", "), viewIdentifier("param3"), viewText(", "), viewIdentifier("param4"), viewText(", "), viewIdentifier("param5"), viewText(", "), viewIdentifier("param6"), viewText(", "), viewIdentifier("param7"), viewText(", "), viewIdentifier("param8"), viewText(", "), viewIdentifier("param9"), viewText(", "), viewIdentifier("param10"), viewText(", "), viewIdentifier("param11"), viewText(", "), viewIdentifier("param12"), viewText(", "), viewIdentifier("param13"), viewText(", "), viewIdentifier("param14"), viewText(", "), viewIdentifier("param15"), viewText(", "), viewIdentifier("param16"), viewText(", "), viewIdentifier("param17"), viewText(", "), viewIdentifier("param18"), viewText(", "), viewIdentifier("param19"), viewText(", "), viewIdentifier("param20"), viewText(")\n"),
 		viewText("     LEFT JOIN "), viewClass("pg_database"), viewText(" "), viewIdentifier("d"), viewText(" ON (("), viewIdentifier("s"), viewText("."), viewIdentifier("datid"), viewText(" = "), viewIdentifier("d"), viewText("."), viewIdentifier("oid"), viewText(")));"),
 	}},
+	// pg_catalog.pg_shadow — REL_18_0 system_views.sql.
+	{oid: ShadowOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolname"), viewText(" AS "), viewIdentifier("usename"), viewText(",\n"),
+		viewText("    "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("oid"), viewText(" AS "), viewIdentifier("usesysid"), viewText(",\n"),
+		viewText("    "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolcreatedb"), viewText(" AS "), viewIdentifier("usecreatedb"), viewText(",\n"),
+		viewText("    "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolsuper"), viewText(" AS "), viewIdentifier("usesuper"), viewText(",\n"),
+		viewText("    "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolreplication"), viewText(" AS "), viewIdentifier("userepl"), viewText(",\n"),
+		viewText("    "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolbypassrls"), viewText(" AS "), viewIdentifier("usebypassrls"), viewText(",\n"),
+		viewText("    "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolpassword"), viewText(" AS "), viewIdentifier("passwd"), viewText(",\n"),
+		viewText("    "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolvaliduntil"), viewText(" AS "), viewIdentifier("valuntil"), viewText(",\n"),
+		viewText("    "), viewIdentifier("s"), viewText("."), viewIdentifier("setconfig"), viewText(" AS "), viewIdentifier("useconfig"), viewText("\n"),
+		viewText("   FROM ("), viewClass("pg_authid"), viewText("\n"),
+		viewText("     LEFT JOIN "), viewClass("pg_db_role_setting"), viewText(" "), viewIdentifier("s"), viewText(" ON ((("), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("oid"), viewText(" = "), viewIdentifier("s"), viewText("."), viewIdentifier("setrole"), viewText(") AND ("), viewIdentifier("s"), viewText("."), viewIdentifier("setdatabase"), viewText(" = (0)::"), viewType("oid"), viewText("))))\n"),
+		viewText("  WHERE "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolcanlogin"), viewText(";"),
+	}},
 	// pg_catalog.pg_user — REL_18_6 system_views.sql; pinned 18.6 display.
 	{oid: 12014, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("usename"), viewText(",\n"),

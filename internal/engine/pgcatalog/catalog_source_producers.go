@@ -72,6 +72,7 @@ var producers = [...]Registration{
 	{StatSysTablesOID, captureTableStatistics},
 	{StatUserTablesOID, captureTableStatistics},
 	{ProgressVacuumOID, captureVacuumProgress},
+	{ShadowOID, capturePGShadow},
 	{12014, capturePGUser},
 	{RulesOID, capturePGRules},
 	{12077, capturePGCursors},

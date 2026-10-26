@@ -59,7 +59,7 @@ func VirtualViewWriteError(d *catalog.Relation, operation string, targets []int)
 	if d.Address().ObjectID == 12008 {
 		return sqlError("0A000", "catalog source mutation is unsupported")
 	}
-	if d.Address().ObjectID != 12014 {
+	if d.Address().ObjectID != 12014 && d.Address().ObjectID != ShadowOID {
 		return timezoneViewWriteError(d, operation)
 	}
 	verb, action := "update", "updating"
@@ -70,7 +70,7 @@ func VirtualViewWriteError(d *catalog.Relation, operation string, targets []int)
 		verb, action = "delete from", "deleting from"
 	}
 	for _, slot := range targets {
-		if d.Attributes[slot] == 7 {
+		if d.Address().ObjectID == 12014 && d.Attributes[slot] == 7 {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("cannot %s column \"passwd\" of view \"pg_user\"", verb), Detail: "View columns that are not columns of their base relation are not updatable."}
 		}
 	}

@@ -20,6 +20,7 @@ var ivBuiltinDefinitions = map[string]string{
     ((pg_options_to_table(attfdwoptions)).option_name)::information_schema.sql_identifier AS option_name,
     ((pg_options_to_table(attfdwoptions)).option_value)::information_schema.character_data AS option_value
    FROM information_schema._pg_foreign_table_columns c;`,
+	"pg_catalog.pg_shadow": ivShadowDefinition,
 	"information_schema.collations": ` SELECT (current_database())::information_schema.sql_identifier AS collation_catalog,
     (nc.nspname)::information_schema.sql_identifier AS collation_schema,
     (c.collname)::information_schema.sql_identifier AS collation_name,

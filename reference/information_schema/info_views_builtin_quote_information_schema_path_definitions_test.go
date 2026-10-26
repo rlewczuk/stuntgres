@@ -19,6 +19,7 @@ var ivBuiltinQuotePathDefinitions = map[string]string{
     (("pg_options_to_table"("attfdwoptions"))."option_name")::"sql_identifier" AS "option_name",
     (("pg_options_to_table"("attfdwoptions"))."option_value")::"character_data" AS "option_value"
    FROM "_pg_foreign_table_columns" "c";`,
+	"pg_catalog.pg_shadow": ivShadowQuoteDefinition,
 	"information_schema.collations": ` SELECT ("current_database"())::"sql_identifier" AS "collation_catalog",
     ("nc"."nspname")::"sql_identifier" AS "collation_schema",
     ("c"."collname")::"sql_identifier" AS "collation_name",

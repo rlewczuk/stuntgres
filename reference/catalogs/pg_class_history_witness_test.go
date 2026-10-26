@@ -22,7 +22,7 @@ func TestReferencePgClassBuiltinIndexHistory(t *testing.T) {
 		tables := []string{"pg_aggregate", "pg_attrdef", "pg_attribute", "pg_cast", "pg_class", "pg_collation", "pg_constraint", "pg_conversion", "pg_database", "pg_db_role_setting", "pg_depend", "pg_description", "pg_enum", "pg_extension", "pg_index", "pg_namespace", "pg_operator", "pg_proc", "pg_rewrite", "pg_sequence", "pg_shdescription", "pg_tablespace", "pg_ts_dict", "pg_ts_template"}
 		// Released system_views.sql / information_schema.sql define views,
 		// which have no relation indexes. Keep exact negative controls too.
-		views := []string{"pg_available_extension_versions", "pg_available_extensions", "pg_cursors", "pg_group", "pg_indexes", "pg_matviews", "pg_prepared_xacts", "pg_roles", "pg_sequences", "pg_tables", "pg_timezone_abbrevs", "pg_timezone_names", "pg_user", "pg_views"}
+		views := []string{"pg_available_extension_versions", "pg_available_extensions", "pg_cursors", "pg_group", "pg_indexes", "pg_matviews", "pg_prepared_xacts", "pg_roles", "pg_sequences", "pg_shadow", "pg_tables", "pg_timezone_abbrevs", "pg_timezone_names", "pg_user", "pg_views"}
 		query := "SELECT relname,relkind,relhasindex FROM pg_catalog.pg_class WHERE oid=$1::regclass::oid"
 		held := fixture.ViewHold(t, p, b, query)
 		check := func(t *testing.T, name, schema, kind string, indexed bool) {
