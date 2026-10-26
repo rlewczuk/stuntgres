@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# Mirror a git task worktree to a remote host and run commands there.
+# Usage and rules: ../SKILL.md.
+set -euo pipefail
+
+RSH='ssh -T -o BatchMode=yes'
+
+usage() {
+  cat >&2 <<'EOF'
+usage: remote-run [-C DIR] sync  HOST
+       remote-run [-C DIR] run   [--timeout SECS] [--no-sync] HOST COMMAND...
+       remote-run [-C DIR] pull  HOST PATH...
+       remote-run [-C DIR] clean HOST
+EOF
+  exit 2
+}
+
+fail() {
+  printf 'remote-run: %s\n' "$*" >&2
+  exit 1
+}
+
+# Print $1 as one single-quoted POSIX shell word.
+quote() {
+  printf "'%s'" "${1//\'/\'\\\'\'}"
+}
+
+safe_name() {
+  printf '%s' "${1//[^A-Za-z0-9._-]/_}"
+}
+
+# Set ROOT to the worktree containing $1, and BASE and DIR to the remote base and
+# mirror paths (relative to the remote home unless absolute).
+resolve_worktree() {
+  local git_dir common repo
+  ROOT=$(git -C "$1" rev-parse --show-toplevel 2>/dev/null) ||
+    fail "not inside a git worktree: $1"
+  git_dir=$(cd -- "$(git -C "$ROOT" rev-parse --absolute-git-dir)" && pwd -P)
+  common=$(cd -- "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)" && pwd -P)
+  [[ $git_dir != "$common" ]] ||
+    fail "$ROOT is the main checkout; run from the task worktree"
+  if [[ $(basename -- "$common") == .git ]]; then
+    repo=$(basename -- "$(dirname -- "$common")")
+  else
+    repo=$(basename -- "$common" .git)
+  fi
+  BASE=${REMOTE_RUN_BASE:-remote-run}
+  BASE=${BASE#\~/}
+  BASE=${BASE%/}
+  DIR="$BASE/$(safe_name "$repo")/$(safe_name "$(basename -- "$git_dir")")"
+}
+
+# Set SSH_HOST and RSYNC_HOST from a hostname, user@host, IPv4 or IPv6 address.
+parse_host() {
+  local user='' addr=$1
+  if [[ $addr == *@* ]]; then
+    user="${addr%%@*}@"
+    addr=${addr#*@}
+  fi
+  addr=${addr#\[}
+  addr=${addr%\]}
+  [[ $user$addr =~ ^([A-Za-z0-9._-]+@)?[A-Za-z0-9._%:-]+$ && $user != -* && $addr != -* ]] ||
+    fail "invalid host: $1"
+  SSH_HOST=$user$addr
+  RSYNC_HOST=$SSH_HOST
+  if [[ $addr == *:* ]]; then
+    RSYNC_HOST="$user[$addr]"
+  fi
+}
+
+ssh_run() {
+  $RSH "$SSH_HOST" "$1"
+}
+
+# Send tracked and untracked files; keep ignored paths and .git local. The
+# receiver-side .gitignore rules keep remote outputs in ignored paths alive.
+sync_mirror() {
+  local tmp path
+  tmp=$(mktemp -d)
+  trap "rm -rf -- $(quote "$tmp")" EXIT
+  git -C "$ROOT" ls-files -z --others --ignored --exclude-standard --directory \
+    >"$tmp/ignored" || fail "git ls-files failed in $ROOT"
+  while IFS= read -r -d '' path; do
+    if [[ $path == *$'\n'* || $path == *\\* ]]; then
+      fail "unsupported ignored path: $path"
+    fi
+    path=${path//\[/\\[}
+    path=${path//\*/\\*}
+    path=${path//\?/\\?}
+    printf '/%s\n' "$path"
+  done <"$tmp/ignored" >"$tmp/excludes"
+  ssh_run "mkdir -p -- $(quote "$DIR")"
+  rsync -a --delete -e "$RSH" --exclude=/.git --exclude-from="$tmp/excludes" \
+    --filter=':-r .gitignore' "$ROOT/" "$RSYNC_HOST:$DIR/"
+  printf 'synced %s -> %s:%s\n' "$ROOT" "$RSYNC_HOST" "$DIR"
+}
+
+run_remote() {
+  local env="$BASE/env.sh" script status=0
+  script="if [ -f $(quote "$env") ]; then . $(quote "$env"); fi"
+  script+="; cd -- $(quote "$DIR") || exit 1; exec"
+  if ((TIMEOUT > 0)); then
+    script+=" timeout --kill-after=30s ${TIMEOUT}s"
+  fi
+  script+=" bash -c $(quote "$1")"
+  ssh_run "bash -lc $(quote "$script")" || status=$?
+  if ((status == 124 && TIMEOUT > 0)); then
+    printf 'remote-run: command timed out after %ss\n' "$TIMEOUT" >&2
+  fi
+  return "$status"
+}
+
+pull_paths() {
+  local path sources=()
+  for path in "$@"; do
+    path=${path#./}
+    [[ -n $path && $path != /* && /$path/ != */../* && /$path/ != */./* ]] ||
+      fail "pull path must be relative to the worktree root: $path"
+    sources+=("$RSYNC_HOST:$DIR/./$path")
+  done
+  rsync -a --relative --itemize-changes -e "$RSH" "${sources[@]}" "$ROOT/"
+}
+
+START=$PWD
+if [[ ${1:-} == -C ]]; then
+  [[ $# -ge 2 ]] || usage
+  START=$2
+  shift 2
+fi
+[[ $# -ge 2 ]] || usage
+ACTION=$1
+shift
+TIMEOUT=1800
+NO_SYNC=0
+if [[ $ACTION == run ]]; then
+  while [[ ${1:-} == --* ]]; do
+    case $1 in
+      --timeout)
+        [[ ${2:-} =~ ^[0-9]+$ ]] || fail "--timeout needs whole seconds"
+        TIMEOUT=$((10#$2))
+        shift 2
+        ;;
+      --no-sync)
+        NO_SYNC=1
+        shift
+        ;;
+      *) usage ;;
+    esac
+  done
+fi
+[[ $# -ge 1 ]] || usage
+parse_host "$1"
+shift
+resolve_worktree "$START"
+
+case $ACTION in
+  sync)
+    [[ $# -eq 0 ]] || usage
+    sync_mirror
+    ;;
+  run)
+    [[ $# -ge 1 ]] || usage
+    ((NO_SYNC)) || sync_mirror
+    run_remote "$*"
+    ;;
+  pull)
+    [[ $# -ge 1 ]] || usage
+    pull_paths "$@"
+    ;;
+  clean)
+    [[ $# -eq 0 ]] || usage
+    ssh_run "rm -rf -- $(quote "$DIR")"
+    printf 'removed %s:%s\n' "$RSYNC_HOST" "$DIR"
+    ;;
+  *) usage ;;
+esac
