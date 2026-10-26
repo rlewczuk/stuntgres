@@ -11,6 +11,13 @@ empty catalog reads and ordinary binding diagnostics are independently specified
 Dictionary captures reject foreign/stale source authority and foreign type
 generations before projection, including empty catalogs, without publishing rows.
 
+`information_schema.check_constraint_routine_usage` now exposes direct routine
+dependencies of actual table and domain CHECK constraints, with six nullable
+`sql_identifier` columns and routine-owner role visibility. Same-name constraints
+retain their source identities while identical projected rows are deduplicated;
+domain `pg_depend` routine edges use the same semantic expression authority,
+including typed regproc/regprocedure literal references.
+
 `pg_lsn` columns, literals and parameters preserve the full unsigned 64-bit WAL
 position range with canonical slash-hex results and metadata. Comparisons and
 ordering use unsigned magnitude; differences and numeric byte offsets are exact,

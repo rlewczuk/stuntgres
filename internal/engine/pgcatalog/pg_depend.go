@@ -217,11 +217,15 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 					return nil, err
 				}
 				owner := ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
-				for _, dependency := range check.Dependencies {
+				refs, err := runtime.ExpressionReferences(ctx, view, check.Expression)
+				if err != nil {
+					return nil, err
+				}
+				for _, ref := range refs {
 					if err := ctx.Err(); err != nil {
 						return nil, err
 					}
-					add(owner, dependency.Ref.Address, 'n')
+					add(owner, ref, 'n')
 				}
 			}
 		case *catalog.Relation:

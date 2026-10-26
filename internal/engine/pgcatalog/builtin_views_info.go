@@ -1,6 +1,21 @@
 package pgcatalog
 
 var infoBuiltinViews = [...]builtinView{
+	// information_schema.check_constraint_routine_usage — REL_18_6 information_schema.sql.
+	{oid: InfoCheckConstraintRoutineUsageOID, parts: []builtinViewPart{
+		viewText(" SELECT DISTINCT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("constraint_catalog"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("nc"), viewText("."), viewIdentifier("nspname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("constraint_schema"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("c"), viewText("."), viewIdentifier("conname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("constraint_name"), viewText(",\n"),
+		viewText("    ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("specific_catalog"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("np"), viewText("."), viewIdentifier("nspname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("specific_schema"), viewText(",\n"),
+		viewText("    ("), viewRoutine("nameconcatoid", "19,26"), viewText("("), viewIdentifier("p"), viewText("."), viewIdentifier("proname"), viewText(", "), viewIdentifier("p"), viewText("."), viewIdentifier("oid"), viewText("))::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("specific_name"), viewText("\n"),
+		viewText("   FROM "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("nc"), viewText(",\n"),
+		viewText("    "), viewClass("pg_constraint"), viewText(" "), viewIdentifier("c"), viewText(",\n"),
+		viewText("    "), viewClass("pg_depend"), viewText(" "), viewIdentifier("d"), viewText(",\n"),
+		viewText("    "), viewClass("pg_proc"), viewText(" "), viewIdentifier("p"), viewText(",\n"),
+		viewText("    "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("np"), viewText("\n"),
+		viewText("  WHERE (("), viewIdentifier("nc"), viewText("."), viewIdentifier("oid"), viewText(" = "), viewIdentifier("c"), viewText("."), viewIdentifier("connamespace"), viewText(") AND ("), viewIdentifier("c"), viewText("."), viewIdentifier("contype"), viewText(" = 'c'::"), viewType("\"char\""), viewText(") AND ("), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(" = "), viewIdentifier("d"), viewText("."), viewIdentifier("objid"), viewText(") AND ("), viewIdentifier("d"), viewText("."), viewIdentifier("classid"), viewText(" = ("), viewRegclass("pg_constraint"), viewText("::"), viewType("regclass"), viewText(")::"), viewType("oid"), viewText(") AND ("), viewIdentifier("d"), viewText("."), viewIdentifier("refobjid"), viewText(" = "), viewIdentifier("p"), viewText("."), viewIdentifier("oid"), viewText(") AND ("), viewIdentifier("d"), viewText("."), viewIdentifier("refclassid"), viewText(" = ("), viewRegclass("pg_proc"), viewText("::"), viewType("regclass"), viewText(")::"), viewType("oid"), viewText(") AND ("), viewIdentifier("p"), viewText("."), viewIdentifier("pronamespace"), viewText(" = "), viewIdentifier("np"), viewText("."), viewIdentifier("oid"), viewText(") AND "), viewRoutine("pg_has_role", "26,25"), viewText("("), viewIdentifier("p"), viewText("."), viewIdentifier("proowner"), viewText(", 'USAGE'::"), viewType("text"), viewText("));"),
+	}},
 	// information_schema.table_privileges — REL_18_6 information_schema.sql; pinned 18.6 display.
 	{oid: 16200, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT ("), viewIdentifier("u_grantor"), viewText("."), viewIdentifier("rolname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("grantor"), viewText(",\n"),

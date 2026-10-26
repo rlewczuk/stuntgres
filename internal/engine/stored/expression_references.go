@@ -137,6 +137,12 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 			})
 		}
 		if r.Err == nil {
+			r.Err = regobj.WalkRoutineReferencesAt(r.Catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
+				r.Add(address)
+				return r.Err
+			})
+		}
+		if r.Err == nil {
 			r.Err = regobj.WalkOperatorReferencesAt(r.Catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
 				r.Add(address)
 				return r.Err

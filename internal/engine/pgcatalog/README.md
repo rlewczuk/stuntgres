@@ -5,6 +5,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
+`check_constraint_routine_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `role_usage_grants`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
@@ -316,6 +317,14 @@ authority, never the recorded `Version`.
 - `routine_sequence_usage`: direct stored SQL-body relation references to real
   sequences, validated before duplicate suppression; sequence-owner role
   inheritance is the only visibility predicate.
+- `check_constraint_routine_usage`: actual own table/domain CHECK expressions
+  supply direct semantic routine edges through `ExpressionReferences`, also used
+  by `pg_depend`. Routine-owner role inheritance is the sole visibility predicate;
+  table ownership, EXECUTE and schema USAGE do not substitute for it. Constraint
+  identities remain separate until final six-column DISTINCT, including same-name
+  checks on different objects. All six nullable cells use the captured
+  `sql_identifier` domain; empty captures are typed and non-nil, and cancellation
+  discards the entire prefix.
 - `enabled_roles` (16208): the paired catalog/role capture and
   `CurrentPrincipal`; an ordinary actor uses one cancellation-aware inherited
   `RoleClosure` (self, INHERIT paths, implicit database-owner hop), a current
@@ -519,6 +528,8 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 - Routine metadata public scenarios: `RUN='^TestReferenceInfoRoutines'`
 - Routine ACL producer/authority units: `RUN='^TestInfo(RoleRoutineGrants|RoutinePrivileges)'`
 - Routine ACL public scenarios: `RUN='^TestReferenceInfo(RoleRoutineGrants|RoutinePrivileges)'`
+- CHECK routine-usage producer units: `RUN='^TestInfoCheckConstraintRoutineUsage'`
+- CHECK routine-usage public scenarios: `RUN='^TestReferenceInfoCheckConstraintRoutineUsage'`
 - UDT grant producer/authority units: `RUN='^TestInfoRoleUdtGrants'`
 - UDT grant public scenarios: `RUN='^TestReferenceInfoRoleUdtGrants'`
 - SQL-feature producer/authority units: `RUN='^TestInfoSQLFeatures'`

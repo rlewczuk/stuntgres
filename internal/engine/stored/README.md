@@ -415,6 +415,10 @@ host methods.
   `ViewWriteShape` and `ViewUpdatabilityShape` share one automatic-admission
   implementation; only the write route collects execution predicates.
   Metadata shape inspection neither allocates that vector nor evaluates it.
+  Literal references use the existing typed-alias walkers, including
+  regproc/regprocedure identities as well as type, operator and text-search
+  aliases. NULLs, text spelling and unrepresented routine numbers create no
+  routine edge; pinned references remain excluded.
 
 - **Catalog relation pinning** (`catalog_pinning.go`): bootstrap catalog
   tables stay pinned, while catalog views such as `pg_views` record ordinary
