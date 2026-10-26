@@ -24,7 +24,7 @@ func (s *StatementScope) plMessageOperand(d *catalog.Procedure, f *proc.PLFrame,
 func (s *StatementScope) plMessageText(value sqltype.Value, origin plNoticeOrigin) (string, error) {
 	noticeStart := len(s.Op.Notices)
 	defer func() { s.appendPLNoticeContext(noticeStart, origin) }()
-	return value.Type().OutputWithEnvironment(s.Op.Context(), value, s.Output)
+	return value.Type().OutputWithEnvironment(s.executionContext(), value, s.Output)
 }
 
 func (s *StatementScope) executePLRaise(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) error {

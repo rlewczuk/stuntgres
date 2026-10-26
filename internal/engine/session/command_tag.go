@@ -264,7 +264,9 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		if s.ResetCommand {
 			base = "RESET"
 		}
-	case *parser.Set, *parser.TransactionCharacteristics, *parser.SetConstraints:
+	case *parser.SetConstraints:
+		base = "SET CONSTRAINTS"
+	case *parser.Set, *parser.TransactionCharacteristics:
 		base = "SET"
 	case *parser.Reset:
 		base = "RESET"
@@ -303,10 +305,15 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 	case *parser.PrepareSQL:
 		base = "PREPARE"
 	case *parser.ExecuteSQL:
-		// Execute rewrites a resolved SQL EXECUTE to its actual body before classification.
-		return "", false, false, false
+		// Successful execution still classifies the resolved body's command.
+		// The outer utility needs its own tag for pre-lookup admission errors.
+		base = "EXECUTE"
 	case *parser.DeallocateSQL:
-		base = "DEALLOCATE"
+		if s.All {
+			base = "DEALLOCATE ALL"
+		} else {
+			base = "DEALLOCATE"
+		}
 	case *parser.DeclareCursor:
 		base = "DECLARE CURSOR"
 	case *parser.FetchCursor:

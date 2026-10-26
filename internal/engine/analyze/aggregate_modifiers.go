@@ -199,7 +199,6 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 	return plan.AggregateExpr{Info: info, Slot: slot, Frame: b.FrameID()}, nil
 }
 
-
 func (b *Binder) SameAggregateCall(a, other plan.AggregateCall) bool {
 	if a.RoutineRecipe != other.RoutineRecipe {
 		return false

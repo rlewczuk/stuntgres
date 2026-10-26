@@ -185,6 +185,7 @@ var Specs = [...]Spec{
 		{"provariadic", sqltype.Oid, false, 0, 0, -1},
 		{"proallargtypes", 1028, true, 0, 0, -1},
 		{"proargmodes", 1002, true, 0, 0, -1},
+		{"proacl", sqltype.ID(1034), true, 0, 1, -1},
 	}, false, CatalogHasIndexes(1255), false, false, "stuntgres: missing catalog source type"},
 	{3764, ids.PGCatalogNamespaceOID, "pg_ts_template", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},

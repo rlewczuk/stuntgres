@@ -38,7 +38,7 @@ type preparedCommandExecution struct {
 // parameter import are statement-wide and have already completed exactly once.
 func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, canonical []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCommandExecution) (Result, error) {
 	op := scope.Op
-	ctx := op.Context()
+	ctx := scope.executionContext()
 	var err error
 	expressions := b.Expressions
 	expressionsChanged := false
@@ -490,7 +490,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	scope.rlsCommand = execution
 	defer func() { scope.rlsCommand = previousRLSCommand }()
 	op := scope.Op
-	ctx := op.Context()
+	ctx := scope.executionContext()
 	var err error
 	b, auth := view.PhysicalBinding(execution.binding), execution.auth
 	queryRoot := execution.queryRoot

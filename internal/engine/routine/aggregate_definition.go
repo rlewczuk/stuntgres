@@ -21,21 +21,24 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 	}
 	a := &d.Aggregate.Definition
 	modeValid := func(mode string) bool { return mode == "r" || mode == "s" || mode == "w" }
-	if d.RoutineKind != catalog.AggregateRoutine || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Extension != (ids.ObjectAddress{}) || d.Strict || a.Function != d.Address().ObjectID || (a.Kind != "n" && a.Kind != "o" && a.Kind != "h") || a.DirectArgs < 0 || a.Kind == "n" && a.DirectArgs != 0 || !modeValid(a.FinalModify) || !modeValid(a.MovingFinalModify) || a.SortOperator != 0 || !a.HasInitial && a.Initial != "" || !a.HasMovingInitial && a.MovingInitial != "" {
+	if d.RoutineKind != catalog.AggregateRoutine || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Extension != (ids.ObjectAddress{}) || d.Strict || a.Function != d.Address().ObjectID || (a.Kind != "n" && a.Kind != "o" && a.Kind != "h") || a.DirectArgs < 0 || a.Kind == "n" && a.DirectArgs != 0 || !modeValid(a.FinalModify) || !modeValid(a.MovingFinalModify) || !a.HasInitial && a.Initial != "" || !a.HasMovingInitial && a.MovingInitial != "" {
 		return invalid()
 	}
-	for _, id := range a.Functions[2:5] {
-		if id != 0 {
-			return invalid()
-		}
-	}
+
 	inputs, err := AggregateSignature(v, d.Signature)
 	if err != nil {
 		return err
 	}
-	if len(d.Aggregate.ArgumentNames) != 0 && len(d.Aggregate.ArgumentNames) != len(inputs) { return invalid() }
+	if err := validateAggregatePartialDefinition(v, d, inputs); err != nil {
+		return err
+	}
+	if len(d.Aggregate.ArgumentNames) != 0 && len(d.Aggregate.ArgumentNames) != len(inputs) {
+		return invalid()
+	}
 	for i, input := range inputs {
-		if !input.Type.Concrete() && !(d.Aggregate.Variadic && i == len(inputs)-1 && input.Type.ID() == 2276) { return invalid() }
+		if !input.Type.Concrete() && input.Type.ID() != 2281 && !(d.Aggregate.Variadic && i == len(inputs)-1 && input.Type.ID() == 2276) {
+			return invalid()
+		}
 	}
 	direct := int(a.DirectArgs)
 	if direct > len(inputs) || len(inputs) > 99 || a.Kind != "n" && direct == len(inputs) && !d.Aggregate.Variadic {
@@ -43,8 +46,12 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 	}
 	rows := inputs[direct:]
 	if d.Aggregate.Variadic {
-		if a.Kind == "n" || len(inputs) == 0 || inputs[len(inputs)-1].Type.ID() != 2276 || a.Kind == "h" && direct != len(inputs) { return invalid() }
-		if direct == len(inputs) { rows = inputs[len(inputs)-1:] }
+		if a.Kind == "n" || len(inputs) == 0 || inputs[len(inputs)-1].Type.ID() != 2276 || a.Kind == "h" && direct != len(inputs) {
+			return invalid()
+		}
+		if direct == len(inputs) {
+			rows = inputs[len(inputs)-1:]
+		}
 	}
 	if a.Kind == "h" {
 		if direct < len(rows) {
@@ -57,7 +64,7 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 		}
 	}
 	result, ok := v.LookupType(sqltype.ID(d.Result))
-	if !ok || !result.Concrete() {
+	if !ok || !result.Concrete() && result.ID() != 2281 {
 		return invalid()
 	}
 	var edges []catalog.Cast
@@ -69,7 +76,9 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 	}
 	used := make([]bool, len(edges))
 	conversion := func(source, target sqltype.Usage) bool {
-		if source.Type == target.Type && (source.Type.ID() == 2276 || source.Type.ID() == 2281) { return true }
+		if source.Type == target.Type && (source.Type.ID() == 2276 || source.Type.ID() == 2281) {
+			return true
+		}
 		if _, err := catalog.AggregateConversion(d.Aggregate.BinaryRecipe, source, target); err != nil {
 			return false
 		}
@@ -82,7 +91,7 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 	}
 	check := func(oid ids.OID, arguments []sqltype.Usage, expected *sqltype.Descriptor) (*catalog.Procedure, error) {
 		support, found := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
-		if !found || support.RoutineKind != catalog.FunctionRoutine || support.Builtin != nil && support.Builtin.ReturnsSet || support.SQL == nil && (support.Builtin == nil || support.Builtin.Providers == 0) && support.Implementation == nil {
+		if !found || support.RoutineKind != catalog.FunctionRoutine || support.Builtin != nil && support.Builtin.ReturnsSet || support.SQL == nil && (support.Builtin == nil || support.Builtin.Providers == 0) && support.Implementation == nil && !aggregateInternalSupport(support, 0) {
 			return nil, invalid()
 		}
 		if functions.IsAggregateContextSupport(uint32(oid)) && len(arguments) != strings.Count(string(support.Signature), ",")+1 {
@@ -113,7 +122,8 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 			}
 		}
 		state, found := v.LookupType(sqltype.ID(stateID))
-		if !found || !state.Concrete() && !(state.ID() == 2281 && functions.IsAggregateContextSupport(uint32(forwardID))) {
+		forwardDeclaration, _ := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: forwardID})
+		if !found || !state.Concrete() && !(state.ID() == 2281 && (functions.IsAggregateContextSupport(uint32(forwardID)) || !moving && aggregateInternalSupport(forwardDeclaration, 0))) {
 			return invalid()
 		}
 		arguments := make([]sqltype.Usage, len(rows)+1)
@@ -122,6 +132,11 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 		forward, e := check(forwardID, arguments, state)
 		if e != nil {
 			return e
+		}
+		if !moving && a.Functions[2] != 0 {
+			if _, e := check(a.Functions[2], []sqltype.Usage{state.Usage(), state.Usage()}, state); e != nil {
+				return e
+			}
 		}
 		if forward.Strict && !hasSeed && (len(inputs) == 0 || !conversion(inputs[0], state.Usage())) {
 			return invalid()
@@ -217,15 +232,23 @@ func AggregateSupportTypes(v catalog.Read, reader catalog.DefinitionReader, supp
 		}
 		declaration := retained == nil
 		for _, input := range inputs[1:] {
-			if input.Type == nil { return invalid() }
+			if input.Type == nil {
+				return invalid()
+			}
 			if !input.Type.Concrete() {
-				if input.Type.ID() != 2276 { return invalid() }
+				if input.Type.ID() != 2276 {
+					return invalid()
+				}
 				declaration = true
 			}
 		}
-		if declaration && len(inputs) != 2 { return invalid() }
+		if declaration && len(inputs) != 2 {
+			return invalid()
+		}
 		output, found := catalog.DefinitionTypeAt(v, reader, functions.AggregateContextSupportResult(uint32(support.Address().ObjectID)))
-		if !found { return invalid() }
+		if !found {
+			return invalid()
+		}
 		return append([]sqltype.Usage(nil), inputs...), output.Usage(), nil
 	}
 	declared, err := aggregateSignature(v, reader, support.Signature)
@@ -237,9 +260,9 @@ func AggregateSupportTypes(v catalog.Read, reader catalog.DefinitionReader, supp
 		return invalid()
 	}
 	result := resultType.Usage()
-	polymorphic := !resultType.Concrete()
+	polymorphic := !resultType.Concrete() && resultType.ID() != 2281
 	for _, formal := range declared {
-		polymorphic = polymorphic || !formal.Type.Concrete()
+		polymorphic = polymorphic || !formal.Type.Concrete() && formal.Type.ID() != 2281
 	}
 	if !polymorphic {
 		result = aggregateSupportCollations(declared, result, inputs)

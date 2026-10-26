@@ -52,7 +52,12 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	}
 	evaluation := state.Evaluation(ctx)
 	for _, call := range n.Calls {
-		if provider, ok := call.Provider.(*TransitionAggregate); ok {
+		if state.aggregatePartials == nil {
+			if err := AdmitAggregateSupport(&evaluation, &call); err != nil {
+				return Stage{}, err
+			}
+		}
+		if provider, ok := call.Provider.(*TransitionAggregate); ok && state.aggregatePartials == nil {
 			if err := provider.Start(&evaluation); err != nil {
 				return Stage{}, err
 			}
@@ -303,6 +308,10 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			}
 		}
 	}
+	if state.aggregatePartials != nil {
+		*state.aggregatePartials = groups
+		return Stage{}, ctx.Err()
+	}
 	rows := make([][]sqltype.Value, len(groups))
 	for i, group := range groups {
 		if err := ctx.Err(); err != nil {
@@ -317,8 +326,12 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			direct := directValues[2 : 2+len(call.Direct)]
 			for j, expression := range call.Direct {
 				direct[j], err = expression.Eval(&evaluation)
-				if err == nil { err = ctx.Err() }
-				if err != nil { return Stage{}, err }
+				if err == nil {
+					err = ctx.Err()
+				}
+				if err != nil {
+					return Stage{}, err
+				}
 			}
 			if provider, ordered := call.Provider.(functions.OrderedAggregate); ordered {
 				var prepared functions.OrderedPreparation

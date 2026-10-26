@@ -78,6 +78,12 @@ func (m *ViewQueryRemapper) provider(slot *functions.AggregateProvider, provider
 					return fmt.Errorf("stuntgres: mismatched aggregate support reference")
 				}
 			}
+			if combine := transition.CombinePlan; combine != nil {
+				current, found := m.Catalog.Procedure(combine.Support.Address())
+				if !found || !exec.SameRoutineDeclaration(current, combine.Support) {
+					return fmt.Errorf("stuntgres: mismatched aggregate combine reference")
+				}
+			}
 		}
 	}
 	*slot = next
@@ -216,6 +222,22 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 			}
 			expected, err := catalog.AggregateConversion(p.Aggregate.Aggregate.BinaryRecipe, p.FinalInputs[i], formal)
 			if err != nil || !p.FinalConversions[i].Equal(expected) {
+				return invalid()
+			}
+		}
+	}
+	if combine := p.CombinePlan; combine != nil {
+		current, found := read.Procedure(combine.Support.Address())
+		if !found || !exec.SameRoutineDeclaration(current, combine.Support) {
+			return invalid()
+		}
+		formals, result, err := routine.AggregateSupportTypes(read, nil, current, p.Aggregate.Aggregate, combine.Inputs)
+		if err != nil || result.Type != p.StateUsage.Type || len(formals) != len(combine.Formals) || len(formals) != len(combine.Conversions) {
+			return invalid()
+		}
+		for i, formal := range formals {
+			expected, err := catalog.AggregateConversion(p.Aggregate.Aggregate.BinaryRecipe, combine.Inputs[i], formal)
+			if err != nil || formal != combine.Formals[i] || !combine.Conversions[i].Equal(expected) {
 				return invalid()
 			}
 		}

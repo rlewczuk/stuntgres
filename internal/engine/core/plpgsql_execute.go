@@ -94,7 +94,7 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 	}
 	usage = schema[0].Usage
 	var row [1]sqltype.Value
-	present, err = result.Rows.Next(s.Op.Context(), row[:])
+	present, err = result.Rows.Next(s.executionContext(), row[:])
 	if err != nil {
 		return value, usage, false, err
 	}
@@ -102,7 +102,7 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 		return sqltype.Null(usage.Type), usage, false, nil
 	}
 	value = row[0]
-	more, err := result.Rows.Next(s.Op.Context(), row[:])
+	more, err := result.Rows.Next(s.executionContext(), row[:])
 	if err != nil {
 		return value, usage, false, err
 	}
@@ -158,23 +158,23 @@ func (s *StatementScope) convertPLTargetValue(value sqltype.Value, target sqltyp
 		e.Mu.Unlock()
 		return sqltype.Value{}, err
 	}
-	binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
+	binder := NewExpressionBinder(s.executionContext(), e, s.Input, s.Op, nil)
 	binder.Query.Auth = &auth
 	node, selected, err := binder.PLAssignment(value, target)
 	e.Mu.Unlock()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.executionContext(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	evaluation.Input.DomainChecks = &evaluation
 	if selected {
 		return node.Eval(&evaluation)
 	}
-	text, err := value.Type().OutputWithEnvironment(s.Op.Context(), value, s.Output)
+	text, err := value.Type().OutputWithEnvironment(s.executionContext(), value, s.Output)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return target.Type.InputWithEnvironment(s.Op.Context(), text, target.Typmod, evaluation.Input)
+	return target.Type.InputWithEnvironment(s.executionContext(), text, target.Typmod, evaluation.Input)
 }
 
 // The candidate has the physical base descriptor. Validate fresh reconstructed
@@ -191,16 +191,16 @@ func (s *StatementScope) finishPLComposite(candidate sqltype.Value, target *sqlt
 			e.Mu.Unlock()
 			return sqltype.Value{}, err
 		}
-		binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
+		binder := NewExpressionBinder(s.executionContext(), e, s.Input, s.Op, nil)
 		binder.Query.Auth = &auth
 		err = binder.CaptureTypeDiagnosticInput(target)
 		e.Mu.Unlock()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.executionContext(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 		evaluation.Input.DomainChecks = &evaluation
-		if err := target.CheckDomainInput(s.Op.Context(), candidate, evaluation.Input); err != nil {
+		if err := target.CheckDomainInput(s.executionContext(), candidate, evaluation.Input); err != nil {
 			return sqltype.Value{}, &plan.AssignmentDomainError{Err: err}
 		}
 	}

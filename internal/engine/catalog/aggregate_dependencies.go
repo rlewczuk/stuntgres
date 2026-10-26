@@ -15,22 +15,21 @@ func OwnedAggregateDependencies(d *Procedure) iter.Seq[ids.ObjectAddress] {
 		if d == nil || !d.DynamicCallable() || d.Aggregate == nil {
 			return
 		}
-		slots := [...]int{0, 1, 5, 6, 7}
-		for i, slot := range slots {
-			if oid := d.Aggregate.Definition.Functions[slot]; oid != 0 {
-				duplicate := false
-				for _, previous := range slots[:i] {
-					if d.Aggregate.Definition.Functions[previous] == oid {
-						duplicate = true
-						break
-					}
-				}
-				if duplicate {
-					continue
-				}
-				if !yield(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}) {
-					return
-				}
+		for i, id := range d.Aggregate.Definition.Functions {
+			if id == 0 {
+				continue
+			}
+			duplicate := false
+			for _, old := range d.Aggregate.Definition.Functions[:i] {
+				duplicate = duplicate || old == id
+			}
+			if !duplicate && !yield(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}) {
+				return
+			}
+		}
+		if id := d.Aggregate.Definition.SortOperator; id != 0 {
+			if !yield(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}) {
+				return
 			}
 		}
 		// State types are retained through support signatures. Result and input

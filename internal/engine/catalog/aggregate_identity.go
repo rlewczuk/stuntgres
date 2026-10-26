@@ -11,11 +11,12 @@ import (
 // intagg's lookup-only extension aliases; ordinary aggregates use real selected
 // transition/final descriptors and leave Helpers empty.
 type OwnedAggregate struct {
-	Definition   AggregateDefinition
-	Helpers      [2]RoutineIdentity
-	BinaryRecipe *AggregateBinaryRecipe
-	Variadic     bool // Terminal VARIADIC ANY; paired ordered declarations share this slot.
+	Definition    AggregateDefinition
+	Helpers       [2]RoutineIdentity
+	BinaryRecipe  *AggregateBinaryRecipe
+	Variadic      bool     // Terminal VARIADIC ANY; paired ordered declarations share this slot.
 	ArgumentNames []string // Canonical flattened declaration; nil when entirely unnamed.
+	Parallel      byte     // zero and 'u' are UNSAFE; 's' SAFE; 'r' RESTRICTED.
 }
 
 // SameAggregateDefinition compares complete immutable declaration identity.
@@ -26,7 +27,7 @@ func SameAggregateDefinition(a, b *OwnedAggregate) bool {
 		return a == b
 	}
 	return a.Definition == b.Definition && a.Helpers == b.Helpers &&
-		a.BinaryRecipe == b.BinaryRecipe && a.Variadic == b.Variadic &&
+		a.BinaryRecipe == b.BinaryRecipe && a.Variadic == b.Variadic && a.Parallel == b.Parallel &&
 		slices.Equal(a.ArgumentNames, b.ArgumentNames)
 }
 

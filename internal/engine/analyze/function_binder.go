@@ -167,7 +167,7 @@ func (b *Binder) FinishAggregate(raw parser.AggregateExpr, call functions.Aggreg
 	if !present || !ok || procedure.Builtin == nil {
 		return nil, fmt.Errorf("stuntgres: missing captured builtin aggregate declaration")
 	}
-	result, err := b.finishAggregate(raw, plan.AggregateCall{
+	selected := plan.AggregateCall{
 		Provider:     call.Provider,
 		Routine:      call.Routine,
 		Procedure:    procedure,
@@ -177,7 +177,24 @@ func (b *Binder) FinishAggregate(raw parser.AggregateExpr, call functions.Aggreg
 		Operation:    call.Operation,
 		IncludeNulls: call.IncludeNulls,
 		Order:        withinGroupOrder(call.Order),
-	}, filter, info)
+	}
+	if _, stringState := call.Provider.(functions.StringAggregateProvider); stringState {
+		definition := catalog.StringAggregateDefinition(procedure.Builtin.Identity.ID)
+		if definition.Function == 0 {
+			return nil, fmt.Errorf("stuntgres: missing builtin string aggregate capability")
+		}
+		for i := range selected.PrimaryStringSupport {
+			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: definition.Functions[i]}
+			descriptor, found := catalog.DescriptorAt(b.BindingCatalog(), b.DefinitionReader(), address)
+			support, valid := descriptor.(*catalog.Procedure)
+			if !found || !valid || support.Builtin == nil || support.Builtin.Identity.ID != address.ObjectID {
+				return nil, fmt.Errorf("stuntgres: missing string aggregate support declaration")
+			}
+			selected.PrimaryStringSupport[i] = support
+			b.aggregateSupportDependency(b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), support.Address()), support.Revision())
+		}
+	}
+	result, err := b.finishAggregate(raw, selected, filter, info)
 	if err != nil || !call.RetainUntypedArgument {
 		return result, err
 	}

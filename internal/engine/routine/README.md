@@ -101,6 +101,24 @@ package or the engine.
   rows as immutable `catalog.RoutineOutputs`, checked against the sole input
   signature. VARIADIC retains the existing declared signature and element/ANY
   identity; projection does not infer OUT layouts from result types or setness.
+  Selected aggregate support descriptors also retain genuine signature/ACL facts
+  with zero scalar-provider flags: opaque string-state capabilities own their
+  execution, and diagnostic-only GiST/final signatures never gain fake bodies.
+  `int4larger` has a real strict scalar maximum provider for SFUNC/COMBINEFUNC.
+  Builtin string text/bytea supports share their exact `StringAggregateDefinition`
+  with catalog rows and binding. Real support descriptors are retained in the
+  aggregate call and remapped with it. Serial, worker transport and leader merge
+  admission check only active supports under the current aggregate owner's
+  authority, including the already-implemented builtin final step; no owner or
+  permission cache is attached to the opaque state provider.
+  Support admission follows the selected call's immutable aggregate operation
+  and declarations, not the concrete state-provider type: wrapping a provider
+  does not suppress the aggregate owner's active support checks.
+  Catalog `proargtypes` is projected from normalized declared input identities as
+  a genuine OIDVECTOR; `proacl` delegates to the existing object ACL producer.
+  Aggregate domain INITCOND uses captured type diagnostic naming alongside the
+  incumbent locked-domain input boundary, preserving current search-path spelling
+  without changing independent schema/type/constraint fields.
   `display_inventory.go` owns complete REL_18_6 source/language/security facts
   keyed by genuine declaration OID, including matched SQL-standard replacements.
   Materialization rejects missing facts; the display inventory never creates rows.
@@ -191,6 +209,17 @@ package or the engine.
   authenticated administrator and transferred with ordinary ALTER AGGREGATE
   OWNER before restoring owner authority and emitting dependents.
   Space estimates never size executor buffers.
+  COMBINEFUNC retains a separate closed state/state frame alongside FINAL and
+  moving support; partial workers never finalize states. The leader combines
+  those actual states and invokes the selected FINAL once, retaining its distinct
+  result usage. SERIALFUNC/DESERIALFUNC are paired INTERNAL capabilities, not
+  public INTERNAL datums. SORTOP retains its exact operator identity and qualified
+  dump syntax; PARALLEL retains the declaration's safety marking.
+  Unsafe INTERNAL aggregate-result diagnostics precede native implementation
+  availability checks; an INTERNAL transition state with a concrete FINAL result
+  remains valid when its selected aggregate-context capability is implemented.
+  Ordinary and moving INITCOND validation share the host's domain-input callback
+  boundary rather than evaluating domain checks while holding the DDL lock.
 - **Cast DDL** (`cast.go`): CREATE/DROP CAST with endpoint ownership/USAGE and
   signature checks; declaration neither evaluates the routine nor requires its
   EXECUTE privilege. Actual use checks current EXECUTE authority. Casts depend

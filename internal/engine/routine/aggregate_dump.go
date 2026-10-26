@@ -49,11 +49,17 @@ func aggregateDumpStatement(p dump.Presenter, view catalog.Read, roles authoriza
 		} else if i > 0 {
 			sql.WriteString(", ")
 		}
-		if d.Aggregate.Variadic && i == len(inputs)-1 { sql.WriteString("VARIADIC ") }
-		if len(d.Aggregate.ArgumentNames) != 0 && d.Aggregate.ArgumentNames[i] != "" { sql.WriteString(catalog.QuoteIdentifier(d.Aggregate.ArgumentNames[i])+" ") }
+		if d.Aggregate.Variadic && i == len(inputs)-1 {
+			sql.WriteString("VARIADIC ")
+		}
+		if len(d.Aggregate.ArgumentNames) != 0 && d.Aggregate.ArgumentNames[i] != "" {
+			sql.WriteString(catalog.QuoteIdentifier(d.Aggregate.ArgumentNames[i]) + " ")
+		}
 		name := `pg_catalog."any"`
 		var err error
-		if input.Type.ID() != 2276 { name, err = p.ColumnDeclaration(view, catalog.Column{Usage: input}) }
+		if input.Type.ID() != 2276 {
+			name, err = p.ColumnDeclaration(view, catalog.Column{Usage: input})
+		}
 		if err != nil {
 			return dump.Statement{}, err
 		}
@@ -102,6 +108,38 @@ func aggregateDumpStatement(p dump.Presenter, view catalog.Read, roles authoriza
 		mode = "READ_WRITE"
 	}
 	sql.WriteString(", FINALFUNC_MODIFY = " + mode)
+	for slot, label := range []string{"", "", "COMBINEFUNC", "SERIALFUNC", "DESERIALFUNC"} {
+		if label == "" || d.Aggregate.Definition.Functions[slot] == 0 {
+			continue
+		}
+		f, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Aggregate.Definition.Functions[slot]})
+		if !ok {
+			return dump.Statement{}, fmt.Errorf("stuntgres: missing aggregate support")
+		}
+		ns, ok := view.Namespace(f.Namespace())
+		if !ok {
+			return dump.Statement{}, fmt.Errorf("stuntgres: missing aggregate support namespace")
+		}
+		sql.WriteString(", " + label + " = " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(f.Name()))
+	}
+	if id := d.Aggregate.Definition.SortOperator; id != 0 {
+		op, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
+		if !ok {
+			return dump.Statement{}, fmt.Errorf("stuntgres: missing aggregate sort operator")
+		}
+		ns, ok := view.Namespace(op.Namespace())
+		if !ok {
+			return dump.Statement{}, fmt.Errorf("stuntgres: missing aggregate sort namespace")
+		}
+		sql.WriteString(", SORTOP = OPERATOR(" + catalog.QuoteIdentifier(ns.Name()) + "." + op.Name() + ")")
+	}
+	parallel := "UNSAFE"
+	if d.Aggregate.Parallel == 's' {
+		parallel = "SAFE"
+	} else if d.Aggregate.Parallel == 'r' {
+		parallel = "RESTRICTED"
+	}
+	sql.WriteString(", PARALLEL = " + parallel)
 	if d.Aggregate.Definition.HasInitial {
 		sql.WriteString(", INITCOND = " + dump.CommentLiteral(d.Aggregate.Definition.Initial))
 	}

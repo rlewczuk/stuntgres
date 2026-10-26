@@ -23,12 +23,15 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
 	}
+	if err := scope.parallelExecutionEligibility(stmt); err != nil {
+		return Result{}, err
+	}
 	CaptureEnumOperationSafety(op, &scope.Input)
 	scope.Input.LockedDomainInput, scope.Input.DomainChecks = scope, scope
 	if !op.CommandAdmission {
 		op.SnapshotNoticeThreshold()
 	}
-	ctx := op.Context()
+	ctx := scope.executionContext()
 	switch stmt.(type) {
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return scope.executeNotification(stmt, count)
@@ -60,13 +63,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	case *parser.Set, *parser.Show, *parser.Reset:
-		result, err := e.executeSetting(op, stmt, count, !scope.Owner.InBlock())
+		result, err := e.executeSetting(ctx, op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {
 			scope.CompleteUtility()
 		}
 		return result, err
 	case *parser.SettingCall:
-		result, err := e.executeSettingCall(op, stmt.(*parser.SettingCall), count, importFrame, scope.Input, scope.Output)
+		result, err := e.executeSettingCall(ctx, op, stmt.(*parser.SettingCall), count, importFrame, scope.Input, scope.Output)
 		if err == nil {
 			scope.CompleteUtility()
 		}
@@ -426,7 +429,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 // executor without importing parameters again or opening another statement.
 func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, canonical []sqltype.Value, candidate Description) (Result, error) {
 	op := scope.Op
-	ctx := op.Context()
+	ctx := scope.executionContext()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}}
 	if scope.sqlRoutine.binding != nil {
 		evaluation.PlanStaticOperators, evaluation.SpecializeRuleParameters = true, true

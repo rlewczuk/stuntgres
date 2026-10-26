@@ -69,7 +69,7 @@ type TemporarySessionIndexes = temporarySessionIndexes
 
 // EngineApplySetting calls x.applySetting.
 func EngineApplySetting(x *Engine, op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool) (string, error) {
-	return x.applySetting(op, owner, d, input, local, "")
+	return x.applySetting(op.Context(), op, owner, d, input, local, "")
 }
 
 // EngineBeginAdmitted calls x.beginAdmitted.
@@ -119,7 +119,7 @@ func EngineEnrollSerializableLocked(x *Engine, ref ids.TxRef, isolation session.
 
 // EngineExecuteSetting calls x.executeSetting.
 func EngineExecuteSetting(x *Engine, op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
-	return x.executeSetting(op, stmt, count, implicit)
+	return x.executeSetting(op.Context(), op, stmt, count, implicit)
 }
 
 // EngineFenceSerializableLocked calls x.fenceSerializableLocked.
@@ -346,7 +346,6 @@ func PayloadNotificationsRef(x *sessionPayload) *session.NotificationListener {
 	return &x.notifications
 }
 
-
 // PayloadSQLRoutines returns x.sqlRoutines.
 func PayloadSQLRoutines(x *sessionPayload) map[ids.ObjectAddress]sqlRoutineAnalysis {
 	return x.sqlRoutines
@@ -434,7 +433,6 @@ func NewScope(f ScopeFields) *StatementScope {
 
 // ScopeLargeObjectRead returns x.largeObjectRead.
 func ScopeLargeObjectRead(x *StatementScope) catalog.Read { return x.largeObjectRead }
-
 
 // ScopeRLSActive returns x.rlsActive.
 func ScopeRLSActive(x *StatementScope) []ids.ObjectAddress { return x.rlsActive }

@@ -70,6 +70,16 @@ PostgreSQL-held/native-reanalysis lifetime expectations.
 Its stored binary typename view retains the selected method after the current
 pair is replaced by INOUT; this is not a fresh-call or dumped-row surrogate.
 
+The canonical array-compatible `int2vector` and `oidvector` types belong to
+`Identifiers`, both with literal seed/output `1 2 3`. Their typed storage,
+parameter and text input/output routes participate in `Inventory` and
+`MatrixIdentifiers`; `FunctionsIdentifiers` retains only actual released
+callable signatures. Vector companions `_int2vector` (1006) and `_oidvector`
+(1013) remain metadata-only; their presence does not grant companion codecs.
+The `MatrixIdentifiers/oidvector_codec` public control also checks literal
+nonempty/empty/SQL-NULL casts before Normalize: native strings, pinned lib/pq
+bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
+
 ### OID aliases and identifiers
 
 - Normalized `oid` cells are int64 natively and strings through lib/pq. lib/pq

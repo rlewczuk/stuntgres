@@ -42,7 +42,14 @@ func ScopeOf(host exec.Host) *StatementScope {
 
 func (h *statementHost) scope() *StatementScope { return (*StatementScope)(h) }
 
-func (h *statementHost) Context() context.Context { return h.Op.Context() }
+func (s *StatementScope) executionContext() context.Context {
+	if s.invocationContext != nil {
+		return s.invocationContext
+	}
+	return s.Op.Context()
+}
+
+func (h *statementHost) Context() context.Context { return h.scope().executionContext() }
 func (h *statementHost) Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment) {
 	return h.Input, h.Output
 }

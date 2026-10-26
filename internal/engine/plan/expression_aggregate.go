@@ -11,21 +11,21 @@ import (
 )
 
 type AggregateCall struct {
-	Provider      functions.AggregateProvider
-	Routine       ids.ObjectRef               // Selected owning declaration; fresh caller ACL at admission.
-	RoutineRecipe expr.RoutineRecipeReference // Original stored occurrence of this selected declaration.
-	Arguments      []expr.Expr
-	Direct         []expr.Expr
-	Order          []SortKey
-	Filter         expr.Expr
-	Distinct       []Grouping // Multi-key tuple equality is caller checked; single-key support is not.
-	StageWidth     int        // Ordinary arguments, then unique local ordering targets.
-	Operation      functions.AggregateOperation
-	IncludeNulls   bool // Non-strict providers must see SQL NULL, including ordered replay.
-	Procedure      *catalog.Procedure
-	Ref            ids.ObjectRef
+	Provider             functions.AggregateProvider
+	Routine              ids.ObjectRef               // Selected owning declaration; fresh caller ACL at admission.
+	RoutineRecipe        expr.RoutineRecipeReference // Original stored occurrence of this selected declaration.
+	Arguments            []expr.Expr
+	Direct               []expr.Expr
+	Order                []SortKey
+	Filter               expr.Expr
+	Distinct             []Grouping // Multi-key tuple equality is caller checked; single-key support is not.
+	StageWidth           int        // Ordinary arguments, then unique local ordering targets.
+	Operation            functions.AggregateOperation
+	IncludeNulls         bool // Non-strict providers must see SQL NULL, including ordered replay.
+	Procedure            *catalog.Procedure
+	Ref                  ids.ObjectRef
+	PrimaryStringSupport [5]*catalog.Procedure // transition, final, combine, serialize, deserialize
 }
-
 
 func (call AggregateCall) CallRoutineRecipeReference() expr.RoutineRecipeReference {
 	return call.RoutineRecipe

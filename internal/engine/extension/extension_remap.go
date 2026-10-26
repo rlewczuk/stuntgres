@@ -163,6 +163,9 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 			if owned.Definition.MovingType != 0 {
 				owned.Definition.MovingType = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: owned.Definition.MovingType}).ObjectID
 			}
+			if owned.Definition.SortOperator != 0 {
+				owned.Definition.SortOperator = address(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: owned.Definition.SortOperator}).ObjectID
+			}
 			if d.Aggregate.BinaryRecipe != nil {
 				original := d.Aggregate.BinaryRecipe
 				var recipe *catalog.AggregateBinaryRecipe

@@ -41,6 +41,8 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 			return 21
 		case "proargmodes":
 			return 22
+		case "proacl":
+			return 30
 		}
 	case 2606:
 		switch name {

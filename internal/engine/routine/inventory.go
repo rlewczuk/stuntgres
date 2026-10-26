@@ -7,10 +7,10 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// PostgreSQL REL_18_0 declarations associated with successful existing native
-// selectors. This finite table does not dispatch execution or promote lookup-only
-// routines. Exact formals, including polymorphic/default/variadic declarations,
-// are independent of physical child usages and specialized result descriptors.
+// PostgreSQL declarations associated with native selectors and selected aggregate
+// support validation. Executable entries name a real provider; selected INTERNAL
+// and diagnostic support entries with zero scalar providers remain unavailable
+// for ordinary scalar execution. Exact formals are independent of child usages.
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 // Fixed OUT type/name facts below follow PostgreSQL REL_18_6 pg_proc.dat.
@@ -26,6 +26,20 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{5022, ids.PGCatalogNamespaceOID, "pg_lsn_pli", "3220,1700"}, catalog.FunctionRoutine, 3220, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{5023, ids.PGCatalogNamespaceOID, "numeric_pl_pg_lsn", "1700,3220"}, catalog.FunctionRoutine, 3220, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{5024, ids.PGCatalogNamespaceOID, "pg_lsn_mii", "3220,1700"}, catalog.FunctionRoutine, 3220, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
+	// Real aggregate support declarations. INTERNAL routines execute only through
+	// their owning opaque-state capability; zero scalar providers never claim a
+	// public SQL implementation. GiST/final declarations are needed for exact
+	// support-signature diagnostics before execution-availability admission.
+	{catalog.RoutineIdentity{768, ids.PGCatalogNamespaceOID, "int4larger", "23,23"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{6299, ids.PGCatalogNamespaceOID, "string_agg_combine", "2281,2281"}, catalog.FunctionRoutine, 2281, false, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{6300, ids.PGCatalogNamespaceOID, "string_agg_serialize", "2281"}, catalog.FunctionRoutine, 17, true, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{6301, ids.PGCatalogNamespaceOID, "string_agg_deserialize", "17,2281"}, catalog.FunctionRoutine, 2281, true, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{3535, ids.PGCatalogNamespaceOID, "string_agg_transfn", "2281,25,25"}, catalog.FunctionRoutine, 2281, false, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{3536, ids.PGCatalogNamespaceOID, "string_agg_finalfn", "2281"}, catalog.FunctionRoutine, 25, false, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{3543, ids.PGCatalogNamespaceOID, "bytea_string_agg_transfn", "2281,17,17"}, catalog.FunctionRoutine, 2281, false, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{3544, ids.PGCatalogNamespaceOID, "bytea_string_agg_finalfn", "2281"}, catalog.FunctionRoutine, 17, false, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{3554, ids.PGCatalogNamespaceOID, "inet_gist_union", "2281,2281"}, catalog.FunctionRoutine, 869, true, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{2582, ids.PGCatalogNamespaceOID, "gist_box_picksplit", "2281,2281"}, catalog.FunctionRoutine, 2281, true, expr.Immutable, 's', false, 0, 0, 0, nil},
 	// Selected REL_18_6 Table 9.36 operators; names do not grant call admission.
 	{catalog.RoutineIdentity{1441, ids.PGCatalogNamespaceOID, "point_add", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{1442, ids.PGCatalogNamespaceOID, "point_sub", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},

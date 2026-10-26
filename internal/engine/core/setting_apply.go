@@ -1,8 +1,11 @@
 package core
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -12,7 +15,14 @@ import (
 
 // applySetting stages callbacks without publication locks, then installs the
 // parsed value in one Engine.mu -> Settings.Mu -> Session.Mu window.
-func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool, resultName string) (string, error) {
+func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool, resultName string) (string, error) {
+	// All admitted definitions lack GUC_ALLOW_IN_PARALLEL. PostgreSQL's sole
+	// flagged builtin, is_superuser, and function-local GUC_ACTION_SAVE are
+	// not supported settings routes here. Revisit this when admitting either.
+	// Resolve names first, but reject before access, parsing or installation.
+	if exec.InParallelOperation(ctx) {
+		return "", SQLError("25000", fmt.Sprintf(`parameter "%s" cannot be set during a parallel operation`, settings.DisplayName(d.Name)))
+	}
 	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" || d.Name == "transaction_deferrable" {
 		return e.applyCurrentCharacteristic(op, d, input)
 	}
@@ -62,9 +72,24 @@ func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStor
 	return owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, local)
 }
 
-func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
+// SQL setting utilities are refused by PostgreSQL's utility admission before
+// ExecSetVariableStmt. set_config reaches the named guard in applySetting.
+func parallelSettingCommandEligibility(ctx context.Context, stmt parser.Statement) error {
+	if exec.InParallelOperation(ctx) {
+		return SQLError("25000", "cannot execute "+RoutineCommandTag(stmt)+" during a parallel operation")
+	}
+	return nil
+}
+
+func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: settings expect zero arguments")
+	}
+	switch stmt.(type) {
+	case *parser.Set, *parser.Reset:
+		if err := parallelSettingCommandEligibility(ctx, stmt); err != nil {
+			return Result{}, err
+		}
 	}
 	owner := op.Session.Settings
 	var name string
@@ -117,13 +142,13 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 	typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
 	if all {
 		if write {
-			if err := op.Ctx.Err(); err != nil {
+			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
 			owner.ResetAllLocked(e.Settings)
 			return Result{}, nil
 		}
-		rows, err := owner.ShowAllRowsLocked(op.Ctx, e.Settings, typ, readRestricted)
+		rows, err := owner.ShowAllRowsLocked(ctx, e.Settings, typ, readRestricted)
 		if err != nil {
 			return Result{}, err
 		}
@@ -140,13 +165,13 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 		}
 		unlock()
 		locked = false
-		_, err = e.applySetting(op, owner, d, input, local, "")
+		_, err = e.applySetting(ctx, op, owner, d, input, local, "")
 		return Result{}, err
 	}
 	if err := session.SettingReadAccess(d, name, readRestricted); err != nil {
 		return Result{}, err
 	}
-	if err := op.Ctx.Err(); err != nil {
+	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
 	return anonymousResult(settingColumns(typ, settings.DisplayName(d.Name)), [][]sqltype.Value{{sqltype.String(typ, owner.Value(d.Name))}}, 0)

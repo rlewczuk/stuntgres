@@ -41,7 +41,7 @@ type policySourcePreparation struct {
 }
 
 func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf, singleton bool, invoker authorization.PrincipalRef, inherited plan.RowMark) (*querySourcePreparation, error) {
-	if err := s.Op.Context().Err(); err != nil {
+	if err := s.executionContext().Err(); err != nil {
 		return nil, err
 	}
 	if s.authority == nil {
@@ -176,7 +176,7 @@ func (e *Engine) materializePolicySourcesLocked(s *StatementScope) error {
 			}
 			pending.clause.State = exec.State{Source: inputs, SourceMode: exec.SourceReusable, Input: s.Input, Output: s.Output, Locking: inputs.Locks.RowMarked()}
 			e.Mu.Unlock()
-			err = exec.SelectQuerySources(s.Op.Context(), inputs)
+			err = exec.SelectQuerySources(s.executionContext(), inputs)
 			if err == nil {
 				pending.clause.State.Source = view.FreezeWriteSources(inputs, pending.sources.leaves, s.authority, HostOf(s))
 			}

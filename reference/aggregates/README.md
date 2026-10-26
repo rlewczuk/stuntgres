@@ -68,6 +68,105 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 
 Add `REFERENCE=1` for the oracle.
 
+- Parallel support effects: `RUN='^TestReferenceAggregateCombineParallelEffects$'`.
+  Falsely SAFE transition, nested-body and modifying-CTE writes, plus leader
+  combine/final writes and sequence effects, must fail with complete `25000`
+  diagnostics. PostgreSQL physical cost settings and an EXPLAIN admission check
+  establish a real Partial Aggregate / Finalize Aggregate plan; native
+  worker/leader identity belongs to the composed
+  `TestAggregateCombineParallelEffects` proof, not topology parity.
+  Only transition diagnostics admit the two released PostgreSQL context forms
+  (support frames alone, or those exact frames followed by `parallel worker`).
+  Direct, fresh-prepared and held failures retain log/destination sentinels and
+  sequence state; the same held statement recovers at ceiling zero with exact
+  ordinary serial effects. Run both native and `REFERENCE=1` selected modes.
+  The same selection retains all twenty-two cases: seven write/sequence cases,
+  twelve session-setting mutations in transition, reached nested helpers and
+  leader combine/final support, one legal read-positive case, and two nested
+  zero-argument deallocation cases.
+  SQL `SET`, `SET LOCAL` and `SET ... DEFAULT` fail with `25000` /
+  `cannot execute SET during a parallel operation`; `RESET` and `RESET ALL`
+  instead use `cannot execute RESET during a parallel operation`. The earlier
+  utility-command gate precedes parameter lookup, value parsing, warnings and
+  installation. The existing reached command guard also covers
+  role/session-authorization and transaction-setting forms that otherwise bypass
+  ordinary setting installation, using their existing SET command tag.
+  SQL-callable `set_config` instead resolves its name first, then fails with
+  `25000` / `parameter "application_name" cannot be set during a parallel operation`
+  before access checks, value parsing or installation; NULL-name `22004` and
+  unknown-name `42704` retain precedence. Canonical parameter display names are
+  preserved. These command-tag and named-parameter paths are not interchangeable.
+  `SHOW` and the existing standalone `current_setting` route remain legal reads;
+  this fixture does not add generic-expression `current_setting` support.
+  Settings failures must retain `application_name='before'`, native nil rows/count
+  zero, complete routine statement contexts, the same owner and restored scoped
+  context. Serial controls must perform genuine changes. LOCAL/config-local
+  bodies end with a scalar SELECT from `pg_catalog.pg_settings` filtered by
+  `name = 'application_name' AND setting = 'escaped'`; the read-positive body
+  uses `setting = 'before'`. They retain independently expected aggregate `10`,
+  so wrong visibility yields no scalar row/NULL state and fails the assertion.
+  LOCAL values restore to `before` externally. External unaliased
+  `SELECT current_setting('application_name')` and SHOW probes remain intact.
+  Quoted `LANGUAGE SQL AS $$ ... $$` bodies retain the reached statement frames;
+  unsupported unquoted utility-body admission is not a substitute diagnostic.
+  Native utility dispatch must consume zero statement parameters without erasing
+  the enclosing routine's formals; the existing setting-call binder seeds those
+  formals from `StatementScope.initialParameters` before binding specialized
+  setting SELECTs. Count validation, actual effects and runtime authorization
+  remain real, not bypassed to admit the fixture.
+  The deallocation witnesses reach `ac_effect_clear()` with no formal arguments:
+  transition `nested_deallocate_all` executes `DEALLOCATE ALL`, while leader
+  `final_deallocate` executes `DEALLOCATE ac_saved`. Their independently expected
+  errors are `25000` / `cannot execute DEALLOCATE ALL during a parallel operation`
+  and `cannot execute DEALLOCATE during a parallel operation`, respectively.
+  Both require the actual inner `SQL function "ac_effect_clear" statement 1`
+  frame followed by outer `ac_effect_step` or `ac_effect_final` statement 2.
+  Two-command enclosing SQL bodies prevent scalar inlining from erasing the
+  outer frame. Only the transition allows the finite PostgreSQL worker suffix;
+  the leader context is fixed.
+  A real SQL `PREPARE ac_saved AS SELECT 42 AS v` is distinct from the held
+  database/sql aggregate statement. `EXECUTE ac_saved` must still return `42`
+  (`INT4`) after every direct/fresh/held rejection, on the same session. The
+  composed test also checks the retained registry definition before `Finish`,
+  nil output/count zero, released pins and restored routine/operation context.
+  Ceiling-zero execution must genuinely deallocate the name while returning
+  aggregate `10`; a subsequent EXECUTE independently requires `26000` /
+  `prepared statement "ac_saved" does not exist`, and private registry absence.
+  Refusal must precede utility lookup/mutation, not rely on utility argument-count
+  errors, rollback or replacing the owner. Existing command tags distinguish
+  DEALLOCATE ALL, DEALLOCATE, EXECUTE and SET CONSTRAINTS. Normal successful SQL
+  EXECUTE retains its body command tag.
+  The reached admission seam also follows the released classification for other
+  supported SQL backend-local utilities (CLOSE, SET CONSTRAINTS, DECLARE,
+  DISCARD, EXECUTE, FETCH, PREPARE and UNLISTEN), LOAD, maintenance commands,
+  prepared transaction controls and stronger-than-ROW EXCLUSIVE locks.
+  COPY FROM refusal uses the released utility command tag `COPY`, not its
+  read-only-transaction classification tag `COPY FROM`; COPY TO remains allowed
+  by this parallel guard. This is not a second read-only-transaction classifier:
+  backend-local commands can remain legal in a read-only transaction while
+  forbidden in a parallel operation. DO/CALL retain reached-command checks, not
+  a blanket enclosing-command refusal; internal PL cursor operations are not
+  SQL DECLARE/FETCH/CLOSE utilities. No unsupported utility family is introduced.
+  The twenty-two effects cases do not execute every ancillary utility or setting
+  branch; those admission boundaries also require source/caller review.
+  Operation membership covers both workers and leader support; it never makes
+  the leader a worker or changes the shared session operation context.
+  The released `GUC_ALLOW_IN_PARALLEL` builtin exception is only `is_superuser`,
+  absent from the supported registry; scoped `GUC_ACTION_SAVE` requires unsupported
+  routine `proconfig`. There is no supported exception intersection and no new
+  setting, allow-map or function-configuration feature here. See PostgreSQL18.6
+  [Parallel Safety](https://www.postgresql.org/docs/18/parallel-safety.html),
+  [`utility.c`](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/tcop/utility.c)
+  (`ClassifyUtilityCommandAsReadOnly`, `standard_ProcessUtility`, `CreateCommandTag`),
+  [`ExecSetVariableStmt`/`set_config_by_name`](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/utils/misc/guc_funcs.c)
+  and [`set_config_with_handle`](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/utils/misc/guc.c).
+  The later generic guard in `ExecSetVariableStmt` is not an alternate public
+  SQL SET/RESET primary: the earlier utility-tag gate determines that diagnostic.
+  Run the oracle selection first, then native and selected race proof, retaining
+  all direct/fresh/held routes, snapshots and deadlines. This effects selection
+  is the new effect-admission behavior smoke, separate from value/persistence
+  `FeatureSmoke`; these are required assertions, not a verification status.
+
 - <a id="create-aggregate-contract"></a>CREATE AGGREGATE: `RUN='^TestReference(CreateAggregate|AggregateFinal|AggregateMoving)'`
 - Aggregate ALTER/DROP lifecycle: `RUN='^TestReferenceAggregateLifecycle'`.
   Lifecycle helpers reuse CREATE's direct/prepared value and metadata assertions;
@@ -118,8 +217,8 @@ Add `REFERENCE=1` for the oracle.
   and reached SQL-final cancellation. The legal paired VARIADIC ANY witnesses
   invoke the actual transition_multi and all four rank-family final supports,
   with independent scalar/multikey/NULL/empty outcomes. Canonical collapsed
-  signatures use regprocedure lookup plus pronargs/provariadic, not an
-  unavailable oidvector codec.
+  signatures use regprocedure lookup plus pronargs/provariadic and canonical
+  catalog-vector argument metadata.
   `Modes` asserts both final/moving-final modification defaults and independent
   overrides, even without either final implementation. `StrictDeclaration`
   distinguishes PostgreSQL's canonical-first-declared-input no-seed admission
@@ -142,12 +241,81 @@ Add `REFERENCE=1` for the oracle.
   witness fails lookup before support execution. Private aggregate-context
   checks are distinct from this public boundary; final support NULL behavior
   is not replaced by an invented blanket out-of-context rejection.
+- Aggregate combine declaration contracts:
+  `RUN='^TestReferenceAggregateCombine(InternalDefinition|Diagnostics|SortSupport)$'`.
+  The internal-input fixture checks actual builtin support signatures and owned
+  declaration metadata without manufacturing an SQL `internal` datum. Its
+  native-control phase checks two real Restore operations. SORTOP includes a
+  non-Boolean `+` declaration; it does not prescribe transition input ordering.
+  Additional public families are `Values|Metadata|Serialization`,
+  `Authority|Dependencies|Lifecycle`, `Errors|Cancellation|ParallelSafety`, and
+  `FeatureSmoke`, under the same `TestReferenceAggregateCombine` prefix.
+  All definitions require selected native and pinned-oracle runs; native
+  lifecycle phases use actual emitted Dump SQL, not reconstructed recipes.
+  The lifecycle test replays that native SQL on PostgreSQL after native
+  execution, so its oracle phase deliberately requires a native dump.
+  Private `TestAggregateCombine` units inspect actual partitions, closed
+  combine frames, worker ownership/join/error identity, and retained recipes.
+  `TestAggregateCombineSignatures` also exercises real declared-arity lookup
+  using type-only placeholders: opaque `internal` cannot form even a SQL NULL,
+  so signature selection must not construct synthetic argument datums.
+  Actual `pg_proc.proargtypes` is a genuine OIDVECTOR datum, not a TEXT substitute;
+  `proacl` uses the established ACLITEM[]/NULL producer. InternalDefinition checks
+  raw `DatabaseTypeName=OIDVECTOR` and literal byte/text payloads before Normalize,
+  zero-argument/empty/NULL distinctions, direct/fresh/held vector input, released
+  pg_type facts, and stored vector values through its two actual native Restores.
+  Shared ordering checks length-first/unsigned carrier order with SQL NULLS LAST;
+  the qualified sort expression cannot resolve to the TEXT display alias.
+  Canonical catalog-vector unit tests cover owned/borrowed data, zero-based shape,
+  generation remap, exact text/SQLLiteral, OID prefix-scanner diagnostics,
+  occurrence ordering, foreign-generation/NULL rejection and cancellation.
+  Creator admission checks all declared supports, while execution checks only
+  the active split's supports: serial SFUNC and selected final support,
+  worker transition/serialization and leader combine/deserialization/finalization.
+  Builtin string owner authority comes from the captured aggregate declaration, not its generic
+  state provider; all five genuine support identities survive binding/remap.
+  `Authority/builtin_string_support` changes the real builtin owner, revokes unused
+  combine/codecs without breaking serial execution, and denies each active
+  transition/final support under that owner. Its explicit transaction, per-error
+  savepoints, and bounded deferred ROLLBACK restore original owners and exact
+  complete nullable `pg_proc.proacl` for the aggregate and all five supports.
+  Owner plus raw ACL equality preserves the entire effective grantor/grantee/
+  grant-option set, including implicit defaults and unrelated grants, without
+  requiring an additional information_schema view; public-schema reset alone
+  is not sufficient.
+  Private `Ownership/builtin_string_support` reaches actual worker transport and
+  leader combine/final stages with each owner's support right denied/granted;
+  `Remap/builtin_string_support` checks independent captured-support remapping.
+  Owner setup uses the existing `ALTER FUNCTION ... OWNER TO` spelling, which
+  includes aggregate-kind routines; it does not add an ALTER AGGREGATE utility.
+  Private support hosts enter the ordinary statement gate (and physical-source
+  admission where applicable), so sequence recovery uses the same attached owner
+  rather than bypassing its real transaction/epoch fence.
+  Qualified SORTOP uses `OPERATOR(schema.symbol)`, including Dump.
+  Domain INITCOND validation uses the incumbent captured unlock/revalidate
+  domain-input protocol and captured type diagnostic naming; it must retain CHECK
+  diagnostics and search-path-aware qualification, never bypass checks.
+  Active cancellation observes the native coordinator and then a real partial
+  worker inside `InvokeAggregateSQLRoutine` / `datetimeSleepWaitRemaining`,
+  with `runAggregatePartition` on that same live worker stack. PostgreSQL uses
+  the shared fixture's actual PgSleep admission instead.
+  Worker CTE inheritance is captured before launch, including absence; workers
+  never read the live SQL host's temporarily installed/restored CTE scratch.
+  `TestAggregateCombineSQLGate/worker_initialization_snapshot` holds one real
+  scalar partial worker in admitted SQL pg_sleep while its sibling initializes
+  and repeatedly builds Evaluation before/after actual scratch restoration.
+  It requires zero live-host CTE reads in those phases, cancellation/join with
+  no rows/pins/frame leakage, and unchanged ordinary lexical inheritance.
+  `TestStringAggregateSerialization` independently decodes literal codec bytes.
+  Run the quiet smoke as `make check RUN='^TestReferenceAggregateCombineFeatureSmoke$'`
+  and again with `REFERENCE=1`; it checks exact values, metadata, declaration
+  errors, held settings/parameters and two native Restore operations.
 - DISTINCT, local ORDER BY, FILTER: `RUN='^TestReferenceAggregateModifiers'`
 - `any_value`: `RUN='^TestReferenceAnyValue'`
 - `min`, `max`: `RUN='^TestReferenceExtrema'`
 - GROUPING SETS, ROLLUP, CUBE: `RUN='^TestReferenceGroupingSets'`
 - `num_nulls`, `num_nonnulls`: `RUN='^TestReferenceNullCount'`
-- Variance, stddev, `regr_slope`/`regr_s*`: `RUN='^TestReferenceStatisticalAggregate'`
+- Variance, stddev, `regr_s*`: `RUN='^TestReferenceStatisticalAggregate'`
 - `corr`, `covar_*`, remaining `regr_*`: `RUN='^TestReferenceCorrelationRegression'`
 - Hypothetical-set (`rank`, `dense_rank`, `percent_rank`, `cume_dist`): `RUN='^TestReferenceHypotheticalAggregate'`
 - Ordered-set (`percentile_cont`, `percentile_disc`, `mode`): `RUN='^TestReferenceOrderedSetAggregate'`
@@ -155,6 +323,6 @@ Add `REFERENCE=1` for the oracle.
 - `json[b]_object_agg[_strict]`: `RUN='^TestReferenceJSONObjectAggregate'`
 - `json[b]_object_agg_unique[_strict]`: `RUN='^TestReferenceJSONObjectUniqueAggregate'`
 - `json[b]_agg[_strict]`, `json_arrayagg`: `RUN='^TestReferenceJSONArrayAggregate'`
-- `JSON_OBJECTAGG` and SQL/JSON aggregate output encoding: `RUN='^TestReferenceSQLJSON(Object)?Aggregate'`
+- `JSON_OBJECTAGG` and SQL/JSON aggregate output encoding: `RUN='^TestReferenceSQLJSONObjectAggregate'`
 - `bit_and`, `bit_or`, `bit_xor`: `RUN='^TestReferenceBitwiseAggregate'`
 - `range_agg`, `range_intersect_agg`: `RUN='^TestReferenceRangeAggregate'`

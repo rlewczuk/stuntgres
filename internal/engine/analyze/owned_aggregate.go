@@ -24,7 +24,9 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 		directCount = len(raw.Args)
 	}
 	expectedCount := len(raw.Args)
-	if raw.Within { expectedCount += len(raw.Order) }
+	if raw.Within {
+		expectedCount += len(raw.Order)
+	}
 	if len(args) != expectedCount {
 		return nil, fmt.Errorf("stuntgres: invalid selected aggregate arguments")
 	}
@@ -56,14 +58,18 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 		for i, key := range raw.Order {
 			argument := call.Arguments[i]
 			comparison, e := functions.AggregateOrdering(argument.ResultUsage(), key.Pos, false)
-			if e != nil { return nil, e }
+			if e != nil {
+				return nil, e
+			}
 			call.Order[i] = plan.SortKey{Expression: argument, Comparison: comparison, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, Slot: i, Cache: i}
 		}
 		if definition.Kind == "h" {
-			prefix := len(call.Direct)-len(call.Arguments)
+			prefix := len(call.Direct) - len(call.Arguments)
 			for i, argument := range call.Arguments {
 				pairInfo, e := b.ComparisonInfo(call.Direct[prefix+i], argument)
-				if e != nil { return nil, e }
+				if e != nil {
+					return nil, e
+				}
 				if pairInfo.CollationConflict {
 					diagnostic := expr.ErrorAt("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(pairInfo.CollationLeft.ID), b.collationName(pairInfo.CollationRight.ID)), pairInfo.CollationConflictPos).(*sqlstate.Error)
 					diagnostic.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
@@ -72,7 +78,9 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 				usage := argument.ResultUsage()
 				usage.Collation = pairInfo.Usage.Collation
 				call.Order[i].Comparison, e = functions.AggregateOrdering(usage, raw.Order[i].Pos, false)
-				if e != nil { return nil, e }
+				if e != nil {
+					return nil, e
+				}
 			}
 		}
 	}
@@ -118,10 +126,15 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 	if ordered && provider.StateUsage.Type.ID() == 2281 {
 		provider.ContextOrder = call.Order
 		keys := make([]functions.AggregateSortKey, len(call.Order))
-		for i, key := range call.Order { keys[i] = functions.AggregateSortKey{Expression: key.Expression, Comparison: key.Comparison, Key: raw.Order[i], Argument: true} }
+		for i, key := range call.Order {
+			keys[i] = functions.AggregateSortKey{Expression: key.Expression, Comparison: key.Comparison, Key: raw.Order[i], Argument: true}
+		}
 		provider.ContextSupport, err = functions.NewAggregateContextSupport(uint32(provider.Support.Address().ObjectID), uint32(definition.Functions[1]), definition.FinalExtra, definition.Kind == "h", provider.Result, provider.Inputs[1:], provider.DirectInputs, keys)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	if b.Params.NoParameters || b.Consumer.frozenDefinition {
 		ns, ok := b.authorityNamespace(b.Query.Auth, d.Namespace())
 		if !ok {
@@ -131,10 +144,14 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 		// Selected operands use binder-local slots; stored recipes retain the
 		// immutable written argument vector, never those executable slots.
 		frozen.Args = b.Clause.SelectedOperatorSyntax[:directCount]
-		if !raw.Within { frozen.Args = b.Clause.SelectedOperatorSyntax }
+		if !raw.Within {
+			frozen.Args = b.Clause.SelectedOperatorSyntax
+		}
 		if raw.Within {
 			frozen.Order = append([]parser.OrderKey(nil), raw.Order...)
-			for i := range frozen.Order { frozen.Order[i].Expr = b.Clause.SelectedOperatorSyntax[directCount+i] }
+			for i := range frozen.Order {
+				frozen.Order[i].Expr = b.Clause.SelectedOperatorSyntax[directCount+i]
+			}
 		}
 		frozen.StoredAggregate = true
 		frozen.Schema = &parser.Identifier{Text: ns.Name()}
@@ -222,7 +239,9 @@ func (b *Binder) ownedAggregateProvider(d *catalog.Procedure, args, direct []exp
 	}
 	p := &exec.TransitionAggregate{Aggregate: d, Moving: moving, Initial: seed, HasInitial: hasSeed, FinalModify: mode, StateUsage: state, Result: resultUsage, Inputs: inputs, InputCollation: collation}
 	p.DirectInputs = make([]sqltype.Usage, len(direct))
-	for i, argument := range direct { p.DirectInputs[i] = argument.ResultUsage() }
+	for i, argument := range direct {
+		p.DirectInputs[i] = argument.ResultUsage()
+	}
 	var err error
 	p.Support, p.Formals, p.Conversions, p.Call, err = build(forwardID, inputs, state)
 	if err != nil {
@@ -242,6 +261,21 @@ func (b *Binder) ownedAggregateProvider(d *catalog.Procedure, args, direct []exp
 		if err != nil {
 			return nil, err
 		}
+	}
+	if !moving && definition.Functions[2] != 0 && state.Type.Concrete() {
+		actual := []sqltype.Usage{state, state}
+		combine := &exec.TransitionAggregate{Aggregate: d, Combining: true, Initial: seed, HasInitial: hasSeed, FinalModify: mode, StateUsage: state, Result: state, Inputs: actual, InputCollation: collation}
+		combine.Support, combine.Formals, combine.Conversions, combine.Call, err = build(definition.Functions[2], actual, state)
+		if err != nil {
+			return nil, err
+		}
+		if combine.Support.Strict && !hasSeed {
+			combine.SeedConversion, err = catalog.AggregateConversion(d.Aggregate.BinaryRecipe, state, state)
+			if err != nil {
+				return nil, err
+			}
+		}
+		p.CombinePlan = combine
 	}
 	if finalID != 0 {
 		p.FinalInputs = make([]sqltype.Usage, 1, 1+len(direct)+len(args))

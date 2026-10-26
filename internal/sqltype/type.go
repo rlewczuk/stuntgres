@@ -2344,7 +2344,7 @@ type Comparison struct {
 func (p Comparison) DefaultBtreeOpclass() uint32 { return p.defaultBtreeOpclass }
 
 // OrderingBound distinguishes an admitted sort provider from plain comparison.
-// Occurrence records have no executable physical index opclass.
+// Occurrence records and bounded vector sorting have no physical index opclass.
 func (p Comparison) OrderingBound() bool { return p.orderingBound }
 
 // InputCollation is the retained comparison authority, independent of BOOL

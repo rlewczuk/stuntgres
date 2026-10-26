@@ -30,6 +30,11 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 	if err := s.selectPreparedAnalysis(stmt); err != nil {
 		return err
 	}
+	if execute {
+		if err := s.parallelExecutionEligibility(stmt); err != nil {
+			return err
+		}
+	}
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
 		if foreign.Kind == "table" && foreign.Action == "alter" {
 			stmt = fdw.AlterAdmission(foreign)
@@ -367,7 +372,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return err
 		}
 	}
-	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
+	request, err := e.Locks.StartAcquire(s.executionContext(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
 	if errors.Is(err, lock.ErrUnavailable) {
 		relationName := name.Parts[0].Text
 		if len(name.Parts) == 2 {

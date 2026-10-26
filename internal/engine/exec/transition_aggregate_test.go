@@ -458,7 +458,10 @@ type finalUnitSQLHost struct {
 	usage sqltype.Usage
 }
 
-func (h finalUnitSQLHost) InvokeAggregateSQLRoutine(_ *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, _ *catalog.Procedure, _ sqltype.CollationRef) (sqltype.Value, error) {
+func (h finalUnitSQLHost) InvokeAggregateSQLRoutine(ctx context.Context, _ *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, _ *catalog.Procedure, _ sqltype.CollationRef) (sqltype.Value, error) {
+	if err := ctx.Err(); err != nil {
+		return sqltype.Value{}, err
+	}
 	if usage != h.usage || len(frame.Parameters) != 3 || frame.Parameters[0].IsNull() || !frame.Parameters[1].IsNull() || !frame.Parameters[2].IsNull() {
 		return sqltype.Value{}, fmt.Errorf("invalid SQL final frame/result usage")
 	}

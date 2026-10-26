@@ -385,6 +385,9 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		if err := s.Active(); err != nil {
 			return Result{}, err
 		}
+		if err := s.parallelExecutionEligibility(stmt); err != nil {
+			return Result{}, err
+		}
 		if count != 0 && !preparedInvocation {
 			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 		}
@@ -409,7 +412,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			} else {
 				utilityFrame = utilityFrame[:formal.Count]
 			}
-			importErr := importFrame(s.Op.Context(), formal, utilityFrame, s.Input)
+			importErr := importFrame(s.executionContext(), formal, utilityFrame, s.Input)
 			clear(utilityFrame)
 			if importErr != nil {
 				return Result{}, importErr
@@ -451,8 +454,11 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if err := s.Gate(stmt); err != nil {
 		return Result{}, err
 	}
+	if err := s.parallelExecutionEligibility(stmt); err != nil {
+		return Result{}, err
+	}
 	if s.protocolOrZero().simpleStreaming && !wrapped && session.ProtocolPlainSelect(stmt) {
-		p := newProtocolPortal(PreparedDefinition{Body:stmt},s.TxRef)
+		p := newProtocolPortal(PreparedDefinition{Body: stmt}, s.TxRef)
 		s.protocol().simplePortal, s.protocol().bind = p, p
 		if count == 0 && importFrame == nil {
 			importFrame = func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
@@ -472,7 +478,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		if wrapped && count != 0 {
 			formal := s.Expected.Parameters
 			frame := make([]sqltype.Value, formal.Count)
-			if err := importFrame(s.Op.Context(), formal, frame, s.Input); err != nil {
+			if err := importFrame(s.executionContext(), formal, frame, s.Input); err != nil {
 				return Result{}, err
 			}
 		}

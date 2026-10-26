@@ -45,7 +45,7 @@ func (s *StatementScope) newPLRun(d *catalog.Procedure, f *proc.PLFrame, read ca
 	return &inv.run
 }
 
-func (h *plHost) Context() context.Context { return h.s.Op.Context() }
+func (h *plHost) Context() context.Context { return h.s.executionContext() }
 
 func (h *plHost) Identity() string { return h.s.plRoutineDiagnosticIdentity(h.read, h.d) }
 
@@ -57,7 +57,7 @@ func (h *plHost) TypeName(typ *sqltype.Descriptor) string {
 	e := h.s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	binder := NewExpressionBinder(h.s.Op.Context(), e, h.s.Input, h.s.Op, nil)
+	binder := NewExpressionBinder(h.s.executionContext(), e, h.s.Input, h.s.Op, nil)
 	return binder.DiagnosticTypeName(typ)
 }
 
@@ -101,7 +101,7 @@ func (h *plHost) TargetUsage(f *proc.PLFrame, target proc.PLTarget) (sqltype.Usa
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	binder := NewExpressionBinder(h.s.Op.Context(), e, h.s.Input, h.s.Op, nil)
+	binder := NewExpressionBinder(h.s.executionContext(), e, h.s.Input, h.s.Op, nil)
 	binder.PL, binder.Query.Auth = f, &auth
 	bound, err := binder.BindAssignmentTarget(catalog.Column{Name: f.Program.Variables[target.Slot].Name, Usage: usage}, target.Steps, parser.Position{})
 	if err != nil {

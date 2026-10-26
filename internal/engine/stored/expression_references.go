@@ -199,6 +199,11 @@ func (r *DependRefs) Query(node plan.Node) {
 			if call.Procedure != nil {
 				r.Add(call.Ref.Address)
 			}
+			for _, support := range call.PrimaryStringSupport {
+				if support != nil {
+					r.Add(support.Address())
+				}
+			}
 		}
 	}
 	if _, set := node.(*plan.SetNode); set {

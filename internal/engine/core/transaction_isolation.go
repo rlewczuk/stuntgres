@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -56,6 +57,9 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: transaction characteristics take no arguments")
 	}
+	if err := parallelSettingCommandEligibility(s.executionContext(), stmt); err != nil {
+		return Result{}, err
+	}
 	e, t := s.Engine(), s.Owner
 	if !s.Op.CommandAdmission {
 		s.Op.SnapshotNoticeThreshold()
@@ -66,7 +70,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 			e.Mu.Lock()
 			d := e.Settings.Definitions()[name]
 			e.Mu.Unlock()
-			if _, err := e.applySetting(s.Op, t.Session.Settings, d, &value, false, ""); err != nil {
+			if _, err := e.applySetting(s.executionContext(), s.Op, t.Session.Settings, d, &value, false, ""); err != nil {
 				return Result{}, err
 			}
 		}
@@ -231,6 +235,46 @@ func (e *Engine) retainTransactionSnapshotLocked(t *session.TransactionOwner) er
 	}
 	t.CurrentSnapshot, t.Frontier = snapshot, e.Visibility.CommitSeq()
 	t.Roots, t.SequenceCatalog = session.CommittedRoots(e.Catalog.State, &e.Storage), e.Catalog.State
+	return nil
+}
+
+// Parallel execution prohibits reached writes even when support declarations
+// claim SAFE. Unlike transaction read-only mode, TEMP writes are not exempt,
+// and backend-local utility state need not be synchronized with workers.
+// Keep the released utility permission boundary here, separate from ModifyingTag's
+// read-only-transaction meaning, before ordinary command lookup and effects.
+func (s *StatementScope) parallelExecutionEligibility(stmt parser.Statement) error {
+	if !exec.InParallelOperation(s.executionContext()) {
+		return nil
+	}
+	tag := session.ModifyingTag(stmt)
+	switch command := stmt.(type) {
+	case *parser.Set, *parser.Reset, *parser.TransactionCharacteristics, *parser.RoleSelection, *parser.SessionAuthorization,
+		*parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard,
+		*parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor,
+		*parser.Listen, *parser.Unlisten, *parser.Notify, *parser.SetConstraints,
+		*parser.Load, *parser.Vacuum:
+		// REL_18_6 utility.c denies these utilities parallel-mode permission.
+		// DO and SHOW remain allowed; commands reached inside DO check here.
+		tag = RoutineCommandTag(stmt)
+	case *parser.Copy:
+		if command.From {
+			// Parallel utility diagnostics use COPY, not the read-only COPY FROM tag.
+			tag = RoutineCommandTag(stmt)
+		}
+	case *parser.LockTable:
+		if command.Mode > parser.LockRowExclusive {
+			tag = RoutineCommandTag(stmt)
+		}
+	case *parser.TransactionControl:
+		switch command.Kind {
+		case parser.KindPrepareTransaction, parser.KindCommitPrepared, parser.KindRollbackPrepared:
+			tag = RoutineCommandTag(stmt)
+		}
+	}
+	if tag != "" {
+		return SQLError("25000", "cannot execute "+tag+" during a parallel operation")
+	}
 	return nil
 }
 

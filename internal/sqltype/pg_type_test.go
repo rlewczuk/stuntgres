@@ -51,7 +51,7 @@ func TestPGTypeBuiltinFacts(t *testing.T) {
 	}
 	for _, id := range []ID{1017, 1020, 1006, 1013} {
 		if types[id].Concrete() {
-			t.Fatal("geometry companion metadata enabled an array codec", id)
+			t.Fatal("metadata-only companion enabled an array codec", id)
 		}
 		if _, err := types[id].Input(t.Context(), "{}", -1); err == nil {
 			t.Fatal("geometry companion input became executable", id)

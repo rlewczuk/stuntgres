@@ -121,37 +121,37 @@ var AggregateDefinitions = [...]catalog.AggregateDefinition{
 	{3197, "n", 0, [8]ids.OID{3180, 3196, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // json_object_agg
 	{3267, "n", 0, [8]ids.OID{3265, 3266, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // jsonb_agg
 	{3270, "n", 0, [8]ids.OID{3268, 3269, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // jsonb_object_agg
-	{3538, "n", 0, [8]ids.OID{3535, 3536, 6299, 6300, 6301, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                 // string_agg(text,text)
-	{3545, "n", 0, [8]ids.OID{3543, 3544, 6299, 6300, 6301, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                 // string_agg(bytea,bytea)
-	{3972, "o", 1, [8]ids.OID{3970, 3973, 0, 0, 0, 0, 0, 0}, true, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},                           // percentile_disc(float8,anyelement)
-	{3974, "o", 1, [8]ids.OID{3970, 3975, 0, 0, 0, 0, 0, 0}, false, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},                          // percentile_cont(float8,float8)
-	{3976, "o", 1, [8]ids.OID{3970, 3977, 0, 0, 0, 0, 0, 0}, false, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},                          // percentile_cont(float8,interval)
-	{3978, "o", 1, [8]ids.OID{3970, 3979, 0, 0, 0, 0, 0, 0}, true, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},                           // percentile_disc(_float8,anyelement)
-	{3980, "o", 1, [8]ids.OID{3970, 3981, 0, 0, 0, 0, 0, 0}, false, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},                          // percentile_cont(_float8,float8)
-	{3982, "o", 1, [8]ids.OID{3970, 3983, 0, 0, 0, 0, 0, 0}, false, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},                          // percentile_cont(_float8,interval)
-	{3984, "o", 0, [8]ids.OID{3970, 3985, 0, 0, 0, 0, 0, 0}, true, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},                           // mode
-	{3986, "h", 1, [8]ids.OID{3971, 3987, 0, 0, 0, 0, 0, 0}, true, false, "w", "w", 0, 2281, 0, 0, 0, "", "", false, false},                           // rank(any)
-	{3988, "h", 1, [8]ids.OID{3971, 3989, 0, 0, 0, 0, 0, 0}, true, false, "w", "w", 0, 2281, 0, 0, 0, "", "", false, false},                           // percent_rank(any)
-	{3990, "h", 1, [8]ids.OID{3971, 3991, 0, 0, 0, 0, 0, 0}, true, false, "w", "w", 0, 2281, 0, 0, 0, "", "", false, false},                           // cume_dist(any)
-	{3992, "h", 1, [8]ids.OID{3971, 3993, 0, 0, 0, 0, 0, 0}, true, false, "w", "w", 0, 2281, 0, 0, 0, "", "", false, false},                           // dense_rank(any)
-	{4053, "n", 0, [8]ids.OID{4051, 4052, 6296, 6297, 6298, 0, 0, 0}, true, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                  // array_agg(anyarray)
-	{4301, "n", 0, [8]ids.OID{4299, 4300, 0, 0, 0, 0, 0, 0}, true, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                           // range_agg(anyrange)
-	{4389, "n", 0, [8]ids.OID{4388, 0, 4388, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 4537, 0, 0, 0, "", "", false, false},                          // range_intersect_agg(anymultirange)
-	{4450, "n", 0, [8]ids.OID{4401, 0, 4401, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 3831, 0, 0, 0, "", "", false, false},                          // range_intersect_agg(anyrange)
-	{6164, "n", 0, [8]ids.OID{1894, 0, 1894, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 21, 0, 0, 0, "", "", false, false},                            // bit_xor(int2)
-	{6165, "n", 0, [8]ids.OID{1900, 0, 1900, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 23, 0, 0, 0, "", "", false, false},                            // bit_xor(int4)
-	{6166, "n", 0, [8]ids.OID{1906, 0, 1906, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 20, 0, 0, 0, "", "", false, false},                            // bit_xor(int8)
-	{6167, "n", 0, [8]ids.OID{1675, 0, 1675, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 1560, 0, 0, 0, "", "", false, false},                          // bit_xor(bit)
-	{6227, "n", 0, [8]ids.OID{6225, 6226, 0, 0, 0, 0, 0, 0}, true, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                           // range_agg(anymultirange)
-	{6276, "n", 0, [8]ids.OID{6275, 3174, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // json_agg_strict
-	{6280, "n", 0, [8]ids.OID{6277, 3196, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // json_object_agg_strict
-	{6281, "n", 0, [8]ids.OID{6278, 3196, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // json_object_agg_unique
-	{6282, "n", 0, [8]ids.OID{6279, 3196, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // json_object_agg_unique_strict
-	{6284, "n", 0, [8]ids.OID{6283, 3266, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // jsonb_agg_strict
-	{6288, "n", 0, [8]ids.OID{6285, 3269, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // jsonb_object_agg_strict
-	{6289, "n", 0, [8]ids.OID{6286, 3269, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // jsonb_object_agg_unique
-	{6290, "n", 0, [8]ids.OID{6287, 3269, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // jsonb_object_agg_unique_strict
-	{6291, "n", 0, [8]ids.OID{6292, 0, 6292, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2283, 0, 0, 0, "", "", false, false},                          // any_value(anyelement)
-	{6395, "n", 0, [8]ids.OID{6393, 0, 6393, 0, 0, 0, 0, 0}, false, false, "r", "r", 1959, 17, 0, 0, 0, "", "", false, false},                         // max(bytea)
-	{6396, "n", 0, [8]ids.OID{6394, 0, 6394, 0, 0, 0, 0, 0}, false, false, "r", "r", 1957, 17, 0, 0, 0, "", "", false, false},                         // min(bytea)
+	catalog.StringAggregateDefinition(3538), // string_agg(text,text)
+	catalog.StringAggregateDefinition(3545), // string_agg(bytea,bytea)
+	{3972, "o", 1, [8]ids.OID{3970, 3973, 0, 0, 0, 0, 0, 0}, true, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},          // percentile_disc(float8,anyelement)
+	{3974, "o", 1, [8]ids.OID{3970, 3975, 0, 0, 0, 0, 0, 0}, false, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},         // percentile_cont(float8,float8)
+	{3976, "o", 1, [8]ids.OID{3970, 3977, 0, 0, 0, 0, 0, 0}, false, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},         // percentile_cont(float8,interval)
+	{3978, "o", 1, [8]ids.OID{3970, 3979, 0, 0, 0, 0, 0, 0}, true, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},          // percentile_disc(_float8,anyelement)
+	{3980, "o", 1, [8]ids.OID{3970, 3981, 0, 0, 0, 0, 0, 0}, false, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},         // percentile_cont(_float8,float8)
+	{3982, "o", 1, [8]ids.OID{3970, 3983, 0, 0, 0, 0, 0, 0}, false, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},         // percentile_cont(_float8,interval)
+	{3984, "o", 0, [8]ids.OID{3970, 3985, 0, 0, 0, 0, 0, 0}, true, false, "s", "s", 0, 2281, 0, 0, 0, "", "", false, false},          // mode
+	{3986, "h", 1, [8]ids.OID{3971, 3987, 0, 0, 0, 0, 0, 0}, true, false, "w", "w", 0, 2281, 0, 0, 0, "", "", false, false},          // rank(any)
+	{3988, "h", 1, [8]ids.OID{3971, 3989, 0, 0, 0, 0, 0, 0}, true, false, "w", "w", 0, 2281, 0, 0, 0, "", "", false, false},          // percent_rank(any)
+	{3990, "h", 1, [8]ids.OID{3971, 3991, 0, 0, 0, 0, 0, 0}, true, false, "w", "w", 0, 2281, 0, 0, 0, "", "", false, false},          // cume_dist(any)
+	{3992, "h", 1, [8]ids.OID{3971, 3993, 0, 0, 0, 0, 0, 0}, true, false, "w", "w", 0, 2281, 0, 0, 0, "", "", false, false},          // dense_rank(any)
+	{4053, "n", 0, [8]ids.OID{4051, 4052, 6296, 6297, 6298, 0, 0, 0}, true, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false}, // array_agg(anyarray)
+	{4301, "n", 0, [8]ids.OID{4299, 4300, 0, 0, 0, 0, 0, 0}, true, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},          // range_agg(anyrange)
+	{4389, "n", 0, [8]ids.OID{4388, 0, 4388, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 4537, 0, 0, 0, "", "", false, false},         // range_intersect_agg(anymultirange)
+	{4450, "n", 0, [8]ids.OID{4401, 0, 4401, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 3831, 0, 0, 0, "", "", false, false},         // range_intersect_agg(anyrange)
+	{6164, "n", 0, [8]ids.OID{1894, 0, 1894, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 21, 0, 0, 0, "", "", false, false},           // bit_xor(int2)
+	{6165, "n", 0, [8]ids.OID{1900, 0, 1900, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 23, 0, 0, 0, "", "", false, false},           // bit_xor(int4)
+	{6166, "n", 0, [8]ids.OID{1906, 0, 1906, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 20, 0, 0, 0, "", "", false, false},           // bit_xor(int8)
+	{6167, "n", 0, [8]ids.OID{1675, 0, 1675, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 1560, 0, 0, 0, "", "", false, false},         // bit_xor(bit)
+	{6227, "n", 0, [8]ids.OID{6225, 6226, 0, 0, 0, 0, 0, 0}, true, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},          // range_agg(anymultirange)
+	{6276, "n", 0, [8]ids.OID{6275, 3174, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},         // json_agg_strict
+	{6280, "n", 0, [8]ids.OID{6277, 3196, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},         // json_object_agg_strict
+	{6281, "n", 0, [8]ids.OID{6278, 3196, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},         // json_object_agg_unique
+	{6282, "n", 0, [8]ids.OID{6279, 3196, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},         // json_object_agg_unique_strict
+	{6284, "n", 0, [8]ids.OID{6283, 3266, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},         // jsonb_agg_strict
+	{6288, "n", 0, [8]ids.OID{6285, 3269, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},         // jsonb_object_agg_strict
+	{6289, "n", 0, [8]ids.OID{6286, 3269, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},         // jsonb_object_agg_unique
+	{6290, "n", 0, [8]ids.OID{6287, 3269, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},         // jsonb_object_agg_unique_strict
+	{6291, "n", 0, [8]ids.OID{6292, 0, 6292, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2283, 0, 0, 0, "", "", false, false},         // any_value(anyelement)
+	{6395, "n", 0, [8]ids.OID{6393, 0, 6393, 0, 0, 0, 0, 0}, false, false, "r", "r", 1959, 17, 0, 0, 0, "", "", false, false},        // max(bytea)
+	{6396, "n", 0, [8]ids.OID{6394, 0, 6394, 0, 0, 0, 0, 0}, false, false, "r", "r", 1957, 17, 0, 0, 0, "", "", false, false},        // min(bytea)
 }

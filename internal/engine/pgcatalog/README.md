@@ -111,6 +111,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Owned aggregate `proargnames` follows the canonical flattened declaration,
   including retained direct and ordered argument names; unnamed declarations
   retain NULL rather than an invented list.
+  The twenty-column projection preserves these declaration fields and appends
+  nullable ACLITEM[] `proacl`, using captured `Runtime.ObjectACL` and `ClassACL`
+  authority. Implicit routine ACLs remain SQL NULL; explicit empty and granted
+  ACLs remain real arrays. Internal metadata-only supplements retain NULL ACLs.
+  Canonical array-compatible OIDVECTOR owns `proargtypes`; no separate carrier
+  or scalar-only vector path is introduced. Released attribute identities stay
+  `proargtypes`20, `proallargtypes`21, `proargmodes`22 and `proacl`30
+  independently of projection order.
 - `pg_index` vector cells use the runtime's captured index metadata projection,
   then shared typed constructors: all key/INCLUDE attributes in `indkey`,
   key-only `indcollation`, `indclass` and `indoption`. No textual vector store or

@@ -38,6 +38,14 @@ func TestAggregateMovingDetachedDefinition(t *testing.T) {
 	if err := ValidateAggregateDefinition(read, &base); err != nil {
 		t.Fatal("coherent moving definition", err)
 	}
+	t.Run("valid_combine", func(t *testing.T) {
+		d, owned := base, *base.Aggregate
+		d.Aggregate = &owned
+		owned.Definition.Functions[2] = forward
+		if err := ValidateAggregateDefinition(read, &d); err != nil {
+			t.Fatal("coherent combine and moving definition", err)
+		}
+	})
 	for _, kind := range []string{"no_state", "no_forward", "no_inverse", "bad_state", "wrong_result", "strict_extra", "combine", "bad_mode", "seed_presence", "unused_edge"} {
 		t.Run(kind, func(t *testing.T) {
 			d, owned := base, *base.Aggregate
@@ -56,7 +64,9 @@ func TestAggregateMovingDetachedDefinition(t *testing.T) {
 			case "strict_extra":
 				owned.Definition.MovingFinalExtra = true
 			case "combine":
-				owned.Definition.Functions[2] = forward
+				// A combine needs (state,state); this real abs(int4) support
+				// has the right result but the wrong input arity.
+				owned.Definition.Functions[2] = final
 			case "bad_mode":
 				owned.Definition.MovingFinalModify = "x"
 			case "seed_presence":

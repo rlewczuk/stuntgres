@@ -34,7 +34,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	if source.Address().ObjectID == ids.ProcedureClassID {
-		expected := [19]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid, 1028, 1002}
+		expected := [20]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid, 1028, 1002, 1034}
 		if len(source.Columns) != len(expected) {
 			return nil, fmt.Errorf("stuntgres: invalid procedure source shape")
 		}
@@ -93,7 +93,8 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			text(1, d.Name())
 			integer(2, int64(d.Namespace().ObjectID))
 			integer(3, int64(d.Owner.ID()))
-			integer(4, ProcedureArity(d))
+			arity := ProcedureArity(d)
+			integer(4, arity)
 			integer(5, int64(d.Result))
 			language := ""
 			switch d.Display.Language {
@@ -117,8 +118,13 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			text(6, vol)
 			boolean(7, d.Strict)
 			parallel := "s"
-			if d.Foreign != nil || d.Aggregate != nil && d.DynamicCallable() {
+			if d.Foreign != nil {
 				parallel = "u"
+			} else if d.Aggregate != nil && d.DynamicCallable() {
+				parallel = "u"
+				if d.Aggregate.Parallel == 's' || d.Aggregate.Parallel == 'r' {
+					parallel = string(d.Aggregate.Parallel)
+				}
 			} else if d.Builtin != nil {
 				switch d.Builtin.Parallel {
 				case 'r':
@@ -158,7 +164,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				}
 			} else if d.Aggregate != nil && len(d.Aggregate.ArgumentNames) > 0 {
 				names := d.Aggregate.ArgumentNames
-				if int64(len(names)) != ProcedureArity(d) {
+				if int64(len(names)) != arity {
 					return nil, fmt.Errorf("stuntgres: invalid aggregate argument-name declaration")
 				}
 				elements := make([]sqltype.Value, len(names))
@@ -191,7 +197,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				}
 			}
 			if d.Installed.Outputs == nil && d.Installed.ArgumentNames[0] != "" {
-				elements := make([]sqltype.Value, ProcedureArity(d))
+				elements := make([]sqltype.Value, arity)
 				for i := range elements {
 					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), d.Installed.ArgumentNames[i])
 				}
@@ -220,6 +226,14 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			}
 			row[13] = estimateValue
 			integer(16, int64(variadic))
+			acl, err := in.Runtime.ObjectACL(view, d.Address())
+			if err != nil {
+				return nil, err
+			}
+			row[19], err = ClassACL(in.Owner, in.Roles, source.Columns[19].Usage.Type, acl)
+			if err != nil {
+				return nil, err
+			}
 		case *catalog.TSTemplate:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())

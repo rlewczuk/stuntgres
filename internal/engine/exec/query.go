@@ -330,6 +330,8 @@ type State struct {
 	ExecutionContext   context.Context
 	ScanRange          bool
 	ScanStart, scanEnd int
+	aggregatePartials  *[]QueryGroup // Non-nil only inside the partial coordinator.
+	aggregateAdmission *parallelAggregateAdmission
 }
 
 func (s *State) subquerySourceMode() SourceMode {
@@ -1207,6 +1209,9 @@ func finalizeQuery(ctx context.Context, root plan.Node, source *Source, paramete
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
 	state := &State{Source: source, SourceMode: SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
+	if InParallelOperation(ctx) {
+		state.ExecutionContext = ctx
+	}
 	state.foreignParallelMaximum = foreignMaximum
 	defer state.ReleaseMemberships()
 	if host := source.LiveHost(); host != nil {

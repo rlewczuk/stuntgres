@@ -66,8 +66,8 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Regcollation:     {"0", "4294967295"},
 		sqltype.Regnamespace:     {"0", "4294967295"},
 		sqltype.Macaddr8:         {"00:00:00:00:00:00:00:00", "08002b010203", "08:00:2b:01:02:03:04:05", "80:00:00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff:ff:ff"},
-		sqltype.Int2Vector:        {"", "1 2 3", "-32768 32767"},
-		sqltype.OidVector:         {"", "1 2 3", "-1 -2147483648"},
+		sqltype.Int2Vector:       {"", "1 2 3", "-32768 32767"},
+		sqltype.OidVector:        {"", "1 2 3", "-1 -2147483648", "0 4294967295", "17 2281", "2281 2281"},
 	}
 	for _, d := range sqltype.Builtins() {
 		if !d.Concrete() {

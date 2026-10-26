@@ -39,6 +39,9 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 		return settingCallBinding{}, SQLError("0A000", "unsupported setting function signature")
 	}
 	binder := NewExpressionBinder(ctx, e, *input, op, nil)
+	if scope, ok := input.LockedDomainInput.(*StatementScope); ok {
+		binder.SeedParameters(scope.initialParameters)
+	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: s.Name, Pos: s.NamePos}}}
 	if s.Schema != nil {
 		name.Parts = []parser.Identifier{*s.Schema, {Text: s.Name, Pos: s.NamePos}}
@@ -52,9 +55,9 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 	input.TypeDiagnosticName = binder.Input.TypeDiagnosticName
 	return settingCallBinding{parameters: info, arguments: bound, routine: routine, dependencies: binder.Dependencies}, err
 }
-func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
+func (e *Engine) executeSettingCall(ctx context.Context, op *session.Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
 	e.Mu.Lock()
-	binding, err := e.describeSettingCall(op.Ctx, s, &input, op)
+	binding, err := e.describeSettingCall(ctx, s, &input, op)
 	typ, typeOK := e.Catalog.Current().LookupType(sqltype.Text)
 	read := e.Catalog.Current()
 	auth, authErr := e.AuthorizationLocked(op)
@@ -74,7 +77,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}
 	frame := make([]sqltype.Value, count)
 	scope, _ := input.LockedDomainInput.(*StatementScope)
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: HostOf(scope), Catalog: read}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: HostOf(scope), Catalog: read}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
 	if scope != nil {
 		scope.Domains.InputCatalog = read
 	}
@@ -88,7 +91,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		if importFrame == nil {
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
 		}
-		if err := importFrame(op.Ctx, info, frame, input); err != nil {
+		if err := importFrame(ctx, info, frame, input); err != nil {
 			return Result{}, err
 		}
 		for i, v := range frame {
@@ -189,7 +192,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		}
 		if len(bound) == 2 && inputs[1].IsNull() {
 			output = sqltype.Null(typ)
-		} else if output, err = owner.CurrentSettingLocked(op.Ctx, e.Settings, typ, inputs[0], missingOK, readRestricted); err != nil {
+		} else if output, err = owner.CurrentSettingLocked(ctx, e.Settings, typ, inputs[0], missingOK, readRestricted); err != nil {
 			return Result{}, err
 		}
 	} else {
@@ -203,7 +206,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		}
 		unlock()
 		locked = false
-		value, err := e.applySetting(op, owner, d, input, local, resultName)
+		value, err := e.applySetting(ctx, op, owner, d, input, local, resultName)
 		if err != nil {
 			return Result{}, err
 		}

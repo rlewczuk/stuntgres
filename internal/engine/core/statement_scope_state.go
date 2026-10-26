@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+	"sync"
 	"time"
 
 	"stuntgres/internal/engine/analyze"
@@ -24,6 +26,9 @@ import (
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
 	StatementMutation
+	aggregateGateOnce       sync.Once
+	aggregateGate           chan struct{}
+	invocationContext       context.Context // Scoped under aggregateGate; inherited by nested commands.
 	currentSnapshot         *sqltype.Snapshot
 	snapshotFrontier        ids.CommitSeq
 	snapshotTarget          visibility.Root

@@ -91,7 +91,7 @@ func (s *StatementScope) preparePLTargetDatum(f *proc.PLFrame, checked proc.PLTa
 		e.Mu.Unlock()
 		return nil, err
 	}
-	binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
+	binder := NewExpressionBinder(s.executionContext(), e, s.Input, s.Op, nil)
 	binder.PL, binder.Query.Auth = f, &auth
 	if err := binder.CaptureTypeDiagnosticInput(usage.Type); err != nil {
 		e.Mu.Unlock()
@@ -125,7 +125,7 @@ func (s *StatementScope) preparePLTargetDatum(f *proc.PLFrame, checked proc.PLTa
 		return nil, &plan.PLAssignmentPlanningError{Err: err}
 	}
 	s.RoutineAuth = auth
-	prepared.evaluation = exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	prepared.evaluation = exec.Context{EvalStatement: exec.EvalStatement{Context: s.executionContext(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	prepared.evaluation.Input.DomainChecks = &prepared.evaluation
 	return prepared, nil
 }

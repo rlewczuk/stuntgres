@@ -99,7 +99,7 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 		if commandValue.IsNull() {
 			return nil, name, SQLError("22004", "query string argument of EXECUTE is null")
 		}
-		command, e = commandValue.Type().OutputWithEnvironment(s.Op.Context(), commandValue, s.Output)
+		command, e = commandValue.Type().OutputWithEnvironment(s.executionContext(), commandValue, s.Output)
 		if e != nil {
 			return nil, name, e
 		}
@@ -114,7 +114,7 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 			parameters[i] = value
 			inputs[i] = usage
 		}
-		statements, e := parser.ParseWithOptions(command, parser.Options{StandardConformingStrings: !s.Op.NonstandardStrings, Context: s.Op.Context(), Notice: s.Op.ParseNotice})
+		statements, e := parser.ParseWithOptions(command, parser.Options{StandardConformingStrings: !s.Op.NonstandardStrings, Context: s.executionContext(), Notice: s.Op.ParseNotice})
 		if e != nil {
 			*failure = proc.PLDiagnosticQuery{Text: command, Callback: proc.PLSQLCallback}
 			return nil, name, e
@@ -315,7 +315,7 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, run *proc.PLRun, f *p
 		r := PayloadOf(s.Op.Session).Cursors
 		if r.Entries[name] == cursor {
 			delete(r.Entries, name)
-			cleanupErr := cursor.dispose(context.WithoutCancel(s.Op.Context()))
+			cleanupErr := cursor.dispose(context.WithoutCancel(s.executionContext()))
 			if err == nil {
 				err = cleanupErr
 			}
@@ -330,7 +330,7 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, run *proc.PLRun, f *p
 	targets := []proc.PLTarget{{Slot: in.Cursor.LoopSlot}}
 	owner := in.Cursor.Loop.Statements[0].Block.Control
 	for {
-		if err = s.Op.Context().Err(); err != nil {
+		if err = s.executionContext().Err(); err != nil {
 			return value, proc.PLFlow{}, err
 		}
 		previousFound := f.Values[f.Program.FoundSlot]
@@ -413,7 +413,7 @@ func (s *StatementScope) evaluatePLArgumentRow(f *proc.PLFrame, query *parser.Se
 	for _, rows := range result.RowSets {
 		defer rows.Close()
 	}
-	if err := s.Op.Context().Err(); err != nil {
+	if err := s.executionContext().Err(); err != nil {
 		return nil, false, err
 	}
 	// The shared first-row producer already owns a detached flat typed row.

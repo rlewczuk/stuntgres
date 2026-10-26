@@ -16,6 +16,11 @@ import (
 // Positive permission belongs only to the eager top-level SELECT entry. Generic
 // finalization remains serial for writes, cursors, nested queries and controls.
 func FinalizeSelect(ctx context.Context, root plan.Node, source *Source, parameters []sqltype.Value, ceiling int) (RowResult, int, error) {
+	if ceiling >= 2 {
+		if aggregate, eligible := ParallelAggregatePlan(root, source); eligible && QueryParallelWorkers(ceiling, source.Count()) >= 2 {
+			return FinalizeParallelAggregate(ctx, root, aggregate, source, parameters, QueryParallelWorkers(ceiling, source.Count()))
+		}
+	}
 	if ceiling >= 2 && source != nil && source.Foreign != nil && source.Anonymous != nil && len(source.Anonymous) == 0 {
 		if _, ok := source.Foreign.Wrapper.(catalog.ForeignParallelScanProvider); ok {
 			if _, _, eligible := parallelQueryGraph(root, source); eligible {
@@ -115,6 +120,10 @@ func parallelQueryGraph(root plan.Node, source *Source) (*plan.ProjectNode, *pla
 // recipes, subqueries and session/sequence functions fall back to serial. Basic
 // scalar providers below operate on immutable datums and worker-local frames.
 func ParallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
+	return parallelQueryExpression(bound, frame, width, false)
+}
+
+func parallelQueryExpression(bound expr.Expr, frame uint32, width int, grouped bool) bool {
 	if bound == nil {
 		return true
 	}
@@ -123,6 +132,8 @@ func ParallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
 		return true
 	case plan.ColumnExpr:
 		return e.Virtual == nil && !e.MergeSource && e.Scope == 1 && e.Frame == frame && e.Slot >= 0 && e.Slot < width
+	case plan.GroupExpr:
+		return grouped && e.Frame == frame && e.Slot >= 0 && e.Slot < width
 	case plan.CoercionExpr:
 		if !parallelScalarType(e.ResultUsage().Type) || !parallelScalarType(e.Child.ResultUsage().Type) {
 			return false
@@ -135,7 +146,7 @@ func ParallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
 		return false
 	}
 	safe := true
-	plan.ExpressionChildren(bound, func(child expr.Expr) { safe = safe && ParallelQueryExpression(child, frame, width) })
+	plan.ExpressionChildren(bound, func(child expr.Expr) { safe = safe && parallelQueryExpression(child, frame, width, grouped) })
 	return safe
 }
 

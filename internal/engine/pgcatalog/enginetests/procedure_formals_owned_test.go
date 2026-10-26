@@ -65,7 +65,7 @@ func TestRoutineResultFormalOwnedCatalog(t *testing.T) {
 	if !ok {
 		t.Fatal("missing procedure producer")
 	}
-	in := pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: e.Catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	in := pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.RoleStore.PublishedRead(view.Owner(), view), Ref: e.Catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	captured, err := core.CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)

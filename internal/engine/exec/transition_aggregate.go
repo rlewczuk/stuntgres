@@ -7,8 +7,9 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -38,6 +39,8 @@ type TransitionAggregate struct {
 	FinalInputs, FinalFormals []sqltype.Usage
 	FinalConversions          []sqltype.CoercionPlan
 	FinalCall                 expr.Expr
+	CombinePlan               *TransitionAggregate // Closed state,state frame, without a final implementation.
+	Combining                 bool
 }
 
 type transitionAggregateState struct {
@@ -49,6 +52,7 @@ type transitionAggregateState struct {
 	inverseFrame *proc.Frame
 	contributed  uint64
 	contextState any
+	combineFrame *proc.Frame
 }
 
 func (p *TransitionAggregate) ResultUsage() sqltype.Usage { return p.Result }
@@ -92,6 +96,9 @@ func (p *TransitionAggregate) initialize(ctx context.Context, input sqltype.Inpu
 	}
 	if p.InverseSupport != nil {
 		state.inverseFrame = proc.NewFrame(p.InverseFormals)
+	}
+	if p.CombinePlan != nil {
+		state.combineFrame = proc.NewFrame(p.CombinePlan.Formals)
 	}
 	if err := p.reset(ctx, state, input); err != nil {
 		return nil, err
@@ -265,13 +272,19 @@ func (p *TransitionAggregate) FinalizeWithContext(ctx context.Context, opaque an
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid aggregate direct arguments")
 	}
 	for i, value := range direct {
-		if value.Type() != p.DirectInputs[i].Type { return sqltype.Value{}, fmt.Errorf("stuntgres: foreign aggregate direct argument") }
+		if value.Type() != p.DirectInputs[i].Type {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign aggregate direct argument")
+		}
 	}
 	if p.ContextSupport != nil {
 		state, ok := opaque.(*transitionAggregateState)
-		if !ok || state == nil || state.owner != p { return sqltype.Value{}, fmt.Errorf("stuntgres: invalid aggregate-context state") }
+		if !ok || state == nil || state.owner != p {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid aggregate-context state")
+		}
 		return p.ContextSupport.Finalize(ctx, state.contextState, direct, evaluation.FunctionInput(), functions.AggregateContextOrdering{
-			Compare: func(ctx context.Context, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) { return CompareOrderedAggregateTuple(ctx, p.ContextOrder, left, right, env) },
+			Compare: func(ctx context.Context, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) {
+				return CompareOrderedAggregateTuple(ctx, p.ContextOrder, left, right, env)
+			},
 			Sort: MergeQueryIndices,
 		})
 	}
@@ -325,12 +338,12 @@ func (p *TransitionAggregate) invoke(ctx context.Context, runtime *Context, supp
 	var err error
 	if support.SQL != nil {
 		host, ok := runtime.LiveHost().(interface {
-			InvokeAggregateSQLRoutine(*catalog.Procedure, *proc.Frame, sqltype.Usage, *catalog.Procedure, sqltype.CollationRef) (sqltype.Value, error)
+			InvokeAggregateSQLRoutine(context.Context, *catalog.Procedure, *proc.Frame, sqltype.Usage, *catalog.Procedure, sqltype.CollationRef) (sqltype.Value, error)
 		})
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: aggregate support invocation has no statement owner")
 		}
-		result, err = host.InvokeAggregateSQLRoutine(support, frame, usage, p.Aggregate, p.InputCollation)
+		result, err = host.InvokeAggregateSQLRoutine(ctx, support, frame, usage, p.Aggregate, p.InputCollation)
 	} else {
 		local := *runtime
 		local.Parameters = frame.Parameters
@@ -345,16 +358,75 @@ func (p *TransitionAggregate) invoke(ctx context.Context, runtime *Context, supp
 	return result, nil
 }
 
-func AdmitAggregateSupport(c *Context, provider functions.AggregateProvider) error {
-	p, ok := provider.(*TransitionAggregate)
-	if !ok {
-		return nil
+func AdmitAggregateSupport(c *Context, call *plan.AggregateCall) error {
+	if p, ok := call.Provider.(*TransitionAggregate); ok {
+		// Final support admission precedes transition initialization, including
+		// strict finals and empty groups that will never invoke the function.
+		return admitAggregateComponents(c, p.Aggregate, p.Final, p.Support, p.InverseSupport)
 	}
+	if call.Operation == functions.AggregateString {
+		return admitStringAggregateCall(c, call, 1<<0|1<<1)
+	}
+	return nil
+}
+
+func AdmitAggregatePartialSupport(c *Context, call *plan.AggregateCall, worker bool) error {
+	if p, ok := call.Provider.(*TransitionAggregate); ok {
+		if worker {
+			return admitAggregateComponents(c, p.Aggregate, p.Support)
+		}
+		if p.CombinePlan == nil {
+			return fmt.Errorf("stuntgres: missing aggregate combine implementation")
+		}
+		return admitAggregateComponents(c, p.Aggregate, p.Final, p.CombinePlan.Support)
+	}
+	if call.Operation == functions.AggregateString {
+		if worker {
+			return admitStringAggregateCall(c, call, 1<<0|1<<3)
+		}
+		return admitStringAggregateCall(c, call, 1<<1|1<<2|1<<4)
+	}
+	return nil
+}
+
+func admitStringAggregateCall(c *Context, call *plan.AggregateCall, active uint8) error {
+	local := *c
+	if call.RoutineRecipe != nil && (!local.RoutineGraft || local.RoutineGraftSource != call.RoutineRecipe) || call.RoutineRecipe == nil && local.RoutineGraft {
+		if err := SelectExpressionRecipe(&local, call.RoutineRecipe); err != nil {
+			return err
+		}
+	}
+	aggregate := call.Procedure
+	if aggregate == nil || aggregate.Builtin == nil {
+		return fmt.Errorf("stuntgres: missing string aggregate owning declaration")
+	}
+	definition := catalog.StringAggregateDefinition(aggregate.Builtin.Identity.ID)
+	if definition.Function == 0 {
+		return fmt.Errorf("stuntgres: invalid string aggregate owning declaration")
+	}
+	var components [5]*catalog.Procedure
+	count := 0
+	// Final/transport support admission precedes transition initialization.
+	for _, slot := range [5]int{1, 3, 4, 0, 2} {
+		if active&(1<<slot) == 0 {
+			continue
+		}
+		support := call.PrimaryStringSupport[slot]
+		if support == nil || support.Builtin == nil || support.Address().ClassID != ids.ProcedureClassID || support.Address().ObjectID != definition.Functions[slot] || support.Builtin.Identity.ID != definition.Functions[slot] {
+			return fmt.Errorf("stuntgres: mismatched string aggregate support admission")
+		}
+		components[count] = support
+		count++
+	}
+	return admitAggregateComponents(&local, aggregate, components[:count]...)
+}
+
+func admitAggregateComponents(c *Context, aggregate *catalog.Procedure, components ...*catalog.Procedure) error {
 	auth, dependencies, err := RoutineAdmissionAuthority(c)
 	if err != nil || !auth.Live() {
 		return err
 	}
-	current, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, p.Aggregate)
+	current, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, aggregate)
 	if err != nil {
 		return err
 	}
@@ -363,10 +435,7 @@ func AdmitAggregateSupport(c *Context, provider functions.AggregateProvider) err
 	if err = owner.Roles.ValidatePrincipal(current.Owner); err != nil {
 		return err
 	}
-	// PostgreSQL initializes per-aggregate final support before the
-	// per-transition state machinery. Preserve that admission order even when
-	// no input rows or strict final invocation will follow.
-	for _, support := range [3]*catalog.Procedure{p.Final, p.Support, p.InverseSupport} {
+	for _, support := range components {
 		if support == nil {
 			continue
 		}
@@ -374,7 +443,7 @@ func AdmitAggregateSupport(c *Context, provider functions.AggregateProvider) err
 			return err
 		}
 		if c.RoutineProgram != nil {
-			if err = c.RoutineProgram.RecordActor(c, dependencies, support, current.Owner, p.Aggregate); err != nil {
+			if err = c.RoutineProgram.RecordActor(c, dependencies, support, current.Owner, aggregate); err != nil {
 				return err
 			}
 		}
@@ -386,7 +455,9 @@ func (p *TransitionAggregate) Remap(r functions.ProviderRemap) (functions.Aggreg
 	if r.Routine == nil || r.Expression == nil || r.Usage == nil {
 		return nil, fmt.Errorf("stuntgres: missing transition aggregate remap authority")
 	}
-	if p.ContextSupport != nil { return p.remapContextSupport(r) }
+	if p.ContextSupport != nil {
+		return p.remapContextSupport(r)
+	}
 	if p.Aggregate == nil || p.Aggregate.Aggregate == nil || p.Support == nil || len(p.Inputs) == 0 || len(p.Inputs) != len(p.Formals) || len(p.Inputs) != len(p.Conversions) || p.Inputs[0] != p.StateUsage {
 		return nil, fmt.Errorf("stuntgres: invalid transition frame declaration")
 	}
@@ -431,7 +502,9 @@ func (p *TransitionAggregate) Remap(r functions.ProviderRemap) (functions.Aggreg
 	next.DirectInputs = make([]sqltype.Usage, len(p.DirectInputs))
 	for i, input := range p.DirectInputs {
 		next.DirectInputs[i], err = r.Usage(input)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 	}
 	next.Inputs = make([]sqltype.Usage, len(p.Inputs))
 	next.Formals = make([]sqltype.Usage, len(p.Formals))
@@ -541,6 +614,13 @@ func (p *TransitionAggregate) Remap(r functions.ProviderRemap) (functions.Aggreg
 			}
 		}
 	}
+	if p.CombinePlan != nil {
+		mapped, err := p.CombinePlan.Remap(r)
+		if err != nil {
+			return nil, err
+		}
+		next.CombinePlan = mapped.(*TransitionAggregate)
+	}
 	if err := next.ValidateSelection(); err != nil {
 		return nil, err
 	}
@@ -577,17 +657,21 @@ func (p *TransitionAggregate) validateFinalFrame() error {
 		}
 		return nil
 	}
-	count := 1+len(p.DirectInputs)
+	count := 1 + len(p.DirectInputs)
 	if extra {
-		count += len(p.Inputs)-1
+		count += len(p.Inputs) - 1
 	}
 	if p.Final.Address().ObjectID != definition.Functions[finalSlot] || len(p.FinalInputs) != count || len(p.FinalFormals) != count || len(p.FinalConversions) != count {
 		return invalid()
 	}
 	for i, input := range p.FinalInputs {
 		expected := p.StateUsage
-		if i > 0 && i <= len(p.DirectInputs) { expected = p.DirectInputs[i-1] }
-		if i > len(p.DirectInputs) { expected = p.Inputs[i-len(p.DirectInputs)] }
+		if i > 0 && i <= len(p.DirectInputs) {
+			expected = p.DirectInputs[i-1]
+		}
+		if i > len(p.DirectInputs) {
+			expected = p.Inputs[i-len(p.DirectInputs)]
+		}
 		if input != expected {
 			return invalid()
 		}
@@ -619,7 +703,7 @@ func validateAggregateConversions(inputs, formals []sqltype.Usage, conversions [
 // separately by stored frame validation.
 func (p *TransitionAggregate) ValidateSelection() error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid selected aggregate implementation") }
-	if p.Aggregate == nil || p.Aggregate.Aggregate == nil || p.Support == nil || p.StateUsage.Type == nil || (!p.StateUsage.Valid() && !(p.ContextSupport != nil && p.StateUsage.Type.ID() == 2281 && p.StateUsage == p.StateUsage.Type.Usage())) || p.Result.Type == nil || !p.Result.Valid() || p.Result.Type.ID() != sqltype.ID(p.Aggregate.Result) {
+	if p.Aggregate == nil || p.Aggregate.Aggregate == nil || p.Support == nil || p.StateUsage.Type == nil || (!p.StateUsage.Valid() && !(p.ContextSupport != nil && p.StateUsage.Type.ID() == 2281 && p.StateUsage == p.StateUsage.Type.Usage())) || p.Result.Type == nil || !p.Result.Valid() || !p.Combining && p.Result.Type.ID() != sqltype.ID(p.Aggregate.Result) {
 		return invalid()
 	}
 	d := &p.Aggregate.Aggregate.Definition
@@ -627,11 +711,19 @@ func (p *TransitionAggregate) ValidateSelection() error {
 	if p.Moving {
 		slot, state, initial, hasInitial, mode = 5, d.MovingType, d.MovingInitial, d.HasMovingInitial, d.MovingFinalModify
 	}
+	if p.Combining {
+		slot = 2
+		if p.Moving || p.CombinePlan != nil || p.Final != nil || p.Result != p.StateUsage || len(p.DirectInputs) != 0 || len(p.Inputs) != 2 || p.Inputs[0] != p.StateUsage || p.Inputs[1] != p.StateUsage {
+			return invalid()
+		}
+	}
 	if p.Support.Address().ObjectID != d.Functions[slot] || state == 0 || p.StateUsage.Type.ID() != sqltype.ID(state) || p.Initial != initial || p.HasInitial != hasInitial || p.FinalModify != mode {
 		return invalid()
 	}
 	if p.ContextSupport != nil {
-		if p.Moving || p.Final == nil || uint32(p.Support.Address().ObjectID) != p.ContextSupport.TransitionOID() || uint32(p.Final.Address().ObjectID) != p.ContextSupport.FinalOID() || p.ContextSupport.ResultUsage() != p.Result || p.ContextSupport.FinalExtra() != d.FinalExtra || p.ContextSupport.Hypothetical() != (d.Kind == "h") || p.StateUsage.Type.ID() != 2281 || len(p.Conversions) != 0 || p.Call != nil || p.FinalCall != nil { return invalid() }
+		if p.Moving || p.Final == nil || uint32(p.Support.Address().ObjectID) != p.ContextSupport.TransitionOID() || uint32(p.Final.Address().ObjectID) != p.ContextSupport.FinalOID() || p.ContextSupport.ResultUsage() != p.Result || p.ContextSupport.FinalExtra() != d.FinalExtra || p.ContextSupport.Hypothetical() != (d.Kind == "h") || p.StateUsage.Type.ID() != 2281 || len(p.Conversions) != 0 || p.Call != nil || p.FinalCall != nil {
+			return invalid()
+		}
 		return p.validateContextSelection()
 	}
 	if p.Support.Strict && !p.HasInitial {
@@ -656,5 +748,37 @@ func (p *TransitionAggregate) ValidateSelection() error {
 	} else if p.InverseSupport != nil || p.InverseCall != nil || len(p.InverseFormals) != 0 || len(p.InverseConversions) != 0 {
 		return invalid()
 	}
+	if p.Combining {
+		return nil
+	}
+	if p.CombinePlan != nil {
+		if !p.CombinePlan.Combining || p.CombinePlan.Aggregate != p.Aggregate || p.CombinePlan.StateUsage != p.StateUsage {
+			return invalid()
+		}
+		if err := p.CombinePlan.ValidateSelection(); err != nil {
+			return err
+		}
+	}
 	return p.validateFinalFrame()
+}
+func (p *TransitionAggregate) PartialCapable() bool {
+	// Domain INITCOND/CHECK callbacks borrow mutable statement input machinery.
+	// They retain ordinary serial semantics rather than entering that host from
+	// independent worker initializers outside the SQL-support invocation gate.
+	return p.CombinePlan != nil && !p.Moving && p.ContextSupport == nil && p.StateUsage.Type != nil && !p.StateUsage.Type.IsDomain()
+}
+
+func (p *TransitionAggregate) Combine(ctx context.Context, destination, incoming any, evaluation expr.Context) error {
+	left, lok := destination.(*transitionAggregateState)
+	right, rok := incoming.(*transitionAggregateState)
+	if !lok || !rok || left == nil || right == nil || left.owner != p || right.owner != p || p.CombinePlan == nil || left.combineFrame == nil {
+		return fmt.Errorf("stuntgres: invalid aggregate combine state")
+	}
+	local := transitionAggregateState{owner: p.CombinePlan, value: left.value, unseeded: left.unseeded, frame: left.combineFrame}
+	values := [1]sqltype.Value{right.value}
+	if err := p.CombinePlan.Advance(ctx, &local, values[:], evaluation); err != nil {
+		return err
+	}
+	left.value, left.unseeded = local.value, local.unseeded
+	return nil
 }

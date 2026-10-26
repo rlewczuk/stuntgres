@@ -115,6 +115,37 @@ func TestReferenceCastImplementedMatrixNumeric(t *testing.T)    { castScalarMatr
 func TestReferenceCastImplementedFunctionsNumeric(t *testing.T) { castScalarMatrix(t, "Numeric", true) }
 func TestReferenceCastImplementedMatrixIdentifiers(t *testing.T) {
 	castScalarMatrix(t, "Identifiers", false)
+	t.Run("oidvector_codec", func(t *testing.T) {
+		p := fixture.NewScenario(t)
+		for _, b := range p.Backends() {
+			t.Run(b.Name, func(t *testing.T) {
+				for _, input := range []any{"1 2 3", "", nil} {
+					step := fixture.Select("SELECT CAST($1 AS oidvector) AS v", []string{"v"}, []string{"OIDVECTOR"}, [][]any{{input}}, input)
+					// Assert this nominal carrier's actual public codec before
+					// Normalize can equate native text and lib/pq byte payloads.
+					step.CheckRaw = func(t *testing.T, column, row int, value any) bool {
+						if input == nil {
+							if value != nil {
+								t.Fatalf("oidvector SQL NULL became %T(%v)", value, value)
+							}
+							return true
+						}
+						literal := input.(string)
+						if b.PG {
+							raw, ok := value.([]byte)
+							if !ok || raw == nil || string(raw) != literal {
+								t.Fatalf("raw PostgreSQL oidvector: %T(%v); want bytes %q", value, value, literal)
+							}
+						} else if raw, ok := value.(string); !ok || raw != literal {
+							t.Fatalf("raw native oidvector: %T(%v); want string %q", value, value, literal)
+						}
+						return true
+					}
+					fixture.PgDescriptionRows(t, p, b, step)
+				}
+			})
+		}
+	})
 }
 func TestReferenceCastImplementedFunctionsIdentifiers(t *testing.T) {
 	castScalarMatrix(t, "Identifiers", true)

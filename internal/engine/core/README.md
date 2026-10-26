@@ -836,6 +836,29 @@ remapping, prepared invalidation and catalog-replacement fences.
 - Stored DEFAULT closure extends through a SQL routine only for a real checked
   call and never executes the callee body. The release identity index is
   diagnostic only (42883 versus 0A000); it never grants execution.
+- Aggregate SQL support enters `InvokeAggregateSQLRoutine` with its explicit
+  worker context. A cancellable, statement-owned gate in `sql_routine.go`
+  protects routine depth, lexical scratch, descriptions and notices while
+  independent aggregate scans and builtin state work remain concurrent.
+  `statement_scope_state.go` owns the gate and temporary invocation context;
+  `sql_routine_scope.go` preserves the existing lexical activation/restoration.
+  Nested binding, execution, coercion, result reads and relation waits use that
+  context without replacing `Operation.Context`, acquiring another transaction
+  admission lease, starting a root command or calling `Finish`. Context scratch
+  restores before the gate releases, including cancellation and failure.
+- Parallel-operation context covers leader support work as well as workers.
+  `parallelExecutionEligibility` reuses `session.ModifyingTag` to reject reached
+  modifying commands with `25000` before nested command admission/effects and
+  central execution dispatch. This includes modifying CTEs, nested support calls
+  and TEMP writes; a falsely SAFE declaration does not grant write permission.
+  Ordinary serial support commands retain their existing behavior. Rejection
+  keeps the incumbent reached SQL routine statement context.
+- Aggregate domain seeds enter `schemacmds.RoutineHost.ValidateAggregateInitial`
+  through `BindingHost.DecodeDomainLiteral` and the existing
+  `DecodeLockedDomainInput` bridge. CHECK evaluation runs outside `Engine.Mu`
+  against captured input/providers; context, caller authority, catalog epoch and
+  provider identity are readmitted before publication. Ordinary seed input and
+  domain diagnostic provenance retain their existing paths.
 
 ## Server protocol and timeouts
 

@@ -393,6 +393,11 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 			if err == nil {
 				copy.Calls[i].Procedure, err = m.procedure(call.Procedure)
 			}
+			for slot, support := range call.PrimaryStringSupport {
+				if err == nil {
+					copy.Calls[i].PrimaryStringSupport[slot], err = m.procedure(support)
+				}
+			}
 			copy.Calls[i].Routine = ref(call.Routine)
 			provider, ok := call.Provider.(functions.RemappableProvider)
 			if !ok {

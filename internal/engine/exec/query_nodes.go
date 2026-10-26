@@ -201,6 +201,10 @@ func (s *State) Evaluation(ctx context.Context) Context {
 		evaluation.RoutineChecks, evaluation.RoutineConsumer = s.Source.RoutineChecks, s.Source.RoutineRecipe
 	}
 	evaluation.setContext(ctx)
+	if a := s.aggregateAdmission; a != nil {
+		evaluation.RoutineAuthority = a
+		evaluation.RoutineRecipe, evaluation.RoutineChecks = true, a.dependencies
+	}
 	return evaluation
 }
 

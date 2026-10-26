@@ -18,6 +18,20 @@ type AggregateProvider interface {
 	Finalize(context.Context, any) (sqltype.Value, error)
 }
 
+// PartialAggregateProvider combines actual independently accumulated states.
+// PartialCapable distinguishes a declared combine from a serial-only recipe.
+type PartialAggregateProvider interface {
+	PartialCapable() bool
+	Combine(context.Context, any, any, expr.Context) error
+}
+
+// AggregateStateTransport owns the private opaque-state wire format. A missing
+// state is represented out of band; present empty states still have payloads.
+type AggregateStateTransport interface {
+	Serialize(context.Context, any) ([]byte, bool, error)
+	Deserialize(context.Context, []byte, bool) (any, error)
+}
+
 // ContextualAggregateProvider is implemented by providers whose output is
 // environment-sensitive; they opt into execution-local initialization.
 // Ordinary providers retain the AggregateProvider Init contract.

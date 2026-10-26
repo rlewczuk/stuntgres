@@ -35,6 +35,15 @@ not allocate WAL, disk blocks, checksums, shared memory, semaphores or huge page
 Native identity remains truthfully **PostgreSQL 18.0 compatible; embedded
 stuntgres**, independently of the pinned PostgreSQL 18.6 comparison fixture.
 
+Aggregate declarations support `COMBINEFUNC`, paired `SERIALFUNC`/`DESERIALFUNC`,
+`PARALLEL`, and `SORTOP`. Eligible top-level physical-table aggregate queries
+combine independent partial states; builtin `string_agg` transports real opaque
+state through its binary codec. Unsupported query shapes and UNSAFE/RESTRICTED
+declarations remain serial, as do owned domain-state initializers with SQL CHECK
+callbacks. `SORTOP` declares min/max-like semantics, not
+transition-input ordering. SQL cannot manufacture or expose `internal` states.
+Existing final and moving aggregate support remains independent. See the
+[aggregate contracts](reference/aggregates/README.md#testing) for selected proof.
 
 ## Using stuntgres in unit tests
 

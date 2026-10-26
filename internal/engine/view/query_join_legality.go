@@ -222,7 +222,7 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				if err := exec.AdmitRoutineReference(&local, call.Routine, call.Procedure, "aggregate"); err != nil {
 					return err
 				}
-				if err := exec.AdmitAggregateSupport(&local, call.Provider); err != nil {
+				if err := exec.AdmitAggregateSupport(&local, &call); err != nil {
 					return err
 				}
 				if len(call.Distinct) > 1 {
@@ -251,7 +251,7 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				return err
 			}
 			if call.Operation == plan.WindowAggregate {
-				if err := exec.AdmitAggregateSupport(&local, call.Provider); err != nil {
+				if err := exec.AdmitAggregateSupport(&local, &plan.AggregateCall{Provider: call.Provider, Procedure: call.Procedure}); err != nil {
 					return err
 				}
 			}

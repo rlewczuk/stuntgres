@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"stuntgres/internal/engine/access"
@@ -47,9 +48,27 @@ func (h *statementHost) InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Fr
 
 // The owner supplies only top-level support EXECUTE. The body still runs in
 // the invoking scope, with its ordinary caller identity and relation rights.
-func (h *statementHost) InvokeAggregateSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
-	return h.scope().invokeSQLRoutine(d, frame, resultUsage, owner, collation, false, nil)
+func (h *statementHost) InvokeAggregateSQLRoutine(ctx context.Context, d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
+	s := h.scope()
+	if ctx.Value(aggregateInvocationKey{}) != s {
+		s.aggregateGateOnce.Do(func() { s.aggregateGate = make(chan struct{}, 1) })
+		select {
+		case s.aggregateGate <- struct{}{}:
+		case <-ctx.Done():
+			return sqltype.Value{}, ctx.Err()
+		}
+		defer func() { <-s.aggregateGate }()
+		if err := ctx.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		saved := s.invocationContext
+		s.invocationContext = context.WithValue(ctx, aggregateInvocationKey{}, s)
+		defer func() { s.invocationContext = saved }()
+	}
+	return s.invokeSQLRoutine(d, frame, resultUsage, owner, collation, false, nil)
 }
+
+type aggregateInvocationKey struct{}
 
 // invokeSQLRoutine borrows the admitted operation/transaction. It never acquires
 // a driver connection, starts a root command, calls Finish or ends the operation.
@@ -96,7 +115,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	if d.Strict {
 		for _, argument := range frame.Parameters {
 			if argument.IsNull() {
-				if err = parent.Op.Context().Err(); err != nil {
+				if err = parent.executionContext().Err(); err != nil {
 					return value, err
 				}
 				return sqltype.Null(resultUsage.Type), nil
@@ -136,6 +155,12 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 		terminal := i == len(statements)-1 && !d.SQL.Void()
 		value, err = parent.executeSQLRoutineCommand(d, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning, values)
 		if err != nil {
+			// Preserve the reached support statement frame when the root's
+			// genuine statement timer fires. Only CommandError classifies the
+			// root cause; sibling/caller cancellation remains an ordinary error.
+			if parent.invocationContext != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(parent.Op.Context()), session.StatementTimeoutCause) {
+				err = parent.Op.CommandError(err)
+			}
 			return value, exec.SQLRoutineStatementContext(err, d.Name(), i+1)
 		}
 	}
@@ -149,6 +174,9 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 }
 
 func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *Description, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
+	if err := s.parallelExecutionEligibility(statement); err != nil {
+		return value, err
+	}
 	noticeStart := len(s.Op.Notices)
 	defer func() {
 		if noticeStart != len(s.Op.Notices) {
@@ -208,7 +236,13 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 			s.Expected = &description
 		}
 	}
-	result, err := e.executeStatement(s, statement, len(frame.Parameters), func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
+	count := len(frame.Parameters)
+	switch statement.(type) {
+	case *parser.Set, *parser.Reset, *parser.Show:
+		// Utility commands do not bind the enclosing routine's formal frame.
+		count = 0
+	}
+	result, err := e.executeStatement(s, statement, count, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, frame.Parameters)
 		return nil
 	})
@@ -226,14 +260,14 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 		if terminal {
 			row := make([]sqltype.Value, len(result.Rows.Schema()))
 			for {
-				present, nextErr := result.Rows.Next(s.Op.Context(), row)
+				present, nextErr := result.Rows.Next(s.executionContext(), row)
 				if nextErr != nil {
 					return value, nextErr
 				}
 				if !present {
 					break
 				}
-				value, err = s.sqlRoutine.resultPlan.Apply(s.Op.Context(), row, s.Input, s.Output)
+				value, err = s.sqlRoutine.resultPlan.Apply(s.executionContext(), row, s.Input, s.Output)
 				if err != nil {
 					return value, err
 				}

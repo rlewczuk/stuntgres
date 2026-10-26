@@ -52,6 +52,17 @@ returned values and sibling invocations. The scalar path creates no set buffer.
   `FinalizeSelect` turn a root into a `RowResult`. CTEs, set operations,
   recursive unions, windows, aggregates, DISTINCT, LIMIT/WITH TIES and subqueries
   live here.
+  Aggregate partial workers capture the leader's outer CTE owner before launch,
+  including a real nil owner. Their partial-state sink marks closed inheritance:
+  repeated worker Evaluation must never consult a shared SQL host whose lexical
+  CTE scratch may be installed/restored by a sibling support body. Ordinary and
+  nested SQL query states retain their existing live lexical inheritance.
+  A separate parallel-operation context spans leader admission, partial workers,
+  state combination, final support and the result graph. Worker identity implies
+  that operation, but the leader is not a worker. Reached sequence mutation and
+  nested SQL write admission use the operation marker, so leader support cannot
+  escape restrictions that apply to worker support. The derived context retains
+  request cancellation and does not mark subsequent ordinary executions.
 - **Stored-view producers** (`view_producer.go`). A stored-view `Source` owns its
   retained stage and lazy flat prefix; later readers replay the prefix, then
   resume the one producer frontier. Failures stay terminal; `Source.Close`
@@ -219,7 +230,7 @@ on `statementHost`, a defined type over `StatementScope`.
 
 | Group | Methods | Lock and lifetime contract |
 |---|---|---|
-| Environment | `Context`, `Environments`, `StatementStart`, `CTEInvocation` | Read where the runtime reads them; a held cursor detaches the host between fetches. |
+| Environment | `Context`, `Environments`, `StatementStart`, `CTEInvocation` | Read where the runtime reads them; a held cursor detaches the host between fetches. Partial aggregate workers use the outer CTE snapshot captured before launch, including nil, never a sibling support body's lexical scratch. |
 | Presentation | the nine `sqltype` formatters | Read the statement's comment/deparse snapshot. With no host, output uses `DetachedPresentation`. |
 | Row locks | `AcquireQueryRow`, `LatestQueryRow`, `QueryLocks` | `AcquireQueryRow` may block in the lock manager; it releases the replacement read lock across the wait, then takes `Engine.Mu`. `LatestQueryRow` takes `Engine.Mu` and records the physical row event after releasing it. |
 | Foreign owner | `ReleaseReplacementRead`, `TouchForeignScan`, `EnlistForeign`, `AsyncAppendEnabled` | Release the replacement read lock before external I/O; enlist the statement's foreign transaction participant. Async eligibility reads the immutable admission snapshot once. |

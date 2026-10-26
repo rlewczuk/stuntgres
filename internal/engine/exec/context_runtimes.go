@@ -496,6 +496,9 @@ func (c *Context) SequenceAuthority() error {
 // RowExclusive lock; ACL, read-only admission, the generator and the
 // physical-session memory are read under Engine.mu after the lock is held.
 func (c *Context) Sequence(request functions.SequenceRequest) (int64, error) {
+	if InParallelOperation(c.Context) && (request.Name == "nextval" || request.Name == "setval") {
+		return 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "25000", Message: "cannot execute " + request.Name + "() during a parallel operation"}
+	}
 	host := c.LiveHost()
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: sequence call lacks statement authority")
