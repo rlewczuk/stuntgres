@@ -101,6 +101,40 @@ public custom-unit registration remains unchanged. Physical sessions retain
 these values across pool reuse and logical native controls. The pinned comparison
 server is PostgreSQL18.6, independently of native's truthful18.0 identity.
 
+## WAL settings
+
+`wal.go` owns 40 unrestricted-read Write-Ahead Log descriptors for the fixed
+64-bit Linux profile: 13 postmaster, 20 sighup, four superuser and three user
+settings. All use the shared typed parser, unit conversion, catalog projection
+and transactional session store. Whole-word enum aliases are distinct from
+Boolean prefixes; `wal_compression=on` canonicalizes to `pglz`, while hidden
+`wal_level=archive/hot_standby` aliases canonicalize to `replica`.
+
+These are setting-only simulations. No assignment generates or compresses WAL,
+flushes or recycles files, sleeps at commit, waits for replication, schedules
+checkpoints, runs archive/restore commands, loads archive libraries, performs
+recovery or starts a summarizer. Logical commits, constraints and ACLs remain
+operative. Startup relationships between archive mode/library/command, WAL
+level and recovery targets are external server mechanisms, not native startup
+validation or a new configuration API.
+
+`archive_mode` is fixed off: current `archive_command` presentation is
+`(disabled)` in every SQL read, but stored boot/reset remain empty strings.
+`wal_buffers` has boot -1 and initialized current/reset 512 blocks (SHOW 4MB),
+source default; this captures the fixed shared-buffer/segment profile without
+allocating WAL buffers. `commit_delay` has no catalog unit despite its
+microsecond description. Compression and sync enums describe the fixed Linux
+configuration profile, not loaded compressors or host capability probes.
+
+Only effective superuser or parameter SET authority permits `commit_delay`,
+`wal_compression`, `wal_init_zero` and `wal_recycle`; read-all-settings and ALTER
+SYSTEM alone do not. Immutable contexts fail before parsing even with grants;
+RESET ALL skips them and clears mutable overrides after grant revocation.
+Providers may supply equivalent immutable defaults only. Mutable defaults are
+captured once per physical session; resets, LOCAL/savepoints, retained Rows,
+pool reuse/replacement and logical controls keep the ordinary store contract.
+Logical Dump/Reset/Restore neither serialize nor clear live WAL settings.
+
 ## Vacuum settings
 
 `vacuum.go` owns 28 unrestricted-read vacuum descriptors: 15 immutable
@@ -534,6 +568,7 @@ make check RUN='^TestLoggingSettings'
 make check RUN='^TestLockSettings'
 make check RUN='^TestReplicationSettings'
 make check RUN='^TestVacuumSettings'
+make check RUN='^TestWALSettings'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in

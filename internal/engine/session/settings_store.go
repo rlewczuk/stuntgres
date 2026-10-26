@@ -242,6 +242,11 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	return nil
 }
 func (s *SettingsStore) Value(name string) string {
+	// No startup API can activate archive_mode in this fixed native profile.
+	// Keep the stored command empty so provider and reset metadata stay exact.
+	if name == "archive_command" {
+		return "(disabled)"
+	}
 	if name == "transaction_isolation" && s.CurrentIsolation != "" {
 		return s.CurrentIsolation
 	}

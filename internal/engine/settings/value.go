@@ -218,6 +218,11 @@ func (d Definition) Raw(v Value) string {
 // CurrentRaw renders pg_settings.setting. Hook-style current presentation is
 // separate from the numeric base-unit boot/reset values and bounds.
 func (d Definition) CurrentRaw(v Value) string {
+	// archive_mode is fixed off in the initialized native profile. Only the
+	// current presentation is disabled; boot/reset retain the empty command.
+	if d.Name == "archive_command" {
+		return "(disabled)"
+	}
 	if d.Name == "unix_socket_permissions" || d.Name == "log_file_mode" || d.Name == "data_directory_mode" {
 		return d.Format(v)
 	}

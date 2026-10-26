@@ -159,6 +159,19 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `TestReferenceSettingsPublicTypedSQL` and
   `TestReferenceObjectGrantParametersTablespaces` in both modes, plus retained
   `TestReferenceQueryParallelSettings`/`TestReferenceQueryParallelErrors`.
+- WAL settings: `RUN='^TestReferenceWALSettings'` covers the independent 40-row
+  inventory, all metadata and current/boot/reset distinctions, unrestricted
+  direct/prepared reads, context-first refusals, exact typed validation,
+  effective parameter authority, transactional lifetimes and native controls.
+  Simulation witnesses assert logical rows/constraints and peer isolation,
+  never physical WAL, compression, durability, recovery or timing effects.
+  Run the bounded top-level definitions in native and `REFERENCE=1` modes.
+  The pinned fixture initializes PostgreSQL fsync off with command-line source,
+  boot on and reset off; native retains on/default/reset on. Both profiles
+  initialize wal_buffers to 512 with default source and boot -1. Only
+  max_wal_size/min_wal_size use configuration-file provenance in this family.
+  Ordinary validation actors retain setting authority without schema grants;
+  their logical sentinel is created and inspected by the authorized owner.
 - Replication settings: `RUN='^TestReferenceReplicationSettings'` covers the exact
   26-name family, independently expected metadata, immutable contexts, mutable
   values/list quoting, read versus SET authority, physical-session capture and

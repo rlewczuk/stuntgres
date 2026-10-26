@@ -128,6 +128,11 @@ implement its slots, so either import would form a cycle.
   reconstructs quoted identifier lists; synchronous_standby_names and
   synchronized_standby_slots flatten raw lists. No physical replication or
   plugin-loading consumer is installed by setting capture or mutation.
+  WAL settings share these same grants, typed capture and journal actions;
+  commit_delay, wal_compression, wal_init_zero and wal_recycle are eligible
+  privileged builtins. The fixed archive_mode=off profile presents only the
+  current archive_command as `(disabled)`, preserving empty stored defaults.
+  No WAL, compressor, file or commit-delay consumer runs here.
   set_config validates SET/context/value authority before checking permission
   to examine its result, and preflights that read before atomic installation.
   A denied result therefore cannot leave a changed setting or source behind.
@@ -355,4 +360,5 @@ make check RUN='^Test(CatalogFences|TransactionalPrivileges(Finish|Pending)|Role
 make check RACE=1 RUN='^Test(PgrowlocksEligibility|SnapshotStatement(Retention|RootConsistency)|SnapshotBinding|SerializableSafeSnapshot)'
 make check RUN='^Test(PGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)|RowSecurity(SettingProvenance|ProviderLifecycle))$$'
 make check RUN='^TestLoggingSettings'
+make check RUN='^TestWALSettings'
 ```

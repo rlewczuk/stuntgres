@@ -6,6 +6,12 @@ Opening a fresh database uses about a fifth less CPU and a tenth less memory:
 the builtin domain checks are parsed once per process, and seeding the builtin
 catalog no longer walks every descriptor for each OID it allocates.
 
+All 40 PostgreSQL 18 WAL settings expose typed values and complete metadata,
+including archive-command current/boot distinctions and automatic WAL-buffer
+defaults. Mutable settings honor parameter grants, transactions and captured
+session defaults; immutable contexts reject live changes. These are
+setting-only simulations, not physical WAL, durability or recovery effects.
+
 All 28 PostgreSQL 18 vacuum settings now expose typed values and complete
 catalog metadata through the shared registry. Ordinary logins can change the
 13 user-context controls, including the released-source USERSET eager-freeze

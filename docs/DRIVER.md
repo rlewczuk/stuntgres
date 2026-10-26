@@ -472,6 +472,37 @@ configure IPC/huge pages, tune byte stacks or enforce2PC capacity. SQL-routine
 active-body safety remains separate. Settings are not physical-effect claims.
 Logical Reset/Dump/Restore neither clear nor serialize live resource settings.
 
+## WAL settings
+
+The [40 WAL settings](../internal/engine/settings/README.md#wal-settings) expose
+typed session configuration and exact catalog metadata to every role. The
+seven mutable settings are `commit_delay`, `commit_siblings`,
+`synchronous_commit`, `wal_compression`, `wal_init_zero`, `wal_recycle` and
+`wal_skip_threshold`; the first, fourth, fifth and sixth require effective
+superuser or parameter SET authority. Read-all-settings and ALTER SYSTEM do not
+grant SET. The other 33 refuse live changes with PostgreSQL context errors,
+including same values, DEFAULT, RESET and NULL `set_config`; grants cannot
+unlock them. RESET ALL skips immutable settings and clears mutable overrides
+even after their SET grant is revoked.
+
+These are explicit setting-only physical simulations, not durability,
+replication acknowledgements, commit delays, WAL generation/compression,
+checkpoints, flushes, archive commands/libraries, restore/recovery or summary
+workers. Logical data, constraints, transactions and ACLs remain active.
+External startup relationships (archive command versus library, WAL level and
+mutually exclusive recovery targets) do not establish a native startup API.
+
+The initialized Linux profile presents `archive_command` as `(disabled)` with
+empty boot/reset, and `wal_buffers` as 4MB/raw512 with boot -1 and reset512.
+`checkpoint_flush_after` is 256kB/raw32 and `wal_summary_keep_time` is 10d/raw14400.
+Compression `on` is canonical `pglz`; enum availability is a fixed configuration
+profile, not host probing. No native sourcefile/sourceline is invented.
+Session SET/LOCAL, rollback, savepoints and prepared authority rechecks use the
+ordinary settings store. Providers capture typed defaults once; immutable
+providers accept equivalent values only. Returning the same physical connection
+retains overrides, replacement captures defaults, and logical Dump/Reset/Restore
+never serializes or clears these session settings.
+
 ## Preset options
 
 The [20 preset settings](../internal/engine/settings/README.md#preset-options)
