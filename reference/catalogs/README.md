@@ -85,7 +85,8 @@ retire obsolete lookup names.
   substitute handwritten SQL. Prove replay through restored values and
   identities, not dump spelling (quoting, deparse formatting).
 - Native Dump preserves supported raw relation, column, routine, namespace,
-  type and tablespace ACLs. Parameter/default-privilege ACLs reject before writing.
+  type, parameter and tablespace ACLs, preserving ordered grantor/options and
+  sparse parameter identities by destination name.
   Provision every named owner, grantor and grantee before logical Restore.
 - Keep password setup out of recorders and failure output.
 - Client quirks: drain and close a PostgreSQL cursor before issuing another

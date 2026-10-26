@@ -56,7 +56,7 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   TEMP objects, uncommitted or prepared work, sequence `currval`/`lastval` session
   state, and commit timestamp history.
 - Dump fails before writing anything when it cannot serialize faithfully, for
-  example invalid indexes, parameter/default-privilege ACLs or cyclic view
+  example invalid indexes, invalid raw ACL authority or cyclic view
   dependencies (`stuntgres: cyclic view dump dependencies`).
 - SQL routine declarations preserve OUT/INOUT order, TABLE mode and SETOF
   cardinality, with actual quoted or checked standard bodies. Named result and
@@ -64,6 +64,9 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   reconstructed from formals, never emitted as independent named types.
   Replacement maps each original record occurrence through the same context as
   stored calls/views, preserving immutable old rows and current child ownership.
+- Parameter ACLs roundtrip by canonical name through strict typed catalog repairs,
+  preserving explicit empty arrays, ordered grantors and grant options. Destination
+  parameter identities are allocated locally; session setting values are not dumped.
 - Event triggers replay in the final DDL section, after saved data/defaults and
   attribute metadata, initially disabled and activated only after all definitions.
   Owner, function references, ordered TAG filters and O/D states survive logical

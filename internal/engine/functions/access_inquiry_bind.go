@@ -72,11 +72,14 @@ func bindAccessInquiry(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		n.Kind = AccessColumnPrivilege
 	case "has_any_column_privilege":
 		n.Kind = AccessAnyColumn
+	case "has_largeobject_privilege":
+		n.Kind = AccessLargeObject
+	case "has_parameter_privilege":
+		n.Kind = AccessParameter
 	}
 	if !visible || name != n.Name() || len(raw.ArgNames) != 0 || !n.validArity() {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	properties := expr.Properties{Volatility: expr.Stable}
 	var formal [4]sqltype.ID
 	for i := range n.Count {
 		id, alternate := n.formalAxis(i)
@@ -87,6 +90,16 @@ func bindAccessInquiry(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 			}
 		}
 		formal[i] = id
+		// Resolve every typed axis before finalizing unknown literals. A
+		// nonviable signature must not run an earlier literal's input codec.
+		if operands[i].Usage.Type != nil {
+			if _, failure := sqltype.PlanCoercion(operands[i].Usage, b.Type(id).Usage(), sqltype.Implicit); failure != nil {
+				return nil, b.SignatureError(raw.Name, raw.Pos, names)
+			}
+		}
+	}
+	properties := expr.Properties{Volatility: expr.Stable}
+	for i, id := range formal[:n.Count] {
 		arg, err := coerceInquiryFormal(b, operands[i], raw.Args[i], b.Type(id).Usage(), func() error {
 			return b.SignatureError(raw.Name, raw.Pos, names)
 		})

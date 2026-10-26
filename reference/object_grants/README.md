@@ -35,8 +35,8 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   and `accessExecutionPairedHeld` hold statements in the `prepared` route only.
   Held witnesses that are the only check of a route-run statement (live authority,
   smoke, persistence and NULL-diagnostic tails) keep both routes.
-- `ObjectGrantControls` retains zero-output rejection for unsupported parameter
-  and tablespace authority. Ordinary builtin and conversion routines, as well
+- `ObjectGrantControls` retains canonical parameter ACL roundtrips and
+  zero-output rejection for unrepresentable authority. Ordinary builtin and conversion routines, as well
   as authentic installed members, prove exact raw ACLs, owner identity and
   deny/grant/revoke behavior through nonempty, canonical native
   Dump/Reset/Restore rounds inside the shared SQL scenario.
@@ -123,6 +123,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   canonical redump, with actual emitted SQL replayed on PostgreSQL. Partition
   hierarchy column mutation and retirement/reattachment compositions are outside
   this coverage; ordinary mixed and detached inheritance histories remain covered.
+- Large-object/parameter inquiries: `RUN='^TestReferenceAccessSpecial'`.
+  Shared direct/prepared and held witnesses include active/current snapshots,
+  current role authority and native combined ACL/byte persistence.
 - Parameters and tablespaces:
   `RUN='^TestReferenceObjectGrantParametersTablespaces$'` in both modes.
   Canonical work_mem and its case-folded spelling now share real parameter ACL

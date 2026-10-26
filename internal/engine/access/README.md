@@ -127,6 +127,10 @@ No parallel language-permission table or cached grant decision exists.
   include predefined data roles and physical-session TEMP authority, with
   CREATE contingent on the queried actor's database TEMP right. These rules
   do not broaden admission or change database attachment authority.
+  The core special-inquiry boundary establishes large-object existence before
+  this evaluator's superuser shortcut, using the active LO frontier unless the
+  ordinary mask includes UPDATE. Missing parameter ACL identities instead
+  produce false for non-superusers, without requiring a setting provider.
 
 `access` keeps its own `SQLError`. Type and identifier names in its messages
 come from the `catalog` diagnostic name helpers it shares with the engine.

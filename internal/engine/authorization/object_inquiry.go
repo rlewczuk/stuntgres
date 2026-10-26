@@ -35,6 +35,14 @@ func ParseObjectPrivileges(text string, allowed Privileges) (ordinary, options P
 			mask = UsagePrivilege
 		case rolePrivilegeEqual(name, "EXECUTE"):
 			mask = ExecutePrivilege
+		case rolePrivilegeEqual(name, "SELECT"):
+			mask = SelectPrivilege
+		case rolePrivilegeEqual(name, "UPDATE"):
+			mask = UpdatePrivilege
+		case rolePrivilegeEqual(name, "SET"):
+			mask = SetPrivilege
+		case rolePrivilegeEqual(name, "ALTER SYSTEM"):
+			mask = AlterSystemPrivilege
 		}
 		if mask == 0 || mask&allowed == 0 {
 			return 0, 0, sqlError("22023", fmt.Sprintf(`unrecognized privilege type: "%s"`, token))

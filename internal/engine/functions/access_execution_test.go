@@ -37,11 +37,32 @@ func TestAccessRelationsCarrier(t *testing.T) {
 	accessInquiryCarrier(t, []AccessKind{AccessTable, AccessSequence, AccessColumnPrivilege, AccessAnyColumn})
 }
 
+func TestAccessSpecialCarrier(t *testing.T) {
+	accessInquiryCarrier(t, []AccessKind{AccessLargeObject, AccessParameter})
+	for _, kind := range []AccessKind{AccessLargeObject, AccessParameter} {
+		n := AccessInquiry{Kind: kind, Count: 2, Info: expr.Info{Usage: aclTestTypes[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Stable}}}
+		n.Args[1] = aclTestText(sqltype.Text, "SELECT")
+		if kind == AccessLargeObject {
+			n.Args[0] = aclTestText(sqltype.Text, "42")
+		} else {
+			n.Args[0] = aclTestOID(t, 42)
+		}
+		if n.Validate() == nil {
+			t.Fatal("cross-family target formal admitted", kind)
+		}
+	}
+}
+
 func accessInquiryCarrier(t *testing.T, kinds []AccessKind) {
 	for _, kind := range kinds {
 		signatures := [][]sqltype.ID{{19, 25, 25}, {19, 26, 25}, {26, 25, 25}, {26, 26, 25}, {25, 25}, {26, 25}}
 		if kind == AccessColumnPrivilege {
 			signatures = [][]sqltype.ID{{19, 25, 25, 25}, {19, 25, 21, 25}, {19, 26, 25, 25}, {19, 26, 21, 25}, {26, 25, 25, 25}, {26, 25, 21, 25}, {26, 26, 25, 25}, {26, 26, 21, 25}, {25, 25, 25}, {25, 21, 25}, {26, 25, 25}, {26, 21, 25}}
+		}
+		if kind == AccessLargeObject {
+			signatures = [][]sqltype.ID{{19, 26, 25}, {26, 26, 25}, {26, 25}}
+		} else if kind == AccessParameter {
+			signatures = [][]sqltype.ID{{19, 25, 25}, {26, 25, 25}, {25, 25}}
 		}
 		for _, formals := range signatures {
 			n := AccessInquiry{Kind: kind, Count: len(formals), Info: expr.Info{Usage: aclTestTypes[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Stable}}}

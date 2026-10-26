@@ -79,6 +79,8 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   identity or a baseline one owned by the bootstrap superuser, with an OID
   and revision from the engine's allocators. `RoleHost`'s `CanonicalParameter`
   and `GrantParameter` call them.
+  `CanonicalInquiryParameter` is deliberately separate: it folds arbitrary
+  names and released legacy aliases without validating or creating providers.
 - **COMMENT** (`comment.go`): `PlanRoleComment` checks COMMENT ON ROLE
   (42704, the superuser rule) and returns the next role record;
   `PlanObjectComment` resolves a schema, table, foreign table or column (the
@@ -179,8 +181,9 @@ Dump omits shared roles, and Reset/Restore preserve their committed state.
 
 ## Testing
 
-`TestCanonicalGrantParameterTargets` (`parameters_test.go`) is the package's
-only unit test: tests of its other plans and staging need an `Engine` fixture.
+`TestCanonicalGrantParameterTargets` and `TestAccessSpecialParameterNames`
+cover validating grant names and permissive inquiry spelling independently.
+Tests of the other plans and staging need an `Engine` fixture.
 Roles, membership, GRANT and REVOKE, default privileges, ownership and DROP
 OWNED units live in `internal/engine/rolecmds`, COMMENT units in
 `internal/engine/schemacmds`, `object_acl_test.go` and

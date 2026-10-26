@@ -28,14 +28,28 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 					}
 				}
 			}()
-			reject := func() {
-				if b.PG {
-					return // SQL witnesses below are the ordinary PostgreSQL counterpart.
+			parameterRoundTrip := func(want bool) {
+				check := func() {
+					run(objectGrantAccessValue("SELECT has_parameter_privilege('og_object_reader','lc_messages','SET') AS v", want))
 				}
-				var writer objectGrantWriteProbe
-				err := stuntgres.Dump(p.Ctx, p.Native, &writer)
-				if err == nil || writer.calls != 0 {
-					t.Fatal("Dump must reject unsupported authority before publishing even a prefix", err, writer.calls)
+				check()
+				if b.PG {
+					return
+				}
+				var out bytes.Buffer
+				if err := stuntgres.Dump(p.Ctx, p.Native, &out); err != nil {
+					t.Fatal("parameter ACL Dump", err)
+				}
+				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+					t.Fatal(err)
+				}
+				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(out.Bytes())); err != nil {
+					t.Fatal(err)
+				}
+				check()
+				var again bytes.Buffer
+				if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(out.Bytes(), again.Bytes()) {
+					t.Fatal("parameter raw ACL replay is not canonical", err)
 				}
 			}
 			baseline := func() {
@@ -180,7 +194,7 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 			// explicitly empty authority is deliberately not the same baseline.
 			run(fixture.Exec("GRANT SET ON PARAMETER lc_messages TO og_object_reader", 0))
 			fixture.RoleGrantActor(run, "og_object_reader", func() { run(fixture.Exec("SET lc_messages='C'", 0)) })
-			reject()
+			parameterRoundTrip(true)
 			run(fixture.Exec("REVOKE SET ON PARAMETER lc_messages FROM og_object_reader", 0))
 			if !b.PG {
 				var out bytes.Buffer
@@ -189,7 +203,7 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 				}
 			}
 			run(fixture.Exec("REVOKE ALL ON PARAMETER lc_messages FROM CURRENT_USER", 0))
-			reject()
+			parameterRoundTrip(false)
 			baseline()
 			tablespaceRoundTrip := func(want bool) {
 				check := func() {

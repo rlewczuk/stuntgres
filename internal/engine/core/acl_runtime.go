@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -108,6 +109,29 @@ func (h *statementHost) ObjectPrivilege(c *exec.Context, kind functions.AccessKi
 	if err != nil {
 		return false, false, err
 	}
+	if kind == functions.AccessParameter {
+		ordinary, options, failure := authorization.ParseObjectPrivileges(privilege, authorization.SetPrivilege|authorization.AlterSystemPrivilege)
+		if failure != nil {
+			return false, false, failure
+		}
+		actorID := expressionPrincipal(c).ID()
+		if actor != nil {
+			if !actor.ByOID && actor.Name == "public" {
+				actorID = 0
+			} else if actorID, failure = regobj.AccessRoleID(auth.Roles, *actor); failure != nil {
+				return false, false, failure
+			}
+		}
+		principal := auth.View.Owner.Principals.Principal(actorID)
+		if r, live := auth.Roles.Find(principal); live && r.Superuser {
+			return true, true, nil
+		}
+		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: role.CanonicalInquiryParameter(object.Name)})
+		if address == (ids.ObjectAddress{}) {
+			return false, true, nil
+		}
+		return auth.View.ObjectPrivilege(c.Context, auth, actorID, address, ordinary, options)
+	}
 	actorID := expressionPrincipal(c).ID()
 	if actor != nil {
 		if !actor.ByOID && actor.Name == "public" {
@@ -115,6 +139,26 @@ func (h *statementHost) ObjectPrivilege(c *exec.Context, kind functions.AccessKi
 		} else if actorID, err = regobj.AccessRoleID(auth.Roles, *actor); err != nil {
 			return false, false, err
 		}
+	}
+	if kind == functions.AccessLargeObject {
+		ordinary, options, failure := authorization.ParseObjectPrivileges(privilege, authorization.SelectPrivilege|authorization.UpdatePrivilege)
+		if failure != nil {
+			return false, false, failure
+		}
+		if ordinary&authorization.UpdatePrivilege == 0 {
+			auth.Recapture(scope.largeObjectRead)
+		}
+		address := ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: ids.OID(object.OID)}
+		if _, present := auth.Catalog.Descriptor(address); !present {
+			return false, false, nil
+		}
+		scope.Op.Session.Settings.Mu.Lock()
+		compat := scope.Op.Session.Settings.Value("lo_compat_privileges") == "on"
+		scope.Op.Session.Settings.Mu.Unlock()
+		if compat {
+			return true, true, nil
+		}
+		return auth.View.ObjectPrivilege(c.Context, auth, actorID, address, ordinary, options)
 	}
 	var class ids.OID
 	var noun string

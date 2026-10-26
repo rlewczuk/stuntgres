@@ -73,6 +73,8 @@ func ParseObjectACLRepair(s *parser.Update) (r ObjectACLRepair, ok bool) {
 		r.Class, column, key, typ = ids.NamespaceClassID, "nspacl", "nspname", "name"
 	case "pg_tablespace":
 		r.Class, column, key, typ = ids.TablespaceClassID, "spcacl", "spcname", "name"
+	case "pg_parameter_acl":
+		r.Class, column, key, typ = ids.ParameterClassID, "paracl", "parname", "text"
 	case "pg_type":
 		r.Class, column, key, typ = ids.TypeClassID, "typacl", "oid", "regtype"
 	case "pg_class":

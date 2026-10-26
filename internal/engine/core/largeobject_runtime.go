@@ -29,14 +29,6 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 	if r.Name != "lo_get" && s.Owner.ReadOnly {
 		return out, SQLError("25006", "cannot execute "+r.Name+"() in a read-only transaction")
 	}
-	// Freeze this query's read view before its first command candidate. SQL
-	// body activation supplies its own fresh view and restores the outer one.
-	if s.largeObjectRead.State() == nil {
-		s.largeObjectRead = s.RoutineAuth.Catalog
-		if s.largeObjectRead.State() == nil {
-			s.largeObjectRead = e.PrivateCatalogLocked(s.PendingCatalog())
-		}
-	}
 	auth, err := s.writeAuthorizationLocked(e)
 	if err != nil {
 		return out, err

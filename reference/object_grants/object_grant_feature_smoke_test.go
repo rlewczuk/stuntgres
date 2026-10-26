@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"bytes"
 	"database/sql"
 	"database/sql/driver"
 	"net/url"
@@ -148,17 +149,12 @@ func TestReferenceObjectGrantFeatureSmoke(t *testing.T) {
 		fixture.RoleGrantActor(run, "og_object_reader", func() { run(fixture.Exec("GRANT CREATE ON TABLESPACE pg_default TO og_object_other", 0)) })
 		run(fixture.Exec("REVOKE GRANT OPTION FOR CREATE ON TABLESPACE pg_default FROM og_object_reader CASCADE", 0))
 		objectGrantSmokeDatabase(t, p, b, c, run, prepared)
+		run(objectGrantAccessValue("SELECT has_parameter_privilege('og_object_reader','lc_messages','SET') AS v", true))
+		run(objectGrantAccessValue("SELECT has_parameter_privilege('og_object_other','lc_messages','SET') AS v", false))
 		if !b.PG {
-			var writer objectGrantWriteProbe
-			err := stuntgres.Dump(p.Ctx, p.Native, &writer)
-			if err == nil || writer.calls != 0 {
-				t.Fatal("explicit ACL Dump must reject before writer callbacks", err, writer.calls)
-			}
-			switch err.Error() {
-			case "stuntgres: dump cannot serialize parameter ACL":
-				// Owning descriptor traversal does not promise an offender order.
-			default:
-				t.Fatal("unexpected Dump failure instead of explicit ACL boundary", err)
+			var output bytes.Buffer
+			if err := stuntgres.Dump(p.Ctx, p.Native, &output); err != nil || output.Len() == 0 {
+				t.Fatal("parameter and tablespace ACL Dump", err, output.Len())
 			}
 			q := "ALTER SYSTEM SET lc_messages='C'"
 			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "SYSTEM"`, Position: "7"})

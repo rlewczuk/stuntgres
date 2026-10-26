@@ -42,6 +42,21 @@ func CanonicalGrantParameter(registry settings.Registry, name string) (string, e
 	return "", sqlError("42704", fmt.Sprintf(`unrecognized configuration parameter "%s"`, name))
 }
 
+// CanonicalInquiryParameter accepts arbitrary inquiry names without creating or
+// validating setting providers. These are the released legacy GUC ACL aliases.
+func CanonicalInquiryParameter(name string) string {
+	key := settings.FoldName(name)
+	switch key {
+	case "sort_mem":
+		return "work_mem"
+	case "vacuum_mem":
+		return "maintenance_work_mem"
+	case "ssl_ecdh_curve":
+		return "ssl_groups"
+	}
+	return key
+}
+
 // GrantParameterDescriptorLocked returns the existing ACL identity of
 // parameter name in view, or an unpublished baseline identity for the central
 // grant candidate, owned by the bootstrap superuser of principals, with an OID

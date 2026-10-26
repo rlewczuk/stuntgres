@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -74,6 +75,13 @@ func restoreObjectACL(e *core.Engine, op *session.Operation, raw *parser.Update)
 		address = auth.Catalog.NameAddress(ids.NameKey{ClassID: repair.Class, Name: repair.Identity})
 	}
 	old := auth.Catalog.Get(address)
+	if old == nil && repair.Class == ids.ParameterClassID {
+		old, err = role.GrantParameterDescriptorLocked(e.Settings, auth.Catalog, repair.Identity, &e.RoleStore.Domain, e.Catalog.AllocateOIDLocked, e.Catalog.RevisionLocked)
+		if err != nil {
+			e.Mu.Unlock()
+			return err
+		}
+	}
 	if old == nil {
 		e.Mu.Unlock()
 		return fmt.Errorf("stuntgres: missing object ACL repair target")
@@ -119,6 +127,9 @@ func restoreObjectACL(e *core.Engine, op *session.Operation, raw *parser.Update)
 		x := *d
 		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
 	case *catalog.Tablespace:
+		x := *d
+		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
+	case *catalog.Parameter:
 		x := *d
 		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
 	case *catalog.Type:
@@ -181,7 +192,15 @@ func restoreObjectACL(e *core.Engine, op *session.Operation, raw *parser.Update)
 	epoch := auth.Catalog.Epoch()
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	if err = stage.Replace(next); err != nil {
+	if parameter, ok := next.(*catalog.Parameter); ok && catalog.ParameterBaseline(parameter) {
+		if existing := stage.Base.Get(next.Address()); existing != nil {
+			stage.RecordRemoval(auth.Ref(existing.Address()), existing)
+		}
+	} else if stage.Base.Get(next.Address()) == nil {
+		if err = stage.Create(next); err != nil {
+			return err
+		}
+	} else if err = stage.Replace(next); err != nil {
 		return err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

@@ -215,8 +215,15 @@ func collectDatabaseDump(context.Context, *dumpCollection, ids.ObjectAddress, ca
 	return nil // Destination attachment authority is never serialized.
 }
 
-func collectParameterDump(context.Context, *dumpCollection, ids.ObjectAddress, catalog.Descriptor) error {
-	return fmt.Errorf("stuntgres: dump cannot serialize parameter ACL")
+func collectParameterDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
+	provider := c.CatalogView.Owner().Provider(ids.ParameterClassID)
+	if provider == nil {
+		return fmt.Errorf("stuntgres: missing parameter catalog provider")
+	}
+	if err := provider.Validate(c.CatalogView, d); err != nil {
+		return err
+	}
+	return access.ValidateACL(c.OriginalRoles, d)
 }
 
 func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {

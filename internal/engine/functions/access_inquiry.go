@@ -25,6 +25,8 @@ const (
 	AccessSequence
 	AccessColumnPrivilege
 	AccessAnyColumn
+	AccessLargeObject
+	AccessParameter
 )
 
 // AccessInquiry retains only typed operands, never authority or decisions.
@@ -69,6 +71,10 @@ func (n AccessInquiry) Name() string {
 		return "has_column_privilege"
 	case AccessAnyColumn:
 		return "has_any_column_privilege"
+	case AccessLargeObject:
+		return "has_largeobject_privilege"
+	case AccessParameter:
+		return "has_parameter_privilege"
 	}
 	return ""
 }
@@ -230,7 +236,7 @@ func (n AccessInquiry) validArity() bool {
 		return n.Count == 3 || n.Count == 4
 	case AccessMembership, AccessFunction, AccessLanguage, AccessForeignWrapper,
 		AccessServer, AccessDatabase, AccessSchema, AccessType, AccessTablespace,
-		AccessTable, AccessSequence, AccessAnyColumn:
+		AccessTable, AccessSequence, AccessAnyColumn, AccessLargeObject, AccessParameter:
 		return n.Count == 2 || n.Count == 3
 	}
 	return false
@@ -248,6 +254,12 @@ func (n AccessInquiry) formalAxis(i int) (sqltype.ID, sqltype.ID) {
 		return sqltype.Text, sqltype.Int2
 	}
 	if n.Kind != AccessMembership && i == n.Count-n.minimumArity() {
+		if n.Kind == AccessLargeObject {
+			return sqltype.Oid, 0
+		}
+		if n.Kind == AccessParameter {
+			return sqltype.Text, 0
+		}
 		return sqltype.Text, sqltype.Oid
 	}
 	return sqltype.Name, sqltype.Oid

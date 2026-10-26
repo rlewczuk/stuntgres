@@ -39,6 +39,17 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 }
 
 func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView, error) {
+	// Query admission owns this immutable catalog independently of RoutineAuth,
+	// which any current-authority consumer may refresh. SQL activation supplies
+	// its own frontier and restores the enclosing query's slots on unwind.
+	if s.largeObjectRead.State() == nil {
+		s.largeObjectRead = s.Inquiry.CommentCatalog
+		if s.largeObjectRead.State() == nil {
+			// Utility/CHECK paths without query admission freeze before their
+			// first current-authority operation, not after its catalog effects.
+			s.largeObjectRead = e.PrivateCatalogLocked(s.PendingCatalog())
+		}
+	}
 	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return auth, err

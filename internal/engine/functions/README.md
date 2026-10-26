@@ -23,8 +23,11 @@ session generator.
 
 `AccessInquiry` uses closed kinds for role membership, row security, routine,
 language, wrapper, server, database, schema, type, tablespace, table, sequence,
-column and any-column privileges. Role NAME/OID, object TEXT/OID and column
-TEXT/INT2 axes bind independently to exact selected declarations. The four-slot
+column, any-column, large-object and parameter privileges. Role NAME/OID,
+object TEXT/OID and column TEXT/INT2 axes bind independently to exact selected
+declarations; large-object targets have only OID and parameters only TEXT.
+Binding validates every typed formal axis before coercing unknown literals, so
+an impossible signature cannot trigger an earlier literal's input codec. The four-slot
 carrier evaluates written arguments once before strict NULL handling and retains
 no authority or decision; its result is nullable BOOL.
 `ACLRuntime.ObjectPrivilege` and `RelationPrivilege` borrow the executing

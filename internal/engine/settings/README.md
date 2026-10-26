@@ -424,11 +424,13 @@ unknown parameters, not aliases.
 ## Compatibility settings
 
 `allow_alter_system`, `array_nulls`, `backslash_quote`,
-`escape_string_warning`, `lo_compat_privileges`, `synchronize_seqscans` and
-`transform_null_equals` are setting-only simulations. Their released metadata
-and typed values do not enable ALTER SYSTEM, array-input changes, lexer warnings
-or rejection, large-object privilege bypass, synchronized scans or null-comparison
-rewriting. No configuration file, reload, restart or process operation is implied.
+`escape_string_warning`, `synchronize_seqscans` and `transform_null_equals` are
+setting-only simulations. Their released metadata and typed values do not enable
+ALTER SYSTEM, array-input changes, lexer warnings or rejection, synchronized scans
+or null-comparison rewriting. No file, reload, restart or process operation is implied.
+`lo_compat_privileges` permits valid large-object privilege inquiries on existing
+objects; missing objects remain NULL and token/role validation still applies.
+It does not change byte-operation admission.
 `standard_conforming_strings` retains its real per-command parser consumer;
 `quote_all_identifiers` retains its real SQL-fragment presentation consumer.
 

@@ -1,7 +1,7 @@
 package reference_test
 
 import (
-	"errors"
+	"bytes"
 	"testing"
 
 	"stuntgres"
@@ -79,11 +79,9 @@ func pgParameterACLControls(t *testing.T, p *fixture.Pair, b fixture.Backend, fa
 	if err != nil {
 		t.Fatal(err)
 	}
-	var writer pgParameterACLWriter
-	err = stuntgres.Dump(p.Ctx, p.Native, &writer)
-	var state interface{ SQLState() string }
-	if err == nil || err.Error() != "stuntgres: dump cannot serialize parameter ACL" || writer.calls != 0 || errors.As(err, &state) {
-		t.Fatal("ordinary Dump rejection before writer callback", err, writer.calls)
+	var snapshot bytes.Buffer
+	if err := stuntgres.Dump(p.Ctx, p.Native, &snapshot); err != nil {
+		t.Fatal("parameter ACL Dump", err)
 	}
 	pgParameterACLRead(t, p, b, name, acl, oid)
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
@@ -107,4 +105,17 @@ func pgParameterACLControls(t *testing.T, p *fixture.Pair, b fixture.Backend, fa
 		t.Fatal(err)
 	}
 	pgParameterACLMetadata(t, saved, false)
+	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(snapshot.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	restoredOID := pgParameterACLOID(t, p, b, name)
+	if restoredOID == 0 {
+		t.Fatal("missing destination parameter identity")
+	}
+	pgParameterACLRead(t, p, b, name, acl, restoredOID)
+	checkFacts()
+	var again bytes.Buffer
+	if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(snapshot.Bytes(), again.Bytes()) {
+		t.Fatal("parameter ACL redump is not canonical", err)
+	}
 }

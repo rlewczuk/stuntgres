@@ -24,6 +24,13 @@ The root's capture window (`captureDumpLocked`, under `Engine.Mu`) calls
 `Dump(ctx, capture, dst)` (`dump.go`) then sorts and completes the `Capture` in
 place, builds the script and writes it; the root never reads the capture again.
 
+Parameter ACLs use the shared typed ACLITEM[] preflight and deterministic
+object-ACL section. Isolated Restore accepts only the generated single-assignment
+`pg_parameter_acl.paracl` repair selected by literal TEXT `parname`, allocating
+destination identities without publishing temporary grants. Sparse baseline
+normalization, explicit-empty arrays, grantor order and role mapping are preserved;
+setting values and source parameter OIDs are not serialized.
+
 PL bootstrap languages/handlers are validated and omitted, not recreated.
 Changed retained language owners and raw ACLs replay through bounded catalog
 repairs. Restore compiles PL declarations on CREATE, preserves lazy expression

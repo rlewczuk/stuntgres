@@ -46,6 +46,9 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 			}
 			table, column = "pg_tablespace", "spcacl"
 			locator = "spcname=" + dump.CommentLiteral(d.Name()) + "::pg_catalog.name"
+		case *catalog.Parameter:
+			table, column = "pg_parameter_acl", "paracl"
+			locator = "parname=" + dump.CommentLiteral(d.Name()) + "::pg_catalog.text"
 		case *catalog.Type:
 			// Constructor defaults retain raw absence without a repair.
 			if typedef.DefaultDomainACL(d) || !acl.Explicit {

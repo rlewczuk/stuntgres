@@ -1,3 +1,10 @@
+Large-object and parameter privilege inquiries support all PostgreSQL 18
+overloads, current role/ACL authority, strict NULL handling and grant options.
+Large-object inquiries preserve active versus UPDATE-current snapshots, including
+across intervening privilege inquiries after argument-side SQL creation.
+Native Dump/Restore preserves parameter ACLs by canonical name alongside
+large-object ownership, raw grants and bytes.
+
 `pg_settings` has focused coverage for all 17 metadata fields, including
 descriptions, typed enum arrays and empty results. Session defaults, SET/RESET
 provenance, held readers and independent read/SET authority are checked without

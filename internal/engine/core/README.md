@@ -723,6 +723,26 @@ Producers, the OID registry and descriptor specs live in
 runtime bodies (`*_runtime.go`) keep the authority. No prepared node caches an
 owner.
 
+`acl_runtime.go` resolves special inquiry actors under `Engine.Mu` from current
+execution authority. Parameter tokens precede named-role lookup and arbitrary
+folded parameter names need no provider. Large-object role lookup precedes tokens;
+existence and ACLs share the immutable active LO frontier unless ordinary UPDATE
+selects the current private catalog. Grant-option-only UPDATE remains active.
+Query-source admission captures `Inquiry.CommentCatalog` once, before expression
+evaluation; this immutable query owner, never mutable `RoutineAuth`, supplies an
+unset LO frontier. The shared `writeAuthorizationLocked` seam preserves it
+before every current-authority consumer, including ACL inquiries, namespace and
+blocking inquiries, sequences, pgrowlocks, and DML/index/RI operations. Utility
+and CHECK paths without an admitted query freeze their private catalog there
+before the first such operation. Other authorization refreshes cannot advance
+the query-owned catalog. SQL-body activation supplies its explicit fresh LO
+frontier and saves/restores both outer slots stackwise, including a previously
+unset LO frontier after argument-side creation. Direct LO operations and all
+inquiry families use this shared seam; ordinary UPDATE still uses current
+authorization, without retaining permission decisions. Compatibility is read
+under the session settings mutex only after existence, without changing
+byte-operation admission.
+
 `fts_query_runtime.go` executes SQL rewrite rules inside the caller's admitted
 operation, transaction and statement snapshot. Lexical scratch and zero inner
 parameters are scoped stackwise; private staged writes remain visible. The
