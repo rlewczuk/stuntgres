@@ -137,10 +137,10 @@ func ValidateAlterIndexBuilds(evaluation *exec.Context, view access.View, env Di
 			}
 			named = true
 		}
-		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 {
+		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 || index.SQLIndex.Method == catalog.BrinMethod {
 			capture = &BuildCapture{Index: index, Outputs: make([]storage.IndexOutput, len(validationStore.Versions))}
 		}
-		root, err := BuildIndexRoot(evaluation, parent, index.SQLIndex, validationStore, capture)
+		root, err := BuildRelationIndexRoot(evaluation, parent, index, validationStore, capture)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +184,7 @@ func PrepareAlterIndexRoots(evaluation *exec.Context, changes *session.Journal, 
 		if !ok || !SameIndexKeySemantics(build.Index, index) {
 			return ids.ErrCatalogReplaced
 		}
-		root, err := build.BaselineRoot(evaluation.Context, index, baseline, positions)
+		root, err := build.BaselineRoot(evaluation, index, baseline, positions)
 		if err != nil {
 			return err
 		}
@@ -209,7 +209,7 @@ func PrepareAlterIndexRoots(evaluation *exec.Context, changes *session.Journal, 
 				continue
 			}
 		}
-		root, err := BuildIndexRoot(evaluation, parent, index.SQLIndex, baseline, nil)
+		root, err := BuildRelationIndexRoot(evaluation, parent, index, baseline, nil)
 		if err != nil {
 			return err
 		}

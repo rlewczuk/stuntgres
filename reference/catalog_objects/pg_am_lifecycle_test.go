@@ -92,7 +92,7 @@ func pgAMLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	run(fixture.Exec("INSERT INTO am_life VALUES(7,'kept'),(8,'also')", 2))
 	run(fixture.Exec("CREATE INDEX am_life_b ON am_life(n)", 0))
 	run(fixture.Exec("CREATE INDEX am_life_h ON am_life USING hash(s)", 0))
-	run(fixture.Exec("CREATE VIEW am_life_view AS SELECT * FROM pg_catalog.pg_am WHERE oid IN (2,403,405,783)", 0))
+	run(fixture.Exec("CREATE VIEW am_life_view AS SELECT * FROM pg_catalog.pg_am WHERE oid IN (2,403,405,783,3580)", 0))
 	stmt, err := b.DB.PrepareContext(p.Ctx, pgAMProbe)
 	if err != nil {
 		t.Fatal(err)

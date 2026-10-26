@@ -24,6 +24,9 @@ func bindIndexProvider(view catalog.Read, parent *catalog.Relation, d *catalog.I
 	case catalog.GistMethod:
 		_, err := bindLogicalExclusionKeys(view, parent, d)
 		return err
+	case catalog.BrinMethod:
+		_, err := BindBrinIndex(view, parent, d)
+		return err
 	default:
 		return fmt.Errorf("stuntgres: invalid index method")
 	}

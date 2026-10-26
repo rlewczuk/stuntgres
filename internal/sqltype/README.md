@@ -105,6 +105,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   ownership; physical-session lookup belongs to the engine.
   `SameDatum` compares its immutable physical text carrier without granting any
   SQL equality, grouping or ordering operator.
+- `BrinComparison` captures typed scalar min/max comparison and collation
+  independently of B-tree class eligibility. Catalog-selected BRIN support
+  slots retain summary operation identity, never scalar comparator callbacks.
+  Diagnostic-only real class metadata does not grant an excluded algorithm.
 
 ### Type identity generations
 

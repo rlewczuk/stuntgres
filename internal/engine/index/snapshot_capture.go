@@ -68,11 +68,17 @@ func CaptureSnapshot(ctx context.Context, c SnapshotCapture) (*Snapshot, error) 
 		if store == nil || root == nil || store != c.Store(parent.Address()) || root != c.Root(address) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if (root.Hash != nil) != (idx.SQLIndex.Method == catalog.HashMethod) {
+		if (root.Hash != nil) != (idx.SQLIndex.Method == catalog.HashMethod) || (root.Brin != nil) != (idx.SQLIndex.Method == catalog.BrinMethod) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if root.Hash != nil && (root.Hash.Storage != store.IndexIdentity() || root.Hash.Generation != store.Generation || root.Hash.Ends != store.Ends || root.Hash.Prefix != len(store.Versions)) {
 			return nil, ids.ErrCatalogReplaced
+		}
+		if root.Brin != nil {
+			b := root.Brin
+			if b.Storage != store.IndexIdentity() || b.Generation != store.Generation || b.Ends != store.Ends || b.Prefix != len(store.Versions) || b.EffectivePagesPerRange < 1 || len(b.Bindings) != len(idx.SQLIndex.Keys) || len(b.Ranges) != (b.Prefix+b.EffectivePagesPerRange-1)/b.EffectivePagesPerRange {
+				return nil, ids.ErrCatalogReplaced
+			}
 		}
 		check := func(row ids.RowID, version ids.VersionID, position int) error {
 			if position < 0 || position >= len(store.Versions) {
@@ -95,7 +101,7 @@ func CaptureSnapshot(ctx context.Context, c SnapshotCapture) (*Snapshot, error) 
 					}
 				}
 			}
-		} else {
+		} else if root.Brin == nil {
 			for _, entry := range root.Entries {
 				if err := ctx.Err(); err != nil {
 					return nil, err

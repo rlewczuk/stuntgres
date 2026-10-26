@@ -150,6 +150,14 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 				return nil, err
 			}
 		}
+		if source.Root.Brin != nil {
+			root, err := snapshot.transportBrinRoot(ctx, view, source, parent, index, store, selected, collation)
+			if err != nil {
+				return nil, err
+			}
+			roots[address] = root
+			continue
+		}
 		if source.Root.Hash != nil {
 			binding, err := BindHashIndex(view, parent, index.SQLIndex)
 			if err != nil {

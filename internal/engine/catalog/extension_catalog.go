@@ -44,10 +44,10 @@ func (*Extension) Kind() ids.ObjectKind { return ids.ExtensionObject }
 // authority. Fixed-size argument names keep descriptor copies self-contained.
 type InstalledRoutineDeclaration struct {
 	ArgumentNames [4]string
-	Parallel byte
-	ReturnsSet bool
-	Rows float32
-	Defaults uint8
+	Parallel      byte
+	ReturnsSet    bool
+	Rows          float32
+	Defaults      uint8
 }
 
 type Procedure struct {
@@ -79,6 +79,7 @@ type Procedure struct {
 	Aggregate      *OwnedAggregate
 	Conversion     sqltype.EncodingConversionHandler
 	AccessMethod   NativeAccessMethod
+	BrinSupport    uint8 // Registered minmax summary operation 1–4; never a scalar ABI.
 	ACL            authorization.ACLValue
 	Dictionary     ids.ObjectAddress
 	Foreign        *ForeignProcedure

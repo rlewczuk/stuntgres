@@ -46,12 +46,79 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 	}
 	want[10017] = IndexClassMetadata{10017, 783, 3550, 869, 0, "inet_ops", false}
 	want[10078] = IndexClassMetadata{10078, 783, 3919, 3831, 0, "range_ops", true}
+	want[10151] = IndexClassMetadata{10151, 3580, 4079, 1560, 1560, "bit_minmax_ops", true}
+	want[10132] = IndexClassMetadata{10132, 3580, 4586, 1042, 1042, "bpchar_bloom_ops", false}
+	want[10131] = IndexClassMetadata{10131, 3580, 4076, 1042, 1042, "bpchar_minmax_ops", true}
+	want[10093] = IndexClassMetadata{10093, 3580, 4578, 17, 17, "bytea_bloom_ops", false}
+	want[10092] = IndexClassMetadata{10092, 3580, 4064, 17, 17, "bytea_minmax_ops", true}
+	want[10095] = IndexClassMetadata{10095, 3580, 4577, 18, 18, "char_bloom_ops", false}
+	want[10094] = IndexClassMetadata{10094, 3580, 4062, 18, 18, "char_minmax_ops", true}
+	want[10138] = IndexClassMetadata{10138, 3580, 4576, 1082, 1082, "date_bloom_ops", false}
+	want[10137] = IndexClassMetadata{10137, 3580, 4605, 1082, 1082, "date_minmax_multi_ops", false}
+	want[10136] = IndexClassMetadata{10136, 3580, 4059, 1082, 1082, "date_minmax_ops", true}
+	want[10117] = IndexClassMetadata{10117, 3580, 4582, 700, 700, "float4_bloom_ops", false}
+	want[10116] = IndexClassMetadata{10116, 3580, 4608, 700, 700, "float4_minmax_multi_ops", false}
+	want[10115] = IndexClassMetadata{10115, 3580, 4070, 700, 700, "float4_minmax_ops", true}
+	want[10120] = IndexClassMetadata{10120, 3580, 4582, 701, 701, "float8_bloom_ops", false}
+	want[10119] = IndexClassMetadata{10119, 3580, 4608, 701, 701, "float8_minmax_multi_ops", false}
+	want[10118] = IndexClassMetadata{10118, 3580, 4070, 701, 701, "float8_minmax_ops", true}
+	want[10129] = IndexClassMetadata{10129, 3580, 4585, 869, 869, "inet_bloom_ops", false}
+	want[10130] = IndexClassMetadata{10130, 3580, 4102, 869, 869, "inet_inclusion_ops", true}
+	want[10128] = IndexClassMetadata{10128, 3580, 4611, 869, 869, "inet_minmax_multi_ops", false}
+	want[10127] = IndexClassMetadata{10127, 3580, 4075, 869, 869, "inet_minmax_ops", false}
+	want[10103] = IndexClassMetadata{10103, 3580, 4572, 21, 21, "int2_bloom_ops", false}
+	want[10102] = IndexClassMetadata{10102, 3580, 4602, 21, 21, "int2_minmax_multi_ops", false}
+	want[10101] = IndexClassMetadata{10101, 3580, 4054, 21, 21, "int2_minmax_ops", true}
+	want[10106] = IndexClassMetadata{10106, 3580, 4572, 23, 23, "int4_bloom_ops", false}
+	want[10105] = IndexClassMetadata{10105, 3580, 4602, 23, 23, "int4_minmax_multi_ops", false}
+	want[10104] = IndexClassMetadata{10104, 3580, 4054, 23, 23, "int4_minmax_ops", true}
+	want[10100] = IndexClassMetadata{10100, 3580, 4572, 20, 20, "int8_bloom_ops", false}
+	want[10099] = IndexClassMetadata{10099, 3580, 4602, 20, 20, "int8_minmax_multi_ops", false}
+	want[10098] = IndexClassMetadata{10098, 3580, 4054, 20, 20, "int8_minmax_ops", true}
+	want[10147] = IndexClassMetadata{10147, 3580, 4588, 1186, 1186, "interval_bloom_ops", false}
+	want[10146] = IndexClassMetadata{10146, 3580, 4613, 1186, 1186, "interval_minmax_multi_ops", false}
+	want[10145] = IndexClassMetadata{10145, 3580, 4078, 1186, 1186, "interval_minmax_ops", true}
+	want[10126] = IndexClassMetadata{10126, 3580, 4584, 774, 774, "macaddr8_bloom_ops", false}
+	want[10125] = IndexClassMetadata{10125, 3580, 4610, 774, 774, "macaddr8_minmax_multi_ops", false}
+	want[10124] = IndexClassMetadata{10124, 3580, 4109, 774, 774, "macaddr8_minmax_ops", true}
+	want[10123] = IndexClassMetadata{10123, 3580, 4583, 829, 829, "macaddr_bloom_ops", false}
+	want[10122] = IndexClassMetadata{10122, 3580, 4609, 829, 829, "macaddr_minmax_multi_ops", false}
+	want[10121] = IndexClassMetadata{10121, 3580, 4074, 829, 829, "macaddr_minmax_ops", true}
+	want[10097] = IndexClassMetadata{10097, 3580, 4579, 19, 19, "name_bloom_ops", false}
+	want[10096] = IndexClassMetadata{10096, 3580, 4065, 19, 19, "name_minmax_ops", true}
+	want[10155] = IndexClassMetadata{10155, 3580, 4574, 1700, 1700, "numeric_bloom_ops", false}
+	want[10154] = IndexClassMetadata{10154, 3580, 4603, 1700, 1700, "numeric_minmax_multi_ops", false}
+	want[10153] = IndexClassMetadata{10153, 3580, 4055, 1700, 1700, "numeric_minmax_ops", true}
+	want[10111] = IndexClassMetadata{10111, 3580, 4580, 26, 26, "oid_bloom_ops", false}
+	want[10110] = IndexClassMetadata{10110, 3580, 4606, 26, 26, "oid_minmax_multi_ops", false}
+	want[10109] = IndexClassMetadata{10109, 3580, 4068, 26, 26, "oid_minmax_ops", true}
+	want[10108] = IndexClassMetadata{10108, 3580, 4573, 25, 25, "text_bloom_ops", false}
+	want[10107] = IndexClassMetadata{10107, 3580, 4056, 25, 25, "text_minmax_ops", true}
+	want[10113] = IndexClassMetadata{10113, 3580, 4581, 27, 27, "tid_bloom_ops", false}
+	want[10114] = IndexClassMetadata{10114, 3580, 4607, 27, 27, "tid_minmax_multi_ops", false}
+	want[10112] = IndexClassMetadata{10112, 3580, 4069, 27, 27, "tid_minmax_ops", true}
+	want[10135] = IndexClassMetadata{10135, 3580, 4587, 1083, 1083, "time_bloom_ops", false}
+	want[10134] = IndexClassMetadata{10134, 3580, 4612, 1083, 1083, "time_minmax_multi_ops", false}
+	want[10133] = IndexClassMetadata{10133, 3580, 4077, 1083, 1083, "time_minmax_ops", true}
+	want[10141] = IndexClassMetadata{10141, 3580, 4576, 1114, 1114, "timestamp_bloom_ops", false}
+	want[10140] = IndexClassMetadata{10140, 3580, 4605, 1114, 1114, "timestamp_minmax_multi_ops", false}
+	want[10139] = IndexClassMetadata{10139, 3580, 4059, 1114, 1114, "timestamp_minmax_ops", true}
+	want[10144] = IndexClassMetadata{10144, 3580, 4576, 1184, 1184, "timestamptz_bloom_ops", false}
+	want[10143] = IndexClassMetadata{10143, 3580, 4605, 1184, 1184, "timestamptz_minmax_multi_ops", false}
+	want[10142] = IndexClassMetadata{10142, 3580, 4059, 1184, 1184, "timestamptz_minmax_ops", true}
+	want[10150] = IndexClassMetadata{10150, 3580, 4575, 1266, 1266, "timetz_bloom_ops", false}
+	want[10149] = IndexClassMetadata{10149, 3580, 4604, 1266, 1266, "timetz_minmax_multi_ops", false}
+	want[10148] = IndexClassMetadata{10148, 3580, 4058, 1266, 1266, "timetz_minmax_ops", true}
+	want[10158] = IndexClassMetadata{10158, 3580, 4589, 2950, 2950, "uuid_bloom_ops", false}
+	want[10157] = IndexClassMetadata{10157, 3580, 4614, 2950, 2950, "uuid_minmax_multi_ops", false}
+	want[10156] = IndexClassMetadata{10156, 3580, 4081, 2950, 2950, "uuid_minmax_ops", true}
+	want[10152] = IndexClassMetadata{10152, 3580, 4080, 1562, 1562, "varbit_minmax_ops", true}
 	return want
 }
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 63 || len(want) != 63 {
+	if IndexClassMetadataCount() != 130 || len(want) != 130 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -81,7 +148,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("metadata got %#v want %#v", got, want)
 	}
-	for _, i := range []int{-1, 63, 64} {
+	for _, i := range []int{-1, 130, 131} {
 		if m, ok := IndexClassMetadataAt(i); ok || m != (IndexClassMetadata{}) {
 			t.Fatal("bounds", i, m, ok)
 		}
@@ -108,6 +175,16 @@ func TestIndexClassMetadataProviders(t *testing.T) {
 	}
 	for i := range IndexClassMetadataCount() {
 		m, _ := IndexClassMetadataAt(i)
+		if m.Method == 3580 {
+			c, ok := LookupBrinIndexClass(m.Name)
+			if !ok || !c.IsBrin() || c.OID() != m.OID || c.FamilyOID() != m.Family || c.InputOID() != m.Input || c.StorageOID() != m.KeyType {
+				t.Fatal("BRIN catalog identity", m, c)
+			}
+			if BrinMinmaxIdentity(c) != strings.HasSuffix(m.Name, "_minmax_ops") {
+				t.Fatal("BRIN algorithm capability", m, c)
+			}
+			continue
+		}
 		if m.Method == 783 {
 			c, ok := LookupGiSTIndexClass(m.Name)
 			if !ok || !c.IsGiST() || c.IsHash() || c.OID() != m.OID {

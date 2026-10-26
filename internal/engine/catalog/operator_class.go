@@ -83,7 +83,7 @@ func (r Read) IndexClassForMethod(oid ids.OID, method *AccessMethod) (sqltype.In
 		return sqltype.IndexClass{}, false
 	}
 	physical, _ := method.IndexImplementation()
-	return sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: uint32(oid), Method: uint32(d.Method), Family: uint32(d.Family), Input: uint32(d.InputType), Storage: uint32(d.StorageType), Name: d.Name(), FamilyName: f.Name(), Hash: physical == HashMethod, GiST: physical == GistMethod}), true
+	return sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: uint32(oid), Method: uint32(d.Method), Family: uint32(d.Family), Input: uint32(d.InputType), Storage: uint32(d.StorageType), Name: d.Name(), FamilyName: f.Name(), Hash: physical == HashMethod, GiST: physical == GistMethod, Brin: physical == BrinMethod}), true
 }
 func (r Read) DefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sqltype.IndexClass, bool, error) {
 	if t == nil || !t.Concrete() {

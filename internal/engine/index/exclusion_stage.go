@@ -25,7 +25,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	if len(s.Keys)+len(s.Include) > 32 {
 		return sqlError("54011", "cannot use more than 32 columns in an index")
 	}
-	if _, exists := h.StageRead().LookupAccessMethod(s.Method); !exists && (s.Method == "gin" || s.Method == "brin") {
+	if _, exists := h.StageRead().LookupAccessMethod(s.Method); !exists && s.Method == "gin" {
 		return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support exclusion constraints`, s.Method))
 	}
 	methodCheck := s
@@ -33,6 +33,10 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	method, err := ResolveIndexMethod(h.StageRead(), &methodCheck)
 	if err != nil {
 		return err
+	}
+	physical, _ := method.IndexImplementation()
+	if exclude, known := MethodProperty(physical, "can_exclude"); !known || !exclude {
+		return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support exclusion constraints`, method.Name()))
 	}
 	auth = h.Recapture(auth, h.StageRead())
 	view := h.AccessView(auth).Catalog

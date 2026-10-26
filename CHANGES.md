@@ -54,6 +54,14 @@ are rechecked by held prepared readers. Individual assignments retain the
 startup-only refusal; no files, storage placement, authentication rules or
 process lifecycle are changed.
 
+BRIN min/max indexes now own immutable logical storage-slot range summaries,
+incremental maintenance, lossy consistency and method-specific catalog identities.
+`pages_per_range` and `autosummarize` retain configured intent with effective
+build-width semantics, transactional publication and native CREATE-plus-ALTER replay.
+Vacuum and same-ID domain-generation transport preserve produced callable/partial
+truth without SQL replay; admitted native replacement repairs destination summaries
+before locked remint. Baseline transport reuses the shared row-position map.
+
 The `stuntgres` server's new `--reference DB=URL` option (repeatable,
 requires `-q`) runs database DB in dual-backend mode: every command is also
 sent to the real PostgreSQL server at URL, clients still receive stuntgres's

@@ -108,7 +108,7 @@ func publishConcurrentIndexRoot(e *core.Engine, scope *core.StatementScope, synt
 		e.Mu.Unlock()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.RoutineAuthority = &auth
-		root, err := index.BuildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
+		root, err := index.BuildRelationIndexRoot(&evaluation, parent, &next, &snapshot, nil)
 		if err == nil {
 			err = index.ValidateUniqueRoot(scope.Op.Context(), parent, &next, root, namespace, scope.Output, &auth.View, core.DisclosureEnv(&auth), first)
 		}

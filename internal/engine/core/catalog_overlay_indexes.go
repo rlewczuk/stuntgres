@@ -1,6 +1,7 @@
 package core
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -61,13 +62,13 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			return err
 		}
 		var outputs *index.BuildCapture
-		if idx.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 {
+		if idx.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 || idx.SQLIndex.Method == catalog.BrinMethod {
 			outputs = &index.BuildCapture{Index: idx}
 		}
 		if outputs != nil {
 			outputs.Outputs = make([]storage.IndexOutput, len(visible.Versions))
 		}
-		full, err := index.BuildIndexRoot(&evaluation, parent, idx.SQLIndex, visible, outputs)
+		full, err := index.BuildRelationIndexRoot(&evaluation, parent, idx, visible, outputs)
 		if err != nil {
 			return err
 		}
@@ -86,7 +87,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 				return err
 			}
 		}
-		baseline, err := build.BaselineRoot(scope.Op.Context(), idx, &capture.Store, positions)
+		baseline, err := build.BaselineRoot(&evaluation, idx, &capture.Store, positions)
 		if err != nil {
 			return err
 		}

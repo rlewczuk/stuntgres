@@ -113,6 +113,14 @@ func validateIndexMethod(s *parser.CreateIndex, physical catalog.IndexMethod, me
 			return sqlError("0A000", "partial indexes are unsupported")
 		}
 		return nil
+	case catalog.BrinMethod:
+		if s.Unique {
+			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support unique indexes`, methodName))
+		}
+		if len(s.Include) > 0 {
+			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support included columns`, methodName))
+		}
+		return nil
 	case catalog.GistMethod:
 		if s.Unique {
 			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support unique indexes`, methodName))
@@ -135,7 +143,7 @@ func validateIndexMethod(s *parser.CreateIndex, physical catalog.IndexMethod, me
 // native capability boundary. A registered descriptor always wins first.
 func unresolvedIndexMethod(s *parser.CreateIndex) error {
 	switch s.Method {
-	case "gin", "spgist", "brin":
+	case "gin", "spgist":
 		if len(s.Include) > 0 && s.Method == "gin" {
 			return sqlError("0A000", `access method "gin" does not support included columns`)
 		}

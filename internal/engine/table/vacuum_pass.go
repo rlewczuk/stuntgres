@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -108,7 +109,7 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 			indexWork = len(c.Indexes)
 		} else {
 			for _, root := range c.Indexes {
-				if root.Hash != nil {
+				if root.Hash != nil || root.Brin != nil {
 					indexWork++
 				}
 			}
@@ -118,10 +119,19 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 		phase("vacuuming indexes", total, 0)
 		pass.Roots = make(map[ids.ObjectAddress]*storage.IndexRoot, indexWork)
 		for address, root := range c.Indexes {
-			if candidate.Positions == nil && root.Hash == nil {
+			if candidate.Positions == nil && root.Hash == nil && root.Brin == nil {
 				continue
 			}
-			remapped, err := storage.RemapVacuumIndex(ctx, root, c.Rows, candidate, store, pass.Generation)
+			var remapped *storage.IndexRoot
+			if root.Brin != nil {
+				descriptor, ok := c.Catalog.Relation(address)
+				if !ok {
+					return VacuumPass{}, ids.ErrCatalogReplaced
+				}
+				remapped, err = index.RebuildBrinVacuumRoot(ctx, descriptor, root, c.Rows, candidate, store, pass.Generation)
+			} else {
+				remapped, err = storage.RemapVacuumIndex(ctx, root, c.Rows, candidate, store, pass.Generation)
+			}
 			if err != nil {
 				return VacuumPass{}, err
 			}

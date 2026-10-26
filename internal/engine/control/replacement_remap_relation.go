@@ -156,6 +156,6 @@ func remapReplacementClass(class sqltype.IndexClass, mapping map[ids.ObjectAddre
 		Input:   move(ids.TypeClassID, class.InputOID()),
 		Storage: move(ids.TypeClassID, class.StorageOID()),
 		Name:    class.Name, FamilyName: class.Family,
-		Hash: class.IsHash(), GiST: class.IsGiST(),
+		Hash: class.IsHash(), GiST: class.IsGiST(), Brin: class.IsBrin(),
 	})
 }

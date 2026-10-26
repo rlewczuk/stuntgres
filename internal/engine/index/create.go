@@ -112,8 +112,15 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 	if err := PartitionUniqueCoverage(view, parent, definition); err != nil {
 		return CreatePlan{}, DefaultClassDiagnostic(h, auth, err)
 	}
+	var storageOptions catalog.RelationOptions
 	if len(s.Options) != 0 {
-		return CreatePlan{}, Capability("index storage parameters are unsupported", s.WithPos)
+		if physical != catalog.BrinMethod {
+			return CreatePlan{}, Capability("index storage parameters are unsupported", s.WithPos)
+		}
+		storageOptions, err = TransformIndexOptions(catalog.RelationOptions{}, &parser.AlterIndex{Action: "set", Options: s.Options}, physical)
+		if err != nil {
+			return CreatePlan{}, err
+		}
 	}
 	oid, err := h.AllocateOID()
 	if err != nil {
@@ -128,6 +135,7 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 		columns[i].OriginAttribute = int16(i + 1)
 	}
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
+	d.StorageOptions = storageOptions
 	d.ColumnMeta.HighWater = int32(len(attributes))
 	if s.Concurrent.Character != 0 {
 		definition.Ready, definition.Valid = false, false

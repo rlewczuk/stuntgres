@@ -162,8 +162,14 @@ private frames, not catalog authority.
   `operator_class*.go`, `operator_family*.go`, `cast*.go`). Immutable
   descriptors read through `Read.AccessMethod`, `Read.OperatorFamily`, ..., the
   same authority Candidate publication uses; compiled seeds are bootstrap inputs
-  shared between engines. `CastDependencies` is the shared pg_depend/DROP/dump
-  authority. `Read.Cast` selects stored declarations; builtin casts remain
+  shared between engines. Immutable OID indexes classify original class/family
+  seeds and validate exact original member payloads without repeated inventory
+  scans; they never select live runtime providers. BRIN descriptors retain released minmax and
+  diagnostic-only excluded algorithm identities, including inet's actual
+  inclusion default. Four `BrinSupport` procedure capabilities declare internal
+  summary signatures separately from scalar routines; the index owner executes
+  summaries. `CastDependencies` is the shared pg_depend/DROP/dump authority.
+  `Read.Cast` selects stored declarations; builtin casts remain
   intrinsic `sqltype` metadata. `SelectCoercion` and `CanCoerce` are the effect-free
   coercion authority of the analyzer and routine feasibility probes: declared direct pairs
   take precedence, a context-ineligible pair blocks generic fallback, and there

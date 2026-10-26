@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -21,12 +22,16 @@ type RowIdentity struct {
 // A validated overlay has a compact physical layout. Baseline installation
 // filters its already-produced entries and restores genuine heap positions;
 // owner-invisible predecessors have no invented keys.
-func (b *AlterIndexBuild) BaselineRoot(ctx context.Context, index *catalog.Relation, baseline *storage.Relation, positions map[RowIdentity]int) (*storage.IndexRoot, error) {
+func (b *AlterIndexBuild) BaselineRoot(evaluation *exec.Context, index *catalog.Relation, baseline *storage.Relation, positions map[RowIdentity]int) (*storage.IndexRoot, error) {
+	ctx := evaluation.Context
 	if b == nil || b.Index == nil || !SameIndexKeySemantics(b.Index, index) || b.Store == nil || baseline == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if b.Store == baseline {
 		return b.Root, ctx.Err()
+	}
+	if b.Root.Brin != nil {
+		return b.brinBaselineRoot(evaluation, index, baseline, positions)
 	}
 	if b.Root.Hash != nil {
 		old := b.Root.Hash

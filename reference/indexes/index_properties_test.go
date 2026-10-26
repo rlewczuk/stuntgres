@@ -63,7 +63,7 @@ func TestReferenceIndexPropertiesAccessMethods(t *testing.T) {
 			// Native exposes no method descriptor for these unsupported AMs.
 			// Preserve the released PostgreSQL vectors independently; native
 			// inquiry must agree with its actual catalog rather than static OIDs.
-			if tc.oid == 2742 || tc.oid == 4000 || tc.oid == 3580 {
+			if tc.oid == 2742 || tc.oid == 4000 {
 				n := int64(1)
 				if !b.PG {
 					tc.values = []any{nil, nil, nil, nil, nil}

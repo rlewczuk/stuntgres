@@ -1,7 +1,7 @@
 # internal/engine/storage
 
 The engine's physical data layer: committed relation storage and row
-versions, deletion roots, logical B-tree and hash index roots, sequence
+versions, deletion roots, logical B-tree/hash/GiST/BRIN index roots, sequence
 generator state, and the `Store` that owns them. The package sits at layer
 L4 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `catalog`, `expr`, `ids`, `sqltype` and the standard library,
@@ -43,6 +43,10 @@ and never the engine.
   key `HashBinding`, and `IndexOutput`, an index membership/key a private
   row already produced. `CaptureRowEntries` builds the per-row hash entry
   index for exclusion indexes with runtime domain key conversion.
+  `brin.go` owns the immutable `BrinRoot`, per-key bindings and range summaries.
+  It retains effective width and storage/generation/prefix/end captures, not
+  a row-key list. Logical pages are authoritative version-vector slots; datum
+  comparison, summary publication and candidate consistency belong to `index`.
 - **Sequence generators** (`sequence.go`): `SequenceGenerator`.
 - **Catalog publication values** (`row_shape.go`, `publication.go`): a
   stage's planned heap replacement `RowShape`, whose `Matches` fences store,
@@ -101,8 +105,10 @@ and never the engine.
   snapshot gate and final fence. `RemapVacuumIndex` preserves keys and existing
   index state, remaps positions/membership/RowEntries and rebuilds hash pointers
   against new buckets. Hash prefix coverage is preserved, never upgraded to a
-  complete index; freeze-only work rebinds hash generation without needless
-  B-tree remapping. No-change passes retain roots; no row/version IDs are minted.
+  complete index; freeze-only work rebinds hash/BRIN generation without needless
+  B-tree remapping. BRIN compaction dispatches through the index owner's
+  conservative destination-range reconstruction, never generic entry remapping.
+  No-change passes retain roots; no row/version IDs are minted.
 
 ## What stays in the engine
 

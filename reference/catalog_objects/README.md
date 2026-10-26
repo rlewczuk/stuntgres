@@ -27,6 +27,10 @@ type removal.
   inventories. Admitting a type or operator changes the shared TSV and every
   consumer, including `TestReferencePGTypeAdmission` in
   [reference/catalogs](../catalogs/README.md#testing).
+  Access-method and operator-class inventories include BRIN's released method,
+  handler, minmax classes and diagnostic-only algorithm identities. BRIN class
+  tuples are independently captured in `pg_opclass_brin_facts_test.go`; catalog
+  presence does not grant a native summary algorithm.
   `TestReferenceGeometryRelationOperatorCatalog` restricts these shared facts by
   selected spellings and geometric formals, independently asserts all15 fields
   and symbolic procedure links, and couples required rows to typed-column

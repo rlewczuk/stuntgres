@@ -145,7 +145,7 @@ func TestReferenceAccessMethodDefinitions(t *testing.T) {
 		run(fixture.Exec(`CREATE ACCESS METHOD am_def_index TYPE TABLE HANDLER heap_tableam_handler`, 0))
 		fixture.RunStep(t, p.Ctx, props, b.Recorder, amProperties(amPropertySQL, [][]any{{nil, nil, nil, nil, nil, nil}}, "am_def_index"))
 		run(fixture.Exec(`DROP ACCESS METHOD am_def_index`, 0))
-		want := int64(4)
+		want := int64(5)
 		if b.PG {
 			want = 7
 		}

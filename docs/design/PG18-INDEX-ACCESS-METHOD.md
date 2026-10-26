@@ -105,10 +105,10 @@ method identifiers are quoted in family/class/index replay text.
 `pg_indexam_has_property` demands a catalog snapshot and routes through the
 existing inquiry runtime. The selected implementation supplies capabilities;
 missing methods, TABLE methods and unknown properties return NULL. Native
-2742/4000/3580 are absent from pg_am and therefore return five NULL capabilities.
-The independent PostgreSQL vectors remain the released GIN/SP-GiST/BRIN values;
-this consistency correction does not advertise unsupported native methods.
-All existing btree/hash/GiST vectors remain unchanged. Held new executions
+2742/4000 are absent from native pg_am and therefore return NULL capabilities.
+BRIN has a genuine descriptor and reports its min/max implementation properties;
+its logical range summaries do not claim ordered scans. Existing B-tree/hash/GiST
+vectors remain unchanged. Held new executions
 recapture; already captured rows retain their own values and metadata.
 
 ## Dependencies, persistence and replacement

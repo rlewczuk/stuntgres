@@ -68,7 +68,7 @@ func TransformIndexOptions(old catalog.RelationOptions, s *parser.AlterIndex, me
 				continue
 			}
 			option := catalog.RelationOption{Name: request.Name.Text, Text: indexOptionText(request.Value)}
-			if option.Name == "fillfactor" {
+			if option.Name == "fillfactor" || option.Name == "pages_per_range" {
 				option.Kind = catalog.RelationOptionInteger
 				n := float64(request.Value.Integer)
 				if request.Value.Kind != parser.IntegerValue {
@@ -108,24 +108,32 @@ func ValidateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 		if o.Namespace != "" {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter namespace "%s"`, o.Namespace))
 		}
-		if name != "fillfactor" && (name != "deduplicate_items" || method != catalog.BtreeMethod) {
+		recognized := name == "fillfactor" || name == "deduplicate_items" && method == catalog.BtreeMethod
+		if method == catalog.BrinMethod {
+			recognized = name == "pages_per_range" || name == "autosummarize"
+		}
+		if !recognized {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
 		}
 		if seen[name] {
 			return sqlError("22023", fmt.Sprintf(`parameter "%s" specified more than once`, name))
 		}
 		seen[name] = true
-		if name == "fillfactor" {
+		if name == "fillfactor" || name == "pages_per_range" {
 			n, suffix, ok := float64(o.Value.Integer), "", true
 			if o.Value.Kind != parser.IntegerValue {
 				n, suffix, ok = settings.ParseNumber(o.Value.Text, true)
 			}
 			n = math.RoundToEven(n)
 			if !ok || suffix != "" || math.IsNaN(n) || n < math.MinInt32 || n > math.MaxInt32 {
-				return sqlError("22023", fmt.Sprintf(`invalid value for integer option "fillfactor": %s`, indexOptionText(o.Value)))
+				return sqlError("22023", fmt.Sprintf(`invalid value for integer option "%s": %s`, name, indexOptionText(o.Value)))
 			}
-			if n < 10 || n > 100 {
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`value %s out of bounds for option "fillfactor"`, indexOptionText(o.Value)), Detail: `Valid values are between "10" and "100".`}
+			low, high := 10, 100
+			if name == "pages_per_range" {
+				low, high = 1, 131072
+			}
+			if n < float64(low) || n > float64(high) {
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`value %s out of bounds for option "%s"`, indexOptionText(o.Value), name), Detail: fmt.Sprintf(`Valid values are between "%d" and "%d".`, low, high)}
 			}
 		} else {
 			valid := o.Value.Kind == parser.BooleanValue
@@ -136,7 +144,7 @@ func ValidateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 				valid = err == nil
 			}
 			if !valid {
-				return sqlError("22023", fmt.Sprintf(`invalid value for boolean option "deduplicate_items": %s`, indexOptionText(o.Value)))
+				return sqlError("22023", fmt.Sprintf(`invalid value for boolean option "%s": %s`, name, indexOptionText(o.Value)))
 			}
 		}
 	}

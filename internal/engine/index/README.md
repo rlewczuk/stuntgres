@@ -1,8 +1,8 @@
 # internal/engine/index
 
-Index records and algorithms: B-tree, hash and GiST keys and roots, unique and
-exclusion enforcement, publication and snapshots, write-time maintenance,
-operator-family and access-method DDL, and partitioned-index propagation.
+Index records and algorithms: B-tree, hash and GiST keys and roots, BRIN min/max
+range summaries, unique and exclusion enforcement, publication and snapshots,
+write-time maintenance, operator-family/access-method DDL and partition propagation.
 
 ## Imports
 
@@ -38,6 +38,9 @@ builds a binder.
   (GiST), `PrepareIndexRecipe`, `ResolveIndexMethod`, the clause and option
   validators, and `CaptureHashIndexesLocked` (published hash roots that exactly
   cover a plain table query source; caller holds `Engine.Mu`).
+  BRIN uses `BindBrinIndex`, `BuildBrinIndexRoot`, `MergeBrinIndexRoot` and
+  `BrinConsistent`; `BuildRelationIndexRoot` carries descriptor reloption intent
+  into method dispatch. Summary support is not B-tree comparator support.
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
   `row_publication.go`, `layout_*.go`, `snapshot*.go`, `remint.go`,
   `effective_root.go`, `alter_type.go`): `PrepareIndexPublication` over
@@ -189,7 +192,7 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
 
 ## Invariants
 
-- **Immutable roots.** Roots are immutable ordered entries or equality buckets,
+- **Immutable roots.** Roots are ordered entries, equality buckets or logical range summaries,
   maintained at the same Finish/commit frontier as rows. Derived keys evaluate
   at Execute, after predicate qualification and before rows are installed;
   failed batches, waits and builds preserve predecessor rows and roots.
@@ -214,6 +217,19 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
   target and descendants with actual equality; virtual (partitioned) indexes own
   metadata only and leaf providers enforce conflicts. CREATE and EXCLUDE
   ADD/DROP reuse staged recursive index production.
+- **BRIN ranges.** A storage version-vector slot is one logical page; range
+  ordinal divides the actual publication slot by the root's effective width.
+  Summarized keys retain conservative independent extrema and NULL flags.
+  Missing summaries always admit candidates and every candidate needs SQL
+  recheck. Current `autosummarize` closes previous occupied unsummarized ranges
+  on boundary crossing. SET/RESET width changes intent, not existing partitions;
+  REINDEX/layout rebuild takes current intent. Destination owner repair rebuilds
+  before locked remint; exact slot-preserving transport does not replay SQL.
+  VACUUM rebuilds conservative destination summaries from its slot manifest and
+  produced source summaries, propagating unsummarized contributors.
+  Baseline transport consumes the caller's shared row-position map rather than
+  allocating another map per BRIN index.
+  See [BRIN design](../../../docs/design/PG18-INDEX-BRIN.md).
 
 Snapshot `Transport`/`TransportRows`, `RemintStorage` and
 `TransportEmptyIndexStorage` consume the actual `catalog.Read`, not an ownerless
@@ -239,11 +255,18 @@ write-time loops
 
 ## Testing
 
-Package units cover column capabilities, `EffectiveRoot`, the savepoint
-exclusion mark, access-method properties and operator-family validation; most
-index tests build an engine and live in `internal/engine/indexcmds` (index DDL),
+Package units cover column capabilities, `EffectiveRoot`, savepoint exclusion
+marks, access-method properties, operator-family validation and BRIN summaries.
+Index tests build an engine and live in `internal/engine/indexcmds` (index DDL),
 `internal/engine/core` (unique and exclusion probing), `enginetests/` or, until
-they move, `internal/engine`. Run concurrency,
+they move, `internal/engine`. BRIN structural and composed lifecycle units live
+in `enginetests`. Their real callable/partial fixtures observe domain CHECK
+execution through sequence state: VACUUM and same-ID generation transport must
+not replay recipes, while admitted replacement repair produces destination
+truth once before locked remint. Replacement also forces retained TEMP identity
+collisions and checks later summary maintenance. Publication inspects both
+rollback isolation and the root installed by a successful private-write commit.
+Run concurrency,
 exclusion and unique-claim selections with `RACE=1`. Private units assert
 support IDs/routines and root membership, never ORDER BY results as evidence of
 index use. Public SQL: [reference/indexes](../../../reference/indexes/README.md#testing)
@@ -258,6 +281,7 @@ fixtures.
 make check RUN='^Test(Index|EffectiveRoot)'   # keys, clauses, properties, maintenance, hosts
 make check RUN='^Test(CandidatesMatch|DriverBatch|PartitionAttachPublicationFences)'   # catalog publication captures
 make check RACE=1 RUN='^Test(Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex)'   # enforcement
+make check RUN='^TestBrinIndex'   # range summaries, consistency, publication and transport
 ```
 
 Operator families, classes and access methods:

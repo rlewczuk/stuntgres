@@ -27,14 +27,22 @@ func OperatorClassSeeded(d Descriptor) bool {
 	_, ok := OperatorClassSeedName(d.Address().ObjectID)
 	return ok
 }
-func OperatorClassSeedName(oid ids.OID) (string, bool) {
+
+var builtinClassNamesByOID = func() map[ids.OID]string {
+	names := make(map[ids.OID]string, sqltype.IndexClassMetadataCount())
 	for i := range sqltype.IndexClassMetadataCount() {
 		f, ok := sqltype.IndexClassMetadataAt(i)
-		if ok && ids.OID(f.OID) == oid {
-			return f.Name, true
+		if !ok {
+			panic("missing builtin operator class seed")
 		}
+		names[ids.OID(f.OID)] = f.Name
 	}
-	return "", false
+	return names
+}()
+
+func OperatorClassSeedName(oid ids.OID) (string, bool) {
+	name, ok := builtinClassNamesByOID[oid]
+	return name, ok
 }
 func OperatorClassSeedModified(d *OperatorClass) bool {
 	name, ok := OperatorClassSeedName(d.Address().ObjectID)
@@ -67,6 +75,10 @@ func RemapOperatorClass(d *OperatorClass, mapping map[ids.ObjectAddress]ids.Obje
 func builtinMemberInternalOwner(method, family, left, right ids.OID, number int16, function bool) ids.ObjectAddress {
 	if method == 783 {
 		if !function || number != 1 && number != 2 && number != 5 && number != 6 && number != 7 {
+			return ids.ObjectAddress{}
+		}
+	} else if method == 3580 {
+		if left != right || function && (number < 1 || number > 4) {
 			return ids.ObjectAddress{}
 		}
 	} else if left != right || method != 403 && method != 405 || function && number != 1 {

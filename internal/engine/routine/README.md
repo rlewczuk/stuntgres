@@ -107,8 +107,12 @@ package or the engine.
   `sqltype.NativeIndexRoutine*` associations select immutable native
   operations. There is no name/default/key-type fallback and no per-datum
   catalog lookup; `functions` stays catalog-free. Captures include actual
-  member/family/routine revisions from the current private or committed view and
-  remain immutable. Cube support requires the exact INTERNAL class address,
+  member/family/routine revisions from the current private or committed view and remain immutable.
+  BRIN captures four genuine internal minmax summary operations through
+  `catalog.ValidateBrinSupport`, not `NativeIndexRoutine` scalar comparator
+  dispatch. Live class/family members remain authority for both supported minmax
+  and explicit excluded-algorithm diagnostics.
+  Cube support requires the exact INTERNAL class address,
   never merely a nonzero family/class owner. Restore binds destination members.
   `RangeTypeRebinder` rebuilds a range
   type's support capture with destination identities for

@@ -49,6 +49,13 @@ func bindLogicalExclusionKeys(view catalog.Read, parent *catalog.Relation, d *ca
 }
 
 func BindIndexKeys(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
+	if d.Method == catalog.BrinMethod {
+		bindings, err := BindBrinIndex(view, parent, d)
+		if err != nil {
+			return Ordering{}, err
+		}
+		return brinKeyProgram(bindings, d), nil
+	}
 	if d.Method == catalog.GistMethod {
 		return bindLogicalExclusionKeys(view, parent, d)
 	}

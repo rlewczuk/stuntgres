@@ -134,6 +134,13 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 		}
 		return key, nil
 	}
+	if method == catalog.BrinMethod {
+		if err := ValidateHashKeyDirection(raw, fact.Name()); err != nil {
+			return key, err
+		}
+		_, err := sqltype.BindBrinComparison(KeyCollation(u, key), c)
+		return key, err
+	}
 	if method == catalog.HashMethod {
 		if err := ValidateHashKeyDirection(raw, fact.Name()); err != nil {
 			return key, err
@@ -245,7 +252,7 @@ func bindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 				} else if err := validateSystemKey(h, auth, raw, d.MethodOID); err != nil {
 					return fail(err)
 				}
-				if !included && d.Method == catalog.HashMethod {
+				if !included && (d.Method == catalog.HashMethod || d.Method == catalog.BrinMethod) {
 					if err := ValidateHashKeyDirection(raw, method.Name()); err != nil {
 						return fail(err)
 					}

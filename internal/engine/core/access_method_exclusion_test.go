@@ -17,7 +17,7 @@ import (
 )
 
 func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
-	for _, name := range []string{"gin", "brin"} {
+	for _, name := range []string{"gin"} {
 		for _, kind := range []string{"unresolved", "table"} {
 			t.Run(name+"/"+kind, func(t *testing.T) {
 				e := engine.New()
@@ -47,7 +47,7 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 				t.Fatal("fixture requires an absent native builtin name")
 			}
 			// These are genuinely registered btree descriptors and method-owned
-			// classes, not implementations of the absent stock GIN/BRIN algorithms.
+			// classes, not an implementation of the absent stock GIN algorithm.
 			method, family, class, support := accessMethodClassUnit(t, e, name)
 			view := e.CatalogRead()
 			builtin, ok := view.OperatorClass(1978)

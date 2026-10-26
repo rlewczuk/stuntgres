@@ -319,6 +319,9 @@ func BuildIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catal
 }
 
 func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *BuildCapture) ([]storage.IndexEntry, error) {
+	if d.Method == catalog.BrinMethod {
+		return nil, fmt.Errorf("stuntgres: BRIN requires descriptor-aware summary construction")
+	}
 	ctx := evaluation.Context
 	o, err := BindIndexKeys(evaluation.Catalog, parent, d)
 	if err != nil {
@@ -369,6 +372,9 @@ func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *ca
 func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, old []storage.IndexEntry, p *RowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
+	if d.Method == catalog.BrinMethod {
+		return nil, fmt.Errorf("stuntgres: BRIN requires summary publication")
+	}
 	validate := (d.Unique || d.IsExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
 	o, err := BindIndexKeys(evaluation.Catalog, parent, d)
 	if err != nil {

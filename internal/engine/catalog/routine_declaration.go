@@ -31,7 +31,7 @@ type BuiltinRoutineDeclaration struct {
 }
 
 func (d *Procedure) Seeded() bool {
-	return d.PLHandler != NoPLHandler || d.Builtin != nil || d.Conversion.Name() != "" || d.AccessMethod != NoAccessMethod && NativeHandler(d.Address().ObjectID) == d.AccessMethod
+	return d.PLHandler != NoPLHandler || d.Builtin != nil || d.Conversion.Name() != "" || d.BrinSupport != 0 || d.AccessMethod != NoAccessMethod && NativeHandler(d.Address().ObjectID) == d.AccessMethod
 }
 
 // Published descriptors are pointer-owned catalog payloads. They remain stable

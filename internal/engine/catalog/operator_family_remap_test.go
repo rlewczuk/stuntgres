@@ -41,10 +41,14 @@ func TestOperatorFamilyPrincipalRemap(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if seeded != 49 || ordinary != 1 {
+	if seeded != 101 || ordinary != 1 {
 		t.Fatal("missing owner mapping", seeded, ordinary)
 	}
 	mapped := base.WithState(destination)
+	brin, ok := mapped.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: 4054})
+	if !ok || brin.Method != 3580 || brin.Name() != "integer_minmax_ops" || brin.Owner != destinationDomain.Principal(110) {
+		t.Fatal("released BRIN family lost seeded owner provenance", brin)
+	}
 	for address, descriptor := range base.Descriptors() {
 		switch original := descriptor.(type) {
 		case *OperatorFamily:

@@ -1,7 +1,7 @@
 # reference/indexes
 
 Indexes and index-backed constraints: access-method definitions (`CREATE ACCESS
-METHOD`), operator classes and families, B-tree and hash indexes, partial,
+METHOD`), operator classes and families, B-tree/hash/BRIN indexes, partial,
 concurrent and UNIQUE indexes, PRIMARY KEY, index clauses (expressions, INCLUDE,
 collation/class, ordering), index property inquiry, maintenance (REINDEX, ALTER
 INDEX, DROP INDEX and their locks), `ADD CONSTRAINT ... USING INDEX` and
@@ -77,6 +77,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Use `RACE=1` for the transactional lock/savepoint/cancellation/name selections
   and `TestTransactionalIndexLocks`/`TestTransactionalIndexReplacementFences`.
 - Hash indexes: `RUN='^TestReferenceHashIndex'`
+- BRIN min/max indexes, diagnostics and controls (including callable/partial CREATE-plus-ALTER replay and later writes): `RUN='^TestReferenceBrinIndex'`
 - Partial indexes: `RUN='^TestReferencePartialIndex'`
 - Concurrent indexes: `RUN='^TestReferenceConcurrentIndex'`
 - UNIQUE constraints and indexes: `RUN='^TestReferenceUnique'`

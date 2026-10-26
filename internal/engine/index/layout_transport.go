@@ -100,6 +100,21 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 		if sourceStore == targetStore && SameIndexKeySemantics(lineage.Source, lineage.Target) {
 			continue
 		}
+		if root.Brin != nil {
+			if !LayoutInputsUnchanged(lineage.Source, lineage.SourceParent, lineage.TargetParent) || root.Brin.Prefix != len(sourceStore.Versions) {
+				return nil, false, ids.ErrCatalogReplaced
+			}
+			bindings, err := BindBrinIndex(evaluation.Catalog, lineage.TargetParent, lineage.Target.SQLIndex)
+			if err != nil {
+				return nil, false, err
+			}
+			next := *root.Brin
+			next.Bindings, next.Storage, next.Generation = bindings, targetStore.IndexIdentity(), targetStore.Generation
+			next.Prefix, next.Ends = len(targetStore.Versions), targetStore.Ends
+			root = &storage.IndexRoot{Brin: &next}
+			RetainIndexBuild(changes, lineage.Target, targetStore, root)
+			continue
+		}
 		if root.Hash != nil && SameIndexKeySemantics(lineage.Source, lineage.Target) && root.Hash.Storage == targetStore.IndexIdentity() && root.Hash.Generation == targetStore.Generation && root.Hash.Ends == targetStore.Ends && root.Hash.Prefix == len(targetStore.Versions) {
 			RetainIndexBuild(changes, lineage.Target, targetStore, root)
 			continue
@@ -234,6 +249,13 @@ func TransportEmptyIndexStorage(ctx context.Context, view catalog.Read, changes 
 				return err
 			}
 			root = &storage.IndexRoot{Hash: &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
+		} else if index.SQLIndex.Method == catalog.BrinMethod {
+			bindings, err := BindBrinIndex(view, parent, index.SQLIndex)
+			if err != nil {
+				return err
+			}
+			width, _ := BrinOptions(index)
+			root = &storage.IndexRoot{Brin: &storage.BrinRoot{EffectivePagesPerRange: width, Bindings: bindings, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
 		} else {
 			if err := bindIndexProvider(view, parent, index.SQLIndex); err != nil {
 				return err

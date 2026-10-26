@@ -8,6 +8,15 @@ func ColumnCapability(index *catalog.IndexDefinition, ordinal int64, property st
 	if ordinal <= 0 || ordinal > int64(len(index.Keys)+len(index.Include)) {
 		return false, false
 	}
+	if index.Method == catalog.BrinMethod {
+		switch property {
+		case "asc", "desc", "nulls_first", "nulls_last", "orderable", "distance_orderable", "returnable", "search_array":
+			return false, true
+		case "search_nulls":
+			return true, true
+		}
+		return false, false
+	}
 	if index.Method == catalog.GistMethod {
 		key := ordinal <= int64(len(index.Keys))
 		switch property {
@@ -73,6 +82,15 @@ func ColumnCapability(index *catalog.IndexDefinition, ordinal int64, property st
 func Property(def *catalog.IndexDefinition, whole bool, ordinal int64, property string) (value, known bool) {
 	if !whole {
 		return ColumnCapability(def, ordinal, property)
+	}
+	if def.Method == catalog.BrinMethod {
+		switch property {
+		case "clusterable", "index_scan", "backward_scan":
+			return false, true
+		case "bitmap_scan":
+			return true, true
+		}
+		return false, false
 	}
 	switch def.Method {
 	case catalog.BtreeMethod, catalog.HashMethod, catalog.GistMethod:

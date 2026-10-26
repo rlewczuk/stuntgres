@@ -19,8 +19,8 @@ import (
 func TestOperatorFamilyProviderInventory(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
-	if sqltype.IndexClassMetadataCount() != 63 {
-		t.Fatal("incomplete implemented class inventory", sqltype.IndexClassMetadataCount())
+	if sqltype.IndexClassMetadataCount() != 130 {
+		t.Fatal("incomplete released class inventory", sqltype.IndexClassMetadataCount())
 	}
 	for i := range sqltype.IndexClassMetadataCount() {
 		fact, _ := sqltype.IndexClassMetadataAt(i)
@@ -29,6 +29,13 @@ func TestOperatorFamilyProviderInventory(t *testing.T) {
 			t.Fatalf("missing live class %d", fact.OID)
 		}
 		selected, err := routine.BindClassSupport(view, class)
+		if class.IsBrin() && !sqltype.BrinMinmaxIdentity(class) {
+			state, ok := err.(interface{ SQLState() string })
+			if !ok || state.SQLState() != "0A000" {
+				t.Fatal("excluded algorithm acquired a provider", fact, err)
+			}
+			continue
+		}
 		if err != nil {
 			t.Fatalf("class %d: %v", fact.OID, err)
 		}
@@ -42,10 +49,28 @@ func TestOperatorFamilyProviderInventory(t *testing.T) {
 		if fact.Method == 405 {
 			slots = 2
 		}
+		if fact.Method == 3580 {
+			slots = 4
+		}
 		for slot := 1; slot <= slots; slot++ {
 			support := selected.Support(slot)
 			if support.Family != fact.Family || support.Left != fact.Input || support.Right != fact.Input || support.Member == 0 || support.Revision != 1 {
 				t.Fatal("incoherent selected support", fact, support)
+			}
+			if fact.Method == 3580 {
+				proc, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(support.Routine)})
+				if !ok || proc.BrinSupport != uint8(slot) || catalog.ValidateBrinSupport(proc) != nil {
+					t.Fatal("not genuine BRIN summary support", fact, support, proc)
+				}
+				signatures := [4]string{"2281", "2281,2281,2281,2281", "2281,2281,2281", "2281,2281,2281"}
+				results := [4]ids.OID{2281, 16, 16, 16}
+				if support.Routine != uint32(3382+slot) || string(proc.Signature) != signatures[slot-1] || proc.Result != results[slot-1] {
+					t.Fatal("released internal summary signature", slot, proc)
+				}
+				if _, scalar := sqltype.NativeIndexRoutineByOID(support.Routine); scalar {
+					t.Fatal("summary operation acquired scalar ABI", support)
+				}
+				continue
 			}
 			native, ok := sqltype.NativeIndexRoutineByOID(support.Routine)
 			declared := routine.BuiltinRoutine(ids.OID(support.Routine))

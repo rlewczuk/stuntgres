@@ -14,11 +14,12 @@ type IndexEntry struct {
 	Position int // Physical slot in the simultaneously published immutable storage.
 }
 
-// IndexRoot is one published logical index root. Hash indexes keep their data
-// in Hash; B-tree and GiST roots keep theirs in Entries.
+// IndexRoot is one published logical index root. Hash indexes keep buckets in
+// Hash, BRIN keeps range summaries in Brin, and B-tree/GiST use Entries.
 type IndexRoot struct {
 	Entries    []IndexEntry // Ordered B-tree keys or unordered logical GiST membership.
 	Hash       *HashRoot
+	Brin       *BrinRoot
 	Membership map[ids.RowID]ids.VersionID // Immutable; partial roots only.
 	RowEntries map[ids.RowID]int           // Entry ordinals, only checked unique/exclusion expression keys.
 }

@@ -1,8 +1,8 @@
 package sqltype
 
-// IndexClassMetadata describes an implemented method-specific operator class.
-// Identity and input come from the same owner that admits executable index keys.
-// Family/default/storage facts are released catalog properties, not capabilities.
+// IndexClassMetadata describes released method-specific catalog identity.
+// Native provider admission is separate: diagnostic-only BRIN algorithms retain
+// genuine input/default/family facts without acquiring summary capability.
 type IndexClassMetadata struct {
 	OID, Method, Family, Input, KeyType uint32
 	Name                                string
@@ -81,11 +81,14 @@ var supportedIndexClasses = [...]struct {
 	{"range_ops", 783, 3919, 0, false},
 }
 
-func IndexClassMetadataCount() int { return len(supportedIndexClasses) }
+func IndexClassMetadataCount() int { return len(supportedIndexClasses) + len(brinIndexClasses) }
 
 // IndexClassMetadataAt returns a value copy, without allocating or exposing the
 // immutable owner inventory. Enumeration order is not a SQL ordering promise.
 func IndexClassMetadataAt(index int) (IndexClassMetadata, bool) {
+	if index >= len(supportedIndexClasses) && index < IndexClassMetadataCount() {
+		return brinIndexClasses[index-len(supportedIndexClasses)], true
+	}
 	if index < 0 || index >= len(supportedIndexClasses) {
 		return IndexClassMetadata{}, false
 	}
@@ -117,6 +120,11 @@ type IndexFamilyMetadata struct {
 }
 
 func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
+	for _, f := range brinIndexFamilies {
+		if f.OID == oid {
+			return f, true
+		}
+	}
 	var name string
 	var method uint32
 	switch oid {

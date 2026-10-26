@@ -259,7 +259,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 			if stage.IndexesOrZero().Candidates == nil {
 				stage.Indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
 			}
-			root, err := build.BaselineRoot(scope.Op.Context(), build.Index, replacement, positions)
+			root, err := build.BaselineRoot(&indexEvaluation, build.Index, replacement, positions)
 			if err != nil {
 				return err
 			}

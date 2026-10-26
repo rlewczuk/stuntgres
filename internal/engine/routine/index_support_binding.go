@@ -43,6 +43,28 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 	if class.IsGiST() {
 		return class, nil
 	}
+	if class.IsBrin() {
+		if !sqltype.BrinMinmaxIdentity(class) {
+			return class, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "index operator class is unsupported"}
+		}
+		for slot := 1; slot <= 4; slot++ {
+			member, ok := view.FamilySupport(fact.Family, fact.InputType, fact.InputType, int16(slot))
+			if !ok || member.Revision() == 0 {
+				return class, fmt.Errorf("stuntgres: missing BRIN summary support")
+			}
+			proc, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: member.Function})
+			if !ok || proc.BrinSupport != uint8(slot) || catalog.ValidateBrinSupport(proc) != nil {
+				return class, fmt.Errorf("stuntgres: invalid BRIN summary support")
+			}
+			class = class.WithSupport(slot, sqltype.IndexSupport{Family: uint32(fact.Family), Member: uint32(member.Address().ObjectID), Routine: uint32(member.Function), Left: uint32(member.Left), Right: uint32(member.Right), Revision: uint64(member.Revision()), FamilyRevision: uint64(family.Revision()), RoutineRevision: uint64(proc.Revision())})
+		}
+		for strategy := int16(1); strategy <= 5; strategy++ {
+			if _, ok := view.FamilyOperator(fact.Family, fact.InputType, fact.InputType, strategy, 's'); !ok {
+				return class, fmt.Errorf("stuntgres: missing BRIN minmax strategy")
+			}
+		}
+		return class, nil
+	}
 	slots := 1
 	if class.IsHash() {
 		slots = 2
@@ -239,7 +261,7 @@ func RangeTypeRebinder(next *catalog.State, mapping map[ids.ObjectAddress]ids.Ob
 			}
 			return oid
 		}
-		capture := sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: mapped(ids.OperatorClassCatalogID, class.OID()), Method: mapped(ids.AccessMethodClassID, class.MethodOID()), Family: mapped(ids.OperatorFamilyClassID, class.FamilyOID()), Input: mapped(ids.TypeClassID, class.InputOID()), Storage: mapped(ids.TypeClassID, class.StorageOID()), Name: class.Name, FamilyName: class.Family, Hash: class.IsHash(), GiST: class.IsGiST()})
+		capture := sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: mapped(ids.OperatorClassCatalogID, class.OID()), Method: mapped(ids.AccessMethodClassID, class.MethodOID()), Family: mapped(ids.OperatorFamilyClassID, class.FamilyOID()), Input: mapped(ids.TypeClassID, class.InputOID()), Storage: mapped(ids.TypeClassID, class.StorageOID()), Name: class.Name, FamilyName: class.Family, Hash: class.IsHash(), GiST: class.IsGiST(), Brin: class.IsBrin()})
 		support := class.Support(1)
 		support.Family = mapped(ids.OperatorFamilyClassID, support.Family)
 		support.Member = mapped(ids.AccessMethodProcedureClassID, support.Member)

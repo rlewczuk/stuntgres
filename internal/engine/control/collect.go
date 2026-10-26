@@ -286,7 +286,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		}
 		return c.collectProvider(t)
 	}
-	if t.AccessMethod != catalog.NoAccessMethod {
+	if t.AccessMethod != catalog.NoAccessMethod || t.BrinSupport != 0 {
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}

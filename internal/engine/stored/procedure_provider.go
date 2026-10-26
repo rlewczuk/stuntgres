@@ -46,6 +46,9 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	if d.PLHandler != catalog.NoPLHandler {
 		return catalog.ValidatePLHandler(v, d)
 	}
+	if d.BrinSupport != 0 {
+		return catalog.ValidateBrinSupport(d)
+	}
 	if d.AccessMethod != catalog.NoAccessMethod {
 		identity, known := catalog.BuiltinRoutineIdentityByOID(d.Address().ObjectID)
 		result, _ := catalog.BuiltinRoutineResultByOID(d.Address().ObjectID)

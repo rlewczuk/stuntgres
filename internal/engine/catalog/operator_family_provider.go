@@ -52,14 +52,12 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid operator family operator")
 		}
 		method, exists := v.AccessMethod(f.Method)
-		if !exists || p.Class != ids.AccessMethodOperatorClassID || method.Native == BtreeAccessMethod && d.Number > 5 || method.Native == HashAccessMethod && d.Number > 1 || d.Purpose == 'o' && (method.Native != GistAccessMethod || d.SortFamily == 0) {
+		if !exists || p.Class != ids.AccessMethodOperatorClassID || (method.Native == BtreeAccessMethod || method.Native == BrinAccessMethod) && d.Number > 5 || method.Native == HashAccessMethod && d.Number > 1 || d.Purpose == 'o' && (method.Native != GistAccessMethod || d.SortFamily == 0) {
 			return fmt.Errorf("stuntgres: invalid family operator method")
 		}
-		if OperatorFamilySeeded(d) {
-			for i := range builtinFamilyOperators {
-				if builtinFamilyOperators[i].Address() == d.Address() && builtinFamilyOperators[i] != *d {
-					return fmt.Errorf("stuntgres: altered original family operator")
-				}
+		if original, seeded := builtinFamilyOperatorsByOID[d.Address().ObjectID]; seeded {
+			if *original != *d {
+				return fmt.Errorf("stuntgres: altered original family operator")
 			}
 		} else {
 			operator, ok := v.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: d.Operator})
@@ -86,15 +84,15 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 			maximum = 6
 		} else if method.Native == HashAccessMethod {
 			maximum = 3
+		} else if method.Native == BrinAccessMethod {
+			maximum = 15
 		}
 		if d.Number > maximum {
 			return fmt.Errorf("stuntgres: invalid family support number")
 		}
-		if OperatorFamilySeeded(d) {
-			for i := range builtinFamilySupports {
-				if builtinFamilySupports[i].Address() == d.Address() && builtinFamilySupports[i] != *d {
-					return fmt.Errorf("stuntgres: altered original family support")
-				}
+		if original, seeded := builtinFamilySupportsByOID[d.Address().ObjectID]; seeded {
+			if *original != *d {
+				return fmt.Errorf("stuntgres: altered original family support")
 			}
 		} else if _, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Function}); !ok {
 			if _, ok := BuiltinRoutineResultByOID(d.Function); !ok {
@@ -112,23 +110,14 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 func OperatorFamilySeeded(d Descriptor) bool {
 	switch d := d.(type) {
 	case *OperatorFamily:
-		for _, row := range builtinFamilyRows {
-			if row.oid == d.Address().ObjectID {
-				return true
-			}
-		}
+		_, ok := builtinFamilyNamesByOID[d.Address().ObjectID]
+		return ok
 	case *OperatorFamilyOperator:
-		for i := range builtinFamilyOperators {
-			if builtinFamilyOperators[i].Address() == d.Address() {
-				return true
-			}
-		}
+		original, ok := builtinFamilyOperatorsByOID[d.Address().ObjectID]
+		return ok && original.Address() == d.Address()
 	case *OperatorFamilySupport:
-		for i := range builtinFamilySupports {
-			if builtinFamilySupports[i].Address() == d.Address() {
-				return true
-			}
-		}
+		original, ok := builtinFamilySupportsByOID[d.Address().ObjectID]
+		return ok && original.Address() == d.Address()
 	}
 	return false
 }
@@ -136,12 +125,8 @@ func OperatorFamilySeeded(d Descriptor) bool {
 // OperatorFamilySeedName is the canonical release spelling used only to
 // reconstruct admitted seed metadata changes, never to select runtime members.
 func OperatorFamilySeedName(id ids.OID) (string, bool) {
-	for _, row := range builtinFamilyRows {
-		if row.oid == id {
-			return row.name, true
-		}
-	}
-	return "", false
+	name, ok := builtinFamilyNamesByOID[id]
+	return name, ok
 }
 func OperatorFamilySeedModified(d *OperatorFamily) bool {
 	name, seeded := OperatorFamilySeedName(d.Address().ObjectID)

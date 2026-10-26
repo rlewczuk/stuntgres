@@ -94,6 +94,9 @@ func RemapVacuumIndex(ctx context.Context, root *IndexRoot, old []RowVersion, c 
 	if root == nil {
 		return nil, nil
 	}
+	if root.Brin != nil {
+		return nil, fmt.Errorf("stuntgres: BRIN vacuum requires range reconstruction")
+	}
 	if c.Positions == nil {
 		if root.Hash == nil || SameVersionRoot(c.Versions, old) {
 			return root, ctx.Err()

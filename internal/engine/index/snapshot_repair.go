@@ -29,7 +29,7 @@ func (snapshot *Snapshot) NeedsOwnerRepair() bool {
 		return false
 	}
 	for _, source := range snapshot.Sources {
-		if snapshot.Destination(source.Parent.Address()) != source.Parent.Address() && indexHasTableOID(source.Index.SQLIndex) {
+		if source.Index.SQLIndex.Method == catalog.BrinMethod || snapshot.Destination(source.Parent.Address()) != source.Parent.Address() && indexHasTableOID(source.Index.SQLIndex) {
 			return true
 		}
 	}
@@ -78,7 +78,7 @@ func (snapshot *Snapshot) Repair(ctx context.Context, evaluation *exec.Context, 
 	var repairedStores map[ids.ObjectAddress]storage.Relation
 	for address, source := range snapshot.Sources {
 		parentAddress := snapshot.Destination(source.Parent.Address())
-		affected := moved[parentAddress] || parentAddress != source.Parent.Address() && indexHasTableOID(source.Index.SQLIndex)
+		affected := source.Index.SQLIndex.Method == catalog.BrinMethod || moved[parentAddress] || parentAddress != source.Parent.Address() && indexHasTableOID(source.Index.SQLIndex)
 		for attribute, different := range changed[parentAddress] {
 			affected = affected || different && indexAttributeAffected(source.Index.SQLIndex, attribute)
 		}
@@ -100,7 +100,7 @@ func (snapshot *Snapshot) Repair(ctx context.Context, evaluation *exec.Context, 
 		if store == nil {
 			return ids.ErrCatalogReplaced
 		}
-		root, err := BuildIndexRoot(evaluation, parent, index.SQLIndex, store, nil)
+		root, err := BuildRelationIndexRoot(evaluation, parent, index, store, nil)
 		if err != nil {
 			return err
 		}
