@@ -1,3 +1,8 @@
+`pg_conversion` contract coverage now checks raw eight-column metadata for
+off-path nondefault objects, held-statement rename/drop freshness and exact
+failed-publication diagnostics. Rows remain backed by implemented conversion
+descriptors; rejected definitions leave no catalog row or loss of builtin metadata.
+
 `CREATE EXTENSION tablefunc` installs strict, volatile
 `normal_rand(integer,double precision,double precision)`. Each invocation
 incrementally draws genuine Gaussian FLOAT8 values; NULL arguments produce an

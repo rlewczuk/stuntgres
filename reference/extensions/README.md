@@ -6,6 +6,11 @@ LOAD, pgcrypto, uuid-ossp and fuzzystrmatch, plus encoding conversions
 (`pg_conversion`, which share the extension TEMP helpers). The other catalog
 families are listed in [reference/catalogs](../catalogs/README.md).
 
+`pg_conversion` exposes the [eight-column catalog contract](https://www.postgresql.org/docs/18/catalog-pg-conversion.html)
+from implemented conversion descriptors, including off-search-path nondefault
+objects. Conversion identity, namespace and owner remain distinct from the
+encoding pair and procedure identity; rejected definitions publish no catalog row.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
@@ -26,6 +31,11 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
   visible conflicts from legal moved/concurrent distinct-name definitions.
   Conflict workers use shared lock observers and are always joined; native
   controls use unwrapped pools for committed-only Dump and fresh-driver Restore.
+  Catalog assertions use independently captured namespace/owner identities and
+  raw OID handling; held full-row reads preserve metadata checks even for empty
+  results. Rejected-creation assertions check publication and builtin identity
+  after each execution route. Oracle provenance follows the
+  [fixture policy](../fixture/README.md#postgresql-oracle-policy-and-provenance).
 - Expected data comes from published vectors, never from native output:
   RFC/NIST/Openwall/PostgreSQL regression vectors for pgcrypto, uuid-ossp and
   fuzzystrmatch.
