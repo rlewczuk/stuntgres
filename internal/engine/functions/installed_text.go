@@ -9,16 +9,13 @@ import (
 
 // InstalledText is a call of an installed one-TEXT-argument routine:
 // unaccent(text) or fuzzystrmatch's daitch_mokotoff(text). The engine wraps it
-// with the installed procedure (and unaccent's dictionary) identity; it is not
-// a protocol node, so the wrapper's own switch cases keep applying.
+// with the installed procedure identity and supplies unaccent's catalog-dependent
+// execution. It is not a protocol node, so the wrapper's switch cases apply.
 type InstalledText struct {
 	expr.Info
 	Arg expr.Expr
 	// Function is "unaccent" or "daitch_mokotoff".
 	Function string
-	// Matcher is the installed unaccent dictionary's rules; nil for
-	// daitch_mokotoff.
-	Matcher *UnaccentMatcher
 }
 
 func (e InstalledText) Eval(c expr.Context) (sqltype.Value, error) {
@@ -51,15 +48,6 @@ func (e InstalledText) Eval(c expr.Context) (sqltype.Value, error) {
 			elements[i] = sqltype.String(e.Usage.Type.Element(), code)
 		}
 		return sqltype.OwnedArrayValue(e.Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(codes))}}, elements)
-	case "unaccent":
-		if e.Matcher == nil {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: missing unaccent rules")
-		}
-		result, err := e.Matcher.Text(ctx, input)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		return sqltype.String(e.Usage.Type, result), nil
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid installed text function %q", e.Function)
 }

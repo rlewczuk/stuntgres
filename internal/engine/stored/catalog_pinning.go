@@ -27,6 +27,10 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 		return d.Seeded()
 	case *catalog.Conversion:
 		return d.Seeded()
+	case *catalog.TSDictionary:
+		return d.Seeded()
+	case *catalog.TSTemplate:
+		return d.Seeded()
 	case *catalog.Procedure:
 		return d.Seeded()
 	case *catalog.OperatorClass:

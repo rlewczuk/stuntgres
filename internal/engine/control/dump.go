@@ -56,6 +56,7 @@ type Capture struct {
 	OperatorFamilies    []catalog.Descriptor
 	OwnedRoutines       []*catalog.Procedure
 	EventTriggers       []*catalog.EventTrigger
+	Dictionaries        []*catalog.TSDictionary
 	Providers           []providerReplay
 	Tables              []table.DumpRelation
 	LargeObjects        []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.

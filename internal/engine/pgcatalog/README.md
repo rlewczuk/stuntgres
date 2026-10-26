@@ -38,6 +38,11 @@ type Input struct {
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
 
+- Text-search rows project actual descriptor ownership, namespace, template
+  helpers and ordered options. Empty dictionary options are typed SQL NULL;
+  numeric nodes remain unquoted and strings use canonical SQL escaping. Builtin
+  dictionary/template identities are pinned; standalone dependencies follow their
+  actual namespace/template rather than extension-name conventions.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual

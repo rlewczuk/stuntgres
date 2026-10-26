@@ -78,14 +78,14 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		text.WriteByte(')')
 		return text.String()
 	}
-	if d, ok := read.TSDictionary(base); ok {
+	if d, ok := read.Find(base); ok && (base.ClassID == ids.TSDictionaryClassID || base.ClassID == ids.TSTemplateClassID) {
 		name := catalog.DependencyIdentifier(d.Name())
 		visible := path == nil
 		for _, ns := range path {
 			if n, ok := read.Namespace(ns); ok && n.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			if address, ok := read.LookupName(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.Name()}); ok {
+			if address, ok := read.LookupName(ids.NameKey{ClassID: base.ClassID, Namespace: ns, Name: d.Name()}); ok {
 				visible = address == d.Address()
 				break
 			}
@@ -93,7 +93,11 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		if !visible {
 			name = catalog.DependencyIdentifier(read.Get(d.Namespace()).Name()) + "." + name
 		}
-		return "text search dictionary " + name
+		kind := "text search dictionary "
+		if base.ClassID == ids.TSTemplateClassID {
+			kind = "text search template "
+		}
+		return kind + name
 	}
 	if t, ok := read.Type(base); ok {
 		return "type " + catalog.TypeDiagnosticNameAt(read, nil, t, path)

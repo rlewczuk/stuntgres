@@ -301,9 +301,32 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 	return c.collectProvider(t)
 }
 
-func collectTextSearchDump(_ context.Context, _ *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
-	if catalog.ExtensionMembership(d) == (ids.ObjectAddress{}) {
-		return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
+func collectTextSearchDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
+	if err := (extension.CatalogProvider{Class: d.Address().ClassID}).Validate(c.CatalogView, d); err != nil {
+		return err
+	}
+	if catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
+		return nil
+	}
+	switch d := d.(type) {
+	case *catalog.TSTemplate:
+		if !d.Seeded() {
+			return fmt.Errorf("stuntgres: dump cannot serialize loose text search template")
+		}
+	case *catalog.TSDictionary:
+		if d.Seeded() {
+			return nil
+		}
+		c.Dictionaries = append(c.Dictionaries, d)
+		event := dump.Event{OID: d.Address().ObjectID}
+		c.Graph[event] = nil
+		template, ok := c.CatalogView.TSTemplate(d.Template)
+		if !ok {
+			return fmt.Errorf("stuntgres: missing dictionary template")
+		}
+		if template.Extension != (ids.ObjectAddress{}) {
+			c.Graph[event] = []dump.Event{{OID: template.Extension.ObjectID}}
+		}
 	}
 	return nil
 }

@@ -423,6 +423,9 @@ list cached by its prepared handle. VACUUM is
   authority, binding and admission checks still run before reuse. Stable,
   volatile, row-, frame-, stage- and domain-dependent demand is not retained;
   nonzero formal counts use operation-local groups, including constant siblings.
+  Dictionary option changes remain revision-checked analysis operands without
+  becoming executable fold dependencies: a warmed constant `ts_lexize` keeps its
+  accepted typed lexemes while runtime-token calls resolve current state.
 - `BeginFoldPublication` creates the actual operation-local `FoldPublication`
   consumed by planning. Final `Accept` validates the exact description, accepted
   postadmission environment, native epoch, dependencies, represented role/RLS
@@ -443,6 +446,12 @@ list cached by its prepared handle. VACUUM is
   Missing accepted groups for Bind-planned commands reject rather than silently
   recompute. Utility portals instead import inputs at Bind and use ordinary
   admission/planning at Execute.
+
+Dictionary execution captures and validates the current private descriptor under
+`Engine.Mu`, then runs immutable lexization after releasing it. Installed
+`unaccent(text)` resolves the dictionary named `unaccent` in the function's current
+schema; mutable member names are not a replacement for that lookup. Dictionary
+DDL staging belongs to `schemacmds` and publishes through the normal catalog journal.
 
 ## Read-only utility execution
 
@@ -942,6 +951,7 @@ make check RUN='^TestSnapshot'                        # binding, retained comman
 make check RUN='^Test(Serial|SourceProtocol|ViewLiteralProtocol)'  # sequences, sources, stored capture
 make check RUN='^Test([A-Za-z]+RoutineOriginalAuthority|SQLRoutine|UnavailableFunctionIdentityBoundary)'  # routines
 make check RUN='^Test(Extension|PGDepend|CatalogDrop|DropOwned)'  # extensions, drop fences
+make check RUN='^TestDictionary'                      # dictionary providers, publication, remap and retained typed ownership
 make check RUN='^TestLqueryProvider'                   # installed scalar authority, staged publication and import
 make check RUN='^Test(Protocol|SessionTimeout|StatementTimeoutAdmission)'  # protocol, timeouts
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # catalog source capture and producers; one catalog: ^TestPG<Name>

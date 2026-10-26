@@ -34,8 +34,24 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 	nextOID, nextRevision := e.Catalog.NextOID(), e.Catalog.NextRevision()
 	for range 2 {
 		got, err := core.CaptureCatalogSourceRows(input, produce)
-		if err != nil || got == nil { t.Fatal("empty dictionary capture", got, err) }
-		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 0 { t.Fatal("empty dictionary source must be nonnil", got) }
+		if err != nil || got == nil {
+			t.Fatal("seed dictionary capture", got, err)
+		}
+		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 1 {
+			t.Fatal("seed dictionary source must contain simple", got)
+		}
+		name, nameErr := got.Anonymous[0][1].Text()
+		if nameErr != nil || name != "simple" || !got.Anonymous[0][5].IsNull() {
+			t.Fatal("simple dictionary seed name/options", name, got.Anonymous[0][5])
+		}
+	}
+	empty := catalog.CloneState(view.State())
+	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765})
+	emptyInput := input
+	emptyInput.Catalog = e.Catalog.Read(empty)
+	got, err := core.CaptureCatalogSourceRows(emptyInput, produce)
+	if err != nil || got == nil || got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 0 {
+		t.Fatal("empty dictionary source must be nonnil", got, err)
 	}
 	if e.Catalog.State != view.State() || e.Catalog.NextOID() != nextOID || e.Catalog.NextRevision() != nextRevision {
 		t.Fatal("dictionary read changed catalog/frontiers")
@@ -43,10 +59,16 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 	ordinaryFailure := func(in pgcatalog.Input, canceled bool) {
 		t.Helper()
 		got, err := core.CaptureCatalogSourceRows(in, produce)
-		if got != nil || err == nil { t.Fatal("invalid dictionary capture published", got, err) }
-		if canceled && !errors.Is(err, context.Canceled) { t.Fatal("lost cancellation", err) }
+		if got != nil || err == nil {
+			t.Fatal("invalid dictionary capture published", got, err)
+		}
+		if canceled && !errors.Is(err, context.Canceled) {
+			t.Fatal("lost cancellation", err)
+		}
 		var state interface{ SQLState() string }
-		if errors.As(err, &state) { t.Fatal("ordinary capture error acquired SQLSTATE", err) }
+		if errors.As(err, &state) {
+			t.Fatal("ordinary capture error acquired SQLSTATE", err)
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -64,8 +86,8 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 		ordinaryFailure(bad, false)
 	}
 	for _, tc := range []struct {
-		view catalog.Read
-		ref ids.ObjectRef
+		view   catalog.Read
+		ref    ids.ObjectRef
 		source *catalog.Relation
 	}{
 		{catalog.Read{}, ref, source}, {foreign, ref, source}, {view, stale, source}, {view, wrongAddress, source}, {view, ref, nil},

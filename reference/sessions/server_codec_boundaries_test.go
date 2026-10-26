@@ -58,13 +58,20 @@ func serverCodecBoundaries(t *testing.T, f *fixture.ServerFixture, b fixture.Bac
 			code, message string
 		}{
 			{3734, "0A000", "text search configuration name lookup is not supported"},
-			{3769, "42704", "text search dictionary \"simple\" does not exist"},
+			{3769, "", ""},
 		} {
 			w := serverAuthenticated(t, dsn)
 			frames := serverCycle(t, w, serverParse("", "SELECT $1", c.oid), serverBind("", "", nil, [][]byte{[]byte("simple")}), serverExecute("", 0))
-			if b.PG {
+			if b.PG || c.code == "" {
 				serverWantTags(t, frames, "12DCZ")
 				serverWantRaw(t, frames, [][][]byte{{[]byte("simple")}})
+				if c.oid == 3769 {
+					// The named parameter resolves the real released builtin,
+					// rather than merely echoing its input spelling.
+					frames = serverCycle(t, w, serverParse("", "SELECT $1::oid::bigint", c.oid), serverBind("", "", nil, [][]byte{[]byte("simple")}), serverExecute("", 0))
+					serverWantTags(t, frames, "12DCZ")
+					serverWantRaw(t, frames, [][][]byte{{[]byte("3765")}})
+				}
 			} else {
 				serverWantTags(t, frames, "1EZ")
 				serverWantCode(t, frames, c.code)

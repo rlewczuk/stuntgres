@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
@@ -384,6 +385,13 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 	}
 	for oid, statement := range s.familySeedFinal {
 		s.declarations[oid] = statement
+	}
+	for _, dictionary := range s.Dictionaries {
+		declaration, err := extension.DictionaryDumpStatement(s.CatalogView, s.DomainRoles, dictionary)
+		if err != nil {
+			return err
+		}
+		s.declarations[dictionary.Address().ObjectID] = declaration
 	}
 	for _, d := range s.OwnedRoutines {
 		declaration, err := routine.RoutineDumpStatement(Presenter{}, s.CatalogView, s.DomainRoles, d)

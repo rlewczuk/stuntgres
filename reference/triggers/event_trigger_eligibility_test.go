@@ -94,6 +94,14 @@ func TestReferenceEventTriggerEligibility(t *testing.T) {
 			{"CREATE CAST (et_cast_src AS et_cast_dst) WITH INOUT", "CREATE CAST", 0},
 			{"DROP CAST (et_cast_src AS et_cast_dst)", "DROP CAST", 0},
 		}},
+		{"text_search_dictionary", nil, []struct {
+			sql, tag string
+			affected int64
+		}{
+			{"CREATE TEXT SEARCH DICTIONARY et_dictionary (TEMPLATE=pg_catalog.simple)", "CREATE TEXT SEARCH DICTIONARY", 0},
+			{"ALTER TEXT SEARCH DICTIONARY et_dictionary (accept=false)", "ALTER TEXT SEARCH DICTIONARY", 0},
+			{"DROP TEXT SEARCH DICTIONARY et_dictionary", "DROP TEXT SEARCH DICTIONARY", 0},
+		}},
 		{"trigger_rule_policy", []string{"CREATE TABLE et_base(id integer)", "CREATE FUNCTION et_row() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN NEW; END$$"}, []struct {
 			sql, tag string
 			affected int64

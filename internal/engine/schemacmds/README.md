@@ -2,7 +2,7 @@
 
 The schema-object statement executors
 ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3, L16): CREATE,
-ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION and CONVERSION; CREATE
+ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION, CONVERSION and TEXT SEARCH DICTIONARY; CREATE
 LANGUAGE; ALTER DOMAIN RENAME and SET SCHEMA; CREATE FUNCTION, PROCEDURE and
 AGGREGATE, ALTER and DROP ROUTINE; cast, operator, operator family, operator
 class and access method DDL; COMMENT; CREATE TABLESPACE and ALTER TABLE ALL IN
@@ -51,6 +51,17 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   stage with the cascade notice. CREATE SCHEMA rejects partition elements
   with 0A000 first. `ExecuteSQLRoutineDDL` (CREATE FUNCTION, PROCEDURE,
   AGGREGATE) runs through it.
+- `StageDictionaryDetached` captures dictionary inputs and authority under
+  `Engine.Mu`, compiles real shipped resources with it released, then calls
+  `CompleteDictionaryLocked` under the mutex. Completion fences captured
+  namespace, template and dictionary identities, recaptures current authority
+  and stages the compiled operation without publishing it. The first TEMP
+  namespace pair stays candidate-owned through compilation and unrelated
+  publication recapture; completion reuses that exact namespace authority,
+  without installing a premature session pointer or allocating a second pair.
+  `ExecuteSchema`
+  uses this path for CREATE/ALTER dictionaries, including ALTER recapture
+  after definition-lock admission; DROP uses the ordinary dependency closure.
 - `ExecuteComment` stages the comment (the locked-relation check, the
   private role record installation or object stage) and publishes it.
 - `ExecuteCreateTablespace` and `ExecuteLoad` keep the argument count, the
@@ -82,7 +93,7 @@ Each family host carries a compile-time assertion; `RoutineHost` and
 | Type | Implements |
 | --- | --- |
 | `RoutineHost` (`routine_host.go`, `operator_family_host.go`) | `routine.DDLHost`, `index.FamilyDDLHost` |
-| `SchemaHost` (`schema_host.go`) | `ddl.SchemaHost` |
+| `SchemaHost` (`schema_host.go`) | `ddl.SchemaHost`, `extension.DictionaryHost` |
 | `extensionHost` (`extension_host.go`) | `extension.Host`, `extension.Stage` |
 
 `extensionHost` captures one authorization view and wraps the stage rather

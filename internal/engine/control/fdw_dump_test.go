@@ -11,9 +11,11 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -27,18 +29,18 @@ func fdwUnitSource() (Source, *catalog.ForeignObject, *catalog.ForeignObject, *c
 	roles := authorization.Seed(domain)
 	owner := domain.Principal(10)
 	state := catalog.NewState(1)
-	// Full capture always inspects the initialized namespace/collation and
-	// conversion manifests, even when the selected user graph is SQL/MED.
-	// Use the real seed declarations and conversion capabilities, not omitted
+	// Full capture always inspects the initialized namespace/collation,
+	// conversion, and dictionary manifests, even when the selected user graph
+	// is SQL/MED. Use the real seed declarations and capabilities, not omitted
 	// seeds that would manufacture bootstrap DROP/repair output.
 	roleView := roles.Read(owner)
 	var aclTypes []*sqltype.Descriptor
 	for _, typ := range sqltype.Builtins() {
 		if typ.ID() == sqltype.ACLItem || typ.ID() == sqltype.ACLItemArray {
-			aclTypes = append(aclTypes,typ)
+			aclTypes = append(aclTypes, typ)
 		}
 	}
-	catalog.InstallBuiltinTypes(state,aclTypes,owner)
+	catalog.InstallBuiltinTypes(state, aclTypes, owner)
 	for _, seed := range []struct {
 		oid  ids.OID
 		name string
@@ -77,6 +79,16 @@ func fdwUnitSource() (Source, *catalog.ForeignObject, *catalog.ForeignObject, *c
 		state.SetDescriptor(conversion.Address(), &conversion)
 		state.BindName(catalog.DescriptorNameKey(&conversion), conversion.Address())
 	}
+	dictionaryProcedures := routine.BuiltinProcedures(owner)
+	for i := range dictionaryProcedures {
+		procedure := &dictionaryProcedures[i]
+		if procedure.Address().ObjectID != 3725 && procedure.Address().ObjectID != 3726 {
+			continue
+		}
+		state.SetDescriptor(procedure.Address(), procedure)
+		state.BindName(catalog.DescriptorNameKey(procedure), procedure.Address())
+	}
+	catalog.InstallBuiltinDictionaries(state, owner, functions.DefaultSimpleDictionary)
 	wrapper := &catalog.ForeignObject{ObjectAddress: fdwUnitAddress(ids.ForeignWrapperClassID, 90003), ObjectRevision: 1, ObjectName: `w"quoted`, Owner: owner, Options: []catalog.ForeignOption{{Name: "tag", Value: "first"}, {Name: "empty", Value: ""}}}
 	empty := ""
 	server := &catalog.ForeignObject{ObjectAddress: fdwUnitAddress(ids.ForeignServerClassID, 90002), ObjectRevision: 1, ObjectName: "s", Owner: owner, Wrapper: wrapper.Address(), ServerType: &empty, Options: []catalog.ForeignOption{{Name: "path", Value: "a'b\\c\nnext"}}}

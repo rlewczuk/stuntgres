@@ -2,10 +2,10 @@ package pgcatalog
 
 import (
 	"context"
-	"strconv"
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -34,9 +34,16 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	if source.Address().ObjectID == ids.ProcedureClassID {
-		expected:=[17]sqltype.ID{sqltype.Oid,sqltype.Name,sqltype.Oid,sqltype.Oid,sqltype.Int2,sqltype.Oid,sqltype.Char,sqltype.Bool,sqltype.Char,sqltype.Char,1009,sqltype.Oid,sqltype.Bool,sqltype.Float4,sqltype.Text,sqltype.OidVector,sqltype.Oid}
-		if len(source.Columns)!=len(expected){return nil,fmt.Errorf("stuntgres: invalid procedure source shape")}
-		for i,id:=range expected {owned,ok:=view.LookupType(id);if !ok||owned!=source.Columns[i].Usage.Type{return nil,fmt.Errorf("stuntgres: foreign procedure source type")}}
+		expected := [17]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid}
+		if len(source.Columns) != len(expected) {
+			return nil, fmt.Errorf("stuntgres: invalid procedure source shape")
+		}
+		for i, id := range expected {
+			owned, ok := view.LookupType(id)
+			if !ok || owned != source.Columns[i].Usage.Type {
+				return nil, fmt.Errorf("stuntgres: foreign procedure source type")
+			}
+		}
 	}
 	descriptors := make([]catalog.Descriptor, 0)
 	for _, d := range view.Descriptors() {
@@ -46,7 +53,9 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 	}
 	sort.Slice(descriptors, func(i, j int) bool { return descriptors[i].Address().ObjectID < descriptors[j].Address().ObjectID })
 	capacity := len(descriptors)
-	if source.Address().ObjectID == ids.ProcedureClassID { capacity += 13 }
+	if source.Address().ObjectID == ids.ProcedureClassID {
+		capacity += 13
+	}
 	rows := make([][]sqltype.Value, 0, capacity)
 	for _, descriptor := range descriptors {
 		if err := ctx.Err(); err != nil {
@@ -88,10 +97,14 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			integer(5, int64(d.Result))
 			language := ""
 			switch d.Display.Language {
-			case catalog.InternalRoutineLanguage: language = "internal"
-			case catalog.CRoutineLanguage: language = "c"
-			case catalog.SQLRoutineLanguage: language = "sql"
-			case catalog.PLpgSQLRoutineLanguage: language = "plpgsql"
+			case catalog.InternalRoutineLanguage:
+				language = "internal"
+			case catalog.CRoutineLanguage:
+				language = "c"
+			case catalog.SQLRoutineLanguage:
+				language = "sql"
+			case catalog.PLpgSQLRoutineLanguage:
+				language = "plpgsql"
 			}
 			languageAddress := view.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: language})
 			integer(11, int64(languageAddress.ObjectID))
@@ -114,13 +127,17 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 					parallel = "u"
 				}
 			}
-			if d.Installed.Parallel != 0 { parallel = string(d.Installed.Parallel) }
+			if d.Installed.Parallel != 0 {
+				parallel = string(d.Installed.Parallel)
+			}
 			text(8, parallel)
 			text(9, string(d.RoutineKind))
 			text(14, d.Display.Source)
 			var argumentErr error
-			row[15],argumentErr=procedureArgumentVector(ctx,source.Columns[15].Usage.Type,d.Signature)
-			if argumentErr!=nil{return nil,argumentErr}
+			row[15], argumentErr = procedureArgumentVector(ctx, source.Columns[15].Usage.Type, d.Signature)
+			if argumentErr != nil {
+				return nil, argumentErr
+			}
 			row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 			if d.SQL != nil {
 				named := false
@@ -194,10 +211,14 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			}
 			boolean(12, returnsSet)
 			estimateValue, err := sqltype.Float(source.Columns[13].Usage.Type, estimate)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			row[13] = estimateValue
 			variadic, err := ProcedureVariadic(d)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			integer(16, int64(variadic))
 		case *catalog.TSTemplate:
 			integer(0, int64(d.Address().ObjectID))
@@ -214,7 +235,11 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			integer(2, int64(d.Namespace().ObjectID))
 			integer(3, int64(d.Owner.ID()))
 			integer(4, int64(d.Template.ObjectID))
-			text(5, "rules = 'unaccent'")
+			if len(d.Options) != 0 {
+				text(5, catalog.DictionaryOptionsText(d.Options))
+			} else {
+				row[5] = sqltype.Null(source.Columns[5].Usage.Type)
+			}
 		default:
 			continue
 		}
@@ -236,21 +261,29 @@ func ProcedureArity(p *catalog.Procedure) int64 {
 	return int64(strings.Count(string(p.Signature), ",") + 1)
 }
 
-func procedureArgumentVector(ctx context.Context, vector *sqltype.Descriptor, signature catalog.ProcedureSignature)(sqltype.Value,error){
-	text:=string(signature)
-	count:=0
-	if text!=""{count=strings.Count(text,",")+1}
-	elements:=make([]sqltype.Value,count)
-	for i:=range elements{
-		if err:=ctx.Err();err!=nil{return sqltype.Value{},err}
-		head,rest,_:=strings.Cut(text,",")
-		n,err:=strconv.ParseUint(head,10,32)
-		if err!=nil{return sqltype.Value{},fmt.Errorf("stuntgres: invalid routine signature: %w",err)}
-		elements[i],err=sqltype.OIDValue(vector.Element(),uint32(n))
-		if err!=nil{return sqltype.Value{},err}
-		text=rest
+func procedureArgumentVector(ctx context.Context, vector *sqltype.Descriptor, signature catalog.ProcedureSignature) (sqltype.Value, error) {
+	text := string(signature)
+	count := 0
+	if text != "" {
+		count = strings.Count(text, ",") + 1
 	}
-	return sqltype.OwnedCatalogVectorValue(vector,elements)
+	elements := make([]sqltype.Value, count)
+	for i := range elements {
+		if err := ctx.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		head, rest, _ := strings.Cut(text, ",")
+		n, err := strconv.ParseUint(head, 10, 32)
+		if err != nil {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid routine signature: %w", err)
+		}
+		elements[i], err = sqltype.OIDValue(vector.Element(), uint32(n))
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		text = rest
+	}
+	return sqltype.OwnedCatalogVectorValue(vector, elements)
 }
 
 // ProcedureVariadic projects declaration metadata, not expanded call operands.
@@ -266,7 +299,9 @@ func ProcedureVariadic(p *catalog.Procedure) (ids.OID, error) {
 	}
 	if p.SQL != nil {
 		for _, formal := range p.SQL.Formals {
-			if formal.Mode != "v" { continue }
+			if formal.Mode != "v" {
+				continue
+			}
 			if formal.Usage.Type == nil || !formal.Usage.Type.IsArray() {
 				return 0, fmt.Errorf("stuntgres: invalid variadic routine declaration")
 			}

@@ -35,11 +35,11 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	}
 	alter := false
 	switch stmt.(type) {
-	case *parser.AlterCollation, *parser.AlterConversion, *parser.AlterEventTrigger:
+	case *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterEventTrigger:
 		alter = true
 	}
 	switch stmt.(type) {
-	case *parser.AlterCollation, *parser.DropCollation,
+	case *parser.AlterDictionary, *parser.DropDictionary, *parser.AlterCollation, *parser.DropCollation,
 		*parser.AlterConversion, *parser.DropConversion, *parser.DropCast, *parser.DropRoutine,
 		*parser.CreateFunction, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 	default:
@@ -118,7 +118,16 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	// No notice from provisional construction is delivered twice. Notices from
 	// earlier statements in a retained message remain owned by that message.
 	s.Op.Notices = s.Op.Notices[:noticeMark]
-	current, err := stageSchemaLocked(e, s.Op, stmt, input, s.Output)
+	var current *core.CatalogStage
+	if _, dictionary := stmt.(*parser.AlterDictionary); dictionary {
+		// Dictionary initialization consumes shipped resources outside Mu even
+		// when lock admission requires a fresh authority capture.
+		e.Mu.Unlock()
+		current, err = StageDictionaryDetached(e, s.Op, stmt)
+		e.Mu.Lock()
+	} else {
+		current, err = stageSchemaLocked(e, s.Op, stmt, input, s.Output)
+	}
 	if err != nil {
 		return stage, err
 	}

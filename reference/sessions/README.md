@@ -65,6 +65,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   will be created later. Execute proves real action rows, held DML freshness,
   I/T/E readiness, message atomicity and healthy recovery; Go BeginTx witnesses
   run over the actual server transport.
+- Dictionary constant wire scenarios warm a named definition before option ALTER,
+  then repeat Bind on that definition while fresh definitions and runtime tokens
+  observe current options. Check TEXT[] RowDescription, raw NULL versus empty
+  arrays, rejected-ALTER atomicity and idle readiness through the same helpers.
 - Keep the comparison wire matrix pipelined: one server fixture, a fresh session
   per left source, and each pair's cells sent as one pipeline of Sync-terminated
   groups whose responses are checked in order.

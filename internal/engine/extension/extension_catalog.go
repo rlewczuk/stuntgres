@@ -64,7 +64,7 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 				return invalid()
 			}
 			switch member.(type) {
-			case *catalog.Type, *catalog.Procedure:
+			case *catalog.Type, *catalog.Procedure, *catalog.TSDictionary:
 				// Their public namespace may change independently of the
 				// installation. Provider manifests retain identity authority.
 			default:
@@ -107,6 +107,15 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return invalid()
 		}
 	case *catalog.TSTemplate:
+		if SimpleTemplate(d) {
+			for _, address := range [2]ids.ObjectAddress{d.Init, d.Lexize} {
+				procedure, ok := v.Procedure(address)
+				if !ok || procedure.Builtin == nil {
+					return invalid()
+				}
+			}
+			return nil
+		}
 		if d.Name() != "unaccent" || UnaccentTemplateProviderOf(d) != StockUnaccent {
 			return invalid()
 		}
@@ -118,20 +127,16 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			}
 		}
 	case *catalog.TSDictionary:
-		if d.Name() != "unaccent" || UnaccentDictionaryProviderOf(d) != StockUnaccent {
-			return invalid()
+		if err := validateDictionary(v, d); err != nil {
+			return err
 		}
 		ext = d.Extension
-		tmpl, ok := v.TSTemplate(d.Template)
-		if !ok || ext != (ids.ObjectAddress{}) && tmpl.Namespace() != d.Namespace() || tmpl.Extension != ext {
-			return invalid()
-		}
 	default:
 		return invalid()
 	}
 	if ext != (ids.ObjectAddress{}) {
 		parent, ok := v.Extension(ext)
-		if !ok || d.Address().ClassID != ids.ProcedureClassID && parent.TargetNamespace != namespace {
+		if !ok || d.Address().ClassID != ids.ProcedureClassID && d.Address().ClassID != ids.TSDictionaryClassID && parent.TargetNamespace != namespace {
 			return invalid()
 		}
 		found := false

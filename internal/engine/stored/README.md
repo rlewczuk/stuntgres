@@ -411,7 +411,8 @@ host methods.
   readers (`view_row_marks.go`); `HasDynamicSourceDependency` (installed
   pgrowlocks and heap-verification capture); view validation and
   view-write shape; `ValidateRules`; and `DependencyObject` (object
-  descriptions for DROP and role diagnostics).
+  descriptions for DROP and role diagnostics, including text-search templates
+  and dictionaries with class-specific search-path visibility).
   `ViewWriteShape` and `ViewUpdatabilityShape` share one automatic-admission
   implementation; only the write route collects execution predicates.
   Metadata shape inspection neither allocates that vector nor evaluates it.

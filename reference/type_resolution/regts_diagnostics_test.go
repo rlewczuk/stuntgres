@@ -66,12 +66,12 @@ func TestReferenceRegTSDiagnostics(t *testing.T) {
 			}
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, regtsError("SELECT (-1)::bigint::"+alias, "22003", "OID out of range", "", ""))
 		}
+		regtsSelect(t, p, b, c, "SELECT 'simple'::regdictionary AS d", []string{"d"}, []string{"REGDICTIONARY"}, [][]any{{"simple"}})
 		if b.PG {
-			regtsSelect(t, p, b, c, "SELECT 'simple'::regconfig AS c,'simple'::regdictionary AS d", []string{"c", "d"}, []string{"REGCONFIG", "REGDICTIONARY"}, [][]any{{"simple", "simple"}})
+			regtsSelect(t, p, b, c, "SELECT 'simple'::regconfig AS c", []string{"c"}, []string{"REGCONFIG"}, [][]any{{"simple"}})
 			// Genuine builtin configuration provider, without configuration DDL.
 			regtsSelect(t, p, b, c, "SELECT oid::regconfig AS c,oid='simple'::regconfig::oid AS same FROM pg_catalog.pg_ts_config WHERE cfgnamespace='pg_catalog'::regnamespace AND cfgname='simple'", []string{"c", "same"}, []string{"REGCONFIG", "BOOL"}, [][]any{{"simple", true}})
 		} else {
-			regtsDiagnosticRoutes(t, p, b, c, "regdictionary", "simple", "42704", `text search dictionary "simple" does not exist`)
 			regtsDiagnosticRoutes(t, p, b, c, "regconfig", "simple", "0A000", "text search configuration name lookup is not supported")
 		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, regtsError("SELECT 'é' AS prefix, 'a..b'::regdictionary", "42602", "invalid name syntax", "23", ""))

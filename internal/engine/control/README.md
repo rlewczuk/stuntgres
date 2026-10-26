@@ -53,10 +53,25 @@ function references once into the destination authority.
   `dumpRelationCollectors` the same way. **Entry order is error precedence.**
   Feature packages own each entry's decision (`routine.OperatorDumped`,
   `stored.ProcedureProvider`, `stored.TypeProvider`).
+- **Dictionaries** (`dictionary_replay.go`): builtin simple and installed members
+  never get duplicate CREATE statements. Their initialized identities use the
+  captured names of their installation namespaces, after namespace replay, and
+  share one dictionary collision plan, separate from routine keys; relabels
+  precede option refreshes and owner transfers. Admitted option removals replay explicitly,
+  preserving SQL NULL rather than equivalent default resource behavior; genuine
+  unaccent dictionaries require explicit Rules and cannot replay its removal.
+  Final slot metadata and stored references/defaults/views follow those changes.
+  Standalone dictionaries own declaration events after template installation.
+  Non-bootstrap owners use the shared `dump.Statement.PrivilegedCreation` protocol:
+  CREATE runs under authenticated `DEFAULT`, and `FollowingSQL` transfers to the
+  actual owner without assuming schema CREATE grants or a named administrator.
+  Restore executes the emitted SQL, recompiles real resources and remaps
+  dictionary/template links and stored regdictionary references.
 - **Provider differences** (`provider_replay.go`): immutable released builtin
   identity and checked versioned extension slots, never mutable labels, select
-  real ALTER FUNCTION replay. Required schemas/extensions and every installed
-  scalar identity relocation precede differences; dependent definitions follow.
+  real ALTER FUNCTION or ALTER TEXT SEARCH DICTIONARY replay. Required
+  schemas/extensions and every installed scalar identity relocation precede
+  differences; dependent definitions follow.
   Free destinations move first; only occupied cycles or blocked intermediate keys
   need collision-checked temporary names.
   Owner changes follow relabeling, then stable-slot owner metadata. Authentic
@@ -105,9 +120,10 @@ function references once into the destination authority.
   `dumpPhaseEmitters`, indexed by `dump.Phase`. The loop sets an entry's `owner`
   before `emit` runs (`nil`: the emitter sets it); an emitter that can fail
   renders before switching owner so an error writes nothing. `dumpWriter`
-  tracks the `SET SESSION AUTHORIZATION` owner. Privileged routine creation uses
-  `DEFAULT` (the authenticated administrator), emits the actual owner transfer,
-  then restores tracked owner authority before any dependent event.
+  tracks the `SET SESSION AUTHORIZATION` owner. Privileged declaration creation
+  uses `dump.Statement.PrivilegedCreation` and `DEFAULT` (the authenticated
+  administrator), emits `FollowingSQL` with the actual owner transfer, then
+  restores tracked owner authority before any dependent event.
   **Adding a dumped object:** export the feature's dump function and name it at
   the matching table position.
 - **Adapters** (`resolver.go`, `presenter.go`): `Resolver` (`dump.Resolver`)
@@ -286,6 +302,11 @@ the explicit-ACL boundary:
 Run `make check RUN='^TestReferenceRoutineAlter(ProviderPersistence|Persistence|ExplicitACLPersistenceBoundary)$'`
 in native and `REFERENCE=1` modes: actual emitted SQL is replayed on PostgreSQL;
 native proof also covers repeated Restore and fresh-target identity remapping.
+Dictionary member/seed collision and provenance proof:
+`make check RUN='^TestDictionary(ProviderReplayCycle|ExtensionProviderValidation)$'`.
+Run `make check RUN='^TestReferenceDictionaryExtension(Identity|Controls)$'`
+in native and `REFERENCE=1` modes for member changes, actual emitted SQL,
+native replacement/remapping and deterministic redump.
 Body/ownership remap proof:
 `make check RUN='^Test(RoutineBodyPrincipalRemap|ReplacementRoutineBodyRemap|JSONBRecordRoutineOwnershipCOW)$'`.
 

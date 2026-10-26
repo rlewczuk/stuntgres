@@ -521,7 +521,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(&core.StatementScope{Op: installer, Owner: installer.Session.Transactions})}})
 	text, _ := value.Text()
 	if err != nil || text != "Hotel" {
 		t.Fatal("retained provider execution", text, err)

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -44,7 +45,11 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 	var stage *core.CatalogStage
 	var err error
 	noticeMark := len(op.Notices)
-	if drop, ok := stmt.(*parser.DropSchema); ok {
+	if _, create := stmt.(*parser.CreateDictionary); create {
+		stage, err = StageDictionaryDetached(e, op, stmt)
+	} else if _, alter := stmt.(*parser.AlterDictionary); alter {
+		stage, err = StageDictionaryDetached(e, op, stmt)
+	} else if drop, ok := stmt.(*parser.DropSchema); ok {
 		var manifest ddl.SchemaDropManifest
 		manifest, err = acquireSchemaDrop(scope, drop)
 		if err != nil {
@@ -159,6 +164,8 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 	cascade := false
 	switch s := stmt.(type) {
 	case *parser.DropAccessMethod:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
+	case *parser.DropDictionary:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropType:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
@@ -357,6 +364,18 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 	switch s := stmt.(type) {
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 		if err = routine.StageEventTrigger(host, auth, stmt); err != nil {
+			return nil, err
+		}
+	case *parser.CreateDictionary:
+		if err = extension.StageCreateDictionary(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterDictionary:
+		if err = extension.StageAlterDictionary(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropDictionary:
+		if err = extension.StageDropDictionary(schemaHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateAccessMethod:

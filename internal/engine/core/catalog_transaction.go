@@ -219,6 +219,14 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 					if candidate.Get(target) == nil && (owner.Handler == target || owner.Namespace() == target) {
 						return catalog.Conflict{}
 					}
+				case *catalog.TSDictionary:
+					if candidate.Get(target) == nil && (owner.Template == target || owner.Namespace() == target) {
+						return catalog.Conflict{}
+					}
+				case *catalog.TSTemplate:
+					if candidate.Get(target) == nil && (owner.Init == target || owner.Lexize == target || owner.Namespace() == target) {
+						return catalog.Conflict{}
+					}
 				case *catalog.Collation:
 					if candidate.Get(target) == nil && owner.Namespace() == target {
 						return catalog.Conflict{}

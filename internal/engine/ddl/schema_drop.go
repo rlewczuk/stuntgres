@@ -182,6 +182,8 @@ func schemaDependents(read catalog.Read, children []ids.ObjectAddress) ([]*catal
 			add(c)
 		} else if c, ok := d.(*catalog.Conversion); ok {
 			add(c)
+		} else if dictionary, ok := d.(*catalog.TSDictionary); ok {
+			add(dictionary)
 		} else if family, ok := d.(*catalog.OperatorFamily); ok {
 			add(family)
 		} else if class, ok := d.(*catalog.OperatorClass); ok {

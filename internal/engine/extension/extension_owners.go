@@ -66,7 +66,7 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if IntarrayProviderOf(d) != nil && symbol == "bqarr_out" {
 				member.Signature = "query_int"
 			}
-			if LtreeProviderOf(d) != nil && slot%3 == 2 { 
+			if LtreeProviderOf(d) != nil && slot%3 == 2 {
 				member.Signature = ltreeRecipes[slot/3].name
 			}
 			if HstoreProviderOf(d) != nil && symbol == "hstore_out" {
@@ -320,7 +320,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "dictionary":
-			if record.Name != "unaccent" || member.Slot != 5 || member.Name != "unaccent" || member.Signature != "" {
+			// ImportOwners checks mutable labels against the current genuine slot.
+			if record.Name != "unaccent" || member.Slot != 5 || member.Signature != "" {
 				return invalid()
 			}
 		case "type":
@@ -426,8 +427,12 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		}
 	case "ltree":
 		for _, recipe := range ltreeRecipes {
-			if slot == recipe.slot+1 { return "2275", true }
-			if slot == recipe.slot+2 { return recipe.name, true }
+			if slot == recipe.slot+1 {
+				return "2275", true
+			}
+			if slot == recipe.slot+2 {
+				return recipe.name, true
+			}
 		}
 	case "hstore", "intarray", "citext":
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {

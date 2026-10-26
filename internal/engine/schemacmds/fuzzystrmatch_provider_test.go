@@ -236,7 +236,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
 		t.Fatal("immutable complete evaluation", text, err)
 	}
-	if n.Ref.Address != ext.Members[0] || n.Dictionary != nil || n.Template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
+	if n.Ref.Address != ext.Members[0] || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
 		t.Fatal("captured authority", n)
 	}
 	for i := range value.ArrayLen() {
@@ -366,7 +366,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	v, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	ownedArray, _ := target.CatalogRead().LookupType(1009)
 	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)
-	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || !exec.SameRoutineDeclaration(view.MustProcedure(imported.Members[0]), n.Procedure) || n.Procedure.Revision() != sourceProcedure.Revision() || n.Dictionary != nil || n.Template != nil {
+	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || !exec.SameRoutineDeclaration(view.MustProcedure(imported.Members[0]), n.Procedure) || n.Procedure.Revision() != sourceProcedure.Revision() {
 		t.Fatal("remapped provider/generations", v, err)
 	}
 	// Foreign import can share immutable builtin TEXT/text[] descriptors.

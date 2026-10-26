@@ -165,10 +165,16 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				}
 			}
 		case *catalog.TSTemplate:
+			if d.Seeded() {
+				continue
+			}
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Init, 'n')
 			add(d.Address(), d.Lexize, 'n')
 		case *catalog.TSDictionary:
+			if d.Seeded() {
+				continue
+			}
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Template, 'n')
 		case *catalog.Collation:

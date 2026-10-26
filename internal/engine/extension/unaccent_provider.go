@@ -3,7 +3,6 @@ package extension
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -11,7 +10,6 @@ import (
 // are the functions package's stock unaccent.rules.
 type UnaccentProvider struct {
 	control catalog.ExtensionControl
-	Matcher *functions.UnaccentMatcher
 }
 
 // Control implements catalog.ExtensionImplementation.
@@ -20,7 +18,7 @@ func (p *UnaccentProvider) Versions() catalog.ExtensionVersions {
 	return catalog.ExtensionVersions{Bases: []string{"1.1"}}
 }
 
-var StockUnaccent = &UnaccentProvider{control: catalog.ExtensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("text search dictionary that removes accents")}, Matcher: functions.StockUnaccent}
+var StockUnaccent = &UnaccentProvider{control: catalog.ExtensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("text search dictionary that removes accents")}}
 
 func (p *UnaccentProvider) ValidateExtension(v catalog.Read, d *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid unaccent manifest") }

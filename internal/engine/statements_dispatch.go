@@ -26,7 +26,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return dispatched(viewcmds.ExecuteTrigger(e, scope, stmt, count))
 	case *parser.CreateFunction, *parser.CreateAggregate:
 		return dispatched(schemacmds.ExecuteSQLRoutineDDL(e, scope, stmt, count))
-	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
+	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger, *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary:
 		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
 			scope.CompleteUtility()

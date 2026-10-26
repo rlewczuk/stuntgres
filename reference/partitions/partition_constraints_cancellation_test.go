@@ -1,8 +1,11 @@
 package reference_test
 
 import (
-	"stuntgres/reference/fixture"
+	"database/sql"
+	"database/sql/driver"
 	"testing"
+
+	"stuntgres/reference/fixture"
 )
 
 func TestReferencePartitionConstraintsCancellation(t *testing.T) {
@@ -24,6 +27,27 @@ func partitionConstraintBlockedCancellation(t *testing.T, p *fixture.Pair, b fix
 	t.Helper()
 	holder, waiter := fixture.LockConnections(t, p.Ctx, b.DB)
 	defer holder.ExecContext(p.Ctx, "ROLLBACK")
+	var executor fixture.Executor = waiter
+	var statement *sql.Stmt
+	if !b.PG {
+		// Register before arming so fatal paths also discard the physical owner
+		// before LockConnections can return it to the pool.
+		t.Cleanup(func() {
+			_ = waiter.Raw(func(any) error { return driver.ErrBadConn })
+			_ = waiter.Close()
+		})
+		if prepared {
+			var err error
+			statement, err = waiter.PrepareContext(p.Ctx, query)
+			if statement != nil {
+				t.Cleanup(func() { _ = statement.Close() })
+			}
+			if err != nil || statement == nil {
+				t.Fatal("prepare held partition constraint operation:", statement, err)
+			}
+			executor = fixture.HeldStatement{Executor: waiter, Statement: statement, SQL: query}
+		}
+	}
 	fixture.LockExec(t, p.Ctx, holder, "BEGIN", 0)
 	if b.PG {
 		fixture.LockExec(t, p.Ctx, holder, "LOCK TABLE pc_root IN ACCESS EXCLUSIVE MODE", 0)
@@ -47,9 +71,16 @@ func partitionConstraintBlockedCancellation(t *testing.T, p *fixture.Pair, b fix
 	} else {
 		fixture.LockExec(t, p.Ctx, waiter, "SET statement_timeout='50ms'", 0)
 		step := referenceRangeError(query, "57014", "canceling statement due to statement timeout", fixture.Diagnostic{})
-		step.Prepared = prepared
-		fixture.RunStep(t, p.Ctx, waiter, b.Recorder, step)
-		fixture.LockExec(t, p.Ctx, waiter, "SET statement_timeout=0", 0)
+		fixture.RunStep(t, p.Ctx, executor, b.Recorder, step)
+		if statement != nil {
+			if err := statement.Close(); err != nil {
+				t.Fatal("held statement close:", err)
+			}
+		}
+		// Even a timeout reset can itself time out. Never reuse this armed owner.
+		if err := waiter.Raw(func(any) error { return driver.ErrBadConn }); err != driver.ErrBadConn {
+			t.Fatal("discard timed borrower:", err)
+		}
 	}
 	fixture.LockExec(t, p.Ctx, holder, "ROLLBACK", 0)
 }

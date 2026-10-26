@@ -84,9 +84,23 @@ pair is replaced by INOUT; this is not a fresh-call or dumped-row surrogate.
   target; persistent domains supply user TypeClassID remapping witnesses.
 - Replay phases need the full dual-mode selection: a `/postgres` selector cannot
   supply the native emitted stream.
-- RegTS reads dictionary identities from the installed `unaccent` extension
-  (`pg_extension.extnamespace`, `pg_ts_dict`) and asserts alias rows with the
-  local `regtsAssertAliasRows`, not the generic fixture type inventory.
+- RegTS reads genuine builtin simple, standalone dictionary definitions and
+  installed unaccent identities through `pg_ts_dict`; alias rows use the local
+  `regtsAssertAliasRows`, not the generic fixture type inventory. Dictionary
+  scenarios independently check typed TEXT[] output, ordered options, current
+  ownership, dependencies, prepared invalidation and emitted native-control SQL.
+  Installed member rename/schema changes retain actual identities, template and
+  extension dependencies. Native controls preserve explicit admitted Rules and
+  owners, including builtin/member name cycles, then replay the actual emitted
+  SQL on PostgreSQL. Missing Rules is rejected atomically. Restore collision
+  witnesses retain a temporary dictionary at the exact imported dictionary OID
+  and check its identity and lexization as imported rows/defaults/views relocate.
+  Warmed all-constant lexize statements retain their accepted value independently
+  of fresh constant plans and current parameterized-token calls.
+  Dictionary TEXT arguments retain the [shared typed-nil byte adapter contract](../strings/README.md):
+  native typed-nil bytes become empty TEXT (`{}`), while lib/pq sends SQL NULL.
+  Ordinary nil is SQL NULL on both; nonnil empty bytes and empty strings produce
+  genuine empty arrays on both. This boundary never changes function selection.
 - Regtype catalog probes restrict a derived left operand before the reciprocal
   `pg_type` self-join and batch expectation OID probes once per catalog
   checkpoint, refreshed after catalog replacement; never use LIMIT, cached OIDs
@@ -106,6 +120,12 @@ pair is replaced by INOUT; this is not a fresh-call or dumped-row surrogate.
 ### Selectors
 
 Add `REFERENCE=1` for the oracle.
+
+Dictionary definitions and lexization: `RUN='^TestReferenceDictionary'`.
+Extension member identity/persistence: `RUN='^TestReferenceDictionaryExtension(Identity|Controls)$'`.
+Held all-constant characterization: `RUN='^TestReferenceDictionaryPreparedConstants$'`.
+Default unaccent caller resolution after dictionary/routine DDL:
+`RUN='^TestReferenceDictionaryUnaccentCaller$'`.
 
 - Comparison shards (each alone): `RUN='^TestReferenceComparison{Matrix,Between,PredicateErrors}<Suffix>$'`
 - Distinct, null/truth, consumers: `RUN='^TestReferenceComparison(Distinct|Null|Consumer|BatchSelection)'`

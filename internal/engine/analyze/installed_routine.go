@@ -279,27 +279,13 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	return nil, fmt.Errorf("stuntgres: invalid installed %T call", call)
 }
 
-// attachText captures unaccent's installed dictionary and template, whose
-// provider supplies the rules evaluation applies.
+// attachText captures the installed function. unaccent's default dictionary is
+// resolved in the current function namespace when a non-NULL call executes.
 func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref ids.ObjectRef) (expr.Expr, error) {
 	p := r.procedure
-	var dict *catalog.TSDictionary
-	var tmpl *catalog.TSTemplate
-	if extension.UnaccentProviderOf(p) != nil {
-		var ok bool
-		dict, ok = r.catalog.TSDictionary(p.Dictionary)
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing installed unaccent dictionary")
-		}
-		tmpl, ok = r.catalog.TSTemplate(dict.Template)
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing installed unaccent template")
-		}
-		call.Matcher = extension.UnaccentDictionaryProviderOf(dict).Matcher
-	}
 	r.binder.dependency(ref, p.Revision())
 	call.RoutineReference = p
-	node := plan.InstalledTextExpr{InstalledText: call, Procedure: p, Dictionary: dict, Template: tmpl, Ref: ref}
+	node := plan.InstalledTextExpr{InstalledText: call, Procedure: p, Ref: ref}
 	if !ValidInstalledText(node) {
 		return nil, fmt.Errorf("stuntgres: invalid installed function binding")
 	}

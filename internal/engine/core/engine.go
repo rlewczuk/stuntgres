@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
@@ -188,6 +189,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	catalog.InstallBuiltinTypes(e.Catalog.State, types, bootstrap)
 	catalog.InstallBuiltinCollations(e.Catalog.State, bootstrap)
 	catalog.InstallBuiltinProcedures(e.Catalog.State, typedef.BuiltinConversionProcedures(bootstrap), routine.BuiltinProcedures(bootstrap), routine.NativeAccessMethodProcedures(bootstrap))
+	catalog.InstallBuiltinDictionaries(e.Catalog.State, bootstrap, functions.DefaultSimpleDictionary)
 	if err := e.Catalog.InstallBuiltinLanguagesLocked(bootstrap); err != nil {
 		return nil, err
 	}
@@ -287,6 +289,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return Description{}, nil
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
+		return Description{}, nil
+	case *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary:
 		return Description{}, nil
 	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
 		return Description{}, nil

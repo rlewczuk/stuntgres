@@ -35,8 +35,27 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	nextOID, nextRevision := e.Catalog.NextOID(), e.Catalog.NextRevision()
 	for range 2 {
 		got, err := core.CaptureCatalogSourceRows(input, produce)
-		if err != nil || got == nil { t.Fatal("empty template capture", got, err) }
-		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 0 { t.Fatal("empty template source must be nonnil", got) }
+		if err != nil || got == nil {
+			t.Fatal("seed template capture", got, err)
+		}
+		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 1 {
+			t.Fatal("template source must contain simple", got)
+		}
+		for i, want := range []uint32{3725, 3726} {
+			value := got.Anonymous[0][i+3]
+			gotOID, err := value.ProcedureOID()
+			if err != nil || gotOID != want || value.IsNull() || value.Type() != source.Columns[i+3].Usage.Type {
+				t.Fatal("simple source-owned REGPROC handler", i, value, err)
+			}
+		}
+	}
+	empty := catalog.CloneState(view.State())
+	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727})
+	emptyInput := input
+	emptyInput.Catalog = e.Catalog.Read(empty)
+	emptyRows, err := core.CaptureCatalogSourceRows(emptyInput, produce)
+	if err != nil || emptyRows == nil || emptyRows.Ref != ref || emptyRows.Anonymous == nil || len(emptyRows.Anonymous) != 0 {
+		t.Fatal("empty template source must be nonnil", emptyRows, err)
 	}
 	if e.Catalog.State != view.State() || e.Catalog.NextOID() != nextOID || e.Catalog.NextRevision() != nextRevision {
 		t.Fatal("template read changed catalog/frontiers")
@@ -44,10 +63,16 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	ordinaryFailure := func(in pgcatalog.Input, canceled bool) {
 		t.Helper()
 		got, err := core.CaptureCatalogSourceRows(in, produce)
-		if got != nil || err == nil { t.Fatal("invalid template capture published", got, err) }
-		if canceled && !errors.Is(err, context.Canceled) { t.Fatal("lost cancellation", err) }
+		if got != nil || err == nil {
+			t.Fatal("invalid template capture published", got, err)
+		}
+		if canceled && !errors.Is(err, context.Canceled) {
+			t.Fatal("lost cancellation", err)
+		}
 		var state interface{ SQLState() string }
-		if errors.As(err, &state) { t.Fatal("ordinary capture error acquired SQLSTATE", err) }
+		if errors.As(err, &state) {
+			t.Fatal("ordinary capture error acquired SQLSTATE", err)
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -65,8 +90,8 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 		ordinaryFailure(bad, false)
 	}
 	for _, tc := range []struct {
-		view catalog.Read
-		ref ids.ObjectRef
+		view   catalog.Read
+		ref    ids.ObjectRef
 		source *catalog.Relation
 	}{
 		{catalog.Read{}, ref, source}, {foreign, ref, source}, {view, stale, source}, {view, wrongAddress, source}, {view, ref, nil},
@@ -114,12 +139,12 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	}
 	// This descriptor exists only in a cloned read for representation coverage.
 	// It is not an installed or advertised executable template.
-	state := catalog.CloneState(view.State())
+	state := catalog.CloneState(empty)
 	projection := &catalog.TSTemplate{
-		ObjectAddress: ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 90000},
+		ObjectAddress:   ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 90000},
 		ObjectNamespace: source.Namespace(),
-		ObjectName: "projection_only",
-		Lexize: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90001},
+		ObjectName:      "projection_only",
+		Lexize:          ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90001},
 	}
 	state.SetDescriptor(projection.Address(), projection)
 	local := input

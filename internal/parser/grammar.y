@@ -4,6 +4,9 @@ package parser
 %union {
  tok lexeme
  stmt Statement
+ dictionaryOptions []DictionaryOption
+ dictionaryOption DictionaryOption
+ alterDictionary *AlterDictionary
  statements []Statement
  rule *CreateRule
  trigger *CreateTrigger
@@ -509,6 +512,11 @@ package parser
 %type <element> typed_element
 %type <stmt> create_collation alter_collation drop_collation
 %type <stmt> create_conversion alter_conversion drop_conversion
+%type <stmt> create_dictionary alter_dictionary drop_dictionary
+%type <tok> dictionary_word
+%type <dictionaryOptions> dictionary_options
+%type <dictionaryOption> dictionary_option
+%type <alterDictionary> dictionary_alter_head
 %type <stmt> create_function create_aggregate drop_routine alter_routine
 %type <stmt> create_language
 %type <createLanguage> language_head language_flags
@@ -952,6 +960,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | create_database
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
+ | alter_dictionary | drop_dictionary
  | alter_operator | drop_operator
  | drop_routine | alter_routine
  | create_cast | drop_cast
@@ -1586,6 +1595,7 @@ create: create_table { $$=$1 }
  | create_domain { $$=$1 }
  | create_collation { $$=$1 }
  | create_conversion { $$=$1 }
+ | create_dictionary { $$=$1 }
  | create_function { $$=$1 }
  | create_language { $$=$1 }
  | create_aggregate { $$=$1 }
@@ -1717,6 +1727,19 @@ drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Na
 create_aggregate: CREATE AGGREGATE relation_name '(' aggregate_arguments ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments($5,nil);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Options:$8,Pos:$1.pos}}
  | CREATE AGGREGATE relation_name '(' ORDER BY grant_routine_argument_list ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments(nil,$7);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Ordered:true,Options:$10,Pos:$1.pos}}
  | CREATE AGGREGATE relation_name '(' grant_routine_argument_list ORDER BY grant_routine_argument_list ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments($5,$8);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Ordered:true,DirectArgs:len($5),Options:$11,Pos:$1.pos}} ;
+dictionary_word: KW_U {if $1.text!="dictionary" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+dictionary_options: dictionary_option {$$=[]DictionaryOption{$1}}
+ | dictionary_options ',' dictionary_option {$$=append($1,$3)} ;
+dictionary_option: collation_option {$$=DictionaryOption{CollationOption:$1,Supplied:true}}
+ | col_label {$$=DictionaryOption{CollationOption:CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos}}}} ;
+create_dictionary: CREATE TEXT SEARCH dictionary_word relation_name '(' dictionary_options ')' {$$=&CreateDictionary{Name:$5,Options:$7,Pos:$1.pos}} ;
+dictionary_alter_head: ALTER TEXT SEARCH dictionary_word relation_name {$$=&AlterDictionary{Name:$5,Pos:$1.pos}} ;
+alter_dictionary: dictionary_alter_head '(' dictionary_options ')' {$1.Options=$3;$1.Action="options";$$=$1}
+ | dictionary_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | dictionary_alter_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | dictionary_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1} ;
+drop_dictionary: DROP TEXT SEARCH dictionary_word relation_names drop_mode {$$=&DropDictionary{Names:$5,Mode:$6,Pos:$1.pos}}
+ | DROP TEXT SEARCH dictionary_word IF EXISTS relation_names drop_mode {$$=&DropDictionary{Names:$7,IfExists:true,Mode:$8,Pos:$1.pos}} ;
 aggregate_arguments: '*' {$$=nil} | grant_routine_arguments {$$=$1} ;
 create_function: CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes AS routine_as function_attributes {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$13.Body.text,BodyPos:routineBodyPosition($13.Body),Symbol:$13.Symbol.text,SymbolSpecified:$13.HasSymbol,SymbolPos:$13.Symbol.pos,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8,$11,$14){return 1};$$=node}
  | CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes AS routine_as function_attributes LANGUAGE name function_attributes {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$13.text,Pos:$13.pos},Body:$10.Body.text,BodyPos:routineBodyPosition($10.Body),Symbol:$10.Symbol.text,SymbolSpecified:$10.HasSymbol,SymbolPos:$10.Symbol.pos,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8,$11,$14){return 1};$$=node}

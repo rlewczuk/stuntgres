@@ -66,6 +66,12 @@ func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Seeded() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
+		if dictionary, ok := d.(*catalog.TSDictionary); ok && dictionary.Seeded() {
+			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
+		}
+		if template, ok := d.(*catalog.TSTemplate); ok && template.Seeded() {
+			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
+		}
 		objectProvider := base.Owner().Provider(ref.Address.ClassID)
 		if objectProvider == nil {
 			return fmt.Errorf("stuntgres: missing installed object provider")

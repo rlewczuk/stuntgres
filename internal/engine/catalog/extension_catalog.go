@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
@@ -112,12 +113,27 @@ func (d *TSTemplate) Name() string { return d.ObjectName }
 
 func (*TSTemplate) Kind() ids.ObjectKind { return ids.TSTemplateObject }
 
+// DictionaryOption retains decoded spelling and source order. A bare option
+// differs from an explicitly supplied empty value.
+type DictionaryOption struct {
+	Name, Value string
+	Supplied    bool
+	Numeric     bool
+}
+
+// DictionaryRuntime is immutable, catalog-independent execution authority.
+type DictionaryRuntime interface {
+	Lexize(context.Context, string, *sqltype.Descriptor) (sqltype.Value, error)
+}
+
 type TSDictionary struct {
 	ObjectAddress, ObjectNamespace, Extension, Template ids.ObjectAddress
 	ObjectRevision                                      ids.DefinitionRevision
 	ObjectName                                          string
 	Owner                                               authorization.PrincipalRef
 	Implementation                                      ExtensionImplementation
+	Options                                             []DictionaryOption
+	Runtime                                             DictionaryRuntime
 }
 
 func (d *TSDictionary) Address() ids.ObjectAddress { return d.ObjectAddress }
@@ -176,7 +192,7 @@ func ValidateExtensionMembership(view Read, d Descriptor) error {
 		return nil
 	}
 	ext, ok := view.Extension(address)
-	if !ok || ext.TargetNamespace != d.Namespace() {
+	if !ok || d.Address().ClassID != ids.TSDictionaryClassID && ext.TargetNamespace != d.Namespace() {
 		return fmt.Errorf("stuntgres: invalid extension member placement")
 	}
 	for _, member := range ext.Members {

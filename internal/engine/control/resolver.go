@@ -122,7 +122,13 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		return ext.Address().ObjectID, nil
 	}
 	if dictionary, ok := object.(*catalog.TSDictionary); ok {
-		return predecessor(view, dictionary.Extension, consumer)
+		if dictionary.Seeded() {
+			return 0, nil
+		}
+		if dictionary.Extension != (ids.ObjectAddress{}) {
+			return predecessor(view, dictionary.Extension, consumer)
+		}
+		return dictionary.Address().ObjectID, nil
 	}
 	if typ, ok := object.(*catalog.Type); ok {
 		if typ.SQLType.IsArray() {

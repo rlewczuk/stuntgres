@@ -132,6 +132,12 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "DROP DOMAIN"
 	case *parser.AlterDomain:
 		return "ALTER DOMAIN"
+	case *parser.CreateDictionary:
+		return "CREATE TEXT SEARCH DICTIONARY"
+	case *parser.AlterDictionary:
+		return "ALTER TEXT SEARCH DICTIONARY"
+	case *parser.DropDictionary:
+		return "DROP TEXT SEARCH DICTIONARY"
 	case *parser.CreateCollation:
 		return "CREATE COLLATION"
 	case *parser.AlterCollation:
@@ -249,6 +255,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
+	case *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary:
+		return true
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
 	case *parser.CreateCast, *parser.DropCast, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
@@ -296,6 +304,7 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.CreateDomain, *parser.CreateComposite, *parser.AlterDomain, *parser.AlterComposite,
 		*parser.AlterType, *parser.DropDomain, *parser.DropType,
 		*parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation,
+		*parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary,
 		*parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion,
 		*parser.CreateCast, *parser.DropCast:
 		return true

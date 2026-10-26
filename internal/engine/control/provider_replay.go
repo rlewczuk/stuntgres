@@ -15,7 +15,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// providerKey is PostgreSQL's routine collision key, not a display identity.
+// providerKey is a schema/name collision key with the routine input signature.
+// Dictionary keys use an empty signature and a separate planner invocation.
 type providerKey struct {
 	schema, name string
 	signature    catalog.ProcedureSignature
@@ -24,6 +25,8 @@ type providerReplay struct {
 	original, current providerKey
 	arguments, owner  string
 	ownerChanged      bool
+	dictionary        bool
+	options           string // Rendered dictionary ALTER clause, after identity replay.
 }
 
 func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
@@ -131,7 +134,11 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 	}
 	var statements []string
 	alter := func(p providerReplay, key providerKey) string {
-		return "ALTER FUNCTION " + catalog.QuoteIdentifier(key.schema) + "." + catalog.QuoteIdentifier(key.name) + "(" + p.arguments + ")"
+		name := catalog.QuoteIdentifier(key.schema) + "." + catalog.QuoteIdentifier(key.name)
+		if p.dictionary {
+			return "ALTER TEXT SEARCH DICTIONARY " + name
+		}
+		return "ALTER FUNCTION " + name + "(" + p.arguments + ")"
 	}
 	serial := 0
 	for pending > 0 {
@@ -183,7 +190,11 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 			next := p.original
 			for {
 				serial++
-				next.name = fmt.Sprintf("__stuntgres_routine_%d", serial)
+				kind := "routine"
+				if p.dictionary {
+					kind = "dictionary"
+				}
+				next.name = fmt.Sprintf("__stuntgres_%s_%d", kind, serial)
 				other := next
 				other.schema = p.current.schema
 				if !reserved[next] && !reserved[other] {
@@ -200,6 +211,12 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 			break
 		}
 	}
+	// Refresh options only after every provider has its final identity.
+	for _, p := range providers {
+		if p.options != "" {
+			statements = append(statements, alter(p, p.current)+p.options+";\n")
+		}
+	}
 	// Transfer authority last: relabeling must not depend on recipient privileges.
 	for _, p := range providers {
 		if p.ownerChanged {
@@ -214,6 +231,15 @@ func (s *dumpScript) prepareProviderReplay() error {
 	if err != nil {
 		return err
 	}
+	dictionaries, err := s.dictionaryProviderReplays()
+	if err != nil {
+		return err
+	}
+	dictionaryStatements, err := planProviderReplay(dictionaries)
+	if err != nil {
+		return err
+	}
+	statements = append(statements, dictionaryStatements...)
 	if len(statements) == 0 {
 		return nil
 	}

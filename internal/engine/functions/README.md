@@ -348,6 +348,17 @@ publication and lock-manager tickets stay in the engine.
 
 ## Family notes
 
+- **Dictionary lexization**: `DictionaryLexize` binds REGDICTIONARY/TEXT to
+  checked TEXT[] results through `DictionaryRuntime`. `SimpleDictionary` owns
+  immutable Accept/stopword state and whole-token database-C normalization.
+  `english.stop` is the verbatim released PostgreSQL English resource; its
+  compiled sorted list is shared, not reread per evaluation. Resource names
+  resolve only shipped bytes; missing names report the actual embed-relative
+  lookup path. Kernels retain neither catalog identities nor expression collation.
+  Strict NULL-or-evaluate preflight uses the shared immutable typed-fold owner:
+  warmed all-constant calls may reuse their accepted result across dictionary
+  option revisions, while runtime-token calls invoke current dictionary state.
+  The node retains no dictionary-result cache or statement authority.
 - **Text-search query utilities**: `FTSQuery` binds owner-checked INT4, TEXT
   and TSQUERY results. Inspection and direct rewriting are immutable;
   SQL-based rewriting is intrinsically volatile and only demands
@@ -432,7 +443,11 @@ publication and lock-manager tickets stay in the engine.
   `InstalledEarthPointExpr` retains its selected procedure through the same
   reconstruction and lifecycle seams; no callable exists without installation.
 - **unaccent**: `unaccent.rules` (PostgreSQL REL_18_0) is embedded and compiled
-  once into `StockUnaccent`, used by `extension.UnaccentProvider`.
+  once into `StockUnaccent`, used by dictionary providers. Installed
+  `unaccent(text)` retains its routine identity, not a captured matcher: the live
+  engine resolves literal `unaccent` in the function's current schema and invokes
+  that dictionary's actual runtime. It returns the first lexeme or the original
+  token for an empty/unrecognized result; strict SQL NULL never demands lookup.
 - **dmetaphone licence**: Single Metaphone retains its complete release
   PGDG/Schwern/Philips provenance. The Double Metaphone files retain the complete
   Maurice Aubrey/Text::DoubleMetaphone and North Carolina State Highway Patrol
@@ -490,6 +505,7 @@ make check RUN='^Test(ACLValues|ACLNodes|ACLValueEvaluates|ObjectACLEvaluates|Ac
 make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryAlignment|GeometryRelation|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
 make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider authority
 make check RUN='^TestFTSQueryFunctions'  # query utility providers, kernels and runtime lifetime
+make check RUN='^TestSimpleDictionary'  # dictionary kernels and shipped resources
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
 make check RUN='^TestMACOperationsProviderLifecycle$'  # fixed-width MAC function protocol
 ```

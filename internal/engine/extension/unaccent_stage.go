@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
@@ -91,6 +92,8 @@ func (p *UnaccentProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 		return err
 	}
 	dict := &catalog.TSDictionary{ObjectAddress: ext.Members[5], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Template: tmpl.Address(), Owner: owner, Implementation: p}
+	dict.Options = []catalog.DictionaryOption{{Name: "rules", Value: "unaccent", Supplied: true}}
+	dict.Runtime = functions.StockUnaccent
 	if stage.LookupName(catalog.DescriptorNameKey(dict)) != (ids.ObjectAddress{}) {
 		return MemberConflict(dict, ext.TargetNamespace)
 	}

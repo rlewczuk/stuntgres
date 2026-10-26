@@ -18,6 +18,11 @@ PUBLIC catalog inquiry includes private-schema and inquiry-only collations;
 ordinary schema access checks remain unchanged. Held reads follow collation
 creation, rename, schema move, ownership changes and removal.
 
+Partitioned constraint/index cancellation tests discard native short-timeout
+sessions instead of resetting an armed timer. Held statements are prepared before
+arming; exact cancellation diagnostics and post-cancellation atomicity and
+eventual-success assertions remain unchanged.
+
 All 28 PostgreSQL 18 vacuum settings now expose typed values and complete
 catalog metadata through the shared registry. Ordinary logins can change the
 13 user-context controls, including the released-source USERSET eager-freeze
@@ -42,6 +47,14 @@ projection.
 the exact stock parser identity and five handler links, unsupported-name emptiness,
 OID boundaries, held parameter reuse and PostgreSQL diagnostics. Catalog metadata
 does not imply module availability or add parser execution.
+
+Text-search dictionaries now support simple normalization and shipped English
+stopwords, typed `ts_lexize` results, transactional CREATE/ALTER/DROP, ownership
+and dependency retirement. Standalone and installed dictionaries preserve their
+names, schemas, ordered options and owners through native Dump/Reset/Restore;
+installed unaccent templates retain their genuine lexize provider. The one-argument
+unaccent function follows the default dictionary in its current function schema
+after dictionary DDL.
 
 `pg_ts_dict` now has dedicated native/PostgreSQL coverage for exact installed
 unaccent identity, template linkage, initialization options and six-column

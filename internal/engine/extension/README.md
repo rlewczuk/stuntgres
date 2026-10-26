@@ -55,6 +55,25 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Lquery retains slots 0/1/2 and ltree 3/4/5; ltxtquery appends 6/7/8.
   The nine represented members are scalar/I/O roles, not an inventory of every
   object in the PostgreSQL extension.
+- **Dictionary definitions** (`dictionary_*.go`): ordinary schema-CREATE and
+  owner authority, independent of extension installation privileges. Preparation
+  captures template/options and compilation runs outside the catalog mutex;
+  completion rechecks current namespace/template/revision and role authority.
+  SET SCHEMA checks destination CREATE before source ownership, both during
+  preparation and at current-authority completion.
+  Ordered immutable options and genuine simple/unaccent runtime state publish in
+  the existing catalog journal. ALTER removes matching options before appending
+  supplied replacements. Standalone dictionaries depend on their real namespace
+  and template, without fabricated extension membership. `DictionaryDumpStatement`
+  serializes qualified template/options and owner metadata, never runtime pointers.
+  Installed dictionaries retain their genuine provider, template/helper links and
+  reciprocal manifest slot across supported name/schema changes. Their public
+  placement is not the installation namespace. Owner metadata accepts mutable
+  dictionary labels only for the unaccent dictionary slot and checks the exact
+  current name/schema/slot during import.
+  The one-argument unaccent function independently resolves literal `unaccent` in
+  its current function schema at execution; the original member slot is provider
+  provenance, not a permanent default-dictionary binding.
 - **Cube members** (`cube_provider.go`, `cube_coordinates.go`, `cube_spatial.go`,
   `cube_spatial_call.go`): one atomic installation validates all 48 direct members.
   The comparison graph keeps its 18-member prefix; constructor/inquiry/coordinate

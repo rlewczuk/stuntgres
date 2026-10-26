@@ -348,7 +348,7 @@ func ValidInstalledText(n plan.InstalledTextExpr) bool {
 		return false
 	}
 	if extension.FuzzystrmatchProviderOf(p) != nil {
-		return extension.FuzzystrmatchProviderOf(p) == extension.StockFuzzystrmatch && n.Function == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.Dictionary == nil && n.Template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
+		return extension.FuzzystrmatchProviderOf(p) == extension.StockFuzzystrmatch && n.Function == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
 	}
-	return extension.UnaccentProviderOf(p) == extension.StockUnaccent && p.Conversion.Name() == "" && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.Dictionary != nil && n.Template != nil && p.Dictionary == n.Dictionary.Address() && n.Dictionary.Template == n.Template.Address() && extension.UnaccentProviderOf(p) == extension.UnaccentDictionaryProviderOf(n.Dictionary) && extension.UnaccentDictionaryProviderOf(n.Dictionary) == extension.UnaccentTemplateProviderOf(n.Template)
+	return extension.UnaccentProviderOf(p) == extension.StockUnaccent && n.Function == "unaccent" && p.Conversion.Name() == "" && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type
 }

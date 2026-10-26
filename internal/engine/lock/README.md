@@ -16,8 +16,8 @@ engine.
   engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
   detached from its session (`DetachPrepared`).
 - **Resources and modes.** A `Resource` is a real relation, type, namespace,
-  collation, conversion, cast, procedure, access method, operator family/class or
-  shared role (`ids.ObjectRef`),
+  collation, conversion, cast, procedure, text-search template/dictionary, access
+  method, operator family/class or shared role (`ids.ObjectRef`),
   an exact catalog destination binding (`Name`),
   a role attribute tuple claim (`RoleTuple`), a logical row (`Row`), an interned
   unique key (`PinUniqueKey`), transaction completion (`CompletionOf`) or a
@@ -32,9 +32,10 @@ engine.
   procedures and NONE operator operands. Family/class names include their exact
   SQL method signature; method names are global and member names identify actual
   family/pair/slot keys. Other name classes forbid signatures. There is no
-  default-class absence lock. Procedure and nonpinned method/family/class
-  providers use ordinary AS/AX object grants, not relation aliases. The engine
-  acquires and waits outside `Engine.Mu`, then rechecks original identities;
+  default-class absence lock. Procedures, text-search templates/dictionaries and
+  nonpinned method/family/class providers use ordinary AS/AX object grants, not
+  relation aliases. The engine acquires and waits outside `Engine.Mu`, then
+  rechecks original identities;
   definition DROP holds AX before capturing its complete dependent closure.
   Catalog ACL writer claims use a real catalog-object address; default ACL
   claims use the actual creator ID, namespace/global scope and default class.
@@ -92,8 +93,9 @@ engine.
   the engine uses to validate its own admission (`Holds`, `MissingRowGrant`,
   `ReplacementGrants`, `ValidSession`, `TransactionTicket`, `IndexWriters`,
   `AppendRelationNameClaims`).
-  Namespace, procedure, access-method, family/class and shared role holds project
-  as real object tags; shared roles have SQL database zero. Exact name and
+  Namespace, procedure, text-search template/dictionary, access-method,
+  family/class and shared role holds project as real object tags; shared roles
+  have SQL database zero. Exact name and
   role-tuple claims are internal, not physical
   object tags; pending claims project the actual blocker XID. Their queues join
   blocking inquiry and the same deadlock graph without exposing peer local locks.
@@ -235,5 +237,6 @@ through the diagnostic seam.
 ```sh
 make check RACE=1 RUN='^Test(RelationDeadlock|RelationLockWaits(DelayedDeadlines|TimeoutPerAcquisition)|TypeLock|Advisory(Counted|Expired)|BlockingPids(AdvisoryAuthority|Lifecycle)|MultiXact|PGLocks(ResourceRecords|ConcurrentAssignment)|UniqueJournal)'
 make check RACE=1 RUN='^TestTransactionalSchemaLockResources$'
+make check RACE=1 RUN='^(TestDictionaryLockResources|TestTransactionalDefinitionLockResources)$'
 make check RUN='^TestPgrowlocks'   # pgrowlocks capture through a real engine
 ```

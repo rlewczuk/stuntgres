@@ -127,6 +127,10 @@ func movableImportedIdentity(next *catalog.State, d catalog.Descriptor) bool {
 		return !t.Seeded()
 	case *catalog.Conversion:
 		return !t.Seeded()
+	case *catalog.TSDictionary:
+		return !t.Seeded()
+	case *catalog.TSTemplate:
+		return !t.Seeded()
 	case *catalog.AccessMethod:
 		return !catalog.AccessMethodSeeded(t)
 	case *catalog.Operator:

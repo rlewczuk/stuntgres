@@ -149,7 +149,7 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 		case *TSDictionary:
 			n := *d
 			var err error
-			n.Owner, err = remap(d.Owner)
+			n.Owner, err = seedOwner(d.Owner, d.Seeded())
 			if err != nil {
 				return err
 			}

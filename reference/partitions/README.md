@@ -19,6 +19,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared table rules in
   `partitionConstraintCase` (`partition_constraints_fixture_test.go`),
   `partitionExclusionScenario`/`Case` (`partition_exclusion_fixture_test.go`) and
   `partitionInheritedScenario` (`partition_inherited_fixture_test.go`).
+- Constraint/index cancellation prepares held native statements before taking the
+  blocker and arming the 50 ms statement timeout. Its timed borrower is physically
+  discarded, including on failure, never reset or returned for later assertions.
+  PostgreSQL cancellation retains the admitted server wait and exact user-request
+  diagnostic; post-cancellation checks run independently of the native timed owner.
 - Query results do not prove that pruned branches or ATTACH validation scans
   were skipped. Engine units assert that natively; on PostgreSQL, ATTACH scan
   elision is read from `pg_stat_user_tables.seq_scan` on the same session after

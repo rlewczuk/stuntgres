@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 )
 
@@ -240,19 +239,6 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !analyze.ValidInstalledText(n) || !exec.SameRoutineDeclaration(proc, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
-		if n.Dictionary != nil {
-			dictionary, ok := r.descriptor(view, proc.Dictionary).(*catalog.TSDictionary)
-			if !ok || dictionary.Address() != n.Dictionary.Address() || dictionary.Template != n.Dictionary.Template || extension.UnaccentDictionaryProviderOf(dictionary) != extension.UnaccentDictionaryProviderOf(n.Dictionary) {
-				return "", fmt.Errorf("stuntgres: invalid stored installed dictionary")
-			}
-			template, ok := r.descriptor(view, dictionary.Template).(*catalog.TSTemplate)
-			if !ok || template.Address() != n.Template.Address() || extension.UnaccentTemplateProviderOf(template) != extension.UnaccentTemplateProviderOf(n.Template) {
-				return "", fmt.Errorf("stuntgres: invalid stored installed template")
-			}
-		}
-		if extension.FuzzystrmatchProviderOf(proc) == nil && n.Dictionary == nil {
-			return "", fmt.Errorf("stuntgres: invalid stored installed function")
-		}
 		proc, _ = view.Procedure(n.Procedure.Address())
 		namespace, ok := view.Namespace(proc.Namespace())
 		if !ok {
@@ -272,10 +258,14 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), []expr.Expr{n.Arg})
 	case plan.InstalledVerifyHeapamExpr:
-		if err := ValidateInstalledVerifyHeapam(n, view); err != nil { return "", err }
+		if err := ValidateInstalledVerifyHeapam(n, view); err != nil {
+			return "", err
+		}
 		procedure, _ := view.Procedure(n.Procedure.Address())
 		namespace, ok := view.Namespace(procedure.Namespace())
-		if !ok { return "", fmt.Errorf("stuntgres: missing stored verify_heapam namespace") }
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored verify_heapam namespace")
+		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args[:])
 	case plan.ExtensionPathsExpr:

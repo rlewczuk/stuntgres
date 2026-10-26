@@ -57,7 +57,7 @@ func extensionUnitInstalled(t *testing.T) (*core.Engine, *session.Operation, *ca
 	return e, op, e.Catalog.State.MustExtension(a)
 }
 func TestExtensionExpressionIdentity(t *testing.T) {
-	e, _, ext := extensionUnitInstalled(t)
+	e, op, ext := extensionUnitInstalled(t)
 	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
 	node, err := b.BindFunctionProvider(raw)
@@ -65,12 +65,13 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(plan.InstalledTextExpr)
-	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(&core.StatementScope{Op: op, Owner: op.Session.Transactions})}}
+	value, err := node.Eval(evaluation)
 	text, _ := value.Text()
 	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || exec.PlannedVolatility(node) != expr.Stable {
 		t.Fatal("typed stable evaluation", text, err)
 	}
-	if n.Procedure.Address() != ext.Members[1] || n.Dictionary.Address() != ext.Members[5] || n.Template.Address() != ext.Members[4] {
+	if n.Procedure.Address() != ext.Members[1] || n.Ref.Address != ext.Members[1] {
 		t.Fatal("captured provider identity")
 	}
 	refs, err := stored.ExpressionDependRefs(context.Background(), e.CatalogRead(), node)
@@ -86,7 +87,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err = retagged.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	value, err = retagged.Eval(evaluation)
 	text, _ = value.Text()
 	if err != nil || text != "Hotel" || retagged.ResultUsage() != node.ResultUsage() || exec.PlannedVolatility(retagged) != expr.Stable {
 		t.Fatal("retagged provider consumer", text, err)
@@ -99,6 +100,42 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	plan.ExpressionChildren(node, func(expr.Expr) { children++ })
 	if children != 1 {
 		t.Fatal("child traversal", children)
+	}
+	// An already bound call must not retain the original member's rules.
+	view := e.CatalogRead()
+	renamed := *view.MustTSDictionary(ext.Members[5])
+	renamed.ObjectName = "dictionary_member"
+	renamed.ObjectRevision++
+	stage := e.BeginCatalogStage(view)
+	defer e.DiscardCatalogStage(stage)
+	if err := stage.Replace(&renamed); err != nil {
+		t.Fatal(err)
+	}
+	extensionUnitPublish(t, e, op, stage)
+	_, err = node.Eval(evaluation)
+	extensionUnitError(t, err, "42704")
+	replacement, err := schemacmds.StageDictionaryDetached(e, op, &parser.CreateDictionary{
+		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}},
+		Options: []parser.DictionaryOption{{
+			CollationOption: parser.CollationOption{
+				Name:   parser.Identifier{Text: "template"},
+				Source: &parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "simple"}}},
+			},
+			Supplied: true,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.DiscardCatalogStage(replacement)
+	extensionUnitPublish(t, e, op, replacement)
+	value, err = node.Eval(evaluation)
+	text, _ = value.Text()
+	if err != nil || text != "hôtel" || value.Type() != node.ResultUsage().Type {
+		t.Fatal("current replacement dictionary provider", text, err)
+	}
+	if view.MustTSDictionary(ext.Members[5]).Name() != "unaccent" {
+		t.Fatal("renaming changed captured catalog state")
 	}
 }
 

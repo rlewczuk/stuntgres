@@ -9,13 +9,16 @@ import (
 )
 
 func TestTransactionalDefinitionLockResources(t *testing.T) {
-	for _, class := range []ids.OID{ids.AccessMethodClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID} {
+	for _, class := range []ids.OID{ids.AccessMethodClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID} {
 		f := newLockFixture(t)
 		a, b, c := f.tx(), f.tx(), f.tx()
 		ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		key := ids.NameKey{ClassID: class, Namespace: ns, Name: "definition", Signature: "403"}
 		if class == ids.AccessMethodClassID {
 			key.Namespace = ids.ObjectAddress{}
+			key.Signature = ""
+		}
+		if class == ids.TSTemplateClassID || class == ids.TSDictionaryClassID {
 			key.Signature = ""
 		}
 		if class == ids.AccessMethodOperatorClassID || class == ids.AccessMethodProcedureClassID {

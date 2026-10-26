@@ -1,10 +1,10 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/core"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -114,7 +114,10 @@ func TestRegTSProviderResolution(t *testing.T) {
 	if got := regobj.TextSearchSpelling(view, path, 0, sqltype.Regdictionary, false); got != "-" {
 		t.Fatal("zero output", got)
 	}
-	for _, tc := range []struct{ input, code string }{{"simple", "42704"}, {"reg_ts_missing.unaccent", "42704"}, {"a..b", "42602"}, {"a.b.c.d", "42601"}, {"reg_ts_foreign.public.unaccent", "0A000"}} {
+	if id, err := input.ResolveRegdictionary(context.Background(), "simple"); err != nil || id != 3765 {
+		t.Fatal("genuine builtin dictionary", id, err)
+	}
+	for _, tc := range []struct{ input, code string }{{"reg_ts_missing.unaccent", "42704"}, {"a..b", "42602"}, {"a.b.c.d", "42601"}, {"reg_ts_foreign.public.unaccent", "0A000"}} {
 		_, err := input.ResolveRegdictionary(context.Background(), tc.input)
 		extensionUnitError(t, err, tc.code)
 	}

@@ -1,0 +1,156 @@
+package extension
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqlstate"
+)
+
+func dictionaryError(code, message string) error {
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
+}
+
+func SimpleTemplate(d *catalog.TSTemplate) bool {
+	return d != nil && d.Seeded() && d.Implementation == nil && d.Extension == (ids.ObjectAddress{}) && d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726})
+}
+
+// CompileDictionary compiles immutable execution state before catalog publication.
+func CompileDictionary(ctx context.Context, template *catalog.TSTemplate, options []catalog.DictionaryOption) (catalog.DictionaryRuntime, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if template == nil {
+		return nil, InvalidProviderDescriptor()
+	}
+	if SimpleTemplate(template) {
+		accept, stopwords, err := simpleOptions(options)
+		if err != nil {
+			return nil, err
+		}
+		return functions.CompileSimpleDictionary(ctx, accept, stopwords)
+	}
+	if UnaccentTemplateProviderOf(template) == StockUnaccent {
+		rules := false
+		var resource string
+		for _, o := range options {
+			if o.Name != "rules" {
+				return nil, dictionaryError("22023", fmt.Sprintf(`unrecognized Unaccent parameter: "%s"`, o.Name))
+			}
+			if rules {
+				return nil, dictionaryError("22023", "multiple Rules parameters")
+			}
+			rules = true
+			if !o.Supplied {
+				return nil, dictionaryError("42601", "rules requires a parameter")
+			}
+			resource = o.Value
+		}
+		if !rules {
+			return nil, dictionaryError("22023", "missing Rules parameter")
+		}
+		return functions.CompileUnaccentDictionary(ctx, resource)
+	}
+	return nil, InvalidProviderDescriptor()
+}
+
+func simpleOptions(options []catalog.DictionaryOption) (bool, string, error) {
+	accept, stopwords := true, ""
+	seenAccept, seenStopwords := false, false
+	for _, o := range options {
+		switch o.Name {
+		case "accept":
+			if seenAccept {
+				return false, "", dictionaryError("22023", "multiple Accept parameters")
+			}
+			seenAccept = true
+			if !o.Supplied {
+				continue
+			}
+			if o.Numeric {
+				n, err := strconv.ParseInt(o.Value, 10, 32)
+				if err != nil || n != 0 && n != 1 {
+					return false, "", dictionaryError("42601", "accept requires a Boolean value")
+				}
+				accept = n == 1
+			} else {
+				switch {
+				case strings.EqualFold(o.Value, "true"), strings.EqualFold(o.Value, "on"):
+					accept = true
+				case strings.EqualFold(o.Value, "false"), strings.EqualFold(o.Value, "off"):
+					accept = false
+				default:
+					return false, "", dictionaryError("42601", "accept requires a Boolean value")
+				}
+			}
+		case "stopwords":
+			if seenStopwords {
+				return false, "", dictionaryError("22023", "multiple StopWords parameters")
+			}
+			seenStopwords = true
+			if !o.Supplied {
+				return false, "", dictionaryError("42601", "stopwords requires a parameter")
+			}
+			stopwords = o.Value
+		default:
+			return false, "", dictionaryError("22023", fmt.Sprintf(`unrecognized simple dictionary parameter: "%s"`, o.Name))
+		}
+	}
+	return accept, stopwords, nil
+}
+
+// MergeDictionaryOptions implements PostgreSQL's remove-then-append ALTER order.
+func MergeDictionaryOptions(old, changes []catalog.DictionaryOption) []catalog.DictionaryOption {
+	result := slices.Clone(old)
+	for _, change := range changes {
+		result = slices.DeleteFunc(result, func(o catalog.DictionaryOption) bool { return o.Name == change.Name })
+		if change.Supplied {
+			result = append(result, change)
+		}
+	}
+	return result
+}
+
+func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
+	template, ok := v.TSTemplate(d.Template)
+	if !ok || d.Runtime == nil || d.Owner.ID() == 0 {
+		return InvalidProviderDescriptor()
+	}
+	if v.Owner() == nil || v.Owner().Principals == nil || d.Owner != v.Owner().Principals.Principal(d.Owner.ID()) {
+		return InvalidProviderDescriptor()
+	}
+	if err := (CatalogProvider{Class: ids.TSTemplateClassID}).Validate(v, template); err != nil {
+		return err
+	}
+	for _, option := range d.Options {
+		if !option.Supplied {
+			return InvalidProviderDescriptor()
+		}
+	}
+	if SimpleTemplate(template) {
+		runtime, ok := d.Runtime.(*functions.SimpleDictionary)
+		accept, stopwords, err := simpleOptions(d.Options)
+		if !ok || err != nil || !runtime.Configured(accept, stopwords) || d.Implementation != nil {
+			return InvalidProviderDescriptor()
+		}
+	} else if UnaccentTemplateProviderOf(template) == StockUnaccent {
+		if d.Runtime != functions.StockUnaccent {
+			return InvalidProviderDescriptor()
+		}
+		if len(d.Options) != 1 || d.Options[0].Name != "rules" || !d.Options[0].Supplied || d.Options[0].Value != "unaccent" {
+			return InvalidProviderDescriptor()
+		}
+		if d.Extension != (ids.ObjectAddress{}) && (UnaccentDictionaryProviderOf(d) != StockUnaccent || d.Extension != template.Extension) {
+			return InvalidProviderDescriptor()
+		}
+	} else {
+		return InvalidProviderDescriptor()
+	}
+	return nil
+}

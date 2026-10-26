@@ -14,29 +14,45 @@ var tsTemplateNames = []string{"oid", "tmplname", "tmplnamespace", "tmplinit", "
 var tsTemplateTypes = []string{"OID", "NAME", "OID", "REGPROC", "REGPROC"}
 
 type tsTemplateIdentity struct {
-	oid, namespace int64
+	oid, namespace     int64
 	name, init, lexize string
 }
 
-type tsTemplateHandlers struct { init, lexize int64 }
+type tsTemplateHandlers struct{ init, lexize int64 }
 
 func tsTemplateMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, tsTemplateNames) { t.Fatalf("template columns %v: %v", names, err) }
+	if err != nil || !reflect.DeepEqual(names, tsTemplateNames) {
+		t.Fatalf("template columns %v: %v", names, err)
+	}
 	types, err := rows.ColumnTypes()
-	if err != nil || len(types) != 5 { t.Fatalf("template metadata %v: %v", types, err) }
+	if err != nil || len(types) != 5 {
+		t.Fatalf("template metadata %v: %v", types, err)
+	}
 	for i, column := range types {
-		if column.Name() != tsTemplateNames[i] || column.DatabaseTypeName() != tsTemplateTypes[i] { t.Fatal("template column", i, column) }
+		if column.Name() != tsTemplateNames[i] || column.DatabaseTypeName() != tsTemplateTypes[i] {
+			t.Fatal("template column", i, column)
+		}
 		nullable, known := column.Nullable()
 		if pg {
-			if nullable || known { t.Fatal("pq must report unknown nullability", i) }
-			if column.ScanType() != reflect.TypeOf((*any)(nil)).Elem() { t.Fatal("pq template ScanType", i, column.ScanType()) }
+			if nullable || known {
+				t.Fatal("pq must report unknown nullability", i)
+			}
+			if column.ScanType() != reflect.TypeOf((*any)(nil)).Elem() {
+				t.Fatal("pq template ScanType", i, column.ScanType())
+			}
 		} else {
-			if nullable || !known { t.Fatal("native template nullability", i, nullable, known) }
+			if nullable || !known {
+				t.Fatal("native template nullability", i, nullable, known)
+			}
 			want := reflect.TypeOf("")
-			if i == 0 || i == 2 { want = reflect.TypeOf(int64(0)) }
-			if column.ScanType() != want { t.Fatal("native template ScanType", i, column.ScanType()) }
+			if i == 0 || i == 2 {
+				want = reflect.TypeOf(int64(0))
+			}
+			if column.ScanType() != want {
+				t.Fatal("native template ScanType", i, column.ScanType())
+			}
 		}
 	}
 }
@@ -48,36 +64,54 @@ func tsTemplateConsume(t *testing.T, rows *sql.Rows, pg, present bool) tsTemplat
 	var id tsTemplateIdentity
 	n := 0
 	for rows.Next() {
-		if err := rows.Scan(&id.oid, &id.name, &id.namespace, &id.init, &id.lexize); err != nil { t.Fatal(err) }
+		if err := rows.Scan(&id.oid, &id.name, &id.namespace, &id.init, &id.lexize); err != nil {
+			t.Fatal(err)
+		}
 		n++
 	}
-	if err := rows.Err(); err != nil { t.Fatal(err) }
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	want := 0
-	if present { want = 1 }
-	if n != want { t.Fatalf("template cardinality %d want %d", n, want) }
-	if present && (id.oid <= 0 || id.oid > 4294967295 || id.namespace <= 0 || id.namespace > 4294967295 || id.name != "unaccent" || id.init != "ext_addon.unaccent_init" || id.lexize != "ext_addon.unaccent_lexize") { t.Fatalf("template identity %+v", id) }
+	if present {
+		want = 1
+	}
+	if n != want {
+		t.Fatalf("template cardinality %d want %d", n, want)
+	}
+	if present && (id.oid <= 0 || id.oid > 4294967295 || id.namespace <= 0 || id.namespace > 4294967295 || id.name != "unaccent" || id.init != "ext_addon.unaccent_init" || id.lexize != "ext_addon.unaccent_lexize") {
+		t.Fatalf("template identity %+v", id)
+	}
 	return id
 }
 
 func tsTemplateRead(t *testing.T, p *fixture.Pair, c *sql.Conn, pg, present bool) tsTemplateIdentity {
 	t.Helper()
 	rows, err := c.QueryContext(p.Ctx, tsTemplateQuery, "unaccent")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	return tsTemplateConsume(t, rows, pg, present)
 }
 
 func tsTemplateHeld(t *testing.T, p *fixture.Pair, stmt *sql.Stmt, pg, present bool) tsTemplateIdentity {
 	t.Helper()
 	rows, err := stmt.QueryContext(p.Ctx, "unaccent")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	return tsTemplateConsume(t, rows, pg, present)
 }
 
 func tsTemplateNumeric(t *testing.T, p *fixture.Pair, c *sql.Conn) tsTemplateHandlers {
 	t.Helper()
 	var h tsTemplateHandlers
-	if err := c.QueryRowContext(p.Ctx, "SELECT tmplinit::oid,tmpllexize::oid FROM pg_catalog.pg_ts_template WHERE tmplname='unaccent'").Scan(&h.init, &h.lexize); err != nil { t.Fatal(err) }
-	if h.init <= 0 || h.init > 4294967295 || h.lexize <= 0 || h.lexize > 4294967295 || h.init == h.lexize { t.Fatal("template handler identities", h) }
+	if err := c.QueryRowContext(p.Ctx, "SELECT tmplinit::oid,tmpllexize::oid FROM pg_catalog.pg_ts_template WHERE tmplname='unaccent'").Scan(&h.init, &h.lexize); err != nil {
+		t.Fatal(err)
+	}
+	if h.init <= 0 || h.init > 4294967295 || h.lexize <= 0 || h.lexize > 4294967295 || h.init == h.lexize {
+		t.Fatal("template handler identities", h)
+	}
 	return h
 }
 
@@ -108,16 +142,27 @@ func tsTemplateCapability(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture
 func TestReferenceTSTemplateMetadata(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
-		if !pg { run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_template", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})) }
+		if !pg {
+			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_template", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}))
+		}
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Select("SELECT oid::bigint,tmplname,tmplnamespace::bigint,tmplinit::oid::bigint,tmpllexize::oid::bigint FROM pg_catalog.pg_ts_template WHERE oid=3727", tsTemplateNames, []string{"INT8", "NAME", "INT8", "INT8", "INT8"}, [][]any{{int64(3727), "simple", int64(11), int64(3725), int64(3726)}})
+			s.Prepared = prepared
+			run(s)
+		}
 		held, err := c.PrepareContext(p.Ctx, tsTemplateQuery)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer held.Close()
 		for _, installed := range []bool{false, true} {
 			if installed {
 				run(fixture.Exec("CREATE SCHEMA ext_addon", 0))
 				run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA ext_addon", 0))
 				tsTemplateLinked(t, p, c, r, pg)
-				if !pg { run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_template", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}})) }
+				if !pg {
+					run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_template", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
+				}
 			}
 			for _, prepared := range []bool{false, true} {
 				for _, table := range []string{"pg_ts_template", "pg_catalog.pg_ts_template"} {
@@ -130,18 +175,27 @@ func TestReferenceTSTemplateMetadata(t *testing.T) {
 					var rows *sql.Rows
 					if prepared {
 						stmt, err := c.PrepareContext(p.Ctx, tsTemplateQuery)
-						if err != nil { t.Fatal(err) }
+						if err != nil {
+							t.Fatal(err)
+						}
 						rows, err = stmt.QueryContext(p.Ctx, arg)
-						if err != nil { stmt.Close(); t.Fatal(err) }
+						if err != nil {
+							stmt.Close()
+							t.Fatal(err)
+						}
 						tsTemplateConsume(t, rows, pg, installed && arg == "unaccent")
 						stmt.Close()
 					} else {
 						rows, err = c.QueryContext(p.Ctx, tsTemplateQuery, arg)
-						if err != nil { t.Fatal(err) }
+						if err != nil {
+							t.Fatal(err)
+						}
 						tsTemplateConsume(t, rows, pg, installed && arg == "unaccent")
 					}
 					rows, err = held.QueryContext(p.Ctx, arg)
-					if err != nil { t.Fatal(err) }
+					if err != nil {
+						t.Fatal(err)
+					}
 					tsTemplateConsume(t, rows, pg, installed && arg == "unaccent")
 				}
 			}
@@ -155,7 +209,9 @@ func TestReferenceTSTemplateMetadata(t *testing.T) {
 		s := fixture.Select("SELECT tmplinit,tmpllexize FROM pg_catalog.pg_ts_template WHERE tmplname='unaccent'", []string{"tmplinit", "tmpllexize"}, []string{"REGPROC", "REGPROC"}, [][]any{{"unaccent_init", "unaccent_lexize"}})
 		run(s)
 		run(fixture.Prepared(s))
-		if tsTemplateNumeric(t, p, c) != before { t.Fatal("search path changed handler identity") }
+		if tsTemplateNumeric(t, p, c) != before {
+			t.Fatal("search path changed handler identity")
+		}
 		run(fixture.Exec("RESET search_path", 0))
 		tsTemplateLinked(t, p, c, r, pg)
 		tsTemplateCapability(t, p, c, r)

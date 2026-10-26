@@ -121,9 +121,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, failure
 				}
 			}
-   if call,isCitext:=citextStringCallOf(node);isCitext {
-    if failure:=remapCitextStringRoutine(view,reader,captured,current,call,retainedType);failure!=nil {return nil,false,failure}
-   }
+			if call, isCitext := citextStringCallOf(node); isCitext {
+				if failure := remapCitextStringRoutine(view, reader, captured, current, call, retainedType); failure != nil {
+					return nil, false, failure
+				}
+			}
 			sameSignature := ok && current.Signature == captured.Signature
 			if captured.RangeConstructor != nil {
 				sameSignature = ok && current.RangeConstructor != nil && current.RangeConstructor.Form == captured.RangeConstructor.Form && current.RangeConstructor.Type == retainedType(captured.RangeConstructor.Type)
@@ -467,22 +469,8 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		if !ok {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped installed function")
 		}
-		var dict *catalog.TSDictionary
-		var tmpl *catalog.TSTemplate
-		if extension.UnaccentProviderOf(proc) != nil {
-			descriptor, _ := catalog.DescriptorAt(view, reader, proc.Dictionary)
-			dict, ok = descriptor.(*catalog.TSDictionary)
-			if !ok {
-				return nil, false, fmt.Errorf("stuntgres: missing remapped installed dictionary")
-			}
-			descriptor, _ = catalog.DescriptorAt(view, reader, dict.Template)
-			tmpl, ok = descriptor.(*catalog.TSTemplate)
-			if !ok {
-				return nil, false, fmt.Errorf("stuntgres: missing remapped installed template")
-			}
-		}
-		changed = changed || n.Procedure != proc || n.Dictionary != dict || n.Template != tmpl
-		n.Procedure, n.Dictionary, n.Template = proc, dict, tmpl
+		changed = changed || n.Procedure != proc
+		n.Procedure = proc
 		n.Info = info
 		if ValidateInstalledText(n, view) != nil {
 			return nil, false, fmt.Errorf("stuntgres: invalid remapped installed function")
@@ -499,9 +487,13 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		err = ValidateInstalledPgrowlocks(n, view)
 		rebound = n
 	case plan.InstalledVerifyHeapamExpr:
-		for i, arg := range n.Args { n.Args[i] = child(arg) }
+		for i, arg := range n.Args {
+			n.Args[i] = child(arg)
+		}
 		proc, ok := originalProcedure(n.Procedure)
-		if !ok { return nil, false, fmt.Errorf("stuntgres: missing remapped verify_heapam function") }
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped verify_heapam function")
+		}
 		changed = changed || n.Procedure != proc
 		n.Procedure, n.Info = proc, info
 		err = ValidateInstalledVerifyHeapam(n, view)

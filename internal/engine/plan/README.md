@@ -122,6 +122,9 @@ evaluation needs beyond it. `*exec.Context` is its only implementation.
   including strict NULL calls. Spatial and point wrappers retain Procedure/Ref
   through reconstruction; stored remap/retag rebuilds their checked plans against
   destination descriptors.
+  Unaccent retains only Procedure/Ref; non-NULL execution selects literal
+  `unaccent` in the current procedure namespace through the live host. No stored
+  dictionary/template/matcher capture overrides later dictionary DDL.
   `OpenExtensionPaths` reads version pairs from the live catalog. Provider
   checks and catalog reads stay in the engine behind `exec`'s runtime seam.
 

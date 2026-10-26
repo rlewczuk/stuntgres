@@ -120,6 +120,7 @@ private frames, not catalog authority.
   install steps write a state still in its bulk load, before the store is shared:
   `InstallBuiltinNamespaces`, `InstallBuiltinTypes`, `InstallBuiltinCollations`,
   `InstallBuiltinProcedures` (then the native access methods),
+  `InstallBuiltinDictionaries` (simple dictionary/template and typed runtime),
   `Store.InstallBuiltinLanguagesLocked` (plpgsql and its handlers at allocated
   OIDs, with creation-owned C display sources and canonical strictness),
   `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
@@ -133,6 +134,14 @@ private frames, not catalog authority.
   validates the seed once and the database descriptor every time, through
   `ValidateDescriptors`. Every store seeded with one share holds the same
   immutable index and name map.
+- **Text-search descriptors** (`extension_catalog.go`, `dictionary.go`):
+  dictionaries hold ordered decoded immutable options, actual owner/template and
+  a catalog-free `DictionaryRuntime`. Runtime authority is separate from genuine
+  extension membership; builtin simple is not an extension. Seed classification
+  excludes system roots from bulk ownership and independent dump declarations.
+  Authorized installed-dictionary rename/schema changes preserve the original
+  reciprocal extension member identity; mutable placement does not redefine the
+  extension target namespace or the dictionary's template/provider authority.
 - **Candidate** (`candidate.go`). The pure copy-on-write overlay of a catalog
   change over an immutable base `Read`; `CatalogStage` embeds it. `Create` and
   `Replace` run name-conflict and sticky relation-history checks;

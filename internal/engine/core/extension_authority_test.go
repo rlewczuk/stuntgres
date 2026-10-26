@@ -113,7 +113,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(&core.StatementScope{Op: op, Owner: op.Session.Transactions})}})
 	text, _ := value.Text()
 	if err != nil || text != "Hotel" {
 		t.Fatal(text, err)

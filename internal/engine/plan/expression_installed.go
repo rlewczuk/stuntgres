@@ -13,14 +13,12 @@ import (
 // recipes always use that captured identity, never a builtin alias or
 // literal. The engine validates the identity against the extension providers.
 
-// InstalledTextExpr is an installed text routine: unaccent with its captured
-// dictionary and template, or fuzzystrmatch daitch_mokotoff.
+// InstalledTextExpr retains the installed routine identity, not unaccent's
+// mutable default dictionary selection.
 type InstalledTextExpr struct {
 	functions.InstalledText
-	Procedure  *catalog.Procedure
-	Dictionary *catalog.TSDictionary
-	Template   *catalog.TSTemplate
-	Ref        ids.ObjectRef
+	Procedure *catalog.Procedure
+	Ref       ids.ObjectRef
 }
 
 // Eval runs in the engine, which checks the captured provider first.

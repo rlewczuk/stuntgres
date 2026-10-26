@@ -66,40 +66,36 @@ func TestReferenceRegTSPreparedLifetime(t *testing.T) {
 		regtsSelect(t, p, b, parameterHeld, parameterSQL, []string{"d"}, []string{"REGDICTIONARY"}, [][]any{{`"Reg.TS".unaccent`}}, `"Reg.TS".unaccent`)
 		regtsExec(t, p, b, c, `ALTER SCHEMA "Reg.TS" RENAME TO "Reg.TS.Renamed"`, 0)
 		regtsSelect(t, p, b, parameterHeld, parameterSQL, []string{"d"}, []string{"REGDICTIONARY"}, [][]any{{`"Reg.TS.Renamed".unaccent`}}, `"Reg.TS.Renamed".unaccent`)
-		if b.PG {
-			// Real same-name dictionary objects characterize literal invalidation
-			// versus per-execution TEXT input without fabricating native objects.
-			for _, sql := range []string{"CREATE SCHEMA reg_ts_left", "CREATE SCHEMA reg_ts_right", "CREATE TEXT SEARCH DICTIONARY reg_ts_left.reg_ts_capture (TEMPLATE=pg_catalog.simple)", "CREATE TEXT SEARCH DICTIONARY reg_ts_right.reg_ts_capture (TEMPLATE=pg_catalog.simple)", "SET search_path TO reg_ts_left,reg_ts_right,public"} {
-				regtsExec(t, p, b, c, sql, 0)
-			}
-			var leftOID, rightOID int64
-			if err := c.QueryRowContext(p.Ctx, "SELECT 'reg_ts_left.reg_ts_capture'::regdictionary::oid::bigint,'reg_ts_right.reg_ts_capture'::regdictionary::oid::bigint").Scan(&leftOID, &rightOID); err != nil {
-				t.Fatal(err)
-			}
-			if leftOID <= 0 || rightOID <= 0 || leftOID >= 4294967295 || rightOID >= 4294967295 || leftOID == rightOID {
-				t.Fatalf("competing prepared dictionary identities are not valid and distinct: left=%d right=%d", leftOID, rightOID)
-			}
-			identitySQL := "SELECT $1::text::regdictionary::oid::bigint AS id"
-			identity, err := c.PrepareContext(p.Ctx, identitySQL)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer identity.Close()
-			identityHeld := fixture.HeldStatement{Executor: c, Statement: identity, SQL: identitySQL}
-			literalSQL := "SELECT 'reg_ts_capture'::regdictionary::oid='reg_ts_left.reg_ts_capture'::regdictionary::oid AS same"
-			literal, err := c.PrepareContext(p.Ctx, literalSQL)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer literal.Close()
-			literalHeld := fixture.HeldStatement{Executor: c, Statement: literal, SQL: literalSQL}
-			regtsSelect(t, p, b, literalHeld, literalSQL, []string{"same"}, []string{"BOOL"}, [][]any{{true}})
-			regtsSelect(t, p, b, identityHeld, identitySQL, []string{"id"}, []string{"INT8"}, [][]any{{leftOID}}, "reg_ts_capture")
-			regtsSelect(t, p, b, parameterHeld, parameterSQL, []string{"d"}, []string{"REGDICTIONARY"}, [][]any{{"reg_ts_capture"}}, "reg_ts_capture")
-			regtsExec(t, p, b, c, "SET search_path TO reg_ts_right,reg_ts_left,public", 0)
-			regtsSelect(t, p, b, literalHeld, literalSQL, []string{"same"}, []string{"BOOL"}, [][]any{{false}})
-			regtsSelect(t, p, b, parameterHeld, parameterSQL, []string{"d"}, []string{"REGDICTIONARY"}, [][]any{{"reg_ts_capture"}}, "reg_ts_capture")
-			regtsSelect(t, p, b, identityHeld, identitySQL, []string{"id"}, []string{"INT8"}, [][]any{{rightOID}}, "reg_ts_capture")
+		for _, sql := range []string{"CREATE SCHEMA reg_ts_left", "CREATE SCHEMA reg_ts_right", "CREATE TEXT SEARCH DICTIONARY reg_ts_left.reg_ts_capture (TEMPLATE=pg_catalog.simple)", "CREATE TEXT SEARCH DICTIONARY reg_ts_right.reg_ts_capture (TEMPLATE=pg_catalog.simple)", "SET search_path TO reg_ts_left,reg_ts_right,public"} {
+			regtsExec(t, p, b, c, sql, 0)
 		}
+		var leftOID, rightOID int64
+		if err := c.QueryRowContext(p.Ctx, "SELECT 'reg_ts_left.reg_ts_capture'::regdictionary::oid::bigint,'reg_ts_right.reg_ts_capture'::regdictionary::oid::bigint").Scan(&leftOID, &rightOID); err != nil {
+			t.Fatal(err)
+		}
+		if leftOID <= 0 || rightOID <= 0 || leftOID >= 4294967295 || rightOID >= 4294967295 || leftOID == rightOID {
+			t.Fatalf("competing prepared dictionary identities are not valid and distinct: left=%d right=%d", leftOID, rightOID)
+		}
+		identitySQL := "SELECT $1::text::regdictionary::oid::bigint AS id"
+		identity, err := c.PrepareContext(p.Ctx, identitySQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer identity.Close()
+		identityHeld := fixture.HeldStatement{Executor: c, Statement: identity, SQL: identitySQL}
+		literalSQL := "SELECT 'reg_ts_capture'::regdictionary::oid='reg_ts_left.reg_ts_capture'::regdictionary::oid AS same"
+		literal, err := c.PrepareContext(p.Ctx, literalSQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer literal.Close()
+		literalHeld := fixture.HeldStatement{Executor: c, Statement: literal, SQL: literalSQL}
+		regtsSelect(t, p, b, literalHeld, literalSQL, []string{"same"}, []string{"BOOL"}, [][]any{{true}})
+		regtsSelect(t, p, b, identityHeld, identitySQL, []string{"id"}, []string{"INT8"}, [][]any{{leftOID}}, "reg_ts_capture")
+		regtsSelect(t, p, b, parameterHeld, parameterSQL, []string{"d"}, []string{"REGDICTIONARY"}, [][]any{{"reg_ts_capture"}}, "reg_ts_capture")
+		regtsExec(t, p, b, c, "SET search_path TO reg_ts_right,reg_ts_left,public", 0)
+		regtsSelect(t, p, b, literalHeld, literalSQL, []string{"same"}, []string{"BOOL"}, [][]any{{false}})
+		regtsSelect(t, p, b, parameterHeld, parameterSQL, []string{"d"}, []string{"REGDICTIONARY"}, [][]any{{"reg_ts_capture"}}, "reg_ts_capture")
+		regtsSelect(t, p, b, identityHeld, identitySQL, []string{"id"}, []string{"INT8"}, [][]any{{rightOID}}, "reg_ts_capture")
 	})
 }

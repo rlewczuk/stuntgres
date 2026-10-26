@@ -324,6 +324,24 @@ func (c *Context) EvalInstalledText(n plan.InstalledTextExpr) (sqltype.Value, er
 	if !preparation.ValidInstalledText(n) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid installed function expression")
 	}
+	if n.Function == "unaccent" {
+		value, err := n.Arg.Eval(c)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if value.IsNull() {
+			return sqltype.Null(n.Usage.Type), nil
+		}
+		input, err := value.Text()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		host := c.LiveHost()
+		if host == nil {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: unaccent lacks statement authority")
+		}
+		return host.UnaccentText(n.Ref, input, n.Usage.Type)
+	}
 	return n.InstalledText.Eval(c)
 }
 
@@ -612,17 +630,27 @@ func (c *Context) OpenPgrowlocks(n plan.InstalledPgrowlocksExpr) (expr.SourceCur
 }
 
 func (c *Context) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	if err := EvaluationContext(c); err != nil { return nil, err }
+	if err := EvaluationContext(c); err != nil {
+		return nil, err
+	}
 	host := c.LiveHost()
-	if host == nil { return nil, fmt.Errorf("stuntgres: verify_heapam lacks statement scope") }
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: verify_heapam lacks statement scope")
+	}
 	return host.VerifyHeapam(args, result)
 }
 
 func (c *Context) OpenVerifyHeapam(n plan.InstalledVerifyHeapamExpr) (expr.SourceCursor, error) {
-	if err := EvaluationContext(c); err != nil { return expr.SourceCursor{}, err }
+	if err := EvaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
 	host := c.LiveHost()
-	if host == nil { return expr.SourceCursor{}, fmt.Errorf("stuntgres: verify_heapam lacks statement scope") }
-	if err := host.ValidateVerifyHeapam(n); err != nil { return expr.SourceCursor{}, err }
+	if host == nil {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: verify_heapam lacks statement scope")
+	}
+	if err := host.ValidateVerifyHeapam(n); err != nil {
+		return expr.SourceCursor{}, err
+	}
 	return n.VerifyHeapam.OpenSource(c)
 }
 
@@ -701,4 +729,14 @@ func (c *Context) RewriteQuerySQL(query sqltype.Value, text string, result *sqlt
 		return sqltype.Value{}, fmt.Errorf("stuntgres: ts_rewrite lacks statement authority")
 	}
 	return host.RewriteQuerySQL(query, text, result)
+}
+
+var _ functions.DictionaryRuntime = (*Context)(nil)
+
+func (c *Context) LexizeDictionary(dictionary sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: ts_lexize lacks statement authority")
+	}
+	return host.LexizeDictionary(dictionary, text, result)
 }

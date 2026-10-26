@@ -70,8 +70,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{5023, "numeric_pl_pg_lsn", "", "SQL", "INVOKER"},
 		irBuiltinFact{5024, "pg_lsn_mii", "pg_lsn_mii", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1707 {
-		t.Fatalf("released represented inventory: got %d, want 1707", len(facts))
+	if len(facts) != 1710 {
+		t.Fatalf("released represented inventory: got %d, want 1710", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {
