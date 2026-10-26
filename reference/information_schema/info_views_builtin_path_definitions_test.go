@@ -1,6 +1,6 @@
 package reference_test
 
-// Exact pg_get_viewdef presentation observed on pinned PostgreSQL 18.6.
+// Independent released PostgreSQL 18.6 pg_get_viewdef presentation expectations.
 // These consumer expectations are independent of the native builtin inventory.
 var ivBuiltinPathDefinitions = map[string]string{
 	"information_schema.schemata": ` SELECT (current_database())::sql_identifier AS catalog_name,
@@ -13,6 +13,13 @@ var ivBuiltinPathDefinitions = map[string]string{
    FROM pg_namespace n,
     pg_authid u
   WHERE ((n.nspowner = u.oid) AND (pg_has_role(n.nspowner, 'USAGE'::text) OR has_schema_privilege(n.oid, 'CREATE, USAGE'::text)));`,
+	"information_schema.column_options": ` SELECT (current_database())::sql_identifier AS table_catalog,
+    (nspname)::sql_identifier AS table_schema,
+    (relname)::sql_identifier AS table_name,
+    (attname)::sql_identifier AS column_name,
+    ((pg_options_to_table(attfdwoptions)).option_name)::sql_identifier AS option_name,
+    ((pg_options_to_table(attfdwoptions)).option_value)::character_data AS option_value
+   FROM _pg_foreign_table_columns c;`,
 	"information_schema.collations": ` SELECT (current_database())::sql_identifier AS collation_catalog,
     (nc.nspname)::sql_identifier AS collation_schema,
     (c.collname)::sql_identifier AS collation_name,

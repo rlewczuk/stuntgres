@@ -67,3 +67,5 @@ var SPColumns = []string{"feature_id", "feature_name", "is_supported", "is_verif
 var SZColumns = []string{"sizing_id", "sizing_name", "supported_value", "comments"}
 
 var IUMColumns = []string{"authorization_identifier", "foreign_server_catalog", "foreign_server_name"}
+
+var COColumns = []string{"table_catalog", "table_schema", "table_name", "column_name", "option_name", "option_value"}

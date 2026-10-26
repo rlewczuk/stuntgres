@@ -6,7 +6,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `check_constraint_routine_usage`,
-`character_sets`, `collations`, `schemata`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
+`character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `role_usage_grants`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
@@ -384,6 +384,15 @@ authority, never the recorded `Version`.
   joined to their actual namespaces. PUBLIC inquiry does not require schema
   USAGE or search-path visibility and includes inquiry-only collations without
   executing providers or inventing provider details. Empty captures remain typed.
+- `column_options`: six nullable source-owned domains (five `sql_identifier`
+  fields and one `character_data` value). Only real foreign-table column options
+  contribute rows, keyed by live stable attribute numbers, never dense slots.
+  Immediately inherited ownership or effective SELECT, INSERT, UPDATE or
+  REFERENCES on that column exposes its actual values, including sensitive names;
+  other identities receive no rows. Schema/server USAGE and user mappings are
+  not visibility prerequisites. Captured catalog, roles and domain authority stay
+  paired and immutable; canceled captures discard every row. Empty strings remain
+  non-NULL, and absent options remain an owned empty source.
 
 ## Domain constraints
 

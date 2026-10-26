@@ -197,6 +197,16 @@ var infoBuiltinViews = [...]builtinView{
 		viewText("    "), viewClass("pg_authid"), viewText(" "), viewIdentifier("u"), viewText("\n"),
 		viewText("  WHERE (("), viewIdentifier("n"), viewText("."), viewIdentifier("nspowner"), viewText(" = "), viewIdentifier("u"), viewText("."), viewIdentifier("oid"), viewText(") AND ("), viewRoutine("pg_has_role", "26,25"), viewText("("), viewIdentifier("n"), viewText("."), viewIdentifier("nspowner"), viewText(", 'USAGE'::"), viewType("text"), viewText(") OR "), viewRoutine("has_schema_privilege", "26,25"), viewText("("), viewIdentifier("n"), viewText("."), viewIdentifier("oid"), viewText(", 'CREATE, USAGE'::"), viewType("text"), viewText(")));"),
 	}},
+	// information_schema.column_options — REL_18_6 information_schema.sql.
+	{oid: InfoColumnOptionsOID, parts: []builtinViewPart{
+		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_catalog"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("nspname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_schema"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("relname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_name"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("attname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("column_name"), viewText(",\n"),
+		viewText("    (("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("attfdwoptions"), viewText("))."), viewIdentifier("option_name"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("option_name"), viewText(",\n"),
+		viewText("    (("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("attfdwoptions"), viewText("))."), viewIdentifier("option_value"), viewText(")::"), viewDomain("information_schema.character_data"), viewText(" AS "), viewIdentifier("option_value"), viewText("\n"),
+		viewText("   FROM "), viewClass("information_schema._pg_foreign_table_columns"), viewText(" "), viewIdentifier("c"), viewText(";"),
+	}},
 	// information_schema.constraint_column_usage — REL_18_6 information_schema.sql; pinned 18.6 display.
 	{oid: 16207, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_catalog"), viewText(",\n"),

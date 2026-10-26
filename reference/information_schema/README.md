@@ -3,7 +3,7 @@
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `routines`,
 `routine_sequence_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
-`columns`, `column_column_usage`, `character_sets`, `collations`, `schemata`, `domains`,
+`columns`, `column_column_usage`, `column_options`, `character_sets`, `collations`, `schemata`, `domains`,
 `domain_constraints` and `sequences`. Grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
@@ -23,6 +23,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Collation inquiry: `RUN='^TestReferenceInfoCollations'`
 - CHECK routine usage: `RUN='^TestReferenceInfoCheckConstraintRoutineUsage'`
 - Schema inquiry: `RUN='^TestReferenceInfoSchemata'`
+- Foreign-column options: `RUN='^TestReferenceInfoColumnOptions'`
 
 CHECK routine-usage scenarios assert complete six-column identity bags and
 source-owned identifier domains over actual table/domain CHECK semantic edges.
@@ -51,6 +52,15 @@ exercise atomic Dump/Reset/Restore, independent-driver ownership and cancellatio
 Builtin column inventories and all view-definition consumers include this view.
 See the [producer contract](../../internal/engine/pgcatalog/README.md#schema-inquiry).
 
+Foreign-column option scenarios assert exact six-domain rows and NAME/VARCHAR
+transport through direct, fresh-prepared and held reads. Real stable attribute
+identities keep options attached across column gaps and renames. Owner and
+four-column-privilege visibility is distinct from mapping-value disclosure:
+authorized readers receive actual values, denied readers receive no rows.
+Native control phases retain old captures and roundtrip real option/ACL metadata.
+Independent-driver control reads use their own middleware-wrapped pool and
+recorder, so raw transport and recorded rows share the destination database.
+Builtin self-description is asserted before foreign execution metadata is seeded.
 
 ### Domain constraints
 

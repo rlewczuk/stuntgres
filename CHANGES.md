@@ -9,6 +9,14 @@ aggregates and generated range constructors. Full argument names remain aligned
 with formal types and modes; invocation identities remain input-only. Genuinely
 all-IN declarations retain typed NULL formal arrays.
 
+`information_schema.column_options` exposes real foreign-table column options
+with five NAME-backed identifier domains and a VARCHAR-backed value domain.
+Inherited owners and readers with SELECT, INSERT, UPDATE or REFERENCES on a
+column see its actual option values; other identities see no rows. Held reads
+follow option, name and privilege changes without losing stable column identity.
+Its builtin view definition preserves PostgreSQL's unqualified helper-column
+references across search-path and identifier-quoting modes.
+
 Statements that only add types, such as CREATE TABLE, CREATE VIEW and CREATE
 TYPE, no longer rewrite every type, rule and trigger in the catalog to reown
 type generations; only replacing an existing type's definition does.

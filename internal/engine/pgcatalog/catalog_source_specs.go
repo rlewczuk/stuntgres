@@ -770,6 +770,7 @@ var Specs = [...]Spec{
 		{"default_character_set_name", 13248, true, 950, 0, -1},
 		{"sql_path", 13246, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing schemata metadata domain"},
+	{InfoColumnOptionsOID, 13229, "column_options", infoColumnOptionsColumns, true, false, false, false, "stuntgres: missing column options domain"},
 	{ConstraintColumnUsageOID, 13229, "constraint_column_usage", []ColumnSpec{
 		{"table_catalog", 13248, true, 950, 0, -1},
 		{"table_schema", 13248, true, 950, 0, -1},

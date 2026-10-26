@@ -66,6 +66,8 @@ func timezoneViewWriteError(d *catalog.Relation, operation string) error {
 		detail = "Views containing UNION, INTERSECT, or EXCEPT are not automatically updatable."
 	} else if d.Address().ObjectID == InfoColumnColumnUsageOID {
 		detail = "Views containing DISTINCT are not automatically updatable."
+	} else if d.Address().ObjectID == InfoColumnOptionsOID {
+		detail = "Views that return set-returning functions are not automatically updatable."
 	}
 	upper := strings.ToUpper(operation)
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: message, Detail: detail,

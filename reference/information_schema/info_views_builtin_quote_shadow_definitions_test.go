@@ -12,6 +12,13 @@ var ivBuiltinQuoteShadowDefinitions = map[string]string{
    FROM "pg_catalog"."pg_namespace" "n",
     "pg_catalog"."pg_authid" "u"
   WHERE (("n"."nspowner" = "u"."oid") AND ("pg_has_role"("n"."nspowner", 'USAGE'::"text") OR "has_schema_privilege"("n"."oid", 'CREATE, USAGE'::"text")));`,
+	"information_schema.column_options": ` SELECT ("current_database"())::"information_schema"."sql_identifier" AS "table_catalog",
+    ("nspname")::"information_schema"."sql_identifier" AS "table_schema",
+    ("relname")::"information_schema"."sql_identifier" AS "table_name",
+    ("attname")::"information_schema"."sql_identifier" AS "column_name",
+    (("pg_options_to_table"("attfdwoptions"))."option_name")::"information_schema"."sql_identifier" AS "option_name",
+    (("pg_options_to_table"("attfdwoptions"))."option_value")::"information_schema"."character_data" AS "option_value"
+   FROM "information_schema"."_pg_foreign_table_columns" "c";`,
 	"information_schema.collations": ` SELECT ("current_database"())::"information_schema"."sql_identifier" AS "collation_catalog",
     ("nc"."nspname")::"information_schema"."sql_identifier" AS "collation_schema",
     ("c"."collname")::"information_schema"."sql_identifier" AS "collation_name",

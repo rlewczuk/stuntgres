@@ -40,7 +40,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		"CREATE FOREIGN DATA WRAPPER producer_contract_fdw HANDLER producer_contract_handler",
 		"CREATE SERVER producer_contract_server FOREIGN DATA WRAPPER producer_contract_fdw",
 		"CREATE USER MAPPING FOR CURRENT_USER SERVER producer_contract_server OPTIONS (token 'private')",
-		"CREATE FOREIGN TABLE producer_contract_foreign(id INT) SERVER producer_contract_server",
+		"CREATE FOREIGN TABLE producer_contract_foreign(id INT OPTIONS (secret 'column=actual')) SERVER producer_contract_server",
 	} {
 		enginetest.RoleExecute(t, e, op, statement)
 	}
@@ -143,6 +143,20 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 			}
 			if matches != 1 {
 				t.Fatal("columns fixture missing or duplicated", matches)
+			}
+		case pgcatalog.InfoColumnOptionsOID:
+			if len(source.Anonymous) != 1 {
+				t.Fatal("actual foreign column option missing", source.Anonymous)
+			}
+			for i, want := range []string{op.Session.DatabaseName, "public", "producer_contract_foreign", "id", "secret", "column=actual"} {
+				base, err := source.Anonymous[0][i].BaseValue()
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := base.Text()
+				if err != nil || got != want {
+					t.Fatal("column option coherent capture", i, got, want, err)
+				}
 			}
 		case pgcatalog.InfoUserMappingsOID:
 			if len(source.Anonymous) != 1 {
