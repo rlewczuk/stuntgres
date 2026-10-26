@@ -44,10 +44,19 @@ func (s *Store) ShareProcedureNamesLocked(share *SeedShare) {
 	s.State.SetProcedureNames(share.procedureNames.index)
 }
 
+// BeginSeedLocked starts the builtin seed of a fresh store: a bulk load with
+// room for capacity entries. Until FinishSeedLocked, OID allocation skips the
+// definition walk (see definitionOIDUsedLocked).
+func (s *Store) BeginSeedLocked(capacity int) {
+	s.State.BeginBulkLoad(capacity)
+	s.seeding = true
+}
+
 // FinishSeedLocked ends the seed's bulk load. The name map is the shared seed
 // names plus this store's database binding; a seed that bound a different
 // number of names builds its own map instead.
 func (s *Store) FinishSeedLocked(share *SeedShare) {
+	s.seeding = false
 	state := s.State
 	address := s.Owner.DatabaseAddress()
 	database := DescriptorNameKey(state.Get(address))

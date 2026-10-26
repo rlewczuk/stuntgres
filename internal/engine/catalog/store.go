@@ -29,6 +29,8 @@ type Store struct {
 	nextRevision   ids.DefinitionRevision
 	nextEnumMember int64
 	definitionOIDs definitionOIDSet
+	// seeding is set from BeginSeedLocked to FinishSeedLocked.
+	seeding bool
 }
 
 // definitionOIDSet holds the definition OIDs of one descriptor map. Every
@@ -44,9 +46,15 @@ type definitionOIDSet struct {
 // definitionOIDUsedLocked reports whether a descriptor of the published state
 // owns id as a definition OID. It builds one set per descriptor map instead of
 // scanning every descriptor per candidate OID. A bulk load writes in place
-// behind an unchanged map, so it scans.
+// behind an unchanged map, so it scans, except for the builtin seed: it holds
+// compiled builtins, whose OIDs are all below the first allocated OID, and the
+// definitions this allocator issued, which are below its cursor, so no seed
+// definition owns a candidate.
 func (s *Store) definitionOIDUsedLocked(id ids.OID) bool {
 	state := s.State
+	if s.seeding {
+		return false
+	}
 	if state.bulk != nil {
 		for _, descriptor := range state.Descriptors() {
 			if DefinitionOIDUsed(descriptor, id) {

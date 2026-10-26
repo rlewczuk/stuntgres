@@ -181,7 +181,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	types := sqltype.Builtins()
 	// The seed sets thousands of entries, so it is one bulk load.
 	e.Catalog.PublishLocked(catalog.NewState(1))
-	e.Catalog.State.BeginBulkLoad(builtinCatalogCapacity(len(types)))
+	e.Catalog.BeginSeedLocked(builtinCatalogCapacity(len(types)))
 	bootstrap := e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
 	principals := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
 	catalog.InstallBuiltinNamespaces(e.Catalog.State, principals.LookupRef("postgres"), principals.LookupRef("pg_database_owner"))
