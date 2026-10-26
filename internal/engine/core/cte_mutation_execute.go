@@ -105,7 +105,7 @@ func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parse
 			continue
 		}
 		count++
-		if scope.Owner.ReadOnly && !TemporaryDataTarget(auth, mutation, definition.Statement) {
+		if scope.Op.EffectiveReadOnly() && !TemporaryDataTarget(auth, mutation, definition.Statement) {
 			primaryTag = session.ModifyingTag(statement)
 			if primaryTag == "" {
 				primaryTag = "SELECT"

@@ -32,9 +32,9 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 	}
 	read := e.PrivateCatalogLocked(changes)
 	e.Mu.Unlock()
-	s.Op.Session.Settings.Mu.Lock()
-	standard := s.Op.Session.Settings.Value("standard_conforming_strings") == "on"
-	s.Op.Session.Settings.Mu.Unlock()
+	s.Op.EffectiveSettings().Mu.Lock()
+	standard := s.Op.EffectiveSettings().Value("standard_conforming_strings") == "on"
+	s.Op.EffectiveSettings().Mu.Unlock()
 	statements, err := parser.ParseWithOptions(text, parser.Options{Context: s.Op.Context(), StandardConformingStrings: standard, Notice: s.Op.ParseNotice, ClosedRoutineFormals: true})
 	if err != nil {
 		return value, exec.RewriteSQLDiagnostic(err, text)

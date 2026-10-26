@@ -187,12 +187,12 @@ func newStatementScope(op *session.Operation, owner *session.TransactionOwner, s
 	s.lease.Statement = s
 	s.Stage.scope = s
 	s.Stage.self = &s.Stage
-	s.Input, s.Output = op.Session.Settings.Presentation()
+	s.Input, s.Output = op.EffectiveSettings().Presentation()
 	// Only private Restore INSERT replay owns this authority. The same input
 	// flows to literal analysis and execution-time coercions; ordinary scopes
 	// (including statements after Restore) retain normal BOX normalization.
 	s.Input.RawBoxReplay = OperationReplayOrZero(op).InsertAuthority
-	settings := op.Session.Settings
+	settings := op.EffectiveSettings()
 	settings.Mu.Lock()
 	s.RowSecurity = settings.Value("row_security") == "on"
 	settings.Mu.Unlock()

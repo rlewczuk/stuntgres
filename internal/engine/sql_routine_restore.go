@@ -24,7 +24,7 @@ func validateRestoredSQLRoutines(e *core.Engine, ctx context.Context, op *sessio
 	if index := auth.Catalog.State().ProcedureNames(); index == nil || len(index.DynamicNames) == 0 {
 		return nil
 	}
-	input, _ := op.Session.Settings.Presentation()
+	input, _ := op.EffectiveSettings().Presentation()
 	for _, descriptor := range auth.Catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err

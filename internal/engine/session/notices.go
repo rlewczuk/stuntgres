@@ -30,7 +30,7 @@ func messageLevel(value string) (NoticeLevel, bool) {
 	return NoticeLevel(rank), ok
 }
 func (op *Operation) SnapshotNoticeThreshold() {
-	s := op.Session.Settings
+	s := op.EffectiveSettings()
 	s.Mu.Lock()
 	value, ok := s.Values[settings.ClientMinMessages.Name]
 	if !ok {

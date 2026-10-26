@@ -134,6 +134,7 @@ type Operation struct {
 	DiscardRoleReset   authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
 	ReplaySlot         ReplaySlot              // Restore and materialized population only; see operationReplay.
 	Analysis           AnalysisSlot            // Immutable after creation; see Host.NewOperation.
+	Restricted         *RestrictedInvocation   // Serial invocation environment, never session identity.
 }
 
 func (s *Session) Token() ids.SessionToken { return s.SessionToken }

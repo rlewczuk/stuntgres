@@ -31,7 +31,7 @@ func TestVerifyHeapamAuthority(t *testing.T) {
 	if control.Version != "1.5" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "functions for verifying relation integrity" {
 		t.Fatal("control", control)
 	}
-	if p.Signature != extension.VerifyHeapamSignature || p.Result != 2249 || p.Strict || p.Volatility != expr.Volatile || !core.ProcedureReturnsSet(p) || p.Installed.Defaults != 5 || p.Installed.Parallel != 'u' || len(ext.Members) != 1 {
+	if p.Signature != extension.VerifyHeapamSignature || p.Result != 2249 || p.Strict || p.Volatility != expr.Volatile || !core.ProcedureReturnsSet(p) || p.Installed.Defaults != 5 || p.Installed.Parallel != 'u' || len(ext.Members) != 8 {
 		t.Fatal("installed declaration", p)
 	}
 	if !p.ACL.Explicit || len(p.ACL.Entries) != 1 || p.ACL.Entries[0].Grantee.Public || p.ACL.Entries[0].Grantee.Role != p.Owner || p.ACL.Entries[0].Privileges != authorization.ExecutePrivilege {
@@ -96,7 +96,10 @@ func TestVerifyHeapamAuthority(t *testing.T) {
 	}
 	// A genuine identity remap changes extension/procedure addresses and epoch,
 	// while preserving the source carrier, canonical defaults and OUT types.
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}, p.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 900001}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
+	for slot, member := range ext.Members {
+		mapping[member] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + slot)}
+	}
 	state := catalog.CloneState(view.State())
 	for old := range mapping {
 		state.UnbindName(catalog.DescriptorNameKey(view.Get(old)))

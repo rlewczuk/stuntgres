@@ -23,6 +23,9 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 	if exec.InParallelOperation(ctx) {
 		return "", SQLError("25000", fmt.Sprintf(`parameter "%s" cannot be set during a parallel operation`, settings.DisplayName(d.Name)))
 	}
+	if err := restrictedParameter(op, d.Name); err != nil {
+		return "", err
+	}
 	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" || d.Name == "transaction_deferrable" {
 		return e.applyCurrentCharacteristic(op, d, input)
 	}
@@ -69,7 +72,14 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 	defer owner.Mu.Unlock()
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
-	return owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, local)
+	result, err := owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, local)
+	if err == nil && op.Restricted != nil {
+		if d.Name == "search_path" {
+			op.Restricted.SafePath = false
+		}
+		op.RefreshInvocationSettingsLocked(owner)
+	}
+	return result, err
 }
 
 // SQL setting utilities are refused by PostgreSQL's utility admission before
@@ -91,7 +101,7 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 			return Result{}, err
 		}
 	}
-	owner := op.Session.Settings
+	owner := op.EffectiveSettings()
 	var name string
 	var input *string
 	var all, write bool
@@ -146,6 +156,10 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 				return Result{}, err
 			}
 			owner.ResetAllLocked(e.Settings)
+			if op.Restricted != nil {
+				op.Restricted.SafePath = false
+				op.RefreshInvocationSettingsLocked(owner)
+			}
 			return Result{}, nil
 		}
 		rows, err := owner.ShowAllRowsLocked(ctx, e.Settings, typ, readRestricted)

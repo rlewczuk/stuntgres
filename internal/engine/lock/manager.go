@@ -148,6 +148,7 @@ type relationRequest struct {
 	provenance   ids.TxRef
 	ctx          context.Context
 	mode         Mode
+	contribution *RelationContribution
 	done         chan struct{}
 	err          error
 	terminal     bool
@@ -162,10 +163,13 @@ type relationRequest struct {
 	timeoutState atomic.Uint32
 }
 
-// Ordinary modes remain idempotent; only advisory grants have counted modes.
+// Mode is the visible union of ordinary and scoped ownership. Ordinary grants
+// remain idempotent; advisory and scoped relation contributions are counted.
 type Hold struct {
 	Mode              Mode
 	Shared, Exclusive uint64
+	ordinary          Mode
+	scoped            [2]uint64
 }
 
 type relationEntry struct {
@@ -308,7 +312,7 @@ func (m *Manager) Checkpoint(t *Ticket) Checkpoint {
 			continue
 		}
 		if entry := m.entries[ref]; entry != nil && entry.holders[t].Mode != 0 {
-			held[ref] = CheckpointHold{Mode: entry.holders[t].Mode}
+			held[ref] = CheckpointHold{Mode: entry.holders[t].ordinary}
 		}
 	}
 	for tuple, bits := range t.multiContributions {
@@ -343,15 +347,18 @@ func (m *Manager) Restore(t *Ticket, held Checkpoint) {
 			if entry == nil {
 				continue
 			}
-			mode := entry.holders[t].Mode & held[ref].Mode
-			if mode == entry.holders[t].Mode {
+			hold := entry.holders[t]
+			ordinary := hold.ordinary & held[ref].Mode
+			if ordinary == hold.ordinary {
 				continue
 			}
-			if mode == 0 {
+			hold.ordinary = ordinary
+			hold.Mode = ordinary | hold.scopedModes()
+			if hold.Mode == 0 {
 				delete(entry.holders, t)
 				delete(t.resources, ref)
 			} else {
-				entry.holders[t] = Hold{Mode: mode}
+				entry.holders[t] = hold
 			}
 			m.settle(entry, &notify)
 			m.retire(ref, entry)
@@ -403,6 +410,7 @@ func (m *Manager) RestoreUnique(t *Ticket, held Checkpoint) {
 				delete(t.resources, ref)
 			} else {
 				hold.Mode = mode
+				hold.ordinary &= mode
 				entry.holders[t] = hold
 			}
 			m.settle(entry, &notify)
@@ -500,7 +508,7 @@ func (m *Manager) settle(e *relationEntry, notify **relationRequest) {
 		}
 		err := r.claimTimeoutTerminal(nil)
 		if err == nil {
-			err = m.grant(r.ticket, r.ref, e, r.mode)
+			err = m.grant(r.ticket, r.ref, e, r.mode, r.contribution)
 		}
 		terminalRequest(r, err, notify)
 	}
@@ -535,10 +543,21 @@ func (r *relationRequest) Err() error { return r.err }
 // The caller can relinquish replacement admission before waiting, without
 // allowing replacement to interrupt an uncontended implicit statement.
 func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mode Mode, policy Policy) (*relationRequest, error) {
+	return m.startAcquire(ctx, t, ref, mode, policy, nil)
+}
+
+func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mode Mode, policy Policy, contribution *RelationContribution) (*relationRequest, error) {
 	if err := WaitError(ctx, policy, time.Time{}, time.Now()); err != nil {
 		return nil, err
 	}
 	m.mu.Lock()
+	if contribution != nil {
+		if contribution.started {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: reused scoped relation contribution")
+		}
+		contribution.started = true
+	}
 	if !m.valid(t) || !t.persistent && t.ref.Epoch() < m.domains[t.ref.Domain()].epoch {
 		m.mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
@@ -659,7 +678,7 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 	if e.holders[t].Mode&mode != 0 {
 		err := WaitError(ctx, policy, time.Time{}, time.Now())
 		if err == nil {
-			err = m.grant(t, ref, e, mode)
+			err = m.grant(t, ref, e, mode, contribution)
 		}
 		m.mu.Unlock()
 		return nil, err
@@ -687,7 +706,7 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 	if eligible {
 		err := WaitError(ctx, policy, time.Time{}, time.Now())
 		if err == nil {
-			err = m.grant(t, ref, e, mode)
+			err = m.grant(t, ref, e, mode, contribution)
 		}
 		m.retire(ref, e)
 		m.mu.Unlock()
@@ -712,7 +731,7 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		provenance = policy.Provenance
 		m.owners[provenance].resources[ref] = struct{}{}
 	}
-	r := &relationRequest{ticket: t, provenance: provenance, ctx: ctx, mode: mode, done: make(chan struct{}), policy: policy, ref: ref, entry: e}
+	r := &relationRequest{ticket: t, provenance: provenance, ctx: ctx, mode: mode, contribution: contribution, done: make(chan struct{}), policy: policy, ref: ref, entry: e}
 	if policy.Timeout > 0 {
 		r.deadline = time.Now().Add(policy.Timeout)
 	}

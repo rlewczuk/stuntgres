@@ -36,6 +36,7 @@ func (m *Manager) RestoreUniqueDelta(t *Ticket) {
 				continue
 			}
 			hold.Mode &^= UniqueClaim
+			hold.ordinary &^= UniqueClaim
 			if hold.Mode == 0 && hold.Shared == 0 && hold.Exclusive == 0 {
 				delete(entry.holders, t)
 				delete(t.resources, ref)

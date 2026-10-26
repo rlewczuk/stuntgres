@@ -97,6 +97,7 @@ type AuthorizationView struct {
 	// candidate, whose reserved numeric revision a peer may also consume.
 	roleAuthority, publishedRoleAuthority *access.RoleRecord
 	materializedPopulation                bool
+	restrictedPath                        bool
 }
 
 // live reports whether the engine built v (authorityView); zero views and
@@ -260,8 +261,9 @@ func (e *Engine) AuthorityView(v access.View) AuthorizationView {
 func (e *Engine) operationAuthority(op *session.Operation, v access.View) AuthorizationView {
 	s := op.Session
 	auth := e.AuthorityView(v)
-	auth.Definition, auth.settings, auth.Session = op.Definition, s.Settings, s
+	auth.Definition, auth.settings, auth.Session = op.Definition, op.EffectiveSettings(), s
 	auth.materializedPopulation = OperationReplayOrZero(op).MaterializedPopulation
+	auth.restrictedPath = op.Restricted != nil && op.Restricted.SafePath
 	return auth
 }
 
@@ -302,6 +304,12 @@ func (e *Engine) AuthorizationLocked(op *session.Operation) (AuthorizationView, 
 			return AuthorizationView{}, err
 		}
 		identity.CurrentUser = OperationReplayOrZero(op).MaterializedOwner
+	}
+	if op.Restricted != nil {
+		if _, err := r.Descriptor(op.Restricted.Owner); err != nil {
+			return AuthorizationView{}, err
+		}
+		identity.CurrentUser = op.Restricted.Owner
 	}
 	authorization := e.operationAuthority(op, access.View{Owner: &e.Catalog.Owner, PairedCatalog: view, RoleRecord: e.OperationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.Catalog.State.Get(e.Catalog.Owner.DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
 	authorization.Statement = ActiveScopeOfLease(op.Lease)

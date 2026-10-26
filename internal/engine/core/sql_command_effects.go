@@ -32,9 +32,9 @@ func (s *StatementScope) completeCommandEffects(allExclusions, bounded bool) err
 	return nil
 }
 
-// Nested SQL commands settle their own effects without publishing the root.
-// Call the returned completion before executing a query-loop body.
-func (s *StatementScope) beginRoutineCommand() (func(error) error, error) {
+// BeginRoutineCommand starts a nested command's effect scope without publishing
+// the root. Call the returned completion before executing a query-loop body.
+func (s *StatementScope) BeginRoutineCommand() (func(error) error, error) {
 	if s.effectSerial == ^uint64(0) {
 		return nil, fmt.Errorf("stuntgres: SQL command identity exhausted")
 	}

@@ -246,7 +246,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	case record.Name == "intagg" && record.Version == "1.1":
 		expectedMembers = len(IntaggMembers)
 	case record.Name == "amcheck" && record.Version == "1.5":
-		expectedMembers = 1
+		expectedMembers = 1 + len(AmcheckMembers)
 	case record.Name == "pgrowlocks" && record.Version == "1.2":
 		expectedMembers = 1
 	case record.Name == "pgcrypto" && record.Version == "1.4":
@@ -398,7 +398,12 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			return string(FuzzystrmatchMembers[slot].Signature), true
 		}
 	case "amcheck":
-		return string(VerifyHeapamSignature), slot == 0
+		if slot == 0 {
+			return string(VerifyHeapamSignature), true
+		}
+		if slot > 0 && slot <= len(AmcheckMembers) {
+			return string(AmcheckMembers[slot-1].Signature), true
+		}
 	case "pgrowlocks":
 		return "25", slot == 0
 	case "unaccent":

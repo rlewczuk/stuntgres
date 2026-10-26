@@ -62,6 +62,13 @@ Reset/Dump/Restore and InspectIndex capture the selected database before releasi
 the borrower. Controls require an unwrapped native pool and affect only that
 database, preserving registrations, owners/ACLs, shared roles and other targets.
 Dump excludes cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
+Installed amcheck members share one portable installation: `verify_heapam` and
+the seven scalar B-tree overloads retain distinct result shapes. Native controls
+preserve current installed routine ACLs, including PUBLIC entries, grant options
+and grantor provenance, atomically with member identities. Held calls still
+recheck current EXECUTE authority; a captured persistent regclass literal is not
+retargeted across Reset/Restore.
+
 The engine core owns the [database and template contract](../internal/engine/core/README.md#cluster-and-logical-database-ownership).
 
 ## Physical sessions and pooling
@@ -154,6 +161,12 @@ ordinary SQL errors leave the connection reusable.
   42P18. Prepared statements keep their parameter and result signatures: an
   incompatible catalog change fails with 0A000 `cached plan must not change result
   type` rather than changing shape.
+- A held persistent `regclass` literal retains its catalog lifetime. Native
+  Reset/Restore retires that capture with the ordinary error
+  `stuntgres: catalog replaced before publication`, without SQLSTATE; reprepare
+  it against the current catalog. A held checker taking `$1::regclass` can accept
+  a freshly resolved target after replacement. Stored-view queries reanalyze the
+  restored definition rather than adopting an old caller literal.
 - Relation/schema/type and object/default-privilege utility Prepare/Describe is
   effect-free; execution performs
   current authority and identity checks. CTAS/SELECT INTO and materialized-view

@@ -528,6 +528,28 @@ dimension selection, disjoint crossed intersections and radius-driven dimension
 changes preserve binary64 coordinates through native Dump/Reset/Restore.
 Coincident subset boxes expose geometric point text and inquiry results.
 
+Installed amcheck now provides all seven B-tree verification overloads with
+strict VOID results, explicit EXECUTE grants, logical order, membership,
+root-search and uniqueness checks, and short-lived AccessShare/Share locks.
+Checks run in an isolated table-owner invocation and retain native index and
+installed-routine identities through Dump/Reset/Restore. Retained calls enter
+verification with the currently admitted procedure identity rather than their
+preparation catalog's epoch. Stored-view and parameterized held checker calls
+remain usable after replacement; a held persistent regclass literal keeps the
+ordinary native catalog-replacement fence and must be reprepared.
+Current installed-member ACLs, grant options, PUBLIC/explicit-empty grants and
+nonowner grantor provenance survive native controls for all seven B-tree slots
+alongside the preserved heap member; unavailable roles reject replay atomically.
+Callable target permissions and queued readmission honor the restricted table
+owner ahead of enclosing RI/rule actors without changing ordinary write authority.
+Target method/validity/TEMP checks follow relation-lock admission. Detached local
+settings retain sticky physical-session temp_buffers initialization, consuming the
+effective local value on first owned TEMP access without changing caller settings
+or forgetting initialization across nesting and exception rollback.
+B-tree relation opens also retain the transaction's TEMP-access footprint for
+numeric targets and rejected TEMP attempts across savepoint rollback, preventing
+PREPARE TRANSACTION without conflating access with buffer initialization.
+
 Tsvector utilities now support lexeme counts, weight assignment, stripping,
 exact deletion, weight filtering and canonical text-array conversion, including
 typed internal-char arrays with generic storage, bounds, NULLs and native

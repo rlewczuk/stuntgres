@@ -115,7 +115,7 @@ func TestVerifyHeapamCapture(t *testing.T) {
 			if err != nil || !reflect.DeepEqual(heapUnitRows(t, rows), expected) {
 				t.Fatal("unfiltered exact findings", rows, err, expected)
 			}
-			if e.Locks.HasAccessShare(ticket, resource) {
+			if e.Locks.HasRelationMode(ticket, resource, lock.AccessShare) {
 				t.Fatal("verification retained added AccessShare")
 			}
 		}
@@ -147,7 +147,7 @@ func TestVerifyHeapamCapture(t *testing.T) {
 		args[2] = sqltype.Boolean(enginetest.Usage(e, sqltype.Bool).Type, true)
 		_, err = scope.WriteHost().VerifyHeapam(args, n.Usage.Type)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || !e.Locks.HasAccessShare(ticket, resource) {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || !e.Locks.HasRelationMode(ticket, resource, lock.AccessShare) {
 			t.Fatal("prior contribution/error release", err)
 		}
 	})
@@ -234,7 +234,7 @@ func TestVerifyHeapamCaptureWait(t *testing.T) {
 			}
 			err = <-done
 			joined = true
-			if !errors.Is(err, want) || e.Locks.HasAccessShare(ticket, resource) {
+			if !errors.Is(err, want) || e.Locks.HasRelationMode(ticket, resource, lock.AccessShare) {
 				t.Fatal("wait lost cancellation/incarnation or retained grant", err, want)
 			}
 		})

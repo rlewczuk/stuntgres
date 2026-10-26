@@ -320,13 +320,13 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 				return Description{}, err
 			}
 		}
-		op.Session.Settings.Mu.Lock()
-		defer op.Session.Settings.Mu.Unlock()
+		op.EffectiveSettings().Mu.Lock()
+		defer op.EffectiveSettings().Mu.Unlock()
 		typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
 		if s.All {
 			return Description{Results: settingColumns(typ, "name", "setting", "description")}, nil
 		}
-		d, err := op.Session.Settings.LookupDefinition(e.Settings, s.Name.Text, false)
+		d, err := op.EffectiveSettings().LookupDefinition(e.Settings, s.Name.Text, false)
 		if err != nil {
 			return Description{}, err
 		}

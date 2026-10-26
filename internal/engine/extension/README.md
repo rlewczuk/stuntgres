@@ -106,11 +106,21 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
   identities).
 - **amcheck** (`amcheck_provider.go`): the untrusted/superuser/relocatable 1.5
-  provider installs one callable member, `verify_heapam`, with six canonical
-  inputs and five trailing defaults, a non-STRICT volatile record-set result,
-  parallel-unsafe declaration and explicit owner-only initial EXECUTE ACL.
-  Exact manifest/signature/declaration authority survives ordinary member
-  rename, move, owner transfer and symbolic replay. No scan state is serialized.
+  provider installs eight callable members. Slot zero is `verify_heapam`, with
+  six canonical inputs and five trailing defaults, a non-STRICT volatile
+  record-set result and parallel-unsafe declaration. Slots one through seven
+  are the three `bt_index_check` and four `bt_index_parent_check` scalar
+  overloads returning VOID, all STRICT, VOLATILE and parallel restricted.
+  All members start with explicit owner-only EXECUTE ACLs. Ordered manifest
+  symbols and the distinct heap/B-tree identity validators preserve exact
+  installed declaration authority through rename, move, owner transfer and
+  symbolic replay. Current arbitrary installed ACLs, including grantor and
+  grant-option provenance and PUBLIC entries, use the shared member codec;
+  mutable names never authorize execution. No scan state is serialized.
+  After selected-lifetime and current EXECUTE admission, the B-tree host
+  invocation borrows the admitted catalog's canonical procedure and epoch,
+  never a retained preparation epoch. This invocation-local bridge neither
+  mutates the stored selection nor authorizes an otherwise stale reference.
 - **pgrowlocks** (`pgrowlocks_provider.go`, `pgrowlocks_stage.go`): the
   nontrusted/superuser/relocatable 1.2 singleton installs exactly
   `pgrowlocks(text) RETURNS SETOF record` (STRICT, VOLATILE, parallel safe).
@@ -236,7 +246,8 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   EXECUTE and grant options, never borrowed principal references. Strict nested
   decoding rejects duplicate/unknown/null fields and invalid grants. Import
   validates the actual destination slot before resolving captured role names;
-  amcheck's canonical owner-only ACL is explicit metadata, not a PUBLIC default.
+  amcheck's initial owner-only ACL and arbitrary later grants use the same
+  explicit metadata, never a canonical-only restriction or PUBLIC-default bypass.
 - **Owners, remap, errors**: the owner metadata codec (`OwnerMetadata`,
   `DecodeOwners`, `OwnerRecord`, `MemberOwner`, `OwnersMarker`;
   `extension_owners.go`), `RemapDescriptor` (`extension_remap.go`),
@@ -321,6 +332,7 @@ collision evidence.
 
 ```sh
 make check RUN='^Test(Extension|Isn|Issn|Citext(Provider|Comparison|Pattern)|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
+make check RUN='^TestAmcheck'   # installed B-tree manifest and expression identity
 make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```
 

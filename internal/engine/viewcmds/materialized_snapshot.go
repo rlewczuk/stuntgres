@@ -28,7 +28,7 @@ func ImportMaterializedSnapshots(e *core.Engine, ctx context.Context, op *sessio
 	if len(records) == 0 {
 		return nil
 	}
-	input, _ := op.Session.Settings.Presentation()
+	input, _ := op.EffectiveSettings().Presentation()
 	input.ExactSnapshot = true
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)

@@ -34,8 +34,8 @@ func TestReferenceAmcheckHeapContract(t *testing.T) {
 					[]string{"proargtypes", "proallargtypes", "proargmodes", "proargnames", "pronargdefaults", "proretset", "prosecdef"}, []string{"TEXT", "TEXT", "TEXT", "TEXT", "INT2", "BOOL", "BOOL"},
 					[][]any{{"2205 16 16 25 20 20", "{2205,16,16,25,20,20,20,23,23,25}", "{i,i,i,i,i,i,o,o,o,o}", "{relation,on_error_stop,check_toast,skip,startblock,endblock,blkno,offnum,attnum,msg}", int64(5), true, false}}))
 			} else {
-				heapBoth(t, p, b, c, fixture.Select(`SELECT p.proname FROM pg_proc p JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e' JOIN pg_extension e ON d.refclassid='pg_extension'::regclass AND d.refobjid=e.oid WHERE e.extname='amcheck'`, []string{"proname"}, []string{"NAME"}, [][]any{{"verify_heapam"}}))
-				for _, name := range []string{"bt_index_check", "bt_index_parent_check", "bt_index_check_internal"} {
+				heapBoth(t, p, b, c, fixture.Select(`SELECT p.proname FROM pg_proc p JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e' JOIN pg_extension e ON d.refclassid='pg_extension'::regclass AND d.refobjid=e.oid WHERE e.extname='amcheck' ORDER BY p.proname,p.pronargs`, []string{"proname"}, []string{"NAME"}, [][]any{{"bt_index_check"}, {"bt_index_check"}, {"bt_index_check"}, {"bt_index_parent_check"}, {"bt_index_parent_check"}, {"bt_index_parent_check"}, {"bt_index_parent_check"}, {"verify_heapam"}}))
+				for _, name := range []string{"bt_index_check_internal"} {
 					heapBoth(t, p, b, c, fixture.Select("SELECT proname FROM pg_proc WHERE proname=$1", []string{"proname"}, []string{"NAME"}, nil, name))
 				}
 			}
@@ -63,7 +63,9 @@ func TestReferenceAmcheckHeapContract(t *testing.T) {
 			heapBoth(t, p, b, c, fixture.Select("SELECT ordinality FROM verify_heapam('heap_t') WITH ORDINALITY", []string{"ordinality"}, []string{"INT8"}, nil))
 		})
 		for _, q := range []string{"CREATE SEQUENCE heap_seq", "CREATE TABLE heap_parent(a INT) PARTITION BY RANGE(a)", "CREATE TABLE heap_leaf PARTITION OF heap_parent FOR VALUES FROM(0) TO(10)", "CREATE MATERIALIZED VIEW heap_mv AS SELECT * FROM heap_t", "CREATE MATERIALIZED VIEW heap_empty_mv AS SELECT * FROM heap_t WITH NO DATA"} {
-			if _, err := c.ExecContext(p.Ctx, q); err != nil { t.Fatal(q, err) }
+			if _, err := c.ExecContext(p.Ctx, q); err != nil {
+				t.Fatal(q, err)
+			}
 		}
 		for _, name := range []string{"heap_seq", "heap_leaf", "heap_mv", "heap_empty_mv"} {
 			t.Run("target/"+name, func(t *testing.T) { heapBoth(t, p, b, c, heapEmpty("SELECT * FROM verify_heapam($1::regclass)", name)) })
@@ -71,7 +73,9 @@ func TestReferenceAmcheckHeapContract(t *testing.T) {
 		t.Run("held-rebind", func(t *testing.T) {
 			q := "SELECT * FROM verify_heapam($1::regclass)"
 			stmt, err := c.PrepareContext(p.Ctx, q)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			defer stmt.Close()
 			held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 			for _, name := range []string{"heap_t", "heap_leaf", "heap_seq"} {
@@ -130,7 +134,9 @@ func heapContractFailures(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 	} {
 		t.Run("boundary/"+tc.q, func(t *testing.T) {
 			d := heapDiagnostic(tc.code, tc.message)
-			if tc.token != "" { d.Position = heapPosition(tc.q, tc.token) }
+			if tc.token != "" {
+				d.Position = heapPosition(tc.q, tc.token)
+			}
 			heapBoth(t, p, b, c, heapError(tc.q, d))
 		})
 	}

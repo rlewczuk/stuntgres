@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"stuntgres/internal/engine/authorization"
@@ -16,6 +17,7 @@ type SettingsStore struct {
 	Mu               sync.Mutex
 	Session          *Session
 	Defaults, Values map[string]string
+	Invocation       bool // Detached image: never publish session lifetime timers.
 	// typed contains only overrides; captured defaults never require reparsing.
 	Typed, DefaultTyped map[string]settings.Value
 	Placeholders        map[string]bool
@@ -24,7 +26,11 @@ type SettingsStore struct {
 	Actions             map[string]settingAction
 	RoleAction          roleSettingAction
 	// Physical-session sticky simulated TEMP initialization; not journaled.
-	temporaryBuffers int64
+	// Detached images share the original authority rather than snapshotting it.
+	// Atomic access avoids taking the live store mutex under a detached store's
+	// publication locks.
+	temporaryBuffers     int64
+	temporaryBufferOwner *SettingsStore
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	CurrentIsolation  string
@@ -244,7 +250,7 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.ProviderDefaults = nil
 	s.Actions = nil
 	s.RoleAction = roleSettingAction{}
-	s.temporaryBuffers = 0
+	atomic.StoreInt64(&s.temporaryBuffers, 0)
 	return nil
 }
 func (s *SettingsStore) Value(name string) string {
@@ -280,12 +286,20 @@ func (s *SettingsStore) TypedValue(name string) settings.Value {
 	return s.DefaultTyped[name]
 }
 
-// InitializeTemporaryBuffers captures the configured count at the first owned
-// logical TEMP table data access. Transaction/reset restoration never clears it.
+func (s *SettingsStore) temporaryBufferAuthority() *SettingsStore {
+	if s.temporaryBufferOwner != nil {
+		return s.temporaryBufferOwner
+	}
+	return s
+}
+
+// InitializeTemporaryBuffers captures the effective configured count at the first
+// owned logical TEMP table data access, even from a detached invocation image.
+// Transaction, invocation and exception restoration never clear this authority.
 func (s *SettingsStore) InitializeTemporaryBuffers() {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
-	if !s.Ended && s.temporaryBuffers == 0 {
-		s.temporaryBuffers = int64(s.TypedValue("temp_buffers").Number)
+	if !s.Ended {
+		atomic.CompareAndSwapInt64(&s.temporaryBufferAuthority().temporaryBuffers, 0, int64(s.TypedValue("temp_buffers").Number))
 	}
 }

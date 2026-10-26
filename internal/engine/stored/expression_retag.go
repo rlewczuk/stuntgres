@@ -345,6 +345,22 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		if changed {
 			rebound, err = n.Rebuild(info, n.Args[:])
 		}
+	case plan.InstalledAmcheckExpr:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.AmcheckProviderOf(proc) != extension.StockAmcheck {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped amcheck function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, info.RoutineReference = proc, proc
+		n.Info = info
+		if err = ValidateInstalledAmcheck(n, view); err != nil {
+			return nil, false, err
+		}
+		rebound = n
 	case plan.InstalledSoundexExpr:
 		n.Args = children(n.Args)
 		if err != nil {

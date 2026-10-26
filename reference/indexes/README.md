@@ -4,10 +4,10 @@ Indexes and index-backed constraints: access-method definitions (`CREATE ACCESS
 METHOD`), operator classes and families, B-tree/hash/GiST/SP-GiST/BRIN indexes, partial,
 concurrent and UNIQUE indexes, PRIMARY KEY, index clauses (expressions, INCLUDE,
 collation/class, ordering), index property inquiry, maintenance (REINDEX, ALTER
-INDEX, DROP INDEX and their locks), `ADD CONSTRAINT ... USING INDEX` and
-exclusion constraints (including GiST), and amcheck heap verification. Related
-families: partitioned-index and partitioned-exclusion hierarchies in
-`reference/partitions`; ALTER TABLE ADD
+INDEX, DROP INDEX and their locks), `ADD CONSTRAINT ... USING INDEX`,
+exclusion constraints (including GiST), and installed amcheck heap and B-tree
+verification. Related families: partitioned-index and partitioned-exclusion
+hierarchies in `reference/partitions`; ALTER TABLE ADD
 CONSTRAINT in `reference/alter`.
 
 ## Testing
@@ -62,6 +62,23 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
+- Installed B-tree verification: `RUN='^TestReferenceAmcheck'`; corrupt actual
+  roots/private outputs and invocation internals use `RUN='^TestAmcheck'` in the
+  owning engine packages. Public witnesses use real maintained indexes, exact
+  scalar diagnostics, scoped locks and native controls, not a SQL corruption API.
+  Fresh installation defaults to owner-only EXECUTE with PUBLIC revoked; controls
+  replay current arbitrary installed-member ACLs, including grant options,
+  nonowner grantor provenance, PUBLIC and explicit-empty ACLs. The preserved heap
+  provenance fixture covers slot zero. `TestReferenceAmcheckBtreeACLProvenance`
+  exercises each of the seven B-tree overloads through actual Dump/Reset/Restore,
+  independent destination role domains, missing-role atomicity and restored
+  callable authority, while denying ungranted sibling overloads. ACL targets are
+  schema-qualified across role/search-path changes. The controls lifetime fixture
+  retains the stale held-literal fence, fresh parameterized inputs and stored views.
+  The current pinned oracle is PostgreSQL 18.6. Initial restricted search-path
+  behavior is covered natively through the invocation seam: the public SQL
+  surface does not provide the required custom comparison callback recipe.
+
 - <a id="access-method-definitions"></a>Access-method definitions: `RUN='^TestReferenceAccessMethod'`
 - <a id="operator-class-definitions"></a>Operator classes: `RUN='^TestReferenceOperatorClass'`
 - Operator families and support routines: `RUN='^TestReferenceOperatorFamily'`
@@ -92,3 +109,4 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Heap verification: `RUN='^TestReferenceAmcheckHeap'`
 - TEMP heap admission/accounting: `RUN='^TestReferenceAmcheckHeapTemporary$'`
 - Heap ACL provenance/replay: `RUN='^TestReferenceAmcheckHeapACLProvenance$'`
+- B-tree ACL provenance/replay: `RUN='^TestReferenceAmcheckBtreeACLProvenance$'`

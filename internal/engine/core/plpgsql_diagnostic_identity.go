@@ -44,7 +44,7 @@ func (s *StatementScope) plDiagnosticIdentityFor(d *catalog.Procedure, read cata
 	if retained := PayloadOf(s.Op.Session).sqlRoutines[d.Address()]; retained.plProcedure == d && retained.plDiagnostic != "" {
 		return retained.plDiagnostic, nil
 	}
-	auth, err := s.routineAuthorizationLocked()
+	auth, err := s.RoutineAuthorizationLocked()
 	if err != nil {
 		return "", err
 	}

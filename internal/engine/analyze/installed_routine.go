@@ -108,10 +108,10 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.UnaccentProviderOf(proc) == extension.StockUnaccent
 	case functions.IntaggExtension:
 		installed = extension.IntaggProviderOf(proc) == extension.StockIntagg
-	case functions.PgrowlocksExtension:
-		installed = extension.PgrowlocksProviderOf(proc) == extension.StockPgrowlocks
 	case functions.AmcheckExtension:
 		installed = extension.AmcheckProviderOf(proc) == extension.StockAmcheck
+	case functions.PgrowlocksExtension:
+		installed = extension.PgrowlocksProviderOf(proc) == extension.StockPgrowlocks
 	case functions.CubeExtension:
 		installed = extension.CubeProviderOf(proc) == extension.StockCube
 	case functions.EarthdistanceExtension:
@@ -144,10 +144,10 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockFuzzystrmatch.ValidateProcedure(r.catalog, p)
 	case extension.IntaggProviderOf(p) != nil:
 		return extension.StockIntagg.ValidateProcedure(r.catalog, p)
-	case extension.PgrowlocksProviderOf(p) != nil:
-		return extension.StockPgrowlocks.ValidateProcedure(r.catalog, p)
 	case extension.AmcheckProviderOf(p) != nil:
 		return extension.StockAmcheck.ValidateProcedure(r.catalog, p)
+	case extension.PgrowlocksProviderOf(p) != nil:
+		return extension.StockPgrowlocks.ValidateProcedure(r.catalog, p)
 	case extension.CubeProviderOf(p) != nil:
 		return extension.StockCube.ValidateProcedure(r.catalog, p)
 	case extension.EarthdistanceProviderOf(p) != nil:
@@ -271,6 +271,16 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 			break
 		}
 		return r.attachIntaggEnumeration(c)
+	case functions.Amcheck:
+		if err := extension.ValidateAmcheckIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		c.RoutineReference = p
+		if err := extension.ValidateAmcheckCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
+		b.dependency(ref, p.Revision())
+		return plan.InstalledAmcheckExpr{Amcheck: c, Procedure: p, Ref: ref}, nil
 	case functions.Pgrowlocks:
 		return r.attachPgrowlocks(c, ref)
 	case functions.VerifyHeapam:

@@ -41,6 +41,13 @@ func (e *Engine) applyCurrentCharacteristic(op *session.Operation, d settings.De
 	if err != nil {
 		return "", err
 	}
+	if op.Restricted != nil {
+		if err := op.AssignInvocationModes([]parser.TransactionMode{session.CharacteristicMode(d.Name, d.Format(value))}); err != nil {
+			return "", err
+		}
+		result, _ := op.Setting(d.Name)
+		return result, nil
+	}
 	t := op.Session.Transactions
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
@@ -70,12 +77,19 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 			e.Mu.Lock()
 			d := e.Settings.Definitions()[name]
 			e.Mu.Unlock()
-			if _, err := e.applySetting(s.executionContext(), s.Op, t.Session.Settings, d, &value, false, ""); err != nil {
+			if _, err := e.applySetting(s.executionContext(), s.Op, s.Op.EffectiveSettings(), d, &value, false, ""); err != nil {
 				return Result{}, err
 			}
 		}
 		s.CompleteUtility()
 		return Result{}, nil
+	}
+	if s.Op.Restricted != nil {
+		err := s.Op.AssignInvocationModes(stmt.Modes)
+		if err == nil {
+			s.CompleteUtility()
+		}
+		return Result{}, err
 	}
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
@@ -285,7 +299,7 @@ func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error
 	t := s.Owner
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
-	return session.ReadOnlyRefusal(stmt, t.ReadOnly)
+	return session.ReadOnlyRefusal(stmt, s.Op.EffectiveReadOnly())
 }
 func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	if !session.ExplicitUtility(stmt) || session.TransactionalSchemaUtility(stmt) || transactionalIndexMaintenance(stmt) || transactionalRoleUtility(stmt) || s.partitionIndexTransaction(stmt) {

@@ -107,6 +107,7 @@ var definitions = [...]Definition{
 	{Names: []string{"int_array_aggregate", "int_array_enum"}, Bind: bindIntagg},
 	{Names: []string{"pgrowlocks"}, Bind: bindPgrowlocks, NamedCall: namedPgrowlocks},
 	{Names: []string{"verify_heapam"}, Bind: bindVerifyHeapam, NamedCall: namedVerifyHeapam},
+	{Names: []string{"bt_index_check", "bt_index_parent_check"}, Bind: bindAmcheck, NamedCall: namedAmcheck},
 	{Names: pgcryptoNames[:], Bind: bindPgcrypto},
 	{Names: cubeSpatialNames[:], Bind: bindCubeSpatial},
 	{Names: fuzzystrmatchNames[:], Bind: bindFuzzystrmatch},

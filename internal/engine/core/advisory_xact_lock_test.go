@@ -108,8 +108,9 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		b, _ := advisoryUnitOwner(t, e)
 		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 32}
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, true)
+		first := advisoryXactUnitHold(a, key)
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, true)
-		if got := advisoryXactUnitHold(a, key); got != (lock.Hold{Mode: lock.AdvisoryShare}) {
+		if got := advisoryXactUnitHold(a, key); got != first || got.Mode != lock.AdvisoryShare || got.Shared != 0 || got.Exclusive != 0 {
 			t.Fatal("transaction grant counted", got)
 		}
 		advisoryXactUnitGrant(t, b, key, lock.AdvisoryShare, true)

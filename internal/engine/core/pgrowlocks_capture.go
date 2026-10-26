@@ -39,7 +39,7 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 		return nil, err
 	}
 	e.Mu.Lock()
-	auth, err := s.writeAuthorizationLocked(e)
+	auth, err := s.callableAuthorizationLocked(e)
 	var ref ids.ObjectRef
 	var descriptor *catalog.Relation
 	var stored *storage.Relation
@@ -56,13 +56,13 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 	}
 
 	resource := lock.Resource{ObjectRef: ref}
-	previous := e.Locks.HasAccessShare(s.LockTicket, resource)
-	defer e.Locks.ReleaseAddedAccessShare(s.LockTicket, resource, previous)
+	var contribution lock.RelationContribution
+	defer e.Locks.ReleaseRelation(&contribution)
 	policy := lock.Policy{
 		TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout,
 		StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext,
 	}
-	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, resource, lock.AccessShare, policy)
+	request, err := e.Locks.StartAcquireRelation(s.Op.Context(), s.LockTicket, resource, lock.AccessShare, policy, &contribution)
 	if request != nil {
 		s.admissionWaited = true
 		if s.ReplacementRead {
@@ -84,7 +84,7 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 
 	s.Owner.Mu.Lock()
 	e.Mu.Lock()
-	auth, err = s.writeAuthorizationLocked(e)
+	auth, err = s.callableAuthorizationLocked(e)
 	if err == nil {
 		err = s.pgrowlocksReadmitLocked(e, auth, name, ref, descriptor, stored)
 	}

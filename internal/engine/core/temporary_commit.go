@@ -72,7 +72,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 	if len(dropped) != 0 {
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
-		input, output := op.Session.Settings.Presentation()
+		input, output := op.EffectiveSettings().Presentation()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: input, Output: output, Catalog: base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		project := func(old, replacement *catalog.Relation) error {
 			owner := op.Session.Transactions

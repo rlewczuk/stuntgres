@@ -26,16 +26,16 @@ type cursorRegistry struct {
 
 type sqlCursor struct {
 	exec.CursorPosition
-	tx                                          ids.TxRef
-	ordinal                                     uint64
-	epoch                                       ids.CatalogEpoch
-	hold, promoted                              bool
-	pinned                                      bool // Active cursor FOR owns user-drop protection.
-	statement                                   string
-	created                                     sqltype.Value
-	values                                      []sqltype.Value
-	count                                       int
-	storeOffset                                 int64
+	tx             ids.TxRef
+	ordinal        uint64
+	epoch          ids.CatalogEpoch
+	hold, promoted bool
+	pinned         bool // Active cursor FOR owns user-drop protection.
+	statement      string
+	created        sqltype.Value
+	values         []sqltype.Value
+	count          int
+	storeOffset    int64
 	PreparedResource
 	schema                                      []catalog.Column
 	recordShape                                 *sqltype.Descriptor // Lazy FETCH record descriptor, immutable after publication.
@@ -302,7 +302,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.RoutineAuth = c.routineAuth
 	s.Inquiry.deparseAuth, s.Inquiry.DeparsePath = c.deparseAuth, c.deparsePath
 	s.Inquiry.collationPath = c.collationPath
-	s.Inquiry.deparseAuth.Session, s.Inquiry.deparseAuth.settings = s.Op.Session, s.Op.Session.Settings
+	s.Inquiry.deparseAuth.Session, s.Inquiry.deparseAuth.settings = s.Op.Session, s.Op.EffectiveSettings()
 	s.Inquiry.visibilityCatalog = c.visibilityCatalog
 	s.Inquiry.visibilityRelationPath, s.Inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
 	c.authority.Host = HostOf(s)

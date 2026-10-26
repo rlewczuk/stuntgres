@@ -46,7 +46,7 @@ func (e *Engine) initializeTemporaryBuffersLocked(scope *StatementScope, ref ids
 	}
 	ns, ok := view.Namespace(d.Namespace())
 	if ok && ns.Temporary == scope.Op.Session.SessionToken && ns.Temporary != (ids.SessionToken{}) {
-		scope.Op.Session.Settings.InitializeTemporaryBuffers()
+		scope.Op.EffectiveSettings().InitializeTemporaryBuffers()
 	}
 }
 

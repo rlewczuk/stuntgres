@@ -58,6 +58,40 @@ The public resource Lifecycle definition additionally isolates first use of
 empty native SELECT/UPDATE/DELETE/MERGE/COPY TO sources on fresh physical
 owners, separately from populated shared PostgreSQL preservation witnesses.
 
+## Installed amcheck B-tree runtime
+
+The sole `StockAmcheck` installation retains `verify_heapam` at slot zero and
+seven scalar B-tree overloads at slots one through seven. Heap verification's
+record-set source and B-tree VOID expressions retain distinct binding,
+transport, admission and runtime paths.
+
+`amcheck_*.go` captures exact target/parent and current routine authority, then
+acquires heap followed by index outside metadata locks. A non-index target has
+no heap identity and is rejected only after locking the target itself. Method,
+foreign-TEMP and validity checks follow both locks. Only queued acquisition
+drops the replacement reservation; every readmission retains original identities
+and checks current EXECUTE without advancing checkability ahead of lock admission.
+Each admitted heap/target open records the existing sticky transaction TEMP
+footprint before checkability, including numeric identities and rejected foreign
+TEMP attempts. Savepoint rollback does not erase it; EXECUTE denial, strict NULL,
+and cancellation before that open do not create it. This PREPARE TRANSACTION
+accounting is distinct from physical-session `temp_buffers` initialization.
+Immutable baseline and private-output captures feed `index.CheckBtree` without
+callbacks under metadata locks. Basic checks use AccessShare and parent checks
+Share, released at invocation exit while retaining preexisting transaction grants.
+A serial operation-local table-owner frame supplies restricted initial lookup and
+detached effective settings across nested SQL/PL activation; every exit restores
+caller authority and presentation. Sequence, large-object and pgrowlocks callable
+admission/readmission honors this restricted owner ahead of enclosing RI/rule
+actors, while ordinary writes retain their existing RI/rule authority.
+
+Native logical checks cover order, parent association, demanded heap membership,
+root search and visible uniqueness. They do not claim physical page/downlink,
+WAL/LSN or private-overlay ordered-tree verification; see
+[`index`](../index/README.md). Installed member identity and arbitrary current ACL
+provenance use the shared controls codec. A retained persistent regclass literal
+still fails ordinary replacement fencing rather than adopting a restored index.
+
 ## Event-trigger command ownership
 
 `session.EventCommand` classifies eligible transactional utilities before target
@@ -740,8 +774,14 @@ frontier and saves/restores both outer slots stackwise, including a previously
 unset LO frontier after argument-side creation. Direct LO operations and all
 inquiry families use this shared seam; ordinary UPDATE still uses current
 authorization, without retaining permission decisions. Compatibility is read
-under the session settings mutex only after existence, without changing
-byte-operation admission.
+from the operation's effective settings under that store's mutex only after
+existence, without changing byte-operation admission.
+
+amcheck's restricted-owner boundary enters that capture seam before replacing
+the inquiry presentation, preserving the admitted outer query's LO frontier
+even when its first callable uses restricted-owner rather than write authority.
+It does not recapture an already active SQL-body frontier or restore an older
+frontier when the restricted frame returns.
 
 `fts_query_runtime.go` executes SQL rewrite rules inside the caller's admitted
 operation, transaction and statement snapshot. Lexical scratch and zero inner

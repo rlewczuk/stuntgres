@@ -76,7 +76,7 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 					if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || len(rows) != 0 {
 						t.Fatal("foreign TEMP must be denied before materialization", rows, err)
 					}
-					if e.Locks.HasAccessShare(scope.LockTicket, resource) != prior {
+					if e.Locks.HasRelationMode(scope.LockTicket, resource, lock.AccessShare) != prior {
 						t.Fatal("foreign rejection changed prior AccessShare contribution", prior)
 					}
 					if !peer.Transactions.AccessedTemporary || peer.TemporaryNamespace != namespace {
@@ -117,7 +117,7 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 					t.Fatal("own TEMP admission omitted sticky transaction accounting", rows, err)
 				}
 				resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(view.Epoch(), target.Address())}
-				if e.Locks.HasAccessShare(scope.LockTicket, resource) {
+				if e.Locks.HasRelationMode(scope.LockTicket, resource, lock.AccessShare) {
 					t.Fatal("own TEMP verification retained added AccessShare")
 				}
 				unchanged(t)

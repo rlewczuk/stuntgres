@@ -14,6 +14,20 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	switch n := node.(type) {
+	case plan.InstalledAmcheckExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored amcheck reference")
+		}
+		if err := ValidateInstalledAmcheck(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Ref.Address)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing amcheck namespace")
+		}
+		r.record(n.Ref)
+		return amcheckCallSQL(n, procedure, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), catalog.QuoteIdentifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
 	case plan.RangeConstructorExpr:
 		if err := n.ValidateStoredProvider(); err != nil {
 			return "", err

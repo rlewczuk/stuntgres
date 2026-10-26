@@ -55,7 +55,7 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 			if err != nil || len(rows) != 0 {
 				t.Fatal(rows, err)
 			}
-			if e.Locks.HasAccessShare(ticket, resource) != prior {
+			if e.Locks.HasRelationMode(ticket, resource, lock.AccessShare) != prior {
 				t.Fatal("function removed earlier SELECT or retained its added AS", prior)
 			}
 		}
@@ -70,7 +70,8 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 			t.Fatal(request, err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		queued, err := e.Locks.StartAcquire(ctx, waiter, resource, lock.AccessShare, lock.Policy{})
+		var contribution lock.RelationContribution
+		queued, err := e.Locks.StartAcquireRelation(ctx, waiter, resource, lock.AccessShare, lock.Policy{}, &contribution)
 		if err != nil || queued == nil {
 			cancel()
 			t.Fatal(queued, err)
@@ -79,8 +80,8 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 		if err := queued.Wait(); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		e.Locks.ReleaseAddedAccessShare(waiter, resource, false)
-		if e.Locks.HasAccessShare(waiter, resource) {
+		e.Locks.ReleaseRelation(&contribution)
+		if e.Locks.HasRelationMode(waiter, resource, lock.AccessShare) {
 			t.Fatal("canceled request left function grant")
 		}
 		if err := engine.Reset(context.Background(), e); err != nil {

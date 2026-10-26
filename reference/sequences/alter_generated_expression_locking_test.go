@@ -2,6 +2,8 @@ package reference_test
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -16,7 +18,15 @@ func TestReferenceAlterGeneratedExpressionLocking(t *testing.T) {
 					run(fixture.Exec(`CREATE TABLE i(a INT,b INT GENERATED ALWAYS AS(a+1) STORED)`, 0))
 					run(fixture.Exec(`INSERT INTO i(a) VALUES(2)`, 1))
 					holder := fixture.IdentityConnection(t, p.Ctx, b.DB)
-					waiter := fixture.IdentityConnection(t, p.Ctx, b.DB)
+					waiter, err := b.DB.Conn(p.Ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() {
+						if err := waiter.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+							t.Error(err)
+						}
+					})
 					observer := fixture.IdentityConnection(t, p.Ctx, b.DB)
 					tx, err := holder.BeginTx(p.Ctx, nil)
 					if err != nil {
@@ -32,7 +42,11 @@ func TestReferenceAlterGeneratedExpressionLocking(t *testing.T) {
 							d = fixture.Diagnostic{Code: "57014", Message: "canceling statement due to statement timeout"}
 						}
 						fixture.RunStep(t, p.Ctx, waiter, b.Recorder, fixture.ImplicitError(q, d))
-						fixture.RunStep(t, p.Ctx, waiter, b.Recorder, fixture.Exec(`SET `+mode+`=0`, 0))
+						// Retire the armed physical owner; even resetting a statement
+						// timeout can time out while other test packages are busy.
+						if err := waiter.Raw(func(any) error { return driver.ErrBadConn }); err != driver.ErrBadConn {
+							t.Fatal("retire timed owner", err)
+						}
 					} else {
 						ctx, cancel := context.WithTimeout(p.Ctx, 10*time.Second)
 						defer cancel()

@@ -22,7 +22,7 @@ func PathInput(auth AuthorizationView, searchPath bool) analyze.PathInput[Author
 		Prefix:          auth.PathPrefix,
 		NamespaceUser:   auth.namespaceUser,
 		StagedTemporary: auth.StagedTemporary,
-		Restricted:      auth.materializedPopulation,
+		Restricted:      auth.materializedPopulation || auth.restrictedPath,
 	}
 	if auth.restoreDefinitionLookup {
 		// The live authority capture verified the authenticated bootstrap and
@@ -33,7 +33,7 @@ func PathInput(auth AuthorizationView, searchPath bool) analyze.PathInput[Author
 			in.NamespaceUser = auth.State.CurrentUser
 		}
 	}
-	if !searchPath || auth.materializedPopulation {
+	if !searchPath || auth.materializedPopulation || auth.restrictedPath {
 		return in
 	}
 	if auth.settings != nil {

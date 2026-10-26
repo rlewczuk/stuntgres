@@ -70,7 +70,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 			}
 		}
 	}
-	finish, e := s.beginRoutineCommand()
+	finish, e := s.BeginRoutineCommand()
 	if e != nil {
 		return e
 	}

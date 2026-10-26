@@ -27,20 +27,13 @@ func TestReferenceTransactionalCommentTimeouts(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer s.Close()
-						pid, holder := 0, 0
-						if b.PG {
-							pid = fixture.LockPID(t, p.Ctx, c)
-							holder = fixture.LockPID(t, p.Ctx, a)
-						}
 						fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
 						defer a.ExecContext(p.Ctx, "ROLLBACK")
 						fixture.LockExec(t, p.Ctx, a, "COMMENT ON TABLE tx_comment_timeout IS 'private'", 0)
 						fixture.LockExec(t, p.Ctx, c, "BEGIN", 0)
 						fixture.LockExec(t, p.Ctx, c, "SET "+timer.setting+"='250ms'", 0)
 						defer c.Raw(func(any) error { return driver.ErrBadConn })
-						done := make(chan struct{})
 						join := fixture.LockOperation(t, p.Ctx, func(ctx context.Context) fixture.RelationOutcome {
-							defer close(done)
 							var o fixture.RelationOutcome
 							if held {
 								o.Result, o.Err = s.ExecContext(ctx)
@@ -49,11 +42,9 @@ func TestReferenceTransactionalCommentTimeouts(t *testing.T) {
 							}
 							return o
 						})
-						if b.PG {
-							fixture.LockWaitBehind(t, p.Ctx, pid, holder, fixture.LockOID(t, p.Ctx, "tx_comment_timeout"), "ShareUpdateExclusiveLock", done)
-						} else {
-							fixture.NativeRelationLockWait(t, p.Ctx, done)
-						}
+						// Exact timeout diagnostics establish the completed timed wait.
+						// Strict queue admission is independently observed without a
+						// short timer in TestReferenceTransactionalCommentLocks.
 						o := join()
 						fixture.WaitsDiagnostic(t, o.Err, timer.code, timer.message)
 						// The armed physical owner is disposed, never RESET or retried.

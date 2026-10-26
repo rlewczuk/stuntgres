@@ -168,7 +168,7 @@ func (e *Engine) executeSettingCall(ctx context.Context, op *session.Operation, 
 			return Result{}, err
 		}
 	}
-	owner := op.Session.Settings
+	owner := op.EffectiveSettings()
 	locked := true
 	unlock := func() { op.Session.Mu.Unlock(); owner.Mu.Unlock(); e.Mu.Unlock() }
 	defer func() {

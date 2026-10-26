@@ -26,6 +26,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if err := scope.parallelExecutionEligibility(stmt); err != nil {
 		return Result{}, err
 	}
+	if err := restrictedStatement(op, stmt); err != nil {
+		return Result{}, err
+	}
+	if op.Restricted != nil {
+		if err := scope.refreshRestrictedPresentation(); err != nil {
+			return Result{}, err
+		}
+	}
 	CaptureEnumOperationSafety(op, &scope.Input)
 	scope.Input.LockedDomainInput, scope.Input.DomainChecks = scope, scope
 	if !op.CommandAdmission {
@@ -33,6 +41,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := scope.executionContext()
 	switch stmt.(type) {
+	case *parser.LockTable:
+		// AcquireRelation already performed the actual relation-lock admission,
+		// including nested routine commands. Only completion belongs here.
+		return Result{}, op.Context().Err()
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return scope.executeNotification(stmt, count)
 	case *parser.Truncate:

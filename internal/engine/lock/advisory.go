@@ -63,7 +63,7 @@ func (m *Manager) validRequest(r *relationRequest) bool {
 
 // Caller holds manager metadata. Both immediate and queued grants use this
 // exact boundary: count publication precedes terminal notification.
-func (m *Manager) grant(t *Ticket, ref Resource, e *relationEntry, mode Mode) error {
+func (m *Manager) grant(t *Ticket, ref Resource, e *relationEntry, mode Mode, contribution *RelationContribution) error {
 	if ref.completion != nil {
 		return nil
 	}
@@ -81,8 +81,19 @@ func (m *Manager) grant(t *Ticket, ref Resource, e *relationEntry, mode Mode) er
 			}
 			held.Exclusive++
 		}
-	} else if held.Mode&mode == mode {
-		return nil
+	} else if contribution != nil {
+		slot := relationModeSlot(mode)
+		if held.scoped[slot] == ^uint64(0) {
+			return errors.New("stuntgres: scoped relation hold count exhausted")
+		}
+		held.scoped[slot]++
+		contribution.ticket, contribution.resource, contribution.entry = t, ref, e
+		contribution.mode, contribution.granted = mode, true
+	} else {
+		if held.ordinary&mode == mode {
+			return nil
+		}
+		held.ordinary |= mode
 	}
 	if t.uniqueDeltaActive && !t.persistent && ref.Kind == OrdinaryResource && ref.key != nil && mode&UniqueClaim != 0 && held.Mode&UniqueClaim == 0 {
 		t.uniqueDelta = append(t.uniqueDelta, ref)

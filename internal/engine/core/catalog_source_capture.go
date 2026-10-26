@@ -53,7 +53,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		runtime.Auth = auth
-		runtime.settings = scope.Op.Session.Settings
+		runtime.settings = scope.Op.EffectiveSettings()
 		runtime.registry = e.Settings
 		unlockBefore = true
 	case pgcatalog.CursorsOID:

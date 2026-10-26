@@ -68,7 +68,7 @@ func (op *Operation) RefreshStatementBudget() error {
 	if err := op.CommandContext.Err(); err != nil {
 		return err
 	}
-	store := op.Session.Settings
+	store := op.EffectiveSettings()
 	store.Mu.Lock()
 	timeout := store.TypedValue("statement_timeout").Number
 	transactionTimeout := store.TypedValue("transaction_timeout").Number

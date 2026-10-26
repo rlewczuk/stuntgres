@@ -285,9 +285,18 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			}
 		}
 	case StockAmcheck:
-		count = 1
+		count = 1 + len(AmcheckMembers)
+		if slot >= count {
+			return invalid()
+		}
+		declaration := verifyHeapamDeclaration()
 		name, signature, result, volatility, strict = "verify_heapam", VerifyHeapamSignature, 2249, expr.Volatile, false
-		if p.Installed != verifyHeapamDeclaration() || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "verify_heapam"}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+		if slot > 0 {
+			m := AmcheckMembers[slot-1]
+			name, signature, result, strict = m.Name, m.Signature, 2278, true
+			declaration = m.Declaration
+		}
+		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()
 		}
 	case StockPgrowlocks:

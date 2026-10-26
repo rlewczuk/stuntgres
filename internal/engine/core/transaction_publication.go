@@ -147,7 +147,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			return nil
 		}
 	}
-	input, output := op.Session.Settings.Presentation()
+	input, output := op.EffectiveSettings().Presentation()
 	if scope != nil {
 		input, output = scope.Input, scope.Output
 	}

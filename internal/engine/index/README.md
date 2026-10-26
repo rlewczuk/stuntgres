@@ -61,6 +61,21 @@ builds a binder.
   their roots are rebuilt against destination row and descriptor identities.
   Ordinary GiST and SP-GiST partitioned indexes use the same parent/child publication and
   attachment path as partitioned constraint indexes.
+- **Logical verification** (`amcheck*.go`): `CheckBtree` consumes an immutable
+  `AmcheckCapture`, validates actual stored order/identity/positions and parent
+  maps, searches the real baseline root independently, and checks demanded heap
+  representation and visible uniqueness using its bound ordering and recipes.
+  Capture pairs the baseline with coherent heap/end/frontier authority and
+  real private row outputs or the admitted implicit row-backed lane. No root is
+  rebuilt, repaired or published by verification. Uniqueness scratch is never
+  verification-root authority. Engine orchestration owns scoped heap-then-index
+  AccessShare (basic) or Share (parent) contributions and their reverse cleanup.
+  Physical B-tree levels/downlinks/sibling pages, physical TIDs, WAL/LSNs and
+  standby/recovery are non-engine mechanisms: logical verification neither
+  fabricates them nor reports their physical invariants as checked. Private
+  write overlays have no stored ordered tree to descend.
+  Missing-heap diagnostics use the shared logical-version TID encoding; no
+  physical index coordinates or LSN Detail are synthesized.
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
   `row_publication.go`, `layout_*.go`, `snapshot*.go`, `remint.go`,
   `effective_root.go`, `alter_type.go`): `PrepareIndexPublication` over
@@ -308,6 +323,7 @@ fixtures.
 
 ```sh
 make check RUN='^Test(Index|EffectiveRoot)'   # keys, clauses, properties, maintenance, hosts
+make check RUN='^TestAmcheck'   # immutable verification, identity, capture and invocation environments
 make check RUN='^Test(CandidatesMatch|DriverBatch|PartitionAttachPublicationFences)'   # catalog publication captures
 make check RACE=1 RUN='^Test(Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex)'   # enforcement
 make check RUN='^TestBrinIndex'   # range summaries, consistency, publication and transport

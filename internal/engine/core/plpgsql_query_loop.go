@@ -71,7 +71,7 @@ func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
 	if !rewriteTupleStatement(query) {
 		return q.Close(q.queryError(SQLError("42P11", "cannot open "+RoutineCommandTag(query)+" query as cursor")))
 	}
-	finishCommand, err := s.beginRoutineCommand()
+	finishCommand, err := s.BeginRoutineCommand()
 	if err != nil {
 		return q.Close(err)
 	}

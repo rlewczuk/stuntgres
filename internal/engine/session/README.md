@@ -115,10 +115,14 @@ implement its slots, so either import would form a cycle.
   Their validated settings have no physical logging or presentation consumers.
   Resource settings add two grant-eligible privileged names, max_stack_depth
   and temp_file_limit; all44 reads are unrestricted. One private
-  `SettingsStore.temporaryBuffers` count, protected by Settings.Mu, captures
-  the typed temp_buffers value once at successful owned logical TEMP table
-  access. It is not the transaction's AccessedTemporary footprint or a
-  journal action. Explicit differing candidates fail before Touch/install;
+  `SettingsStore.temporaryBuffers` count, accessed atomically, captures the
+  effective typed temp_buffers value once at successful owned logical TEMP
+  table access. Detached restricted-owner settings and exception checkpoints
+  share that physical-session authority, not a snapshot of its count: local
+  values/actions stay isolated, but first access in a nested invocation freezes
+  the physical count even if its local settings later roll back. It is not the
+  transaction's AccessedTemporary footprint or a journal action. Explicit
+  differing candidates fail through the ordinary validation before Touch/install;
   reset/default/NULL and transactional restoration bypass that check.
   Rollback, savepoints, DROP/recreate, DISCARD TEMP, logical Reset/Restore and
   pool reuse do not clear it. EndSession clears it. Providers run only before
@@ -145,6 +149,15 @@ implement its slots, so either import would form a cycle.
   set_config validates SET/context/value authority before checking permission
   to examine its result, and preflights that read before atomic installation.
   A denied result therefore cannot leave a changed setting or source behind.
+  Restricted invocations use `Operation.EffectiveSettings`, a lazily detached
+  full image inherited from the parent invocation. Local installs preserve
+  normal validation/callback staging but never publish session lifetime timers
+  or mutate caller identity, settings actions, placeholders or modes.
+  `EffectiveReadOnly` and `AssignInvocationModes` retain ordinary admission
+  against real snapshot/subtransaction facts while changing only local mode
+  projections. Internal exception marks retain the complete invocation image
+  and initial-path marker; data/catalog rollback is independent of session
+  setting restoration.
 - **Statement classification** (pure functions of the AST and owner values):
   command tags (`command_tag.go`); admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,

@@ -48,10 +48,10 @@ func (h *statementHost) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Desc
 		return nil, err
 	}
 	resource := lock.Resource{ObjectRef: ref}
-	previous := e.Locks.HasAccessShare(s.LockTicket, resource)
-	defer e.Locks.ReleaseAddedAccessShare(s.LockTicket, resource, previous)
+	var contribution lock.RelationContribution
+	defer e.Locks.ReleaseRelation(&contribution)
 	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
-	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, resource, lock.AccessShare, policy)
+	request, err := e.Locks.StartAcquireRelation(s.Op.Context(), s.LockTicket, resource, lock.AccessShare, policy, &contribution)
 	if request != nil {
 		s.admissionWaited = true
 		if s.ReplacementRead {

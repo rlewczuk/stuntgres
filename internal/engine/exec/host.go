@@ -100,6 +100,7 @@ type Host interface {
 	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error
 	UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error)
+	Amcheck(n plan.InstalledAmcheckExpr, oid uint32, options [3]bool) error
 	// functions.SequenceRuntime
 	Sequence(request functions.SequenceRequest) (int64, error)
 	// functions.LargeObjectRuntime

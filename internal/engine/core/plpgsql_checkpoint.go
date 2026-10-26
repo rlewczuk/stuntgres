@@ -122,6 +122,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 		return nil, errors.New("stuntgres: foreign savepoint identity exhausted")
 	}
 	mark := captureSavepoint(t, "")
+	mark.Invocation = s.Op.CaptureInvocation()
 	mark.Internal = true
 	t.Mu.Unlock()
 	s.foreignUnlocked()

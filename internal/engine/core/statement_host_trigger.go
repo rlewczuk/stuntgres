@@ -30,7 +30,7 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 	captured, found := command.BeforeCaptures[key]
 	if !found {
 		e.Mu.Lock()
-		auth, err := s.routineAuthorizationLocked()
+		auth, err := s.RoutineAuthorizationLocked()
 		if err != nil {
 			e.Mu.Unlock()
 			return result, err
@@ -61,7 +61,7 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 		}
 		p := definition.Parts()
 		e.Mu.Lock()
-		current, err := s.routineAuthorizationLocked()
+		current, err := s.RoutineAuthorizationLocked()
 		if err == nil {
 			if current.Ref(p.Procedure.Address) != p.Procedure {
 				err = fmt.Errorf("stuntgres: stale trigger function identity")

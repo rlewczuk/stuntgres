@@ -169,7 +169,7 @@ func (s *StatementScope) executePLRaise(d *catalog.Procedure, f *proc.PLFrame, i
 }
 
 func (s *StatementScope) executePLAssert(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) error {
-	enabled, ok := s.Op.Session.Setting("plpgsql.check_asserts")
+	enabled, ok := s.Op.Setting("plpgsql.check_asserts")
 	if !ok {
 		return errors.New("stuntgres: missing PL assertion setting")
 	}

@@ -25,7 +25,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 		}
 	}
 	e.Mu.Lock()
-	before, beforeErr := scope.writeAuthorizationLocked(e)
+	before, beforeErr := scope.callableAuthorizationLocked(e)
 	if beforeErr == nil && scope.Catalog != nil {
 		before.Catalog = e.PrivateCatalogLocked(scope.Catalog)
 		before.Recapture(before.Catalog)
@@ -57,7 +57,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	auth, err := scope.writeAuthorizationLocked(e)
+	auth, err := scope.callableAuthorizationLocked(e)
 	if err != nil {
 		return 0, err
 	}
@@ -83,7 +83,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 			return 0, err
 		}
 	}
-	if readOnly := sequence.ReadOnlyCallError(request.Name); scope.Owner.ReadOnly && readOnly != nil {
+	if readOnly := sequence.ReadOnlyCallError(request.Name); scope.Op.EffectiveReadOnly() && readOnly != nil {
 		ns, _ := auth.Catalog.Namespace(d.Namespace())
 		if ns == nil || ns.Temporary != scope.Op.Session.SessionToken {
 			return 0, readOnly

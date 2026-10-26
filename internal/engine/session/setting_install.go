@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"stuntgres/internal/engine/ids"
@@ -26,7 +27,7 @@ func (s *SettingsStore) AdmitLocked(domain *ids.Domain, op *Operation) error {
 
 // ApplyLocked atomically installs recognition, the transaction action
 // and the effective typed/text override of d for op. A nil value resets d.
-// Caller holds Engine.mu, Settings.Mu and op.Session.Mu, in that order.
+// Caller holds Engine.Mu, Settings.Mu and op.Session.Mu, in that order.
 func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry settings.Registry, d settings.Definition, value *settings.Value, notice *sqlstate.Error, local bool) (string, error) {
 	if err := s.AdmitLocked(domain, op); err != nil {
 		return "", err
@@ -34,10 +35,12 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 	if err := s.checkStatistics(d.Name, value); err != nil {
 		return "", err
 	}
-	if d.Name == "temp_buffers" && value != nil && s.temporaryBuffers != 0 && int64(value.Number) != s.temporaryBuffers {
-		return "", &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023",
-			Message: fmt.Sprintf(`invalid value for parameter "temp_buffers": %d`, int64(value.Number)),
-			Detail: `"temp_buffers" cannot be changed after any temporary tables have been accessed in the session.`}
+	if d.Name == "temp_buffers" && value != nil {
+		if initialized := atomic.LoadInt64(&s.temporaryBufferAuthority().temporaryBuffers); initialized != 0 && int64(value.Number) != initialized {
+			return "", &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023",
+				Message: fmt.Sprintf(`invalid value for parameter "temp_buffers": %d`, int64(value.Number)),
+				Detail:  `"temp_buffers" cannot be changed after any temporary tables have been accessed in the session.`}
+		}
 	}
 	s.Touch(d.Name, local)
 	if _, registered := registry.Definitions()[d.Name]; !registered {
@@ -50,7 +53,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 		s.Values[d.Name] = d.Format(*value)
 		s.Typed[d.Name] = *value
 	}
-	if d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout" {
+	if !s.Invocation && (d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout") {
 		op.Session.PublishTimeoutSettingsLocked(s, d.Name == "transaction_timeout", time.Now())
 	}
 	if notice != nil {
@@ -78,7 +81,7 @@ func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 			timeoutChanged = true
 		}
 	}
-	if timeoutChanged {
+	if timeoutChanged && !s.Invocation {
 		s.Session.PublishTimeoutSettingsLocked(s, transactionAssignment, time.Now())
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// HasDynamicSourceDependency reports calls to installed pgrowlocks or heap
+// HasDynamicSourceDependency reports calls to installed pgrowlocks or amcheck
 // verification, directly or through analyzed stored-view dependencies.
 // read is the statement's private catalog.
 //

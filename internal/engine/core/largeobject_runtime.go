@@ -26,10 +26,10 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 	if r.Name == "lo_get" && r.Fragment && r.Length < 0 {
 		return out, SQLError("22023", "requested length cannot be negative")
 	}
-	if r.Name != "lo_get" && s.Owner.ReadOnly {
+	if r.Name != "lo_get" && s.Op.EffectiveReadOnly() {
 		return out, SQLError("25006", "cannot execute "+r.Name+"() in a read-only transaction")
 	}
-	auth, err := s.writeAuthorizationLocked(e)
+	auth, err := s.callableAuthorizationLocked(e)
 	if err != nil {
 		return out, err
 	}

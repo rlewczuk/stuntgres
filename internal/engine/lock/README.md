@@ -113,8 +113,14 @@ engine.
   (ended/detached owners are zero). The output contains owned scalars only,
   never tickets or queues. Capture assigns nothing, settles nothing and runs
   no callbacks. The engine releases Engine.Mu before entering this manager.
-  `HasAccessShare`/`ReleaseAddedAccessShare` remove only the function-added
-  exact-relation contribution, preserving earlier SELECT grants.
+  `StartAcquireRelation` records a caller-owned `RelationContribution`, released
+  by `ReleaseRelation` after its request is terminal. Scoped AccessShare/Share
+  ownership is counted separately from idempotent ordinary transaction grants;
+  their union supplies conflict and inquiry modes. Cleanup preserves ordinary
+  same-mode grants acquired before or during verification and other nested
+  scopes. Savepoint checkpoints never promote active scoped contributions into
+  ordinary ownership. Canceled upgrades do not remove an earlier hold; retired
+  ticket and entry identities fence delayed cleanup from a replacement grant.
 
 Engine type mutation resource order is source TypeExclusive, actual composite
 backing AX when required, then typed-table closure AX. Schema moves retain source

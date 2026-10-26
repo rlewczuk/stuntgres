@@ -58,6 +58,10 @@ func (s *SettingsStore) SetConfigInputLocked(registry settings.Registry, args [3
 	if err != nil {
 		return settings.Definition{}, nil, false, err
 	}
+	folded := settings.FoldName(name)
+	if s.Invocation && (folded == "role" || folded == "session_authorization") {
+		return settings.Definition{}, nil, false, sqlError("42501", "cannot set parameter \""+folded+"\" within security-restricted operation")
+	}
 	d, err := s.LookupDefinition(registry, name, true)
 	if err != nil {
 		return settings.Definition{}, nil, false, err

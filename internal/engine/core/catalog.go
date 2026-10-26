@@ -647,7 +647,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		if scope != nil {
 			evaluation.Input, evaluation.Output = scope.Input, scope.Output
 		} else if op != nil {
-			evaluation.Input, evaluation.Output = op.Session.Settings.Presentation()
+			evaluation.Input, evaluation.Output = op.EffectiveSettings().Presentation()
 		}
 		indexRoots, indexErr := e.prepareIndexCatalog(&evaluation, current, next, build.Build, build.Sources, build.Rebuild, stageIndexes.Rebuilds, stageIndexes.Output, disclosure, runtimeOwners, stageIndexes.Candidates)
 		if indexErr != nil {

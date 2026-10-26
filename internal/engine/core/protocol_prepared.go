@@ -28,10 +28,12 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 		return ProtocolStatement{}, err
 	}
 	r := PayloadOf(s.Op.Session).PreparedSQL
- if name == "" { r.Remove("") }
-	s.Op.Session.Settings.Mu.Lock()
-	standard := s.Op.Session.Settings.Value("standard_conforming_strings") == "on"
-	s.Op.Session.Settings.Mu.Unlock()
+	if name == "" {
+		r.Remove("")
+	}
+	s.Op.EffectiveSettings().Mu.Lock()
+	standard := s.Op.EffectiveSettings().Value("standard_conforming_strings") == "on"
+	s.Op.EffectiveSettings().Mu.Unlock()
 	statements, err := parser.ParseWithOptions(source, parser.Options{Context: s.Op.Context(), StandardConformingStrings: standard, Notice: s.Op.ParseNotice})
 	if err != nil {
 		return ProtocolStatement{}, err
@@ -188,7 +190,7 @@ func (s *StatementScope) CloseProtocolStatement(name string) error {
 	if err := s.Active(); err != nil {
 		return err
 	}
- PayloadOf(s.Op.Session).PreparedSQL.Remove(name)
+	PayloadOf(s.Op.Session).PreparedSQL.Remove(name)
 	return nil
 }
 func (s *StatementScope) InvalidateUnnamedProtocolStatement() error {

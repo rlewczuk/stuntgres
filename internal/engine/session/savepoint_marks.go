@@ -22,6 +22,7 @@ type SavepointMark struct {
 	Deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
 	Catalog             *Journal
 	Settings            SettingsMark
+	Invocation          *InvocationMark // Internal local environment, nil for ordinary savepoints.
 	Isolation           Isolation
 	ReadOnly            bool
 	Deferrable          bool
@@ -111,6 +112,10 @@ func (t *TransactionOwner) FindSavepoint(name string) int {
 func (t *TransactionOwner) RollbackToLocked(mark SavepointMark, settings SettingsMark) {
 	t.Writes, t.Deletes, t.Catalog = mark.Writes, mark.Deletes, mark.Catalog
 	t.NotificationActions, t.NotificationEvents = mark.NotificationActions, mark.NotificationEvents
+	if mark.Invocation != nil {
+		mark.Invocation.Restore()
+		return
+	}
 	store := t.Session.Settings
 	store.RestoreSavepointLocked(settings, mark.Identity)
 	t.Isolation, t.ReadOnly = mark.Isolation, mark.ReadOnly

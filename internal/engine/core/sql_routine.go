@@ -79,7 +79,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	defer parent.leaveSQLRoutine()
 	e := parent.Engine()
 	e.Mu.Lock()
-	auth, err := parent.routineAuthorizationLocked()
+	auth, err := parent.RoutineAuthorizationLocked()
 	if err == nil {
 		var current *catalog.Procedure
 		current, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
@@ -185,7 +185,7 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 	}()
 	restore := s.ActivateSQLRoutine(d.SQL.Inputs, read)
 	defer func() { err = restore(err) }()
-	finishCommand, err := s.beginRoutineCommand()
+	finishCommand, err := s.BeginRoutineCommand()
 	if err != nil {
 		return value, err
 	}

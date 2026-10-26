@@ -221,6 +221,14 @@ reviewed decision:
   statement-level snapshot demand; none captures eagerly.
 - `InstalledRoutine`: an opaque handle to an `Extension`'s installed routine;
   `Attach` returns the engine's wrapper (installation is engine state).
+  `Amcheck` binds the seven installed B-tree scalar signatures through this
+  same handle. Its lexical children remain in written order with checked
+  written-to-formal slots; the plan wrapper, never the bare kernel, owns
+  execution identity and the statement-host invocation.
+  Both heap and B-tree binders reuse the existing `AmcheckExtension` family:
+  `VerifyHeapam` retains its non-STRICT record-set shape and defaults, while
+  `Amcheck` remains STRICT scalar VOID. Provider membership alone does not
+  classify every amcheck call as set-returning.
 - `CaptureComparisonInput` / `CaptureTypeInput`: the diagnostic-name, ACL and
   catalog inputs a comparison or type production needs.
 - `Literal` / `ConstantValue` / `LiteralNull` / `Frame` / `Context`: the

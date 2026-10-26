@@ -28,21 +28,21 @@ type RuleActionScope struct {
 // parameter frame, original signature, snapshot frontier and budget remain owned
 // by the original StatementScope and its one WriteStage/Finish.
 type ruleCommandScratch struct {
-	Mutation   StatementMutation
-	Ref        ids.ObjectRef
-	Descriptor catalog.Descriptor
-	Storage    *storage.Relation
-	ViewWrite  *view.Write
-	Sources    []exec.Leaf
-	unique     *index.UniqueWriteBinding
-	conflict   *dml.InsertConflictState
-	returning  *dml.InsertReturningOutput
-	partition  *partition.InsertState
-	locks      *exec.LockContext
-	admission  analyze.LockAdmission
-	RuleAction RuleActionScope
+	Mutation     StatementMutation
+	Ref          ids.ObjectRef
+	Descriptor   catalog.Descriptor
+	Storage      *storage.Relation
+	ViewWrite    *view.Write
+	Sources      []exec.Leaf
+	unique       *index.UniqueWriteBinding
+	conflict     *dml.InsertConflictState
+	returning    *dml.InsertReturningOutput
+	partition    *partition.InsertState
+	locks        *exec.LockContext
+	admission    analyze.LockAdmission
+	RuleAction   RuleActionScope
 	FoldCaptures *exec.FoldCaptureCandidate
-	rlsCommand *preparedCommandExecution
+	rlsCommand   *preparedCommandExecution
 }
 
 func (s *StatementScope) ruleScratch() ruleCommandScratch {
@@ -67,7 +67,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		return Result{}, err
 	}
 	program.Count = count
-	if tag := session.ModifyingTag(stmt); scope.Owner.ReadOnly && tag != "" && !TemporaryDataTarget(auth, &b, stmt) {
+	if tag := session.ModifyingTag(stmt); scope.Op.EffectiveReadOnly() && tag != "" && !TemporaryDataTarget(auth, &b, stmt) {
 		e.Mu.Unlock()
 		return Result{}, SQLError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
@@ -167,7 +167,9 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		return Result{}, foldErr
 	}
 	if bind := scope.protocolOrZero().bind; bind != nil {
-		if err := bind.AcceptFolds(captures); err != nil { return Result{},err }
+		if err := bind.AcceptFolds(captures); err != nil {
+			return Result{}, err
+		}
 		failed = false
 		return Result{}, nil
 	}

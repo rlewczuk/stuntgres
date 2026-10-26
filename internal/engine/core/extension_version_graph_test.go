@@ -54,7 +54,7 @@ func TestExtensionVersionGraph(t *testing.T) {
 	if !reflect.DeepEqual(cycle.Path("a", "d"), []string{"a", "c", "d"}) || cycle.Path("a", "missing") != nil {
 		t.Fatal("shortest cyclic directed path")
 	}
-	for _, provider := range []extension.Installer{extension.StockCitext, extension.StockCube, extension.StockEarthdistance, extension.StockLo, extension.StockUnaccent, extension.StockIntarray, extension.StockLtree, extension.StockIntagg, extension.StockPgcrypto, extension.StockPgrowlocks, extension.StockUUIDOssp} {
+	for _, provider := range []extension.Installer{extension.StockAmcheck, extension.StockCitext, extension.StockCube, extension.StockEarthdistance, extension.StockLo, extension.StockUnaccent, extension.StockIntarray, extension.StockLtree, extension.StockIntagg, extension.StockPgcrypto, extension.StockPgrowlocks, extension.StockUUIDOssp} {
 		versions := provider.Versions()
 		if len(versions.Bases) != 1 || versions.Bases[0] != provider.Control().Version || len(versions.Edges) != 0 || extension.ValidateActions(provider) != nil {
 			t.Fatal("current-only inventory", versions)

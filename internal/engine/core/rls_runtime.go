@@ -188,7 +188,7 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 	if err := e.initializeQueryLocksLocked(s, nil, binding.QuerySources); err != nil {
 		return err
 	}
-	if s.Owner.ReadOnly {
+	if s.Op.EffectiveReadOnly() {
 		mode, err := view.FirstQueryRowMode(e.PrivateCatalogLocked(s.PendingCatalog()), nil, binding.QuerySources)
 		if err != nil {
 			return err

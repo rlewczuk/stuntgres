@@ -94,7 +94,7 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 	}
 	e := s.Engine()
 	e.Mu.Lock()
-	auth, err := s.routineAuthorizationLocked()
+	auth, err := s.RoutineAuthorizationLocked()
 	if err != nil {
 		e.Mu.Unlock()
 		return err
@@ -115,7 +115,7 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 			return err
 		}
 		e.Mu.Lock()
-		current, failure := s.routineAuthorizationLocked()
+		current, failure := s.RoutineAuthorizationLocked()
 		var d *catalog.Procedure
 		if failure == nil {
 			if current.Ref(trigger.Function.Address) != trigger.Function {

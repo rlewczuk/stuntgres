@@ -96,7 +96,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	// before BeginCopy processes options. Query COPY processes options first.
 	if syntax.From {
 		s.Owner.Mu.Lock()
-		readOnly := s.Owner.ReadOnly
+		readOnly := s.Op.EffectiveReadOnly()
 		s.Owner.Mu.Unlock()
 		if readOnly && !TemporaryDataTarget(auth, &b, syntax) {
 			return 0, SQLError("25006", "cannot execute COPY FROM in a read-only transaction")

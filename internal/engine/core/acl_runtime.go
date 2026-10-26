@@ -152,9 +152,10 @@ func (h *statementHost) ObjectPrivilege(c *exec.Context, kind functions.AccessKi
 		if _, present := auth.Catalog.Descriptor(address); !present {
 			return false, false, nil
 		}
-		scope.Op.Session.Settings.Mu.Lock()
-		compat := scope.Op.Session.Settings.Value("lo_compat_privileges") == "on"
-		scope.Op.Session.Settings.Mu.Unlock()
+		settings := scope.Op.EffectiveSettings()
+		settings.Mu.Lock()
+		compat := settings.Value("lo_compat_privileges") == "on"
+		settings.Mu.Unlock()
 		if compat {
 			return true, true, nil
 		}

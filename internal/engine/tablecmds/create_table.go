@@ -171,5 +171,10 @@ func CreateTableLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 // SchemaTableLocked stages CREATE TABLE s without a PARTITION clause; see
 // table.StageCreateTable. Called under Engine.mu.
 func SchemaTableLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
+	if op != nil && op.Restricted != nil {
+		if namespace, ok := stage.Get(ns).(*catalog.Namespace); ok && namespace.Temporary != (ids.SessionToken{}) {
+			return core.SQLError("42501", "cannot create temporary table within security-restricted operation")
+		}
+	}
 	return table.StageCreateTable(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s, ns, owner, input, foreignTargets)
 }
