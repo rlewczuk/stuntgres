@@ -20,7 +20,7 @@ import this package directly.
   `SessionDefaultProvider`. Validation errors use the same `"stuntgres: "`
   prefix as the engine's `RegistrationError`, which stays in the engine
   because foreign-data registration shares it.
-- **Builtins** (`builtins.go`, `developer.go`, `messages.go`, `format_encoding.go`): the
+- **Builtins** (`builtins.go`, `developer.go`, `logging.go`, `messages.go`, `format_encoding.go`): the
   private builtin table in PostgreSQL 18 English `short_desc` wording, the
   `application_name`, `client_min_messages` (`ClientMinMessages`),
   encoding, locale and `icu_validation_level` normalizers. `MessageLevelRank`
@@ -97,6 +97,56 @@ Trusted session-default capture may assign these once, without implementing
 client startup authentication. StartupOnly and Sighup still accept only their
 normalized initial values from providers. Developer superuser settings use
 effective parameter SET authority; grants never unlock immutable contexts.
+
+## Logging settings
+
+`logging.go` owns 41 logging definitions; `application_name` retains its existing
+definition and clipping/notice consumer. Together the family comprises:
+`application_name`, `cluster_name`, `debug_pretty_print`, `debug_print_parse`,
+`event_source`, `log_autovacuum_min_duration`, `log_checkpoints`,
+`log_connections`, `log_destination`, `log_directory`, `log_disconnections`,
+`log_duration`, `log_error_verbosity`, `log_file_mode`, `log_filename`,
+`log_hostname`, `log_line_prefix`, `log_lock_failures`, `log_lock_waits`,
+`log_min_duration_sample`, `log_min_duration_statement`,
+`log_min_error_statement`, `log_min_messages`, `log_parameter_max_length`,
+`log_parameter_max_length_on_error`, `log_recovery_conflict_waits`,
+`log_replication_commands`, `log_rotation_age`, `log_rotation_size`,
+`log_startup_progress_interval`, `log_statement`, `log_statement_sample_rate`,
+`log_temp_files`, `log_timezone`, `log_transaction_sample_rate`,
+`log_truncate_on_rotation`, `logging_collector`, `syslog_facility`,
+`syslog_ident`, `syslog_sequence_numbers`, `syslog_split_messages` and
+`update_process_title`.
+
+These are validated, typed **setting-only simulations**, not file, collector,
+syslog/eventlog, restart, process-title, DNS, lock-reporting, sampling, checkpoint,
+autovacuum, recovery, replication or temporary-file mechanisms. They never
+change logical data/constraints, client diagnostics, client message filtering or
+session time-zone rendering. Defaults model the released Linux-style build,
+not host capabilities. `log_timezone` boots and remains GMT with source default;
+there is no invented initdb or configuration-file assignment. Native provenance
+stays NULL and pending_restart stays false. An initialized reference server can
+have genuine configured timezone and command-line prefix defaults.
+
+The three ordinary user settings besides application_name are debug_pretty_print,
+debug_print_parse and log_parameter_max_length_on_error. Mutable superuser
+logging settings use effective parameter SET authority. Startup, sighup and
+superuser-backend contexts reject every live mutation before parsing/ACL checks;
+only the two backend defaults may differ at trusted physical-session capture.
+RESET ALL skips immutable contexts and restores eligible mutable overrides even
+after SET revocation. Providers capture pure normalized values once and never
+perform physical effects. Only log_directory/log_filename restrict reads;
+SET grants never disclose them, and aggregate views omit unauthorized rows.
+
+Only log_connections/log_destination flatten multiple SET arguments. Their
+identifier-list validators preserve accepted spelling; log_connections supports
+the PG18 exact standalone Boolean compatibility aliases, not Boolean prefixes.
+Directory cleanup is lexical POSIX cleanup with no filesystem I/O. Cluster names
+reuse application-name UTF8 clipping before ASCII escaping. Server severity enums
+are separate from client filtering and accept hidden debug as debug2.
+log_timezone resolves only named/POSIX zones and uses the release epoch-2000
+seconds probe on the supported leap-free zone domain, not session numeric/SQL
+INTERVAL syntax. File mode current output is four-digit octal; boot/reset/bounds
+remain decimal. Numeric units/ranges reuse the shared parser.
 
 ## Simulated file-location defaults
 
@@ -181,7 +231,7 @@ captures fresh defaults. Native Reset/Dump/Restore never serialize or reset
 live settings.
 RESET ALL restores previously SET eligible privileged builtins even after their
 SET grant is revoked, as PostgreSQL does; individual RESET still checks current
-authority. This does not unlock deny-only custom/logging definitions.
+authority. This does not unlock deny-only custom definitions or log_statement_stats.
 
 The internal trusted native SessionDefaultProvider retains its pure typed
 capture contract, not a PostgreSQL startup/catalog hook. AM/tablespace/FTS
@@ -300,6 +350,7 @@ make check RUN='^Test(ClientSettings(BootAndStartup|KeywordLists|ProviderCapture
 make check RUN='^TestCompatible(Settings(Definitions|ProviderCapture|ResetAll)|BackslashQuoteNormalization)$$'
 make check RUN='^TestConnectionSettings'
 make check RUN='^TestDeveloperSettings'
+make check RUN='^TestLoggingSettings'
 make check RUN='^TestLockSettings'
 ```
 

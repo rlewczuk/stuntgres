@@ -162,6 +162,14 @@ func settingsSnapshotExpectedRows(postgres bool) [][]string {
 	for _, def := range connectionSettings {
 		rows = append(rows, []string{def.name, connectionInitial(def, postgres)})
 	}
+	for _, def := range loggingSettings {
+		if def.name == "application_name" {
+			continue
+		}
+		view := &physicalCase{pg: postgres}
+		initial, _, _ := view.loggingInitial(def)
+		rows = append(rows, []string{def.name, initial})
+	}
 	sort.Slice(rows, func(i, j int) bool { return strings.ToLower(rows[i][0]) < strings.ToLower(rows[j][0]) })
 	return rows
 }

@@ -162,6 +162,14 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 						}
 						expected[def.name] = value
 					}
+					for _, def := range loggingSettings {
+						view := &physicalCase{pg: backend.PG}
+						show, raw, _ := view.loggingInitial(def)
+						if backend.PG {
+							show = raw
+						}
+						expected[def.name] = show
+					}
 					if !backend.PG {
 						for _, def := range physicalSettings {
 							expected[def.name] = def.value
@@ -173,6 +181,7 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 						// Project the genuine registry, not fabricated whole-catalog parity.
 						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN (" + connectionNames() + "," + compatibleNames() + ",'DateStyle','TimeZone','timezone_abbreviations','track_commit_timestamp','application_name','bytea_output','client_min_messages','default_transaction_deferrable','default_transaction_isolation','default_transaction_read_only','IntervalStyle','lock_timeout','log_statement_stats','max_parallel_workers_per_gather','plpgsql.check_asserts','quote_all_identifiers','row_security','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_deferrable','transaction_isolation','transaction_read_only','transaction_timeout','idle_in_transaction_session_timeout','idle_session_timeout','client_encoding','lc_messages','lc_monetary','lc_numeric','lc_time','icu_validation_level','extra_float_digits') ORDER BY lower(name)"
 						run(fixture.Select("SELECT name FROM pg_settings WHERE name='demo.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
+						query = strings.Replace(query, "IN (", "IN ("+loggingNames()+",", 1)
 					}
 					var rows *sql.Rows
 					if prepared {

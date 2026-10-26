@@ -36,7 +36,7 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 }
 
 // parameterGrantSetting is the single eligibility decision for privileged
-// builtins. Custom privileged definitions and logging remain deny-only.
+// builtins. Custom privileged definitions and unlisted builtins remain deny-only.
 func parameterGrantSetting(name string) bool {
 	switch name {
 	case "deadlock_timeout":
@@ -44,6 +44,8 @@ func parameterGrantSetting(name string) bool {
 	case "lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role", "lo_compat_privileges":
 		return true
 	case "allow_in_place_tablespaces", "allow_system_table_mods", "backtrace_functions", "debug_discard_caches", "ignore_checksum_failure", "jit_dump_bitcode", "wal_consistency_checking", "zero_damaged_pages":
+		return true
+	case "log_duration", "log_error_verbosity", "log_lock_failures", "log_lock_waits", "log_min_duration_sample", "log_min_duration_statement", "log_min_error_statement", "log_min_messages", "log_parameter_max_length", "log_replication_commands", "log_statement", "log_statement_sample_rate", "log_temp_files", "log_transaction_sample_rate", "update_process_title":
 		return true
 	}
 	return false

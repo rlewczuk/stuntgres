@@ -59,6 +59,7 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 		"ssl_dh_params_file": true, "ssl_groups": true,
 		"ssl_max_protocol_version": true, "ssl_min_protocol_version": true,
 		"ssl_passphrase_command": true, "ssl_tls13_ciphers": true,
+		"log_directory": true, "log_filename": true,
 	}
 	for name := range restrictedNames {
 		d, err := registry.Lookup(name)

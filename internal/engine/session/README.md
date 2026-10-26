@@ -100,6 +100,10 @@ implement its slots, so either import would form a cycle.
   provider may capture changed typed defaults once at physical startup.
   This does not authenticate client startup options or sleep for delay values.
   RESET ALL skips every immutable context regardless of parameter grants.
+  Logging uses the same owner: only log_connections/log_destination flatten
+  raw identifier lists; scoped mutable superuser settings use parameter SET
+  authority. log_directory/log_filename read restrictions are independent.
+  Their validated settings have no physical logging or presentation consumers.
   SET list flattening distinguishes raw keyword lists from quote-reconstructed
   tablespace/preload lists. Catalog-dependent client setting checks run in the
   root before the atomic install window, not under session locks. Simulated
@@ -331,4 +335,5 @@ make check RACE=1 RUN='^Test(SessionHost|SessionPayload|OwnerExtension|Exclusion
 make check RUN='^Test(CatalogFences|TransactionalPrivileges(Finish|Pending)|RoleOwnershipD|EnumProvenanceSavepoints|AlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection)$$)'
 make check RACE=1 RUN='^Test(PgrowlocksEligibility|SnapshotStatement(Retention|RootConsistency)|SnapshotBinding|SerializableSafeSnapshot)'
 make check RUN='^Test(PGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)|RowSecurity(SettingProvenance|ProviderLifecycle))$$'
+make check RUN='^TestLoggingSettings'
 ```

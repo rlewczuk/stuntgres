@@ -73,7 +73,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rule
   `TestReferenceStatisticsSettingsMetadata` keeps the complete selected native
   tuples, including boot/startup source distinctions, and the same released
   isolation enum order in both modes. Internal `TestPhysicalSettingsReadAccess`
-  independently names all twenty restricted builtins and asserts every aggregate
+  independently names all twenty-two restricted builtins and asserts every aggregate
   membership and individual read, not merely a filtered row count.
 - `TestReferenceSettingsPrivilegeAndTimeoutOracle` and
   `TestReferenceSettingsLocalPrivilegeOracle` carry the legacy `reference` build
@@ -108,6 +108,15 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   metadata, unrestricted visibility, typed validation, immutable contexts,
   effective parameter grants, transactional/physical lifecycle and the
   setting-only boundary without timing or lock-capacity claims.
+- Logging settings: `RUN='^TestReferenceLoggingSettings'` covers all 42 literal
+  release descriptors, typed reads/full metadata, contexts, parameter SET versus
+  restricted-read authority, pure-domain unit counterparts, LOCAL/savepoints,
+  physical reuse/replacement and logical native controls. Settings-only
+  simulations never claim log emission, files, processes or background effects.
+  With `log_parameter_max_length_on_error` enabled, parameterized failing
+  `set_config` calls assert PostgreSQL's exact unnamed-portal parameter Context
+  separately from native's empty Context. This oracle diagnostic difference is
+  not an implemented native log-emission or diagnostic-rewriting effect.
 - Timeouts: `RUN='^TestReference(Timeout|SettingsPublicTimeout)'`
 - Physical-session adapter: `RUN='^TestReferenceSession(PhysicalControls|DecimalInteger|Reset|AdapterCancellation|ShowCommand)'`
 - Direct-message batches: `RUN='^TestReferenceDriverBatch'`
