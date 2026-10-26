@@ -28,6 +28,13 @@ explicit **setting-only simulations**, not physical effects. Native
 still refuse live mutation; SET grants and restricted reads are independent.
 See the [settings boundary inventory](internal/engine/settings/README.md#client-connection-defaults).
 
+All 20 [preset options](internal/engine/settings/README.md#preset-options) are
+universally readable and immutable (`55P02` on individual SET/RESET, even for
+superusers). Physical presets are explicit setting-only simulations: they do
+not allocate WAL, disk blocks, checksums, shared memory, semaphores or huge pages.
+Native identity remains truthfully **PostgreSQL 18.0 compatible; embedded
+stuntgres**, independently of the pinned PostgreSQL 18.6 comparison fixture.
+
 
 ## Using stuntgres in unit tests
 

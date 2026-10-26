@@ -18,6 +18,8 @@ func unitTable(u Unit) ([]unitEntry, float64, string) {
 		return memoryUnits, 1024, "kB"
 	case Megabytes:
 		return memoryUnits, 1 << 20, "MB"
+	case Blocks8kB:
+		return memoryUnits, 8192, "8kB"
 	case Milliseconds:
 		return timeUnits, 1000, "ms"
 	case Seconds:
@@ -35,7 +37,7 @@ func baseUnitLabel(u Unit) string {
 	return ""
 }
 func unitHint(u Unit) string {
-	if u <= Megabytes {
+	if u <= Megabytes || u == Blocks8kB {
 		return `Valid units for this parameter are "B", "kB", "MB", "GB", and "TB".`
 	}
 	return `Valid units for this parameter are "us", "ms", "s", "min", "h", and "d".`

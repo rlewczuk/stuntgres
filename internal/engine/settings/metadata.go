@@ -31,8 +31,6 @@ func builtinMetadata(d Definition) Definition {
 		d.Category = "Client Connection Defaults / Other Defaults"
 	case "log_statement_stats":
 		d.Category = "Statistics / Monitoring"
-	case "server_encoding":
-		d.Category = "Preset Options"
 	case "array_nulls", "backslash_quote", "escape_string_warning", "lo_compat_privileges", "standard_conforming_strings", "quote_all_identifiers", "synchronize_seqscans":
 		d.Category = "Version and Platform Compatibility / Previous PostgreSQL Versions"
 	case "allow_alter_system", "transform_null_equals":

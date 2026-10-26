@@ -374,6 +374,32 @@ connection retains its settings; replacement captures fresh defaults.
 Reset/Dump/Restore remain logical controls and do not reset or serialize live
 connection settings.
 
+## Preset options
+
+The [20 preset settings](../internal/engine/settings/README.md#preset-options)
+share the ordinary registry, SHOW/current_setting and typed `pg_settings`
+projection. All roles can read them. Their context is `internal`: SET, SET
+DEFAULT, RESET and `set_config` (including NULL reset and LOCAL) fail with
+`55P02`, `parameter "name" cannot be changed`, before parsing the supplied
+value or consulting SET privileges. RESET ALL skips them while resetting mutable
+settings. Transaction/savepoint error and rollback semantics remain ordinary.
+
+Native session-default providers cannot change a preset's effective value.
+Equivalent normalized answers (such as `segment_size=1GB` or directory mode
+`448`/`0700`) are accepted; differing parsed answers produce the ordinary
+`stuntgres: default provider cannot change NAME` error. Invalid answers retain
+their typed parse errors. This builtin-only restriction does not change custom
+read-only provider defaults or the public provider API. Equivalent provider
+answers retain native `source=client`; this is provider provenance, not a
+PostgreSQL physical-startup facility. Without a provider, preset source is
+`default`, including initialized UTF8 encoding and huge-pages `off`.
+
+`server_version=18.0`, `server_version_num=180000` and startup ParameterStatus
+agree with native's truthful 18.0-compatible embedded banner. The reference
+fixture independently runs PostgreSQL 18.6 (180006); its vendor banner is not
+native identity. Logical Reset/Dump/Restore neither serialize nor reset live
+preset values, and restoring tables cannot allocate their simulated resources.
+
 ## Foreign data wrappers
 
 Register a handler and validator implemented in Go, then create the SQL objects:

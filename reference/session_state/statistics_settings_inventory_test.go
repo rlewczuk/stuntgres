@@ -67,6 +67,8 @@ func statisticsSettingsBuiltinInventory(t *testing.T, pg bool, run statisticsSet
 				boot, source = nil, "override"
 			case "client_encoding":
 				boot, source = "SQL_ASCII", "override"
+			case "server_encoding":
+				boot = "SQL_ASCII"
 			case "lc_messages":
 				boot, source = "", "override"
 			}

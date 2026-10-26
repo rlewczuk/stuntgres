@@ -55,6 +55,52 @@ import this package directly.
   messages, SQLSTATEs, hints and unit conversions are compatibility
   contracts; `SHOW ALL` and the reference suite observe them.
 
+## Preset options
+
+`preset.go` owns all 20 `Preset Options` descriptors, each with internal context,
+unrestricted reads and a fixed native effective default:
+
+| Name | Native SHOW/current_setting | Raw/boot distinction |
+|---|---|---|
+| block_size | 8192 | fixed8192 |
+| data_checksums | off | no disk checksum engine |
+| data_directory_mode | 0700 | current octal; boot/reset448, bounds0..511 |
+| debug_assertions | off | simulated C build flag, not Go assertions |
+| huge_pages_status | off | boot unknown; enum off,on,unknown |
+| in_hot_standby | off | no physical recovery |
+| integer_datetimes | on | logical integer temporal representation |
+| max_function_args | 100 | actual logical limit |
+| max_identifier_length | 63 | actual UTF8-safe byte limit |
+| max_index_keys | 32 | actual logical index-width limit |
+| num_os_semaphores | 0 | no PostgreSQL IPC semaphores |
+| segment_size | 1GB | raw/boot/reset131072 blocks, unit8kB |
+| server_encoding | UTF8 | actual text invariant; boot SQL_ASCII |
+| server_version | 18.0 | truthful embedded compatibility identity |
+| server_version_num | 180000 | same fixed bounds and boot/reset |
+| shared_memory_size | 0 | MB base unit; no PostgreSQL shared-memory area |
+| shared_memory_size_in_huge_pages | -1 | unsupported area; bounds-1..2147483647 |
+| ssl_library | empty string | boot/reset empty, not NULL; no PostgreSQL OpenSSL ABI |
+| wal_block_size | 8192 | simulated WAL block |
+| wal_segment_size | 16MB | raw/boot/reset16777216 bytes, bounds1MB..1GB |
+
+These physical values are explicitly authorized **setting-only simulations**,
+not the technical-statistics approximation exception. They do not create files,
+chmod directories, checksum pages, generate WAL, map shared memory, allocate huge
+pages/semaphores, load an SSL library, enter recovery or perform a restart.
+Go TLS support is unrelated to the empty PostgreSQL SSL-library identity.
+`num_os_semaphores` and `shared_memory_size` have int32 nonnegative bounds.
+Other Boolean/string metadata and source fields follow the release descriptors;
+native initialized defaults have source `default`, not `override`.
+
+All roles, including ordinary logins, read every preset. Individual SET/RESET,
+DEFAULT and set_config are refused before parsing/authorization with 55P02;
+parameter grants cannot unlock them. RESET ALL skips presets. Builtin-only
+`FixedDefault` rejects differing parsed provider values while accepting normalized
+equivalents and preserving custom ReadOnly providers. `Blocks8kB` is internal:
+public custom-unit registration remains unchanged. Physical sessions retain
+these values across pool reuse and logical native controls. The pinned comparison
+server is PostgreSQL18.6, independently of native's truthful18.0 identity.
+
 ## Lock settings
 
 `deadlock_timeout`, `max_locks_per_transaction`, `max_pred_locks_per_page`,

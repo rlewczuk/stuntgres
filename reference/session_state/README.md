@@ -84,6 +84,15 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Settings SQL, registry, SHOW ALL: `RUN='^TestReferenceSettings'`
 - SET LOCAL and transaction-scoped settings: `RUN='^TestReferenceSettingsLocal'`
 - `pg_settings` metadata and statistics settings: `RUN='^TestReferenceStatisticsSettings'`
+- Preset settings: `RUN='^TestReferencePresetSettings(Inventory|Context|Authority|Lifecycle|Smoke)$$'`
+  covers all 20 independently expected release descriptors, full catalog metadata,
+  direct/prepared text presentation, context-first 55P02 refusals, unrestricted
+  authenticated reads (plain/superuser/read-all-settings/SET grantee), LOCAL
+  notices, savepoints, constraints, held statements and logical native controls.
+  Run each bounded top-level name in both native and `REFERENCE=1` modes.
+  Smoke exercises 1GB/131072/8kB segment presentation, octal mode versus decimal
+  reset, 16MB WAL labels, SQL_ASCII boot versus UTF8 current and independent
+  native 18.0 versus oracle 18.6 identity, not physical allocation.
 - Client connection defaults: `RUN='^TestReferenceClientSettings(Inventory|Validation|Authority|Lifecycle|SimulationSmoke)$$'`
   covers all 46 selected settings, independently expected full metadata and
   diagnostics, direct/prepared routes, parameter SET grants versus restricted

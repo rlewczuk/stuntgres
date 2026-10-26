@@ -358,8 +358,8 @@ func (c *client) startReference(config *referenceConfig, pairs map[string]string
 }
 
 func (c *client) settingsSnapshot() ([]parameterValue, error) {
-	values := []parameterValue{{"server_version", "18.0"}, {"integer_datetimes", "on"}}
-	for _, name := range []string{"application_name", "client_encoding", "server_encoding", "DateStyle", "IntervalStyle", "TimeZone", "standard_conforming_strings", "search_path"} {
+	var values []parameterValue
+	for _, name := range []string{"server_version", "integer_datetimes", "application_name", "client_encoding", "server_encoding", "DateStyle", "IntervalStyle", "TimeZone", "standard_conforming_strings", "search_path"} {
 		if value, ok := c.session.Setting(name); ok {
 			values = append(values, parameterValue{name, value})
 		}

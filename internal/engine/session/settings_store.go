@@ -213,7 +213,7 @@ func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]s
 				normalized = d.Format(v)
 			}
 		}
-		if (d.Access == settings.StartupOnly || d.Access == settings.Sighup || d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != initial {
+		if (d.FixedDefault || d.Access == settings.StartupOnly || d.Access == settings.Sighup || d.Name == "log_statement_stats") && normalized != initial {
 			return errors.New("stuntgres: default provider cannot change " + d.Name)
 		}
 		if err := ctx.Err(); err != nil {

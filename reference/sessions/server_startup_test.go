@@ -5,6 +5,7 @@ package reference_test
 import (
 	"encoding/binary"
 	"io"
+	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -18,6 +19,19 @@ func serverStartupContracts(t *testing.T, f *fixture.ServerFixture, b fixture.Ba
 		if w.statuses["application_name"] != "individual name" || w.statuses["client_encoding"] != "UTF8" || w.statuses["integer_datetimes"] != "on" {
 			t.Fatal(w.statuses)
 		}
+		version := w.statuses["server_version"]
+		numeric := "180000"
+		if b.PG {
+			numeric = "180006"
+			if version != "18.6" && !strings.HasPrefix(version, "18.6 (") {
+				t.Fatalf("pinned PostgreSQL version status: %q", version)
+			}
+		} else if version != "18.0" {
+			t.Fatalf("native compatibility version status: %q", version)
+		}
+		serverScalar(t, w, "SHOW server_version", version)
+		serverScalar(t, w, "SHOW server_version_num", numeric)
+		serverScalar(t, w, "SHOW integer_datetimes", "on")
 		serverScalar(t, w, "SHOW application_name", "individual name")
 		serverScalar(t, w, "SHOW TimeZone", "UTC")
 	})

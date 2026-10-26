@@ -48,6 +48,7 @@ const (
 	Milliseconds
 	Seconds
 	Minutes
+	Blocks8kB // Builtin-only disk-block metadata; not a public registration unit.
 )
 
 // StartupDefault is a builtin's effective native initial assignment, distinct
@@ -55,6 +56,7 @@ const (
 type StartupDefault struct {
 	Value     string
 	ResetNull bool
+	Source    string
 }
 
 // Definition is immutable shared metadata, never session value storage.
@@ -69,6 +71,7 @@ type Definition struct {
 	EnumValues                      []string
 	BootDefaultNull, ReadRestricted bool
 	NativeStartup                   *StartupDefault
+	FixedDefault                    bool
 	// Normalize is reserved for builtin behavior; registration has no callbacks.
 	Normalize    func(string) (string, *sqlstate.Error, error)
 	bootValue    Value
@@ -150,7 +153,7 @@ func Validate(d Definition) (Definition, error) {
 	d.Name = FoldName(d.Name)
 	d.Category = "Customized Options"
 	d.ExtraDescription = ""
-	if d.BootDefaultNull || d.ReadRestricted || d.NativeStartup != nil {
+	if d.BootDefaultNull || d.ReadRestricted || d.NativeStartup != nil || d.FixedDefault {
 		return d, registrationError("builtin-only setting metadata")
 	}
 	if !CustomName(d.Name) || d.Type > Enum || d.Access > Privileged || d.Unit > Minutes || !utf8.ValidString(d.Description) || strings.IndexByte(d.Description, 0) >= 0 {

@@ -80,6 +80,9 @@ func (r EngineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.
 		source := "default"
 		if d.NativeStartup != nil && !d.NativeStartup.ResetNull {
 			source = "override"
+			if d.NativeStartup.Source != "" {
+				source = d.NativeStartup.Source
+			}
 		}
 		if s.ProviderDefaults[name] {
 			source = "client"

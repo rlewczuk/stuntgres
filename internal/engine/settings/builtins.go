@@ -89,7 +89,6 @@ var builtins = []Definition{
 	{Name: "extra_float_digits", Type: Integer, BootDefault: "1", IntegerMin: -15, IntegerMax: 3, Description: "Sets the number of digits displayed for floating-point values."},
 	{Name: "search_path", Type: String, BootDefault: `"$user", public`, Description: "Sets the schema search order for names that are not schema-qualified."},
 	{Name: "log_statement_stats", Type: Boolean, Access: Privileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},
-	{Name: "server_encoding", Type: String, Access: ReadOnly, BootDefault: "UTF8", Description: "Shows the server (database) character set encoding."},
 	{Name: "allow_alter_system", Type: Boolean, Access: Sighup, BootDefault: "on", Description: "Allows running the ALTER SYSTEM command."},
 	{Name: "array_nulls", Type: Boolean, BootDefault: "on", Description: "Enables input of NULL elements in arrays."},
 	{Name: "backslash_quote", Type: Enum, BootDefault: "safe_encoding", EnumValues: []string{"safe_encoding", "on", "off"}, Normalize: normalizeBackslashQuote, Description: `Sets whether "\'" is allowed in string literals.`},

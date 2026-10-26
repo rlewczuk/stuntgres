@@ -5,6 +5,14 @@ extension recreation. Label grammar and path bounds follow PostgreSQL 18 UTF8/C.
 Ltree and lquery typed literals, including schema-qualified names, resolve through
 the shared binder for direct and prepared queries.
 
+All twenty PostgreSQL 18 preset options now expose immutable, universally readable
+typed metadata and text presentation, including 8kB segment units, octal directory
+mode and distinct boot/initialized encoding. Physical values are explicit
+setting-only simulations, not disk, WAL, checksum, shared-memory, huge-page,
+semaphore, SSL-library or standby effects. Context-first 55P02 refusals and fixed
+provider defaults preserve logical state; wire status reads the same truthful
+native 18.0-compatible identity, independently of the PostgreSQL 18.6 oracle.
+
 Five lock-management settings now expose typed PostgreSQL 18 metadata, validation,
 context restrictions and effective parameter SET permissions. They are
 setting-only simulations: no deadlock scheduling, lock-table sizing, lock budget
