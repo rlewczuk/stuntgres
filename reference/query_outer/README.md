@@ -41,6 +41,10 @@ through direct/prepared queries and the same native replay phases.
 Their SQL and PL bodies modify real rows; native control phases retain two
 roundtrips, independent Driver ownership and unchanged emitted-SQL oracle replay.
 PL CALL writable-destination copyback is not part of these standalone consumers.
+Quoted SQL output-shape replay checks separate stored declarations from reached
+function or CALL execution and same-held recovery. Checked bodies still reject
+invalid shapes during loading. Native Restore DEFAULT INSERTs reach function
+errors atomically; top-level CALL retains its separate Restore admission boundary.
 
 ```sh
 make check RUN='^(TestReferenceRoutineResults|TestReferencePseudoTypes(Result|Record))'

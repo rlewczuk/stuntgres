@@ -1,18 +1,17 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"bytes"
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/core"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -142,21 +141,104 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 func TestSQLRoutineRestoreStaging(t *testing.T) {
 	e := engine.New()
 	enginetest.Run(t, e, "CREATE FUNCTION routine_unit_saved(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+1$$")
+	originalView := e.CatalogRead()
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+	addresses := originalView.State().ProceduresNamed(namespace, "routine_unit_saved")
+	if len(addresses) != 1 {
+		t.Fatal("original routine index", addresses)
+	}
+	originalDefinition := originalView.Get(addresses[0]).(*catalog.Procedure).SQL
 	var original bytes.Buffer
 	if err := engine.Dump(context.Background(), e, &original); err != nil {
 		t.Fatal(err)
-	}
-	if err := engine.Restore(context.Background(), e, strings.NewReader(routine.RestoreDirective+" CREATE FUNCTION invalid_sql() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_table$$;")); err == nil {
-		t.Fatal("invalid deferred body published")
-	}
-	var after bytes.Buffer
-	if err := engine.Dump(context.Background(), e, &after); err != nil || !bytes.Equal(original.Bytes(), after.Bytes()) {
-		t.Fatal("failed stage changed target", err)
 	}
 	if err := engine.Restore(context.Background(), e, bytes.NewReader(original.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	if !e.CatalogRead().State().HasDynamicProcedureName("routine_unit_saved") {
 		t.Fatal("restore failed to rebuild routine index")
+	}
+	replacedView := e.CatalogRead()
+	replaced := replacedView.State().ProceduresNamed(namespace, "routine_unit_saved")
+	if len(replaced) != 1 || originalView.Get(addresses[0]).(*catalog.Procedure).SQL != originalDefinition ||
+		replacedView.Get(replaced[0]).(*catalog.Procedure).SQL == originalDefinition {
+		t.Fatal("replacement reused staged definition backing or mutated retained catalog")
+	}
+}
+
+func TestSQLRoutineEmptyBodyAnalysisPublication(t *testing.T) {
+	e := engine.New()
+	stream := "SET check_function_bodies = false; CREATE FUNCTION routine_unit_kept() RETURNS integer LANGUAGE SQL AS $$SELECT 7$$; CREATE FUNCTION routine_unit_empty() RETURNS integer LANGUAGE SQL AS $$-- no commands$$; CREATE FUNCTION routine_unit_void() RETURNS void LANGUAGE SQL AS $$-- no commands$$;"
+	if err := engine.Restore(context.Background(), e, strings.NewReader(stream)); err != nil {
+		t.Fatal(err)
+	}
+	view := e.CatalogRead()
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+	address := func(name string) ids.ObjectAddress {
+		t.Helper()
+		matches := view.State().ProceduresNamed(namespace, name)
+		if len(matches) != 1 {
+			t.Fatal("routine definition owner", name, matches)
+		}
+		return matches[0]
+	}
+	keptAddress, emptyAddress, voidAddress := address("routine_unit_kept"), address("routine_unit_empty"), address("routine_unit_void")
+	emptyDefinition := view.Get(emptyAddress).(*catalog.Procedure).SQL
+	op, cleanup, err := enginetest.Operation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	execute := func(q string) error {
+		result, err := enginetest.ExecuteFrame(e, op, enginetest.Statement(t, q), nil)
+		if result.Rows != nil {
+			if closeErr := result.Rows.Close(); closeErr != nil {
+				t.Fatal(closeErr)
+			}
+		}
+		return err
+	}
+	if err := execute("SELECT routine_unit_kept()"); err != nil {
+		t.Fatal(err)
+	}
+	accepted := core.PayloadSQLRoutines(core.PayloadOf(op.Session))
+	entry, ok := accepted[keptAddress]
+	if !ok {
+		t.Fatal("valid routine did not publish its analysis owner")
+	}
+	descriptions := core.RoutineAnalysisDescriptions(&entry)
+	if len(descriptions) != 1 || descriptions[0].Analysis == nil {
+		t.Fatal("missing accepted command backing")
+	}
+	backing, analysis := &descriptions[0], descriptions[0].Analysis
+	for range 2 {
+		if err := execute("SELECT routine_unit_empty()"); err == nil {
+			t.Error("empty invocation admitted successful analysis")
+		}
+		current := core.PayloadSQLRoutines(core.PayloadOf(op.Session))
+		if _, ok := current[emptyAddress]; ok || len(current) != 1 {
+			t.Fatal("failed invocation published retained analysis")
+		}
+		incumbent := current[keptAddress]
+		retained := core.RoutineAnalysisDescriptions(&incumbent)
+		if len(retained) != 1 || &retained[0] != backing || retained[0].Analysis != analysis {
+			t.Fatal("rejected publication changed incumbent analysis backing")
+		}
+		if e.CatalogRead().Get(emptyAddress).(*catalog.Procedure).SQL != emptyDefinition || view.Get(emptyAddress).(*catalog.Procedure).SQL != emptyDefinition {
+			t.Fatal("failed analysis changed immutable declaration ownership")
+		}
+	}
+	if err := execute("SELECT routine_unit_void()"); err != nil {
+		t.Fatal(err)
+	}
+	current := core.PayloadSQLRoutines(core.PayloadOf(op.Session))
+	voidEntry, ok := current[voidAddress]
+	if !ok || len(core.RoutineAnalysisDescriptions(&voidEntry)) != 0 || len(current) != 2 {
+		t.Fatal("valid empty VOID analysis was not retained independently")
+	}
+	incumbent := current[keptAddress]
+	retained := core.RoutineAnalysisDescriptions(&incumbent)
+	if len(retained) != 1 || &retained[0] != backing || retained[0].Analysis != analysis {
+		t.Fatal("empty VOID publication changed incumbent backing")
 	}
 }

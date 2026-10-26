@@ -60,7 +60,7 @@ func resolveStringAggregateSignature(b Binder, raw parser.AggregateExpr, name pa
 		return nil, nil, err
 	}
 	if !visible || raw.Star || len(operands) != 2 {
-		return nil, nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
+		return nil, nil, ResolutionError(name, raw.Pos, types, false)
 	}
 	typ := b.Type(sqltype.Text)
 	for _, o := range operands {
@@ -71,7 +71,7 @@ func resolveStringAggregateSignature(b Binder, raw parser.AggregateExpr, name pa
 	for _, o := range operands {
 		if o.Usage.Type != nil {
 			if _, err := sqltype.PlanCoercion(o.Usage, typ.Usage(), sqltype.Implicit); err != nil {
-				return nil, nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
+				return nil, nil, ResolutionError(name, raw.Pos, types, false)
 			}
 		}
 	}

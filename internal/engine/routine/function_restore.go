@@ -9,8 +9,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// RestoreDirective defers SQL function body validation during Restore; dumps
-// emit it before their SQL routines.
+// RestoreDirective defers catalog-dependent quoted SQL body analysis to
+// invocation during private replay; dumps emit it before their SQL routines.
 const RestoreDirective = "SET check_function_bodies = false;"
 
 // ReplayDirective reports whether stmt is exactly RestoreDirective in data.

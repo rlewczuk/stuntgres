@@ -200,6 +200,10 @@ package or the engine.
   pre-declaration stage, then stages the declaration for body validation and
   self-recursion; Restore (`RestoreDirective`, `ReplayDirective`,
   `RebindSQLDefinitions`) stabilizes all formal types before checked defaults.
+  The private SQL-body directive leaves quoted source unchanged and defers its
+  catalog-dependent analysis/result checks to reached invocation, including
+  defaults invoked by replay data. Complete declaration parsing, checked
+  standard bodies, hard defaults and persistent capture remapping remain checked.
   DROP records every root before the engine's shared dependency closure and
   single publication. Language admission never loads a library or probes a
   symbol.

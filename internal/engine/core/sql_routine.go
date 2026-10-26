@@ -150,6 +150,13 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 			return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
 		}
 	}
+	if len(statements) == 0 && !d.SQL.Void() {
+		name, failure := CaptureTypeDiagnosticName(auth)
+		if failure == nil {
+			failure = SQLRoutineFinalError(resultUsage, name)
+		}
+		return value, exec.SQLRoutineStatementContext(failure, d.Name(), 1)
+	}
 	signature := proc.InvocationSignature{Inputs: frame.Inputs, Result: resultUsage}
 	if retained.definition != d.SQL || retained.name != d.Name() || retained.inputCollation != inputCollation || !retained.signature.Equal(signature) || len(retained.descriptions) != len(statements) {
 		retained = sqlRoutineAnalysis{definition: d.SQL, name: d.Name(), statements: statements, descriptions: make([]Description, len(statements)), inputCollation: inputCollation, signature: signature}

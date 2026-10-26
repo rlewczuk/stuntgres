@@ -26,6 +26,10 @@ usage; it does not grant authority to foreign same-OID descriptors. First-row
 demand retains every projected column for composite SQL results and PL cursor
 actuals, while scalar SQL results retain their one-column width check. All
 projected expressions are evaluated before ordinal result/argument conversion.
+An admitted non-VOID SQL invocation with no parsed commands still requires a
+final result: it fails before specialization or successful analysis publication.
+Empty VOID invocations remain valid; rejected analysis never replaces another
+routine's accepted command backing.
 
 SET DEFAULT referential actions retain a statement-owned `exec.RoutineProgram`
 while preparing the child recipe, including original calls erased by immutable

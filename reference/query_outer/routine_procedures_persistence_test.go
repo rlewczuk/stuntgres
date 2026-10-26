@@ -113,6 +113,7 @@ func TestReferenceRoutineProceduresPersistence(t *testing.T) {
 			proceduresPersistSetup(t, p, b, c)
 			check := func(conn *sql.Conn, backend fixture.Backend) { proceduresPersistCheck(t, p, backend, conn) }
 			check(c, b)
+			resultsDeferredOutputReplay(t, p, b, c, "pc_restore_bad", true)
 			if b.PG {
 				return
 			} // Native controls have no PG API counterpart.
@@ -185,10 +186,20 @@ func TestReferenceRoutineProceduresPersistence(t *testing.T) {
 			if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
 				t.Fatal(err)
 			}
-			bad := before.String() + ";CREATE TABLE pc_restore_prefix(v integer);CREATE PROCEDURE pc_restore_bad(OUT a integer,OUT b integer) LANGUAGE SQL AS 'SELECT 1';"
-			if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
-				t.Fatal("invalid procedure Restore accepted")
-			}
+			// Checked bodies still reject output-shape corruption while loading;
+			// the quoted counterpart above stores and fails only when CALL runs.
+			bad := before.String() + ";CREATE TABLE pc_restore_prefix(v integer);CREATE PROCEDURE pc_restore_bad(OUT a integer,OUT b integer) BEGIN ATOMIC SELECT 1; END;"
+			want := fixture.ControlsReferenceDiagnostic("42P13", "return type mismatch in function declared to return record")
+			want.Detail, want.Context = "Final statement returns too few columns.", `SQL function "pc_restore_bad"`
+			fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)), &want)
+			check(c, b)
+			proceduresCount(t, p, b, c, "pg_class WHERE relname='pc_restore_prefix'", 0)
+			proceduresCount(t, p, b, c, "pg_proc WHERE proname='pc_restore_bad'", 0)
+			// Top-level CALL is not emitted by Dump and remains outside Restore
+			// admission. This is not a body-invocation diagnostic.
+			bad = before.String() + ";CREATE TABLE pc_restore_prefix(v integer);CREATE PROCEDURE pc_restore_bad(OUT a integer,OUT b integer) LANGUAGE SQL AS 'SELECT 1';CALL pc_restore_bad(NULL,NULL);"
+			admission := fixture.ControlsReferenceDiagnostic("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+			fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)), &admission)
 			check(c, b)
 			proceduresCount(t, p, b, c, "pg_class WHERE relname='pc_restore_prefix'", 0)
 			proceduresCount(t, p, b, c, "pg_proc WHERE proname='pc_restore_bad'", 0)

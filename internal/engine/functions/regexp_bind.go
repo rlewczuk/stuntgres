@@ -49,7 +49,7 @@ func bindRegexpCall(b Binder, raw parser.FunctionExpr, visible bool) (RegexpCall
 		for i, o := range operands {
 			names[i] = NamedArgumentType(raw, i, DiagnosticNameOrUnknown(o.Usage.Type))
 		}
-		return UnnotedResolutionError(b, raw.Name, raw.Pos, names, false)
+		return ResolutionError(raw.Name, raw.Pos, names, false)
 	}
 	if len(raw.Args) > 100 {
 		return call, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)

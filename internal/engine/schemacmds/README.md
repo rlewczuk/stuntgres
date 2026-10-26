@@ -85,8 +85,9 @@ Dispatch (`core.Statements.ExecuteLocked`): `AlterAllTablespaceLocked` is a
 lock-domain continuation: entered with `Engine.Mu` held, it releases it on
 return.
 
-Restore hooks: `ImportExtensionOwners` (below) and `BindSQLRoutineLocked`,
-which validates a restored SQL routine body against the private catalog.
+Restore hooks: `ImportExtensionOwners` (below) and `BindSQLRoutineLocked`.
+The private SQL-body directive defers catalog-dependent quoted SQL analysis to
+invocation; checked standard bodies and PL compilation retain their validation.
 
 ## Hosts
 

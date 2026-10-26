@@ -92,6 +92,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - Drain and close a PostgreSQL cursor before issuing another command on its
   physical connection. Native controls use `p.Native`/`p.NativeConnector`, never
   the middleware-wrapped pool.
+  Control-script atomicity distinguishes enabled CREATE result diagnostics from
+  reached SQL-body invocation errors. Deferred definitions are forced through
+  actual INSERT/default evaluation before asserting rejected replacement.
+  Written scalar calls outside Restore admission remain ordinary errors without
+  SQLSTATE; they are not substitutes for reached default-execution failures.
 - Capture-lifetime changes must not repin the composite-shape and
   enum-rename/native-control expectations that prepared-rebind scenarios share.
   The rebind contract is in the [engine README](../../internal/engine/README.md).

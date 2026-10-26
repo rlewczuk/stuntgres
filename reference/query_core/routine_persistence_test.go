@@ -110,10 +110,9 @@ func TestReferenceRoutineCorePersistence(t *testing.T) {
 			}
 			routineValue(t, p, b, c, "SELECT routine_saved.add1(4)", "add1", "INT4", int64(5))
 		}
-		bad := "SET check_function_bodies = false; CREATE FUNCTION public.routine_invalid() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_routine_table$$;"
-		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
-			t.Fatal("deferred invalid body published")
-		}
+		bad := "SET check_function_bodies = false; CREATE FUNCTION public.routine_invalid() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_routine_table$$; CREATE TABLE routine_reached(v integer DEFAULT public.routine_invalid()); INSERT INTO routine_reached DEFAULT VALUES;"
+		want := quotedReplayDiagnostic(false, "routine_invalid", "SELECT x FROM missing_routine_table", "15", "42P01", "relation \"missing_routine_table\" does not exist", "", "", false)
+		fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)), &want)
 		assertUnchanged()
 		if err := stuntgres.Restore(p.Ctx, p.Native, io.MultiReader(strings.NewReader(before), routineReadFailure{})); err == nil {
 			t.Fatal("read failure accepted")
@@ -125,7 +124,8 @@ func TestReferenceRoutineCorePersistence(t *testing.T) {
 			t.Fatal("canceled Restore accepted")
 		}
 		assertUnchanged()
-		// Public configuration is simulated; final native validation stays on.
+		// Public SET retains its existing display-only native behavior; only
+		// the operation-local Restore directive defers quoted body analysis.
 		routineExec(t, p, b, c, "SET check_function_bodies = false")
 		show := fixture.Select("SHOW check_function_bodies", []string{"check_function_bodies"}, []string{"TEXT"}, [][]any{{"off"}})
 		show.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
@@ -142,9 +142,12 @@ func TestReferenceRoutineCorePersistence(t *testing.T) {
 			}
 		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, show)
-		if _, err := c.ExecContext(p.Ctx, "CREATE FUNCTION public.routine_invalid() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_routine_table$$"); err == nil {
-			t.Fatal("simulated check_function_bodies disabled final validation")
-		}
+		public := fixture.ControlsReferenceDiagnostic("42P01", "relation \"missing_routine_table\" does not exist")
+		public.Position, public.Context = "15", "SQL function \"routine_invalid\""
+		fixture.AssertDiagnostic(t, func() error {
+			_, err := c.ExecContext(p.Ctx, "CREATE FUNCTION public.routine_invalid() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_routine_table$$")
+			return err
+		}(), &public)
 		assertUnchanged()
 	})
 }

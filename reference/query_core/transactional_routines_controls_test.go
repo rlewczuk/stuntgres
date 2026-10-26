@@ -48,10 +48,10 @@ func TestReferenceTransactionalRoutinesNativeControls(t *testing.T) {
 				if err := stuntgres.Restore(p.Ctx, p.Native, io.MultiReader(bytes.NewReader(baseline.Bytes()), routineReadFailure{})); err == nil {
 					t.Fatal("reader failure accepted")
 				}
-				bad := "SET check_function_bodies = false; CREATE FUNCTION invalid_sql() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_table$$;"
-				if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
-					t.Fatal("invalid deferred body accepted")
-				}
+				bad := "SET check_function_bodies = false; CREATE FUNCTION invalid_sql() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_table$$; CREATE TABLE txr_reached(v integer DEFAULT invalid_sql()); INSERT INTO txr_reached DEFAULT VALUES;"
+				want := quotedReplayDiagnostic(false, "invalid_sql", "SELECT x FROM missing_table", "15", "42P01", "relation \"missing_table\" does not exist", "", "", false)
+				fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)), &want)
+				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: s, SQL: q}, b.Recorder, fixture.Select(q, []string{"v"}, []string{"INT4"}, [][]any{{int64(5)}}))
 				routineValue(t, p, b, c, "SELECT txr_private() AS v", "v", "INT4", int64(99))
 				// Replay the actual committed stream into an independent Driver.
 				connector, err := stuntgres.NewDriver().OpenConnector("transactional-routine-replay")
@@ -85,7 +85,7 @@ func TestReferenceTransactionalRoutinesNativeControls(t *testing.T) {
 						t.Fatal(err)
 					}
 					fixture.RunStep(t, p.Ctx, recorded, replayRecorder, fixture.Select("SELECT has_function_privilege('public',$1::text,'EXECUTE') AS v", []string{"v"}, []string{"BOOL"}, [][]any{{false}}, target))
-					fixture.RunStep(t,p.Ctx,recorded,replayRecorder,fixture.Select("SELECT pg_get_acl(1255,oid,0)::text AS acl FROM pg_proc WHERE oid=$1::regprocedure",[]string{"acl"},[]string{"TEXT"},[][]any{{"{postgres=X/postgres}"}},target))
+					fixture.RunStep(t, p.Ctx, recorded, replayRecorder, fixture.Select("SELECT pg_get_acl(1255,oid,0)::text AS acl FROM pg_proc WHERE oid=$1::regprocedure", []string{"acl"}, []string{"TEXT"}, [][]any{{"{postgres=X/postgres}"}}, target))
 				}
 				if replacement == "reset" {
 					err = stuntgres.Reset(p.Ctx, p.Native)

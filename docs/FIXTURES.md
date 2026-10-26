@@ -191,6 +191,14 @@ target's contents; it never merges. Empty input clears all user relations.
 - Live target sessions and their settings survive replacement; session settings
   are not imported. Routine-body validation deferral and authenticated comparison
   replay windows are operation-local exceptions, not general SET admission.
+  The SQL-body directive preserves quoted SQL source even when its soft names
+  no longer bind. Complete syntax, closed formals, declarations and persistent
+  structure still validate; checked standard bodies and hard declaration
+  defaults retain validated, remapped identities. Catalog-dependent quoted
+  analysis and result checks belong to genuine invocation, including defaults
+  reached by replay INSERTs. Such execution errors abort replacement normally.
+  Empty or comment-only non-VOID bodies are storable in that window but fail
+  when invoked, including by replay data; empty VOID bodies remain valid.
 - Foreign data wrappers referenced by the dump need matching registrations on the
   target Driver (see [DRIVER.md](DRIVER.md#foreign-data-wrappers)).
 - Commit timestamp history is cleared by Reset and Restore; the startup
@@ -213,6 +221,11 @@ inverse and final identities, external seeds and option flags. Native replacemen
 remaps user-defined moving states along with stored window views and frozen
 routine calls; executor frames and progress are never serialized.
 Quoted source remains soft/original; standard bodies retain checked identities.
+The private SQL-body window does not bind quoted source merely to reconstruct
+its declaration or finish replay. Lawful rename/drop/type changes can leave that
+source unusable until current names/types are repaired. Direct, fresh-prepared
+and held consumers use ordinary invocation checks; failed analysis does not
+publish a reusable successful binding or authority.
 Changed released/installed providers emit genuine ALTER FUNCTION after required
 schema/extension creation and before dependent definitions. Free destination
 keys move first; cycles or blocked intermediate keys may need a checked

@@ -80,7 +80,7 @@ func bindStringVariadicNode(b Binder, raw parser.FunctionExpr) (StringVariadic, 
 		return result
 	}
 	if resolution != Resolved {
-		return StringVariadic{}, UnnotedResolutionError(b, raw.Name, raw.Pos, names(), false)
+		return StringVariadic{}, ResolutionError(raw.Name, raw.Pos, names(), false)
 	}
 	switch {
 	case raw.Star:

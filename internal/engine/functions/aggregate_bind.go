@@ -98,7 +98,7 @@ func ResolveWindowAggregate(b AggregateBinder, raw parser.AggregateExpr, name pa
 	if err != nil {
 		return nil, sqltype.Usage{}, err
 	}
-	return nil, sqltype.Usage{}, UnnotedResolutionError(b, name, raw.Pos, types, false)
+	return nil, sqltype.Usage{}, ResolutionError(name, raw.Pos, types, false)
 }
 
 func firstOperand(operands []Argument) Argument {

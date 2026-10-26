@@ -14,8 +14,8 @@ import (
 const SignatureHint = "No function matches the given name and argument types. You might need to add explicit type casts."
 
 // ResolutionError builds a missing-function or ambiguous-function diagnostic
-// without recording anything. Live binders use the noted or unnoted adapters
-// below so missing-call identity is independent of composite recovery.
+// without a composite-recovery note. Callers requiring that note use
+// NotedResolutionError or Binder.SignatureError.
 func ResolutionError(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
 	code, ending, hint := "42883", "does not exist", SignatureHint
 	if ambiguous {
@@ -24,17 +24,6 @@ func ResolutionError(name parser.ObjectName, pos parser.Position, names []string
 	d := expr.ErrorAt(code, fmt.Sprintf("function %s(%s) %s", qualifiedName(name), strings.Join(names, ", "), ending), pos).(*sqlstate.Error)
 	d.Hint = hint
 	return d
-}
-
-// UnnotedResolutionError preserves the family's existing no-recovery-note
-// contract while recording an explicitly missing callable's diagnostic identity.
-// Ambiguity never records a missing callable. No error is wrapped or copied.
-func UnnotedResolutionError(b Binder, name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
-	err := ResolutionError(name, pos, names, ambiguous)
-	if !ambiguous {
-		b.RecordUnresolvedCallable(err)
-	}
-	return err
 }
 
 // ArrayTypeName spells signature types: arrays display the visible leaf name,

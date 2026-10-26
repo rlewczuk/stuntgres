@@ -34,6 +34,18 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - **Persistence.** Routine, view and set-operation persistence phases run native
   Dump/Reset/Restore; in real mode they replay the exact native Dump stream on
   PostgreSQL, never reconstructed SQL.
+  Quoted routine replay scenarios separate persistent declaration admission
+  from genuine invocation, retain exact stored source and hard dependencies,
+  and exercise recovery on held consumers after lawful referent changes.
+  Diagnostics distinguish direct/fresh execution from retained held plans and
+  explicit same-handle plan invalidation. Assert each backend's complete
+  diagnostic and failure phase independently, not just matching SQLSTATEs.
+  Empty/comment-only source remains a stored declaration: exercise non-VOID
+  invocation rejection and same-held repair separately from valid empty VOID.
+  Explicit default re-establishment after body repair must preserve the saved
+  table/callee identities, exact column attachment and complete routine/relation
+  dependency bag before successful execution. Keep reached default replay
+  atomicity independent of this recovery sequence.
 - **Metadata.** Native computed results, including scalar SQL calls, report
   unknown nullability, while stored columns and `COUNT` report it as known; use
   `routineValueWithNativeNullability` where a stored column is projected.
@@ -79,6 +91,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   names. Unnamed user enum results additionally use inferred CTAS column identity.
   Scalar-family literal casts retain UNKNOWN until final TEXT projection;
   enum casts and dummy container/handler inputs have separate exact diagnostics.
+- Quoted routine replay: `RUN='^TestReferenceRoutineQuotedReplay'`; native-only
+  phases are explicit Reset/Dump/Restore controls. Ordinary enabled CREATE and
+  valid-before-DDL invocation phases share the public oracle scenario.
 - <a id="ordered-sql-routine-bodies"></a>Ordered and SQL-standard routine bodies, procedures: `RUN='^TestReferenceRoutineSQLBodies'`
   `TestReferenceRoutineSQLBodiesMergeSourceCompaction` keeps its MERGE target
   unchanged while dropping an unused leading source column. Direct and genuinely

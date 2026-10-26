@@ -39,13 +39,10 @@ func DescribePL(ctx context.Context, host Host, stmt parser.Statement, auth Auth
 	return binding, err
 }
 
-func describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, definition *proc.Definition, name string, inputCollation sqltype.CollationRef, lexical *proc.PLFrame, plTarget *PLAssignment, initial ...[]sqltype.Usage) (binding Binding, failure error) {
+func describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, definition *proc.Definition, name string, inputCollation sqltype.CollationRef, lexical *proc.PLFrame, plTarget *PLAssignment, initial ...[]sqltype.Usage) (Binding, error) {
 	b := Binding{}
 	binder := NewBinder(ctx, host, input, expected)
 	binder.PL = lexical
-	defer func() {
-		binding.UnresolvedCallable = failure != nil && failure == binder.unresolvedCallable
-	}()
 	binder.Target.RuleNamespace = rule
 	binder.Params.NoParameters = rule != nil
 	binder.Params.ClosedRoutineFormals = closed

@@ -64,7 +64,7 @@ func resolveAvgSignature(b Binder, raw parser.AggregateExpr, name parser.ObjectN
 		types = []string{DiagnosticNameOrUnknown(typ)}
 	}
 	if !visible || raw.Star || len(raw.Args) != 1 {
-		return nil, 0, UnnotedResolutionError(b, name, raw.Pos, types, false)
+		return nil, 0, ResolutionError(name, raw.Pos, types, false)
 	}
 	if typ == nil {
 		return nil, 0, aggregateUnknownError(name, raw.Pos)
@@ -78,7 +78,7 @@ func resolveAvgSignature(b Binder, raw parser.AggregateExpr, name parser.ObjectN
 	case b.Type(sqltype.Float4), b.Type(sqltype.Float8):
 		operation = AggregateFloatAvg
 	default:
-		return nil, 0, UnnotedResolutionError(b, name, raw.Pos, types, false)
+		return nil, 0, ResolutionError(name, raw.Pos, types, false)
 	}
 	arg, err := finalizeOperand(b, operand, typ)
 	return arg, operation, err

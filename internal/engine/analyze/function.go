@@ -152,7 +152,7 @@ func (b *Binder) BindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error
 				types[i] = arg.ResultUsage().Type.DiagnosticName()
 			}
 		}
-		return nil, functions.UnnotedResolutionError(b, raw.Name, raw.Pos, types, false)
+		return nil, functions.ResolutionError(raw.Name, raw.Pos, types, false)
 	}
 	// Ordinary arguments count whole-value nullness, including arrays. Explicit
 	// VARIADIC array expansion remains outside this provider's capability.
@@ -271,7 +271,6 @@ func (b *Binder) functionResolutionErrorForTypes(name parser.ObjectName, pos par
 	err := functions.ResolutionError(name, pos, names, ambiguous)
 	if !ambiguous {
 		b.Clause.noteFunctionSignature(name, pos, err)
-		b.RecordUnresolvedCallable(err)
 	}
 	return err
 }

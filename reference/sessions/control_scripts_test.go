@@ -158,6 +158,26 @@ func TestReferenceControlScriptsAtomicFailures(t *testing.T) {
 				}
 				controlScriptsRoutes(t, p, b.DB, b.Recorder, fixture.ErrorDiagnostic(tc.sql, d))
 			}
+			// Invocation is a separate phase from the enabled CREATE witness
+			// above. Start valid and make the quoted result stale lawfully.
+			for _, q := range []string{
+				"CREATE TABLE cs_return(v integer)",
+				"CREATE FUNCTION cs_bad() RETURNS integer LANGUAGE SQL AS $$SELECT v FROM cs_return$$",
+				"DROP TABLE cs_return", "CREATE TABLE cs_return(v text)",
+			} {
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(q, 0))
+			}
+			d := fixture.ControlsReferenceDiagnostic("42P13", "return type mismatch in function declared to return integer")
+			d.Detail = "Actual return type is text."
+			d.Context = "SQL function \"cs_bad\" statement 1"
+			for _, prepared := range []bool{false, true} {
+				s := fixture.ErrorDiagnostic("SELECT cs_bad()", d)
+				s.SelectRows, s.ErrorStage, s.Prepared = true, "execute", prepared
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
+			}
+			s := fixture.ErrorDiagnostic("SELECT cs_bad()", d)
+			s.ErrorStage = "execute"
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 		})
 	}
 	db, raw, r := controlScriptsTarget(t, p)
@@ -193,10 +213,10 @@ func TestReferenceControlScriptsAtomicFailures(t *testing.T) {
 				want = fixture.ControlsReferenceDiagnostic("42P01", "relation \"cs_missing\" does not exist")
 				want.Position = fixture.Position(strings.Index(q, "cs_missing") + 1)
 			case "deferred return":
-				src = strings.NewReader("SET check_function_bodies = false; CREATE TABLE must_not_publish(v integer); CREATE FUNCTION cs_bad() RETURNS integer LANGUAGE SQL AS $$SELECT 'x'::text$$;")
+				src = strings.NewReader("SET check_function_bodies = false; CREATE TABLE must_not_publish(v integer); CREATE FUNCTION cs_bad() RETURNS integer LANGUAGE SQL AS $$SELECT 'x'::text$$; CREATE TABLE cs_reached(v integer DEFAULT cs_bad()); INSERT INTO cs_reached DEFAULT VALUES;")
 				want = fixture.ControlsReferenceDiagnostic("42P13", "return type mismatch in function declared to return integer")
 				want.Detail = "Actual return type is text."
-				want.Context = "SQL function \"cs_bad\""
+				want.Context = "SQL function \"cs_bad\" statement 1"
 			case "reader prefix":
 				src = &controlScriptsPrefixReader{err: ioFailure}
 				ordinary = ioFailure

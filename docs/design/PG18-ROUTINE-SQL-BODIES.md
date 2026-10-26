@@ -31,8 +31,12 @@ policy. It does not import catalog/analyze/engine. DDL resolves concrete inputs,
 permits VOID only as a result, rejects duplicate formal names, and preserves
 namespace/owner/ACL/OID/signature authorities. Standard syntax defaults to SQL.
 CREATE checks all commands without data producers or expression effects.
-Quoted validation remains enabled by default; Restore's private compatible
-`SET check_function_bodies = false;` defers quoted validation only.
+Quoted validation remains enabled by default. Restore's private compatible
+`SET check_function_bodies = false;` reconstructs quoted SQL declarations without
+catalog-dependent body analysis or result checking. Complete body parsing and
+closed formals remain required; declaration types, language, owner and persistent
+structure are checked independently. Public SET behavior and PL policy do not
+follow this private directive.
 
 The shared binder carries a routine lexical policy independent of row demand.
 Column and outer-column lookup, including ambiguity, occurs before formal
@@ -155,6 +159,9 @@ demand before opening; every preceding/VOID SELECT evaluates required output
 fully. All DML executes completely, including every RETURNING evaluation and
 auxiliary obligation, before adapting the first row. No result rows produce
 declared typed NULL; VOID yields typed SQL NULL and discards all outputs.
+A parsed body with no commands is not an empty final query. Nonvoid invocation
+rejects it through the final-result diagnostic before allocating or publishing
+successful retained analysis; empty VOID bodies remain executable.
 
 Errors/cancellation close owned rows/providers and restore scratch/depth. The
 outer statement rolls back transactional prefix writes; sequence increments
@@ -169,10 +176,16 @@ and selected implicit usages. They are never serialized as unchecked quoted
 source. Standard declaration events follow their body predecessors, while
 quoted bodies preserve signature-only scheduling and existing forward cycles.
 
-Restore stages all declarations/data privately, remaps declaration types before
-cross-routine captures, then validates before publication. Stable private
-routine descriptor handles prevent capture remapping order from changing
-callee identity. No frames/plans/ACL decisions are serialized. Reference
+Restore stages all declarations/data privately and remaps declaration types
+before cross-routine captures. Checked standard programs and hard declaration
+defaults retain complete validation and destination identity remapping. In the
+private SQL-body window, quoted source stays byte-exact and soft even if lawful
+DDL has made its names or result unusable; final replay validation does not bind
+that source. Genuine invocation analyzes reached commands and checks their
+results normally, including default calls reached by replay data. Any such
+execution error aborts the private stage without publishing a replacement.
+Stable private routine descriptor handles prevent capture remapping order from
+changing callee identity. No frames/plans/ACL decisions are serialized. Reference
 coverage requires two native replacement rounds, unchanged native-emitted SQL
 replayed on pinned PostgreSQL, and failed/canceled replacement preservation.
 

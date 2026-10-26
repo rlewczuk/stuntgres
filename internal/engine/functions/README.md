@@ -213,10 +213,10 @@ reviewed decision:
   `BuiltinRoutineReference` / `BuiltinOperatorRoutineInfo`: whether lookup
   reaches `pg_catalog` under `search_path`, and the selected builtin routine
   identity (catalog state).
-- `DiagnosticTypeName` / `SignatureError` / `CallSignatureError` /
-  `RecordUnresolvedCallable`: diagnostic spelling and the analyzer's 42883
-  routing (a copy here would fork it); deferral needs the recorded missing
-  identity as the terminal error, not its SQLSTATE alone.
+- `DiagnosticTypeName` / `SignatureError` / `CallSignatureError`: diagnostic
+  spelling and the analyzer's missing-signature routing for composite-field
+  recovery. `ResolutionError` constructs the same diagnostic without a note;
+  neither path carries replay policy.
 - `AnalyzeFilter` / `DefaultConsumer`: a scalar call's FILTER errors precede
   the decoration rejection; whether a column DEFAULT is being bound.
 - `CommonUsage` / `ComparisonInfo` / `CollatedInfo` / `RetainUntypedParameter`:
@@ -318,7 +318,7 @@ host, which owns all locking and returns owned values.
    `OwnsLabels` if the label gate exempted it), because `Lookup` runs first.
    Check that no earlier chain predicate claims its names.
 4. Paths that avoid composite-recovery notes (regexp, string variadics) use
-   `UnnotedResolutionError` for genuine callable absence, not `SignatureError`.
+   `ResolutionError` directly, not `SignatureError` or `NotedResolutionError`.
 5. An installed extension family resolves through `InstalledRoutine`. The
    wrapper node and its validation stay in the engine, with explicit wrapper
    cases ahead of protocol branches.

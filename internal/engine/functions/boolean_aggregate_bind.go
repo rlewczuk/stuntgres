@@ -50,7 +50,7 @@ func resolveBooleanAggregateSignature(b Binder, raw parser.AggregateExpr, name p
 	}
 	typ := b.Type(sqltype.Bool)
 	if !visible || raw.Star || len(operands) != 1 || (operands[0].Usage.Type != nil && operands[0].Usage.Type.BaseType() != typ) {
-		return nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
+		return nil, ResolutionError(name, raw.Pos, types, false)
 	}
 	return coerceConditional(b, operands[0], typ.Usage(), raw.Name)
 }

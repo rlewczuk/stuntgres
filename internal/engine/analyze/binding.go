@@ -19,9 +19,6 @@ type ParameterInfo struct {
 // statement kind may use; kind payloads and capture groups are held by value
 // (see binding_groups.go), so copying a binding copies them too.
 type Binding struct {
-	// UnresolvedCallable marks only a terminal genuine missing function call.
-	// Private replay may defer it; ordinary callers still receive the error.
-	UnresolvedCallable bool
 	Relation           *catalog.Relation
 	Storage            *storage.Relation
 	Ref                ids.ObjectRef

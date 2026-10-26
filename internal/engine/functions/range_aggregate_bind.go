@@ -78,7 +78,7 @@ func resolveRangeAggregateSignature(b Binder, raw parser.AggregateExpr, name par
 		return nil, err
 	}
 	if !visible || raw.Star || len(raw.Args) != 1 {
-		return nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
+		return nil, ResolutionError(name, raw.Pos, types, false)
 	}
 	input := operand.Usage.Type
 	if input == nil {
@@ -86,7 +86,7 @@ func resolveRangeAggregateSignature(b Binder, raw parser.AggregateExpr, name par
 	}
 	input = rangeAggregateInput(input)
 	if input == nil {
-		return nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
+		return nil, ResolutionError(name, raw.Pos, types, false)
 	}
 	return coerceConditional(b, operand, input.Usage(), raw.Name)
 }

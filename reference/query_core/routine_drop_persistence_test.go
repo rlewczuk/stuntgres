@@ -104,8 +104,9 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 			t.Fatal(err)
 		}
 	}
-	// Even when another expression first encounters a missing callee, closed
-	// formal validation and non-callable failures must reject private replay.
+	// Closed formals and complete syntax remain reconstruction requirements,
+	// even after an earlier missing callable. Semantic failures are reached
+	// through a real default invocation instead of final declaration binding.
 	for _, body := range []string{
 		"SELECT rd_missing(1), $1",
 		"SELECT rd_missing(1), $2",
@@ -116,8 +117,15 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 	} {
 		before := dump.String()
 		bad := "SET check_function_bodies = false; CREATE FUNCTION public.rd_bad_replay() RETURNS integer LANGUAGE SQL AS $$" + body + "$$;"
+		semantic := body == "SELECT 'x'::text" || body == "SELECT x FROM rd_missing_table" || body == "SELECT 1 OPERATOR(public.###) 2"
+		if semantic {
+			routineDropStoredReplay(t, p, bad, body)
+			bad += " CREATE TABLE rd_reached(v integer DEFAULT public.rd_bad_replay()); INSERT INTO rd_reached DEFAULT VALUES;"
+		}
 		err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad))
-		fixture.AssertDiagnostic(t, err, new(routineDropReplayBodyDiagnostic(body, bad)))
+		want := routineDropReplayBodyDiagnostic(body, bad)
+		if semantic { want.Context = "SQL function \"rd_bad_replay\" statement 1" }
+		fixture.AssertDiagnostic(t, err, &want)
 		var after bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
 			t.Fatal(err)
@@ -126,9 +134,8 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 			t.Fatal("failed replay published a catalog change", body)
 		}
 	}
-	// Describe validates namespace/type lookup authority, not executable-source
-	// SELECT ACLs. A denied explicit function namespace must fail before its
-	// absent callable could become a replay-deferrable missing-call outcome.
+	// Lookup ACLs and ambiguous calls are invocation authority, not evidence
+	// that a quoted declaration cannot be stored.
 	for _, tc := range []struct {
 		sql    string
 		denied bool
@@ -136,8 +143,17 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		{"CREATE SCHEMA rd_private_source; CREATE SCHEMA rd_private_schema AUTHORIZATION rd_replay_denied; SET SESSION AUTHORIZATION rd_replay_denied; CREATE FUNCTION rd_private_schema.rd_denied() RETURNS integer LANGUAGE SQL AS $$SELECT rd_private_source.rd_missing(1)$$; RESET SESSION AUTHORIZATION;", true},
 		{"CREATE FUNCTION public.rd_amb(integer) RETURNS integer LANGUAGE SQL AS $$SELECT 1$$; CREATE FUNCTION public.rd_amb(bigint) RETURNS integer LANGUAGE SQL AS $$SELECT 2$$; CREATE FUNCTION public.rd_amb_caller() RETURNS integer LANGUAGE SQL AS $$SELECT public.rd_amb(NULL)$$;", false},
 	} {
-		err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("SET check_function_bodies = false; "+tc.sql))
-		fixture.AssertDiagnostic(t, err, new(routineDropReplayLookupDiagnostic(tc.denied)))
+		body := "SELECT public.rd_amb(NULL)"
+		if tc.denied { body = "SELECT rd_private_source.rd_missing(1)" }
+		routineDropStoredReplay(t, p, "SET check_function_bodies = false; "+tc.sql, body)
+		invoke := "CREATE TABLE public.rd_reached(v integer DEFAULT public.rd_amb_caller()); INSERT INTO public.rd_reached DEFAULT VALUES;"
+		if tc.denied {
+			invoke = "SET SESSION AUTHORIZATION rd_replay_denied; CREATE TABLE rd_private_schema.rd_reached(v integer DEFAULT rd_private_schema.rd_denied()); INSERT INTO rd_private_schema.rd_reached DEFAULT VALUES; RESET SESSION AUTHORIZATION;"
+		}
+		err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("SET check_function_bodies = false; "+tc.sql+invoke))
+		want := routineDropReplayLookupDiagnostic(tc.denied)
+		want.Context += " statement 1"
+		fixture.AssertDiagnostic(t, err, &want)
 		var after bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
 			t.Fatal(err)
@@ -145,6 +161,23 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		if after.String() != dump.String() {
 			t.Fatal("failed authorized/ambiguous replay published a catalog change")
 		}
+	}
+}
+
+// Native controls have no PostgreSQL equivalent. The shared ordinary CREATE
+// inventory and lawful-DDL invocation family specify their public SQL phases;
+// this independent destination isolates definition admission from execution.
+func routineDropStoredReplay(t *testing.T, p *fixture.Pair, stream, source string) {
+	t.Helper()
+	connector, err := stuntgres.NewDriver().OpenConnector(t.Name()+"/stored-definition")
+	if err != nil { t.Fatal(err) }
+	db := sql.OpenDB(connector)
+	defer db.Close()
+	if _, err := db.ExecContext(p.Ctx, "CREATE ROLE rd_replay_denied"); err != nil { t.Fatal(err) }
+	if err := stuntgres.Restore(p.Ctx, db, strings.NewReader(stream)); err != nil { t.Fatal("definition-only replay", source, err) }
+	var count int64
+	if err := db.QueryRowContext(p.Ctx, "SELECT count(*) FROM pg_proc WHERE prosrc=$1::text", source).Scan(&count); err != nil || count != 1 {
+		t.Fatal("stored quoted source changed", count, err)
 	}
 }
 

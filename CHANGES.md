@@ -56,6 +56,13 @@ default under stale authority. Rule NEW substitution preserves rejection of
 missing or incompatible original DEFAULT routine provenance, including calls
 to bodyless builtins.
 
+Native Dump/Restore preserves original quoted SQL routine bodies after lawful
+referent changes, deferring their semantic analysis to genuine invocation.
+Declaration/structural checks, checked SQL-standard bodies and hard defaults
+remain validated; reached replay execution failures still abort atomically.
+Empty/comment-only non-VOID invocation rejects a missing final result before
+retaining successful analysis; empty VOID bodies remain valid.
+
 `CREATE EXTENSION seg` installs the interval scalar and its genuine text codecs.
 Literal and bound values preserve endpoint annotations and significant digits;
 results expose canonical text (including derived `Infinity`/`-Infinity`), SEG

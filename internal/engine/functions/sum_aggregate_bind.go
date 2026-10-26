@@ -82,7 +82,7 @@ func resolveSumSignature(b Binder, raw parser.AggregateExpr, name parser.ObjectN
 		return nil, err
 	}
 	if !visible || raw.Star || len(raw.Args) != 1 {
-		return nil, sumSignatureError(b, name, raw.Pos, types, len(raw.Order))
+		return nil, sumSignatureError(name, raw.Pos, types, len(raw.Order))
 	}
 	typ := operand.Usage.Type
 	if typ == nil {
@@ -93,19 +93,17 @@ func resolveSumSignature(b Binder, raw parser.AggregateExpr, name parser.ObjectN
 	case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8, sqltype.Money, sqltype.Interval:
 		return coerceConditional(b, operand, typ.Usage(), raw.Name)
 	default:
-		return nil, sumSignatureError(b, name, raw.Pos, types, len(raw.Order))
+		return nil, sumSignatureError(name, raw.Pos, types, len(raw.Order))
 	}
 }
 
 // sumSignatureError is the missing-signature error of single-argument
 // aggregates, with PostgreSQL's hint for an ORDER BY placed before an
 // argument separator.
-func sumSignatureError(b Binder, name parser.ObjectName, pos parser.Position, types []string, orderKeys int) error {
+func sumSignatureError(name parser.ObjectName, pos parser.Position, types []string, orderKeys int) error {
 	d := ResolutionError(name, pos, types, false).(*sqlstate.Error)
 	if orderKeys > 1 {
 		d.Hint = "No aggregate function matches the given name and argument types. Perhaps you misplaced ORDER BY; ORDER BY must appear after all regular arguments of the aggregate."
-	} else {
-		b.RecordUnresolvedCallable(d)
 	}
 	return d
 }

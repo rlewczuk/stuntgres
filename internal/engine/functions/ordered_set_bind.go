@@ -91,7 +91,7 @@ func bindOrderedSet(b AggregateBinder, raw parser.AggregateExpr, name parser.Obj
 	} else if raw.Name == "percentile_disc" {
 		operation = AggregatePercentileDisc
 	}
-	undefined := func() (expr.Expr, error) { return nil, UnnotedResolutionError(b, name, raw.Pos, types, false) }
+	undefined := func() (expr.Expr, error) { return nil, ResolutionError(name, raw.Pos, types, false) }
 	if !visible || n != directCount+1 {
 		return undefined()
 	}
@@ -217,7 +217,7 @@ func bindHypotheticalSet(b AggregateBinder, raw parser.AggregateExpr, name parse
 		return nil, err
 	}
 	if !visible {
-		return nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
+		return nil, ResolutionError(name, raw.Pos, types, false)
 	}
 	if !raw.Within {
 		return nil, expr.ErrorAt("42809", "WITHIN GROUP is required for ordered-set aggregate "+qualifiedName(name), raw.Pos)

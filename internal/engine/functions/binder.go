@@ -40,10 +40,6 @@ type Binder interface {
 	// for the analyzed argument type names. The engine also uses it to decide
 	// whether a one-argument call may fall back to composite field selection.
 	SignatureError(parser.ObjectName, parser.Position, []string) error
-	// RecordUnresolvedCallable records the identity of an explicitly missing
-	// callable diagnostic. It neither notes composite-field recovery nor
-	// changes the error; only a terminal propagated identity permits deferral.
-	RecordUnresolvedCallable(error)
 	// AnalyzeFilter analyzes a FILTER clause as a boolean in the FILTER
 	// context and discards it. Scalar functions use it to report FILTER
 	// errors in PostgreSQL's order before rejecting the decoration.

@@ -70,8 +70,10 @@ Compiler/provider/layout validation retains the invocation kind through copying,
 definition replacement and remapping.
 
 Complete parsing closes positional formals even after an unresolved call stops
-semantic binding. Private Restore may defer only a structured terminal missing
-call in a quoted body; blocked semantic checks run once invocation can resolve it.
+semantic binding. Private Restore reconstructs quoted SQL declarations without
+catalog-dependent body analysis or result checking; ordinary reached invocation
+owns those checks. Complete syntax, formals and persistent declaration structure
+remain validated, as do checked standard programs and hard defaults.
 Quoted strings/comments are not formals, and unused declared inputs are valid.
 
 The shared binder closes positional formals even with zero inputs. Named,

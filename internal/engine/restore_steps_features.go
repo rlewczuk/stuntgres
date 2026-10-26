@@ -128,8 +128,8 @@ func finishRestoreMaterializedSnapshots(r *restoreRun, ctx context.Context, op *
 	return viewcmds.ImportMaterializedSnapshots(r.stage, ctx, op, r.snapshots)
 }
 
-// beforeRestoreRoutineDirective consumes the directive that defers SQL
-// routine body validation to finish.
+// beforeRestoreRoutineDirective consumes the private directive that defers
+// catalog-dependent quoted SQL body analysis to genuine invocation.
 func beforeRestoreRoutineDirective(r *restoreRun, op *session.Operation, stmt parser.Statement) (bool, error) {
 	if !routine.ReplayDirective(r.source, stmt) {
 		return false, nil
@@ -138,7 +138,8 @@ func beforeRestoreRoutineDirective(r *restoreRun, op *session.Operation, stmt pa
 	return true, nil
 }
 
-// finishRestoreSQLRoutines validates the deferred SQL routine bodies.
+// finishRestoreSQLRoutines validates restored routines while retaining private
+// quoted SQL body deferral.
 func finishRestoreSQLRoutines(r *restoreRun, ctx context.Context, op *session.Operation) error {
 	return validateRestoredSQLRoutines(r.stage, ctx, op)
 }

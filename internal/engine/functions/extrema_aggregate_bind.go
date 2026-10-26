@@ -72,7 +72,7 @@ func resolveExtremaSignature(b Binder, raw parser.AggregateExpr, name parser.Obj
 		return nil, err
 	}
 	if !visible || raw.Star || len(raw.Args) != 1 {
-		return nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
+		return nil, ResolutionError(name, raw.Pos, types, false)
 	}
 	selected := b.Type(sqltype.Text)
 	if typ := operand.Usage.Type; typ != nil {
@@ -88,7 +88,7 @@ func resolveExtremaSignature(b Binder, raw parser.AggregateExpr, name parser.Obj
 		case sqltype.NameArray, sqltype.PgNodeTree:
 			return nil, expr.ErrorAt("0A000", raw.Name+" for "+base.DiagnosticName()+" is unsupported", raw.Pos)
 		default:
-			return nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
+			return nil, ResolutionError(name, raw.Pos, types, false)
 		}
 	}
 	return coerceConditional(b, operand, selected.Usage(), raw.Name)

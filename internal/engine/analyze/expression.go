@@ -50,12 +50,10 @@ type Binder struct {
 	Input             sqltype.InputEnvironment
 	Dependencies      []catalog.ExpressionDependency
 	dependencyPurpose catalog.DependencyPurpose
-	// Identity of the actual missing-call diagnostic, not a SQLSTATE heuristic.
-	PL                 *proc.PLFrame // Private reached-expression lexical inputs; never retained.
-	plAssignmentDatum  *PLAssignment
-	plAssignmentQuery  *parser.Select
-	unresolvedCallable error
-	normalizingSyntax  map[StoredExpressionSyntaxKey]bool
+	PL                *proc.PLFrame // Private reached-expression lexical inputs; never retained.
+	plAssignmentDatum *PLAssignment
+	plAssignmentQuery *parser.Select
+	normalizingSyntax map[StoredExpressionSyntaxKey]bool
 
 	Target         targetContext
 	Params         parameterState
@@ -320,6 +318,3 @@ func (b *Binder) columnAtOf(relation *catalog.Relation, i int, pos parser.Positi
 	}
 	return column
 }
-
-
-

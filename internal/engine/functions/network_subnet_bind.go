@@ -51,7 +51,7 @@ func bindNetworkSubnet(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 			}
 			names[i] = NamedArgumentType(raw, i, names[i])
 		}
-		return nil, UnnotedResolutionError(b, raw.Name, raw.Pos, names, false)
+		return nil, ResolutionError(raw.Name, raw.Pos, names, false)
 	}
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err

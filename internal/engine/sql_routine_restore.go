@@ -10,10 +10,9 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-// validateRestoredSQLRoutines binds restored bodies as their owners after the
-// whole replay. Only a terminal structured missing callable may defer binding;
-// invocation must bind and check the declared result before opening producers.
-
+// validateRestoredSQLRoutines validates bodies as their owners after replay.
+// The private SQL-body window reconstructs quoted declarations without binding
+// their soft source. Genuine invocation still binds and checks reached results.
 func validateRestoredSQLRoutines(e *core.Engine, ctx context.Context, op *session.Operation) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -37,8 +36,11 @@ func validateRestoredSQLRoutines(e *core.Engine, ctx context.Context, op *sessio
 				}
 				continue
 			}
-			binding, _, bindErr := schemacmds.BindSQLRoutineLocked(e, op, auth, d, input, nil)
-			if bindErr != nil && !binding.UnresolvedCallable {
+			if core.OperationReplayOrZero(op).SQLBodies && !d.SQL.Standard {
+				continue
+			}
+			_, _, bindErr := schemacmds.BindSQLRoutineLocked(e, op, auth, d, input, nil)
+			if bindErr != nil {
 				return bindErr
 			}
 		}

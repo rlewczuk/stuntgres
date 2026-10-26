@@ -106,7 +106,8 @@ func (h RoutineHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.O
 }
 
 // BindSQLRoutine binds d's body with the stage's definitions in place of the
-// operation's. Restore defers SQL body validation until the import ends.
+// operation's. Private replay leaves quoted SQL names for reached invocation;
+// declaration parsing, checked bodies, defaults and PL keep their own checks.
 func (h RoutineHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
 	if core.OperationReplayOrZero(h.Op).SQLBodies && !d.SQL.Standard && d.SQL.Kind != proc.PLpgSQLBody {
 		return nil

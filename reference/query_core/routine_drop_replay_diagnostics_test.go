@@ -7,9 +7,9 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// Replay-native expectations are specified from the public phase contract:
-// parse failures name enclosing CREATE coordinates; final binder failures retain
-// the inherited body-relative coordinates and non-runtime function Context.
+// Ordinary enabled CREATE expectations remain distinct from reached invocation:
+// parse failures name enclosing CREATE coordinates; native producer-free CREATE
+// binding retains body coordinates and a non-runtime function Context.
 func routineDropReplayBodyDiagnostic(body, createSQL string) fixture.Diagnostic {
 	var d fixture.Diagnostic
 	switch body {
