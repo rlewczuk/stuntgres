@@ -72,7 +72,8 @@ func TestReferenceIssn13Controls(t *testing.T) {
 		issn13ControlVerify(t, p, b, c)
 		fixture.RunStep(t, p.Ctx, heldText, b.Recorder, heldValues)
 		isbnConsumeRetained(t, old, metadata, issn13ControlRows, "INT4", "EAN13", "ISSN13")
-		issn13ControlTarget(t, p, c, dump.Bytes())
+		target, tb, conn := issn13ControlTarget(t, p, c, dump.Bytes())
+		issn13ControlVerify(t, target, tb, conn)
 		var redump bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
 			t.Fatal(err)

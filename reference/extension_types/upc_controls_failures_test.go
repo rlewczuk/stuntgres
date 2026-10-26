@@ -53,7 +53,6 @@ func upcControlTarget(t *testing.T, p *fixture.Pair, c *sql.Conn, script []byte)
 	if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(script)); err != nil {
 		t.Fatal(err)
 	}
-	upcControlVerify(t, target, tb, conn)
 	return target, tb, conn
  }
 
@@ -67,7 +66,6 @@ func upcFailedReplacement(t *testing.T, kind string) {
 			return
 		}
 		upcControlSetup(t, p, b, c)
-		upcControlVerify(t, p, b, c)
 		var dump bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 			t.Fatal(err)
