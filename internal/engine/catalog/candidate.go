@@ -195,13 +195,16 @@ func (c *Candidate) State() *State {
 	next := &State{epoch: c.Base.Epoch(), namespaceGeneration: base.namespaceGeneration, descriptors: ds.Persistent(), names: ns.Persistent(), relations: rs.Persistent(), operatorNames: operators.Index, procedureNames: procedures.Index, castPairs: casts.castPairs, defaultACLs: overlayDefaultACLs(base.defaultACLs, c.defaultACLs), dumpPriorities: base.dumpPriorities}
 	next.defaultClasses = base.defaultClasses
 	next.eventTriggers = base.eventTriggers
+	next.helperOwners = base.helperOwners
 	for a := range c.removals {
 		next.updateDefaultClasses(c.Base.Get(a), nil)
 		next.updateEventTriggers(c.Base.Get(a), nil)
+		next.updateHelperOwners(c.Base.Get(a), nil)
 	}
 	for a, d := range c.descriptors {
 		next.updateDefaultClasses(c.Base.Get(a), d)
 		next.updateEventTriggers(c.Base.Get(a), d)
+		next.updateHelperOwners(c.Base.Get(a), d)
 	}
 	if len(base.dumpPriorities) != 0 && len(c.removals) != 0 {
 		next.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(base.dumpPriorities))
