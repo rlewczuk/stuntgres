@@ -41,7 +41,7 @@ participant enlistment, and the builtin catalog seed.
 Dispatch (`core.Statements.Execute`); each is entered with nothing held:
 - `ExecuteSchema` runs every schema-element statement listed above except
   the routine, COMMENT, tablespace, LOAD, extension and foreign-data ones. It
-  stages under `Engine.Mu` (`StageSchemaLocked`: the capture, the early actor
+  stages under `Engine.Mu` (`stageSchemaLocked`: the capture, the early actor
   read that gates every staged statement, one call per statement; DROP
   SCHEMA first takes its namespace removal locks and CREATE COLLATION its
   catalog lock unlocked), admits the definition mutation and retirement
@@ -73,9 +73,6 @@ return.
 
 Restore hooks: `ImportExtensionOwners` (below) and `BindSQLRoutineLocked`,
 which validates a restored SQL routine body against the private catalog.
-
-For root tests that stage directly: `StageSchemaLocked` and
-`StageExtensionLocked`.
 
 ## Hosts
 

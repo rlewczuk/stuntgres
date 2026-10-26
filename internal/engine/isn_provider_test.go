@@ -6,33 +6,31 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/parser"
 )
 
-func isnUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name, schema string) *core.CatalogStage {
+// isnUnitExecute runs one SQL statement that returns no rows on op.
+func isnUnitExecute(t *testing.T, e *core.Engine, op *session.Operation, q string) {
 	t.Helper()
-	creation := &parser.CreateExtension{Name: parser.Identifier{Text: name}}
-	if schema != "" {
-		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
-	}
-	e.Mu.Lock()
-	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
-	e.Mu.Unlock()
+	r, err := e.Execute(op, statement(t, q), 0, nil)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("%s: %v", q, err)
 	}
-	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
-	return stage
+	if r.Rows != nil {
+		if err := r.Rows.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
+// isnUnitInstalled returns a fresh engine with the isn extension created
+// through SQL, its catalog entry and its first member type.
 func isnUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension, *catalog.Type) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	extensionUnitPublish(t, e, op, isnUnitStage(t, e, op, "isn", ""))
+	isnUnitExecute(t, e, op, "CREATE EXTENSION isn")
 	ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
 	return e, ext, e.Catalog.State.MustType(ext.Members[0])
 }

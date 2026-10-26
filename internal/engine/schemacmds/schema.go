@@ -79,7 +79,7 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 		}
 	} else {
 		e.Mu.Lock()
-		stage, err = StageSchemaLocked(e, op, stmt, input, scope.Output)
+		stage, err = stageSchemaLocked(e, op, stmt, input, scope.Output)
 		e.Mu.Unlock()
 	}
 	if err != nil || stage == nil {
@@ -343,9 +343,9 @@ func stageSchemaDropLocked(e *core.Engine, op *session.Operation, stmt *parser.D
 	return stage, nil
 }
 
-// StageSchemaLocked stages one schema-element statement in a new catalog
+// stageSchemaLocked stages one schema-element statement in a new catalog
 // stage under Engine.Mu, for ExecuteSchema to admit and publish.
-func StageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*core.CatalogStage, error) {
+func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*core.CatalogStage, error) {
 	auth, err := schemaAuthorizationLocked(e, op)
 	if err != nil {
 		return nil, err

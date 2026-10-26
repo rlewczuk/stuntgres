@@ -76,8 +76,8 @@ witnesses belong to the corresponding `reference/information_schema` family.
 
 Root tests name only exported core and family members, plus the inspection
 accessors in core's `inspect.go`: the Restore hook units (the ISN type owner
-replay stages through `schemacmds.StageSchemaLocked` and
-`StageExtensionLocked`) and units that reach no family internals. Tests that
+replay installs the extension and moves its types through SQL) and units
+that reach no family internals. Tests that
 reach a family's internals live in its `*cmds` directory; tests that reach
 only core live in `core/`.
 

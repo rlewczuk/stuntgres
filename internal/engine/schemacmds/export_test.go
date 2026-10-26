@@ -8,10 +8,12 @@ var (
 	DomainRestrictError        = domainRestrictError
 	ExtensionNamespaceOf       = extensionNamespaceOf
 	StageDomainDependents      = stageDomainDependents
+	StageExtensionLocked       = stageExtensionLocked
 	StageExtensionUpdateLocked = stageExtensionUpdateLocked
 	StageForeignLocked         = stageForeignLocked
 	StageOf                    = stageOf
 	StageSchemaDropLocked      = stageSchemaDropLocked
+	StageSchemaLocked          = stageSchemaLocked
 )
 
 type (

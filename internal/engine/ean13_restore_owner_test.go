@@ -22,7 +22,7 @@ func testIsnRestoreOwnerReplay(t *testing.T, family string, slot int) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	for _, q := range []string{"CREATE SCHEMA ean_owner_dst", "ALTER TYPE public."+family+" RENAME TO moved", "ALTER TYPE public.moved SET SCHEMA ean_owner_dst"} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
+		isnUnitExecute(t, e, op, q)
 	}
 	view := e.CatalogRead()
 	metadata, err := extension.OwnerMetadata(view, e.Roles(), ext)

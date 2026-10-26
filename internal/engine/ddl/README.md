@@ -129,7 +129,7 @@ and none waits on the lock manager. The package adds no mutex.
 `Engine.Mu`, authority capture, stage begin and publication are core's. The
 schema statement executors are [`schemacmds`](../schemacmds/README.md)'s
 (`schema.go`): `ExecuteSchema` (partition 0A000 pre-checks, locks,
-publication and the cascade notice), `StageSchemaLocked` (capture, the early
+publication and the cascade notice), `stageSchemaLocked` (capture, the early
 actor read that gates every staged statement, one call per statement),
 `stageSchemaDomainsLocked` and, in `tablecmds`, `SchemaTableLocked` (a
 forwarder to `table.StageCreateTable`).

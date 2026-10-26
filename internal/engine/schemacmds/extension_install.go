@@ -18,7 +18,7 @@ func ExecuteExtension(e *core.Engine, scope *core.StatementScope, s *parser.Crea
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
-	stage, err := StageExtensionLocked(e, scope, s)
+	stage, err := stageExtensionLocked(e, scope, s)
 	e.Mu.Unlock()
 	if err != nil || stage == nil {
 		return core.Result{}, err
@@ -62,9 +62,9 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 	return core.Result{}, nil
 }
 
-// StageExtensionLocked stages CREATE EXTENSION in a new catalog stage under
+// stageExtensionLocked stages CREATE EXTENSION in a new catalog stage under
 // Engine.Mu, for ExecuteExtension to publish.
-func StageExtensionLocked(e *core.Engine, scope *core.StatementScope, s *parser.CreateExtension) (*core.CatalogStage, error) {
+func stageExtensionLocked(e *core.Engine, scope *core.StatementScope, s *parser.CreateExtension) (*core.CatalogStage, error) {
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err
