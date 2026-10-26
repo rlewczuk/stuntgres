@@ -1,7 +1,7 @@
 # reference/extension_types
 
-Dual-mode tests for extension types: `hstore`, `cube`, `earth`, `query_int`, `ean13`,
-`isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
+Dual-mode tests for extension types: `hstore`, `cube`, `earth`, `query_int`, `lquery`,
+`ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
 
 Other type families: [reference/domain_types](../domain_types/README.md#testing)
 (domains, `information_schema` domains, type identity lifecycle and
@@ -118,6 +118,11 @@ Rules:
 - `cube` (scalar/codecs, coordinate extraction and spatial predicates/distances): `RUN='^TestReferenceCube'`
 - <a id="earth-domain-contract"></a>`earth` domain, coordinates and conversions: `RUN='^TestReferenceEarth'`
 - `query_int`: `RUN='^TestReferenceQueryInt'`
+- `lquery` declarations, canonical text codecs, assignment, metadata and controls:
+  `RUN='^TestReferenceLquery'`. Fixtures preserve explicit non-star quantifiers,
+  normalize modifier flags and quantifier bounds, and assert complete diagnostics
+  independently of native formatting. Controls retain rows and metadata across
+  replacement and replay actual emitted SQL on PostgreSQL.
 
 ### Cube fixtures
 

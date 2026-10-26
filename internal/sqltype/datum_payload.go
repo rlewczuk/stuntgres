@@ -47,6 +47,12 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 		}
 		v.hstore, other.hstore = nil, nil
 	}
+	if v.lquery != nil || other.lquery != nil {
+		if !v.validLquery() || !other.validLquery() || v.lquery.text != other.lquery.text {
+			return false, nil
+		}
+		v.lquery, other.lquery = nil, nil
+	}
 	v.typ, other.typ = nil, nil
 	if math.Float64bits(v.floating) != math.Float64bits(other.floating) {
 		return false, nil

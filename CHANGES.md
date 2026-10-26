@@ -3,6 +3,12 @@ context restrictions and effective parameter SET permissions. They are
 setting-only simulations: no deadlock scheduling, lock-table sizing, lock budget
 or predicate-lock tracking/promotion mechanism is changed.
 
+`CREATE EXTENSION ltree` installs the `lquery` scalar and its text codecs.
+Declared columns and literal/prepared/bound values preserve canonical wildcard,
+quantifier, alternative, negation and modifier syntax, typed NULLs and result
+metadata through native Dump/Reset/Restore and SQL extension recreation. Held
+literals rebind to a recreated installation without retaining retired type data.
+
 Quoted internal `"char"` columns now use ordinary type resolution, distinct from
 SQL `char(n)`, with one-byte input, prepared parameters, empty versus NULL values,
 precise encoding errors and native Dump/Restore round trips.

@@ -26,6 +26,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 		{"pair", "", "", true},
 		{"cube", "", "cube", false},
 		{"query_int", "", "intarray", false},
+		{"lquery", "", "ltree", false},
 		{"citext", "", "citext", false},
 		{"ean13", "", "isn", false},
 		{"isbn", "", "isn", false},

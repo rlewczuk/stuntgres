@@ -21,6 +21,11 @@ func IntarrayProviderOf(d *catalog.Procedure) *IntarrayProvider {
 	return p
 }
 
+func LtreeProviderOf(d *catalog.Procedure) *LtreeProvider {
+	p, _ := d.Implementation.(*LtreeProvider)
+	return p
+}
+
 func CubeProviderOf(d *catalog.Procedure) *CubeProvider {
 	p, _ := d.Implementation.(*CubeProvider)
 	return p

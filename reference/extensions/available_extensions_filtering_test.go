@@ -79,6 +79,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append([][]any{{"amcheck", "1.5", false, true, false, true, nil, nil, "functions for verifying relation integrity"}}, wantVersions...)
 				wantAvailable = append(wantAvailable[:5:5], append([][]any{{"hstore", "1.8", nil, "data type for storing sets of (key, value) pairs"}}, wantAvailable[5:]...)...)
 				wantVersions = append(wantVersions[:6:6], append([][]any{{"hstore", "1.8", false, true, true, true, nil, nil, "data type for storing sets of (key, value) pairs"}}, wantVersions[6:]...)...)
+				wantAvailable = append(wantAvailable[:10:10], append([][]any{{"ltree", "1.3", nil, "data type for hierarchical tree-like structures"}}, wantAvailable[10:]...)...)
+				wantVersions = append(wantVersions[:11:11], append([][]any{{"ltree", "1.3", false, true, true, true, nil, nil, "data type for hierarchical tree-like structures"}}, wantVersions[11:]...)...)
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw", "plpgsql"} {

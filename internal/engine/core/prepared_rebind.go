@@ -93,7 +93,7 @@ func (e *Engine) preparedInstalledScalarLiteralTemporalsLocked(auth Authorizatio
 	checked := false
 	for i, capture := range original {
 		source := capture.Value.Type()
-		if source == nil || !source.IsHstore() && !source.IsEan13() && !source.IsIsbn() && !source.IsIsbn13() && !source.IsIsmn() && !source.IsIsmn13() && !source.IsIssn() && !source.IsIssn13() && !source.IsUpc() {
+		if source == nil || !source.IsHstore() && !source.IsLquery() && !source.IsEan13() && !source.IsIsbn() && !source.IsIsbn13() && !source.IsIsmn() && !source.IsIsmn13() && !source.IsIssn() && !source.IsIssn13() && !source.IsUpc() {
 			continue
 		}
 		if !checked {
@@ -115,7 +115,7 @@ func (e *Engine) preparedInstalledScalarLiteralTemporalsLocked(auth Authorizatio
 			}
 		}
 		current, ok := auth.Catalog.Type(address)
-		if !captured || !ok || source.IsHstore() != current.SQLType.IsHstore() || source.IsEan13() != current.SQLType.IsEan13() || source.IsIsbn() != current.SQLType.IsIsbn() || source.IsIsbn13() != current.SQLType.IsIsbn13() || source.IsIsmn() != current.SQLType.IsIsmn() || source.IsIsmn13() != current.SQLType.IsIsmn13() || source.IsIssn() != current.SQLType.IsIssn() || source.IsIssn13() != current.SQLType.IsIssn13() || source.IsUpc() != current.SQLType.IsUpc() || old.Extension != current.Extension || old.Array != current.Array {
+		if !captured || !ok || source.IsHstore() != current.SQLType.IsHstore() || source.IsLquery() != current.SQLType.IsLquery() || source.IsEan13() != current.SQLType.IsEan13() || source.IsIsbn() != current.SQLType.IsIsbn() || source.IsIsbn13() != current.SQLType.IsIsbn13() || source.IsIsmn() != current.SQLType.IsIsmn() || source.IsIsmn13() != current.SQLType.IsIsmn13() || source.IsIssn() != current.SQLType.IsIssn() || source.IsIssn13() != current.SQLType.IsIssn13() || source.IsUpc() != current.SQLType.IsUpc() || old.Extension != current.Extension || old.Array != current.Array {
 			return original
 		}
 		nominal := *old
@@ -157,7 +157,7 @@ func (e *Engine) preparedInstalledScalarLiteralTemporalsLocked(auth Authorizatio
 // only its authentic statement-owned capture, so ordinary binding can parse
 // the original SQL literal for its new usage. Identity-only changes never
 // enter this path while their original type address still exists.
-func (e *Engine) retirePreparedHstoreLiteralTemporalsLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment, captures []analyze.TemporalConstant) []analyze.TemporalConstant {
+func (e *Engine) retirePreparedInstalledScalarLiteralTemporalsLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment, captures []analyze.TemporalConstant) []analyze.TemporalConstant {
 	if expected == nil || expected.planGeneration != auth.Session.DiscardPlansGeneration || !e.preparedAnalysisEnvironmentValidLocked(auth, expected.analysis, path) {
 		return captures
 	}
@@ -165,7 +165,7 @@ func (e *Engine) retirePreparedHstoreLiteralTemporalsLocked(auth AuthorizationVi
 	for i, capture := range captures {
 		retired := false
 		source := capture.Value.Type()
-		if source.IsHstore() && source.ID() == capture.TypeID {
+		if (source.IsHstore() || source.IsLquery()) && source.ID() == capture.TypeID {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(capture.TypeID)}
 			old := expected.analysis.types[address]
 			if old != nil && old.SQLType == source && old.Address() == address && auth.Catalog.Get(address) == nil {
@@ -214,14 +214,14 @@ func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, 
 			if !ok {
 				return false
 			}
-			if installedScalarAuthorityRebind && !current.SQLType.IsHstore() && !current.SQLType.IsEan13() && !current.SQLType.IsIsbn() && !current.SQLType.IsIsbn13() && !current.SQLType.IsIsmn() && !current.SQLType.IsIsmn13() && !current.SQLType.IsIssn() && !current.SQLType.IsIssn13() && !current.SQLType.IsUpc() {
+			if installedScalarAuthorityRebind && !current.SQLType.IsHstore() && !current.SQLType.IsLquery() && !current.SQLType.IsEan13() && !current.SQLType.IsIsbn() && !current.SQLType.IsIsbn13() && !current.SQLType.IsIsmn() && !current.SQLType.IsIsmn13() && !current.SQLType.IsIssn() && !current.SQLType.IsIssn13() && !current.SQLType.IsUpc() {
 				return false
 			}
 			old := analysis.types[dep.Ref.Address]
 			if catalog.SamePreparedTypeDefinition(old, current) {
 				continue
 			}
-			if !installedScalarAuthorityRebind || old == nil || old.SQLType.IsHstore() != current.SQLType.IsHstore() || old.SQLType.IsEan13() != current.SQLType.IsEan13() || old.SQLType.IsIsbn() != current.SQLType.IsIsbn() || old.SQLType.IsIsbn13() != current.SQLType.IsIsbn13() || old.SQLType.IsIsmn() != current.SQLType.IsIsmn() || old.SQLType.IsIsmn13() != current.SQLType.IsIsmn13() || old.SQLType.IsIssn() != current.SQLType.IsIssn() || old.SQLType.IsIssn13() != current.SQLType.IsIssn13() || old.SQLType.IsUpc() != current.SQLType.IsUpc() || !old.SQLType.IsHstore() && !old.SQLType.IsEan13() && !old.SQLType.IsIsbn() && !old.SQLType.IsIsbn13() && !old.SQLType.IsIsmn() && !old.SQLType.IsIsmn13() && !old.SQLType.IsIssn() && !old.SQLType.IsIssn13() && !old.SQLType.IsUpc() {
+			if !installedScalarAuthorityRebind || old == nil || old.SQLType.IsHstore() != current.SQLType.IsHstore() || old.SQLType.IsLquery() != current.SQLType.IsLquery() || old.SQLType.IsEan13() != current.SQLType.IsEan13() || old.SQLType.IsIsbn() != current.SQLType.IsIsbn() || old.SQLType.IsIsbn13() != current.SQLType.IsIsbn13() || old.SQLType.IsIsmn() != current.SQLType.IsIsmn() || old.SQLType.IsIsmn13() != current.SQLType.IsIsmn13() || old.SQLType.IsIssn() != current.SQLType.IsIssn() || old.SQLType.IsIssn13() != current.SQLType.IsIssn13() || old.SQLType.IsUpc() != current.SQLType.IsUpc() || !old.SQLType.IsHstore() && !old.SQLType.IsLquery() && !old.SQLType.IsEan13() && !old.SQLType.IsIsbn() && !old.SQLType.IsIsbn13() && !old.SQLType.IsIsmn() && !old.SQLType.IsIsmn13() && !old.SQLType.IsIssn() && !old.SQLType.IsIssn13() && !old.SQLType.IsUpc() {
 				return false
 			}
 			// Compare the same immutable definition while deliberately leaving

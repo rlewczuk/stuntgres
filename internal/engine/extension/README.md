@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for the fourteen bundled extensions (amcheck, citext, cube,
-earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
+and control data for the fifteen bundled extensions (amcheck, citext, cube,
+earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
@@ -13,7 +13,7 @@ Layer L9 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-archite
 It imports only `access` (privilege requirements and the captured view),
 `authorization`, `catalog`, `ddl` (the shared authority and allocator), `expr`,
 `functions` (kernels and member tables), `ids`, `parser`, `sqlstate`, `sqltype`,
-`typedef` (the relation type name check of citext, cube and intarray staging)
+`typedef` (the relation type name check of installed-scalar staging)
 and the standard library; never the engine, `analyze`, `routine` or `plan`.
 
 ## What it owns
@@ -46,6 +46,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `catalog.ExtensionMembership`. `extension_type_validation.go` validates an
   installed codec's array through the type provider registered in the catalog
   owner.
+- **Ltree members** (`ltree_provider.go`, `ltree_stage.go`): the current 1.3
+  manifest owns the lquery scalar and its strict immutable C text input/output
+  procedures. The reciprocal associated array is internally dependent and
+  lookup-only. Validation, symbolic owner signatures and import remapping use
+  manifest roles rather than names; scalar storage metadata uses extended storage.
 - **Cube members** (`cube_provider.go`, `cube_coordinates.go`, `cube_spatial.go`,
   `cube_spatial_call.go`): one atomic installation validates all 48 direct members.
   The comparison graph keeps its 18-member prefix; constructor/inquiry/coordinate
@@ -215,7 +220,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   that is also a source does not trigger another mapping step.
 
 Type identity is its validated manifest role, not its mutable name or namespace.
-`InstalledTypes`/`MemberTypeRole` resolve hstore/cube/query_int/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo through the
+`InstalledTypes`/`MemberTypeRole` resolve hstore/cube/query_int/lquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo through the
 existing manifest/provider and reciprocal array checks. Member ALTER retains
 installation membership; direct DROP remains protected. The owner metadata codec
 keeps canonical type role keys (including earth[] and lo[]) across rename/move, preserving

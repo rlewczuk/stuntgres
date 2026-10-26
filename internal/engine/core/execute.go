@@ -136,7 +136,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		installedScalarAuthorityRebind = replan && e.preparedInstalledScalarAuthorityRebindLocked(auth, expected, path)
 		rebindTemporals = e.preparedInstalledScalarLiteralTemporalsLocked(auth, expected, path)
 		if replan {
-			rebindTemporals = e.retirePreparedHstoreLiteralTemporalsLocked(auth, expected, path, rebindTemporals)
+			rebindTemporals = e.retirePreparedInstalledScalarLiteralTemporalsLocked(auth, expected, path, rebindTemporals)
 		}
 	}
 	if expected != nil {

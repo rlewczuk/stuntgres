@@ -132,6 +132,7 @@ type Descriptor struct {
 	delimiter                           byte
 	enum                                *enumDefinition
 	queryInt                            bool
+	lquery                              bool
 	hstore                              bool
 	cube                                bool
 	citext                              bool
@@ -484,6 +485,7 @@ type Value struct {
 	network         networkDatum
 	aclitem         aclitemDatum
 	queryInt        *queryIntPayload
+	lquery          *lqueryPayload
 	hstore          *hstorePayload
 	ftsVector       *fts.Vector
 	ftsQuery        *fts.Query
@@ -551,6 +553,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if fromEnum.IsQueryInt() && !v.null && !v.validQueryInt() {
 		return Value{}, fmt.Errorf("invalid query_int payload")
+	}
+	if fromEnum.IsLquery() != toEnum.IsLquery() || fromEnum.IsLquery() && (fromEnum != toEnum || !v.null && !v.validLquery()) {
+		return Value{}, fmt.Errorf("incompatible lquery generation or payload")
 	}
 	if fromEnum.IsCube() != toEnum.IsCube() || fromEnum.IsCube() && !v.null && !v.validCube() {
 		return Value{}, fmt.Errorf("incompatible cube payload")
@@ -837,7 +842,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsHstore() || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Char || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsHstore() || d.IsCube() || d.IsQueryInt() || d.IsLquery() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Char || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -852,6 +857,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsQueryInt() {
 		return d.queryIntInput(ctx, text)
+	}
+	if d.IsLquery() {
+		return d.lqueryInput(ctx, text)
 	}
 	if d.IsCube() {
 		return d.cubeInput(ctx, text)
@@ -1176,6 +1184,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsQueryInt() {
 		return d.queryIntOutput(ctx, v)
 	}
+	if d.IsLquery() {
+		return d.lqueryOutput(ctx, v)
+	}
 	if d.IsCube() {
 		return d.cubeOutput(ctx, v, env)
 	}
@@ -1441,6 +1452,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	}
 	if d.IsQueryInt() {
 		text, err := d.queryIntOutput(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
+	}
+	if d.IsLquery() {
+		text, err := d.lqueryOutput(ctx, v)
 		if err != nil {
 			return "", err
 		}

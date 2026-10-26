@@ -177,20 +177,38 @@ func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
 	}
 }
 
-func TestEan13PreparedLiteralReown(t *testing.T)  { testIsnPreparedLiteralReown(t, "ean13", 0) }
-func TestIsbnPreparedLiteralReown(t *testing.T)   { testIsnPreparedLiteralReown(t, "isbn", 3) }
-func TestIsmnPreparedLiteralReown(t *testing.T)   { testIsnPreparedLiteralReown(t, "ismn", 9) }
-func TestIsmn13PreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "ismn13", 12) }
-func TestIssnPreparedLiteralReown(t *testing.T)   { testIsnPreparedLiteralReown(t, "issn", 15) }
-func TestIssn13PreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "issn13", 18) }
-func TestUpcPreparedLiteralReown(t *testing.T)    { testIsnPreparedLiteralReown(t, "upc", 21) }
+func TestEan13PreparedLiteralReown(t *testing.T)  { testInstalledScalarPreparedLiteralReown(t, "ean13", 0) }
+func TestIsbnPreparedLiteralReown(t *testing.T)   { testInstalledScalarPreparedLiteralReown(t, "isbn", 3) }
+func TestIsmnPreparedLiteralReown(t *testing.T)   { testInstalledScalarPreparedLiteralReown(t, "ismn", 9) }
+func TestIsmn13PreparedLiteralReown(t *testing.T) { testInstalledScalarPreparedLiteralReown(t, "ismn13", 12) }
+func TestIssnPreparedLiteralReown(t *testing.T)   { testInstalledScalarPreparedLiteralReown(t, "issn", 15) }
+func TestIssn13PreparedLiteralReown(t *testing.T) { testInstalledScalarPreparedLiteralReown(t, "issn13", 18) }
+func TestUpcPreparedLiteralReown(t *testing.T)    { testInstalledScalarPreparedLiteralReown(t, "upc", 21) }
+func TestLqueryPreparedLiteralReown(t *testing.T) {
+	testInstalledScalarPreparedLiteralReown(t, "lquery", 0)
+}
 
-func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
-	e, ext := isnSQLInstalled(t)
+func testInstalledScalarPreparedLiteralReown(t *testing.T, family string, slot int) {
+	var e *core.Engine
+	var ext *catalog.Extension
+	if family == "lquery" {
+		e = engine.New()
+		op, done := enginetest.RoleOperation(t, e, "postgres")
+		enginetest.RoleExecute(t, e, op, "CREATE EXTENSION ltree")
+		done()
+		ext = e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "ltree"}))
+	} else {
+		e, ext = isnSQLInstalled(t)
+	}
 	base := e.CatalogRead().MustType(ext.Members[slot])
 	inputs := []string{"1234567890120!", "0123456789012"}
 	outputs := []string{"123-456789012-8!", "012-345678901-2", ""}
 	constructor := sqltype.Ean13
+	if family == "lquery" {
+		inputs = []string{"Top.*{0,2}.sport*@.!football|tennis{1,}.Russ*|Spain", "foo{1}"}
+		outputs = []string{"Top.*{,2}.sport@*.!football|tennis{1,}.Russ*|Spain", "foo{1}", ""}
+		constructor = sqltype.Lquery
+	}
 	if family == "isbn" {
 		inputs = []string{"9780123456780!", "123456789X"}
 		outputs = []string{"0-12-345678-9!", "1-234-56789-X", ""}

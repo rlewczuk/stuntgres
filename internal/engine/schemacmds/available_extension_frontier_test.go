@@ -99,6 +99,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"intagg":        {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
 					"isn":           {"isn", "1.3", nil, "data types for international product numbering standards"},
 					"lo":            {"lo", "1.2", nil, "Large Object maintenance"},
+					"ltree":         {"ltree", "1.3", nil, "data type for hierarchical tree-like structures"},
 					"pgrowlocks":    {"pgrowlocks", "1.2", nil, "show row-level locking information"},
 					"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
 					"pgcrypto":      {"pgcrypto", "1.4", nil, "cryptographic functions"},
@@ -115,6 +116,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["intagg"] = []any{"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}
 					expected["isn"] = []any{"isn", "1.3", false, true, true, true, nil, nil, "data types for international product numbering standards"}
 					expected["lo"] = []any{"lo", "1.2", false, true, true, true, nil, nil, "Large Object maintenance"}
+					expected["ltree"] = []any{"ltree", "1.3", false, true, true, true, nil, nil, "data type for hierarchical tree-like structures"}
 					expected["pgrowlocks"] = []any{"pgrowlocks", "1.2", false, true, false, true, nil, nil, "show row-level locking information"}
 					expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 					expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}

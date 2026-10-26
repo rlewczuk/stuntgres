@@ -444,6 +444,11 @@ func EnginePreparedInstalledScalarLiteralTemporalsLocked(x *Engine, auth Authori
 	return x.preparedInstalledScalarLiteralTemporalsLocked(auth, expected, path)
 }
 
+// EngineRetirePreparedInstalledScalarLiteralTemporalsLocked calls x.retirePreparedInstalledScalarLiteralTemporalsLocked.
+func EngineRetirePreparedInstalledScalarLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment, captures []analyze.TemporalConstant) []analyze.TemporalConstant {
+	return x.retirePreparedInstalledScalarLiteralTemporalsLocked(auth, expected, path, captures)
+}
+
 // EngineRegisterExtension calls x.registerExtension.
 func EngineRegisterExtension(x *Engine, name string, implementation extension.Installer) error {
 	return x.registerExtension(name, implementation)

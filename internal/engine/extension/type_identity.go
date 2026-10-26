@@ -24,6 +24,9 @@ func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole
 	case "intarray":
 		name = "query_int"
 		err = StockIntarray.ValidateExtension(v, ext)
+	case "ltree":
+		name = "lquery"
+		err = StockLtree.ValidateExtension(v, ext)
 	case "hstore":
 		name = "hstore"
 		err = StockHstore.ValidateExtension(v, ext)

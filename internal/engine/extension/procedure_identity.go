@@ -182,7 +182,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if !found {
 			return invalid()
 		}
-	case StockHstore, StockIntarray, StockCitext:
+	case StockHstore, StockIntarray, StockLtree, StockCitext:
 		count = 3
 		if p.Implementation == StockCitext {
 			count = CitextMemberCount
@@ -194,7 +194,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if !ok || base.SQLType == nil {
 			return invalid()
 		}
-		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockHstore && !base.SQLType.IsHstore() || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
+		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockHstore && !base.SQLType.IsHstore() || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockLtree && !base.SQLType.IsLquery() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
 			return invalid()
 		}
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
@@ -214,6 +214,14 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name = "bqarr_in"
 			if slot == 2 {
 				name = "bqarr_out"
+			}
+		case StockLtree:
+			name = "lquery_in"
+			if slot == 2 {
+				name = "lquery_out"
+			}
+			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+				return invalid()
 			}
 		case StockCitext:
 			name = "citextin"

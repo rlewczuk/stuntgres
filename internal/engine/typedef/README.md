@@ -94,7 +94,7 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   **composites and typed tables** (`row_type.go`, `typed_shape.go`: row-type
   membership and metadata, array names, typed-table shape and inheritance plans).
 - **Catalog replacement** (`scalar_import.go`, `typed_control.go`):
-  `ImportScalarTypesLocked` gives an imported candidate's enum, `hstore`, `query_int`,
+  `ImportScalarTypesLocked` gives an imported candidate's enum, `hstore`, `query_int`, `lquery`,
   `cube`, `citext`, `ean13`, `isbn`, `isbn13`, `ismn` and `ismn13` types their destination codecs, taking enum members from
   the engine's allocator callback in member order so Dump stays byte-identical;
   `ReownDomainTypes` rebuilds custom range families after their subtype, invoking
@@ -118,7 +118,7 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
 ## Type identity lifecycle
 
 Identity ALTER preserves logical IDs and stored values for enums, domains,
-standalone composites and installed cube/query_int/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo. Arrays follow
+standalone composites and installed cube/query_int/lquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo. Arrays follow
 the reciprocal descriptor, never a guessed underscore name; standalone composite
 backing relations remain reciprocal. Relation-owned rowtypes use their relation's
 DDL instead. Rename may displace a genuine generated array; namespace moves must

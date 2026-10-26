@@ -16,6 +16,9 @@ func SameDatum(a, b Value) bool {
 	if a.null || b.null {
 		return a.null == b.null
 	}
+	if a.typ.BaseType().IsLquery() {
+		return a.validLquery() && b.validLquery() && a.lquery.text == b.lquery.text
+	}
 	if a.typ.BaseType().IsHstore() {
 		if !a.validHstore() || !b.validHstore() || len(a.hstore.pairs) != len(b.hstore.pairs) {
 			return false
