@@ -35,6 +35,8 @@ type RoutineDisplay struct {
 	Language        RoutineLanguage
 	Source          string
 	SecurityDefiner bool
+	// Cost is an explicit declaration cost; zero selects the language default.
+	Cost            float32
 }
 
 func (d RoutineDisplay) Valid() bool { return d.Language.String() != "" }

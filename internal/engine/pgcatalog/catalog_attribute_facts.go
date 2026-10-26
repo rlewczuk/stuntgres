@@ -13,6 +13,8 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 		switch name {
 		case "prolang":
 			return 5
+		case "procost":
+			return 6
 		case "provariadic":
 			return 8
 		case "pronargs":

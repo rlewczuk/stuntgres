@@ -33,7 +33,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	if source.Address().ObjectID == ids.ProcedureClassID {
-		expected := [21]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid, 1028, 1002, 1034, sqltype.Int2}
+		expected := [22]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid, 1028, 1002, 1034, sqltype.Int2, sqltype.Float4}
 		if len(source.Columns) != len(expected) {
 			return nil, fmt.Errorf("stuntgres: invalid procedure source shape")
 		}
@@ -186,6 +186,18 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			row[13] = estimateValue
 			integer(16, int64(variadic))
 			integer(20, procedureDefaultCount(d))
+			// Explicit immutable declaration facts survive public rename/movement.
+			cost := float64(d.Display.Cost)
+			if cost == 0 {
+				cost = 1
+				if d.Display.Language == catalog.SQLRoutineLanguage || d.Display.Language == catalog.PLpgSQLRoutineLanguage {
+					cost = 100
+				}
+			}
+			row[21], err = sqltype.Float(source.Columns[21].Usage.Type, cost)
+			if err != nil {
+				return nil, err
+			}
 			acl, err := in.Runtime.ObjectACL(view, d.Address())
 			if err != nil {
 				return nil, err

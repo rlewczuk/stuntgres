@@ -658,6 +658,10 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return children(r.Args, args)
 		}
+		if n, ok := bound.(plan.InstalledTablefuncNormalExpr); ok {
+			if err := extension.ValidateTablefuncIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil { return err }
+			return children(r.Args, n.Args[:])
+		}
 		if n, ok := bound.(plan.InstalledPgrowlocksExpr); ok {
 			if err := extension.ValidatePgrowlocksIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err

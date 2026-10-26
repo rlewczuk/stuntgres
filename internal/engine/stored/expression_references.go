@@ -123,6 +123,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.InstalledTextExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledTablefuncNormalExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledPgrowlocksExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledVerifyHeapamExpr:

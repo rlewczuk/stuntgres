@@ -475,7 +475,7 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
 	stableAttributes := map[ids.OID][]int32{
-		1255: {1, 2, 3, 4, 17, 19, 15, 13, 16, 12, 23, 5, 14, 7, 26, 20, 8, 21, 22, 30, 18},
+		1255: {1, 2, 3, 4, 17, 19, 15, 13, 16, 12, 23, 5, 14, 7, 26, 20, 8, 21, 22, 30, 18, 6},
 		2610: {1, 2, 5, 7, 11, 13, 14, 6, 16, 17, 18, 19},
 	}
 	for _, descriptor := range view.Descriptors() {
@@ -518,11 +518,11 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 		typmods    []int32
 	}{
 		{1255,
-			[]string{"oid", "proname", "pronamespace", "proowner", "pronargs", "prorettype", "provolatile", "proisstrict", "proparallel", "prokind", "proargnames", "prolang", "proretset", "prorows", "prosrc", "proargtypes", "provariadic", "proallargtypes", "proargmodes", "proacl", "pronargdefaults"},
-			[]sqltype.ID{26, 19, 26, 26, 21, 26, 18, 16, 18, 18, 1009, 26, 16, 700, 25, 30, 26, 1028, 1002, 1034, 21},
-			[]bool{false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, true, true, true, false},
-			[]uint32{0, 950, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0},
-			[]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}},
+			[]string{"oid", "proname", "pronamespace", "proowner", "pronargs", "prorettype", "provolatile", "proisstrict", "proparallel", "prokind", "proargnames", "prolang", "proretset", "prorows", "prosrc", "proargtypes", "provariadic", "proallargtypes", "proargmodes", "proacl", "pronargdefaults", "procost"},
+			[]sqltype.ID{26, 19, 26, 26, 21, 26, 18, 16, 18, 18, 1009, 26, 16, 700, 25, 30, 26, 1028, 1002, 1034, 21, 700},
+			[]bool{false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, true, true, true, false, false},
+			[]uint32{0, 950, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0},
+			[]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}},
 		{2610,
 			[]string{"indexrelid", "indrelid", "indisunique", "indisprimary", "indisvalid", "indisready", "indislive", "indnullsnotdistinct", "indkey", "indcollation", "indclass", "indoption"},
 			[]sqltype.ID{26, 26, 16, 16, 16, 16, 16, 16, 22, 30, 30, 22},

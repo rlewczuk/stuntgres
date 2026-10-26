@@ -1,3 +1,11 @@
+`CREATE EXTENSION tablefunc` installs strict, volatile
+`normal_rand(integer,double precision,double precision)`. Each invocation
+incrementally draws genuine Gaussian FLOAT8 values; NULL arguments produce an
+empty set, negative counts fail, and signed/nonfinite deviations retain raw IEEE
+arithmetic. Installed identity and stored calls survive native catalog replay.
+`pg_proc` exposes FLOAT4 execution cost, preserving explicit builtin declaration
+costs and otherwise using routine language defaults.
+
 Builtin view definitions (`pg_views`, `information_schema.views`,
 `pg_get_viewdef`) and exact routine lookups such as `regprocedure` input no
 longer walk every catalog object to find intagg's aggregate helper functions;

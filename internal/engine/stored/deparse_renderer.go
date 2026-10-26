@@ -943,6 +943,12 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), []expr.Expr{n.Arg}, true)
+	case plan.InstalledTablefuncNormalExpr:
+		if err := ValidateInstalledTablefuncNormal(n, r.View); err != nil { return "", err }
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok { return "", fmt.Errorf("stuntgres: missing normal_rand namespace") }
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args[:], true)
 	case plan.InstalledPgrowlocksExpr:
 		if err := ValidateInstalledPgrowlocks(n, r.View); err != nil {
 			return "", err

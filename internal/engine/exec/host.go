@@ -97,6 +97,7 @@ type Host interface {
 	TransactionStatus(full uint64) (string, bool, error)
 	Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error
+	ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error
 	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error
 	UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error)

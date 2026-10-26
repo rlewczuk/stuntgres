@@ -505,6 +505,14 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			return nil, false, fmt.Errorf("stuntgres: invalid remapped installed function")
 		}
 		rebound = n
+	case plan.InstalledTablefuncNormalExpr:
+		for i, arg := range n.Args { n.Args[i] = child(arg) }
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok { return nil, false, fmt.Errorf("stuntgres: missing remapped normal_rand function") }
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledTablefuncNormal(n, view)
+		rebound = n
 	case plan.InstalledPgrowlocksExpr:
 		n.Arg = child(n.Arg)
 		proc, ok := originalProcedure(n.Procedure)

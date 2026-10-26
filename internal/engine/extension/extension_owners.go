@@ -254,6 +254,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = 1 + len(AmcheckMembers)
 	case record.Name == "pgrowlocks" && record.Version == "1.2":
 		expectedMembers = 1
+	case record.Name == "tablefunc" && record.Version == "1.0":
+		expectedMembers = 1
 	case record.Name == "pgcrypto" && record.Version == "1.4":
 		expectedMembers = len(functions.PgcryptoMembers)
 	case record.Name == "uuid-ossp" && record.Version == "1.1":
@@ -411,6 +413,8 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		}
 	case "pgrowlocks":
 		return "25", slot == 0
+	case "tablefunc":
+		return "23,701,701", slot == 0
 	case "unaccent":
 		signatures := [...]catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}
 		if slot < len(signatures) {

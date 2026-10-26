@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"math"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -14,6 +15,10 @@ func TestStoredProviderCallShape(t *testing.T) {
 		variadic bool
 		valid    bool
 	}{
+		{"normal_rand", 3, nil, false, true},
+		{"normal_rand", 2, nil, false, false},
+		{"normal_rand", 3, nil, true, false},
+		{"normal_rand", 3, []string{"numvals", "mean", "stddev"}, false, false},
 		{"jsonb_set", 3, nil, true, true},
 		{"jsonb_insert", 4, []string{"", "", "", "insert_after"}, false, true},
 		{"jsonb_set_lax", 4, []string{"jsonb_in", "path", "replacement", "null_value_treatment"}, false, true},
@@ -49,5 +54,31 @@ func TestStoredProviderCallShape(t *testing.T) {
 	}
 	if known, _ := StoredProviderCallShape("abs", parser.FunctionExpr{}); known {
 		t.Fatal("ordinary catalog shape claimed by a richer family")
+	}
+}
+
+func TestTablefuncNormalTransform(t *testing.T) {
+	for _, tc := range []struct {
+		mean, deviation, z, want float64
+	}{
+		{9, 0, 1, 9},
+		{9, -2, 1, 7},
+		{9, -2, -1, 11},
+		{0, math.Inf(1), 0, math.NaN()},
+		{0, math.Inf(1), 1, math.Inf(1)},
+		{0, math.Inf(1), -1, math.Inf(-1)},
+		{0, math.Inf(-1), 1, math.Inf(-1)},
+		{0, math.Inf(-1), -1, math.Inf(1)},
+		{math.Inf(1), math.Inf(1), -1, math.NaN()},
+		{math.Inf(-1), math.Inf(1), 1, math.NaN()},
+		{math.MaxFloat64, math.MaxFloat64, 1, math.Inf(1)},
+		{-math.MaxFloat64, math.MaxFloat64, -1, math.Inf(-1)},
+	} {
+		got := tablefuncNormalTransform(tc.mean, tc.deviation, tc.z)
+		if math.IsNaN(tc.want) {
+			if !math.IsNaN(got) { t.Fatal(tc, got) }
+		} else if got != tc.want {
+			t.Fatal(tc, got)
+		}
 	}
 }

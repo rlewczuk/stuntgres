@@ -21,6 +21,14 @@ evaluated. Non-NULL calls remain volatile and unfolded. Runtime row NULL still
 evaluates the written siblings before testing strictness or borrowing the
 session generator.
 
+Installed `normal_rand` binds INT4/FLOAT8/FLOAT8 through the shared coercer.
+Its volatile expression evaluates all three operands once before strict NULL
+handling. An invocation-private cursor owns only remaining count and transform
+parameters; each Gaussian draw briefly borrows the existing session generator.
+Raw IEEE multiplication/addition preserves signed and nonfinite deviations;
+there is no stream or setseed-replay contract. The installed plan wrapper retains
+procedure authority through structural rewrites and stored/native replay.
+
 `AccessInquiry` uses closed kinds for role membership, row security, routine,
 language, wrapper, server, database, schema, type, tablespace, table, sequence,
 column, any-column, large-object and parameter privileges. Role NAME/OID,
@@ -532,6 +540,7 @@ make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryAlignment|GeometryRela
 make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider authority
 make check RUN='^TestFTSQueryFunctions'  # query utility providers, kernels and runtime lifetime
 make check RUN='^TestSimpleDictionary'  # dictionary kernels and shipped resources
+make check RUN='^TestTablefunc'  # installed Gaussian expression and cursor contracts
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
 make check RUN='^TestMACOperationsProviderLifecycle$'  # fixed-width MAC function protocol
 ```

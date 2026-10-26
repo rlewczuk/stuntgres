@@ -54,7 +54,7 @@ func TestRoutineResultFormalBuiltinCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(row) != 21 || row[20].Type() != source.Columns[20].Usage.Type || row[20].IsNull() {
+		if len(row) != 22 || row[20].Type() != source.Columns[20].Usage.Type || row[20].IsNull() {
 			t.Fatal("default-count projection width/type/nullability", id)
 		}
 		if want, ok := wantDefaults[ids.OID(id)]; ok {

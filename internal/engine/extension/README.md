@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for the sixteen bundled extensions (amcheck, citext, cube,
-earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pgcrypto, pgrowlocks, seg, unaccent, uuid-ossp),
+and control data for the seventeen bundled extensions (amcheck, citext, cube,
+earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pgcrypto, pgrowlocks, seg, tablefunc, unaccent, uuid-ossp),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
@@ -126,6 +126,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   invocation borrows the admitted catalog's canonical procedure and epoch,
   never a retained preparation epoch. This invocation-local bridge neither
   mutates the stored selection nor authorizes an otherwise stale reference.
+- **tablefunc** (`tablefunc_provider.go`): trusted/relocatable version 1.0
+  installs the strict volatile `normal_rand(integer,float8,float8)` set source.
+  Its member slot, declaration and released source symbol participate in the
+  shared owner/import/remap authority; mutable names never grant execution.
 - **pgrowlocks** (`pgrowlocks_provider.go`, `pgrowlocks_stage.go`): the
   nontrusted/superuser/relocatable 1.2 singleton installs exactly
   `pgrowlocks(text) RETURNS SETOF record` (STRICT, VOLATILE, parallel safe).

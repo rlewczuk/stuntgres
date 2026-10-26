@@ -169,6 +169,8 @@ func validateInstalledProcedure(v catalog.Read, d *catalog.Procedure) (ids.Objec
 		return d.Extension, AmcheckProviderOf(d).ValidateProcedure(v, d)
 	case PgrowlocksProviderOf(d) != nil:
 		return d.Extension, PgrowlocksProviderOf(d).ValidateProcedure(v, d)
+	case TablefuncProviderOf(d) != nil:
+		return d.Extension, TablefuncProviderOf(d).ValidateProcedure(v, d)
 	case UUIDOsspProviderOf(d) != nil:
 		if d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) {
 			return invalid()

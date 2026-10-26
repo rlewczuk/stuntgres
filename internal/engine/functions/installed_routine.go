@@ -18,6 +18,7 @@ const (
 	UnaccentExtension
 	IntaggExtension
 	PgrowlocksExtension
+	TablefuncExtension
 	AmcheckExtension
 	CubeExtension
 	EarthdistanceExtension

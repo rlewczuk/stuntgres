@@ -129,8 +129,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   availability and parser execution; these rows are builtin metadata, not
   mutable parser definitions or ACLs.
   `pg_proc.proretset` comes from actual routine declaration metadata.
-  Its condensed row includes FLOAT4 `prorows`, declaration `prosrc`, OIDVECTOR
-  `proargtypes` built from each routine's input signature, and OID `provariadic`.
+  Its condensed row includes FLOAT4 `prorows` and `procost`, declaration `prosrc`,
+  OIDVECTOR `proargtypes` built from each routine's input signature, and OID `provariadic`.
+  Routine cost preserves explicit immutable builtin declaration costs, falling
+  back to one for C/internal and one hundred for SQL/PL declarations.
   SQL/PL formal names/types/modes come from `proc.Formals`; fixed native OUT
   types and complete names come from the actual builtin or installed declaration.
   Builtin input names have one immutable declaration owner. `parameters` and
@@ -158,14 +160,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Owned aggregate `proargnames` follows the canonical flattened declaration,
   including retained direct and ordered argument names; unnamed declarations
   retain NULL rather than an invented list.
-  The twenty-one-column projection preserves these declaration fields, nullable
+  The twenty-two-column projection preserves these declaration fields, nullable
   ACLITEM[] `proacl`, and non-NULL INT2 `pronargdefaults`. ACLs use captured
   `Runtime.ObjectACL` and `ClassACL` authority. Implicit routine ACLs remain SQL
   NULL; explicit empty and granted ACLs remain real arrays. Internal metadata-only
   supplements retain NULL ACLs.
   Canonical array-compatible OIDVECTOR owns `proargtypes`; no separate carrier
   or scalar-only vector path is introduced. Released attribute identities stay
-  `pronargdefaults`18, `proargtypes`20, `proallargtypes`21, `proargmodes`22 and `proacl`30
+  `procost`6, `pronargdefaults`18, `proargtypes`20, `proallargtypes`21, `proargmodes`22 and `proacl`30
   independently of projection order.
 - `pg_index` vector cells use the runtime's captured index metadata projection,
   then shared typed constructors: all key/INCLUDE attributes in `indkey`,

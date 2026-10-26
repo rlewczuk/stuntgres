@@ -454,6 +454,9 @@ func StoredProviderCallShape(symbol string, raw parser.FunctionExpr) (known, val
 	if raw.Star || raw.Within || len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) || CallLabelError(raw) != nil {
 		return true, false
 	}
+	if symbol == "normal_rand" {
+		return true, len(raw.Args) == 3 && len(raw.ArgNames) == 0 && !raw.Variadic && CallDecorationError(raw) == nil
+	}
 	if spec, ok := jsonSlotSpecification(symbol); ok {
 		_, _, valid := jsonSlotMapping(raw, spec)
 		return true, valid && CallDecorationError(raw) == nil

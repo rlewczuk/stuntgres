@@ -50,6 +50,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
 - fuzzystrmatch: `RUN='^TestReferenceDaitchMokotoff'`, `RUN='^TestReferenceLevenshtein'`, `RUN='^TestReferenceMetaphone'`, `RUN='^TestReferenceSoundex'`
+- tablefunc Gaussian sources: `RUN='^TestReferenceTablefuncNormal'`
 - Mutable routine/provider names and schemas retain genuine OID/kind and
   extension associations; this does not promote lookup-only catalog identities
   to execution. Cross-family ALTER metadata and replay proof lives in

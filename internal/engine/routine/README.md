@@ -141,7 +141,8 @@ package or the engine.
   incumbent locked-domain input boundary, preserving current search-path spelling
   without changing independent schema/type/constraint fields.
   `display_inventory.go` owns complete REL_18_6 source/language/security facts
-  keyed by genuine declaration OID, including matched SQL-standard replacements.
+  and explicit costs keyed by genuine declaration OID, including matched
+  SQL-standard replacements. Zero cost denotes an absent override, not zero work.
   Materialization rejects missing facts; the display inventory never creates rows.
   SQL/PL creation records original quoted source or empty SQL-standard source
   on the descriptor. Identity changes preserve those immutable facts.
@@ -355,7 +356,7 @@ compatibility directions; `MovingFinalDetachedDefinition` checks independent
 ordinary/moving EXTRA flags against real overloads and collapsed ANY supports.
 
 ```sh
-make check RUN='^Test(BuiltinRoutineLookup|OperatorRoutineLookup|SeededOperatorNames|UserOperator(Option|CatalogEstimator)|OperatorFamilySupportDeclarations)'
+make check RUN='^Test(BuiltinRoutine(Lookup|Costs)|OperatorRoutineLookup|SeededOperatorNames|UserOperator(Option|CatalogEstimator)|OperatorFamilySupportDeclarations)'
 make check RACE=1 RUN='^Test(OperatorClassMethodIdentity|ExclusionOperatorFamilyMembership|RoutineDrop)'
 make check RUN='^Test(Aggregate(Final|Moving)DetachedDefinition|CreateAggregate(DetachedDeclaredCastSupport|Retained)|SQLRoutineDumpEventsUseResolver|OperatorDumpLinksUsePresenter|UserOperatorDumpFinalGraph)'
 make check RUN='^TestAggregateOrdered(FinalDeclarationVectors|CanonicalStrictDeclaration|MovingFinalDetachedDefinition|DetachedDefinition)$'

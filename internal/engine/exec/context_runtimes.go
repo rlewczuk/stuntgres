@@ -640,6 +640,14 @@ func (c *Context) OpenPgrowlocks(n plan.InstalledPgrowlocksExpr) (expr.SourceCur
 	return n.Pgrowlocks.OpenSource(c)
 }
 
+func (c *Context) OpenTablefuncNormal(n plan.InstalledTablefuncNormalExpr) (expr.SourceCursor, error) {
+	if err := EvaluationContext(c); err != nil { return expr.SourceCursor{}, err }
+	host := c.LiveHost()
+	if host == nil { return expr.SourceCursor{}, fmt.Errorf("stuntgres: normal_rand lacks statement scope") }
+	if err := host.ValidateTablefuncNormal(n); err != nil { return expr.SourceCursor{}, err }
+	return n.TablefuncNormal.OpenSource(c)
+}
+
 func (c *Context) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	if err := EvaluationContext(c); err != nil {
 		return nil, err
