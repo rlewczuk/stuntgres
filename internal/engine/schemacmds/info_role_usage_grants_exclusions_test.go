@@ -35,7 +35,7 @@ func TestInfoRoleUsageGrantsExclusions(t *testing.T) {
 	rows := roleUsageGrantsRows(t, in)
 	for _, name := range []string{composite.Name(), other.Name(), companion.Name(), "usage_privileges", "missing_usage_object"} {
 		if got := roleUsageGrantsBag(t, rows, name); len(got) != 0 {
-			t.Fatal("unselected or uninstalled family acquired origins", name, got)
+			t.Fatal("non-usage family acquired origins", name, got)
 		}
 	}
 }

@@ -5,7 +5,7 @@ Role, database and privilege catalogs: `pg_roles`, `pg_user`, `pg_shadow`, `pg_g
 `pg_parameter_acl`, `pg_get_acl`, tablespaces, VACUUM and size functions, and the
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
 views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_grants`,
-`role_usage_grants`, `enabled_roles`, `data_type_privileges`, `user_mappings`,
+`role_usage_grants`, `usage_privileges`, `enabled_roles`, `data_type_privileges`, `user_mappings`,
 `key_column_usage`, `constraint_column_usage`, `sql_features`, `sql_sizing`,
 `sql_implementation_info`, `sql_parts`). The other catalog families are listed
 in [reference/catalogs](../catalogs/README.md).
@@ -127,13 +127,18 @@ ACL/membership publication, lifecycle frontiers and complete diagnostics.
 
 ### Usage grants
 
-`info_role_usage_grants_helpers_test.go` owns exact eight-column origin bags,
+`info_role_usage_grants_helpers_test.go` and
+`info_usage_privileges_helpers_test.go` own exact eight-column origin bags,
 domain/adapter metadata and direct/fresh/held reads across domains, sequences,
 collations, foreign wrappers and foreign servers. Scenarios distinguish raw
 absent, materialized and empty ACLs, enabled endpoints, named-grantee
 grantability, lifecycle frontiers, NULL extension and complete diagnostics.
+The usage-privilege scenarios also assert unconditional PUBLIC visibility and
+its distinction from the role-filtered view, including native control replay.
+Independent canonical definition literals cover search-path visibility,
+relation shadows and identifier quoting across direct and held metadata reads.
 
-- Usage grants: `RUN='^TestReferenceInfoRoleUsageGrants'`
+- Usage privilege families: `RUN='^TestReferenceInfo(RoleUsageGrants|UsagePrivileges)'`
 
 ### Table privilege metadata
 

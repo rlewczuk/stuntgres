@@ -1,3 +1,11 @@
+`information_schema.usage_privileges` exposes typed USAGE grant origins for
+domains, sequences, collations, foreign data wrappers and foreign servers,
+including PUBLIC origins visible without an enabled grantor or named grantee.
+Held queries follow ACL and membership publication while `role_usage_grants`
+retains its enabled-role filter. Its builtin definition is available through
+view metadata and `pg_get_viewdef`, with captured search-path and identifier
+quoting.
+
 Large-object and parameter privilege inquiries support all PostgreSQL 18
 overloads, current role/ACL authority, strict NULL handling and grant options.
 Large-object inquiries preserve active versus UPDATE-current snapshots, including

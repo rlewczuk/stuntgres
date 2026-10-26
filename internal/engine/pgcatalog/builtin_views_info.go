@@ -1,6 +1,7 @@
 package pgcatalog
 
 var infoBuiltinViews = [...]builtinView{
+	infoUsagePrivilegesView,
 	// information_schema.check_constraint_routine_usage — REL_18_6 information_schema.sql.
 	{oid: InfoCheckConstraintRoutineUsageOID, parts: []builtinViewPart{
 		viewText(" SELECT DISTINCT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("constraint_catalog"), viewText(",\n"),

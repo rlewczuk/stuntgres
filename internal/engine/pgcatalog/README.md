@@ -8,7 +8,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `check_constraint_routine_usage`,
 `character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
-`role_udt_grants`, `role_usage_grants`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
+`role_udt_grants`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
 capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -127,7 +127,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
   absent ACL and `{}` for an empty one.
 - Information-schema producers emit genuine source-owned domains, not bare
   primitive carriers. `table_privileges`, `role_column_grants`, `role_table_grants`,
-  `role_routine_grants`, `routine_privileges`, `role_udt_grants` and `role_usage_grants` use `sql_identifier`,
+  `role_routine_grants`, `routine_privileges`, `role_udt_grants`, `role_usage_grants` and `usage_privileges` use `sql_identifier`,
   `character_data` and `yes_or_no` from the captured type catalog.
   Numeric metadata likewise retains genuine `cardinal_number` domain values.
 - `role_column_grants` captures one catalog/role frontier and projects actual
@@ -164,10 +164,12 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Enabled grantor or named grantee determines visibility, without schema or
   relation access filters. Grantability belongs to the named grantee, using
   captured grant options and immediately usable ownership authority.
-- `role_usage_grants` projects eight nullable domain-typed columns from real
-  domains, sequences, collations, foreign wrappers and foreign servers. It
-  preserves USAGE origins and multiplicities, applying enabled grantor-or-named
-  grantee visibility without schema, data-readability, TEMP or identity filters.
+- `usage_privileges` and `role_usage_grants` share an eight-column, nullable
+  domain-typed projector over real domains, sequences, collations, foreign
+  wrappers and foreign servers. Both preserve USAGE origins and multiplicities,
+  applying enabled grantor-or-named-grantee visibility without schema,
+  data-readability, TEMP or identity filters. `usage_privileges` also exposes
+  every PUBLIC origin; the role view requires an enabled grantor for PUBLIC.
   Named-grantee grant options or immediately usable ownership determine
   grantability, never observer ownership. Raw-NULL domains supply owner/PUBLIC
   origins; wrappers and servers supply the owner origin. Raw-NULL sequences
@@ -564,8 +566,8 @@ base-table structural events; this does not change catalog write admission.
 
 `builtin_views*.go` owns one closed inventory of builtin view definitions,
 including `information_schema.columns`, `information_schema.domains`,
-`information_schema.tables` and `pg_catalog.pg_rules`, with classification and
-per-output capability facts.
+`information_schema.tables`, `information_schema.usage_privileges` and
+`pg_catalog.pg_rules`, with classification and per-output capability facts.
 Its canonical literal fragments contain explicit object-name and identifier
 occurrences. `pg_rules` uses the same definition authority as both consumers;
 its `pg_get_ruledef(oid)` reference captures stable routine identity, while
@@ -583,6 +585,10 @@ Released references absent from the native catalog remain display-only facts,
 never descriptors, stored query payloads or executable providers. Captured
 search_path, exact-signature routine shadows and quote_all_identifiers affect
 presentation without rewriting column qualifiers as relation names.
+The usage-privilege definition retains all five released UNION ALL branches
+and their real class/domain/routine references, including the sequence
+table-default ACL fallback. Its display inventory is independent of execution
+through the shared usage-origin projector.
 
 ## Testing
 
