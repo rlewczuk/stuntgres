@@ -252,6 +252,11 @@ var Specs = [...]Spec{
 		{"is_scrollable", sqltype.Bool, true, 0, 0, -1},
 		{"creation_time", sqltype.Timestamptz, true, 0, 0, -1},
 	}, true, CatalogHasIndexes(CursorsOID), false, false, "stuntgres: missing catalog source type"},
+	{WaitEventsOID, ids.PGCatalogNamespaceOID, "pg_wait_events", []ColumnSpec{
+		{"type", sqltype.Text, true, 0, 0, -1},
+		{"name", sqltype.Text, true, 0, 0, -1},
+		{"description", sqltype.Text, true, 0, 0, -1},
+	}, true, false, false, false, "stuntgres: missing catalog source type"},
 	{LocksOID, ids.PGCatalogNamespaceOID, "pg_locks", []ColumnSpec{
 		{"locktype", sqltype.Text, true, 0, 0, -1},
 		{"database", sqltype.Oid, true, 0, 0, -1},

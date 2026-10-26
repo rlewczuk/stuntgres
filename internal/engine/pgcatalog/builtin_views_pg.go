@@ -1,6 +1,12 @@
 package pgcatalog
 
 var pgBuiltinViews = [...]builtinView{
+	{oid: WaitEventsOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("type"), viewText(",\n"),
+		viewText("    "), viewIdentifier("name"), viewText(",\n"),
+		viewText("    "), viewIdentifier("description"), viewText("\n"),
+		viewText("   FROM "), viewRoutine("pg_get_wait_events", ""), viewText("() "), viewIdentifier("pg_get_wait_events"), viewText("("), viewIdentifier("type"), viewText(", "), viewIdentifier("name"), viewText(", "), viewIdentifier("description"), viewText(");"),
+	}},
 	// pg_catalog.pg_rules — REL_18_6 system_views.sql; pinned 18.6 display.
 	{oid: RulesOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("n"), viewText("."), viewIdentifier("nspname"), viewText(" AS "), viewIdentifier("schemaname"), viewText(",\n"),

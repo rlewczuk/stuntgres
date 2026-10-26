@@ -79,6 +79,7 @@ var producers = [...]Registration{
 	{12081, captureAvailableExtensions},
 	{12085, captureAvailableExtensions},
 	{12095, captureForeignCatalog},
+	{WaitEventsOID, capturePGWaitEvents},
 	{16200, captureTablePrivileges},
 	{16201, captureDataTypePrivileges},
 	{16202, capturePGSettings},

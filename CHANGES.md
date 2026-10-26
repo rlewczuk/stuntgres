@@ -6,6 +6,11 @@ retains its enabled-role filter. Its builtin definition is available through
 view metadata and `pg_get_viewdef`, with captured search-path and identifier
 quoting.
 
+`pg_wait_events` exposes stable TEXT type/name/description definitions for the
+seven implemented advisory, object, relation, transaction/virtual-transaction,
+safe-snapshot and sleep waits. The definition view is independent of active
+waiters and does not advertise unavailable PostgreSQL server-internal mechanisms.
+
 Large-object and parameter privilege inquiries support all PostgreSQL 18
 overloads, current role/ACL authority, strict NULL handling and grant options.
 Large-object inquiries preserve active versus UPDATE-current snapshots, including

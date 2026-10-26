@@ -192,6 +192,34 @@ type Producer func(Input) ([][]sqltype.Value, error)
   not domain-unwrapped and does not admit a codec or execute a provider. All 82
   cells, including NULLs, retain their captured information-schema domains.
 
+### Wait-event definitions
+
+`pg_wait_events` exposes three nullable TEXT columns, `type`, `name` and
+`description`, with PUBLIC SELECT. Its complete inventory describes implemented
+blocking mechanisms; it is independent of active sessions, queues and wait counts.
+The definitions remain present when no operation is blocked.
+
+| type | name | description |
+| --- | --- | --- |
+| IPC | SafeSnapshot | Waiting to obtain a valid snapshot for a READ ONLY DEFERRABLE transaction |
+| Lock | advisory | Waiting to acquire an advisory user lock |
+| Lock | object | Waiting to acquire a lock on a non-relation database object |
+| Lock | relation | Waiting to acquire a lock on a relation |
+| Lock | transactionid | Waiting for a transaction to finish |
+| Lock | virtualxid | Waiting to acquire a virtual transaction ID lock |
+| Timeout | PgSleep | Waiting due to a call to pg_sleep or a sibling function |
+
+Descriptions contain no final periods. A static capture uses only the owned
+catalog descriptors, allocates detached typed rows and never samples runtime
+wait state. The builtin view's `pg_get_wait_events()` display reference grants
+no executable routine capability.
+
+There are no definitions for distinct physical tuple arbitration, speculative
+insertion tokens or other unimplemented lock resources. PostgreSQL storage,
+buffer, I/O and LWLock mechanisms, replication/recovery/parallel/background
+processes, extension/injection points, socket/client and backend-termination
+waits are unavailable mechanisms and are not advertised as runtime events.
+
 ### Schema inquiry
 
 `schemata` enumerates actual captured namespaces once, using the paired role
@@ -612,6 +640,8 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 - Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
+- Wait-event definition units: `RUN='^TestPGWaitEvents'`
+- Wait-event definition public scenarios: `RUN='^TestReferencePGWaitEvents'`
 - Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations)'`
 - Schema inquiry units: `RUN='^TestInfoSchemata'`
 - Schema inquiry SQL: `RUN='^TestReferenceInfoSchemata'`
