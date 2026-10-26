@@ -35,8 +35,6 @@ type ExpressionPolicy struct {
 	Mode             sqltype.CoercionContext
 	Column           string
 	booleanConstruct string
-	// Selected textual function roles admit internal CHAR annotations.
-	stringInput bool
 	// Only width_bucket's threshold argument consumes existing enum arrays.
 	// This is not permission for generic casts, storage or domain declarations.
 	thresholdArrayInput bool
@@ -1039,17 +1037,9 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 	return d
 }
 
-func internalCharLiteralCast(raw parser.CastExpr) bool {
-	literal, ok := raw.Child.(parser.LiteralExpr)
-	return ok && raw.Syntax != parser.FunctionCast && raw.TypeName.Quoted && raw.TypeName.Name == "char" &&
-		(literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue)
-}
-
 func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.Expr, error) {
 	rawNull, isNull := raw.Child.(parser.LiteralExpr)
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
-	// Expression input authority does not grant table declaration authority.
-	stringInput := outerPolicy.stringInput || raw.TypeName.Quoted && raw.TypeName.Name == "char"
 	var target sqltype.Usage
 	var err error
 	var boundChild expr.Expr
@@ -1064,9 +1054,7 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		}
 	}
 	if outerPolicy.thresholdArrayInput {
-		target, err = b.Host.ResolveAnnotationTypeInput(annotation, unknownNull, false, false, false, true)
-	} else if stringInput {
-		target, err = b.Host.ResolveStringAnnotationType(annotation, unknownNull)
+		target, err = b.Host.ResolveAnnotationTypeInput(annotation, unknownNull, false, false, true)
 	} else {
 		target, err = b.Host.ResolveAnnotationType(annotation, unknownNull)
 	}
@@ -1594,7 +1582,7 @@ func (b *Binder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequ
 		operand, err = b.StringOperand(raw, false)
 		b.Clause.JSONBRecordBase = previous
 	case functions.StringProjectionArgument, functions.ProjectionArgument:
-		operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext, stringInput: request.Intent == functions.StringProjectionArgument})
+		operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
 		operand.raw = raw
 		if err == nil && unknownNullSyntax(raw) {
 			if literal, ok := operand.Node.(plan.LiteralExpr); ok {
@@ -1816,9 +1804,7 @@ func (b *Binder) comparisonOperandPolicy(raw parser.Expr, policy ExpressionPolic
 		var target sqltype.Usage
 		var err error
 		if policy.thresholdArrayInput {
-			target, err = b.Host.ResolveAnnotationTypeInput(annotation.TypeName, true, false, false, false, true)
-		} else if policy.stringInput || internalCharLiteralCast(annotation) {
-			target, err = b.Host.ResolveStringAnnotationType(annotation.TypeName, true)
+			target, err = b.Host.ResolveAnnotationTypeInput(annotation.TypeName, true, false, false, true)
 		} else {
 			target, err = b.Host.ResolveAnnotationType(annotation.TypeName, true)
 		}

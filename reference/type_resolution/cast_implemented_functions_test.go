@@ -139,8 +139,8 @@ func castScalarFunctionCell(cell castMatrixCell) (castMatrixCell, castMatrixValu
 	value.input, value.output = witness.input, witness.output
 	value.polygon = decision.callable.argument == "circle" && decision.callable.result == "polygon"
 	if cell.source.name == `"char"` && decision.callable.callee == "regclass" {
-		// The catalog relkind provider is fixed 'r'; an implicit char_text
-		// adapter does not let us replace it by the TEXT routine's long seed.
+		// The CHAR source truncates the TEXT routine's long input seed to 'r';
+		// its implicit char_text adapter therefore passes "r" to regclass.
 		value.input, value.output = "r", "r"
 	}
 	if decision.callable.argument != cell.source.name && cell.source.family == "Temporal" {

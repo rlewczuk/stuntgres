@@ -94,10 +94,6 @@ var castImplementedTypes = func() []castImplementedType {
 	}
 	for i := range types {
 		switch types[i].name {
-		case `"char"`:
-			types[i].storage = false
-			types[i].target = false
-			types[i].source = `(SELECT relkind FROM pg_class WHERE oid='cast_inventory_source'::regclass)`
 		case "pg_node_tree":
 			types[i].storage = false
 			types[i].parameter = false

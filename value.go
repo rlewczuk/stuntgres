@@ -90,7 +90,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.BaseType().IsCatalogVector() {
 			return sqltype.Null(target.Type), nil
 		}
-		if target.Type.BaseType().ID() == sqltype.Refcursor {
+		if target.Type.BaseType().ID() == sqltype.Refcursor || target.Type.BaseType().ID() == sqltype.Char {
 			return sqltype.Null(target.Type), nil
 		}
 		if target.Type.ContainsRegproc() {

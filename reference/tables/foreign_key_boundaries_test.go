@@ -56,16 +56,6 @@ func TestReferenceForeignKeyDefinitionTypes(t *testing.T) {
 	} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
-				if tc.parent == `"char"` && !b.PG {
-					q := "CREATE TABLE p(id " + tc.parent + " PRIMARY KEY)"
-					d := fixture.ForeignKeyError("0A000", "unsupported column type", "", "", "")
-					d.Position = fixture.Position(strings.Index(q, tc.parent) + 1)
-					for _, prepared := range []bool{false, true} {
-						run(fixture.ForeignKeyFail(q, d, prepared))
-					}
-					run(fixture.Select("SELECT relname FROM pg_class WHERE relname='p' OR relname='c'", []string{"relname"}, []string{"NAME"}, nil))
-					return
-				}
 				run(fixture.Exec("CREATE TABLE p(id "+tc.parent+" PRIMARY KEY)", 0))
 				run(fixture.Exec("CREATE TABLE c(pid "+tc.child+" CONSTRAINT fk REFERENCES p)", 0))
 				run(fixture.Exec("INSERT INTO p VALUES("+tc.value+")", 1))

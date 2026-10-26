@@ -17,8 +17,6 @@ func copyBinaryTableBoundary(t *testing.T, c copyTextConnection, q, typ string) 
 	}
 	message := ""
 	switch typ {
-	case `"char"`:
-		message = "unsupported column type"
 	case "copy_mood[]":
 		message = "unsupported array element type"
 	case "money[]":

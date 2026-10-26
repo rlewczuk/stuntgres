@@ -218,7 +218,7 @@ func (b *Binder) domainTypeName(typ *sqltype.Descriptor) (string, error) {
 }
 
 func (b *Binder) JSONReturningType(raw parser.TypeName) (sqltype.Usage, error) {
-	return b.Host.ResolveAnnotationTypeInput(raw, false, false, true, true, false)
+	return b.Host.ResolveAnnotationTypeInput(raw, false, false, true, false)
 }
 
 // SequenceArgument shares regclass input, with its prepared sequence-literal

@@ -30,7 +30,7 @@ func TestTypeLifecycleLookupDomainIdentity(t *testing.T) {
 func TestDomainLogicalIdentityAndInlineValues(t *testing.T) {
 	types := testTypes()
 	ctx := context.Background()
-	inputs := map[ID]string{Bool: "true", Bytea: `\x0001ff`, Name: "label", Int2: "7", Int4: "7", Int8: "7", Text: " hi ", Oid: "42", Float4: "1.5", Float8: "1.5", NameArray: `{NULL,"NULL",alpha}`, BPChar: "abc", VarChar: "abc", Date: "2024-02-29", Time: "12:34:56", Timestamp: "2024-02-29 12:34:56", Timestamptz: "2024-02-29 12:34:56+00", Interval: "2 days", Timetz: "12:34:56+00", Numeric: "12.345", Regclass: "42", UUID: "00112233-4455-6677-8899-aabbccddeeff"}
+	inputs := map[ID]string{Bool: "true", Bytea: `\x0001ff`, Char: "r", Name: "label", Int2: "7", Int4: "7", Int8: "7", Text: " hi ", Oid: "42", Float4: "1.5", Float8: "1.5", NameArray: `{NULL,"NULL",alpha}`, BPChar: "abc", VarChar: "abc", Date: "2024-02-29", Time: "12:34:56", Timestamp: "2024-02-29 12:34:56", Timestamptz: "2024-02-29 12:34:56+00", Interval: "2 days", Timetz: "12:34:56+00", Numeric: "12.345", Regclass: "42", UUID: "00112233-4455-6677-8899-aabbccddeeff"}
 	for id, input := range inputs {
 		t.Run(types[id].Name(), func(t *testing.T) {
 			base := types[id]
@@ -111,7 +111,7 @@ func TestDomainLogicalIdentityAndInlineValues(t *testing.T) {
 	if value, err := tree.Wrap(Null(types[PgNodeTree])); err != nil || value.Type() != tree || !value.IsNull() {
 		t.Fatal(value, err)
 	}
-	for _, base := range []*Descriptor{types[Void], types[Unknown], types[Char]} {
+	for _, base := range []*Descriptor{types[Void], types[Unknown]} {
 		if _, err := Domain(45001, "invalid", "public.invalid", base.Usage()); err == nil {
 			t.Fatal("excluded physical base", base)
 		}

@@ -70,9 +70,6 @@ func (b *Binder) sqlFunctionCastTarget(raw parser.TypeName, operand ComparisonOp
 		unknownNull = literal.Value.Kind == parser.NullValue
 	}
 	target, err := b.Host.ResolveAnnotationType(raw, unknownNull)
-	if raw.Quoted && raw.Name == "char" {
-		target, err = b.Host.ResolveStringAnnotationType(raw, unknownNull)
-	}
 	if err != nil && operand.descriptor() != nil {
 		target, err = b.resolveCastIdentity(raw, operand.descriptor())
 	}

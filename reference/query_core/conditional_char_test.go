@@ -37,7 +37,7 @@ func TestReferenceConditionalInternalCharEquality(t *testing.T) {
 			}
 			run(fixture.Exec(`CREATE TABLE conditional_char_table(id INT)`, 0))
 			run(fixture.Exec(`CREATE VIEW conditional_char_view AS SELECT id FROM conditional_char_table`, 0))
-			// Catalog-owned internal char values avoid adding user-column or cast support.
+			// Catalog-owned internal CHAR values retain their descriptor in conditionals.
 			step := fixture.Select(`SELECT relname AS name,CASE relkind WHEN 'r' THEN 'table' WHEN 'r' THEN 'late' ELSE 'other' END AS kind,CASE relkind WHEN 'r' THEN 'table' END AS omitted,CASE relkind WHEN NULL THEN 1 ELSE 0 END AS null_match,CASE relkind WHEN relkind THEN 1 ELSE 0 END AS typed,NULLIF(relkind,'r') AS unequal,CASE (CASE relkind WHEN 'r' THEN relkind END) WHEN 'r' THEN 1 ELSE 0 END AS nullable FROM pg_catalog.pg_class WHERE relname='conditional_char_table' OR relname='conditional_char_view' ORDER BY relname`, []string{"name", "kind", "omitted", "null_match", "typed", "unequal", "nullable"}, []string{"NAME", "TEXT", "TEXT", "INT4", "INT4", "CHAR", "INT4"}, [][]any{{"conditional_char_table", "table", "table", int64(0), int64(1), nil, int64(1)}, {"conditional_char_view", "other", nil, int64(0), int64(1), "v", int64(0)}})
 			run(step)
 			run(fixture.Prepared(step))

@@ -24,20 +24,14 @@ func TestOrderingBtreeIdentity(t *testing.T) {
 			base := builtins[c.id]
 			usages := []Usage{base.Usage()}
 			domain, err := Domain(ID(46000+2*i), "wrapped", "public.wrapped", base.Usage())
-			if c.id == Char {
-				if err == nil {
-					t.Fatal("existing domain-over-Char exclusion changed")
-				}
-			} else {
-				if err != nil {
-					t.Fatal(err)
-				}
-				nested, err := Domain(ID(46001+2*i), "nested", "public.nested", domain.Usage())
-				if err != nil {
-					t.Fatal(err)
-				}
-				usages = append(usages, domain.Usage(), nested.Usage())
+			if err != nil {
+				t.Fatal(err)
 			}
+			nested, err := Domain(ID(46001+2*i), "nested", "public.nested", domain.Usage())
+			if err != nil {
+				t.Fatal(err)
+			}
+			usages = append(usages, domain.Usage(), nested.Usage())
 			for _, usage := range usages {
 				class, ok := DefaultIndexClass(usage.Type)
 				if !ok || class.OID() != c.oid {

@@ -37,7 +37,7 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		before := e.Catalog.State
 		for _, raw := range []parser.TypeName{{Name: "char", Quoted: true}, {Name: "regclass"}, {Name: "regclass", ArrayBounds: []int32{0}}, {Name: "xid"}, {Name: "xid", Schema: &parser.Identifier{Text: "pg_catalog"}}, {Name: "cid"}, {Name: "xid8"}} {
 			e.Mu.Lock()
-			usage, err := core.EngineResolveTableColumnType(e, raw, op)
+			usage, err := core.EngineResolveType(e, raw, op)
 			e.Mu.Unlock()
 			if mode == "forged" {
 				if err == nil || usage.Type != nil || e.Catalog.State != before {
@@ -45,39 +45,32 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 				}
 				continue
 			}
-			if mode == "isolated" || raw.Name != "char" {
-				if err != nil {
-					t.Fatal(mode, raw, err)
-				}
-				id := sqltype.Regclass
-				if raw.Name == "char" {
-					id = sqltype.Char
-				} else if raw.Name == "xid" {
-					id = sqltype.Xid
-				} else if raw.Name == "cid" {
-					id = sqltype.Cid
-				} else if raw.Name == "xid8" {
-					id = sqltype.Xid8
-				}
-				if len(raw.ArrayBounds) == 0 && usage.Type != enginetest.Usage(e, id).Type || len(raw.ArrayBounds) != 0 && (!usage.Type.IsArray() || usage.Type.Element() != enginetest.Usage(e, id).Type) {
-					t.Fatal(mode, raw, usage)
-				}
-			} else {
-				var diagnostic *sqlstate.Error
-				if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "unsupported column type" {
-					t.Fatal(mode, raw, err)
-				}
+			if err != nil {
+				t.Fatal(mode, raw, err)
+			}
+			id := sqltype.Regclass
+			if raw.Name == "char" {
+				id = sqltype.Char
+			} else if raw.Name == "xid" {
+				id = sqltype.Xid
+			} else if raw.Name == "cid" {
+				id = sqltype.Cid
+			} else if raw.Name == "xid8" {
+				id = sqltype.Xid8
+			}
+			if len(raw.ArrayBounds) == 0 && usage.Type != enginetest.Usage(e, id).Type || len(raw.ArrayBounds) != 0 && (!usage.Type.IsArray() || usage.Type.Element() != enginetest.Usage(e, id).Type) {
+				t.Fatal(mode, raw, usage)
 			}
 		}
-		// The private caller never changes ordinary cast or domain-base admission.
+		// Ordinary admission retains the same authorization in every context.
 		e.Mu.Lock()
-		_, castErr := core.EngineResolveAnnotationType(e, parser.TypeName{Name: "char", Quoted: true}, op, false)
-		_, domainErr := core.EngineResolveAnnotationTypeMode(e, parser.TypeName{Name: "char", Quoted: true}, op, false, true)
-		arrayUsage, arrayErr := core.EngineResolveTableColumnType(e, parser.TypeName{Name: "char", Quoted: true, ArrayBounds: []int32{0}}, op)
+		castUsage, castErr := core.EngineResolveAnnotationType(e, parser.TypeName{Name: "char", Quoted: true}, op, false)
+		domainUsage, domainErr := core.EngineResolveAnnotationTypeMode(e, parser.TypeName{Name: "char", Quoted: true}, op, false, true)
+		arrayUsage, arrayErr := core.EngineResolveType(e, parser.TypeName{Name: "char", Quoted: true, ArrayBounds: []int32{0}}, op)
 		_, xidCastErr := core.EngineResolveAnnotationType(e, parser.TypeName{Name: "xid"}, op, false)
 		_, xidDomainErr := core.EngineResolveAnnotationTypeMode(e, parser.TypeName{Name: "xid"}, op, false, true)
-		_, xidArrayErr := core.EngineResolveTableColumnType(e, parser.TypeName{Name: "xid", ArrayBounds: []int32{0}}, op)
-		_, xidModifierErr := core.EngineResolveTableColumnType(e, parser.TypeName{Name: "xid", Modifiers: []parser.TypeModifier{{Integer: new(int32)}}}, op)
+		_, xidArrayErr := core.EngineResolveType(e, parser.TypeName{Name: "xid", ArrayBounds: []int32{0}}, op)
+		_, xidModifierErr := core.EngineResolveType(e, parser.TypeName{Name: "xid", Modifiers: []parser.TypeModifier{{Integer: new(int32)}}}, op)
 		e.Mu.Unlock()
 		if mode == "forged" {
 			for _, err := range []error{castErr, domainErr, arrayErr, xidCastErr, xidDomainErr, xidArrayErr, xidModifierErr} {
@@ -93,6 +86,9 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		if xidCastErr != nil || xidDomainErr != nil {
 			t.Fatal(mode, xidCastErr, xidDomainErr)
 		}
+		if castErr != nil || domainErr != nil || castUsage.Type != enginetest.Usage(e, sqltype.Char).Type || domainUsage.Type != enginetest.Usage(e, sqltype.Char).Type {
+			t.Fatal(mode, castUsage, domainUsage, castErr, domainErr)
+		}
 		if arrayErr != nil || !arrayUsage.Type.IsArray() || arrayUsage.Type.Element() != enginetest.Usage(e, sqltype.Char).Type {
 			t.Fatal(mode, "internal char array storage", arrayUsage, arrayErr)
 		}
@@ -100,11 +96,9 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		if !errors.As(xidModifierErr, &modifier) || modifier.Code != "42601" || modifier.Message != `type modifier is not allowed for type "xid"` {
 			t.Fatal(mode, xidModifierErr)
 		}
-		for _, err := range []error{castErr, domainErr, xidArrayErr} {
-			var diagnostic *sqlstate.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "unsupported column type" {
-				t.Fatal(mode, err)
-			}
+		var diagnostic *sqlstate.Error
+		if !errors.As(xidArrayErr, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "unsupported column type" {
+			t.Fatal(mode, xidArrayErr)
 		}
 	}
 }

@@ -214,12 +214,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 				annotation = cast.TypeName
 			}
 			if literal, ok := operands[0].raw.(parser.LiteralExpr); ok && b.typeNameCallable(raw.Name) && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-				var resolveErr error
-				if annotation.Quoted && annotation.Name == "char" {
-					_, resolveErr = b.Host.ResolveStringAnnotationType(annotation, literal.Value.Kind == parser.NullValue)
-				} else {
-					_, resolveErr = b.Host.ResolveAnnotationType(annotation, literal.Value.Kind == parser.NullValue)
-				}
+				_, resolveErr := b.Host.ResolveAnnotationType(annotation, literal.Value.Kind == parser.NullValue)
 				if resolveErr != nil {
 					return selection, true, resolveErr
 				}

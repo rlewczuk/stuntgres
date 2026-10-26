@@ -153,16 +153,8 @@ func (h *BindingHost) ResolveAnnotationType(raw parser.TypeName, unknownNull boo
 	return h.Engine.resolveAnnotationType(raw, h.Op, unknownNull)
 }
 
-func (h *BindingHost) ResolveStringAnnotationType(raw parser.TypeName, unknownNull bool) (sqltype.Usage, error) {
-	return h.Engine.resolveStringAnnotationType(raw, h.Op, unknownNull)
-}
-
-func (h *BindingHost) ResolveAnnotationTypeInput(raw parser.TypeName, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
-	return h.Engine.resolveAnnotationTypeInput(raw, h.Op, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput)
-}
-
-func (h *BindingHost) ResolveTableColumnType(raw parser.TypeName) (sqltype.Usage, error) {
-	return h.Engine.resolveTableColumnType(raw, h.Op)
+func (h *BindingHost) ResolveAnnotationTypeInput(raw parser.TypeName, unknownNull, domainBase, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
+	return h.Engine.resolveAnnotationTypeInput(raw, h.Op, unknownNull, domainBase, jsonReturning, thresholdArrayInput)
 }
 
 func (h *BindingHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {

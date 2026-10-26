@@ -270,9 +270,9 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   and exact typmods before strict NULL evaluation. TEXT and TEXT[] selectors
   retain valid usage collations while matching lexemes byte-exactly. Conversion
   transfers one owned TEXT element buffer to the generic array constructor.
-  Internal CHAR arrays use the ordinary
-  array codec and shared `ArrayElementAdmitted` scalar-element policy for codecs
-  and storage; this does not broaden scalar stored-annotation admission.
+  Internal CHAR scalars use the ordinary declaration, input and cast descriptors,
+  validating external UTF8 text before one-byte decoding. CHAR arrays use the
+  ordinary array codec and shared `ArrayElementAdmitted` policy for storage.
   Executable-array inventories include OID 1002 with its same-generation CHAR
   element, including the independent cast admission corpus; lookup-only
   companions remain separate from executable type identities.

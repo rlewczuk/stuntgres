@@ -40,7 +40,7 @@ func castMatrixResultFact(cell castMatrixCell) castImplementedType {
 // global four-type cast policy and not permission to install new providers.
 func castTargetBoundary(cell castMatrixCell, q string, pg bool) *fixture.Diagnostic {
 	target := cell.target
-	if pg || target.target || target.name == `"char"` || castInputFreeTarget(cell) {
+	if pg || target.target || castInputFreeTarget(cell) {
 		return nil
 	}
 	declaration := castInventoryIdentity(target)

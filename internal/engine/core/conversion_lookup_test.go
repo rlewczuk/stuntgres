@@ -323,7 +323,7 @@ func TestRoutineAliasStorageAdmission(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"regproc", "regprocedure"} {
-		usage, err := core.EngineResolveTableColumnType(e, parser.TypeName{Name: name}, op)
+		usage, err := core.EngineResolveType(e, parser.TypeName{Name: name}, op)
 		if err != nil || !usage.Type.ContainsRegproc() {
 			t.Fatal("routine alias declaration rejected", usage, err)
 		}

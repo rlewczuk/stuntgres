@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"reflect"
 	"strconv"
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -73,15 +72,10 @@ func TestReferenceServerExtendedCodecs(t *testing.T) {
 					serverWantRaw(t, frames, [][][]byte{{nil}})
 					storageSQL := "CREATE TABLE server_codec_storage(v " + c.typ + ")"
 					storage := w.query(t, storageSQL)
-					if !b.PG && c.oid == 18 {
-						// Raw internal CHAR has codecs but deliberately no user-column admission.
-						serverNotificationError(t, storage, "0A000", "unsupported column type", strconv.Itoa(strings.Index(storageSQL, c.typ)+1))
-					} else {
-						serverWantCode(t, storage, "")
-						serverWantCompletions(t, serverCycle(t, w, serverParse("", "INSERT INTO server_codec_storage VALUES ($1)", c.oid), serverBind("", "", []int{1}, [][]byte{raw}), serverExecute("", 0)), "INSERT 0 1")
-						serverWantRaw(t, serverCycle(t, w, serverParse("", "SELECT v FROM server_codec_storage"), serverBind("", "", nil, nil, 1), serverExecute("", 0)), [][][]byte{{raw}})
-						serverWantCode(t, w.query(t, "DROP TABLE server_codec_storage"), "")
-					}
+					serverWantCode(t, storage, "")
+					serverWantCompletions(t, serverCycle(t, w, serverParse("", "INSERT INTO server_codec_storage VALUES ($1)", c.oid), serverBind("", "", []int{1}, [][]byte{raw}), serverExecute("", 0)), "INSERT 0 1")
+					serverWantRaw(t, serverCycle(t, w, serverParse("", "SELECT v FROM server_codec_storage"), serverBind("", "", nil, nil, 1), serverExecute("", 0)), [][][]byte{{raw}})
+					serverWantCode(t, w.query(t, "DROP TABLE server_codec_storage"), "")
 				})
 			}
 			for _, c := range serverCodecCases {

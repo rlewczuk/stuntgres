@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -225,8 +224,10 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		if err != nil || direct.ResultUsage().Type != b.Type(sqltype.Char) {
 			t.Fatal("direct literal CHAR cast", direct, err)
 		}
-		_, err = core.EngineResolveType(e, cast.TypeName, binderOperation(b))
-		enginetest.State(t, err, "0A000")
+		usage, err := core.EngineResolveType(e, cast.TypeName, binderOperation(b))
+		if err != nil || usage.Type != b.Type(sqltype.Char) {
+			t.Fatal("ordinary CHAR admission", usage, err)
+		}
 	}
 	for _, established := range []bool{false, true} {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)

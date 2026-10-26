@@ -70,13 +70,6 @@ func TestReferenceHashPartitionTypes(t *testing.T) {
 		t.Run("internal_char_column_boundary", func(t *testing.T) {
 			run := referenceHashRun(t, p, b, prepared)
 			query := `CREATE TABLE hp_internal_char(k "char",id INT) PARTITION BY HASH(k)`
-			if !b.PG {
-				s := referenceRangeError(query, "0A000", "unsupported column type", fixture.Diagnostic{Position: referenceRangePosition(query, `"char"`)})
-				run(s)
-				return
-			}
-			// PostgreSQL owns CHAR columns; native deliberately owns only its
-			// scalar/string-role provider, whose signed hashes have unit vectors.
 			run(fixture.Exec(query, 0))
 			referenceHashChildren(run, "hp_internal_char", 8)
 			run(fixture.Exec(`INSERT INTO hp_internal_char VALUES(E'\\200',0),(E'\\377',1)`, 2))

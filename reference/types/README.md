@@ -3,8 +3,8 @@
 Dual-mode tests for composite types (declarations, field expressions, ALTER TYPE
 attributes); enums (values, ALTER TYPE, support functions); the `citext`
 extension type; ACL values (`aclitem`, `makeaclitem`, `acldefault`,
-`aclexplode`); TID; catalog integer/OID vectors; BOOLEAN diagnostics and
-aggregates; and scalar comparison operators and null/distinct predicates.
+`aclexplode`); internal quoted CHAR; TID; catalog integer/OID vectors; BOOLEAN
+diagnostics and aggregates; and scalar comparison operators and null/distinct predicates.
 
 Other type families: [reference/domain_types](../domain_types/README.md#testing)
 (domains, `information_schema` domains, type identity lifecycle and
@@ -38,8 +38,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
 
 Client quirks:
 
-- lib/pq returns textual values as `[]byte` with ScanType `any`; native returns
-  strings. Assert raw cells before normalization.
+- lib/pq returns most textual values as `[]byte` with ScanType `any`; native
+  returns strings. Internal CHAR returns raw strings on both backends, with
+  ScanType `any` through lib/pq. Assert raw cells before normalization.
 - Unbounded VARCHAR-based columns report Length `(MaxInt64,true)` natively and
   `(-5,true)` through lib/pq.
 - A typed-nil `[]byte` bound to FLOAT8 or to an inferred TEXT parameter is empty
@@ -112,6 +113,7 @@ Rules:
 - `aclitem`: `RUN='^TestReferenceACLItem'`
 - ACL construction and expansion: `RUN='^TestReferenceACLValues'`
 - TID: `RUN='^TestReferenceTID'`
+- Internal quoted CHAR: `RUN='^TestReferenceInternalChar'`
 - Catalog integer/OID vectors: `RUN='^TestReferenceCatalogVectors'`
 - BOOLEAN diagnostics and aggregates: `RUN='^TestReference(Boolean(Aggregate|Diagnostics)|AnyValueSourceACL)'`
 - Comparison operators, null/distinct predicates: `RUN='^TestReferenceCompare(Null|Ops)'`

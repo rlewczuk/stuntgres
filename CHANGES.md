@@ -1,3 +1,7 @@
+Quoted internal `"char"` columns now use ordinary type resolution, distinct from
+SQL `char(n)`, with one-byte input, prepared parameters, empty versus NULL values,
+precise encoding errors and native Dump/Restore round trips.
+
 Table queries, writes, commits and index publication no longer scan every
 routine, operator and type in the catalog to find a table's inheritance
 children, partial indexes or unique indexes; they visit relations only.

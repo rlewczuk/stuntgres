@@ -52,7 +52,7 @@ func (e *Engine) CompilePLRoutineLocked(op *session.Operation, auth Authorizatio
 			if raw.Type.Name == "record" && raw.Type.Schema == nil {
 				return sqltype.Usage{}, true, nil
 			}
-			usage, err := e.AnalysisHost(op).ResolveAnnotationTypeInput(raw.Type, false, false, false, false, false)
+			usage, err := e.AnalysisHost(op).ResolveAnnotationTypeInput(raw.Type, false, false, false, false)
 			return usage, false, err
 		}
 		if raw.Row {
@@ -61,7 +61,7 @@ func (e *Engine) CompilePLRoutineLocked(op *session.Operation, auth Authorizatio
 			if len(parts) == 2 {
 				annotation.Schema = &parts[0]
 			}
-			usage, err := e.AnalysisHost(op).ResolveAnnotationTypeInput(annotation, false, false, false, false, false)
+			usage, err := e.AnalysisHost(op).ResolveAnnotationTypeInput(annotation, false, false, false, false)
 			if err == nil {
 				if !usage.Type.BaseType().IsComposite() {
 					err = SQLError("42809", "%ROWTYPE requires a composite type")

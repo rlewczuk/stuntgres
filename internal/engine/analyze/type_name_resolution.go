@@ -21,10 +21,9 @@ type TypeNameInput struct {
 	Catalog    catalog.Read
 	Definition catalog.DefinitionReader // Cooking-only sparse reader; nil reads Catalog.
 	// UnknownNull admits unknown and a deferred record; DomainBase checks a
-	// domain base type; StringInput admits internal "char"; JSONReturning
-	// rejects SQL/JSON returning pseudo-types; ThresholdArrayInput admits
-	// enum arrays.
-	UnknownNull, DomainBase, StringInput, JSONReturning, ThresholdArrayInput bool
+	// domain base type; JSONReturning rejects SQL/JSON returning pseudo-types;
+	// ThresholdArrayInput admits enum arrays.
+	UnknownNull, DomainBase, JSONReturning, ThresholdArrayInput bool
 	// CastSource permits input-free identity and generic RECORD passthrough,
 	// never declaration, storage, or a new input provider.
 	CastSource *sqltype.Descriptor
@@ -93,7 +92,7 @@ func ResolveTypeName(raw parser.TypeName, name string, object parser.ObjectName,
 			}
 		}
 	}
-	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !in.ThresholdArrayInput || d.ID() == sqltype.Char && len(raw.ArrayBounds) == 0 && !in.StringInput || d.ID() == sqltype.Void {
+	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !in.ThresholdArrayInput || d.ID() == sqltype.Void {
 		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()

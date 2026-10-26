@@ -125,6 +125,63 @@ func TestBitstringParameterNullBoundary(t *testing.T) {
 	}
 }
 
+func TestInternalCharParameterImport(t *testing.T) {
+	ctx := context.Background()
+	e := engine.New()
+	char, _ := e.CatalogRead().LookupType(sqltype.Char)
+	domain, err := sqltype.Domain(49000, "import_char", "public.import_char", char.Usage(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []*sqltype.Descriptor{char, domain} {
+		for _, tc := range []struct {
+			name string
+			raw  any
+			want string
+			null bool
+		}{
+			{"nil", nil, "", true},
+			{"typed_nil", []byte(nil), "", true},
+			{"empty_bytes", []byte{}, "", false},
+			{"empty_string", "", "", false},
+			{"bytes", []byte("abc"), "a", false},
+			{"integer", int64(65), "6", false},
+			{"utf8", "é", `\303`, false},
+		} {
+			t.Run(target.Name()+"/"+tc.name, func(t *testing.T) {
+				args, err := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: tc.raw}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				v, err := importParameter(ctx, args[0], target.Usage(), sqltype.InputEnvironment{})
+				if err != nil || v.Type() != target || v.IsNull() != tc.null {
+					t.Fatal(v, err)
+				}
+				got, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
+				if err != nil || tc.null && got != nil || !tc.null && got != tc.want {
+					t.Fatal(got, err)
+				}
+			})
+		}
+		for _, raw := range []any{"\xff", "a\xff", "\x00", "a\x00b", []byte("a\xff"), []byte("a\x00b")} {
+			args, err := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: raw}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			v, err := importParameter(ctx, args[0], target.Usage(), sqltype.InputEnvironment{})
+			var diagnostic *Error
+			message := `invalid byte sequence for encoding "UTF8": 0xff`
+			if reflect.DeepEqual(raw, "a\x00b") || reflect.DeepEqual(raw, "\x00") || reflect.DeepEqual(raw, []byte("a\x00b")) {
+				message = `invalid byte sequence for encoding "UTF8": 0x00`
+			}
+			want := Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22021", Message: message}
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, want) || v.Type() != nil {
+				t.Fatalf("input %q: value=%v diagnostic=%#v", raw, v, err)
+			}
+		}
+	}
+}
+
 func TestTypeCoreScalarImports(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()

@@ -32,7 +32,7 @@ func (b *Binder) StringNode(name string, result sqltype.Usage, pos parser.Positi
 // COLLATE resolves before overload finalization. Contextualize only textual
 // roles, preserving each established parameter's input descriptor.
 func (b *Binder) StringOperand(raw parser.Expr, textual bool) (ComparisonOperand, error) {
-	policy := ExpressionPolicy{Context: ProjectionContext, stringInput: textual}
+	policy := ExpressionPolicy{Context: ProjectionContext}
 	if _, collated := raw.(parser.CollateExpr); collated && textual {
 		policy.Expected = b.Type(sqltype.Text).Usage()
 		child := raw

@@ -43,8 +43,15 @@ func TestReferenceCharacterAliasesAndMetadata(t *testing.T) {
 	for _, declaration := range []string{`"character"`, `"VARCHAR"`} {
 		p.Step(t, fixture.ImplicitError("CREATE TABLE c(v "+declaration+")", fixture.Diagnostic{Code: "42704", Message: "type " + declaration + " does not exist", Position: "18"}))
 	}
-	_, err := p.Memory.ExecContext(p.Ctx, `CREATE TABLE c(v "char")`)
-	fixture.State(t, err, "0A000")
+	p.Step(t, fixture.Exec(`CREATE TABLE c(v "char")`, 0))
+	empty := fixture.Select("SELECT v FROM c", []string{"v"}, []string{"CHAR"}, nil)
+	p.Step(t, empty)
+	p.Step(t, fixture.Prepared(empty))
+	p.Step(t, fixture.Exec(`INSERT INTO c VALUES('é'),(NULL)`, 2))
+	internal := fixture.Select("SELECT v FROM c", []string{"v"}, []string{"CHAR"}, [][]any{{`\303`}, {nil}})
+	internal.Bag = true
+	p.Step(t, internal)
+	p.Step(t, fixture.Prepared(internal))
 }
 
 func TestReferenceCharacterCastLabelsAndNullMetadata(t *testing.T) {

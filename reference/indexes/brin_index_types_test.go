@@ -48,11 +48,6 @@ func TestReferenceBrinIndexTypes(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			brinIndexScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
-				if tc.name == "char" && !b.PG {
-					hashIndexSemanticFailure(t, p, b, run, `CREATE TABLE t(id INT,v "char")`, fixture.Diagnostic{Code: "0A000", Message: "unsupported column type", Position: "25"})
-					run(fixture.Select("SELECT relname FROM pg_class WHERE relname='t'", []string{"relname"}, []string{"NAME"}, nil))
-					return
-				}
 				run(fixture.Exec("CREATE TABLE t(id INT,v "+tc.typ+")", 0))
 				metadata := fixture.Select("SELECT v FROM t WHERE id=0", []string{"v"}, []string{databaseTypes[tc.name]}, nil)
 				if tc.name == "macaddr8" && b.PG {

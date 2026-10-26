@@ -162,8 +162,7 @@ func TestReferenceStringReplaceSignatures(t *testing.T) {
 		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE DOMAIN sr_char AS char(4)", 0))
 		stringReplaceValue(t, p, b, c, "replace('ab'::sr_char,'a','X')", "TEXT", "Xb")
-		// Internal CHAR comes from the existing catalog provider; its general
-		// public cast syntax is outside the character prerequisite's admission.
+		// Catalog-owned internal CHAR uses the same string-role adapters as stored values.
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE sr_char_seed(v text)", 0))
 		stringReplaceBoth(t, p, b, c, fixture.Select("SELECT replace('arc'::name,relkind,'X'::name) AS r,translate('arc'::name,relkind,'X'::name) AS t,overlay('abc',relkind,2) AS o,starts_with('rabbit',relkind) AS f,'rabbit' ^@ relkind AS p FROM pg_catalog.pg_class WHERE relname='sr_char_seed'", []string{"r", "t", "o", "f", "p"}, []string{"TEXT", "TEXT", "TEXT", "BOOL", "BOOL"}, [][]any{{"aXc", "aXc", "arc", true, true}}))
 	})

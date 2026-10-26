@@ -137,14 +137,6 @@ func TestHashIndexEqualityNormalization(t *testing.T) {
 	} {
 		t.Run(tc.class+types[tc.id].Name()+tc.a, func(t *testing.T) {
 			for _, domain := range []bool{false, true} {
-				// Domain explicitly excludes internal CHAR; scalar provider
-				// admission does not expand that descriptor boundary.
-				if domain && tc.id == Char {
-					if _, err := Domain(40000+tc.id, "d", "public.d", types[tc.id].Usage()); err == nil {
-						t.Fatal("internal CHAR domain unexpectedly admitted")
-					}
-					continue
-				}
 				typ := types[tc.id]
 				if domain {
 					var err error

@@ -67,7 +67,7 @@ func bindCreateTable(host Host, auth Authority, s *parser.CreateTable, b *Bindin
 			if lowered := sequence.SerialTypeName(typeName); lowered != "" {
 				typeName.Name = lowered
 			}
-			u, err := host.ResolveTableColumnType(typeName)
+			u, err := host.ResolveType(typeName)
 			if err != nil {
 				return err
 			}

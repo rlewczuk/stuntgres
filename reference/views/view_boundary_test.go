@@ -29,18 +29,15 @@ func TestReferenceViewWriteCapabilityBoundary(t *testing.T) {
 	}
 }
 
-func TestReferenceViewInternalCHARStaysProviderBounded(t *testing.T) {
+func TestReferenceViewInternalCHARStorage(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
-			if b.PG {
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`CREATE TABLE bad(x "char")`, 0))
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT x FROM bad", []string{"x"}, []string{"CHAR"}, nil))
-			} else {
-				s := fixture.ImplicitError(`CREATE TABLE bad(x "char")`, fixture.Diagnostic{Code: "0A000", Message: "unsupported column type", Position: "20"})
-				s.ErrorStage = "execute"
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-			}
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`CREATE TABLE view_char_source(x "char")`, 0))
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`CREATE VIEW view_char_values AS SELECT x FROM view_char_source`, 0))
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT x FROM view_char_values", []string{"x"}, []string{"CHAR"}, nil))
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`INSERT INTO view_char_source VALUES('r'),(''),(NULL)`, 3))
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT x FROM view_char_values ORDER BY x NULLS LAST", []string{"x"}, []string{"CHAR"}, [][]any{{""}, {"r"}, {nil}}))
 		})
 	}
 }

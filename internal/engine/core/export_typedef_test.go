@@ -40,11 +40,6 @@ func EngineResolveAnnotationTypeMode(x *Engine, raw parser.TypeName, op *session
 	return x.ResolveAnnotationTypeMode(raw, op, unknownNull, domainBase)
 }
 
-// EngineResolveTableColumnType calls x.resolveTableColumnType.
-func EngineResolveTableColumnType(x *Engine, raw parser.TypeName, op *session.Operation) (sqltype.Usage, error) {
-	return x.resolveTableColumnType(raw, op)
-}
-
 // EngineResolveType calls x.resolveType.
 func EngineResolveType(x *Engine, raw parser.TypeName, op *session.Operation) (sqltype.Usage, error) {
 	return x.ResolveType(raw, op)

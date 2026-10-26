@@ -8,7 +8,7 @@ import (
 // Domain creates immutable logical type authority over an immediate base usage.
 // Catalog ownership and dependencies remain the engine's responsibility.
 func Domain(id ID, name, declaration string, base Usage, checks ...bool) (*Descriptor, error) {
-	if id == 0 || id == Unknown || name == "" || declaration == "" || !base.Valid() || !base.Type.Concrete() || base.Type.BaseType().id == Void || base.Type.BaseType().id == Char {
+	if id == 0 || id == Unknown || name == "" || declaration == "" || !base.Valid() || !base.Type.Concrete() || base.Type.BaseType().id == Void {
 		return nil, fmt.Errorf("invalid domain descriptor")
 	}
 	ownChecks := len(checks) != 0 && checks[0]
