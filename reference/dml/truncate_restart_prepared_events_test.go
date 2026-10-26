@@ -108,7 +108,7 @@ func TestReferenceTruncateRestartPreparedNegativeEvents(t *testing.T) {
 					x := truncateRestartRoute(t, p, f.A, q, held)
 					tx := truncateBegin(t, p, f.B, nil)
 					truncateRestartState(t, f, tx, "restart_negative_b.s", 11, true)
-					truncateExec(t, f, f.A, "SET lock_timeout='30ms'", 0)
+					truncateExec(t, f, f.A, "SET lock_timeout='10ms'", 0)
 					truncateRestartError(t, f, x, q, truncateWant("55P03", "canceling statement due to lock timeout"))
 					if err := tx.Rollback(); err != nil {
 						t.Fatal(err)

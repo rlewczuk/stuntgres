@@ -55,7 +55,7 @@ func TestReferenceTruncateLocksSavepointCancellation(t *testing.T) {
 		tx := truncateBegin(t, p, f.B, nil)
 		truncateExec(t, f, tx, "INSERT INTO p VALUES(3)", 1)
 		truncateExec(t, f, tx, "SAVEPOINT preserve", 0)
-		truncateExec(t, f, tx, "SET LOCAL lock_timeout='30ms'", 0)
+		truncateExec(t, f, tx, "SET LOCAL lock_timeout='10ms'", 0)
 		truncateError(t, f, tx, "TRUNCATE p,q", truncateWant("55P03", "canceling statement due to lock timeout"))
 		truncateExec(t, f, tx, "ROLLBACK TO preserve", 0)
 		truncateRows(t, f, tx, "p", 1, 2, 3)

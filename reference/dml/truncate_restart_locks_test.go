@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"runtime"
 	"stuntgres/reference/fixture"
@@ -52,12 +53,14 @@ func TestReferenceTruncateRestartLocks(t *testing.T) {
 						mode = "RowExclusiveLock"
 						truncateRestartValue(t, f, tx, "SELECT nextval('second_id_seq')", "nextval", 2)
 					}
-					setting := "lock_timeout"
+					// A lock timer counts only the lock wait; a statement timer also
+					// counts parse and plan time of the direct route.
+					setting, timer := "lock_timeout", "10ms"
 					if terminal == "StatementTimeout" {
-						setting = "statement_timeout"
+						setting, timer = "statement_timeout", "100ms"
 					}
 					if terminal != "Cancel" {
-						truncateExec(t, f, f.B, "SET "+setting+"='2s'", 0)
+						truncateExec(t, f, f.B, "SET "+setting+"='"+timer+"'", 0)
 					}
 					ctx, cancel := context.WithCancel(p.Ctx)
 					defer cancel()
@@ -65,13 +68,15 @@ func TestReferenceTruncateRestartLocks(t *testing.T) {
 						r, err := x.ExecContext(ctx, q)
 						return fixture.RelationOutcome{Result: r, Err: err}
 					})
-					truncateRestartWait(t, p, b, holder, waiter, "second_id_seq", mode, "AccessExclusiveLock")
-					// Both earlier table and owned sequence acquisitions must be real.
-					var prefix bool
-					if err := b.DB.QueryRowContext(p.Ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='t'::regclass::oid AND mode='AccessExclusiveLock' AND granted) AND EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='t_id_seq'::regclass::oid AND mode='AccessExclusiveLock' AND granted)`, waiter).Scan(&prefix); err != nil || !prefix {
-						t.Fatalf("missing table/sequence prefix: %v %v", prefix, err)
-					}
+					// A timer's exact outcome proves the wait; never race an observer
+					// against the short timer. Cancel observes the parked waiter.
 					if terminal == "Cancel" {
+						truncateRestartWait(t, p, b, holder, waiter, "second_id_seq", mode, "AccessExclusiveLock")
+						// Both earlier table and owned sequence acquisitions must be real.
+						var prefix bool
+						if err := b.DB.QueryRowContext(p.Ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='t'::regclass::oid AND mode='AccessExclusiveLock' AND granted) AND EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='t_id_seq'::regclass::oid AND mode='AccessExclusiveLock' AND granted)`, waiter).Scan(&prefix); err != nil || !prefix {
+							t.Fatalf("missing table/sequence prefix: %v %v", prefix, err)
+						}
 						if b.PG {
 							var canceled bool
 							if err := fixture.Admin.QueryRowContext(p.Ctx, "SELECT pg_cancel_backend($1)", waiter).Scan(&canceled); err != nil || !canceled {
@@ -99,8 +104,19 @@ func TestReferenceTruncateRestartLocks(t *testing.T) {
 						}
 						fixture.AssertDiagnostic(t, o.Err, &d)
 					}
-					if terminal != "Cancel" {
-						truncateExec(t, f, f.B, "SET "+setting+"=0", 0)
+					// The same physical owner and held utility recover after a lock
+					// timeout (resetting it takes no lock) or a cancellation. Once a
+					// statement timer is armed even SET can time out, so that owner is
+					// disposed and the independent holder session recovers instead.
+					survivor := x
+					switch terminal {
+					case "LockTimeout":
+						truncateExec(t, f, f.B, "SET lock_timeout=0", 0)
+					case "StatementTimeout":
+						if err := f.B.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
+							t.Fatal("disposing timer-armed owner", err)
+						}
+						survivor = f.A
 					}
 					if err := tx.Rollback(); err != nil {
 						t.Fatal(err)
@@ -113,8 +129,8 @@ func TestReferenceTruncateRestartLocks(t *testing.T) {
 						last = 2
 					}
 					truncateRestartState(t, f, f.A, "second_id_seq", last, true)
-					// Same physical owner and same held utility recover without leaked locks.
-					truncateExec(t, f, x, q, 0)
+					// Recovery leaves no leaked locks.
+					truncateExec(t, f, survivor, q, 0)
 					truncateRestartValue(t, f, f.A, "SELECT nextval('t_id_seq')", "nextval", 1)
 					truncateRestartValue(t, f, f.A, "SELECT nextval('second_id_seq')", "nextval", 1)
 				})

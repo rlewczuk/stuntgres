@@ -60,7 +60,7 @@ func TestReferenceTruncateRestartFeatureSmoke(t *testing.T) {
 		truncateExec(t, f, f.A, "INSERT INTO s DEFAULT VALUES", 1)
 		tx := truncateBegin(t, p, f.B, nil)
 		truncateRestartState(t, f, tx, "s_id_seq", 1, true)
-		truncateExec(t, f, f.A, "SET lock_timeout='30ms'", 0)
+		truncateExec(t, f, f.A, "SET lock_timeout='10ms'", 0)
 		truncateRestartError(t, f, x, q, truncateWant("55P03", "canceling statement due to lock timeout"))
 		if err := tx.Rollback(); err != nil {
 			t.Fatal(err)
