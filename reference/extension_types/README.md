@@ -42,6 +42,10 @@ these are shared across families:
   Each failure seeds its own actual dump, frozen identity graph and retained
   cursor; complete diagnostics, values, metadata, identity and deterministic
   redump assertions remain per case. No fixture deadline spans the failure matrix.
+  The ISBN13, ISMN, ISMN13, ISSN, ISSN13 and UPC failure leaves run the full
+  verify (values, metadata and `isbnIdentity`) once, after the failed Restore.
+  The roundtrip and `fresh_driver` phases verify the source and the successful
+  replacement; a leaf does not repeat those passes.
 - `lo_helpers_test.go`: shared installed-domain scenarios reuse the fixture's OID
   raw-value adapter. Logical lo identity is independent of physical OID result
   metadata, including NULL/empty results and declared nullability. Numeric

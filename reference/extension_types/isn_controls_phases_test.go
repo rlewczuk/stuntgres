@@ -115,7 +115,6 @@ func runISNControlPhases(t *testing.T, spec isnControlPhases) {
 					}
 				}
 				if err:=stuntgres.Restore(target.Ctx,target.Native,bytes.NewReader(dump.Bytes()));err!=nil{t.Fatal(err)}
-				spec.verify(t,target,tb,conn)
 				identities:=map[string][4]int64{}
 				for _,typ:=range isnControlScalarNames(){identities[typ]=isbnIdentityStamp(t,target,conn,typ)}
 				retained,columns:=isbnRetain(t,target,conn,spec.query)

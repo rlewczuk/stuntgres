@@ -72,7 +72,8 @@ func TestReferenceUpcControls(t *testing.T) {
 		upcControlVerify(t, p, b, c)
 		fixture.RunStep(t, p.Ctx, heldText, b.Recorder, heldValues)
 		isbnConsumeRetained(t, old, metadata, upcControlRows, "INT4", "EAN13", "UPC")
-		upcControlTarget(t, p, c, dump.Bytes())
+		target, tb, conn := upcControlTarget(t, p, c, dump.Bytes())
+		upcControlVerify(t, target, tb, conn)
 		var redump bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
 			t.Fatal(err)

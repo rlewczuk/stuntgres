@@ -53,7 +53,6 @@ func issn13ControlTarget(t *testing.T, p *fixture.Pair, c *sql.Conn, script []by
 	if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(script)); err != nil {
 		t.Fatal(err)
 	}
-	issn13ControlVerify(t, target, tb, conn)
 	return target, tb, conn
  }
 
@@ -67,7 +66,6 @@ func issn13FailedReplacement(t *testing.T, kind string) {
 			return
 		}
 		issn13ControlSetup(t, p, b, c)
-		issn13ControlVerify(t, p, b, c)
 		var dump bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 			t.Fatal(err)

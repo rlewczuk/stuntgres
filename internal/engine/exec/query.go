@@ -56,6 +56,7 @@ type Source struct {
 	Foreign          *ForeignQuerySource
 	Visible          []int
 	HashIndexes      []CapturedHashIndex
+	CatalogKeys      *CatalogKeyIndex // Indexes Anonymous of a shared catalog capture.
 	Host             Host
 	Authority        *Authority
 	// Borrowed only by an opaque stored-source execution root after original
@@ -221,6 +222,7 @@ func (s *Source) Close() {
 	sources := s.Sources
 	s.Sources = nil
 	s.HashIndexes = nil
+	s.CatalogKeys = nil
 	s.BranchPruner = nil
 	if s.NestedStage != nil {
 		s.NestedStage.Close()
@@ -704,11 +706,16 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 			return Stage{}, err
 		}
 		var candidates *hashCandidateSelection
+		keyed := false
 		if !branches.selection.Applied {
 			candidates, err = hashFilterCandidates(ctx, state, n, child.Source)
 			if err != nil {
 				child.Close()
 				return Stage{}, err
+			}
+			if candidates == nil {
+				candidates = catalogKeyCandidates(ctx, state, n, &child)
+				keyed = candidates != nil
 			}
 		}
 		out := ProducingStage(&child, n.Schema())
@@ -724,7 +731,8 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 				if err != nil {
 					return false, err
 				}
-				if branches.selection.Applied {
+				// Catalog key positions belong to the child's previous rows.
+				if branches.selection.Applied || keyed {
 					candidates, out.HashCandidates = nil, nil
 				}
 			} else {

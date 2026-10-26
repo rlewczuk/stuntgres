@@ -324,6 +324,14 @@ NULL VARIADIC array and the strict single-range overload retain NULL results.
   exclusion, so safe enclosing producers and root cursors remain eligible.
 - **No per-row allocations** from the seams: the host and preparation are
   interface values stored once.
+- **Filter candidates.** Two WHERE shapes visit only candidate rows, and the
+  produce loop still evaluates the whole predicate on each: a top-level equality
+  over a captured hash index, and a WHERE (also inside derived subqueries) that is
+  one oid equality between a column of a shared catalog capture
+  (`Source.CatalogKeys`) and a literal or parameter under non-volatile casts.
+  `CatalogKeyIndex` builds a column on first use and publishes it atomically. A
+  column qualifies only when every cell has the column's exact oid descriptor, so
+  no skipped row could have raised an error; any failing probe keeps the scan.
 
 ## Row-policy runtime
 
@@ -417,7 +425,10 @@ Async protocol, cleanup, filtered-frontier and cursor-boundary units use
 `RUN='^TestFDWAsync'`; public authentic-transport scenarios live in
 `reference/tables` (`RUN='^TestReferenceFDWAsync'`).
 Query source identity units use `RUN='^TestQueryTableOID'`; virtual recipe
-consumers additionally use `RUN='^TestGeneratedVirtual'`.
+consumers additionally use `RUN='^TestGeneratedVirtual'`. Catalog key index units
+here and candidate admission units in `internal/engine/core` use
+`RUN='^TestCatalogKey'` (with `RACE=1`); their public outcomes are
+`reference/catalogs` `RUN='^TestReferencePG(CatalogKeyProbes|TypeProcRepeatedProbes)$'`.
 
 
 **Frame names matched by tests.** `sortOrderedAggregate`

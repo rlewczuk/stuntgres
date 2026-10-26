@@ -60,7 +60,8 @@ func TestReferenceIsmn13Controls(t *testing.T) {
 		}
 		ismn13ControlVerify(t, p, b, c)
 		isbnConsumeRetained(t, old, metadata, ismn13ControlRows, "INT4", "EAN13", "ISMN13")
-		ismn13ControlTarget(t, p, c, dump.Bytes())
+		target, tb, conn := ismn13ControlTarget(t, p, c, dump.Bytes())
+		ismn13ControlVerify(t, target, tb, conn)
 		var redump bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
 			t.Fatal(err)

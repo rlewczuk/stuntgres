@@ -100,7 +100,9 @@ private frames, not catalog authority.
   `InstallRevisionFrontierLocked`; the enum frontier has only
   `AllocateEnumMemberLocked`. `AllocateOIDLocked` skips reserved and used OIDs;
   an `OIDReservation` is a replacement's private cursor through
-  `AllocateOIDFromLocked`. `ValidateObjectRefLocked` and
+  `AllocateOIDFromLocked`. Definition OIDs come from one set per descriptor map
+  of the published state, rebuilt when that map changes; during a bulk load,
+  which writes behind an unchanged map, the allocator scans instead. `ValidateObjectRefLocked` and
   `ValidateCatalogViewLocked` check provenance and epoch. The engine holds the
   store by value and never copies it, because every `Read` points at its
   `Owner`.

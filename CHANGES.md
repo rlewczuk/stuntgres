@@ -1,3 +1,8 @@
+Queries of `pg_type`, `pg_proc` and `pg_depend` whose WHERE compares one oid
+column with a constant or parameter (`WHERE oid = 16384`,
+`WHERE pronamespace = $1`, also inside derived subqueries) read only the
+matching rows of the shared catalog capture instead of comparing every row.
+
 `pg_ts_dict` now has dedicated native/PostgreSQL coverage for exact installed
 unaccent identity, template linkage, initialization options and six-column
 metadata, including transactional install/removal, held queries and immutable
