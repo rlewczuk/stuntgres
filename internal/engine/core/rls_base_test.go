@@ -100,7 +100,7 @@ func TestRLSBaseDecision(t *testing.T) {
 			t.Fatal(err)
 		}
 		ref := b.QuerySources[0].Ref
-		dataView, err := scope.AcquireDataViewLocked(e, ref)
+		dataView, err := core.ScopeAcquireDataViewLocked(scope, e, ref)
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

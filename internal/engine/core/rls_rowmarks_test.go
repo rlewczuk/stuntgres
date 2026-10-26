@@ -108,9 +108,9 @@ func TestRLSPolicyRowMarks(t *testing.T) {
 	// Repeated marked and unmarked initialization validates afresh without
 	// discarding previously assigned occurrence IDs or the shared leaves.
 	e.Mu.Lock()
-	err = e.InitializeQueryLocksLocked(scope, nil, scope.QuerySources)
+	err = core.EngineInitializeQueryLocksLocked(e, scope, nil, scope.QuerySources)
 	if err == nil {
-		err = e.InitializeQueryLocksLocked(scope, nil, nil)
+		err = core.EngineInitializeQueryLocksLocked(e, scope, nil, nil)
 	}
 	e.Mu.Unlock()
 	if err != nil || scope.QueryLockContext != locks || len(locks.Leaves) != 5 || locks.IdentityOnly {

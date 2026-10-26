@@ -389,7 +389,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		}
 	}
 	if b.Query != nil || b.SubqueryDemand || len(b.QuerySources) != 0 {
-		if err = e.InitializeQueryLocksLocked(scope, queryRoot, b.QuerySources); err != nil {
+		if err = e.initializeQueryLocksLocked(scope, queryRoot, b.QuerySources); err != nil {
 			e.Mu.Unlock()
 			return Result{}, err
 		}
@@ -581,7 +581,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			}
 			view, err = scope.AcquireDataViewsLocked(e, refs)
 		} else {
-			view, err = scope.AcquireDataViewLocked(e, b.Ref)
+			view, err = scope.acquireDataViewLocked(e, b.Ref)
 		}
 		if err != nil {
 			e.Mu.Unlock()
@@ -619,7 +619,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			}
 			view, viewErr = scope.AcquireDataViewsLocked(e, refs)
 		} else {
-			view, viewErr = scope.AcquireDataViewLocked(e, b.Ref)
+			view, viewErr = scope.acquireDataViewLocked(e, b.Ref)
 		}
 		var inputs *exec.Source
 		if viewErr == nil && (b.Delete.Using != nil || b.SubqueryDemand) {

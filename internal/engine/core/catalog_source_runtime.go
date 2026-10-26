@@ -54,7 +54,7 @@ func (r EngineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	readRestricted, err := r.Auth.CanReadRestrictedSettings()
+	readRestricted, err := r.Auth.canReadRestrictedSettings()
 	if err != nil {
 		return nil, err
 	}

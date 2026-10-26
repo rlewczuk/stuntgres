@@ -466,10 +466,10 @@ func TestRLSAuthorityFrame(t *testing.T) {
 	outer := core.NewPreparedCommandExecution(core.PreparedCommandExecutionFields{PolicyWaits: 1})
 	inner := core.NewPreparedCommandExecution(core.PreparedCommandExecutionFields{PolicyWaits: 2})
 	*core.ScopeRLSCommandRef(scope), *core.ScopeRLSImportWaitsRef(scope) = outer, 1
-	rule := scope.RuleScratch()
+	rule := core.ScopeRuleScratch(scope)
 	core.SetScopeRLSCommand(scope, inner)
 	*core.ScopeRLSImportWaitsRef(scope)++
-	scope.InstallRuleScratch(rule)
+	core.ScopeInstallRuleScratch(scope, rule)
 	if core.ScopeRLSCommand(scope) != outer || core.ScopeRLSImportWaits(scope) != 2 || core.PreparedCommandExecutionPolicyWaits(outer) != 1 {
 		t.Fatal("rule frame lost pending original authority")
 	}

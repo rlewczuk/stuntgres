@@ -28,7 +28,7 @@ type RuleActionScope struct {
 // Only command-local target/source scratch changes. Publication, the operation,
 // parameter frame, original signature, snapshot frontier and budget remain owned
 // by the original StatementScope and its one WriteStage/Finish.
-type RuleCommandScratch struct {
+type ruleCommandScratch struct {
 	Mutation   StatementMutation
 	Ref        ids.ObjectRef
 	Descriptor catalog.Descriptor
@@ -46,10 +46,10 @@ type RuleCommandScratch struct {
 	rlsCommand *preparedCommandExecution
 }
 
-func (s *StatementScope) RuleScratch() RuleCommandScratch {
-	return RuleCommandScratch{Mutation: s.StatementMutation, Ref: s.LockedRef, Descriptor: s.LockedDescriptor, Storage: s.LockedStorage, ViewWrite: s.ViewWrite, Sources: s.QuerySources, unique: s.UniqueBinding, conflict: s.InsertConflict, returning: s.InsertReturning, partition: s.PartitionInsert, locks: s.QueryLockContext, admission: s.QueryLockAdmission, RuleAction: s.ruleAction, quotes: s.quoteCaptures, rlsCommand: s.rlsCommand}
+func (s *StatementScope) ruleScratch() ruleCommandScratch {
+	return ruleCommandScratch{Mutation: s.StatementMutation, Ref: s.LockedRef, Descriptor: s.LockedDescriptor, Storage: s.LockedStorage, ViewWrite: s.ViewWrite, Sources: s.QuerySources, unique: s.UniqueBinding, conflict: s.InsertConflict, returning: s.InsertReturning, partition: s.PartitionInsert, locks: s.QueryLockContext, admission: s.QueryLockAdmission, RuleAction: s.ruleAction, quotes: s.quoteCaptures, rlsCommand: s.rlsCommand}
 }
-func (s *StatementScope) InstallRuleScratch(c RuleCommandScratch) {
+func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.StatementMutation = c.Mutation
 	s.LockedRef, s.LockedDescriptor, s.LockedStorage = c.Ref, c.Descriptor, c.Storage
 	s.ViewWrite, s.QuerySources = c.ViewWrite, c.Sources
@@ -93,7 +93,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	}
 	for i := range program.Commands {
 		command := &program.Commands[i]
-		if err := analyze.CheckBinding(RuleAuthorizationOf(command.Auth), command.Binding, command.Syntax); err != nil {
+		if err := analyze.CheckBinding(ruleAuthorizationOf(command.Auth), command.Binding, command.Syntax); err != nil {
 			e.Mu.Unlock()
 			return Result{}, err
 		}
@@ -110,7 +110,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	}
 	e.Mu.Unlock()
 	scope.RoutineAuth = auth
-	original := scope.RuleScratch()
+	original := scope.ruleScratch()
 	captureOwner := program.Returning
 	if captureOwner < 0 {
 		captureOwner = program.Count
@@ -119,7 +119,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	originalWrites, originalDeletes := scope.OwnWrites, scope.OwnDeletes
 	originalView := scope.View
 	defer func() {
-		scope.InstallRuleScratch(original)
+		scope.installRuleScratch(original)
 		scope.ActiveMutation = originalMutation
 		scope.OwnWrites, scope.OwnDeletes = originalWrites, originalDeletes
 		if originalView != nil && scope.View != originalView {
@@ -144,8 +144,8 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			return Result{}, err
 		}
 		physical := view.PhysicalBinding(command.Binding)
-		commandAuth := RuleAuthorizationOf(command.Auth)
-		scope.InstallRuleScratch(RuleCommandScratch{Mutation: StatementMutation{Statement: command.Syntax}, Ref: physical.Ref, Descriptor: physical.Relation, Storage: physical.Storage, ViewWrite: view.ViewWriteOf(command.Binding.ViewWrite), Sources: command.Binding.QuerySources, RuleAction: RuleActionScope{Auth: &commandAuth}})
+		commandAuth := ruleAuthorizationOf(command.Auth)
+		scope.installRuleScratch(ruleCommandScratch{Mutation: StatementMutation{Statement: command.Syntax}, Ref: physical.Ref, Descriptor: physical.Relation, Storage: physical.Storage, ViewWrite: view.ViewWriteOf(command.Binding.ViewWrite), Sources: command.Binding.QuerySources, RuleAction: RuleActionScope{Auth: &commandAuth}})
 		// Preparation saves this command's scratch for execution. Only the
 		// designated result provider inherits the original capture policy.
 		if i == captureOwner {
@@ -167,7 +167,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			return Result{}, err
 		}
 		scope.ActiveMutation = prepared[i].MainMutation
-		scope.InstallRuleScratch(prepared[i].MainScratch)
+		scope.installRuleScratch(prepared[i].MainScratch)
 		// Immutable prefix roots are visible to this program only. No owner merge
 		// or newer committed frontier is introduced between actions.
 		if originalView != nil {

@@ -141,9 +141,6 @@ func ProcedureReturnsSet(d *catalog.Procedure) bool {
 	return procedureReturnsSet(d)
 }
 
-// CursorStage returns x.stage.
-func CursorStage(x *sqlCursor) *exec.Stage { return x.stage }
-
 // PartitionCheckReplayAllowed calls partitionCheckReplayAllowed.
 func PartitionCheckReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
 	return partitionCheckReplayAllowed(op, auth, raw, d)
@@ -152,11 +149,6 @@ func PartitionCheckReplayAllowed(op *session.Operation, auth AuthorizationView, 
 // PartitionUsingIndexReplayAllowed calls partitionUsingIndexReplayAllowed.
 func PartitionUsingIndexReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
 	return partitionUsingIndexReplayAllowed(op, auth, raw, table)
-}
-
-// BindingHostView calls x.view.
-func BindingHostView(x *BindingHost, a analyze.Authority) AuthorizationView {
-	return x.view(a)
 }
 
 // StageValidateIndexMaintenance calls x.validateIndexMaintenance.

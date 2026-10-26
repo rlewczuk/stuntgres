@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"io"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -94,4 +95,9 @@ func ScopeAcquireInheritedMutationTargets(x *StatementScope, statement parser.St
 // ScopeMutationStorage calls x.mutationStorage.
 func ScopeMutationStorage(x *StatementScope, ref ids.ObjectRef) *storage.Relation {
 	return x.mutationStorage(ref)
+}
+
+// ScopeCopyProtocol calls x.copyProtocol.
+func ScopeCopyProtocol(x *StatementScope, syntax *parser.Copy, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (int64, error) {
+	return x.copyProtocol(syntax, source, destination, hooks)
 }

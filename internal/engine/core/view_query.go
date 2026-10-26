@@ -93,7 +93,7 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 		}
 	}
 	if scope.MaterializedOrZero().Refresh && ref == scope.LockedRef {
-		if err := e.InitializeQueryLocksLocked(scope, root, leaves); err != nil {
+		if err := e.initializeQueryLocksLocked(scope, root, leaves); err != nil {
 			return nil, err
 		}
 		scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || definition.Query().VisibilitySnapshot

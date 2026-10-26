@@ -153,7 +153,7 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	view, err := scope.AcquireDataViewLocked(e, bound.Ref)
+	view, err := core.ScopeAcquireDataViewLocked(scope, e, bound.Ref)
 	e.Mu.Unlock()
 	if err != nil {
 		scope.Finish(err)

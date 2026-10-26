@@ -32,7 +32,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			continue
 		}
 		mutation, _ := analyze.MutationBinding(definition)
-		if err := analyze.CheckBinding(RuleAuthorizationOf(rewrite.Caller), *mutation, definition.Statement); err != nil {
+		if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.Caller), *mutation, definition.Statement); err != nil {
 			e.Mu.Unlock()
 			return nil, err
 		}

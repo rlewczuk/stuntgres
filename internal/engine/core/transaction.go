@@ -322,7 +322,7 @@ func (s *StatementScope) Active() error {
 	if s == nil || s.self != s || s.Finished {
 		return errors.New("stuntgres: inactive statement scope")
 	}
-	return s.Engine().ValidateOperation(s.Op)
+	return s.Engine().validateOperation(s.Op)
 }
 
 func (s *StatementScope) Gate(stmt parser.Statement) error {
@@ -598,7 +598,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 				return Result{}, err
 			}
 		}
-		copied, copyErr := s.CopyProtocol(copy, stream.source, stream.destination, stream.hooks)
+		copied, copyErr := s.copyProtocol(copy, stream.source, stream.destination, stream.hooks)
 		return Result{Count: copied}, copyErr
 	}
 	if control, ok := stmt.(*parser.SavepointControl); ok {

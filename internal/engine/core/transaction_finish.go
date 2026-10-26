@@ -80,7 +80,7 @@ func (s *StatementScope) Finish(err error) error {
 	// explicit work. Completed row/catalog/session utilities have already passed
 	// their installation preflight; later cancellation cannot retract success.
 	if err == nil && s.worked && !s.Completed {
-		err = e.ValidateOperation(s.Op)
+		err = e.validateOperation(s.Op)
 	}
 	if err == nil && s.worked && s.Catalog != nil {
 		t.Mu.Unlock()

@@ -20,7 +20,7 @@ type cteCommandExecution struct {
 	mutation   int
 	statement  parser.Statement
 	ruleOwner  bool
-	scratch    RuleCommandScratch
+	scratch    ruleCommandScratch
 }
 
 type PreparedCTEProgram struct {
@@ -28,7 +28,7 @@ type PreparedCTEProgram struct {
 	auth           AuthorizationView
 	commands       []cteCommandExecution
 	main           preparedCommandExecution
-	MainScratch    RuleCommandScratch
+	MainScratch    ruleCommandScratch
 	MainMutation   int
 	normalizedRefs []ids.ObjectRef
 }
@@ -59,7 +59,7 @@ func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parse
 			return Result{}, err
 		}
 		prepared.binding, prepared.auth = b, auth
-		prepared.MainScratch, prepared.MainMutation = scope.RuleScratch(), scope.ActiveMutation
+		prepared.MainScratch, prepared.MainMutation = scope.ruleScratch(), scope.ActiveMutation
 		return Result{}, nil
 	}
 	if err := view.NormalizeRuleCTEsLocked(&e.Catalog.Owner, auth, statement, &b); err != nil {
@@ -112,7 +112,7 @@ func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parse
 			if _, selectOnly := rewrite.Command.Syntax.(*parser.Select); selectOnly {
 				continue
 			}
-			ruleAuth := RuleAuthorizationOf(rewrite.Command.Auth)
+			ruleAuth := ruleAuthorizationOf(rewrite.Command.Auth)
 			syntax, commandBinding, commandAuth = rewrite.Command.Syntax, rewrite.Command.Binding, ruleAuth
 			scope.ruleAction = RuleActionScope{Auth: &ruleAuth}
 		} else {
@@ -132,7 +132,7 @@ func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parse
 		if _, err := e.executeBoundCommandLocked(scope, syntax, commandBinding, commandAuth, parameters, evaluation, nil, nil, &command.execution); err != nil {
 			return Result{}, err
 		}
-		command.scratch = scope.RuleScratch()
+		command.scratch = scope.ruleScratch()
 		commands = append(commands, command)
 		e.Mu.Lock()
 	}
@@ -144,7 +144,7 @@ func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parse
 		return Result{}, err
 	}
 	prepared.binding, prepared.auth, prepared.commands = b, auth, commands
-	prepared.main, prepared.MainScratch, prepared.MainMutation = preparedMain, scope.RuleScratch(), main
+	prepared.main, prepared.MainScratch, prepared.MainMutation = preparedMain, scope.ruleScratch(), main
 	prepared.normalizedRefs = normalizedRefs
 	return Result{}, nil
 }
@@ -153,7 +153,7 @@ func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parse
 func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, statement parser.Statement, prepared *PreparedCTEProgram, parameters []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
 	b, auth, commands := prepared.binding, prepared.auth, prepared.commands
 	scope.ActiveMutation = prepared.MainMutation
-	scope.InstallRuleScratch(prepared.MainScratch)
+	scope.installRuleScratch(prepared.MainScratch)
 	if len(b.CTEs) == 0 {
 		return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 	}
@@ -269,7 +269,7 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 	for i := range commands {
 		command := &commands[i]
 		scope.ActiveMutation = command.mutation
-		scope.InstallRuleScratch(command.scratch)
+		scope.installRuleScratch(command.scratch)
 		scope.ruleAction = originalRuleAction
 		if command.ruleOwner {
 			scope.ruleAction = RuleActionScope{Auth: &command.execution.auth}
@@ -296,7 +296,7 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 		}
 	}
 	scope.activateMutation(main)
-	scope.InstallRuleScratch(prepared.MainScratch)
+	scope.installRuleScratch(prepared.MainScratch)
 	scope.ruleAction = originalRuleAction
 	result, failure = e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 	if failure == nil && result.Rows != nil && (scope.sqlRoutine.plCapture || scope.sqlRoutine.rows && !parser.HasModifyingCTE(statement)) {

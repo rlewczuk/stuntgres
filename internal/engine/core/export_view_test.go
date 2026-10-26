@@ -49,3 +49,21 @@ func NewRowSecurityProgram(f RowSecurityProgramFields) *rowSecurityProgram {
 
 // RowSecurityProgramSources returns x.sources.
 func RowSecurityProgramSources(x *rowSecurityProgram) []policySourcePreparation { return x.sources }
+
+// RuleAuthorizationOf calls ruleAuthorizationOf.
+func RuleAuthorizationOf(auth view.RuleAuthority) AuthorizationView {
+	return ruleAuthorizationOf(auth)
+}
+
+// RuleCommandScratch names ruleCommandScratch.
+type RuleCommandScratch = ruleCommandScratch
+
+// ScopeInstallRuleScratch calls x.installRuleScratch.
+func ScopeInstallRuleScratch(x *StatementScope, c RuleCommandScratch) {
+	x.installRuleScratch(c)
+}
+
+// ScopeRuleScratch calls x.ruleScratch.
+func ScopeRuleScratch(x *StatementScope) RuleCommandScratch {
+	return x.ruleScratch()
+}

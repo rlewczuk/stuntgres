@@ -449,13 +449,13 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 	core.SetWriteStageSelf(&s.Stage, &s.Stage)
 	core.SetWriteStageScope(&s.Stage, s)
 	s.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{src.Address(): {{Row: 1, Version: 1}}}
-	before := s.RuleScratch()
+	before := core.ScopeRuleScratch(s)
 	stageRows := s.Stage.Rows
-	s.InstallRuleScratch(core.RuleCommandScratch{Ref: ruleUnitRef(e, sink), Descriptor: sink})
+	core.ScopeInstallRuleScratch(s, core.RuleCommandScratch{Ref: ruleUnitRef(e, sink), Descriptor: sink})
 	if core.WriteStageSelf(&s.Stage) != &s.Stage || core.WriteStageScope(&s.Stage) != s || len(s.Stage.Rows[src.Address()]) != 1 || s.Expected != expected || core.ScopeStatementStart(s) != start {
 		t.Fatal("action scratch changed original envelope/stage")
 	}
-	s.InstallRuleScratch(before)
+	core.ScopeInstallRuleScratch(s, before)
 	if s.LockedRef.Address != src.Address() || !maps.EqualFunc(stageRows, s.Stage.Rows, func(a, b []storage.RowVersion) bool { return len(a) == len(b) && a[0].Row == b[0].Row }) {
 		t.Fatal("scratch restoration lost original stage")
 	}

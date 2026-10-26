@@ -83,3 +83,8 @@ func EnginePublicationRolesLocked(x *Engine, ctx context.Context, c *session.Jou
 func EngineRoleSessionCountLocked(x *Engine, ref authorization.PrincipalRef) int {
 	return x.roleSessionCountLocked(ref)
 }
+
+// AuthorizationCanReadRestrictedSettings calls x.canReadRestrictedSettings.
+func AuthorizationCanReadRestrictedSettings(x AuthorizationView) (bool, error) {
+	return x.canReadRestrictedSettings()
+}

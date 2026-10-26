@@ -25,7 +25,7 @@ func TestCopyFilterFinishVeto(t *testing.T) {
 				syntax = enginetest.Statement(t, "COPY t(v) FROM STDIN WITH(ON_ERROR ignore) WHERE FALSE").(*parser.Copy)
 			}
 			veto := errors.New("COPY filter terminal veto")
-			count, err := scope.CopyProtocol(syntax, strings.NewReader(tc.input), nil, core.CopyProtocolHooks{FinishInput: func() error { return veto }})
+			count, err := core.ScopeCopyProtocol(scope, syntax, strings.NewReader(tc.input), nil, core.CopyProtocolHooks{FinishInput: func() error { return veto }})
 			if count != 0 || !errors.Is(err, veto) {
 				t.Fatal(count, err)
 			}

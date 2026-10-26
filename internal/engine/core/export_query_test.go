@@ -79,3 +79,8 @@ func PolicySourcePreparationClause(x *policySourcePreparation) *exec.RLSRuntimeC
 
 // QuerySourcePreparationConsumed returns x.consumed.
 func QuerySourcePreparationConsumed(x *querySourcePreparation) bool { return x.consumed }
+
+// EngineInitializeQueryLocksLocked calls x.initializeQueryLocksLocked.
+func EngineInitializeQueryLocksLocked(x *Engine, scope *StatementScope, root plan.Node, leaves []exec.Leaf) error {
+	return x.initializeQueryLocksLocked(scope, root, leaves)
+}

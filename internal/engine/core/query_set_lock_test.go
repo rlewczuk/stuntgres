@@ -194,7 +194,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		scope := &core.StatementScope{Owner: &session.TransactionOwner{}}
 		leaf := exec.Leaf{Ref: tc.ref, Relation: d, Mark: tc.mark, Query: &parser.Select{Locking: []parser.RowLockClause{{}}}}
 		e.Mu.Lock()
-		err := e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{leaf})
+		err := core.EngineInitializeQueryLocksLocked(e, scope, nil, []exec.Leaf{leaf})
 		e.Mu.Unlock()
 		if tc.code == "" {
 			if err != nil {
@@ -226,7 +226,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e.Catalog.State.SetDescriptor(set.Address, &d)
 	scope := &core.StatementScope{Owner: &session.TransactionOwner{}}
 	e.Mu.Lock()
-	err := e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: set, Relation: &d, Mark: localMark}})
+	err := core.EngineInitializeQueryLocksLocked(e, scope, nil, []exec.Leaf{{Ref: set, Relation: &d, Mark: localMark}})
 	e.Mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("set boundary skipped stale arm admission", err)

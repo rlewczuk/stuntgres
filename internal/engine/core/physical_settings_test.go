@@ -90,7 +90,7 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 		current := state
 		current.CurrentUser = principal.Ref
 		view := core.AuthorizationView{View: access.View{Roles: roles, State: current}}
-		allowed, err := view.CanReadRestrictedSettings()
+		allowed, err := core.AuthorizationCanReadRestrictedSettings(view)
 		if err != nil || allowed != tc.allowed {
 			t.Fatal(tc.role, allowed, err)
 		}
@@ -142,11 +142,11 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 	}
 	for _, current := range []authorization.PrincipalRef{{}, domain.Principal(99999), (&authorization.Domain{}).Principal(10)} {
 		view := core.AuthorizationView{View: access.View{Roles: roles, State: authorization.RoleState{CurrentUser: current}}}
-		if _, err := view.CanReadRestrictedSettings(); err == nil {
+		if _, err := core.AuthorizationCanReadRestrictedSettings(view); err == nil {
 			t.Fatal("invalid authority accepted", current)
 		}
 	}
-	if allowed, err := (core.AuthorizationView{}).CanReadRestrictedSettings(); allowed || err == nil {
+	if allowed, err := core.AuthorizationCanReadRestrictedSettings((core.AuthorizationView{})); allowed || err == nil {
 		t.Fatal("absent authority must not grant restricted reads", allowed, err)
 	}
 	restricted, ok := roles.Lookup("pg_read_all_settings")
@@ -155,7 +155,7 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 	}
 	incomplete := root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{restricted.Ref: restricted})
 	broken := core.AuthorizationView{View: access.View{Roles: incomplete.Read(bootstrap), State: state}}
-	if allowed, err := broken.CanReadRestrictedSettings(); allowed || err == nil {
+	if allowed, err := core.AuthorizationCanReadRestrictedSettings(broken); allowed || err == nil {
 		t.Fatal("missing restricted-read role must remain an authority error", allowed, err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())

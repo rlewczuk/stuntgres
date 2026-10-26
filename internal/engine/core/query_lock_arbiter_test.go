@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
@@ -61,7 +62,7 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), leaves[0].Relation.Columns...), leaves[1].Relation.Columns...), Left: &plan.SourceNode{QuerySchema: leaves[0].Relation.Columns, Ref: tRef, Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: leaves[1].Relation.Columns, Ref: uRef, Occurrence: 1}, LeftWidth: len(leaves[0].Relation.Columns), RightWidth: len(leaves[1].Relation.Columns)}
 	root := &plan.RowLockNode{QuerySchema: join.Schema(), Child: join, Marks: marks, FirstMode: lock.ForUpdate}
 	e.Mu.Lock()
-	err = e.InitializeQueryLocksLocked(scope, root, leaves)
+	err = core.EngineInitializeQueryLocksLocked(e, scope, root, leaves)
 	var inputs *exec.Source
 	if err == nil {
 		inputs, err = e.CaptureQuerySourcesLocked(scope, leaves, false)

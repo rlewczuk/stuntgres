@@ -144,7 +144,7 @@ func pgrowlocksDynamicSnapshotUnits(t *testing.T) {
 			}
 			scope.Owner.Mu.Lock()
 			e.Mu.Lock()
-			first, err := scope.AcquireDataViewLocked(e, outerRef)
+			first, err := core.ScopeAcquireDataViewLocked(scope, e, outerRef)
 			e.Mu.Unlock()
 			scope.Owner.Mu.Unlock()
 			if err != nil {

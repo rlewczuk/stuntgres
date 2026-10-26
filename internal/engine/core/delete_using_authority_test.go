@@ -118,14 +118,14 @@ func TestDeleteUsingReferenceKindDoesNotConferSourceLocks(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "seq")
 	e.Mu.Lock()
 	relation := e.Catalog.State.MustRelation(ref.Address)
-	err = e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: ref, Relation: relation, DeleteReference: true}})
+	err = core.EngineInitializeQueryLocksLocked(e, scope, nil, []exec.Leaf{{Ref: ref, Relation: relation, DeleteReference: true}})
 	e.Mu.Unlock()
 	waitsDiagnostic(t, err, "42809", `cannot lock rows in sequence "seq"`)
 	if scope.QueryLockContext != nil {
 		t.Fatal("reference-kind rejection created tuple-lock authority")
 	}
 	e.Mu.Lock()
-	err = e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: ref, Relation: relation}})
+	err = core.EngineInitializeQueryLocksLocked(e, scope, nil, []exec.Leaf{{Ref: ref, Relation: relation}})
 	e.Mu.Unlock()
 	if err != nil || scope.QueryLockContext != nil {
 		t.Fatal("DELETE kind policy leaked into ordinary source reads", err)

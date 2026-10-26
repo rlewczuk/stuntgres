@@ -11,7 +11,7 @@ func (s *StatementScope) ProtocolOutput(write func() error) (err error) {
 	}
 	err = s.protocolTerminalIO(write)
 	if err == nil {
-		err = s.Engine().ValidateOperation(s.Op)
+		err = s.Engine().validateOperation(s.Op)
 	}
 	return err
 }

@@ -25,10 +25,10 @@ func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*visibility.View, e
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return s.AcquireDataViewLocked(e, ref)
+	return s.acquireDataViewLocked(e, ref)
 }
 
-func (s *StatementScope) AcquireDataViewLocked(e *Engine, ref ids.ObjectRef) (*visibility.View, error) {
+func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ids.ObjectRef) (*visibility.View, error) {
 	return s.AcquireDataViewsLocked(e, []ids.ObjectRef{ref})
 }
 

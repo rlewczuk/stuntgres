@@ -80,7 +80,7 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 			e.Mu.Unlock()
 			return Result{}, err
 		}
-		readRestricted, err = auth.CanReadRestrictedSettings()
+		readRestricted, err = auth.canReadRestrictedSettings()
 		if err != nil {
 			e.Mu.Unlock()
 			return Result{}, err

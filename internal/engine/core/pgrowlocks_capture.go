@@ -99,10 +99,10 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 				view, err = s.CaptureDataViewsAtLocked(e, []ids.ObjectRef{ref}, false, s.View.Load())
 				local = true
 			} else {
-				view, err = s.AcquireDataViewLocked(e, ref)
+				view, err = s.acquireDataViewLocked(e, ref)
 			}
 		} else {
-			view, err = s.AcquireDataViewLocked(e, ref)
+			view, err = s.acquireDataViewLocked(e, ref)
 		}
 	}
 	e.Mu.Unlock()

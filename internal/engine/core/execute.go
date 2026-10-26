@@ -20,7 +20,7 @@ import (
 
 func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
 	op := scope.Op
-	if err := e.ValidateOperation(op); err != nil {
+	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
 	}
 	CaptureEnumOperationSafety(op, &scope.Input)

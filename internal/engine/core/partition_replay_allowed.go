@@ -12,7 +12,7 @@ func PartitionConstraintReplayImport(e *Engine, op *session.Operation, auth Auth
 	if e == nil || op == nil || op.Self != op || op.Session == nil || EngineOf(op.Session) != e || e.ImportTargets == nil || auth.Owner != &e.Catalog.Owner || auth.Session != op.Session || auth.RoleRecord != e.RoleStore.Published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.Catalog.Domain || auth.Catalog.State() != e.Catalog.State || auth.Catalog.Epoch() != e.Catalog.State.Epoch() {
 		return false
 	}
-	if err := e.ValidateOperation(op); err != nil {
+	if err := e.validateOperation(op); err != nil {
 		return false
 	}
 	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)

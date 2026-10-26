@@ -154,7 +154,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}
 	readRestricted := false
 	if s.Name == "current_setting" {
-		readRestricted, err = current.CanReadRestrictedSettings()
+		readRestricted, err = current.canReadRestrictedSettings()
 		if err != nil {
 			e.Mu.Unlock()
 			return Result{}, err

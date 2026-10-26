@@ -33,10 +33,10 @@ func (v AuthorizationView) StorageLocked(a ids.ObjectAddress) *storage.Relation 
 	return session.PrivateStorage(v.inputs.Storage, journal, a)
 }
 
-// RuleAuthorizationOf recovers the full authorization view of a rule
+// ruleAuthorizationOf recovers the full authorization view of a rule
 // command. Every view.RuleAuthority is an AuthorizationView; anything else is a
 // programming error.
-func RuleAuthorizationOf(auth view.RuleAuthority) AuthorizationView {
+func ruleAuthorizationOf(auth view.RuleAuthority) AuthorizationView {
 	v, ok := auth.(AuthorizationView)
 	if !ok {
 		panic(fmt.Sprintf("stuntgres: rule authority %T is not an AuthorizationView", auth))

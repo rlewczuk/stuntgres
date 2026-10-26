@@ -301,7 +301,7 @@ func TestProtocolCopyHooks(t *testing.T) {
 		e.Mu.Lock()
 		frontier := e.Visibility.CommitSeq()
 		e.Mu.Unlock()
-		count, err := scope.CopyProtocol(copyUnitSyntax(), bytes.NewBufferString("1\n\\.\nignored"), nil, core.CopyProtocolHooks{FinishInput: func() error {
+		count, err := core.ScopeCopyProtocol(scope, copyUnitSyntax(), bytes.NewBufferString("1\n\\.\nignored"), nil, core.CopyProtocolHooks{FinishInput: func() error {
 			called = true
 			if !s.Transactions.Admission.TryLock() {
 				t.Fatal("terminal hook held owner admission")

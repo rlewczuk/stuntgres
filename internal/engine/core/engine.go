@@ -231,7 +231,7 @@ func (e *Engine) Describe(op *session.Operation, stmt parser.Statement) (info St
 func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement) (StatementDescription, error) {
 	op := scope.Op
 	scope.Input.LockedDomainInput = scope
-	if err := e.ValidateOperation(op); err != nil {
+	if err := e.validateOperation(op); err != nil {
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
@@ -306,7 +306,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			if err != nil {
 				return StatementDescription{}, err
 			}
-			readRestricted, err = auth.CanReadRestrictedSettings()
+			readRestricted, err = auth.canReadRestrictedSettings()
 			if err != nil {
 				return StatementDescription{}, err
 			}

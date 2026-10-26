@@ -32,7 +32,7 @@ func TestProtocolCopyInputStartOwnership(t *testing.T) {
 				op.Cancel(cause)
 			}
 			called := false
-			count, err := scope.CopyProtocol(copyUnitSyntax(), strings.NewReader(tc.input), nil, core.CopyProtocolHooks{Start: func(core.CopyProtocolMetadata) error {
+			count, err := core.ScopeCopyProtocol(scope, copyUnitSyntax(), strings.NewReader(tc.input), nil, core.CopyProtocolHooks{Start: func(core.CopyProtocolMetadata) error {
 				called = true
 				// Cancel in the actual publication callback, before copyIO's
 				// resume check. No scheduler timing or socket speed is involved.

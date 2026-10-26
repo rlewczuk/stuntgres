@@ -185,7 +185,7 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 	// AdmitExpression already validates every nested marked query's ordinary
 	// join/shape legality. Extend the existing physical occurrence owner rather
 	// than silently dropping supported marks or creating a clause-local arbiter.
-	if err := e.InitializeQueryLocksLocked(s, nil, binding.QuerySources); err != nil {
+	if err := e.initializeQueryLocksLocked(s, nil, binding.QuerySources); err != nil {
 		return err
 	}
 	if s.Owner.ReadOnly {

@@ -36,7 +36,7 @@ func (s *StatementScope) leaveSQLRoutine() {
 // existing waits/providers alone release/reacquire it and Finish sees its real flag.
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
-	command              RuleCommandScratch
+	command              ruleCommandScratch
 	mutations            []StatementMutation
 	activeMutation       int
 	cteInvocation        *exec.CTEInvocation
@@ -72,7 +72,7 @@ type sqlRoutineScratch struct {
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	return sqlRoutineScratch{
-		command: s.RuleScratch(), mutations: s.mutations, activeMutation: s.ActiveMutation, cteInvocation: s.cteInvocation,
+		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.ActiveMutation, cteInvocation: s.cteInvocation,
 		activeViews: s.ViewCreationOrZero().Active, inheritanceRelations: s.Inheritance.relations, inheritanceCatalog: s.Inheritance.catalog,
 		authority: s.authority, routineAuth: s.RoutineAuth, expected: s.Expected,
 		routineDependencies: s.RoutineDependencies,
@@ -89,7 +89,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	}
 }
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
-	s.InstallRuleScratch(c.command)
+	s.installRuleScratch(c.command)
 	s.mutations, s.ActiveMutation, s.cteInvocation = c.mutations, c.activeMutation, c.cteInvocation
 	s.setActiveViews(c.activeViews)
 	s.Inheritance.relations, s.Inheritance.catalog = c.inheritanceRelations, c.inheritanceCatalog

@@ -50,7 +50,7 @@ func TestProtocolCopyInputContext(t *testing.T) {
 		if observed, ok := input.Deadline(); !ok || !observed.Equal(deadline) {
 			t.Fatal("COPY input changed its captured absolute deadline", observed, ok)
 		}
-		if err := e.ValidateOperation(op); err != nil {
+		if err := core.EngineValidateOperation(e, op); err != nil {
 			t.Fatal("input view lost actual operation admission", err)
 		}
 		typ := enginetest.Usage(e, sqltype.Int4).Type
@@ -71,11 +71,11 @@ func TestProtocolCopyInputContext(t *testing.T) {
 			t.Fatal("successful conversion lost pending cancellation", err)
 		}
 		op.CopyInput.Decoding.Store(false)
-		if !errors.Is(e.ValidateOperation(op), context.Canceled) || op.Context().Err() != context.Canceled {
+		if !errors.Is(core.EngineValidateOperation(e, op), context.Canceled) || op.Context().Err() != context.Canceled {
 			t.Fatal("input cancellation hold escaped decoder into assembly")
 		}
 		op.StopCopyInput()
-		if op.Ctx != original || op.SourceContext != originalSource || !errors.Is(e.ValidateOperation(op), context.Canceled) || cause.Context != "" {
+		if op.Ctx != original || op.SourceContext != originalSource || !errors.Is(core.EngineValidateOperation(e, op), context.Canceled) || cause.Context != "" {
 			t.Fatal("input hold changed source authority or leaked past its lifetime")
 		}
 	})
@@ -164,7 +164,7 @@ func TestProtocolCopyStartCancellation(t *testing.T) {
 				}
 				*core.ProtocolScopeSimpleRef(core.ScopeProtocol(scope)), *core.ProtocolScopeCommandRef(core.ScopeProtocol(scope)) = simple, !simple
 				cause := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request"}
-				count, err := scope.CopyProtocol(enginetest.Statement(t, "COPY t FROM STDIN").(*parser.Copy), strings.NewReader(input.text), nil, core.CopyProtocolHooks{
+				count, err := core.ScopeCopyProtocol(scope, enginetest.Statement(t, "COPY t FROM STDIN").(*parser.Copy), strings.NewReader(input.text), nil, core.CopyProtocolHooks{
 					Start: func(core.CopyProtocolMetadata) error {
 						// The frontend can cancel as soon as CopyInResponse is sent,
 						// before the start hook returns to the engine.

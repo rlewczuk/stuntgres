@@ -274,7 +274,7 @@ func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *s
 	}
 	b = commands.Commands[0].Binding
 	physical := view.PhysicalBinding(b)
-	s.InstallRuleScratch(RuleCommandScratch{Mutation: StatementMutation{Statement: action.Syntax()}, Ref: physical.Ref, Descriptor: physical.Relation, Storage: physical.Storage, ViewWrite: view.ViewWriteOf(b.ViewWrite), Sources: b.QuerySources})
+	s.installRuleScratch(ruleCommandScratch{Mutation: StatementMutation{Statement: action.Syntax()}, Ref: physical.Ref, Descriptor: physical.Relation, Storage: physical.Storage, ViewWrite: view.ViewWriteOf(b.ViewWrite), Sources: b.QuerySources})
 	s.sqlRoutine.binding = &b
 	e.Mu.Unlock()
 	return nil

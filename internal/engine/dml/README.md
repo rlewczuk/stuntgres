@@ -177,7 +177,7 @@ Package-internal helpers keep lower-case names.
   `Stage` windows and row publication, writable-CTE orchestration, and the
   locked prologues that turn an `Outcome` into a `Result`
   (`executeInsertLocked`, `execute_bound.go`, `executeForeignCommandLocked`).
-- The COPY protocol: `CopyProtocol`, input capture, the default loop around
+- The COPY protocol: `copyProtocol`, input capture, the default loop around
   `FoldDefault`, `copyIO` and COPY TO output.
 - Host windows: row lock waits, `LatestRow` with its lock and epoch checks, and
   the authority capture behind `RowDiagnosticDetail`.

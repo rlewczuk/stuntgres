@@ -47,7 +47,7 @@ func TestQueryLockContextsAndReferenceKinds(t *testing.T) {
 				query, err = binder.BindSelect(raw, false)
 			}
 			if err == nil {
-				err = e.InitializeQueryLocksLocked(scope, query.Root, binder.Query.Sources)
+				err = core.EngineInitializeQueryLocksLocked(e, scope, query.Root, binder.Query.Sources)
 			}
 			e.Mu.Unlock()
 			if tc.sequenceError {

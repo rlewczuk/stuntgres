@@ -176,6 +176,6 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	return s, nil
 }
 
-func (e *Engine) ValidateOperation(op *session.Operation) error {
+func (e *Engine) validateOperation(op *session.Operation) error {
 	return session.ValidateOperation(DomainOf(e), op)
 }

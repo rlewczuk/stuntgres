@@ -638,7 +638,7 @@ session, transaction, prepared-analysis and typed-frame authorities.
 - `ExecuteProtocolSimple` streams plain SELECT from the live producer; other
   row-returning commands fill a row store first, so an inner failure emits no
   partial rows. Stored typed rows are never rewritten or replayed.
-- `CopyProtocol` hooks run outside engine/publication locks and admission; wire
+- `CopyProtocolHooks` run outside engine/publication locks and admission; wire
   COPY FROM holds a cancellation owner through decoding, released on every exit.
 - Session checks observe due transaction/idle budgets under `Session.Mu` before
   publishing a lease, with one timestamp for both slots. A statement timeout

@@ -30,7 +30,7 @@ func (e *Engine) AdmitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			seen[definition] = true
 			mutation, _ := analyze.MutationBinding(definition)
-			if err := analyze.CheckBinding(RuleAuthorizationOf(rewrite.Caller), *mutation, definition.Statement); err != nil {
+			if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.Caller), *mutation, definition.Statement); err != nil {
 				e.Mu.Unlock()
 				return nil, err
 			}
@@ -68,7 +68,7 @@ func (e *Engine) AdmitRuleCommandsLocked(scope *StatementScope, statement parser
 				refs = append(refs, physical.Ref)
 			}
 		}
-		commandAuth := RuleAuthorizationOf(command.Auth)
+		commandAuth := ruleAuthorizationOf(command.Auth)
 		collectAuth := commandAuth
 		collectAuth.Recapture(scope.inheritanceRead(commandAuth.Catalog))
 		principal := func(leaf exec.Leaf) authorization.PrincipalRef {
@@ -157,7 +157,7 @@ func (e *Engine) AdmitRuleCommandsLocked(scope *StatementScope, statement parser
 		}
 	}
 	for i := range commands {
-		current := RuleAuthorizationOf(commands[i].Auth)
+		current := ruleAuthorizationOf(commands[i].Auth)
 		if err := analyze.CheckBinding(current, commands[i].Binding, commands[i].Syntax); err != nil {
 			e.Mu.Unlock()
 			return nil, err

@@ -28,7 +28,7 @@ func PartitionDefaultReplayAllowed(e *Engine, op *session.Operation, auth Author
 	if e == nil || op == nil || op.Self != op || !OperationReplayOrZero(op).DefaultReplay || op.Session == nil || EngineOf(op.Session) != e || e.ImportTargets == nil || auth.Owner != &e.Catalog.Owner || auth.Session != op.Session || auth.RoleRecord != e.RoleStore.Published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.Catalog.Domain || auth.Catalog.State() != e.Catalog.State || auth.Catalog.Epoch() != e.Catalog.State.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
 		return false
 	}
-	if err := e.ValidateOperation(op); err != nil {
+	if err := e.validateOperation(op); err != nil {
 		return false
 	}
 	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
@@ -45,7 +45,7 @@ func (e *Engine) PartitionParentAuthorization(op *session.Operation, auth Author
 	if e == nil || op.Self != op || op.Session == nil || EngineOf(op.Session) != e || e.ImportTargets == nil || auth.Owner != &e.Catalog.Owner || auth.Session != op.Session || auth.RoleRecord != e.RoleStore.Published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.Catalog.Domain || auth.Catalog.State() != e.Catalog.State || auth.Catalog.Epoch() != e.Catalog.State.Epoch() {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition parent authority")
 	}
-	if err := e.ValidateOperation(op); err != nil {
+	if err := e.validateOperation(op); err != nil {
 		return AuthorizationView{}, err
 	}
 	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)

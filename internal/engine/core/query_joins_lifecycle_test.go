@@ -79,7 +79,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	}
 	frontier := e.Visibility.CommitSeq()
 	if err == nil {
-		_, widenErr = scope.AcquireDataViewLocked(e, unrelated)
+		_, widenErr = core.ScopeAcquireDataViewLocked(scope, e, unrelated)
 	}
 	e.Mu.Unlock()
 	if err != nil {

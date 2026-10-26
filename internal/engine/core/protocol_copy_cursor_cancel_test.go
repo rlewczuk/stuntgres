@@ -197,7 +197,7 @@ func TestProtocolCopyStartCancellationAuthority(t *testing.T) {
 			if tc.before {
 				cancel(tc.cause)
 			}
-			count, err := scope.CopyProtocol(copyUnitSyntax(), reader, nil, core.CopyProtocolHooks{Start: func(meta core.CopyProtocolMetadata) error {
+			count, err := core.ScopeCopyProtocol(scope, copyUnitSyntax(), reader, nil, core.CopyProtocolHooks{Start: func(meta core.CopyProtocolMetadata) error {
 				called = true
 				if !meta.From || meta.Format != 0 || len(meta.ColumnFormats) != 1 || meta.ColumnFormats[0] != 0 {
 					t.Fatal("incorrect actual COPY Start metadata", meta)

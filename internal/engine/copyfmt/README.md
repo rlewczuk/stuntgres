@@ -53,7 +53,7 @@ file.
 ## What stays outside
 
 - **Protocol** (root `copy_admission.go`, `protocol_copy*.go`,
-  `CopyBoundary`, `StatementScope.Copy`/`CopyProtocol`): reservation, the
+  `CopyBoundary`, `StatementScope.Copy`/`copyProtocol`): reservation, the
   wire hooks, releasing admission around every read and write
   (`copyReader`/`copyWriter` wrap the `io.Reader` this package receives),
   and cancellation. Wire-input checks (`CopyInput`,

@@ -511,3 +511,13 @@ func OwnerExtensionValueCursorCleanup(x ownerExtension) []*sqlCursor { return x.
 
 // SetOwnerExtensionCursorCleanup sets x.cursorCleanup.
 func SetOwnerExtensionCursorCleanup(x *ownerExtension, v []*sqlCursor) { x.cursorCleanup = v }
+
+// EngineValidateOperation calls x.validateOperation.
+func EngineValidateOperation(x *Engine, op *session.Operation) error {
+	return x.validateOperation(op)
+}
+
+// ScopeAcquireDataViewLocked calls x.acquireDataViewLocked.
+func ScopeAcquireDataViewLocked(x *StatementScope, e *Engine, ref ids.ObjectRef) (*visibility.View, error) {
+	return x.acquireDataViewLocked(e, ref)
+}

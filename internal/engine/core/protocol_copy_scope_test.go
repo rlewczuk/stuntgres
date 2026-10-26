@@ -59,7 +59,7 @@ func TestProtocolCopyQuerySignatureScope(t *testing.T) {
 				}
 				return 0, primary
 			})
-			_, commandErr = scope.CopyProtocol(enginetest.Statement(t, sql).(*parser.Copy), nil, writer, core.CopyProtocolHooks{})
+			_, commandErr = core.ScopeCopyProtocol(scope, enginetest.Statement(t, sql).(*parser.Copy), nil, writer, core.CopyProtocolHooks{})
 			if scope.Expected != outer {
 				t.Fatal("COPY did not restore caller signature after failure")
 			}

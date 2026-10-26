@@ -67,7 +67,7 @@ func updateFromBoundSources(t *testing.T, e *core.Engine, session *session.Sessi
 		scope.RoutineAuth, scope.RoutineDependencies = auth, b.Dependencies
 	}
 	if err == nil {
-		err = e.InitializeQueryLocksLocked(scope, nil, b.QuerySources)
+		err = core.EngineInitializeQueryLocksLocked(e, scope, nil, b.QuerySources)
 	}
 	if err == nil {
 		err = e.CaptureCommentSnapshotLocked(scope)
@@ -80,7 +80,7 @@ func updateFromBoundSources(t *testing.T, e *core.Engine, session *session.Sessi
 		_, err = scope.AcquireDataViewsLocked(e, refs)
 	}
 	if err == nil {
-		view, err = scope.AcquireDataViewLocked(e, b.Ref)
+		view, err = core.ScopeAcquireDataViewLocked(scope, e, b.Ref)
 	}
 	if err == nil {
 		source, err = exec.CaptureSource(op.Ctx, view, b.Ref)

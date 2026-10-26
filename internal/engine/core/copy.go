@@ -24,12 +24,12 @@ import (
 )
 
 func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination io.Writer) (count int64, err error) {
-	return s.CopyProtocol(syntax, source, destination, CopyProtocolHooks{})
+	return s.copyProtocol(syntax, source, destination, CopyProtocolHooks{})
 }
 
-// CopyProtocol shares the native stream executor. Hooks run at reserved I/O
+// copyProtocol shares the native stream executor. Hooks run at reserved I/O
 // boundaries, never while admission or publication locks are held.
-func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (count int64, err error) {
+func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (count int64, err error) {
 	if err = s.Gate(syntax); err != nil {
 		return
 	}
@@ -426,7 +426,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth
 func (s *StatementScope) copyTableRows(b analyze.Binding, auth AuthorizationView) (*exec.FinalRows, error) {
 	e := s.Engine()
 	e.Mu.Lock()
-	view, err := s.AcquireDataViewLocked(e, b.Ref)
+	view, err := s.acquireDataViewLocked(e, b.Ref)
 	if err == nil {
 		e.markTemporaryAccessLocked(s, b.Ref, temporaryOwnAccess)
 	}

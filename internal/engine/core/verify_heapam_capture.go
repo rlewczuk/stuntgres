@@ -93,10 +93,10 @@ func (h *statementHost) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Desc
 				view, err = s.CaptureDataViewsAtLocked(e, []ids.ObjectRef{ref}, false, s.View.Load())
 				local = true
 			} else {
-				view, err = s.AcquireDataViewLocked(e, ref)
+				view, err = s.acquireDataViewLocked(e, ref)
 			}
 		} else {
-			view, err = s.AcquireDataViewLocked(e, ref)
+			view, err = s.acquireDataViewLocked(e, ref)
 		}
 	} else if err == nil && sequence == nil {
 		err = fmt.Errorf("stuntgres: sequence state missing")

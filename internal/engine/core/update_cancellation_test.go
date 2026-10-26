@@ -48,7 +48,7 @@ func updateBoundSource(t *testing.T, e *core.Engine, s *session.Session, ctx con
 		scope.RoutineAuth, scope.RoutineDependencies = auth, b.Dependencies
 	}
 	if err == nil {
-		view, err = scope.AcquireDataViewLocked(e, b.Ref)
+		view, err = core.ScopeAcquireDataViewLocked(scope, e, b.Ref)
 	}
 	e.Mu.Unlock()
 	if err != nil {

@@ -100,7 +100,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			view, err := scope.AcquireDataViewLocked(e, b.QuerySources[0].Ref)
+			view, err := core.ScopeAcquireDataViewLocked(scope, e, b.QuerySources[0].Ref)
 			if err != nil {
 				e.Mu.Unlock()
 				t.Fatal(err)

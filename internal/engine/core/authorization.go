@@ -119,9 +119,9 @@ func (v AuthorizationView) WithCurrentUser(principal authorization.PrincipalRef)
 	return v, v.Roles.ValidatePrincipal(principal)
 }
 
-// CanReadRestrictedSettings uses only the captured effective principal and
+// canReadRestrictedSettings uses only the captured effective principal and
 // INHERIT closure. SET membership and authenticated identity confer no read.
-func (v AuthorizationView) CanReadRestrictedSettings() (bool, error) {
+func (v AuthorizationView) canReadRestrictedSettings() (bool, error) {
 	target, ok := v.Roles.Lookup("pg_read_all_settings")
 	if !ok {
 		return false, fmt.Errorf("stuntgres: missing pg_read_all_settings role")
@@ -216,7 +216,7 @@ func OperationAuthorization(op *session.Operation) (AuthorizationView, error) {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: foreign or missing operation")
 	}
 	e := EngineOf(op.Session)
-	if err := e.ValidateOperation(op); err != nil {
+	if err := e.validateOperation(op); err != nil {
 		return AuthorizationView{}, err
 	}
 	e.Mu.Lock()

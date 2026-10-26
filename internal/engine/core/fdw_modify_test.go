@@ -271,7 +271,7 @@ func fdwUnitCopyVeto(t *testing.T) {
 	failure := errors.New("CopyFail-equivalent terminal input veto")
 	defer scope.Finish(failure)
 	syntax := &parser.Copy{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unit_copy_target"}}}, From: true, Endpoint: parser.CopyStdin}
-	count, err := scope.CopyProtocol(syntax, strings.NewReader("1\n"), nil, core.CopyProtocolHooks{FinishInput: func() error { return failure }})
+	count, err := core.ScopeCopyProtocol(scope, syntax, strings.NewReader("1\n"), nil, core.CopyProtocolHooks{FinishInput: func() error { return failure }})
 	if !errors.Is(err, failure) || count != 0 || provider.calls != 0 || provider.begins != 0 || core.OwnerHasForeign(scope.Owner) {
 		t.Fatal("input veto admitted remote work", count, err, provider.calls, provider.begins)
 	}

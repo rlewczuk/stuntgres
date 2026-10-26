@@ -644,3 +644,11 @@ func NewStatementHost(f StatementHostFields) *statementHost {
 
 // AuthorizationOf calls authorizationOf.
 func AuthorizationOf(a analyze.Authority) *AuthorizationView { return authorizationOf(a) }
+
+// CursorStage returns x.stage.
+func CursorStage(x *sqlCursor) *exec.Stage { return x.stage }
+
+// BindingHostView calls x.view.
+func BindingHostView(x *BindingHost, a analyze.Authority) AuthorizationView {
+	return x.view(a)
+}
