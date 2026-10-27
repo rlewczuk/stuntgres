@@ -92,6 +92,66 @@ func (p *DropProvider) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descri
 	}
 }
 
+// UnseededDescriptors is Descriptors without the base entries that are still
+// as a builtin seed installed them (catalog.Read.UnseededDescriptors). A staged
+// change of such an entry still yields its base value, as Descriptors does. A
+// prepared pass enumerates everything.
+func (p *DropProvider) UnseededDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	if p.Stage == nil {
+		return p.Descriptors()
+	}
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
+		for address, descriptor := range p.Base.UnseededDescriptors() {
+			if !yield(address, descriptor) {
+				return
+			}
+		}
+		for address, descriptor := range p.Stage.Descriptors() {
+			if base := p.Base.Get(address); base == nil {
+				if !yield(address, descriptor) {
+					return
+				}
+			} else if !p.Base.Unseeded(address) && !yield(address, base) {
+				return
+			}
+		}
+	}
+}
+
+// Relations is Descriptors restricted to relations: the base relations, then
+// the pass's new relations. A staged change still yields its base value. A
+// prepared pass enumerates everything.
+func (p *DropProvider) Relations() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	if p.Stage == nil {
+		return p.Descriptors()
+	}
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
+		for address, descriptor := range p.Base.RelationDescriptors() {
+			if !yield(address, descriptor) {
+				return
+			}
+		}
+		for address, descriptor := range p.Stage.Descriptors() {
+			if _, ok := descriptor.(*catalog.Relation); ok && p.Base.Get(address) == nil && !yield(address, descriptor) {
+				return
+			}
+		}
+	}
+}
+
+// InputRelations is InputDescriptors restricted to relations.
+func (p *DropProvider) InputRelations() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	if p.Prepared != nil {
+		return p.Descriptors()
+	}
+	return p.Base.RelationDescriptors()
+}
+
+// SeedMayReference reports whether a seeded base descriptor may reference a.
+func (p *DropProvider) SeedMayReference(a ids.ObjectAddress) bool {
+	return p.Base.SeedMayReference(a)
+}
+
 func (p *DropProvider) Replace(d catalog.Descriptor) error {
 	p.Observe(d.Address())
 	if err := p.Ctx.Err(); err != nil {
@@ -454,6 +514,15 @@ func (p *DropProvider) InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.D
 			}
 		}
 	}
+}
+
+// UnseededInputDescriptors is InputDescriptors without the base entries that
+// are still as a builtin seed installed them.
+func (p *DropProvider) UnseededInputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	if p.Prepared != nil {
+		return p.Descriptors()
+	}
+	return p.Base.UnseededDescriptors()
 }
 
 func (p *DropProvider) liveDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {

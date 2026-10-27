@@ -182,6 +182,19 @@ func (r Read) Descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 
 func (r Read) Relations() iter.Seq2[ids.ObjectAddress, *Relation] { return r.state.Relations() }
 
+// RelationDescriptors is Relations as descriptors, for walks that take a
+// descriptor iterator but only use relations.
+func (r Read) RelationDescriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
+	relations := r.state.Relations()
+	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
+		for a, relation := range relations {
+			if !yield(a, relation) {
+				return
+			}
+		}
+	}
+}
+
 func (r Read) DescriptorCount() int { return r.state.DescriptorCount() }
 
 func (r Read) NameAddress(k ids.NameKey) ids.ObjectAddress { return r.state.NameAddress(k) }

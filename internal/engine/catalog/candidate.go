@@ -160,6 +160,7 @@ func (c *Candidate) State() *State {
 	base.mustNotBulkLoad()
 	ds := base.descriptors.Transient()
 	rs := base.relations.Transient()
+	us := base.unseeded.Transient()
 	ns := base.names.Transient()
 	operators := OperatorIndexEdit{Index: base.operatorNames}
 	procedures := ProcedureIndexEdit{Index: base.procedureNames}
@@ -171,6 +172,7 @@ func (c *Candidate) State() *State {
 		casts.updateCastIndex(c.Base.Get(a), c.descriptors[a])
 		ds.Delete(a)
 		rs.Delete(a)
+		us.Delete(a)
 		ns.Delete(DescriptorNameKey(d))
 	}
 	for k := range c.oldNames {
@@ -183,6 +185,7 @@ func (c *Candidate) State() *State {
 			casts.updateCastIndex(c.Base.Get(k), v)
 		}
 		ds.Set(k, v)
+		us.Set(k, v)
 		if r, ok := v.(*Relation); ok {
 			rs.Set(k, r)
 		} else {
@@ -198,6 +201,7 @@ func (c *Candidate) State() *State {
 	next.helperOwners = base.helperOwners
 	next.temporaryNamespaces = base.temporaryNamespaces
 	next.oidCeiling = base.oidCeiling
+	next.unseeded, next.unseededAll, next.seedCeiling = us.Persistent(), base.unseededAll, base.seedCeiling
 	for a := range c.removals {
 		next.updateDefaultClasses(c.Base.Get(a), nil)
 		next.updateEventTriggers(c.Base.Get(a), nil)

@@ -25,6 +25,16 @@ type DropReader interface {
 	DescriptorCount() int
 	// InputDescriptors enumerates the descriptors entering the pass.
 	InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	// UnseededDescriptors and UnseededInputDescriptors may omit the base
+	// descriptors that are still as a builtin seed installed them. Those
+	// reference no object for which SeedMayReference is false.
+	UnseededDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	UnseededInputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	SeedMayReference(ids.ObjectAddress) bool
+	// Relations and InputRelations may omit the non-relation descriptors of
+	// Descriptors and InputDescriptors.
+	Relations() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	InputRelations() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
 	// RetirementDescriptor reads address even after the pass removed it, so
 	// a retired provider's automatic closure stays traversable.
 	RetirementDescriptor(ids.ObjectAddress) catalog.Descriptor

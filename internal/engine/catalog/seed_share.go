@@ -112,6 +112,7 @@ func (s *Store) FinishSeedLocked(share *SeedShare) {
 	// The database descriptor depends on engine options and is validated per
 	// engine, so it is never seed-identical.
 	s.Owner.seed = state.descriptors.Delete(address)
+	state.seedCeiling = state.oidCeiling
 }
 
 // SharesNames reports whether the share holds recorded seed names.

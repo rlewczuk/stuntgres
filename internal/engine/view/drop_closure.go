@@ -2,6 +2,7 @@ package view
 
 import (
 	"fmt"
+	"iter"
 	"slices"
 	"sort"
 	"strings"
@@ -36,13 +37,23 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + object + " because " + owning + " requires it", Hint: "You can drop " + owning + " instead."}
 		}
 	}
+	// While every domain-set member is newer than the seed, no seeded
+	// descriptor can depend on one, so the input walks skip seeded entries.
 	domains := make(map[ids.ObjectAddress]bool, len(targets))
+	newer := true
 	for _, a := range targets {
 		domains[a] = true
+		newer = newer && !r.SeedMayReference(a)
+	}
+	input := func() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+		if newer {
+			return r.UnseededInputDescriptors()
+		}
+		return r.InputDescriptors()
 	}
 	for changed := true; changed; {
 		changed = false
-		for a, d := range r.InputDescriptors() {
+		for a, d := range input() {
 			t, ok := d.(*catalog.Type)
 			if !ok || domains[a] {
 				continue
@@ -54,11 +65,12 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			if depends {
 				domains[a] = true
 				changed = true
+				newer = newer && !r.SeedMayReference(a)
 			}
 		}
 	}
 	droppedColumns := make(map[ids.ObjectAddress]bool)
-	for a, d := range r.InputDescriptors() {
+	for a, d := range input() {
 		relation, ok := d.(*catalog.Relation)
 		if !ok || relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.PartitionedRelation && relation.RelationKind != catalog.CompositeRelation && relation.RelationKind != catalog.ForeignRelation {
 			continue
@@ -154,7 +166,13 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				direct = append(direct, table.DomainDependency{Address: owner, Target: target, Root: root, OID: owner.ObjectID, Automatic: true, Label: stored.DependencyObject(base, owner, path)})
 			}
 		}
-		for a, descriptor := range r.Descriptors() {
+		// Every edge below needs a stored reference to target (or target is the
+		// descriptor itself), which no seeded descriptor holds for a newer one.
+		dependents := r.Descriptors()
+		if !r.SeedMayReference(target) {
+			dependents = r.UnseededDescriptors()
+		}
+		for a, descriptor := range dependents {
 			if mergedDescriptors {
 				if replacement := r.Replacement(a); replacement != nil {
 					descriptor = replacement
@@ -567,7 +585,12 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 	}
 	// Automatic extension retirement does not waive a clone's partition
 	// dependency. A parent trigger or the clone's owning table must retire too.
-	for address, descriptor := range r.Descriptors() {
+	// No seeded relation has a partition trigger clone.
+	relations := r.Descriptors()
+	if newer {
+		relations = r.UnseededDescriptors()
+	}
+	for address, descriptor := range relations {
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok || r.Removed(address) || seen[address] {
 			continue

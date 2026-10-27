@@ -169,7 +169,10 @@ type State struct {
 	eventTriggers       util.PersistentMap[ids.ObjectAddress, *EventTrigger]
 	helperOwners        util.PersistentMap[ids.ObjectAddress, *Procedure]
 	temporaryNamespaces util.PersistentMap[ids.ObjectAddress, *Namespace]
-	oidCeiling          ids.OID // See oid_ceiling.go.
+	oidCeiling          ids.OID                                           // See oid_ceiling.go.
+	unseeded            util.PersistentMap[ids.ObjectAddress, Descriptor] // See unseeded_index.go.
+	unseededAll         bool                                              // Every entry is unseeded.
+	seedCeiling         ids.OID                                           // oidCeiling when the seed ended.
 	defaultACLs         map[DefaultACLKey]*DefaultACLRecord
 	// Sparse replay identity provenance for collision-remapped declarations.
 	// Absent entries use their current OID; dependencies remain the order authority.
@@ -265,6 +268,7 @@ func CloneState(s *State) *State {
 	n.helperOwners = s.helperOwners
 	n.temporaryNamespaces = s.temporaryNamespaces
 	n.oidCeiling = s.oidCeiling
+	n.unseeded, n.unseededAll, n.seedCeiling = s.unseeded, s.unseededAll, s.seedCeiling
 	if len(s.dumpPriorities) != 0 {
 		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))
 		for address, priority := range s.dumpPriorities {

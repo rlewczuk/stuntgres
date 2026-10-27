@@ -77,7 +77,7 @@ func ValidateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, defi
 
 func DefaultDependents(provider DropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]DefaultDependencyEdge, error) {
 	var edges []DefaultDependencyEdge
-	for address, descriptor := range provider.InputDescriptors() {
+	for address, descriptor := range provider.InputRelations() {
 		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue

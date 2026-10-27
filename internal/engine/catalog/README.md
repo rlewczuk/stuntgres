@@ -133,6 +133,13 @@ private frames, not catalog authority.
   `RemapPrincipals`, replacement remap) bracket the work with
   `BeginBulkLoad`/`EndBulkLoad`; a state in a bulk load is private to its writer
   and copying it panics.
+- **Unseeded descriptors** (`unseeded_index.go`). A state also tracks the
+  entries that are not as the builtin seed installed them: the same writes add
+  or delete them, and any bulk load other than the seed marks every entry
+  unseeded. Seeded descriptors reference only objects within the OID ceiling
+  the seed ended with, so walks for the dependents of a newer object
+  (`Read.SeedMayReference` false) may visit `UnseededDescriptors` instead of
+  every descriptor; DROP dependency discovery does.
 - **Owner and providers** (`owner.go`). `Owner` is the identity every `Read` of
   one engine carries: the provenance `ids.Domain`, principal domain and ACL
   authority, the `Provider` registry keyed by class OID and the extension
@@ -471,7 +478,7 @@ Immutable routine declaration/configuration backing and comparable installed ide
 
 
 ```sh
-make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad|Relations)|Candidate|BuiltinRoutineResultInventory|(New)?Store|SeedShare|SharedSeed|InstallCatalogSource)'
+make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad|Relations|Unseeded)|Candidate|BuiltinRoutineResultInventory|(New)?Store|SeedShare|SharedSeed|InstallCatalogSource)'
 make check RACE=1 RUN='^Test(CastDefinition|.*PrincipalRemap|OperatorClass(Catalog|Value))'
 make check RUN='^Test(CatalogProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload|UserOperatorIndex)'
 make check RACE=1 RUN='^Test(AccessMethodDescriptor|PgClassSubclass|TableSummary|DefaultPrivileges(PublicationFence|CreationFence)|SQLRoutineStagedLookup|DropReaderSeam)'

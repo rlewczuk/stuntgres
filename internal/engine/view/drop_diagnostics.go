@@ -154,7 +154,7 @@ func EmitCascade(op *session.Operation, details []string) {
 // RuleDependentLabels labels the rules of other relations that depend on
 // targets.
 func RuleDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []Dependent {
-	return RuleDependentLabelsFrom(catalog, targets, path, catalog.Descriptors(), nil)
+	return RuleDependentLabelsFrom(catalog, targets, path, catalog.RelationDescriptors(), nil)
 }
 
 // RuleDependentLabelsFrom is RuleDependentLabels over descriptors, calling
@@ -195,7 +195,7 @@ func RuleDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddre
 // PolicyDependentLabels labels the policies of other relations that depend
 // on targets.
 func PolicyDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []Dependent {
-	return PolicyDependentLabelsFrom(catalog, targets, path, catalog.Descriptors())
+	return PolicyDependentLabelsFrom(catalog, targets, path, catalog.RelationDescriptors())
 }
 
 // PolicyDependentLabelsFrom is PolicyDependentLabels over descriptors.

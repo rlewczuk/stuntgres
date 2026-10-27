@@ -193,7 +193,7 @@ type CheckDependencyEdge struct {
 
 func CheckDependents(provider DropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]CheckDependencyEdge, error) {
 	var relations []*catalog.Relation
-	for address, descriptor := range provider.InputDescriptors() {
+	for address, descriptor := range provider.InputRelations() {
 		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(d.Constraints.Check) == 0 {
 			continue

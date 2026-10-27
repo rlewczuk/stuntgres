@@ -24,6 +24,8 @@ type DropDependencyReader interface {
 	Context() context.Context
 	BaseRead() catalog.Read
 	InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	// InputRelations may omit the non-relation descriptors of InputDescriptors.
+	InputRelations() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
 	// Descriptors enumerates the base and the pass's new descriptors.
 	Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
 	// RemovalDescriptors enumerates what the drop already removed, with the

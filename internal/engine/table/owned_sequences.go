@@ -19,7 +19,7 @@ func SequenceOwnedBy(relation *catalog.Relation, target ids.ObjectAddress) bool 
 // OwnedSequences calls prepare, then removes, each sequence that a target of
 // the drop owns and the drop has not already removed.
 func OwnedSequences(provider DropDependencyReader, targets []ids.ObjectAddress, prepare func(ids.ObjectRef) error) error {
-	for a, d := range provider.InputDescriptors() {
+	for a, d := range provider.InputRelations() {
 		if provider.Removed(a) {
 			continue
 		}

@@ -79,7 +79,7 @@ func KeepPolicies(policies []catalog.PolicyDefinition, targets []ids.ObjectAddre
 // DependentViews is DependencyClosure over the live views of r, in OID order.
 func DependentViews(r DropReader, targets []ids.ObjectAddress) []DependencyEdge {
 	var views []*catalog.Relation
-	for address, descriptor := range r.Descriptors() {
+	for address, descriptor := range r.Relations() {
 		if r.Removed(address) {
 			continue
 		}
@@ -100,7 +100,7 @@ func DropPolicyDependents(r DropReader, targets []ids.ObjectAddress, mode parser
 	if mode == parser.DropRestrict {
 		return nil
 	}
-	for address, descriptor := range r.InputDescriptors() {
+	for address, descriptor := range r.InputRelations() {
 		if r.Removed(address) || slices.Contains(targets, address) {
 			continue
 		}
@@ -135,7 +135,7 @@ func DropRuleDependents(r DropReader, targets []ids.ObjectAddress, mode parser.D
 	if mode == parser.DropRestrict {
 		return nil
 	}
-	for address, descriptor := range r.InputDescriptors() {
+	for address, descriptor := range r.InputRelations() {
 		if r.Removed(address) || slices.Contains(targets, address) {
 			continue
 		}

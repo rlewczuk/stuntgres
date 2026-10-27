@@ -70,6 +70,7 @@ func (s *State) EndBulkLoad() {
 	s.descriptors = s.bulkDescriptorMap()
 	s.names = util.PersistentMapOf(s.bulk.names)
 	s.relations = util.PersistentMapOf(s.bulk.relations)
+	s.endBulkUnseeded()
 	s.bulk = nil
 }
 
@@ -84,6 +85,7 @@ func (s *State) EndBulkLoadWithNames(names util.PersistentMap[ids.NameKey, ids.O
 	s.descriptors = s.bulkDescriptorMap()
 	s.names = names
 	s.relations = util.PersistentMapOf(s.bulk.relations)
+	s.endBulkUnseeded()
 	s.bulk = nil
 }
 
