@@ -121,7 +121,7 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 		typ, exists := v.LookupType(c.Usage.Type.ID())
-		catalogNull := r.RelationKind == catalog.CatalogRelation && r.Address().ObjectID == pgcatalog.AttributeOID && r.Attributes[i] == 25 && c.Name == "attmissingval" && c.Usage.CatalogNullUsage()
+		catalogNull := r.RelationKind == catalog.CatalogRelation && c.Usage.CatalogNullUsage() && (r.Address().ObjectID == pgcatalog.AttributeOID && r.Attributes[i] == 25 && c.Name == "attmissingval" || r.Address().ObjectID == pgcatalog.StatisticExtDataOID && r.Attributes[i] == 6 && c.Name == "stxdexpr")
 		if !exists || typ != c.Usage.Type || !catalogNull && (!typ.Concrete() || !c.Usage.Valid()) {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}

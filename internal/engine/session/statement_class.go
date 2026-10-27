@@ -154,6 +154,8 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "CREATE STATISTICS"
 	case *parser.DropStatistics:
 		return "DROP STATISTICS"
+	case *parser.AlterStatisticsTarget:
+		return "ALTER STATISTICS"
 	case *parser.CreateConversion:
 		return "CREATE CONVERSION"
 	case *parser.AlterConversion:
@@ -265,7 +267,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
-	case *parser.CreateStatistics, *parser.DropStatistics:
+	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget:
 		return true
 	case *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration:
 		return true
@@ -320,7 +322,7 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation,
 		*parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary,
 		*parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration,
-		*parser.CreateStatistics, *parser.DropStatistics,
+		*parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget,
 		*parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion,
 		*parser.CreateCast, *parser.DropCast:
 		return true

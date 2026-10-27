@@ -78,14 +78,24 @@ func captureInfoRoleUdtGrants(in Input) ([][]sqltype.Value, error) {
 			continue
 		}
 		if udt.OwningRelation == (ids.ObjectAddress{}) {
-			if udt.SQLType.IsComposite() {
+			if !udt.SQLType.IsComposite() {
+				continue
+			}
+			// The canonical pg_statistic description has a genuine composite
+			// type/ACL identity, but deliberately grants no relation reader.
+			// Validate its fixed self-owned authority rather than inventing a
+			// backing relation or accepting arbitrary unbacked composites.
+			if !udt.SQLType.Usage().CatalogNullUsage() {
 				return nil, fmt.Errorf("stuntgres: missing composite relation authority")
 			}
-			continue
-		}
-		relation, ok := in.Catalog.Relation(udt.OwningRelation)
-		if !ok || relation.RowType != udt.SQLType.ID() {
-			return nil, fmt.Errorf("stuntgres: foreign row type authority")
+			if err := in.Runtime.ValidateType(in.Catalog, udt); err != nil {
+				return nil, err
+			}
+		} else {
+			relation, ok := in.Catalog.Relation(udt.OwningRelation)
+			if !ok || relation.RowType != udt.SQLType.ID() {
+				return nil, fmt.Errorf("stuntgres: foreign row type authority")
+			}
 		}
 		namespace, ok := in.Catalog.Namespace(udt.Namespace())
 		if !ok {

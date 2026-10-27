@@ -15,9 +15,10 @@ type StatisticsChange struct {
 	OriginalRelation *catalog.Relation
 	PrivateMetadata  *storage.RelationMetadata
 	Columns          map[storage.StatisticsKey]*storage.ColumnStatistics
+	Extended         map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics
 }
 
-func (j *Journal) RecordStatistics(address ids.ObjectAddress, original *storage.Relation, originalRelation, relation *catalog.Relation, columns map[storage.StatisticsKey]*storage.ColumnStatistics, privateMetadata *storage.RelationMetadata) {
+func (j *Journal) RecordStatistics(address ids.ObjectAddress, original *storage.Relation, originalRelation, relation *catalog.Relation, columns map[storage.StatisticsKey]*storage.ColumnStatistics, extended map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics, privateMetadata *storage.RelationMetadata) {
 	previous, exists := j.Statistics[address]
 	if exists {
 		original = previous.Original
@@ -30,10 +31,15 @@ func (j *Journal) RecordStatistics(address ids.ObjectAddress, original *storage.
 		merged = make(map[storage.StatisticsKey]*storage.ColumnStatistics, len(columns))
 	}
 	maps.Copy(merged, columns)
+	mergedExtended := maps.Clone(previous.Extended)
+	if mergedExtended == nil {
+		mergedExtended = make(map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics, len(extended))
+	}
+	maps.Copy(mergedExtended, extended)
 	if j.Statistics == nil {
 		j.Statistics = make(map[ids.ObjectAddress]StatisticsChange)
 	}
-	j.Statistics[address] = StatisticsChange{Original: original, OriginalRelation: originalRelation, Relation: relation, Columns: merged, PrivateMetadata: privateMetadata}
+	j.Statistics[address] = StatisticsChange{Original: original, OriginalRelation: originalRelation, Relation: relation, Columns: merged, Extended: mergedExtended, PrivateMetadata: privateMetadata}
 }
 
 // ResolveStatistics overlays private facts on the same canonical producer.
@@ -45,9 +51,11 @@ func ResolveStatistics(j *Journal, address ids.ObjectAddress, metadata *storage.
 	if j != nil {
 		if delta, ok := j.Statistics[address]; ok {
 			facts = storage.MergeStatistics(facts, delta.Columns)
+			facts = storage.MergeExtendedStatistics(facts, delta.Extended)
 		}
 	}
 	facts = storage.CompatibleStatistics(facts, relation)
+	facts = storage.CompatibleExtendedStatistics(facts, relation, read)
 	if facts == nil {
 		return nil
 	}
@@ -59,7 +67,7 @@ func ResolveStatistics(j *Journal, address ids.ObjectAddress, metadata *storage.
 		}
 		valid, seen := checked[fact.Hierarchy]
 		if !seen {
-			valid = statisticsHierarchyCurrent(fact.Hierarchy, relation, read)
+			valid = storage.StatisticsHierarchyCurrent(fact.Hierarchy, relation, read)
 			checked[fact.Hierarchy] = valid
 		}
 		if !valid {
@@ -70,55 +78,6 @@ func ResolveStatistics(j *Journal, address ids.ObjectAddress, metadata *storage.
 		}
 	}
 	return storage.MergeStatistics(facts, deletions)
-}
-
-func statisticsHierarchyCurrent(hierarchy *storage.StatisticsHierarchy, root *catalog.Relation, read catalog.Read) bool {
-	captured := make(map[ids.ObjectAddress]*catalog.Relation, len(hierarchy.Relations))
-	for _, relation := range hierarchy.Relations {
-		captured[relation.Address()] = relation
-	}
-	seen := make(map[ids.ObjectAddress]bool, len(captured))
-	var visit func(*catalog.Relation) bool
-	visit = func(relation *catalog.Relation) bool {
-		namespace, ok := read.Namespace(relation.Namespace())
-		if !ok {
-			return false
-		}
-		if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != hierarchy.Session {
-			return true
-		}
-		if seen[relation.Address()] {
-			return true
-		}
-		seen[relation.Address()] = true
-		old, ok := captured[relation.Address()]
-		if !ok || len(old.Attributes) != len(relation.Attributes) {
-			return false
-		}
-		for i, attribute := range old.Attributes {
-			slot := relation.IndexForAttribute(attribute)
-			if slot < 0 || !catalog.SamePartitionColumnUsage(old.Columns[i].Usage, relation.Columns[slot].Usage) {
-				return false
-			}
-		}
-		children := catalog.InheritanceChildren(read, relation.Address())
-		if relation.Partition != nil {
-			for _, address := range relation.Partition.Children {
-				child, ok := read.Relation(address)
-				if !ok {
-					return false
-				}
-				children = append(children, child)
-			}
-		}
-		for _, child := range children {
-			if child.Foreign == nil && !visit(child) {
-				return false
-			}
-		}
-		return true
-	}
-	return root != nil && visit(root) && len(seen) == len(captured)
 }
 
 // ResolveRelationMetadata retains private maintenance only for not-yet-public

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 )
@@ -59,6 +60,7 @@ type Capture struct {
 	Dictionaries        []*catalog.TSDictionary
 	Configurations      []*catalog.TSConfiguration
 	Statistics          []*catalog.Statistics
+	NDistinct           []storage.NDistinctSnapshot
 	Providers           []providerReplay
 	Tables              []table.DumpRelation
 	LargeObjects        []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.

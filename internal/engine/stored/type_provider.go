@@ -88,7 +88,18 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 			return catalog.Conflict{}
 		}
 	}
-	if t.SQLType.IsComposite() {
+	if t.SQLType.IsComposite() && t.SQLType.Usage().CatalogNullUsage() {
+		if t.SQLType.ID() != 10029 || t.Namespace().ObjectID != ids.PGCatalogNamespaceOID || t.Name() != "pg_statistic" || t.OwningRelation != (ids.ObjectAddress{}) {
+			return fmt.Errorf("stuntgres: invalid catalog NULL row authority")
+		}
+		for i := range t.SQLType.CompositeLen() {
+			member := t.SQLType.CompositeMember(i)
+			actual, exists := view.LookupType(member.Usage.Type.ID())
+			if !exists || actual != member.Usage.Type {
+				return fmt.Errorf("stuntgres: inconsistent catalog NULL member generation")
+			}
+		}
+	} else if t.SQLType.IsComposite() {
 		relation, ok := view.Relation(t.OwningRelation)
 		if !ok || len(relation.Columns) != t.SQLType.CompositeLen() {
 			return fmt.Errorf("stuntgres: missing composite backing definition")

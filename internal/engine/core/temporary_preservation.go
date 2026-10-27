@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
@@ -142,6 +143,20 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	// Verify their principal provenance without applying source-name mapping.
 	targetProcedure := e.retainedRoutineProcedureRemapper(current)
 	for address, descriptor := range temporary {
+		if statistics, ok := descriptor.(*catalog.Statistics); ok {
+			// This declaration belongs to the genuine destination TEMP set,
+			// not the imported generation. Advance only its reference epoch;
+			// never apply source address/name mapping to its referenced table.
+			relation := statistics.Relation.Address
+			if statistics.Relation.Domain() != current.Domain() || statistics.Relation.Epoch != current.Epoch() ||
+				temporary[relation] == nil && next.Get(relation) != current.Get(relation) {
+				return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary statistics dependencies is unsupported")
+			}
+			copy := *statistics
+			copy.Relation = e.Catalog.Domain.Ref(next.Epoch(), relation)
+			next.SetDescriptor(address, &copy)
+			continue
+		}
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok || relation.View == nil && len(relation.Security.Policies) == 0 && len(stored.RulesOf(relation)) == 0 && !relation.HasTriggers() {
 			continue

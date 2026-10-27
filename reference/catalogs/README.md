@@ -1,7 +1,7 @@
 # reference/catalogs
 
 `pg_catalog` relation and type catalogs: `pg_class`, `pg_attribute`, `pg_attrdef`,
-`pg_statistic_ext` (CREATE STATISTICS definitions),
+`pg_statistic_ext` definitions and restricted typed `pg_statistic_ext_data`,
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, `pg_inherits`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
 `pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
@@ -47,6 +47,15 @@ Statistics adapter metadata is asserted independently: native database type name
 are exact, while lib/pq returns an empty name for the three unknown statistics
 OIDs. Catalog type identities remain exact; numeric cross-adapter OID witnesses
 use explicit BIGINT casts rather than comparing driver-specific raw carriers.
+Multivariate ndistinct scenarios cover real NULL-inclusive collection,
+canonical subsets, target/column selection, separate inheritance flavors,
+diagnostics, transactional publication, cancellation and lossless native state.
+Retained-TEMP control phases keep the physical session alive through Restore
+and Reset, read TEMP and imported persistent payloads through DATA, and retain
+old rows/metadata independently of replacement type generations.
+Native-control phases replay actual emitted definition/target SQL on PostgreSQL,
+which ignores native state comments. Select the family in either mode with
+`make check RUN='^TestReferenceStatisticsNDistinct'` (add `REFERENCE=1`).
 
 Type identity scenarios retain attribute privilege identities across rename and
 retire obsolete lookup names.

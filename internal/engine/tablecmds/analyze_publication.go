@@ -106,6 +106,11 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	if ns, ok := auth.Catalog.Namespace(relation.Namespace()); ok {
 		qualified = ns.Name() + "." + qualified
 	}
+	ndistinctInputs, err := captureNDistinct(s, auth.Catalog, relation, columns)
+	if err != nil {
+		e.Mu.Unlock()
+		return err
+	}
 	e.Mu.Unlock()
 	// Descendant DDL is fenced by real locks. Data roots are then captured in one
 	// short metadata window, and all typed comparison/collection runs detached.
@@ -171,12 +176,25 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 			scratch[i] = make([]sqltype.Value, len(segment.layout))
 		}
 	}
+	extendedDelta := make(map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics)
+	var hierarchy *storage.StatisticsHierarchy
+	if len(closure) > 1 || relation.Partition != nil {
+		hierarchy = &storage.StatisticsHierarchy{Relations: closure, Session: s.Op.Session.SessionToken}
+	}
 	collect := func(inherited bool) (*storage.RelationStatistics, uint64, error) {
 		inputs := columns
 		for i := range inputs {
 			inputs[i].Key.Inherited = inherited
 		}
-		return storage.CollectStatistics(s.Op.Context(), inputs, func(yield func([]sqltype.Value) error) error {
+		collectors := make([]*storage.NDistinctCollector, len(ndistinctInputs))
+		for i, input := range ndistinctInputs {
+			input.Key.Inherited = inherited
+			collectors[i], err = storage.NewNDistinctCollector(input)
+			if err != nil {
+				return nil, 0, err
+			}
+		}
+		stats, population, err := storage.CollectStatistics(s.Op.Context(), inputs, func(yield func([]sqltype.Value) error) error {
 			for i, segment := range segments {
 				if !inherited && segment.relation.Address() != relation.Address() {
 					continue
@@ -196,6 +214,11 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 						}
 						values = scratch[i]
 					}
+					for _, collector := range collectors {
+						if err := collector.Add(s.Op.Context(), values); err != nil {
+							return err
+						}
+					}
 					if err := yield(values); err != nil {
 						return err
 					}
@@ -203,8 +226,30 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 			}
 			return nil
 		})
+		if err != nil {
+			return nil, 0, err
+		}
+		for i, collector := range collectors {
+			fact, err := collector.Finish(s.Op.Context())
+			if err != nil {
+				return nil, 0, err
+			}
+			if fact != nil {
+				key := ndistinctInputs[i].Key
+				key.Inherited = inherited
+				if inherited {
+					fact.Hierarchy = hierarchy
+				}
+				extendedDelta[key] = fact
+			}
+		}
+		return stats, population, nil
 	}
-	local, rows, err := collect(false)
+	var local *storage.RelationStatistics
+	var rows uint64
+	if relation.Partition == nil {
+		local, rows, err = collect(false)
+	}
 	if err != nil {
 		return err
 	}
@@ -220,7 +265,6 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		}
 		inheritedRows = population
 		if inherited != nil {
-			hierarchy := &storage.StatisticsHierarchy{Relations: closure, Session: s.Op.Session.SessionToken}
 			for _, fact := range inherited.Columns {
 				fact.Hierarchy = hierarchy
 			}
@@ -301,9 +345,10 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		if originalRelation == nil {
 			private = metadata
 		}
-		s.Catalog.RecordStatistics(relation.Address(), e.Storage.Relations[relation.Address()], originalRelation, relation, delta, private)
+		s.Catalog.RecordStatistics(relation.Address(), e.Storage.Relations[relation.Address()], originalRelation, relation, delta, extendedDelta, private)
 	} else {
 		metadata.Statistics = storage.MergeStatistics(metadata.Statistics, delta)
+		metadata.Statistics = storage.MergeExtendedStatistics(metadata.Statistics, extendedDelta)
 	}
 	// Existing-object maintenance survives rollback. New-object metadata stays
 	// on the actual creation journal until its normal publication boundary.

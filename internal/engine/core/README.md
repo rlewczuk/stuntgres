@@ -50,6 +50,12 @@ DDL prunes dropped objects and incompatible column facts. Native Reset/Restore
 discards imported/persistent/reminted planner metadata, but preserves compatible
 facts and counters for genuinely retained destination TEMP identities through
 the existing TEMP-retention authority, never address coincidence.
+Retained TEMP statistics definitions advance their checked relation-reference
+epoch with the replacement, without applying imported identity mappings.
+Incompatible non-retained dependencies reject replacement before installation.
+Their ndistinct payloads reconstruct from checked immutable items when the
+candidate's builtin descriptor changes. All fallible construction precedes
+installation; retained captures keep their original typed values and backing.
 Parent inherited cardinality is retained separately from independently stale
 child estimates, so ONLY parent refresh works. EXPLAIN requires a current
 hierarchy before using it. A successful local-only refresh clears obsolete

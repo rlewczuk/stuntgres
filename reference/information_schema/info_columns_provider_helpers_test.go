@@ -34,6 +34,7 @@ func icProviderInventory(c *icCase) {
 		"pg_event_trigger":                       strings.Fields("oid evtname evtevent evtowner evtfoid evtenabled evttags"),
 		"pg_attrdef":                             strings.Fields("oid adrelid adnum adbin"),
 		"pg_statistic_ext":                       strings.Fields("oid stxrelid stxname stxnamespace stxowner stxkeys stxstattarget stxkind stxexprs"),
+		"pg_statistic_ext_data":                  strings.Fields("stxoid stxdinherit stxdndistinct stxddependencies stxdmcv stxdexpr"),
 		"pg_proc":                                strings.Fields("oid proname pronamespace proowner prolang procost prorows provariadic prosupport prokind prosecdef proleakproof proisstrict proretset provolatile proparallel pronargs pronargdefaults prorettype proargtypes proallargtypes proargmodes proargnames proargdefaults protrftypes prosrc probin prosqlbody proconfig proacl"),
 		"pg_index":                               strings.Fields("indexrelid indrelid indisunique indisprimary indisvalid indisready indislive indnullsnotdistinct indkey indcollation indclass indoption"),
 		"pg_rewrite":                             strings.Fields("oid rulename ev_class ev_type ev_enabled is_instead"),

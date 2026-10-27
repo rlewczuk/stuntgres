@@ -128,6 +128,16 @@ canonical/Journal paths, independent of the selected column list. When scanning
 a private TRUNCATE successor, ANALYZE also records the scan on that actual heap;
 this preserves maintenance ordering through commit and savepoint rollback while
 column deltas remain transactional.
+Requested ndistinct definitions are captured with the same relation/selection
+authority. Scalar and tuple collectors consume one traversal per population.
+Every key must occur in the current column selection; ineligible definitions
+warn without combining old column facts. Object target zero skips rebuilding
+without clearing its payload. Empty populations retain prior payloads. Ordinary
+parents collect separate local/inherited facts; partitioned parents collect only
+inherited facts and never gain synthetic storage. Tuple values use typed NULL-
+inclusive grouping and canonical stable-attnum subsets, not independent-column
+products. Selected extended deltas follow the same transactional Journal path.
+
 
 
 ## Hosts

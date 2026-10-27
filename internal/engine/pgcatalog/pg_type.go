@@ -192,8 +192,8 @@ func capturePGType(in Input) ([][]sqltype.Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		relation := uint32(0)
-		if f.Kind == "c" {
+		relation := f.Relation
+		if f.Kind == "c" && d.OwningRelation != (ids.ObjectAddress{}) {
 			relation = uint32(d.OwningRelation.ObjectID)
 		}
 		numbers := [32]uint32{0: uint32(d.SQLType.ID()), 2: uint32(d.Namespace().ObjectID), 3: uint32(d.Owner.ID()), 11: relation, 12: f.Subscript, 13: uint32(f.Element), 14: uint32(d.Array), 15: f.Input, 16: f.Output, 17: f.Receive, 18: f.Send, 19: f.ModIn, 20: f.ModOut, 21: f.Analyze, 25: uint32(f.Base), 28: f.Collation}

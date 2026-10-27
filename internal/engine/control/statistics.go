@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
@@ -62,6 +63,12 @@ func statisticsDumpStatement(view catalog.Read, roles authorization.Read, d *cat
 	if d.Owner.ID() != authorization.BootstrapPrincipalID {
 		statement.PrivilegedCreation = true
 		statement.FollowingSQL = "ALTER STATISTICS " + qualified(d) + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n"
+	}
+	if d.TargetSet {
+		targetSQL := "ALTER STATISTICS " + qualified(d) + " SET STATISTICS " + strconv.Itoa(int(d.Target)) + ";\n"
+		if !statement.PrivilegedCreation {
+			statement.SQL += targetSQL
+		}
 	}
 	return statement, nil
 }

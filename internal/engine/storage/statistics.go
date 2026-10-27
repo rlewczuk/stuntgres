@@ -38,7 +38,8 @@ type ColumnStatistics struct {
 }
 
 type RelationStatistics struct {
-	Columns map[StatisticsKey]*ColumnStatistics
+	Columns  map[StatisticsKey]*ColumnStatistics
+	Extended map[ExtendedStatisticsKey]*ExtendedStatistics
 }
 
 func (s *ColumnStatistics) NullFraction() float64 {
@@ -88,10 +89,10 @@ func MergeStatistics(base *RelationStatistics, replacements map[StatisticsKey]*C
 			columns[key] = value
 		}
 	}
-	if len(columns) == 0 {
+	if len(columns) == 0 && len(extendedStatistics(base)) == 0 {
 		return nil
 	}
-	return &RelationStatistics{Columns: columns}
+	return &RelationStatistics{Columns: columns, Extended: extendedStatistics(base)}
 }
 
 // CompatibleStatistics preserves stale facts only under the same stable

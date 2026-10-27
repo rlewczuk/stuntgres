@@ -21,3 +21,13 @@ func (*CreateStatistics) statement()                 {}
 func (*DropStatistics) statement()                   {}
 func (s *CreateStatistics) SourcePosition() Position { return s.Pos }
 func (s *DropStatistics) SourcePosition() Position   { return s.Pos }
+
+type AlterStatisticsTarget struct {
+	Name     ObjectName
+	Target   int64
+	IfExists bool
+	Pos      Position
+}
+
+func (*AlterStatisticsTarget) statement()                 {}
+func (s *AlterStatisticsTarget) SourcePosition() Position { return s.Pos }

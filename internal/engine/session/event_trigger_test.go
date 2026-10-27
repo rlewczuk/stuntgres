@@ -56,6 +56,7 @@ func TestEventTriggerClassification(t *testing.T) {
 		{"DROP CONVERSION", []parser.Statement{&parser.DropConversion{}}},
 		{"CREATE STATISTICS", []parser.Statement{&parser.CreateStatistics{}}},
 		{"DROP STATISTICS", []parser.Statement{&parser.DropStatistics{}}},
+		{"ALTER STATISTICS", []parser.Statement{&parser.AlterStatisticsTarget{}}},
 		{"CREATE CAST", []parser.Statement{&parser.CreateCast{}}},
 		{"DROP CAST", []parser.Statement{&parser.DropCast{}}},
 		{"CREATE FUNCTION", []parser.Statement{&parser.CreateFunction{}}},

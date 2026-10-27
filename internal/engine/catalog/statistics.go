@@ -88,6 +88,8 @@ type Statistics struct {
 	Owner                          authorization.PrincipalRef
 	Relation                       ids.ObjectRef
 	Selection                      StatisticsSelection
+	Target                         int16
+	TargetSet                      bool
 }
 
 func (d *Statistics) Address() ids.ObjectAddress       { return d.ObjectAddress }
@@ -107,6 +109,9 @@ func (StatisticsProvider) Validate(v Read, raw Descriptor) error {
 	d, ok := raw.(*Statistics)
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid statistics descriptor authority") }
 	if !ok || d == nil || v.Owner() == nil || v.State() == nil || v.Get(d.Address()) != d || d.Address().ClassID != ids.StatisticExtClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || d.Name() == "" || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
+		return invalid()
+	}
+	if d.Target < 0 || d.Target > 10000 || !d.TargetSet && d.Target != 0 {
 		return invalid()
 	}
 	if v.Owner().Principals == nil || d.Owner.ID() == 0 || d.Owner != v.Owner().Principals.Principal(d.Owner.ID()) {

@@ -110,7 +110,7 @@ func ResolveComparison(operator ComparisonOperator, left, right *Descriptor) (Eq
 		// The canonical catalog NULL carrier matches anyarray's signature,
 		// but two unresolved family members cannot determine an element type.
 		// This is analysis failure, not input or comparison-provider admission.
-		if base.Usage().CatalogNullUsage() && (other == nil || other.BaseType().Usage().CatalogNullUsage()) {
+		if base.id == 2277 && base.Usage().CatalogNullUsage() && (other == nil || other.BaseType().id == 2277 && other.BaseType().Usage().CatalogNullUsage()) {
 			return EqualitySignature{}, failure("42804", `cannot determine element type of "anyarray" argument`)
 		}
 		if base.IsComposite() || base.IsDeferredRecord() {

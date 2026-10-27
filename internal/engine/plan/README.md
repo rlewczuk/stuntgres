@@ -69,6 +69,9 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   protocol and cursors.
   Literal evaluation requires exact descriptor identity and concrete values,
   except for the finite, canonically owned query-only pseudo NULL capability.
+  COALESCE also preserves canonical catalog-only NULL result usages through
+  `ResultNull` and `ValidResult`; this grants neither non-NULL values nor
+  comparison/input/storage authority to those descriptors.
   Copied descriptors and modified usages cannot inherit this exception; it does
   not admit unresolved UNKNOWN provenance, handler datums or stored pseudo types.
   Invocation-only PL assignment wrappers preserve constant-planning error origin

@@ -129,7 +129,7 @@ func (e ArrayTransform) Validate() error {
 	if array == nil {
 		return bad()
 	}
-	pseudo := first.CatalogNullUsage()
+	pseudo := first.CatalogNullUsage() && (first.Type.ID() == 2277 || first.Type.IsArray())
 	if pseudo {
 		if e.Kind != ArrayReverse && e.Kind != ArraySort && e.Kind != ArrayTrim && e.Kind != ArrayToString {
 			return bad()

@@ -58,6 +58,12 @@ func capturePGStatisticExt(in Input) ([][]sqltype.Value, error) {
 			return nil, err
 		}
 		row[6] = sqltype.Null(in.Source.Columns[6].Usage.Type)
+		if d.TargetSet {
+			row[6], err = sqltype.Integer(in.Source.Columns[6].Usage.Type, int64(d.Target))
+			if err != nil {
+				return nil, err
+			}
+		}
 		kinds := d.Selection.Kinds()
 		items := make([]sqltype.Value, len(kinds))
 		for i := range kinds {

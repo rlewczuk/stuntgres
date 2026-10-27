@@ -89,7 +89,8 @@ func (e ConditionalExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || len(e.Args) == 0 || e.Kind > parser.Least || e.Kind == parser.NullIf && len(e.Args) != 2 {
+	catalogNull := e.Kind == parser.Coalesce && e.Usage.CatalogNullUsage()
+	if e.Usage.Type == nil || !e.Usage.Type.Concrete() && !catalogNull || len(e.Args) == 0 || e.Kind > parser.Least || e.Kind == parser.NullIf && len(e.Args) != 2 {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid conditional expression")
 	}
 	if err := e.ExtremaError(); err != nil {
@@ -118,13 +119,13 @@ func (e ConditionalExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 		return left, nil
 	}
-	best := sqltype.Null(e.Usage.Type)
+	best := sqltype.ResultNull(e.Usage)
 	for _, arg := range e.Args {
 		value, err := arg.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if value.Type() != e.Usage.Type {
+		if value.Type() != e.Usage.Type || catalogNull && !value.ValidResult(e.Usage) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid conditional argument value")
 		}
 		if value.IsNull() {

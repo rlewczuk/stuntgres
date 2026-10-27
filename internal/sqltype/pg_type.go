@@ -10,6 +10,7 @@ type PGTypeMetadata struct {
 	Subscript, Input, Output, Receive, Send, ModIn, ModOut, Analyze uint32
 	Modifier                                                        int32
 	Collation                                                       uint32
+	Relation                                                        uint32 // Fixed descriptive catalog identity; grants no reader.
 	DefaultTree, Default                                            string
 	HasDefaultTree, HasDefault                                      bool
 }
@@ -95,7 +96,11 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "e", Category: "E", Input: 3506, Output: 3507, Receive: 3532, Send: 3533, Modifier: -1}, true
 	}
 	if d.IsComposite() {
-		return CompositePGTypeMetadata(), true
+		f := CompositePGTypeMetadata()
+		if d.id == 10029 && d.Usage().CatalogNullUsage() {
+			f.Relation = 2619
+		}
+		return f, true
 	}
 	if d.IsCitext() {
 		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "S", Collation: 100, Modifier: -1}, true

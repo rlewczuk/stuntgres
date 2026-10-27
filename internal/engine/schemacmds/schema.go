@@ -377,6 +377,10 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 	host := core.DDLHost{E: e, Op: op, CatalogStage: stage}
 	typeHost, routineHost, schemaHost := tablecmds.TypeHost{tablecmds.TableHost{host}}, RoutineHost{host}, SchemaHost{host}
 	switch s := stmt.(type) {
+	case *parser.AlterStatisticsTarget:
+		if err = ddl.StageAlterStatisticsTarget(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
 	case *parser.CreateStatistics:
 		if err = ddl.StageCreateStatistics(schemaHost, auth, s); err != nil {
 			return nil, err

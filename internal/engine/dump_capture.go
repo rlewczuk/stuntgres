@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typecmds"
 )
@@ -48,7 +49,7 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 	if !foreignNamespacesCurrent(&e.Foreign, state) {
 		return nil, fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")
 	}
-	return control.Collect(ctx, control.Source{
+	capture, err := control.Collect(ctx, control.Source{
 		CatalogView:      catalogView,
 		OriginalCatalog:  originalCatalog,
 		OriginalRoles:    originalRoles,
@@ -63,6 +64,11 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 		Bootstrap:        e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID),
 		Foreign:          e.Foreign,
 	})
+	if err != nil {
+		return nil, err
+	}
+	capture.NDistinct = storage.CaptureNDistinctSnapshots(originalCatalog, e.Storage.RelationMetadata)
+	return capture, nil
 }
 
 // foreignNamespacesCurrent reports whether every namespace the foreign

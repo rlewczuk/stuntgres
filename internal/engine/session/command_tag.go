@@ -153,6 +153,8 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "CREATE STATISTICS"
 	case *parser.DropStatistics:
 		base = "DROP STATISTICS"
+	case *parser.AlterStatisticsTarget:
+		base = "ALTER STATISTICS"
 	case *parser.CreateConversion:
 		base = "CREATE CONVERSION"
 	case *parser.AlterConversion:

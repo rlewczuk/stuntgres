@@ -16,12 +16,14 @@ It imports only lower layers (`ids`, `authorization`, `catalog`, `functions`,
 `extension`, `sequence`, ...) or the root: feature packages import `session` to
 implement its slots, so either import would form a cycle.
 
-`Journal.Statistics` contains immutable selected-column deltas keyed by relation
-and stable attribute/inherited flavor. `Clone` copies the outer map while sharing
+`Journal.Statistics` contains immutable selected-column and selected-definition
+deltas keyed by relation, stable attribute or generation-qualified statistics
+object identity, and inherited flavor. `Clone` copies the outer map while sharing
 immutable entries; a new collection replaces the delta, so savepoints and
 prepared transactions retain their own prior roots. `ResolveStatistics` overlays
 these facts on the existing Store's canonical `RelationMetadata` root and filters
-incompatible column usages. New-object maintenance is retained privately beside
+incompatible usages, definitions and current hierarchy authority.
+New-object maintenance is retained privately beside
 the same selected deltas until creation commits; existing-object maintenance
 is not rolled back. Descriptor/epoch and optional real-heap identities fence
 publication, not metadata-pointer changes caused by a peer's compatible refresh.
@@ -213,7 +215,8 @@ nontransactional.
   maintenance restrictions and the most recently entered actor's precedence.
   Core owns balanced entry, authority/presentation refresh and unwinding.
 - **Statement classification** (pure functions of the AST and owner values):
-  command tags (`command_tag.go`); admission predicates and refusals
+  command tags (`command_tag.go`), including non-counted ALTER STATISTICS targets;
+  admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,
   `ExplicitUtilityRefusal`, `TransactionalSchemaUtility`); snapshot, replacement-read and Describe classes
   (`statement_phases.go`); and the transaction-control table

@@ -4,8 +4,8 @@ import "sync"
 
 // builtinTemplate is one builtin generation built from the compiled tables,
 // with each descriptor's position. Builtins copies it: every descriptor
-// pointer of a builtin points into its own generation, and builtins hold no
-// enum, composite or custom range definitions.
+// pointer of a builtin points into its own generation. The only composite
+// definition is the fixed NULL-only pg_statistic description, copied below.
 type builtinTemplate struct {
 	types    []*Descriptor
 	position map[*Descriptor]int
@@ -15,7 +15,7 @@ var builtins = sync.OnceValue(func() builtinTemplate {
 	t := builtinTemplate{types: buildBuiltins()}
 	t.position = make(map[*Descriptor]int, len(t.types))
 	for i, d := range t.types {
-		if d.enum != nil || d.composite != nil || d.customRange != nil {
+		if d.enum != nil || d.composite != nil && d.id != 10029 || d.customRange != nil {
 			panic("stuntgres: builtin type template holds a definition it cannot copy")
 		}
 		t.position[d] = i
@@ -33,6 +33,10 @@ func cloneBuiltins() []*Descriptor {
 	for i, d := range t.types {
 		copies[i] = *d
 		out[i] = &copies[i]
+		if d.composite != nil {
+			definition := &compositeDefinition{members: append([]CompositeMember(nil), d.composite.members...), attributes: d.composite.attributes}
+			copies[i].composite = definition
+		}
 	}
 	move := func(p **Descriptor) {
 		if *p != nil {
@@ -46,6 +50,11 @@ func cloneBuiltins() []*Descriptor {
 	for i := range copies {
 		for _, p := range copies[i].descriptorPointers() {
 			move(p)
+		}
+		if copies[i].composite != nil {
+			for j := range copies[i].composite.members {
+				move(&copies[i].composite.members[j].Usage.Type)
+			}
 		}
 	}
 	return out

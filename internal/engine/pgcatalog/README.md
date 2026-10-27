@@ -66,8 +66,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - `pg_statistic_ext` (3381) is a real PUBLIC-readable nine-column definitions
   catalog. Its authenticated source projects actual immutable CREATE STATISTICS
   definitions with current-generation schema, owner and input relation links.
-  Ordinary tables and ANALYZE never manufacture definitions; there is no
-  separately mutable row store or analyzed-data population adapter.
+  Ordinary tables and ANALYZE never manufacture definitions; the definition
+  source is independent of collected immutable metadata.
   `stxkeys` is an INT2VECTOR of table attribute identities, `stxkind` an internal `"char"`
   array, and nullable `stxexprs` a PG_NODE_TREE expression-tree list, not SQL.
   `stxstattarget` is nullable, not a substituted -1 default. Collected metrics
@@ -80,6 +80,17 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Retained captures remain valid with their original catalog generation and
   captured roles. Common ACL, capture and guarded-mutation admission remain
   authoritative.
+- Restricted `pg_statistic_ext_data` (3429, row10033/array10032) projects the same
+  canonical ANALYZE metadata roots through the authenticated runtime bridge.
+  Its six exact fields are stxoid, stxdinherit, stxdndistinct, stxddependencies,
+  stxdmcv and stxdexpr. Only ndistinct is collected; remaining payloads are genuine
+  typed NULLs, including canonical pg_statistic[]10028. Bootstrap/default catalog
+  ACL has no PUBLIC SELECT grant; statistics ownership grants no reader privilege.
+  No row exists before successful nonempty collection. Retained sources own
+  immutable values across reanalysis, definition removal and native replacement.
+  The canonical NULL-only pg_statistic composite participates in type ACL
+  projection through its validated type descriptor, without a fabricated
+  relation reader. Ordinary unbacked composites remain authority errors.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual

@@ -8,7 +8,7 @@ import (
 // arrayInputTarget is the shared anyarray input rule. An unknown remains
 // unresolved until a selected provider supplies its polymorphic diagnostic.
 func arrayInputTarget(u sqltype.Usage, catalogNull bool) (sqltype.Usage, bool) {
-	if u.Type == nil || catalogNull && u.CatalogNullUsage() {
+	if u.Type == nil || catalogNull && u.CatalogNullUsage() && (u.Type.ID() == 2277 || u.Type.IsArray()) {
 		return u, true
 	}
 	if !u.Type.BaseType().IsArray() {

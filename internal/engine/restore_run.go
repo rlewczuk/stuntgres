@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typecmds"
@@ -41,6 +42,7 @@ type restoreRun struct {
 	triggerCloneCaptures  []viewcmds.RestoredTriggerClone
 	extensionOwners       []extension.OwnerRecord
 	snapshots             []view.MaterializedSnapshot
+	ndistinct             []storage.NDistinctSnapshot
 	comparison            control.ComparisonRestore
 	attributePairs        control.AttributeConstructorPairs
 	attributeConstructors map[control.AttributeDropTarget]ids.ObjectRef

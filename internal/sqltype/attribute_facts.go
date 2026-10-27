@@ -81,12 +81,22 @@ func (d *Descriptor) AttributeFacts() PostgreSQLAttributeFacts {
 	return f
 }
 
-// CatalogNullUsage permits only the canonical builtin ANYARRAY description.
-// LookupOnly, domains and arrays cannot manufacture this authority. This does
-// not make the pseudo type valid for input, storage, parameters or operators.
+// CatalogNullUsage grants result-only NULL authority to fixed, self-owned
+// catalog descriptors. Copies and user-created lookalikes have no authority.
 func (u Usage) CatalogNullUsage() bool {
 	d := u.Type
-	return d != nil && d.catalogNullOwner == d && d.id == 2277 && d.namespace == "pg_catalog" && d.name == "anyarray" && d.lookupOnly && d.base.Type == nil && d.element == nil && u.Typmod == -1 && u.Collation == (CollationRef{})
+	if d == nil || d.catalogNullOwner != d || d.namespace != "pg_catalog" || !d.lookupOnly || d.base.Type != nil || u.Typmod != -1 || u.Collation != (CollationRef{}) {
+		return false
+	}
+	switch d.id {
+	case 2277:
+		return d.name == "anyarray" && d.element == nil
+	case 10029:
+		return d.name == "pg_statistic" && d.element == nil && d.composite != nil && len(d.composite.members) == 31
+	case 10028:
+		return d.name == "_pg_statistic" && d.element != nil && d.element.id == 10029 && d.element.catalogNullOwner == d.element
+	}
+	return false
 }
 
 func CatalogResultNull(u Usage) Value {

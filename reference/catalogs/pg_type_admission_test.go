@@ -40,6 +40,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,t.typcategory,t.typcollation,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=1790", []string{"oid", "typname", "typarray", "typcategory", "typcollation", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "CHAR", "OID", "OID", "NAME", "OID"}, [][]any{{int64(1790), "refcursor", int64(2201), "U", int64(0), int64(2201), "_refcursor", int64(1790)}}))
 		// OIDVECTOR is concrete; its real canonical companion is metadata only.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typelem,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=30", []string{"oid", "typname", "typelem", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "OID", "NAME", "OID"}, [][]any{{int64(30), "oidvector", int64(26), int64(1013), int64(1013), "_oidvector", int64(30)}}))
+		// The exact pg_statistic row/array description is catalog metadata
+		// with NULL-only result authority, not a pg_statistic reader or codec.
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid::bigint AS oid,typtype,typrelid::bigint AS relation,typelem::bigint AS element,typarray::bigint AS array FROM pg_type WHERE oid IN(10028,10029) ORDER BY oid", []string{"oid", "typtype", "relation", "element", "array"}, []string{"INT8", "CHAR", "INT8", "INT8", "INT8"}, [][]any{{int64(10028), "b", int64(0), int64(10029), int64(0)}, {int64(10029), "c", int64(2619), int64(0), int64(10028)}}))
 		if b.PG {
 			return
 		} // PostgreSQL genuinely implements additional families.
@@ -83,6 +86,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// advertised catalog metadata, not executable array admission.
 		expected[1790], expected[2201] = true, true
 		expected[22], expected[30], expected[1006], expected[1013] = true, true, true, true
+		expected[10028], expected[10029] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")

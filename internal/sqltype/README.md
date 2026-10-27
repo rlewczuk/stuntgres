@@ -71,6 +71,18 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   MCV validation distinguishes by-value dimensions (zero deserialized allocation)
   from fixed/variable by-reference dimensions, checking their serialized and
   aligned allocation extents independently against the released serializer.
+- Canonical `pg_statistic` row10029 describes its exact31 released members,
+  including five ANYARRAY fields; array10028 has that actual element identity.
+  These self-owned builtin descriptions grant only `CatalogNullUsage` result
+  authority, not general Concrete/input/storage/operator or non-NULL codecs.
+  Ordinary Composite/Array constructors still reject pseudotype members.
+  Builtin cloning remaps every member, element and self-owner into its own
+  generation. Conditional equality's unresolved ANYARRAY diagnostic remains
+  specific to ANYARRAY, not every catalog-only NULL descriptor.
+  `RebindStatisticNullDescriptors` rebuilds only this authentic fixed row/array
+  pair when replacement retains selected builtin member generations. Unchanged
+  closures keep their backing; rebuilt members, element and self-owner are
+  coherent without weakening type-provider generation checks.
 - `PgLSN` retains unsigned 64-bit positions inline. Its descriptor owns strict
   slash-hex text, canonical uppercase output, typed SQL literals and eight-byte
   big-endian codecs. Comparisons and B-tree ordering use unsigned magnitude.
@@ -616,3 +628,5 @@ match engine tests of the same mechanism):
   metadata, driver values, empty/NULL inputs and two native Dump/Restore passes
   through the canonical catalog-vector provider (native and `REFERENCE=1`).
 - Unsigned LSN codecs, comparison and exact arithmetic: `RUN='^TestPGLSN'`
+- NULL-only catalog descriptor authority and ndistinct construction:
+  `RUN='^TestStatisticsNDistinctTypeAuthority$'`.

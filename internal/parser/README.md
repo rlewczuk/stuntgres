@@ -337,6 +337,10 @@ Routine declaration syntax and positioned CALL/notation/full-input ownership uni
 `RUN='^TestRoutine(ResultDeclarations|ProcedureCall|Attribute)'`.
 Statistics owner replay option isolation and full-input positions use
 `RUN='^TestStatisticsObjectOwnerReplayParser$'`.
+Bounded `ALTER STATISTICS [IF EXISTS] ... SET STATISTICS` has its own positioned
+AST, independent of the private owner-replay option. Signed values reuse the
+released int32-magnitude grammar fence; DEFAULT retains distinct catalog meaning.
+AST/options/boundaries use `RUN='^TestStatisticsNDistinctTargetParser$'`.
 
 Unit tests here drive the real lexer and generated parser and check AST shape,
 positions, ownership and complete-input rejection. Public SQL acceptance and

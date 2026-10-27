@@ -1,5 +1,13 @@
 # Changes
 
+- Collect genuine multivariate ndistinct tuples during ANALYZE, including NULL
+  groups and canonical subsets, with isolated object targets and inheritance
+  flavors. Publish immutable typed facts through the existing metadata Journal.
+  Register restricted six-column pg_statistic_ext_data with exact NULL-only
+  pg_statistic row/array descriptions. Native Dump/Restore preserves checked
+  stale/zero/absent state without recomputation and retains genuine TEMP facts,
+  reconstructing retained payloads with the replacement's current type authority.
+
 - Implement CREATE/DROP STATISTICS for simple multicolumn definitions, with
   immutable keys/kinds, ownership, automatic column/relation dependencies and
   populated pg_statistic_ext rows. Native controls preserve definitions and

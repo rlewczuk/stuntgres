@@ -435,6 +435,20 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 			t.Fatal("retained builtin closure", typ)
 		}
 	}
+	description, described := current.LookupType(10029)
+	descriptionArray, arrayDescribed := current.LookupType(10028)
+	if !described || !arrayDescribed || descriptionArray.Element() != description ||
+		!description.Usage().CatalogNullUsage() || !descriptionArray.Usage().CatalogNullUsage() ||
+		description.CompositeMember(4).Usage.Type != integer.Element() {
+		t.Fatal("catalog NULL description did not follow the retained scalar closure")
+	}
+	for i := range description.CompositeLen() {
+		member := description.CompositeMember(i)
+		actual, exists := current.LookupType(member.Usage.Type.ID())
+		if !exists || member.Usage.Type != actual {
+			t.Fatal("mixed-generation catalog NULL member", i)
+		}
+	}
 	for _, descriptor := range current.Descriptors() {
 		if err := e.Catalog.Providers[descriptor.Address().ClassID].Validate(current, descriptor); err != nil {
 			t.Fatal("invalid retained provider", descriptor.Address(), descriptor.Name(), err)

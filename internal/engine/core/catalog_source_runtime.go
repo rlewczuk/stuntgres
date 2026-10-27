@@ -135,6 +135,7 @@ func (r EngineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 // capture check; only the error names them apart.
 var sharedCaptureNames = map[ids.OID]string{
 	ids.PolicyClassID:                            "pg_policy",
+	pgcatalog.StatisticExtDataOID:                "pg_statistic_ext_data",
 	pgcatalog.TablePrivilegesOID:                 "table_privileges",
 	pgcatalog.InfoEnabledRolesOID:                "enabled_roles",
 	pgcatalog.InfoCharacterSetsOID:               "character_sets",

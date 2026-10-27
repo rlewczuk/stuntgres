@@ -80,7 +80,16 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 		if err := w.emitDefinition(s.CatalogView, declaration); err != nil {
 			return err
 		}
-		return w.setOwner(declaration.Owner)
+		if err := w.setOwner(declaration.Owner); err != nil {
+			return err
+		}
+		for _, d := range s.Statistics {
+			if d.Address().ObjectID == oid && d.TargetSet {
+				name := catalog.QuoteIdentifier(s.CatalogView.MustNamespace(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
+				return w.emit(fmt.Sprintf("ALTER STATISTICS %s SET STATISTICS %d;\n", name, d.Target))
+			}
+		}
+		return nil
 	}
 	if typ := s.domainNodes[oid]; typ != nil && (typ.SQLType.IsDomain() || typ.SQLType.IsRange()) && declaration.Owner != "postgres" {
 		// Owner metadata does not imply schema CREATE/USAGE. Preserve its

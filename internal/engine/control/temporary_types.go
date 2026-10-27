@@ -43,6 +43,11 @@ func RetainTemporaryBuiltinTypes(current catalog.Read, next *catalog.State, temp
 		if typ.IsArray() {
 			retainBuiltin(typ.Element())
 		}
+		if typ.IsComposite() && typ.Usage().CatalogNullUsage() {
+			for i := range typ.CompositeLen() {
+				retainBuiltin(typ.CompositeMember(i).Usage.Type)
+			}
+		}
 		if source.Array != 0 {
 			if array, ok := current.State().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.Array)}); ok {
 				retainBuiltin(array.SQLType)

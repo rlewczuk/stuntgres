@@ -86,12 +86,20 @@ function references once into the destination authority.
   definitions across data on redump. Stable keys resolve current column spellings;
   generated original names replay explicitly. Named owner
   directives pair privileged creation with one immediate owner transfer in the
-  isolated Restore, without enabling ordinary ALTER STATISTICS. Replacement
-  remaps class-qualified object addresses, owner principals and relation refs.
+  isolated Restore, without enabling ordinary statistics owner alteration.
+  Bounded target alterations replay after that immediate owner pair, under the
+  actual owner. Replacement remaps object addresses, principals and relation refs.
   The pair record belongs to `ddl`; `schemacmds` performs trusted capture and
   owner-only COW, while the root driver alone carries and expires that pair.
   Bootstrap-principal definitions use their named owner directive without a
   redundant transfer; DEFAULT may name a different authenticated role on replay.
+  Deterministic strict `stuntgres-ndistinct-v1` comments transport only checked
+  collected ndistinct facts, including stale values and separate inherited
+  flavors. Restore resolves names/keys/usages after definition finalization and
+  reconstructs immutable typed values before atomic destination publication.
+  No ANALYZE replay or single-column distribution import occurs. Genuine
+  destination TEMP facts retain their separate existing retention authority.
+  PostgreSQL18 script replay ignores these comments and leaves data absent.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
   ADD MAPPING statements, never COPY provenance. Namespace, mapped dictionary
   and stored alias/default/view dependencies use the ordinary event graph.
@@ -342,6 +350,9 @@ candidate, these owning operations retain the engine's error contracts:
    `RetainTemporaryBuiltinTypes`, `CheckTemporaryDependencies`,
    `TemporaryCollisionMapping`, `RemapReplacementIdentities`
    (`persistent_replacement.go`, `temporary_*.go`, `replacement_remap*.go`).
+   A retained catalog-only NULL composite closes over its actual member types
+   and companion array. Otherwise type reownership rebuilds the fixed description
+   against the candidate's current member generations, preserving old captures.
    Collision remapping stays selective outside actual affected alias endpoint
    components. All captured range/member order edges are structural facts;
    unrelated collisions, unused families and separate singleton values do not

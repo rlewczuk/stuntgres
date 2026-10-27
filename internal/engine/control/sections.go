@@ -52,6 +52,7 @@ var dumpSections = [...]dumpSection{
 	{"object ACLs", emitDumpObjectACLs},
 	{"raw codec completion", emitDumpRawCodecCompletion},
 	{"event triggers", emitDumpEventTriggers},
+	{"ndistinct snapshots", emitDumpNDistinct},
 }
 
 func emitDumpRoutineDirective(_ context.Context, s *dumpScript, w *dumpWriter) error {

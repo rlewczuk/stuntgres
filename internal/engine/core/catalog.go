@@ -1049,6 +1049,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	}
 	sourceRoles := source.RoleStore.PublishedRead(&source.Catalog.Owner, replacement)
 	sourceForeign := source.Foreign
+	ndistinct := storage.CaptureNDistinctSnapshots(replacement, source.Storage.RelationMetadata)
 	source.Mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
@@ -1088,7 +1089,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids); err != nil {
+	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, ndistinct); err != nil {
 		return ChangeSet{}, err
 	}
 	e.Foreign.AdoptNamespaces(sourceForeign)
@@ -1101,13 +1102,25 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation, ndistinct []storage.NDistinctSnapshot) error {
 	if prepared.Catalog != next || prepared.BaseCatalog != e.Catalog.State || prepared.BaseRow != e.Storage.RowFrontier() || prepared.BaseVersion != e.Storage.VersionFrontier() || prepared.Frontier != e.Visibility.CommitSeq() || e.Catalog.NextOID() != oids.Base {
 		return ids.ErrCatalogReplaced
 	}
 	metadata, err := e.prepareRetainedRelationMetadataLocked(next, relations)
 	if err != nil {
 		return err
+	}
+	imported, err := storage.RestoreNDistinctSnapshots(e.Catalog.Read(next), ndistinct)
+	if err != nil {
+		return err
+	}
+	if len(imported) != 0 {
+		if metadata == nil {
+			metadata = make(map[ids.ObjectAddress]*storage.RelationMetadata, len(imported))
+		}
+		for address, entry := range imported {
+			metadata[address] = entry
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return err

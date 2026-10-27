@@ -62,8 +62,10 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   its domain/epoch. `StageDropSchema` consumes that manifest under one coherent
   current-authority/catalog lock window, validating all bindings before notices
   or removals; it never re-resolves a replacement from the original names.
-- **Statistics** (`statistics.go`): stage schema-bound definitions with immutable
-  selected attributes/kinds, ordered admission and atomic DROP targets.
+- **Statistics** (`statistics.go`, `statistics_target.go`): stage schema-bound
+  definitions with immutable selected attributes/kinds, ordered admission and
+  atomic DROP targets. Bounded object-target mutation normalizes bounds/warnings
+  before lookup/ownership and replaces only metadata, preserving collected facts.
   `RestoredStatisticsOwner` retains exact descriptor, namespace and principal
   generations for one immediate private replay; `schemacmds` owns its trusted
   capture and owner-only replacement, and the replay driver expires it.

@@ -1,12 +1,15 @@
 package core
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/sqltype"
 )
 
 // prepareRelationMetadataLocked prepares the existing Store's single ANALYZE
@@ -32,6 +35,11 @@ func (e *Engine) prepareRelationMetadataLocked(next *catalog.State, journal *ses
 			}
 		}
 		metadata[address] = entry
+		if facts := storage.CompatibleExtendedStatistics(entry.Statistics, relation, e.Catalog.Read(next)); facts != entry.Statistics {
+			copy := *entry
+			copy.Statistics = facts
+			metadata[address] = &copy
+		}
 	}
 	if journal != nil {
 		for address, change := range journal.Statistics {
@@ -47,7 +55,8 @@ func (e *Engine) prepareRelationMetadataLocked(next *catalog.State, journal *ses
 			if previous != nil {
 				entry = *previous
 			}
-			entry.Statistics = storage.CompatibleStatistics(storage.MergeStatistics(entry.Statistics, change.Columns), relation)
+			entry.Statistics = storage.CompatibleStatistics(storage.MergeExtendedStatistics(storage.MergeStatistics(entry.Statistics, change.Columns), change.Extended), relation)
+			entry.Statistics = storage.CompatibleExtendedStatistics(entry.Statistics, relation, e.Catalog.Read(next))
 			metadata[address] = &entry
 		}
 	}
@@ -88,7 +97,38 @@ func (e *Engine) prepareRetainedRelationMetadataLocked(next *catalog.State, rela
 		if original.RelationKind.Stored() && relations[address] != e.Storage.Relations[address] {
 			continue
 		}
-		facts := session.ResolveStatistics(nil, address, previous, retained, e.Catalog.Read(next))
+		candidate := *previous
+		if previous.Statistics != nil && len(previous.Statistics.Extended) != 0 {
+			payloadType, exists := e.Catalog.Read(next).LookupType(sqltype.PgNDistinct)
+			if !exists {
+				return nil, fmt.Errorf("stuntgres: missing retained ndistinct payload type")
+			}
+			stats := *previous.Statistics
+			stats.Extended = make(map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics, len(previous.Statistics.Extended))
+			for key, fact := range previous.Statistics.Extended {
+				oldDefinition, ok := e.Catalog.Current().Statistics(key.Definition.Address)
+				definition, exists := next.Statistics(key.Definition.Address)
+				if !ok || !exists || definition.Namespace() != oldDefinition.Namespace() || definition.Revision() != oldDefinition.Revision() || temporary[definition.Namespace()] == nil || definition.Selection != fact.Selection {
+					continue
+				}
+				key.Definition = e.Catalog.Domain.Ref(next.Epoch(), definition.Address())
+				value := *fact
+				value.Relation = definition.Relation
+				if value.Value.Type() != payloadType {
+					// TEMP rows retain their exact defining usages, but the
+					// collected payload has independent builtin authority.
+					// Rebuild from checked items before installation, leaving
+					// the old fact and its captured typed value untouched.
+					value.Value, err = sqltype.StatisticsValue(payloadType, fact.Items)
+					if err != nil {
+						return nil, err
+					}
+				}
+				stats.Extended[key] = &value
+			}
+			candidate.Statistics = &stats
+		}
+		facts := session.ResolveStatistics(nil, address, &candidate, retained, e.Catalog.Read(next))
 		entry := previous
 		if facts != previous.Statistics {
 			copy := *previous

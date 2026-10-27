@@ -28,6 +28,49 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain base")
 		}
+		if d.SQLType.Usage().CatalogNullUsage() && (d.SQLType.ID() == 10029 || d.SQLType.ID() == 10028) {
+			// These fixed builtin descriptions are NULL-result capabilities,
+			// not user composites with a backing relation to reconstruct.
+			if destination, ok := mapping[address]; ok && destination != address {
+				return fmt.Errorf("stuntgres: catalog NULL type identity cannot be remapped")
+			}
+			if destination, ok := mapping[d.Namespace()]; ok && destination != d.Namespace() {
+				return fmt.Errorf("stuntgres: catalog NULL type namespace cannot be remapped")
+			}
+			if d.SQLType.IsArray() {
+				return visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10029})
+			}
+			active[address] = true
+			var usages [31]sqltype.Usage
+			for i := range d.SQLType.CompositeLen() {
+				member := d.SQLType.CompositeMember(i)
+				child := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(member.Usage.Type.ID())}
+				if err := visit(child); err != nil {
+					return err
+				}
+				usages[i] = next.MustType(child).SQLType.Usage()
+			}
+			arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10028}
+			array, ok := next.Type(arrayAddress)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing catalog NULL array description")
+			}
+			rowType, arrayType, err := sqltype.RebindStatisticNullDescriptors(d.SQLType, array.SQLType, usages[:])
+			if err != nil {
+				return err
+			}
+			if rowType != d.SQLType {
+				rowCopy, arrayCopy := *d, *array
+				rowCopy.SQLType, arrayCopy.SQLType = rowType, arrayType
+				next.SetDescriptor(address, &rowCopy)
+				next.SetDescriptor(arrayAddress, &arrayCopy)
+				changed = true
+			}
+			delete(active, address)
+			visited[arrayAddress] = true
+			visited[address] = true
+			return nil
+		}
 		if d.SQLType.IsMultirange() && d.SQLType.IsUserDefined() {
 			return visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.RangeType().ID())})
 		}

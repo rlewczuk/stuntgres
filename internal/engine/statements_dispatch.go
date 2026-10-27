@@ -108,7 +108,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 			scope.CompleteUtility()
 		}
 		return result, true, err
-	case *parser.CreateStatistics, *parser.DropStatistics:
+	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget:
 		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
 			scope.CompleteUtility()

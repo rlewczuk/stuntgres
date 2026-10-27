@@ -98,14 +98,28 @@ retains old column distributions but refreshes row estimates to zero.
 inapplicable in this in-memory engine. No pages, WAL, sampling workers or
 autovacuum are implied. Full `pg_statistic`/`pg_stats` SQL readers are separate
 coverage; existing `pg_class` and table-statistics views publish real maintenance
-facts. Logical Dump/Restore transports data, not planner statistics.
+facts. Logical Dump/Restore transports data and checked multivariate ndistinct
+state; it does not import single-column planner distributions.
 
 `CREATE STATISTICS` creates named or generated simple-column definitions with
 `ndistinct`, `dependencies` and `mcv` kinds; `DROP STATISTICS` supports conditional
 and dependency modes. Definitions appear in `pg_statistic_ext` and survive native
 Dump/Restore with ownership and stable column identities. Creation does not
-collect analyzed payloads. The internal statistics types support real typed NULL
-columns and results, reject non-NULL SQL input, and retain their native metadata.
+collect analyzed payloads. `ANALYZE` populates requested `ndistinct` objects from
+real visible tuples, including NULL groups, for every subset of two or more
+selected keys. The restricted six-column `pg_statistic_ext_data` source returns
+genuine typed payloads; other extended payloads remain typed NULL.
+`ALTER STATISTICS [IF EXISTS] name SET STATISTICS {integer|DEFAULT}` controls
+each object's target: zero retains its old payload without rebuilding, and
+DEFAULT uses the existing target100. Positive targets retain exact native
+full-scan counts; PostgreSQL can sample larger populations. Counts are technical
+statistics and never approximate substantive SELECT results.
+Native versioned comments preserve stale values, target-zero values, absence,
+and local/inherited flavors without reanalysis. PostgreSQL safely ignores these
+comments when replaying the same definition/target SQL; PostgreSQL18 dumps do
+not preserve collected extended statistics. Dependencies/MCV collection,
+expressions, `pg_stats_ext` and planner group-estimate integration are separate.
+The internal statistics types reject non-NULL SQL input and retain native metadata.
 
 
 ## Using stuntgres in unit tests

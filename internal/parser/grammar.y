@@ -538,7 +538,8 @@ package parser
 %type <element> typed_element
 %type <stmt> create_collation alter_collation drop_collation
 %type <stmt> create_conversion alter_conversion drop_conversion
-%type <stmt> create_statistics drop_statistics
+%type <stmt> create_statistics drop_statistics alter_statistics_target
+%type <integer> statistics_target
 %type <identifiers> statistics_kinds
 %type <tok> statistics_create_head statistics_alter_head
 %type <stmt> create_dictionary alter_dictionary drop_dictionary
@@ -1678,6 +1679,7 @@ create: create_table { $$=$1 }
  | create_collation { $$=$1 }
  | create_conversion { $$=$1 }
  | create_statistics { $$=$1 }
+ | alter_statistics_target { $$=$1 }
  | create_dictionary { $$=$1 }
  | create_configuration { $$=$1 }
  | create_function { $$=$1 }
@@ -1816,7 +1818,10 @@ create_statistics: statistics_create_head relation_name statistics_kinds ON gran
  | statistics_create_head IF NOT EXISTS relation_name statistics_kinds ON grant_column_list FROM relation_name {$$=&CreateStatistics{Name:$5,Kinds:$6,Columns:$8,Relation:$10,IfNotExists:true,Pos:$1.pos}} ;
 drop_statistics: DROP STATISTICS relation_names drop_mode {$$=&DropStatistics{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP STATISTICS IF EXISTS relation_names drop_mode {$$=&DropStatistics{Names:$5,Mode:$6,IfExists:true,Pos:$1.pos}} ;
-statistics_alter_head: ALTER STATISTICS {if !sqllex.(*lexer).options.StatisticsOwnerReplay {sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported");return 1};$$=$1} ;
+statistics_alter_head: ALTER STATISTICS {$$=$1} ;
+statistics_target: cursor_integer {$$=$1} | DEFAULT {$$=-1} ;
+alter_statistics_target: statistics_alter_head relation_name SET STATISTICS statistics_target {$$=&AlterStatisticsTarget{Name:$2,Target:$5,Pos:$1.pos}}
+ | statistics_alter_head IF EXISTS relation_name SET STATISTICS statistics_target {$$=&AlterStatisticsTarget{Name:$4,Target:$7,IfExists:true,Pos:$1.pos}} ;
 create_aggregate: CREATE AGGREGATE relation_name '(' aggregate_arguments ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments($5,nil);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Options:$8,Pos:$1.pos}}
  | CREATE AGGREGATE relation_name '(' ORDER BY grant_routine_argument_list ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments(nil,$7);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Ordered:true,Options:$10,Pos:$1.pos}}
  | CREATE AGGREGATE relation_name '(' grant_routine_argument_list ORDER BY grant_routine_argument_list ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments($5,$8);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Ordered:true,DirectArgs:len($5),Options:$11,Pos:$1.pos}} ;
@@ -3956,7 +3961,7 @@ extension_update_options: /* empty */ { $$=nil } | extension_update_options exte
 extension_update_option: TO extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
 alter_owner: ALTER TYPE relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"type",Name:$3,Target:$6,Pos:$1.pos} }
  | ALTER DOMAIN relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"domain",Name:$3,Target:$6,Pos:$1.pos} }
- | statistics_alter_head relation_name OWNER TO membership_role_spec {$$=&AlterOwner{Kind:"statistics",Name:$2,Target:$5,Pos:$1.pos}}
+ | statistics_alter_head relation_name OWNER TO membership_role_spec {if !sqllex.(*lexer).options.StatisticsOwnerReplay {sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported");return 1};$$=&AlterOwner{Kind:"statistics",Name:$2,Target:$5,Pos:$1.pos}}
  | ALTER DATABASE name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"database",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Target:$6,Pos:$1.pos} } ;
 reassign_owned: REASSIGN OWNED BY membership_role_specs TO membership_role_spec { $$=&ReassignOwned{Sources:$4,Target:$6,Pos:$1.pos} } ;
 drop_owned: DROP OWNED BY membership_role_specs drop_mode { $$=&DropOwned{Sources:$4,Mode:$5,Pos:$1.pos} } ;

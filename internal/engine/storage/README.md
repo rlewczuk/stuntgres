@@ -82,6 +82,14 @@ and never the engine.
   and resets only the since-analyze modification counter, retaining cumulative
   DML/VACUUM and since-vacuum counters. Physical `Relation.Maintenance` does not
   duplicate typed statistics or ANALYZE count/time/inherited publications.
+  Extended facts share this same root, keyed by generation-qualified statistics
+  definition and inherited flavor. `NDistinctCollector` receives each mapped row
+  beside the scalar collector, prepares typed NOT DISTINCT keys once per column,
+  and collision-checks every canonical subset of widths2..8 (at most247).
+  NULLs form real groups. `MergeExtendedStatistics` preserves unselected backing;
+  compatibility checks definitions, stable usages and current hierarchy authority.
+  The strict `stuntgres-ndistinct-v1` codec validates complete canonical subsets
+  and positive integral counts and reconstructs `StatisticsValue`, never text input.
 
 
 ## Invariants
@@ -167,4 +175,5 @@ make check RUN='^Test(MaterializedViewSnapshotImport|MaterializedViewPublication
 make check RUN='^TestVacuum'
 make check RUN='^TestVerifyHeapamLogicalRows$'
 make check RUN='^TestReference(ControlSnapshotSurvivesCatalogReplacement|ControlFailedRestorePreservesCatalog|HashPartition(Controls|FinalRemap))$$'
+make check RUN='^TestStatisticsNDistinct'
 ```

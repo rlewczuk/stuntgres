@@ -35,11 +35,11 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	}
 	alter := false
 	switch stmt.(type) {
-	case *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
+	case *parser.AlterStatisticsTarget, *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
 		alter = true
 	}
 	switch stmt.(type) {
-	case *parser.DropStatistics:
+	case *parser.DropStatistics, *parser.AlterStatisticsTarget:
 	case *parser.AlterConfiguration, *parser.DropConfiguration, *parser.AlterDictionary, *parser.DropDictionary, *parser.AlterCollation, *parser.DropCollation,
 		*parser.AlterConversion, *parser.DropConversion, *parser.DropCast, *parser.DropRoutine,
 		*parser.CreateFunction, *parser.AlterEventTrigger, *parser.DropEventTrigger:

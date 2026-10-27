@@ -87,7 +87,7 @@ func (e ArrayInspect) Validate() error {
 		}
 	}
 	u := e.Args[0].ResultUsage()
-	if u.Type == nil || !u.CatalogNullUsage() && (!u.Type.Concrete() || !u.Type.IsArray()) {
+	if u.Type == nil || !(u.CatalogNullUsage() && (u.Type.ID() == 2277 || u.Type.IsArray())) && (!u.Type.Concrete() || !u.Type.IsArray()) {
 		return fmt.Errorf("stuntgres: invalid stored array inspection input")
 	}
 	if len(e.Args) == 2 && e.Args[1].ResultUsage().Type != e.Usage.Type {
