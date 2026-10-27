@@ -84,6 +84,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		6159: {"fktable", "fkcols", "pktable", "pkcols", "is_array", "is_opt"},
 		6168: {"xid", "timestamp", "roident"},
 		6212: {"mean", "stddev"},
+		6224: {"rm_id", "rm_name", "rm_builtin"},
 		6251: {"string", "pattern", "replacement", "start", "N", "flags"},
 		6252: {"string", "pattern", "replacement", "start", "N"},
 		6253: {"string", "pattern", "replacement", "start"},

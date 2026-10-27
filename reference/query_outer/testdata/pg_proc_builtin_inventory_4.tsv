@@ -454,3 +454,8 @@
 6209	pg_read_binary_file	11	12	1	0	0	0	f	false	false	true	false	v	s	2	0	17	25 16	\N	\N	\N	false	\N	pg_read_binary_file_all_missing	\N	false	\N
 5029	pg_ls_tmpdir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_tmpdir_noargs	\N	false	\N
 5030	pg_ls_tmpdir	11	12	10	20	0	0	f	false	false	true	true	v	s	1	0	2249	26	{26,25,20,1184}	{i,o,o,o}	{tablespace,name,size,modification}	false	\N	pg_ls_tmpdir_1arg	\N	false	\N
+3810	pg_is_in_recovery	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	16		\N	\N	\N	false	\N	pg_is_in_recovery	\N	false	\N
+3820	pg_last_wal_receive_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_last_wal_receive_lsn	\N	false	\N
+3821	pg_last_wal_replay_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_last_wal_replay_lsn	\N	false	\N
+3830	pg_last_xact_replay_timestamp	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	1184		\N	\N	\N	false	\N	pg_last_xact_replay_timestamp	\N	false	\N
+6224	pg_get_wal_resource_managers	11	12	1	50	0	0	f	false	false	true	true	v	s	0	0	2249		{23,25,16}	{o,o,o}	{rm_id,rm_name,rm_builtin}	false	\N	pg_get_wal_resource_managers	\N	false	\N

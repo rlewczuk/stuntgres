@@ -63,6 +63,9 @@ single-statement limit of driver calls) belong to callers.
   Ordinary selected calls require the FILTER opener before rejecting unsupported
   modifiers; incomplete FILTER reports its natural syntax error. Supported
   aggregate/window FILTER syntax and quoted or AS labels remain independent.
+  Recovery registry calls retain the same failure-only star/decorator syntax
+  for ordinary binder diagnostics; this lexical admission grants no aggregate
+  capability and preserves quoted function spelling and bare identifiers.
 - Standalone `Call` retains the command position and the positioned shared
   `FunctionExpr` argument/notation syntax. Raw expression visitors include every
   actual, including pure OUT placeholders; CALL remains an unreserved name.

@@ -12,6 +12,13 @@ the authority behind evaluation capabilities in the root
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
 
+`RecoveryInfo` retains a zero-input immutable typed recipe: BOOL false or typed
+PG_LSN/TIMESTAMPTZ NULL in an engine that never performs physical recovery.
+These inquiries remain VOLATILE and unfolded. `WALResourceManagers` retains
+only its fixed three-member OUT record; metadata binding never borrows a
+physical registry. Demanding source opening rejects that unavailable mechanism
+with an explicit diagnostic, without synthesizing manager rows or progress.
+
 `GenericFileList` binds eleven `pg_ls_*` signatures as volatile, strict typed
 sources, retaining only a closed kind, immutable operands and result shape.
 Ordinary EXECUTE admission precedes runtime NULL handling; all written operands
@@ -609,6 +616,8 @@ Generic file-list binding, lexical paths, source ownership and ACL persistence
 use `RUN='^TestGenericFileList'`.
 Read/stat/tmpdir binding, scalar strict protocols and runtime ownership use
 `RUN='^TestGenericFileRead'`; public SQL scenarios remain in `reference/roles`.
+Recovery inquiry carriers, fixed OUT validation and physical source admission use
+`RUN='^TestRecoveryInfo'`; public witnesses use `^TestReferenceRecoveryInfo`.
 
 Native ordered support state, tuple ownership and cancellation units use
 `RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in

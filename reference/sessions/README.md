@@ -4,7 +4,8 @@ Public driver and session behavior: direct/prepared parameters, rows and metadat
 cancellation and closed objects, physical sessions, notices, identifiers, session
 identity, `search_path` and namespace identity, version and Unicode inquiries,
 LISTEN/NOTIFY session messages, `pg_locks`, `pg_blocking_pids`, transaction
-status and commit timestamps with tracking off, prepared-statement rebind, DISCARD,
+status and commit timestamps with tracking off, primary-mode recovery inquiries
+and typed physical-registry source admission, prepared-statement rebind, DISCARD,
 SQL PREPARE/EXECUTE, and the wire-protocol server (`server_*_test.go`) against a
 real `cmd/stuntgres` subprocess. Related families live elsewhere: settings,
 timeouts, the physical-session adapter and direct-message batches in
@@ -124,6 +125,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Version and Unicode inquiries: `RUN='^TestReferenceVersionInformation'`
 - LISTEN/NOTIFY session messages: `RUN='^TestReferenceSessionMessages'`
 - Notification state inquiries: `RUN='^TestReferenceNotificationInfo'`
+- Recovery inquiries and physical registry admission: `RUN='^TestReferenceRecoveryInfo'`
 - `pg_locks`: `RUN='^TestReferenceViewLocks'`
 - `pg_blocking_pids`: `RUN='^TestReferenceBlockingPids'`
 - Transaction status and commit timestamps, tracking off: `RUN='^TestReference(TransactionIdentityStatusDefaultTracking|CommitTime(Disabled|SpecialIDs|Resolution))'`
