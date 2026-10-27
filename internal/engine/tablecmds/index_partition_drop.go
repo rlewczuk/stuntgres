@@ -23,6 +23,13 @@ func executePartitionConstraintDropLocked(e *core.Engine, scope *core.StatementS
 	for _, observed := range scope.PartitionRelations {
 		stage.DomainBases = append(stage.DomainBases, observed)
 	}
+	path, err := core.ReferencePath(auth)
+	if err != nil {
+		e.Mu.Unlock()
+		e.DiscardCatalogStage(stage)
+		return core.Result{}, err
+	}
+	stage.DependencyPath = path
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for _, action := range syntax.Actions {
@@ -34,7 +41,7 @@ func executePartitionConstraintDropLocked(e *core.Engine, scope *core.StatementS
 			return core.Result{}, err
 		}
 	}
-	_, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
+	_, err = e.ValidateCatalogStage(scope.Op.Context(), stage)
 	if err != nil {
 		return core.Result{}, err
 	}

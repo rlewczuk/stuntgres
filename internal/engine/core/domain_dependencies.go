@@ -55,6 +55,7 @@ func (provider *DropProvider) ColumnDependencies(target ids.ObjectAddress, mode 
 		return ids.ErrCatalogReplaced
 	}
 	start := provider.noticePosition()
+	provider.MarkDropRoots([]ids.ObjectAddress{target})
 	err := provider.expressionDependencies([]ids.ObjectAddress{target}, mode, target, target)
 	if err != nil || provider.Scope == nil {
 		return err

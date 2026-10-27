@@ -85,6 +85,8 @@ type Host interface {
 	IdentifyObjectAddress(c *Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
 	IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error)
 	LookupObjectAddress(c *Context, values [3]sqltype.Value) (ids.ObjectAddress, error)
+	// functions.EventTriggerDroppedRuntime
+	EventTriggerDroppedObjects() ([][]sqltype.Value, error)
 	VisibilityInquiry(kind functions.VisibilityInquiryKind, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.SessionInquiryRuntime
 	CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error)

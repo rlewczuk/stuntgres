@@ -94,7 +94,7 @@ func familyPreflightUnchanged(t *testing.T, e *core.Engine, stage *core.CatalogS
 		if !reflect.DeepEqual(*family, familyValue) || !reflect.DeepEqual(*operator, operatorValue) || !reflect.DeepEqual(*support, supportValue) {
 			t.Fatal("preflight mutated a family/member descriptor")
 		}
-		if !maps.Equal(private, maps.Collect(stage.Descriptors())) || !maps.Equal(names, maps.Collect(stage.Names())) || !maps.Equal(touched, maps.Collect(stage.Touched())) || !maps.Equal(removals, maps.Collect(stage.Removals())) || !maps.Equal(oldNames, maps.Collect(stage.OldNames())) {
+		if !maps.Equal(private, maps.Collect(stage.Descriptors())) || !maps.Equal(names, maps.Collect(stage.Names())) || !maps.Equal(touched, maps.Collect(stage.Touched())) || !reflect.DeepEqual(removals, maps.Collect(stage.Removals())) || !maps.Equal(oldNames, maps.Collect(stage.OldNames())) {
 			t.Fatal("preflight changed candidate descriptors, names, observations or removals")
 		}
 		for address, descriptor := range stage.Descriptors() {

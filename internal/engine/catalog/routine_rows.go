@@ -17,6 +17,7 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 		return 50
 	case 1293, 2331, // multirange and array unnest
 		3084,                                           // extension update paths
+		3566,                                           // pg_event_trigger_dropped_objects
 		3205, 3208, 3219, 3465, 3475, 3491, 3931, 3932, // JSONB sets
 		3955, 3957, 3958, 3959, 3961, 3969: // JSON sets
 		return 100

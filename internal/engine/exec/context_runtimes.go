@@ -449,6 +449,19 @@ func (c *Context) IdentifyObjectAddress(values [3]sqltype.Value, result *sqltype
 	return host.IdentifyObjectAddress(c, values, result)
 }
 
+var _ functions.EventTriggerDroppedRuntime = (*Context)(nil)
+
+func (c *Context) EventTriggerDroppedObjects() ([][]sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return nil, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return nil, functions.EventTriggerDroppedContextError()
+	}
+	return host.EventTriggerDroppedObjects()
+}
+
 func (c *Context) DescribeObject(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
 	if host == nil {

@@ -12,8 +12,8 @@ var errDefinitionOIDFound = errors.New("definition OID found")
 
 // VisitDefinitionOIDs calls visit with each identity the descriptor owns
 // besides its own address: aggregate helpers, domain constraints, and a
-// relation's view rule, rules, triggers, policies, constraints, defaults and
-// generation expressions. It returns the first error visit returns.
+// relation's view rule, rules, triggers (including FK RI identities), policies,
+// constraints, defaults and generation expressions. It returns the first error visit returns.
 func VisitDefinitionOIDs(descriptor Descriptor, visit func(ids.OID) error) error {
 	d, relation := descriptor.(*Relation)
 	if !relation {
@@ -86,6 +86,11 @@ func VisitDefinitionOIDs(descriptor Descriptor, visit func(ids.OID) error) error
 	for _, c := range d.Constraints.ForeignKeys {
 		if err := visit(c.OID); err != nil {
 			return err
+		}
+		for _, trigger := range c.TriggerOIDs {
+			if err := visit(trigger); err != nil {
+				return err
+			}
 		}
 	}
 	for _, c := range d.ColumnMeta.Defaults {

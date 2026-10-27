@@ -94,6 +94,7 @@ type CatalogStage struct {
 	statement       *StatementScope
 	AuthRevision    uint64
 	RoleRevision    uint64
+	DropRoles       authorization.Read // Immutable identity input, never publication authority.
 	// A declaration callback has external effects and cannot be replayed by
 	// definition-lock admission if its captured authority becomes stale.
 	RoutineSettingNormalized bool
@@ -160,6 +161,7 @@ func (e *Engine) BeginCatalogStage(base catalog.Read) *CatalogStage {
 func (s *CatalogStage) AuthorizeLocked(auth AuthorizationView, session *session.Session) {
 	s.AuthSession, s.AuthRevision, s.RoleRevision = session, auth.Revision, auth.RoleRecord.Revision
 	s.statement = auth.Statement
+	s.DropRoles = auth.Roles
 	s.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
 	s.DatabasePredecessor = auth.DatabasePredecessor
 }

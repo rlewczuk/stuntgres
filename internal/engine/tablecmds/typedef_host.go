@@ -31,6 +31,23 @@ func (h TypeHost) AllocateEnumMember() (int64, error) {
 }
 
 func (h TypeHost) ReplaceUnsynchronized(d catalog.Descriptor) error {
+	if next, ok := d.(*catalog.Type); ok {
+		if old, ok := h.CatalogStage.Base.Type(d.Address()); ok && old.DomainNotNull != nil && next.DomainNotNull == nil {
+			p := core.StageDropProvider(nil, h.CatalogStage, nil, nil, nil)
+			records, err := p.CaptureTypeProjection(old, next)
+			if err != nil {
+				return err
+			}
+			if err := h.CatalogStage.ReplaceDescriptor(d, false, false); err != nil {
+				return err
+			}
+			for _, record := range records {
+				h.CatalogStage.MarkDrop(record.Address, catalog.DropProvenance{Original: true})
+			}
+			h.CatalogStage.DropRecords = append(h.CatalogStage.DropRecords, records...)
+			return nil
+		}
+	}
 	return h.CatalogStage.ReplaceDescriptor(d, false, false)
 }
 
@@ -39,6 +56,7 @@ func (h TypeHost) ReplaceDomainIdentity(d *catalog.Type) error {
 }
 
 func (h TypeHost) RemoveDomainCheck(d *catalog.Type, oid ids.OID) error {
+	h.CatalogStage.MarkDrop(ids.ObjectAddress{ClassID: 2606, ObjectID: oid}, catalog.DropProvenance{Original: true})
 	return table.RemoveDomainCheck(core.StageDropProvider(nil, h.CatalogStage, nil, nil, nil), d, oid)
 }
 

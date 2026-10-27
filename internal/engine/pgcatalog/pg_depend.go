@@ -525,6 +525,12 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			}
 		}
 	}
+	for trigger := range catalog.ForeignKeyTriggerFacts(view) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		add(ids.ObjectAddress{ClassID: 2620, ObjectID: trigger.OID}, ids.ObjectAddress{ClassID: 2606, ObjectID: trigger.Constraint.OID}, 'i')
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

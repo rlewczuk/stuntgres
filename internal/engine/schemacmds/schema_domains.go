@@ -52,6 +52,7 @@ func stageSchemaDomainsLocked(e *core.Engine, op *session.Operation, auth core.A
 	sort.Slice(stage.DomainTargets, func(i, j int) bool { return stage.DomainTargets[i].ObjectID < stage.DomainTargets[j].ObjectID })
 	stage.DependencyPath, _ = core.ReferencePath(auth)
 	for _, d := range contained {
+		stage.MarkDrop(d.Address(), catalog.DropProvenance{Normal: true})
 		if err := stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), false); err != nil {
 			return err
 		}
@@ -100,6 +101,7 @@ func stageSchemaDomainsLocked(e *core.Engine, op *session.Operation, auth core.A
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 	}
 	for _, d := range schemas {
+		stage.MarkDrop(d.Address(), catalog.DropProvenance{Original: true})
 		if err = stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), true); err != nil {
 			return err
 		}

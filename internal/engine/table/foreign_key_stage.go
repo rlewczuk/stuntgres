@@ -139,8 +139,27 @@ func StageForeignKey(h Host, auth ddl.Authority, child *catalog.Relation, raw pa
 	if err != nil {
 		return err
 	}
+	if err := AssignForeignKeyTriggerOIDs(h, &f); err != nil {
+		return err
+	}
 	child.Constraints.ForeignKeys = append(child.Constraints.ForeignKeys, f)
 	h.Stage().UpdateDescriptor(child)
+	return nil
+}
+
+// AssignForeignKeyTriggerOIDs allocates persistent logical implementation
+// identities with the constraint, never during catalog projection or DROP.
+func AssignForeignKeyTriggerOIDs(a ddl.Allocator, f *catalog.ForeignKeyConstraint) error {
+	for slot := range f.TriggerOIDs {
+		if f.TriggerOIDs[slot] != 0 {
+			continue
+		}
+		oid, err := a.AllocateOID()
+		if err != nil {
+			return err
+		}
+		f.TriggerOIDs[slot] = oid
+	}
 	return nil
 }
 

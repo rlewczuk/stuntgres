@@ -14,8 +14,12 @@ import (
 // to StatementScope until Finish; nested SQL utilities borrow that same owner.
 // Only actual non-internal deletion consumption sets Dropped.
 type EventCommand struct {
-	Tag     string
-	Dropped bool
+	Tag          string
+	Dropped      bool
+	Records      []catalog.DroppedObject
+	positions    map[ids.ObjectAddress]int
+	Phase        string
+	captureError error
 }
 
 // BeginEventCommand enters a lexical utility boundary, retaining its journal
@@ -61,6 +65,9 @@ func (s *StatementScope) FinishEventCommand(previous *EventCommand, primary erro
 	if primary != nil {
 		return primary
 	}
+	if s.EventCommand.captureError != nil {
+		return s.EventCommand.captureError
+	}
 	if s.EventCommand.Dropped {
 		if err := s.fireEventTrigger("sql_drop"); err != nil {
 			return err
@@ -69,17 +76,33 @@ func (s *StatementScope) FinishEventCommand(previous *EventCommand, primary erro
 	return s.fireEventTrigger("ddl_command_end")
 }
 
-// RecordEventDrop records a consumed non-internal deletion in the current
-// command; shared objects and event-trigger definitions do not participate.
-func (s *StatementScope) RecordEventDrop(a ids.ObjectAddress) {
-	if s.EventCommand == nil {
+// RecordDroppedObjects admits successful deletion effects. Identity slices are
+// immutable; repeated paths merge only the two independent provenance flags.
+func (s *StatementScope) RecordDroppedObjects(records []catalog.DroppedObject) {
+	command := s.EventCommand
+	if command == nil {
 		return
 	}
-	switch a.ClassID {
-	case ids.DatabaseClassID, ids.RoleClassID, ids.TablespaceClassID, ids.ParameterClassID, ids.EventTriggerClassID:
-		return
+	for _, record := range records {
+		if !record.Found {
+			continue
+		}
+		switch record.Address.ClassID {
+		case ids.DatabaseClassID, ids.RoleClassID, ids.TablespaceClassID, ids.ParameterClassID, ids.EventTriggerClassID:
+			continue
+		}
+		if command.positions == nil {
+			command.positions = make(map[ids.ObjectAddress]int)
+		}
+		if slot, exists := command.positions[record.Address]; exists {
+			command.Records[slot].Original = command.Records[slot].Original || record.Original
+			command.Records[slot].Normal = command.Records[slot].Normal || record.Normal
+			continue
+		}
+		command.positions[record.Address] = len(command.Records)
+		command.Records = append(command.Records, record)
+		command.Dropped = true
 	}
-	s.EventCommand.Dropped = true
 }
 
 // fireEventTrigger captures immutable function identities under Engine.mu and
@@ -109,6 +132,10 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 	if len(list) == 0 {
 		return nil
 	}
+	command := s.EventCommand
+	previousPhase := command.Phase
+	command.Phase = event
+	defer func() { command.Phase = previousPhase }()
 	slices.SortFunc(list, func(a, b *catalog.EventTrigger) int { return strings.Compare(a.Name(), b.Name()) })
 	for _, trigger := range list {
 		if err := s.Op.Context().Err(); err != nil {

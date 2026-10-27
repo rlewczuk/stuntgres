@@ -47,6 +47,14 @@ use fixed phase values rather than transactional assumptions about sequences.
 Real lock-admission observers establish pre-publication peer witnesses without
 sleeps or simulated callback barriers.
 
+`event_trigger_dropped_helpers_test.go` owns dropped-record audit setup and
+independent complete logical bags. Generated addresses and RI-trigger names are
+captured from public catalogs before deletion; expected kinds, identities,
+provenance, temporary ownership and multiplicities are not learned from helper
+output. The dropped-record scenarios retain both reads, phase/catalog-absence
+witnesses, live-helper metadata, full protocol diagnostics and native-control
+roundtrips with unchanged-stream PostgreSQL replay.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` delegates directly to

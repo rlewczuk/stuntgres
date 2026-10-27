@@ -282,6 +282,13 @@ type Producer func(Input) ([][]sqltype.Value, error)
   or scalar-only vector path is introduced. Released attribute identities stay
   `procost`6, `pronargdefaults`18, `proargtypes`20, `proallargtypes`21, `proargmodes`22 and `proacl`30
   independently of projection order.
+  The fixed dropped-object helper declaration supplies its twelve OUT names and
+  released cost and row estimate without evaluating its lexical event-trigger source.
+- `pg_trigger` projects persistent user trigger payloads and catalog-owned foreign
+  key trigger facts. RI trigger identities belong to the actual FK declaration,
+  not the row producer; `pg_depend` retains their INTERNAL constraint ownership.
+  Its condensed columns retain released attribute numbers independently of
+  projection order.
 - `pg_index` vector cells use the runtime's captured index metadata projection,
   then shared typed constructors: all key/INCLUDE attributes in `indkey`,
   key-only `indcollation`, `indclass` and `indoption`. No textual vector store or
@@ -909,6 +916,7 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 - Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations)'`
 - Schema inquiry units: `RUN='^TestInfoSchemata'`
 - Schema inquiry SQL: `RUN='^TestReferenceInfoSchemata'`
+- Trigger and constraint-ownership producer units: `RUN='^TestPGTrigger'`
 - Large objects: `RUN='^TestReferenceLargeObject'`
 - Settings view: `RUN='^TestReferenceStatisticsSettings'`
 - Transforms: `RUN='^TestReferencePGTransform'`

@@ -83,6 +83,14 @@ private frames, not catalog authority.
   An immutable descriptor-derived class index follows the same canonical state
   setters, candidate overlays and reset/remap paths; dispatch and projection
   do not scan unrelated descriptors. It is neither a name registry nor a cache.
+  `DroppedObject` is immutable captured identity data, not lookup or publication
+  authority. `Removal` retains it with successful effects; ORIGINAL and NORMAL
+  reachability merge independently of operation-internal suppression.
+  `RelationPayloadAddresses` enumerates logical owned identities, not attributes
+  of a removed whole relation. FK definitions own four persistent RI trigger OIDs;
+  `ForeignKeyTriggerFacts` derives their target/check owners without executable
+  user-trigger payloads or another registry. Definition reservation, validation
+  and replacement remapping include those identities.
 - **Extended statistics.** `StatisticsProvider` validates schema-bound class
   3381 definitions, live owner and domain/epoch-bound input relation authority.
   `StatisticsSelection` owns a fixed, private canonical attribute vector and

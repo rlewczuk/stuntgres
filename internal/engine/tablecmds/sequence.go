@@ -402,6 +402,12 @@ func dropSequences(e *core.Engine, scope *core.StatementScope, s *parser.DropSeq
 		return core.Result{}, err
 	}
 	e.Mu.Unlock()
+	for _, ref := range refs {
+		checkStage.MarkDrop(ref.Address, catalog.DropProvenance{Original: true})
+		if err := checkStage.Remove(ref); err != nil {
+			return core.Result{}, err
+		}
+	}
 	if err := scope.StageExpressionDependents(checkStage, targets, s.Mode, changes); err != nil {
 		return core.Result{}, err
 	}
@@ -451,6 +457,12 @@ func dropSequences(e *core.Engine, scope *core.StatementScope, s *parser.DropSeq
 	changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{Base: auth.Catalog.State(), Targets: targets})
 	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
 	scope.Catalog = changes
+	for _, removal := range checkStage.Removals() {
+		if !removal.Internal {
+			scope.RecordDroppedObjects(removal.Dropped)
+		}
+	}
+	scope.RecordDroppedObjects(checkStage.DropRecords)
 	view.EmitCascade(scope.Op, cascade)
 	return core.Result{}, nil
 }

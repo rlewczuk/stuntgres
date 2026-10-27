@@ -103,6 +103,9 @@ func AssignDefinitionOIDs(a ddl.Allocator, d *catalog.Relation) error {
 			}
 			d.Constraints.ForeignKeys[i].OID = id
 		}
+		if err := AssignForeignKeyTriggerOIDs(a, &d.Constraints.ForeignKeys[i]); err != nil {
+			return err
+		}
 	}
 	return nil
 }

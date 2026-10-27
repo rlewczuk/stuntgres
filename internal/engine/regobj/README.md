@@ -128,7 +128,23 @@ import it.
   `IdentifyAddress`/`ObjectIdentity`, and the input helpers `ObjectInputArray`,
   `ObjectInputClass`, `ObjectListLength`, `ObjectAddressTextArray`,
   `ObjectAttributeName`, `ObjectRelationKind`, `OwnedAddressByName`. Rule
-  identity is read through `(*catalog.Relation).VisitRules`.
+  identity is read through `(*catalog.Relation).VisitRules`. Ordinary and
+  persistent foreign-key triggers share the canonical owned-relation renderer;
+  `catalog.ForeignKeyTriggerFacts` supplies RI names and actual trigger relations,
+  including action triggers on the referenced table.
+  Cast identity uses actual catalog descriptor endpoints, with fixed builtin
+  metadata only as a fallback; qualified endpoint identities and path-sensitive
+  descriptions share the canonical type renderer. Casts remain ownerless, with
+  no schema/simple name or temporary status.
+  `DroppedAddress` (`dropped_identity.go`) shares that renderer and owner lookup,
+  capturing a plain immutable `catalog.DroppedObject` before deletion. Its
+  nullable schema/simple names are raw identifiers, separate from inquiry
+  spellings; namespace ownership supplies temporary status and `pg_temp`.
+  Temporary routine identity text retains its physical namespace name while
+  address-name components use canonical `pg_temp`.
+  Rules retain NULL schema/name and false temporary status even when their
+  rendered identity names a temporary owner. Deletion provenance remains the
+  caller's responsibility.
 - **Object address inquiries** (`object_address_lookup.go`,
   `identify_values.go`): `AddressLookup.Lookup` answers `pg_get_object_address`
   over the comment catalog and roles and an `InputCapture` of the deparse
@@ -205,8 +221,9 @@ no SQLSTATE-family rule or cause-unwrapping decides recovery.
 ## Testing
 
 Package units (captured-input retargeting, notice routing, address lookup cuts,
-collation selection, CBOX and path-measurement literal transport) run without an
-engine. Unit tests that need an `Engine` live in `internal/engine/core`
+dropped identity projection, collation selection, CBOX and path-measurement
+literal transport) run without an engine. Unit tests that need an `Engine` live
+in `internal/engine/core`
 (`TestObjectAddress*`, `TestCommentInquiry*`, `TestACLItem*`) and
 `internal/engine` (`TestVisibilityInquiry*`, `TestRegTS*`, `TestRegOperator*`,
 `TestRegrole*`, `TestRegclass*`, `TestRegObjectAlias*`). Public scenarios live in
@@ -217,7 +234,7 @@ Input-origin changes must keep the direct, parameter and runtime presentation
 groups of every reg\* family passing. Add `REFERENCE=1` for the oracle.
 
 ```sh
-make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|VisibilityInquiryCollation|GeometryConversionCBox|GeometryRelationLiteral)'
+make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|DroppedIdentity|VisibilityInquiryCollation|GeometryConversionCBox|GeometryRelationLiteral)'
 make check RUN='^TestGeometryMeasurePathLiteralTransport$'
 make check RUN='^TestAnalysis(ConfigProjection|ConfigEnvironmentRetirement|PathsOnDemand)$'
 make check RUN='^TestReferenceReg(class|type|role|Proc|Operator|TS|Collation|Namespace|Object)'

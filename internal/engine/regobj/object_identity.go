@@ -152,6 +152,10 @@ func objectQualifiedType(view catalog.Read, id ids.OID) string {
 }
 
 func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress) (ObjectIdentity, error) {
+	return identifyAddress(view, roles, path, a, nil)
+}
+
+func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress, dropped *catalog.DroppedObject) (ObjectIdentity, error) {
 	kind, known := objectAddressClassKind(a.ClassID)
 	if !known {
 		return ObjectIdentity{}, sqlError("XX000", fmt.Sprintf("unsupported object class: %d", a.ClassID))
@@ -167,9 +171,12 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		}
 		r.Found = true
 		r.Kind = routine.ObjectRoutineKind(p.ID)
-		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace})
+		ns, canonical := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace})
+		if dropped != nil {
+			droppedNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace}, dropped)
+		}
 		r.Schema = catalog.Identifier(ns)
-		r.Names = []string{ns, p.Name}
+		r.Names = []string{canonical, p.Name}
 		if p.Signature != "" {
 			for arg := range strings.SplitSeq(string(p.Signature), ",") {
 				id, _ := strconv.ParseUint(arg, 10, 32)
@@ -211,23 +218,32 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		return r, nil
 	}
 	if a.ClassID == 2605 {
-		for i := range sqltype.CastMetadataCount() {
-			fact, _ := sqltype.CastMetadataAt(i)
-			if ids.OID(fact.OID) != a.ObjectID {
-				continue
-			}
-			source, target := objectQualifiedType(view, ids.OID(fact.Source)), objectQualifiedType(view, ids.OID(fact.Target))
+		var sourceID, targetID ids.OID
+		if cast, ok := d.(*catalog.Cast); ok {
+			sourceID, targetID = ids.OID(cast.Source), ids.OID(cast.Target)
 			r.Found = true
-			r.Names = []string{source}
-			r.Args = []string{target}
-			r.Identity = "(" + source + " AS " + target + ")"
-			r.Description = "cast from " + TypeSpelling(view, path, ids.OID(fact.Source)) + " to " + TypeSpelling(view, path, ids.OID(fact.Target))
-			break
+		} else {
+			for i := range sqltype.CastMetadataCount() {
+				fact, _ := sqltype.CastMetadataAt(i)
+				if ids.OID(fact.OID) == a.ObjectID {
+					sourceID, targetID = ids.OID(fact.Source), ids.OID(fact.Target)
+					r.Found = true
+					break
+				}
+			}
 		}
+		if !r.Found {
+			return r, nil
+		}
+		source, target := objectQualifiedType(view, sourceID), objectQualifiedType(view, targetID)
+		r.Names = []string{source}
+		r.Args = []string{target}
+		r.Identity = "(" + source + " AS " + target + ")"
+		r.Description = "cast from " + TypeSpelling(view, path, sourceID) + " to " + TypeSpelling(view, path, targetID)
 		return r, nil
 	}
 	if a.ClassID == 2606 || a.ClassID == 2604 || a.ClassID == 2618 || a.ClassID == 2620 || a.ClassID == 3256 {
-		return identifyOwnedAddress(view, path, a, r), nil
+		return identifyOwnedAddress(view, path, a, r, dropped), nil
 	}
 	if d == nil {
 		return r, nil
@@ -237,6 +253,15 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		return member, nil
 	}
 	actual, canonical := objectNamespace(view, d.Namespace())
+	if dropped != nil {
+		droppedNamespace(view, d.Namespace(), dropped)
+		if a.SubID == 0 && a.ClassID != 2617 {
+			dropped.Name, dropped.HasName = d.Name(), true
+		}
+		if ns, ok := d.(*catalog.Namespace); ok {
+			dropped.Temporary = ns.Temporary != (ids.SessionToken{})
+		}
+	}
 	if actual != "" {
 		r.Schema = catalog.Identifier(actual)
 	}
@@ -325,10 +350,13 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 
 // Owned definitions retain their actual owning relation/type OIDs. They are not
 // descriptors and never get an invented namespace or simple-name field.
-func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity) ObjectIdentity {
+func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity, dropped *catalog.DroppedObject) ObjectIdentity {
 	for _, descriptor := range view.Descriptors() {
 		if domain, ok := descriptor.(*catalog.Type); ok && a.ClassID == 2606 {
 			if nn := domain.DomainNotNull; nn != nil && nn.OID == a.ObjectID {
+				if dropped != nil {
+					droppedNamespace(view, domain.Namespace(), dropped)
+				}
 				r.Found, r.Kind = true, "domain constraint"
 				ns, _ := objectNamespace(view, domain.Namespace())
 				r.Schema = catalog.Identifier(ns)
@@ -341,6 +369,9 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 			for _, check := range domain.DomainChecks {
 				if check.OID != a.ObjectID {
 					continue
+				}
+				if dropped != nil {
+					droppedNamespace(view, domain.Namespace(), dropped)
 				}
 				r.Found = true
 				r.Kind = "domain constraint"
@@ -362,33 +393,55 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 		if name == "" {
 			continue
 		}
-		r.Found = true
-		actual, canonical := objectNamespace(view, d.Namespace())
-		relation := catalog.Identifier(canonical) + "." + catalog.Identifier(d.Name())
-		r.Names = []string{canonical, d.Name(), name}
-		description := ObjectRelationKind(view, d) + " " + ClassSpelling(view, path, d.Address().ObjectID)
-		switch a.ClassID {
-		case 2606:
-			r.Kind = "table constraint"
-			r.Schema = catalog.Identifier(actual)
-			r.Identity = catalog.Identifier(name) + " on " + relation
-			r.Description = "constraint " + name + " on " + description
-		case 2604:
-			attr := ObjectAttributeName(view, d, sub)
-			r.Names[2] = attr
-			r.Identity = "for " + relation + "." + catalog.Identifier(attr)
-			r.Description = "default value for column " + attr + " of " + description
-		case 2618:
-			r.Identity = catalog.Identifier(name) + " on " + relation
-			r.Description = "rule " + name + " on " + description
-		case 2620:
-			r.Identity = catalog.Identifier(name) + " on " + relation
-			r.Description = "trigger " + name + " on " + description
-		case 3256:
-			r.Identity = catalog.Identifier(name) + " on " + relation
-			r.Description = "policy " + name + " on " + description
+		return identifyOwnedRelationAddress(view, path, a, r, dropped, d, name, sub)
+	}
+	if a.ClassID == 2620 {
+		for fact := range catalog.ForeignKeyTriggerFacts(view) {
+			if fact.OID != a.ObjectID {
+				continue
+			}
+			if relation, ok := view.Relation(fact.Relation); ok {
+				return identifyOwnedRelationAddress(view, path, a, r, dropped, relation, fact.Name, 0)
+			}
+			break
 		}
-		return r
+	}
+	return r
+}
+
+func identifyOwnedRelationAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity, dropped *catalog.DroppedObject, d *catalog.Relation, name string, sub int32) ObjectIdentity {
+	r.Found = true
+	actual, canonical := objectNamespace(view, d.Namespace())
+	if dropped != nil {
+		// pg_rewrite has no namespace attribute or owner-schema override,
+		// including for temporary-status detection.
+		if a.ClassID != 2618 {
+			droppedNamespace(view, d.Namespace(), dropped)
+		}
+	}
+	relation := catalog.Identifier(canonical) + "." + catalog.Identifier(d.Name())
+	r.Names = []string{canonical, d.Name(), name}
+	description := ObjectRelationKind(view, d) + " " + ClassSpelling(view, path, d.Address().ObjectID)
+	switch a.ClassID {
+	case 2606:
+		r.Kind = "table constraint"
+		r.Schema = catalog.Identifier(actual)
+		r.Identity = catalog.Identifier(name) + " on " + relation
+		r.Description = "constraint " + name + " on " + description
+	case 2604:
+		attr := ObjectAttributeName(view, d, sub)
+		r.Names[2] = attr
+		r.Identity = "for " + relation + "." + catalog.Identifier(attr)
+		r.Description = "default value for column " + attr + " of " + description
+	case 2618:
+		r.Identity = catalog.Identifier(name) + " on " + relation
+		r.Description = "rule " + name + " on " + description
+	case 2620:
+		r.Identity = catalog.Identifier(name) + " on " + relation
+		r.Description = "trigger " + name + " on " + description
+	case 3256:
+		r.Identity = catalog.Identifier(name) + " on " + relation
+		r.Description = "policy " + name + " on " + description
 	}
 	return r
 }

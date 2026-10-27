@@ -113,6 +113,8 @@ call live here.
   before the statement's stage exists (ALTER TABLE DROP COLUMN, DROP IDENTITY
   and constraint-index drops over an inheritance tree), chained to the node's
   `Prior` preparation, including routine retirements and surviving-owner pruning.
+  Effects carry captured pre-deletion identities and independent provenance;
+  replay never substitutes a surviving relation for removed attributes/payloads.
   It is the prepared drop's `DefinitionReader`, `PreparedDrop` and
   `DefinitionDelta`. `Observe` captures an address's original descriptor before
   any read returns it, and `ValidateObservations` fences those captures and the

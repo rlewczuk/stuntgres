@@ -425,9 +425,27 @@ the existing physical source proof; descriptor, provider and epoch fences remain
 `ActiveScopeOfLease` alone supplies unfinished statement authority; a retained
 finished lease remains useful for accounting, not private catalog or role lookup.
 
-`EventCommand` holds lexical tag/drop facts, not publication authority.
-`BeginEventCommand`, `RecordEventDrop` and `FinishEventCommand` pair entry with
-exact enclosing-command restoration. `ProjectedRoots` and `WriteStage.Replacing`
+`EventCommand` holds lexical tag, phase and immutable pre-deletion records, not
+publication authority. `BeginEventCommand`, `RecordDroppedObjects` and
+`FinishEventCommand` pair entry with exact enclosing-command restoration.
+Successful catalog transfer admits captured removal/projection effects; full
+addresses deduplicate independently merged ORIGINAL/NORMAL reachability.
+Explicit ALTER payload capture uses the owner's immutable pre-step catalog,
+roles and path, never the lazily initialized query inquiry. Stage capture keeps
+its authorized role snapshot even when a statement inquiry also exists.
+`CatalogStage.ReplaceRelationProjection` is the partition-index retirement
+adapter: it captures against the actual entering descriptor and admitted
+roles/path before checked replacement, appending private records only on
+success. Both partition constraint and index commands initialize that path
+before unlocked retirement; ordinary descriptor replacement never captures.
+Generated-expression replacement reports the old attrdef as an explicit root;
+internal default/identity replacements remain suppressed.
+`sql_drop` alone exposes the non-consuming typed helper; nested commands and
+exception checkpoints restore the exact outer phase, records and address index.
+Helper conversion polls the current operation context before, during and after
+materialization; cancellation returns no row prefix and leaves captured records
+unchanged.
+`ProjectedRoots` and `WriteStage.Replacing`
 distinguish complete private roots from appended suffixes; `DiscardRemovedWrites`
 uses the same conversion as column projection. `ActivateSQLRoutine` owns fresh
 lexical admission and restores the exact outer `MaterializedSlot` once on exit.

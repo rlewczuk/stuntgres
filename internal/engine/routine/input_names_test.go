@@ -46,6 +46,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		3478: {"from_json", "field_name"},
 		3538: {"value", "delimiter"},
 		3545: {"value", "delimiter"},
+		3566: {"classid", "objid", "objsubid", "original", "normal", "is_temporary", "object_type", "schema_name", "object_name", "object_identity", "address_names", "address_args"},
 		3579: {"jsonb_in", "path", "replacement", "insert_after"},
 		3583: {"xid", "timestamp", "roident"},
 		3713: {"parser_oid", "tokid", "alias", "description"},

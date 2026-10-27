@@ -63,7 +63,7 @@ func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, o
 		}
 		if raw.Action == parser.DropDefault {
 			if previous, present := old.ColumnMeta.Defaults[old.Attributes[childSlot]]; present {
-				scope.RecordEventDrop(ids.ObjectAddress{ClassID: 2604, ObjectID: previous.OID})
+				scope.RecordRelationDeletion(fresh, old, ids.ObjectAddress{ClassID: 2604, ObjectID: previous.OID})
 			}
 		}
 	}

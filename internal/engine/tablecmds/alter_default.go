@@ -101,7 +101,7 @@ func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 		return core.Result{}, err
 	}
 	if s.Action == parser.DropDefault {
-		scope.RecordEventDrop(ids.ObjectAddress{ClassID: 2604, ObjectID: old.ColumnMeta.Defaults[attr].OID})
+		scope.RecordRelationDeletion(auth, old, ids.ObjectAddress{ClassID: 2604, ObjectID: old.ColumnMeta.Defaults[attr].OID})
 	}
 	scope.CompleteUtility()
 	return core.Result{}, nil

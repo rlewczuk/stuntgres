@@ -23,6 +23,7 @@ type DropEffect struct {
 	Index         ids.ObjectAddress
 	Layout        *index.LayoutLineage
 	Internal      bool // PERFORM_DELETION_INTERNAL on this removal operation.
+	Dropped       []catalog.DroppedObject
 }
 
 // Slots index only real ordered effects, never a second descriptor/name catalog.
@@ -49,6 +50,7 @@ type DropPreparation struct {
 	Discovery catalog.Read
 	Input     catalog.DefinitionReader
 	Grants    []ids.ObjectRef
+	DropFlags map[ids.ObjectAddress]catalog.DropProvenance
 
 	next     *catalog.Relation
 	effects  []DropEffect

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -102,6 +103,7 @@ func DropTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Ope
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for _, ref := range refs {
+		stage.MarkDrop(ref.Address, catalog.DropProvenance{Original: true})
 		if err := scope.AcquirePartitionDropLocks(ref); err != nil {
 			return core.Result{}, err
 		}

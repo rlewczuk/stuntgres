@@ -347,7 +347,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			if err != nil {
 				return core.Result{}, err
 			}
-			scope.RecordAlterDeletion(before, next, action)
+			scope.RecordAlterDeletion(auth, before, next, action)
 			inheritancePlan(scope).RecordAction(before, next, action)
 		}
 		if pass == 0 {

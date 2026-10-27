@@ -155,6 +155,27 @@ imports `view`.
   input and the shared pin authority. A pinned dependent cannot be retired even
   when its current dependency points to an unpinned user provider; rejection
   names the pinned object without ordinary dependency DETAIL or HINT.
+  One classifier retains exact-address NORMAL/reverse reachability before
+  retirement or result admission, including repeated paths and explicitly
+  selected roots. Address expansion is independent of effect membership:
+  retired providers still expose outgoing dependencies once, while incoming
+  flags always merge. Seeded roots expand at their own traversal turn; repeated
+  reaches cannot preempt diagnostic parents or root ordering. Only already-retired
+  whole relations eagerly expose row/array types, never live or attribute carriers.
+  Actual retired whole owners consume payload effects, not payload provenance;
+  merely discovering a live owner does not consume nested diagnostic entries.
+  Pre-removed owned indexes retain their AUTO result/traversal carriers separately
+  from physical removal. These discoveries create no duplicate RESTRICT or NOTICE
+  entries for retired roots or payloads.
+  AUTO permission and NORMAL merge independently, and neither propagates from
+  parents to implicit types or payloads. View reversal requires a genuine
+  `_RETURN` dependency, retaining the passive-type guard on retired views too.
+  Passive query classification validates retained recipes against entering
+  retirement definitions, including providers and stable attributes already
+  consumed by the live effect projection; it never suppresses validation errors.
+  INTERNAL member reversal does not grant AUTO permission back to an already
+  reached owner. Named composite DROP diagnostics retain the named type rather
+  than substituting its backing relation.
   Ordinary routine edges come from the shared catalog definition visitor, not
   the complete runtime capture manifest. Exact positive relation-attribute roots,
   procedure-only roots and domains use descending discovery/reverse postorder:
@@ -276,14 +297,15 @@ engine and names the code as `view.X`: view, policy, rule DDL and
 materialized-view units live in `internal/engine/viewcmds`, RLS, rule
 expansion and row-lock view units in `internal/engine/core`, and trigger DDL
 units in `internal/engine`. `TestViewHostSeam`
-and `TestDropReaderSeam` pin the two seams, and the
+and `TestDropReaderSeam` pin the two seams. `TestDropClosure*` in core uses real
+catalog-stage owners for retired roots, payloads and independent reach flags.
 `TestMaterializedViewSnapshot*` units cover snapshot import admission. Public SQL
 lives in [reference/views](../../../reference/views/README.md#testing) and RLS in
 [reference/roles](../../../reference/roles/README.md#testing); add `REFERENCE=1`
 for the oracle.
 
 ```sh
-make check RUN='^Test(ViewHostSeam|DropReaderSeam|ViewTargetAdmission|BindingSlots|ViewWriteSlot|MaterializedViewSnapshot)'
+make check RUN='^Test(ViewHostSeam|DropReaderSeam|DropClosure|ViewTargetAdmission|BindingSlots|ViewWriteSlot|MaterializedViewSnapshot)'
 make check RACE=1 RUN='^TestMaterializedRefreshConcurrent'
 make check RUN='^TestReference(View|Rule|Materialized)'
 make check RUN='^TestReferenceRLS'

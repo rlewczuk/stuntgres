@@ -40,9 +40,10 @@ func StageConstraintDrop(op *session.Operation, stage index.DropStage, removals 
 		if err := index.StagePartitionConstraintDrop(stage, c.OID); err != nil {
 			return nil, err
 		}
-		if err := index.StagePartitionIndexDrop(stage, idx); err != nil {
+		if err := index.StagePartitionIndexDrop(stage, idx, index.ConstraintDrivenDrop); err != nil {
 			return nil, err
 		}
+		stage.MarkDrop(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, catalog.DropProvenance{Original: true})
 	}
 	for _, c := range current.Constraints.Exclusion {
 		if c.Name != action.Constraint.Text {
@@ -59,9 +60,10 @@ func StageConstraintDrop(op *session.Operation, stage index.DropStage, removals 
 		if err := index.StagePartitionConstraintDrop(stage, c.OID); err != nil {
 			return nil, err
 		}
-		if err := index.StagePartitionIndexDrop(stage, idx); err != nil {
+		if err := index.StagePartitionIndexDrop(stage, idx, index.ConstraintDrivenDrop); err != nil {
 			return nil, err
 		}
+		stage.MarkDrop(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, catalog.DropProvenance{Original: true})
 	}
 	if !found {
 		if _, err := table.NotNullCandidate(op, view, current, action, table.NotNullDirect); err != nil {

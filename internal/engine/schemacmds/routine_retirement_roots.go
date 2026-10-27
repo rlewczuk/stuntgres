@@ -40,7 +40,12 @@ func acquireRoutineRetirementRoots(s *core.StatementScope, stage *core.CatalogSt
 			return catalog.Conflict{}
 		}
 	}
+	// Only SQL-root provenance exists before closure discovery. Retain that
+	// exact captured map across grant-time metadata recapture; the broadened
+	// DomainTargets closure must never be relabeled as explicit roots.
+	flags := stage.DropFlags
 	stage.Candidate = catalog.NewCandidate(auth.Catalog)
+	stage.DropFlags = flags
 	stage.AuthorizeLocked(auth, s.Op.Session)
 	return nil
 }

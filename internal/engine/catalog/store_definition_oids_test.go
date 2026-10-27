@@ -195,11 +195,13 @@ func TestStoreOIDSkipsDescriptorOIDs(t *testing.T) {
 
 // DefinitionOIDUsed and ReserveDefinitionOIDs walk the same definitions.
 func TestDefinitionOIDWalksAgree(t *testing.T) {
-	for _, d := range []Descriptor{definitionOIDRelation(950, 30000), definitionOIDDomain(951, 30000)} {
+	relation := definitionOIDRelation(950, 30000)
+	relation.Constraints.ForeignKeys[0].TriggerOIDs = [4]ids.OID{30008, 30009, 30010, 30011}
+	for _, d := range []Descriptor{relation, definitionOIDDomain(951, 30000)} {
 		reserved := map[ids.OID]bool{}
 		ReserveDefinitionOIDs(reserved, d)
 		used := map[ids.OID]bool{}
-		for id := ids.OID(29999); id < 30010; id++ {
+		for id := ids.OID(29999); id < 30012; id++ {
 			if DefinitionOIDUsed(d, id) {
 				used[id] = true
 			}

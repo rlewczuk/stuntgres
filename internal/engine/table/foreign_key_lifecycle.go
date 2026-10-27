@@ -96,6 +96,10 @@ func RebuildAlterForeignKeys(h ddl.Host, parent *catalog.Relation, transformatio
 			if err != nil {
 				return nil, err
 			}
+			c.TriggerOIDs = [4]ids.OID{}
+			if err := AssignForeignKeyTriggerOIDs(h, c); err != nil {
+				return nil, err
+			}
 		}
 		if next != nil {
 			var err error

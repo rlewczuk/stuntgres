@@ -150,6 +150,7 @@ func (h DDLHost) CreationACL(owner authorization.PrincipalRef, schema ids.Object
 }
 
 func (h DDLHost) DropTarget(address ids.ObjectAddress) {
+	h.CatalogStage.MarkDrop(address, catalog.DropProvenance{Original: true})
 	h.CatalogStage.DomainTargets = append(h.CatalogStage.DomainTargets, address)
 }
 
@@ -220,6 +221,9 @@ func (h DDLHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signatu
 }
 
 func (h DDLHost) RemoveObject(ref ids.ObjectRef, namespace bool) error {
+	if d := h.CatalogStage.Base.Get(ref.Address); d != nil && h.CatalogStage.DropFlags[d.Namespace()].Original {
+		h.CatalogStage.MarkDrop(ref.Address, catalog.DropProvenance{Normal: true})
+	}
 	return h.CatalogStage.RemoveObjectLocked(ref, namespace)
 }
 

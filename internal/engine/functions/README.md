@@ -274,6 +274,15 @@ Public execution, ACLs and stored consumers use
   Equivalent-child substitution preserves selected providers and never calls
   `Reconstruct`. Query scheduling stays in the engine.
 
+`EventTriggerDroppedObjects` is a stable, nonfoldable twelve-OUT record source.
+Binding retains only its selected routine and shape; both source placements open
+against the live statement's `EventTriggerDroppedRuntime`. Each opening owns its
+typed records and leaves lexical command scratch unconsumed. Missing runtime or
+inactive `sql_drop` reports the event-trigger protocol error, not an empty set.
+Composite wrapping polls the evaluation context before, during and after
+conversion; interruption returns the ordinary context error without a partial
+source or consuming lexical records.
+
 ## Binder
 
 `Binder` (`binder.go`) is what bind code may ask of the analyzer;
@@ -353,14 +362,15 @@ A family whose evaluation reads subsystem state gets a narrow capability
 interface here (`ACLRuntime`, `TransactionInquiryRuntime`,
 `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `AdvisoryRuntime`,
 `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`,
-`PgrowlocksRuntime`, `TablefuncCrosstabRuntime`, `FTSQueryRuntime`). The node asserts it from `expr.Context`; `*exec.Context`
+`PgrowlocksRuntime`, `TablefuncCrosstabRuntime`, `EventTriggerDroppedRuntime`,
+`FTSQueryRuntime`). The node asserts it from `expr.Context`; `*exec.Context`
 implements it with a compile-time assertion and forwards to the root statement
 host, which owns all locking and returns owned values.
 
 - Nodes pass values (OIDs, names, typed values, descriptors, immutable
   provenance) and retain no Session, Engine, StatementScope, manager, ticket,
-  callback or authority cache. A missing runtime or foreign owner is an
-  ordinary Go error.
+  callback or authority cache. A missing runtime or foreign owner is ordinarily
+  a Go error; event-trigger inspection instead reports its SQL protocol error.
 - Evaluation order is part of each family's contract (error priority and
   reached child effects): which children evaluate, when strict NULL applies and
   when the runtime is first demanded.

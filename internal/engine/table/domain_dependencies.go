@@ -14,4 +14,5 @@ type DomainDependency struct {
 	Domain                *catalog.Type
 	Column                string
 	Automatic             bool
+	Normal                bool // Independent NORMAL or reverse INTERNAL reach.
 }

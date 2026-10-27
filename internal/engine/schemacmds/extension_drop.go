@@ -2,8 +2,10 @@ package schemacmds
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -42,6 +44,7 @@ func ExecuteDropExtension(e *core.Engine, scope *core.StatementScope, s *parser.
 	}
 	e.Mu.Lock()
 	for _, address := range roots {
+		stage.MarkDrop(address, catalog.DropProvenance{Original: slices.Contains(selected, address)})
 		if err = stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
 			break
 		}

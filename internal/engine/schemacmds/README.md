@@ -63,6 +63,9 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   stage with the cascade notice. CREATE SCHEMA rejects partition elements
   with 0A000 first. `ExecuteSQLRoutineDDL` (CREATE FUNCTION, PROCEDURE,
   AGGREGATE) runs through it.
+  Routine retirement retains the captured SQL-root drop provenance across
+  grant-time candidate recapture after the epoch, identity and authorization
+  fences; dependency-closure roots are not promoted to explicit SQL targets.
 - `StageDictionaryDetached` captures dictionary inputs and authority under
   `Engine.Mu`, compiles real shipped resources with it released, then calls
   `CompleteDictionaryLocked` under the mutex. Completion fences captured

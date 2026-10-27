@@ -276,7 +276,7 @@ func publishRelationChangeLocked(e *core.Engine, scope *core.StatementScope, aut
 		return core.Result{}, err
 	}
 	if change.Deleted != (ids.ObjectAddress{}) {
-		scope.RecordEventDrop(change.Deleted)
+		scope.RecordRelationDeletion(auth, auth.Catalog.MustRelation(change.Ref.Address), change.Deleted)
 	}
 	scope.CompleteUtility()
 	return core.Result{}, nil

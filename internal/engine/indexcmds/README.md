@@ -24,6 +24,11 @@ Dispatch (`core.Statements.Execute`): `ExecuteCreateIndex` and
 `ExecuteIndexMaintenance` are entered with nothing held. They take
 `Engine.Mu` in short windows, stage and publish through the ordinary catalog
 stage, and release it around lock waits and provider validation.
+DROP retains the admitted reference path before unlocked effects. Explicit
+SQL targets alone receive ORIGINAL; expanded partition indexes still all
+participate in admission, retirement and dependency traversal. Index-driven
+backing-constraint retirement uses the shared projection owner and marks only
+the actual retired constraint NORMAL.
 
 ## CONCURRENTLY
 

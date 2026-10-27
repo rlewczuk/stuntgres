@@ -359,7 +359,7 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 	if err := tablecmds.StagePartitionConstraintDrop(f.e, stage, f.root.Constraints.Unique[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	if err := index.StagePartitionIndexDrop(stage, f.parent); err != nil {
+	if err := index.StagePartitionIndexDrop(stage, f.parent, index.ConstraintDrivenDrop); err != nil {
 		t.Fatal(err)
 	}
 	candidate := f.e.StageRead(stage)
@@ -1010,13 +1010,13 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*core.Engi
 		if err := tablecmds.StagePartitionConstraintDrop(e, stage, root.SQLIndex.Constraint.OID); err != nil {
 			t.Fatal(err)
 		}
-		if err := index.StagePartitionIndexDrop(stage, root); err != nil {
+		if err := index.StagePartitionIndexDrop(stage, root, index.ConstraintDrivenDrop); err != nil {
 			t.Fatal(err)
 		}
 	} else {
 		for _, name := range names {
 			idx := base.MustRelation(roleTableRef(t, e, name).Address)
-			if err := index.StagePartitionIndexDrop(stage, idx); err != nil {
+			if err := index.StagePartitionIndexDrop(stage, idx, index.IndexDrivenDrop); err != nil {
 				t.Fatal(err)
 			}
 		}

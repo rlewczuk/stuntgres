@@ -35,6 +35,9 @@ it. It never builds a binder.
   root first, for the caller to lock before the leaf. Ordinary GiST/SP-GiST CREATE INDEX,
   including aliases identified by the captured catalog's native method authority,
   uses the existing partitioned-index propagation path in `index`.
+  `StageConstraintDrop` marks only the successfully selected constraint ORIGINAL,
+  after inherited/backing-index validation and constraint-driven recursive
+  retirement. Recursive constraints and backing indexes are not SQL roots.
 - **Proofs** (`proof.go`, `retained_checks.go`): `ConstraintProven` lets ATTACH
   skip its scan; `RetainedChecks.ForRow` picks CHECKs for hash-remap repair.
 - **Dump and replay** (`dump*.go`, `*_dump.go`, `replacement.go`, `replay.go`):

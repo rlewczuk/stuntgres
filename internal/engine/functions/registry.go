@@ -80,6 +80,7 @@ var definitions = [...]Definition{
 	{Names: genericFileListNames[:], ExactSpelling: true, Bind: bindGenericFileList, NamedCall: namedGenericFileList},
 	{Names: genericFileReadNames[:], ExactSpelling: true, Bind: bindGenericFileRead, NamedCall: namedGenericFileRead},
 	{Names: []string{"pg_listening_channels", "pg_notification_queue_usage"}, Bind: bindNotificationInfo},
+	{Names: []string{"pg_event_trigger_dropped_objects"}, ExactSpelling: true, Bind: bindEventTriggerDroppedObjects},
 	{Names: []string{"pg_partition_tree", "pg_partition_ancestors", "pg_partition_root"}, Bind: bindPartitionInfo, NamedCall: namedPartitionInfo},
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
 	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall, ProbeCall: probeJSONCall, ResultCall: jsonRecordCallResult, NamedCall: namedJSONCall},

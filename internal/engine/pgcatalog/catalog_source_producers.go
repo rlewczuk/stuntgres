@@ -46,6 +46,7 @@ var producers = [...]Registration{
 	{2616, capturePGOpclass},
 	{2617, capturePGOperator},
 	{2618, capturePGRewrite},
+	{2620, capturePGTrigger},
 	{2753, captureOperatorFamilies},
 	{2964, capturePGDBRoleSetting},
 	{2995, capturePGLargeObjectMetadata},

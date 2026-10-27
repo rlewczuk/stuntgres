@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -40,6 +41,11 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 	reassign, sources, mode, roots, primaryRoot := plan.Reassign, plan.Sources, plan.Mode, plan.Roots, plan.PrimaryRoot
 	stage := core.OwnershipStage(e, auth, scope.Op)
 	stage.DependencyPath, _ = core.ReferencePath(auth)
+	if !reassign {
+		for _, address := range roots {
+			stage.MarkDrop(address, catalog.DropProvenance{Original: true})
+		}
+	}
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	// Pin roots/associations and actual policy-deletion survivors in one
@@ -69,6 +75,24 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 		// before discovering consumers of the complete pending deletion union.
 		if err = role.StageOwnedCleanup(scope.Op.Context(), stage, auth.Roles, auth.RoleRecord, sources); err != nil {
 			return core.Result{}, err
+		}
+		provider := core.StageDropProvider(scope.Op.Context(), stage, scope, nil, nil)
+		for address, descriptor := range stage.Descriptors() {
+			next, ok := descriptor.(*catalog.Relation)
+			before, existed := stage.Base.Relation(address)
+			if !ok || !existed {
+				continue
+			}
+			records, failure := provider.CaptureRelationProjection(before, next)
+			if failure != nil {
+				return core.Result{}, failure
+			}
+			for _, record := range records {
+				if record.Address.ClassID == ids.PolicyClassID {
+					stage.MarkDrop(record.Address, catalog.DropProvenance{Original: true})
+				}
+			}
+			stage.DropRecords = append(stage.DropRecords, records...)
 		}
 		if primaryRoot != (ids.ObjectAddress{}) && role.OwnedCleanupAddsDeletionRoot(stage, sources) {
 			primaryRoot = ids.ObjectAddress{}

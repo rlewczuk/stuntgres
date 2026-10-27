@@ -30,6 +30,8 @@ type Candidate struct {
 	// defaultReads are the base records the candidate observed.
 	defaultACLs  map[DefaultACLKey]*DefaultACLRecord
 	defaultReads map[DefaultACLKey]*DefaultACLRecord
+	DropFlags    map[ids.ObjectAddress]DropProvenance
+	DropRecords  []DroppedObject
 }
 
 // Removal is one staged removal and the descriptor it observed.
@@ -37,6 +39,7 @@ type Removal struct {
 	Ref        ids.ObjectRef
 	Descriptor Descriptor
 	Internal   bool // Operation-internal replacement, not an INTERNAL dependency edge.
+	Dropped    []DroppedObject
 }
 
 // NewCandidate returns an empty candidate over base.
@@ -311,6 +314,27 @@ func (c *Candidate) MarkRemovalInternal(address ids.ObjectAddress) {
 	}
 	removal.Internal = true
 	c.removals[address] = removal
+}
+
+// CaptureRemoval retains immutable identity input with the real removal effect.
+func (c *Candidate) CaptureRemoval(address ids.ObjectAddress, records []DroppedObject) {
+	removal := c.removals[address]
+	removal.Dropped = records
+	c.removals[address] = removal
+}
+
+// MarkDrop merges reachability without conflating AUTO retirement with NORMAL.
+func (c *Candidate) MarkDrop(address ids.ObjectAddress, flags DropProvenance) {
+	if !CollectDroppedObjects(c.Base) {
+		return
+	}
+	if c.DropFlags == nil {
+		c.DropFlags = make(map[ids.ObjectAddress]DropProvenance)
+	}
+	old := c.DropFlags[address]
+	old.Original = old.Original || flags.Original
+	old.Normal = old.Normal || flags.Normal
+	c.DropFlags[address] = old
 }
 
 // RenameStagedDescriptor rebinds an existing private/reminted identity using its

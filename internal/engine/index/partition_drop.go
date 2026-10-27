@@ -167,9 +167,18 @@ func PartitionConstraintDropActions(table *catalog.Relation, actions []parser.Al
 	return selected
 }
 
+// PartitionIndexDropCause identifies the incoming ownership direction, not
+// whether the index was explicitly named by SQL.
+type PartitionIndexDropCause uint8
+
+const (
+	IndexDrivenDrop PartitionIndexDropCause = iota
+	ConstraintDrivenDrop
+)
+
 // StagePartitionIndexDrop stages the removal of idx and of its backing
 // constraint on the table. It runs without Engine.mu; the removal takes it.
-func StagePartitionIndexDrop(stage DropStage, idx *catalog.Relation) error {
+func StagePartitionIndexDrop(stage DropStage, idx *catalog.Relation, cause PartitionIndexDropCause) error {
 	if idx.SQLIndex.Constraint != nil {
 		view := stage.StageRead()
 		table := view.MustRelation(idx.SQLIndex.Parent)
@@ -178,8 +187,20 @@ func StagePartitionIndexDrop(stage DropStage, idx *catalog.Relation) error {
 		next.ObjectRevision++
 		next.Constraints.Unique = slices.DeleteFunc(next.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Index == idx.Address() })
 		next.Constraints.Exclusion = slices.DeleteFunc(slices.Clone(table.Constraints.Exclusion), func(c catalog.ExclusionConstraint) bool { return c.Index == idx.Address() })
-		if err := StagePartitionDescriptor(stage, &next); err != nil {
+		if err := stage.ReplaceRelationProjection(table, &next); err != nil {
 			return err
+		}
+		if cause == IndexDrivenDrop {
+			for _, c := range table.Constraints.Unique {
+				if c.Index == idx.Address() {
+					stage.MarkDrop(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, catalog.DropProvenance{Normal: true})
+				}
+			}
+			for _, c := range table.Constraints.Exclusion {
+				if c.Index == idx.Address() {
+					stage.MarkDrop(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, catalog.DropProvenance{Normal: true})
+				}
+			}
 		}
 	}
 	return stage.RemoveRelation(idx.Address())
@@ -201,7 +222,7 @@ func StagePartitionConstraintDrop(stage DropStage, oid ids.OID) error {
 			if err := StagePartitionConstraintDrop(stage, c.OID); err != nil {
 				return err
 			}
-			if err := StagePartitionIndexDrop(stage, view.MustRelation(c.Index)); err != nil {
+			if err := StagePartitionIndexDrop(stage, view.MustRelation(c.Index), ConstraintDrivenDrop); err != nil {
 				return err
 			}
 		}
@@ -212,7 +233,7 @@ func StagePartitionConstraintDrop(stage DropStage, oid ids.OID) error {
 			if err := StagePartitionConstraintDrop(stage, c.OID); err != nil {
 				return err
 			}
-			if err := StagePartitionIndexDrop(stage, view.MustRelation(c.Index)); err != nil {
+			if err := StagePartitionIndexDrop(stage, view.MustRelation(c.Index), ConstraintDrivenDrop); err != nil {
 				return err
 			}
 		}

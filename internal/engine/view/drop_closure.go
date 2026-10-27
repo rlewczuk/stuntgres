@@ -89,6 +89,26 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 	}
 	var result []table.DomainDependency
 	resultSlots := make(map[ids.ObjectAddress]int)
+	// One local address state retains early provenance even if its effect is
+	// admitted only by a later AUTO reach. It owns no catalog authority.
+	type visitState struct {
+		expanded bool
+		normal   bool
+	}
+	visits := make(map[ids.ObjectAddress]visitState)
+	markNormal := func(address ids.ObjectAddress) {
+		state := visits[address]
+		state.normal = true
+		visits[address] = state
+		if slot, exists := resultSlots[address]; exists {
+			result[slot].Normal = true
+		}
+		if recorder, ok := r.(interface {
+			MarkDrop(ids.ObjectAddress, catalog.DropProvenance)
+		}); ok {
+			recorder.MarkDrop(address, catalog.DropProvenance{Normal: true})
+		}
+	}
 	// Attribute roots, domain roots and procedure-only root sets use descending
 	// visitation/reverse postorder. Besides ordering the output, this chooses the
 	// actual direct parent when a shared descendant is reachable by several paths.
@@ -130,7 +150,15 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 		if stored.DependPinned(base, r.DefinitionInput(), target) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + stored.DependencyObject(base, target, path) + " because it is required by the database system"}
 		}
-		if relation, ok := r.RetirementDescriptor(target).(*catalog.Relation); ok && relation.RowType != 0 {
+		// Incoming flags are merged by the caller before this expansion guard.
+		// Root/effect membership does not imply that outgoing edges were read.
+		state := visits[target]
+		if state.expanded {
+			return nil
+		}
+		state.expanded = true
+		visits[target] = state
+		if relation, ok := r.RetirementDescriptor(target).(*catalog.Relation); ok && target.SubID == 0 && r.Removed(target) && relation.RowType != 0 {
 			if err := visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}, root); err != nil {
 				return err
 			}
@@ -162,7 +190,10 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 		columnTraversal := target.ClassID == ids.RelationClassID && target.SubID > 0 || root.ClassID == ids.RelationClassID && root.SubID > 0
 		if t, ok := r.RetirementDescriptor(target).(*catalog.Type); ok && t.SQLType.IsMultirange() && t.SQLType.IsUserDefined() {
 			owner := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.RangeType().ID())}
-			if !seen[owner] && !r.Removed(owner) {
+			// INTERNAL reversal only redirects an independently reached member.
+			// Returning from an owner's own member must not grant that owner's
+			// incoming NORMAL edge automatic deletion permission.
+			if !seen[owner] {
 				direct = append(direct, table.DomainDependency{Address: owner, Target: target, Root: root, OID: owner.ObjectID, Automatic: true, Label: stored.DependencyObject(base, owner, path)})
 			}
 		}
@@ -186,14 +217,12 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true, Relation: idx})
 				continue
 			}
-			if r.Removed(a) {
-				continue
-			}
 			if sequence, ok := descriptor.(*catalog.Relation); ok && columnTraversal && table.SequenceOwnedBy(sequence, target) {
 				direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true, Relation: sequence})
 			}
 			if target.ClassID == ids.NamespaceClassID && descriptor.Namespace() == target && access.OwnershipRoot(base, descriptor, routine.OperatorSeeded) {
 				edge := table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)}
+				edge.Normal = true
 				edge.Relation, _ = descriptor.(*catalog.Relation)
 				direct = append(direct, edge)
 				continue
@@ -210,11 +239,13 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			case *catalog.EventTrigger:
 				if d.Function.Address == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+					direct[len(direct)-1].Normal = true
 				}
 			case *catalog.AccessMethod:
 				for _, dependency := range catalog.AccessMethodDependencies(d) {
 					if dependency.Address == target {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+						direct[len(direct)-1].Normal = true
 						break
 					}
 				}
@@ -222,6 +253,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				for _, dependency := range catalog.CastDependencies(d) {
 					if dependency == target {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: catalog.CastDependencyKind(d) == 'i', Label: stored.DependencyObject(base, a, path)})
+						direct[len(direct)-1].Normal = catalog.CastDependencyKind(d) == 'n'
 						break
 					}
 				}
@@ -238,12 +270,14 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 							address = owner
 						}
 						direct = append(direct, table.DomainDependency{Address: address, Target: target, Root: root, OID: address.ObjectID, Automatic: automatic, Label: stored.DependencyObject(base, address, path)})
+						direct[len(direct)-1].Normal = dependency.Kind == 'n'
 						break
 					}
 				}
 			case *catalog.Operator:
 				if routine.OperatorDependsOn(base, d, target) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+					direct[len(direct)-1].Normal = true
 				}
 			case *catalog.ForeignObject:
 				for _, dependency := range pgcatalog.ForeignDependencies(d) {
@@ -252,12 +286,14 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					}
 					if dependency == target {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+						direct[len(direct)-1].Normal = true
 						break
 					}
 				}
 			case *catalog.Extension:
 				if d.TargetNamespace == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+					direct[len(direct)-1].Normal = true
 				}
 				required, err := catalog.ExtensionPrerequisites(base, d)
 				if err != nil {
@@ -266,6 +302,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				for _, prerequisite := range required {
 					if prerequisite == target {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+						direct[len(direct)-1].Normal = true
 					}
 				}
 			case *catalog.Procedure:
@@ -275,6 +312,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				catalog.VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
 					if address == target || target.SubID == 0 && address.ClassID == target.ClassID && address.ObjectID == target.ObjectID {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+						direct[len(direct)-1].Normal = true
 						return false
 					}
 					return true
@@ -285,6 +323,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			case *catalog.TSConfiguration:
 				if slices.Contains(d.Dependencies(), target) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+					direct[len(direct)-1].Normal = true
 				}
 			case *catalog.TSDictionary:
 				if d.Template == target || d.Namespace() == target {
@@ -307,15 +346,18 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				for _, dependency := range catalog.RangeDependencies(d) {
 					if dependency == target {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: d.SQLType.IsMultirange(), Label: "type " + catalog.TypeDiagnosticNameAt(base, nil, d, path)})
+						direct[len(direct)-1].Normal = !d.SQLType.IsMultirange()
 					}
 				}
-				if !domains[a] {
-					for _, check := range d.DomainChecks {
-						for _, dep := range check.Dependencies {
-							if dep.Ref.Address == target {
-								direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, Target: target, Root: root, OID: check.OID, Label: "constraint " + catalog.DependencyIdentifier(check.Name), Domain: d})
-								break
+				for _, check := range d.DomainChecks {
+					for _, dep := range check.Dependencies {
+						if dep.Ref.Address == target {
+							address := ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
+							markNormal(address)
+							if !domains[a] {
+								direct = append(direct, table.DomainDependency{Address: address, Target: target, Root: root, OID: check.OID, Label: "constraint " + catalog.DependencyIdentifier(check.Name), Domain: d, Normal: true})
 							}
+							break
 						}
 					}
 				}
@@ -341,6 +383,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 						dependencyTarget = root
 					}
 					direct = append(direct, table.DomainDependency{Address: a, Target: dependencyTarget, Root: root, OID: a.ObjectID, Label: "type " + catalog.TypeDiagnosticNameAt(base, nil, d, path)})
+					direct[len(direct)-1].Normal = true
 				}
 				if d.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
@@ -351,6 +394,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				}
 				if d.Foreign != nil && d.Foreign.Server == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path), Relation: d})
+					direct[len(direct)-1].Normal = true
 				}
 				if d.RelationKind == catalog.CompositeRelation && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true})
@@ -364,6 +408,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				}
 				if catalog.PartitionKeyDependsOn(d, target) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Label: "table " + stored.DependencyRelationName(base, d, path)})
+					direct[len(direct)-1].Normal = true
 					continue
 				}
 				if d.SQLIndex != nil {
@@ -384,8 +429,16 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 							automatic = automatic || droppedColumns[dep.Address]
 						}
 					}
-					if depends && !automatic {
-						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "index " + stored.DependencyRelationName(base, d, path), Relation: d})
+					if depends {
+						// Same-index relation references are AUTO; external
+						// expression/type providers are independently NORMAL.
+						normal := target.ClassID != d.SQLIndex.Parent.ClassID || target.ObjectID != d.SQLIndex.Parent.ObjectID
+						if normal {
+							markNormal(a)
+						}
+						if !automatic {
+							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "index " + stored.DependencyRelationName(base, d, path), Relation: d, Normal: normal})
+						}
 					}
 					continue
 				}
@@ -396,6 +449,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 							name = stored.DependencyRelationName(base, d, path)
 						}
 						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, Target: target, Root: root, OID: rule.OID, Label: "rule " + catalog.DependencyIdentifier(rule.Name) + " on " + catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
+						direct[len(direct)-1].Normal = true
 					}
 				}
 				for _, trigger := range stored.TriggersOf(d) {
@@ -406,6 +460,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 							name = stored.DependencyRelationName(base, d, path)
 						}
 						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2620, ObjectID: trigger.OID()}, Target: target, Root: root, OID: trigger.OID(), Automatic: automatic, Label: "trigger " + catalog.DependencyIdentifier(trigger.Name()) + " on table " + name, Relation: d})
+						direct[len(direct)-1].Normal = stored.TriggerDepends(trigger, target) && p.Relation.Address != target && p.Parent != target
 					}
 				}
 				if d.View != nil {
@@ -427,6 +482,11 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 								name = stored.DependencyRelationName(base, d, path)
 							}
 							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
+							direct[len(direct)-1].Normal = true
+							// The NORMAL edge is on _RETURN; its INTERNAL owner
+							// reverses to this view. Namespace/AUTO view reaches
+							// do not confer the rule's independent NORMAL flag.
+							markNormal(ids.ObjectAddress{ClassID: 2618, ObjectID: d.View.RuleOID()})
 						}
 					}
 					// Output columns have their own datatype dependencies, just
@@ -439,6 +499,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 								column := a
 								column.SubID = d.Attributes[i]
 								direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + catalog.RelationDiagnosticKind(d) + " " + stored.DependencyRelationName(base, d, path), Relation: d, Column: c.Name})
+								direct[len(direct)-1].Normal = true
 							}
 						}
 					}
@@ -452,12 +513,14 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				}
 				if d.OfType == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "table " + name, Relation: d})
+					direct[len(direct)-1].Normal = true
 					continue
 				}
 				if d.Inheritance != nil {
 					for _, parent := range d.Inheritance.Parents {
 						if parent.Relation == target {
 							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "table " + name, Relation: d})
+							direct[len(direct)-1].Normal = true
 							break
 						}
 					}
@@ -465,6 +528,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				for _, policy := range d.Security.Policies {
 					if PolicyDepends(policy, target) {
 						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, Target: target, Root: root, OID: policy.OID, Label: "policy " + catalog.DependencyIdentifier(policy.Name) + " on table " + name, Relation: d})
+						direct[len(direct)-1].Normal = true
 					}
 				}
 				for i, c := range d.Columns {
@@ -472,14 +536,17 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					column.SubID = d.Attributes[i]
 					if typedef.UsageDependsOn(c.Usage, target) {
 						direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + catalog.RelationDiagnosticKind(d) + " " + name, Relation: d, Column: c.Name})
-					}
-					if droppedColumns[column] {
-						continue
+						direct[len(direct)-1].Normal = true
 					}
 					if definition, ok := d.ColumnMeta.Defaults[column.SubID]; ok {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
+								markNormal(ids.ObjectAddress{ClassID: 2604, ObjectID: definition.OID})
+								if droppedColumns[column] {
+									break
+								}
 								direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2604, ObjectID: definition.OID}, Target: target, Root: root, OID: definition.OID, Label: "default value for column " + catalog.DependencyIdentifier(c.Name) + " of table " + name, Relation: d, Automatic: target == column || seen[column] || seen[a]})
+								direct[len(direct)-1].Normal = true
 								break
 							}
 						}
@@ -487,7 +554,15 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					if definition, generated := d.ColumnMeta.Generations[column.SubID]; generated && target != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}) {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
+								// The recorded edge belongs to the attrdef;
+								// INTERNAL ownership reverses to its column.
+								markNormal(ids.ObjectAddress{ClassID: 2604, ObjectID: definition.OID})
+								markNormal(column)
+								if droppedColumns[column] {
+									break
+								}
 								direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of table " + name, Relation: d, Column: c.Name})
+								direct[len(direct)-1].Normal = true
 								break
 							}
 						}
@@ -500,9 +575,15 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 						automatic = automatic || droppedColumns[dep.Ref.Address]
 						depends = depends || dep.Ref.Address == target
 					}
-					if depends && !automatic {
+					if depends {
 						localColumn := target.ClassID == a.ClassID && target.ObjectID == a.ObjectID && target.SubID != 0
+						address := ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
+						markNormal(address)
+						if automatic {
+							continue
+						}
 						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, Target: target, Root: root, OID: check.OID, Ordinal: int32(check.Ordinal), Label: "constraint " + catalog.DependencyIdentifier(check.Name) + " on table " + name, Relation: d, Automatic: localColumn})
+						direct[len(direct)-1].Normal = true
 					}
 				}
 				for _, f := range d.Constraints.ForeignKeys {
@@ -513,6 +594,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					automatic := target.ClassID == d.Address().ClassID && target.ObjectID == d.Address().ObjectID && (target.SubID == 0 || slices.Contains(f.Attributes, target.SubID))
 					if depends || automatic {
 						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2606, ObjectID: f.OID}, Target: target, Root: root, OID: f.OID, Label: "constraint " + catalog.DependencyIdentifier(f.Name) + " on table " + name, Relation: d, Automatic: automatic})
+						direct[len(direct)-1].Normal = depends
 					}
 				}
 			}
@@ -550,18 +632,43 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			direct[i], direct[first] = direct[first], direct[i]
 		}
 		for _, edge := range direct {
+			edge.Normal = edge.Normal || visits[edge.Address].normal
+			if edge.Normal {
+				markNormal(edge.Address)
+			}
 			if seen[edge.Address] {
+				if slot, exists := resultSlots[edge.Address]; exists {
+					result[slot].Normal = result[slot].Normal || edge.Normal
+				}
 				if slot, exists := resultSlots[edge.Address]; exists && edge.Automatic && !result[slot].Automatic {
 					result[slot].Automatic = true
 					result[slot].Target = edge.Target
 					result[slot].Root = edge.Root
 				}
+				// A seeded root expands at its own root-loop turn. Reaching it
+				// here still merges flags, but must not steal diagnostic parents
+				// or move its consumers ahead of the incumbent root order.
 				continue
 			}
+			owner := edge.Address
+			owner.SubID = 0
+			if edge.Relation != nil {
+				owner = edge.Relation.Address()
+			} else if edge.Domain != nil {
+				owner = edge.Domain.Address()
+			}
+			slot := -1
+			// Only actual retirement consumes a payload, not discovery of its
+			// live whole owner. Owned-index adjacency is also a result carrier
+			// after physical removal: consumers and planning still need that
+			// exact AUTO edge, as they did before provenance discovery.
+			ownedIndex := edge.Automatic && edge.Relation != nil && edge.Relation.SQLIndex != nil && edge.Relation.SQLIndex.Parent.ClassID == target.ClassID && edge.Relation.SQLIndex.Parent.ObjectID == target.ObjectID
+			if !r.Removed(owner) || ownedIndex {
+				slot = len(result)
+				resultSlots[edge.Address] = slot
+				result = append(result, edge)
+			}
 			seen[edge.Address] = true
-			slot := len(result)
-			resultSlots[edge.Address] = len(result)
-			result = append(result, edge)
 			if edge.Address.ClassID == ids.TSConfigurationClassID {
 				if err := visit(edge.Address, root); err != nil {
 					return err
@@ -572,7 +679,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					return err
 				}
 			}
-			if columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder {
+			if slot >= 0 && (columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder) {
 				postorder = append(postorder, slot)
 			}
 		}
@@ -709,15 +816,27 @@ func RestrictError(r DropReader, targets []ids.ObjectAddress, edges []table.Doma
 			}
 			target := edge.Target
 			// A rowtype field default carries both the named type and its
-			// backing attribute. When DROP retires the whole owning relation,
-			// report that relation rather than whichever edge DFS found first.
+			// backing attribute. Preserve the SQL DROP subject even when
+			// discovery reaches that attribute before its whole relation.
 			if routine, ok := r.RetirementDescriptor(edge.Address).(*catalog.Procedure); ok && routine.SQLDefaults != nil {
+				whole := target
+				whole.SubID = 0
+				if owner, ok := r.RetirementDescriptor(whole).(*catalog.Relation); ok && owner.RelationKind == catalog.CompositeRelation {
+					named := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(owner.RowType)}
+					if primary == owner.Address() || primary == named {
+						target = named
+					}
+				}
 				if typ, ok := r.RetirementDescriptor(target).(*catalog.Type); ok && typ.OwningRelation == primary && r.Removed(primary) {
-					for _, dependency := range routine.SQLDefaults.Dependencies() {
-						address := dependency.Ref.Address
-						if address.ClassID == primary.ClassID && address.ObjectID == primary.ObjectID && address.SubID != 0 {
-							target = primary
-							break
+					// A named composite's backing relation is not its SQL DROP
+					// subject. Ordinary table rowtypes do report the table.
+					if owner, ok := r.RetirementDescriptor(primary).(*catalog.Relation); ok && owner.RelationKind != catalog.CompositeRelation {
+						for _, dependency := range routine.SQLDefaults.Dependencies() {
+							address := dependency.Ref.Address
+							if address.ClassID == primary.ClassID && address.ObjectID == primary.ObjectID && address.SubID != 0 {
+								target = primary
+								break
+							}
 						}
 					}
 				}
@@ -751,7 +870,7 @@ func PassiveTypeDependency(r DropReader, relation *catalog.Relation, target ids.
 	if target.ClassID != ids.TypeClassID {
 		return false, nil
 	}
-	domain, ok := r.Descriptor(target).(*catalog.Type)
+	domain, ok := r.RetirementDescriptor(target).(*catalog.Type)
 	if !ok || !domain.SQLType.IsDomain() {
 		return false, nil
 	}
@@ -767,7 +886,7 @@ func PassiveTypeDependency(r DropReader, relation *catalog.Relation, target ids.
 		}
 		address := ref.Address
 		address.SubID = 0
-		source, ok := r.Descriptor(address).(*catalog.Relation)
+		source, ok := r.RetirementDescriptor(address).(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -784,9 +903,22 @@ func PassiveTypeDependency(r DropReader, relation *catalog.Relation, target ids.
 	if reader == nil {
 		return false, fmt.Errorf("stuntgres: missing view dependency projection")
 	}
-	refs, err := stored.QueryDependRefs(r.Context(), base, reader, storedView.Query())
+	refs, err := stored.QueryDependRefs(r.Context(), base, retirementDefinitions{DefinitionReader: reader, drop: r}, storedView.Query())
 	if err != nil {
 		return false, err
 	}
 	return !slices.Contains(refs, target), nil
+}
+
+// Retained query recipes are validated against their entering definitions, not
+// the live effect projection that has already consumed their providers/columns.
+// This borrowed read exists only for dependency classification.
+type retirementDefinitions struct {
+	catalog.DefinitionReader
+	drop DropReader
+}
+
+func (r retirementDefinitions) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
+	descriptor := r.drop.RetirementDescriptor(address)
+	return descriptor, descriptor != nil
 }

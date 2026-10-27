@@ -6,6 +6,7 @@ import (
 	"iter"
 	"slices"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -26,6 +27,7 @@ type DropProvider struct {
 	Base            catalog.Read
 	Owner           *Engine
 	SearchPath      []ids.ObjectAddress
+	dropRoles       authorization.Read // Explicit owner-step identity input, not query authority.
 	Stage           *CatalogStage
 	Prepared        *table.DropPreparation
 	Ctx             context.Context
@@ -152,7 +154,43 @@ func (p *DropProvider) SeedMayReference(a ids.ObjectAddress) bool {
 	return p.Base.SeedMayReference(a)
 }
 
-func (p *DropProvider) Replace(d catalog.Descriptor) error {
+func (p *DropProvider) Replace(d catalog.Descriptor) (failure error) {
+	if next, ok := d.(*catalog.Type); ok && !p.InternalRemoval {
+		if old, ok := p.RetirementDescriptor(d.Address()).(*catalog.Type); ok {
+			records, err := p.CaptureTypeProjection(old, next)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if failure != nil || len(records) == 0 {
+					return
+				}
+				if p.Stage != nil {
+					p.Stage.DropRecords = append(p.Stage.DropRecords, records...)
+				} else {
+					p.Prepared.RecordEffect(table.DropEffect{Dropped: records})
+				}
+			}()
+		}
+	}
+	if next, ok := d.(*catalog.Relation); ok && !p.InternalRemoval {
+		if old, ok := p.RetirementDescriptor(d.Address()).(*catalog.Relation); ok {
+			records, err := p.CaptureRelationProjection(old, next)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if failure != nil || len(records) == 0 {
+					return
+				}
+				if p.Stage != nil {
+					p.Stage.DropRecords = append(p.Stage.DropRecords, records...)
+				} else {
+					p.Prepared.RecordEffect(table.DropEffect{Dropped: records})
+				}
+			}()
+		}
+	}
 	p.Observe(d.Address())
 	if err := p.Ctx.Err(); err != nil {
 		return err
@@ -289,9 +327,6 @@ func (p *DropProvider) removedRowType(address ids.ObjectAddress) {
 }
 
 func (p *DropProvider) Remove(ref ids.ObjectRef) error {
-	if p.Stage != nil {
-		return p.Stage.Remove(ref)
-	}
 	if err := p.Ctx.Err(); err != nil {
 		return err
 	}
@@ -320,16 +355,19 @@ func (p *DropProvider) RecordRemoval(ref ids.ObjectRef, namespace bool) error {
 		return catalog.Conflict{}
 	}
 	p.Observe(ref.Address)
+	records, err := p.captureDropped(ref.Address, p.RetirementDescriptor(ref.Address), true)
+	if err != nil {
+		return err
+	}
 	if p.Stage == nil {
-		p.Prepared.RecordEffect(table.DropEffect{Remove: ref, Internal: p.InternalRemoval})
+		p.Prepared.RecordEffect(table.DropEffect{Remove: ref, Internal: p.InternalRemoval, Dropped: records})
 		return nil
 	}
 	stage := p.Stage
 	stage.RecordRemoval(ref, d)
+	stage.CaptureRemoval(ref.Address, records)
 	if p.InternalRemoval {
 		stage.MarkRemovalInternal(ref.Address)
-	} else if p.Scope != nil {
-		p.Scope.RecordEventDrop(ref.Address)
 	}
 	if namespace {
 		stage.RemoveSchemaDefaults(ref.Address)
@@ -344,7 +382,7 @@ func (p *DropProvider) ReplacePartitionDescriptor(d *catalog.Relation) error {
 	return p.Replace(d)
 }
 
-func (p *DropProvider) ProjectColumn(old, next *catalog.Relation) error {
+func (p *DropProvider) ProjectColumn(old, next *catalog.Relation) (failure error) {
 	if p.Stage == nil {
 		p.Observe(old.Address())
 		if old.RelationKind != catalog.CompositeRelation && old.RelationKind != catalog.ForeignRelation {
@@ -355,13 +393,31 @@ func (p *DropProvider) ProjectColumn(old, next *catalog.Relation) error {
 				return catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(p.Base, p.SearchPath))
 			}
 		}
-		p.Prepared.RecordEffect(table.DropEffect{Before: old, After: next})
+		records, err := p.CaptureRelationProjection(old, next)
+		if err != nil {
+			return err
+		}
+		p.Prepared.RecordEffect(table.DropEffect{Before: old, After: next, Dropped: records})
 		return nil
 	}
-	stage, e, ctx := p.Stage, p.Owner, p.Ctx
-	if p.Scope != nil {
-		p.Scope.RecordEventDrop(old.Address())
+	if !p.InternalRemoval {
+		records, err := p.CaptureRelationProjection(old, next)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if failure == nil {
+				p.Stage.DropRecords = append(p.Stage.DropRecords, records...)
+			}
+		}()
 	}
+	return p.ProjectPreparedColumn(old, next)
+}
+
+// ProjectPreparedColumn consumes the already captured physical effect. It does
+// not render deletion identities again against a later catalog generation.
+func (p *DropProvider) ProjectPreparedColumn(old, next *catalog.Relation) error {
+	stage, e, ctx := p.Stage, p.Owner, p.Ctx
 	if old.RelationKind == catalog.CompositeRelation || old.RelationKind == catalog.ForeignRelation {
 		return stage.Replace(next)
 	}

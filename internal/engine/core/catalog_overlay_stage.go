@@ -83,11 +83,12 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	}
 	if err == nil {
 		scope.Catalog = changes
-		for address, removal := range stage.Removals() {
+		for _, removal := range stage.Removals() {
 			if !removal.Internal {
-				scope.RecordEventDrop(address)
+				scope.recordDroppedProvenance(removal.Dropped, stage.DropFlags)
 			}
 		}
+		scope.recordDroppedProvenance(stage.DropRecords, stage.DropFlags)
 		stage.Lifecycle = catalogPublished
 	}
 	scope.Op.Session.Mu.Unlock()

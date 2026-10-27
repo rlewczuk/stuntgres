@@ -2,6 +2,7 @@ package core
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
@@ -59,6 +60,10 @@ func (provider *DropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	activeEdges := edges[:0]
 	for _, edge := range edges {
 		d := edge.View
+		provider.MarkDrop(d.Address(), catalog.DropProvenance{Normal: true})
+		if d.View != nil {
+			provider.MarkDrop(ids.ObjectAddress{ClassID: 2618, ObjectID: d.View.RuleOID()}, catalog.DropProvenance{Normal: true})
+		}
 		if provider.Removed(d.Address()) {
 			continue
 		}

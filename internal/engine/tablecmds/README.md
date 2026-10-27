@@ -64,6 +64,9 @@ TEMP preservation, relation admission and publication.
   pointer identity while enforced DML may advance tuple generations and roots.
   Descendant NOT NULL names resolve by logical column at actual misc, after that
   descendant's ADD phases, rather than against its old descriptor.
+  Successful explicit payload deletions pass their admitted pre-step authority
+  and old descriptor to core's event capture, including inherited defaults.
+  Query inquiry initialization is not part of ALTER ownership or capture.
   These are logical row/catalog/transaction guarantees. External server trigger,
   transport and physical-page/WAL/crash-recovery mechanisms remain outside this
   executor; native persistence uses the incumbent logical Dump/Restore controls.
@@ -89,6 +92,12 @@ TEMP preservation, relation admission and publication.
 `core.Engine` that carries only `admitInheritanceAlter`, whose
 `(*Engine).admitInheritanceAlter(` frame a read-only reference cancellation
 fixture matches. Keep that name.
+
+Partition constraint DROP retains the admitted catalog, roles and reference
+path before releasing `Engine.Mu`. Shared index retirement captures each
+actual constraint projection; successful overlay transfer alone admits the
+records. Validation, authorization, cancellation and database fences remain
+the ordinary catalog publication boundaries.
 
 ## VACUUM
 

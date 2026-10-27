@@ -49,6 +49,15 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 		case "indoption":
 			return 19
 		}
+	case 2620:
+		switch name {
+		case "tgname":
+			return 4
+		case "tgisinternal":
+			return 8
+		case "tgconstraint":
+			return 11
+		}
 	}
 	return ordinal
 }

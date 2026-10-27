@@ -90,7 +90,7 @@ func TestEventTriggerJournalBoundary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			scope.RecordEventDrop(audit.Address)
+			scope.RecordDroppedObjects([]catalog.DroppedObject{{Address: audit.Address, Found: true}})
 			if err := scope.EndPLException(mark, true, errors.New("caught inner failure")); err != nil {
 				t.Fatal(err)
 			}

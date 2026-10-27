@@ -387,6 +387,9 @@ candidate, these owning operations retain the engine's error contracts:
    checks, policies, constraints, defaults and generations fresh OIDs from the
    engine allocator, keeping identities claimed by retained TEMP objects, and
    repoint everything that referenced them.
+   Each FK's four RI trigger identities participate independently, even when
+   its constraint OID does not collide. FK SQL reconstructs those identities;
+   RI triggers are not separately serialized or executed as user triggers.
 3. `Check*SourcesLocked` and `RetainTemporaryViewProvidersLocked`
    (`temporary_sources.go`) validate retained TEMP objects against the
    published catalog.

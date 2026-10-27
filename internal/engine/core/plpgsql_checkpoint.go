@@ -34,7 +34,7 @@ type plExceptionCheckpoint struct {
 	catalogAuthority                            *session.CatalogAuthority
 	alterNames                                  map[ids.NameKey]ids.ObjectRef
 	EventCommand                                *EventCommand
-	eventDropped                                bool
+	eventState                                  EventCommand
 	foreignActions                              *dml.ForeignActionScope
 	afterTriggers                               *afterTriggerState
 	indexes                                     *index.Scope
@@ -140,7 +140,9 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 	c.alterNames = maps.Clone(s.alterNames)
 	c.EventCommand = s.EventCommand
 	if s.EventCommand != nil {
-		c.eventDropped = s.EventCommand.Dropped
+		c.eventState = *s.EventCommand
+		c.eventState.Records = slices.Clone(s.EventCommand.Records)
+		c.eventState.positions = maps.Clone(s.EventCommand.positions)
 	}
 	if s.CatalogAuthority != nil {
 		owned := *s.CatalogAuthority
@@ -229,7 +231,7 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 		s.alterNames = c.alterNames
 		s.EventCommand = c.EventCommand
 		if s.EventCommand != nil {
-			s.EventCommand.Dropped = c.eventDropped
+			*s.EventCommand = c.eventState
 		}
 		if c.foreignActions != nil && s.foreignActionsSlot != nil {
 			*s.foreignActionsSlot = *c.foreignActions

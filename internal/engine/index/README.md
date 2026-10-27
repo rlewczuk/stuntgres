@@ -125,7 +125,13 @@ releases it, and never waits.** Narrower contracts:
 - `KeyHost`: key binding and operator class lookup, no stage (the analysis host
   and partition key binding pass a stage-less core `DDLHost`).
 - `DropStage` (`*CatalogStage`): DROP INDEX staging, which runs without
-  `Engine.Mu`; the removal takes it.
+  `Engine.Mu`; the removal takes it. Its required relation-projection operation
+  captures actual entering constraint identities before checked replacement,
+  retaining records privately until successful catalog transfer. Each index
+  retirement explicitly supplies its ownership direction: only index-driven
+  removal marks a retired backing constraint NORMAL. Constraint-driven
+  recursion does not promote descendants; SQL target selection alone marks
+  ORIGINAL, independently of the expanded index admission/removal set.
 - `ValidityTarget`: the partitioned-index validity pass. `UsingIndexStage`:
   attaching a prepared USING INDEX, no lock (`PrepareUsingIndex` takes only a
   `ddl.Allocator` and runs under `Engine.Mu`).

@@ -163,6 +163,11 @@ func ValidateForeignKeys(view catalog.Read, child *catalog.Relation, names map[s
 		if child.RelationKind != catalog.TableRelation || f.OID == 0 || f.Name == "" || len(f.Name) > 63 || !utf8.ValidString(f.Name) || strings.IndexByte(f.Name, 0) >= 0 || names[f.Name] || len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 			return fmt.Errorf("stuntgres: invalid foreign-key definition")
 		}
+		for slot, trigger := range f.TriggerOIDs {
+			if trigger == 0 || trigger == f.OID || slices.Contains(f.TriggerOIDs[:slot], trigger) {
+				return fmt.Errorf("stuntgres: invalid foreign-key trigger identity")
+			}
+		}
 		if f.UpdateAction > parser.ForeignKeySetDefault || f.DeleteAction > parser.ForeignKeySetDefault || len(f.DeleteAttributes) != 0 && f.DeleteAction != parser.ForeignKeySetNull && f.DeleteAction != parser.ForeignKeySetDefault {
 			return fmt.Errorf("stuntgres: invalid foreign-key action")
 		}

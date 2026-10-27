@@ -159,6 +159,7 @@ func ExecuteDropView(e *core.Engine, scope *core.StatementScope, s *parser.DropV
 	targets := make([]ids.ObjectAddress, len(refs))
 	for i, ref := range refs {
 		targets[i] = ref.Address
+		stage.MarkDrop(ref.Address, catalog.DropProvenance{Original: true})
 		if err := stage.Remove(ref); err != nil {
 			return core.Result{}, err
 		}

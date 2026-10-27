@@ -3,6 +3,7 @@ package schemacmds
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
@@ -40,6 +41,9 @@ func ExecuteForeignDDL(e *core.Engine, scope *core.StatementScope, s *parser.For
 		return core.Result{}, err
 	}
 	if len(roots) != 0 {
+		for _, address := range roots {
+			stage.MarkDrop(address, catalog.DropProvenance{Original: true})
+		}
 		if err := scope.StageExpressionDependents(stage, roots, s.Mode, nil); err != nil {
 			return core.Result{}, err
 		}

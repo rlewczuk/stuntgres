@@ -138,6 +138,9 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Snapshot inquiry forwards to the admitted host's immutable public value,
   selected together with the tuple frontier, never sampled during Eval.
   Immutable expression nodes and prepared descriptors retain no runtime owner.
+  Dropped-object inspection forwards per opening to the live statement's lexical
+  event command; no host or inactive `sql_drop` yields the protocol diagnostic.
+  The context retains neither records nor a phase guard between invocations.
   PL assignment projections borrow a balanced planning-origin flag while
   evaluating their child; SQL calls forward it explicitly, excluding active
   domain VALUE frames. Diagnostic cloning preserves planning-origin markers;

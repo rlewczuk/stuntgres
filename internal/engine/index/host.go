@@ -83,6 +83,10 @@ type DropStage interface {
 	StageRead() catalog.Read
 	// RemoveRelation stages the removal of the relation at address.
 	RemoveRelation(address ids.ObjectAddress) error
+	// ReplaceRelationProjection captures retired payloads before checked replacement.
+	ReplaceRelationProjection(before, after *catalog.Relation) error
+	// MarkDrop merges exact-address provenance without admitting a record.
+	MarkDrop(address ids.ObjectAddress, flags catalog.DropProvenance)
 }
 
 // ValidityTarget is the drop provider the partitioned-index validity pass

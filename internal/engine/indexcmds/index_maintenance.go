@@ -2,6 +2,7 @@ package indexcmds
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -61,6 +62,15 @@ func ExecuteIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
 	stage.Indexes().Output = scope.Output
+	if _, drop := stmt.(*parser.DropIndex); drop {
+		path, err := core.ReferencePath(auth)
+		if err != nil {
+			e.Mu.Unlock()
+			e.DiscardCatalogStage(stage)
+			return core.Result{}, err
+		}
+		stage.DependencyPath = path
+	}
 	if err := index.StageMaintenance(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, g, stmt); err != nil {
 		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
@@ -70,15 +80,17 @@ func ExecuteIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 	defer e.DiscardCatalogStage(stage)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
 		for _, ref := range g.Indexes {
-			if err := index.StagePartitionIndexDrop(stage, g.Descriptors[ref.Address]); err != nil {
+			if err := index.StagePartitionIndexDrop(stage, g.Descriptors[ref.Address], index.IndexDrivenDrop); err != nil {
 				return core.Result{}, err
 			}
+		}
+		for _, ref := range g.Targets {
+			stage.MarkDrop(ref.Address, catalog.DropProvenance{Original: true})
 		}
 		roots := make([]ids.ObjectAddress, len(g.Indexes))
 		for i, ref := range g.Indexes {
 			roots[i] = ref.Address
 		}
-		stage.DependencyPath, _ = core.ReferencePath(auth)
 		if err := scope.StageExpressionDependents(stage, roots, drop.Mode, nil); err != nil {
 			return core.Result{}, err
 		}

@@ -501,6 +501,7 @@
 3551	network_overlap	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	869 869	\N	\N	\N	false	\N	network_overlap	\N	false	\N
 3554	inet_gist_union	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	869	2281 2281	\N	\N	\N	false	\N	inet_gist_union	\N	false	\N
 3556	bool	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	3802	\N	\N	\N	false	\N	jsonb_bool	\N	false	\N
+3566	pg_event_trigger_dropped_objects	11	12	10	100	0	0	f	false	false	true	true	s	r	0	0	2249		{26,26,23,16,16,16,25,25,25,25,1009,1009}	{o,o,o,o,o,o,o,o,o,o,o,o}	{classid,objid,objsubid,original,normal,is_temporary,object_type,schema_name,object_name,object_identity,address_names,address_args}	false	\N	pg_event_trigger_dropped_objects	\N	false	\N
 3579	jsonb_insert	11	12	1	0	0	0	f	false	false	true	false	i	s	4	1	3802	3802 1009 3802 16	\N	\N	{jsonb_in,path,replacement,insert_after}	true	\N	jsonb_insert	\N	false	\N
 3581	pg_xact_commit_timestamp	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	1184	28	\N	\N	\N	false	\N	pg_xact_commit_timestamp	\N	false	\N
 3583	pg_last_committed_xact	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2249		{28,1184,26}	{o,o,o}	{xid,timestamp,roident}	false	\N	pg_last_committed_xact	\N	false	\N

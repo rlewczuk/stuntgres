@@ -131,29 +131,33 @@ func consumePreparedDrop(scope *core.StatementScope, stage *core.CatalogStage, p
 	}
 	scopeDrops(scope).ConsumedColumns[prepared] = struct{}{}
 	provider := core.StageDropProvider(scope.Op.Context(), stage, scope, changes, nil)
+	for address, flags := range prepared.DropFlags {
+		stage.MarkDrop(address, flags)
+	}
 	for _, effect := range prepared.Effects() {
 		if err := scope.Op.Context().Err(); err != nil {
 			return nil, err
 		}
 		switch {
+		case len(effect.Dropped) != 0 && effect.Descriptor == nil && effect.Before == nil && effect.Remove.Address == (ids.ObjectAddress{}):
+			stage.DropRecords = append(stage.DropRecords, effect.Dropped...)
 		case effect.Descriptor != nil:
 			if err := stage.ReplaceDescriptor(effect.Descriptor, false, false); err != nil {
 				return nil, err
 			}
 		case effect.Remove.Address != (ids.ObjectAddress{}):
 			e.Mu.Lock()
-			provider.InternalRemoval = effect.Internal
-			err = provider.RecordRemoval(effect.Remove, false)
-			provider.InternalRemoval = false
-			e.Mu.Unlock()
-			if err != nil {
-				return nil, err
+			stage.RecordRemoval(effect.Remove, prepared.Base.Get(effect.Remove.Address))
+			stage.CaptureRemoval(effect.Remove.Address, effect.Dropped)
+			if effect.Internal {
+				stage.MarkRemovalInternal(effect.Remove.Address)
 			}
+			e.Mu.Unlock()
 		case effect.Before != nil:
 			if err := projectPreparedColumn(provider, effect.Before, effect.After); err != nil {
 				return nil, err
 			}
-			scope.RecordEventDrop(effect.Before.Address())
+			stage.DropRecords = append(stage.DropRecords, effect.Dropped...)
 		case effect.Notice != "":
 			stage.DropCascadeNames = append(stage.DropCascadeNames, effect.Notice)
 		case effect.Missing != nil:
@@ -182,7 +186,7 @@ func projectPreparedColumn(p *core.DropProvider, old, next *catalog.Relation) er
 	}
 	// Non-SQL physical retirement already separates metadata from the storage
 	// projector. This path retains its actual storage/lifetime checks.
-	return p.ProjectColumn(old, next)
+	return p.ProjectPreparedColumn(old, next)
 }
 
 // DropScope is the statement's DROP slot: prepared column drops already
