@@ -330,6 +330,10 @@ runtime-only sibling, including a domain coercion, is discarded without executio
 A domain conversion in the NULL-supplying argument is not a proof. Runtime row
 NULL is not a planning fact and retains sibling admission and effects.
 Declared RECORD results, SRFs and compound NULL-aware carriers are excluded.
+Shared constant planning also retains every set-source node, including literal
+operands, for target lifting rather than calling scalar `Eval`. Installed set
+classification includes authenticated hstore declarations, so strict literal
+NULL does not erase their EXECUTE admission.
 Bounded Random's specialized readiness/immutable-input rule remains first.
 The generic folded value preserves conservative metadata and recipe provenance
 but clears the callable carrier; the original graph and manifest remain intact.

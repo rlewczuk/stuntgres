@@ -57,6 +57,9 @@ const (
 	HstoreRecordConstructorSlot
 	HstorePopulateRecordSlot
 	HstorePopulateRecordOperatorSlot
+	HstoreSkeysSlot
+	HstoreSvalsSlot
+	HstoreEachSlot
 	HstoreMemberCount
 )
 
@@ -102,6 +105,22 @@ var hstoreRoutines = [...]hstoreRoutine{
 	{HstoreValuesSlot, "avals", "hstore_avals", "hstore", 1009, true},
 	{HstoreRecordConstructorSlot, "hstore", "hstore_from_record", "2249", 0, false},
 	{HstorePopulateRecordSlot, "populate_record", "hstore_populate_record", "2283,hstore", 2283, false},
+	{HstoreSkeysSlot, "skeys", "hstore_skeys", "hstore", 25, true},
+	{HstoreSvalsSlot, "svals", "hstore_svals", "hstore", 25, true},
+	{HstoreEachSlot, "each", "hstore_each", "hstore", 2249, true},
+}
+
+var hstoreEachOutputs = catalog.NewRoutineOutputs([]ids.OID{25, 25}, "hs", "key", "value")
+
+func hstoreRoutineDeclaration(slot int) catalog.InstalledRoutineDeclaration {
+	switch slot {
+	case HstoreSkeysSlot, HstoreSvalsSlot:
+		return catalog.InstalledRoutineDeclaration{ReturnsSet: true, Rows: 1000, Parallel: 's'}
+	case HstoreEachSlot:
+		return catalog.InstalledRoutineDeclaration{ReturnsSet: true, Rows: 1000, Parallel: 's', ArgumentNames: [4]string{"hs"}, Outputs: hstoreEachOutputs}
+	default:
+		return catalog.InstalledRoutineDeclaration{}
+	}
 }
 
 func hstoreRoutineAt(slot int) (hstoreRoutine, bool) {

@@ -28,7 +28,7 @@ func TestHstoreRecordProviderAuthority(t *testing.T) {
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
 	h := ext.Members[0].ObjectID
-	if extension.HstoreRecordConstructorSlot != 51 || extension.HstorePopulateRecordSlot != 52 || extension.HstorePopulateRecordOperatorSlot != 53 || len(ext.Members) != 54 {
+	if extension.HstoreRecordConstructorSlot != 51 || extension.HstorePopulateRecordSlot != 52 || extension.HstorePopulateRecordOperatorSlot != 53 || len(ext.Members) != extension.HstoreMemberCount {
 		t.Fatal("changed established member frontier")
 	}
 	for _, tc := range []struct {
@@ -69,7 +69,7 @@ func TestHstoreRecordProviderAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	owners, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
-	if err != nil || !found || len(owners.Members) != 53 {
+	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount-1 {
 		t.Fatal("owner inventory", err)
 	}
 	for _, tc := range []struct {

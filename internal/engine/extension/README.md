@@ -139,7 +139,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   renumbering incumbent roles. Key-array existence, pair containment and key/value
   projections add six procedures and five predicates (`?`, `?&`, `?|`, `@>`, `<@`).
   Their recipes own released `matchingsel`/`matchingjoinsel` identities and reciprocal containment
-  commutators. The manifest has fifty-four roles and fifty-three portable owners.
+  commutators. The manifest has fifty-seven roles and fifty-six portable owners.
   Nonstrict `hstore(record)` and `populate_record(anyelement,hstore)` retain
   their released pseudo signatures; binary `#=` has ANYELEMENT left/result and
   the exact replacement backer. Symbolic ownership never substitutes a selected
@@ -147,6 +147,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   are also nonstrict; exact recipes authenticate signatures, results, symbols
   and strictness. Remapping covers builtin operands, unary `0` positions,
   polymorphic declarations and installed constructor results.
+  Appended `skeys`, `svals` and `each` declarations own immutable set capability,
+  default row estimate and parallel safety. `each` additionally owns the named
+  `hs` input and fixed TEXT `key`/`value` outputs. The same finite declaration
+  recipes drive staging and authentication; mutable public estimates grant no authority.
+  The shared installed-identity gate admits hstore's fixed OUT capability, then
+  checks the exact slot-owned declaration: missing, reconstructed same-shape or
+  transplanted OUT capabilities remain invalid.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured

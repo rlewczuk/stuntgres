@@ -36,7 +36,9 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 	if p.SecurityDefiner || p.Configuration != nil {
 		return invalid()
 	}
-	if p.Installed.Outputs != nil && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect {
+	// These providers own fixed OUT declarations. Their exact slot-owned
+	// capabilities are checked below; output shape alone never grants authority.
+	if p.Installed.Outputs != nil && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockHstore {
 		return invalid()
 	}
 	if _, ok := v.Namespace(p.Namespace()); !ok {
@@ -256,7 +258,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 			name = recipe.symbol
 			sqlName = recipe.name
 			strict = recipe.strict
-			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/hstore", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/hstore", HasBinary: true}) || p.Installed != hstoreRoutineDeclaration(slot) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
 			}
 		case StockIntarray:

@@ -102,7 +102,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
-	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore" || name == "fetchval" || name == "slice_array" || name == "exist" || name == "defined" || name == "exists_all" || name == "exists_any" || name == "hs_contains" || name == "hs_contained" || name == "akeys" || name == "avals" || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
+	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore" || name == "fetchval" || name == "slice_array" || name == "exist" || name == "defined" || name == "exists_all" || name == "exists_any" || name == "hs_contains" || name == "hs_contained" || name == "akeys" || name == "avals" || name == "skeys" || name == "svals" || name == "each" || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
 	if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
@@ -759,10 +759,12 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if err != nil {
 			return nil, err
 		}
-		if symbol == "hstore_to_array" || symbol == "hstore_to_matrix" || symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" || symbol == "hstore_to_jsonb" || symbol == "hstore_to_jsonb_loose" {
+		if symbol == "hstore_to_array" || symbol == "hstore_to_matrix" || symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" || symbol == "hstore_to_jsonb" || symbol == "hstore_to_jsonb_loose" || symbol == "hstore_skeys" || symbol == "hstore_svals" || symbol == "hstore_each" {
 			var node expr.Expr
 			var err error
-			if symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" || symbol == "hstore_to_jsonb" || symbol == "hstore_to_jsonb_loose" {
+			if symbol == "hstore_skeys" || symbol == "hstore_svals" || symbol == "hstore_each" {
+				node, err = b.bindSelectedHstoreRows(raw, selected, symbol)
+			} else if symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" || symbol == "hstore_to_jsonb" || symbol == "hstore_to_jsonb_loose" {
 				node, err = b.bindSelectedHstoreJSON(raw, selected, symbol)
 			} else {
 				node, err = b.bindSelectedHstoreArray(raw, selected, symbol)

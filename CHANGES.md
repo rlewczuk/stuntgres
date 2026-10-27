@@ -7,6 +7,16 @@
   including filtered and held prepared reads. Catalog availability does not
   populate subscription definitions or perform remote replication.
 
+- Implement installed hstore `skeys`, `svals` and `each` through typed pair
+  cursors and shared set-source binding: preserve present NULLs, exact fixed OUT
+  metadata, named input, current caller privileges and stored provider identities
+  through rename/move and native controls. Add independent dual-mode acceptance
+  coverage and private generation/ownership invariants. Admit the genuine `each`
+  OUT capability through shared installed-identity validation while retaining
+  exact slot-owned declaration checks. Preserve constant SRFs for shared target
+  lifting and EXECUTE admission, and distinguish restored TEXT-input reanalysis
+  from the catalog-owned hstore parameter lifetime fence.
+
 - Complete `pg_statistic_ext_data` reader/security acceptance with exact
   six-column metadata, definition/population identity, diagnostics and current
   catalog SELECT checks for direct and retained prepared reads, even WHERE FALSE.

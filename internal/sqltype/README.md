@@ -181,6 +181,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   `HstoreArray` transfers fresh flat or rectangular TEXT-array buffers without
   copying immutable strings or exposing pairs. NULL values become typed NULL
   elements; whole NULL and zero-dimensional empty arrays remain distinct.
+  `HstoreRowsPlan` checks scalar TEXT or fixed key/value RECORD usages and opens
+  invocation-private cursors directly over immutable pairs. No intermediate
+  arrays or pair copies are retained; present NULL values are distinct from EOF.
+  Closing or cancellation releases the borrowed payload without affecting peers.
   `HstoreJSON` writes textual JSON directly from those pairs into one owned
   builder, sharing the JSON escaper and lexical number scanner with existing
   consumers. Loose detection preserves complete numeric lexemes without

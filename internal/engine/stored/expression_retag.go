@@ -136,6 +136,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, failure
 				}
 			}
+			if call, isHstore := node.(functions.HstoreRows); isHstore {
+				if failure := remapHstoreRowsRoutine(view, reader, captured, current, call, retainedType); failure != nil {
+					return nil, false, failure
+				}
+			}
 			if call, isHstore := node.(functions.HstoreArray); isHstore {
 				if failure := remapHstoreArrayRoutine(view, reader, captured, current, call, retainedType); failure != nil {
 					return nil, false, failure

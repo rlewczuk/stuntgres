@@ -110,6 +110,14 @@ these are shared across families:
   failures, whole-NULL versus all-NULL tuples, scalar FROM metadata and genuine
   current-authority calls. Stored constructor/function/operator consumers retain
   old readers through replacement and replay actual emitted SQL after renames.
+  Set-returning key/value/pair extraction uses `hstore_rows_helpers_test.go`:
+  occurrence bags retain duplicate values and present SQL NULLs, independent
+  of hstore traversal order. Fixed OUT names, named `each` input, zero-row
+  metadata, held parameter recovery and caller admission share the same public
+  scenarios, including denied literal-NULL SRFs. Renamed stored consumers and
+  retained outputs survive native replacement; held builtin TEXT parameters
+  rebind through `::text::hstore`, while genuinely hstore-typed parameters retain
+  the catalog-lifetime 0A000 fence. The actual emitted SQL is replayed on the oracle.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,
   count/length diagnostic precedence, held binds, statement atomicity and native

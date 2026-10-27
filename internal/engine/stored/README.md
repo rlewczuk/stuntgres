@@ -42,6 +42,10 @@ authentic source and current declarations independently of presentation names.
 Within one type generation, a retained hstore declaration may precede the current
 presentation revision but cannot come from a future revision. Cross-generation
 transport preserves the original declaration revision rather than refreshing it.
+Set-returning hstore captures also preserve projection kind and exact TEXT/fixed
+OUT record usages. Remapping authenticates original and destination members
+independently; retagging rebuilds typed plans without retaining invocation state.
+Current rendering resolves checked current schema/name rather than captured spelling.
 Implicit equality in predicates, membership, CASE and NULLIF retains the same
 installed authority; replay binding windows require its genuine installation.
 Constructor, lookup and predicate nodes retain ordered formal/result generations,

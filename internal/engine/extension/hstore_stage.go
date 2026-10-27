@@ -59,6 +59,7 @@ func (p *HstoreProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 		signature, result := recipe.declaration(typ.ID())
 		name := recipe.name
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[recipe.slot], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: recipe.strict, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: recipe.symbol, Binary: "$libdir/hstore", HasBinary: true}, Implementation: p}
+		proc.Installed = hstoreRoutineDeclaration(recipe.slot)
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 		}

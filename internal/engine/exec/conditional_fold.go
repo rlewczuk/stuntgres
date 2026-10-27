@@ -52,6 +52,11 @@ func simplifyCompositeNode(c *Context, node expr.Composite, decisiveDefaults boo
 }
 
 func planningFold(node expr.Expr) expr.Fold {
+	// A set source is an invocation, not a scalar constant, even when all
+	// operands are literals. Keep the real node for shared target lifting.
+	if expr.IsSetSource(node) {
+		return expr.FoldNever
+	}
 	if hook, ok := node.(expr.Folding); ok {
 		return hook.PlanningFold()
 	}
