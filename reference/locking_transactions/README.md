@@ -27,6 +27,16 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   prove that a request is queued or that a safe-snapshot wait is pending.
   Native public deadlines prove conflict, not exact queue membership; exact
   native queue order is tested in `internal/engine`.
+- **Timed relation-lock owners.** Prove actual admission with the matching untimed
+  cancellation operation before arming SQL timers. Check implicit-error recovery
+  and physical identity on that same owner at timeout zero; PostgreSQL uses
+  server-side cancellation to retain its transport. Once armed, issue only the
+  intended timed operation, without racing a short timer against an observer.
+  After holder rollback, require a healthy observer's AX NOWAIT acquisition while
+  the timed owner is still alive, then check sentinel visibility and mutation
+  through that observer, not as original-owner recovery. Register cleanup so
+  workers cancel/join before transactions and Rows/Stmt close, then physically
+  discard the armed owner with Raw ErrBadConn before returning its borrower.
 - **Workers and cleanup.** Every worker owns cancellation and a bounded join
   before handles, schemas, roles or GIDs are cleaned up. Advisory holds survive
   deadlock, timeout and rollback: unlock or close them before requiring a
