@@ -38,6 +38,10 @@ hash map: a CHAMP-style hash array mapped trie with 32-way bitmap nodes.
   The result has the same canonical shape as one built by `Set`.
 - **Batches.** `SetAll(seq)` and `DeleteAll(keys)` apply many changes in one
   pass; each node shared with the receiver is copied at most once.
+- **Value maps.** `PersistentMapValues(m, f)` builds a map with `m`'s keys and
+  values `f(k, v)` by copying `m`'s trie, hashes and keys into a few large
+  allocations, without hashing or partitioning; the result shares nothing with
+  `m`. It is the cheap way to build many maps over one key set.
 - **Transients.** `m.Transient()` returns a single-goroutine editor for many
   changes. Nodes it creates are edited in place by later changes; nodes shared
   with other versions are copied on first change. `Persistent()` returns the

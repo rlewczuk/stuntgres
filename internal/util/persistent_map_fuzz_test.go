@@ -76,5 +76,14 @@ func FuzzPersistentMap(f *testing.F) {
 		for i := range kept {
 			checkModel(t, kept[i], h, keptModels[i])
 		}
+		mapped, mappedModel := PersistentMapValues(m, func(k, v int) int { return v ^ k }), map[int]int{}
+		for k, v := range model {
+			mappedModel[k] = v ^ k
+		}
+		checkModel(t, mapped, h, mappedModel)
+		if shape(mapped) != shape(m) {
+			t.Fatalf("PersistentMapValues changed the shape:\n%s\n%s", shape(mapped), shape(m))
+		}
+		checkModel(t, m, h, model)
 	})
 }
