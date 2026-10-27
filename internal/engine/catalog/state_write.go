@@ -18,6 +18,26 @@ import (
 // SetDescriptor stores d at a.
 func (s *State) SetDescriptor(a ids.ObjectAddress, d Descriptor) {
 	old, _ := s.findDescriptor(a)
+	s.replaceDescriptor(a, old, d)
+}
+
+// addSeedDescriptor stores d at a, which the seed's bulk load has not filled
+// yet, without SetDescriptor's lookup of the descriptor it replaces. A second
+// install at one address panics. Outside a bulk load it is SetDescriptor.
+func (s *State) addSeedDescriptor(a ids.ObjectAddress, d Descriptor) {
+	if s.bulk == nil {
+		s.SetDescriptor(a, d)
+		return
+	}
+	n := len(s.bulk.descriptors)
+	s.replaceDescriptor(a, nil, d)
+	if len(s.bulk.descriptors) == n {
+		panic("stuntgres: builtin seed installs one catalog address twice")
+	}
+}
+
+// replaceDescriptor stores d at a, where old is the descriptor a held or nil.
+func (s *State) replaceDescriptor(a ids.ObjectAddress, old, d Descriptor) {
 	s.updateCastIndex(old, d)
 	s.putDescriptor(a, d)
 	s.updateRelations(a, old, d)

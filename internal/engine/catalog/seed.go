@@ -13,7 +13,7 @@ import (
 
 // installSeedDescriptor sets d and binds its descriptor name.
 func installSeedDescriptor(state *State, d Descriptor) {
-	state.SetDescriptor(d.Address(), d)
+	state.addSeedDescriptor(d.Address(), d)
 	state.BindName(DescriptorNameKey(d), d.Address())
 }
 

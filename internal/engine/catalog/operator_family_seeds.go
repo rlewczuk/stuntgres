@@ -1197,17 +1197,17 @@ func InstallBuiltinFamilies(state *State, owner authorization.PrincipalRef) {
 	for i, row := range builtinFamilyRows {
 		d := &families[i]
 		*d = OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: row.oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: row.name, Method: row.method, Owner: owner}
-		state.SetDescriptor(d.Address(), d)
+		state.addSeedDescriptor(d.Address(), d)
 		state.BindName(builtinFamilyKeys[i], d.Address())
 	}
 	for i := range builtinFamilyOperators {
 		d := &builtinFamilyOperators[i]
-		state.SetDescriptor(d.Address(), d)
+		state.addSeedDescriptor(d.Address(), d)
 		state.BindName(builtinFamilyOperatorKeys[i], d.Address())
 	}
 	for i := range builtinFamilySupports {
 		d := &builtinFamilySupports[i]
-		state.SetDescriptor(d.Address(), d)
+		state.addSeedDescriptor(d.Address(), d)
 		state.BindName(builtinFamilySupportKeys[i], d.Address())
 	}
 }
