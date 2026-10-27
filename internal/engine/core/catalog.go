@@ -927,7 +927,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 		if p == nil {
 			return ChangeSet{}, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
 		}
-		if err := p.Validate(replacement, d); err != nil {
+		if err := catalog.Validate(p, replacement, d); err != nil {
 			return ChangeSet{}, err
 		}
 	}

@@ -162,7 +162,7 @@ func isDumpLargeObject(d catalog.Descriptor) bool {
 
 func collectLargeObjectDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	object := d.(*catalog.LargeObject)
-	if err := (catalog.LargeObjectProvider{}).Validate(c.CatalogView, object); err != nil {
+	if err := catalog.Validate(catalog.LargeObjectProvider{}, c.CatalogView, object); err != nil {
 		return err
 	}
 	if err := access.ValidateACL(c.OriginalRoles, object); err != nil {
@@ -221,7 +221,7 @@ func collectParameterDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 	if provider == nil {
 		return fmt.Errorf("stuntgres: missing parameter catalog provider")
 	}
-	if err := provider.Validate(c.CatalogView, d); err != nil {
+	if err := catalog.Validate(provider, c.CatalogView, d); err != nil {
 		return err
 	}
 	return access.ValidateACL(c.OriginalRoles, d)
@@ -229,7 +229,7 @@ func collectParameterDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 
 func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Tablespace)
-	if err := (catalog.TablespaceProvider{}).Validate(c.CatalogView, t); err != nil {
+	if err := catalog.Validate(catalog.TablespaceProvider{}, c.CatalogView, t); err != nil {
 		return err
 	}
 	return nil
@@ -237,7 +237,7 @@ func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 
 func collectLanguageDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, descriptor catalog.Descriptor) error {
 	d := descriptor.(*catalog.Language)
-	if err := (catalog.LanguageProvider{}).Validate(c.CatalogView, d); err != nil {
+	if err := catalog.Validate(catalog.LanguageProvider{}, c.CatalogView, d); err != nil {
 		return err
 	}
 	return nil
@@ -255,7 +255,7 @@ func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddre
 func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Procedure)
 	if t.RangeConstructor != nil {
-		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
+		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
 		}
 		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
@@ -273,32 +273,32 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		return c.collectProvider(t)
 	}
 	if t.DynamicCallable() {
-		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
+		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
 		}
 		c.OwnedRoutines = append(c.OwnedRoutines, t)
 		return nil
 	}
 	if t.Foreign != nil {
-		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
+		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
 		}
 		return c.collectProvider(t)
 	}
 	if t.Builtin != nil {
-		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
+		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
 		}
 		return c.collectProvider(t)
 	}
 	if t.AccessMethod != catalog.NoAccessMethod || t.BrinSupport != 0 {
-		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
+		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
 		}
 		return c.collectProvider(t)
 	}
 	if t.Conversion.Name() != "" {
-		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
+		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
 		}
 		return c.collectProvider(t)
@@ -310,7 +310,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 }
 
 func collectTextSearchDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
-	if err := (extension.CatalogProvider{Class: d.Address().ClassID}).Validate(c.CatalogView, d); err != nil {
+	if err := catalog.Validate(extension.CatalogProvider{Class: d.Address().ClassID}, c.CatalogView, d); err != nil {
 		return err
 	}
 	if catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
@@ -341,7 +341,7 @@ func collectTextSearchDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 
 func collectExtensionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Extension)
-	if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(c.CatalogView, t); err != nil {
+	if err := catalog.Validate(extension.CatalogProvider{Class: ids.ExtensionClassID}, c.CatalogView, t); err != nil {
 		return err
 	}
 	ns := c.CatalogView.MustNamespace(t.TargetNamespace)
@@ -373,18 +373,18 @@ func collectExtensionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Type)
 	if t.SQLType.IsMultirange() && t.SQLType.IsUserDefined() {
-		return (stored.TypeProvider{}).Validate(c.CatalogView, t)
+		return catalog.Validate(stored.TypeProvider{}, c.CatalogView, t)
 	}
-	if err := (stored.TypeProvider{}).Validate(c.CatalogView, t); err != nil {
+	if err := catalog.Validate(stored.TypeProvider{}, c.CatalogView, t); err != nil {
 		return err
 	}
 	if t.SQLType.IsHstore() || t.SQLType.IsSeg() || t.SQLType.IsQueryInt() || (t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery()) || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() || t.Extension != (ids.ObjectAddress{}) {
-		return (stored.TypeProvider{}).Validate(c.CatalogView, t)
+		return catalog.Validate(stored.TypeProvider{}, c.CatalogView, t)
 	}
 	if t.SQLType.IsUserDefined() && !t.SQLType.IsComposite() {
 		c.Domains = append(c.Domains, t)
 	} else if t.SQLType.IsArray() {
-		if err := (stored.TypeProvider{}).Validate(c.CatalogView, t); err != nil {
+		if err := catalog.Validate(stored.TypeProvider{}, c.CatalogView, t); err != nil {
 			return err
 		}
 	} else if t.Namespace().ObjectID != ids.PGCatalogNamespaceOID && t.Namespace().ObjectID != 13229 && t.OwningRelation == (ids.ObjectAddress{}) {
@@ -395,7 +395,7 @@ func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 
 func collectCollationDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Collation)
-	if err := (catalog.CollationProvider{}).Validate(c.CatalogView, t); err != nil {
+	if err := catalog.Validate(catalog.CollationProvider{}, c.CatalogView, t); err != nil {
 		return err
 	}
 	if !t.Seeded() {
@@ -406,7 +406,7 @@ func collectCollationDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 
 func collectConversionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Conversion)
-	if err := (catalog.ConversionProvider{}).Validate(c.CatalogView, t); err != nil {
+	if err := catalog.Validate(catalog.ConversionProvider{}, c.CatalogView, t); err != nil {
 		return err
 	}
 	if !t.Seeded() {
@@ -418,7 +418,7 @@ func collectConversionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 func isDumpAccessMethod(d catalog.Descriptor) bool { _, ok := d.(*catalog.AccessMethod); return ok }
 func collectAccessMethodDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	method := d.(*catalog.AccessMethod)
-	if err := (catalog.AccessMethodProvider{}).Validate(c.CatalogView, method); err != nil {
+	if err := catalog.Validate(catalog.AccessMethodProvider{}, c.CatalogView, method); err != nil {
 		return err
 	}
 	if !catalog.AccessMethodSeeded(method) {
@@ -432,7 +432,7 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 	if valid && ns.Temporary != (ids.SessionToken{}) {
 		return nil
 	}
-	if err := (catalog.NamespaceProvider{}).Validate(c.CatalogView, d); err != nil {
+	if err := catalog.Validate(catalog.NamespaceProvider{}, c.CatalogView, d); err != nil {
 		return err
 	}
 	if valid && ns.Comment != catalog.NamespaceCommentBaseline(a.ObjectID) {

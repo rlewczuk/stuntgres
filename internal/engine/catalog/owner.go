@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 )
 
 // Owner is the identity every Read of one engine carries: the provenance
@@ -23,6 +24,9 @@ type Owner struct {
 	// Extensions is the registry of extension implementations. Like
 	// providers, it closes when construction ends.
 	Extensions map[string]ExtensionImplementation
+	// seed holds the descriptors the builtin seed installed, except the
+	// database descriptor. FinishSeedLocked sets it once; see SeedIdentical.
+	seed util.PersistentMap[ids.ObjectAddress, Descriptor]
 }
 
 // Provider returns the registered provider of a catalog class, or nil. The
@@ -36,4 +40,27 @@ func (s *Owner) DatabaseAddress() ids.ObjectAddress {
 		return CurrentDatabaseAddress
 	}
 	return s.Database
+}
+
+// SeedIdentical reports whether d is the very descriptor the builtin seed of
+// the view's owner installed at d's address. Published descriptors are
+// immutable, so such a descriptor still has its seeded content, and the seed
+// was validated as a whole (Store.ValidateSeed). Builtin seeds depend only on
+// pinned builtin objects. Any change installs a new descriptor, which no
+// longer matches.
+func (r Read) SeedIdentical(d Descriptor) bool {
+	if r.owner == nil || d == nil {
+		return false
+	}
+	seeded, ok := r.owner.seed.Get(d.Address())
+	return ok && seeded == d
+}
+
+// Validate checks d with p in v, unless d is seed-identical in v
+// (Read.SeedIdentical) and so already validated with its seed.
+func Validate(p Provider, v Read, d Descriptor) error {
+	if v.SeedIdentical(d) {
+		return nil
+	}
+	return p.Validate(v, d)
 }

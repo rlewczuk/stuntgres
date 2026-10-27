@@ -72,7 +72,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class")
 		}
-		if err := p.Validate(view, d); err != nil {
+		if err := catalog.Validate(p, view, d); err != nil {
 			return nil, err
 		}
 	}

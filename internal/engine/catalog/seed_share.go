@@ -52,9 +52,10 @@ func (s *Store) BeginSeedLocked(capacity int) {
 	s.seeding = true
 }
 
-// FinishSeedLocked ends the seed's bulk load. The name map is the shared seed
-// names plus this store's database binding; a seed that bound a different
-// number of names builds its own map instead.
+// FinishSeedLocked ends the seed's bulk load and records the seeded
+// descriptors for Read.SeedIdentical. The name map is the shared seed names
+// plus this store's database binding; a seed that bound a different number of
+// names builds its own map instead.
 func (s *Store) FinishSeedLocked(share *SeedShare) {
 	s.seeding = false
 	state := s.State
@@ -71,9 +72,12 @@ func (s *Store) FinishSeedLocked(share *SeedShare) {
 	})
 	if bound, ok := state.LookupName(database); !ok || bound != address || state.NameCount() != share.names.names.Len()+1 {
 		state.EndBulkLoad()
-		return
+	} else {
+		state.EndBulkLoadWithNames(share.names.names.Set(database, address))
 	}
-	state.EndBulkLoadWithNames(share.names.names.Set(database, address))
+	// The database descriptor depends on engine options and is validated per
+	// engine, so it is never seed-identical.
+	s.Owner.seed = state.descriptors.Delete(address)
 }
 
 // ValidateSeed validates the seed once per share and the current database

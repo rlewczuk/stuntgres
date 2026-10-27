@@ -36,7 +36,7 @@ func collectOperatorFamilyDump(_ context.Context, c *dumpCollection, _ ids.Objec
 		}
 	}
 	if class, ok := d.(*catalog.OperatorClass); ok {
-		if err := (catalog.OperatorClassProvider{}).Validate(c.CatalogView, class); err != nil {
+		if err := catalog.Validate(catalog.OperatorClassProvider{}, c.CatalogView, class); err != nil {
 			return err
 		}
 		if !catalog.OperatorClassSeeded(class) || catalog.OperatorClassSeedModified(class) {
@@ -44,7 +44,7 @@ func collectOperatorFamilyDump(_ context.Context, c *dumpCollection, _ ids.Objec
 		}
 		return nil
 	}
-	if err := (catalog.OperatorFamilyProvider{Class: d.Address().ClassID}).Validate(c.CatalogView, d); err != nil {
+	if err := catalog.Validate(catalog.OperatorFamilyProvider{Class: d.Address().ClassID}, c.CatalogView, d); err != nil {
 		return err
 	}
 	include := !catalog.OperatorFamilySeeded(d)

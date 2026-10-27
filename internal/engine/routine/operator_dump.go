@@ -16,7 +16,7 @@ import (
 // OperatorDumped validates a collected operator and reports whether Dump
 // writes it; seeded operators are part of every destination.
 func OperatorDumped(view catalog.Read, d *catalog.Operator) (bool, error) {
-	if err := (OperatorProvider{}).Validate(view, d); err != nil {
+	if err := catalog.Validate(OperatorProvider{}, view, d); err != nil {
 		return false, err
 	}
 	return !OperatorSeeded(d) && d.Extension == (ids.ObjectAddress{}), nil
