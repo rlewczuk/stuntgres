@@ -256,10 +256,10 @@ reviewed decision:
   `VerifyHeapam` retains its non-STRICT record-set shape and defaults, while
   `Amcheck` remains STRICT scalar VOID. Provider membership alone does not
   classify every amcheck call as set-returning.
-  `Pageinspect` binds the installed BRIN and B-tree byte decoders through the same handle,
-  preserving written argument order and formal slots. Its installed wrapper
-  supports scalar, anonymous-record and set-source results; STRICT argument
-  evaluation precedes current-superuser and index-descriptor admission. No
+  `Pageinspect` binds the installed BRIN, B-tree, FSM and GIN byte decoders
+  through the same handle, preserving written argument order and formal slots.
+  Its installed wrapper supports scalar, anonymous-record and set-source results;
+  STRICT argument evaluation precedes current-superuser and index-descriptor admission. No
   elevated role or relation/page state is retained in the expression.
   `ValidateArguments` checks the immutable argument types and formal-slot map
   without copying or rebuilding. Actual `Rebuild`/`Substitute` operations share

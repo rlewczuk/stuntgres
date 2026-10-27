@@ -44,6 +44,16 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   fixed little-endian FSM node bytes and a signed next-slot pointer. Only exact
   page size and the new-page `pd_upper` marker are checked; other headers and
   pointer ranges do not authorize extra validation. No physical pages are acquired.
+- `ReadGinPage` borrows immutable bytea and validates the selected metadata,
+  opaque or compressed-leaf boundary. Fixed fields use released native alignment;
+  opaque flags retain recognized-bit order and a combined unknown-bit suffix.
+  `LeafItems` bounds every segment, aligned stride and delta byte read, checks
+  cancellation, and owns decoded physical TIDs without text reinput. Released
+  seven-octet consumption uses the full seventh octet, unsigned accumulation
+  and `uint32` output-block narrowing, without a 43-bit validation ceiling.
+  Safe low page-version, reported GIN-version and stored offset mutations are
+  not extra validation gates. Undefined corrupt layouts use the ordinary native
+  layout error, never fabricated PostgreSQL SQLSTATEs or physical acquisition.
 - `PgLSN` retains unsigned 64-bit positions inline. Its descriptor owns strict
   slash-hex text, canonical uppercase output, typed SQL literals and eight-byte
   big-endian codecs. Comparisons and B-tree ordering use unsigned magnitude.
@@ -518,7 +528,8 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
 
-Native physical datum and BRIN/B-tree/FSM byte-reader units use `RUN='^TestPageinspect'`.
+Native physical datum and BRIN/B-tree/FSM byte-reader units use `RUN='^TestPageinspect'`;
+GIN decoder, safety and cancellation units use `RUN='^TestGINPage'`.
 The immutable B-tree reader preserves encoded TIDs, pivot trailers and posting
 lists separately from page-context dead flags. Posting results use executable
 generic `tid[]` (OID 1010, element 27), with ordinary array ownership and codecs;

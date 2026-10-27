@@ -47,6 +47,13 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
   nullability flags independently of cursor contents, including replayed views.
   Literal catalog identities, retained prepared consumers and unchanged-byte
   output-setting transitions supplement the stored decoder results.
+- GIN pageinspect images in `pageinspect_gin_fixture_test.go` independently
+  encode released metadata, opaque flags and compressed posting segments.
+  Expectations never use production decoders or acquired pages. Shared helpers
+  cover direct/prepared/held calls, exact diagnostics, adapter metadata and
+  current privileges; stored consumers and native controls preserve symbolic
+  installed identities, raw bytes and immutable retained results. Unsafe C
+  layouts belong only in native decoder units, not the PostgreSQL oracle.
 - LOAD (`load_fixture_test.go`) checks missing-file candidates inside the oracle
   container only and requires `dynamic_library_path=$libdir` and an installed
   `plpgsql.so`; unexpected files are failed preconditions, never skips.
@@ -70,6 +77,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - fuzzystrmatch: `RUN='^TestReferenceDaitchMokotoff'`, `RUN='^TestReferenceLevenshtein'`, `RUN='^TestReferenceMetaphone'`, `RUN='^TestReferenceSoundex'`
 - tablefunc Gaussian sources: `RUN='^TestReferenceTablefuncNormal'`
 - BRIN pageinspect: `RUN='^TestReferencePageinspectBrin'`
+- GIN pageinspect: `RUN='^TestReferencePageinspectGIN'`
 - tablefunc hierarchy sources: `RUN='^TestReferenceConnectby'`. Shared helpers
   own caller-record metadata, full SQL diagnostics, retained statements and
   explicit native-control phases. Renamed members use current names or stored

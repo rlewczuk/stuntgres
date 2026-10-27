@@ -24,6 +24,9 @@ var PageinspectMembers=[...]PageinspectMember{
  {"brin_page_items","brin_page_items","17,2205",2249,catalog.InstalledRoutineDeclaration{Parallel:'r',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{23,20,23,16,16,16,16,25},"page","index_oid","itemoffset","blknum","attnum","allnulls","hasnulls","placeholder","empty","value")}},
  {"bt_page_items","bt_page_items_bytea","17",2249,catalog.InstalledRoutineDeclaration{Parallel:'s',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{21,27,21,16,16,25,16,27,1010},"page","itemoffset","ctid","itemlen","nulls","vars","data","dead","htid","tids")}},
  {"fsm_page_contents","fsm_page_contents","17",25,catalog.InstalledRoutineDeclaration{Parallel:'s',ArgumentNames:[4]string{"page"}}},
+ {"gin_metapage_info","gin_metapage_info","17",2249,catalog.InstalledRoutineDeclaration{Parallel:'s',Outputs:catalog.NewRoutineOutputs([]ids.OID{20,20,23,20,20,20,20,20,20,23},"page","pending_head","pending_tail","tail_free_size","n_pending_pages","n_pending_tuples","n_total_pages","n_entry_pages","n_data_pages","n_entries","version")}},
+ {"gin_page_opaque_info","gin_page_opaque_info","17",2249,catalog.InstalledRoutineDeclaration{Parallel:'s',Outputs:catalog.NewRoutineOutputs([]ids.OID{20,23,1009},"page","rightlink","maxoff","flags")}},
+ {"gin_leafpage_items","gin_leafpage_items","17",2249,catalog.InstalledRoutineDeclaration{Parallel:'s',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{27,21,1010},"page","first_tid","nbytes","tids")}},
 }
 func(p *PageinspectProvider)ValidateExtension(v catalog.Read,ext *catalog.Extension)error{
  if p!=StockPageinspect || !currentManifest(v,ext) || ext.Name()!="pageinspect" || ext.Version!="1.13" || len(ext.Members)!=len(PageinspectMembers){return fmt.Errorf("stuntgres: invalid pageinspect manifest")}

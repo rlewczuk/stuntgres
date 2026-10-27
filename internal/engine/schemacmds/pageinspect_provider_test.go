@@ -21,7 +21,7 @@ import (
 func TestPageinspectBrinProviderIdentity(t *testing.T){
  e:=engine.New();op,done:=enginetest.RoleOperation(t,e,"postgres");defer done();enginetest.RoleExecute(t,e,op,"CREATE EXTENSION pageinspect")
  view:=e.CatalogRead();ext:=view.MustExtension(view.State().NameAddress(ids.NameKey{ClassID:ids.ExtensionClassID,Name:"pageinspect"}))
- if len(ext.Members)!=6 || extension.StockPageinspect.Control().Version!="1.13"{t.Fatal(ext)}
+ if len(ext.Members)!=9 || extension.StockPageinspect.Control().Version!="1.13"{t.Fatal(ext)}
  for i,address:=range ext.Members{
   p:=view.MustProcedure(address);m:=extension.PageinspectMembers[i]
   if p.Name()!=m.Name || p.Signature!=m.Signature || p.Result!=m.Result || p.Installed!=m.Declaration || p.Volatility!=expr.Volatile || !p.Strict || core.ProcedureReturnsSet(p)!=m.Declaration.ReturnsSet{t.Fatal(p)}
@@ -59,6 +59,9 @@ func TestPageinspectBrinOwnerCodec(t *testing.T){
   {Slot:3,Schema:"brin_moved",Kind:"procedure",Name:"brin_page_items",Signature:"17,2205",Owner:"postgres"},
   {Slot:4,Schema:"brin_moved",Kind:"procedure",Name:"bt_page_items",Signature:"17",Owner:"postgres"},
   {Slot:5,Schema:"brin_moved",Kind:"procedure",Name:"fsm_page_contents",Signature:"17",Owner:"postgres"},
+  {Slot:6,Schema:"gin_moved",Kind:"procedure",Name:"meta_info",Signature:"17",Owner:"gin_owner"},
+  {Slot:7,Schema:"gin_moved",Kind:"procedure",Name:"opaque_info",Signature:"17",Owner:"postgres"},
+  {Slot:8,Schema:"gin_moved",Kind:"procedure",Name:"leaf_items",Signature:"17",Owner:"gin_owner"},
  }}
  encode:=func(record extension.OwnerRecord)string{
   data,err:=json.Marshal(record);if err!=nil{t.Fatal(err)}
@@ -74,6 +77,7 @@ func TestPageinspectBrinOwnerCodec(t *testing.T){
   {"negative_slot",func(r *extension.OwnerRecord){r.Members[0].Slot=-1}},
   {"foreign_slot",func(r *extension.OwnerRecord){r.Members[3].Slot=len(extension.PageinspectMembers)}},
   {"wrong_signature",func(r *extension.OwnerRecord){r.Members[3].Signature="17,26"}},
+  {"gin_wrong_signature",func(r *extension.OwnerRecord){r.Members[8].Signature="25"}},
   {"wrong_kind",func(r *extension.OwnerRecord){r.Members[0].Kind="type"}},
   {"missing_namespace",func(r *extension.OwnerRecord){r.Members[0].Schema=""}},
   {"missing_owner",func(r *extension.OwnerRecord){r.Members[0].Owner=""}},
@@ -117,6 +121,7 @@ func TestPageinspectBrinNamedValidation(t *testing.T){
  rebuilt,err:=call.Rebuild(call.Info,borrowed);if err!=nil{t.Fatal(err)}
  borrowed[0]=nil
  if rebuilt.(plan.InstalledPageinspectExpr).Args[0]==nil || call.Args[0]==nil{t.Fatal("rebuild retained borrowed backing")}
+ assertGinPageinspectIdentity(t,e,b)
 }
 
 func TestPageinspectBtreeProviderIdentity(t *testing.T){
