@@ -43,6 +43,7 @@ type explainRenderer struct {
 	frames                       map[uint32]plan.Node
 	occurrences                  map[int]*plan.SourceNode
 	ctes                         map[*plan.CTEDefinition]*explainTree
+	worktables                   map[*plan.CTEDefinition]float64
 	subplans                     []explainSubplan
 	producers                    []*explainTree
 	viewActive                   map[ids.ObjectAddress]bool
@@ -115,7 +116,9 @@ func (r *explainRenderer) query(query *plan.Query) (*explainTree, error) {
 	r.scanFilter = exec.HashQueryFilter(query.Root)
 	if r.scanFilter != nil {
 		frame := query.Root.(*plan.ProjectNode).Frame
-		if frame == 0 { frame = 1 }
+		if frame == 0 {
+			frame = 1
+		}
 		r.scanDecision = r.explainScan(r.scanFilter, frame)
 	}
 	r.register(query.Root)
@@ -142,6 +145,20 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 	tree := &explainTree{}
 	var childEstimates [2]plan.ExplainEstimate
 	estimates := childEstimates[:0]
+	recursive, isRecursive := root.(*plan.RecursiveUnionNode)
+	if isRecursive {
+		if r.worktables == nil {
+			r.worktables = make(map[*plan.CTEDefinition]float64)
+		}
+		previous, existed := r.worktables[recursive.Definition]
+		defer func() {
+			if existed {
+				r.worktables[recursive.Definition] = previous
+			} else {
+				delete(r.worktables, recursive.Definition)
+			}
+		}()
+	}
 	for _, child := range []plan.Node{left, right} {
 		if child == nil {
 			continue
@@ -152,6 +169,9 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 		tree.children = append(tree.children, childTree)
 		estimates = append(estimates, childTree.estimate)
+		if isRecursive && child == left {
+			r.worktables[recursive.Definition] = min(plan.ExplainEstimateLimit, max(0, childTree.estimate.Rows*r.scope.Op.RecursiveWorktableFactor))
+		}
 	}
 	sourceRows := float64(1000)
 	detail := func(label string, expression expr.Expr, context plan.Node) error {
@@ -309,6 +329,9 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 	case *plan.WorktableScanNode:
 		tree.label = "Worktable Scan on " + catalog.Identifier(explainDerivedAlias(&n.DerivedNode))
+		if rows, ok := r.worktables[n.CTE]; ok {
+			sourceRows = rows
+		}
 	case *plan.SetNode:
 		tree.label = strings.ToUpper(n.Operation)
 		if n.All {

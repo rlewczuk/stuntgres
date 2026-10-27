@@ -78,6 +78,13 @@ waits and publication.
 physical layouts; `CapturedPruner.Select` runs unlocked through exec's
 `QueryBranchPruner` interface and emits captured ordinal intervals. Unsupported
 provider, identity, collation or probe contracts keep the branch possible.
+`NewBranchProof`/`Possible` own the same bounded feasibility search for Select
+and metadata-only EXPLAIN; ordinal construction stays in Select. The captured
+constraint_exclusion mode enables CHECK/validated NOT NULL facts for all tables
+under on, inherited child branches (not the named parent or a standalone child)
+under partition, and neither under off. Declarative membership proof remains
+independent. EXPLAIN uses no sources or row counts, runs proof comparisons
+unlocked and omits proof details for row-security/row-lock guarded sources.
 
 - **Shared budget.** Boolean backtracking processes at most 4096 search entries
   across one entire Select, not per branch. Exhaustion retains the current and

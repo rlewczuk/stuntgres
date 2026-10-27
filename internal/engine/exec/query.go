@@ -59,6 +59,7 @@ type Source struct {
 	PlannerCosts     plan.PlannerCosts
 	PlannerRows      float64 // Detached maintenance estimate, or the logical default.
 	PlannerColumns   int
+	ScanFraction     float64 // Declaration-captured cursor fraction; ordinary sources use 1.
 	ScanDecision     plan.ScanDecision
 	CatalogKeys      *CatalogKeyIndex // Indexes Anonymous of a shared catalog capture.
 	Host             Host

@@ -28,6 +28,14 @@ Capture uses maintenance metadata (or default1000), never source counting,
 bucket probing or expression evaluation. Explicit/private/RLS/unsupported
 admission retains the safe full traversal; named hash indexes are ordered by
 object identity. Local-worker costs use the same command-admitted value record.
+Cursor declaration additionally captures its startup/total retrieval fraction;
+ordinary queries retain fraction1. Existing explicit/private/RLS hash guards
+remain unchanged, including for cursors. Implicit WITH HOLD declaration can use
+the eligible hash alternative before promotion; promotion retains complete
+results and releases the producer normally. Worktable estimates are renderer-local,
+scoped by the owning CTEDefinition and its seed rows times the admitted factor.
+EXPLAIN's `Pruned Sources` detail uses partition's actual conservative branch
+proof over captured metadata, with comparisons unlocked and no source opening.
 Window clauses are resolved through their owning stage's canonical specification
 indices, and SRF outputs through that stage's fixed call/scalar slots. Verbose
 outputs omit private grouping identities and reserved, not-yet-produced SRF
@@ -1420,6 +1428,11 @@ session, transaction, prepared-analysis and typed-frame authorities.
   `StatementScope.Finish`'s disposal; no timer callback mutates the transaction.
 
 ## Testing
+
+Other planner-option admission, actual collection/publication, branch selection,
+cursor-source retention and scoped recursive estimates use `RUN='^TestPlannerOther'`.
+Composed witnesses inspect the real admitted owners; public SQL bags and
+diagnostics remain in `reference/session_state`.
 
 Statistics definition/capture/replay invariants use `RUN='^TestStatisticsObject'`.
 Publication units use real provider barriers and exact namespace/name resources,

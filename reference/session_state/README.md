@@ -92,6 +92,11 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   lifetimes, supported access-method choices, local-worker cost profiles and
   native-control retention. Private owner tests distinguish actual candidate
   traversal and worker dispatch from their public metadata/result witnesses.
+- Other planner options: `RUN='^TestReferencePlannerOther'` covers all eight
+  USERSET surfaces, exact validation and transactional lifetimes, real ANALYZE
+  retention, constraint-proof eligibility, cursor results and logical recursive
+  estimates. Native access/proof witnesses are distinct from PostgreSQL plans;
+  collapse/reorder, JIT and generic/custom machinery are named absent boundaries.
 - `pg_settings` metadata and statistics settings: `RUN='^TestReferenceStatisticsSettings'`
 - Vacuum settings: `RUN='^TestReferenceVacuumSettings'` uses independent
   released 28-row literals and the shared physical-session helpers for full

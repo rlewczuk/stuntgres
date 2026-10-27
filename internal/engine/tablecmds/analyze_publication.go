@@ -94,7 +94,7 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		if relation.ColumnMeta.Generations[attribute].Kind == catalog.GenerationVirtual {
 			continue
 		}
-		columns = append(columns, storage.StatisticsColumn{Key: storage.StatisticsKey{Attribute: attribute}, Usage: column.Usage, Slot: slot})
+		columns = append(columns, storage.StatisticsColumn{Key: storage.StatisticsKey{Attribute: attribute}, Usage: column.Usage, Slot: slot, Target: s.Op.StatisticsTarget})
 	}
 	closure, err := analyzeClosure(auth.Catalog, relation, s.Op.Session.SessionToken)
 	if err != nil {

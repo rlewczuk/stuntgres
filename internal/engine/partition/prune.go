@@ -20,9 +20,10 @@ type CapturedPruner struct {
 	view   catalog.Read
 	named  *catalog.Relation
 	source *exec.Source
+	mode   string
 }
 
-func CapturePruner(view catalog.Read, named *catalog.Relation, source *exec.Source) {
+func CapturePruner(view catalog.Read, named *catalog.Relation, source *exec.Source, mode string) {
 	if source == nil || source.RlsDenied {
 		return
 	}
@@ -32,7 +33,7 @@ func CapturePruner(view catalog.Read, named *catalog.Relation, source *exec.Sour
 	if source.Inheritance == nil && named.Membership == nil && len(named.Constraints.Check) == 0 && len(named.Constraints.NotNull) == 0 {
 		return
 	}
-	source.BranchPruner = &CapturedPruner{view: view, named: named, source: source}
+	source.BranchPruner = &CapturedPruner{view: view, named: named, source: source, mode: mode}
 }
 
 // mapped reuses the stored recipe mapper, replacing only captured physical
@@ -305,16 +306,20 @@ func (p *pruneProof) finish(domains []pruneDomain, requirements []pruneMembershi
 	return true, p.ctx.Err()
 }
 
-func (p *pruneProof) branch(query int, physical *catalog.Relation) (bool, error) {
+func (p *pruneProof) branch(query int, physical *catalog.Relation, constraints bool) (bool, error) {
 	if err := p.ctx.Err(); err != nil {
 		return false, err
 	}
 	if p.remaining == 0 {
 		return true, nil
 	}
-	facts, err := p.constraints(physical)
-	if err != nil {
-		return false, err
+	facts := 0
+	if constraints {
+		var err error
+		facts, err = p.constraints(physical)
+		if err != nil {
+			return false, err
+		}
 	}
 	root := p.join("and", query, facts)
 	p.requirements = p.requirements[:0]
@@ -366,15 +371,13 @@ func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, p
 	if err := ctx.Err(); err != nil {
 		return exec.QueryBranchSelection{}, err
 	}
-	proof := newPruneProof(ctx, evaluation, c.view, c.named, c.source.Ref)
-	query, err := proof.normalize(predicate, false)
+	proof, err := NewBranchProof(ctx, evaluation, c.view, c.named, c.source.Ref, predicate, c.mode, c.source.Inheritance != nil)
 	if err != nil {
 		return exec.QueryBranchSelection{}, err
 	}
-	if query == 0 {
+	if proof.query == 0 {
 		return exec.QueryBranchSelection{}, nil
 	}
-	queryNodes := len(proof.nodes)
 	result := exec.QueryBranchSelection{}
 	start := 0
 	count := len(c.source.Inheritance)
@@ -387,8 +390,7 @@ func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, p
 			physical = c.source.Inheritance[i].Leaf.Relation
 			end = c.source.InheritanceEnds[i]
 		}
-		proof.nodes = proof.nodes[:queryNodes]
-		possible, err := proof.branch(query, physical)
+		possible, err := proof.Possible(physical)
 		if err != nil {
 			return exec.QueryBranchSelection{}, err
 		}

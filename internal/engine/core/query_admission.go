@@ -401,7 +401,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 			e.initializeTemporarySourceLocked(scope, source)
 		}
 		if program == nil && !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
-			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.Inquiry.CommentCatalog), scope.PartitionRelations), leaf.Relation, source)
+			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.Inquiry.CommentCatalog), scope.PartitionRelations), leaf.Relation, source, scope.Op.ConstraintExclusion)
 		}
 		source.RLS = program
 		plannerStore := e.Storage.Relations[leaf.Ref.Address]
@@ -474,6 +474,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf,
 
 func borrowQueryAuthority(s *exec.Source, scope *StatementScope) {
 	s.PlannerCosts = scope.Op.PlannerCosts
+	s.ScanFraction = 1
 	s.Authority = scope.authority
 	if scope.sqlRoutine.binding != nil && s.RoutineRecipe == nil {
 		// Borrow the same original frozen action manifest for runtime demand.

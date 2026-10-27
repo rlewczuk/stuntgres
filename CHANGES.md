@@ -1,5 +1,11 @@
 # Changes
 
+- Register the eight other planner options with exact typed session semantics.
+  Apply admitted targets to ANALYZE, constraint eligibility to branch refutation,
+  cursor fractions to eligible startup/total scan choices and recursive factors
+  to definition-scoped worktable estimates. Preserve explicit boundaries for
+  absent flatten/reorder, generic/custom optimization and native JIT machinery.
+
 - Register all seven GEQO settings with PostgreSQL metadata, validation and
   transactional session state. Keep genetic optimization explicitly stored-only;
   exercise real cost-selected access methods and exact duplicate results under

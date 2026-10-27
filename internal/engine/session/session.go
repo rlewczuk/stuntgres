@@ -108,37 +108,41 @@ type Session struct {
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
 type Operation struct {
-	Self               *Operation
-	Session            *Session
-	Ctx                context.Context
-	CopyInput          protocolCopyInputContext
-	CommandContext     context.Context // Session-cancelable parent of per-statement budgets.
-	Cancel             context.CancelCauseFunc
-	Released           bool
-	private            bool
-	Notices            []sqlstate.Error
-	NoticeThreshold    NoticeLevel
-	TimerCancel        context.CancelFunc
-	LockTimeout        time.Duration
-	ParallelWorkers    int  // Immutable prior-setting snapshot at command admission.
-	PlannerCosts       plan.PlannerCosts // Immutable command admission; retained sources copy it.
-	AsyncAppend        bool // Immutable prior-setting snapshot at command admission.
-	StatementDeadline  time.Time
-	CommandStart       time.Time
-	SourceContext      context.Context
-	CommandAdmission   bool
-	OriginTransaction  ids.TxRef // Immutable acquisition evidence, never transaction authority.
-	sqlActivity        bool
-	SQLFinished        bool // Session.mu: ERROR/completion fence, not transaction state
-	Lease              *StatementLease
-	Definition         catalog.DefinitionReader // Scoped once-only DDL cooking, restored before evaluation.
-	LockWait           lock.TimeoutSlot         // queued lock request's SQL-deadline projection
-	NonstandardStrings bool
-	DiscardRoleReset   authorization.RoleState  // nonzero Authenticated only during DISCARD ALL publication
-	ReplaySlot         ReplaySlot               // Restore and materialized population only; see operationReplay.
-	Analysis           AnalysisSlot             // Immutable after creation; see Host.NewOperation.
-	Restricted         *RestrictedInvocation    // Serial invocation environment, never session identity.
-	EffectiveUser      *EffectiveUserInvocation // Balanced routine-local actor; session_user stays unchanged.
+	Self                     *Operation
+	Session                  *Session
+	Ctx                      context.Context
+	CopyInput                protocolCopyInputContext
+	CommandContext           context.Context // Session-cancelable parent of per-statement budgets.
+	Cancel                   context.CancelCauseFunc
+	Released                 bool
+	private                  bool
+	Notices                  []sqlstate.Error
+	NoticeThreshold          NoticeLevel
+	TimerCancel              context.CancelFunc
+	LockTimeout              time.Duration
+	ParallelWorkers          int               // Immutable prior-setting snapshot at command admission.
+	PlannerCosts             plan.PlannerCosts // Immutable command admission; retained sources copy it.
+	StatisticsTarget         int
+	ConstraintExclusion      string
+	CursorTupleFraction      float64
+	RecursiveWorktableFactor float64
+	AsyncAppend              bool // Immutable prior-setting snapshot at command admission.
+	StatementDeadline        time.Time
+	CommandStart             time.Time
+	SourceContext            context.Context
+	CommandAdmission         bool
+	OriginTransaction        ids.TxRef // Immutable acquisition evidence, never transaction authority.
+	sqlActivity              bool
+	SQLFinished              bool // Session.mu: ERROR/completion fence, not transaction state
+	Lease                    *StatementLease
+	Definition               catalog.DefinitionReader // Scoped once-only DDL cooking, restored before evaluation.
+	LockWait                 lock.TimeoutSlot         // queued lock request's SQL-deadline projection
+	NonstandardStrings       bool
+	DiscardRoleReset         authorization.RoleState  // nonzero Authenticated only during DISCARD ALL publication
+	ReplaySlot               ReplaySlot               // Restore and materialized population only; see operationReplay.
+	Analysis                 AnalysisSlot             // Immutable after creation; see Host.NewOperation.
+	Restricted               *RestrictedInvocation    // Serial invocation environment, never session identity.
+	EffectiveUser            *EffectiveUserInvocation // Balanced routine-local actor; session_user stays unchanged.
 }
 
 func (s *Session) Token() ids.SessionToken { return s.SessionToken }
@@ -161,9 +165,10 @@ func (s *Session) newOperation() *Operation {
 	if s.Host != nil {
 		op := s.Host.NewOperation(s)
 		op.PlannerCosts = plan.DefaultPlannerCosts()
+		op.StatisticsTarget, op.ConstraintExclusion, op.CursorTupleFraction, op.RecursiveWorktableFactor = 100, "partition", .1, 10
 		return op
 	}
-	op := &Operation{Session: s, PlannerCosts: plan.DefaultPlannerCosts()}
+	op := &Operation{Session: s, PlannerCosts: plan.DefaultPlannerCosts(), StatisticsTarget: 100, ConstraintExclusion: "partition", CursorTupleFraction: .1, RecursiveWorktableFactor: 10}
 	op.Self = op
 	return op
 }

@@ -172,7 +172,7 @@ func ParallelQuerySource(source *Source) (*Source, error) {
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
 	return &Source{View: pin, Ref: source.Ref, Committed: source.Committed, Own: source.Own, Visible: source.Visible,
-		PlannerCosts: source.PlannerCosts, PlannerRows: source.PlannerRows, PlannerColumns: source.PlannerColumns,
+		PlannerCosts: source.PlannerCosts, PlannerRows: source.PlannerRows, PlannerColumns: source.PlannerColumns, ScanFraction: source.ScanFraction,
 		NeedsBirthFilter: source.NeedsBirthFilter, Occurrence: source.Occurrence, Authority: source.Authority, Host: source.Host}, nil
 }
 

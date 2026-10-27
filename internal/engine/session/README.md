@@ -49,9 +49,11 @@ nontransactional.
   analysis slots; `Session.AcquireCommand` admits commands. Notice levels,
   emission and the relation skip notices (`ExistingRelation`,
   `MissingRelation`) are in `notices.go`.
-  Command admission captures typed CPU/parallel planner costs under the existing
-  settings mutex alongside the worker ceiling. Changes during evaluation affect
-  the next command, not the running command or a retained source decision.
+  Command admission captures typed CPU/parallel planner costs, statistics target,
+  constraint-exclusion mode, cursor fraction and recursive-worktable factor under
+  the existing settings mutex alongside the worker ceiling. Consumers receive
+  detached scalars, not a settings provider. Changes affect the next command,
+  not the running collection/proof or a retained cursor-source decision.
 - **Transaction owner** (`owner.go`, `savepoint_marks.go`, `protocol_cycle.go`):
   `TransactionOwner` with its state, characteristics, admission and journal;
   `TxState`, `Isolation`, `TxOptions`, `SavepointMark`, `ProtocolCycle`.

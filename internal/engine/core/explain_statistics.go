@@ -27,7 +27,11 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 	read := partition.CaptureCatalog(r.scope.inheritanceRead(r.auth.Catalog), r.scope.PartitionRelations)
 	var rows float64
 	var names []string
+	var physicals []*catalog.Relation
 	visit := func(physical *catalog.Relation) error {
+		if r.scanFilter != nil && r.scanFilter.Child == source {
+			physicals = append(physicals, physical)
+		}
 		names = append(names, r.objectName(physical.Namespace(), physical.Name()))
 		estimate := plannerSourceRows(r.statisticsStorage(physical.Address()))
 		rows = min(plan.ExplainEstimateLimit, rows+estimate)
@@ -65,6 +69,9 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 	}
 	if len(names) > 1 || relation.RelationKind == catalog.PartitionedRelation {
 		tree.details = append(tree.details, "Planned Sources: "+strings.Join(names, ", "))
+	}
+	if err := r.sourcePruning(tree, source, relation, read, physicals, !only && (len(physicals) > 1 || relation.Partition != nil)); err != nil {
+		return 0, err
 	}
 	if !only && (relation.Partition != nil || catalog.InheritanceHasChildren(read, relation.Address())) {
 		metadata := r.statisticsMetadata(relation.Address())

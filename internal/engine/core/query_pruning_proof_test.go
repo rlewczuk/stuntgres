@@ -16,7 +16,14 @@ import (
 
 func pruningSelection(t *testing.T, e *core.Engine, query string, parameters []sqltype.Value) ([]string, exec.QueryBranchSelection) {
 	t.Helper()
-	bound, source, release := hashImplicitQuery(t, e, query)
+	op, done, err := enginetest.Operation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	// These preexisting proof cases exercise all constraint facts explicitly.
+	op.ConstraintExclusion = "on"
+	bound, source, release := hashCaptureQuery(t, e, op, query)
 	defer release()
 	project := bound.Root.(*plan.ProjectNode)
 	filter := project.Child.(*plan.FilterNode)

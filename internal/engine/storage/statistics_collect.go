@@ -9,12 +9,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const StatisticsTarget = 100
-
 type StatisticsColumn struct {
-	Key   StatisticsKey
-	Usage sqltype.Usage
-	Slot  int
+	Key    StatisticsKey
+	Usage  sqltype.Usage
+	Slot   int
+	Target int // Captured default or column-specific target, inclusive 1..10000.
 }
 
 type statisticsGroup struct {
@@ -49,7 +48,7 @@ func CollectStatistics(ctx context.Context, columns []StatisticsColumn, rows fun
 	collectors := make([]statisticsCollector, len(columns))
 	seen := make(map[StatisticsKey]bool, len(columns))
 	for i, column := range columns {
-		if column.Key.Attribute <= 0 || column.Slot < 0 || column.Usage.Type == nil || !column.Usage.Type.Concrete() || seen[column.Key] {
+		if column.Key.Attribute <= 0 || column.Slot < 0 || column.Target < 1 || column.Target > 10000 || column.Usage.Type == nil || !column.Usage.Type.Concrete() || seen[column.Key] {
 			return nil, 0, fmt.Errorf("invalid statistics column layout")
 		}
 		seen[column.Key] = true
@@ -157,7 +156,7 @@ func (c *statisticsCollector) finish(ctx context.Context) error {
 		return c.groups[i].first < c.groups[j].first
 	})
 	retained := 0
-	for retained < len(c.groups) && retained < StatisticsTarget && c.groups[retained].count > 1 {
+	for retained < len(c.groups) && retained < c.column.Target && c.groups[retained].count > 1 {
 		g := c.groups[retained]
 		c.stats.MCV = append(c.stats.MCV, StatisticMCV{Value: g.value, Count: g.count})
 		retained++
@@ -185,7 +184,7 @@ func (c *statisticsCollector) finish(ctx context.Context) error {
 	for _, group := range residual {
 		weight += group.count
 	}
-	boundaries := min(uint64(StatisticsTarget+1), weight)
+	boundaries := min(uint64(c.column.Target+1), weight)
 	c.stats.Histogram = make([]sqltype.Value, int(boundaries))
 	var index int
 	cumulative := residual[0].count

@@ -46,12 +46,22 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   `planner_costs.go` separately owns command-admitted CPU/parallel value records
   and detached scan decisions. Full traversal costs N*(tuple+operator); hash
   candidates cost one lookup plus N/2*(index-entry+tuple+2*operator).
-  Strictly cheaper eligible hash work wins; ties remain full traversal.
+  Eligible hash work wins only when its requested-fraction score is strictly
+  cheaper; ties remain full traversal. Score is startup + fraction*(total-startup).
+  Full startup is zero, hash startup is the existing lookup operator, not index
+  construction. Ordinary queries use fraction1; cursor declarations capture their
+  admitted fraction once, with zero represented as1e-10. No rows are truncated.
   Comparisons normalize coefficients before multiplication and only then
   saturate display estimates. N is maintenance tuple metadata or default1000,
   never a counted bucket or evaluated probe. Local-worker comparison uses the
   same CPU work, admitted setup/delivery costs and an approximate footprint of
   N*(24+8*source-columns) bytes. No physical disk/cache/JIT terms are invented.
+  Core's EXPLAIN renderer scopes self-reference estimates by CTEDefinition identity:
+  each worktable uses its own seed rows times captured recursive_worktable_factor,
+  capped at1e12. Nested/independent definitions cannot borrow another seed.
+  The recursive-union ten-iteration heuristic is separate and unchanged.
+  There is no join-order/flattening search, generic/custom plan chooser, JIT
+  compiler or genetic optimizer; exact stored settings do not manufacture them.
 - **Plan records** (`query_records.go`, `query_search.go`, `query.go`,
   `expression_window.go`, `expression_aggregate.go`): `SortKey`, `Grouping`,
   `AggregateCall`, `WindowCall`, `WindowOperation` (and its `Window*`
@@ -265,6 +275,9 @@ without aliases.
 Logical EXPLAIN arithmetic and closed-node units use `RUN='^TestExplain'`.
 Expectations are independently authored over actual logical nodes; estimates
 must never inspect a parameter value, evaluate an expression or access rows.
+Planner startup/total arithmetic uses `RUN='^TestPlannerOtherCursorScanScores$'`.
+It distinguishes normalized comparison from saturated display and includes the
+zero-fraction request and all-zero-cost deterministic tie.
 
 Package units cover cast IO/binary sizing, multibyte boundaries, NULL, retained
 Rebuild, IO volatility and the walk through installed-routine wrappers. The

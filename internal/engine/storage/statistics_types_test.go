@@ -88,7 +88,7 @@ func TestAnalyzeStatisticsCollectionTypedCapabilities(t *testing.T) {
 		}
 		// Seed a collision bucket with a different real datum. No equality or
 		// hash provider is replaced; add must inspect and reject its candidate.
-		c := statisticsCollector{column: StatisticsColumn{Usage: integer.Usage()}, stats: &ColumnStatistics{Usage: integer.Usage(), Rows: 1, DistinctKnown: true}, grouping: grouping, buckets: map[uint64]int{hash: 1}, groups: []statisticsGroup{{value: one, key: one, count: 1, first: 0}}}
+		c := statisticsCollector{column: StatisticsColumn{Usage: integer.Usage(), Target: 100}, stats: &ColumnStatistics{Usage: integer.Usage(), Rows: 1, DistinctKnown: true}, grouping: grouping, buckets: map[uint64]int{hash: 1}, groups: []statisticsGroup{{value: one, key: one, count: 1, first: 0}}}
 		if err := c.add(ctx, two); err != nil {
 			t.Fatal(err)
 		}
@@ -104,7 +104,7 @@ func TestAnalyzeStatisticsCollectionTypedCapabilities(t *testing.T) {
 		one, _ := sqltype.Integer(integer, 1)
 		two, _ := sqltype.Integer(integer, 2)
 		local, inherited := StatisticsKey{Attribute: 9}, StatisticsKey{Attribute: 9, Inherited: true}
-		columns := []StatisticsColumn{{Key: local, Usage: integer.Usage(), Slot: 1}, {Key: inherited, Usage: integer.Usage(), Slot: 0}}
+		columns := []StatisticsColumn{{Key: local, Usage: integer.Usage(), Slot: 1, Target: 100}, {Key: inherited, Usage: integer.Usage(), Slot: 0, Target: 100}}
 		stats, rows, err := CollectStatistics(ctx, columns, func(yield func([]sqltype.Value) error) error { return yield([]sqltype.Value{one, two}) })
 		if err != nil || rows != 1 || len(stats.Columns) != 2 {
 			t.Fatalf("mapping rows=%d err=%v stats=%v", rows, err, stats)

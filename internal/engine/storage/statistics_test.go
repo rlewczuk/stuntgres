@@ -21,7 +21,7 @@ func statisticsTypes() map[sqltype.ID]*sqltype.Descriptor {
 func collectStatisticsValues(t *testing.T, usage sqltype.Usage, values []sqltype.Value) *ColumnStatistics {
 	t.Helper()
 	key := StatisticsKey{Attribute: 7}
-	stats, population, err := CollectStatistics(context.Background(), []StatisticsColumn{{Key: key, Usage: usage, Slot: 0}}, func(yield func([]sqltype.Value) error) error {
+	stats, population, err := CollectStatistics(context.Background(), []StatisticsColumn{{Key: key, Usage: usage, Slot: 0, Target: 100}}, func(yield func([]sqltype.Value) error) error {
 		for _, value := range values {
 			if err := yield([]sqltype.Value{value}); err != nil {
 				return err
@@ -198,7 +198,7 @@ func (c *statisticsComparisonCancel) Err() error {
 func TestAnalyzeStatisticsCollectionCancellation(t *testing.T) {
 	integer := statisticsTypes()[sqltype.Int4]
 	ctx := &statisticsComparisonCancel{Context: context.Background()}
-	stats, _, err := CollectStatistics(ctx, []StatisticsColumn{{Key: StatisticsKey{Attribute: 3}, Usage: integer.Usage(), Slot: 0}}, func(yield func([]sqltype.Value) error) error {
+	stats, _, err := CollectStatistics(ctx, []StatisticsColumn{{Key: StatisticsKey{Attribute: 3}, Usage: integer.Usage(), Slot: 0, Target: 100}}, func(yield func([]sqltype.Value) error) error {
 		for i := int64(200); i > 0; i-- {
 			value, _ := sqltype.Integer(integer, i)
 			if err := yield([]sqltype.Value{value}); err != nil {

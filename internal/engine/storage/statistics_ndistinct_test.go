@@ -16,7 +16,7 @@ func ndistinctUnitCollector(t *testing.T, width int, usage sqltype.Usage) *NDist
 	columns := make([]StatisticsColumn, width)
 	for i := range keys {
 		keys[i] = int32(i*2 + 1)
-		columns[i] = StatisticsColumn{Key: StatisticsKey{Attribute: keys[i]}, Usage: usage, Slot: i}
+		columns[i] = StatisticsColumn{Key: StatisticsKey{Attribute: keys[i]}, Usage: usage, Slot: i, Target: 100}
 	}
 	selection, err := catalog.NewStatisticsSelection(keys, "d")
 	if err != nil {

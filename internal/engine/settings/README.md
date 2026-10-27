@@ -48,6 +48,22 @@ import this package directly.
   threshold-driven plan change. Existing cost-driven access selection and local
   workers remain operative, independently of these settings; they do not imply
   PostgreSQL physical workers or disk I/O.
+  `planner_other.go` owns eight unrestricted USERSET options in the same
+  parser, registry and transaction journal:
+
+  | Setting | Operative stage or explicit stored boundary |
+  |---|---|
+  | `default_statistics_target` | Command-captured ANALYZE MCV/histogram target; existing facts change only on ANALYZE. |
+  | `constraint_exclusion` | Captured CHECK/validated NOT NULL eligibility: on for ordinary and inherited branches, partition for inherited children, off for neither. Declarative bounds remain independent. |
+  | `cursor_tuple_fraction` | Declaration-captured startup/total score for eligible full/hash scans; ordinary queries still optimize all rows. |
+  | `recursive_worktable_factor` | Logical worktable cardinality from that recursive definition's seed estimate, not its execution loop. |
+  | `from_collapse_limit` | Exact stored value; derived-query flattening/pullup is absent. |
+  | `join_collapse_limit` | Exact stored value; join reorder/search is absent. Written join trees and existing equality-hash execution remain. |
+  | `plan_cache_mode` | Exact stored value; no generic/custom optimizer chooser. Prepared definitions, accepted resources and immutable folds retain their existing ownership. |
+  | `jit` | Exact stored permission; no native compiler/code generator or fictional JIT work. |
+
+  Constraint Boolean aliases are hidden from enum metadata and hints. Collapse,
+  cache and JIT boundaries do not invent GEQO, disk I/O or PostgreSQL processes.
 - **Values** (`value.go`, `number.go`, `units.go`): `Value` and
   `Definition.Parse`/`Format`, base-unit `Raw` and current-catalog `CurrentRaw`,
   PostgreSQL-compatible number scanning (`ParseNumber`, also used for storage
@@ -620,6 +636,7 @@ make check RUN='^TestLockSettings'
 make check RUN='^TestReplicationSettings'
 make check RUN='^TestVacuumSettings'
 make check RUN='^TestWALSettings'
+make check RUN='^TestPlannerOtherSettingsDefinitions$'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in
