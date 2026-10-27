@@ -53,7 +53,7 @@ func (e *Engine) SyncProtocolCycle(op *session.Operation, cycle *session.Protoco
 	cycle.Active, cycle.Executed = false, false
 	t.Mu.Unlock()
 	if state == session.TxImplicit {
-		_, err = e.endAdmitted(op, t, ref, true, false, true, s.statementStart, s)
+		_, err = e.endAdmitted(op, t, ref, true, restartNone, true, s.statementStart, s)
 	}
 	return s.Finish(err)
 }

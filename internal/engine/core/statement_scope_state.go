@@ -90,6 +90,9 @@ type StatementScope struct {
 	Output                      sqltype.OutputEnvironment
 	initialParameters           []sqltype.Usage
 	activeSQLRoutineDepth       int                        // Root invocation owner; never saved/reset as lexical scratch.
+	plAtomic                    bool                       // Captured command context, then defer-scoped active invocation barriers.
+	plLoops                     *plQueryRows               // Borrowed active adapters; not a named portal registry.
+	plExecutingPortal           *protocolPortal            // Current CALL/DO portal survives its own internal boundaries.
 	effectCommand, effectSerial uint64                     // admission-private command event ownership; never rewound
 	afterTriggers              *afterTriggerState
 	deferAfterProducers         bool   // Lexical eager-CTE materialization boundary.

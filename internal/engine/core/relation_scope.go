@@ -41,6 +41,16 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 			return err
 		}
 	}
+	// Nested routine commands enter here without the public Describe/Execute
+	// wrappers. A fresh transaction must acquire its stable snapshot before
+	// analysis/source capture, including after a PL transaction boundary.
+	// The existing phase classifier keeps utilities such as SET TRANSACTION
+	// snapshot-free and leaves read-committed selection at data admission.
+	if s.currentSnapshot == nil {
+		if err := s.snapshotAnalysisPhase(stmt); err != nil {
+			return err
+		}
+	}
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
 		if foreign.Kind == "table" && foreign.Action == "alter" {
 			stmt = fdw.AlterAdmission(foreign)

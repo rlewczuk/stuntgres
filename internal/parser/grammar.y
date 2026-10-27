@@ -1917,6 +1917,8 @@ pl_statements: /* empty */ {sqllex.(*lexer).plStatementBoundaryPending=true;$$=n
 pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_static_statement {l:=sqllex.(*lexer);$$=l.plSQLStatement($1);if l.err!=nil{return 1}}
  | pl_dynamic {$$=PLStatement{Dynamic:$1,Pos:$1.Start}}
+ | COMMIT opt_chain {$$=PLStatement{Transaction:plTransaction(KindCommit,$2,$1.pos),Pos:$1.pos}}
+ | ROLLBACK opt_chain {$$=PLStatement{Transaction:plTransaction(KindRollback,$2,$1.pos),Pos:$1.pos}}
  | PL_RETURN_QUERY pl_dynamic {$2.ReturnQuery=true;$$=PLStatement{Dynamic:$2,Pos:$1.pos}}
  | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}}
  | PL_RAISE pl_raise_body {$$=PLStatement{Raise:$2,Pos:$1.pos}}
@@ -2017,7 +2019,7 @@ pl_cursor_for: FOR | IS ;
 pl_cursor_query: pl_expression_start query_select {l:=sqllex.(*lexer);l.plExpression=false;$$=plCursorQuery{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
 pl_query_loop_source: pl_query_loop_start pl_query_loop_statement {l:=sqllex.(*lexer);l.plExpression=false;$$=&PLQueryLoop{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
 pl_query_loop_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | merge {$$=$1} | with_mutation {$$=$1} ;
-pl_static_statement: embedded_sql_statement {$$=$1} | query_select {$$=$1} ;
+pl_static_statement: embedded_sql_statement {$$=$1} | query_select {$$=$1} | SET TRANSACTION transaction_modes {$$=&TransactionCharacteristics{Pos:$1.pos,Modes:$3}} ;
 pl_query_loop_start: /* empty */ {sqllex.(*lexer).plBeginExpression(plLoopBoundary)} ;
 pl_integer_targets: pl_target {$$=&PLIntegerFor{Targets:[]Expr{$1}}}
  | pl_integer_targets ',' pl_target {$$=$1;$$.Targets=append($$.Targets,$3);$$.TargetCommas=append($$.TargetCommas,$2.pos)} ;

@@ -70,6 +70,22 @@ func routineReadOnlyViolation(statement parser.Statement, read catalog.Read, sou
 	return ""
 }
 
+// Transaction-capable loops require the canonical ONE_SELECT strategy, not
+// SPI's stricter volatility test: row-marked SELECT is allowed, writable WITH
+// and DML RETURNING are not.
+func plLoopReadOnly(statement parser.Statement, root plan.Node) bool {
+	if _, ok := statement.(*parser.Select); !ok || root == nil {
+		return false
+	}
+	readOnly := true
+	plan.VisitExecutableQuery(root, func(node plan.Node) {
+		if project, ok := node.(*plan.ProjectNode); ok && project.Syntax != nil && parser.HasModifyingCTE(project.Syntax) {
+			readOnly = false
+		}
+	}, func(expr.Expr) {})
+	return readOnly
+}
+
 func connectbyEarlierMark(candidate, current int) bool {
 	return candidate > 0 && (current == 0 || candidate < current)
 }

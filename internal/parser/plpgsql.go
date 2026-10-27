@@ -60,6 +60,25 @@ type PLStatement struct {
 	Into                *PLIntoStatement
 	SQL                 *PLSQLStatement
 	Dynamic             *PLDynamicStatement
+	Transaction         *PLTransaction
+}
+
+// PLTransaction is the bounded procedural transaction instruction.
+type PLTransaction struct {
+	Kind          TransactionControlKind
+	Chain         bool
+	Pos           Position
+	admittedKind  TransactionControlKind
+	admittedChain bool
+	admittedPos   Position
+}
+
+func plTransaction(kind TransactionControlKind, chain bool, pos Position) *PLTransaction {
+	return &PLTransaction{Kind: kind, Chain: chain, Pos: pos, admittedKind: kind, admittedChain: chain, admittedPos: pos}
+}
+
+func ValidPLTransaction(t *PLTransaction, pos Position) bool {
+	return t != nil && (t.Kind == KindCommit || t.Kind == KindRollback) && t.Kind == t.admittedKind && t.Chain == t.admittedChain && t.Pos == pos && t.Pos == t.admittedPos
 }
 
 // PLWhile owns a reevaluated scalar condition and the ordinary loop body.

@@ -47,6 +47,10 @@ func (h *walkHost) Command(*PLRun, *PLFrame, PLInstruction) error {
 	return fmt.Errorf("walk unit has no SQL command producer")
 }
 
+func (h *walkHost) Transaction(PLInstruction) error {
+	return fmt.Errorf("walk unit has no transaction owner")
+}
+
 func (h *walkHost) Dynamic(*PLRun, *PLFrame, PLInstruction) error {
 	return fmt.Errorf("walk unit has no dynamic command producer")
 }

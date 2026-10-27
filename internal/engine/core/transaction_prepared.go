@@ -58,7 +58,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, ste
 	// Every admitted PREPARE, even failure, ends the whole incarnation.
 	s.controlOutcome = controlExecuted
 	if state == session.TxAborted {
-		_, err := e.endAdmitted(s.Op, t, ref, false, false, true, s.statementStart, s)
+		_, err := e.endAdmitted(s.Op, t, ref, false, restartNone, true, s.statementStart, s)
 		return err
 	}
 	t.Mu.Lock()

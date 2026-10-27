@@ -94,7 +94,7 @@ func EngineCompletePrepared(x *Engine, op *session.Operation, gid string, commit
 
 // EngineEndAdmitted calls x.endAdmitted.
 func EngineEndAdmitted(x *Engine, op *session.Operation, t *session.TransactionOwner, ref ids.TxRef, commit bool, chain bool, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
-	return x.endAdmitted(op, t, ref, commit, chain, sqlEnd, nextStart, scope)
+	return x.endAdmitted(op, t, ref, commit, sqlRestart(chain), sqlEnd, nextStart, scope)
 }
 
 // EngineEndSerializable calls x.endSerializable.

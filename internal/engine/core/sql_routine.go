@@ -125,6 +125,9 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 			}
 		}
 	}
+	previousAtomic := parent.plAtomic
+	parent.plAtomic = previousAtomic || d.RoutineKind != catalog.ProcedureRoutine || d.SecurityDefiner || d.Configuration != nil || parent.plSubtransactionActive()
+	defer func() { parent.plAtomic = previousAtomic }()
 	leaveEnvironment, err := parent.enterRoutineEnvironment(d)
 	if err != nil {
 		return value, err
@@ -135,6 +138,10 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	if d.SQL.Kind == proc.PLpgSQLBody {
 		return parent.invokePLRoutineSpecialized(d, frame, read, inputCollation, resultUsage, values)
 	}
+	// SQL-language body utilities run in an atomic query context, even when
+	// the procedure's outer CALL was non-atomic. The invocation defer restores
+	// the caller's policy on every exit; direct PL CALL/DO chains bypass this.
+	parent.plAtomic = true
 	statements := d.SQL.Statements
 	if d.SQL.Standard {
 		// SQL-standard bodies retain their creation-analyzed parameter semantics.

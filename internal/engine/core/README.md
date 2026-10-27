@@ -197,6 +197,31 @@ completion count is zero regardless of body effects. Quoted SQL-body CALL with
 outputs fails before producers; no-output calls use the ordinary command runner.
 Unquoted SQL bodies reject CALL during definition validation.
 
+PL transaction control rotates the existing root owner through the same checked
+stage merge and end/publication path as SQL controls. A successor is implicit,
+not a new root statement; the statement budget and lexical PL frame remain.
+Saved routine scratch is qualified by TxRef and rebased after rotation rather
+than restoring obsolete snapshots, writes, catalog authority or completion.
+Nested relation admission selects a missing stable snapshot through the common
+isolation phase before analysis and source capture. Successor snapshots remain
+lazy: snapshot-free utilities preserve the immediate characteristics window,
+while read-committed commands keep their data-admission frontier.
+Static PL SET TRANSACTION uses the common utility description and execution
+dispatch; characteristics have no result descriptor or lexical parameters and
+retain the existing owner mode checks and utility completion.
+Invocation atomicity is captured before command mutation, separately from
+protocol/message retention, and scoped through direct CALL/DO, functions,
+dynamic commands, routine attributes and active exception marks. SQL-language
+body execution adds an atomic barrier for nested CALL/DO, even when its outer
+procedure invocation is eligible; every exit restores the caller's policy.
+Direct PL/pgSQL CALL/DO nesting preserves eligibility. Before either ending
+command, each active loop source is strategy-checked immediately before
+holding it; the first strategy or materialization error stops promotion before
+publication. Query-FOR producers hold remaining rows; scrollable pinned bound
+cursors rewind to hold the entire result under their existing cursor semantics.
+Ordinary open cursors close; held loop storage belongs to loop cleanup.
+
+
 Text-search conversion captures a real configuration and its distinct immutable
 dictionary runtimes from one private catalog generation under `Engine.Mu`, then
 releases it before tokenization/lexization. Mapping changes publish through

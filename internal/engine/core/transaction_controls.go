@@ -19,6 +19,22 @@ const (
 	controlExecuted
 )
 
+type transactionRestart uint8
+
+const (
+	restartNone transactionRestart = iota
+	restartSQLChain
+	restartPL
+	restartPLChain
+)
+
+func sqlRestart(chain bool) transactionRestart {
+	if chain {
+		return restartSQLChain
+	}
+	return restartNone
+}
+
 // Entry admission checks the caller context only after structural membership.
 // Begin, Rollback and statement admission reject cancellation without mutation.
 // Native Commit deliberately admits cancellation to dispose its valid old
@@ -66,7 +82,8 @@ func (e *Engine) endPreflight(op *session.Operation) error {
 	return PublicationOperationLocked(e, op)
 }
 
-func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner, ref ids.TxRef, commit, chain, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
+func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner, ref ids.TxRef, commit bool, restart transactionRestart, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
+	chain := restart != restartNone
 	// Registration can fail. A short replacement fence keeps the prospective
 	// ticket's epoch current through installation, without a lifetime fence.
 	chainFence := false
@@ -130,7 +147,9 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		if err == nil {
 			t.Next++
 			next = e.Catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.Catalog.State.Epoch(), t, diagnostic)
-			e.enrollSerializableLocked(next, modes.Isolation)
+			if restart == restartSQLChain || restart == restartPLChain {
+				e.enrollSerializableLocked(next, modes.Isolation)
+			}
 		}
 		op.Session.Mu.Unlock()
 		e.Mu.Unlock()
@@ -264,11 +283,22 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	// and old waiters wake only after this fresh empty incarnation is installed.
 	if chain {
 		t.InstallChain(next, modes, nextStart, candidate)
+		if restart == restartPL {
+			settings := t.Session.Settings
+			settings.Mu.Lock()
+			t.BeginLocked(settings, session.TxImplicit, nextStart)
+			settings.Mu.Unlock()
+			e.Mu.Lock()
+			e.enrollSerializableLocked(next, t.Isolation)
+			e.Mu.Unlock()
+		} else if restart == restartPLChain {
+			t.State = session.TxImplicit
+		}
 		syncCharacteristics(t)
 		candidate = nil
 		installedNext = true
 		t.Session.Mu.Lock()
-		t.Session.BeginTimeoutLocked(next, true, time.Now())
+		t.Session.BeginTimeoutLocked(next, restart == restartSQLChain, time.Now())
 		t.Session.Mu.Unlock()
 	}
 	return EndResult{Committed: committed}, nil
@@ -337,7 +367,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 		if s.message {
 			nextStart = time.Now().UTC().Truncate(time.Microsecond)
 		}
-		_, err = e.endAdmitted(s.Op, t, ref, control.Kind == parser.KindCommit, control.Chain, true, nextStart, s)
+		_, err = e.endAdmitted(s.Op, t, ref, control.Kind == parser.KindCommit, sqlRestart(control.Chain), true, nextStart, s)
 	}
 	if err == nil {
 		s.controlOutcome = controlExecuted

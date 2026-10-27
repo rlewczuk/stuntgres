@@ -148,8 +148,9 @@ and live operation authority are never retained in the definition.
 Invocation borrows the same admitted engine statement scope. A balanced lexical
 activation guard saves/restores query, parameter, view and protocol scratch;
 the root stage, effects, completion queues, transaction and live reservation
-ownership stay with their owners. A callee never calls root Finish or creates a
-separate publication boundary.
+ownership stay with their owners. A callee never calls root Finish.
+Reached transaction instructions delegate to the host's segment rotation;
+lexical frames and immutable checked programs survive the new incarnation.
 
 The root statement scope also owns a balanced maximum of 128 active SQL bodies,
 shared by direct and mutual calls, independent of `max_stack_depth`. Excess calls
@@ -383,6 +384,9 @@ initializers run before it, and a `PLExceptionCleanupError` or a non-SQL error
 already formatted; the walk calls `PLRows.Close` exactly once with its primary
 error and publishes FOUND only if that returns nil. `Cursor` and `Message` run
 cursor statements and RAISE/ASSERT.
+`Transaction` executes only a checked COMMIT/ROLLBACK payload. The host owns
+context restrictions, pinned-loop holding and publication/restart; the walk
+retains no transaction permission or transaction-owned producer in its program.
 
 `Capture` owns reached static SQL and publishes FOUND before cardinality and
 target conversion. Lists publish sequentially from one captured source row;

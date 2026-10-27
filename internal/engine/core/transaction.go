@@ -140,7 +140,7 @@ func (e *Engine) Rollback(op *session.Operation, ref ids.TxRef) (EndResult, erro
 		return EndResult{}, err
 	}
 	defer t.Admission.Unlock()
-	result, err := e.endAdmitted(op, t, ref, false, false, false, time.Time{}, nil)
+	result, err := e.endAdmitted(op, t, ref, false, restartNone, false, time.Time{}, nil)
 	if cleanupErr := drainCursorCleanup(t, op.Context(), nil); err == nil {
 		err = cleanupErr
 	}
@@ -157,7 +157,7 @@ func (e *Engine) Commit(op *session.Operation, ref ids.TxRef) (EndResult, error)
 		return EndResult{}, err
 	}
 	defer t.Admission.Unlock()
-	result, err := e.endAdmitted(op, t, ref, true, false, false, time.Time{}, nil)
+	result, err := e.endAdmitted(op, t, ref, true, restartNone, false, time.Time{}, nil)
 	if cleanupErr := drainCursorCleanup(t, op.Context(), nil); err == nil {
 		err = cleanupErr
 	}

@@ -37,6 +37,7 @@ func (s *StatementScope) leaveSQLRoutine() {
 // existing waits/providers alone release/reacquire it and Finish sees its real flag.
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
+	txRef               ids.TxRef
 	command             ruleCommandScratch
 	mutations           []StatementMutation
 	activeMutation      int
@@ -73,6 +74,7 @@ type sqlRoutineScratch struct {
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	return sqlRoutineScratch{
+		txRef:   s.TxRef,
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.ActiveMutation, cteInvocation: s.cteInvocation,
 		activeViews: s.ViewCreationOrZero().Active, inheritance: s.Inheritance,
 		materialized: s.MaterializedSlot,
@@ -160,6 +162,9 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 		if s.authority != nil && s.authority != saved.authority {
 			s.authority.Host = nil
 		}
+		if saved.txRef != s.TxRef {
+			saved = s.rebaseRoutineScratch(saved)
+		}
 		s.installSQLRoutineScratch(saved)
 		if policy.active {
 			// A reached SET may escape this lexical command. Restoring query
@@ -203,4 +208,26 @@ type sqlRoutineDemand struct {
 	cursorName         *string // nil means allocate only at actual installation; explicit empty stays distinct.
 	openedCursor       *sqlCursor
 	openedCursorName   string
+}
+
+// A saved lexical activation owns its views, but no authority over a successor
+// transaction. Keep only invocation inputs and result policy across rotation.
+func (s *StatementScope) rebaseRoutineScratch(c sqlRoutineScratch) sqlRoutineScratch {
+	if c.view != nil {
+		c.view.Release()
+	}
+	if c.partitionView != nil {
+		c.partitionView.Release()
+	}
+	if c.authority != nil {
+		c.authority.Host = nil
+	}
+	input, output := s.Input, s.Output
+	input.TransactionStart = s.Owner.Start
+	input.LockedDomainInput, input.DomainChecks = s, s
+	demand := c.sqlRoutine
+	demand.policy.base, demand.policy.writes, demand.policy.deletes = nil, nil, nil
+	return sqlRoutineScratch{txRef: s.TxRef, input: input, output: output,
+		initialParameters: c.initialParameters, sqlRoutine: demand, expected: c.expected,
+		protocol: c.protocol, ownWrites: s.Owner.Writes, ownDeletes: s.Owner.Deletes}
 }

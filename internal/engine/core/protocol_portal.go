@@ -344,6 +344,13 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 	}
 	if cycle := s.Owner.ProtocolCycle; extended && cycle != nil {
 		cycle.Executed = true
+		defer func() {
+			if err == nil {
+				s.Owner.Mu.Lock()
+				cycle.Executed = s.Owner.State != session.TxIdle
+				s.Owner.Mu.Unlock()
+			}
+		}()
 	}
 	if p.state == protocolPortalDone || p.state == protocolPortalFailed {
 		return out, SQLError("55000", fmt.Sprintf("portal \"%s\" cannot be run", name))
@@ -364,6 +371,9 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 			s.Expected = &p.Entry.Description
 			s.protocol().execute = p
 			defer func() { s.protocol().execute = nil }()
+			previousPortal := s.plExecutingPortal
+			s.plExecutingPortal = p
+			defer func() { s.plExecutingPortal = previousPortal }()
 			stream := protocolCopyExecution{source: source, destination: destination, hooks: hooks}
 			result, e := s.execute(p.Entry.Body, len(p.values), func(_ context.Context, _ analyze.ParameterInfo, frame []sqltype.Value, _ sqltype.InputEnvironment) error {
 				copy(frame, p.values)

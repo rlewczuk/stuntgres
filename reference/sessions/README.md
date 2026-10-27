@@ -65,6 +65,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   will be created later. Execute proves real action rows, held DML freshness,
   I/T/E readiness, message atomicity and healthy recovery; Go BeginTx witnesses
   run over the actual server transport.
+- Procedure transaction-control wire scenarios distinguish preparation retention
+  from preceding completed/suspended Execute, single/multi-Q crossover and Sync.
+  Reuse the named builders, complete error fields and independent peer visibility.
+  Family selector: `RUN='^TestReferenceServerPLpgSQLTxControl'`.
 - Dictionary constant wire scenarios warm a named definition before option ALTER,
   then repeat Bind on that definition while fresh definitions and runtime tokens
   observe current options. Check TEXT[] RowDescription, raw NULL versus empty

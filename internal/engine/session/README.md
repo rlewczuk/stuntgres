@@ -75,6 +75,11 @@ nontransactional.
   admissions. Root lifecycle cleanup releases the owner pair at transaction end.
   `RetainsTransaction` identifies message/protocol retention, not `TxActive`;
   root installers must account for ordinary explicit owners separately.
+  Retention is not CALL/DO atomicity: core captures explicit/multi-message and
+  prior-Execute block context before the current protocol command mutates flags.
+  PL segment rotation reuses this owner with a fresh implicit identity/ticket,
+  settles old settings normally, and preserves only CHAIN characteristics when
+  requested. It does not acquire a second operation or refresh statement budget.
   `SnapshotSet` also records that RC execution has acquired a snapshot, closing
   the transaction-characteristics window without retaining a transaction pair.
 - **2PC registry** (`prepared_registry.go`): `PreparedRegistry` of

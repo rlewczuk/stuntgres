@@ -247,8 +247,11 @@ SQL is parsed without deciding its runtime destination policy. Statement-head
 recognition excludes DECLARE sections, including names after declaration
 semicolons. PERFORM changes only the grammar head; its diagnostic SELECT
 coordinates belong to the host.
-Utility statements share the ordinary SQL command grammar, while dynamic
-EXECUTE and transaction commands do not enter this static-command path.
+Utility statements share the ordinary SQL command grammar, including bounded
+SET TRANSACTION characteristics. Dynamic EXECUTE has its own instruction.
+COMMIT/ROLLBACK retain a dedicated positioned `PLTransaction` payload with
+optional AND [NO] CHAIN and parser-owned admission; lexical BEGIN/END remain
+blocks. Runtime eligibility is not a declaration-time parser decision.
 The completed static-statement grammar reduction retains an unexported,
 by-value admission association. `ValidPLSQLStatement` checks the original AST
 identity, variant and source interval/text without reparsing or a second

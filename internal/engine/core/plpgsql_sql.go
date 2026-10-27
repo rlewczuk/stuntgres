@@ -27,7 +27,7 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	statement := checked.Query
 	lexical := true
 	switch statement.(type) {
-	case *parser.Set, *parser.Reset, *parser.Show:
+	case *parser.Set, *parser.Reset, *parser.Show, *parser.TransactionCharacteristics, *parser.Do:
 		// Settings are utility spelling/value syntax, not PL expression positions.
 		lexical = false
 	}

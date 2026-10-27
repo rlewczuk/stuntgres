@@ -133,73 +133,7 @@ func (s *StatementScope) Finish(err error) error {
 				t.Mu.Lock()
 			}
 		} else if !s.sessionCompleted {
-			var deletes map[ids.ObjectAddress]*visibility.PrivateDeletes
-			var writes map[ids.ObjectAddress][]storage.RowVersion
-			if s.ProjectedRoots {
-				writes, deletes = s.Stage.Rows, s.Stage.Deletes
-			} else {
-				deletes = visibility.MergeDeletions(t.Deletes, s.Stage.Deletes)
-			}
-			t.Mu.Unlock()
-			err = s.validatePrivateIndexExpressions(catalog, deletes)
-			if s.foreignTablesOrZero().owner != nil {
-				err = s.finishForeignOwner(s.foreignTablesOrZero().owner, err)
-			}
-			t.Mu.Lock()
-			if err == nil {
-				if !s.ProjectedRoots {
-					writes = visibility.PrepareOwnWrites(t.Writes, s.Stage.Rows, s.Stage.Replacing)
-				}
-				notificationActions, notificationEvents := t.MergeNotifications(s.notificationActions, s.notificationEvents)
-				session := s.Op.Session
-			privateForeignFence:
-				e.Mu.Lock()
-				err = s.validateInheritanceRelationshipsLocked(e)
-				session.Mu.Lock()
-				if err == nil {
-					err = PublicationOperationLocked(e, s.Op)
-				}
-				if err == nil && t.Ref.Epoch() != e.Catalog.State.Epoch() {
-					err = ids.ErrCatalogReplaced
-				}
-				if err == nil && s.Catalog != nil {
-					err = e.CatalogPreflightLocked(catalog)
-				}
-				if err == nil {
-					err = e.catalogAuthorityPreflightLocked(s.CatalogAuthority, catalog)
-				}
-				if err == nil && len(s.foreignTablesOrZero().statements) != 0 {
-					session.Mu.Unlock()
-					e.Mu.Unlock()
-					t.Mu.Unlock()
-					settleErr := s.finishForeignStatements(nil)
-					t.Mu.Lock()
-					if settleErr == nil {
-						goto privateForeignFence
-					}
-					err = settleErr
-					e.Mu.Lock()
-					session.Mu.Lock()
-				}
-				if err == nil {
-					for a, rows := range s.Stage.Rows {
-						if !s.Stage.Replacing && len(t.Writes[a]) != 0 {
-							copy(writes[a][len(t.Writes[a]):], rows)
-						}
-					}
-					t.Writes = writes
-					t.Deletes = deletes
-					t.Catalog = catalog
-					t.NotificationActions = notificationActions
-					t.NotificationEvents = notificationEvents
-					if s.IndexesOrZero().ExclusionStarted {
-						ownerExtensionOf(t).exclusionModes = s.IndexesOrZero().ExclusionModes
-					}
-					e.reconcileSerializableWritesLocked(t)
-				}
-				session.Mu.Unlock()
-				e.Mu.Unlock()
-			}
+			err = s.mergeSegmentLocked(catalog)
 		}
 		if err == nil {
 			t.Command++
@@ -319,4 +253,79 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	syncCharacteristics(t)
 	ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.endTransaction(t.Ref))
 	return endedTicket
+}
+
+// mergeSegmentLocked transfers the checked stage into the transaction owner.
+// Admission and t.Mu are held; callbacks temporarily release t.Mu.
+func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
+	t, e := s.Owner, s.Engine()
+	var err error
+	var deletes map[ids.ObjectAddress]*visibility.PrivateDeletes
+	var writes map[ids.ObjectAddress][]storage.RowVersion
+	if s.ProjectedRoots {
+		writes, deletes = s.Stage.Rows, s.Stage.Deletes
+	} else {
+		deletes = visibility.MergeDeletions(t.Deletes, s.Stage.Deletes)
+	}
+	t.Mu.Unlock()
+	err = s.validatePrivateIndexExpressions(catalog, deletes)
+	if s.foreignTablesOrZero().owner != nil {
+		err = s.finishForeignOwner(s.foreignTablesOrZero().owner, err)
+	}
+	t.Mu.Lock()
+	if err == nil {
+		if !s.ProjectedRoots {
+			writes = visibility.PrepareOwnWrites(t.Writes, s.Stage.Rows, s.Stage.Replacing)
+		}
+		notificationActions, notificationEvents := t.MergeNotifications(s.notificationActions, s.notificationEvents)
+		session := s.Op.Session
+	privateForeignFence:
+		e.Mu.Lock()
+		err = s.validateInheritanceRelationshipsLocked(e)
+		session.Mu.Lock()
+		if err == nil {
+			err = PublicationOperationLocked(e, s.Op)
+		}
+		if err == nil && t.Ref.Epoch() != e.Catalog.State.Epoch() {
+			err = ids.ErrCatalogReplaced
+		}
+		if err == nil && s.Catalog != nil {
+			err = e.CatalogPreflightLocked(catalog)
+		}
+		if err == nil {
+			err = e.catalogAuthorityPreflightLocked(s.CatalogAuthority, catalog)
+		}
+		if err == nil && len(s.foreignTablesOrZero().statements) != 0 {
+			session.Mu.Unlock()
+			e.Mu.Unlock()
+			t.Mu.Unlock()
+			settleErr := s.finishForeignStatements(nil)
+			t.Mu.Lock()
+			if settleErr == nil {
+				goto privateForeignFence
+			}
+			err = settleErr
+			e.Mu.Lock()
+			session.Mu.Lock()
+		}
+		if err == nil {
+			for a, rows := range s.Stage.Rows {
+				if !s.Stage.Replacing && len(t.Writes[a]) != 0 {
+					copy(writes[a][len(t.Writes[a]):], rows)
+				}
+			}
+			t.Writes = writes
+			t.Deletes = deletes
+			t.Catalog = catalog
+			t.NotificationActions = notificationActions
+			t.NotificationEvents = notificationEvents
+			if s.IndexesOrZero().ExclusionStarted {
+				ownerExtensionOf(t).exclusionModes = s.IndexesOrZero().ExclusionModes
+			}
+			e.reconcileSerializableWritesLocked(t)
+		}
+		session.Mu.Unlock()
+		e.Mu.Unlock()
+	}
+	return err
 }

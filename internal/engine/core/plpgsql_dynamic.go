@@ -68,6 +68,11 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	var final plDynamicResult
 	present := false
 	for i, statement := range statements {
+		if _, transaction := statement.(*parser.TransactionControl); transaction {
+			// SPI reports unsupported transaction execution after its SQL
+			// error callback has been removed; only the PL frame remains.
+			diagnostic = proc.PLDiagnosticQuery{}
+		}
 		capture := !checked.ReturnQuery && len(checked.Targets) != 0 && i == len(statements)-1
 		final, err = h.dynamicCommand(run, statement, inputs, parameters, capture, checked.ReturnQuery)
 		if err != nil {
@@ -122,6 +127,12 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 
 func (h *plHost) dynamicCommand(run *proc.PLRun, statement parser.Statement, inputs []sqltype.Usage, parameters []sqltype.Value, capture, set bool) (out plDynamicResult, err error) {
 	s := h.s
+	if _, ok := statement.(*parser.TransactionControl); ok {
+		return out, SQLError("0A000", "EXECUTE of transaction commands is not implemented")
+	}
+	previousAtomic := s.plAtomic
+	s.plAtomic = true
+	defer func() { s.plAtomic = previousAtomic }()
 	identity := s.sqlRoutine.plDiagnostic
 	restore := s.ActivateSQLRoutine(inputs, h.read)
 	s.sqlRoutine.scalar, s.sqlRoutine.rows, s.sqlRoutine.plPlanning = false, true, true

@@ -76,6 +76,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, SQLError("42P03", fmt.Sprintf("cursor %q already exists", name))
 			}
 		}
+	case *parser.TransactionCharacteristics:
+		return scope.executeCharacteristics(stmt.(*parser.TransactionCharacteristics), count)
 	case *parser.Set, *parser.Show, *parser.Reset:
 		result, err := e.executeSetting(ctx, op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {

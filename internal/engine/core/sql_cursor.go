@@ -31,6 +31,7 @@ type sqlCursor struct {
 	epoch          ids.CatalogEpoch
 	hold, promoted bool
 	pinned         bool // Active cursor FOR owns user-drop protection.
+	plReadOnly     bool // Canonical SELECT strategy; row locking is still ONE_SELECT.
 	statement      string
 	created        sqltype.Value
 	values         []sqltype.Value
@@ -211,6 +212,7 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 		deparseAuth: s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog,
 		visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}
 	c.currentSnapshot, c.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
+	c.plReadOnly = plLoopReadOnly(declaration.Query, root)
 	c.statement, c.created = declaration.Source, created
 	c.scroll = scroll
 	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.Input, Output: s.Output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}

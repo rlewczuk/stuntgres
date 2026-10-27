@@ -9,6 +9,7 @@ import (
 func (e *Engine) newStatementScope(op *session.Operation, t *session.TransactionOwner, start time.Time) *StatementScope {
 	s := newStatementScope(op, t, start)
 	s.transactionStart, s.message = start, t.RetainedMessage
+	s.plAtomic = t.State == session.TxActive || t.State == session.TxAborted || t.RetainedMessage || t.ProtocolCycle != nil && t.ProtocolCycle.Executed
 	if t.RetainedMessage && t.MessageBorn && t.State == session.TxIdle {
 		s.transactionStart = time.Now().UTC().Truncate(time.Microsecond)
 	}
@@ -50,6 +51,7 @@ func (s *StatementScope) RetainMessage() error {
 		return errors.New("stuntgres: foreign message admission")
 	}
 	s.message = true
+	s.plAtomic = true
 	s.Owner.Mu.Lock()
 	s.Owner.RetainedMessage = true
 	s.Owner.MessageBorn = s.Owner.State != session.TxIdle
@@ -96,7 +98,7 @@ func (s *StatementScope) FinishMessage(err error) error {
 		t.Mu.Unlock()
 	}
 	if state == session.TxImplicit {
-		_, endErr := s.Engine().endAdmitted(s.Op, t, ref, err == nil, false, true, s.statementStart, s)
+		_, endErr := s.Engine().endAdmitted(s.Op, t, ref, err == nil, restartNone, true, s.statementStart, s)
 		if err == nil {
 			err = endErr
 		}

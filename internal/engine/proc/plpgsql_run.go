@@ -72,6 +72,7 @@ type PLHost interface {
 	Cursor(r *PLRun, f *PLFrame, in PLInstruction) (sqltype.Value, PLFlow, error)
 	// Message runs RAISE or ASSERT.
 	Message(f *PLFrame, in PLInstruction) error
+	Transaction(in PLInstruction) error
 }
 
 // PLRun is one PL invocation's walk over a checked program.

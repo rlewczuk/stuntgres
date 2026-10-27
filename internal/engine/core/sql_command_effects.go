@@ -56,9 +56,13 @@ func (s *StatementScope) BeginRoutineCommand() (func(error) error, error) {
 		return nil, fmt.Errorf("stuntgres: SQL command identity exhausted")
 	}
 	previous := s.effectCommand
+	ref := s.TxRef
 	s.effectSerial++
 	s.effectCommand = s.effectSerial
 	return func(primary error) error {
+		if s.TxRef != ref {
+			return primary
+		}
 		if primary == nil {
 			primary = s.completeCommandEffects(false, true)
 		}

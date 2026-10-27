@@ -97,10 +97,10 @@ func NewPLNoticeOrigin(f PLNoticeOriginFields) plNoticeOrigin {
 }
 
 // PLQueryRowsResultRef returns &x.result.
-func PLQueryRowsResultRef(x *plQueryRows) *Result { return &x.result }
+func PLQueryRowsResultRef(x proc.PLRows) *Result { return &x.(*plQueryRows).result }
 
 // PLQueryRowsSchemaRef returns &x.schema.
-func PLQueryRowsSchemaRef(x *plQueryRows) *[]catalog.Column { return &x.schema }
+func PLQueryRowsSchemaRef(x proc.PLRows) *[]catalog.Column { return &x.(*plQueryRows).schema }
 
 // FormatPLDiagnosticIdentity calls formatPLDiagnosticIdentity.
 func FormatPLDiagnosticIdentity(read catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, d *catalog.Procedure) string {

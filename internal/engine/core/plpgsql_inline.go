@@ -51,6 +51,9 @@ func (e *Engine) executeDO(s *StatementScope, raw *parser.Do, count int) (Result
 		return Result{}, err
 	}
 	defer s.leaveSQLRoutine()
+	previousAtomic := s.plAtomic
+	s.plAtomic = previousAtomic || s.plSubtransactionActive()
+	defer func() { s.plAtomic = previousAtomic }()
 	_, err = s.invokePLRoutine(d, &proc.Frame{}, read, sqltype.CollationRef{}, nil)
 	return Result{}, err
 }

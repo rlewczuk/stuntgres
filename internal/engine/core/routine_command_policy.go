@@ -24,12 +24,18 @@ type routineCommandPolicy struct {
 
 func (s *StatementScope) activateRoutineCommandPolicy(d *catalog.Procedure) func() {
 	previous := s.sqlRoutine.policy
+	ref := s.TxRef
 	policy := routineCommandPolicy{active: true, readOnly: d.Volatility != expr.Volatile, writes: s.OwnWrites, deletes: s.OwnDeletes}
 	if s.View != nil {
 		policy.base = s.View.Load()
 	}
 	s.sqlRoutine.policy = policy
-	return func() { s.sqlRoutine.policy = previous }
+	return func() {
+		if s.TxRef != ref {
+			previous.base, previous.writes, previous.deletes = nil, nil, nil
+		}
+		s.sqlRoutine.policy = previous
+	}
 }
 
 // Optimizable commands must reach analysis before the readonly decision; in
@@ -46,6 +52,11 @@ func (s *StatementScope) routineUtilityEligibility(statement parser.Statement) e
 }
 
 func (s *StatementScope) routineReadOnlyEligibility(statement parser.Statement, read catalog.Read, sources []exec.Leaf, query *plan.Query) error {
+	if loop := s.plLoops; loop != nil && loop.opening == statement {
+		if query != nil {
+			loop.readOnly = plLoopReadOnly(statement, query.Root)
+		}
+	}
 	if !s.sqlRoutine.readOnlySPI && !s.sqlRoutine.policy.readOnly {
 		return nil
 	}

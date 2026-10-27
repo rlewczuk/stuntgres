@@ -176,6 +176,8 @@ func (r *PLRun) Statements(statements []PLInstruction) (sqltype.Value, PLFlow, e
 		var flow PLFlow
 		var err error
 		switch {
+		case instruction.Transaction != nil:
+			err = r.Host.Transaction(instruction)
 		case instruction.Block != nil:
 			value, flow, err = r.Block(instruction.Block)
 		case instruction.If != nil || instruction.Case != nil:

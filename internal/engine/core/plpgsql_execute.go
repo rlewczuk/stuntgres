@@ -33,6 +33,9 @@ func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame
 // bound-argument row projections. Destinations never participate in binding the
 // argument projection, so every output is evaluated before formal conversion.
 func (s *StatementScope) executePLExpressionQuery(f *proc.PLFrame, statement *parser.Select, assignment *analyze.PLAssignment) (Result, error) {
+	previousAtomic := s.plAtomic
+	s.plAtomic = true
+	defer func() { s.plAtomic = previousAtomic }()
 	// PL scalar cardinality is checked by its consumer, not SQL functions'
 	// one-column first-row demand. Only plArgumentRow requests a first row.
 	s.sqlRoutine.scalar = false

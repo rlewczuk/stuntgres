@@ -74,24 +74,25 @@ type PLTarget struct {
 	Steps []parser.TargetStep
 }
 type PLInstruction struct {
-	Syntax     *parser.PLStatement
-	Query      *parser.Select
-	Block      *PLBlock
-	Target     PLTarget
-	If         *PLConditional
-	Case       *PLConditional
-	Cursor     *PLCursorInstruction
-	Loop       *PLBlock
-	While      *PLWhile
-	Transfer   *PLControl
-	QueryLoop  *PLQueryLoop
-	Foreach    *PLForeach
-	IntegerFor *PLIntegerFor
-	Raise      *PLRaise
-	Assert     *PLAssert
-	Into       *PLInto
-	SQL        *PLSQL
-	Dynamic    *PLDynamic
+	Syntax      *parser.PLStatement
+	Query       *parser.Select
+	Block       *PLBlock
+	Target      PLTarget
+	If          *PLConditional
+	Case        *PLConditional
+	Cursor      *PLCursorInstruction
+	Loop        *PLBlock
+	While       *PLWhile
+	Transfer    *PLControl
+	QueryLoop   *PLQueryLoop
+	Foreach     *PLForeach
+	IntegerFor  *PLIntegerFor
+	Raise       *PLRaise
+	Assert      *PLAssert
+	Into        *PLInto
+	SQL         *PLSQL
+	Dynamic     *PLDynamic
+	Transaction *parser.PLTransaction
 }
 type PLWhile struct {
 	Condition *parser.Select
@@ -339,6 +340,9 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 			}
 			var err error
 			switch {
+			case statement.Transaction != nil:
+				value := *statement.Transaction
+				instruction.Transaction = &value
 			case statement.Dynamic != nil:
 				instruction.Dynamic, err = p.compileDynamic(definition, statement, scopes)
 				if err == nil {

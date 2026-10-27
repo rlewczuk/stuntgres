@@ -152,6 +152,9 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 }
 
 func (s *StatementScope) invokePLEventTrigger(d *catalog.Procedure, frame *proc.PLFrame, read catalog.Read) (err error) {
+	previousAtomic := s.plAtomic
+	s.plAtomic = true
+	defer func() { s.plAtomic = previousAtomic }()
 	leaveEnvironment, err := s.enterRoutineEnvironment(d)
 	if err != nil {
 		return err

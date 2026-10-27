@@ -96,7 +96,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	if err := e.endPreflight(s.Op); err != nil {
 		return Result{}, err
 	}
-	if !t.InBlock() {
+	if !t.InBlock() && s.activeSQLRoutineDepth == 0 {
 		s.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
 	}
 	err := assignModes(t, stmt.Modes)
