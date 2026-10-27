@@ -922,12 +922,13 @@ timeout publication belong to [`session`](../session/README.md).
 
 `current_setting(text[,boolean])` and `set_config(text,text,boolean)` use
 canonical typed setting expressions, shared fixed-formal binding and live
-`InvokeSetting` session lookup/installation. The standalone statement transport
-uses the same runtime; routine bodies normalize it to an ordinary SELECT before
-analysis and frozen capture. Each overload retains its own builtin identity and
-live EXECUTE admission. `current_setting` is strict and returns typed TEXT NULL
-for a NULL name or optional Boolean. The optional true flag returns NULL only
-for unknown names; it does not bypass restricted-read authority.
+`InvokeSetting` session lookup/installation. Ordinary SELECT binding owns output
+labels and function-name defaults; presentation does not alter invocation,
+authority, NULL handling or setting effects. Each overload retains its own
+builtin identity and live EXECUTE admission. `current_setting` is strict and
+returns typed TEXT NULL for a NULL name or optional Boolean. The optional true
+flag returns NULL only for unknown names; it does not bypass restricted-read
+authority.
 
 ## System catalog producer contract
 

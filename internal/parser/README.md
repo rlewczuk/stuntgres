@@ -43,6 +43,15 @@ single-statement limit of driver calls) belong to callers.
   Binding owns signatures and implicit function applicability before assignment
   coercion. Call-start and final name-component positions remain distinct, and
   arguments retain their own positions through casts and nesting.
+  Output labels live in `Select.Labels`, independently of the target
+  `FunctionExpr` name and operand positions. The ordinary projection rules own
+  explicit-AS, quoted and admitted bare labels, including LIKE/ILIKE/SIMILAR;
+  a following pattern operand instead produces the ordinary operator expression.
+  `TestSettingsCallOutputLabelsGrammar` covers this current-owner boundary,
+  complete-input rejection and independently retained concurrent parse results.
+  Ordinary selected calls require the FILTER opener before rejecting unsupported
+  modifiers; incomplete FILTER reports its natural syntax error. Supported
+  aggregate/window FILTER syntax and quoted or AS labels remain independent.
 - Standalone `Call` retains the command position and the positioned shared
   `FunctionExpr` argument/notation syntax. Raw expression visitors include every
   actual, including pure OUT placeholders; CALL remains an unreserved name.

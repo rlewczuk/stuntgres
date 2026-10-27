@@ -3,8 +3,15 @@ package parser
 import (
 	"context"
 	"errors"
-	"stuntgres/internal/sqlstate"
+	"fmt"
+	"reflect"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
+	"unicode/utf8"
+
+	"stuntgres/internal/sqlstate"
 )
 
 func TestSettingsGrammar(t *testing.T) {
@@ -244,5 +251,353 @@ func TestSettingsClientListFlattening(t *testing.T) {
 		if len(s.Values) != 2 || s.Values[0] != tc.first {
 			t.Fatal(tc.query, s.Values)
 		}
+	}
+}
+
+func TestSettingsCallOutputLabelsGrammar(t *testing.T) {
+	position := func(query, token string) Position {
+		offset := strings.LastIndex(query, token)
+		if offset < 0 {
+			t.Fatal("missing position witness", query, token)
+		}
+		return Position{Offset: offset, Character: utf8.RuneCountInString(query[:offset]) + 1}
+	}
+	for _, signature := range []struct {
+		name, args string
+		count      int
+	}{
+		{"current_setting", "$1::TEXT", 1},
+		{"current_setting", "$1,$2", 2},
+		{"set_config", "$1,$2,$3", 3},
+	} {
+		for _, schema := range []string{"", "pg_catalog."} {
+			for _, label := range []struct{ suffix, text, token string }{
+				{"", "", ""},
+				{" AS value", "value", "value"},
+				{" value", "value", "value"},
+				{" AS MiXeD", "mixed", "MiXeD"},
+				{` "Étiquette"`, "Étiquette", `"Étiquette"`},
+				{` AS "a""b"`, `a"b`, `"a""b"`},
+				{" AS from", "from", "from"},
+				{" AS on", "on", "on"},
+				{" AS day", "day", "day"},
+				{" AS filter", "filter", "filter"},
+				{` "filter"`, "filter", `"filter"`},
+				{" select", "select", "select"},
+				{" check", "check", "check"},
+				{" like", "like", "like"},
+				{" ilike", "ilike", "ilike"},
+				{" similar", "similar", "similar"},
+			} {
+				query := "/*é*/ SELECT " + schema + signature.name + "(" + signature.args + ")" + label.suffix
+				statements, err := Parse(query)
+				if err != nil || len(statements) != 1 {
+					t.Fatal(query, statements, err)
+				}
+				selecting, ok := statements[0].(*Select)
+				if !ok || len(selecting.Targets) != 1 || len(selecting.Labels) != 1 {
+					t.Fatalf("setting call is not an ordinary labeled SELECT: %s: %#v", query, statements[0])
+				}
+				call, ok := selecting.Targets[0].(FunctionExpr)
+				if !ok || call.Pos != position(query, schema+signature.name) || len(call.Args) != signature.count {
+					t.Fatalf("%s: %#v", query, selecting.Targets[0])
+				}
+				wantName := []Identifier{{Text: signature.name, Pos: position(query, signature.name)}}
+				if schema != "" {
+					wantName = append([]Identifier{{Text: "pg_catalog", Pos: position(query, "pg_catalog")}}, wantName...)
+				}
+				if !reflect.DeepEqual(call.Name.Parts, wantName) {
+					t.Fatal("lost function/schema component positions", query, call.Name.Parts, wantName)
+				}
+				wantLabel := Identifier{}
+				if label.token != "" {
+					wantLabel = Identifier{Text: label.text, Pos: position(query, label.token)}
+				}
+				if selecting.Labels[0] != wantLabel {
+					t.Fatal(query, selecting.Labels[0], wantLabel)
+				}
+				for i, arg := range call.Args {
+					if signature.args == "$1::TEXT" {
+						cast, ok := arg.(CastExpr)
+						if !ok || cast.TypeName.Name != "text" || cast.Syntax != PostfixCast || cast.Pos != position(query, "::TEXT") {
+							t.Fatal("lost operand cast", arg)
+						}
+						arg = cast.Child
+					}
+					p, ok := arg.(ParameterExpr)
+					if !ok || p.Number != i+1 || p.Pos != position(query, "$"+strconv.Itoa(i+1)) {
+						t.Fatal("lost parameter operand/ordinal", arg)
+					}
+				}
+			}
+		}
+	}
+	// These are ordinary query expressions, not specialized settings transport.
+	// Preserve label/expression disambiguation on both column and setting bases.
+	for _, base := range []string{"v", "current_setting($1)"} {
+		for _, keyword := range []string{"like", "ilike", "similar"} {
+			query := "SELECT " + base + " " + keyword + " FROM t"
+			statements, err := Parse(query)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(query, statements, err)
+			}
+			selecting := statements[0].(*Select)
+			if len(selecting.Targets) != 1 || len(selecting.Labels) != 1 || selecting.Labels[0] != (Identifier{Text: keyword, Pos: position(query, keyword)}) || selecting.From == nil {
+				t.Fatal("lost ordinary pattern label", query, selecting)
+			}
+			if base == "v" {
+				if _, ok := selecting.Targets[0].(ColumnExpr); !ok {
+					t.Fatal("label changed column target", query, selecting.Targets[0])
+				}
+			} else if _, ok := selecting.Targets[0].(FunctionExpr); !ok {
+				t.Fatal("label changed setting target", query, selecting.Targets[0])
+			}
+		}
+		for _, tc := range []struct {
+			pattern, symbol string
+			similar, escape bool
+		}{
+			{"LIKE 'x%'", "~~", false, false},
+			{"ILIKE 'x%'", "~~*", false, false},
+			{"NOT LIKE 'x%'", "!~~", false, false},
+			{"NOT ILIKE 'x%'", "!~~*", false, false},
+			{"LIKE 'x%' ESCAPE '!'", "~~", false, true},
+			{"ILIKE 'x%' ESCAPE '!'", "~~*", false, true},
+			{"NOT LIKE 'x%' ESCAPE '!'", "!~~", false, true},
+			{"NOT ILIKE 'x%' ESCAPE '!'", "!~~*", false, true},
+			{"SIMILAR TO 'x%'", "~", true, false},
+			{"NOT SIMILAR TO 'x%'", "!~", true, false},
+			{"SIMILAR TO 'x%' ESCAPE '!'", "~", true, true},
+			{"NOT SIMILAR TO 'x%' ESCAPE '!'", "!~", true, true},
+		} {
+			query := "SELECT " + base + " " + tc.pattern + " FROM t"
+			statements, err := Parse(query)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(query, statements, err)
+			}
+			selecting := statements[0].(*Select)
+			if len(selecting.Targets) != 1 || len(selecting.Labels) != 1 || selecting.Labels[0] != (Identifier{}) || selecting.From == nil {
+				t.Fatal("expression acquired output label", query, selecting)
+			}
+			op, ok := selecting.Targets[0].(OperatorExpr)
+			if !ok || len(op.Name.Parts) != 1 || op.Name.Parts[0].Text != tc.symbol || len(op.Args) != 2 || op.SQLSimilar != tc.similar || op.Pos != position(query, tc.pattern) {
+				t.Fatal("lost ordinary pattern operator", query, selecting.Targets[0])
+			}
+			if base == "v" {
+				if _, ok := op.Args[0].(ColumnExpr); !ok {
+					t.Fatal("lost column operand", query, op.Args[0])
+				}
+			} else {
+				call, ok := op.Args[0].(FunctionExpr)
+				if !ok || len(call.Args) != 1 || call.Args[0].(ParameterExpr).Number != 1 {
+					t.Fatal("lost setting operand", query, op.Args[0])
+				}
+			}
+			right := op.Args[1]
+			if tc.similar || tc.escape {
+				helper, ok := right.(FunctionExpr)
+				wantName := "like_escape"
+				if tc.similar {
+					wantName = "similar_to_escape"
+				}
+				wantSyntax := OrdinaryFunctionSyntax
+				if tc.similar {
+					wantSyntax = SimilarEscapeFunctionSyntax
+				}
+				wantArgs := []Expr{LiteralExpr{Value: Value{Kind: StringValue, Text: "x%", Pos: position(query, "'x%'")}}}
+				if tc.escape {
+					wantArgs = append(wantArgs, LiteralExpr{Value: Value{Kind: StringValue, Text: "!", Pos: position(query, "'!'")}})
+				}
+				wantHelper := FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: "pg_catalog", Pos: op.Pos}, {Text: wantName, Pos: op.Pos}}}, Args: wantArgs, Syntax: wantSyntax, Pos: op.Pos}
+				if !ok || !reflect.DeepEqual(helper, wantHelper) {
+					t.Fatal("lost pattern lowering", query, right)
+				}
+				right = helper.Args[0]
+			}
+			literal, ok := right.(LiteralExpr)
+			if !ok || literal.Value.Text != "x%" || literal.SourcePosition() != position(query, "'x%'") {
+				t.Fatal("lost pattern literal", query, right)
+			}
+		}
+	}
+	for _, query := range []string{
+		"SELECT current_setting($1) AS value FROM relation",
+		"SELECT current_setting($1) AS value, other",
+	} {
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("ordinary settings composition rejected", query, statements, err)
+		}
+		selecting := statements[0].(*Select)
+		call, ok := selecting.Targets[0].(FunctionExpr)
+		if !ok || len(call.Args) != 1 || call.Args[0].(ParameterExpr).Number != 1 || selecting.Labels[0].Text != "value" {
+			t.Fatal("composition lost labeled setting operand", query, selecting)
+		}
+		if strings.Contains(query, " FROM ") {
+			if selecting.From == nil || len(selecting.Targets) != 1 {
+				t.Fatal("composition lost FROM", query, selecting)
+			}
+		} else if len(selecting.Targets) != 2 {
+			t.Fatal("composition lost second target", query, selecting)
+		}
+	}
+	for _, tc := range []struct{ query, column, token string }{
+		{"SELECT current_setting($1) LIKE 'x%'", "", ""},
+		{"SELECT pg_catalog.current_setting($1,$2) ILIKE 'x%'", "", ""},
+		{"SELECT pg_catalog.set_config($1,$2,$3) SIMILAR TO 'x%'", "", ""},
+		{"SELECT current_setting($1) LIKE value", "value", "value"},
+		{`SELECT current_setting($1) LIKE "trailing"`, "trailing", `"trailing"`},
+	} {
+		query := tc.query
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("ordinary pattern composition rejected", query, statements, err)
+		}
+		selecting := statements[0].(*Select)
+		if len(selecting.Targets) != 1 || len(selecting.Labels) != 1 || selecting.Labels[0] != (Identifier{}) || selecting.From != nil {
+			t.Fatal("ordinary pattern composition changed shape", query, selecting)
+		}
+		op, ok := selecting.Targets[0].(OperatorExpr)
+		if !ok || len(op.Args) != 2 {
+			t.Fatal("ordinary pattern composition lost operator", query, selecting.Targets[0])
+		}
+		if _, ok := op.Args[0].(FunctionExpr); !ok {
+			t.Fatal("ordinary pattern composition lost setting operand", query, op.Args[0])
+		}
+		if tc.column != "" {
+			if len(op.Name.Parts) != 1 || op.Name.Parts[0].Text != "~~" || op.Pos != position(query, "LIKE") {
+				t.Fatal("ordinary pattern composition changed LIKE operator", query, op)
+			}
+			call := op.Args[0].(FunctionExpr)
+			wantCall := FunctionExpr{
+				Name: ObjectName{Parts: []Identifier{{Text: "current_setting", Pos: position(query, "current_setting")}}},
+				Args: []Expr{ParameterExpr{Number: 1, Pos: position(query, "$1")}},
+				Pos:  position(query, "current_setting"),
+			}
+			if !reflect.DeepEqual(call.Name, wantCall.Name) || !reflect.DeepEqual(call.Args, wantCall.Args) || call.Pos != wantCall.Pos {
+				t.Fatal("ordinary pattern composition changed setting operand", query, call)
+			}
+			column, ok := op.Args[1].(ColumnExpr)
+			wantColumn := ColumnExpr{
+				Name: ObjectName{Parts: []Identifier{{Text: tc.column, Pos: position(query, tc.token)}}},
+				Pos:  position(query, tc.token),
+			}
+			if !ok || !reflect.DeepEqual(column, wantColumn) {
+				t.Fatal("ordinary pattern composition lost positioned column operand", query, op.Args[1])
+			}
+		}
+	}
+	{
+		query := "SELECT current_setting($1) FILTER (WHERE true)"
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("ordinary settings FILTER composition rejected", query, statements, err)
+		}
+		call, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
+		if !ok || len(call.Args) != 1 || call.Args[0].(ParameterExpr).Number != 1 || call.Filter == nil {
+			t.Fatal("ordinary settings FILTER composition lost operands", query, call)
+		}
+	}
+	// TRAILING is a reserved keyword even though it is admitted as a bare label;
+	// unlike value or "trailing", it cannot be the LIKE operand's column name.
+	{
+		query := "SELECT current_setting($1) like trailing"
+		statements, err := Parse(query)
+		var diagnostic *sqlstate.Error
+		if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || diagnostic.Message != `syntax error at or near "trailing"` || diagnostic.Position != strconv.Itoa(position(query, "trailing").Character) {
+			t.Fatal("reserved pattern operand leaked AST or changed grammar diagnostic", query, statements, err)
+		}
+	}
+	// FILTER keeps its existing table, column, aggregate and window consumers.
+	for _, query := range []string{
+		"CREATE TABLE filter(filter TEXT)", "SET filter TO 'x'",
+		"SELECT filter FROM filter", "SELECT v AS filter FROM filter",
+		`SELECT v "filter" FROM filter`,
+		"SELECT filter(v) FROM filter",
+		"SELECT pg_catalog.filter(v) FROM filter",
+		"SELECT sum(v) FILTER (WHERE true) FROM filter",
+		"SELECT sum(v) FILTER (WHERE true) OVER () FROM filter",
+		"SELECT count(*) FILTER (WHERE true) FROM filter",
+		"SELECT lower(v) FILTER (WHERE true) FROM filter",
+		"SELECT sum(v) OVER filter FROM filter",
+	} {
+		if _, err := Parse(query); err != nil {
+			t.Fatal("identifier factoring changed an existing consumer", query, err)
+		}
+	}
+	for _, tc := range []struct{ suffix, code, message, token string }{
+		{" AS", "42601", "syntax error at end of input", ""},
+		{" AS 1", "42601", `syntax error at or near "1"`, "1"},
+		{" day", "42601", `syntax error at or near "day"`, "day"},
+		{" on", "42601", `syntax error at or near "on"`, "on"},
+		{" FILTER /*é*/", "42601", "syntax error at end of input", ""},
+		{" FILTER;", "42601", `syntax error at or near ";"`, ";"},
+		{" FILTER (", "42601", "syntax error at end of input", ""},
+		{" FROM /*é*/", "42601", "syntax error at end of input", ""},
+		{" FROM;", "42601", `syntax error at or near ";"`, ";"},
+		{" AS value FROM", "42601", "syntax error at end of input", ""},
+		{` AS ""`, "42601", `zero-length delimited identifier at or near """"`, `""`},
+		{" AS value trailing", "42601", `syntax error at or near "trailing"`, "trailing"},
+		{" like )", "42601", `syntax error at or near ")"`, ")"},
+		{" ilike )", "42601", `syntax error at or near ")"`, ")"},
+		{" similar )", "42601", `syntax error at or near ")"`, ")"},
+	} {
+		query := "/*é*/ SELECT current_setting($1)" + tc.suffix
+		statements, err := Parse(query)
+		wantPos := utf8.RuneCountInString(query) + 1
+		if tc.token != "" {
+			wantPos = utf8.RuneCountInString(query[:strings.LastIndex(query, tc.token)]) + 1
+		}
+		var diagnostic *sqlstate.Error
+		if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message || diagnostic.Position != strconv.Itoa(wantPos) {
+			t.Fatal("rejection leaked AST or changed grammar diagnostic", query, statements, err)
+		}
+	}
+	for _, query := range []string{
+		"SELECT set_config('application_name','x',false) AS value; SELECT )",
+		"SELECT set_config('application_name','x',false) similar; SELECT )",
+		"SELECT current_setting($1) AS value FROM )",
+	} {
+		statements, err := Parse(query)
+		var diagnostic *sqlstate.Error
+		if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Position == "" {
+			t.Fatal("accepted a valid prefix or lost positioned parser error", query, statements, err)
+		}
+	}
+	batch, err := Parse("SELECT set_config('application_name','x',false) AS first; SELECT current_setting('application_name') AS second")
+	if err != nil || len(batch) != 2 || batch[0].(*Select).Labels[0].Text != "first" || batch[1].(*Select).Labels[0].Text != "second" {
+		t.Fatal("lost complete direct batch", batch, err)
+	}
+	query := `/*é*/ SELECT pg_catalog.set_config($1::TEXT,$2,$3) AS "Étiquette"`
+	first, err := Parse(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := Parse(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workers sync.WaitGroup
+	failures := make(chan error, 8)
+	for range 8 {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for range 16 {
+				s, err := Parse("SELECT current_setting($1,$2) AS replacement")
+				if err != nil || len(s) != 1 || s[0].(*Select).Labels[0].Text != "replacement" {
+					failures <- fmt.Errorf("independent parse: %v %v", s, err)
+					return
+				}
+			}
+		}()
+	}
+	workers.Wait()
+	close(failures)
+	for err := range failures {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(first, snapshot) {
+		t.Fatal("scratch reuse mutated retained setting syntax", first, snapshot)
 	}
 }
