@@ -123,8 +123,12 @@ func capturePGClass(in Input) ([][]sqltype.Value, error) {
 	// Derive FK-side metadata once for this capture, not once per catalog row.
 	var foreignKeyTriggers map[ids.ObjectAddress]bool
 	for fact := range catalog.ForeignKeyTriggerFacts(view) {
-		if err := ctx.Err(); err != nil { return nil, err }
-		if foreignKeyTriggers == nil { foreignKeyTriggers = make(map[ids.ObjectAddress]bool) }
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if foreignKeyTriggers == nil {
+			foreignKeyTriggers = make(map[ids.ObjectAddress]bool)
+		}
 		foreignKeyTriggers[fact.Relation] = true
 	}
 
@@ -178,7 +182,7 @@ func capturePGRewrite(in Input) ([][]sqltype.Value, error) {
 			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.View.RuleOID())), text(1, "_RETURN"), oid(2, uint32(relation.Address().ObjectID)), text(3, "1"), text(4, "O"), boolean(5, true)})
 		}
 		if err := relation.VisitRules(func(rule catalog.RuleFact) error {
-			rows = append(rows, []sqltype.Value{oid(0, uint32(rule.OID)), text(1, rule.Name), oid(2, uint32(relation.Address().ObjectID)), text(3, rule.Event), text(4, "O"), boolean(5, rule.Instead)})
+			rows = append(rows, []sqltype.Value{oid(0, uint32(rule.OID)), text(1, rule.Name), oid(2, uint32(relation.Address().ObjectID)), text(3, rule.Event), text(4, rule.Mode.String()), boolean(5, rule.Instead)})
 			return nil
 		}); err != nil {
 			return nil, err

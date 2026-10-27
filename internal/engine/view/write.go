@@ -78,7 +78,7 @@ func StableViewSlot(source *catalog.Relation, leaf stored.ViewLeaf, frozen int) 
 	return 0, ids.ErrCatalogReplaced
 }
 
-func BindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, stmt parser.Statement, consumed ...ids.ObjectRef) error {
+func BindViewWrite(owner *catalog.Owner, view catalog.Read, replica bool, b *analyze.Binding, stmt parser.Statement, consumed ...ids.ObjectRef) error {
 	if b.Relation == nil || b.Relation.RelationKind != catalog.ViewRelation {
 		return nil
 	}
@@ -107,7 +107,7 @@ func BindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 	for d.RelationKind == catalog.ViewRelation {
 		match := false
 		for _, rule := range stored.RulesOf(d) {
-			if rule.Event() == stored.RuleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
+			if rule.Mode().Fires(replica) && rule.Event() == stored.RuleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
 				match = true
 				if rule.Instead() && rule.Condition() == nil {
 					w.Checks = nil
@@ -309,7 +309,7 @@ func BindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		ref = use
 	}
 	for _, rule := range stored.RulesOf(d) {
-		if rule.Event() == stored.RuleEvent(stmt) && rule.Instead() && rule.Condition() == nil && (len(consumed) == 0 || consumed[0] != ref) {
+		if rule.Mode().Fires(replica) && rule.Event() == stored.RuleEvent(stmt) && rule.Instead() && rule.Condition() == nil && (len(consumed) == 0 || consumed[0] != ref) {
 			w.Checks = nil
 			break
 		}

@@ -48,6 +48,7 @@ func TestRoutineEqualityRecipeAuthority(t *testing.T) {
 	owner := *base.MustRelation(source.Ref.Address)
 	rule := stored.NewRule(stored.RuleParts{
 		OID: 900102, Name: "equality_rule", Event: "INSERT",
+		Mode: catalog.RuleOrigin,
 		Actions: []stored.RuleAction{stored.NewRuleAction(stored.RuleActionParts{
 			Binding: analyze.Binding{Query: query}, Presentation: presentation,
 		})},

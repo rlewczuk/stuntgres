@@ -2,6 +2,7 @@ package stored
 
 import (
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -14,6 +15,7 @@ type RuleParts struct {
 	Name                  string
 	Event                 string
 	Instead               bool
+	Mode                  catalog.RuleMode
 	Condition             expr.Expr
 	ConditionPresentation *View
 	ConditionBinding      *analyze.Binding
@@ -28,6 +30,7 @@ func NewRule(p RuleParts) Rule {
 		Name:                  p.Name,
 		event:                 p.Event,
 		instead:               p.Instead,
+		mode:                  p.Mode,
 		condition:             p.Condition,
 		conditionPresentation: p.ConditionPresentation,
 		conditionBinding:      p.ConditionBinding,
@@ -43,6 +46,7 @@ func (r Rule) Parts() RuleParts {
 		Name:                  r.Name,
 		Event:                 r.event,
 		Instead:               r.instead,
+		Mode:                  r.mode,
 		Condition:             r.condition,
 		ConditionPresentation: r.conditionPresentation,
 		ConditionBinding:      r.conditionBinding,
@@ -64,6 +68,9 @@ func (r Rule) Event() string { return r.event }
 
 // Instead reports whether the rule is a DO INSTEAD rule.
 func (r Rule) Instead() bool { return r.instead }
+
+// Mode returns the catalog enable mode without changing the rule payload.
+func (r Rule) Mode() catalog.RuleMode { return r.mode }
 
 // Condition returns the analyzed WHERE condition, or nil.
 func (r Rule) Condition() expr.Expr { return r.condition }

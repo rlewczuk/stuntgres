@@ -100,6 +100,8 @@ single-statement limit of driver calls) belong to callers.
   keyword identity rather than quoted-identifier spelling. Table validation
   retains the action and constraint-name positions in ordinary complete-input
   action lists; execution owns current constraint lookup and authority.
+  Rule-mode actions retain a distinct action kind and positioned rule name;
+  relation-only IF EXISTS does not add a per-rule existence modifier or wildcard.
 - Statistics owner replay has a per-call `StatisticsOwnerReplay` option only
   for the isolated native Restore parser. It yields the shared positioned
   `AlterOwner` AST; ordinary calls retain the ALTER capability diagnostic.

@@ -1,11 +1,11 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"maps"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/core"
 	"testing"
 	"time"
 
@@ -88,7 +88,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	if action.Binding().Expressions[0][0].(plan.ColumnExpr).Scope != analyze.RulePseudoScope {
 		t.Fatal("mutated stored template")
 	}
-	condition := stored.NewRule(stored.RuleParts{Event: "INSERT", Instead: true, Condition: pseudo})
+	condition := stored.NewRule(stored.RuleParts{Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Condition: pseudo})
 	condition = condition.With(func(p *stored.RuleParts) {
 		p.Condition = plan.LiteralExpr{Info: expr.Info{Usage: func() sqltype.Usage { typ, _ := auth.Catalog.LookupType(sqltype.Bool); return typ.Usage() }()}, Value: func() sqltype.Value { typ, _ := auth.Catalog.LookupType(sqltype.Bool); return sqltype.Null(typ) }()}
 	})
@@ -335,7 +335,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 
 func TestRuleProgramOrdering(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 3, 30)}})})
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 3, 30)}})})
 	original := ruleUnitInsert(e, src, 4, 40)
 	p := view.RuleProgram{Count: -1, Returning: -1}
 	e.Mu.Lock()
@@ -358,7 +358,7 @@ func TestRuleProgramOrdering(t *testing.T) {
 
 func TestRuleProgramAuthority(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 2, 20)}})})
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 2, 20)}})})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := view.RuleProgram{Count: -1, Returning: -1}
 	e.Mu.Lock()
@@ -370,7 +370,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	if count != 1 || len(p.Commands) != 2 {
 		t.Fatalf("last same-event authority=%d commands=%d want1/2", count, len(p.Commands))
 	}
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "nothing", Event: "INSERT", Instead: true})})
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "nothing", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true})})
 	p = view.RuleProgram{Count: -1, Returning: -1}
 	e.Mu.Lock()
 	count, err = view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
@@ -387,14 +387,14 @@ func TestRuleProgramAuthority(t *testing.T) {
 		defer done()
 		auth := f.authorization(t, op)
 		f.base.RelationKind, f.base.VirtualView = catalog.ViewRelation, true
-		f.base.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900201, Name: "inner_stop", Event: "UPDATE", Instead: true})})
+		f.base.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900201, Name: "inner_stop", Event: "UPDATE", Mode: catalog.RuleOrigin, Instead: true})})
 		f.view.View = stored.ViewOf(f.view).With(func(p *stored.ViewParts) { p.CheckOption = stored.CheckCascaded })
 		project := stored.ViewOf(f.view).Query().Root.(*plan.ProjectNode)
 		predicate := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
 		original := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		mapped := original
-		if err := view.BindViewWrite(&f.e.Catalog.Owner, auth.Catalog, &mapped, &parser.Update{}); err != nil {
+		if err := view.BindViewWrite(&f.e.Catalog.Owner, auth.Catalog, auth.RuleReplica(), &mapped, &parser.Update{}); err != nil {
 			t.Fatal(err)
 		}
 		if mapped.Ref != f.viewRef || mapped.Relation != f.view || view.PhysicalBinding(mapped).Ref != f.baseRef || mapped.Targets[0] != 1 {
@@ -418,8 +418,8 @@ func TestRuleProgramAuthority(t *testing.T) {
 
 func TestRuleProgramRecursion(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "cycle", Event: "INSERT", Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})})
-	sink.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900102, Name: "cycle", Event: "INSERT", Actions: []stored.RuleAction{ruleUnitInsert(e, src, 1, 10)}})})
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "cycle", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})})
+	sink.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900102, Name: "cycle", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{ruleUnitInsert(e, src, 1, 10)}})})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := view.RuleProgram{}
 	e.Mu.Lock()
@@ -470,7 +470,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		outer = outer.With(func(p *stored.RuleActionParts) {
 			p.Binding.CTEs = []*plan.CTEDefinition{{Statement: auxiliary.Syntax(), Mutation: &auxiliaryBinding, Owner: 1}}
 		})
-		refs, err := view.RuleReferences(context.Background(), auth.Catalog, stored.NewRule(stored.RuleParts{Actions: []stored.RuleAction{outer}}))
+		refs, err := view.RuleReferences(context.Background(), auth.Catalog, stored.NewRule(stored.RuleParts{Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{outer}}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -485,7 +485,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
 	condition := plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2}
-	r := stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Condition: condition, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})
+	r := stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Condition: condition, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})
 	refs, err := view.RuleReferences(context.Background(), auth.Catalog, r)
 	if err != nil {
 		t.Fatal(err)
@@ -533,7 +533,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	oldRef := ruleUnitRef(e, src)
 	oldRef.Address.SubID = 1
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Condition: plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: analyze.RulePseudoScope, Frame: 2}, References: []ids.ObjectAddress{oldRef.Address}, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})})
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Condition: plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: analyze.RulePseudoScope, Frame: 2}, References: []ids.ObjectAddress{oldRef.Address}, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})})
 	newSrc, newSink := *src, *sink
 	newSrc.ObjectAddress.ObjectID += 10
 	newSink.ObjectAddress.ObjectID += 10

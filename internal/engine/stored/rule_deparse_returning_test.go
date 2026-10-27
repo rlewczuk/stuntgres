@@ -20,7 +20,7 @@ func TestRuleDefinitionReturningLabels(t *testing.T) {
 	action = action.With(func(p *RuleActionParts) {
 		p.Binding.Returning = &analyze.Returning{Expressions: []expr.Expr{column}, Schema: []catalog.Column{{Name: "copied", Usage: target.Columns[0].Usage}}}
 	})
-	rule := NewRule(RuleParts{Name: "r", Event: "INSERT", Instead: true, Actions: []RuleAction{action}})
+	rule := NewRule(RuleParts{Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []RuleAction{action}})
 	ctx := context.Background()
 	for range 2 {
 		display, err := RuleDefinitionSQL(ctx, read, event, rule, Presentation{Path: []ids.ObjectAddress{target.Namespace()}}, ids.SessionToken{})
@@ -75,7 +75,7 @@ func TestRuleDefinitionReturningSides(t *testing.T) {
 			Schema:      []catalog.Column{{Name: "previous", Usage: old.Usage}, {Name: "replacement", Usage: new.Usage}},
 		}
 	})
-	rule := NewRule(RuleParts{Name: "r", Event: "INSERT", Instead: true, Actions: []RuleAction{action}})
+	rule := NewRule(RuleParts{Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []RuleAction{action}})
 	for range 2 {
 		display, err := RuleDefinitionSQL(context.Background(), read, event, rule, Presentation{Path: []ids.ObjectAddress{target.Namespace()}}, ids.SessionToken{})
 		want := "CREATE RULE r AS\n    ON INSERT TO capture.source DO INSTEAD  INSERT INTO target (v)\n  VALUES (new.v)\n  RETURNING WITH (OLD AS before, NEW AS after) before.v AS previous,\n    after.v AS replacement;"

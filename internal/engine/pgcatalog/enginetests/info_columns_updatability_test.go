@@ -74,7 +74,7 @@ func TestInfoColumnsUpdatability(t *testing.T) {
 		nonautomatic := columnsUnitView(f, 22602, &changed, []int{-1}, false)
 		var rules []stored.Rule
 		for i, event := range tc.events {
-			parts := stored.RuleParts{OID: ids.OID(22610 + i), Name: event, Event: event, Instead: tc.instead}
+			parts := stored.RuleParts{OID: ids.OID(22610 + i), Name: event, Event: event, Mode: catalog.RuleOrigin, Instead: tc.instead}
 			if tc.conditional {
 				boolean, _ := f.dc.f.e.Catalog.Read(f.state).LookupType(sqltype.Bool)
 				parts.Condition = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}
@@ -87,7 +87,7 @@ func TestInfoColumnsUpdatability(t *testing.T) {
 	// An unconditional UPDATE rule combines with automatic DELETE, including
 	// computed outputs, without running or binding the rule action.
 	ruled := *simple
-	ruled.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 22620, Name: "update", Event: "UPDATE", Instead: true})})
+	ruled.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 22620, Name: "update", Event: "UPDATE", Mode: catalog.RuleOrigin, Instead: true})})
 	f.state.SetDescriptor(ruled.Address(), &ruled)
 	check(&ruled, 2, true)
 	ctx, cancel := context.WithCancel(t.Context())

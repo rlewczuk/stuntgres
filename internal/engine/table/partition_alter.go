@@ -25,7 +25,7 @@ func PartitionConstraintActions(root *catalog.Relation, actions []parser.AlterTa
 	}
 	for _, a := range actions {
 		switch a.Action {
-		case parser.SetRelationOptions, parser.ResetRelationOptions:
+		case parser.SetRelationOptions, parser.ResetRelationOptions, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule:
 			// Root-only metadata companions do not expand the shape whitelist.
 		case parser.AddCheck:
 			if a.Check == nil {

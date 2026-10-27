@@ -147,6 +147,11 @@ host methods.
   pattern; a rule's `OID` and `Name` stay exported fields. Read accessors share
   maps and slices instead of copying them: callers never write through an
   accessor.
+  Ordinary rules carry checked catalog-owned O/D/R/A enable modes. Parts/With,
+  remap, identity replacement and rename preserve mode independently of action
+  recipes. Zero/unknown modes fail validation. Rule dump groups emit a
+  nondefault mode ALTER immediately after CREATE in the same post-data owner
+  group, using current quoted names; data replay precedes rule installation.
 - **Routine recipes.** `RoutineProgram` owns checked SQL-standard actions.
   Their `StructuralOutput` retains ordered concrete parser nodes and fields,
   including command/expression kinds and literal values; it does not prepare,

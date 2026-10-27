@@ -363,7 +363,7 @@ func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view cat
 		case "DELETE":
 			event = "4"
 		}
-		if err := visit(catalog.RuleFact{OID: rule.OID, Name: rule.Name, Event: event, Instead: rule.Instead(), References: rule.References()}, definition); err != nil {
+		if err := visit(catalog.RuleFact{OID: rule.OID, Name: rule.Name, Event: event, Instead: rule.Instead(), Mode: rule.Mode(), References: rule.References()}, definition); err != nil {
 			return err
 		}
 	}

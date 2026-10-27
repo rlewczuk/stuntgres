@@ -316,7 +316,8 @@ func (h *BindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth
 }
 
 func (h *BindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {
-	return view.BindViewWrite(&h.Engine.Catalog.Owner, h.view(auth).Catalog, b, stmt, consumed...)
+	v := h.view(auth)
+	return view.BindViewWrite(&h.Engine.Catalog.Owner, v.Catalog, v.RuleReplica(), b, stmt, consumed...)
 }
 
 // NewExpressionBinder is the root construction point: it binds through the

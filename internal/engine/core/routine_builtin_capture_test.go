@@ -152,6 +152,7 @@ func TestRoutineRuleRecipeOriginalAuthority(t *testing.T) {
 	owner := *table
 	rule := stored.NewRule(stored.RuleParts{
 		OID: 900101, Name: "original_rule", Event: "INSERT",
+		Mode:                  catalog.RuleOrigin,
 		ConditionPresentation: condition,
 		Actions:               []stored.RuleAction{stored.NewRuleAction(stored.RuleActionParts{Presentation: presentation})},
 	})

@@ -210,6 +210,11 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
+			if owner.TypedValue("session_replication_role").Text != owner.DefaultTyped["session_replication_role"].Text {
+				if err := op.Session.PlanGenerationHeadroom(op, 1); err != nil {
+					return Result{}, err
+				}
+			}
 			owner.ResetAllLocked(e.Settings)
 			if op.Restricted != nil {
 				op.Restricted.SafePath = false

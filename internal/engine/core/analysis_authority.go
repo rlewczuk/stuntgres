@@ -26,6 +26,7 @@ type bindingAuthorityView AuthorizationView
 
 func (*bindingAuthorityView) AnalyzeAuthority()           {}
 func (v *bindingAuthorityView) ReadCatalog() catalog.Read { return v.Catalog }
+func (v *bindingAuthorityView) RuleReplica() bool         { return (*AuthorizationView)(v).RuleReplica() }
 
 // AuthorityOf hands a copy of v to binding, as passing the view by value did.
 func AuthorityOf(v AuthorizationView) analyze.Authority { return &v }

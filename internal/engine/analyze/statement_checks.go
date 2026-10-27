@@ -166,7 +166,7 @@ func TableKindError(d *catalog.Relation, operation string) error {
 	if d.RelationKind == catalog.MaterializedViewRelation && operation == "change" {
 		return sqlError("42809", fmt.Sprintf(`cannot change materialized view "%s"`, d.Name()))
 	}
-	if operation == "ADD COLUMN" {
+	if operation == "ADD COLUMN" || operation == "ENABLE RULE" || operation == "DISABLE RULE" || operation == "ENABLE REPLICA RULE" || operation == "ENABLE ALWAYS RULE" {
 		kind := ""
 		switch d.RelationKind {
 		case catalog.ViewRelation:
@@ -179,7 +179,7 @@ func TableKindError(d *catalog.Relation, operation string) error {
 			kind = "sequences"
 		}
 		if kind != "" {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ADD COLUMN cannot be performed on relation "%s"`, d.Name()), Detail: "This operation is not supported for " + kind + "."}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for " + kind + "."}
 		}
 	}
 	if d.RelationKind == catalog.MaterializedViewRelation {

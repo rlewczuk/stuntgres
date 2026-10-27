@@ -143,12 +143,19 @@ func (s *SettingsStore) override(name string) settingOverride {
 	return settingOverride{Present: present, Text: text, Typed: s.Typed[name]}
 }
 func (s *SettingsStore) Restore(name string, v settingOverride) {
+	beforeRole := ""
+	if name == "session_replication_role" {
+		beforeRole = s.TypedValue(name).Text
+	}
 	if v.Present {
 		s.Values[name] = v.Text
 		s.Typed[name] = v.Typed
 	} else {
 		delete(s.Values, name)
 		delete(s.Typed, name)
+	}
+	if name == "session_replication_role" {
+		s.RuleRoleChanged(beforeRole)
 	}
 }
 

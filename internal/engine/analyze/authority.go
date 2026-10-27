@@ -10,4 +10,5 @@ import "stuntgres/internal/engine/catalog"
 type Authority interface {
 	AnalyzeAuthority()
 	ReadCatalog() catalog.Read
+	RuleReplica() bool
 }

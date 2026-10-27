@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -49,7 +50,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	definition := &plan.CTEDefinition{Statement: original.Syntax(), Mutation: &originalBinding, Schema: plan.QuerySchema(src.Columns), Owner: 1}
 	t.Run("complete_executable_tuple", func(t *testing.T) {
 		action := ruleUnitInsert(e, sink, 1, 11)
-		src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "redirect", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{action}})})
+		src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "redirect", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []stored.RuleAction{action}})})
 		defer func() { src.Rules = nil }()
 		parent := analyze.Binding{CTEs: []*plan.CTEDefinition{definition}}
 		e.Mu.Lock()

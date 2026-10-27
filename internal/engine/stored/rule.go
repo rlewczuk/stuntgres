@@ -2,6 +2,7 @@ package stored
 
 import (
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -19,6 +20,7 @@ type Rule struct {
 	Name                  string
 	event                 string
 	instead               bool
+	mode                  catalog.RuleMode
 	condition             expr.Expr
 	conditionPresentation *View
 	conditionBinding      *analyze.Binding

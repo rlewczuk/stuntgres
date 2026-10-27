@@ -42,8 +42,11 @@ func RuleCTEProgramError(program RuleProgram) error {
 // inference. Rewrite modifiers before parent rules, without altering providers.
 // Engine.mu is held, as RuleRewriter.ExpandLocked needs.
 func NormalizeRuleCTEsLocked(owner *catalog.Owner, auth RuleAuthority, statement parser.Statement, b *analyze.Binding) error {
+	replica := auth.RuleReplica()
 	matched := func(relation *catalog.Relation, statement parser.Statement) bool {
-		return relation != nil && slices.ContainsFunc(stored.RulesOf(relation), func(rule stored.Rule) bool { return rule.Event() == stored.RuleEvent(statement) })
+		return relation != nil && slices.ContainsFunc(stored.RulesOf(relation), func(rule stored.Rule) bool {
+			return rule.Mode().Fires(replica) && rule.Event() == stored.RuleEvent(statement)
+		})
 	}
 	needed := b.Rule.Template || matched(BindingRuleRelation(*b), statement)
 	for _, definition := range b.CTEs {

@@ -92,7 +92,7 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 // conditions.
 func TestCatalogPayloadReaders(t *testing.T) {
 	refs := []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: 20002}}
-	rules := stored.RuleList{stored.NewRule(stored.RuleParts{OID: 40001, Name: "a", Event: "UPDATE", Instead: true, References: refs}), stored.NewRule(stored.RuleParts{OID: 40002, Name: "b", Event: "DELETE"})}
+	rules := stored.RuleList{stored.NewRule(stored.RuleParts{OID: 40001, Name: "a", Event: "UPDATE", Mode: catalog.RuleOrigin, Instead: true, References: refs}), stored.NewRule(stored.RuleParts{OID: 40002, Name: "b", Event: "DELETE", Mode: catalog.RuleOrigin})}
 	if rules.Len() != 2 || (stored.RuleList{}).Len() != 0 {
 		t.Fatal("rule count")
 	}
@@ -100,7 +100,7 @@ func TestCatalogPayloadReaders(t *testing.T) {
 	if err := rules.Visit(func(rule catalog.RuleFact) error { facts = append(facts, rule); return nil }); err != nil {
 		t.Fatal(err)
 	}
-	want := []catalog.RuleFact{{OID: 40001, Name: "a", Event: "2", Instead: true, References: refs}, {OID: 40002, Name: "b", Event: "4"}}
+	want := []catalog.RuleFact{{OID: 40001, Name: "a", Event: "2", Mode: catalog.RuleOrigin, Instead: true, References: refs}, {OID: 40002, Name: "b", Event: "4", Mode: catalog.RuleOrigin}}
 	if !reflect.DeepEqual(facts, want) {
 		t.Fatal("rule facts", facts)
 	}

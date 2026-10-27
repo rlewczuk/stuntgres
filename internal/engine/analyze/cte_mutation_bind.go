@@ -69,7 +69,12 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 		if err := bindMerge(&b, binder, auth, requiredRef, s); err != nil {
 			return b, err
 		}
-		if b.Relation.HasRules() {
+		active := false
+		replica := auth.RuleReplica()
+		if err := b.Relation.VisitRules(func(rule catalog.RuleFact) error { active = active || rule.Mode.Fires(replica); return nil }); err != nil {
+			return b, err
+		}
+		if active {
 			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.Relation.Name()), Detail: "MERGE is not supported for relations with rules."}
 		}
 	case *parser.Delete:

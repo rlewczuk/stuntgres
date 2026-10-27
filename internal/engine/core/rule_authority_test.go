@@ -16,6 +16,7 @@ type foreignRuleAuthority struct{}
 func (foreignRuleAuthority) Access() access.View                                    { return access.View{} }
 func (f foreignRuleAuthority) AsUser(authorization.PrincipalRef) view.RuleAuthority { return f }
 func (foreignRuleAuthority) StorageLocked(ids.ObjectAddress) *storage.Relation      { return nil }
+func (foreignRuleAuthority) RuleReplica() bool                                      { return false }
 
 func TestRuleAuthorityAsUserAndRecovery(t *testing.T) {
 	domain := new(authorization.Domain)

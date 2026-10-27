@@ -34,6 +34,8 @@ func (op *Operation) CaptureInvocation() *InvocationMark {
 func (m *InvocationMark) Restore() {
 	// One unnamed exception checkpoint is consumed once. Its complete image is
 	// independent of its frame, including recognition and setting action state.
+	beforeRole := m.operation.EffectiveSettings().TypedValue("session_replication_role").Text
 	m.frame.settings, m.frame.SafePath = m.image, m.safePath
+	m.image.RuleRoleChanged(beforeRole)
 	m.operation.RefreshInvocationSettingsLocked(m.image)
 }

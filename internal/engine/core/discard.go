@@ -26,8 +26,8 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	}
 	sess := s.Op.Session
 	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
-		if sess.DiscardPlansGeneration == ^uint64(0) {
-			return Result{}, fmt.Errorf("stuntgres: discard plan generation exhausted")
+		if err := sess.PlanGenerationHeadroom(s.Op, 2); err != nil {
+			return Result{}, err
 		}
 	}
 	var reset authorization.RoleState

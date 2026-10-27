@@ -44,6 +44,11 @@ allowing peers to read the old committed result.
   Conn-owned utility and DML handles before BEGIN, including utility targets
   created later. Keep those handles across definition changes and recovery;
   `fixture.Prepared` alone does not prove prepared consumer freshness.
+- Rule-mode scenarios reuse those routes for direct and retained utility/DML
+  consumers, exact firing-mode/session-role matrices, atomic ALTER, catalog
+  identity, cancellation and native-control persistence. Controls replay the
+  actual native dump on PostgreSQL; external replication transport is not an
+  engine control.
 - Transactional rule lock scenarios observe real pending requests before release
   or cancellation. Event DDL holds AX: peer catalog inspection remains committed,
   while subsequent peer DML waits for transaction end before applying its rules.
@@ -74,6 +79,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Temporary views: `RUN='^TestReferenceTemporaryView'`
 - DROP VIEW/INDEX wrong kind: `RUN='^TestReferenceDropView'`
 - <a id="rewrite-rules"></a>Rewrite rules: `RUN='^TestReferenceRule'`
+- Rewrite-rule enable modes: `RUN='^TestReferenceRuleMode'`
 - Transactional rewrite-rule definitions: `RUN='^TestReferenceTransactionalRules'`
   (wire coverage lives in [sessions](../sessions/README.md#testing)).
 - Materialized views (create, refresh, ALTER, extensions): `RUN='^TestReferenceMaterialized'`

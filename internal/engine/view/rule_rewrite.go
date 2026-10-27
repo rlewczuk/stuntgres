@@ -767,21 +767,31 @@ func (rw RuleRewriter) ExpandLocked(auth RuleAuthority, stmt parser.Statement, b
 		b.Storage = auth.StorageLocked(b.Ref.Address)
 	}
 	rules := stored.RulesOf(b.Relation)
-	matched := slices.ContainsFunc(rules, func(r stored.Rule) bool { return r.Event() == event })
-	if matched {
+	replica := auth.RuleReplica()
+	present := slices.ContainsFunc(rules, func(r stored.Rule) bool { return r.Event() == event })
+	matched := slices.ContainsFunc(rules, func(r stored.Rule) bool { return r.Event() == event && r.Mode().Fires(replica) })
+	if present {
 		dependency := catalog.ExpressionDependency{Ref: b.Ref, Revision: current.Revision()}
 		if !slices.Contains(program.Events, dependency) {
 			program.Events = append(program.Events, dependency)
 		}
 	}
+	if s, ok := stmt.(*parser.Insert); ok && s.Conflict != nil {
+		for _, r := range rules {
+			// UPDATE presence precedes filtering in PostgreSQL's matchLocks.
+			if r.Event() == "UPDATE" || r.Event() == "INSERT" && r.Mode().Fires(replica) && len(r.Actions()) != 0 {
+				return -1, sqlError("0A000", "INSERT with ON CONFLICT clause cannot be used with table that has INSERT or UPDATE rules")
+			}
+		}
+	}
 	if current.RelationKind == catalog.ViewRelation && !matched {
 		b.ViewWrite = nil
-		if err := BindViewWrite(rw.Owner, auth.Access().Catalog, &b, stmt); err != nil {
+		if err := BindViewWrite(rw.Owner, auth.Access().Catalog, replica, &b, stmt); err != nil {
 			return -1, err
 		}
 		return rw.ExpandLocked(auth, stmt, b, ancestry, program)
 	}
-	if len(rules) == 0 {
+	if !matched {
 		return appendRuleCommand(program, auth, stmt, b), nil
 	}
 	key := ruleAncestry{b.Ref, event}
@@ -789,17 +799,16 @@ func (rw RuleRewriter) ExpandLocked(auth RuleAuthority, stmt parser.Statement, b
 		return -1, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, b.Relation.Name()))
 	}
 	ancestry = append(ancestry, key)
-	if s, ok := stmt.(*parser.Insert); ok && s.Conflict != nil {
-		for _, r := range rules {
-			if r.Event() == "UPDATE" || r.Event() == "INSERT" && len(r.Actions()) != 0 {
-				return -1, sqlError("0A000", "INSERT with ON CONFLICT clause cannot be used with table that has INSERT or UPDATE rules")
-			}
-		}
-	}
 	// Bind stored routine authority to exact original rule occurrences before
 	// composing them with fresh input. Current reference stamps below remain
 	// invalidation metadata, never the historical action's call manifest.
-	rules = slices.Clone(rules)
+	active := make([]stored.Rule, 0, len(rules))
+	for _, rule := range rules {
+		if rule.Event() == event && rule.Mode().Fires(replica) {
+			active = append(active, rule)
+		}
+	}
+	rules = active
 	for i, rule := range rules {
 		if rule.Event() != event {
 			continue
@@ -1047,7 +1056,7 @@ func (rw RuleRewriter) expandResidualLocked(auth RuleAuthority, stmt parser.Stat
 	}
 	prior := ViewWriteOf(b.ViewWrite)
 	b.ViewWrite = nil
-	if err := BindViewWrite(rw.Owner, auth.Access().Catalog, &b, stmt, b.Ref); err != nil {
+	if err := BindViewWrite(rw.Owner, auth.Access().Catalog, auth.RuleReplica(), &b, stmt, b.Ref); err != nil {
 		return -1, err
 	}
 	if b.ViewWrite != nil && prior != nil {

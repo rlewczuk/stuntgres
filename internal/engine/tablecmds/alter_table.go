@@ -129,7 +129,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, nil
 		}
 	}
-	if scope.Inheritance.Alter == nil && !access.RowSecurityActions(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
+	if scope.Inheritance.Alter == nil && !access.RowSecurityActions(s.Actions) && !table.RuleModesOnly(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
 		return alterInheritanceLocked(e, scope, op, auth, s, count, destination, prepared)
 	}
 	if scope.Inheritance.Alter == nil || !scope.Inheritance.Alter.Descendant {
@@ -150,6 +150,22 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		next, err := table.RelationOptionsOnlyCandidate(old, s.Actions, destination)
 		if err != nil {
 			return fail(err)
+		}
+		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next)
+	}
+	if table.RuleModesOnly(s.Actions) {
+		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
+			return fail(err)
+		}
+		next := old
+		for _, action := range s.Actions {
+			if err := op.Context().Err(); err != nil {
+				return fail(err)
+			}
+			next, err = table.RuleModeCandidate(next, action)
+			if err != nil {
+				return fail(err)
+			}
 		}
 		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next)
 	}
@@ -259,6 +275,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	hasAttachments := false
 	hasForeignKeys := len(foreignKeysOrZero(scope).AlterKeys) != 0
 	hasValidations := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.ValidateConstraint })
+	hasRuleModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.RuleModeAction(a.Action) })
 	for _, action := range s.Actions {
 		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
 	}
@@ -432,7 +449,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		FinishInheritance: func(o, n *catalog.Relation) (*catalog.Relation, error) {
 			return finishInheritanceAlterCandidate(scope, o, n)
 		},
-		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys, ValidateConstraints: hasValidations,
+		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys, ValidateConstraints: hasValidations || hasRuleModes,
 		StageEmpty:  stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.Sequence.StagedGenerators()) == 0,
 		Destination: destination,
 	})
@@ -533,6 +550,16 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	}
 	// Misc resolves only after every ADD definition, including deferred FKs.
 	for _, action := range s.Actions {
+		if err := op.Context().Err(); err != nil {
+			return core.Result{}, err
+		}
+		if table.RuleModeAction(action.Action) {
+			next, err = table.RuleModeCandidate(next, action)
+			if err != nil {
+				return core.Result{}, err
+			}
+			continue
+		}
 		if action.Action != parser.ValidateConstraint {
 			continue
 		}
@@ -566,7 +593,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			foreignKeyHistory = append(foreignKeyHistory, *selected.ForeignKey)
 		}
 	}
-	if hasValidations && next != old {
+	if (hasValidations || hasRuleModes) && next != old {
 		if err := stage.Replace(next); err != nil {
 			return core.Result{}, err
 		}

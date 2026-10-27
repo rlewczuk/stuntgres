@@ -87,7 +87,7 @@ func BeginRule(h Host, auth ddl.Authority, stmt parser.Statement, locked ids.Obj
 			if index >= 0 && !s.Replace {
 				return nil, RuleDuplicate(name, old)
 			}
-			p.parts = stored.RuleParts{Name: name, Event: strings.ToUpper(s.Event), Instead: s.Instead}
+			p.parts = stored.RuleParts{Name: name, Event: strings.ToUpper(s.Event), Instead: s.Instead, Mode: catalog.RuleOrigin}
 		}
 	case *parser.AlterRule:
 		if old.View != nil && name == "_RETURN" {
@@ -122,6 +122,7 @@ func (p *RulePlan) Finish(h Host, auth ddl.Authority) (RelationChange, error) {
 		}
 		if p.index >= 0 {
 			p.parts.OID = stored.RulesOf(p.old)[p.index].OID
+			p.parts.Mode = stored.RulesOf(p.old)[p.index].Mode()
 			stored.RulesOf(&p.next)[p.index] = stored.NewRule(p.parts)
 		} else {
 			p.parts.OID, err = h.AllocateOID()

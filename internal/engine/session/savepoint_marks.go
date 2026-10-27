@@ -67,9 +67,11 @@ func (s *SettingsStore) Savepoint() SettingsMark {
 // and Session.Mu are held; no callbacks or allocation are allowed between
 // final preflight and effect installation.
 func (s *SettingsStore) RestoreSavepointLocked(candidate SettingsMark, identity authorization.RoleState) {
+	beforeRole := s.TypedValue("session_replication_role").Text
 	s.Values, s.Typed, s.Actions = candidate.Values, candidate.Typed, candidate.Actions
 	s.RoleAction = candidate.RoleAction
 	s.NestLevel = candidate.NestLevel
+	s.RuleRoleChanged(beforeRole)
 	if s.Session != nil {
 		candidate.CurrentRole.restore(&identity)
 		s.RestoreIdentityLocked(identity)

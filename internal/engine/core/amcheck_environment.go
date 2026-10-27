@@ -15,7 +15,15 @@ func (s *StatementScope) WithAmcheckOwner(parent *catalog.Relation, work func(*e
 	RowSecurity, presentation := s.RowSecurity, s.presentationSlot
 	threshold, nonstandard, lockTimeout := op.NoticeThreshold, op.NonstandardStrings, op.LockTimeout
 	defer func() {
+		current := op.EffectiveSettings()
+		current.Mu.Lock()
+		beforeRole := current.TypedValue("session_replication_role").Text
+		current.Mu.Unlock()
 		op.Restricted = previous
+		restored := op.EffectiveSettings()
+		restored.Mu.Lock()
+		restored.RuleRoleChanged(beforeRole)
+		restored.Mu.Unlock()
 		s.Identity, s.Inquiry, s.Input, s.Output, s.RoutineAuth = identity, inquiry, input, output, RoutineAuth
 		s.RowSecurity, s.presentationSlot = RowSecurity, presentation
 		op.NoticeThreshold, op.NonstandardStrings, op.LockTimeout = threshold, nonstandard, lockTimeout

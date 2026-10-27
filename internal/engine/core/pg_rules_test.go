@@ -25,12 +25,12 @@ func TestPGRulesProducer(t *testing.T) {
 	first.Owner, second.Owner = f.owner, f.owner
 	first.Security.ACL = authorization.ACLValue{Explicit: true}
 	first.Rules = stored.RulesPayload([]stored.Rule{
-		stored.NewRule(stored.RuleParts{OID: 23003, Name: "r", Event: "INSERT", Instead: true}),
+		stored.NewRule(stored.RuleParts{OID: 23003, Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true}),
 		// Invalid actions deliberately establish exclusion before rendering.
-		stored.NewRule(stored.RuleParts{OID: 23004, Name: "_RETURN", Event: "SELECT", Actions: []stored.RuleAction{stored.NewRuleAction(stored.RuleActionParts{})}}),
-		stored.NewRule(stored.RuleParts{OID: 23005, Name: "_return", Event: "DELETE"}),
+		stored.NewRule(stored.RuleParts{OID: 23004, Name: "_RETURN", Event: "SELECT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{stored.NewRuleAction(stored.RuleActionParts{})}}),
+		stored.NewRule(stored.RuleParts{OID: 23005, Name: "_return", Event: "DELETE", Mode: catalog.RuleOrigin}),
 	})
-	second.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 23006, Name: "r", Event: "UPDATE"})})
+	second.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 23006, Name: "r", Event: "UPDATE", Mode: catalog.RuleOrigin})})
 	view := inheritanceUnitView(f.e, first, second)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.RulesOID})
 	produce, ok := pgcatalog.ProducerFor(pgcatalog.RulesOID)
@@ -89,8 +89,8 @@ func TestPGRulesProducer(t *testing.T) {
 	input.Context = context.Background()
 	broken := *first
 	broken.Rules = stored.RulesPayload([]stored.Rule{
-		stored.NewRule(stored.RuleParts{OID: 23003, Name: "r", Event: "INSERT"}),
-		stored.NewRule(stored.RuleParts{OID: 23007, Name: "broken", Event: "INSERT", Actions: []stored.RuleAction{stored.NewRuleAction(stored.RuleActionParts{Syntax: &parser.Insert{}, Binding: analyze.Binding{Ref: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 23999}}}})}}),
+		stored.NewRule(stored.RuleParts{OID: 23003, Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin}),
+		stored.NewRule(stored.RuleParts{OID: 23007, Name: "broken", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{stored.NewRuleAction(stored.RuleActionParts{Syntax: &parser.Insert{}, Binding: analyze.Binding{Ref: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 23999}}}})}}),
 	})
 	input.Catalog = inheritanceUnitView(f.e, &broken)
 	if rows, err := produce(input); rows != nil || !errors.Is(err, ids.ErrCatalogReplaced) {

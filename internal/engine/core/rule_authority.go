@@ -16,6 +16,19 @@ var _ view.RuleAuthority = AuthorizationView{}
 // Access returns the privilege view the authority checks against.
 func (v AuthorizationView) Access() access.View { return v.View }
 
+// RuleReplica reads the operation-effective enum once per selection attempt.
+// Rule ownership changes do not change this settings store. Caller holds no
+// settings mutex; Engine.Mu may be held (the canonical lock order).
+func (v AuthorizationView) RuleReplica() bool {
+	if v.settings == nil {
+		return false
+	}
+	v.settings.Mu.Lock()
+	replica := v.settings.TypedValue("session_replication_role").Text == "replica"
+	v.settings.Mu.Unlock()
+	return replica
+}
+
 // AsUser returns a copy whose current user is principal; v is unchanged.
 func (v AuthorizationView) AsUser(principal authorization.PrincipalRef) view.RuleAuthority {
 	v.State.CurrentUser = principal

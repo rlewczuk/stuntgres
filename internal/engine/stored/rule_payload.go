@@ -20,7 +20,7 @@ func (r RuleList) OID(i int) ids.OID { return r[i].OID }
 
 func (r RuleList) Visit(visit func(catalog.RuleFact) error) error {
 	for _, rule := range r {
-		if err := visit(catalog.RuleFact{OID: rule.OID, Name: rule.Name, Event: ruleEventCode(rule.event), Instead: rule.instead, References: rule.references}); err != nil {
+		if err := visit(catalog.RuleFact{OID: rule.OID, Name: rule.Name, Event: ruleEventCode(rule.event), Instead: rule.instead, Mode: rule.mode, References: rule.references}); err != nil {
 			return err
 		}
 	}

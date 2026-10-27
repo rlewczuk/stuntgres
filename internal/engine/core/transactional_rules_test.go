@@ -41,7 +41,7 @@ func TestTransactionalRulesDependencyPreflight(t *testing.T) {
 						p.Binding.Insert.Conflict = &analyze.InsertConflict{Constraint: target}
 					})
 				}
-				rule := stored.NewRule(stored.RuleParts{OID: 900101, Name: "late", Event: "INSERT", Actions: []stored.RuleAction{action}})
+				rule := stored.NewRule(stored.RuleParts{OID: 900101, Name: "late", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{action}})
 				refs, err := view.RuleReferences(context.Background(), auth.Catalog, rule)
 				if err != nil {
 					t.Fatal(err)
@@ -133,7 +133,7 @@ func TestTransactionalRulesActionAdmission(t *testing.T) {
 	})
 	conditionRef := ruleUnitRef(e, src)
 	conditionRef.Address.SubID = 2
-	rule := stored.NewRule(stored.RuleParts{Actions: []stored.RuleAction{outer}, Condition: plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[1]), Origin: conditionRef}})
+	rule := stored.NewRule(stored.RuleParts{Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{outer}, Condition: plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[1]), Origin: conditionRef}})
 	refs, err := view.RuleReferences(context.Background(), read, rule)
 	if err != nil {
 		t.Fatal(err)

@@ -3,6 +3,9 @@ package stored
 import (
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 	"testing"
 )
 
@@ -12,6 +15,39 @@ import (
 func TestRulePartsRoundTrip(t *testing.T) {
 	checkPartsRoundTrip(t, NewRule, Rule.Parts, Rule.With)
 	checkPartsRoundTrip(t, NewRuleAction, RuleAction.Parts, RuleAction.With)
+}
+
+func TestRuleModePayloadRoundTrip(t *testing.T) {
+	for _, mode := range []catalog.RuleMode{catalog.RuleOrigin, catalog.RuleDisabled, catalog.RuleReplica, catalog.RuleAlways} {
+		rule := NewRule(RuleParts{OID: 900101, Name: "r", Event: "INSERT", Mode: mode})
+		if rule.Mode() != mode || NewRule(rule.Parts()).Mode() != mode || rule.With(func(p *RuleParts) { p.Name = "renamed" }).Mode() != mode {
+			t.Fatal("mode lost", mode)
+		}
+		owner := &catalog.Relation{Rules: RulesPayload([]Rule{rule})}
+		if err := ValidateRules(catalog.Read{}, owner); err != nil {
+			t.Fatal(err)
+		}
+		if err := owner.VisitRules(func(fact catalog.RuleFact) error {
+			if fact.Mode != mode {
+				t.Fatal(fact)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		read, event, _, _ := ruleDisplayFixture(t)
+		event.Rules = owner.Rules
+		mapped, err := RemapRules(read, event, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil)
+		if err != nil || RulesOf(mapped)[0].Mode() != mode || RulesOf(event)[0].Mode() != mode {
+			t.Fatal("remap lost mode or mutated source", mode, err)
+		}
+	}
+	for _, mode := range []catalog.RuleMode{0, 'X'} {
+		rule := NewRule(RuleParts{OID: 900101, Name: "r", Event: "INSERT", Mode: mode})
+		if err := ValidateRules(catalog.Read{}, &catalog.Relation{Rules: RulesPayload([]Rule{rule})}); err == nil {
+			t.Fatal("invalid mode admitted", mode)
+		}
+	}
 }
 
 func checkPartsRoundTrip[T, P any](t *testing.T, build func(P) T, parts func(T) P, with func(T, func(*P)) T) {

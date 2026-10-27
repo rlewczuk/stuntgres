@@ -184,8 +184,13 @@ nontransactional.
   TEMP use and retain their ordinary pure parsing/immutable-default contract.
   SET list flattening distinguishes raw keyword lists from quote-reconstructed
   tablespace/preload lists. Catalog-dependent client setting checks run in the
-  root before the atomic install window, not under session locks. Simulated
-  replication/check-function settings never weaken FK/final routine validation.
+  root before the atomic install window, not under session locks.
+  session_replication_role controls ordinary rewrite-rule selection and
+  invalidates session prepared analysis on effective changes, including SAVE,
+  savepoint/transaction and detached-invocation restoration. The shared plan
+  generation preflight reserves capacity for pending infallible restorations;
+  installation/restoration does not invoke cache callbacks under settings locks.
+  It does not implement replication transport or weaken FK/routine validation.
   RESET ALL resets previously assigned eligible privileged builtins without
   rechecking SET grants (including after revoke); individual RESET still
   checks current SET authority. The same setting action stack makes that reset

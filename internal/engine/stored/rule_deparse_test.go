@@ -32,7 +32,7 @@ func ruleDisplayFixture(t *testing.T) (catalog.Read, *catalog.Relation, *catalog
 
 func TestRuleDefinitionPresentation(t *testing.T) {
 	read, event, target, action := ruleDisplayFixture(t)
-	rule := NewRule(RuleParts{Name: "r", Event: "INSERT", Actions: []RuleAction{action}})
+	rule := NewRule(RuleParts{Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []RuleAction{action}})
 	before := rule.Parts()
 	check := func(p Presentation, owner ids.SessionToken, want string) {
 		t.Helper()
@@ -72,7 +72,7 @@ func TestRuleDefinitionPresentation(t *testing.T) {
 func TestRuleDefinitionReplaySeparation(t *testing.T) {
 	read, event, target, action := ruleDisplayFixture(t)
 	ctx := context.Background()
-	rule := NewRule(RuleParts{Name: "r", Event: "INSERT", Instead: true, Actions: []RuleAction{action, action}})
+	rule := NewRule(RuleParts{Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []RuleAction{action, action}})
 	display, err := RuleDefinitionSQL(ctx, read, event, rule, Presentation{Path: []ids.ObjectAddress{target.Namespace()}}, ids.SessionToken{})
 	want := "CREATE RULE r AS\n    ON INSERT TO capture.source DO INSTEAD ( INSERT INTO target (v)\n  VALUES (new.v);\n INSERT INTO target (v)\n  VALUES (new.v);\n);"
 	if err != nil || display != want {
@@ -92,7 +92,7 @@ func TestRuleDefinitionReplaySeparation(t *testing.T) {
 	syntax := &parser.Select{Targets: []parser.Expr{raw}}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: boolean.Usage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{literal}, Syntax: syntax, Frame: 1}
 	condition := NewView(ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Frames: map[uint32]*plan.ProjectNode{1: project}, Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Literals: map[analyze.ViewLiteralPath]plan.LiteralExpr{{Query: 1, Clause: analyze.ViewTargetLiteral}: literal}})
-	rule = NewRule(RuleParts{Name: "qualified", Event: "UPDATE", Condition: literal, ConditionPresentation: condition})
+	rule = NewRule(RuleParts{Name: "qualified", Event: "UPDATE", Mode: catalog.RuleOrigin, Condition: literal, ConditionPresentation: condition})
 	display, err = RuleDefinitionSQL(ctx, read, event, rule, Presentation{}, ids.SessionToken{})
 	if err != nil || display != "CREATE RULE qualified AS\n    ON UPDATE TO capture.source\n   WHERE true DO NOTHING;" {
 		t.Fatal("condition display", display, err)

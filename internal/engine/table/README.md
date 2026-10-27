@@ -55,6 +55,11 @@ call live here.
   predecessor. Misc resolution follows all ADD definitions, including deferred
   foreign keys. `PlanAlterScan` unions selected validation with independently
   required shape checks without scanning unrelated invalid facts.
+  Named rule-mode actions are root-only miscellaneous work after deferred FKs.
+  Their pure immutable candidates preserve recipes/OIDs/dependencies and return
+  the identical predecessor for no-ops. Mode-only lists use metadata-only
+  staging without heap copies; mixed lists share the ordinary candidate, stage
+  and enclosing Finish, including cancellation and late validation failure.
 - **NOT NULL, CHECK, DEFAULT and generated columns** (`not_null_*.go`,
   `physical_not_null*.go`, `check*.go`, `default*.go`, `generated*.go`,
   `row_constraints.go`): `NotNullCandidate`, the physical NOT NULL transitions,

@@ -29,6 +29,7 @@ type RuleFact struct {
 	OID         ids.OID
 	Name, Event string
 	Instead     bool
+	Mode        RuleMode
 	References  []ids.ObjectAddress
 }
 

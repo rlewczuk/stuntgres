@@ -1029,11 +1029,16 @@ const (
 	SetRelationOptions
 	ResetRelationOptions
 	ValidateConstraint
+	EnableRule
+	DisableRule
+	EnableReplicaRule
+	EnableAlwaysRule
 )
 
 type AlterTableAction struct {
 	Column      Identifier
 	Constraint  Identifier
+	Rule        Identifier
 	Tablespace  Identifier
 	Parent      ObjectName
 	Action      AlterTableActionKind

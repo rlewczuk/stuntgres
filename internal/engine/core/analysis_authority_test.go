@@ -32,6 +32,7 @@ type foreignAuthority struct{}
 
 func (foreignAuthority) AnalyzeAuthority()         {}
 func (foreignAuthority) ReadCatalog() catalog.Read { return catalog.Read{} }
+func (foreignAuthority) RuleReplica() bool         { return false }
 
 func mustPanic(t *testing.T, what string, f func()) {
 	t.Helper()

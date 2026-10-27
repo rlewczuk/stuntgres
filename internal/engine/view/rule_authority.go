@@ -14,4 +14,5 @@ type RuleAuthority interface {
 	Access() access.View
 	AsUser(authorization.PrincipalRef) RuleAuthority   // the rule owner
 	StorageLocked(ids.ObjectAddress) *storage.Relation // caller holds Engine.mu
+	RuleReplica() bool                                 // current operation-effective setting, independent of rule owner
 }

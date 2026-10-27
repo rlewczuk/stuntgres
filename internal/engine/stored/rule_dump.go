@@ -723,6 +723,17 @@ func RuleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 				}
 			}
 			sql.WriteString(";\n")
+			switch r.mode {
+			case catalog.RuleOrigin:
+			case catalog.RuleDisabled:
+				sql.WriteString("ALTER TABLE " + table + " DISABLE RULE " + catalog.QuoteIdentifier(r.Name) + ";\n")
+			case catalog.RuleReplica:
+				sql.WriteString("ALTER TABLE " + table + " ENABLE REPLICA RULE " + catalog.QuoteIdentifier(r.Name) + ";\n")
+			case catalog.RuleAlways:
+				sql.WriteString("ALTER TABLE " + table + " ENABLE ALWAYS RULE " + catalog.QuoteIdentifier(r.Name) + ";\n")
+			default:
+				return nil, fmt.Errorf("stuntgres: invalid rule enable mode")
+			}
 			groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: sql.String(), Binding: binding})
 		}
 	}

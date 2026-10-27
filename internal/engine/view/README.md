@@ -83,6 +83,12 @@ imports `view`.
   retain the original routine invoker. A NEW graft loans only the containing
   DEFAULT's certified original callable references and effective revisions;
   source recipes, stored actions and their dependency slices remain immutable.
+  Runtime selection uses the operation-effective replication role before any
+  expansion, recursion, residual predicate, RETURNING or view/CTE routing.
+  Rule-owner authority never changes that session setting. UPDATE-rule presence
+  precedes mode filtering for ON CONFLICT; MERGE considers only active rules.
+  Catalog presence, dependencies and structural updatability ignore firing mode;
+  implicit SELECT view expansion remains active in every replication role.
 - **Writes through views** (`write*.go`, `binding_slots.go`,
   `default_origin.go`): `Write` (base relation field `BaseRelation`, because
   `Base()` is the `analyze.ViewWriteSlot` method), `WriteLayer`, `BindViewWrite`,

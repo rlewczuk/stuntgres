@@ -115,7 +115,7 @@ func TestViewWriteMapping(t *testing.T) {
 	scope, op := f.scope(t)
 	auth := f.authorization(t, op)
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-	if err := view.BindViewWrite(&f.e.Catalog.Owner, auth.Catalog, &b, &parser.Update{}); err != nil {
+	if err := view.BindViewWrite(&f.e.Catalog.Owner, auth.Catalog, auth.RuleReplica(), &b, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	if b.Relation != f.view || b.Ref != f.viewRef || b.Targets[0] != 1 || view.PhysicalBinding(b).Ref != f.baseRef {
@@ -173,7 +173,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	constant, _ := sqltype.Integer(f.integer, 42)
 	f.base.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{19: {Expression: plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: constant}}}
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Expressions: [][]expr.Expr{{nil}}}
-	if err := view.BindViewWrite(&f.e.Catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
+	if err := view.BindViewWrite(&f.e.Catalog.Owner, f.authorization(t, op).Catalog, f.authorization(t, op).RuleReplica(), &b, &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if len(b.Insert.Defaults) != 3 || b.Insert.Defaults[2] == nil || b.Targets[0] != 1 {

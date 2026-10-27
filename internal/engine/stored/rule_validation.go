@@ -23,6 +23,9 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []Rule) erro
 			return fmt.Errorf("stuntgres: invalid rule identity/order")
 		}
 		previous = r.Name
+		if !r.mode.Valid() {
+			return fmt.Errorf("stuntgres: invalid rule enable mode")
+		}
 		if r.event != "INSERT" && r.event != "UPDATE" && r.event != "DELETE" {
 			return fmt.Errorf("stuntgres: invalid ordinary rule event")
 		}

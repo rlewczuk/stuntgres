@@ -116,7 +116,7 @@ func TestViewCapabilitiesRuleEvents(t *testing.T) {
 		instead, conditional bool
 		want                 uint32
 	}{{"INSERT", true, false, 8}, {"UPDATE", true, false, 4}, {"DELETE", true, false, 16}, {"UPDATE", false, false, 0}, {"UPDATE", true, true, 0}, {"SELECT", true, false, 0}} {
-		parts := stored.RuleParts{Event: tc.event, Instead: tc.instead}
+		parts := stored.RuleParts{Event: tc.event, Mode: catalog.RuleOrigin, Instead: tc.instead}
 		if tc.conditional {
 			parts.Condition = plan.LiteralExpr{}
 		}
@@ -128,7 +128,7 @@ func TestViewCapabilitiesRuleEvents(t *testing.T) {
 			}
 		}
 	}
-	relation.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{Event: "UPDATE", Instead: true}), stored.NewRule(stored.RuleParts{Event: "DELETE", Instead: true})})
+	relation.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{Event: "UPDATE", Mode: catalog.RuleOrigin, Instead: true}), stored.NewRule(stored.RuleParts{Event: "DELETE", Mode: catalog.RuleOrigin, Instead: true})})
 	if got, err := Capabilities(context.Background(), read, relation, nil, capabilityBuiltin); err != nil || got != 20 {
 		t.Fatalf("combined rules: %d, %v", got, err)
 	}

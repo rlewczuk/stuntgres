@@ -81,7 +81,7 @@ func TestViewCheckDeclaration(t *testing.T) {
 func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *core.StatementScope, op *session.Operation) analyze.Binding {
 	t.Helper()
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-	if err := view.BindViewWrite(&f.e.Catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Update{}); err != nil {
+	if err := view.BindViewWrite(&f.e.Catalog.Owner, f.authorization(t, op).Catalog, f.authorization(t, op).RuleReplica(), &b, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	return view.PhysicalBinding(b)
@@ -122,7 +122,7 @@ func TestViewCheckStack(t *testing.T) {
 					layers[i].View = stored.ViewOf(layers[i]).With(func(p *stored.ViewParts) { p.CheckOption = stored.CheckMode(mode) })
 				}
 				b := analyze.Binding{Relation: layers[2], Ref: refs[2]}
-				if err := view.BindViewWrite(&f.e.Catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
+				if err := view.BindViewWrite(&f.e.Catalog.Owner, f.authorization(t, op).Catalog, f.authorization(t, op).RuleReplica(), &b, &parser.Insert{}); err != nil {
 					t.Fatal(err)
 				}
 				var want, got []string

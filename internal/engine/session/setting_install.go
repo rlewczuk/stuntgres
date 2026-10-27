@@ -51,6 +51,19 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 	if err := s.ValidateValueLocked(d, value); err != nil {
 		return "", err
 	}
+	beforeRole := ""
+	if d.Name == "session_replication_role" {
+		beforeRole = s.TypedValue(d.Name).Text
+		nextRole := s.DefaultTyped[d.Name].Text
+		if value != nil {
+			nextRole = value.Text
+		}
+		if nextRole != beforeRole {
+			if err := op.Session.PlanGenerationHeadroom(op, 1); err != nil {
+				return "", err
+			}
+		}
+	}
 	s.Touch(d.Name, action)
 	if _, registered := registry.Definitions()[d.Name]; !registered {
 		s.Placeholders[d.Name] = true
@@ -61,6 +74,9 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 	} else {
 		s.Values[d.Name] = d.Format(*value)
 		s.Typed[d.Name] = *value
+	}
+	if d.Name == "session_replication_role" {
+		s.RuleRoleChanged(beforeRole)
 	}
 	if !s.Invocation && (d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout") {
 		op.Session.PublishTimeoutSettingsLocked(s, d.Name == "transaction_timeout", time.Now())
@@ -75,6 +91,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 // placeholder recognition remain intact; the default provider is never
 // invoked again. Caller holds Settings.Mu then Session.Mu of s.Session.
 func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
+	beforeRole := s.TypedValue("session_replication_role").Text
 	timeoutChanged, transactionAssignment := false, false
 	for key := range s.Values {
 		if d, ok := registry.Definitions()[key]; ok && d.Access != settings.Session && !(d.Access == settings.Privileged && parameterGrantSetting(d.Name)) {
@@ -90,6 +107,7 @@ func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 			timeoutChanged = true
 		}
 	}
+	s.RuleRoleChanged(beforeRole)
 	if timeoutChanged && !s.Invocation {
 		s.Session.PublishTimeoutSettingsLocked(s, transactionAssignment, time.Now())
 	}
