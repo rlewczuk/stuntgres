@@ -71,6 +71,8 @@ type Host interface {
 	CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error)
+	// functions.GenericFileListRuntime
+	GenericFileList(functions.GenericFileListKind, string) error
 	PartitionTree(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionAncestors(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionRoot(uint32, *sqltype.Descriptor) (sqltype.Value, error)

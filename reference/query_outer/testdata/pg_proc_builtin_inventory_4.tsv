@@ -433,3 +433,12 @@
 6428	uuidv4	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2950		\N	\N	\N	false	\N	gen_random_uuid	\N	false	\N
 6429	uuidv7	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2950		\N	\N	\N	false	\N	uuidv7	\N	false	\N
 6430	uuidv7	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	2950	1186	\N	\N	{shift}	false	\N	uuidv7_interval	\N	false	\N
+2625	pg_ls_dir	11	12	1	1000	0	0	f	false	false	true	true	v	s	1	0	25	25	\N	\N	\N	false	\N	pg_ls_dir_1arg	\N	false	\N
+3297	pg_ls_dir	11	12	1	1000	0	0	f	false	false	true	true	v	s	3	0	25	25 16 16	\N	\N	\N	false	\N	pg_ls_dir	\N	false	\N
+3353	pg_ls_logdir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_logdir	\N	false	\N
+3354	pg_ls_waldir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_waldir	\N	false	\N
+5031	pg_ls_archive_statusdir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_archive_statusdir	\N	false	\N
+6270	pg_ls_logicalsnapdir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_logicalsnapdir	\N	false	\N
+6271	pg_ls_logicalmapdir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_logicalmapdir	\N	false	\N
+6272	pg_ls_replslotdir	11	12	10	20	0	0	f	false	false	true	true	v	s	1	0	2249	25	{25,25,20,1184}	{i,o,o,o}	{slot_name,name,size,modification}	false	\N	pg_ls_replslotdir	\N	false	\N
+6400	pg_ls_summariesdir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_summariesdir	\N	false	\N

@@ -20,11 +20,24 @@ applicable policies default to denial. Ordinary ACL checks remain separate, and
 policy evaluation errors preserve their diagnostics rather than becoming hidden
 rows or proposed-row policy violations.
 
+Generic server directory listing scenarios own the nine selected signatures,
+typed strict empties, central EXECUTE and live inherited-role authority,
+lexical dirname restrictions, held-statement reauthorization and procedure ACL
+control replay. Physical native rejection and stock filesystem/slot outcomes
+have separate independent expectations; actual stock entries are unordered bags.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
 Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
+The file-list family uses `make check RUN='^TestReferenceGenericFileLists'`.
+File-list scenarios restore the original PostgreSQL builtin ACLs on every exit,
+after removing actor-owned grant dependencies and before cluster role teardown.
+Restricted actors never read protected log settings for helper expectations;
+the administrative backend pool supplies fixture configuration. Raw native
+procedure ACL repairs use emitted Dump statements through Restore, not live
+catalog UPDATE.
 
 Type identity lifecycle reuses the existing OWNER/ACL authority, including real
 array and standalone-composite backing owners. Extension membership is not an

@@ -17,6 +17,15 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
+	2625: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_dir_1arg"},
+	3297: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_dir"},
+	3353: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_logdir", Cost: 10},
+	3354: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_waldir", Cost: 10},
+	6271: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_logicalmapdir", Cost: 10},
+	6270: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_logicalsnapdir", Cost: 10},
+	6272: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_replslotdir", Cost: 10},
+	6400: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_summariesdir", Cost: 10},
+	5031: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_archive_statusdir", Cost: 10},
 	3355: {Language: catalog.InternalRoutineLanguage, Source: "pg_ndistinct_in"},
 	3356: {Language: catalog.InternalRoutineLanguage, Source: "pg_ndistinct_out"},
 	3357: {Language: catalog.InternalRoutineLanguage, Source: "pg_ndistinct_recv"},

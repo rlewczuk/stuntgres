@@ -12,6 +12,15 @@ the authority behind evaluation capabilities in the root
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
 
+`GenericFileList` binds the nine selected `pg_ls_*` signatures as volatile,
+strict typed sources, retaining only a closed kind, immutable operands and
+result shape. Ordinary EXECUTE admission precedes runtime NULL handling; all
+written operands evaluate before a NULL produces a typed empty cursor.
+Non-NULL calls borrow `GenericFileListRuntime` from the executing statement.
+Its dirname policy is purely lexical over current logical settings and role
+capabilities; neither expressions nor cursors retain authorization or host
+filesystem access.
+
 `StatisticsIO` binds the released internal statistics input/output/send
 declarations through the ordinary signature and coercion owners. Calls are
 strict; non-NULL input delegates to the rejecting concrete codec. Output uses
@@ -566,6 +575,8 @@ behavior is tested only in `reference/`
 Datetime sleep source admission and scalar-once lifetime use
 `RUN='^TestDatetimeSleepScalarSource$'`, also with `RACE=1`.
 Statistics I/O volatility and folding units use `RUN='^TestStatisticsObjectIO'`.
+Generic file-list binding, lexical paths, source ownership and ACL persistence
+use `RUN='^TestGenericFileList'`.
 
 Native ordered support state, tuple ownership and cancellation units use
 `RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in

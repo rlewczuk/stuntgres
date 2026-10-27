@@ -141,6 +141,10 @@ function references once into the destination authority.
   Changed raw authority uses the existing repairs; reordering, duplicates and
   explicit absence/emptiness are not effective-rights normalization. Defaults
   therefore add no dump noise, while custom SELECT/EXECUTE grants survive replay.
+  Generic-file-list routine ACLs likewise omit only exact bootstrap-owned
+  callable identities and ordered explicit owner/pg_monitor seed entries
+  (owner-only for both pg_ls_dir overloads). NULL, empty, default-equivalent,
+  reordered, delegated and grant-option edits remain raw repairs.
   Explicit-empty repairs use the existing lossless
   `pg_catalog.acldefault('c',0)` constructor, with qualified argument types, to
   preserve PostgreSQL's one-dimensional empty ACL representation. Isolated

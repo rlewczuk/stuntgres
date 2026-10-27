@@ -29,6 +29,8 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		3261: {"target", "strip_in_arrays"},
 		3270: {"key", "value"},
 		3305: {"jsonb_in", "path", "replacement", "create_if_missing"},
+		3353: {"name", "size", "modification"},
+		3354: {"name", "size", "modification"},
 		3382: {"classid", "objid", "objsubid", "type", "object_names", "object_args"},
 		3396: {"string", "pattern"},
 		3397: {"string", "pattern", "flags"},
@@ -72,6 +74,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		4007: {"target", "path", "vars", "silent"},
 		4008: {"target", "path", "vars", "silent"},
 		4009: {"target", "path", "vars", "silent"},
+		5031: {"name", "size", "modification"},
 		5054: {"jsonb_in", "path", "replacement", "create_if_missing", "null_value_treatment"},
 		6159: {"fktable", "fkcols", "pktable", "pkcols", "is_array", "is_opt"},
 		6168: {"xid", "timestamp", "roident"},
@@ -95,6 +98,9 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		6267: {"string", "pattern", "start", "N"},
 		6268: {"string", "pattern", "start", "N", "flags"},
 		6269: {"string", "pattern", "start", "N", "flags", "subexpr"},
+		6270: {"name", "size", "modification"},
+		6271: {"name", "size", "modification"},
+		6272: {"slot_name", "name", "size", "modification"},
 		6280: {"key", "value"},
 		6281: {"key", "value"},
 		6282: {"key", "value"},
@@ -107,6 +113,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		6385: {"classid", "objid", "objsubid"},
 		6389: {"array", "descending"},
 		6390: {"array", "descending", "nulls_first"},
+		6400: {"name", "size", "modification"},
 		6430: {"shift"},
 	}
 	seen := 0
@@ -139,7 +146,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 			}
 		}
 	}
-	if seen != 100 {
+	if seen != 107 {
 		t.Fatal("incomplete named declaration inventory", seen)
 	}
 }

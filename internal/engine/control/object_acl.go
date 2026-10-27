@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -23,6 +24,7 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 	c := s.Capture
 	bootstrap, _ := c.OriginalRoles.Lookup("postgres")
 	stats, _ := c.OriginalRoles.Lookup("pg_read_all_stats")
+	monitor, _ := c.OriginalRoles.Lookup("pg_monitor")
 	var statements []string
 	s.typeACLStatements = make(map[ids.OID][]string)
 	for _, d := range c.OriginalCatalog.Descriptors() {
@@ -98,7 +100,10 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 			if sharedMemoryACLReconstructed(d, bootstrap.Ref, stats.Ref) {
 				continue
 			}
-			if !acl.Explicit && d.SQL == nil && d.Aggregate == nil && d.Address().ObjectID != 5052 && d.Address().ObjectID != 4100 {
+			if genericFileListACLReconstructed(d, bootstrap.Ref, monitor.Ref) {
+				continue
+			}
+			if !acl.Explicit && d.SQL == nil && d.Aggregate == nil && d.Address().ObjectID != 5052 && d.Address().ObjectID != 4100 && !routine.GenericFileListRoutine(d.Address().ObjectID) {
 				continue
 			}
 			ns, ok := c.OriginalCatalog.Namespace(d.Namespace())

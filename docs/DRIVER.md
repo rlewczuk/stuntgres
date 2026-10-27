@@ -614,6 +614,34 @@ fixture independently runs PostgreSQL 18.6 (180006); its vendor banner is not
 native identity. Logical Reset/Dump/Restore neither serialize nor reset live
 preset values, and restoring tables cannot allocate their simulated resources.
 
+## Server directory listing boundary
+
+The typed SQL surface includes `pg_ls_dir(text)` and
+`pg_ls_dir(text, boolean, boolean)`, plus `pg_ls_logdir()`, `pg_ls_waldir()`,
+`pg_ls_logicalmapdir()`, `pg_ls_logicalsnapdir()`, `pg_ls_replslotdir(text)`,
+`pg_ls_summariesdir()` and `pg_ls_archive_statusdir()`. Record sources expose
+`name TEXT`, `size INT8` and `modification TIMESTAMPTZ`; ordinary aliases and
+ordinality preserve this metadata even for zero rows.
+
+EXECUTE is an ordinary mutable procedure privilege: the dirname overloads start
+owner-only and the seven record routines also grant `pg_monitor`. An admitted
+strict NULL call yields zero rows, not a NULL row; denied NULL calls still fail
+with `42501`. Dirname authorization canonicalizes Linux-style logical paths,
+allows relative paths staying below the logical data root and component-contained
+absolute data/log roots, and respects current inherited `pg_read_server_files`
+privileges without treating that role as an EXECUTE grant.
+
+Every authorized non-NULL physical request then fails with SQLSTATE `0A000` and
+`<function_name> physical directory listing is unsupported in embedded mode`.
+No host directory is inspected, including for superusers, `missing_ok=true` or
+non-NULL slot names. Stock PostgreSQL instead operates on real server storage:
+missing directories may fail or be tolerated by the selected function/flags,
+ordinary files are not directories, and absent replication slots fail `42704`.
+Those stock filesystem/slot outcomes are not simulated native directory state.
+Native Dump/Restore preserves procedure ACL edits, not physical listings or
+session settings.
+
+
 ## Foreign data wrappers
 
 Register a handler and validator implemented in Go, then create the SQL objects:

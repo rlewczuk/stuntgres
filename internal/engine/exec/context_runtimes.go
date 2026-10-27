@@ -125,6 +125,14 @@ func (c *Context) TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sq
 	return host.TablespaceDatabase(oid, result)
 }
 
+func (c *Context) GenericFileList(kind functions.GenericFileListKind, dirname string) error {
+	host := c.LiveHost()
+	if host == nil {
+		return fmt.Errorf("stuntgres: missing generic file listing host")
+	}
+	return host.GenericFileList(kind, dirname)
+}
+
 func (c *Context) PartitionTree(oid uint32, result *sqltype.Descriptor) (expr.SourceCursor, error) {
 	host := c.LiveHost()
 	if host == nil {
