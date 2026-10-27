@@ -25,6 +25,27 @@ type Spec struct {
 }
 
 var Specs = [...]Spec{
+	{ids.TriggerClassID, ids.PGCatalogNamespaceOID, "pg_trigger", []ColumnSpec{
+		{"oid", sqltype.Oid, false, 0, 0, -1},
+		{"tgrelid", sqltype.Oid, false, 0, 0, -1},
+		{"tgparentid", sqltype.Oid, false, 0, 0, -1},
+		{"tgname", sqltype.Name, false, 950, 0, -1},
+		{"tgfoid", sqltype.Oid, false, 0, 0, -1},
+		{"tgtype", sqltype.Int2, false, 0, 0, -1},
+		{"tgenabled", sqltype.Char, false, 0, 0, -1},
+		{"tgisinternal", sqltype.Bool, false, 0, 0, -1},
+		{"tgconstrrelid", sqltype.Oid, false, 0, 0, -1},
+		{"tgconstrindid", sqltype.Oid, false, 0, 0, -1},
+		{"tgconstraint", sqltype.Oid, false, 0, 0, -1},
+		{"tgdeferrable", sqltype.Bool, false, 0, 0, -1},
+		{"tginitdeferred", sqltype.Bool, false, 0, 0, -1},
+		{"tgnargs", sqltype.Int2, false, 0, 0, -1},
+		{"tgattr", sqltype.ID(22), false, 0, 1, -1},
+		{"tgargs", sqltype.Bytea, false, 0, 0, -1},
+		{"tgqual", sqltype.PgNodeTree, true, 950, 0, -1},
+		{"tgoldtable", sqltype.Name, true, 950, 0, -1},
+		{"tgnewtable", sqltype.Name, true, 950, 0, -1},
+	}, false, CatalogHasIndexes(ids.TriggerClassID), true, false, "stuntgres: missing catalog source type"},
 	{ShmemAllocationsOID, ids.PGCatalogNamespaceOID, "pg_shmem_allocations", []ColumnSpec{
 		{"name", sqltype.Text, true, 0, 0, -1},
 		{"off", sqltype.Int8, true, 0, 0, -1},
@@ -36,13 +57,6 @@ var Specs = [...]Spec{
 		{"numa_node", sqltype.Int4, true, 0, 0, -1},
 		{"size", sqltype.Int8, true, 0, 0, -1},
 	}, true, false, true, true, "stuntgres: missing shared-memory source type"},
-	{2620, ids.PGCatalogNamespaceOID, "pg_trigger", []ColumnSpec{
-		{"oid", sqltype.Oid, false, 0, 0, -1},
-		{"tgrelid", sqltype.Oid, false, 0, 0, -1},
-		{"tgname", sqltype.Name, false, 0, 0, -1},
-		{"tgisinternal", sqltype.Bool, false, 0, 0, -1},
-		{"tgconstraint", sqltype.Oid, false, 0, 0, -1},
-	}, false, CatalogHasIndexes(2620), true, false, "stuntgres: missing catalog source type"},
 	{ids.EventTriggerClassID, ids.PGCatalogNamespaceOID, "pg_event_trigger", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"evtname", sqltype.Name, false, 0, 0, -1},

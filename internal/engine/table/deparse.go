@@ -171,6 +171,11 @@ func Deparse(c *exec.Context, in DeparseInputs, signature functions.DeparseSigna
 		if err != nil {
 			return sqltype.Value{}, err
 		}
+		if tree, ok := carrier.(stored.TriggerCarrier); ok {
+			if err := tree.Preflight(c.Context, ids.OID(id)); err != nil {
+				return sqltype.Value{}, err
+			}
+		}
 		var relation *catalog.Relation
 		if id != 0 {
 			var ok bool
@@ -200,6 +205,8 @@ func Deparse(c *exec.Context, in DeparseInputs, signature functions.DeparseSigna
 			text = out.String()
 		case stored.PolicyCarrier:
 			text, err = stored.PolicyDisplay(c.Context, view, relation, tree, stored.Presentation{Pretty: pretty, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings})
+		case stored.TriggerCarrier:
+			text, err = stored.TriggerDisplay(c.Context, tree, renderer)
 		default:
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign structural tree")
 		}

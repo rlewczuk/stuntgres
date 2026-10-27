@@ -36,6 +36,7 @@ const (
 	ConversionClassID            OID = 2607
 	CastClassID                  OID = 2605
 	PolicyClassID                OID = 3256
+	TriggerClassID               OID = 2620
 	EventTriggerClassID          OID = 3466
 	ParameterClassID             OID = 6243
 	TablespaceClassID            OID = 1213

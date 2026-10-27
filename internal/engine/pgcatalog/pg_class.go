@@ -19,8 +19,8 @@ const ClassOID ids.OID = 1259
 func CatalogHasIndexes(oid ids.OID) bool {
 	switch oid {
 	case TypeOID, 1213, 1249, 1255, 1259, ids.RoleClassID, AuthMembersOID, 1262, 2224, 2396, 2600, AMOID, 2602, 2604, 2605, 2606, 2607,
-		ids.PolicyClassID,
-		2608, 2609, 2610, 2611, 2612, 2613, 2615, 2616, 2617, 2618, 2620, 2964, 3079, 3456, 3501, pgRangeOID, TransformOID, 3600, TSParserOID, TSConfigOID, 3764, ids.ParameterClassID, 826:
+		ids.PolicyClassID, ids.TriggerClassID,
+		2608, 2609, 2610, 2611, 2612, 2613, 2615, 2616, 2617, 2618, 2964, 3079, 3456, 3501, pgRangeOID, TransformOID, 3600, TSParserOID, TSConfigOID, 3764, ids.ParameterClassID, 826:
 		return true
 	case TSConfigMapOID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID, SubscriptionRelOID:
 		return true
@@ -78,6 +78,16 @@ func ClassPersistence(catalog catalog.Read, relation *catalog.Relation) string {
 }
 
 func ClassRow(in Input, relation *catalog.Relation) ([]sqltype.Value, error) {
+	hasTriggers := relation.HasTriggers()
+	if !hasTriggers {
+		for fact := range catalog.ForeignKeyTriggerFacts(in.Catalog) {
+			if fact.Relation == relation.Address() { hasTriggers = true; break }
+		}
+	}
+	return classRow(in, relation, hasTriggers)
+}
+
+func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype.Value, error) {
 	ctx, view, roles, source := in.Context, in.Catalog, in.Roles, in.Source
 	var failure error
 	checked := func(value sqltype.Value, err error) sqltype.Value {
@@ -154,7 +164,7 @@ func ClassRow(in Input, relation *catalog.Relation) ([]sqltype.Value, error) {
 		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.History.HasIndexes), boolean(15, shared),
 		text(16, ClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.ColumnMeta.HighWater)), integer(19, int64(len(relation.Constraints.Check))),
-		boolean(20, relation.HasRules() || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, relation.HasTriggers()), boolean(22, relation.History.HasSubclasses),
+		boolean(20, relation.HasRules() || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, hasTriggers), boolean(22, relation.History.HasSubclasses),
 		boolean(23, relation.Security.RLSEnabled), boolean(24, relation.Security.RLSForced), boolean(25, relation.RelationKind != catalog.MaterializedViewRelation || relation.Populated),
 		text(26, replica), boolean(27, relation.Membership != nil || relation.SQLIndex != nil && relation.SQLIndex.PartitionParent != (ids.ObjectAddress{})), oid(28, 0),
 		checked(sqltype.XIDValue(source.Columns[29].Usage.Type, frozenXID)), checked(sqltype.XIDValue(source.Columns[30].Usage.Type, 0)), acl, options, bound,

@@ -135,6 +135,9 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   writes its native structural text (not PostgreSQL `nodeToString`) and
   `CatalogTree` stores it as a catalog value. `pg_get_expr` and the catalog
   producers read it through these names.
+  Rule/trigger pseudo-columns additionally preserve their reserved Scope and
+  OLD/NEW Frame; rows retain nonzero RuleSide even with no fields. This namespace
+  provenance must not collapse into an indistinguishable expanded field list.
   `ExpressionListTree` privately retains an ordered immutable slice of checked
   default nodes, including typed NULL literals as present entries, and uses the
   same structural writer. `table.Deparse` renders its elements through the

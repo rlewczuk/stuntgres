@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -119,6 +120,13 @@ func capturePGClass(in Input) ([][]sqltype.Value, error) {
 	}
 	sort.Slice(relations, func(i, j int) bool { return relations[i].Address().ObjectID < relations[j].Address().ObjectID })
 	rows := make([][]sqltype.Value, 0, len(relations))
+	// Derive FK-side metadata once for this capture, not once per catalog row.
+	var foreignKeyTriggers map[ids.ObjectAddress]bool
+	for fact := range catalog.ForeignKeyTriggerFacts(view) {
+		if err := ctx.Err(); err != nil { return nil, err }
+		if foreignKeyTriggers == nil { foreignKeyTriggers = make(map[ids.ObjectAddress]bool) }
+		foreignKeyTriggers[fact.Relation] = true
+	}
 
 	for _, relation := range relations {
 		if err := ctx.Err(); err != nil {
@@ -131,7 +139,7 @@ func capturePGClass(in Input) ([][]sqltype.Value, error) {
 		}) {
 			continue
 		}
-		row, err := ClassRow(in, relation)
+		row, err := classRow(in, relation, relation.HasTriggers() || foreignKeyTriggers[relation.Address()])
 		if err != nil {
 			return nil, err
 		}

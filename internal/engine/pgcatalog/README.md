@@ -63,6 +63,22 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Reads neither execute referenced functions nor manufacture definitions.
   `evttags` is a nullable one-dimensional text array, consistent with its
   source-owned `pg_attribute` facts.
+- `pg_trigger` (2620) projects one row per actual immutable relation-owned
+  definition, including row/statement timing, event bits, real function and clone
+  identities, ordered UPDATE attributes and zero-terminated argument bytes.
+  The represented ordinary definitions are enabled `O`, noninternal and
+  nonconstraint; absent transitions and WHEN remain typed NULLs. Persistent
+  FK-owned RI triggers retain actual identities, INTERNAL constraint links,
+  opposite relation/index, action-selected functions and AFTER ROW events.
+  Their declared nondeferrable state, empty args/vector and absent
+  WHEN/transitions remain distinct from ordinary user definitions. Capture
+  validates source/type generations and paired catalog/role authority even empty.
+  Ordinary catalog PUBLIC SELECT applies independently of target privileges,
+  WHEN disclosure, search_path and other-session TEMP ownership. Catalog ACL
+  revocation remains authoritative. This is not information_schema filtering.
+  Checked WHEN carriers retain their actual immutable payload elements and native
+  logical structure without evaluation. Semantic `pg_get_expr` validates OLD/NEW
+  namespaces before relation lookup and uses the supplied relation as context.
 - `pg_statistic_ext` (3381) is a real PUBLIC-readable nine-column definitions
   catalog. Its authenticated source projects actual immutable CREATE STATISTICS
   definitions with current-generation schema, owner and input relation links.
@@ -265,11 +281,11 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Zero arguments produce an empty non-NULL argument vector. `provariadic`
   projects the selected builtin declaration, SQL variadic array element, range
   constructor, or owned aggregate's VARIADIC ANY identity; nonvariadic
-  declarations report zero. Selected internal parser/vector-I/O metadata and
-  the genuine `pg_ddl_command_recv(internal)` signature retain actual identities
-  without installing callable providers;
-  represented descriptors take precedence. Installed codec source symbols stay
-  independent of mutable public names.
+  declarations report zero. Selected internal parser/vector-I/O metadata,
+  `pg_ddl_command_recv(internal)` and the twelve RI trigger functions retain
+  actual identities without installing callable providers. RI functions preserve
+  their explicit volatile declaration; represented descriptors take precedence.
+  Installed codec source symbols stay independent of mutable public names.
   Owned aggregate `proargnames` follows the canonical flattened declaration,
   including retained direct and ordered argument names; unnamed declarations
   retain NULL rather than an invented list.
@@ -284,11 +300,6 @@ type Producer func(Input) ([][]sqltype.Value, error)
   independently of projection order.
   The fixed dropped-object helper declaration supplies its twelve OUT names and
   released cost and row estimate without evaluating its lexical event-trigger source.
-- `pg_trigger` projects persistent user trigger payloads and catalog-owned foreign
-  key trigger facts. RI trigger identities belong to the actual FK declaration,
-  not the row producer; `pg_depend` retains their INTERNAL constraint ownership.
-  Its condensed columns retain released attribute numbers independently of
-  projection order.
 - `pg_index` vector cells use the runtime's captured index metadata projection,
   then shared typed constructors: all key/INCLUDE attributes in `indkey`,
   key-only `indcollation`, `indclass` and `indoption`. No textual vector store or
@@ -569,7 +580,10 @@ methods it needs. Rule facts and view options are read from catalog payloads
 directly (`Relation.HasRules`, `Relation.VisitRules`, `ViewPayload.Options`).
 Policy definitions likewise remain relation-owned; `PolicyTree` bridges their
 opaque frozen payload to the stored carrier without exposing its concrete owner
-here. Maintenance-aware projections need an adapter backed by a real engine;
+here. Trigger definitions use `VisitTriggerCatalog` to project checked value
+facts and owned tree carriers from the actual relation payload; the distinct
+`VisitTriggerDefinitions` retains information_schema presentation and disclosure.
+Maintenance-aware projections need an adapter backed by a real engine;
 an empty adapter is not an initialized maintenance capture.
 
 Policy producer authority and immutable structural ownership use

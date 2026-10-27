@@ -40,7 +40,7 @@ func icProviderInventory(c *icCase) {
 		"pg_proc":                                strings.Fields("oid proname pronamespace proowner prolang procost prorows provariadic prosupport prokind prosecdef proleakproof proisstrict proretset provolatile proparallel pronargs pronargdefaults prorettype proargtypes proallargtypes proargmodes proargnames proargdefaults protrftypes prosrc probin prosqlbody proconfig proacl"),
 		"pg_index":                               strings.Fields("indexrelid indrelid indisunique indisprimary indisvalid indisready indislive indnullsnotdistinct indkey indcollation indclass indoption"),
 		"pg_rewrite":                             strings.Fields("oid rulename ev_class ev_type ev_enabled is_instead"),
-		"pg_trigger":                             strings.Fields("oid tgrelid tgname tgisinternal tgconstraint"),
+		"pg_trigger":                             strings.Fields("oid tgrelid tgparentid tgname tgfoid tgtype tgenabled tgisinternal tgconstrrelid tgconstrindid tgconstraint tgdeferrable tginitdeferred tgnargs tgattr tgargs tgqual tgoldtable tgnewtable"),
 		"pg_policy":                              strings.Fields("oid polname polrelid polcmd polpermissive polroles polqual polwithcheck"),
 		"pg_cast":                                strings.Fields("oid castsource casttarget castfunc castcontext castmethod"),
 		"pg_depend":                              strings.Fields("classid objid objsubid refclassid refobjid refobjsubid deptype"),
@@ -140,9 +140,6 @@ func icProviderInventory(c *icCase) {
 				if n := map[string]int{"indisunique": 5, "indisprimary": 7, "indisvalid": 11, "indisready": 13, "indislive": 14, "indnullsnotdistinct": 6, "indkey": 16, "indcollation": 17, "indclass": 18, "indoption": 19}[field]; n != 0 {
 					ordinal = n
 				}
-			}
-			if table == "pg_trigger" {
-				ordinal = map[string]int{"oid": 1, "tgrelid": 2, "tgname": 4, "tgisinternal": 8, "tgconstraint": 11}[field]
 			}
 			want = append(want, []any{field, int64(ordinal)})
 		}

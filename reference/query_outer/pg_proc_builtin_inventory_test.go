@@ -19,7 +19,7 @@ import (
 // comes from the actual routine declaration/cast completion and fixed conversion,
 // access-method, BRIN, shared-memory and generic-file descriptor owners. The existing 1711
 // information_schema fact approach is reused, not mistaken for complete membership.
-// The fourteen intentional parser/vector/DDL-receiver supplements are included.
+// The fourteen parser/vector/DDL-receiver and twelve RI supplements are included.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -120,9 +120,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 		}
 	}
 	// This is the exact represented membership, not a guessed PostgreSQL total:
-	// 1855 actual primary + 96 other fixed owners + 14 metadata supplements.
-	if len(facts) != 1965 {
-		t.Fatalf("released represented overloads: got %d, want 1965", len(facts))
+	// 1855 actual primary + 96 other fixed owners + 26 metadata supplements.
+	if len(facts) != 1977 {
+		t.Fatalf("released represented overloads: got %d, want 1977", len(facts))
 	}
 	return facts
 }

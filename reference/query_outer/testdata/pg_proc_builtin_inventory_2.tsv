@@ -232,6 +232,18 @@
 1641	pg_get_viewdef	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	25	26	\N	\N	\N	false	\N	pg_get_viewdef	\N	false	\N
 1642	pg_get_userbyid	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	19	26	\N	\N	\N	false	\N	pg_get_userbyid	\N	false	\N
 1643	pg_get_indexdef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_indexdef	\N	false	\N
+1644	RI_FKey_check_ins	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_check_ins	\N	false	\N
+1645	RI_FKey_check_upd	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_check_upd	\N	false	\N
+1646	RI_FKey_cascade_del	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_cascade_del	\N	false	\N
+1647	RI_FKey_cascade_upd	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_cascade_upd	\N	false	\N
+1648	RI_FKey_restrict_del	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_restrict_del	\N	false	\N
+1649	RI_FKey_restrict_upd	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_restrict_upd	\N	false	\N
+1650	RI_FKey_setnull_del	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_setnull_del	\N	false	\N
+1651	RI_FKey_setnull_upd	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_setnull_upd	\N	false	\N
+1652	RI_FKey_setdefault_del	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_setdefault_del	\N	false	\N
+1653	RI_FKey_setdefault_upd	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_setdefault_upd	\N	false	\N
+1654	RI_FKey_noaction_del	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_noaction_del	\N	false	\N
+1655	RI_FKey_noaction_upd	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	RI_FKey_noaction_upd	\N	false	\N
 1656	bpcharicregexeq	11	12	1	0	0	1024	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	texticregexeq	\N	false	\N
 1657	bpcharicregexne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	texticregexne	\N	false	\N
 1658	bpcharregexeq	11	12	1	0	0	1364	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	textregexeq	\N	false	\N

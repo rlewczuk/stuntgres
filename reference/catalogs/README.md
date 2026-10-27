@@ -7,7 +7,7 @@ database-local `pg_subscription_rel` shape, stored owner/PUBLIC ACL and capture 
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, `pg_inherits`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
 `pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
-`pg_wait_events`, `pg_proc`, catalog foreign keys, and catalog controls migrated
+`pg_wait_events`, `pg_proc`, `pg_trigger`, catalog foreign keys, and catalog controls migrated
 from the root package. The other catalog packages:
 namespaces, schemas, `search_path`, visibility inquiries, operator, cast,
 aggregate, access-method, collation, language, transform, text-search,
@@ -31,6 +31,15 @@ catalog packages listed above are the only ones whose oracle loads the legacy
 OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
+
+Trigger catalog witnesses use actual relation-owned executable definitions and
+independent direct/prepared metadata, identity, visibility, consumer diagnostics
+and native-control expectations. Native structural trees are opaque across
+backends; semantic deparse and executable behavior are separate assertions.
+Persistent FK witnesses cover all action-selected RI functions, four real trigger
+identities, exact internal/constraint/index/opposite-relation fields, both
+relations' trigger-presence flags and removal through held metadata reads.
+Select the family with `make check RUN='^TestReferencePGTrigger'` in either mode.
 
 Extended-statistics definition reads cover exact schema and row/array links,
 PUBLIC access and current ACL revocation, ordinary-role mutation diagnostics,

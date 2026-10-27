@@ -484,7 +484,7 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 	view := e.CatalogRead()
 	stableAttributes := map[ids.OID][]int32{
 		2610: {1, 2, 5, 7, 11, 13, 14, 6, 16, 17, 18, 19},
-		2620: {1, 2, 4, 8, 11},
+		2620: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19},
 	}
 	for _, descriptor := range view.Descriptors() {
 		relation, ok := descriptor.(*catalog.Relation)

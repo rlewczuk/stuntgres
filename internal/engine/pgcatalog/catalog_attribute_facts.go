@@ -49,15 +49,6 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 		case "indoption":
 			return 19
 		}
-	case 2620:
-		switch name {
-		case "tgname":
-			return 4
-		case "tgisinternal":
-			return 8
-		case "tgconstraint":
-			return 11
-		}
 	}
 	return ordinal
 }
@@ -84,7 +75,7 @@ func InitializeAttributes(d *catalog.Relation) {
 			switch d.Address().ObjectID {
 			case InfoSQLFeaturesOID, InfoSQLSizingOID, InfoSQLImplementationInfoOID, InfoSQLPartsOID:
 				fact.NotNull = !column.Nullable
-			case ids.EventTriggerClassID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID, SubscriptionRelOID, ids.PolicyClassID:
+			case ids.TriggerClassID, ids.EventTriggerClassID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID, SubscriptionRelOID, ids.PolicyClassID:
 				fact.NotNull = !column.Nullable
 			case ids.ProcedureClassID:
 				fact.NotNull = !column.Nullable

@@ -108,6 +108,17 @@ type TriggerFact struct {
 	HasCondition             bool
 }
 
+// TriggerCatalogFact is a definition snapshot, borrowed only during the visit.
+// Qual retains its own checked immutable stored definition.
+type TriggerCatalogFact struct {
+	OID, Relation, Function, Parent ids.OID
+	Name string
+	Type int16
+	Attributes []int32
+	Arguments []string
+	Qual sqltype.Value
+}
+
 // Capabilities take values, not query bindings or live authority objects.
 // Constructing the adapter does not perform any of these operations.
 type Runtime interface {
@@ -147,6 +158,7 @@ type Runtime interface {
 	IndexVectors(context.Context, catalog.Read, *catalog.Relation, [4]*sqltype.Descriptor) ([4]sqltype.Value, error)
 	VisitRuleDefinitions(context.Context, catalog.Read, *catalog.Relation, func(catalog.RuleFact, string) error) error
 	VisitTriggerDefinitions(context.Context, catalog.Read, *catalog.Relation, bool, func(TriggerFact) error) error
+	VisitTriggerCatalog(context.Context, catalog.Read, *catalog.Relation, *sqltype.Descriptor, func(TriggerCatalogFact) error) error
 	IndexKey(*catalog.Relation, catalog.IndexKey) (int32, expr.Expr, error)
 	VisitSequenceDefinitions(context.Context, func(catalog.Descriptor) error) error
 	ExpressionTree(*sqltype.Descriptor, expr.Expr) (sqltype.Value, error)

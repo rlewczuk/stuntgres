@@ -135,6 +135,7 @@ func (r EngineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 // capture check; only the error names them apart.
 var sharedCaptureNames = map[ids.OID]string{
 	ids.PolicyClassID:                            "pg_policy",
+	ids.TriggerClassID:                           "pg_trigger",
 	pgcatalog.StatisticExtDataOID:                "pg_statistic_ext_data",
 	pgcatalog.SubscriptionOID:                    "pg_subscription",
 	pgcatalog.SubscriptionRelOID:                 "pg_subscription_rel",
@@ -372,6 +373,12 @@ func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view cat
 func (r EngineCatalogRuntime) VisitTriggerDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, disclose bool, visit func(pgcatalog.TriggerFact) error) error {
 	return stored.VisitTriggerDefinitions(ctx, view, relation, r.presentation, disclose, func(f stored.TriggerPresentation) error {
 		return visit(pgcatalog.TriggerFact{OID: f.OID, Name: f.Name, Insert: f.Insert, Update: f.Update, Delete: f.Delete, Timing: f.Timing, Orientation: f.Orientation, Condition: f.Condition, HasCondition: f.HasCondition, Statement: f.Statement})
+	})
+}
+
+func (r EngineCatalogRuntime) VisitTriggerCatalog(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.TriggerCatalogFact) error) error {
+	return stored.VisitTriggerCatalog(ctx, view, relation, typ, func(f stored.TriggerCatalogDefinition) error {
+		return visit(pgcatalog.TriggerCatalogFact{OID: f.OID, Relation: f.Relation, Function: f.Function, Parent: f.Parent, Name: f.Name, Type: f.Type, Attributes: f.Attributes, Arguments: f.Arguments, Qual: f.Qual})
 	})
 }
 func (r EngineCatalogRuntime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {

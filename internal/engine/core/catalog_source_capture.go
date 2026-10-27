@@ -88,9 +88,9 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles
 		in.RoleSettings = catalogRoleSettings{settings: scope.Inquiry.deparseAuth.RoleRecord.Settings}
 		unlockBefore = true
-	case ids.PolicyClassID:
+	case ids.PolicyClassID, ids.TriggerClassID:
 		// Pair definition and principal roots with the statement's admitted
-		// inquiry authority, including transaction-private policy definitions.
+		// inquiry authority, including transaction-private definitions.
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth = scope.Inquiry.deparseAuth
 		unlockBefore = true

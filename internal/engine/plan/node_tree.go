@@ -157,8 +157,16 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		fmt.Fprint(out, "DomainValue")
 	case ColumnExpr:
 		fmt.Fprintf(out, "Var attnum %d", n.Origin.Address.SubID)
+		// Analysis reserves the all-ones scope for rule/trigger OLD and NEW.
+		// Preserve that namespace without changing ordinary column output.
+		if n.Scope == ^uint32(0) {
+			fmt.Fprintf(out, " scope %d frame %d", n.Scope, n.Frame)
+		}
 	case RowExpr:
 		fmt.Fprint(out, "Row")
+		if n.RuleSide != 0 {
+			fmt.Fprintf(out, " side %d", n.RuleSide)
+		}
 		for _, field := range n.Fields {
 			if err = child(field); err != nil {
 				break

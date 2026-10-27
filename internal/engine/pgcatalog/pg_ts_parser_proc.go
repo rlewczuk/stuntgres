@@ -9,10 +9,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Stock parser handlers, vector I/O and the genuine pg_ddl_command receiver have
-// internal catalog identities without granting standalone callable providers.
-// A represented Procedure always takes precedence over these selected facts.
-// REL_18_6 pg_proc.dat uses all pg_proc.h property defaults for these 14 rows.
+// Stock parser handlers, vector I/O, the pg_ddl_command receiver and RI trigger
+// functions have internal identities without standalone callable providers.
+// A represented Procedure takes precedence. REL_18_6 pg_proc.dat uses header
+// defaults except the RI functions' explicit volatile classification.
 func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype.Value, error) {
 	if len(in.Source.Columns) != procedureColumnCount {
 		return nil, fmt.Errorf("stuntgres: invalid procedure source shape")
@@ -22,7 +22,13 @@ func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype
 	if language == (ids.ObjectAddress{}) {
 		return nil, fmt.Errorf("stuntgres: missing parser handler language")
 	}
-	for _, oid := range [14]ids.OID{p.Start, p.Token, p.End, p.Headline, p.LexType, 40, 41, 54, 55, 2410, 2411, 2420, 2421, 88} {
+	for _, fact := range [...]struct{ oid ids.OID; volatile bool }{
+		{p.Start,false},{p.Token,false},{p.End,false},{p.Headline,false},{p.LexType,false},
+		{40,false},{41,false},{54,false},{55,false},{2410,false},{2411,false},{2420,false},{2421,false},{88,false},
+		{1644,true},{1645,true},{1646,true},{1647,true},{1648,true},{1649,true},
+		{1650,true},{1651,true},{1652,true},{1653,true},{1654,true},{1655,true},
+	} {
+		oid := fact.oid
 		if err := in.Context.Err(); err != nil {
 			return nil, err
 		}
@@ -51,11 +57,13 @@ func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype
 			}
 			row[field.index] = value
 		}
+		volatility := "i"
+		if fact.volatile { volatility = "v" }
 		for _, field := range [...]struct {
 			index int
 			text  string
 		}{
-			{procName, identity.Name}, {procKind, "f"}, {procVolatility, "i"}, {procParallel, "s"}, {procSource, identity.Name},
+			{procName, identity.Name}, {procKind, "f"}, {procVolatility, volatility}, {procParallel, "s"}, {procSource, identity.Name},
 		} {
 			row[field.index] = sqltype.String(in.Source.Columns[field.index].Usage.Type, field.text)
 		}

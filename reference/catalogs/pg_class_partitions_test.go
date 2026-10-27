@@ -204,6 +204,6 @@ func TestReferencePgClassPhysicalBoundaries(t *testing.T) {
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT reltuples FROM pg_class WHERE relname='pc18_phys_heap'", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(1)}}))
 		}
 		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_phys_parent(id integer PRIMARY KEY)", "CREATE TABLE pc18_phys_child(id integer REFERENCES pc18_phys_parent(id))")
-		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relname,relhastriggers FROM pg_class WHERE relname='pc18_phys_child' OR relname='pc18_phys_parent' ORDER BY relname", []string{"relname", "relhastriggers"}, []string{"NAME", "BOOL"}, [][]any{{"pc18_phys_child", b.PG}, {"pc18_phys_parent", b.PG}}))
+		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relname,relhastriggers FROM pg_class WHERE relname='pc18_phys_child' OR relname='pc18_phys_parent' ORDER BY relname", []string{"relname", "relhastriggers"}, []string{"NAME", "BOOL"}, [][]any{{"pc18_phys_child", true}, {"pc18_phys_parent", true}}))
 	})
 }

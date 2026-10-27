@@ -97,6 +97,16 @@ lowercase pseudo-row aliases. Action arguments double single quotes and, only
 when captured standard-conforming strings are off, backslashes; no E prefix is added.
 This presentation is distinct from portable, qualified declaration serialization;
 neither path changes executable recipes or their shared immutable backing.
+`VisitTriggerCatalog` instead projects actual definition identities, event bits,
+ordered attributes and literal arguments without presentation privilege filters.
+Its `TriggerCarrier` retains the actual element of the immutable `TriggerList`,
+not a detached same-name/OID copy, together with WHEN, presentation and binding.
+`TriggerTree` checks captured owner, type generation and payload membership.
+Structural output uses the shared native logical writer without evaluation.
+The `pg_get_expr` consumer validates scalar Scope/Frame and whole-row RuleSide
+before opening the supplied relation: zero context rejects all Vars, nonzero
+context rejects NEW, and OLD uses that relation's columns and whole-row name.
+Cancellation never publishes a partial capture or poisons later lazy output.
 
 
 ## Imports

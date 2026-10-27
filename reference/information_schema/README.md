@@ -23,6 +23,8 @@ The inventory also includes PUBLIC-readable `pg_auth_members` as a real catalog
 table with its exact seven ordered membership columns.
 The PUBLIC-readable `pg_policy` entry retains all eight ordered physical columns
 and real-table classification; its definitions are not filtered by RLS applicability.
+The PUBLIC-readable `pg_trigger` entry contributes nineteen ordered real-table
+columns, including nullable WHEN/transition metadata and the ordered UPDATE vector.
 The shared `pg_subscription` catalog contributes all eighteen ordered columns
 for the administrator inventory, including `subconninfo`; PUBLIC column grants
 do not hide its administrator-visible metadata or turn the relation into a view.
