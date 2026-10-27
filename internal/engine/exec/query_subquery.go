@@ -188,6 +188,33 @@ func (c *Context) EvalSubquery(e plan.SubqueryExpr) (value sqltype.Value, err er
 	if len(e.Membership) != 0 {
 		return c.subqueryHashMembership(e)
 	}
+	if e.InitPlan && e.JSONArray == nil {
+		return c.subqueryInitPlanValue(e)
+	}
+	return c.evalSubquery(e)
+}
+
+// The execution owner (membershipOwner) evaluates an InitPlan subquery on first
+// demand and keeps its value until ReleaseMemberships. A failure is not kept.
+func (c *Context) subqueryInitPlanValue(e plan.SubqueryExpr) (sqltype.Value, error) {
+	owner := c.Query.membershipOwner()
+	key := SubqueryMembershipKey{e.QueryPlan, c.Query.Source}
+	if value, ok := owner.InitPlans[key]; ok {
+		return value, nil
+	}
+	value, err := c.evalSubquery(e)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if owner.InitPlans == nil {
+		owner.InitPlans = make(map[SubqueryMembershipKey]sqltype.Value)
+	}
+	owner.InitPlans[key] = value
+	return value, nil
+}
+
+// evalSubquery runs the subquery once for the current outer row.
+func (c *Context) evalSubquery(e plan.SubqueryExpr) (value sqltype.Value, err error) {
 	var smallLeft [4]sqltype.Value
 	left := smallLeft[:min(len(e.Comparisons), len(smallLeft))]
 	if len(e.Comparisons) > len(smallLeft) {

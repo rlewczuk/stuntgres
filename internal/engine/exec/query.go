@@ -326,6 +326,7 @@ type State struct {
 	Ctes                   *CTEInvocation
 	hashOwner              *State
 	Memberships            map[SubqueryMembershipKey]*subqueryMembership
+	InitPlans              map[SubqueryMembershipKey]sqltype.Value // Uncorrelated scalar/EXISTS results.
 	// Only the positive SELECT coordinator activates these on a physical leaf.
 	ExecutionContext   context.Context
 	ScanRange          bool
@@ -358,6 +359,7 @@ func (s *State) ReleaseMemberships() {
 		*membership = subqueryMembership{}
 	}
 	s.Memberships = nil
+	s.InitPlans = nil
 	s.hashOwner = nil
 }
 

@@ -412,6 +412,11 @@ does not admit nonNULL volatile array defaults or fold nonNULL volatile calls.
   `CatalogKeyIndex` builds a column on first use and publishes it atomically. A
   column qualifies only when every cell has the column's exact oid descriptor, so
   no skipped row could have raised an error; any failing probe keeps the scan.
+- **InitPlans.** The binder marks a scalar or EXISTS subquery `InitPlan` when it
+  reads no outer row, calls nothing volatile and reads no CTE. Its execution
+  owner (`membershipOwner`, which also owns hashed `IN` memberships) evaluates it
+  on first demand and keeps the value in `State.InitPlans` until
+  `ReleaseMemberships`; a failed evaluation is not kept.
 
 ## Row-policy runtime
 

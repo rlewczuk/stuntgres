@@ -97,6 +97,7 @@ func (b *Binder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
 	e.LeftExpansions = leftExpansions
 	e.LeftConstructor, e.ErasedLeftType = leftConstructor, erasedLeftType
 	if raw.Kind == parser.SubqueryScalar || raw.Kind == parser.SubqueryExists {
+		e.InitPlan = initPlanQuery(query, properties)
 		return e, nil
 	}
 	e.Operator = raw.Operator.Parts[len(raw.Operator.Parts)-1].Text
@@ -151,4 +152,24 @@ func (b *Binder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
 		e.Membership = families
 	}
 	return e, nil
+}
+
+// initPlanQuery reports a subquery whose value is fixed for one execution, as
+// for a PostgreSQL InitPlan: it reads no outer row and calls nothing volatile,
+// so every evaluation reads the same captured sources. Demand properties do not
+// look into WITH bodies, so a subquery that reads a CTE never qualifies.
+func initPlanQuery(query *plan.Query, p expr.Properties) bool {
+	if p.RowDependent || p.Volatility >= expr.Volatile {
+		return false
+	}
+	cte := false
+	plan.VisitExecutableQuery(query.Root, func(node plan.Node) {
+		switch n := node.(type) {
+		case *plan.DerivedNode:
+			cte = cte || n.CTE != nil
+		case *plan.WorktableScanNode, *plan.RecursiveUnionNode:
+			cte = true
+		}
+	}, func(expr.Expr) {})
+	return !cte
 }

@@ -28,6 +28,7 @@ type SubqueryExpr struct {
 	LeftConstructor expr.Expr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
 	ErasedLeftType  sqltype.ID                        // Original outer identity, only for pruning frozen presentation dependencies.
 	UpdateWidth     int                               // Nonzero only for the first recipe of an UPDATE tuple source.
+	InitPlan        bool                              // Scalar/EXISTS value fixed for one execution; see analyze.initPlanQuery.
 }
 
 func (e SubqueryExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
