@@ -65,8 +65,12 @@ these are shared across families:
   chosen stored value and retained metadata; emitted SQL is replayed directly
   on the oracle. Held literal assignments retain their canonical values across
   rename/schema moves; retired installations and unrelated TEXT destinations
-  bind the original SQL afresh, never stale hstore values. The reusable family
-  selector is `RUN='^TestReferenceHstore'`.
+  bind the original SQL afresh, never stale hstore values. Conversion fixtures
+  use ordinary `_TEXT` transport for owned flat/rectangular arrays and invoke
+  both named functions and prefix operators after restoration. EXECUTE checks
+  use current callers, distinguishing folded literal NULL from demanded
+  row-dependent NULL calls. The reusable family selector is
+  `RUN='^TestReferenceHstore'`.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,
   count/length diagnostic precedence, held binds, statement atomicity and native

@@ -210,7 +210,10 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if p.Implementation == StockCitext {
 			count = CitextMemberCount
 		}
-		if slot < 1 || slot >= count || p.Implementation == StockCitext && CitextOperatorSlot(slot) {
+		if p.Implementation == StockHstore {
+			count = HstoreMemberCount
+		}
+		if slot < 1 || slot >= count || p.Implementation == StockCitext && CitextOperatorSlot(slot) || p.Implementation == StockHstore && slot >= HstoreArrayOperatorSlot {
 			return invalid()
 		}
 		base, ok := v.Type(ext.Members[0])
@@ -229,6 +232,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name = "hstore_in"
 			if slot == 2 {
 				name = "hstore_out"
+			}
+			if slot == HstoreArrayProcedureSlot || slot == HstoreMatrixProcedureSlot {
+				name = []string{"hstore_to_array", "hstore_to_matrix"}[slot-HstoreArrayProcedureSlot]
 			}
 			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
@@ -257,6 +263,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		} else if p.Implementation == StockCitext && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
 			name = CitextComparisonNames[slot-CitextComparisonProcedureStart]
 			signature, result = CitextComparisonSignature(base.SQLType.ID()), ids.OID(sqltype.Bool)
+		}
+		if p.Implementation == StockHstore && slot >= HstoreArrayProcedureSlot {
+			signature, result = HstoreSignature(base.SQLType.ID()), 1009
 		}
 		if p.Implementation == StockCitext && slot >= CitextConversionProcedureStart && slot < CitextPatternProcedureStart {
 			name, signature, result = "citext", []catalog.ProcedureSignature{"1042", "16", "869"}[slot-CitextConversionProcedureStart], ids.OID(base.SQLType.ID())

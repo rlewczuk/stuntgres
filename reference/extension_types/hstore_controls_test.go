@@ -54,6 +54,7 @@ func hstoreControlSeed(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 
 func hstoreControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, want [][]any) {
 	t.Helper()
+	hstoreArraysControlVerify(t, p, b, db)
 	checks := []fixture.Step{
 		hstoreSelect(b, "SELECT id,v FROM hs_controls ORDER BY id", []string{"id", "v"}, want, []bool{false, true}),
 		hstoreSelect(b, "SELECT v FROM hs_vacant", []string{"v"}, [][]any{}, []bool{false}),
@@ -241,7 +242,7 @@ func hstoreControlPhase(t *testing.T, phase string) {
 		if phase == "failed" {
 			q, diagnostic := hstoreStagedSQL()
 			fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, target, strings.NewReader(q)), &diagnostic)
-		} else if strings.HasPrefix(phase, "owner_") {
+		} else if strings.HasPrefix(phase, "owner_") || phase == "array_signature" || phase == "matrix_kind" || phase == "operator_signature" || phase == "operator_slot" {
 			err := stuntgres.Restore(p.Ctx, target, strings.NewReader(hstoreInvalidOwnerDump(t, dump, phase)))
 			var state interface{ SQLState() string }
 			if err == nil || !strings.Contains(err.Error(), "invalid extension owner metadata") || errors.As(err, &state) {

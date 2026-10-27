@@ -236,3 +236,100 @@ func TestHstoreRemap(t *testing.T) {
 		t.Fatal("foreign source family accepted")
 	}
 }
+
+func TestHstoreArrays(t *testing.T) {
+	ctx := context.Background()
+	source := hstoreUnitType(t, 65000)
+	var result, text *sqltype.Descriptor
+	for _, d := range sqltype.Builtins() {
+		if d.ID() == 1009 {
+			result = d
+		}
+		if d.ID() == sqltype.Text {
+			text = d
+		}
+	}
+	for _, tc := range []struct {
+		input, flat, matrix string
+		count               int
+	}{
+		{"", "{}", "{}", 0},
+		{"aa=>1,cq=>l,b=>g,fg=>NULL", "{b,g,aa,1,cq,l,fg,NULL}", "{{b,g},{aa,1},{cq,l},{fg,NULL}}", 8},
+		{`a=>"NULL"`, `{a,"NULL"}`, `{{a,"NULL"}}`, 2},
+	} {
+		original, err := source.Input(ctx, tc.input, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before, err := source.Output(ctx, original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, matrix := range []bool{false, true} {
+			got, err := original.HstoreArray(ctx, source, result, matrix)
+			if err != nil || got.Type() != result || got.ArrayLen() != tc.count {
+				t.Fatal("array conversion", got, err)
+			}
+			want := tc.flat
+			rank := 1
+			if matrix {
+				want = tc.matrix
+				rank = 2
+			}
+			if tc.count == 0 {
+				rank = 0
+			}
+			if got.ArrayRank() != rank {
+				t.Fatal("array rank", got.ArrayRank(), rank)
+			}
+			for i := range got.ArrayLen() {
+				if got.ArrayElement(i).Type() != text {
+					t.Fatal("foreign element generation")
+				}
+			}
+			for i := range got.ArrayRank() {
+				if got.ArrayDimension(i).Lower != 1 {
+					t.Fatal("lower bound")
+				}
+			}
+			if matrix && tc.count != 0 && (got.ArrayDimension(0).Length != int32(tc.count/2) || got.ArrayDimension(1).Length != 2) {
+				t.Fatal("matrix orientation")
+			}
+			output, err := result.Output(ctx, got)
+			if err != nil || output != want {
+				t.Fatal("array output", output, want, err)
+			}
+			after, err := source.Output(ctx, original)
+			if err != nil || after != before {
+				t.Fatal("source mutated", err)
+			}
+		}
+	}
+	null, err := sqltype.Null(source).HstoreArray(ctx, source, result, true)
+	if err != nil || !null.IsNull() || null.Type() != result {
+		t.Fatal("whole NULL", err)
+	}
+	value, err := source.Input(ctx, "a=>1,b=>NULL,c=>3", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []sqltype.Value{{}, sqltype.String(text, "a=>1"), sqltype.Null(hstoreUnitType(t, source.ID()))} {
+		if got, err := bad.HstoreArray(ctx, source, result, false); err == nil || got.Type() != nil {
+			t.Fatal("invalid source admitted", got, err)
+		}
+	}
+	for _, bad := range []*sqltype.Descriptor{nil, text, source} {
+		if got, err := value.HstoreArray(ctx, source, bad, false); err == nil || got.Type() != nil {
+			t.Fatal("invalid result admitted", got, err)
+		}
+	}
+	for _, remaining := range []int{1, 3, 5} {
+		base, cancel := context.WithCancel(ctx)
+		reached := &hstoreCancelContext{Context: base, cancel: cancel, remaining: remaining}
+		got, err := value.HstoreArray(reached, source, result, true)
+		cancel()
+		if !errors.Is(err, context.Canceled) || got.Type() != nil {
+			t.Fatal("partial cancellation publication", got, err)
+		}
+	}
+}

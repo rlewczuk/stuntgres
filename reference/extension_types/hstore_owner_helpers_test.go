@@ -33,7 +33,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		t.Fatal("wrong actual owner record", string(data))
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 3 {
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 7 {
 		t.Fatalf("actual bounded owner inventory %s/%v", data, err)
 	}
 	bySlot := make(map[int]map[string]json.RawMessage)
@@ -44,8 +44,23 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		}
 		bySlot[slot] = member
 	}
-	if bySlot[0] == nil || bySlot[1] == nil || bySlot[2] == nil {
-		t.Fatal("missing actual owner role")
+	for slot, want := range []struct{ kind, signature string }{{"type", ""}, {"procedure", "2275"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"operator", "0,hstore"}, {"operator", "0,hstore"}} {
+		member := bySlot[slot]
+		var kind, signature string
+		if member == nil {
+			t.Fatal("missing actual owner role", slot)
+		}
+		if err := json.Unmarshal(member["kind"], &kind); err != nil {
+			t.Fatal(err)
+		}
+		if raw := member["signature"]; len(raw) != 0 {
+			if err := json.Unmarshal(raw, &signature); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if kind != want.kind || signature != want.signature {
+			t.Fatalf("owner role %d=%s/%s want %s/%s", slot, kind, signature, want.kind, want.signature)
+		}
 	}
 	switch kind {
 	case "owner_type":
@@ -54,6 +69,14 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		bySlot[2]["signature"] = json.RawMessage(`"65000"`)
 	case "owner_unknown":
 		bySlot[1]["kind"] = json.RawMessage(`"unknown"`)
+	case "array_signature":
+		bySlot[3]["signature"] = json.RawMessage(`"25"`)
+	case "matrix_kind":
+		bySlot[4]["kind"] = json.RawMessage(`"type"`)
+	case "operator_signature":
+		bySlot[5]["signature"] = json.RawMessage(`"hstore,0"`)
+	case "operator_slot":
+		bySlot[6]["slot"] = json.RawMessage(`3`)
 	default:
 		t.Fatal("unknown owner mutation", kind)
 	}

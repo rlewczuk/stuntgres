@@ -278,3 +278,57 @@ func (v Value) RemapHstore(target *Descriptor) (Value, error) {
 	v.typ = target
 	return v, nil
 }
+
+// HstoreArray converts private immutable pairs into an exclusively owned TEXT
+// array. The binder supplies the authentic installed source generation.
+func (v Value) HstoreArray(ctx context.Context, source, result *Descriptor, matrix bool) (Value, error) {
+	if err := ctx.Err(); err != nil {
+		return Value{}, err
+	}
+	if !source.IsHstore() || v.Type() != source || result == nil || result.ID() != 1009 || !result.Concrete() || !result.IsArray() || result.Element().ID() != Text {
+		return Value{}, fmt.Errorf("invalid hstore array conversion")
+	}
+	if v.null {
+		return Null(result), nil
+	}
+	if !v.validHstore() {
+		return Value{}, fmt.Errorf("invalid hstore payload")
+	}
+	n := len(v.hstore.pairs)
+	if uint64(n) > uint64(1<<31-2)/2 {
+		return Value{}, failure("54000", "array size exceeds the maximum allowed")
+	}
+	if n == 0 {
+		return OwnedArrayValue(result, nil, nil)
+	}
+	elements := make([]Value, 2*n)
+	text := result.Element()
+	for i, pair := range v.hstore.pairs {
+		if err := ctx.Err(); err != nil {
+			return Value{}, err
+		}
+		elements[2*i] = String(text, pair.key)
+		if pair.null {
+			elements[2*i+1] = Null(text)
+		} else {
+			elements[2*i+1] = String(text, pair.value)
+		}
+	}
+	var dimensions []ArrayDimension
+	if matrix {
+		dimensions = []ArrayDimension{{Lower: 1, Length: int32(n)}, {Lower: 1, Length: 2}}
+	} else {
+		dimensions = []ArrayDimension{{Lower: 1, Length: int32(2 * n)}}
+	}
+	if err := ctx.Err(); err != nil {
+		return Value{}, err
+	}
+	value, err := OwnedArrayValue(result, dimensions, elements)
+	if err != nil {
+		return Value{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return Value{}, err
+	}
+	return value, nil
+}

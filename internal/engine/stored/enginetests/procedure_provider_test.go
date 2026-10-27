@@ -42,6 +42,9 @@ func TestExtensionProviderValidatesOnlyInstalledProcedures(t *testing.T) {
 				t.Fatalf("member %s: %v", proc.Name(), memberErr)
 			}
 			counts["member"]++
+			if extension.HstoreProviderOf(proc) == extension.StockHstore {
+				counts["hstore"]++
+			}
 			member = proc
 		case memberErr == nil:
 			t.Fatalf("extension validator accepted non-member %s", proc.Name())
@@ -58,6 +61,9 @@ func TestExtensionProviderValidatesOnlyInstalledProcedures(t *testing.T) {
 		if counts[kind] == 0 {
 			t.Fatalf("no %s procedure validated: %v", kind, counts)
 		}
+	}
+	if counts["hstore"] != 4 {
+		t.Fatalf("validated hstore procedures %d want 4", counts["hstore"])
 	}
 	stripped := *member
 	stripped.Implementation = nil

@@ -64,6 +64,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		}
 		// Retagging belongs to the routine recipe's existing type mapper.
 		next = n
+	case functions.HstoreArray:
+		n.Arg = child(n.Arg)
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case functions.String:
 		n.Args = args(n.Args)
 		if n.Citext != nil && ref != nil {

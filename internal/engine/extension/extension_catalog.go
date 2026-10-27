@@ -88,6 +88,13 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 		ext = d.Extension
 		switch {
+		case HstoreProviderOf(proc) == StockHstore:
+			if v.Get(d.Address()) != d {
+				return invalid()
+			}
+			if err := StockHstore.ValidateProcedure(v, proc); err != nil {
+				return err
+			}
 		case CitextProviderOf(proc) == StockCitext:
 			if err := StockCitext.ValidateProcedure(v, proc); err != nil {
 				return err

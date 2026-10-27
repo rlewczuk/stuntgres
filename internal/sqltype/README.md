@@ -128,10 +128,13 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   scanner whitespace and byte-offset syntax errors; output quotes/escapes pairs
   in UTF8 key-byte-length then bytewise order. Duplicate keys retain one original
   value without a first/last-survivor promise. Representation comparison grants
-  no SQL comparison, grouping, array or binary capability. Authorized generation
+  no SQL comparison, grouping, executable hstore-array or binary capability. Authorized generation
   remapping shares immutable pairs without reparsing stored text. The parser
   establishes text validity, canonical order and uniqueness once; consumers
   check the private immutable carrier without rescanning those invariants.
+  `HstoreArray` transfers fresh flat or rectangular TEXT-array buffers without
+  copying immutable strings or exposing pairs. NULL values become typed NULL
+  elements; whole NULL and zero-dimensional empty arrays remain distinct.
 - Seg owns an inline fixed pair of binary32 words, significant-digit counts
   and endpoint markers. Its strict scanner and precision-aware formatter share
   the ordinary type I/O and coercion seams. Representation identity includes all

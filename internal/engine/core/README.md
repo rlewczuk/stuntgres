@@ -1132,6 +1132,12 @@ inspection export or observer registry is introduced for those assertions.
 Pure typed/datum/cancellation cases live with exec; stored retagging/pruning
 cases live with stored. Select `^TestPrepared(Rebind|Fold)` and
 `^TestStringVariadic(RetainedGeneration|BoundedCancellationAndSizes)$`.
+Installed hstore array ownership uses `RUN='^TestHstoreArraysPreparedOwnership$'`.
+It exercises real protocol definitions/bindings and publication fences for both
+shapes and prefix wrappers, retaining exact accepted datum and group backing.
+Prefix conversions retain the backing-procedure fold while their operator
+identity remains in analysis dependencies and the accepted portal graph. Tests
+assert that each private wrapper consumes the exact accepted literal backing.
 PL cursor compiler/provider/ownership units: `RUN='^TestPLpgSQLCursor'`.
 Internal producer lifetime/cancellation units use `RUN='^TestPLpgSQLQueryLoop(Lifetime|Cancellation)$'`.
 Static capture demand/cancellation/cleanup units use `RUN='^TestPLpgSQLSelectIntoRuntime$'`.

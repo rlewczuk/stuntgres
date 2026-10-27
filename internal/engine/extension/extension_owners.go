@@ -72,7 +72,7 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if LtreeProviderOf(d) != nil && slot%3 == 2 {
 				member.Signature = ltreeRecipes[slot/3].name
 			}
-			if HstoreProviderOf(d) != nil && symbol == "hstore_out" {
+			if HstoreProviderOf(d) != nil && symbol != "hstore_in" {
 				member.Signature = "hstore"
 			}
 			if CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil || IsnProviderOf(d) != nil {
@@ -229,7 +229,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	case record.Name == "unaccent" && record.Version == "1.1":
 		expectedMembers = 5
 	case record.Name == "hstore" && record.Version == "1.8":
-		expectedMembers = 3
+		expectedMembers = HstoreMemberCount
 	case record.Name == "seg" && record.Version == "1.4":
 		expectedMembers = 3
 	case record.Name == "intarray" && record.Version == "1.5":
@@ -475,6 +475,9 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			}
 		}
 	case "seg", "hstore", "intarray", "citext":
+		if name == "hstore" && (slot == HstoreArrayProcedureSlot || slot == HstoreMatrixProcedureSlot) {
+			return "hstore", true
+		}
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
 			return "citext,citext", true
 		}
@@ -523,6 +526,10 @@ func cubeOwnerOperatorIdentity(slot int) (string, string, bool) {
 
 func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 	switch extension {
+	case "hstore":
+		if slot == HstoreArrayOperatorSlot || slot == HstoreMatrixOperatorSlot {
+			return []string{"%%", "%#"}[slot-HstoreArrayOperatorSlot], "0,hstore", true
+		}
 	case "cube":
 		return cubeOwnerOperatorIdentity(slot)
 	case "citext":

@@ -108,11 +108,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   family and member relocation to the typed catalog remappers, preserving the
   actual owner kind and immutable source descriptors.
 - **hstore** (`hstore_provider.go`, `hstore_stage.go`): trusted, relocatable 1.8
-  installation of the scalar and strict immutable parallel-safe C-language
-  `hstore_in(cstring)`/`hstore_out(hstore)` codecs. The reciprocal associated
-  array is internally dependent and lookup-only. Member identity, ownership and
-  remapping use this bounded manifest; output owner signatures use symbolic
-  `hstore`, never a source OID. Text storage does not install advanced operations.
+  installation of the scalar, strict immutable parallel-safe C-language codecs,
+  `hstore_to_array(hstore)` and `hstore_to_matrix(hstore)`, and their prefix
+  `%%`/`%#` operators. The reciprocal associated array is internally dependent
+  and lookup-only. Seven exact member roles govern identity and remapping;
+  portable function signatures use `hstore` and unary operators `0,hstore`,
+  never a source OID.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured

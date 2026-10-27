@@ -122,7 +122,7 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if LtreeProviderOf(selected) != nil && member.Slot%3 == 2 {
 					signature = ltreeRecipes[member.Slot/3].name
 				}
-				if HstoreProviderOf(selected) != nil && symbol == "hstore_out" {
+				if HstoreProviderOf(selected) != nil && symbol != "hstore_in" {
 					signature = "hstore"
 				}
 				if CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil || IsnProviderOf(selected) != nil {
@@ -133,6 +133,18 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 					}
 				}
 			case *catalog.Operator:
+				if record.Name == "hstore" {
+					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
+					_, portable, valid := ownerOperatorIdentity(record.Name, member.Slot)
+					if !ok || !valid {
+						return false, fmt.Errorf("stuntgres: invalid hstore ownership slot")
+					}
+					if err := validateHstoreOperator(candidateView, ext, base, member.Slot-HstoreArrayOperatorSlot); err != nil {
+						return false, err
+					}
+					kind, signature = "operator", portable
+					break
+				}
 				if record.Name == "citext" {
 					base, ok := candidate.Type(ext.Members[0])
 					_, portable, valid := ownerOperatorIdentity(record.Name, member.Slot)

@@ -15,17 +15,39 @@ import (
 // genuinely relabelled declaration replaces it with its checked current SQL
 // identity; unchanged provider formatting remains byte-for-byte unchanged.
 func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Rendering) (expr.Rendering, error) {
- if call,installed:=citextStringCallOf(node);installed {
-  current,err:=currentCitextString(view,call);if err!=nil {return spec,err}
-  namespace,ok:=view.Namespace(current.Namespace());if !ok {return spec,fmt.Errorf("stuntgres: missing citext string namespace")}
-  spec.Name,spec.Namespace,spec.Quote=current.Name(),namespace.Name(),expr.QuoteIdentifier
-  return spec,nil
- }
+	if call, installed := node.(functions.HstoreArray); installed {
+		current, err := currentHstoreArray(view, call)
+		if err != nil {
+			return spec, err
+		}
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing hstore array namespace")
+		}
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
+	if call, installed := citextStringCallOf(node); installed {
+		current, err := currentCitextString(view, call)
+		if err != nil {
+			return spec, err
+		}
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing citext string namespace")
+		}
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
 	if call, installed := citextRegexpCallOf(node); installed {
 		current, err := currentCitextRegexp(view, call)
-		if err != nil { return spec, err }
+		if err != nil {
+			return spec, err
+		}
 		namespace, ok := view.Namespace(current.Namespace())
-		if !ok { return spec, fmt.Errorf("stuntgres: missing citext regexp namespace") }
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing citext regexp namespace")
+		}
 		spec.Name = current.Name()
 		spec.Namespace = namespace.Name()
 		spec.Quote = expr.QuoteIdentifier
