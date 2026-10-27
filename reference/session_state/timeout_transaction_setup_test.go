@@ -228,7 +228,7 @@ func (f *timeoutReferenceFixture) prepareAbortRestore(failure string, child bool
 		var beginBefore, beginAfter time.Time
 		expired := false
 		release := func() {}
-		queries := []string{"SET transaction_timeout='500ms'", "SET idle_in_transaction_session_timeout='1s'", "BEGIN", "LOCK TABLE timeout_sentinel IN ACCESS EXCLUSIVE MODE", "INSERT INTO timeout_sentinel VALUES(8)"}
+		queries := []string{"SET transaction_timeout='500ms'", "SET idle_in_transaction_session_timeout='500ms'", "BEGIN", "LOCK TABLE timeout_sentinel IN ACCESS EXCLUSIVE MODE", "INSERT INTO timeout_sentinel VALUES(8)"}
 		if child {
 			queries = append(queries, "SAVEPOINT timeout_child")
 		}
@@ -248,7 +248,7 @@ func (f *timeoutReferenceFixture) prepareAbortRestore(failure string, child bool
 				earliest = before.Add(500 * time.Millisecond)
 			}
 			if err != nil {
-				f.t.Logf("abort setup attempt=%d query=%s command=[%v,%v] BEGIN=[%v,%v] earliest=%v transaction=500ms idle=1s short=0 error=%v", attempt, q, before, after, beginBefore, beginAfter, earliest, err)
+				f.t.Logf("abort setup attempt=%d query=%s command=[%v,%v] BEGIN=[%v,%v] earliest=%v transaction=500ms idle=500ms short=0 error=%v", attempt, q, before, after, beginBefore, beginAfter, earliest, err)
 				f.transactionSetupExpiry(ctx, err, after, earliest)
 				expired = true
 				break
@@ -273,18 +273,24 @@ func (f *timeoutReferenceFixture) prepareAbortRestore(failure string, child bool
 			fixture.RunStep(f.t, ctx, f.peer, f.b.Recorder, fixture.Exec("LOCK TABLE timeout_blocked IN ACCESS EXCLUSIVE MODE", 0))
 		}
 		if !expired && !time.Now().Before(beginBefore.Add(500*time.Millisecond)) {
-			f.t.Logf("abort setup attempt=%d preoperation elapsed gate BEGIN=[%v,%v] observed=%v transaction=500ms idle=1s short=0", attempt, beginBefore, beginAfter, time.Now())
+			f.t.Logf("abort setup attempt=%d preoperation elapsed gate BEGIN=[%v,%v] observed=%v transaction=500ms idle=500ms short=0", attempt, beginBefore, beginAfter, time.Now())
 			f.awaitTransactionFatal(ctx)
 			f.dead()
 			expired = true
 		}
 		if !expired && failure != "semantic" {
-			q := "SET " + failure + "_timeout='125ms'"
+			// lock_timeout counts only the lock wait, so it cannot fire before
+			// the operation queues; statement_timeout also counts parse and plan.
+			short := "125ms"
+			if failure == "lock" {
+				short = "10ms"
+			}
+			q := "SET " + failure + "_timeout='" + short + "'"
 			before := time.Now()
 			err := f.transactionSetupExec(ctx, q, 0)
 			after := time.Now()
 			if err != nil {
-				f.t.Logf("abort setup attempt=%d query=%s command=[%v,%v] BEGIN=[%v,%v] transaction=500ms short=125ms error=%v", attempt, q, before, after, beginBefore, beginAfter, err)
+				f.t.Logf("abort setup attempt=%d query=%s command=[%v,%v] BEGIN=[%v,%v] transaction=500ms short=%s error=%v", attempt, q, before, after, beginBefore, beginAfter, short, err)
 				f.transactionSetupExpiry(ctx, err, after, beginBefore.Add(500*time.Millisecond))
 				expired = true
 			}

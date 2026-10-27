@@ -6,7 +6,6 @@ import (
 	"errors"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceTimeoutPoolNoReplay(t *testing.T) {
@@ -32,7 +31,6 @@ func TestReferenceTimeoutPoolNoReplay(t *testing.T) {
 					if err := f.owner.Close(); err != nil {
 						t.Fatal(err)
 					}
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
 					// The owner is already back in the pool. Observe its actual
 					// termination without reacquiring it or restarting activity;
 					// elapsed idle time alone does not prove callback delivery.
@@ -158,7 +156,7 @@ func TestReferenceTimeoutFeatureSmoke(t *testing.T) {
 		borrow()
 		f.set("idle_in_transaction_session_timeout", "250ms")
 		f.beginPrivate()
-		f.awaitIdleFatal("25P03", 250*time.Millisecond)
+		f.awaitIdleFatal("25P03")
 		f.rows(f.peer, 7)
 		if err := f.owner.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
 			t.Fatal(err)
@@ -166,7 +164,7 @@ func TestReferenceTimeoutFeatureSmoke(t *testing.T) {
 
 		borrow()
 		f.set("idle_session_timeout", "250ms")
-		f.awaitIdleFatal("57P05", 250*time.Millisecond)
+		f.awaitIdleFatal("57P05")
 		f.rows(f.peer, 7)
 		if err := f.owner.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
 			t.Fatal(err)

@@ -464,8 +464,9 @@ func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/child=%v", failure, child), func(t *testing.T) {
 				timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 					f := newTimeoutReferenceFixture(t, p, b)
-					// Setup retains BEGIN-relative500 and the child's positive
-					// setting;125 is armed only after private work and peer locking.
+					// Setup retains BEGIN-relative500 (idle-in-transaction 500 is not
+					// shorter, so it is never armed) and the child's positive setting;
+					// the short timer is armed only after private work and peer locking.
 					identity, release := f.prepareAbortRestore(failure, child)
 					if failure == "semantic" {
 						result, err := f.owner.ExecContext(p.Ctx, "INSERT INTO timeout_sentinel VALUES(NULL)")
@@ -485,7 +486,8 @@ func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
 					}
 					// O3 source hypothesis: full abort cancels all timers. An
 					// unchanged positive restoration must not invent a new timer.
-					timeoutReferenceIdle(t, p.Ctx, 1100*time.Millisecond)
+					// Wait past both 500 ms limits.
+					timeoutReferenceIdle(t, p.Ctx, 600*time.Millisecond)
 					result, err := f.owner.ExecContext(p.Ctx, "SELECT v FROM timeout_sentinel")
 					if result != nil {
 						t.Fatal("aborted transaction published result")
@@ -502,7 +504,7 @@ func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
 						}
 						// A real off/on assignment does rearm the recovered owner.
 						f.set("transaction_timeout", "0")
-						f.set("transaction_timeout", "250ms")
+						f.set("transaction_timeout", "100ms")
 						f.awaitTransactionFatal(p.Ctx)
 						f.dead()
 					} else {

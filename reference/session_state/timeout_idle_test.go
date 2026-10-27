@@ -36,7 +36,7 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 						want.Position = batchPosition(query, "timeout_missing")
 						fixture.AssertDiagnostic(t, err, &want)
 					}
-					f.awaitIdleFatal(code, 250*time.Millisecond)
+					f.awaitIdleFatal(code)
 					f.rows(f.peer, 7)
 				case "wrong-outside", "wrong-inside":
 					setting := "idle_in_transaction_session_timeout"
@@ -64,7 +64,7 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 					}
 					defer rows.Close()
 					check := settingsTimeoutCursor(t, rows, b.PG)
-					f.awaitIdleFatalQuery("57P05", 250*time.Millisecond)
+					f.awaitIdleFatalQuery("57P05")
 					if !b.PG {
 						check()
 					}
@@ -130,7 +130,6 @@ func TestReferenceTimeoutPrecedence(t *testing.T) {
 				f.set("transaction_timeout", "250ms")
 				if tc.idle != "0" {
 					f.set("idle_in_transaction_session_timeout", tc.idle)
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
 					f.fatalProbe(tc.code)
 				} else {
 					f.set("statement_timeout", tc.statement)
