@@ -122,11 +122,35 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 	return nil
 }
 
+// unchangedProviders reports whether no provider has a statement to replay:
+// each keeps its installed key, owner, options and planner metadata. Dump
+// collects every builtin provider, and usually none changed.
+func unchangedProviders(providers []providerReplay) bool {
+	for _, p := range providers {
+		if p.original != p.current || p.ownerChanged || p.options != "" || p.parallel != 0 || p.cost != 0 || p.rows > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // planProviderReplay frees destinations before occupying them. A temporary name
 // is used only when every remaining first step is blocked: an occupied-key
 // cycle, or a move/rename whose two intermediate keys are both occupied.
 // Both intermediate schema/name keys and final keys are reserved when choosing it.
 func planProviderReplay(providers []providerReplay) ([]string, error) {
+	if unchangedProviders(providers) {
+		// Nothing moves, so nothing is emitted; keep the duplicate check.
+		// Each original key equals its current key.
+		seen := make(map[providerKey]bool, len(providers))
+		for _, p := range providers {
+			if seen[p.current] {
+				return nil, fmt.Errorf("stuntgres: duplicate final provider key")
+			}
+			seen[p.current] = true
+		}
+		return nil, nil
+	}
 	providers = slices.Clone(providers)
 	slices.SortFunc(providers, func(a, b providerReplay) int {
 		if n := strings.Compare(a.original.schema, b.original.schema); n != 0 {
