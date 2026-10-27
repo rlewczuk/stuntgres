@@ -54,7 +54,7 @@ type sqlSymType struct {
 	sqljsonBehavior           SQLJSONBehavior
 	jsonTable                 *JSONTable
 	jsonTableColumns          []JSONTableColumn
-	jsonTableColumn           JSONTableColumn
+	jsonTableColumn           *JSONTableColumn
 	types                     []TypeName
 	grantRoutine              GrantRoutineTarget
 	grantRoutines             []GrantRoutineTarget
@@ -69,14 +69,14 @@ type sqlSymType struct {
 	createLanguage            *CreateLanguage
 	plBlock                   *PLBlock
 	plDeclarations            []PLDeclaration
-	plDeclaration             PLDeclaration
+	plDeclaration             *PLDeclaration
 	plStatements              []PLStatement
-	plStatement               PLStatement
+	plStatement               *PLStatement
 	plHandlers                []PLHandler
 	plHandler                 PLHandler
 	plConditions              []PLCondition
 	plCondition               PLCondition
-	plType                    PLType
+	plType                    *PLType
 	plIdentifier              Identifier
 	plExpression              PLExpression
 	plExpressions             []PLExpression
@@ -89,11 +89,11 @@ type sqlSymType struct {
 	plForeach                 *PLForeach
 	plIntegerFor              *PLIntegerFor
 	plDynamic                 *PLDynamicStatement
-	plMotion                  PLCursorMotion
-	plActual                  PLCursorActual
+	plMotion                  *PLCursorMotion
+	plActual                  *PLCursorActual
 	plActuals                 []PLCursorActual
 	plRaise                   *PLRaise
-	plRaiseOption             PLRaiseOption
+	plRaiseOption             *PLRaiseOption
 	plRaiseOptions            []PLRaiseOption
 	plDiagnostics             *PLDiagnostics
 	plDiagnostic              PLDiagnosticAssignment
@@ -22609,23 +22609,23 @@ sqldefault:
 	case 1031:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.plDeclarations = append(sqlDollar[1].plDeclarations, sqlDollar[2].plDeclaration)
+			sqlVAL.plDeclarations = append(sqlDollar[1].plDeclarations, *sqlDollar[2].plDeclaration)
 		}
 	case 1032:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			sqlVAL.plDeclaration = PLDeclaration{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Constant: sqlDollar[2].desc, Type: sqlDollar[3].plType, Collation: sqlDollar[4].collation, NotNull: sqlDollar[5].tok.text != "", NotNullPos: sqlDollar[5].tok.pos, Default: sqlDollar[6].plExpression.Expression, DefaultStart: sqlDollar[6].plExpression.Start, DefaultEnd: sqlDollar[6].plExpression.End, DefaultDelimiter: sqlDollar[6].plExpression.Delimiter}
+			sqlVAL.plDeclaration = &PLDeclaration{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Constant: sqlDollar[2].desc, Type: *sqlDollar[3].plType, Collation: sqlDollar[4].collation, NotNull: sqlDollar[5].tok.text != "", NotNullPos: sqlDollar[5].tok.pos, Default: sqlDollar[6].plExpression.Expression, DefaultStart: sqlDollar[6].plExpression.Start, DefaultEnd: sqlDollar[6].plExpression.End, DefaultDelimiter: sqlDollar[6].plExpression.Delimiter}
 		}
 	case 1033:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.plDeclaration = PLDeclaration{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Alias: sqlDollar[4].expr}
+			sqlVAL.plDeclaration = &PLDeclaration{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Alias: sqlDollar[4].expr}
 		}
 	case 1034:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
 			query := sqllex.(*lexer).plBoundCursorQuery(sqlDollar[6].plQuery, sqlDollar[5].tok)
-			sqlVAL.plDeclaration = PLDeclaration{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Cursor: &PLCursorDeclaration{Scroll: CursorScroll(sqlDollar[2].integer), Arguments: sqlDollar[4].plDeclarations, Query: query.Query, QueryStart: query.Start, QueryEnd: query.End, QueryDelimiter: query.Delimiter}}
+			sqlVAL.plDeclaration = &PLDeclaration{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Cursor: &PLCursorDeclaration{Scroll: CursorScroll(sqlDollar[2].integer), Arguments: sqlDollar[4].plDeclarations, Query: query.Query, QueryStart: query.Start, QueryEnd: query.End, QueryDelimiter: query.Delimiter}}
 		}
 	case 1035:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
@@ -22650,23 +22650,23 @@ sqldefault:
 	case 1039:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plType = PLType{Type: sqlDollar[1].typ}
+			sqlVAL.plType = &PLType{Type: sqlDollar[1].typ}
 		}
 	case 1040:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.plType = plCopiedType(sqlDollar[1].typ, false)
+			sqlVAL.plType = cell(plCopiedType(sqlDollar[1].typ, false))
 		}
 	case 1041:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.plType = plCopiedType(sqlDollar[1].typ, false)
+			sqlVAL.plType = cell(plCopiedType(sqlDollar[1].typ, false))
 			sqlVAL.plType.Copy.Parts = append(sqlVAL.plType.Copy.Parts, Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos})
 		}
 	case 1042:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.plType = plCopiedType(sqlDollar[1].typ, true)
+			sqlVAL.plType = cell(plCopiedType(sqlDollar[1].typ, true))
 		}
 	case 1043:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
@@ -22714,18 +22714,18 @@ sqldefault:
 				}
 			}
 			l.plStatementBoundaryPending = true
-			sqlVAL.plStatements = append(sqlDollar[1].plStatements, sqlDollar[2].plStatement)
+			sqlVAL.plStatements = append(sqlDollar[1].plStatements, *sqlDollar[2].plStatement)
 		}
 	case 1049:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Block: sqlDollar[1].plBlock, Pos: sqlDollar[1].plBlock.Pos}
+			sqlVAL.plStatement = &PLStatement{Block: sqlDollar[1].plBlock, Pos: sqlDollar[1].plBlock.Pos}
 		}
 	case 1050:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			l := sqllex.(*lexer)
-			sqlVAL.plStatement = l.plSQLStatement(sqlDollar[1].stmt)
+			sqlVAL.plStatement = cell(l.plSQLStatement(sqlDollar[1].stmt))
 			if l.err != nil {
 				return 1
 			}
@@ -22733,23 +22733,23 @@ sqldefault:
 	case 1051:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Dynamic: sqlDollar[1].plDynamic, Pos: sqlDollar[1].plDynamic.Start}
+			sqlVAL.plStatement = &PLStatement{Dynamic: sqlDollar[1].plDynamic, Pos: sqlDollar[1].plDynamic.Start}
 		}
 	case 1052:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Transaction: plTransaction(KindCommit, sqlDollar[2].desc, sqlDollar[1].tok.pos), Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Transaction: plTransaction(KindCommit, sqlDollar[2].desc, sqlDollar[1].tok.pos), Pos: sqlDollar[1].tok.pos}
 		}
 	case 1053:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Transaction: plTransaction(KindRollback, sqlDollar[2].desc, sqlDollar[1].tok.pos), Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Transaction: plTransaction(KindRollback, sqlDollar[2].desc, sqlDollar[1].tok.pos), Pos: sqlDollar[1].tok.pos}
 		}
 	case 1054:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqlDollar[2].plDynamic.ReturnQuery = true
-			sqlVAL.plStatement = PLStatement{Dynamic: sqlDollar[2].plDynamic, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Dynamic: sqlDollar[2].plDynamic, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1055:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
@@ -22759,40 +22759,40 @@ sqldefault:
 			if !l.finishPLDiagnostics(sqlDollar[1].plDiagnostics) {
 				return 1
 			}
-			sqlVAL.plStatement = PLStatement{Diagnostics: sqlDollar[1].plDiagnostics, Pos: sqlDollar[1].plDiagnostics.Pos}
+			sqlVAL.plStatement = &PLStatement{Diagnostics: sqlDollar[1].plDiagnostics, Pos: sqlDollar[1].plDiagnostics.Pos}
 		}
 	case 1056:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Rethrow: true, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Rethrow: true, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1057:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Raise: sqlDollar[2].plRaise, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Raise: sqlDollar[2].plRaise, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1058:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlDollar[3].plRaise.Level = plRaiseLevel(sqlDollar[2].tok)
-			sqlVAL.plStatement = PLStatement{Raise: sqlDollar[3].plRaise, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Raise: sqlDollar[3].plRaise, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1059:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Assert: &PLAssert{Condition: sqllex.(*lexer).plBoundExpression(sqlDollar[2].plExpression, sqlDollar[1].tok), Message: sqlDollar[3].plExpression}, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Assert: &PLAssert{Condition: sqllex.(*lexer).plBoundExpression(sqlDollar[2].plExpression, sqlDollar[1].tok), Message: sqlDollar[3].plExpression}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1060:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			value := sqllex.(*lexer).plBoundExpression(sqlDollar[3].plExpression, sqlDollar[2].tok)
-			sqlVAL.plStatement = PLStatement{Target: sqlDollar[1].expr, Expression: value.Expression, ExpressionStart: value.Start, ExpressionEnd: value.End, ExpressionDelimiter: value.Delimiter, Pos: sqlDollar[1].expr.SourcePosition()}
+			sqlVAL.plStatement = &PLStatement{Target: sqlDollar[1].expr, Expression: value.Expression, ExpressionStart: value.Start, ExpressionEnd: value.End, ExpressionDelimiter: value.Delimiter, Pos: sqlDollar[1].expr.SourcePosition()}
 		}
 	case 1061:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			value := sqllex.(*lexer).plBoundExpression(sqlDollar[3].plExpression, sqlDollar[2].tok)
-			sqlVAL.plStatement = PLStatement{Target: sqlDollar[1].expr, Expression: value.Expression, ExpressionStart: value.Start, ExpressionEnd: value.End, ExpressionDelimiter: value.Delimiter, Pos: sqlDollar[1].expr.SourcePosition()}
+			sqlVAL.plStatement = &PLStatement{Target: sqlDollar[1].expr, Expression: value.Expression, ExpressionStart: value.Start, ExpressionEnd: value.End, ExpressionDelimiter: value.Delimiter, Pos: sqlDollar[1].expr.SourcePosition()}
 		}
 	case 1062:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -22804,37 +22804,37 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			value := sqllex.(*lexer).plBoundExpression(sqlDollar[2].plExpression, sqlDollar[1].tok)
-			sqlVAL.plStatement = PLStatement{Return: true, Expression: value.Expression, ExpressionStart: value.Start, ExpressionEnd: value.End, ExpressionDelimiter: value.Delimiter, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Return: true, Expression: value.Expression, ExpressionStart: value.Start, ExpressionEnd: value.End, ExpressionDelimiter: value.Delimiter, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1064:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
 			condition := sqllex.(*lexer).plBoundExpression(sqlDollar[2].plExpression, sqlDollar[1].tok)
 			arms := append([]PLArm{{Conditions: []PLExpression{condition}, Statements: sqlDollar[3].plStatements}}, sqlDollar[4].plArms...)
-			sqlVAL.plStatement = PLStatement{If: &PLConditional{Arms: arms, HasElse: sqlDollar[5].plElse.HasElse, Else: sqlDollar[5].plElse.Else}, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{If: &PLConditional{Arms: arms, HasElse: sqlDollar[5].plElse.HasElse, Else: sqlDollar[5].plElse.Else}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1065:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlDollar[3].plCursor.Action = PLOpenCursor
 			sqlDollar[3].plCursor.Variable = sqlDollar[2].expr
-			sqlVAL.plStatement = PLStatement{Cursor: sqlDollar[3].plCursor, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Cursor: sqlDollar[3].plCursor, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1066:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			cursor := sqllex.(*lexer).plCursorTargets(&PLCursorStatement{Action: PLFetchCursor, Variable: sqlDollar[4].expr, Motion: sqlDollar[2].plMotion, Targets: sqlDollar[6].row}, sqlDollar[5].tok)
-			sqlVAL.plStatement = PLStatement{Cursor: cursor, Pos: sqlDollar[1].tok.pos}
+			cursor := sqllex.(*lexer).plCursorTargets(&PLCursorStatement{Action: PLFetchCursor, Variable: sqlDollar[4].expr, Motion: *sqlDollar[2].plMotion, Targets: sqlDollar[6].row}, sqlDollar[5].tok)
+			sqlVAL.plStatement = &PLStatement{Cursor: cursor, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1067:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Cursor: &PLCursorStatement{Action: PLMoveCursor, Variable: sqlDollar[4].expr, Motion: sqlDollar[2].plMotion}, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Cursor: &PLCursorStatement{Action: PLMoveCursor, Variable: sqlDollar[4].expr, Motion: *sqlDollar[2].plMotion}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1068:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Cursor: &PLCursorStatement{Action: PLCloseCursor, Variable: sqlDollar[2].expr}, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Cursor: &PLCursorStatement{Action: PLCloseCursor, Variable: sqlDollar[2].expr}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1069:
 		sqlDollar = sqlS[sqlpt-8 : sqlpt+1]
@@ -22846,7 +22846,7 @@ sqldefault:
 				at = sqlDollar[4].plIntegerFor.Step.Delimiter
 			}
 			sqlDollar[4].plIntegerFor.Body = &PLBlock{Label: sqlDollar[1].plIdentifier, EndLabel: sqlDollar[8].plIdentifier, IsLoop: true, Statements: sqlDollar[5].plStatements, Pos: at}
-			sqlVAL.plStatement = PLStatement{IntegerFor: sqlDollar[4].plIntegerFor, Pos: sqlDollar[2].tok.pos}
+			sqlVAL.plStatement = &PLStatement{IntegerFor: sqlDollar[4].plIntegerFor, Pos: sqlDollar[2].tok.pos}
 		}
 	case 1070:
 		sqlDollar = sqlS[sqlpt-11 : sqlpt+1]
@@ -22861,7 +22861,7 @@ sqldefault:
 			sqlDollar[6].plCursor.Variable = sqlDollar[5].expr
 			sqlDollar[6].plCursor.LoopName = name.Name.Parts[0]
 			sqlDollar[6].plCursor.Loop = l.plLoop(sqlDollar[1].plIdentifier, sqlDollar[8].plStatements, sqlDollar[11].plIdentifier, sqlDollar[7].tok.pos)
-			sqlVAL.plStatement = PLStatement{Cursor: sqlDollar[6].plCursor, Pos: sqlDollar[2].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Cursor: sqlDollar[6].plCursor, Pos: sqlDollar[2].tok.pos}
 			if l.err != nil {
 				return 1
 			}
@@ -22873,7 +22873,7 @@ sqldefault:
 			sqlDollar[5].plQueryLoop.Target = sqlDollar[3].expr
 			sqlDollar[5].plQueryLoop.Start = l.plSourceStart(sqlDollar[5].plQueryLoop.End, sqlDollar[5].plQueryLoop.Delimiter, sqlDollar[4].tok)
 			sqlDollar[5].plQueryLoop.Body = l.plLoop(sqlDollar[1].plIdentifier, sqlDollar[7].plStatements, sqlDollar[10].plIdentifier, sqlDollar[6].tok.pos)
-			sqlVAL.plStatement = PLStatement{QueryLoop: sqlDollar[5].plQueryLoop, Pos: sqlDollar[2].tok.pos}
+			sqlVAL.plStatement = &PLStatement{QueryLoop: sqlDollar[5].plQueryLoop, Pos: sqlDollar[2].tok.pos}
 			if l.err != nil {
 				return 1
 			}
@@ -22888,7 +22888,7 @@ sqldefault:
 			loop.Source = l.plBoundExpression(sqlDollar[7].plExpression, sqlDollar[6].tok)
 			loop.Body = l.plLoop(sqlDollar[1].plIdentifier, sqlDollar[9].plStatements, sqlDollar[12].plIdentifier, sqlDollar[8].tok.pos)
 			l.plAfterForeach = true
-			sqlVAL.plStatement = PLStatement{Foreach: loop, Pos: sqlDollar[2].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Foreach: loop, Pos: sqlDollar[2].tok.pos}
 			if l.err != nil {
 				return 1
 			}
@@ -22896,7 +22896,7 @@ sqldefault:
 	case 1073:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			sqlVAL.plStatement = PLStatement{Loop: sqllex.(*lexer).plLoop(sqlDollar[1].plIdentifier, sqlDollar[3].plStatements, sqlDollar[6].plIdentifier, sqlDollar[2].tok.pos), Pos: sqlDollar[2].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Loop: sqllex.(*lexer).plLoop(sqlDollar[1].plIdentifier, sqlDollar[3].plStatements, sqlDollar[6].plIdentifier, sqlDollar[2].tok.pos), Pos: sqlDollar[2].tok.pos}
 			if sqllex.(*lexer).err != nil {
 				return 1
 			}
@@ -22906,7 +22906,7 @@ sqldefault:
 		{
 			l := sqllex.(*lexer)
 			condition := l.plDelimitedExpression(sqlDollar[3].plExpression, sqlDollar[2].tok, sqlDollar[4].tok)
-			sqlVAL.plStatement = PLStatement{While: &PLWhile{Condition: condition, Body: l.plLoop(sqlDollar[1].plIdentifier, sqlDollar[5].plStatements, sqlDollar[8].plIdentifier, sqlDollar[4].tok.pos)}, Pos: sqlDollar[2].tok.pos}
+			sqlVAL.plStatement = &PLStatement{While: &PLWhile{Condition: condition, Body: l.plLoop(sqlDollar[1].plIdentifier, sqlDollar[5].plStatements, sqlDollar[8].plIdentifier, sqlDollar[4].tok.pos)}, Pos: sqlDollar[2].tok.pos}
 			if l.err != nil {
 				return 1
 			}
@@ -22915,7 +22915,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			value := sqlDollar[3].plExpression
-			sqlVAL.plStatement = PLStatement{Transfer: &PLTransfer{Continue: sqlDollar[1].tok.text == "continue", Label: sqlDollar[2].plIdentifier, Alias: value.Alias}, Expression: value.Expression, ExpressionStart: value.Start, ExpressionEnd: value.End, ExpressionDelimiter: value.Delimiter, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Transfer: &PLTransfer{Continue: sqlDollar[1].tok.text == "continue", Label: sqlDollar[2].plIdentifier, Alias: value.Alias}, Expression: value.Expression, ExpressionStart: value.Start, ExpressionEnd: value.End, ExpressionDelimiter: value.Delimiter, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1076:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
@@ -22930,7 +22930,7 @@ sqldefault:
 					}
 				}
 			}
-			sqlVAL.plStatement = PLStatement{Case: &PLConditional{Search: search, Arms: sqlDollar[3].plArms, HasElse: sqlDollar[4].plElse.HasElse, Else: sqlDollar[4].plElse.Else}, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.plStatement = &PLStatement{Case: &PLConditional{Search: search, Arms: sqlDollar[3].plArms, HasElse: sqlDollar[4].plElse.HasElse, Else: sqlDollar[4].plElse.Else}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1077:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
@@ -23183,17 +23183,17 @@ sqldefault:
 	case 1123:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plRaiseOptions = []PLRaiseOption{sqlDollar[1].plRaiseOption}
+			sqlVAL.plRaiseOptions = []PLRaiseOption{*sqlDollar[1].plRaiseOption}
 		}
 	case 1124:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.plRaiseOptions = append(sqlDollar[1].plRaiseOptions, sqlDollar[3].plRaiseOption)
+			sqlVAL.plRaiseOptions = append(sqlDollar[1].plRaiseOptions, *sqlDollar[3].plRaiseOption)
 		}
 	case 1125:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plRaiseOption = sqllex.(*lexer).plRaiseOption(sqlDollar[1].tok)
+			sqlVAL.plRaiseOption = cell(sqllex.(*lexer).plRaiseOption(sqlDollar[1].tok))
 			if sqllex.(*lexer).err != nil {
 				return 1
 			}
@@ -23404,17 +23404,17 @@ sqldefault:
 	case 1180:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plDeclarations = []PLDeclaration{sqlDollar[1].plDeclaration}
+			sqlVAL.plDeclarations = []PLDeclaration{*sqlDollar[1].plDeclaration}
 		}
 	case 1181:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.plDeclarations = append(sqlDollar[1].plDeclarations, sqlDollar[3].plDeclaration)
+			sqlVAL.plDeclarations = append(sqlDollar[1].plDeclarations, *sqlDollar[3].plDeclaration)
 		}
 	case 1182:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plDeclaration = PLDeclaration{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[2].plType}
+			sqlVAL.plDeclaration = &PLDeclaration{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: *sqlDollar[2].plType}
 		}
 	case 1185:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
@@ -23603,24 +23603,24 @@ sqldefault:
 	case 1216:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plActuals = []PLCursorActual{sqlDollar[1].plActual}
+			sqlVAL.plActuals = []PLCursorActual{*sqlDollar[1].plActual}
 		}
 	case 1217:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlDollar[3].plActual = sqllex.(*lexer).plBoundCursorActual(sqlDollar[3].plActual, sqlDollar[2].tok)
+			*sqlDollar[3].plActual = sqllex.(*lexer).plBoundCursorActual(*sqlDollar[3].plActual, sqlDollar[2].tok)
 			sqlDollar[3].plActual.Separator = sqlDollar[2].tok.pos
-			sqlVAL.plActuals = append(sqlDollar[1].plActuals, sqlDollar[3].plActual)
+			sqlVAL.plActuals = append(sqlDollar[1].plActuals, *sqlDollar[3].plActual)
 		}
 	case 1218:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plActual = sqllex.(*lexer).plCursorActual(sqlDollar[1].plExpression)
+			sqlVAL.plActual = cell(sqllex.(*lexer).plCursorActual(sqlDollar[1].plExpression))
 		}
 	case 1219:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.plActual = sqllex.(*lexer).plNamedCursorActual(sqlDollar[1].plExpression, sqlDollar[3].plExpression, sqlDollar[2].tok)
+			sqlVAL.plActual = cell(sqllex.(*lexer).plNamedCursorActual(sqlDollar[1].plExpression, sqlDollar[3].plExpression, sqlDollar[2].tok))
 			if sqllex.(*lexer).err != nil {
 				return 1
 			}
@@ -23628,7 +23628,7 @@ sqldefault:
 	case 1220:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.plActual = sqllex.(*lexer).plNamedCursorActual(sqlDollar[1].plExpression, sqlDollar[3].plExpression, sqlDollar[2].tok)
+			sqlVAL.plActual = cell(sqllex.(*lexer).plNamedCursorActual(sqlDollar[1].plExpression, sqlDollar[3].plExpression, sqlDollar[2].tok))
 			if sqllex.(*lexer).err != nil {
 				return 1
 			}
@@ -23672,72 +23672,72 @@ sqldefault:
 	case 1230:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
-			sqlVAL.plMotion = PLCursorMotion{}
+			sqlVAL.plMotion = &PLCursorMotion{}
 		}
 	case 1231:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plMotion = PLCursorMotion{}
+			sqlVAL.plMotion = &PLCursorMotion{}
 		}
 	case 1232:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plMotion = PLCursorMotion{Direction: CursorBackward}
+			sqlVAL.plMotion = &PLCursorMotion{Direction: CursorBackward}
 		}
 	case 1233:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plMotion = sqllex.(*lexer).plFixedCursorMotion(1, sqlDollar[1].tok)
+			sqlVAL.plMotion = cell(sqllex.(*lexer).plFixedCursorMotion(1, sqlDollar[1].tok))
 		}
 	case 1234:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plMotion = sqllex.(*lexer).plFixedCursorMotion(-1, sqlDollar[1].tok)
+			sqlVAL.plMotion = cell(sqllex.(*lexer).plFixedCursorMotion(-1, sqlDollar[1].tok))
 		}
 	case 1235:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plMotion = sqllex.(*lexer).plCursorMotion(CursorAbsolute, sqlDollar[2].plExpression, false, sqlDollar[1].tok)
+			sqlVAL.plMotion = cell(sqllex.(*lexer).plCursorMotion(CursorAbsolute, sqlDollar[2].plExpression, false, sqlDollar[1].tok))
 		}
 	case 1236:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plMotion = sqllex.(*lexer).plCursorMotion(CursorRelative, sqlDollar[2].plExpression, false, sqlDollar[1].tok)
+			sqlVAL.plMotion = cell(sqllex.(*lexer).plCursorMotion(CursorRelative, sqlDollar[2].plExpression, false, sqlDollar[1].tok))
 		}
 	case 1237:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plMotion = PLCursorMotion{}
+			sqlVAL.plMotion = &PLCursorMotion{}
 		}
 	case 1238:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plMotion = PLCursorMotion{Direction: CursorBackward}
+			sqlVAL.plMotion = &PLCursorMotion{Direction: CursorBackward}
 		}
 	case 1239:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plMotion = sqllex.(*lexer).plCursorMotion(CursorForward, sqlDollar[2].plExpression, true, sqlDollar[1].tok)
+			sqlVAL.plMotion = cell(sqllex.(*lexer).plCursorMotion(CursorForward, sqlDollar[2].plExpression, true, sqlDollar[1].tok))
 		}
 	case 1240:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plMotion = sqllex.(*lexer).plCursorMotion(CursorBackward, sqlDollar[2].plExpression, true, sqlDollar[1].tok)
+			sqlVAL.plMotion = cell(sqllex.(*lexer).plCursorMotion(CursorBackward, sqlDollar[2].plExpression, true, sqlDollar[1].tok))
 		}
 	case 1241:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.plMotion = PLCursorMotion{All: true, Counted: true}
+			sqlVAL.plMotion = &PLCursorMotion{All: true, Counted: true}
 		}
 	case 1242:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plMotion = PLCursorMotion{All: true, Counted: true}
+			sqlVAL.plMotion = &PLCursorMotion{All: true, Counted: true}
 		}
 	case 1243:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.plMotion = PLCursorMotion{Direction: CursorBackward, All: true, Counted: true}
+			sqlVAL.plMotion = &PLCursorMotion{Direction: CursorBackward, All: true, Counted: true}
 		}
 	case 1244:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -31622,12 +31622,12 @@ sqldefault:
 	case 2658:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.jsonTableColumns = []JSONTableColumn{sqlDollar[1].jsonTableColumn}
+			sqlVAL.jsonTableColumns = []JSONTableColumn{*sqlDollar[1].jsonTableColumn}
 		}
 	case 2659:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.jsonTableColumns = append(sqlDollar[1].jsonTableColumns, sqlDollar[3].jsonTableColumn)
+			sqlVAL.jsonTableColumns = append(sqlDollar[1].jsonTableColumns, *sqlDollar[3].jsonTableColumn)
 		}
 	case 2660:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
@@ -31646,12 +31646,12 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[3].tok)
 				return 1
 			}
-			sqlVAL.jsonTableColumn = JSONTableColumn{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Ordinality: true, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.jsonTableColumn = &JSONTableColumn{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Ordinality: true, Pos: sqlDollar[1].tok.pos}
 		}
 	case 2663:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
-			sqlVAL.jsonTableColumn = JSONTableColumn{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[2].typ, Format: sqlDollar[3].jsonFormat, Path: sqlDollar[4].expr, Wrapper: sqlDollar[5].tok.text, Quotes: sqlDollar[6].tok.text, Empty: sqlDollar[7].sqljsonQuery.Empty, Error: sqlDollar[7].sqljsonQuery.Error, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.jsonTableColumn = &JSONTableColumn{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[2].typ, Format: sqlDollar[3].jsonFormat, Path: sqlDollar[4].expr, Wrapper: sqlDollar[5].tok.text, Quotes: sqlDollar[6].tok.text, Empty: sqlDollar[7].sqljsonQuery.Empty, Error: sqlDollar[7].sqljsonQuery.Error, Pos: sqlDollar[1].tok.pos}
 		}
 	case 2664:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
@@ -31660,7 +31660,7 @@ sqldefault:
 				sqllex.(*lexer).syntax(lexeme{raw: "EMPTY", pos: sqlDollar[5].sqljsonQuery.Empty.BranchPos})
 				return 1
 			}
-			sqlVAL.jsonTableColumn = JSONTableColumn{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[2].typ, Exists: true, Path: sqlDollar[4].expr, Error: sqlDollar[5].sqljsonQuery.Error, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.jsonTableColumn = &JSONTableColumn{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[2].typ, Exists: true, Path: sqlDollar[4].expr, Error: sqlDollar[5].sqljsonQuery.Error, Pos: sqlDollar[1].tok.pos}
 		}
 	case 2665:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
@@ -31669,12 +31669,12 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[1].tok)
 				return 1
 			}
-			sqlVAL.jsonTableColumn = JSONTableColumn{Path: sqlDollar[2].expr, PathName: sqlDollar[3].identifier, Columns: sqlDollar[4].jsonTableColumns, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.jsonTableColumn = &JSONTableColumn{Path: sqlDollar[2].expr, PathName: sqlDollar[3].identifier, Columns: sqlDollar[4].jsonTableColumns, Pos: sqlDollar[1].tok.pos}
 		}
 	case 2666:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.jsonTableColumn = JSONTableColumn{Path: LiteralExpr{Value: Value{Kind: StringValue, Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}}, PathName: sqlDollar[3].identifier, Columns: sqlDollar[4].jsonTableColumns, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.jsonTableColumn = &JSONTableColumn{Path: LiteralExpr{Value: Value{Kind: StringValue, Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}}, PathName: sqlDollar[3].identifier, Columns: sqlDollar[4].jsonTableColumns, Pos: sqlDollar[1].tok.pos}
 		}
 	case 2667:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]

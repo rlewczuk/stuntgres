@@ -51,7 +51,7 @@ package parser
  sqljsonBehavior SQLJSONBehavior
  jsonTable *JSONTable
  jsonTableColumns []JSONTableColumn
- jsonTableColumn JSONTableColumn
+ jsonTableColumn *JSONTableColumn
  types []TypeName
  grantRoutine GrantRoutineTarget
  grantRoutines []GrantRoutineTarget
@@ -66,14 +66,14 @@ package parser
  createLanguage *CreateLanguage
  plBlock *PLBlock
  plDeclarations []PLDeclaration
- plDeclaration PLDeclaration
+ plDeclaration *PLDeclaration
  plStatements []PLStatement
- plStatement PLStatement
+ plStatement *PLStatement
  plHandlers []PLHandler
  plHandler PLHandler
  plConditions []PLCondition
  plCondition PLCondition
- plType PLType
+ plType *PLType
  plIdentifier Identifier
  plExpression PLExpression
  plExpressions []PLExpression
@@ -86,11 +86,11 @@ package parser
  plForeach *PLForeach
  plIntegerFor *PLIntegerFor
  plDynamic *PLDynamicStatement
- plMotion PLCursorMotion
- plActual PLCursorActual
+ plMotion *PLCursorMotion
+ plActual *PLCursorActual
  plActuals []PLCursorActual
  plRaise *PLRaise
- plRaiseOption PLRaiseOption
+ plRaiseOption *PLRaiseOption
  plRaiseOptions []PLRaiseOption
  plDiagnostics *PLDiagnostics
  plDiagnostic PLDiagnosticAssignment
@@ -1933,47 +1933,47 @@ pl_condition: pl_name {$$=PLCondition{Name:Identifier{Text:$1.text,Pos:$1.pos},P
 pl_declarations: /* empty */ {$$=nil}
  | DECLARE pl_declaration_list {$$=$2} ;
 pl_declaration_list: /* empty */ {$$=nil}
- | pl_declaration_list pl_declaration ';' {$$=append($1,$2)} ;
-pl_declaration: pl_declaration_name pl_constant pl_type column_collation pl_not_null pl_default {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Constant:$2,Type:$3,Collation:$4,NotNull:$5.text!="",NotNullPos:$5.pos,Default:$6.Expression,DefaultStart:$6.Start,DefaultEnd:$6.End,DefaultDelimiter:$6.Delimiter}}
- | pl_declaration_name PL_ALIAS FOR pl_target {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Alias:$4}}
- | pl_declaration_name cursor_scroll CURSOR pl_cursor_arguments pl_cursor_for pl_cursor_query {query:=sqllex.(*lexer).plBoundCursorQuery($6,$5);$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Cursor:&PLCursorDeclaration{Scroll:CursorScroll($2),Arguments:$4,Query:query.Query,QueryStart:query.Start,QueryEnd:query.End,QueryDelimiter:query.Delimiter}}} ;
+ | pl_declaration_list pl_declaration ';' {$$=append($1,*$2)} ;
+pl_declaration: pl_declaration_name pl_constant pl_type column_collation pl_not_null pl_default {$$=&PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Constant:$2,Type:*$3,Collation:$4,NotNull:$5.text!="",NotNullPos:$5.pos,Default:$6.Expression,DefaultStart:$6.Start,DefaultEnd:$6.End,DefaultDelimiter:$6.Delimiter}}
+ | pl_declaration_name PL_ALIAS FOR pl_target {$$=&PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Alias:$4}}
+ | pl_declaration_name cursor_scroll CURSOR pl_cursor_arguments pl_cursor_for pl_cursor_query {query:=sqllex.(*lexer).plBoundCursorQuery($6,$5);$$=&PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Cursor:&PLCursorDeclaration{Scroll:CursorScroll($2),Arguments:$4,Query:query.Query,QueryStart:query.Start,QueryEnd:query.End,QueryDelimiter:query.Delimiter}}} ;
 pl_constant: /* empty */ {$$=false} | PL_CONSTANT {$$=true} ;
 pl_not_null: /* empty */ {$$=lexeme{}} | NOT NULL {$$=$1} ;
-pl_type: declared_type {$$=PLType{Type:$1}}
- | declared_type '%' PL_TYPE_COPY {$$=plCopiedType($1,false)}
- | declared_type '.' name '%' PL_TYPE_COPY {$$=plCopiedType($1,false);$$.Copy.Parts=append($$.Copy.Parts,Identifier{Text:$3.text,Pos:$3.pos})}
- | declared_type '%' PL_ROW_COPY {$$=plCopiedType($1,true)} ;
+pl_type: declared_type {$$=&PLType{Type:$1}}
+ | declared_type '%' PL_TYPE_COPY {$$=cell(plCopiedType($1,false))}
+ | declared_type '.' name '%' PL_TYPE_COPY {$$=cell(plCopiedType($1,false));$$.Copy.Parts=append($$.Copy.Parts,Identifier{Text:$3.text,Pos:$3.pos})}
+ | declared_type '%' PL_ROW_COPY {$$=cell(plCopiedType($1,true))} ;
 pl_default: /* empty */ {$$=PLExpression{}} | DEFAULT pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | PL_ASSIGN pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | '=' pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} ;
 pl_statements: /* empty */ {sqllex.(*lexer).plStatementBoundaryPending=true;$$=nil}
- | pl_statements pl_statement ';' {l:=sqllex.(*lexer);if command:=$2.SQL;command!=nil{command.finishSQL(l.input,$<tok>3.pos)};if dynamic:=$2.Dynamic;dynamic!=nil{dynamic.finishDynamic($<tok>3.pos)};if diagnostics:=$2.Diagnostics;diagnostics!=nil{diagnostics.finishSource(l.input,$<tok>3.pos)};if loop:=$2.IntegerFor;loop!=nil{l.plCheckEndLabel(loop.Body.Label,loop.Body.EndLabel);if l.err!=nil{return 1}};l.plStatementBoundaryPending=true;$$=append($1,$2)} ;
-pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
- | pl_static_statement {l:=sqllex.(*lexer);$$=l.plSQLStatement($1);if l.err!=nil{return 1}}
- | pl_dynamic {$$=PLStatement{Dynamic:$1,Pos:$1.Start}}
- | COMMIT opt_chain {$$=PLStatement{Transaction:plTransaction(KindCommit,$2,$1.pos),Pos:$1.pos}}
- | ROLLBACK opt_chain {$$=PLStatement{Transaction:plTransaction(KindRollback,$2,$1.pos),Pos:$1.pos}}
- | PL_RETURN_QUERY pl_dynamic {$2.ReturnQuery=true;$$=PLStatement{Dynamic:$2,Pos:$1.pos}}
- | pl_diagnostics_head pl_diagnostic_assignments {l:=sqllex.(*lexer);$1.Assignments=$2;if !l.finishPLDiagnostics($1){return 1};$$=PLStatement{Diagnostics:$1,Pos:$1.Pos}}
- | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}}
- | PL_RAISE pl_raise_body {$$=PLStatement{Raise:$2,Pos:$1.pos}}
- | PL_RAISE PL_RAISE_LEVEL pl_raise_body {$3.Level=plRaiseLevel($2);$$=PLStatement{Raise:$3,Pos:$1.pos}}
- | pl_assert_head pl_expression pl_assert_message {$$=PLStatement{Assert:&PLAssert{Condition:sqllex.(*lexer).plBoundExpression($2,$1),Message:$3},Pos:$1.pos}}
- | pl_target PL_ASSIGN pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
- | pl_target '=' pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
+ | pl_statements pl_statement ';' {l:=sqllex.(*lexer);if command:=$2.SQL;command!=nil{command.finishSQL(l.input,$<tok>3.pos)};if dynamic:=$2.Dynamic;dynamic!=nil{dynamic.finishDynamic($<tok>3.pos)};if diagnostics:=$2.Diagnostics;diagnostics!=nil{diagnostics.finishSource(l.input,$<tok>3.pos)};if loop:=$2.IntegerFor;loop!=nil{l.plCheckEndLabel(loop.Body.Label,loop.Body.EndLabel);if l.err!=nil{return 1}};l.plStatementBoundaryPending=true;$$=append($1,*$2)} ;
+pl_statement: pl_block {$$=&PLStatement{Block:$1,Pos:$1.Pos}}
+ | pl_static_statement {l:=sqllex.(*lexer);$$=cell(l.plSQLStatement($1));if l.err!=nil{return 1}}
+ | pl_dynamic {$$=&PLStatement{Dynamic:$1,Pos:$1.Start}}
+ | COMMIT opt_chain {$$=&PLStatement{Transaction:plTransaction(KindCommit,$2,$1.pos),Pos:$1.pos}}
+ | ROLLBACK opt_chain {$$=&PLStatement{Transaction:plTransaction(KindRollback,$2,$1.pos),Pos:$1.pos}}
+ | PL_RETURN_QUERY pl_dynamic {$2.ReturnQuery=true;$$=&PLStatement{Dynamic:$2,Pos:$1.pos}}
+ | pl_diagnostics_head pl_diagnostic_assignments {l:=sqllex.(*lexer);$1.Assignments=$2;if !l.finishPLDiagnostics($1){return 1};$$=&PLStatement{Diagnostics:$1,Pos:$1.Pos}}
+ | PL_RAISE {$$=&PLStatement{Rethrow:true,Pos:$1.pos}}
+ | PL_RAISE pl_raise_body {$$=&PLStatement{Raise:$2,Pos:$1.pos}}
+ | PL_RAISE PL_RAISE_LEVEL pl_raise_body {$3.Level=plRaiseLevel($2);$$=&PLStatement{Raise:$3,Pos:$1.pos}}
+ | pl_assert_head pl_expression pl_assert_message {$$=&PLStatement{Assert:&PLAssert{Condition:sqllex.(*lexer).plBoundExpression($2,$1),Message:$3},Pos:$1.pos}}
+ | pl_target PL_ASSIGN pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=&PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
+ | pl_target '=' pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=&PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
  | pl_target {sqllex.(*lexer).plBareTarget($1);return 1}
- | PL_RETURN pl_return_value {value:=sqllex.(*lexer).plBoundExpression($2,$1);$$=PLStatement{Return:true,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
- | pl_if_head pl_if_condition pl_statements pl_elsif_arms pl_else END IF {condition:=sqllex.(*lexer).plBoundExpression($2,$1);arms:=append([]PLArm{{Conditions:[]PLExpression{condition},Statements:$3}},$4...);$$=PLStatement{If:&PLConditional{Arms:arms,HasElse:$5.HasElse,Else:$5.Else},Pos:$1.pos}}
- | PL_OPEN pl_target pl_open_tail {$3.Action=PLOpenCursor;$3.Variable=$2;$$=PLStatement{Cursor:$3,Pos:$1.pos}}
- | FETCH pl_cursor_motion pl_cursor_from pl_target INTO pl_cursor_targets {cursor:=sqllex.(*lexer).plCursorTargets(&PLCursorStatement{Action:PLFetchCursor,Variable:$4,Motion:$2,Targets:$6},$5);$$=PLStatement{Cursor:cursor,Pos:$1.pos}}
- | MOVE pl_cursor_motion pl_cursor_from pl_target {$$=PLStatement{Cursor:&PLCursorStatement{Action:PLMoveCursor,Variable:$4,Motion:$2},Pos:$1.pos}}
- | CLOSE pl_target {$$=PLStatement{Cursor:&PLCursorStatement{Action:PLCloseCursor,Variable:$2},Pos:$1.pos}}
- | pl_label PL_INTEGER_FOR pl_integer_targets pl_integer_range pl_statements END PL_LOOP pl_end_label {$4.Targets=$3.Targets;$4.TargetCommas=$3.TargetCommas;at:=$4.Upper.Delimiter;if $4.Step.Expression!=nil{at=$4.Step.Delimiter};$4.Body=&PLBlock{Label:$1,EndLabel:$8,IsLoop:true,Statements:$5,Pos:at};$$=PLStatement{IntegerFor:$4,Pos:$2.pos}}
- | pl_label FOR pl_target IN pl_target pl_cursor_actuals PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);name,ok:=$3.(ColumnExpr);if !ok||len(name.Name.Parts)!=1{l.failAt("42601","invalid cursor FOR loop variable",$3.SourcePosition().Offset);return 1};$6.Action=PLForCursor;$6.Variable=$5;$6.LoopName=name.Name.Parts[0];$6.Loop=l.plLoop($1,$8,$11,$7.pos);$$=PLStatement{Cursor:$6,Pos:$2.pos};if l.err!=nil{return 1}}
- | pl_label FOR pl_target IN pl_query_loop_source PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);$5.Target=$3;$5.Start=l.plSourceStart($5.End,$5.Delimiter,$4);$5.Body=l.plLoop($1,$7,$10,$6.pos);$$=PLStatement{QueryLoop:$5,Pos:$2.pos};if l.err!=nil{return 1}}
- | pl_label PL_FOREACH pl_foreach_targets pl_foreach_slice IN pl_foreach_array pl_expression PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);loop:=$4;loop.Targets=$3.Targets;loop.TargetCommas=$3.TargetCommas;loop.Source=l.plBoundExpression($7,$6);loop.Body=l.plLoop($1,$9,$12,$8.pos);l.plAfterForeach=true;$$=PLStatement{Foreach:loop,Pos:$2.pos};if l.err!=nil{return 1}}
- | pl_label PL_LOOP pl_statements END PL_LOOP pl_end_label {$$=PLStatement{Loop:sqllex.(*lexer).plLoop($1,$3,$6,$2.pos),Pos:$2.pos};if sqllex.(*lexer).err!=nil{return 1}}
- | pl_label pl_while_head pl_integer_operand PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);condition:=l.plDelimitedExpression($3,$2,$4);$$=PLStatement{While:&PLWhile{Condition:condition,Body:l.plLoop($1,$5,$8,$4.pos)},Pos:$2.pos};if l.err!=nil{return 1}}
- | pl_transfer_kind pl_end_label pl_transfer_when {value:=$3;$$=PLStatement{Transfer:&PLTransfer{Continue:$1.text=="continue",Label:$2,Alias:value.Alias},Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
- | pl_case_head pl_search pl_case_arms pl_else END CASE {l:=sqllex.(*lexer);search:=l.plBoundExpression($2,$1);if search.Expression==nil {for _,arm:=range $3 {if len(arm.Conditions)!=1 {l.failAt("42601","syntax error at or near \",\"",arm.Conditions[0].Delimiter.Offset);return 1}}};$$=PLStatement{Case:&PLConditional{Search:search,Arms:$3,HasElse:$4.HasElse,Else:$4.Else},Pos:$1.pos}} ;
+ | PL_RETURN pl_return_value {value:=sqllex.(*lexer).plBoundExpression($2,$1);$$=&PLStatement{Return:true,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
+ | pl_if_head pl_if_condition pl_statements pl_elsif_arms pl_else END IF {condition:=sqllex.(*lexer).plBoundExpression($2,$1);arms:=append([]PLArm{{Conditions:[]PLExpression{condition},Statements:$3}},$4...);$$=&PLStatement{If:&PLConditional{Arms:arms,HasElse:$5.HasElse,Else:$5.Else},Pos:$1.pos}}
+ | PL_OPEN pl_target pl_open_tail {$3.Action=PLOpenCursor;$3.Variable=$2;$$=&PLStatement{Cursor:$3,Pos:$1.pos}}
+ | FETCH pl_cursor_motion pl_cursor_from pl_target INTO pl_cursor_targets {cursor:=sqllex.(*lexer).plCursorTargets(&PLCursorStatement{Action:PLFetchCursor,Variable:$4,Motion:*$2,Targets:$6},$5);$$=&PLStatement{Cursor:cursor,Pos:$1.pos}}
+ | MOVE pl_cursor_motion pl_cursor_from pl_target {$$=&PLStatement{Cursor:&PLCursorStatement{Action:PLMoveCursor,Variable:$4,Motion:*$2},Pos:$1.pos}}
+ | CLOSE pl_target {$$=&PLStatement{Cursor:&PLCursorStatement{Action:PLCloseCursor,Variable:$2},Pos:$1.pos}}
+ | pl_label PL_INTEGER_FOR pl_integer_targets pl_integer_range pl_statements END PL_LOOP pl_end_label {$4.Targets=$3.Targets;$4.TargetCommas=$3.TargetCommas;at:=$4.Upper.Delimiter;if $4.Step.Expression!=nil{at=$4.Step.Delimiter};$4.Body=&PLBlock{Label:$1,EndLabel:$8,IsLoop:true,Statements:$5,Pos:at};$$=&PLStatement{IntegerFor:$4,Pos:$2.pos}}
+ | pl_label FOR pl_target IN pl_target pl_cursor_actuals PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);name,ok:=$3.(ColumnExpr);if !ok||len(name.Name.Parts)!=1{l.failAt("42601","invalid cursor FOR loop variable",$3.SourcePosition().Offset);return 1};$6.Action=PLForCursor;$6.Variable=$5;$6.LoopName=name.Name.Parts[0];$6.Loop=l.plLoop($1,$8,$11,$7.pos);$$=&PLStatement{Cursor:$6,Pos:$2.pos};if l.err!=nil{return 1}}
+ | pl_label FOR pl_target IN pl_query_loop_source PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);$5.Target=$3;$5.Start=l.plSourceStart($5.End,$5.Delimiter,$4);$5.Body=l.plLoop($1,$7,$10,$6.pos);$$=&PLStatement{QueryLoop:$5,Pos:$2.pos};if l.err!=nil{return 1}}
+ | pl_label PL_FOREACH pl_foreach_targets pl_foreach_slice IN pl_foreach_array pl_expression PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);loop:=$4;loop.Targets=$3.Targets;loop.TargetCommas=$3.TargetCommas;loop.Source=l.plBoundExpression($7,$6);loop.Body=l.plLoop($1,$9,$12,$8.pos);l.plAfterForeach=true;$$=&PLStatement{Foreach:loop,Pos:$2.pos};if l.err!=nil{return 1}}
+ | pl_label PL_LOOP pl_statements END PL_LOOP pl_end_label {$$=&PLStatement{Loop:sqllex.(*lexer).plLoop($1,$3,$6,$2.pos),Pos:$2.pos};if sqllex.(*lexer).err!=nil{return 1}}
+ | pl_label pl_while_head pl_integer_operand PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);condition:=l.plDelimitedExpression($3,$2,$4);$$=&PLStatement{While:&PLWhile{Condition:condition,Body:l.plLoop($1,$5,$8,$4.pos)},Pos:$2.pos};if l.err!=nil{return 1}}
+ | pl_transfer_kind pl_end_label pl_transfer_when {value:=$3;$$=&PLStatement{Transfer:&PLTransfer{Continue:$1.text=="continue",Label:$2,Alias:value.Alias},Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
+ | pl_case_head pl_search pl_case_arms pl_else END CASE {l:=sqllex.(*lexer);search:=l.plBoundExpression($2,$1);if search.Expression==nil {for _,arm:=range $3 {if len(arm.Conditions)!=1 {l.failAt("42601","syntax error at or near \",\"",arm.Conditions[0].Delimiter.Offset);return 1}}};$$=&PLStatement{Case:&PLConditional{Search:search,Arms:$3,HasElse:$4.HasElse,Else:$4.Else},Pos:$1.pos}} ;
 pl_diagnostics_head: PL_GET PL_DIAGNOSTICS {$$=&PLDiagnostics{Pos:$1.pos}}
  | PL_GET PL_CURRENT PL_DIAGNOSTICS {$$=&PLDiagnostics{Pos:$1.pos}}
  | PL_GET PL_STACKED PL_DIAGNOSTICS {$$=&PLDiagnostics{Stacked:true,Pos:$1.pos}} ;
@@ -2012,9 +2012,9 @@ pl_message_comma: ',' {sqllex.(*lexer).plBeginExpression(plMessageBoundary);$$=$
  | PL_MESSAGE_COMMA {sqllex.(*lexer).plBeginExpression(plMessageBoundary);$$=$1} ;
 pl_raise_using: USING {$$=$1} | PL_RAISE_USING {$$=$1} ;
 pl_raise_options: /* empty */ {$$=nil} | pl_raise_using pl_raise_option_list {$$=$2} ;
-pl_raise_option_list: pl_raise_option {$$=[]PLRaiseOption{$1}}
- | pl_raise_option_list PL_MESSAGE_COMMA pl_raise_option {$$=append($1,$3)} ;
-pl_raise_option_name: col_label {$$=sqllex.(*lexer).plRaiseOption($1);if sqllex.(*lexer).err!=nil{return 1}} ;
+pl_raise_option_list: pl_raise_option {$$=[]PLRaiseOption{*$1}}
+ | pl_raise_option_list PL_MESSAGE_COMMA pl_raise_option {$$=append($1,*$3)} ;
+pl_raise_option_name: col_label {$$=cell(sqllex.(*lexer).plRaiseOption($1));if sqllex.(*lexer).err!=nil{return 1}} ;
 pl_option_assign: '=' {sqllex.(*lexer).plBeginExpression(plOptionBoundary);$$=$1}
  | PL_ASSIGN {sqllex.(*lexer).plBeginExpression(plOptionBoundary);$$=$1} ;
 pl_raise_option: pl_raise_option_name pl_option_assign pl_expression {$1.Value=sqllex.(*lexer).plBoundExpression($3,$2);$$=$1} ;
@@ -2053,9 +2053,9 @@ pl_foreach_targets: pl_foreach_target {$$=&PLForeach{Targets:[]Expr{$1}}}
 pl_declaration_name: pl_name | PL_ELSIF ;
 pl_cursor_arguments: /* empty */ {$$=nil}
  | '(' pl_cursor_argument_list ')' {$$=$2} ;
-pl_cursor_argument_list: pl_cursor_argument {$$=[]PLDeclaration{$1}}
- | pl_cursor_argument_list ',' pl_cursor_argument {$$=append($1,$3)} ;
-pl_cursor_argument: pl_name pl_type {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2}} ;
+pl_cursor_argument_list: pl_cursor_argument {$$=[]PLDeclaration{*$1}}
+ | pl_cursor_argument_list ',' pl_cursor_argument {$$=append($1,*$3)} ;
+pl_cursor_argument: pl_name pl_type {$$=&PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:*$2}} ;
 pl_cursor_for: FOR | IS ;
 pl_cursor_query: pl_expression_start query_select {l:=sqllex.(*lexer);l.plExpression=false;$$=plCursorQuery{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
 pl_query_loop_source: pl_query_loop_start pl_query_loop_statement {l:=sqllex.(*lexer);l.plExpression=false;$$=&PLQueryLoop{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
@@ -2080,29 +2080,29 @@ pl_open_tail: pl_cursor_actuals {$$=$1}
  | cursor_scroll FOR EXECUTE pl_expression pl_using {command:=sqllex.(*lexer).plBoundExpression($4,$3);$$=&PLCursorStatement{Scroll:CursorScroll($1),Command:command.Expression,CommandStart:command.Start,CommandEnd:command.End,CommandDelimiter:command.Delimiter,Using:$5}} ;
 pl_cursor_actuals: /* empty */ {$$=&PLCursorStatement{ArgumentsStart:sqllex.(*lexer).current.pos}}
  | '(' pl_cursor_actual_list ')' {$2[0]=sqllex.(*lexer).plBoundCursorActual($2[0],$1);$$=&PLCursorStatement{Arguments:$2,HasArguments:true,ArgumentsStart:$1.pos,ArgumentsEnd:$3.pos}} ;
-pl_cursor_actual_list: pl_cursor_actual {$$=[]PLCursorActual{$1}}
- | pl_cursor_actual_list ',' pl_cursor_actual {$3=sqllex.(*lexer).plBoundCursorActual($3,$2);$3.Separator=$2.pos;$$=append($1,$3)} ;
-pl_cursor_actual: pl_expression {$$=sqllex.(*lexer).plCursorActual($1)}
- | pl_expression EQUALS_GREATER pl_expression {$$=sqllex.(*lexer).plNamedCursorActual($1,$3,$2);if sqllex.(*lexer).err!=nil{return 1}}
- | pl_expression PL_ASSIGN pl_expression {$$=sqllex.(*lexer).plNamedCursorActual($1,$3,$2);if sqllex.(*lexer).err!=nil{return 1}} ;
+pl_cursor_actual_list: pl_cursor_actual {$$=[]PLCursorActual{*$1}}
+ | pl_cursor_actual_list ',' pl_cursor_actual {*$3=sqllex.(*lexer).plBoundCursorActual(*$3,$2);$3.Separator=$2.pos;$$=append($1,*$3)} ;
+pl_cursor_actual: pl_expression {$$=cell(sqllex.(*lexer).plCursorActual($1))}
+ | pl_expression EQUALS_GREATER pl_expression {$$=cell(sqllex.(*lexer).plNamedCursorActual($1,$3,$2));if sqllex.(*lexer).err!=nil{return 1}}
+ | pl_expression PL_ASSIGN pl_expression {$$=cell(sqllex.(*lexer).plNamedCursorActual($1,$3,$2));if sqllex.(*lexer).err!=nil{return 1}} ;
 pl_using: /* empty */ {$$=nil} | USING pl_using_values {$2[0]=sqllex.(*lexer).plBoundExpression($2[0],$1);$$=$2} ;
 pl_using_values: pl_expression {$$=[]PLExpression{$1}} | pl_using_values ',' pl_expression {$$=append($1,sqllex.(*lexer).plBoundExpression($3,$2))} ;
 pl_cursor_targets: pl_target {$$=[]Expr{$1}} | pl_cursor_targets ',' pl_target {$$=append($1,$3)} ;
 pl_cursor_from: /* empty */ {$$=lexeme{}} | FROM | IN ;
-pl_cursor_motion: /* empty */ {$$=PLCursorMotion{}}
- | PL_NEXT {$$=PLCursorMotion{}}
- | PL_PRIOR {$$=PLCursorMotion{Direction:CursorBackward}}
- | FIRST {$$=sqllex.(*lexer).plFixedCursorMotion(1,$1)}
- | PL_LAST {$$=sqllex.(*lexer).plFixedCursorMotion(-1,$1)}
- | ABSOLUTE pl_expression {$$=sqllex.(*lexer).plCursorMotion(CursorAbsolute,$2,false,$1)}
- | RELATIVE pl_expression {$$=sqllex.(*lexer).plCursorMotion(CursorRelative,$2,false,$1)}
- | FORWARD {$$=PLCursorMotion{}}
- | BACKWARD {$$=PLCursorMotion{Direction:CursorBackward}}
- | FORWARD pl_expression {$$=sqllex.(*lexer).plCursorMotion(CursorForward,$2,true,$1)}
- | BACKWARD pl_expression {$$=sqllex.(*lexer).plCursorMotion(CursorBackward,$2,true,$1)}
- | ALL {$$=PLCursorMotion{All:true,Counted:true}}
- | FORWARD ALL {$$=PLCursorMotion{All:true,Counted:true}}
- | BACKWARD ALL {$$=PLCursorMotion{Direction:CursorBackward,All:true,Counted:true}} ;
+pl_cursor_motion: /* empty */ {$$=&PLCursorMotion{}}
+ | PL_NEXT {$$=&PLCursorMotion{}}
+ | PL_PRIOR {$$=&PLCursorMotion{Direction:CursorBackward}}
+ | FIRST {$$=cell(sqllex.(*lexer).plFixedCursorMotion(1,$1))}
+ | PL_LAST {$$=cell(sqllex.(*lexer).plFixedCursorMotion(-1,$1))}
+ | ABSOLUTE pl_expression {$$=cell(sqllex.(*lexer).plCursorMotion(CursorAbsolute,$2,false,$1))}
+ | RELATIVE pl_expression {$$=cell(sqllex.(*lexer).plCursorMotion(CursorRelative,$2,false,$1))}
+ | FORWARD {$$=&PLCursorMotion{}}
+ | BACKWARD {$$=&PLCursorMotion{Direction:CursorBackward}}
+ | FORWARD pl_expression {$$=cell(sqllex.(*lexer).plCursorMotion(CursorForward,$2,true,$1))}
+ | BACKWARD pl_expression {$$=cell(sqllex.(*lexer).plCursorMotion(CursorBackward,$2,true,$1))}
+ | ALL {$$=&PLCursorMotion{All:true,Counted:true}}
+ | FORWARD ALL {$$=&PLCursorMotion{All:true,Counted:true}}
+ | BACKWARD ALL {$$=&PLCursorMotion{Direction:CursorBackward,All:true,Counted:true}} ;
 routine_return_head: RETURN_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 routine_atomic_head: BEGIN ATOMIC_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 standard_routine_body: routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=[]Statement{&Select{Targets:[]Expr{$2},Pos:$1.pos}}}
@@ -3494,27 +3494,27 @@ json_table: json_table_head target_or json_format ',' target_or json_path_name s
 json_path_name: /* empty */ {$$=nil} | AS name {$$=&Identifier{Text:$2.text,Pos:$2.pos}} ;
 json_columns_head: JSON_COLUMNS '(' {l:=sqllex.(*lexer);l.jsonTableDepths=append(l.jsonTableDepths,l.jsonParenDepth);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);l.jsonFunctionDepths=append(l.jsonFunctionDepths,l.jsonParenDepth);$$=$1} ;
 json_table_columns: json_columns_head json_table_column_list ')' {$$=$2} ;
-json_table_column_list: json_table_column {$$=[]JSONTableColumn{$1}} | json_table_column_list ',' json_table_column {$$=append($1,$3)} ;
+json_table_column_list: json_table_column {$$=[]JSONTableColumn{*$1}} | json_table_column_list ',' json_table_column {$$=append($1,*$3)} ;
 json_column_path: /* empty */ {$$=nil} | JSON_PATH STRING {$$=LiteralExpr{Value:Value{Kind:StringValue,Text:$2.text,Pos:$2.pos}}} ;
 /* Unlike table columns, these declarations are followed by EXISTS. Do not use
  * type's two-word invalid-column guard, which consumes EXISTS as a type name. */
 json_table_column: name FOR name {
  if $3.text!="ordinality" {sqllex.(*lexer).syntax($3);return 1}
- $$=JSONTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Ordinality:true,Pos:$1.pos}
+ $$=&JSONTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Ordinality:true,Pos:$1.pos}
 }
  | name declared_type json_format json_column_path sqljson_wrapper sqljson_quotes sqljson_behaviors {
- $$=JSONTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Format:$3,Path:$4,Wrapper:$5.text,Quotes:$6.text,Empty:$7.Empty,Error:$7.Error,Pos:$1.pos}
+ $$=&JSONTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Format:$3,Path:$4,Wrapper:$5.text,Quotes:$6.text,Empty:$7.Empty,Error:$7.Error,Pos:$1.pos}
 }
  | name declared_type EXISTS json_column_path sqljson_behaviors {
  if $5.Empty.Kind!="" {sqllex.(*lexer).syntax(lexeme{raw:"EMPTY",pos:$5.Empty.BranchPos});return 1}
- $$=JSONTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Exists:true,Path:$4,Error:$5.Error,Pos:$1.pos}
+ $$=&JSONTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Exists:true,Path:$4,Error:$5.Error,Pos:$1.pos}
 }
  | JSON_NESTED json_column_path json_path_name json_table_columns {
  if $2==nil {sqllex.(*lexer).syntax($1);return 1}
- $$=JSONTableColumn{Path:$2,PathName:$3,Columns:$4,Pos:$1.pos}
+ $$=&JSONTableColumn{Path:$2,PathName:$3,Columns:$4,Pos:$1.pos}
 }
  | JSON_NESTED STRING json_path_name json_table_columns {
- $$=JSONTableColumn{Path:LiteralExpr{Value:Value{Kind:StringValue,Text:$2.text,Pos:$2.pos}},PathName:$3,Columns:$4,Pos:$1.pos}
+ $$=&JSONTableColumn{Path:LiteralExpr{Value:Value{Kind:StringValue,Text:$2.text,Pos:$2.pos}},PathName:$3,Columns:$4,Pos:$1.pos}
 } ;
 fetch_count: scalar_atom { $$=$1 }
  | CAST '(' scalar AS type ')' { if !selectedScalarChild(sqllex,$3,$4) {return 1};if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
