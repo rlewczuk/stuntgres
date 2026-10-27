@@ -67,9 +67,13 @@ these are shared across families:
   rename/schema moves; retired installations and unrelated TEXT destinations
   bind the original SQL afresh, never stale hstore values. Conversion fixtures
   use ordinary `_TEXT` transport for owned flat/rectangular arrays and invoke
-  both named functions and prefix operators after restoration. EXECUTE checks
-  use current callers, distinguishing folded literal NULL from demanded
-  row-dependent NULL calls. The reusable family selector is
+  both named functions and prefix operators after restoration.
+  `hstore_json_helpers_test.go` checks JSON result metadata, detached scans and
+  SQL NULL separately from JSON member null. Strict/loose expectations preserve
+  numeric spelling and distinguish whole JSON numbers from string boundaries;
+  stored views/defaults execute after restore and current-name dump replay.
+  EXECUTE checks use current callers, distinguishing folded literal NULL from
+  demanded row-dependent NULL calls. The reusable family selector is
   `RUN='^TestReferenceHstore'`.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,

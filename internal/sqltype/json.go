@@ -387,54 +387,9 @@ func (l *jsonLexer) next() error {
 		return l.stringToken()
 	case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		l.kind = 'n'
-		// Scan without converting: magnitude and exponent have no storage limit.
-		valid := true
-		i := l.start
-		if l.text[i] == '-' {
-			i++
-		}
-		if i == len(l.text) || !jsonDigit(l.text[i]) {
-			valid = false
-		} else if l.text[i] == '0' {
-			i++
-		} else {
-			for i < len(l.text) && jsonDigit(l.text[i]) {
-				i++
-				if i&4095 == 0 {
-					if err := l.ctx.Err(); err != nil {
-						return err
-					}
-				}
-			}
-		}
-		if i < len(l.text) && l.text[i] == '.' {
-			i++
-			first := i
-			for i < len(l.text) && jsonDigit(l.text[i]) {
-				i++
-				if i&4095 == 0 {
-					if err := l.ctx.Err(); err != nil {
-						return err
-					}
-				}
-			}
-			valid = valid && i > first
-		}
-		if i < len(l.text) && (l.text[i] == 'e' || l.text[i] == 'E') {
-			i++
-			if i < len(l.text) && (l.text[i] == '+' || l.text[i] == '-') {
-				i++
-			}
-			first := i
-			for i < len(l.text) && jsonDigit(l.text[i]) {
-				i++
-				if i&4095 == 0 {
-					if err := l.ctx.Err(); err != nil {
-						return err
-					}
-				}
-			}
-			valid = valid && i > first
+		i, valid, err := scanJSONNumber(l.ctx, l.text, l.start)
+		if err != nil {
+			return err
 		}
 		first := i
 		for i < len(l.text) && jsonWord(l.text[i]) {

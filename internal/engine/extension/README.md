@@ -112,11 +112,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   actual owner kind and immutable source descriptors.
 - **hstore** (`hstore_provider.go`, `hstore_stage.go`): trusted, relocatable 1.8
   installation of the scalar, strict immutable parallel-safe C-language codecs,
-  `hstore_to_array(hstore)` and `hstore_to_matrix(hstore)`, and their prefix
-  `%%`/`%#` operators. The reciprocal associated array is internally dependent
-  and lookup-only. Seven exact member roles govern identity and remapping;
-  portable function signatures use `hstore` and unary operators `0,hstore`,
-  never a source OID.
+  `hstore_to_array(hstore)` and `hstore_to_matrix(hstore)` with prefix
+  `%%`/`%#` operators, and `hstore_to_json(hstore)` /
+  `hstore_to_json_loose(hstore)` returning JSON. The reciprocal associated array
+  is internally dependent and lookup-only. Nine exact member roles govern
+  identity and remapping; portable function signatures use `hstore` and unary
+  operators `0,hstore`, never a source OID. Array and JSON roles retain their
+  distinct result identities through staging, validation and import.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured

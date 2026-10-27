@@ -17,6 +17,8 @@ const (
 	HstoreOutputSlot
 	HstoreArrayProcedureSlot
 	HstoreMatrixProcedureSlot
+	HstoreJSONProcedureSlot
+	HstoreJSONLooseProcedureSlot
 	HstoreArrayOperatorSlot
 	HstoreMatrixOperatorSlot
 	HstoreMemberCount

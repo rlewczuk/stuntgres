@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -24,8 +25,8 @@ func TestHstoreArraysPreparedOwnership(t *testing.T) {
 	}{
 		{"array", "hstore_to_array('a=>NULL,b=>2'::hstore)", "{a,NULL,b,2}", 3, 0, 1},
 		{"matrix", "hstore_to_matrix('a=>NULL,b=>2'::hstore)", "{{a,NULL},{b,2}}", 4, 0, 2},
-		{"prefix_array", "%% 'a=>NULL,b=>2'::hstore", "{a,NULL,b,2}", 3, 5, 1},
-		{"prefix_matrix", "%# 'a=>NULL,b=>2'::hstore", "{{a,NULL},{b,2}}", 4, 6, 2},
+		{"prefix_array", "%% 'a=>NULL,b=>2'::hstore", "{a,NULL,b,2}", extension.HstoreArrayProcedureSlot, extension.HstoreArrayOperatorSlot, 1},
+		{"prefix_matrix", "%# 'a=>NULL,b=>2'::hstore", "{{a,NULL},{b,2}}", extension.HstoreMatrixProcedureSlot, extension.HstoreMatrixOperatorSlot, 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()

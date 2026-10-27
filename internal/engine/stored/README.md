@@ -34,10 +34,11 @@ remap, retag and rendering walkers preserve those captures and resolve current
 presentation independently of mutable function/type labels. Dynamic inner SQL
 remains text, not a frozen dependency on the relations it may later resolve.
 
-Installed hstore array calls retain exact formal/result generations and selected
-procedure/member references. Their remap, retag and qualified rendering paths
-validate authentic source and current declarations independently of presentation
-names; generic selected-operator recipes retain prefix aliases.
+Installed hstore array and JSON calls retain exact formal/result generations,
+conversion mode and selected procedure/member references. Their remap, retag and
+qualified rendering paths validate authentic source and current declarations
+independently of presentation names; generic selected-operator recipes retain
+the array prefix aliases.
 
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
@@ -717,7 +718,7 @@ reject, while healthy fresh current manifests remain usable.
 - Stored generated columns: `RUN='^TestReferenceGeneratedStored'`
 - Installed comparison capture and lifecycle: `RUN='^TestCube'`
 - Installed earth captures and generation ordering: `RUN='^TestEarth(Coordinate|Point)'`
-- Installed hstore array reconstruction, provenance and authorized generation remap:
-  `RUN='^TestHstoreArraysStored'` (also with `RACE=1`). These units preserve
+- Installed hstore conversion reconstruction, provenance and authorized generation remap:
+  `RUN='^TestHstore(Arrays|JSON)Stored'` (also with `RACE=1`). These units preserve
   original declaration/operand identity and reject foreign or corrupted
   source/current authority without changing the published graphs.

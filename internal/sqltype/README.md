@@ -135,6 +135,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   `HstoreArray` transfers fresh flat or rectangular TEXT-array buffers without
   copying immutable strings or exposing pairs. NULL values become typed NULL
   elements; whole NULL and zero-dimensional empty arrays remain distinct.
+  `HstoreJSON` writes textual JSON directly from those pairs into one owned
+  builder, sharing the JSON escaper and lexical number scanner with existing
+  consumers. Loose detection preserves complete numeric lexemes without
+  magnitude conversion; descriptor validation precedes SQL NULL.
 - Seg owns an inline fixed pair of binary32 words, significant-digit counts
   and endpoint markers. Its strict scanner and precision-aware formatter share
   the ordinary type I/O and coercion seams. Representation identity includes all
@@ -565,6 +569,7 @@ match engine tests of the same mechanism):
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
 - Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|Isbn|Ismn|Issn|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
+- Installed hstore codecs and typed conversions: `RUN='^TestHstore'`.
 - Refcursor scalar codecs and admission: `RUN='^TestPLpgSQLCursorCodec$'`
 - Composite descriptors, expression shapes and payload ownership: `RUN='^TestComposite'`
 - Trailing array slices and payload ownership: `RUN='^TestArrayForeachSlice$'`

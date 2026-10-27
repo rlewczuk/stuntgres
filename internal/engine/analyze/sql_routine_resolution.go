@@ -102,7 +102,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
-	hstoreFamily := name == "hstore_to_array" || name == "hstore_to_matrix"
+	hstoreFamily := name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose"
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
 	if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
@@ -754,8 +754,14 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if err != nil {
 			return nil, err
 		}
-		if symbol == "hstore_to_array" || symbol == "hstore_to_matrix" {
-			node, err := b.bindSelectedHstoreArray(raw, selected, symbol)
+		if symbol == "hstore_to_array" || symbol == "hstore_to_matrix" || symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" {
+			var node expr.Expr
+			var err error
+			if symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" {
+				node, err = b.bindSelectedHstoreJSON(raw, selected, symbol)
+			} else {
+				node, err = b.bindSelectedHstoreArray(raw, selected, symbol)
+			}
 			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol

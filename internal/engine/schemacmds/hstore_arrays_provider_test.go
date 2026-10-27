@@ -41,7 +41,7 @@ func TestHstoreArraysProviderIdentity(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
-	if len(ext.Members) != 7 || ext.Version != "1.8" {
+	if len(ext.Members) != extension.HstoreMemberCount || ext.Version != "1.8" {
 		t.Fatal("manifest")
 	}
 	for i, name := range []string{"hstore_in", "hstore_out", "hstore_to_array", "hstore_to_matrix"} {
@@ -55,7 +55,7 @@ func TestHstoreArraysProviderIdentity(t *testing.T) {
 		}
 	}
 	for i := range 2 {
-		op, ok := view.Operator(ext.Members[5+i])
+		op, ok := view.Operator(ext.Members[extension.HstoreArrayOperatorSlot+i])
 		if !ok || op.Left != 0 || op.Right != ext.Members[0].ObjectID || op.Result != 1009 || op.Function != ext.Members[3+i].ObjectID {
 			t.Fatal("prefix identity")
 		}
@@ -65,7 +65,7 @@ func TestHstoreArraysProviderIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	owners, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
-	if err != nil || !found || len(owners.Members) != 7 || owners.Members[3].Signature != "hstore" || owners.Members[5].Signature != "0,hstore" {
+	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount || owners.Members[3].Signature != "hstore" || owners.Members[extension.HstoreArrayOperatorSlot].Signature != "0,hstore" {
 		t.Fatal("portable roles", owners, err)
 	}
 	for _, corrupt := range []func(*catalog.State, *catalog.Extension){
@@ -92,19 +92,19 @@ func TestHstoreArraysProviderIdentity(t *testing.T) {
 			s.SetDescriptor(p.Address(), &p)
 		},
 		func(s *catalog.State, d *catalog.Extension) {
-			o, _ := s.Get(d.Members[5]).(*catalog.Operator)
+			o, _ := s.Get(d.Members[extension.HstoreArrayOperatorSlot]).(*catalog.Operator)
 			p := *o
 			p.Function = d.Members[4].ObjectID
 			s.SetDescriptor(p.Address(), &p)
 		},
 		func(s *catalog.State, d *catalog.Extension) {
-			o, _ := s.Get(d.Members[6]).(*catalog.Operator)
+			o, _ := s.Get(d.Members[extension.HstoreMatrixOperatorSlot]).(*catalog.Operator)
 			p := *o
 			p.Left = p.Right
 			s.SetDescriptor(p.Address(), &p)
 		},
 		func(s *catalog.State, d *catalog.Extension) {
-			o, _ := s.Get(d.Members[5]).(*catalog.Operator)
+			o, _ := s.Get(d.Members[extension.HstoreArrayOperatorSlot]).(*catalog.Operator)
 			p := *o
 			p.Hash = true
 			s.SetDescriptor(p.Address(), &p)

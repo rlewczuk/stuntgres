@@ -56,7 +56,7 @@ func (p *HstoreProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 	if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
 		return err
 	}
-	for i := range 4 {
+	for i := range HstoreArrayOperatorSlot - HstoreInputSlot {
 		revision, err := stage.Revision()
 		if err != nil {
 			return err
@@ -66,7 +66,10 @@ func (p *HstoreProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			name, signature, result = "hstore_out", HstoreSignature(typ.ID()), 2275
 		}
 		if i >= 2 {
-			name, signature, result = []string{"hstore_to_array", "hstore_to_matrix"}[i-2], HstoreSignature(typ.ID()), 1009
+			name, signature, result = []string{"hstore_to_array", "hstore_to_matrix", "hstore_to_json", "hstore_to_json_loose"}[i-2], HstoreSignature(typ.ID()), 1009
+			if i >= HstoreJSONProcedureSlot-HstoreInputSlot {
+				result = 114
+			}
 		}
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {

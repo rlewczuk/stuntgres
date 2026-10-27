@@ -475,7 +475,7 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			}
 		}
 	case "seg", "hstore", "intarray", "citext":
-		if name == "hstore" && (slot == HstoreArrayProcedureSlot || slot == HstoreMatrixProcedureSlot) {
+		if name == "hstore" && slot >= HstoreArrayProcedureSlot && slot < HstoreArrayOperatorSlot {
 			return "hstore", true
 		}
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {

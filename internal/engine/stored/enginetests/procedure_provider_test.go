@@ -62,8 +62,8 @@ func TestExtensionProviderValidatesOnlyInstalledProcedures(t *testing.T) {
 			t.Fatalf("no %s procedure validated: %v", kind, counts)
 		}
 	}
-	if counts["hstore"] != 4 {
-		t.Fatalf("validated hstore procedures %d want 4", counts["hstore"])
+	if counts["hstore"] != 6 {
+		t.Fatalf("validated hstore procedures %d want 6", counts["hstore"])
 	}
 	stripped := *member
 	stripped.Implementation = nil

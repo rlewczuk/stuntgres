@@ -15,6 +15,18 @@ import (
 // genuinely relabelled declaration replaces it with its checked current SQL
 // identity; unchanged provider formatting remains byte-for-byte unchanged.
 func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Rendering) (expr.Rendering, error) {
+	if call, installed := node.(functions.HstoreJSON); installed {
+		current, err := currentHstoreJSON(view, call)
+		if err != nil {
+			return spec, err
+		}
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing hstore JSON namespace")
+		}
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
 	if call, installed := node.(functions.HstoreArray); installed {
 		current, err := currentHstoreArray(view, call)
 		if err != nil {

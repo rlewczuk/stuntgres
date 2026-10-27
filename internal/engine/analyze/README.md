@@ -26,6 +26,11 @@ captured routine manifest during stored-occurrence completion. Fixed wrappers
 retain their actual named composite and reject redundant definitions; set
 placement remains the common source/target-list admission.
 
+Installed hstore array and JSON conversions use ordinary selected unary formals
+and coercion. Binding retains genuine routine dependency/revision, result
+generation and frozen provider syntax; relabelled calls dispatch by checked
+provider identity rather than their original spelling.
+
 Standalone CALL uses the common callable selector with the full formal-position
 projection for every candidate kind, including function OUT declarations.
 Candidate ranking and namespace masking precede invocation-kind rejection.

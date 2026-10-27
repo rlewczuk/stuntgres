@@ -303,6 +303,11 @@ NULLs and installed type identities through destination-authorized remapping.
 Held literal assignments retain their values across type rename/schema movement.
 Consumer teardown/recreation binds original SQL literals under current types;
 it does not revive retired type authority.
+`hstore_to_json` and `hstore_to_json_loose` return JSON with string scan types:
+strict conversion quotes nonnull values; loose conversion recognizes complete
+JSON numbers and lowercase `t`/`f`, preserving numeric spelling. Member NULL
+becomes JSON null while SQL NULL remains SQL NULL. Stored calls keep installed
+routine identity across presentation changes and native restoration.
 
 After `CREATE EXTENSION ltree`, ltree, lquery and ltxtquery columns accept literal and bound
 text or non-nil bytes; nil and typed-nil bytes are SQL NULL. Typed literal syntax

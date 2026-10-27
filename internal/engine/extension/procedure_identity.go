@@ -242,6 +242,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			if slot == HstoreArrayProcedureSlot || slot == HstoreMatrixProcedureSlot {
 				name = []string{"hstore_to_array", "hstore_to_matrix"}[slot-HstoreArrayProcedureSlot]
 			}
+			if slot == HstoreJSONProcedureSlot || slot == HstoreJSONLooseProcedureSlot {
+				name = []string{"hstore_to_json", "hstore_to_json_loose"}[slot-HstoreJSONProcedureSlot]
+			}
 			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
 			}
@@ -272,6 +275,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		}
 		if p.Implementation == StockHstore && slot >= HstoreArrayProcedureSlot {
 			signature, result = HstoreSignature(base.SQLType.ID()), 1009
+			if slot >= HstoreJSONProcedureSlot {
+				result = 114
+			}
 		}
 		if p.Implementation == StockCitext && slot >= CitextConversionProcedureStart && slot < CitextPatternProcedureStart {
 			name, signature, result = "citext", []catalog.ProcedureSignature{"1042", "16", "869"}[slot-CitextConversionProcedureStart], ids.OID(base.SQLType.ID())
