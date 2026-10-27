@@ -7,7 +7,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `constraint_column_usage`, `column_column_usage`, `column_domain_usage`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
-`character_sets`, `collations`, `schemata`, `column_options`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`, `table_constraints`,
+`character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`, `table_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
@@ -240,6 +240,15 @@ type Producer func(Input) ([][]sqltype.Value, error)
   the raw live stable attribute name or VALUE. Identical projected tuples
   retain UNION ALL multiplicity. The paired catalog/role/presentation frontier
   supplies both typed relation and validated owning-domain rendering.
+- `transforms` has eight nullable source-owned domains: seven `sql_identifier`
+  columns and one `character_data` column. Its inventory, like `pg_transform`,
+  is truthfully empty because no implemented objects own transform definitions;
+  ordinary types, languages, codecs and SQL routines never synthesize rows.
+  The bootstrap owner and ordinary schema-USAGE/view-SELECT admission govern
+  reads. There is no default PUBLIC SELECT grant and no row privilege predicate.
+  Its released definition retains the direction joins, including explicit OID
+  coercions of the regproc direction references, and UNION; automatic INSERT,
+  UPDATE and DELETE are rejected by the shared view path.
 - `role_column_grants` captures one catalog/role frontier and projects actual
   table/column ACL origins on live positive attributes. Its raw-origin UNION
   includes the grant-option bit before ownership determines grantability, so

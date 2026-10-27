@@ -114,6 +114,10 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 			}
 		}
 		switch oid {
+		case pgcatalog.InfoTransformsOID:
+			if source.Anonymous == nil || len(source.Anonymous) != 0 || source.View != nil {
+				t.Fatal("transforms must be a typed empty source", source)
+			}
 		case 1259, 1249, 2610, 2604, 2618, 12000, 12002, 12003, 2224,
 			ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID:
 			if len(source.Anonymous) == 0 {

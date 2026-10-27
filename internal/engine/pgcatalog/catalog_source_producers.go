@@ -127,6 +127,7 @@ var producers = [...]Registration{
 	{InfoReferentialConstraintsOID, captureInfoReferentialConstraints},
 	{InfoTableConstraintsOID, captureInfoTableConstraints},
 	{InfoCheckConstraintsOID, captureInfoCheckConstraints},
+	{InfoTransformsOID, captureInfoTransforms},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

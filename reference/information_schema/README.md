@@ -5,7 +5,7 @@ shared with `pg_views`), `view_table_usage`, `triggers`, `routines`, `parameters
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`,
 `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
-`domain_constraints`, `referential_constraints`, `table_constraints` and `sequences`. Other grant, key, constraint and SQL metadata
+`domain_constraints`, `referential_constraints`, `table_constraints`, `transforms` and `sequences`. Other grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
 
@@ -38,6 +38,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Schema inquiry: `RUN='^TestReferenceInfoSchemata'`
 - Table constraints: `RUN='^TestReferenceInfoTableConstraints'`
 - Foreign-column options: `RUN='^TestReferenceInfoColumnOptions'`
+- Transform metadata: `RUN='^TestReferenceInfoTransforms'`
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`
 - Trigger metadata: `RUN='^TestReferenceInfoTriggers'`
@@ -141,6 +142,19 @@ SQL-NULL result. Direct, fresh and held consumers cover definition, privilege,
 presentation and table/domain transaction rollback; companion catalogs witness
 identities, validation and routine dependencies. Native control phases assert
 detached rows/types, fresh-target restore and failed replacement atomicity.
+
+Transform metadata scenarios assert the complete empty eight-domain view and
+its NAME/VARCHAR result description, including singleton NULL extension.
+The supported transform inventory is empty; ordinary type/routine/extension
+lifecycle does not invent transform objects. Owner reads and ordinary
+grant/revoke/schema-USAGE admission use direct, fresh-prepared and held queries.
+Role switches restore the session owner with `SET ROLE NONE` before ACL cleanup.
+Cached column descriptors survive EOF, Close and authority changes; native
+eager rows additionally remain consumable after those changes.
+Complete diagnostics distinguish `42501` (`permission denied for view transforms`)
+from schema denial, semantic errors and UNION write rejection.
+Native controls retain old metadata and restore into independent driver authority.
+All builtin column and definition inventories include the view.
 
 ### Domain constraints
 

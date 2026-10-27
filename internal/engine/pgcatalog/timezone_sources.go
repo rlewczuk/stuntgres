@@ -62,7 +62,7 @@ func timezoneViewWriteError(d *catalog.Relation, operation string) error {
 		action = "deleting from the view"
 	}
 	detail := "Views that do not select from a single table or view are not automatically updatable."
-	if d.Address().ObjectID == 12004 {
+	if d.Address().ObjectID == 12004 || d.Address().ObjectID == InfoTransformsOID {
 		detail = "Views containing UNION, INTERSECT, or EXCEPT are not automatically updatable."
 	} else if d.Address().ObjectID == InfoColumnColumnUsageOID {
 		detail = "Views containing DISTINCT are not automatically updatable."

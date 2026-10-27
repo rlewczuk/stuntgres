@@ -137,6 +137,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.InfoCollationsOID:                  "collations",
 	pgcatalog.InfoSchemataOID:                    "schemata",
 	pgcatalog.InfoColumnOptionsOID:               "column_options",
+	pgcatalog.InfoTransformsOID:                  "transforms",
 	pgcatalog.KeyColumnUsageOID:                  "key_column_usage",
 	pgcatalog.ConstraintColumnUsageOID:           "constraint_column_usage",
 	pgcatalog.InfoColumnColumnUsageOID:           "column_column_usage",
