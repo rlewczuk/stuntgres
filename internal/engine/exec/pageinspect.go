@@ -36,6 +36,12 @@ func(c *Context)pageinspect(n plan.InstalledPageinspectExpr)(sqltype.BrinPage,[]
  page,err:=sqltype.ReadBrinPage(raw,required);return page,columns,false,err
 }
 func(c *Context)EvalPageinspect(n plan.InstalledPageinspectExpr)(sqltype.Value,error){
+ if n.Member=="fsm_page_contents"{
+  raw,_,null,err:=c.pageinspectInput(n);if err!=nil{return sqltype.Value{},err};d:=n.Usage.Type
+  if null{return sqltype.Null(d),nil}
+  contents,isNew,err:=sqltype.ReadFSMPageContents(raw);if err!=nil{return sqltype.Value{},err}
+  if isNew{return sqltype.Null(d),nil};return sqltype.String(d,contents),nil
+ }
  page,_,null,err:=c.pageinspect(n);if err!=nil{return sqltype.Value{},err};d:=n.Usage.Type
  if null || page.IsNew(){return sqltype.Null(d),nil}
  if n.Member=="brin_page_type"{return sqltype.String(d,page.PageType()),nil}
@@ -47,7 +53,7 @@ func(c *Context)EvalPageinspect(n plan.InstalledPageinspectExpr)(sqltype.Value,e
 }
 func(c *Context)OpenPageinspect(n plan.InstalledPageinspectExpr)(expr.SourceCursor,error){
  if n.Member=="bt_page_items"{return c.openBtreePageinspect(n)}
- if n.Member=="brin_page_type" || n.Member=="brin_metapage_info"{v,err:=c.EvalPageinspect(n);if err!=nil{return expr.SourceCursor{},err};return expr.ScalarSource(v),nil}
+ if n.Member=="brin_page_type" || n.Member=="brin_metapage_info" || n.Member=="fsm_page_contents"{v,err:=c.EvalPageinspect(n);if err!=nil{return expr.SourceCursor{},err};return expr.ScalarSource(v),nil}
  page,columns,null,err:=c.pageinspect(n);if err!=nil{return expr.SourceCursor{},err};d:=n.Usage.Type
  if null{return expr.OwnedSource(d,nil),nil}
  if n.Member=="brin_revmap_data"{rows,err:=page.Revmap(d);if err!=nil{return expr.SourceCursor{},err};return expr.OwnedSource(d,rows),nil}

@@ -127,8 +127,8 @@ regclass descriptor with a temporary AccessShare contribution, waits outside
 metadata locks, and readmits the same descriptor before capturing per-column
 stored types. It never reads table rows or fabricates physical pages. The
 execution context decodes caller-owned bytea outside metadata locks through
-the SQL-independent native readers in `sqltype`. B-tree byte decoding needs no
-relation capture; physical relname page acquisition is not an engine provider
+the SQL-independent native readers in `sqltype`. B-tree and FSM byte decoding
+need no relation capture; physical relname page acquisition is not an engine provider
 overload and local table contents are never synthesized into raw index pages.
 
 ## Installed crosstab runtime

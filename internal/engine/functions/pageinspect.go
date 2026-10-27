@@ -7,7 +7,7 @@ import (
  "stuntgres/internal/sqltype"
 )
 
-var pageinspectNames=[...]string{"brin_page_type","brin_metapage_info","brin_revmap_data","brin_page_items","bt_page_items"}
+var pageinspectNames=[...]string{"brin_page_type","brin_metapage_info","brin_revmap_data","brin_page_items","bt_page_items","fsm_page_contents"}
 type Pageinspect struct { expr.Info; Args []expr.Expr; Slots [2]uint8; Member string }
 func pageinspectFormals(member string)([]string,[]sqltype.ID){
  if member=="brin_page_items" {return []string{"page","index_oid"},[]sqltype.ID{sqltype.Bytea,sqltype.Regclass}}
@@ -57,7 +57,7 @@ func(n Pageinspect)Children()[]expr.Expr{return n.Args}
 func(n Pageinspect)ValidateArguments(children []expr.Expr)error{
  count:=1
  switch n.Member{
- case "brin_page_type","brin_metapage_info","brin_revmap_data","bt_page_items":
+ case "brin_page_type","brin_metapage_info","brin_revmap_data","bt_page_items","fsm_page_contents":
  case "brin_page_items":count=2
  default:return fmt.Errorf("stuntgres: invalid pageinspect member")
  }
@@ -84,4 +84,4 @@ func(Pageinspect)PreflightFold()expr.Preflight{return expr.PreflightChildren}
 func(Pageinspect)LooksLikeFunction()bool{return true}
 func(n Pageinspect)Capture(kind expr.CaptureKind)(expr.CaptureOperands,bool,error){return expr.CaptureOperands{Args:n.Args,Count:len(n.Args)},kind==expr.CaptureFunction,nil}
 func(n Pageinspect)SourceAdmission()(bool,bool){return true,n.Member=="brin_page_items" || n.Member=="brin_revmap_data" || n.Member=="bt_page_items"}
-func(n Pageinspect)ScalarSourceOutName()string{if n.Member=="brin_revmap_data"{return "pages"};return n.Member}
+func(n Pageinspect)ScalarSourceOutName()string{if n.Member=="fsm_page_contents"{return ""};if n.Member=="brin_revmap_data"{return "pages"};return n.Member}

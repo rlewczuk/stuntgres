@@ -223,10 +223,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and written-order STRICT argument
   evaluation. The host supplies current superuser and, for BRIN items, exact
-  index-descriptor authority before raw validation. Separate immutable BRIN
-  and B-tree readers decode bytea without table-row access. Declared result
-  shapes own cursor metadata, NULL records and generic TID arrays; deleted
-  B-tree notices use the current statement operation.
+  index-descriptor authority before raw validation. Separate immutable BRIN,
+  B-tree and FSM readers decode bytea without table-row access. FSM scalar and
+  FROM routes return one typed NULL TEXT row for SQL NULL or new pages.
+  Declared result shapes own cursor metadata, NULL records and generic TID
+  arrays; deleted B-tree notices use the current statement operation.
 - **Heap verification** (`verify_heapam.go`): validate required NULLs and skip
   before target-kind admission; explicit physical heap/visibility-map/TOAST
   requests raise `0A000`. `VerifyHeapamPrefix` retains an unfiltered prefix,

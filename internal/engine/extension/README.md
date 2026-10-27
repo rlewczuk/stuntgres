@@ -118,12 +118,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
   identities).
 - **pageinspect** (`pageinspect_provider.go`): the superuser, untrusted,
-  relocatable 1.13 manifest owns four BRIN byte decoders and `bt_page_items(bytea)`.
+  relocatable 1.13 manifest owns four BRIN byte decoders, `bt_page_items(bytea)`
+  and the scalar `fsm_page_contents(bytea)` text decoder. FSM has no named OUT
+  parameter: its source label follows the SQL function name or range alias.
   Scalar, record and set results retain exact released declaration shapes and input
   labels. `ValidatePageinspectCall` validates the selected symbol, formal slots
   and descriptor-owned results independently of mutable public names. Explicit
   source identities preserve `bt_page_items_bytea` through member renames.
-  The existing owner codec admits its exact version, five slots and manifest
+  The existing owner codec admits its exact version, six slots and manifest
   signatures while preserving independent member owners, renames and schema
   moves; import still validates each actual destination member identity.
 - **amcheck** (`amcheck_provider.go`): the untrusted/superuser/relocatable 1.5

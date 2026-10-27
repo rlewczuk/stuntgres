@@ -23,6 +23,7 @@ var PageinspectMembers=[...]PageinspectMember{
  {"brin_revmap_data","brin_revmap_data","17",27,catalog.InstalledRoutineDeclaration{Parallel:'s',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{27},"page","pages")}},
  {"brin_page_items","brin_page_items","17,2205",2249,catalog.InstalledRoutineDeclaration{Parallel:'r',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{23,20,23,16,16,16,16,25},"page","index_oid","itemoffset","blknum","attnum","allnulls","hasnulls","placeholder","empty","value")}},
  {"bt_page_items","bt_page_items_bytea","17",2249,catalog.InstalledRoutineDeclaration{Parallel:'s',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{21,27,21,16,16,25,16,27,1010},"page","itemoffset","ctid","itemlen","nulls","vars","data","dead","htid","tids")}},
+ {"fsm_page_contents","fsm_page_contents","17",25,catalog.InstalledRoutineDeclaration{Parallel:'s',ArgumentNames:[4]string{"page"}}},
 }
 func(p *PageinspectProvider)ValidateExtension(v catalog.Read,ext *catalog.Extension)error{
  if p!=StockPageinspect || !currentManifest(v,ext) || ext.Name()!="pageinspect" || ext.Version!="1.13" || len(ext.Members)!=len(PageinspectMembers){return fmt.Errorf("stuntgres: invalid pageinspect manifest")}

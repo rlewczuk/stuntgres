@@ -24,4 +24,4 @@ func(n InstalledPageinspectExpr)Rebuild(info expr.Info,children []expr.Expr)(exp
 }
 func(n InstalledPageinspectExpr)Substitute(info expr.Info,children []expr.Expr)(expr.Expr,error){return n.Rebuild(info,children)}
 func(n InstalledPageinspectExpr)SameSourceOccurrence(other expr.Expr)bool{o,ok:=other.(InstalledPageinspectExpr);return ok && n.Ref==o.Ref && n.Procedure==o.Procedure && sqltype.SameRecordUsage(n.ResultUsage(),o.ResultUsage())}
-func(n InstalledPageinspectExpr)ScalarSourceOutName()string{if n.Member=="brin_revmap_data"{return "pages"};return n.Procedure.Name()}
+func(n InstalledPageinspectExpr)ScalarSourceOutName()string{if n.Member=="fsm_page_contents"{return ""};if n.Member=="brin_revmap_data"{return "pages"};return n.Procedure.Name()}

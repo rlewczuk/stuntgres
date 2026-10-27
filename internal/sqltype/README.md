@@ -40,6 +40,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   codecs. Bounds failures in undefined corrupt layouts are ordinary internal
   errors, not invented PostgreSQL diagnostics. Decoding never fetches TOAST or
   synthesizes physical pages.
+- `ReadFSMPageContents` borrows immutable bytea and produces owned text from
+  fixed little-endian FSM node bytes and a signed next-slot pointer. Only exact
+  page size and the new-page `pd_upper` marker are checked; other headers and
+  pointer ranges do not authorize extra validation. No physical pages are acquired.
 - `PgLSN` retains unsigned 64-bit positions inline. Its descriptor owns strict
   slash-hex text, canonical uppercase output, typed SQL literals and eight-byte
   big-endian codecs. Comparisons and B-tree ordering use unsigned magnitude.
@@ -514,7 +518,7 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
 
-Native physical datum and BRIN/B-tree byte-reader units use `RUN='^TestPageinspect'`.
+Native physical datum and BRIN/B-tree/FSM byte-reader units use `RUN='^TestPageinspect'`.
 The immutable B-tree reader preserves encoded TIDs, pivot trailers and posting
 lists separately from page-context dead flags. Posting results use executable
 generic `tid[]` (OID 1010, element 27), with ordinary array ownership and codecs;
