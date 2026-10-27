@@ -144,6 +144,7 @@ func TestEventTriggerClassification(t *testing.T) {
 	check(&parser.AlterOwner{Kind: "database"}, "", false)
 	check(&parser.AlterOwner{Kind: "type"}, "ALTER TYPE", true)
 	check(&parser.AlterOwner{Kind: "domain"}, "ALTER DOMAIN", true)
+	check(&parser.AlterOwner{Kind: "large object"}, "ALTER LARGE OBJECT", true)
 	for _, kind := range []string{"wrapper", "server", "mapping", "table"} {
 		for _, action := range []string{"create", "alter", "drop"} {
 			object := map[string]string{"wrapper": "FOREIGN DATA WRAPPER", "server": "SERVER", "mapping": "USER MAPPING", "table": "FOREIGN TABLE"}[kind]

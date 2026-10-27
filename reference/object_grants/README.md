@@ -6,7 +6,7 @@ functions, procedures, aggregates and operator procedures, schema-wide
 expansion, SQL bodies, stored/index/partition-key demand), databases (CONNECT,
 CREATE, TEMP), parameters (SET, ALTER SYSTEM) and tablespaces; non-table REVOKE
 with RESTRICT/CASCADE and warnings; large objects (byte functions,
-`pg_largeobject_metadata`, privileges, transactions, Restore); and one
+`pg_largeobject_metadata`, privileges, ownership, transactions, Restore); and one
 provider-authority witness per builtin or extension provider (current-invoker
 EXECUTE through direct, held and stored consumers). Related: table/column
 grants, default privileges, membership and ownership in `reference/roles`;
@@ -66,6 +66,9 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
 - ACL text names the bootstrap role: `postgres` natively, `stuntgres` on the
   oracle. Specify each independently. lib/pq returns OID cells as strings;
   `largeObjectBackendStep` converts expected int64 OIDs for PostgreSQL.
+- `largeObjectOwnerScenario` adds dedicated role cleanup and exact notice checks
+  for ownership scenarios; held utilities reuse `fixture.HeldStatement` while
+  raw metadata and physical sparse pages remain independent expectations.
 - PostgreSQL held statements can keep plan-time results across GRANT/REVOKE
   (an inlined SQL-function body, a folded immutable constant); native held
   execution checks current authority on every execution. Specify each backend's
@@ -166,6 +169,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - SQL cursors: `RUN='^TestReferenceObjectGrantSQLCursor'`
 - Non-table REVOKE: `RUN='^TestReferenceObjectRevoke'`
 - Large-object metadata: `RUN='^TestReferenceLargeObjectMetadata'`
+- Large-object ownership: `RUN='^TestReferenceLargeObjectOwner'`.
 - Large objects: `RUN='^TestReferenceLargeObject'`
 - Transactional families, admission and independent writer outcomes:
   `RUN='^TestReferenceTransactionalPrivileges(Families|RoutineKinds|NonTableDelegation|Locks|Conflicts)$'`

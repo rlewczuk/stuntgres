@@ -3961,7 +3961,8 @@ extension_update_option: TO extension_version { $$=ExtensionOption{Name:"version
 alter_owner: ALTER TYPE relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"type",Name:$3,Target:$6,Pos:$1.pos} }
  | ALTER DOMAIN relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"domain",Name:$3,Target:$6,Pos:$1.pos} }
  | statistics_alter_head relation_name OWNER TO membership_role_spec {if !sqllex.(*lexer).options.StatisticsOwnerReplay {sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported");return 1};$$=&AlterOwner{Kind:"statistics",Name:$2,Target:$5,Pos:$1.pos}}
- | ALTER DATABASE name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"database",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Target:$6,Pos:$1.pos} } ;
+ | ALTER DATABASE name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"database",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Target:$6,Pos:$1.pos} }
+ | ALTER LARGE OBJECT grant_object_number OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"large object",Number:ownershipNumber($4),Target:$7,Pos:$1.pos} } ;
 reassign_owned: REASSIGN OWNED BY membership_role_specs TO membership_role_spec { $$=&ReassignOwned{Sources:$4,Target:$6,Pos:$1.pos} } ;
 drop_owned: DROP OWNED BY membership_role_specs drop_mode { $$=&DropOwned{Sources:$4,Mode:$5,Pos:$1.pos} } ;
 

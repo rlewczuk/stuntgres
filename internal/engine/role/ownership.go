@@ -11,11 +11,12 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
-// Ownership changes retain immutable type, row, index and sequence generator
-// roots. Only descriptor/ACL payloads change. All reciprocal members are staged
-// before the ordinary publication validator sees any of them.
+// Ownership changes retain immutable type, row, index, sequence generator and
+// sparse large-object content roots. Only descriptor/ACL payloads change. All
+// reciprocal members are staged before ordinary publication validation.
 func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization.PrincipalRef) error {
 	if next := stage.Get(d.Address()); next != nil {
 		d = next
@@ -30,6 +31,11 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 	}
 	switch old := d.(type) {
 	case *catalog.Database:
+		next := *old
+		next.Owner, next.ObjectRevision = target, revision
+		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
+		return stage.Replace(&next)
+	case *catalog.LargeObject:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
@@ -176,6 +182,46 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 type OwnerChange struct {
 	Object catalog.Descriptor
 	Target authorization.PrincipalRef
+}
+
+// PlanLargeObjectOwnership resolves the recipient before NumericOnly OID input,
+// then checks ownership and the independent SET-role path. Large objects have no
+// namespace: transferring one never requires schema or database CREATE.
+func PlanLargeObjectOwnership(h Host, auth ddl.Authority, s *parser.AlterOwner, name string, identity bool) (OwnerChange, error) {
+	view := h.AccessView(auth)
+	target, err := access.SchemaOwner(view, name, identity)
+	if err != nil {
+		return OwnerChange{}, err
+	}
+	var oid uint32
+	if s.Number.Kind == parser.IntegerValue {
+		oid = uint32(s.Number.Integer)
+	} else {
+		typ := view.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Oid)}).SQLType
+		value, err := typ.Input(h.Context(), s.Number.Text, -1)
+		if err != nil {
+			return OwnerChange{}, err
+		}
+		oid, err = value.OID()
+		if err != nil {
+			return OwnerChange{}, err
+		}
+	}
+	address := ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: ids.OID(oid)}
+	old, ok := view.Catalog.Get(address).(*catalog.LargeObject)
+	if !ok {
+		return OwnerChange{}, sqlError("42704", fmt.Sprintf("large object %d does not exist", oid))
+	}
+	if target == old.Owner {
+		return OwnerChange{}, nil
+	}
+	if err := view.Check(auth, access.Requirement{Object: view.Ref(address), OwnerOnly: true}); err != nil {
+		return OwnerChange{}, err
+	}
+	if err := access.OwnershipEligibility(view, auth, target, ids.ObjectAddress{}); err != nil {
+		return OwnerChange{}, err
+	}
+	return OwnerChange{Object: old, Target: target}, nil
 }
 
 // PlanTypeOwnership decides ALTER TYPE or ALTER DOMAIN ... OWNER TO name.

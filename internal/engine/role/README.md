@@ -13,7 +13,7 @@ The package is an upper feature at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture): it
 imports `access`, `analyze` (types and pure functions), `authorization`,
 `catalog`, `ddl`, `extension`, `ids`, `pgcatalog`, `regobj`, `routine`, `sequence`,
-`session`, `settings`, `stored`, `parser`, `sqlstate` and the standard
+`session`, `settings`, `stored`, `parser`, `sqlstate`, `sqltype` and the standard
 library, and never the engine, `analyze`'s binder or another upper feature.
 
 ## What it owns
@@ -78,10 +78,12 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   default-privilege and membership cleanup; `OwnedCleanupAddsDeletionRoot`
   decides the singular/plural diagnostic primary.
 - **Ownership** (`ownership.go`): `PlanTypeOwnership`,
-  `PlanDatabaseOwnership` and `PlanRelationOwnership` check ALTER ... OWNER
-  and return an `OwnerChange` (nil `Object`: owner unchanged);
-  `StageOwnership` stages a new owner for one descriptor and its reciprocal
-  members.
+  `PlanDatabaseOwnership`, `PlanLargeObjectOwnership` and `PlanRelationOwnership`
+  check ALTER ... OWNER and return an `OwnerChange` (nil `Object`: unchanged).
+  Large objects resolve recipient before execution-time NumericOnly OID input;
+  owner privileges and the recipient SET path are independent, with no namespace
+  CREATE requirement. `StageOwnership` rewrites owner/ACL descriptors and reciprocal
+  members without replacing immutable type, storage or sparse large-object content.
 - **Owned staging** (`owned_stage.go`): `StageOwned` stages REASSIGN
   OWNED's eligibility checks, owners and provider expressions, or DROP
   OWNED's removals, over `StageHost`; `OwnedDependentsError` rewords DROP
@@ -158,14 +160,14 @@ ownership (`ExecuteRelationOwnership`, `OwnershipStage`, `PublishOwnership`).
 The statement executors are [`rolecmds`](../rolecmds/README.md)': role
 attributes and membership, SET ROLE and SESSION AUTHORIZATION, DROP ROLE
 (`PublishDroppedRolesLocked`), object and database GRANT and ALTER DEFAULT
-PRIVILEGES (warnings, OIDs and installation), the type, domain and database
-OWNER executors and `ExecuteOwned` (the stage, lock waits,
+PRIVILEGES (warnings, OIDs and installation), the type, domain, database and
+large-object OWNER executors and `ExecuteOwned` (the stage, lock waits,
 `StageOwnedCleanup`, the scope dependents, publication and the cascade
 notice), with the host adapter `RoleHost`. `stageCommentLocked` (the
 locked-relation check, capture, the private role record installation or
 object stage) is [`schemacmds`](../schemacmds/README.md)'.
 
-Generic table/type/domain/database OWNER, feature-specific view/materialized OWNER
+Generic table/type/domain/database/large-object OWNER, feature-specific view/materialized OWNER
 and REASSIGN/DROP OWNED use `session.TransactionalSchemaUtility` for the shared
 Describe/Execute transaction boundary. Autocommit, explicit SQL/Go transactions
 and retained protocol messages use the same stages and see earlier successful own

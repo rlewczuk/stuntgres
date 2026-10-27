@@ -178,7 +178,9 @@ call live here.
   `Engine.Mu`), `Deparse` (`pg_get_constraintdef`, `pg_get_expr`,
   `pg_get_indexdef`, `pg_get_viewdef`, `pg_get_serial_sequence`),
   `ValidateSelectedDomainRows`, `Target`/`AdmitTarget` (each statement kind
-  belongs to exactly one `TargetEntry`, so entry order cannot change a result),
+  belongs to exactly one `TargetEntry`, so entry order cannot change a result;
+  non-relation ownership, including numeric large-object ownership, admits no
+  relation target during either preparation or execution),
   `CheckExplicitLock` (LOCK TABLE) and the `Stage` slot (LIKE sources checked
   at publication by `ValidateLikeSources`).
   OID/TEXT view-definition inquiries, including boolean format selectors, use

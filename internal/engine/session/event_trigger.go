@@ -38,6 +38,8 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 			return "ALTER TYPE", true
 		case "domain":
 			return "ALTER DOMAIN", true
+		case "large object":
+			return "ALTER LARGE OBJECT", true
 		case "materialized view":
 			return "ALTER MATERIALIZED VIEW", true
 		default:

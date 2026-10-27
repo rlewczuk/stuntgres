@@ -236,7 +236,7 @@ nontransactional.
   shipped function creation, routine identity ALTER/DROP, aggregate creation,
   operator CREATE/ALTER/DROP, CREATE/ALTER/DROP COLLATION and CONVERSION, and
   CREATE/DROP CAST use the existing transaction journal, as do generic
-  table/type/domain/database OWNER and REASSIGN/DROP OWNED. Definition utilities
+  table/type/domain/database/large-object OWNER and REASSIGN/DROP OWNED. Definition utilities
   keep quiet Describe; Execute consumes current private providers and authority,
   with the existing Finish, savepoint and retained-message lifecycle. Feature-specific
   view/materialized OWNER is AlterView; collation/conversion OWNER is included.

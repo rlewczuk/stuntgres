@@ -70,6 +70,23 @@ func TestTableTargetAdmission(t *testing.T) {
 			t.Fatalf("%s: admitted = %v, %v", sql, ok, err)
 		}
 	}
+	// NumericOnly ownership has no relation target, even when its OID text is
+	// invalid or either semantic operand is absent. Resolution belongs to the
+	// ownership executor so role-before-OID diagnostic ordering is preserved.
+	for _, sql := range []string{
+		"ALTER LARGE OBJECT 910201 OWNER TO missing_owner",
+		"ALTER LARGE OBJECT 0 OWNER TO missing_owner",
+		"ALTER LARGE OBJECT 1.0 OWNER TO missing_owner",
+		"ALTER LARGE OBJECT 4294967296 OWNER TO CURRENT_USER",
+	} {
+		stmt := admissionStatement(t, sql)
+		for _, execute := range []bool{false, true} {
+			target, ok, err := TargetAdmission(stmt, execute)
+			if ok || err != nil || !reflect.DeepEqual(target, Target{}) {
+				t.Fatalf("%s execute=%t: target=%+v admitted=%v error=%v", sql, execute, target, ok, err)
+			}
+		}
+	}
 	_, ok, err := TargetAdmission(admissionStatement(t, "COMMENT ON COLUMN a IS 'x'"), true)
 	var diagnostic *sqlstate.Error
 	if ok || !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || diagnostic.Message != "column name must be qualified" {

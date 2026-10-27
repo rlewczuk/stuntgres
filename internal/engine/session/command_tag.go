@@ -249,6 +249,8 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 			base = "ALTER DOMAIN"
 		case "database":
 			base = "ALTER DATABASE"
+		case "large object":
+			base = "ALTER LARGE OBJECT"
 		default:
 			return "", false, false, false
 		}

@@ -4,7 +4,7 @@ The role, privilege and ownership statement executors
 ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3, L16): CREATE,
 ALTER and DROP ROLE; GRANT and REVOKE of role membership; SET ROLE and SET
 SESSION AUTHORIZATION; GRANT and REVOKE on objects and on databases; ALTER
-DEFAULT PRIVILEGES; ALTER ... OWNER TO for types, domains and databases;
+DEFAULT PRIVILEGES; ALTER ... OWNER TO for types, domains, databases and large objects;
 REASSIGN OWNED and DROP OWNED; CREATE DATABASE; and the `RoleHost` family
 host. The decisions are [`role`](../role/README.md)'s, the role graph and
 ACL algorithms [`authorization`](../authorization/README.md)'s and the
@@ -58,8 +58,10 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   default-key writers, unlocked, then recheck the role record and targets.
   Each leaves its candidate in the statement scope; `Finish` keeps it
   private or publishes it with the transaction's other work.
-- `ExecuteOwnership` (ALTER ... OWNER TO) stages type, domain and database
-  owners and hands the relation kinds to `core.ExecuteRelationOwnership`;
+- `ExecuteOwnership` (ALTER ... OWNER TO) stages type, domain, database and
+  large-object owners and hands relation kinds to `core.ExecuteRelationOwnership`.
+  Large-object transfer reuses the ownership publication/Finish journal and
+  validates catalog/role/session predecessors without a relation lock or byte copy;
   `ExecuteOwned` (REASSIGN and DROP OWNED) pins every ownership root and
   policy survivor in one canonical order before staging and publishes one
   ownership stage, with DROP OWNED's cascade notice after it.
@@ -102,6 +104,6 @@ and, for CREATE DATABASE,
 ```sh
 make check RUN='^Test(Role|Membership|Predefined|SessionIdentity|DriverBatchIdentity|AlterNullabilityAuthorization|Authorization(Public|Namespace))'  # roles, membership, SET ROLE, identity
 make check RUN='^Test(ObjectGrant|ObjectRevoke|DefaultPrivileges|TransactionalPrivileges|Database)'  # GRANT, REVOKE, default ACLs, CREATE DATABASE
-make check RUN='^Test(RoleOwnership|ReassignOwned|DropOwned)'  # ALTER OWNER, REASSIGN and DROP OWNED
+make check RUN='^Test(RoleOwnership|ReassignOwned|DropOwned|LargeObjectOwner)'  # ALTER OWNER, REASSIGN and DROP OWNED
 make check RACE=1 RUN='^Test(RoleOwnershipPublication|ReassignOwnedPublication|RoleTransactional|RoleSwitch|DatabaseCreate)'  # publication and session races
 ```

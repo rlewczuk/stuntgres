@@ -24,6 +24,8 @@ func ModifyingTag(stmt parser.Statement) string {
 		switch s.Kind {
 		case "database":
 			return "ALTER DATABASE"
+		case "large object":
+			return "ALTER LARGE OBJECT"
 		case "type":
 			return "ALTER TYPE"
 		case "domain":
@@ -327,7 +329,7 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.CreateCast, *parser.DropCast:
 		return true
 	case *parser.AlterOwner:
-		return s.Kind == "table" || s.Kind == "type" || s.Kind == "domain" || s.Kind == "database"
+		return s.Kind == "table" || s.Kind == "type" || s.Kind == "domain" || s.Kind == "database" || s.Kind == "large object"
 	case *parser.ReassignOwned, *parser.DropOwned:
 		return true
 	case *parser.CreateQueryTable:
