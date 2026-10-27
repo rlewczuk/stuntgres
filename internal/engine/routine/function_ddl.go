@@ -31,9 +31,6 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if err = admitFunctionLanguage(h, auth, s); err != nil {
 		return err
 	}
-	if s.Language.Text != "sql" && s.Result.Setof {
-		return expr.ErrorAt("0A000", "set-returning SQL functions are unsupported", s.Result.Pos)
-	}
 	arguments := s.Arguments
 	if s.TableResult != nil {
 		arguments = append(append([]parser.RoutineParameter(nil), arguments...), s.TableResult...)
@@ -55,7 +52,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			return sqltype.Usage{}, err
 		}
 		typ, ok := h.DefinitionType(auth, sqltype.ID(id))
-		if s.Language.Text != "sql" && !s.Procedure && typ != nil && typ.BaseType().IsComposite() {
+		if s.Language.Text != "sql" && !s.Procedure && typ != nil && typ.BaseType().IsComposite() && !(result && s.Language.Text == "plpgsql" && s.Result.Setof) {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL functions require concrete scalar types", raw.Pos)
 		}
 		if !ok || !typ.Concrete() && !sqltype.IsPseudo(typ.ID()) {

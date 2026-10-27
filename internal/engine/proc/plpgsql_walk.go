@@ -34,6 +34,9 @@ func (r *PLRun) Invoke(input *Frame, collation sqltype.CollationRef) (sqltype.Va
 	if flow.Kind != PLNormal && flow.Kind != PLReturn {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: unconsumed PL control transfer")
 	}
+	if d.ReturnsSet {
+		return sqltype.Value{}, r.Host.Context().Err()
+	}
 	if d.PL.Procedure || d.DerivedResult() {
 		if err := r.Host.Context().Err(); err != nil {
 			return sqltype.Value{}, err
@@ -178,6 +181,8 @@ func (r *PLRun) Statements(statements []PLInstruction) (sqltype.Value, PLFlow, e
 			value, flow, err = r.executePLIntegerFor(instruction)
 		case instruction.Foreach != nil:
 			value, flow, err = r.foreach(instruction)
+		case instruction.Dynamic != nil:
+			err = r.Host.Dynamic(r, f, instruction)
 		case instruction.SQL != nil:
 			err = r.Host.Command(r, f, instruction)
 		case instruction.Into != nil:

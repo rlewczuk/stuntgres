@@ -10,13 +10,13 @@ import (
 
 // One last specialization is retained per session and declaration. A nested
 // invocation owns its private descriptor even when it replaces that cache entry.
-func (s *StatementScope) invokePLRoutineSpecialized(d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef, result sqltype.Usage) (sqltype.Value, error) {
+func (s *StatementScope) invokePLRoutineSpecialized(d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef, result sqltype.Usage, values *[]sqltype.Value) (sqltype.Value, error) {
 	needs := d.SQL.Polymorphic() || d.SQL.Result.Type.ID() == 2249
 	for _, usage := range d.SQL.Inputs {
 		needs = needs || usage.Type.ID() == 2249
 	}
 	if !needs {
-		return s.invokePLRoutine(d, input, read, collation)
+		return s.invokePLRoutine(d, input, read, collation, values)
 	}
 	signature := proc.InvocationSignature{Inputs: input.Inputs, Result: result}
 	copiedInputs := false
@@ -78,5 +78,5 @@ func (s *StatementScope) invokePLRoutineSpecialized(d *catalog.Procedure, input 
 		payload.sqlRoutines[d.Address()] = retained
 	}
 	e.Mu.Unlock()
-	return s.invokePLRoutine(current, input, read, collation)
+	return s.invokePLRoutine(current, input, read, collation, values)
 }

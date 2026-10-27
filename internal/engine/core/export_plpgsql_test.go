@@ -26,6 +26,16 @@ func DrainPLSQL(ctx context.Context, rows exec.RowResult) (bool, error) {
 	return drainPLSQL(ctx, rows)
 }
 
+func DrainPLDynamic(ctx context.Context, rows exec.RowResult) ([]sqltype.Value, int, error) {
+	var out plDynamicResult
+	err := drainPLDynamic(ctx, rows, true, func([]sqltype.Value) error { return nil }, &out)
+	return out.first, out.count, err
+}
+
+func ScopeInvokePLRoutineSet(x *StatementScope, d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef, values *[]sqltype.Value) (sqltype.Value, error) {
+	return x.invokePLRoutineSpecialized(d, input, read, collation, d.SQL.Result, values)
+}
+
 // PLColumns names plColumns.
 type PLColumns = plColumns
 
@@ -54,7 +64,7 @@ func ScopeEvaluatePLExpression(x *StatementScope, f *proc.PLFrame, statement *pa
 
 // ScopeInvokePLRoutine calls x.invokePLRoutine.
 func ScopeInvokePLRoutine(x *StatementScope, d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef) (sqltype.Value, error) {
-	return x.invokePLRoutine(d, input, read, collation)
+	return x.invokePLRoutine(d, input, read, collation, nil)
 }
 
 // ScopeMovePLCursorPortal calls x.movePLCursorPortal.

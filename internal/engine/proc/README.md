@@ -273,6 +273,10 @@ SQL and CALL actuals. Agreement between raw and checked pointers alone cannot
 admit a replacement query. No selected procedure, output association,
 frame or executable graph enters these immutable recipes. `PLHost.Command`
 owns reached binding, execution, discard/destination checks and CALL copyback.
+Dynamic instructions retain command/USING syntax queries and checked INTO
+slots only. Validation includes parser-owned admission and reconstructs the
+diagnostic operand/target ledger in source order, including USING before INTO.
+Computed SQL, parameter values and tuple descriptors are invocation-owned.
 Checked ordered branches cache syntax queries, never bound
 evaluators. Simple CASE search slots are separate invocation-private Value/Usage
 pairs, not declarations, formals or persisted type dependencies. Their canonical
@@ -355,7 +359,7 @@ caller-resolved `PLTriggerRelation`; `(*PLFrame).CursorName` reads a cursor slot
 
 ## Statement walk
 
-`PLRun{Host, Definition, Frame}` walks one invocation of a checked program
+`PLRun{Host, Definition, Frame, Values}` walks one invocation of a checked program
 (`plpgsql_walk*.go`). Entry points: `Invoke` (fresh frame, result selection and
 the missing-RETURN diagnostic), `Trigger` (caller's DML frame, then
 `TriggerReturn` against the current row type), `EventTrigger` (caller's event
@@ -381,6 +385,11 @@ cursor statements and RAISE/ASSERT.
 `Capture` owns reached static SQL and publishes FOUND before cardinality and
 target conversion. Lists publish sequentially from one captured source row;
 whole rows use `AssignRow`, with producer-shaped NULL fields for no rows.
+`Dynamic` owns reached command evaluation, typed USING binding and complete
+result consumption before ordinary INTO cardinality/assignment, preserving
+FOUND except for explicit assignment to it. Dynamic RETURN QUERY appends to the
+existing invocation-private `Values` sink and then continues the walk; bare
+RETURN and fallthrough finish set invocations without a scalar result.
 
 RETURN/EXIT/CONTINUE use compact non-error flow, so successful protected
 transfers release checkpoints rather than invoking handlers. Blocks and loops
@@ -411,6 +420,7 @@ PL cursor units use `RUN='^TestPLpgSQLCursor'`; public scenarios live in
 [reference/cursors](../../../reference/cursors/README.md#testing).
 Static query-loop validation units use `RUN='^TestPLpgSQLQueryLoopValidation$'`.
 Static capture compiler/validation units use `RUN='^TestPLpgSQLSelectIntoValidation$'`.
+Dynamic compiler/validation units use `RUN='^TestPLpgSQLDynamicSQLValidation$'`.
 Runtime diagnostic units use `RUN='^TestPL(FormatError|AssignmentErrorPhase|CaseExpressionError|pgSQLCursorCurrentDiagnostic)'`.
 Message/assertion compilation and validation use `RUN='^TestPLpgSQL(Raise|Assert)'`.
 Statement-walk units over a fake host use `RUN='^TestPLRun'`.

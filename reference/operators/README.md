@@ -231,3 +231,9 @@ Family selector: `RUN='^TestReferencePLpgSQLSelectInto'`;
 add `REFERENCE=1` for the pinned oracle. Supplemental parser, checked-program
 and producer units use `RUN='^TestPLpgSQLSelectInto(Parser|Validation|Runtime)$'`.
 
+Dynamic SQL scenarios share the PL helpers for data-only typed USING, computed
+identifiers, complete SELECT/DML consumption, INTO cardinality, dynamic set
+results, phased diagnostics, closed USING parameter bounds, caught and uncaught
+same-held-handle recovery, and native replay. Family
+selector: `RUN='^TestReferencePLpgSQLDynamicSQL'`; add `REFERENCE=1` for the
+pinned oracle.

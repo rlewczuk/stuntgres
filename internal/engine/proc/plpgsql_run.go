@@ -66,6 +66,8 @@ type PLHost interface {
 	Capture(r *PLRun, f *PLFrame, in PLInstruction) error
 	// Command executes static SQL, PERFORM or CALL with its own result policy.
 	Command(r *PLRun, f *PLFrame, in PLInstruction) error
+	// Dynamic evaluates invocation-local SQL and owns its result policy.
+	Dynamic(r *PLRun, f *PLFrame, in PLInstruction) error
 	// Cursor runs a cursor instruction. Cursor-FOR re-enters r.Block.
 	Cursor(r *PLRun, f *PLFrame, in PLInstruction) (sqltype.Value, PLFlow, error)
 	// Message runs RAISE or ASSERT.
@@ -77,6 +79,7 @@ type PLRun struct {
 	Host       PLHost
 	Definition *Definition
 	Frame      *PLFrame
+	Values     *[]sqltype.Value
 }
 
 func plError(code, message string) *sqlstate.Error {

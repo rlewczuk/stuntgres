@@ -959,9 +959,23 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			switch token.lexeme.text {
 			case "return":
 				if l.previousToken != END {
-					token.code = PL_RETURN
-					l.plReturnPending = true
-					l.plExpression = true
+					next := l.nextRaw()
+					if !quotedIdentifierLexeme(next.lexeme) && next.lexeme.text == "query" {
+						token.code = PL_RETURN_QUERY
+					} else {
+						l.lookahead, l.hasLookahead = next, true
+						token.code = PL_RETURN
+						l.plReturnPending = true
+						l.plExpression = true
+					}
+				}
+			case "execute":
+				if l.plStatementStart() || l.previousToken == PL_RETURN_QUERY {
+					token.code = PL_EXECUTE
+				}
+			case "strict":
+				if l.previousToken == PL_DYNAMIC_INTO || l.previousToken == INTO {
+					token.code = PL_STRICT
 				}
 			case "constant":
 				token.code = PL_CONSTANT

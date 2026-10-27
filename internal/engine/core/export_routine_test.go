@@ -103,6 +103,10 @@ func SetRoutineDemandLexical(x *sqlRoutineDemand, v *proc.PLFrame) { x.lexical =
 // SetRoutineDemandPLDiagnostic sets x.plDiagnostic.
 func SetRoutineDemandPLDiagnostic(x *sqlRoutineDemand, v string) { x.plDiagnostic = v }
 
+func RoutineDemandClosedParameters(x *sqlRoutineDemand) bool { return x.closedParameters }
+
+func SetRoutineDemandClosedParameters(x *sqlRoutineDemand, v bool) { x.closedParameters = v }
+
 // SetRoutineDemandResult sets x.result.
 func SetRoutineDemandResult(x *sqlRoutineDemand, v sqltype.Usage) { x.result = v }
 

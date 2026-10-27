@@ -16,7 +16,7 @@ import (
 // All three finite handler routes reach this entry, not a scalar
 // pseudo-interface. The caller owns routine admission, depth and root operation;
 // this entry publishes the routine's diagnostic identity around the walk.
-func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef) (sqltype.Value, error) {
+func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef, values *[]sqltype.Value) (sqltype.Value, error) {
 	identity, err := s.plDiagnosticIdentityFor(d, read)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -24,7 +24,9 @@ func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame
 	previousIdentity := s.sqlRoutine.plDiagnostic
 	s.sqlRoutine.plDiagnostic = identity
 	defer func() { s.sqlRoutine.plDiagnostic = previousIdentity }()
-	return s.newPLRun(d, nil, read).Invoke(input, collation)
+	run := s.newPLRun(d, nil, read)
+	run.Values = values
+	return run.Invoke(input, collation)
 }
 
 // Admission and the real executor handoff are shared by scalar expressions and

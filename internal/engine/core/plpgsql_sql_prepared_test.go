@@ -82,7 +82,7 @@ func sqlExecutionPreparedOwnership(t *testing.T) {
 	originalAccepted := *accepted.Folds
 	originalBody, originalAnalysis := accepted.Entry.Body, accepted.Entry.Description.Analysis
 	originalRoot := accepted.Resource.Root
-	sqlExecutionPreparedGenerations(t, e, owner, definition, accepted)
+	sqlExecutionPreparedGenerations(t, e, owner, definition, accepted, "sqlownership", "sqlownership_portal")
 	enginetest.SessionSQL(t, owner, "CREATE OR REPLACE FUNCTION pg_catalog.sql_ownership_wrapper(x integer) RETURNS integer LANGUAGE plpgsql AS $$BEGIN PERFORM x; CALL pg_catalog.sql_ownership_child(x); PERFORM 1; RETURN x; END$$")
 	if preparedRebindValid(t, e, owner, analysis) {
 		t.Fatal("changed program failed to invalidate prior declaration capture")
@@ -120,7 +120,7 @@ func sqlExecutionPreparedOwnership(t *testing.T) {
 
 // Exercise semantic revisions against the actual registry definition and its
 // accepted portal, without publishing a synthetic catalog into the engine.
-func sqlExecutionPreparedGenerations(t *testing.T, e *core.Engine, owner *session.Session, definition *core.PreparedDefinition, accepted *core.PreparedBinding) {
+func sqlExecutionPreparedGenerations(t *testing.T, e *core.Engine, owner *session.Session, definition *core.PreparedDefinition, accepted *core.PreparedBinding, statementName, portalName string) {
 	t.Helper()
 	description := &definition.Description
 	before := snapshotFoldDescription(*description)
@@ -196,7 +196,7 @@ func sqlExecutionPreparedGenerations(t *testing.T, e *core.Engine, owner *sessio
 		t.Fatal("stale codec publication was not rejected", err)
 	}
 	current := description.Folds.Current()
-	if registry := core.PayloadOf(owner).PreparedSQL; registry.Lookup("sqlownership") != definition || registry.Binding("sqlownership_portal") != accepted {
+	if registry := core.PayloadOf(owner).PreparedSQL; registry.Lookup(statementName) != definition || registry.Binding(portalName) != accepted {
 		t.Fatal("rejection replaced registry ownership")
 	}
 	if description.Analysis != before.Analysis || description.Folds != before.Folds || description.Folds.Analysis != before.Analysis || current.Generation != retired.Generation || &current.Entries[0] != &before.Accepted.Entries[0] || &current.Dependencies[0] != &before.Accepted.Dependencies[0] || foldRootsReusable(description.Folds) {

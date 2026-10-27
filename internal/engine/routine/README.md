@@ -33,8 +33,9 @@ shape. OUT/INOUT and TABLE fields use the same ordered formal projections and
 input-only signature. Functions with multiple outputs and procedures with any
 output derive a declaration-owned record; TABLE retains output-only mode `t`.
 PL anonymous OUT tuples use this same formal projection and detach their values
-before the invocation frame closes; this does not admit ordinary PL named-composite
-arguments/results or general PL set-returning execution.
+before the invocation frame closes. PL set declarations also admit named composite
+results; dynamic RETURN QUERY validates their exact member usages at execution
+and appends detached tuples through the existing invocation-private set sink.
 Replacement checks actual row shape and setness, not just the shared RECORD OID.
 Dump renders modes/defaults/VARIADIC and TABLE/SETOF, and orders real formal child
 types and named result types before their callers.

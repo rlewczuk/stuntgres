@@ -59,6 +59,7 @@ type PLStatement struct {
 	Assert              *PLAssert
 	Into                *PLIntoStatement
 	SQL                 *PLSQLStatement
+	Dynamic             *PLDynamicStatement
 }
 
 // PLWhile owns a reevaluated scalar condition and the ordinary loop body.
@@ -222,6 +223,8 @@ const (
 	plOptionBoundary
 	plRangeLowerBoundary
 	plRangeUpperBoundary
+	plDynamicCommandBoundary
+	plDynamicUsingBoundary
 )
 
 func (l *lexer) plBeginExpression(boundary plExpressionBoundary) {
@@ -241,6 +244,14 @@ func (l *lexer) plExpressionToken(token rawToken) rawToken {
 	if l.plBoundaryDepth == 0 {
 		code := 0
 		switch {
+		case (l.plBoundary == plDynamicCommandBoundary || l.plBoundary == plDynamicUsingBoundary) && token.code == INTO:
+			code = PL_DYNAMIC_INTO
+		case l.plBoundary == plDynamicCommandBoundary && token.code == USING:
+			code = PL_DYNAMIC_USING
+		case l.plBoundary == plDynamicUsingBoundary && token.code == ',':
+			code = PL_DYNAMIC_COMMA
+		case (l.plBoundary == plDynamicCommandBoundary || l.plBoundary == plDynamicUsingBoundary) && token.code == ';':
+			code = ';'
 		case l.plBoundary == plRangeLowerBoundary && token.code == DOT_DOT:
 			code = DOT_DOT
 		case l.plBoundary == plRangeUpperBoundary && l.previousToken != '.' && token.lexeme.keyword != nil && token.lexeme.text == "by":

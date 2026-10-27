@@ -253,6 +253,18 @@ The completed static-statement grammar reduction retains an unexported,
 by-value admission association. `ValidPLSQLStatement` checks the original AST
 identity, variant and source interval/text without reparsing or a second
 statement-type whitelist. This syntax-only association is shared with the AST.
+Dynamic EXECUTE retains a `PLDynamicStatement`, with independently positioned
+command/USING expressions and optional ordered INTO targets. Both clause orders
+share the depth-aware scalar boundary; quoted text, comments and nested SQL
+cannot delimit operands. RETURN QUERY EXECUTE has its own mode, not a scalar
+RETURN or static SQL command. Parser admission preserves the original mode,
+operands, targets and source bounds for checked-program validation; no computed
+SQL or execution plan belongs to this payload.
+Duplicate USING diagnostics retain the repeated clause's first operand position,
+independently of later delimiter lookahead.
+The private EXECUTE head token is contextual to standalone statements and
+RETURN QUERY; OPEN FOR EXECUTE retains its existing cursor grammar token.
+
 
 Statement-list boundaries also retain an unknown identifier head until a real
 assignment operator clears it. On grammar failure only, a bounded scanner checks

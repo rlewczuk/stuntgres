@@ -85,6 +85,7 @@ package parser
  plQueryLoop *PLQueryLoop
  plForeach *PLForeach
  plIntegerFor *PLIntegerFor
+ plDynamic *PLDynamicStatement
  plMotion PLCursorMotion
  plActual PLCursorActual
  plActuals []PLCursorActual
@@ -262,6 +263,7 @@ package parser
 %token <tok> PL_OPEN PL_LOOP PL_WHILE PL_NEXT PL_PRIOR PL_LAST PL_EXIT PL_CONTINUE
 %token <tok> PL_FOREACH PL_SLICE
 %token <tok> PL_INTEGER_FOR PL_REVERSE PL_BY
+%token <tok> PL_EXECUTE PL_RETURN_QUERY PL_DYNAMIC_INTO PL_DYNAMIC_USING PL_DYNAMIC_COMMA PL_STRICT
 %token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
@@ -446,6 +448,10 @@ package parser
 %type <explainOption> explain_option
 %type <tok> explain_option_name explain_word
 %type <expr> explain_option_value explain_optional_value
+%type <plDynamic> pl_dynamic pl_dynamic_command
+%type <tok> pl_dynamic_head pl_dynamic_using pl_dynamic_comma pl_dynamic_into
+%type <plExpressions> pl_dynamic_values
+%type <desc> pl_dynamic_strict
 %type <stmt> foreign_statement
 %type <foreignDDL> foreign_wrapper_head foreign_wrapper_definition foreign_server_head foreign_server_definition foreign_mapping_head foreign_table_head foreign_import_head foreign_alter_wrapper_head foreign_alter_wrapper_prefix foreign_alter_wrapper
 %type <foreignOptions> foreign_options foreign_option_list foreign_alter_options foreign_alter_option_list
@@ -1905,9 +1911,11 @@ pl_type: declared_type {$$=PLType{Type:$1}}
  | declared_type '%' PL_ROW_COPY {$$=plCopiedType($1,true)} ;
 pl_default: /* empty */ {$$=PLExpression{}} | DEFAULT pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | PL_ASSIGN pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | '=' pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} ;
 pl_statements: /* empty */ {sqllex.(*lexer).plStatementBoundaryPending=true;$$=nil}
- | pl_statements pl_statement ';' {l:=sqllex.(*lexer);if command:=$2.SQL;command!=nil{command.finishSQL(l.input,$<tok>3.pos)};if loop:=$2.IntegerFor;loop!=nil{l.plCheckEndLabel(loop.Body.Label,loop.Body.EndLabel);if l.err!=nil{return 1}};l.plStatementBoundaryPending=true;$$=append($1,$2)} ;
+ | pl_statements pl_statement ';' {l:=sqllex.(*lexer);if command:=$2.SQL;command!=nil{command.finishSQL(l.input,$<tok>3.pos)};if dynamic:=$2.Dynamic;dynamic!=nil{dynamic.finishDynamic($<tok>3.pos)};if loop:=$2.IntegerFor;loop!=nil{l.plCheckEndLabel(loop.Body.Label,loop.Body.EndLabel);if l.err!=nil{return 1}};l.plStatementBoundaryPending=true;$$=append($1,$2)} ;
 pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_static_statement {l:=sqllex.(*lexer);$$=l.plSQLStatement($1);if l.err!=nil{return 1}}
+ | pl_dynamic {$$=PLStatement{Dynamic:$1,Pos:$1.Start}}
+ | PL_RETURN_QUERY pl_dynamic {$2.ReturnQuery=true;$$=PLStatement{Dynamic:$2,Pos:$1.pos}}
  | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}}
  | PL_RAISE pl_raise_body {$$=PLStatement{Raise:$2,Pos:$1.pos}}
  | PL_RAISE PL_RAISE_LEVEL pl_raise_body {$3.Level=plRaiseLevel($2);$$=PLStatement{Raise:$3,Pos:$1.pos}}
@@ -1930,6 +1938,18 @@ pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_transfer_kind pl_end_label pl_transfer_when {value:=$3;$$=PLStatement{Transfer:&PLTransfer{Continue:$1.text=="continue",Label:$2,Alias:value.Alias},Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
  | pl_case_head pl_search pl_case_arms pl_else END CASE {l:=sqllex.(*lexer);search:=l.plBoundExpression($2,$1);if search.Expression==nil {for _,arm:=range $3 {if len(arm.Conditions)!=1 {l.failAt("42601","syntax error at or near \",\"",arm.Conditions[0].Delimiter.Offset);return 1}}};$$=PLStatement{Case:&PLConditional{Search:search,Arms:$3,HasElse:$4.HasElse,Else:$4.Else},Pos:$1.pos}} ;
 pl_return_value: /* empty */ {$$=PLExpression{}} | pl_expression {$$=$1} ;
+pl_dynamic_head: PL_EXECUTE {sqllex.(*lexer).plBeginExpression(plDynamicCommandBoundary);$$=$1} ;
+pl_dynamic_command: pl_dynamic_head pl_expression {$$=&PLDynamicStatement{Start:$1.pos,Command:sqllex.(*lexer).plBoundExpression($2,$1)}} ;
+pl_dynamic: pl_dynamic_command {$$=$1}
+ | pl_dynamic pl_dynamic_using pl_dynamic_values {$$=sqllex.(*lexer).plDynamicUsing($1,$2,$3);if sqllex.(*lexer).err!=nil{return 1}} 
+ | pl_dynamic pl_dynamic_into pl_dynamic_strict pl_foreach_targets {$$=sqllex.(*lexer).plDynamicInto($1,$2,$4,$3);if sqllex.(*lexer).err!=nil{return 1}} ;
+pl_dynamic_using: USING {sqllex.(*lexer).plBeginExpression(plDynamicUsingBoundary);$$=$1}
+ | PL_DYNAMIC_USING {sqllex.(*lexer).plBeginExpression(plDynamicUsingBoundary);$$=$1} ;
+pl_dynamic_into: INTO {$$=$1} | PL_DYNAMIC_INTO {$$=$1} ;
+pl_dynamic_strict: /* empty */ {$$=false} | PL_STRICT {$$=true} ;
+pl_dynamic_comma: PL_DYNAMIC_COMMA {sqllex.(*lexer).plBeginExpression(plDynamicUsingBoundary);$$=$1} ;
+pl_dynamic_values: pl_expression {$$=[]PLExpression{$1}}
+ | pl_dynamic_values pl_dynamic_comma pl_expression {$$=append($1,sqllex.(*lexer).plBoundExpression($3,$2))} ;
 pl_transfer_kind: PL_EXIT {$$=$1} | PL_CONTINUE {$$=$1} ;
 pl_transfer_when: /* empty */ {$$=PLExpression{}}
  | pl_transfer_when_head pl_transfer_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} ;

@@ -101,7 +101,7 @@ func TestPLpgSQLProcedureInvocationSpecialization(t *testing.T) {
 			}
 		}
 		before := slices.Clone(signature.Inputs)
-		value, err := scope.invokePLRoutineSpecialized(d, input, read, collation, signature.Result)
+		value, err := scope.invokePLRoutineSpecialized(d, input, read, collation, signature.Result, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -191,7 +191,7 @@ func TestPLpgSQLProcedureInvocationSpecialization(t *testing.T) {
 			if err := frame.Bind(0, sqltype.Null(first.SQL.Inputs[0].Type), first.SQL.Inputs[0]); err != nil {
 				t.Fatal(err)
 			}
-			if value, err := scope.invokePLRoutine(first, frame, read, sqltype.CollationRef{}); err != nil || value.Type() != integer.Result.Type {
+			if value, err := scope.invokePLRoutine(first, frame, read, sqltype.CollationRef{}, nil); err != nil || value.Type() != integer.Result.Type {
 				t.Fatal("prior specialization no longer usable", err)
 			}
 			last := invoke(d, integer, nil, sqltype.CollationRef{})

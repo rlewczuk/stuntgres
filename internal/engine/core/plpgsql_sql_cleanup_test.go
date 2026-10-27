@@ -60,7 +60,7 @@ func (s *sqlCommandCleanupScan) IterateForeignScan(context.Context) (catalog.For
 }
 
 func TestPLpgSQLSQLExecutionCommandCleanup(t *testing.T) {
-	for _, command := range []string{"SELECT 1 FROM command_cleanup_target", "PERFORM 1 FROM command_cleanup_target"} {
+	for _, command := range []string{"SELECT 1 FROM command_cleanup_target", "PERFORM 1 FROM command_cleanup_target", "EXECUTE 'SELECT 1 FROM command_cleanup_target'", "EXECUTE 'SELECT 1 FROM command_cleanup_target' INTO STRICT x"} {
 		for _, lateFailure := range []bool{false, true} {
 			name := command + "/close_only"
 			if lateFailure {
@@ -147,7 +147,7 @@ func TestPLpgSQLSQLExecutionCommandCleanup(t *testing.T) {
 				}
 				// Both real exception owners must reject the fatal cleanup, rather
 				// than turn either the primary or End failure into a handled SQL error.
-				source := "BEGIN BEGIN " + command + "; EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'inner handler ran'; END; RETURN 7; EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'outer handler ran'; END"
+				source := "DECLARE x integer; BEGIN BEGIN " + command + "; EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'inner handler ran'; END; RETURN 7; EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'outer handler ran'; END"
 				raw, err := parser.ParsePLpgSQL(source, parser.PLReturnPolicy{})
 				if err != nil {
 					t.Fatal(err)
@@ -170,6 +170,7 @@ func TestPLpgSQLSQLExecutionCommandCleanup(t *testing.T) {
 				// Distinguishing nonzero enclosing scratch, not just nil-equals-nil.
 				outerLexical := &proc.PLFrame{}
 				core.SetRoutineDemandLexical(core.ScopeSQLRoutineRef(s), outerLexical)
+				core.SetRoutineDemandClosedParameters(core.ScopeSQLRoutineRef(s), true)
 				outerAuthority := core.ScopeAuthority(s)
 				if outerAuthority == nil || outerAuthority.Host == nil {
 					t.Fatal("enclosing statement did not retain actual authority")
@@ -195,7 +196,14 @@ func TestPLpgSQLSQLExecutionCommandCleanup(t *testing.T) {
 					if event == "begin" {
 						activeAuthority, activeOwner = authority, owner
 					}
-					if core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s)) != frame || authority == nil || authority == outerAuthority || authority != activeAuthority || authority.Host == nil || owner == nil || owner == outerOwner || owner != activeOwner || s.Expected == expected || s.Completed {
+					lexical := frame
+					if command[0] == 'E' {
+						lexical = nil
+					}
+					if core.RoutineDemandClosedParameters(core.ScopeSQLRoutineRef(s)) != (command[0] == 'E') {
+						t.Error("producer inherited or lost its parameter namespace", event)
+					}
+					if core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s)) != lexical || authority == nil || authority == outerAuthority || authority != activeAuthority || authority.Host == nil || owner == nil || owner == outerOwner || owner != activeOwner || s.Expected == expected || s.Completed {
 						t.Error("producer callback escaped actual command lexical/authority/resource/completion activation", event)
 					}
 				}
@@ -208,8 +216,8 @@ func TestPLpgSQLSQLExecutionCommandCleanup(t *testing.T) {
 					return secondary
 				}
 
-				// The ordinary walker dispatches the checked static instruction to
-				// the real PLHost.Command. No manual activation/drain/close is used.
+				// Dispatch the real checked instruction through its host, retaining
+				// actual cleanup ownership rather than manually draining a result.
 				_, flow, err := core.ScopeNewPLRun(s, d, frame, read).Block(d.SQL.PL.Root)
 				var fatal *proc.PLExceptionCleanupError
 				if !errors.As(err, &fatal) || !errors.Is(err, secondary) || lateFailure && !errors.Is(err, primary) || flow.Kind != proc.PLNormal {
@@ -226,6 +234,10 @@ func TestPLpgSQLSQLExecutionCommandCleanup(t *testing.T) {
 					if command[0] == 'P' {
 						action = "at PERFORM"
 						query = "SELECT" + command[len("PERFORM"):]
+					}
+					if command[0] == 'E' {
+						action = "at EXECUTE"
+						query = "SELECT 1 FROM command_cleanup_target"
 					}
 					want.Context = "SQL statement \"" + query + "\"\nPL/pgSQL function " + identityText + " line 1 " + action
 					if !errors.As(err, &diagnostic) || *diagnostic != want {

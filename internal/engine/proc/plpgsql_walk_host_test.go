@@ -47,6 +47,10 @@ func (h *walkHost) Command(*PLRun, *PLFrame, PLInstruction) error {
 	return fmt.Errorf("walk unit has no SQL command producer")
 }
 
+func (h *walkHost) Dynamic(*PLRun, *PLFrame, PLInstruction) error {
+	return fmt.Errorf("walk unit has no dynamic command producer")
+}
+
 func (h *walkHost) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	switch id {
 	case sqltype.Bool:

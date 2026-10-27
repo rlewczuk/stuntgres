@@ -458,6 +458,20 @@ without capture remains uncapped.
 Successful commands retain ordinary complete-mutation semantics. Capture closes
 all producers before restoring activation, publishes FOUND before cardinality
 and assignment, and publishes list destinations sequentially, unlike FETCH.
+Dynamic PL commands evaluate their command and typed USING values once, then
+parse the complete computed input on each reached execution. The ordinary
+routine activation/binder executes it without PL lexical substitution. An explicit
+activation-local flag closes the USING parameter namespace even when empty; the
+shared analysis seam reports undefined parameters before importing values. Fresh
+activations reset that flag and restoration preserves the caller's exact demand,
+without changing public parameter inference or cursor/static binding. All
+producers drain and close before command completion, activation restoration,
+STRICT cardinality or target publication; ordinary EXECUTE does not set FOUND.
+RETURN QUERY EXECUTE uses the existing SQL-routine set sink, validates exact
+tuple structure even for empty producers, appends detached values and sets
+FOUND from that command's rows. The sink never enters definitions or session
+specializations. Dynamic SQL callbacks describe only SQL producer failures;
+expression and post-execution assignment/cardinality keep their own provenance.
 
 Accepted write events retain their actual predecessor/successor and command token.
 `sql_command_effects.go` completes only the active nested SQL command's pending
@@ -1252,6 +1266,8 @@ Static capture demand/cancellation/cleanup units use `RUN='^TestPLpgSQLSelectInt
 Static command ownership, validation, remapping, sequential assignment and
 producer cleanup use `RUN='^Test(PLpgSQLSQLExecution|SQLCallableProcedureOutputAssociation)'`
 with `RACE=1`.
+Dynamic command ownership, complete draining and set-sink units use
+`RUN='^TestPLpgSQLDynamicSQL'` with `RACE=1`.
 
 - Fixtures never enter `Engine.Execute` while owning admission (that acquires
   its mutex recursively); create stored recipes before retaining admission.

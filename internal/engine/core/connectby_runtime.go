@@ -63,35 +63,6 @@ func validateConnectbyReturn(r functions.ConnectbyRequest) error {
 	}
 	return nil
 }
-func connectbyUsageName(u sqltype.Usage) string {
-	if u.Type.IsArray() && !u.Type.IsCatalogVector() {
-		u.Type = u.Type.Element()
-		return connectbyUsageName(u) + "[]"
-	}
-	name := u.Type.DiagnosticName()
-	if u.Typmod < 0 {
-		return name
-	}
-	declaration, err := u.Declaration()
-	if err != nil {
-		return name
-	}
-	if u.Type.ID() == sqltype.Interval {
-		return strings.ToLower(declaration)
-	}
-	if at := strings.IndexByte(declaration, '('); at >= 0 {
-		end := strings.IndexByte(declaration[at:], ')')
-		if end < 0 {
-			return name
-		}
-		modifier := declaration[at : at+end+1]
-		if zone := strings.Index(name, " with"); zone >= 0 {
-			return name[:zone] + modifier + name[zone:]
-		}
-		return name + modifier
-	}
-	return name
-}
 func validateConnectbySource(result *sqltype.Descriptor, schema []catalog.Column) error {
 	if len(schema) < 2 {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "invalid connectby source data query", Detail: "The query must return at least two columns."}
@@ -99,7 +70,7 @@ func validateConnectbySource(result *sqltype.Descriptor, schema []catalog.Column
 	for i, label := range []string{"key", "parent key"} {
 		source, target := schema[i].Usage, result.CompositeMember(i).Usage
 		if source.Type.ID() != target.Type.ID() || target.Typmod >= 0 && source.Typmod != target.Typmod {
-			return connectbyReturnError("Source " + label + " type " + connectbyUsageName(source) + " does not match return " + label + " type " + connectbyUsageName(target) + ".")
+			return connectbyReturnError("Source " + label + " type " + resultUsageName(source, nil) + " does not match return " + label + " type " + resultUsageName(target, nil) + ".")
 		}
 	}
 	return nil

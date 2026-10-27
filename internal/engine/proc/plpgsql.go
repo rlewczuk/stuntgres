@@ -91,6 +91,7 @@ type PLInstruction struct {
 	Assert     *PLAssert
 	Into       *PLInto
 	SQL        *PLSQL
+	Dynamic    *PLDynamic
 }
 type PLWhile struct {
 	Condition *parser.Select
@@ -118,6 +119,14 @@ type PLInto struct {
 type PLSQL struct {
 	Kind  parser.PLSQLKind
 	Query parser.Statement
+}
+
+type PLDynamic struct {
+	ReturnQuery bool
+	Command     *parser.Select
+	Using       []*parser.Select
+	Targets     []PLTarget
+	Strict      bool
 }
 type PLIntegerFor struct {
 	Lower, Upper, Step *parser.Select
@@ -193,6 +202,9 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 	}
 	p := &PLProgram{Syntax: syntax, FormalCount: len(definition.Formals), Function: definition.Name, Procedure: procedure, Source: definition.Source}
 	returnPolicy := PLReturnPolicy(definition.Result, len(definition.OutputFormals), procedure)
+	if definition.ReturnsSet {
+		returnPolicy = parser.PLReturnPolicy{Code: "42804", Message: "RETURN cannot have a parameter in function returning set"}
+	}
 	var diagnostics plDiagnosticDatums
 	outer := &PLBlock{Label: definition.Name, Bindings: make(map[string]int), FunctionScope: true, Control: &PLControl{ID: 1}}
 	p.Root = outer
@@ -327,6 +339,11 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 			}
 			var err error
 			switch {
+			case statement.Dynamic != nil:
+				instruction.Dynamic, err = p.compileDynamic(definition, statement, scopes)
+				if err == nil {
+					err = diagnostics.dynamic(p, definition.Source, statement.Dynamic, instruction.Dynamic, scopes)
+				}
 			case statement.SQL != nil:
 				instruction.SQL = &PLSQL{Kind: statement.SQL.Kind, Query: statement.SQL.Query}
 				err = diagnostics.expression(p, definition.Source, statement.SQL.Start, statement.SQL.End, scopes)
@@ -460,7 +477,7 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 				message, code := "", ""
 				if statement.Expression != nil {
 					message, code = returnPolicy.Message, returnPolicy.Code
-				} else if !procedure && !definition.Void() && definition.Invocation != EventTriggerInvocation && len(definition.OutputFormals) == 0 {
+				} else if !definition.ReturnsSet && !procedure && !definition.Void() && definition.Invocation != EventTriggerInvocation && len(definition.OutputFormals) == 0 {
 					message, code = "missing expression at or near \";\"", "42601"
 				}
 				if message != "" {

@@ -196,7 +196,7 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if !d.SQL.DerivedResult() && len(layout.OutputFormals) == 1 && d.SQL.Result != layout.Formals[layout.OutputFormals[0]].Usage {
 		return invalid()
 	}
-	if d.SQL.ReturnsSet && (d.SQL.Kind != proc.SQLBody || d.RoutineKind != catalog.FunctionRoutine) {
+	if d.SQL.ReturnsSet && (d.SQL.Kind != proc.SQLBody && d.SQL.Kind != proc.PLpgSQLBody || d.RoutineKind != catalog.FunctionRoutine) {
 		return invalid()
 	}
 	outputs := []sqltype.Usage{d.SQL.Result}

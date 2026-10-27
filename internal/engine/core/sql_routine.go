@@ -133,7 +133,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	leavePolicy := parent.activateRoutineCommandPolicy(d)
 	defer leavePolicy()
 	if d.SQL.Kind == proc.PLpgSQLBody {
-		return parent.invokePLRoutineSpecialized(d, frame, read, inputCollation, resultUsage)
+		return parent.invokePLRoutineSpecialized(d, frame, read, inputCollation, resultUsage, values)
 	}
 	statements := d.SQL.Statements
 	if d.SQL.Standard {

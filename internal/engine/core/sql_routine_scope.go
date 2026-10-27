@@ -174,6 +174,7 @@ type sqlRoutineDemand struct {
 	lexical            *proc.PLFrame
 	plDiagnostic       string                // Invocation-private cached PL signature; balanced with lexical scratch.
 	plPlanning         bool                  // PL diagnostic provenance; cleared at the real executor handoff.
+	closedParameters   bool                  // Reached dynamic USING frame, including an empty frame.
 	assignment         *analyze.PLAssignment // Reached semantic-datum projection, never retained.
 	assignmentPlanning bool                  // Borrowed PL origin for a called SQL body, not its destination.
 	scalar             bool                  // Internal single-row SELECT demand, never public finalization.
