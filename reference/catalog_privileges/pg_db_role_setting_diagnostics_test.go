@@ -81,8 +81,8 @@ func TestReferencePGDBRoleSettingDiagnostics(t *testing.T) {
 		}
 		pgDBRoleSettingCanceled(t, err)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, pgDBRoleSettingEmpty(q, b.PG, int64(0)))
-		if b.PG {
-			// Catalog ACL SQL is real-oracle only; native ACL publication is a component witness.
+		{
+			// Source ACLs are shared public SQL on both backends.
 			conn, err := b.DB.Conn(p.Ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -136,8 +136,10 @@ func TestReferencePGDBRoleSettingDiagnostics(t *testing.T) {
 			acl("REVOKE SELECT(setdatabase) ON pg_catalog.pg_db_role_setting FROM PUBLIC")
 			acl("GRANT SELECT ON pg_catalog.pg_db_role_setting TO PUBLIC")
 			fixture.RunStep(t, p.Ctx, columnHeld, b.Recorder, columnRows)
-			fixture.RunStep(t, p.Ctx, conn, b.Recorder, pgDBRoleSettingEmpty("SELECT * FROM pg_catalog.pg_db_role_setting", true))
-			return
+			fixture.RunStep(t, p.Ctx, conn, b.Recorder, pgDBRoleSettingEmpty("SELECT * FROM pg_catalog.pg_db_role_setting", b.PG))
+			if b.PG {
+				return
+			}
 		}
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE dbrole18_guard(id integer)", 0))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO dbrole18_guard VALUES(18)", 1))

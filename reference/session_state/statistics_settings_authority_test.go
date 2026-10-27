@@ -65,9 +65,8 @@ func TestReferenceStatisticsSettingsAuthority(t *testing.T) {
 			run(fixture.Select("SELECT current_user='statistics_metadata_reader' AS current_matches,session_user='statistics_metadata_reader' AS session_matches", []string{"current_matches", "session_matches"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 			run(fixture.Select("SELECT name FROM pg_settings WHERE name IN ('role','session_authorization')", []string{"name"}, []string{"TEXT"}, nil))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-			if b.PG {
-				// PostgreSQL supports source REVOKE; native retains its separate
-				// rejection boundary and internal ACL replacement/recheck coverage.
+			{
+				// Registered source ACLs govern direct and retained consumers.
 				run(fixture.Exec("REVOKE SELECT ON pg_catalog.pg_settings FROM PUBLIC", 0))
 				defer func() {
 					conn.ExecContext(context.Background(), "RESET ROLE")
@@ -99,8 +98,7 @@ func TestReferenceStatisticsSettingsAuthority(t *testing.T) {
 				run(fixture.Exec("GRANT SELECT ON pg_catalog.pg_settings TO PUBLIC", 0))
 			}
 			{
-				// Genuine catalog-source GRANT succeeds on both backends.
-				// Native REVOKE rejection must preserve the granted authority.
+				// Table authority survives independent column revocation.
 				const metadataQuery = "SELECT name,setting,boot_val,reset_val,source FROM pg_catalog.pg_settings WHERE name='log_statement_stats'"
 				metadata := fixture.Select(metadataQuery, []string{"name", "setting", "boot_val", "reset_val", "source"}, []string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"log_statement_stats", "off", "off", "off", "default"}})
 				held, err := conn.PrepareContext(p.Ctx, metadataQuery)
@@ -116,13 +114,6 @@ func TestReferenceStatisticsSettingsAuthority(t *testing.T) {
 				} {
 					for _, prepared := range []bool{false, true} {
 						s := fixture.Exec(query, 0)
-						if query == "REVOKE SELECT ON pg_catalog.pg_settings FROM PUBLIC" || query == "REVOKE SELECT(name) ON pg_catalog.pg_settings FROM statistics_metadata_reader" {
-							if b.PG {
-								continue // The source-revocation/held-denial phase above covers PostgreSQL.
-							}
-							s = fixture.ImplicitError(query, fixture.ControlsReferenceDiagnostic("0A000", "statement is not supported"))
-							s.ErrorStage = "execute"
-						}
 						s.Prepared = prepared
 						run(s)
 						run(metadata)

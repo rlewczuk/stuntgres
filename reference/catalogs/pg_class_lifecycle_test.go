@@ -88,19 +88,12 @@ func TestReferencePgClassLifecycle(t *testing.T) {
 		defer stmt.Close()
 		readerHeld := fixture.HeldStatement{Executor: reader, Statement: stmt, SQL: empty}
 		pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
-		if b.PG {
-			fixture.PGClassExec(t, p, b, a, "REVOKE SELECT ON pg_catalog.pg_class FROM PUBLIC")
-			denied := fixture.ImplicitError(empty, fixture.Diagnostic{Code: "42501", Message: "permission denied for table pg_class"})
-			denied.SelectRows, denied.ErrorStage = true, "execute"
-			fixture.RunStep(t, p.Ctx, readerHeld, b.Recorder, denied)
-			fixture.PGClassExec(t, p, b, a, "GRANT SELECT ON pg_catalog.pg_class TO PUBLIC")
-		} else {
-			// REVOKE admission is separate from the named catalog GRANT repair.
-			unsupported := fixture.ImplicitError("REVOKE SELECT ON pg_catalog.pg_class FROM PUBLIC", fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"})
-			unsupported.ErrorStage = "execute"
-			fixture.RunStep(t, p.Ctx, a, b.Recorder, unsupported)
-			pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
-		}
+		fixture.PGClassExec(t, p, b, a, "REVOKE SELECT ON pg_catalog.pg_class FROM PUBLIC")
+		defer a.ExecContext(p.Ctx, "GRANT SELECT ON pg_catalog.pg_class TO PUBLIC")
+		denied := fixture.ImplicitError(empty, fixture.Diagnostic{Code: "42501", Message: "permission denied for table pg_class"})
+		denied.SelectRows, denied.ErrorStage = true, "execute"
+		fixture.RunStep(t, p.Ctx, readerHeld, b.Recorder, denied)
+		fixture.PGClassExec(t, p, b, a, "GRANT SELECT ON pg_catalog.pg_class TO PUBLIC")
 		for _, prepared := range []bool{false, true} {
 			s := fixture.Exec("GRANT SELECT ON pg_catalog.pg_class TO PUBLIC", 0)
 			s.Prepared = prepared

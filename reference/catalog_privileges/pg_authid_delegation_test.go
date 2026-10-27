@@ -123,9 +123,8 @@ func TestReferencePGAuthIDDelegation(t *testing.T) {
 			run(pgAuthIDDenied(q, prepared))
 		}
 		run(fixture.Exec("RESET ROLE", 0))
-		// Preserve the real transaction REVOKE/schema rollback witness.
-		// Shared autocommit GRANT consumers below exercise both backends.
-		if b.PG {
+		// Transaction-local source and schema ACLs share the canonical journal.
+		{
 			tx, err := conn.BeginTx(p.Ctx, nil)
 			if err != nil {
 				t.Fatal(err)

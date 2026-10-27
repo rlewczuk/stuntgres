@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -208,4 +209,54 @@ func (c *cancelAtErrCheck) Err() error {
 		c.cancel()
 	}
 	return c.Context.Err()
+}
+
+func TestObjectRevokeCatalogRegistration(t *testing.T) {
+	for _, malformed := range []bool{false, true} {
+		name := "registered_repeated_target"
+		if malformed {
+			name = "malformed_view_identity"
+		}
+		t.Run(name, func(t *testing.T) {
+			e, op, reader, _ := objectGrantUnitFixture(t)
+			request := objectGrantUnitRequest()
+			request.Privileges[0].Columns = nil
+			request.Relations = []parser.ObjectName{{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "pg_authid"}}}}
+			if err := applyObjectGrantUnit(e, op, request); err != nil {
+				t.Fatal("initial registered grant", err)
+			}
+			address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: "pg_authid"})
+			if malformed {
+				next := *e.Catalog.State.MustRelation(address)
+				next.CatalogView = !next.CatalogView
+				state := catalog.CloneState(e.Catalog.State)
+				state.SetDescriptor(address, &next)
+				e.Catalog.PublishLocked(state)
+			}
+			before, roles := e.CatalogRead(), e.RoleStore.Published
+			old := before.MustRelation(address)
+			request.Revoke = true
+			request.Relations = append(request.Relations, request.Relations[0])
+			err := applyObjectGrantUnit(e, op, request)
+			if malformed {
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || e.Catalog.State != before.State() || e.RoleStore.Published != roles {
+					t.Fatal("malformed registered target admitted or published", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal("registered repeated revoke", err)
+			}
+			after := e.CatalogRead()
+			next := after.MustRelation(address)
+			if next == old || !pgcatalog.RegisteredSource(before, old) || !pgcatalog.RegisteredSource(after, next) || pgcatalog.RegisteredSource(after, old) || pgcatalog.RegisteredSource(before, next) {
+				t.Fatal("ACL publication lost captured source identity")
+			}
+			principals := []authorization.PrincipalRef{reader}
+			if authorization.ACLRights(old.Security.ACL, old.Owner, principals, authorization.SelectPrivilege, false) == 0 || authorization.ACLRights(next.Security.ACL, next.Owner, principals, authorization.SelectPrivilege, false) != 0 {
+				t.Fatal("revoke mutated retained ACL or failed to remove grant")
+			}
+		})
+	}
 }

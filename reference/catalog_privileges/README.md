@@ -76,11 +76,11 @@ the complete matrix as bags and exercise domain/table facts, cursor metadata,
 direct/new/held prepared reads, NULL/empty strings, identity independence and
 complete diagnostics.
 
-Private-table denial is shared SQL coverage. Transactional PostgreSQL-only
-target ACL revocation is rollback-contained, with separate savepoints for
-expected errors and independently bounded cleanup. Native catalog-source
-GRANT/REVOKE admission is not widened: engine units exercise actual ACL
-publication, retained authorization, denial and restoration.
+Private-table denial and transactional target ACL revocation are shared SQL
+coverage. ACL phases roll back, with separate savepoints for expected errors and
+independently bounded cleanup. Direct, fresh and held consumers recheck the
+registered source's actual table/column ACLs; engine units additionally cover
+immutable captured roots and publication.
 
 - SQL feature metadata: `RUN='^TestReferenceInfoSQLFeatures'`
 
@@ -91,9 +91,9 @@ native and PostgreSQL sizing inventories. The family checks all four nullable
 domain columns, bag multiplicities, direct/fresh/held reads, empty and all-NULL
 metadata, role independence and complete diagnostics. Independent table-column,
 identifier-byte and SELECT-target witnesses ground reported bounds rather than
-deriving test sizes from the metadata. PostgreSQL catalog ACL phases roll back
-all changes; native units exercise real ACL publication. Native Reset/Restore
-checks reinitialized sizing authority and detached retained descriptors.
+deriving test sizes from the metadata. Shared catalog and schema ACL phases
+roll back all changes; native units additionally exercise immutable publication.
+Native Reset/Restore checks reinitialized sizing authority and retained descriptors.
 
 - SQL sizing metadata: `RUN='^TestReferenceInfoSQLSizing'`
 
@@ -103,9 +103,9 @@ checks reinitialized sizing authority and detached retained descriptors.
 twelve-row expectations, including explicit backend product identities, domain
 metadata and raw NULL/integer/string boundaries. Shared scenarios exercise
 physical table/type ownership, direct/fresh/held reads, stable initial values,
-ordinary identities and complete diagnostics. PostgreSQL target ACL revocation
-is rollback-contained; engine units cover real native catalog ACL replacement,
-schema admission and retained authorization without widening SQL ACL admission.
+ordinary identities and complete diagnostics. Shared target ACL revocation is
+rollback-contained; engine units additionally cover catalog ACL replacement,
+schema admission and retained authorization.
 
 - SQL implementation metadata: `RUN='^TestReferenceInfoSQLImplementationInfo'`
 
@@ -116,9 +116,8 @@ Shared scenarios assert the five nullable domains, physical table/type identity,
 NULL verification versus empty comments, complete bags, direct/fresh/held reads,
 cursor metadata and diagnostics. Default owner/superuser admission and ordinary
 reader denial, including empty predicates, run on both backends. Explicit
-PostgreSQL catalog GRANT/REVOKE phases are rollback-contained; engine units
-exercise real native ACL publication, schema USAGE and immutable captured roots
-without expanding SQL ACL admission.
+catalog GRANT/REVOKE phases share transaction/savepoint rollback and retained
+consumer denial/restoration; engine units additionally cover immutable roots.
 
 - SQL part metadata: `RUN='^TestReferenceInfoSQLParts'`
 

@@ -41,9 +41,8 @@ func TestReferenceInfoSQLImplementationInfoDiagnostics(t *testing.T) {
 		}
 		c.check(held, siiQuery, c.want)
 		c.exec("CREATE ROLE sii_reader")
-		// Catalog-source ACL SQL is outside native admission. Real native ACL
-		// replacement and retained authorization are covered by engine units.
-		if c.b.PG {
+		// Both backends check transaction-local source ACLs at execution.
+		{
 			c.exec("BEGIN")
 			full := c.hold(siiQuery)
 			emptyQuery := siiQuery + " WHERE FALSE"

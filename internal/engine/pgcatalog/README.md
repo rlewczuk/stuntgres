@@ -118,6 +118,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   configuration remain typed SQL NULL. The common relation ACL/column manifest
   and stored-view owner/invoker checks authorize access, including genuine
   delegated authority; the producer creates neither credentials nor permissions.
+  Named GRANT and REVOKE validate the original captured source registration before
+  ordinary immutable table/column ACL planning. Delegation, option-only removal,
+  selective cascading and transaction rollback use that same ACL authority;
+  neither operation changes an independent backing-source ACL.
   Public `pg_user` and `pg_roles` keep independent constant password masks.
   The `pg_shadow` password column preserves the source `pg_authid` C collation (OID 950),
   unlike the database-default collation of `pg_user`'s masked text literal.

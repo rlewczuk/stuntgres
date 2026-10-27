@@ -75,10 +75,8 @@ func TestReferenceInfoSQLFeaturesDiagnostics(t *testing.T) {
 	t.Run("transactional target ACL", func(t *testing.T) {
 		sfScenario(t, true, func(c *sfCase) {
 			c.exec("CREATE ROLE sf_reader")
-			// Catalog-source GRANT/REVOKE SQL is outside native admission scope.
-			// Native producer/authorization units independently prove real denial;
-			// this required oracle phase proves the PostgreSQL SQL boundary.
-			if c.b.PG {
+			// Exercise the same transactional source ACL on both backends.
+			{
 				c.exec("BEGIN")
 				full := c.hold(sfQuery)
 				emptyQuery := sfQuery + " WHERE FALSE"

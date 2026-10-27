@@ -96,6 +96,11 @@ Native control witnesses preserve materialized table/column ACLs, raw grantor
 and grant-option state, data and actor authority across Dump/Restore. Default
 privilege descriptors still reject Dump before output; arbitrary GRANT/REVOKE
 and ALTER DEFAULT PRIVILEGES remain outside Restore admission and fail atomically.
+Named registered catalog tables and provider views share the table/column ACL
+scenarios: direct and prepared revoke, retained-reader rechecks, option-only
+removal, independent grant origins, per-ACL cascades, atomic refusal and full
+warning vectors. Catalog cleanup restores shared ACLs before dropping actors.
+Backing-source credentials and function EXECUTE remain independently protected.
 Transactional controls retain committed-only capture and stale-publication
 fences, then prove a committed grant survives replacement with its roles intact.
 

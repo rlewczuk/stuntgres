@@ -45,13 +45,14 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   same grant-option/revoke/cascade/role-dependency authority. It does not add
   language lifecycle or grant a native interpreter/ABI execution capability.
   Named registered catalog tables and provider views use ordinary table/column
-  GRANT masks, grantor selection and atomic ACL publication. Admission checks the
+  GRANT/REVOKE masks, grantor selection and atomic ACL publication. Admission checks the
   captured descriptor against its source registration and stable attribute/type
   identities; neither names/OIDs alone nor synthetic catalog descriptors suffice.
   ACL replacement does not change registration identity. Catalog write guards,
   backing-function EXECUTE and underlying-source ACLs remain independent.
-  Catalog REVOKE retains its explicit SELECT scope on the large-object page
-  relation and two shared-memory allocation views.
+  Registration is checked against the original captured target before reusing
+  statement-private ACL replacements. Registered views omit negative system
+  attributes from implicit column-revoke warning traversal, like ordinary views.
 - **Database GRANT** (`database_grant.go`): `PlanDatabaseGrant` returns the
   new database descriptor (nil: unchanged) and the warnings, also before a
   returned error.

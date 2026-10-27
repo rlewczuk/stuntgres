@@ -92,8 +92,8 @@ func TestReferencePGParameterACLVisibilityAndDiagnostics(t *testing.T) {
 		}
 		pgDBRoleSettingCanceled(t, err)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, pgParameterACLSelect(q, b.PG, nil, int64(0)))
+		pgParameterACLDenial(t, p, b)
 		if b.PG {
-			pgParameterACLDenial(t, p, b)
 			return
 		}
 		// Native unsupported writes/locks are boundaries, not PostgreSQL prohibitions.
@@ -177,5 +177,5 @@ func pgParameterACLDenial(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	acl("GRANT SELECT(oid) ON pg_catalog.pg_parameter_acl TO PUBLIC")
 	fixture.RunStep(t, p.Ctx, columnHeld, b.Recorder, empty)
 	acl("GRANT SELECT ON pg_catalog.pg_parameter_acl TO PUBLIC")
-	fixture.RunStep(t, p.Ctx, starHeld, b.Recorder, pgParameterACLSelect(starQuery, true, nil))
+	fixture.RunStep(t, p.Ctx, starHeld, b.Recorder, pgParameterACLSelect(starQuery, b.PG, nil))
 }

@@ -73,9 +73,8 @@ func TestReferencePGEnumDiagnosticsAndPrivileges(t *testing.T) {
 		if got := pgEnumQuery(t, p, b, reader, pgEnumProbe, id); !reflect.DeepEqual(got, original) {
 			t.Fatal("PUBLIC metadata discovery", got, original)
 		}
-		if b.PG {
-			// Native SQL source GRANT/REVOKE is not delivered. Its actual
-			// catalog ACL enforcement is covered through SetObjectACL units.
+		{
+			// The registered source ACL is independent of enum/type visibility.
 			pgEnumExec(t, p, b, a, "REVOKE SELECT ON pg_catalog.pg_enum FROM PUBLIC")
 			defer a.ExecContext(p.Ctx, "GRANT SELECT ON pg_catalog.pg_enum TO PUBLIC")
 			for _, prepared := range []bool{false, true} {

@@ -90,9 +90,8 @@ func TestReferenceInfoSQLSizingDiagnostics(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			szScenario(t, true, func(c *szCase) {
 				c.exec("CREATE ROLE sz_reader")
-				// Native real ACL publication is covered by package units; SQL
-				// GRANT/REVOKE admission for catalog sources is outside this part.
-				if c.b.PG {
+				// Source and schema ACL changes remain private until commit.
+				{
 					c.exec("BEGIN")
 					full := c.hold(szQuery)
 					emptyQuery := szQuery + " WHERE FALSE"

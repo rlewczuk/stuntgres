@@ -59,10 +59,8 @@ func TestReferenceInfoSQLPartsVisibility(t *testing.T) {
 		spDefaultDenial(c)
 		c.check(spQuery, spRows())
 
-		// Catalog-source mutation SQL is not native admission. Stage C's
-		// TestInfoSQLPartsCatalogACLRecheck must supplement this oracle phase
-		// with real native grants/revokes, schema USAGE and retained ACL roots.
-		if c.b.PG {
+		// Transaction-local ACLs are checked by direct and held consumers.
+		{
 			c.exec("BEGIN")
 			full := c.hold(spQuery)
 			emptyQuery := spQuery + " WHERE FALSE"

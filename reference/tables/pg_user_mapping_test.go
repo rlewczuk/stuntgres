@@ -284,9 +284,7 @@ func TestReferencePGUserMappingSecurity(t *testing.T) {
 		view(nil, pgUserMappingPublicOptions, nil)
 		run(fixture.Exec("RESET ROLE", 0))
 
-		// Prepare both shapes before changing authority. Both must be denied
-		// initially, including the empty query; native GRANT persists for the
-		// remainder of this scenario because source REVOKE remains unsupported.
+		// Prepare both shapes before changing authority, including empty reads.
 		type mappingProbe struct {
 			step fixture.Step
 			held fixture.HeldStatement
@@ -328,31 +326,19 @@ func TestReferencePGUserMappingSecurity(t *testing.T) {
 			view(pgUserMappingReaderOptions, nil, nil)
 			run(fixture.Exec("RESET ROLE", 0))
 		}
-		if b.PG {
-			run(fixture.Exec("REVOKE SELECT ON pg_catalog.pg_user_mapping FROM fdw_reader", 0))
+		for _, prepared := range []bool{false, true} {
+			revoke := fixture.Exec("REVOKE SELECT ON pg_catalog.pg_user_mapping FROM fdw_reader", 0)
+			revoke.Prepared = prepared
+			run(revoke)
+			run(fixture.Select("SELECT has_table_privilege('fdw_reader','pg_catalog.pg_user_mapping','SELECT') AS allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{false}}))
 			run(fixture.Exec("SET ROLE fdw_reader", 0))
 			for _, probe := range probes {
 				denied := pgUserMappingDenied(probe.step.Query)
+				pgUserMappingBoth(run, denied)
 				fixture.RunStep(t, p.Ctx, probe.held, b.Recorder, denied)
 			}
+			view(pgUserMappingReaderOptions, nil, nil)
 			run(fixture.Exec("RESET ROLE", 0))
-		} else {
-			// Native source REVOKE is still rejected, without undoing GRANT.
-			acl := fixture.Select("SELECT has_table_privilege('fdw_reader','pg_catalog.pg_user_mapping','SELECT') AS allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{true}})
-			run(acl)
-			for _, prepared := range []bool{false, true} {
-				unsupported := fixture.ErrorDiagnostic("REVOKE SELECT ON pg_catalog.pg_user_mapping FROM fdw_reader", fixture.ControlsReferenceDiagnostic("0A000", "statement is not supported"))
-				unsupported.Prepared, unsupported.ErrorStage = prepared, "execute"
-				run(unsupported)
-				run(acl)
-				run(fixture.Exec("SET ROLE fdw_reader", 0))
-				for _, probe := range probes {
-					pgUserMappingBoth(run, probe.step)
-					fixture.RunStep(t, p.Ctx, probe.held, b.Recorder, probe.step)
-				}
-				view(pgUserMappingReaderOptions, nil, nil)
-				run(fixture.Exec("RESET ROLE", 0))
-			}
 		}
 		if !b.PG && reader.snapshot() != before {
 			t.Fatal("mapping security checks invoked foreign provider", before, reader.snapshot())

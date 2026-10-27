@@ -68,8 +68,8 @@ func TestReferencePGDefaultACLDiagnostics(t *testing.T) {
 		}
 		pgDBRoleSettingCanceled(t, err)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, pgDefaultACLSelect(q, b.PG, nil, int64(0)))
+		pgDefaultACLDenial(t, p, b)
 		if b.PG {
-			pgDefaultACLDenial(t, p, b)
 			return
 		}
 		for _, tc := range []struct{ q, stage string }{
@@ -136,5 +136,5 @@ func pgDefaultACLDenial(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	run(deny(q))
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, deny(q))
 	acl("GRANT SELECT ON pg_catalog.pg_default_acl TO PUBLIC")
-	fixture.RunStep(t, p.Ctx, held, b.Recorder, pgDefaultACLSelect(q, true, nil))
+	fixture.RunStep(t, p.Ctx, held, b.Recorder, pgDefaultACLSelect(q, b.PG, nil))
 }

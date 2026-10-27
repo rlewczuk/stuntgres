@@ -76,7 +76,7 @@ func TestReferenceInfoTablePrivilegesDiagnostics(t *testing.T) {
 	t.Run("transactional_target_acl", func(t *testing.T) {
 		tpScenario(t, func(c *tpCase) {
 			c.seed()
-			if c.b.PG {
+			{
 				// Always restore shared catalog ACLs under an independent deadline.
 				c.exec("BEGIN")
 				rollbackNeeded := true
