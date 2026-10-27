@@ -1,0 +1,500 @@
+1175	justify_hours	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1186	1186	\N	\N	\N	false	\N	interval_justify_hours	\N	false	\N
+1178	date	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1082	1184	\N	\N	\N	false	\N	timestamptz_date	\N	false	\N
+1181	age	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	23	28	\N	\N	\N	false	\N	xid_age	\N	false	\N
+1188	timestamptz_mi	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	1184 1184	\N	\N	\N	false	\N	timestamp_mi	\N	false	\N
+1189	timestamptz_pl_interval	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	1184	1184 1186	\N	\N	\N	false	\N	timestamptz_pl_interval	\N	false	\N
+1190	timestamptz_mi_interval	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	1184	1184 1186	\N	\N	\N	false	\N	timestamptz_mi_interval	\N	false	\N
+1191	generate_subscripts	11	12	1	1000	0	0	f	false	false	true	true	i	s	3	0	23	2277 23 16	\N	\N	\N	false	\N	generate_subscripts	\N	false	\N
+1192	generate_subscripts	11	12	1	1000	0	0	f	false	false	true	true	i	s	2	0	23	2277 23	\N	\N	\N	false	\N	generate_subscripts_nodir	\N	false	\N
+1193	array_fill	11	12	1	0	0	0	f	false	false	false	false	i	s	2	0	2277	2283 1007	\N	\N	\N	false	\N	array_fill	\N	false	\N
+1194	log10	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dlog10	\N	false	\N
+1200	interval	11	12	1	0	0	3918	f	false	false	true	false	i	s	2	0	1186	1186 23	\N	\N	\N	false	\N	interval_scale	\N	false	\N
+1215	obj_description	11	14	100	0	0	0	f	false	false	true	false	s	s	2	0	25	26 19	\N	\N	\N	false	\N		\N	true	\N
+1216	col_description	11	14	100	0	0	0	f	false	false	true	false	s	s	2	0	25	26 23	\N	\N	\N	false	\N		\N	true	\N
+1217	date_trunc	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	1184	25 1184	\N	\N	\N	false	\N	timestamptz_trunc	\N	false	\N
+1218	date_trunc	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	25 1186	\N	\N	\N	false	\N	interval_trunc	\N	false	\N
+1238	texticregexeq	11	12	1	0	0	1024	f	false	false	true	false	i	s	2	0	16	25 25	\N	\N	\N	false	\N	texticregexeq	\N	false	\N
+1239	texticregexne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	25 25	\N	\N	\N	false	\N	texticregexne	\N	false	\N
+1240	nameicregexeq	11	12	1	0	0	1024	f	false	false	true	false	i	s	2	0	16	19 25	\N	\N	\N	false	\N	nameicregexeq	\N	false	\N
+1241	nameicregexne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	19 25	\N	\N	\N	false	\N	nameicregexne	\N	false	\N
+1246	charlt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	18 18	\N	\N	\N	false	\N	charlt	\N	false	\N
+1252	nameregexne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	19 25	\N	\N	\N	false	\N	nameregexne	\N	false	\N
+1254	textregexeq	11	12	1	0	0	1364	f	false	false	true	false	i	s	2	0	16	25 25	\N	\N	\N	false	\N	textregexeq	\N	false	\N
+1256	textregexne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	25 25	\N	\N	\N	false	\N	textregexne	\N	false	\N
+1258	textcat	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	25	25 25	\N	\N	\N	false	\N	textcat	\N	false	\N
+1265	tidne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	27 27	\N	\N	\N	false	\N	tidne	\N	false	\N
+1268	parse_ident	11	12	1	0	0	0	f	false	false	true	false	i	s	2	1	1009	25 16	\N	\N	{str,strict}	true	\N	parse_ident	\N	false	\N
+1271	overlaps	11	12	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1266 1266 1266 1266	\N	\N	\N	false	\N	overlaps_timetz	\N	false	\N
+1272	datetime_pl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	1082 1083	\N	\N	\N	false	\N	datetime_timestamp	\N	false	\N
+1273	date_part	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	25 1266	\N	\N	\N	false	\N	timetz_part	\N	false	\N
+1274	int84pl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 23	\N	\N	\N	false	\N	int84pl	\N	false	\N
+1275	int84mi	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 23	\N	\N	\N	false	\N	int84mi	\N	false	\N
+1276	int84mul	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 23	\N	\N	\N	false	\N	int84mul	\N	false	\N
+1277	int84div	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 23	\N	\N	\N	false	\N	int84div	\N	false	\N
+1278	int48pl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	23 20	\N	\N	\N	false	\N	int48pl	\N	false	\N
+1279	int48mi	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	23 20	\N	\N	\N	false	\N	int48mi	\N	false	\N
+1280	int48mul	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	23 20	\N	\N	\N	false	\N	int48mul	\N	false	\N
+1281	int48div	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	23 20	\N	\N	\N	false	\N	int48div	\N	false	\N
+1282	quote_ident	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	25	\N	\N	\N	false	\N	quote_ident	\N	false	\N
+1283	quote_literal	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	25	\N	\N	\N	false	\N	quote_literal	\N	false	\N
+1284	date_trunc	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	1184	25 1184 25	\N	\N	\N	false	\N	timestamptz_trunc_zone	\N	false	\N
+1285	quote_literal	11	14	1	0	0	0	f	false	false	true	false	s	s	1	0	25	2283	\N	\N	\N	false	\N	select pg_catalog.quote_literal($1::pg_catalog.text)	\N	false	\N
+1286	array_fill	11	12	1	0	0	0	f	false	false	false	false	i	s	3	0	2277	2283 1007 1007	\N	\N	\N	false	\N	array_fill_with_lower_bounds	\N	false	\N
+1287	oid	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	26	20	\N	\N	\N	false	\N	i8tooid	\N	false	\N
+1288	int8	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	20	26	\N	\N	\N	false	\N	oidtoi8	\N	false	\N
+1289	quote_nullable	11	12	1	0	0	0	f	false	false	false	false	i	s	1	0	25	25	\N	\N	\N	false	\N	quote_nullable	\N	false	\N
+1290	quote_nullable	11	14	1	0	0	0	f	false	false	false	false	s	s	1	0	25	2283	\N	\N	\N	false	\N	select pg_catalog.quote_nullable($1::pg_catalog.text)	\N	false	\N
+1292	tideq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	27 27	\N	\N	\N	false	\N	tideq	\N	false	\N
+1293	unnest	11	12	1	100	0	0	f	false	false	true	true	i	s	1	0	3831	4537	\N	\N	\N	false	\N	multirange_unnest	\N	false	\N
+1295	justify_days	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1186	1186	\N	\N	\N	false	\N	interval_justify_days	\N	false	\N
+1296	timedate_pl	11	14	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	1083 1082	\N	\N	\N	false	\N		\N	true	\N
+1297	datetimetz_pl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1184	1082 1266	\N	\N	\N	false	\N	datetimetz_timestamptz	\N	false	\N
+1298	timetzdate_pl	11	14	1	0	0	0	f	false	false	true	false	i	s	2	0	1184	1266 1082	\N	\N	\N	false	\N		\N	true	\N
+1299	now	11	12	1	0	0	0	f	false	false	true	false	s	s	0	0	1184		\N	\N	\N	false	\N	now	\N	false	\N
+1304	overlaps	11	12	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1184 1184 1184 1184	\N	\N	\N	false	\N	overlaps_timestamp	\N	false	\N
+1305	overlaps	11	14	1	0	0	0	f	false	false	false	false	s	s	4	0	16	1184 1186 1184 1186	\N	\N	\N	false	\N		\N	true	\N
+1306	overlaps	11	14	1	0	0	0	f	false	false	false	false	s	s	4	0	16	1184 1184 1184 1186	\N	\N	\N	false	\N		\N	true	\N
+1307	overlaps	11	14	1	0	0	0	f	false	false	false	false	s	s	4	0	16	1184 1186 1184 1184	\N	\N	\N	false	\N		\N	true	\N
+1308	overlaps	11	12	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1083 1083 1083 1083	\N	\N	\N	false	\N	overlaps_time	\N	false	\N
+1309	overlaps	11	14	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1083 1186 1083 1186	\N	\N	\N	false	\N		\N	true	\N
+1310	overlaps	11	14	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1083 1083 1083 1186	\N	\N	\N	false	\N		\N	true	\N
+1311	overlaps	11	14	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1083 1186 1083 1083	\N	\N	\N	false	\N		\N	true	\N
+1314	timestamptz_cmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1184 1184	\N	\N	\N	false	\N	timestamp_cmp	\N	false	\N
+1315	interval_cmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1186 1186	\N	\N	\N	false	\N	interval_cmp	\N	false	\N
+1316	time	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1083	1114	\N	\N	\N	false	\N	timestamp_time	\N	false	\N
+1317	length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	25	\N	\N	\N	false	\N	textlen	\N	false	\N
+1318	length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1042	\N	\N	\N	false	\N	bpcharlen	\N	false	\N
+1319	xideqint4	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	28 23	\N	\N	\N	false	\N	xideq	\N	false	\N
+1326	interval_div	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	1186 701	\N	\N	\N	false	\N	interval_div	\N	false	\N
+1340	log	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dlog10	\N	false	\N
+1341	ln	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dlog1	\N	false	\N
+1342	round	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dround	\N	false	\N
+1343	trunc	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dtrunc	\N	false	\N
+1344	sqrt	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dsqrt	\N	false	\N
+1345	cbrt	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dcbrt	\N	false	\N
+1347	exp	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dexp	\N	false	\N
+1348	obj_description	11	14	100	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N		\N	true	\N
+1352	timetz_eq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1266 1266	\N	\N	\N	false	\N	timetz_eq	\N	false	\N
+1353	timetz_ne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1266 1266	\N	\N	\N	false	\N	timetz_ne	\N	false	\N
+1354	timetz_lt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1266 1266	\N	\N	\N	false	\N	timetz_lt	\N	false	\N
+1355	timetz_le	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1266 1266	\N	\N	\N	false	\N	timetz_le	\N	false	\N
+1356	timetz_ge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1266 1266	\N	\N	\N	false	\N	timetz_ge	\N	false	\N
+1357	timetz_gt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1266 1266	\N	\N	\N	false	\N	timetz_gt	\N	false	\N
+1358	timetz_cmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1266 1266	\N	\N	\N	false	\N	timetz_cmp	\N	false	\N
+1362	hostmask	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	869	869	\N	\N	\N	false	\N	network_hostmask	\N	false	\N
+1365	makeaclitem	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	1033	26 26 25 16	\N	\N	\N	false	\N	makeaclitem	\N	false	\N
+1367	character_length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1042	\N	\N	\N	false	\N	bpcharlen	\N	false	\N
+1368	power	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	701 701	\N	\N	\N	false	\N	dpow	\N	false	\N
+1369	character_length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	25	\N	\N	\N	false	\N	textlen	\N	false	\N
+1370	interval	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	1186	1083	\N	\N	\N	false	\N	time_interval	\N	false	\N
+1372	char_length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1042	\N	\N	\N	false	\N	bpcharlen	\N	false	\N
+1373	isfinite	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	1082	\N	\N	\N	false	\N	date_finite	\N	false	\N
+1374	octet_length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	25	\N	\N	\N	false	\N	textoctetlen	\N	false	\N
+1375	octet_length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1042	\N	\N	\N	false	\N	bpcharoctetlen	\N	false	\N
+1376	factorial	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	20	\N	\N	\N	false	\N	numeric_fac	\N	false	\N
+1381	char_length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	25	\N	\N	\N	false	\N	textlen	\N	false	\N
+1384	date_part	11	14	1	0	0	0	f	false	false	true	false	i	s	2	0	701	25 1082	\N	\N	\N	false	\N		\N	true	\N
+1385	date_part	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	25 1083	\N	\N	\N	false	\N	time_part	\N	false	\N
+1387	pg_get_constraintdef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_constraintdef	\N	false	\N
+1388	timetz	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1266	1184	\N	\N	\N	false	\N	timestamptz_timetz	\N	false	\N
+1390	isfinite	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	1186	\N	\N	\N	false	\N	interval_finite	\N	false	\N
+1394	abs	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	700	700	\N	\N	\N	false	\N	float4abs	\N	false	\N
+1395	abs	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	float8abs	\N	false	\N
+1396	abs	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	20	20	\N	\N	\N	false	\N	int8abs	\N	false	\N
+1397	abs	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	23	\N	\N	\N	false	\N	int4abs	\N	false	\N
+1398	abs	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	21	21	\N	\N	\N	false	\N	int2abs	\N	false	\N
+1400	name	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	19	1043	\N	\N	\N	false	\N	text_name	\N	false	\N
+1401	varchar	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	1043	19	\N	\N	\N	false	\N	name_text	\N	false	\N
+1402	current_schema	11	12	1	0	0	0	f	false	false	true	false	s	u	0	0	19		\N	\N	\N	false	\N	current_schema	\N	false	\N
+1403	current_schemas	11	12	1	0	0	0	f	false	false	true	false	s	u	1	0	1003	16	\N	\N	\N	false	\N	current_schemas	\N	false	\N
+1404	overlay	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	25	25 25 23 23	\N	\N	\N	false	\N	textoverlay	\N	false	\N
+1405	overlay	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	25	25 25 23	\N	\N	\N	false	\N	textoverlay_no_len	\N	false	\N
+1416	point	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	600	718	\N	\N	\N	false	\N	circle_center	\N	false	\N
+1419	time	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1083	1186	\N	\N	\N	false	\N	interval_time	\N	false	\N
+1421	box	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	603	600 600	\N	\N	\N	false	\N	points_box	\N	false	\N
+1422	box_add	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	603	603 600	\N	\N	\N	false	\N	box_add	\N	false	\N
+1423	box_sub	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	603	603 600	\N	\N	\N	false	\N	box_sub	\N	false	\N
+1424	box_mul	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	603	603 600	\N	\N	\N	false	\N	box_mul	\N	false	\N
+1425	box_div	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	603	603 600	\N	\N	\N	false	\N	box_div	\N	false	\N
+1426	path_contain_pt	11	14	1	0	0	0	f	false	false	true	false	i	s	2	0	16	602 600	\N	\N	\N	false	\N		\N	true	\N
+1428	poly_contain_pt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	604 600	\N	\N	\N	false	\N	poly_contain_pt	\N	false	\N
+1429	pt_contained_poly	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	600 604	\N	\N	\N	false	\N	pt_contained_poly	\N	false	\N
+1430	isclosed	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	602	\N	\N	\N	false	\N	path_isclosed	\N	false	\N
+1431	isopen	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	602	\N	\N	\N	false	\N	path_isopen	\N	false	\N
+1433	pclose	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	602	602	\N	\N	\N	false	\N	path_close	\N	false	\N
+1434	popen	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	602	602	\N	\N	\N	false	\N	path_open	\N	false	\N
+1435	path_add	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	602	602 602	\N	\N	\N	false	\N	path_add	\N	false	\N
+1436	path_add_pt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	602	602 600	\N	\N	\N	false	\N	path_add_pt	\N	false	\N
+1437	path_sub_pt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	602	602 600	\N	\N	\N	false	\N	path_sub_pt	\N	false	\N
+1438	path_mul_pt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	602	602 600	\N	\N	\N	false	\N	path_mul_pt	\N	false	\N
+1439	path_div_pt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	602	602 600	\N	\N	\N	false	\N	path_div_pt	\N	false	\N
+1440	point	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	600	701 701	\N	\N	\N	false	\N	construct_point	\N	false	\N
+1441	point_add	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	600	600 600	\N	\N	\N	false	\N	point_add	\N	false	\N
+1442	point_sub	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	600	600 600	\N	\N	\N	false	\N	point_sub	\N	false	\N
+1443	point_mul	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	600	600 600	\N	\N	\N	false	\N	point_mul	\N	false	\N
+1444	point_div	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	600	600 600	\N	\N	\N	false	\N	point_div	\N	false	\N
+1446	box	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	603	604	\N	\N	\N	false	\N	poly_box	\N	false	\N
+1447	path	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	602	604	\N	\N	\N	false	\N	poly_path	\N	false	\N
+1448	polygon	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	604	603	\N	\N	\N	false	\N	box_poly	\N	false	\N
+1449	polygon	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	604	602	\N	\N	\N	false	\N	path_poly	\N	false	\N
+1452	circle_same	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_same	\N	false	\N
+1453	circle_contain	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_contain	\N	false	\N
+1454	circle_left	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_left	\N	false	\N
+1455	circle_overleft	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_overleft	\N	false	\N
+1456	circle_overright	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_overright	\N	false	\N
+1457	circle_right	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_right	\N	false	\N
+1458	circle_contained	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_contained	\N	false	\N
+1459	circle_overlap	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_overlap	\N	false	\N
+1460	circle_below	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_below	\N	false	\N
+1461	circle_above	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_above	\N	false	\N
+1462	circle_eq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_eq	\N	false	\N
+1463	circle_ne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_ne	\N	false	\N
+1464	circle_lt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_lt	\N	false	\N
+1465	circle_gt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_gt	\N	false	\N
+1466	circle_le	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_le	\N	false	\N
+1467	circle_ge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	718 718	\N	\N	\N	false	\N	circle_ge	\N	false	\N
+1468	area	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	718	\N	\N	\N	false	\N	circle_area	\N	false	\N
+1469	diameter	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	718	\N	\N	\N	false	\N	circle_diameter	\N	false	\N
+1470	radius	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	718	\N	\N	\N	false	\N	circle_radius	\N	false	\N
+1471	circle_distance	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	718 718	\N	\N	\N	false	\N	circle_distance	\N	false	\N
+1473	circle	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	718	600 701	\N	\N	\N	false	\N	cr_circle	\N	false	\N
+1474	circle	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	718	604	\N	\N	\N	false	\N	poly_circle	\N	false	\N
+1475	polygon	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	604	23 718	\N	\N	\N	false	\N	circle_poly	\N	false	\N
+1476	dist_pc	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	600 718	\N	\N	\N	false	\N	dist_pc	\N	false	\N
+1477	circle_contain_pt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	718 600	\N	\N	\N	false	\N	circle_contain_pt	\N	false	\N
+1478	pt_contained_circle	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	600 718	\N	\N	\N	false	\N	pt_contained_circle	\N	false	\N
+1479	circle	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	718	603	\N	\N	\N	false	\N	box_circle	\N	false	\N
+1480	box	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	603	718	\N	\N	\N	false	\N	circle_box	\N	false	\N
+1481	log10	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N		\N	true	\N
+1482	lseg_ne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	601 601	\N	\N	\N	false	\N	lseg_ne	\N	false	\N
+1483	lseg_lt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	601 601	\N	\N	\N	false	\N	lseg_lt	\N	false	\N
+1484	lseg_le	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	601 601	\N	\N	\N	false	\N	lseg_le	\N	false	\N
+1485	lseg_gt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	601 601	\N	\N	\N	false	\N	lseg_gt	\N	false	\N
+1486	lseg_ge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	601 601	\N	\N	\N	false	\N	lseg_ge	\N	false	\N
+1488	close_ls	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	600	628 601	\N	\N	\N	false	\N	close_ls	\N	false	\N
+1489	close_lseg	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	600	601 601	\N	\N	\N	false	\N	close_lseg	\N	false	\N
+1492	line_eq	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	628 628	\N	\N	\N	false	\N	line_eq	\N	false	\N
+1493	line	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	628	600 600	\N	\N	\N	false	\N	line_construct_pp	\N	false	\N
+1494	line_interpt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	600	628 628	\N	\N	\N	false	\N	line_interpt	\N	false	\N
+1495	line_intersect	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	628 628	\N	\N	\N	false	\N	line_intersect	\N	false	\N
+1496	line_parallel	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	628 628	\N	\N	\N	false	\N	line_parallel	\N	false	\N
+1497	line_perp	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	628 628	\N	\N	\N	false	\N	line_perp	\N	false	\N
+1498	line_vertical	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	628	\N	\N	\N	false	\N	line_vertical	\N	false	\N
+1499	line_horizontal	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	628	\N	\N	\N	false	\N	line_horizontal	\N	false	\N
+1530	length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	601	\N	\N	\N	false	\N	lseg_length	\N	false	\N
+1531	length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	602	\N	\N	\N	false	\N	path_length	\N	false	\N
+1532	point	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	600	601	\N	\N	\N	false	\N	lseg_center	\N	false	\N
+1534	point	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	600	603	\N	\N	\N	false	\N	box_center	\N	false	\N
+1540	point	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	600	604	\N	\N	\N	false	\N	poly_center	\N	false	\N
+1541	lseg	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	601	603	\N	\N	\N	false	\N	box_diagonal	\N	false	\N
+1542	center	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	600	603	\N	\N	\N	false	\N	box_center	\N	false	\N
+1543	center	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	600	718	\N	\N	\N	false	\N	circle_center	\N	false	\N
+1544	polygon	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	604	718	\N	\N	\N	false	\N		\N	true	\N
+1545	npoints	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	602	\N	\N	\N	false	\N	path_npoints	\N	false	\N
+1556	npoints	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	604	\N	\N	\N	false	\N	poly_npoints	\N	false	\N
+1574	nextval	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	20	2205	\N	\N	\N	false	\N	nextval_oid	\N	false	\N
+1575	currval	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	20	2205	\N	\N	\N	false	\N	currval_oid	\N	false	\N
+1576	setval	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	20	2205 20	\N	\N	\N	false	\N	setval_oid	\N	false	\N
+1581	biteq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1560 1560	\N	\N	\N	false	\N	biteq	\N	false	\N
+1582	bitne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1560 1560	\N	\N	\N	false	\N	bitne	\N	false	\N
+1592	bitge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1560 1560	\N	\N	\N	false	\N	bitge	\N	false	\N
+1593	bitgt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1560 1560	\N	\N	\N	false	\N	bitgt	\N	false	\N
+1594	bitle	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1560 1560	\N	\N	\N	false	\N	bitle	\N	false	\N
+1595	bitlt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1560 1560	\N	\N	\N	false	\N	bitlt	\N	false	\N
+1598	random	11	12	1	0	0	0	f	false	false	true	false	v	r	0	0	701		\N	\N	\N	false	\N	drandom	\N	false	\N
+1599	setseed	11	12	1	0	0	0	f	false	false	true	false	v	r	1	0	2278	701	\N	\N	\N	false	\N	setseed	\N	false	\N
+1600	asin	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dasin	\N	false	\N
+1601	acos	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dacos	\N	false	\N
+1602	atan	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	datan	\N	false	\N
+1603	atan2	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	701 701	\N	\N	\N	false	\N	datan2	\N	false	\N
+1604	sin	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dsin	\N	false	\N
+1605	cos	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dcos	\N	false	\N
+1606	tan	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dtan	\N	false	\N
+1607	cot	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dcot	\N	false	\N
+1608	degrees	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	degrees	\N	false	\N
+1609	radians	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	radians	\N	false	\N
+1610	pi	11	12	1	0	0	0	f	false	false	true	false	i	s	0	0	701		\N	\N	\N	false	\N	dpi	\N	false	\N
+1618	interval_mul	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	1186 701	\N	\N	\N	false	\N	interval_mul	\N	false	\N
+1620	ascii	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	25	\N	\N	\N	false	\N	ascii	\N	false	\N
+1621	chr	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	23	\N	\N	\N	false	\N	chr	\N	false	\N
+1622	repeat	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	25	25 23	\N	\N	\N	false	\N	repeat	\N	false	\N
+1624	mul_d_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	701 1186	\N	\N	\N	false	\N	mul_d_interval	\N	false	\N
+1631	bpcharlike	11	12	1	0	0	1023	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	textlike	\N	false	\N
+1632	bpcharnlike	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	textnlike	\N	false	\N
+1633	texticlike	11	12	1	0	0	1025	f	false	false	true	false	i	s	2	0	16	25 25	\N	\N	\N	false	\N	texticlike	\N	false	\N
+1634	texticnlike	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	25 25	\N	\N	\N	false	\N	texticnlike	\N	false	\N
+1635	nameiclike	11	12	1	0	0	1025	f	false	false	true	false	i	s	2	0	16	19 25	\N	\N	\N	false	\N	nameiclike	\N	false	\N
+1636	nameicnlike	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	19 25	\N	\N	\N	false	\N	nameicnlike	\N	false	\N
+1637	like_escape	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	25	25 25	\N	\N	\N	false	\N	like_escape	\N	false	\N
+1638	oidgt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	26 26	\N	\N	\N	false	\N	oidgt	\N	false	\N
+1639	oidge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	26 26	\N	\N	\N	false	\N	oidge	\N	false	\N
+1640	pg_get_viewdef	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	25	25	\N	\N	\N	false	\N	pg_get_viewdef_name	\N	false	\N
+1641	pg_get_viewdef	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	25	26	\N	\N	\N	false	\N	pg_get_viewdef	\N	false	\N
+1642	pg_get_userbyid	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	19	26	\N	\N	\N	false	\N	pg_get_userbyid	\N	false	\N
+1643	pg_get_indexdef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_indexdef	\N	false	\N
+1656	bpcharicregexeq	11	12	1	0	0	1024	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	texticregexeq	\N	false	\N
+1657	bpcharicregexne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	texticregexne	\N	false	\N
+1658	bpcharregexeq	11	12	1	0	0	1364	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	textregexeq	\N	false	\N
+1659	bpcharregexne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	textregexne	\N	false	\N
+1660	bpchariclike	11	12	1	0	0	1025	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	texticlike	\N	false	\N
+1661	bpcharicnlike	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	texticnlike	\N	false	\N
+1665	pg_get_serial_sequence	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	25 25	\N	\N	\N	false	\N	pg_get_serial_sequence	\N	false	\N
+1666	varbiteq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1562 1562	\N	\N	\N	false	\N	biteq	\N	false	\N
+1667	varbitne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1562 1562	\N	\N	\N	false	\N	bitne	\N	false	\N
+1668	varbitge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1562 1562	\N	\N	\N	false	\N	bitge	\N	false	\N
+1669	varbitgt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1562 1562	\N	\N	\N	false	\N	bitgt	\N	false	\N
+1670	varbitle	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1562 1562	\N	\N	\N	false	\N	bitle	\N	false	\N
+1671	varbitlt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1562 1562	\N	\N	\N	false	\N	bitlt	\N	false	\N
+1673	bitand	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1560	1560 1560	\N	\N	\N	false	\N	bit_and	\N	false	\N
+1674	bitor	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1560	1560 1560	\N	\N	\N	false	\N	bit_or	\N	false	\N
+1675	bitxor	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1560	1560 1560	\N	\N	\N	false	\N	bitxor	\N	false	\N
+1676	bitnot	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1560	1560	\N	\N	\N	false	\N	bitnot	\N	false	\N
+1677	bitshiftleft	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1560	1560 23	\N	\N	\N	false	\N	bitshiftleft	\N	false	\N
+1678	bitshiftright	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1560	1560 23	\N	\N	\N	false	\N	bitshiftright	\N	false	\N
+1679	bitcat	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1562	1562 1562	\N	\N	\N	false	\N	bitcat	\N	false	\N
+1680	substring	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	1560	1560 23 23	\N	\N	\N	false	\N	bitsubstr	\N	false	\N
+1681	length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1560	\N	\N	\N	false	\N	bitlength	\N	false	\N
+1682	octet_length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1560	\N	\N	\N	false	\N	bitoctetlength	\N	false	\N
+1683	bit	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1560	23 23	\N	\N	\N	false	\N	bitfromint4	\N	false	\N
+1684	int4	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1560	\N	\N	\N	false	\N	bittoint4	\N	false	\N
+1685	bit	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	1560	1560 23 16	\N	\N	\N	false	\N	bit	\N	false	\N
+1687	varbit	11	12	1	0	0	3158	f	false	false	true	false	i	s	3	0	1562	1562 23 16	\N	\N	\N	false	\N	varbit	\N	false	\N
+1688	time_hash	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1083	\N	\N	\N	false	\N	time_hash	\N	false	\N
+1689	aclexplode	11	12	1	10	0	0	f	false	false	true	true	s	s	1	0	2249	1034	{1034,26,26,25,16}	{i,o,o,o,o}	{acl,grantor,grantee,privilege_type,is_grantable}	false	\N	aclexplode	\N	false	\N
+1690	time_mi_time	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	1083 1083	\N	\N	\N	false	\N	time_mi_time	\N	false	\N
+1691	boolle	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	16 16	\N	\N	\N	false	\N	boolle	\N	false	\N
+1692	boolge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	16 16	\N	\N	\N	false	\N	boolge	\N	false	\N
+1693	btboolcmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	16 16	\N	\N	\N	false	\N	btboolcmp	\N	false	\N
+1696	timetz_hash	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1266	\N	\N	\N	false	\N	timetz_hash	\N	false	\N
+1697	interval_hash	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1186	\N	\N	\N	false	\N	interval_hash	\N	false	\N
+1698	position	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	1560 1560	\N	\N	\N	false	\N	bitposition	\N	false	\N
+1699	substring	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1560	1560 23	\N	\N	\N	false	\N	bitsubstr_no_len	\N	false	\N
+1703	numeric	11	12	1	0	0	3157	f	false	false	true	false	i	s	2	0	1700	1700 23	\N	\N	\N	false	\N	numeric	\N	false	\N
+1705	abs	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_abs	\N	false	\N
+1706	sign	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_sign	\N	false	\N
+1707	round	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 23	\N	\N	\N	false	\N	numeric_round	\N	false	\N
+1708	round	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N		\N	true	\N
+1709	trunc	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 23	\N	\N	\N	false	\N	numeric_trunc	\N	false	\N
+1710	trunc	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N		\N	true	\N
+1711	ceil	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_ceil	\N	false	\N
+1712	floor	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_floor	\N	false	\N
+1714	convert_from	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	17 19	\N	\N	\N	false	\N	pg_convert_from	\N	false	\N
+1715	cidr	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	650	869	\N	\N	\N	false	\N	inet_to_cidr	\N	false	\N
+1716	pg_get_expr	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	194 26	\N	\N	\N	false	\N	pg_get_expr	\N	false	\N
+1717	convert_to	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	17	25 19	\N	\N	\N	false	\N	pg_convert_to	\N	false	\N
+1718	numeric_eq	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1700 1700	\N	\N	\N	false	\N	numeric_eq	\N	false	\N
+1719	numeric_ne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1700 1700	\N	\N	\N	false	\N	numeric_ne	\N	false	\N
+1720	numeric_gt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1700 1700	\N	\N	\N	false	\N	numeric_gt	\N	false	\N
+1721	numeric_ge	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1700 1700	\N	\N	\N	false	\N	numeric_ge	\N	false	\N
+1722	numeric_lt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1700 1700	\N	\N	\N	false	\N	numeric_lt	\N	false	\N
+1723	numeric_le	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1700 1700	\N	\N	\N	false	\N	numeric_le	\N	false	\N
+1724	numeric_add	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_add	\N	false	\N
+1725	numeric_sub	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_sub	\N	false	\N
+1726	numeric_mul	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_mul	\N	false	\N
+1727	numeric_div	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_div	\N	false	\N
+1728	mod	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_mod	\N	false	\N
+1729	numeric_mod	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_mod	\N	false	\N
+1730	sqrt	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_sqrt	\N	false	\N
+1732	exp	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_exp	\N	false	\N
+1734	ln	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_ln	\N	false	\N
+1736	log	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_log	\N	false	\N
+1739	numeric_power	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_power	\N	false	\N
+1740	numeric	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	1700	23	\N	\N	\N	false	\N	int4_numeric	\N	false	\N
+1741	log	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N		\N	true	\N
+1742	numeric	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	1700	700	\N	\N	\N	false	\N	float4_numeric	\N	false	\N
+1743	numeric	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	1700	701	\N	\N	\N	false	\N	float8_numeric	\N	false	\N
+1744	int4	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1700	\N	\N	\N	false	\N	numeric_int4	\N	false	\N
+1745	float4	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	700	1700	\N	\N	\N	false	\N	numeric_float4	\N	false	\N
+1746	float8	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	1700	\N	\N	\N	false	\N	numeric_float8	\N	false	\N
+1747	time_pl_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1083	1083 1186	\N	\N	\N	false	\N	time_pl_interval	\N	false	\N
+1748	time_mi_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1083	1083 1186	\N	\N	\N	false	\N	time_mi_interval	\N	false	\N
+1749	timetz_pl_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1266	1266 1186	\N	\N	\N	false	\N	timetz_pl_interval	\N	false	\N
+1750	timetz_mi_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1266	1266 1186	\N	\N	\N	false	\N	timetz_mi_interval	\N	false	\N
+1765	setval	11	12	1	0	0	0	f	false	false	true	false	v	u	3	0	20	2205 20 16	\N	\N	\N	false	\N	setval3_oid	\N	false	\N
+1768	to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	1186 25	\N	\N	\N	false	\N	interval_to_char	\N	false	\N
+1769	numeric_cmp	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	1700 1700	\N	\N	\N	false	\N	numeric_cmp	\N	false	\N
+1770	to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	1184 25	\N	\N	\N	false	\N	timestamptz_to_char	\N	false	\N
+1771	numeric_uminus	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_uminus	\N	false	\N
+1772	to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	1700 25	\N	\N	\N	false	\N	numeric_to_char	\N	false	\N
+1773	to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	23 25	\N	\N	\N	false	\N	int4_to_char	\N	false	\N
+1774	to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	20 25	\N	\N	\N	false	\N	int8_to_char	\N	false	\N
+1775	to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	700 25	\N	\N	\N	false	\N	float4_to_char	\N	false	\N
+1776	to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	701 25	\N	\N	\N	false	\N	float8_to_char	\N	false	\N
+1777	to_number	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	1700	25 25	\N	\N	\N	false	\N	numeric_to_number	\N	false	\N
+1778	to_timestamp	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	1184	25 25	\N	\N	\N	false	\N	to_timestamp	\N	false	\N
+1779	int8	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	20	1700	\N	\N	\N	false	\N	numeric_int8	\N	false	\N
+1780	to_date	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	1082	25 25	\N	\N	\N	false	\N	to_date	\N	false	\N
+1781	numeric	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	1700	20	\N	\N	\N	false	\N	int8_numeric	\N	false	\N
+1782	numeric	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	1700	21	\N	\N	\N	false	\N	int2_numeric	\N	false	\N
+1783	int2	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	21	1700	\N	\N	\N	false	\N	numeric_int2	\N	false	\N
+1810	bit_length	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	23	17	\N	\N	\N	false	\N		\N	true	\N
+1811	bit_length	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	23	25	\N	\N	\N	false	\N		\N	true	\N
+1812	bit_length	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1560	\N	\N	\N	false	\N		\N	true	\N
+1813	convert	11	12	1	0	0	0	f	false	false	true	false	s	s	3	0	17	17 19 19	\N	\N	\N	false	\N	pg_convert	\N	false	\N
+1845	to_ascii	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	25	\N	\N	\N	false	\N	to_ascii_default	\N	false	\N
+1846	to_ascii	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	25	25 23	\N	\N	\N	false	\N	to_ascii_enc	\N	false	\N
+1847	to_ascii	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	25	25 19	\N	\N	\N	false	\N	to_ascii_encname	\N	false	\N
+1848	interval_pl_time	11	14	1	0	0	0	f	false	false	true	false	i	s	2	0	1083	1186 1083	\N	\N	\N	false	\N		\N	true	\N
+1850	int28eq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	21 20	\N	\N	\N	false	\N	int28eq	\N	false	\N
+1851	int28ne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	21 20	\N	\N	\N	false	\N	int28ne	\N	false	\N
+1852	int28lt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	21 20	\N	\N	\N	false	\N	int28lt	\N	false	\N
+1853	int28gt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	21 20	\N	\N	\N	false	\N	int28gt	\N	false	\N
+1854	int28le	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	21 20	\N	\N	\N	false	\N	int28le	\N	false	\N
+1855	int28ge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	21 20	\N	\N	\N	false	\N	int28ge	\N	false	\N
+1856	int82eq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	20 21	\N	\N	\N	false	\N	int82eq	\N	false	\N
+1857	int82ne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	20 21	\N	\N	\N	false	\N	int82ne	\N	false	\N
+1858	int82lt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	20 21	\N	\N	\N	false	\N	int82lt	\N	false	\N
+1859	int82gt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	20 21	\N	\N	\N	false	\N	int82gt	\N	false	\N
+1860	int82le	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	20 21	\N	\N	\N	false	\N	int82le	\N	false	\N
+1861	int82ge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	20 21	\N	\N	\N	false	\N	int82ge	\N	false	\N
+1892	int2and	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	21	21 21	\N	\N	\N	false	\N	int2and	\N	false	\N
+1893	int2or	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	21	21 21	\N	\N	\N	false	\N	int2or	\N	false	\N
+1894	int2xor	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	21	21 21	\N	\N	\N	false	\N	int2xor	\N	false	\N
+1895	int2not	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	21	21	\N	\N	\N	false	\N	int2not	\N	false	\N
+1896	int2shl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	21	21 23	\N	\N	\N	false	\N	int2shl	\N	false	\N
+1897	int2shr	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	21	21 23	\N	\N	\N	false	\N	int2shr	\N	false	\N
+1898	int4and	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	23 23	\N	\N	\N	false	\N	int4and	\N	false	\N
+1899	int4or	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	23 23	\N	\N	\N	false	\N	int4or	\N	false	\N
+1900	int4xor	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	23 23	\N	\N	\N	false	\N	int4xor	\N	false	\N
+1901	int4not	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	23	\N	\N	\N	false	\N	int4not	\N	false	\N
+1902	int4shl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	23 23	\N	\N	\N	false	\N	int4shl	\N	false	\N
+1903	int4shr	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	23 23	\N	\N	\N	false	\N	int4shr	\N	false	\N
+1904	int8and	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 20	\N	\N	\N	false	\N	int8and	\N	false	\N
+1905	int8or	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 20	\N	\N	\N	false	\N	int8or	\N	false	\N
+1906	int8xor	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 20	\N	\N	\N	false	\N	int8xor	\N	false	\N
+1907	int8not	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	20	20	\N	\N	\N	false	\N	int8not	\N	false	\N
+1908	int8shl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 23	\N	\N	\N	false	\N	int8shl	\N	false	\N
+1909	int8shr	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 23	\N	\N	\N	false	\N	int8shr	\N	false	\N
+1910	int8up	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	20	20	\N	\N	\N	false	\N	int8up	\N	false	\N
+1911	int2up	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	21	21	\N	\N	\N	false	\N	int2up	\N	false	\N
+1912	int4up	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	23	\N	\N	\N	false	\N	int4up	\N	false	\N
+1913	float4up	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	700	700	\N	\N	\N	false	\N	float4up	\N	false	\N
+1914	float8up	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	float8up	\N	false	\N
+1915	numeric_uplus	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_uplus	\N	false	\N
+1922	has_table_privilege	11	12	1	0	0	0	f	false	false	true	false	s	s	3	0	16	19 25 25	\N	\N	\N	false	\N	has_table_privilege_name_name	\N	false	\N
+1923	has_table_privilege	11	12	1	0	0	0	f	false	false	true	false	s	s	3	0	16	19 26 25	\N	\N	\N	false	\N	has_table_privilege_name_id	\N	false	\N
+1924	has_table_privilege	11	12	1	0	0	0	f	false	false	true	false	s	s	3	0	16	26 25 25	\N	\N	\N	false	\N	has_table_privilege_id_name	\N	false	\N
+1925	has_table_privilege	11	12	1	0	0	0	f	false	false	true	false	s	s	3	0	16	26 26 25	\N	\N	\N	false	\N	has_table_privilege_id_id	\N	false	\N
+1926	has_table_privilege	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	16	25 25	\N	\N	\N	false	\N	has_table_privilege_name	\N	false	\N
+1927	has_table_privilege	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	16	26 25	\N	\N	\N	false	\N	has_table_privilege_id	\N	false	\N
+1946	encode	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	25	17 25	\N	\N	\N	false	\N	binary_encode	\N	false	\N
+1947	decode	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	17	25 25	\N	\N	\N	false	\N	binary_decode	\N	false	\N
+1948	byteaeq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	17 17	\N	\N	\N	false	\N	byteaeq	\N	false	\N
+1949	bytealt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	17 17	\N	\N	\N	false	\N	bytealt	\N	false	\N
+1950	byteale	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	17 17	\N	\N	\N	false	\N	byteale	\N	false	\N
+1951	byteagt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	17 17	\N	\N	\N	false	\N	byteagt	\N	false	\N
+1952	byteage	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	17 17	\N	\N	\N	false	\N	byteage	\N	false	\N
+1953	byteane	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	17 17	\N	\N	\N	false	\N	byteane	\N	false	\N
+1954	byteacmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	17 17	\N	\N	\N	false	\N	byteacmp	\N	false	\N
+1961	timestamp	11	12	1	0	0	3917	f	false	false	true	false	i	s	2	0	1114	1114 23	\N	\N	\N	false	\N	timestamp_scale	\N	false	\N
+1967	timestamptz	11	12	1	0	0	3917	f	false	false	true	false	i	s	2	0	1184	1184 23	\N	\N	\N	false	\N	timestamptz_scale	\N	false	\N
+1968	time	11	12	1	0	0	3944	f	false	false	true	false	i	s	2	0	1083	1083 23	\N	\N	\N	false	\N	time_scale	\N	false	\N
+1969	timetz	11	12	1	0	0	3944	f	false	false	true	false	i	s	2	0	1266	1266 23	\N	\N	\N	false	\N	timetz_scale	\N	false	\N
+1973	div	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_div_trunc	\N	false	\N
+1986	similar_to_escape	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	25	25 25	\N	\N	\N	false	\N	similar_to_escape_2	\N	false	\N
+1987	similar_to_escape	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	25	\N	\N	\N	false	\N	similar_to_escape_1	\N	false	\N
+1993	shobj_description	11	14	100	0	0	0	f	false	false	true	false	s	s	2	0	25	26 19	\N	\N	\N	false	\N		\N	true	\N
+2003	textanycat	11	14	1	0	0	0	f	false	false	true	false	s	s	2	0	25	25 2776	\N	\N	\N	false	\N	select $1 operator(pg_catalog.||) $2::pg_catalog.text	\N	false	\N
+2004	anytextcat	11	14	1	0	0	0	f	false	false	true	false	s	s	2	0	25	2776 25	\N	\N	\N	false	\N	select $1::pg_catalog.text operator(pg_catalog.||) $2	\N	false	\N
+2005	bytealike	11	12	1	0	0	1023	f	false	false	true	false	i	s	2	0	16	17 17	\N	\N	\N	false	\N	bytealike	\N	false	\N
+2006	byteanlike	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	17 17	\N	\N	\N	false	\N	byteanlike	\N	false	\N
+2009	like_escape	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	17	17 17	\N	\N	\N	false	\N	like_escape_bytea	\N	false	\N
+2010	length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	17	\N	\N	\N	false	\N	byteaoctetlen	\N	false	\N
+2011	byteacat	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	17	17 17	\N	\N	\N	false	\N	byteacat	\N	false	\N
+2012	substring	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	17	17 23 23	\N	\N	\N	false	\N	bytea_substr	\N	false	\N
+2013	substring	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	17	17 23	\N	\N	\N	false	\N	bytea_substr_no_len	\N	false	\N
+2014	position	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	17 17	\N	\N	\N	false	\N	byteapos	\N	false	\N
+2015	btrim	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	17	17 17	\N	\N	\N	false	\N	byteatrim	\N	false	\N
+2019	time	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1083	1184	\N	\N	\N	false	\N	timestamptz_time	\N	false	\N
+2020	date_trunc	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	25 1114	\N	\N	\N	false	\N	timestamp_trunc	\N	false	\N
+2021	date_part	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	25 1114	\N	\N	\N	false	\N	timestamp_part	\N	false	\N
+2024	timestamp	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1114	1082	\N	\N	\N	false	\N	date_timestamp	\N	false	\N
+2027	timestamp	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1114	1184	\N	\N	\N	false	\N	timestamptz_timestamp	\N	false	\N
+2028	timestamptz	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1184	1114	\N	\N	\N	false	\N	timestamp_timestamptz	\N	false	\N
+2029	date	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1082	1114	\N	\N	\N	false	\N	timestamp_date	\N	false	\N
+2031	timestamp_mi	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	1114 1114	\N	\N	\N	false	\N	timestamp_mi	\N	false	\N
+2032	timestamp_pl_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	1114 1186	\N	\N	\N	false	\N	timestamp_pl_interval	\N	false	\N
+2033	timestamp_mi_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	1114 1186	\N	\N	\N	false	\N	timestamp_mi_interval	\N	false	\N
+2037	timezone	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	1266	25 1266	\N	\N	\N	false	\N	timetz_zone	\N	false	\N
+2038	timezone	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1266	1186 1266	\N	\N	\N	false	\N	timetz_izone	\N	false	\N
+2039	timestamp_hash	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	1114	\N	\N	\N	false	\N	timestamp_hash	\N	false	\N
+2041	overlaps	11	12	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1114 1114 1114 1114	\N	\N	\N	false	\N	overlaps_timestamp	\N	false	\N
+2042	overlaps	11	14	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1114 1186 1114 1186	\N	\N	\N	false	\N		\N	true	\N
+2043	overlaps	11	14	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1114 1114 1114 1186	\N	\N	\N	false	\N		\N	true	\N
+2044	overlaps	11	14	1	0	0	0	f	false	false	false	false	i	s	4	0	16	1114 1186 1114 1114	\N	\N	\N	false	\N		\N	true	\N
+2045	timestamp_cmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1114 1114	\N	\N	\N	false	\N	timestamp_cmp	\N	false	\N
+2046	time	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1083	1266	\N	\N	\N	false	\N	timetz_time	\N	false	\N
+2047	timetz	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1266	1083	\N	\N	\N	false	\N	time_timetz	\N	false	\N
+2048	isfinite	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	1114	\N	\N	\N	false	\N	timestamp_finite	\N	false	\N
+2049	to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	1114 25	\N	\N	\N	false	\N	timestamp_to_char	\N	false	\N
+2052	timestamp_eq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1114 1114	\N	\N	\N	false	\N	timestamp_eq	\N	false	\N
+2053	timestamp_ne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1114 1114	\N	\N	\N	false	\N	timestamp_ne	\N	false	\N
+2054	timestamp_lt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1114 1114	\N	\N	\N	false	\N	timestamp_lt	\N	false	\N
+2055	timestamp_le	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1114 1114	\N	\N	\N	false	\N	timestamp_le	\N	false	\N
+2056	timestamp_ge	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1114 1114	\N	\N	\N	false	\N	timestamp_ge	\N	false	\N
+2057	timestamp_gt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1114 1114	\N	\N	\N	false	\N	timestamp_gt	\N	false	\N
+2058	age	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	1114 1114	\N	\N	\N	false	\N	timestamp_age	\N	false	\N
+2059	age	11	14	1	0	0	0	f	false	false	true	false	s	s	1	0	1186	1114	\N	\N	\N	false	\N		\N	true	\N
+2069	timezone	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1184	25 1114	\N	\N	\N	false	\N	timestamp_zone	\N	false	\N
+2070	timezone	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1184	1186 1114	\N	\N	\N	false	\N	timestamp_izone	\N	false	\N
+2071	date_pl_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	1082 1186	\N	\N	\N	false	\N	date_pl_interval	\N	false	\N
+2072	date_mi_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	1082 1186	\N	\N	\N	false	\N	date_mi_interval	\N	false	\N
+2073	substring	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	25	25 25	\N	\N	\N	false	\N	textregexsubstr	\N	false	\N
+2074	substring	11	14	1	0	0	0	f	false	false	true	false	i	s	3	0	25	25 25 25	\N	\N	\N	false	\N		\N	true	\N
+2075	bit	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1560	20 23	\N	\N	\N	false	\N	bitfromint8	\N	false	\N
+2076	int8	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	20	1560	\N	\N	\N	false	\N	bittoint8	\N	false	\N
+2077	current_setting	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	25	\N	\N	\N	false	\N	show_config_by_name	\N	false	\N
+2078	set_config	11	12	1	0	0	0	f	false	false	false	false	v	u	3	0	25	25 25 16	\N	\N	\N	false	\N	set_config_by_name	\N	false	\N
+2079	pg_table_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_table_is_visible	\N	false	\N
+2080	pg_type_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_type_is_visible	\N	false	\N
+2085	substr	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	17	17 23 23	\N	\N	\N	false	\N	bytea_substr	\N	false	\N
+2086	substr	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	17	17 23	\N	\N	\N	false	\N	bytea_substr_no_len	\N	false	\N
+2087	replace	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	25	25 25 25	\N	\N	\N	false	\N	replace_text	\N	false	\N
+2088	split_part	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	25	25 25 23	\N	\N	\N	false	\N	split_part	\N	false	\N
+2089	to_hex	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	23	\N	\N	\N	false	\N	to_hex32	\N	false	\N
+2090	to_hex	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	20	\N	\N	\N	false	\N	to_hex64	\N	false	\N
+2091	array_lower	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	2277 23	\N	\N	\N	false	\N	array_lower	\N	false	\N
+2092	array_upper	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	2277 23	\N	\N	\N	false	\N	array_upper	\N	false	\N
+2093	pg_conversion_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_conversion_is_visible	\N	false	\N
+2100	avg	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1700	20	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2101	avg	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1700	23	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2102	avg	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1700	21	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2103	avg	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2104	avg	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	701	700	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2105	avg	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	701	701	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2106	avg	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1186	1186	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2107	sum	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1700	20	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2108	sum	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	20	23	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2109	sum	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	20	21	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2110	sum	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	700	700	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2111	sum	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	701	701	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2112	sum	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	790	790	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2113	sum	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1186	1186	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2114	sum	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2115	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	20	20	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2116	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	23	23	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2117	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	21	21	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2118	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	26	26	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2119	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	700	700	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2120	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	701	701	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2122	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1082	1082	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2123	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1083	1083	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2124	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1266	1266	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2126	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1114	1114	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2127	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1184	1184	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2128	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1186	1186	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2129	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	25	25	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2130	max	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2131	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	20	20	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2132	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	23	23	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2133	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	21	21	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2134	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	26	26	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2135	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	700	700	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2136	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	701	701	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2138	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1082	1082	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2139	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1083	1083	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2140	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1266	1266	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2142	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1114	1114	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2143	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1184	1184	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2144	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1186	1186	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2145	min	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	25	25	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N

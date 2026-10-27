@@ -9,6 +9,8 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 		return 1
 	case 1689, 2764, 3035, 3425: // ACL expansion, flagged matches, channels, ancestors
 		return 10
+	case 3713, 3714: // ts_token_type(oid) and ts_token_type(text)
+		return 16
 	case 4100, 5052, 5064: // shared-memory allocations and pg_snapshot_xip
 		return 50
 	case 1293, 2331, // multirange and array unnest

@@ -10,9 +10,15 @@ import (
 func TestRoutineBodyPrincipalRemap(t *testing.T) {
 	source, target := new(authorization.Domain), new(authorization.Domain)
 	owner, reader := source.Principal(10), source.Principal(20)
+	inputTypes := []ids.OID{23, 25}
+	transforms := NewRoutineTransformTypes(inputTypes)
+	inputTypes[0] = 20
+	if transforms.Len() != 2 || transforms.At(0) != 23 || transforms.At(1) != 25 || NewRoutineTransformTypes(nil) != nil {
+		t.Fatal("transform declaration borrowed mutable input or lost absence")
+	}
 	body := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90001}, ObjectRevision: 3, Owner: owner, SecurityDefiner: true, Display: RoutineDisplay{Language: SQLRoutineLanguage, Source: " SELECT $1 "},
 		ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.ExecutePrivilege}}}}
-	outer := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90002}, ObjectRevision: 4, Owner: owner, Display: RoutineDisplay{Language: CRoutineLanguage, Source: "original_symbol"},
+	outer := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90002}, ObjectRevision: 4, Owner: owner, Display: RoutineDisplay{Language: CRoutineLanguage, Source: "original_symbol", Binary: "$libdir/original_library", HasBinary: true, Support: 6242, Leakproof: true, TransformTypes: transforms},
 		Body: []RoutineBodyEdge{{Routine: body}, {Routine: body}}}
 	// A current COW revision must not replace the original body association.
 	current := *body
@@ -36,6 +42,9 @@ func TestRoutineBodyPrincipalRemap(t *testing.T) {
 	captured := mapped.Body[0].Routine
 	if mapped == outer || captured == body || mapped.Display != outer.Display || captured.Display != body.Display || mapped.Owner != target.Principal(110) || captured.Owner != mapped.Owner || captured.Revision() != body.Revision() || state.MustProcedure(body.Address()).Revision() != current.Revision() {
 		t.Fatal("principal remap lost original declaration provenance")
+	}
+	if mapped.Display.TransformTypes != transforms || mapped.Display.Binary != "$libdir/original_library" || !mapped.Display.HasBinary || mapped.Display.Support != 6242 || !mapped.Display.Leakproof {
+		t.Fatal("immutable readonly metadata backing lost during principal remap")
 	}
 	if mapped.Body[1].Routine != captured || captured.Body[0].Routine != mapped {
 		t.Fatal("shared or cyclic body associations were not preserved")

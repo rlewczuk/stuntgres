@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestRoutineAttributeCatalogProjection(t *testing.T) {
+func TestPGProcProjection(t *testing.T) {
 	e := engine.New()
 	base := e.CatalogRead()
 	state := catalog.CloneState(base.State())
@@ -22,8 +22,8 @@ func TestRoutineAttributeCatalogProjection(t *testing.T) {
 	state.SetDescriptor(declaration.Address(), &declaration)
 	view := e.Catalog.Read(state)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.ProcedureClassID})
-	want := []int32{1, 2, 3, 4, 17, 19, 15, 13, 16, 10, 23, 5, 14, 7, 26, 20, 8, 21, 22, 30, 18, 6, 11, 29}
-	if len(source.Columns) != 24 || source.ColumnMeta.HighWater != 30 {
+	want := []int32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30}
+	if len(source.Columns) != 30 || source.ColumnMeta.HighWater != 30 {
 		t.Fatal("catalog width/high water", source)
 	}
 	for i, attribute := range want {
@@ -31,7 +31,7 @@ func TestRoutineAttributeCatalogProjection(t *testing.T) {
 			t.Fatal("released attribute identity", i, source.Attributes[i])
 		}
 	}
-	if source.Columns[22].Usage.Type.ID() != sqltype.Bool || source.Columns[22].Nullable || source.Columns[23].Usage.Type.ID() != 1009 || !source.Columns[23].Nullable || source.ColumnMeta.CatalogAttributes[23].NotNull || source.ColumnMeta.CatalogAttributes[23].Dimensions != 1 || source.ColumnMeta.CatalogAttributes[23].Collation != 950 {
+	if source.Columns[10].Usage.Type.ID() != sqltype.Bool || source.Columns[10].Nullable || source.Columns[28].Usage.Type.ID() != 1009 || !source.Columns[28].Nullable || source.ColumnMeta.CatalogAttributes[28].NotNull || source.ColumnMeta.CatalogAttributes[28].Dimensions != 1 || source.ColumnMeta.CatalogAttributes[28].Collation != 950 {
 		t.Fatal("configuration metadata")
 	}
 	produce, ok := pgcatalog.ProducerFor(ids.ProcedureClassID)
@@ -44,7 +44,7 @@ func TestRoutineAttributeCatalogProjection(t *testing.T) {
 	}
 	seenMain, seenSupplement := false, false
 	for _, row := range rows {
-		if len(row) != 24 || row[22].Type() != source.Columns[22].Usage.Type || row[22].IsNull() || row[23].Type() != source.Columns[23].Usage.Type {
+		if len(row) != 30 || row[10].Type() != source.Columns[10].Usage.Type || row[10].IsNull() || row[28].Type() != source.Columns[28].Usage.Type {
 			t.Fatal("both producer widths/types")
 		}
 		id, err := row[0].OID()
@@ -53,27 +53,27 @@ func TestRoutineAttributeCatalogProjection(t *testing.T) {
 		}
 		if id == 1397 {
 			seenMain = true
-			security, err := row[22].Boolean()
+			security, err := row[10].Boolean()
 			if err != nil || !security {
 				t.Fatal("canonical security", err)
 			}
-			config, err := row[23].Type().Output(t.Context(), row[23])
-			if err != nil || config != "{work_mem=64kB,\"search_path=public, pg_catalog\"}" || row[23].ArrayDimension(0).Lower != 1 {
+			config, err := row[28].Type().Output(t.Context(), row[28])
+			if err != nil || config != "{work_mem=64kB,\"search_path=public, pg_catalog\"}" || row[28].ArrayDimension(0).Lower != 1 {
 				t.Fatal("ordered owned config", config, err)
 			}
-			cost, err := row[21].Float()
+			cost, err := row[5].Float()
 			if err != nil || cost != 7 {
 				t.Fatal("canonical cost", cost, err)
 			}
-			parallel, err := row[8].Text()
+			parallel, err := row[15].Text()
 			if err != nil || parallel != "r" {
 				t.Fatal("canonical parallel", parallel, err)
 			}
 		}
 		if id == 40 {
 			seenSupplement = true
-			security, err := row[22].Boolean()
-			if err != nil || security || !row[23].IsNull() {
+			security, err := row[10].Boolean()
+			if err != nil || security || !row[28].IsNull() {
 				t.Fatal("supplement security/config", err)
 			}
 		}

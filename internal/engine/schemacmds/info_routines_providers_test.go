@@ -41,19 +41,19 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 			}
 			if p.PLHandler != catalog.NoPLHandler {
 				name, _, _ := p.PLHandler.Declaration()
-				if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Strict != (p.PLHandler != catalog.PLCallHandler) || p.Language != (ids.ObjectAddress{}) {
+				if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/plpgsql", HasBinary: true}) || p.Strict != (p.PLHandler != catalog.PLCallHandler) || p.Language != (ids.ObjectAddress{}) || p.Installed.Parallel != 'u' || p.Parallel != 0 {
 					t.Fatal("PL canonical declaration", p)
 				}
 			}
-			if p.Conversion.Name() != "" && p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: p.Conversion.Name()}) {
+			if p.Conversion.Name() != "" && (p.Display.Language != catalog.CRoutineLanguage || p.Display.Source != p.Conversion.Name() || !p.Display.HasBinary || p.Display.Binary == "") {
 				t.Fatal("conversion declaration", p)
 			}
 		}
 	}
 	for oid, want := range map[ids.OID]catalog.RoutineDisplay{
 		1397: {Language: catalog.InternalRoutineLanguage, Source: "int4abs"},
-		3100: {Language: catalog.InternalRoutineLanguage, Source: "window_row_number"},
-		2147: {Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy"},
+		3100: {Language: catalog.InternalRoutineLanguage, Source: "window_row_number", Support: 6233},
+		2147: {Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy", Support: 6236},
 		879:  {Language: catalog.SQLRoutineLanguage},
 		1426: {Language: catalog.SQLRoutineLanguage},
 		1544: {Language: catalog.SQLRoutineLanguage},

@@ -69,6 +69,7 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 		}
 		name, signature, result := spec.name, spec.signature(typ.ID()), spec.resultOID(typ.ID())
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[cubeRoutineMember(i)], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: spec.source}, Implementation: p}
+		proc.Display.Binary, proc.Display.HasBinary = "$libdir/cube", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {

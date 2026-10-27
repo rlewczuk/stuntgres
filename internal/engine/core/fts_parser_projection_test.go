@@ -110,7 +110,7 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 	}
 	baseline := capture(t, base, nil)
 	for _, h := range handlers {
-		want := []any{int64(h.oid), h.name, int64(11), int64(source.Owner.ID()), h.arity, h.result, "i", true, "s", "f", nil, int64(12), false, float64(0), h.name, h.arguments, int64(0), nil, nil, nil, int64(0), float64(1), false, nil}
+		want := []any{int64(h.oid), h.name, int64(11), int64(source.Owner.ID()), int64(12), float64(1), float64(0), int64(0), int64(0), "f", false, false, true, false, "i", "s", h.arity, int64(0), h.result, h.arguments, nil, nil, nil, nil, nil, h.name, nil, nil, nil, nil}
 		if got := parserProjectionCells(t, baseline[h.oid]); !reflect.DeepEqual(got, want) {
 			t.Fatalf("released handler %d: got=%#v want=%#v", h.oid, got, want)
 		}
@@ -132,7 +132,7 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 			state.SetDescriptor(represented.Address(), represented)
 			state.BindName(catalog.DescriptorNameKey(represented), represented.Address())
 			rows := capture(t, base.WithState(state), represented)
-			want := []any{int64(h.oid), "represented_parser_handler", int64(11), int64(source.Owner.ID()), int64(1), int64(25), "v", false, "s", "f", nil, int64(12), false, float64(0), h.name, "25", int64(0), nil, nil, nil, int64(0), float64(1), false, nil}
+			want := []any{int64(h.oid), "represented_parser_handler", int64(11), int64(source.Owner.ID()), int64(12), float64(1), float64(0), int64(0), int64(0), "f", false, false, false, false, "v", "s", int64(1), int64(0), int64(25), "25", nil, nil, nil, nil, nil, h.name, nil, nil, nil, nil}
 			if got := parserProjectionCells(t, rows[h.oid]); !reflect.DeepEqual(got, want) {
 				t.Fatalf("represented descriptor lost precedence: got=%#v want=%#v", got, want)
 			}
@@ -157,6 +157,10 @@ func parserProjectionCells(t *testing.T, row []sqltype.Value) []any {
 		case sqltype.Oid:
 			var oid uint32
 			oid, err = value.OID()
+			cells[i] = int64(oid)
+		case sqltype.Regproc:
+			var oid uint32
+			oid, err = value.ProcedureOID()
 			cells[i] = int64(oid)
 		case sqltype.Int2, sqltype.Int4, sqltype.Int8:
 			cells[i], err = value.Integer()

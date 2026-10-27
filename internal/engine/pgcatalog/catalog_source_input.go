@@ -136,6 +136,7 @@ type Runtime interface {
 	ViewDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	ColumnExpression(context.Context, catalog.Read, *catalog.Relation, expr.Expr) (string, error)
 	RoutineDefault(context.Context, catalog.Read, *catalog.Procedure, int) (string, error)
+	RoutineTrees(context.Context, catalog.Read, *catalog.Procedure, *sqltype.Descriptor) (sqltype.Value, sqltype.Value, error)
 	DomainExpression(context.Context, catalog.Read, *catalog.Type, expr.Expr) (string, error)
 	ColumnUpdatable(context.Context, catalog.Read, *catalog.Relation, int32) (bool, error)
 	ViewCapabilities(context.Context, catalog.Read, *catalog.Relation) (ViewCapability, error)

@@ -141,6 +141,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name, signature, result = "geo_distance", "600,600", ids.OID(sqltype.Float8)
 		} else {
 			op := sqltype.EarthOperation(slot - 2)
+			if p.DeclarationBody == nil {
+				return invalid()
+			}
 			name, signature, result, strict = op.Name(), earthRoutineSignature(op, base.SQLType.ID()), earthRoutineResult(op, base.SQLType.ID()), op != sqltype.EarthRadiusOperation
 		}
 	case StockCube:
@@ -208,7 +211,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if slot%3 == 2 {
 			name, signature, result = recipe.output, LquerySignature(base.SQLType.ID()), 2275
 		}
-		if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+		if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/ltree", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()
 		}
 	case StockHstore, StockIntarray, StockSeg, StockCitext:
@@ -248,7 +251,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			if slot == HstoreJSONBProcedureSlot || slot == HstoreJSONBLooseProcedureSlot {
 				name = []string{"hstore_to_jsonb", "hstore_to_jsonb_loose"}[slot-HstoreJSONBProcedureSlot]
 			}
-			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/hstore", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
 			}
 		case StockIntarray:
@@ -261,7 +264,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			if slot == 2 {
 				name = "seg_out"
 			}
-			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/seg", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
 			}
 		case StockCitext:
@@ -301,6 +304,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if p.Implementation == StockCitext && slot >= CitextRegexpProcedureStart && slot < CitextRegexpProcedureEnd {
 			m := CitextRegexpMembers[slot-CitextRegexpProcedureStart]
 			name, signature, result = m.Name, m.Signature(base.SQLType.ID()), m.Result
+			if p.DeclarationBody != citextRegexpDeclarationBodies[slot-CitextRegexpProcedureStart] {
+				return invalid()
+			}
 			if p.Installed != m.Declaration || p.Language != (ids.ObjectAddress{}) || p.Display != (catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage}) {
 				return invalid()
 			}
@@ -311,6 +317,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if p.Implementation == StockCitext && slot >= CitextStringProcedureStart {
 			m := CitextStringMembers[slot-CitextStringProcedureStart]
 			name, signature, result = m.Name, m.Signature(base.SQLType.ID()), m.Result
+			if p.DeclarationBody != citextStringDeclarationBodies[slot-CitextStringProcedureStart] {
+				return invalid()
+			}
 			if p.Installed != m.Declaration() || p.Language != (ids.ObjectAddress{}) || p.Display != (catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
 			}
@@ -325,7 +334,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		}
 		m := PageinspectMembers[slot]
 		name, signature, result, volatility = m.Name, m.Signature, m.Result, expr.Volatile
-		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source, Binary: "$libdir/pageinspect", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
 			return invalid()
 		}
 	case StockAmcheck:
@@ -347,7 +356,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if p.LiteralDefaults != expectedDefaults {
 			return invalid()
 		}
-		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/amcheck", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()
 		}
 	case StockTablefunc:
@@ -367,13 +376,13 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			}
 			volatility = expr.Stable
 		}
-		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source, Binary: "$libdir/tablefunc", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
 			return invalid()
 		}
 	case StockPgrowlocks:
 		count = 1
 		name, signature, result, volatility = "pgrowlocks", "25", 2249, expr.Volatile
-		if p.Installed != pgrowlocksDeclaration() || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "pgrowlocks"}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+		if p.Installed != pgrowlocksDeclaration() || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "pgrowlocks", Binary: "$libdir/pgrowlocks", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()
 		}
 	case StockUnaccent:

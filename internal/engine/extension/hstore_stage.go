@@ -75,6 +75,7 @@ func (p *HstoreProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			name, signature, result = []string{"hstore_to_jsonb", "hstore_to_jsonb_loose"}[slot-HstoreJSONBProcedureSlot], HstoreSignature(typ.ID()), 3802
 		}
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[slot], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}, Implementation: p}
+		proc.Display.Binary, proc.Display.HasBinary = "$libdir/hstore", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 		}

@@ -28,6 +28,7 @@ func (p *PgcryptoProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
 		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: catalog.ProcedureSignature(member.Signature), RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: member.Result, Volatility: member.Volatility, Strict: member.Strict, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: pgcryptoSources[i]}, Implementation: p}
+		proc.Display.Binary, proc.Display.HasBinary = "$libdir/pgcrypto", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}

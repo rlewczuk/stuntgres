@@ -128,6 +128,12 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   writes its native structural text (not PostgreSQL `nodeToString`) and
   `CatalogTree` stores it as a catalog value. `pg_get_expr` and the catalog
   producers read it through these names.
+  `ExpressionListTree` privately retains an ordered immutable slice of checked
+  default nodes, including typed NULL literals as present entries, and uses the
+  same structural writer. `table.Deparse` renders its elements through the
+  existing stored deparser with comma-space separators, preserving semantic
+  `pg_get_expr(proargdefaults,0)` output rather than exposing raw carrier text.
+  Program trees deliberately do not acquire expression-list deparse semantics.
 - **Generation admission** (`generation.go`): `GenerationImmutable` (a
   generation expression admits only immutable surviving providers) and
   `GenerationHasTableOID` (it reads the owner's `tableoid`), used by generated

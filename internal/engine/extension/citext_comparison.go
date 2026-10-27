@@ -46,6 +46,7 @@ func (p *CitextProvider) stageComparisons(stage Stage, ext *catalog.Extension, o
 			return err
 		}
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[CitextComparisonProcedureStart+i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: CitextComparisonSignature(typ.ID()), RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: ids.OID(sqltype.Bool), Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}, Implementation: p}
+		proc.Display.Binary, proc.Display.HasBinary = "$libdir/citext", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 		}

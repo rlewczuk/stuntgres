@@ -412,7 +412,7 @@ func TestProviderReplayPLHandlerMetadata(t *testing.T) {
 			ObjectRevision:  1, ObjectName: name, Signature: signature, Result: result,
 			Owner: source.Bootstrap, RoutineKind: catalog.FunctionRoutine,
 			Volatility: expr.Volatile, Strict: kind != catalog.PLCallHandler, PLHandler: kind,
-			Display:  catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name},
+			Display:  catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/plpgsql", HasBinary: true},
 			Parallel: 'r', Cost: 9,
 		}
 		source.State.SetDescriptor(p.Address(), p)

@@ -18,6 +18,13 @@ func Parse(query string) ([]Statement, error) {
 	return ParseWithOptions(query, Options{StandardConformingStrings: true})
 }
 
+// ParseRoutineDeclarationBody retains readonly released declaration syntax that
+// need not belong to the executable selected-call scalar frontier. It uses the
+// ordinary lexer and grammar; the resulting syntax grants no execution rights.
+func ParseRoutineDeclarationBody(query string) ([]Statement, error) {
+	return parseWithOptions(query, Options{StandardConformingStrings: true}, true)
+}
+
 // Options are captured per parse; prepared literals retain that parse's mode.
 type Options struct {
 	StandardConformingStrings bool
@@ -33,8 +40,19 @@ type Options struct {
 }
 
 func ParseWithOptions(query string, options Options) ([]Statement, error) {
-	l := &lexer{input: query, options: options, backslashEscapes: !options.StandardConformingStrings}
+	// Keep cancellation admission at the ordinary public parse boundary.
+	// Callers can observe this frontier before any lexer work begins.
 	if options.Context != nil {
+		if err := options.Context.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return parseWithOptions(query, options, false)
+}
+
+func parseWithOptions(query string, options Options, readonlyRecipe bool) ([]Statement, error) {
+	l := &lexer{input: query, options: options, backslashEscapes: !options.StandardConformingStrings, readonlyRecipe: readonlyRecipe}
+	if readonlyRecipe && options.Context != nil {
 		if err := options.Context.Err(); err != nil {
 			return nil, err
 		}
@@ -234,6 +252,9 @@ func directSelectedCall(expr Expr) bool {
 }
 
 func selectedScalarChild(l sqlLexer, expr Expr, token lexeme) bool {
+	if l.(*lexer).readonlyRecipe {
+		return true
+	}
 	if directSelectedCall(expr) {
 		l.(*lexer).syntax(token)
 		return false
@@ -245,6 +266,9 @@ func selectedScalarChild(l sqlLexer, expr Expr, token lexeme) bool {
 // child of a custom operator, not a new standalone selected-call arithmetic
 // route. Grouped targets and call arguments retain their own grammar frontier.
 func selectedScalarOperators(l sqlLexer, expr Expr) bool {
+	if l.(*lexer).readonlyRecipe {
+		return true
+	}
 	switch e := expr.(type) {
 	case OperatorExpr:
 		if len(e.Name.Parts) != 1 {

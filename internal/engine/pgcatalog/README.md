@@ -94,11 +94,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Rows are immutable once returned: the engine may share one capture across
   statements with the same inputs, so neither producers nor consumers write
   into returned rows.
-- Both `pg_proc` producers share a 24-column condensed shape. Released attribute
-  numbers are independent of projection indexes (prokind10, prosecdef11,
-  proconfig29). Security and configuration project canonical declarations;
-  configuration is a typed nullable, ordered one-based TEXT array. Lookup-only
-  supplemental routines explicitly project invoker/NULL without gaining execution.
+- Both `pg_proc` producers share all30 release-ordered columns; projection
+  positions equal released attribute numbers minus one. Security, settings,
+  support links, leakproofness, transforms, source and binary provenance come
+  from immutable canonical declaration owners, not public names or execution
+  admission. Configuration is a typed nullable, ordered one-based TEXT array.
+  Lookup-only supplements retain their genuine released defaults and never
+  gain callable providers. SQL-backed routines require an actual language
+  descriptor; native Go callbacks retain their native-only language0 sentinel.
   Builtin/provider set capability remains intrinsic; estimates consume canonical
   positive `Procedure.Rows` overrides, otherwise retaining genuine released or
   installed defaults. Scalar estimates remain zero.
@@ -179,7 +182,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
   availability and parser execution; these rows are builtin metadata, not
   mutable parser definitions or ACLs.
   `pg_proc.proretset` comes from actual routine declaration metadata.
-  Its condensed row includes FLOAT4 `prorows` and `procost`, declaration `prosrc`,
+  Its full row includes FLOAT4 `prorows` and `procost`, declaration `prosrc`,
   OIDVECTOR `proargtypes` built from each routine's input signature, and OID `provariadic`.
   Routine cost preserves explicit immutable builtin declaration costs, falling
   back to one for C/internal and one hundred for SQL/PL declarations.
@@ -193,6 +196,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
   `pronargdefaults` reads SQL/PL `Formals` through `DefaultCount`, or the captured
   builtin/installed declaration's default count; metadata-only internal routines
   have zero defaults. It never evaluates defaults or retains a separate registry.
+  `proargdefaults` retains a genuine immutable expression list, sharing checked
+  default acquisition with information_schema and semantic `pg_get_expr`
+  rendering. SQL NULL defaults are present tree entries, unlike absent defaults.
+  `prosqlbody` retains a checked SQL-standard program or immutable provider-owned
+  parsed declaration recipe; quoted SQL/PL bodies remain NULL. Both fields use
+  the native StructuralTree carrier, not PostgreSQL's nodeToString encoding.
+  Capture neither executes nor recompiles any default, body or support callback.
+  Returned tree values retain their original immutable owners after replacement.
   All-IN declarations return typed NULL arrays before allocating element slices.
   Non-SQL VARIADIC uses the existing `ProcedureVariadic` owner and terminal input
   slot, retaining its declared array/ANY type rather than the element OID.

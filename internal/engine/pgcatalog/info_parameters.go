@@ -128,7 +128,7 @@ func captureInfoParameters(in Input) ([][]sqltype.Value, error) {
 					if err := d.SQLDefaults.ValidateDefinition(d); err != nil {
 						return nil, err
 					}
-					if err := d.SQLDefaults.Validate(in.Catalog); err != nil {
+					if err := d.SQLDefaults.ValidateMetadata(in.Catalog); err != nil {
 						return nil, err
 					}
 				}

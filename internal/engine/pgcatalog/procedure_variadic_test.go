@@ -12,14 +12,18 @@ import (
 func TestAggregateOrderedProcedureVariadic(t *testing.T) {
 	var integer *sqltype.Descriptor
 	for _, typ := range sqltype.Builtins() {
-		if typ.ID() == sqltype.Int4 { integer = typ }
+		if typ.ID() == sqltype.Int4 {
+			integer = typ
+		}
 	}
 	array, err := sqltype.Array(1007, "_int4", integer)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
-		name string
+		name      string
 		procedure catalog.Procedure
-		want ids.OID
+		want      ids.OID
 	}{
 		{"plain", catalog.Procedure{Signature: "23,25"}, 0},
 		{"builtin-any", catalog.Procedure{Builtin: &catalog.BuiltinRoutineDeclaration{Variadic: 2276}}, 2276},
@@ -31,10 +35,16 @@ func TestAggregateOrderedProcedureVariadic(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := ProcedureVariadic(&tc.procedure)
-			if err != nil || got != tc.want { t.Fatal(got, err, tc.want) }
+			if err != nil || got != tc.want {
+				t.Fatal(got, err, tc.want)
+			}
 		})
 	}
-	if got := AttributeNumber(ids.ProcedureClassID, "provariadic", 16); got != 8 { t.Fatal("released attribute number", got) }
+	if got := AttributeNumber(ids.ProcedureClassID, "provariadic", 8); got != 8 {
+		t.Fatal("released attribute number", got)
+	}
 	malformed := &catalog.Procedure{SQL: &proc.Definition{Formals: []proc.Formal{{Mode: "v", Usage: integer.Usage()}}}}
-	if _, err := ProcedureVariadic(malformed); err == nil { t.Fatal("nonarray variadic formal accepted") }
+	if _, err := ProcedureVariadic(malformed); err == nil {
+		t.Fatal("nonarray variadic formal accepted")
+	}
 }

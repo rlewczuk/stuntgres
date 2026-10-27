@@ -76,8 +76,9 @@ func (p *CitextProvider) stageRegexp(stage Stage, ext *catalog.Extension, owner 
 			Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name,
 			Signature: member.Signature(typ.ID()), RoutineKind: catalog.FunctionRoutine,
 			Owner: owner, Result: member.Result, Volatility: expr.Immutable, Strict: true,
-			Display: catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage},
-			Installed: member.Declaration, Implementation: p,
+			Display:         catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage},
+			DeclarationBody: citextRegexpDeclarationBodies[i],
+			Installed:       member.Declaration, Implementation: p,
 		}
 		if stage.LookupName(catalog.DescriptorNameKey(routine)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{

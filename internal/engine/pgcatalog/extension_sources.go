@@ -3,12 +3,10 @@ package pgcatalog
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -33,7 +31,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	if source.Address().ObjectID == ids.ProcedureClassID {
-		expected := [24]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid, 1028, 1002, 1034, sqltype.Int2, sqltype.Float4, sqltype.Bool, 1009}
+		expected := procedureColumnTypes[:]
 		if len(source.Columns) != len(expected) {
 			return nil, fmt.Errorf("stuntgres: invalid procedure source shape")
 		}
@@ -59,6 +57,14 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 	for _, descriptor := range descriptors {
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if procedure, ok := descriptor.(*catalog.Procedure); ok {
+			row, err := procedureRow(in, procedure)
+			if err != nil {
+				return nil, err
+			}
+			rows = append(rows, row)
+			continue
 		}
 		row := make([]sqltype.Value, len(source.Columns))
 		var valueErr error
@@ -87,132 +93,6 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			text(5, d.Version)
 			row[6] = sqltype.Null(source.Columns[6].Usage.Type)
 			row[7] = sqltype.Null(source.Columns[7].Usage.Type)
-		case *catalog.Procedure:
-			integer(0, int64(d.Address().ObjectID))
-			text(1, d.Name())
-			integer(2, int64(d.Namespace().ObjectID))
-			integer(3, int64(d.Owner.ID()))
-			arity := ProcedureArity(d)
-			integer(4, arity)
-			integer(5, int64(d.Result))
-			language := ""
-			switch d.Display.Language {
-			case catalog.InternalRoutineLanguage:
-				language = "internal"
-			case catalog.CRoutineLanguage:
-				language = "c"
-			case catalog.SQLRoutineLanguage:
-				language = "sql"
-			case catalog.PLpgSQLRoutineLanguage:
-				language = "plpgsql"
-			}
-			languageAddress := view.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: language})
-			integer(11, int64(languageAddress.ObjectID))
-			vol := "v"
-			if d.Volatility == expr.Stable {
-				vol = "s"
-			} else if d.Volatility == expr.Immutable {
-				vol = "i"
-			}
-			text(6, vol)
-			boolean(7, d.Strict)
-			parallel := "s"
-			if d.Foreign != nil {
-				parallel = "u"
-			} else if d.Aggregate != nil && d.DynamicCallable() {
-				parallel = "u"
-				if d.Aggregate.Parallel == 's' || d.Aggregate.Parallel == 'r' {
-					parallel = string(d.Aggregate.Parallel)
-				}
-			} else if d.Builtin != nil {
-				switch d.Builtin.Parallel {
-				case 'r':
-					parallel = "r"
-				case 'u':
-					parallel = "u"
-				}
-			}
-			if d.Installed.Parallel != 0 {
-				parallel = string(d.Installed.Parallel)
-			}
-			if d.Parallel != 0 {
-				parallel = string(d.Parallel)
-			}
-			text(8, parallel)
-			text(9, string(d.RoutineKind))
-			text(14, d.Display.Source)
-			variadic, argumentErr := ProcedureVariadic(d)
-			if argumentErr != nil {
-				return nil, argumentErr
-			}
-			row[15], argumentErr = procedureArgumentVector(ctx, source.Columns[15].Usage.Type, d.Signature)
-			if argumentErr != nil {
-				return nil, argumentErr
-			}
-			row[10] = sqltype.Null(source.Columns[10].Usage.Type)
-			row[17], row[18], argumentErr = procedureFormalArrays(ctx, d, source.Columns[17].Usage.Type, source.Columns[18].Usage.Type, variadic, row[15])
-			if argumentErr != nil {
-				return nil, argumentErr
-			}
-			names, err := procedureNameProjection(view, d)
-			if err != nil {
-				return nil, err
-			}
-			if names.present {
-				elements := make([]sqltype.Value, names.count)
-				for i := range elements {
-					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), names.at(i))
-				}
-				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
-			}
-			if ext, ok := view.Extension(d.Extension); ok && d.Implementation != nil && (ext.Name() == "pgrowlocks" || ext.Name() == "intagg" && d.RoutineKind == catalog.FunctionRoutine && d.Signature == "1007" && d.Result == 23) {
-				if err := d.Implementation.ValidateExtension(view, ext); err != nil {
-					return nil, err
-				}
-				if !slices.Contains(ext.Members, d.Address()) {
-					return nil, fmt.Errorf("stuntgres: nonmember set routine declaration")
-				}
-			}
-			boolean(12, d.ReturnsSet())
-			estimateValue, err := sqltype.Float(source.Columns[13].Usage.Type, float64(d.RowEstimate()))
-			if err != nil {
-				return nil, err
-			}
-			row[13] = estimateValue
-			integer(16, int64(variadic))
-			integer(20, procedureDefaultCount(d))
-			// Explicit immutable declaration facts survive public rename/movement.
-			cost := float64(d.Cost)
-			if cost == 0 {
-				cost = 1
-				if d.Display.Language == catalog.SQLRoutineLanguage || d.Display.Language == catalog.PLpgSQLRoutineLanguage {
-					cost = 100
-				}
-			}
-			row[21], err = sqltype.Float(source.Columns[21].Usage.Type, cost)
-			if err != nil {
-				return nil, err
-			}
-			boolean(22, d.SecurityDefiner)
-			row[23] = sqltype.Null(source.Columns[23].Usage.Type)
-			if d.Configuration.Len() != 0 {
-				elements := make([]sqltype.Value, d.Configuration.Len())
-				for i := range elements {
-					elements[i] = sqltype.String(source.Columns[23].Usage.Type.Element(), d.Configuration.At(i))
-				}
-				row[23], err = sqltype.OwnedArrayValue(source.Columns[23].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
-				if err != nil {
-					return nil, err
-				}
-			}
-			acl, err := in.Runtime.ObjectACL(view, d.Address())
-			if err != nil {
-				return nil, err
-			}
-			row[19], err = ClassACL(in.Owner, in.Roles, source.Columns[19].Usage.Type, acl)
-			if err != nil {
-				return nil, err
-			}
 		case *catalog.TSTemplate:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())

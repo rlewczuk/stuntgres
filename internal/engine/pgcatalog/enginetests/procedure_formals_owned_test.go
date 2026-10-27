@@ -81,16 +81,16 @@ func TestRoutineResultFormalOwnedCatalog(t *testing.T) {
 			continue
 		}
 		seen[ids.OID(id)] = true
-		defaults, err := row[20].Integer()
+		defaults, err := row[17].Integer()
 		wantDefaults := int64(0)
 		if expected == "{2205,16,16,25,20,20,20,23,23,25}|{i,i,i,i,i,i,o,o,o,o}" {
 			wantDefaults = 5
 		}
-		if err != nil || defaults != wantDefaults || row[20].Type() != source.Columns[20].Usage.Type || row[20].IsNull() {
+		if err != nil || defaults != wantDefaults || row[17].Type() != source.Columns[17].Usage.Type || row[17].IsNull() {
 			t.Fatal("owned declaration default count", id, defaults, wantDefaults, err)
 		}
-		a, m := row[17], row[18]
-		if a.Type() != source.Columns[17].Usage.Type || m.Type() != source.Columns[18].Usage.Type {
+		a, m := row[20], row[21]
+		if a.Type() != source.Columns[20].Usage.Type || m.Type() != source.Columns[21].Usage.Type {
 			t.Fatal("foreign formal array descriptor")
 		}
 		if expected == "" {

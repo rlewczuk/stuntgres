@@ -42,7 +42,7 @@ func TestRoutineResultFormalBuiltinCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oids, modes := source.Columns[17].Usage.Type, source.Columns[18].Usage.Type
+	oids, modes := source.Columns[20].Usage.Type, source.Columns[21].Usage.Type
 	if oids.ID() != 1028 || modes.ID() != 1002 {
 		t.Fatal("formal array descriptor identities")
 	}
@@ -54,11 +54,11 @@ func TestRoutineResultFormalBuiltinCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(row) != 24 || row[20].Type() != source.Columns[20].Usage.Type || row[20].IsNull() {
+		if len(row) != 30 || row[17].Type() != source.Columns[17].Usage.Type || row[17].IsNull() {
 			t.Fatal("default-count projection width/type/nullability", id)
 		}
 		if want, ok := wantDefaults[ids.OID(id)]; ok {
-			got, err := row[20].Integer()
+			got, err := row[17].Integer()
 			if err != nil || got != want {
 				t.Fatal("canonical default count", id, got, want, err)
 			}
@@ -72,7 +72,7 @@ func TestRoutineResultFormalBuiltinCatalog(t *testing.T) {
 			t.Fatal("duplicate represented declaration", id)
 		}
 		seen[ids.OID(id)] = true
-		a, m := row[17], row[18]
+		a, m := row[20], row[21]
 		if a.Type() != oids || m.Type() != modes {
 			t.Fatal("incorrect typed formal arrays", id)
 		}

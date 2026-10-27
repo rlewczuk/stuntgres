@@ -18,7 +18,7 @@ func validateCapturedHstoreArray(call functions.HstoreArray, captured *catalog.P
 	if call.Matrix {
 		symbol = "hstore_to_matrix"
 	}
-	if captured == nil || call.RoutineReference != captured || captured.Revision() == 0 || call.Ref.Address != captured.Address() || captured.Implementation != extension.StockHstore || captured.Builtin != nil || captured.SQL != nil || captured.Foreign != nil || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Signature != extension.HstoreSignature(call.Formal.ID()) || captured.Result != 1009 || captured.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol}) || captured.Installed != (catalog.InstalledRoutineDeclaration{}) {
+	if captured == nil || call.RoutineReference != captured || captured.Revision() == 0 || call.Ref.Address != captured.Address() || captured.Implementation != extension.StockHstore || captured.Builtin != nil || captured.SQL != nil || captured.Foreign != nil || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Signature != extension.HstoreSignature(call.Formal.ID()) || captured.Result != 1009 || captured.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol, Binary: "$libdir/hstore", HasBinary: true}) || captured.Installed != (catalog.InstalledRoutineDeclaration{}) {
 		return fmt.Errorf("stuntgres: invalid captured hstore array declaration")
 	}
 	return nil

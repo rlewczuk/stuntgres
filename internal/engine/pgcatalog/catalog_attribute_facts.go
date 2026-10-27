@@ -9,49 +9,6 @@ import (
 // numbers instead follow REL_18_0 catalog headers, including omitted neighbors.
 func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 	switch oid {
-	case 1255:
-		switch name {
-		case "prolang":
-			return 5
-		case "procost":
-			return 6
-		case "provariadic":
-			return 8
-		case "pronargs":
-			return 17
-		case "pronargdefaults":
-			return 18
-		case "prorettype":
-			return 19
-		case "provolatile":
-			return 15
-		case "proisstrict":
-			return 13
-		case "proparallel":
-			return 16
-		case "prokind":
-			return 10
-		case "proargnames":
-			return 23
-		case "proretset":
-			return 14
-		case "prorows":
-			return 7
-		case "prosrc":
-			return 26
-		case "proargtypes":
-			return 20
-		case "proallargtypes":
-			return 21
-		case "proargmodes":
-			return 22
-		case "proacl":
-			return 30
-		case "prosecdef":
-			return 11
-		case "proconfig":
-			return 29
-		}
 	case 2606:
 		switch name {
 		case "contype":

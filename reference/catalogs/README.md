@@ -5,7 +5,7 @@
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, `pg_inherits`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
 `pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
-`pg_wait_events`, catalog foreign keys and the catalog
+`pg_wait_events`, `pg_proc`, catalog foreign keys and the catalog
 controls migrated from the root package. The other catalog packages:
 namespaces, schemas, `search_path`, visibility inquiries, operator, cast,
 aggregate, access-method, collation, language, transform, text-search,
@@ -109,10 +109,68 @@ retire obsolete lookup names.
   versus native int64 and normalize exact uint32 identities without changing
   the expected OID column types or values.
 
+The `pg_proc_*` family reads all 30 PostgreSQL 18 columns in released attribute
+order, including raw direct/prepared/held and empty-result metadata. Released
+builtin expectations are independent of native descriptors; user matrices check
+input-only overload identities separately from all-argument modes/names and
+their array bounds. Owner, namespace, language and generated type references use
+independent catalog identities. Metadata reads neither execute routine bodies
+or defaults nor require support callbacks or other absent runtime facilities.
+Routine lifecycle assertions retain old unread rows and descriptors while a
+held query sees replacements, movement, ownership/ACL changes and rollback.
+The full-shape check distinguishes pq's FLOAT4 `ScanType` (`float32`) from
+its actual exported `float64` values and the native `float64` scan descriptor.
+It likewise checks pq's INT2 `int16` scan descriptor versus native `int64`.
+Raw OID results retain their OID column type and byte-versus-int64 assertions;
+family expected rows follow the existing `PGAttributeCheck` decimal-text
+adaptation for pq rather than casting catalog SQL to another type.
+The sequence side-effect witness explicitly consumes its defaulted input:
+an unused SQL parameter need not evaluate its supplied/default expression.
+
+Tree carriers are an explicit representation boundary, not fake PostgreSQL
+serialization parity: PostgreSQL returns nodeToString trees; native returns
+immutable structural expression lists and checked routine programs. Tests inspect
+both actual raw carriers independently, retain genuine defaults/body presence,
+and require exact semantic `pg_get_expr` default text and real omitted-argument
+execution. Quoted SQL/PL source has no SQL-standard body tree. Library provenance
+is read from the owning declaration, not inferred from a public routine name.
+Native Go callbacks retain the native-only `prolang=0` sentinel, empty source and
+NULL binary; actual public registration proves reads never invoke a callback.
+This phase has no PostgreSQL equivalent. Native controls replay nonempty actual
+Dump bytes unchanged on PostgreSQL and verify logical routine/type relationships,
+properties and invocation, rather than pinning allocator-generated OIDs.
+
+`TestReferencePGProcDependencies` distinguishes immutable declaration acquisition
+from current executable-dependency admission. Direct, prepared and held probes
+read consumer/default metadata and unrelated builtin rows after callee attribute
+changes/replacement/rename. Semantic default deparse follows the current callee
+name, while retained raw body/default trees remain immutable.
+
+Installed metadata has separate bounded acceptance families: the 14 released
+citext SQL-standard bodies and six admitted earthdistance bodies are installed
+with quoted, nondefault schemas, including a separately placed cube dependency.
+Exact overload membership, source/language/binary/body presence and concrete
+raw structures are independently checked on each backend. PostgreSQL function
+references are resolved through `regprocedure`, not pinned generated OIDs;
+native recipes retain concrete function/parameter/CASE/subscript syntax and
+the actual quoted dependency schema. Existing executable overloads corroborate
+the declarations. The library matrix covers every changed C-library owner,
+including `_int` and differing public/source names, after actual native restore
+and unchanged-byte PostgreSQL replay. Installed controls retain these facts
+through SQL and C routine rename/schema movement, snapshots and logical replay.
+
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Relations and attributes: `RUN='^TestReferencePgClass'`, `RUN='^TestReferencePGAttribute'`, `RUN='^TestReferenceAttrdef'`
 - Types, enums, ranges: `RUN='^TestReferencePGType'`, `RUN='^TestReferencePGEnum'`, `RUN='^TestReferencePGRange'`
+- Routine declarations and metadata: `RUN='^TestReferencePGProc'`; smoke:
+  `RUN='^TestReferencePGProcFeatureSmoke$'`. Shape, released inventory,
+  declarations/properties/visibility and lifecycle/controls/diagnostics are
+  separate selected proof families; run each changed family natively and with
+  `REFERENCE=1`. Private producer-offset/immutability tests remain lower-owner
+  units; public SQL assertions belong here, not internal enginetests.
+  Review-remedy selections:
+  `RUN='^TestReferencePGProc(Dependencies|InstalledBodies|InstalledLibraries|InstalledControls)$'`.
 - Dependencies: `RUN='^TestReferencePGDepend'`
   `TestReferencePGDependExpressionEdges` includes ordinary view `tableoid`
   references in both modes: the rule's internal view edge and the source table's

@@ -72,7 +72,7 @@ func TestRoutineResultFormalCatalog(t *testing.T) {
 			}
 		})
 	}
-	if AttributeNumber(ids.ProcedureClassID, "proallargtypes", 17) != 21 || AttributeNumber(ids.ProcedureClassID, "proargmodes", 18) != 22 {
+	if AttributeNumber(ids.ProcedureClassID, "proallargtypes", 21) != 21 || AttributeNumber(ids.ProcedureClassID, "proargmodes", 22) != 22 {
 		t.Fatal("released argument attribute numbers")
 	}
 }
@@ -95,7 +95,7 @@ func TestRoutineProcedureDefaultCount(t *testing.T) {
 			}
 		})
 	}
-	if got := AttributeNumber(ids.ProcedureClassID, "pronargdefaults", 21); got != 18 {
+	if got := AttributeNumber(ids.ProcedureClassID, "pronargdefaults", 18); got != 18 {
 		t.Fatal("released default-count attribute number", got)
 	}
 }

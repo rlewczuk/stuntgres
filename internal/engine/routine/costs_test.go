@@ -23,6 +23,13 @@ func TestBuiltinRoutineCosts(t *testing.T) {
 		3084: 10, 3445: 100, 3448: 100, 3685: 100, 3745: 100, 3815: 10,
 		3935: 1, 3936: 1, 5023: 1, 6159: 10, 6212: 1, 6249: 100,
 		6348: 10, 6349: 10, 6350: 10,
+		// Unreplaced quoted SQL declarations retain pg_proc.h bootstrap cost1.
+		1285: 1, 1290: 1, 2003: 1, 2004: 1,
+		// The pinned18.6 oracle confirms the INTERNAL-language default1
+		// after these replacements; SQL's default100 does not apply.
+		1268: 1, 3261: 1, 3305: 1, 3464: 1, 3579: 1,
+		3960: 1, 3961: 1, 4005: 1, 4006: 1, 4007: 1,
+		4008: 1, 4009: 1, 4350: 1, 4351: 1, 5054: 1,
 	}
 	for _, p := range BuiltinProcedures(authorization.PrincipalRef{}) {
 		id := p.Address().ObjectID

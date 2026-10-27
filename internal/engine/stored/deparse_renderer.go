@@ -25,6 +25,9 @@ type Deparser struct {
 	Output             sqltype.OutputEnvironment
 	NonstandardStrings bool
 	ShowImplicit       bool
+	// RoutineDeclaration presents retained default metadata, not current
+	// executable admission. Only routine-default/list consumers enable it.
+	RoutineDeclaration bool
 	unknownTextLiteral bool
 	ColumnSQL          func(plan.ColumnExpr) (string, error)
 	NodeSQL            func(expr.Expr) (string, bool, error)
@@ -772,7 +775,13 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if n.Ref.Address.SubID != 0 || !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine reference")
 		}
-		procedure, err := exec.ValidateStoredRoutineDescriptor(r.View, n.Procedure)
+		var procedure *catalog.Procedure
+		var err error
+		if r.RoutineDeclaration {
+			procedure, err = routineMetadataProcedure(r.View, n.Procedure)
+		} else {
+			procedure, err = exec.ValidateStoredRoutineDescriptor(r.View, n.Procedure)
+		}
 		if err != nil {
 			return "", err
 		}

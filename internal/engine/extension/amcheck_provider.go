@@ -184,6 +184,7 @@ func (p *AmcheckProvider) Stage(stage Stage, ext *catalog.Extension, owner autho
 			proc.Strict, proc.Installed = true, member.Declaration
 		}
 		proc.Display = catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: proc.Name()}
+		proc.Display.Binary, proc.Display.HasBinary = "$libdir/amcheck", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}

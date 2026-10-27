@@ -11,10 +11,13 @@ import (
 // RoutineProgram is a checked immutable SQL-standard body. Implementations live
 // above catalog; it never owns executable resources or authorization decisions.
 type RoutineProgram interface {
+	sqltype.StructuralTree
 	Len() int
 	StatementSQL(context.Context, Read, int) (string, error)
 	Dependencies() []ExpressionDependency
 	ValidateDefinition(*Procedure) error
+	// ValidateMetadata checks retained shape/provenance, not current execution.
+	ValidateMetadata(Read) error
 	Validate(Read) error
 	Rebind(Read, map[ids.ObjectAddress]ids.ObjectAddress, *RoutineRemap) (RoutineProgram, error)
 }
@@ -26,6 +29,8 @@ type RoutineDefaults interface {
 	Dependencies() []ExpressionDependency
 	DefaultSQL(context.Context, Read, int) (string, error)
 	ValidateDefinition(*Procedure) error
+	// ValidateMetadata checks retained shape/provenance, not current execution.
+	ValidateMetadata(Read) error
 	Validate(Read) error
 	Rebind(Read, map[ids.ObjectAddress]ids.ObjectAddress, *RoutineRemap) (RoutineDefaults, error)
 }

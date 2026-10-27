@@ -15,6 +15,18 @@ Published syntax/metadata is immutable. Standard RETURN is a SELECT expression;
 BEGIN ATOMIC is an ordered SQL program, not a transaction or procedural return.
 Checked standard-body and declaration-default recipes live in `stored`, above
 this package, never as cached values or catalog dependencies in proc.
+`NewRoutineDeclarationBody` separately parses released readonly builtin/installed
+SQL-standard syntax once into private immutable backing. It is a structural
+metadata carrier, never a checked executable program, provider or dependency
+manifest. `AppendRoutineSyntax` records concrete parser node/field names and
+ordered children/literals without SQL rendering, catalog access or evaluation;
+source positions are not structural identity. Stored checked programs use this
+same syntax writer for their already-retained actions. Output is native
+`pg_node_tree` structure, deliberately not PostgreSQL `nodeToString`.
+Recipe acquisition uses `parser.ParseRoutineDeclarationBody`, reusing the
+ordinary lexer/grammar while keeping readonly syntax capture distinct from its
+selected-call execution frontier. This permits the actual released sin/asin/cos
+arithmetic bodies without changing source spelling or ordinary SQL admission.
 
 Declaration usages admit pseudo signature identities separately from executable
 values. Result-safety and language-admission validators have separate DDL ordering;

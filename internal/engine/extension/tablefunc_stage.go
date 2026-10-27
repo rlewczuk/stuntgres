@@ -54,6 +54,7 @@ func (p *TablefuncProvider) Stage(stage Stage, ext *catalog.Extension, owner aut
 			volatility, declaration, source = member.volatility, tablefuncNormalDeclaration(), member.source
 		}
 		proc := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: volatility, Strict: true, Installed: declaration, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source}, Implementation: p}
+		proc.Display.Binary, proc.Display.HasBinary = "$libdir/tablefunc", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", name)}
 		}

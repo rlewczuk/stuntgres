@@ -265,7 +265,7 @@ func TestRoutineProviderRowProjection(t *testing.T) {
 		if row == nil {
 			t.Fatal("missing released estimate control", oid)
 		}
-		got, err := row[13].Float()
+		got, err := row[6].Float()
 		if err != nil || got != want {
 			t.Fatal("released row estimate", oid, got, want, err)
 		}
@@ -297,7 +297,7 @@ func TestRoutineProviderRowProjection(t *testing.T) {
 		}
 		targets[d.Address()] = catalog.DependencyIdentifier(base.MustNamespace(d.Namespace()).Name()) + "." + catalog.DependencyIdentifier(d.Name()) + "(" + strings.Join(arguments, ",") + ")"
 		if d.Implementation != nil {
-			got, err := retained[d.Address().ObjectID][13].Float()
+			got, err := retained[d.Address().ObjectID][6].Float()
 			if err != nil || got != float64(d.Installed.Rows) || !d.Installed.ReturnsSet {
 				t.Fatal("installed intrinsic estimate", d.Name(), got, err)
 			}
@@ -354,12 +354,12 @@ func TestRoutineProviderRowProjection(t *testing.T) {
 			d := current.MustProcedure(address)
 			copy := *d
 			copy.Rows, copy.ObjectRevision = original.Rows, original.ObjectRevision
-			got, err := projected[address.ObjectID][13].Float()
-			set, setErr := projected[address.ObjectID][12].Boolean()
+			got, err := projected[address.ObjectID][6].Float()
+			set, setErr := projected[address.ObjectID][13].Boolean()
 			if err != nil || setErr != nil || got != want || !set || d == original || !reflect.DeepEqual(copy, *original) {
 				t.Fatal("publication changed intrinsic identity or lost row estimate", address, got, err, setErr)
 			}
-			old, err := retained[address.ObjectID][13].Float()
+			old, err := retained[address.ObjectID][6].Float()
 			if err != nil || old != float64(original.RowEstimate()) || base.MustProcedure(address) != original {
 				t.Fatal("publication mutated retained descriptor/projection", address, old, err)
 			}

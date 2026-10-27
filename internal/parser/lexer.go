@@ -52,7 +52,8 @@ type lexer struct {
 	typeInputResult    TypeName
 	typeInputNotice    func(sqlstate.Error)
 	options            Options
-	routineBodyDepth   int // SQL-standard body input syntax; never changes outer prewalk policy.
+	routineBodyDepth   int  // SQL-standard body input syntax; never changes outer prewalk policy.
+	readonlyRecipe     bool // Declaration syntax capture only; never executable admission.
 	// Only declaration-level formal types reinterpret SETOF; defaults remain SQL.
 	routineFormalDepth    int
 	routineFormalBrackets int

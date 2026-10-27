@@ -34,7 +34,7 @@ func icProviderInventory(c *icCase) {
 		"pg_event_trigger":                       strings.Fields("oid evtname evtevent evtowner evtfoid evtenabled evttags"),
 		"pg_attrdef":                             strings.Fields("oid adrelid adnum adbin"),
 		"pg_statistic_ext":                       strings.Fields("oid stxrelid stxname stxnamespace stxowner stxkeys stxstattarget stxkind stxexprs"),
-		"pg_proc":                                strings.Fields("oid proname pronamespace proowner pronargs pronargdefaults prorettype provolatile proisstrict proparallel prokind proargnames prolang proretset prorows prosrc proargtypes provariadic proallargtypes proargmodes proacl procost prosecdef proconfig"),
+		"pg_proc":                                strings.Fields("oid proname pronamespace proowner prolang procost prorows provariadic prosupport prokind prosecdef proleakproof proisstrict proretset provolatile proparallel pronargs pronargdefaults prorettype proargtypes proallargtypes proargmodes proargnames proargdefaults protrftypes prosrc probin prosqlbody proconfig proacl"),
 		"pg_index":                               strings.Fields("indexrelid indrelid indisunique indisprimary indisvalid indisready indislive indnullsnotdistinct indkey indcollation indclass indoption"),
 		"pg_rewrite":                             strings.Fields("oid rulename ev_class ev_type ev_enabled is_instead"),
 		"pg_cast":                                strings.Fields("oid castsource casttarget castfunc castcontext castmethod"),
@@ -131,11 +131,6 @@ func icProviderInventory(c *icCase) {
 		var want [][]any
 		for i, field := range inventory[name] {
 			ordinal := i + 1
-			if table == "pg_proc" {
-				if n := map[string]int{"prolang": 5, "pronargs": 17, "pronargdefaults": 18, "prorettype": 19, "provolatile": 15, "proisstrict": 13, "proparallel": 16, "prokind": 10, "proargnames": 23, "proretset": 14, "prorows": 7, "prosrc": 26, "proargtypes": 20, "provariadic": 8, "proallargtypes": 21, "proargmodes": 22, "proacl": 30, "procost": 6, "prosecdef": 11, "proconfig": 29}[field]; n != 0 {
-					ordinal = n
-				}
-			}
 			if table == "pg_index" {
 				if n := map[string]int{"indisunique": 5, "indisprimary": 7, "indisvalid": 11, "indisready": 13, "indislive": 14, "indnullsnotdistinct": 6, "indkey": 16, "indcollation": 17, "indclass": 18, "indoption": 19}[field]; n != 0 {
 					ordinal = n

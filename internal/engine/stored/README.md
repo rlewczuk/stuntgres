@@ -111,6 +111,27 @@ host methods.
   maps and slices instead of copying them: callers never write through an
   accessor.
 - **Routine recipes.** `RoutineProgram` owns checked SQL-standard actions.
+  Their `StructuralOutput` retains ordered concrete parser nodes and fields,
+  including command/expression kinds and literal values; it does not prepare,
+  evaluate, deparse or consult a session/catalog. `proc.NewRoutineDeclarationBody`
+  instead privately parses immutable released builtin/installed syntax once and
+  explicitly grants no checked program or dependency authority. Both use native
+  structural encoding, not PostgreSQL `nodeToString` or SQL text masquerading as
+  `pg_node_tree`. Quoted SQL/PL bodies have no standard-body tree. Lazy tree output
+  runs outside locks and caches only successful output; cancellation does not
+  poison retained values.
+  Checked action syntax retains normalized positional `parser.ParameterExpr`
+  inputs, not original formal-name column references; structural output records
+  those actual immutable nodes rather than reconstructing source spelling.
+  `ValidateMetadata` checks retained structure, input/definition association and
+  manifest provenance without demanding current callee executable equivalence.
+  Catalog capture therefore retains genuine old program/default owners after
+  legitimate callee attribute changes or same-signature replacement. Executable
+  `Validate`, `ValidateAction` and `DefaultSQL` retain their admission checks.
+  The explicit `Deparser.RoutineDeclaration` mode is limited to declaration
+  default presentation: SQL routine references retain local provider/ref/principal
+  checks and resolve current labels through logical address/signature/kind/result,
+  not current executable attributes or language-handler admission.
   Routine action leaves retain their creation-time `FrozenAttributes`, just as
   rule leaves do. Invocation refreshes live read/admission slots, while the
   existing source-layout bridge presents rows in the retained recipe layout.

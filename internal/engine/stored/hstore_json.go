@@ -16,7 +16,7 @@ func validateCapturedHstoreJSON(call functions.HstoreJSON, captured *catalog.Pro
 		return err
 	}
 	symbol, result, _, _ := functions.HstoreJSONDeclaration(call.Member)
-	if captured == nil || call.RoutineReference != captured || captured.Revision() == 0 || call.Ref.Address != captured.Address() || captured.Implementation != extension.StockHstore || captured.Builtin != nil || captured.SQL != nil || captured.Foreign != nil || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Signature != extension.HstoreSignature(call.Formal.ID()) || captured.Result != ids.OID(result) || captured.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol}) || captured.Installed != (catalog.InstalledRoutineDeclaration{}) {
+	if captured == nil || call.RoutineReference != captured || captured.Revision() == 0 || call.Ref.Address != captured.Address() || captured.Implementation != extension.StockHstore || captured.Builtin != nil || captured.SQL != nil || captured.Foreign != nil || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Signature != extension.HstoreSignature(call.Formal.ID()) || captured.Result != ids.OID(result) || captured.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol, Binary: "$libdir/hstore", HasBinary: true}) || captured.Installed != (catalog.InstalledRoutineDeclaration{}) {
 		return fmt.Errorf("stuntgres: invalid captured hstore JSON declaration")
 	}
 	return nil

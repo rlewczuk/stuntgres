@@ -19,14 +19,21 @@ private frames, not catalog authority.
   procedures, operators, collations, conversions, extensions, foreign objects,
   large objects, access methods, casts, operator classes and families, ...) and
   their records. Read identity through the `Descriptor` methods.
-  `Procedure.Display` holds immutable creation-owned language/source facts,
-  with invalid zero language and legitimately empty source. Semantic strictness,
+  `Procedure.Display` holds immutable creation-owned language/source, optional
+  dynamic-library provenance, support, leakproof and transform-list facts.
+  Invalid zero language differs from legitimate empty source; explicit binary
+  presence distinguishes NULL from empty text. Transform lists copy once and
+  expose readonly indexing independently of transform execution support.
+  Semantic strictness,
   volatility, security, parallel safety, cost, rows and configuration belong to
   `Procedure` itself. `RoutineConfiguration` copies ordered normalized name=value
   entries once and exposes read-only indexing; nil denotes no configuration.
   COW identity/principal remaps share that immutable backing. Display is distinct
   from execution `Language` and supplies no capability. PL call handlers are nonstrict;
   inline and validator handlers are strict, all with zero execution Language.
+  Their shipped parallel-unsafe default belongs to immutable `Installed`
+  metadata; `Parallel` remains a mutable ALTER override, so native replay emits
+  only actual changes rather than restating bootstrap properties.
   `Procedure.ReturnsSet` reads intrinsic SQL/builtin/installed capability;
   `RowEstimate` applies positive canonical `Rows` overrides only to genuine set
   declarations, retaining released/provider defaults when no override exists.
@@ -43,6 +50,18 @@ private frames, not catalog authority.
   never a captured descriptor/datum or rendered SQL. Assignment coercion to
   the declared input is validated when presented. Checked SQL defaults retain
   their existing expression/dependency authority and replay API.
+  `Procedure.SQLBody` retains a checked immutable `RoutineProgram`, including its
+  genuine ordered structural output. `Procedure.DeclarationBody` is separate
+  immutable parsed release syntax for builtin/installed standard declarations,
+  never a checked user program, invocation edge or executable capability. Native
+  `pg_node_tree` values retain these actual owners after replacement/drop;
+  catalog capture never compiles or evaluates bodies/defaults. Quoted SQL/PL
+  source does not become a SQL-standard body merely because it was compiled.
+  Program/default `ValidateMetadata` preserves immutable structural association
+  and captured domain/epoch/manifest validity independently of current executable
+  admission. A callee COST change or same-signature body replacement does not
+  make an unchanged caller declaration's catalog row unreadable; executable
+  validators remain separate and unchanged.
   Generated constructors instead derive their signatures from their owning
   type generation. None of this metadata grants execution authority; installed
   providers retain exact manifest identity validation.

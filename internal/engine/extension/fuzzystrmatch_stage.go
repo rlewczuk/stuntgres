@@ -53,6 +53,7 @@ func (p *FuzzystrmatchProvider) stageMembers(stage Stage, ext *catalog.Extension
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members = append(ext.Members, address)
 		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: member.Signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: member.Result, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.Source}, Implementation: p}
+		proc.Display.Binary, proc.Display.HasBinary = "$libdir/fuzzystrmatch", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}

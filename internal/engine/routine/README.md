@@ -178,6 +178,14 @@ package or the engine.
   The inventory rejects missing facts and never creates additional rows.
   SQL/PL creation records original quoted source or empty SQL-standard source
   on the descriptor. Identity changes preserve those immutable facts.
+  `body_inventory.go` owns every represented SQL-standard replacement's genuine
+  REL_18_6 `system_functions.sql` parsed body recipe. RETURN expressions use the
+  current parser's single-target SELECT representation. Recipes are parsed once
+  at declaration setup and attached as readonly `DeclarationBody`, not fake
+  checked `SQLBody` programs; missing or extra release body facts fail setup.
+  User standard bodies retain their existing checked program owner. Native tree
+  text deliberately differs from PostgreSQL `nodeToString`, while defaults
+  deparse semantically through the existing expression owner.
   `cast_inventory.go` joins only real executable cast-procedure references to
   released procedure identity/result facts, deduplicating shared procedures.
   Their `CastRoutineProvider` association executes the retained conversion

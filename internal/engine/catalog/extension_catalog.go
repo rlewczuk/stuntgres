@@ -69,19 +69,22 @@ type Procedure struct {
 	// body dependency manifest and these addresses do not create pg_depend edges.
 	DeclarationDependencies []ids.ObjectAddress
 	SQLBody                 RoutineProgram
-	SQLDefaults             RoutineDefaults
-	LiteralDefaults         *RoutineLiteralDefaults
-	InputNames              *RoutineInputNames
-	Body                    []RoutineBodyEdge
-	Owner                   authorization.PrincipalRef
-	Result                  ids.OID
-	Volatility              expr.Volatility
-	Strict                  bool
-	SecurityDefiner         bool
-	Parallel                byte
-	Cost                    float32
-	Rows                    float32
-	Configuration           *RoutineConfiguration
+	// DeclarationBody is immutable parsed declaration syntax for builtin or
+	// installed SQL-standard routines. It grants no checked execution authority.
+	DeclarationBody sqltype.StructuralTree
+	SQLDefaults     RoutineDefaults
+	LiteralDefaults *RoutineLiteralDefaults
+	InputNames      *RoutineInputNames
+	Body            []RoutineBodyEdge
+	Owner           authorization.PrincipalRef
+	Result          ids.OID
+	Volatility      expr.Volatility
+	Strict          bool
+	SecurityDefiner bool
+	Parallel        byte
+	Cost            float32
+	Rows            float32
+	Configuration   *RoutineConfiguration
 	// Implementation is the extension implementation that installed this
 	// routine; nil for builtin, conversion and foreign routines.
 	Implementation ExtensionImplementation

@@ -217,6 +217,8 @@ binding passes the core `DDLHost`.
   return fresh values. `BuiltinDomainCheckSeeds` parses its declarations once
   per process and returns the same read-only constraints to every engine. The
   engine installs the seeds in `newEngine`'s order, which fixes their OIDs.
+  Conversion seeds retain the exact released C symbol and dynamic-library path
+  together in immutable routine display metadata, independent of public labels.
 - **Domain identities.** ALTER keeps logical domain and array IDs; pure identity
   edits keep the executable analysis stamp while ordinary replacement
   invalidates it. Own NOT NULL definitions reserve real additional identities.

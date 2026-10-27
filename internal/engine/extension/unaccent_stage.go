@@ -52,6 +52,7 @@ func (p *UnaccentProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 			strict = false
 		}
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: vol, Strict: strict, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: [4]string{"unaccent_dict", "unaccent_dict", "unaccent_init", "unaccent_lexize"}[i]}, Implementation: p}
+		proc.Display.Binary, proc.Display.HasBinary = "$libdir/unaccent", true
 		if i < 2 {
 			proc.Dictionary = ext.Members[5]
 		}

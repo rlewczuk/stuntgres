@@ -12,7 +12,7 @@ EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
 Layer L9 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access` (privilege requirements and the captured view),
 `authorization`, `catalog`, `ddl` (the shared authority and allocator), `expr`,
-`functions` (kernels and member tables), `ids`, `parser`, `sqlstate`, `sqltype`,
+`functions` (kernels and member tables), `ids`, `parser`, `proc`, `sqlstate`, `sqltype`,
 `typedef` (the relation type name check of installed-scalar staging)
 and the standard library; never the engine, `analyze`, `routine` or `plan`.
 
@@ -47,6 +47,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Intagg's enumerator likewise seals its installed set capability and default
   estimate separately from mutable canonical routine metadata. Public ROWS
   patches do not rewrite the installed declaration or its implementation identity.
+  Routine display owners also retain explicit library provenance from shipped
+  control/SQL declarations, independent of mutable member names and namespaces.
+  SQL-standard citext and earthdistance declarations retain genuine immutable
+  parsed body recipes without granting SQL execution or checked-program authority.
+  Earthdistance resolves the installed cube schema substitution once at staging;
+  catalog capture never parses or evaluates an installed routine.
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider` validates
   the extension, text search template and dictionary classes and installed
   member procedures; `ValidateProviderHeader` is the identity check it shares

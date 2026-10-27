@@ -3,6 +3,7 @@ package table
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -170,19 +171,36 @@ func Deparse(c *exec.Context, in DeparseInputs, signature functions.DeparseSigna
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		tree, ok := carrier.(plan.BoundTree)
-		if !ok {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign structural tree")
-		}
 		var relation *catalog.Relation
 		if id != 0 {
+			var ok bool
 			relation, ok = view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(id)})
 			if !ok {
 				return sqltype.Null(result), nil
 			}
 		}
 		renderer.Relation = relation
-		text, err = renderer.SQL(c.Context, tree.Expression, stored.DeparseParent{})
+		switch tree := carrier.(type) {
+		case plan.BoundTree:
+			text, err = renderer.SQL(c.Context, tree.Expression, stored.DeparseParent{})
+		case plan.ExpressionListTree:
+			renderer.RoutineDeclaration = true
+			var out strings.Builder
+			for i := range tree.Len() {
+				if i != 0 {
+					out.WriteString(", ")
+				}
+				var part string
+				part, err = renderer.SQL(c.Context, tree.At(i), stored.DeparseParent{})
+				if err != nil {
+					break
+				}
+				out.WriteString(part)
+			}
+			text = out.String()
+		default:
+			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign structural tree")
+		}
 		if err != nil {
 			return sqltype.Value{}, err
 		}

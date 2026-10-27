@@ -61,6 +61,7 @@ func (p *SegProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 			name, signature, result = "seg_out", SegSignature(typ.ID()), 2275
 		}
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: [2]string{"seg_in", "seg_out"}[i]}, Implementation: p}
+		proc.Display.Binary, proc.Display.HasBinary = "$libdir/seg", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {

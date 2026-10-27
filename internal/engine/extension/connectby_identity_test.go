@@ -46,7 +46,7 @@ func connectbyCatalog(t *testing.T) (catalog.Read, *catalog.Extension) {
 		if slot >= 3 {
 			source = "connectby_text_serial"
 		}
-		put(&catalog.Procedure{ObjectAddress: address, ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Extension: ext.Address(), Signature: catalog.ProcedureSignature(sig), Result: result, RoutineKind: catalog.FunctionRoutine, Owner: ext.Owner, Volatility: volatility, Strict: true, Installed: catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000}, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source}, Implementation: extension.StockTablefunc})
+		put(&catalog.Procedure{ObjectAddress: address, ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Extension: ext.Address(), Signature: catalog.ProcedureSignature(sig), Result: result, RoutineKind: catalog.FunctionRoutine, Owner: ext.Owner, Volatility: volatility, Strict: true, Installed: catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000}, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source, Binary: "$libdir/tablefunc", HasBinary: true}, Implementation: extension.StockTablefunc})
 	}
 	put(ext)
 	return catalog.NewRead(owner, state), ext

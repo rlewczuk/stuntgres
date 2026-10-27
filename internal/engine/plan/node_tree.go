@@ -20,6 +20,34 @@ func (t BoundTree) StructuralOutput(ctx context.Context) (string, error) {
 	return out.String(), err
 }
 
+// ExpressionListTree retains an ordered immutable list of checked expressions.
+type ExpressionListTree struct{ expressions []expr.Expr }
+
+// OwnExpressionListTree takes ownership of private backing. Callers must not
+// retain a writable alias; the expression nodes themselves are immutable.
+func OwnExpressionListTree(expressions []expr.Expr) ExpressionListTree {
+	return ExpressionListTree{expressions: expressions}
+}
+
+func (t ExpressionListTree) Len() int           { return len(t.expressions) }
+func (t ExpressionListTree) At(i int) expr.Expr { return t.expressions[i] }
+
+func (t ExpressionListTree) StructuralOutput(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	var out strings.Builder
+	out.WriteString("{ExpressionList")
+	for _, node := range t.expressions {
+		out.WriteByte(' ')
+		if err := AppendBoundTree(ctx, &out, node); err != nil {
+			return "", err
+		}
+	}
+	out.WriteByte('}')
+	return out.String(), nil
+}
+
 // AppendBoundTree writes the structural output of node to out.
 func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) error {
 	if err := ctx.Err(); err != nil {
