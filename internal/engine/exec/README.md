@@ -412,6 +412,14 @@ does not admit nonNULL volatile array defaults or fold nonNULL volatile calls.
   `CatalogKeyIndex` builds a column on first use and publishes it atomically. A
   column qualifies only when every cell has the column's exact oid descriptor, so
   no skipped row could have raised an error; any failing probe keeps the scan.
+- **Join keys** (`query_join_hash.go`). When a join's whole predicate is a
+  conjunction of builtin same-type equalities between a left and a right key (a
+  plain column, maybe cast to oid from another OID type), the first left row
+  still scans every right row; then the right rows are indexed by key hash, and
+  each later left row visits only its matching-hash right rows in ascending
+  order and still evaluates the whole predicate. NULL keys match nothing; a key
+  that fails falls back to the full scan, so output order and errors are those
+  of the nested loop.
 - **InitPlans.** The binder marks a scalar or EXISTS subquery `InitPlan` when it
   reads no outer row, calls nothing volatile and reads no CTE. Its execution
   owner (`membershipOwner`, which also owns hashed `IN` memberships) evaluates it

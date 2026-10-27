@@ -147,6 +147,9 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 		}
 	}
 	evaluation.PresenceSlots, evaluation.Presence = source.PresenceSlots, presence
+	hash := newJoinHash(n, &evaluation)
+	var candidates []int
+	candidate, scan := 0, true
 	leftOccurrence, rightOccurrence := -1, 0
 	leftMatched, tail := false, false
 	var rightMatched []bool
@@ -259,15 +262,41 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 							rightIdentity = true
 						}
 					}
+					if hash != nil && hash.ready {
+						candidates, scan = hash.candidates(ctx, &evaluation)
+						candidate = 0
+					}
 				}
 			}
-			present, err := right.ensure(ctx, rightOccurrence)
-			if err != nil {
-				return false, err
+			j, present := rightOccurrence, false
+			if !tail && !scan {
+				if candidate < len(candidates) {
+					j, present = candidates[candidate], true
+					candidate++
+				}
+			} else {
+				var err error
+				present, err = right.ensure(ctx, rightOccurrence)
+				if err != nil {
+					return false, err
+				}
+				if present {
+					rightOccurrence++
+				}
 			}
 			if !present {
 				if tail {
 					return false, nil
+				}
+				if hash != nil && !hash.ready {
+					// The first left row has produced every right occurrence.
+					built, err := hash.build(ctx, &evaluation, frame, n.LeftWidth, &right, rightOccurrence)
+					if err != nil {
+						return false, err
+					}
+					if !built {
+						hash = nil
+					}
 				}
 				li := left.Index(leftOccurrence)
 				leftOccurrence = -1
@@ -277,8 +306,6 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 				}
 				continue
 			}
-			j := rightOccurrence
-			rightOccurrence++
 			if preserveRight && j == len(rightMatched) {
 				rightMatched = append(rightMatched, false)
 			}
