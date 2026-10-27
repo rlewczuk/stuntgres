@@ -956,8 +956,10 @@ standalone_type: type { $$=$1 }
  | standalone_type ARRAY { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
  | standalone_type ARRAY '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$4,"");if !ok{return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) } ;
 separators: /* empty */ | separators ';' ;
-optional_statements: /* empty */ | accepted tail ;
-tail: /* empty */ | ';' separators optional_statements ;
+/* Left recursion (PostgreSQL's stmtmulti) bounds the parse stack by one statement
+   instead of growing three cells per statement until the end of the script. */
+optional_statements: /* empty */ | statement_list | statement_list ';' separators ;
+statement_list: accepted | statement_list ';' separators accepted ;
 accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
 statement: nontransaction_statement | transaction_control ;
 nontransaction_statement: embedded_sql_statement | select | declare_cursor | fetch_cursor | close_cursor | execute_sql
