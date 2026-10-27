@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype/pgencoding18"
 	"stuntgres/internal/sqltype/unicode16"
 	"unicode/utf8"
 )
@@ -56,11 +57,11 @@ func (p StringPlan) evaluateEncoding(ctx context.Context, texts [4]string, value
 				if err != nil {
 					return Value{}, err
 				}
-				if encoding < 0 || encoding >= int64(len(stringEncodingNames)) {
+				if encoding < 0 || encoding >= int64(pgencoding18.Count) {
 					return Value{}, failure("42704", fmt.Sprintf("%d is not a valid encoding code", encoding))
 				}
 			} else {
-				encoding = int64(stringEncodingID(texts[1]))
+				encoding = int64(pgencoding18.ID(texts[1]))
 				if encoding < 0 {
 					return Value{}, failure("42704", texts[1]+" is not a valid encoding name")
 				}
@@ -101,7 +102,7 @@ func stringToASCII(ctx context.Context, source string, encoding int) (string, er
 	case 29:
 		table, start = asciiWin1250, 128
 	default:
-		return "", failure("0A000", "encoding conversion from "+stringEncodingNames[encoding]+" to ASCII not supported")
+		return "", failure("0A000", "encoding conversion from "+pgencoding18.Name(encoding)+" to ASCII not supported")
 	}
 	var out strings.Builder
 	changed := false

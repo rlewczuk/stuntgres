@@ -1,0 +1,5436 @@
+# Recognition metadata, not codecs. See README.md for pinned provenance and notices.
+G	ANSI_X3.110
+G	ANSI_X3.110-1983
+G	ANSI_X3.4
+G	ANSI_X3.4-1968
+G	ANSI_X3.4-1986
+G	ARABIC
+G	ARABIC7
+G	ARMSCII-8
+G	ARMSCII8
+G	ASCII
+G	ASMO-708
+G	ASMO_449
+G	BALTIC
+G	BIG-5
+G	BIG-FIVE
+G	BIG5
+G	BIG5-HKSCS
+G	BIG5HKSCS
+G	BIGFIVE
+G	BRF
+G	BS_4730
+G	CA
+G	CN
+G	CN-BIG5
+G	CN-GB
+G	CP-AR
+G	CP-GR
+G	CP-HU
+G	CP037
+G	CP038
+G	CP10007
+G	CP1004
+G	CP1008
+G	CP1025
+G	CP1026
+G	CP1046
+G	CP1047
+G	CP1070
+G	CP1079
+G	CP1081
+G	CP1084
+G	CP1089
+G	CP1097
+G	CP1112
+G	CP1122
+G	CP1123
+G	CP1124
+G	CP1125
+G	CP1129
+G	CP1130
+G	CP1132
+G	CP1133
+G	CP1137
+G	CP1140
+G	CP1141
+G	CP1142
+G	CP1143
+G	CP1144
+G	CP1145
+G	CP1146
+G	CP1147
+G	CP1148
+G	CP1149
+G	CP1153
+G	CP1154
+G	CP1155
+G	CP1156
+G	CP1157
+G	CP1158
+G	CP1160
+G	CP1161
+G	CP1162
+G	CP1163
+G	CP1164
+G	CP1166
+G	CP1167
+G	CP1250
+G	CP1251
+G	CP1252
+G	CP1253
+G	CP1254
+G	CP1255
+G	CP1256
+G	CP1257
+G	CP1258
+G	CP12712
+G	CP1282
+G	CP1361
+G	CP1364
+G	CP1371
+G	CP1388
+G	CP1390
+G	CP1399
+G	CP16804
+G	CP273
+G	CP274
+G	CP275
+G	CP278
+G	CP280
+G	CP281
+G	CP282
+G	CP284
+G	CP285
+G	CP290
+G	CP297
+G	CP367
+G	CP420
+G	CP423
+G	CP424
+G	CP437
+G	CP4517
+G	CP4899
+G	CP4909
+G	CP4971
+G	CP500
+G	CP5347
+G	CP737
+G	CP770
+G	CP771
+G	CP772
+G	CP773
+G	CP774
+G	CP775
+G	CP803
+G	CP813
+G	CP819
+G	CP850
+G	CP851
+G	CP852
+G	CP855
+G	CP856
+G	CP857
+G	CP858
+G	CP860
+G	CP861
+G	CP862
+G	CP863
+G	CP864
+G	CP865
+G	CP866
+G	CP866NAV
+G	CP868
+G	CP869
+G	CP870
+G	CP871
+G	CP874
+G	CP875
+G	CP880
+G	CP891
+G	CP901
+G	CP902
+G	CP903
+G	CP9030
+G	CP904
+G	CP905
+G	CP9066
+G	CP912
+G	CP915
+G	CP916
+G	CP918
+G	CP920
+G	CP921
+G	CP922
+G	CP930
+G	CP932
+G	CP933
+G	CP935
+G	CP936
+G	CP937
+G	CP939
+G	CP9448
+G	CP949
+G	CP950
+G	CPIBM861
+G	CSA7-1
+G	CSA7-2
+G	CSASCII
+G	CSA_T500
+G	CSA_T500-1983
+G	CSA_Z243.4-1985-1
+G	CSA_Z243.4-1985-2
+G	CSA_Z243.419851
+G	CSA_Z243.419852
+G	CSDECMCS
+G	CSEBCDICATDE
+G	CSEBCDICATDEA
+G	CSEBCDICCAFR
+G	CSEBCDICDKNO
+G	CSEBCDICDKNOA
+G	CSEBCDICES
+G	CSEBCDICESA
+G	CSEBCDICESS
+G	CSEBCDICFISE
+G	CSEBCDICFISEA
+G	CSEBCDICFR
+G	CSEBCDICIT
+G	CSEBCDICPT
+G	CSEBCDICUK
+G	CSEBCDICUS
+G	CSEUCKR
+G	CSEUCPKDFMTJAPANESE
+G	CSGB2312
+G	CSHPROMAN8
+G	CSIBM037
+G	CSIBM038
+G	CSIBM1008
+G	CSIBM1025
+G	CSIBM1026
+G	CSIBM1097
+G	CSIBM1112
+G	CSIBM1122
+G	CSIBM1123
+G	CSIBM1124
+G	CSIBM1129
+G	CSIBM1130
+G	CSIBM1132
+G	CSIBM1133
+G	CSIBM1137
+G	CSIBM1140
+G	CSIBM1141
+G	CSIBM1142
+G	CSIBM1143
+G	CSIBM1144
+G	CSIBM1145
+G	CSIBM1146
+G	CSIBM1147
+G	CSIBM1148
+G	CSIBM1149
+G	CSIBM1153
+G	CSIBM1154
+G	CSIBM1155
+G	CSIBM1156
+G	CSIBM1157
+G	CSIBM1158
+G	CSIBM1160
+G	CSIBM1161
+G	CSIBM11621162
+G	CSIBM1163
+G	CSIBM1164
+G	CSIBM1166
+G	CSIBM1167
+G	CSIBM12712
+G	CSIBM1364
+G	CSIBM1371
+G	CSIBM1388
+G	CSIBM1390
+G	CSIBM1399
+G	CSIBM16804
+G	CSIBM273
+G	CSIBM274
+G	CSIBM275
+G	CSIBM277
+G	CSIBM278
+G	CSIBM280
+G	CSIBM281
+G	CSIBM284
+G	CSIBM285
+G	CSIBM290
+G	CSIBM297
+G	CSIBM420
+G	CSIBM423
+G	CSIBM424
+G	CSIBM4517
+G	CSIBM4899
+G	CSIBM4909
+G	CSIBM4971
+G	CSIBM500
+G	CSIBM5347
+G	CSIBM803
+G	CSIBM851
+G	CSIBM855
+G	CSIBM856
+G	CSIBM857
+G	CSIBM860
+G	CSIBM863
+G	CSIBM864
+G	CSIBM865
+G	CSIBM866
+G	CSIBM868
+G	CSIBM869
+G	CSIBM870
+G	CSIBM871
+G	CSIBM880
+G	CSIBM891
+G	CSIBM901
+G	CSIBM902
+G	CSIBM903
+G	CSIBM9030
+G	CSIBM904
+G	CSIBM905
+G	CSIBM9066
+G	CSIBM918
+G	CSIBM921
+G	CSIBM922
+G	CSIBM930
+G	CSIBM932
+G	CSIBM933
+G	CSIBM935
+G	CSIBM937
+G	CSIBM939
+G	CSIBM943
+G	CSIBM9448
+G	CSISO10367BOX
+G	CSISO103T618BIT
+G	CSISO10SWEDISH
+G	CSISO111ECMACYRILLIC
+G	CSISO11SWEDISHFORNAMES
+G	CSISO121CANADIAN1
+G	CSISO122CANADIAN2
+G	CSISO139CSN369103
+G	CSISO141JUSIB1002
+G	CSISO143IECP271
+G	CSISO14JISC6220RO
+G	CSISO150
+G	CSISO150GREEKCCITT
+G	CSISO151CUBA
+G	CSISO153GOST1976874
+G	CSISO15ITALIAN
+G	CSISO16PORTUGESE
+G	CSISO17SPANISH
+G	CSISO18GREEK7OLD
+G	CSISO19LATINGREEK
+G	CSISO2022CN
+G	CSISO2022JP
+G	CSISO2022JP2
+G	CSISO2022KR
+G	CSISO2033
+G	CSISO21GERMAN
+G	CSISO25FRENCH
+G	CSISO27LATINGREEK1
+G	CSISO49INIS
+G	CSISO4UNITEDKINGDOM
+G	CSISO50INIS8
+G	CSISO51INISCYRILLIC
+G	CSISO5427CYRILLIC
+G	CSISO5427CYRILLIC1981
+G	CSISO5428GREEK
+G	CSISO58GB1988
+G	CSISO60DANISHNORWEGIAN
+G	CSISO60NORWEGIAN1
+G	CSISO61NORWEGIAN2
+G	CSISO646DANISH
+G	CSISO69FRENCH
+G	CSISO84PORTUGUESE2
+G	CSISO85SPANISH2
+G	CSISO86HUNGARIAN
+G	CSISO88GREEK7
+G	CSISO89ASMO449
+G	CSISO90
+G	CSISO92JISC62991984B
+G	CSISO99NAPLPS
+G	CSISOLATIN1
+G	CSISOLATIN2
+G	CSISOLATIN3
+G	CSISOLATIN4
+G	CSISOLATIN5
+G	CSISOLATIN6
+G	CSISOLATINARABIC
+G	CSISOLATINCYRILLIC
+G	CSISOLATINGREEK
+G	CSISOLATINHEBREW
+G	CSKOI8R
+G	CSKSC5636
+G	CSMACINTOSH
+G	CSNATSDANO
+G	CSNATSSEFI
+G	CSN_369103
+G	CSPC775BALTIC
+G	CSPC850MULTILINGUAL
+G	CSPC858MULTILINGUAL
+G	CSPC862LATINHEBREW
+G	CSPC8CODEPAGE437
+G	CSPCP852
+G	CSSHIFTJIS
+G	CSUCS4
+G	CSUNICODE
+G	CSWINDOWS31J
+G	CUBA
+G	CWI
+G	CWI-2
+G	CYRILLIC
+G	DE
+G	DEC
+G	DEC-MCS
+G	DECMCS
+G	DIN_66003
+G	DK
+G	DS2089
+G	DS_2089
+G	E13B
+G	EBCDIC-AT-DE
+G	EBCDIC-AT-DE-A
+G	EBCDIC-BE
+G	EBCDIC-BR
+G	EBCDIC-CA-FR
+G	EBCDIC-CP-AR1
+G	EBCDIC-CP-AR2
+G	EBCDIC-CP-BE
+G	EBCDIC-CP-CA
+G	EBCDIC-CP-CH
+G	EBCDIC-CP-DK
+G	EBCDIC-CP-ES
+G	EBCDIC-CP-FI
+G	EBCDIC-CP-FR
+G	EBCDIC-CP-GB
+G	EBCDIC-CP-GR
+G	EBCDIC-CP-HE
+G	EBCDIC-CP-IS
+G	EBCDIC-CP-IT
+G	EBCDIC-CP-NL
+G	EBCDIC-CP-NO
+G	EBCDIC-CP-ROECE
+G	EBCDIC-CP-SE
+G	EBCDIC-CP-TR
+G	EBCDIC-CP-US
+G	EBCDIC-CP-WT
+G	EBCDIC-CP-YU
+G	EBCDIC-CYRILLIC
+G	EBCDIC-DK-NO
+G	EBCDIC-DK-NO-A
+G	EBCDIC-ES
+G	EBCDIC-ES-A
+G	EBCDIC-ES-S
+G	EBCDIC-FI-SE
+G	EBCDIC-FI-SE-A
+G	EBCDIC-FR
+G	EBCDIC-GREEK
+G	EBCDIC-INT
+G	EBCDIC-INT1
+G	EBCDIC-IS-FRISS
+G	EBCDIC-IT
+G	EBCDIC-JP-E
+G	EBCDIC-JP-KANA
+G	EBCDIC-PT
+G	EBCDIC-UK
+G	EBCDIC-US
+G	EBCDICATDE
+G	EBCDICATDEA
+G	EBCDICCAFR
+G	EBCDICDKNO
+G	EBCDICDKNOA
+G	EBCDICES
+G	EBCDICESA
+G	EBCDICESS
+G	EBCDICFISE
+G	EBCDICFISEA
+G	EBCDICFR
+G	EBCDICISFRISS
+G	EBCDICIT
+G	EBCDICPT
+G	EBCDICUK
+G	EBCDICUS
+G	ECMA-114
+G	ECMA-118
+G	ECMA-128
+G	ECMA-CYRILLIC
+G	ECMACYRILLIC
+G	ELOT_928
+G	ES
+G	ES2
+G	EUC-CN
+G	EUC-JISX0213
+G	EUC-JP
+G	EUC-JP-MS
+G	EUC-KR
+G	EUC-TW
+G	EUCCN
+G	EUCJP
+G	EUCJP-MS
+G	EUCJP-OPEN
+G	EUCJP-WIN
+G	EUCKR
+G	EUCTW
+G	FI
+G	FR
+G	GB
+G	GB13000
+G	GB18030
+G	GB2312
+G	GBK
+G	GB_1988-80
+G	GB_198880
+G	GEORGIAN-ACADEMY
+G	GEORGIAN-PS
+G	GOST_19768
+G	GOST_19768-74
+G	GOST_1976874
+G	GREEK
+G	GREEK-CCITT
+G	GREEK7
+G	GREEK7-OLD
+G	GREEK7OLD
+G	GREEK8
+G	GREEKCCITT
+G	HEBREW
+G	HP-GREEK8
+G	HP-ROMAN8
+G	HP-ROMAN9
+G	HP-THAI8
+G	HP-TURKISH8
+G	HPGREEK8
+G	HPROMAN8
+G	HPROMAN9
+G	HPTHAI8
+G	HPTURKISH8
+G	HU
+G	IBM-1008
+G	IBM-1025
+G	IBM-1046
+G	IBM-1047
+G	IBM-1097
+G	IBM-1112
+G	IBM-1122
+G	IBM-1123
+G	IBM-1124
+G	IBM-1129
+G	IBM-1130
+G	IBM-1132
+G	IBM-1133
+G	IBM-1137
+G	IBM-1140
+G	IBM-1141
+G	IBM-1142
+G	IBM-1143
+G	IBM-1144
+G	IBM-1145
+G	IBM-1146
+G	IBM-1147
+G	IBM-1148
+G	IBM-1149
+G	IBM-1153
+G	IBM-1154
+G	IBM-1155
+G	IBM-1156
+G	IBM-1157
+G	IBM-1158
+G	IBM-1160
+G	IBM-1161
+G	IBM-1162
+G	IBM-1163
+G	IBM-1164
+G	IBM-1166
+G	IBM-1167
+G	IBM-12712
+G	IBM-1364
+G	IBM-1371
+G	IBM-1388
+G	IBM-1390
+G	IBM-1399
+G	IBM-16804
+G	IBM-4517
+G	IBM-4899
+G	IBM-4909
+G	IBM-4971
+G	IBM-5347
+G	IBM-803
+G	IBM-856
+G	IBM-901
+G	IBM-902
+G	IBM-9030
+G	IBM-9066
+G	IBM-921
+G	IBM-922
+G	IBM-930
+G	IBM-932
+G	IBM-933
+G	IBM-935
+G	IBM-937
+G	IBM-939
+G	IBM-943
+G	IBM-9448
+G	IBM037
+G	IBM038
+G	IBM1004
+G	IBM1008
+G	IBM1025
+G	IBM1026
+G	IBM1046
+G	IBM1047
+G	IBM1089
+G	IBM1097
+G	IBM1112
+G	IBM1122
+G	IBM1123
+G	IBM1124
+G	IBM1129
+G	IBM1130
+G	IBM1132
+G	IBM1133
+G	IBM1137
+G	IBM1140
+G	IBM1141
+G	IBM1142
+G	IBM1143
+G	IBM1144
+G	IBM1145
+G	IBM1146
+G	IBM1147
+G	IBM1148
+G	IBM1149
+G	IBM1153
+G	IBM1154
+G	IBM1155
+G	IBM1156
+G	IBM1157
+G	IBM1158
+G	IBM1160
+G	IBM1161
+G	IBM1162
+G	IBM1163
+G	IBM1164
+G	IBM1166
+G	IBM1167
+G	IBM12712
+G	IBM1364
+G	IBM1371
+G	IBM1388
+G	IBM1390
+G	IBM1399
+G	IBM16804
+G	IBM256
+G	IBM273
+G	IBM274
+G	IBM275
+G	IBM277
+G	IBM278
+G	IBM280
+G	IBM281
+G	IBM284
+G	IBM285
+G	IBM290
+G	IBM297
+G	IBM367
+G	IBM420
+G	IBM423
+G	IBM424
+G	IBM437
+G	IBM4517
+G	IBM4899
+G	IBM4909
+G	IBM4971
+G	IBM500
+G	IBM5347
+G	IBM775
+G	IBM803
+G	IBM813
+G	IBM819
+G	IBM848
+G	IBM850
+G	IBM851
+G	IBM852
+G	IBM855
+G	IBM856
+G	IBM857
+G	IBM858
+G	IBM860
+G	IBM861
+G	IBM862
+G	IBM863
+G	IBM864
+G	IBM865
+G	IBM866
+G	IBM866NAV
+G	IBM868
+G	IBM869
+G	IBM870
+G	IBM871
+G	IBM874
+G	IBM875
+G	IBM880
+G	IBM891
+G	IBM901
+G	IBM902
+G	IBM903
+G	IBM9030
+G	IBM904
+G	IBM905
+G	IBM9066
+G	IBM912
+G	IBM915
+G	IBM916
+G	IBM918
+G	IBM920
+G	IBM921
+G	IBM922
+G	IBM930
+G	IBM932
+G	IBM933
+G	IBM935
+G	IBM937
+G	IBM939
+G	IBM943
+G	IBM9448
+G	IEC_P27-1
+G	IEC_P271
+G	INIS
+G	INIS-8
+G	INIS-CYRILLIC
+G	INIS8
+G	INISCYRILLIC
+G	ISIRI-3342
+G	ISIRI3342
+G	ISO-10646
+G	ISO-2022-CN
+G	ISO-2022-CN-EXT
+G	ISO-2022-JP
+G	ISO-2022-JP-2
+G	ISO-2022-JP-3
+G	ISO-2022-KR
+G	ISO-8859-1
+G	ISO-8859-10
+G	ISO-8859-11
+G	ISO-8859-13
+G	ISO-8859-14
+G	ISO-8859-15
+G	ISO-8859-16
+G	ISO-8859-2
+G	ISO-8859-3
+G	ISO-8859-4
+G	ISO-8859-5
+G	ISO-8859-6
+G	ISO-8859-7
+G	ISO-8859-8
+G	ISO-8859-9
+G	ISO-8859-9E
+G	ISO-CELTIC
+G	ISO-IR-10
+G	ISO-IR-100
+G	ISO-IR-101
+G	ISO-IR-103
+G	ISO-IR-109
+G	ISO-IR-11
+G	ISO-IR-110
+G	ISO-IR-111
+G	ISO-IR-121
+G	ISO-IR-122
+G	ISO-IR-126
+G	ISO-IR-127
+G	ISO-IR-138
+G	ISO-IR-139
+G	ISO-IR-14
+G	ISO-IR-141
+G	ISO-IR-143
+G	ISO-IR-144
+G	ISO-IR-148
+G	ISO-IR-15
+G	ISO-IR-150
+G	ISO-IR-151
+G	ISO-IR-153
+G	ISO-IR-155
+G	ISO-IR-156
+G	ISO-IR-157
+G	ISO-IR-16
+G	ISO-IR-166
+G	ISO-IR-17
+G	ISO-IR-179
+G	ISO-IR-18
+G	ISO-IR-19
+G	ISO-IR-193
+G	ISO-IR-197
+G	ISO-IR-199
+G	ISO-IR-203
+G	ISO-IR-209
+G	ISO-IR-21
+G	ISO-IR-226
+G	ISO-IR-25
+G	ISO-IR-27
+G	ISO-IR-37
+G	ISO-IR-4
+G	ISO-IR-49
+G	ISO-IR-50
+G	ISO-IR-51
+G	ISO-IR-54
+G	ISO-IR-55
+G	ISO-IR-57
+G	ISO-IR-6
+G	ISO-IR-60
+G	ISO-IR-61
+G	ISO-IR-69
+G	ISO-IR-8-1
+G	ISO-IR-84
+G	ISO-IR-85
+G	ISO-IR-86
+G	ISO-IR-88
+G	ISO-IR-89
+G	ISO-IR-9-1
+G	ISO-IR-90
+G	ISO-IR-92
+G	ISO-IR-98
+G	ISO-IR-99
+G	ISO11548-1
+G	ISO2022CN
+G	ISO2022CNEXT
+G	ISO2022JP
+G	ISO2022JP2
+G	ISO2022KR
+G	ISO646-CA
+G	ISO646-CA2
+G	ISO646-CN
+G	ISO646-CU
+G	ISO646-DE
+G	ISO646-DK
+G	ISO646-ES
+G	ISO646-ES2
+G	ISO646-FI
+G	ISO646-FR
+G	ISO646-FR1
+G	ISO646-GB
+G	ISO646-HU
+G	ISO646-IT
+G	ISO646-JP
+G	ISO646-JP-OCR-B
+G	ISO646-KR
+G	ISO646-NO
+G	ISO646-NO2
+G	ISO646-PT
+G	ISO646-PT2
+G	ISO646-SE
+G	ISO646-SE2
+G	ISO646-US
+G	ISO646-YU
+G	ISO6937
+G	ISO8859-1
+G	ISO8859-10
+G	ISO8859-11
+G	ISO8859-13
+G	ISO8859-14
+G	ISO8859-15
+G	ISO8859-16
+G	ISO8859-2
+G	ISO8859-3
+G	ISO8859-4
+G	ISO8859-5
+G	ISO8859-6
+G	ISO8859-7
+G	ISO8859-8
+G	ISO8859-9
+G	ISO8859-9E
+G	ISO88591
+G	ISO885910
+G	ISO885911
+G	ISO885913
+G	ISO885914
+G	ISO885915
+G	ISO885916
+G	ISO88592
+G	ISO88593
+G	ISO88594
+G	ISO88595
+G	ISO88596
+G	ISO88597
+G	ISO88598
+G	ISO88599
+G	ISO88599E
+G	ISO_10367-BOX
+G	ISO_10367BOX
+G	ISO_11548-1
+G	ISO_2033
+G	ISO_2033-1983
+G	ISO_5427
+G	ISO_5427-EXT
+G	ISO_5427EXT
+G	ISO_5428
+G	ISO_6937
+G	ISO_6937-2
+G	ISO_69372
+G	ISO_8859-1
+G	ISO_8859-10
+G	ISO_8859-14
+G	ISO_8859-15
+G	ISO_8859-16
+G	ISO_8859-2
+G	ISO_8859-3
+G	ISO_8859-4
+G	ISO_8859-5
+G	ISO_8859-6
+G	ISO_8859-7
+G	ISO_8859-8
+G	ISO_8859-9
+G	ISO_8859-9E
+G	ISO_9036
+G	IT
+G	JIS_C6220-1969-RO
+G	JIS_C62201969RO
+G	JIS_C6229-1984-B
+G	JIS_C62291984B
+G	JOHAB
+G	JP
+G	JP-OCR-B
+G	JS
+G	JUS_I.B1.002
+G	KOI-7
+G	KOI-8
+G	KOI8
+G	KOI8-R
+G	KOI8-RU
+G	KOI8-T
+G	KOI8-U
+G	KOI8R
+G	KOI8U
+G	KSC5636
+G	L1
+G	L10
+G	L2
+G	L3
+G	L4
+G	L5
+G	L6
+G	L7
+G	L8
+G	LATIN-9
+G	LATIN-GREEK
+G	LATIN-GREEK-1
+G	LATIN1
+G	LATIN10
+G	LATIN2
+G	LATIN3
+G	LATIN4
+G	LATIN5
+G	LATIN6
+G	LATIN7
+G	LATIN8
+G	LATIN9
+G	LATINGREEK
+G	LATINGREEK1
+G	MAC
+G	MAC-CENTRALEUROPE
+G	MAC-CYRILLIC
+G	MAC-IS
+G	MAC-SAMI
+G	MAC-UK
+G	MACCYRILLIC
+G	MACINTOSH
+G	MACIS
+G	MACUK
+G	MACUKRAINIAN
+G	MIK
+G	MS-ANSI
+G	MS-ARAB
+G	MS-CYRL
+G	MS-EE
+G	MS-GREEK
+G	MS-HEBR
+G	MS-MAC-CYRILLIC
+G	MS-TURK
+G	MS932
+G	MS936
+G	MSCP1361
+G	MSCP949
+G	MSMACCYRILLIC
+G	MSZ_7795.3
+G	MS_KANJI
+G	NAPLPS
+G	NATS-DANO
+G	NATS-SEFI
+G	NATSDANO
+G	NATSSEFI
+G	NC_NC00-10
+G	NC_NC0010
+G	NF_Z_62-010
+G	NF_Z_62-010_1973
+G	NF_Z_62010
+G	NF_Z_62010_1973
+G	NO
+G	NO2
+G	NS_4551-1
+G	NS_4551-2
+G	NS_45511
+G	NS_45512
+G	OS2LATIN1
+G	OSF00010001
+G	OSF00010002
+G	OSF00010003
+G	OSF00010004
+G	OSF00010005
+G	OSF00010006
+G	OSF00010007
+G	OSF00010008
+G	OSF00010009
+G	OSF0001000A
+G	OSF00010020
+G	OSF00010100
+G	OSF00010101
+G	OSF00010102
+G	OSF00010104
+G	OSF00010105
+G	OSF00010106
+G	OSF00030010
+G	OSF0004000A
+G	OSF0005000A
+G	OSF05010001
+G	OSF10010001
+G	OSF10010004
+G	OSF10010006
+G	OSF10020025
+G	OSF10020111
+G	OSF10020115
+G	OSF10020116
+G	OSF10020118
+G	OSF1002011C
+G	OSF1002011D
+G	OSF10020122
+G	OSF10020129
+G	OSF100201A4
+G	OSF100201A8
+G	OSF100201B5
+G	OSF100201F4
+G	OSF10020352
+G	OSF10020354
+G	OSF10020357
+G	OSF10020359
+G	OSF1002035D
+G	OSF1002035E
+G	OSF1002035F
+G	OSF10020360
+G	OSF10020364
+G	OSF10020365
+G	OSF10020366
+G	OSF10020367
+G	OSF1002036B
+G	OSF10020370
+G	OSF1002037B
+G	OSF10020387
+G	OSF10020388
+G	OSF10020396
+G	OSF100203B5
+G	OSF10020402
+G	OSF10020417
+G	PT
+G	PT154
+G	PT2
+G	R8
+G	R9
+G	RK1048
+G	ROMAN8
+G	ROMAN9
+G	RUSCII
+G	SE
+G	SE2
+G	SEN_850200_B
+G	SEN_850200_C
+G	SHIFT-JIS
+G	SHIFTJISX0213
+G	SHIFT_JIS
+G	SHIFT_JISX0213
+G	SJIS
+G	SJIS-OPEN
+G	SJIS-WIN
+G	SS636127
+G	STRK1048-2002
+G	ST_SEV_358-88
+G	T.61
+G	T.61-8BIT
+G	T.618BIT
+G	TCVN
+G	TCVN-5712
+G	TCVN5712-1
+G	THAI8
+G	TIS-620
+G	TIS620
+G	TIS620-0
+G	TIS620.2529-1
+G	TIS620.2533-0
+G	TS-5881
+G	TSCII
+G	TURKISH8
+G	UCS-2
+G	UCS-2BE
+G	UCS-2LE
+G	UCS-4
+G	UCS-4BE
+G	UCS-4LE
+G	UCS2
+G	UCS4
+G	UHC
+G	UJIS
+G	UK
+G	UNICODE
+G	UNICODEBIG
+G	UNICODELITTLE
+G	US
+G	US-ASCII
+G	UTF-16
+G	UTF-16BE
+G	UTF-16LE
+G	UTF-32
+G	UTF-32BE
+G	UTF-32LE
+G	UTF-7
+G	UTF-7-IMAP
+G	UTF-8
+G	UTF16
+G	UTF16BE
+G	UTF16LE
+G	UTF32
+G	UTF32BE
+G	UTF32LE
+G	UTF7
+G	UTF8
+G	VISCII
+G	WCHAR_T
+G	WIN-SAMI-2
+G	WINBALTRIM
+G	WINDOWS-1250
+G	WINDOWS-1251
+G	WINDOWS-1252
+G	WINDOWS-1253
+G	WINDOWS-1254
+G	WINDOWS-1255
+G	WINDOWS-1256
+G	WINDOWS-1257
+G	WINDOWS-1258
+G	WINDOWS-31J
+G	WINDOWS-874
+G	WINDOWS-936
+G	WINSAMI2
+G	WS2
+G	YU
+D	cns-11643-1992
+D	ebcdic-xml-us
+D	euc-jp-2007
+D	euc-tw-2014
+D	gb18030
+D	gsm-03.38-2009
+D	ibm-1006_P100-1995
+D	ibm-1025_P100-1995
+D	ibm-1026_P100-1995
+D	ibm-1047_P100-1995
+D	ibm-1051_P100-1995
+D	ibm-1089_P100-1995
+D	ibm-1097_P100-1995
+D	ibm-1098_P100-1995
+D	ibm-1112_P100-1995
+D	ibm-1122_P100-1999
+D	ibm-1123_P100-1995
+D	ibm-1124_P100-1996
+D	ibm-1125_P100-1997
+D	ibm-1129_P100-1997
+D	ibm-1130_P100-1997
+D	ibm-1131_P100-1997
+D	ibm-1132_P100-1998
+D	ibm-1133_P100-1997
+D	ibm-1137_P100-1999
+D	ibm-1140_P100-1997
+D	ibm-1141_P100-1997
+D	ibm-1142_P100-1997
+D	ibm-1143_P100-1997
+D	ibm-1144_P100-1997
+D	ibm-1145_P100-1997
+D	ibm-1146_P100-1997
+D	ibm-1147_P100-1997
+D	ibm-1148_P100-1997
+D	ibm-1149_P100-1997
+D	ibm-1153_P100-1999
+D	ibm-1154_P100-1999
+D	ibm-1155_P100-1999
+D	ibm-1156_P100-1999
+D	ibm-1157_P100-1999
+D	ibm-1158_P100-1999
+D	ibm-1160_P100-1999
+D	ibm-1162_P100-1999
+D	ibm-1164_P100-1999
+D	ibm-1168_P100-2002
+D	ibm-1250_P100-1995
+D	ibm-1251_P100-1995
+D	ibm-1252_P100-2000
+D	ibm-1253_P100-1995
+D	ibm-1254_P100-1995
+D	ibm-1255_P100-1995
+D	ibm-1256_P110-1997
+D	ibm-1257_P100-1995
+D	ibm-1258_P100-1997
+D	ibm-12712_P100-1998
+D	ibm-1276_P100-1995
+D	ibm-1363_P110-1997
+D	ibm-1363_P11B-1998
+D	ibm-1364_P110-2007
+D	ibm-1371_P100-1999
+D	ibm-1373_P100-2002
+D	ibm-1375_P100-2008
+D	ibm-1383_P110-1999
+D	ibm-1386_P100-2001
+D	ibm-1388_P103-2001
+D	ibm-1390_P110-2003
+D	ibm-1399_P110-2003
+D	ibm-16684_P110-2003
+D	ibm-16804_X110-1999
+D	ibm-273_P100-1995
+D	ibm-277_P100-1995
+D	ibm-278_P100-1995
+D	ibm-280_P100-1995
+D	ibm-284_P100-1995
+D	ibm-285_P100-1995
+D	ibm-290_P100-1995
+D	ibm-297_P100-1995
+D	ibm-33722_P120-1999
+D	ibm-33722_P12A_P12A-2004_U2
+D	ibm-33722_P12A_P12A-2009_U2
+D	ibm-37_P100-1995
+D	ibm-420_X120-1999
+D	ibm-424_P100-1995
+D	ibm-437_P100-1995
+D	ibm-4517_P100-2005
+D	ibm-4899_P100-1998
+D	ibm-4909_P100-1999
+D	ibm-4971_P100-1999
+D	ibm-500_P100-1995
+D	ibm-5012_P100-1999
+D	ibm-5123_P100-1999
+D	ibm-5346_P100-1998
+D	ibm-5347_P100-1998
+D	ibm-5348_P100-1997
+D	ibm-5349_P100-1998
+D	ibm-5350_P100-1998
+D	ibm-5351_P100-1998
+D	ibm-5352_P100-1998
+D	ibm-5353_P100-1998
+D	ibm-5354_P100-1998
+D	ibm-5471_P100-2006
+D	ibm-5478_P100-1995
+D	ibm-720_P100-1997
+D	ibm-737_P100-1997
+D	ibm-775_P100-1996
+D	ibm-803_P100-1999
+D	ibm-813_P100-1995
+D	ibm-838_P100-1995
+D	ibm-8482_P100-1999
+D	ibm-850_P100-1995
+D	ibm-851_P100-1995
+D	ibm-852_P100-1995
+D	ibm-855_P100-1995
+D	ibm-856_P100-1995
+D	ibm-857_P100-1995
+D	ibm-858_P100-1997
+D	ibm-860_P100-1995
+D	ibm-861_P100-1995
+D	ibm-862_P100-1995
+D	ibm-863_P100-1995
+D	ibm-864_X110-1999
+D	ibm-865_P100-1995
+D	ibm-866_P100-1995
+D	ibm-867_P100-1998
+D	ibm-868_P100-1995
+D	ibm-869_P100-1995
+D	ibm-870_P100-1995
+D	ibm-871_P100-1995
+D	ibm-874_P100-1995
+D	ibm-875_P100-1995
+D	ibm-878_P100-1996
+D	ibm-9005_X110-2007
+D	ibm-901_P100-1999
+D	ibm-902_P100-1999
+D	ibm-9067_X100-2005
+D	ibm-912_P100-1995
+D	ibm-913_P100-2000
+D	ibm-914_P100-1995
+D	ibm-915_P100-1995
+D	ibm-916_P100-1995
+D	ibm-918_P100-1995
+D	ibm-920_P100-1995
+D	ibm-921_P100-1995
+D	ibm-922_P100-1999
+D	ibm-923_P100-1998
+D	ibm-930_P120-1999
+D	ibm-933_P110-1995
+D	ibm-935_P110-1999
+D	ibm-937_P110-1999
+D	ibm-939_P120-1999
+D	ibm-942_P12A-1999
+D	ibm-943_P130-1999
+D	ibm-943_P15A-2003
+D	ibm-9447_P100-2002
+D	ibm-9448_X100-2005
+D	ibm-9449_P100-2002
+D	ibm-949_P110-1999
+D	ibm-949_P11A-1999
+D	ibm-950_P110-1999
+D	ibm-954_P101-2007
+D	ibm-964_P110-1999
+D	ibm-970_P110_P110-2006_U2
+D	ibm-971_P100-1995
+D	icu-internal-25546
+D	icu-internal-compound-d1
+D	icu-internal-compound-d2
+D	icu-internal-compound-d3
+D	icu-internal-compound-d4
+D	icu-internal-compound-d5
+D	icu-internal-compound-d6
+D	icu-internal-compound-d7
+D	icu-internal-compound-s1
+D	icu-internal-compound-s2
+D	icu-internal-compound-s3
+D	icu-internal-compound-t
+D	iso-8859_10-1998
+D	iso-8859_11-2001
+D	iso-8859_14-1998
+D	iso-ir-165
+D	jisx-212
+D	lmb-excp
+D	macos-0_2-10.2
+D	macos-29-10.2
+D	macos-35-10.2
+D	macos-6_2-10.4
+D	macos-7_3-10.2
+D	windows-874-2000
+D	windows-936-2000
+D	windows-949-2000
+D	windows-950-2000
+A	1006	1006	ibm-1006_P100-1995	shipped-cnv	no
+A	1025	1025	ibm-1025_P100-1995	shipped-cnv	no
+A	1026	1026	ibm-1026_P100-1995	shipped-cnv	no
+A	1047	1047	ibm-1047_P100-1995	shipped-cnv	no
+A	1089	1089	ibm-1089_P100-1995	shipped-cnv	no
+A	1097	1097	ibm-1097_P100-1995	shipped-cnv	no
+A	1098	1098	ibm-1098_P100-1995	shipped-cnv	no
+A	1112	1112	ibm-1112_P100-1995	shipped-cnv	no
+A	1122	1122	ibm-1122_P100-1999	shipped-cnv	no
+A	1123	1123	ibm-1123_P100-1995	shipped-cnv	no
+A	1124	1124	ibm-1124_P100-1996	shipped-cnv	no
+A	1381	1381	ibm-1381_P110-1999	not-in-cnv-or-algorithmic	no
+A	1383	1383	ibm-1383_P110-1999	shipped-cnv	no
+A	273	273	ibm-273_P100-1995	shipped-cnv	no
+A	277	277	ibm-277_P100-1995	shipped-cnv	no
+A	278	278	ibm-278_P100-1995	shipped-cnv	no
+A	280	280	ibm-280_P100-1995	shipped-cnv	no
+A	284	284	ibm-284_P100-1995	shipped-cnv	no
+A	285	285	ibm-285_P100-1995	shipped-cnv	no
+A	297	297	ibm-297_P100-1995	shipped-cnv	no
+A	33722	33722	ibm-33722_P120-1999	shipped-cnv	no
+A	037	37	ibm-37_P100-1995	shipped-cnv	no
+A	420	420	ibm-420_X120-1999	shipped-cnv	no
+A	424	424	ibm-424_P100-1995	shipped-cnv	no
+A	437	437	ibm-437_P100-1995	shipped-cnv	no
+A	500	500	ibm-500_P100-1995	shipped-cnv	no
+A	5601	5601	ibm-970_P110_P110-2006_U2	shipped-cnv	yes
+A	646	646	US-ASCII	algorithmic	no
+A	737	737	ibm-737_P100-1997	shipped-cnv	no
+A	775	775	ibm-775_P100-1996	shipped-cnv	no
+A	813	813	ibm-813_P100-1995	shipped-cnv	no
+A	819	819	ISO-8859-1	algorithmic	no
+A	838	838	ibm-838_P100-1995	shipped-cnv	no
+A	850	850	ibm-850_P100-1995	shipped-cnv	no
+A	851	851	ibm-851_P100-1995	shipped-cnv	no
+A	852	852	ibm-852_P100-1995	shipped-cnv	no
+A	855	855	ibm-855_P100-1995	shipped-cnv	no
+A	856	856	ibm-856_P100-1995	shipped-cnv	no
+A	857	857	ibm-857_P100-1995	shipped-cnv	no
+A	860	860	ibm-860_P100-1995	shipped-cnv	no
+A	861	861	ibm-861_P100-1995	shipped-cnv	no
+A	862	862	ibm-862_P100-1995	shipped-cnv	no
+A	863	863	ibm-863_P100-1995	shipped-cnv	no
+A	865	865	ibm-865_P100-1995	shipped-cnv	no
+A	866	866	ibm-866_P100-1995	shipped-cnv	no
+A	868	868	ibm-868_P100-1995	shipped-cnv	no
+A	869	869	ibm-869_P100-1995	shipped-cnv	no
+A	871	871	ibm-871_P100-1995	shipped-cnv	no
+A	875	875	ibm-875_P100-1995	shipped-cnv	no
+A	8859_1	88591	ISO-8859-1	algorithmic	no
+A	8859_13	885913	ibm-921_P100-1995	shipped-cnv	no
+A	8859_15	885915	ibm-923_P100-1998	shipped-cnv	no
+A	8859_2	88592	ibm-912_P100-1995	shipped-cnv	no
+A	8859_3	88593	ibm-913_P100-2000	shipped-cnv	no
+A	8859_4	88594	ibm-914_P100-1995	shipped-cnv	no
+A	8859_5	88595	ibm-915_P100-1995	shipped-cnv	no
+A	8859_6	88596	ibm-1089_P100-1995	shipped-cnv	no
+A	8859_7	88597	ibm-9005_X110-2007	shipped-cnv	no
+A	8859_8	88598	ibm-5012_P100-1999	shipped-cnv	no
+A	8859_9	88599	ibm-920_P100-1995	shipped-cnv	no
+A	912	912	ibm-912_P100-1995	shipped-cnv	no
+A	913	913	ibm-913_P100-2000	shipped-cnv	no
+A	914	914	ibm-914_P100-1995	shipped-cnv	no
+A	915	915	ibm-915_P100-1995	shipped-cnv	no
+A	916	916	ibm-916_P100-1995	shipped-cnv	no
+A	920	920	ibm-920_P100-1995	shipped-cnv	no
+A	921	921	ibm-921_P100-1995	shipped-cnv	no
+A	922	922	ibm-922_P100-1999	shipped-cnv	no
+A	923	923	ibm-923_P100-1998	shipped-cnv	no
+A	930	930	ibm-930_P120-1999	shipped-cnv	no
+A	933	933	ibm-933_P110-1995	shipped-cnv	no
+A	935	935	ibm-935_P110-1999	shipped-cnv	no
+A	937	937	ibm-937_P110-1999	shipped-cnv	no
+A	939	939	ibm-939_P120-1999	shipped-cnv	no
+A	943	943	ibm-943_P130-1999	shipped-cnv	no
+A	949	949	ibm-949_P110-1999	shipped-cnv	no
+A	950	950	ibm-950_P110-1999	shipped-cnv	no
+A	964	964	ibm-964_P110-1999	shipped-cnv	no
+A	970	970	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	Adobe-Standard-Encoding	adobestandardencoding	ibm-1276_P100-1995	shipped-cnv	no
+A	aix-IBM_udcJP-4.3.6	aixibmudcjp436	aix-IBM_udcJP-4.3.6	not-in-cnv-or-algorithmic	no
+A	ANSI1251	ansi1251	ibm-5347_P100-1998	shipped-cnv	no
+A	ANSI_X3.4-1968	ansix341968	US-ASCII	algorithmic	no
+A	ANSI_X3.4-1986	ansix341986	US-ASCII	algorithmic	no
+A	arabic	arabic	ibm-1089_P100-1995	shipped-cnv	no
+A	ASCII	ascii	US-ASCII	algorithmic	no
+A	ascii7	ascii7	US-ASCII	algorithmic	no
+A	ASMO-708	asmo708	ibm-1089_P100-1995	shipped-cnv	no
+A	Big5	big5	windows-950-2000	shipped-cnv	no
+A	big5hk	big5hk	ibm-1375_P100-2008	shipped-cnv	no
+A	Big5-HKSCS	big5hkscs	ibm-1375_P100-2008	shipped-cnv	yes
+A	big5-hkscs:unicode3.0	big5hkscsunicode30	ibm-5471_P100-2006	shipped-cnv	no
+A	Big5_Solaris	big5solaris	solaris-zh_TW_big5-2.7	not-in-cnv-or-algorithmic	no
+A	BOCU-1	bocu1	BOCU-1	algorithmic	no
+A	BS_4730	bs4730	ibm-1013_P100-1995	not-in-cnv-or-algorithmic	no
+A	ca	ca	ibm-1020_P100-2003	not-in-cnv-or-algorithmic	no
+A	CCSID01140	ccsid1140	ibm-1140_P100-1997	shipped-cnv	no
+A	CCSID01141	ccsid1141	ibm-1141_P100-1997	shipped-cnv	no
+A	CCSID01142	ccsid1142	ibm-1142_P100-1997	shipped-cnv	no
+A	CCSID01143	ccsid1143	ibm-1143_P100-1997	shipped-cnv	no
+A	CCSID01144	ccsid1144	ibm-1144_P100-1997	shipped-cnv	no
+A	CCSID01145	ccsid1145	ibm-1145_P100-1997	shipped-cnv	no
+A	CCSID01146	ccsid1146	ibm-1146_P100-1997	shipped-cnv	no
+A	CCSID01147	ccsid1147	ibm-1147_P100-1997	shipped-cnv	no
+A	CCSID01148	ccsid1148	ibm-1148_P100-1997	shipped-cnv	no
+A	CCSID01149	ccsid1149	ibm-1149_P100-1997	shipped-cnv	no
+A	CCSID00858	ccsid858	ibm-858_P100-1997	shipped-cnv	no
+A	CCSID00924	ccsid924	ibm-924_P100-1998	not-in-cnv-or-algorithmic	no
+A	CESU-8	cesu8	CESU-8	algorithmic	no
+A	chinese	chinese	ibm-5478_P100-1995	shipped-cnv	no
+A	cns11643	cns11643	ibm-964_P110-1999	shipped-cnv	no
+A	COMPOUND_TEXT	compoundtext	x11-compound-text	algorithmic	no
+A	cp1006	cp1006	ibm-1006_P100-1995	shipped-cnv	no
+A	cp1025	cp1025	ibm-1025_P100-1995	shipped-cnv	no
+A	CP1026	cp1026	ibm-1026_P100-1995	shipped-cnv	no
+A	cp1047	cp1047	ibm-1047_P100-1995	shipped-cnv	no
+A	cp1089	cp1089	ibm-1089_P100-1995	shipped-cnv	no
+A	cp1097	cp1097	ibm-1097_P100-1995	shipped-cnv	no
+A	cp1098	cp1098	ibm-1098_P100-1995	shipped-cnv	no
+A	cp1112	cp1112	ibm-1112_P100-1995	shipped-cnv	no
+A	cp1122	cp1122	ibm-1122_P100-1999	shipped-cnv	no
+A	cp1123	cp1123	ibm-1123_P100-1995	shipped-cnv	no
+A	cp1124	cp1124	ibm-1124_P100-1996	shipped-cnv	no
+A	cp1125	cp1125	ibm-1125_P100-1997	shipped-cnv	no
+A	cp1131	cp1131	ibm-1131_P100-1997	shipped-cnv	no
+A	cp1140	cp1140	ibm-1140_P100-1997	shipped-cnv	no
+A	cp1141	cp1141	ibm-1141_P100-1997	shipped-cnv	no
+A	cp1142	cp1142	ibm-1142_P100-1997	shipped-cnv	no
+A	cp1143	cp1143	ibm-1143_P100-1997	shipped-cnv	no
+A	cp1144	cp1144	ibm-1144_P100-1997	shipped-cnv	no
+A	cp1145	cp1145	ibm-1145_P100-1997	shipped-cnv	no
+A	cp1146	cp1146	ibm-1146_P100-1997	shipped-cnv	no
+A	cp1147	cp1147	ibm-1147_P100-1997	shipped-cnv	no
+A	cp1148	cp1148	ibm-1148_P100-1997	shipped-cnv	no
+A	cp1149	cp1149	ibm-1149_P100-1997	shipped-cnv	no
+A	cp1200	cp1200	UTF-16BE	algorithmic	no
+A	cp1201	cp1201	UTF-16BE	algorithmic	no
+A	cp1208	cp1208	UTF-8	algorithmic	no
+A	cp1250	cp1250	ibm-5346_P100-1998	shipped-cnv	no
+A	cp1251	cp1251	ibm-5347_P100-1998	shipped-cnv	no
+A	cp1252	cp1252	ibm-5348_P100-1997	shipped-cnv	no
+A	cp1253	cp1253	ibm-5349_P100-1998	shipped-cnv	no
+A	cp1254	cp1254	ibm-5350_P100-1998	shipped-cnv	no
+A	cp1255	cp1255	ibm-9447_P100-2002	shipped-cnv	no
+A	cp1256	cp1256	ibm-9448_X100-2005	shipped-cnv	no
+A	cp1257	cp1257	ibm-9449_P100-2002	shipped-cnv	no
+A	cp1258	cp1258	ibm-5354_P100-1998	shipped-cnv	no
+A	cp1363	cp1363	ibm-1363_P11B-1998	shipped-cnv	no
+A	cp1381	cp1381	ibm-1381_P110-1999	not-in-cnv-or-algorithmic	no
+A	cp1383	cp1383	ibm-1383_P110-1999	shipped-cnv	no
+A	cp1386	cp1386	ibm-1386_P100-2001	shipped-cnv	no
+A	CP154	cp154	glibc-PT154-2.3.3	not-in-cnv-or-algorithmic	no
+A	CP273	cp273	ibm-273_P100-1995	shipped-cnv	no
+A	CP274	cp274	ibm-274_P100-2000	not-in-cnv-or-algorithmic	no
+A	cp275	cp275	ibm-275_P100-1995	not-in-cnv-or-algorithmic	no
+A	cp277	cp277	ibm-277_P100-1995	shipped-cnv	no
+A	cp278	cp278	ibm-278_P100-1995	shipped-cnv	no
+A	CP280	cp280	ibm-280_P100-1995	shipped-cnv	no
+A	CP284	cp284	ibm-284_P100-1995	shipped-cnv	no
+A	CP285	cp285	ibm-285_P100-1995	shipped-cnv	no
+A	cp290	cp290	ibm-290_P100-1995	shipped-cnv	no
+A	cp297	cp297	ibm-297_P100-1995	shipped-cnv	no
+A	cp33722	cp33722	ibm-33722_P120-1999	shipped-cnv	no
+A	cp367	cp367	US-ASCII	algorithmic	no
+A	cp037	cp37	ibm-37_P100-1995	shipped-cnv	no
+A	cp420	cp420	ibm-420_X120-1999	shipped-cnv	no
+A	cp424	cp424	ibm-424_P100-1995	shipped-cnv	no
+A	cp437	cp437	ibm-437_P100-1995	shipped-cnv	no
+A	CP500	cp500	ibm-500_P100-1995	shipped-cnv	no
+A	CP51932	cp51932	windows-51932-2006	not-in-cnv-or-algorithmic	no
+A	cp737	cp737	ibm-737_P100-1997	shipped-cnv	no
+A	cp775	cp775	ibm-775_P100-1996	shipped-cnv	no
+A	cp803	cp803	ibm-803_P100-1999	shipped-cnv	no
+A	cp813	cp813	ibm-813_P100-1995	shipped-cnv	no
+A	cp819	cp819	ISO-8859-1	algorithmic	no
+A	cp838	cp838	ibm-838_P100-1995	shipped-cnv	no
+A	cp850	cp850	ibm-850_P100-1995	shipped-cnv	no
+A	cp851	cp851	ibm-851_P100-1995	shipped-cnv	no
+A	cp852	cp852	ibm-852_P100-1995	shipped-cnv	no
+A	cp855	cp855	ibm-855_P100-1995	shipped-cnv	no
+A	cp856	cp856	ibm-856_P100-1995	shipped-cnv	no
+A	cp857	cp857	ibm-857_P100-1995	shipped-cnv	no
+A	cp858	cp858	ibm-858_P100-1997	shipped-cnv	no
+A	cp860	cp860	ibm-860_P100-1995	shipped-cnv	no
+A	cp861	cp861	ibm-861_P100-1995	shipped-cnv	no
+A	cp862	cp862	ibm-862_P100-1995	shipped-cnv	no
+A	cp863	cp863	ibm-863_P100-1995	shipped-cnv	no
+A	cp864	cp864	ibm-864_X110-1999	shipped-cnv	no
+A	cp864s	cp864s	windows-864-2000	not-in-cnv-or-algorithmic	no
+A	cp865	cp865	ibm-865_P100-1995	shipped-cnv	no
+A	cp866	cp866	ibm-866_P100-1995	shipped-cnv	no
+A	CP868	cp868	ibm-868_P100-1995	shipped-cnv	no
+A	cp869	cp869	ibm-869_P100-1995	shipped-cnv	no
+A	CP870	cp870	ibm-870_P100-1995	shipped-cnv	no
+A	CP871	cp871	ibm-871_P100-1995	shipped-cnv	no
+A	cp874	cp874	ibm-874_P100-1995	shipped-cnv	no
+A	cp875	cp875	ibm-875_P100-1995	shipped-cnv	no
+A	cp878	cp878	ibm-878_P100-1996	shipped-cnv	no
+A	cp880	cp880	ibm-880_P100-1995	not-in-cnv-or-algorithmic	no
+A	CP905	cp905	ibm-905_P100-1995	not-in-cnv-or-algorithmic	no
+A	cp912	cp912	ibm-912_P100-1995	shipped-cnv	no
+A	cp913	cp913	ibm-913_P100-2000	shipped-cnv	no
+A	cp914	cp914	ibm-914_P100-1995	shipped-cnv	no
+A	cp915	cp915	ibm-915_P100-1995	shipped-cnv	no
+A	cp916	cp916	ibm-916_P100-1995	shipped-cnv	no
+A	CP918	cp918	ibm-918_P100-1995	shipped-cnv	no
+A	cp920	cp920	ibm-920_P100-1995	shipped-cnv	no
+A	cp921	cp921	ibm-921_P100-1995	shipped-cnv	no
+A	cp922	cp922	ibm-922_P100-1999	shipped-cnv	no
+A	cp923	cp923	ibm-923_P100-1998	shipped-cnv	no
+A	CP00924	cp924	ibm-924_P100-1998	not-in-cnv-or-algorithmic	no
+A	cp930	cp930	ibm-930_P120-1999	shipped-cnv	no
+A	cp932	cp932	ibm-943_P15A-2003	shipped-cnv	yes
+A	cp933	cp933	ibm-933_P110-1995	shipped-cnv	no
+A	cp935	cp935	ibm-935_P110-1999	shipped-cnv	no
+A	CP936	cp936	windows-936-2000	shipped-cnv	no
+A	cp937	cp937	ibm-937_P110-1999	shipped-cnv	no
+A	cp939	cp939	ibm-939_P120-1999	shipped-cnv	no
+A	cp943	cp943	ibm-943_P130-1999	shipped-cnv	no
+A	cp943c	cp943c	ibm-943_P15A-2003	shipped-cnv	no
+A	cp949	cp949	ibm-949_P110-1999	shipped-cnv	no
+A	cp949c	cp949c	ibm-949_P11A-1999	shipped-cnv	no
+A	cp950	cp950	ibm-950_P110-1999	shipped-cnv	no
+A	cp964	cp964	ibm-964_P110-1999	shipped-cnv	no
+A	cp970	cp970	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	cp-ar	cpar	ibm-868_P100-1995	shipped-cnv	no
+A	cp-gr	cpgr	ibm-869_P100-1995	shipped-cnv	no
+A	cpibm284	cpibm284	ibm-284_P100-1995	shipped-cnv	no
+A	cpibm285	cpibm285	ibm-285_P100-1995	shipped-cnv	no
+A	cpibm297	cpibm297	ibm-297_P100-1995	shipped-cnv	no
+A	cpibm37	cpibm37	ibm-37_P100-1995	shipped-cnv	no
+A	cp-is	cpis	ibm-861_P100-1995	shipped-cnv	no
+A	csa7-1	csa71	ibm-1020_P100-2003	not-in-cnv-or-algorithmic	no
+A	csAdobeStandardEncoding	csadobestandardencoding	ibm-1276_P100-1995	shipped-cnv	no
+A	csASCII	csascii	US-ASCII	algorithmic	no
+A	CSA_Z243.4-1985-1	csaz243419851	ibm-1020_P100-2003	not-in-cnv-or-algorithmic	no
+A	csBig5	csbig5	windows-950-2000	shipped-cnv	no
+A	csBOCU-1	csbocu1	BOCU-1	algorithmic	no
+A	csCP51932	cscp51932	windows-51932-2006	not-in-cnv-or-algorithmic	no
+A	csDECMCS	csdecmcs	ibm-1100_P100-2003	not-in-cnv-or-algorithmic	no
+A	csEBCDICATDEA	csebcdicatdea	ibm-286_P100-2003	not-in-cnv-or-algorithmic	no
+A	csEUCKR	cseuckr	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	csEUCPkdFmtJapanese	cseucpkdfmtjapanese	euc-jp-2007	shipped-cnv	no
+A	csGB2312	csgb2312	ibm-1383_P110-1999	shipped-cnv	no
+A	csHalfWidthKatakana	cshalfwidthkatakana	ibm-897_P100-1995	not-in-cnv-or-algorithmic	no
+A	csHPRoman8	cshproman8	ibm-1051_P100-1995	shipped-cnv	no
+A	csIBM1026	csibm1026	ibm-1026_P100-1995	shipped-cnv	no
+A	csIBM273	csibm273	ibm-273_P100-1995	shipped-cnv	no
+A	csIBM274	csibm274	ibm-274_P100-2000	not-in-cnv-or-algorithmic	no
+A	csIBM275	csibm275	ibm-275_P100-1995	not-in-cnv-or-algorithmic	no
+A	csIBM277	csibm277	ibm-277_P100-1995	shipped-cnv	no
+A	csIBM278	csibm278	ibm-278_P100-1995	shipped-cnv	no
+A	csIBM280	csibm280	ibm-280_P100-1995	shipped-cnv	no
+A	csIBM284	csibm284	ibm-284_P100-1995	shipped-cnv	no
+A	csIBM285	csibm285	ibm-285_P100-1995	shipped-cnv	no
+A	csIBM290	csibm290	ibm-290_P100-1995	shipped-cnv	no
+A	csIBM297	csibm297	ibm-297_P100-1995	shipped-cnv	no
+A	csIBM037	csibm37	ibm-37_P100-1995	shipped-cnv	no
+A	csIBM420	csibm420	ibm-420_X120-1999	shipped-cnv	no
+A	csIBM424	csibm424	ibm-424_P100-1995	shipped-cnv	no
+A	csIBM500	csibm500	ibm-500_P100-1995	shipped-cnv	no
+A	csIBM855	csibm855	ibm-855_P100-1995	shipped-cnv	no
+A	csIBM857	csibm857	ibm-857_P100-1995	shipped-cnv	no
+A	csIBM860	csibm860	ibm-860_P100-1995	shipped-cnv	no
+A	csIBM861	csibm861	ibm-861_P100-1995	shipped-cnv	no
+A	csIBM863	csibm863	ibm-863_P100-1995	shipped-cnv	no
+A	csIBM864	csibm864	ibm-864_X110-1999	shipped-cnv	no
+A	csIBM865	csibm865	ibm-865_P100-1995	shipped-cnv	no
+A	csIBM866	csibm866	ibm-866_P100-1995	shipped-cnv	no
+A	csIBM868	csibm868	ibm-868_P100-1995	shipped-cnv	no
+A	csIBM869	csibm869	ibm-869_P100-1995	shipped-cnv	no
+A	csIBM870	csibm870	ibm-870_P100-1995	shipped-cnv	no
+A	csIBM871	csibm871	ibm-871_P100-1995	shipped-cnv	no
+A	csIBM880	csibm880	ibm-880_P100-1995	not-in-cnv-or-algorithmic	no
+A	csIBM905	csibm905	ibm-905_P100-1995	not-in-cnv-or-algorithmic	no
+A	csIBM918	csibm918	ibm-918_P100-1995	shipped-cnv	no
+A	csIBMSymbols	csibmsymbols	ibm-259_P100-1995	not-in-cnv-or-algorithmic	no
+A	csIBMThai	csibmthai	ibm-838_P100-1995	shipped-cnv	no
+A	csISO10Swedish	csiso10swedish	ibm-1018_P100-1995	not-in-cnv-or-algorithmic	no
+A	csISO121Canadian1	csiso121canadian1	ibm-1020_P100-2003	not-in-cnv-or-algorithmic	no
+A	csISO15Italian	csiso15italian	ibm-1012_P100-1995	not-in-cnv-or-algorithmic	no
+A	csISO17Spanish	csiso17spanish	ibm-1023_P100-2003	not-in-cnv-or-algorithmic	no
+A	csISO2022CN	csiso2022cn	ISO_2022,locale=zh,version=0	algorithmic	no
+A	csISO2022JP	csiso2022jp	ISO_2022,locale=ja,version=0	algorithmic	no
+A	csISO2022JP2	csiso2022jp2	ISO_2022,locale=ja,version=2	algorithmic	no
+A	csISO2022KR	csiso2022kr	ISO_2022,locale=ko,version=0	algorithmic	no
+A	csISO21German	csiso21german	ibm-1011_P100-1995	not-in-cnv-or-algorithmic	no
+A	csISO25French	csiso25french	ibm-1104_P100-2003	not-in-cnv-or-algorithmic	no
+A	csISO4UnitedKingdom	csiso4unitedkingdom	ibm-1013_P100-1995	not-in-cnv-or-algorithmic	no
+A	csISO58GB231280	csiso58gb231280	ibm-5478_P100-1995	shipped-cnv	no
+A	csISO60DanishNorwegian	csiso60danishnorwegian	ibm-1016_P100-1995	not-in-cnv-or-algorithmic	no
+A	csISO60Norwegian1	csiso60norwegian1	ibm-1016_P100-1995	not-in-cnv-or-algorithmic	no
+A	csISO646Danish	csiso646danish	ibm-1107_P100-2003	not-in-cnv-or-algorithmic	no
+A	csISO69French	csiso69french	ibm-1010_P100-1995	not-in-cnv-or-algorithmic	no
+A	csISO84Portuguese2	csiso84portuguese2	ibm-1015_P100-1995	not-in-cnv-or-algorithmic	no
+A	csISO85Spanish2	csiso85spanish2	ibm-1014_P100-1995	not-in-cnv-or-algorithmic	no
+A	csisolatin0	csisolatin0	ibm-923_P100-1998	shipped-cnv	no
+A	csISOLatin1	csisolatin1	ISO-8859-1	algorithmic	no
+A	csISOLatin2	csisolatin2	ibm-912_P100-1995	shipped-cnv	no
+A	csISOLatin3	csisolatin3	ibm-913_P100-2000	shipped-cnv	no
+A	csISOLatin4	csisolatin4	ibm-914_P100-1995	shipped-cnv	no
+A	csISOLatin5	csisolatin5	ibm-920_P100-1995	shipped-cnv	no
+A	csISOLatin6	csisolatin6	iso-8859_10-1998	shipped-cnv	no
+A	csisolatin9	csisolatin9	ibm-923_P100-1998	shipped-cnv	no
+A	csISOLatinArabic	csisolatinarabic	ibm-1089_P100-1995	shipped-cnv	no
+A	csISOLatinCyrillic	csisolatincyrillic	ibm-915_P100-1995	shipped-cnv	no
+A	csISOLatinGreek	csisolatingreek	ibm-9005_X110-2007	shipped-cnv	no
+A	csISOLatinHebrew	csisolatinhebrew	ibm-5012_P100-1999	shipped-cnv	no
+A	csJISEncoding	csjisencoding	ISO_2022,locale=ja,version=1	algorithmic	no
+A	csKOI8R	cskoi8r	ibm-878_P100-1996	shipped-cnv	no
+A	csKSC56011987	csksc56011987	windows-949-2000	shipped-cnv	yes
+A	csKZ1048	cskz1048	ibm-1174_X100-2007	not-in-cnv-or-algorithmic	no
+A	csMacintosh	csmacintosh	macos-0_2-10.2	shipped-cnv	no
+A	csPC775Baltic	cspc775baltic	ibm-775_P100-1996	shipped-cnv	no
+A	csPC850Multilingual	cspc850multilingual	ibm-850_P100-1995	shipped-cnv	no
+A	csPC851	cspc851	ibm-851_P100-1995	shipped-cnv	no
+A	csPC862LatinHebrew	cspc862latinhebrew	ibm-862_P100-1995	shipped-cnv	no
+A	csPC8CodePage437	cspc8codepage437	ibm-437_P100-1995	shipped-cnv	no
+A	csPCp852	cspcp852	ibm-852_P100-1995	shipped-cnv	no
+A	csPCp855	cspcp855	ibm-855_P100-1995	shipped-cnv	no
+A	csPTCP154	csptcp154	glibc-PT154-2.3.3	not-in-cnv-or-algorithmic	no
+A	csShiftJIS	csshiftjis	ibm-943_P15A-2003	shipped-cnv	no
+A	csUCS4	csucs4	UTF-32	algorithmic	no
+A	csUnicode	csunicode	UTF-16	algorithmic	no
+A	csWindows31J	cswindows31j	ibm-943_P15A-2003	shipped-cnv	no
+A	cyrillic	cyrillic	ibm-915_P100-1995	shipped-cnv	no
+A	Cyrillic-Asian	cyrillicasian	glibc-PT154-2.3.3	not-in-cnv-or-algorithmic	no
+A	de	de	ibm-1011_P100-1995	not-in-cnv-or-algorithmic	no
+A	dec	dec	ibm-1100_P100-2003	not-in-cnv-or-algorithmic	no
+A	DEC-MCS	decmcs	ibm-1100_P100-2003	not-in-cnv-or-algorithmic	no
+A	DIN_66003	din66003	ibm-1011_P100-1995	not-in-cnv-or-algorithmic	no
+A	dk	dk	ibm-1107_P100-2003	not-in-cnv-or-algorithmic	no
+A	DOS-720	dos720	ibm-720_P100-1997	shipped-cnv	no
+A	DOS-862	dos862	ibm-862_P100-1995	shipped-cnv	no
+A	DS_2089	ds2089	ibm-1107_P100-2003	not-in-cnv-or-algorithmic	no
+A	ebcdic-ar	ebcdicar	ibm-16804_X110-1999	shipped-cnv	no
+A	EBCDIC-AT-DE-A	ebcdicatdea	ibm-286_P100-2003	not-in-cnv-or-algorithmic	no
+A	EBCDIC-BE	ebcdicbe	ibm-274_P100-2000	not-in-cnv-or-algorithmic	no
+A	EBCDIC-BR	ebcdicbr	ibm-275_P100-1995	not-in-cnv-or-algorithmic	no
+A	ebcdic-cp-ar1	ebcdiccpar1	ibm-420_X120-1999	shipped-cnv	no
+A	ebcdic-cp-ar2	ebcdiccpar2	ibm-918_P100-1995	shipped-cnv	no
+A	ebcdic-cp-be	ebcdiccpbe	ibm-500_P100-1995	shipped-cnv	no
+A	ebcdic-cp-ca	ebcdiccpca	ibm-37_P100-1995	shipped-cnv	no
+A	ebcdic-cp-ch	ebcdiccpch	ibm-500_P100-1995	shipped-cnv	no
+A	EBCDIC-CP-DK	ebcdiccpdk	ibm-277_P100-1995	shipped-cnv	no
+A	ebcdic-cp-es	ebcdiccpes	ibm-284_P100-1995	shipped-cnv	no
+A	ebcdic-cp-fi	ebcdiccpfi	ibm-278_P100-1995	shipped-cnv	no
+A	ebcdic-cp-fr	ebcdiccpfr	ibm-297_P100-1995	shipped-cnv	no
+A	ebcdic-cp-gb	ebcdiccpgb	ibm-285_P100-1995	shipped-cnv	no
+A	ebcdic-cp-he	ebcdiccphe	ibm-424_P100-1995	shipped-cnv	no
+A	ebcdic-cp-is	ebcdiccpis	ibm-871_P100-1995	shipped-cnv	no
+A	ebcdic-cp-it	ebcdiccpit	ibm-280_P100-1995	shipped-cnv	no
+A	ebcdic-cp-nl	ebcdiccpnl	ibm-37_P100-1995	shipped-cnv	no
+A	EBCDIC-CP-NO	ebcdiccpno	ibm-277_P100-1995	shipped-cnv	no
+A	ebcdic-cp-roece	ebcdiccproece	ibm-870_P100-1995	shipped-cnv	no
+A	ebcdic-cp-se	ebcdiccpse	ibm-278_P100-1995	shipped-cnv	no
+A	ebcdic-cp-tr	ebcdiccptr	ibm-905_P100-1995	not-in-cnv-or-algorithmic	no
+A	ebcdic-cp-us	ebcdiccpus	ibm-37_P100-1995	shipped-cnv	no
+A	ebcdic-cp-wt	ebcdiccpwt	ibm-37_P100-1995	shipped-cnv	no
+A	ebcdic-cp-yu	ebcdiccpyu	ibm-870_P100-1995	shipped-cnv	no
+A	EBCDIC-Cyrillic	ebcdiccyrillic	ibm-880_P100-1995	not-in-cnv-or-algorithmic	no
+A	ebcdic-de	ebcdicde	ibm-273_P100-1995	shipped-cnv	no
+A	ebcdic-de-273+euro	ebcdicde273euro	ibm-1141_P100-1997	shipped-cnv	no
+A	ebcdic-dk	ebcdicdk	ibm-277_P100-1995	shipped-cnv	no
+A	ebcdic-dk-277+euro	ebcdicdk277euro	ibm-1142_P100-1997	shipped-cnv	no
+A	ebcdic-es-284+euro	ebcdices284euro	ibm-1145_P100-1997	shipped-cnv	no
+A	ebcdic-fi-278+euro	ebcdicfi278euro	ibm-1143_P100-1997	shipped-cnv	no
+A	ebcdic-fr-297+euro	ebcdicfr297euro	ibm-1147_P100-1997	shipped-cnv	no
+A	ebcdic-gb	ebcdicgb	ibm-285_P100-1995	shipped-cnv	no
+A	ebcdic-gb-285+euro	ebcdicgb285euro	ibm-1146_P100-1997	shipped-cnv	no
+A	ebcdic-he	ebcdiche	ibm-12712_P100-1998	shipped-cnv	no
+A	ebcdic-international-500+euro	ebcdicinternational500euro	ibm-1148_P100-1997	shipped-cnv	no
+A	ebcdic-is	ebcdicis	ibm-871_P100-1995	shipped-cnv	no
+A	ebcdic-is-871+euro	ebcdicis871euro	ibm-1149_P100-1997	shipped-cnv	no
+A	ebcdic-it-280+euro	ebcdicit280euro	ibm-1144_P100-1997	shipped-cnv	no
+A	EBCDIC-JP-kana	ebcdicjpkana	ibm-290_P100-1995	shipped-cnv	no
+A	ebcdic-Latin9--euro	ebcdiclatin9euro	ibm-924_P100-1998	not-in-cnv-or-algorithmic	no
+A	ebcdic-no-277+euro	ebcdicno277euro	ibm-1142_P100-1997	shipped-cnv	no
+A	ebcdic-se-278+euro	ebcdicse278euro	ibm-1143_P100-1997	shipped-cnv	no
+A	ebcdic-sv	ebcdicsv	ibm-278_P100-1995	shipped-cnv	no
+A	ebcdic-us-37+euro	ebcdicus37euro	ibm-1140_P100-1997	shipped-cnv	no
+A	ebcdic-xml-us	ebcdicxmlus	ebcdic-xml-us	shipped-cnv	no
+A	ECMA-114	ecma114	ibm-1089_P100-1995	shipped-cnv	no
+A	ECMA-118	ecma118	ibm-9005_X110-2007	shipped-cnv	no
+A	ECMA-128	ecma128	ibm-920_P100-1995	shipped-cnv	no
+A	ELOT_928	elot928	ibm-9005_X110-2007	shipped-cnv	no
+A	ES	es	ibm-1023_P100-2003	not-in-cnv-or-algorithmic	no
+A	ES2	es2	ibm-1014_P100-1995	not-in-cnv-or-algorithmic	no
+A	EUC-CN	euccn	ibm-1383_P110-1999	shipped-cnv	no
+A	eucjis	eucjis	euc-jp-2007	shipped-cnv	no
+A	EUC-JP	eucjp	euc-jp-2007	shipped-cnv	no
+A	euc-jp-2007	eucjp2007	euc-jp-2007	shipped-cnv	no
+A	euc-jp-linux	eucjplinux	java-euc_jp_linux-1.6_P	not-in-cnv-or-algorithmic	no
+A	eucJP-Open	eucjpopen	ibm-1350_P110-1997	not-in-cnv-or-algorithmic	no
+A	EUC-KR	euckr	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	eucTH	eucth	ibm-874_P100-1995	shipped-cnv	no
+A	EUC-TW	euctw	euc-tw-2014	shipped-cnv	no
+A	euc-tw-2014	euctw2014	euc-tw-2014	shipped-cnv	no
+A	Extended_UNIX_Code_Packed_Format_for_Japanese	extendedunixcodepackedformatforjapanese	euc-jp-2007	shipped-cnv	no
+A	FI	fi	ibm-1018_P100-1995	not-in-cnv-or-algorithmic	no
+A	fr	fr	ibm-1010_P100-1995	not-in-cnv-or-algorithmic	no
+A	gb	gb	ibm-1013_P100-1995	not-in-cnv-or-algorithmic	no
+A	gb18030	gb18030	gb18030	shipped-cnv	no
+A	GB2312	gb2312	ibm-1383_P110-1999	shipped-cnv	no
+A	gb2312-1980	gb23121980	ibm-5478_P100-1995	shipped-cnv	no
+A	GB2312.1980-0	gb231219800	ibm-5478_P100-1995	shipped-cnv	no
+A	GB_2312-80	gb231280	ibm-5478_P100-1995	shipped-cnv	no
+A	GBK	gbk	windows-936-2000	shipped-cnv	no
+A	glibc-PT154-2.3.3	glibcpt154233	glibc-PT154-2.3.3	not-in-cnv-or-algorithmic	no
+A	greek	greek	ibm-9005_X110-2007	shipped-cnv	no
+A	greek8	greek8	ibm-9005_X110-2007	shipped-cnv	no
+A	GSM0338	gsm338	gsm-03.38-2009	shipped-cnv	no
+A	gsm-03.38-2009	gsm3382009	gsm-03.38-2009	shipped-cnv	no
+A	hebrew	hebrew	ibm-5012_P100-1999	shipped-cnv	no
+A	hebrew8	hebrew8	ibm-5012_P100-1999	shipped-cnv	no
+A	hkbig5	hkbig5	ibm-5471_P100-2006	shipped-cnv	no
+A	HKSCS-BIG5	hkscsbig5	ibm-1375_P100-2008	shipped-cnv	no
+A	hp15CN	hp15cn	ibm-1383_P110-1999	shipped-cnv	no
+A	hp-roman8	hproman8	ibm-1051_P100-1995	shipped-cnv	no
+A	HZ	hz	HZ	algorithmic	no
+A	HZ-GB-2312	hzgb2312	HZ	algorithmic	no
+A	ibm-1004	ibm1004	ibm-1004_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1004_P100-1995	ibm1004p1001995	ibm-1004_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1006	ibm1006	ibm-1006_P100-1995	shipped-cnv	no
+A	ibm-1006_P100-1995	ibm1006p1001995	ibm-1006_P100-1995	shipped-cnv	no
+A	ibm-1008	ibm1008	ibm-1008_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1008_P100-1995	ibm1008p1001995	ibm-1008_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1009	ibm1009	ibm-1009_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1009_P100-1995	ibm1009p1001995	ibm-1009_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1010	ibm1010	ibm-1010_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1010_P100-1995	ibm1010p1001995	ibm-1010_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1011	ibm1011	ibm-1011_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1011_P100-1995	ibm1011p1001995	ibm-1011_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1012	ibm1012	ibm-1012_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1012_P100-1995	ibm1012p1001995	ibm-1012_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1013	ibm1013	ibm-1013_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1013_P100-1995	ibm1013p1001995	ibm-1013_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1014	ibm1014	ibm-1014_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1014_P100-1995	ibm1014p1001995	ibm-1014_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1015	ibm1015	ibm-1015_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1015_P100-1995	ibm1015p1001995	ibm-1015_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1016	ibm1016	ibm-1016_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1016_P100-1995	ibm1016p1001995	ibm-1016_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1017	ibm1017	ibm-1017_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1017_P100-1995	ibm1017p1001995	ibm-1017_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1018	ibm1018	ibm-1018_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1018_P100-1995	ibm1018p1001995	ibm-1018_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1019	ibm1019	ibm-1019_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1019_P100-1995	ibm1019p1001995	ibm-1019_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1020	ibm1020	ibm-1020_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1020_P100-2003	ibm1020p1002003	ibm-1020_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1021	ibm1021	ibm-1021_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1021_P100-2003	ibm1021p1002003	ibm-1021_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1023	ibm1023	ibm-1023_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1023_P100-2003	ibm1023p1002003	ibm-1023_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1025	ibm1025	ibm-1025_P100-1995	shipped-cnv	no
+A	ibm-1025_P100-1995	ibm1025p1001995	ibm-1025_P100-1995	shipped-cnv	no
+A	ibm-1026	ibm1026	ibm-1026_P100-1995	shipped-cnv	no
+A	ibm-1026_P100-1995	ibm1026p1001995	ibm-1026_P100-1995	shipped-cnv	no
+A	ibm-1027	ibm1027	ibm-1027_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1027_P100-1995	ibm1027p1001995	ibm-1027_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1041	ibm1041	ibm-1041_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1041_P100-1995	ibm1041p1001995	ibm-1041_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1043	ibm1043	ibm-1043_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1043_P100-1995	ibm1043p1001995	ibm-1043_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1046	ibm1046	ibm-1046_X110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1046_X110-1999	ibm1046x1101999	ibm-1046_X110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1047	ibm1047	ibm-1047_P100-1995	shipped-cnv	no
+A	IBM1047_LF	ibm1047lf	ibm-1047_P100-1995,swaplfnl	shipped-cnv	no
+A	ibm-1047_P100-1995	ibm1047p1001995	ibm-1047_P100-1995	shipped-cnv	no
+A	ibm-1047_P100-1995,swaplfnl	ibm1047p1001995swaplfnl	ibm-1047_P100-1995,swaplfnl	shipped-cnv	no
+A	ibm-1047-s390	ibm1047s390	ibm-1047_P100-1995,swaplfnl	shipped-cnv	no
+A	ibm-1051	ibm1051	ibm-1051_P100-1995	shipped-cnv	no
+A	ibm-1051_P100-1995	ibm1051p1001995	ibm-1051_P100-1995	shipped-cnv	no
+A	ibm-1088	ibm1088	ibm-1088_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1088_P100-1995	ibm1088p1001995	ibm-1088_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1089	ibm1089	ibm-1089_P100-1995	shipped-cnv	no
+A	ibm-1089_P100-1995	ibm1089p1001995	ibm-1089_P100-1995	shipped-cnv	no
+A	ibm-1097	ibm1097	ibm-1097_P100-1995	shipped-cnv	no
+A	ibm-1097_P100-1995	ibm1097p1001995	ibm-1097_P100-1995	shipped-cnv	no
+A	ibm-1098	ibm1098	ibm-1098_P100-1995	shipped-cnv	no
+A	ibm-1098_P100-1995	ibm1098p1001995	ibm-1098_P100-1995	shipped-cnv	no
+A	ibm-1100	ibm1100	ibm-1100_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1100_P100-2003	ibm1100p1002003	ibm-1100_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1101	ibm1101	ibm-1101_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1101_P100-2003	ibm1101p1002003	ibm-1101_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1102	ibm1102	ibm-1102_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1102_P100-2003	ibm1102p1002003	ibm-1102_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1103	ibm1103	ibm-1103_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1103_P100-2003	ibm1103p1002003	ibm-1103_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1104	ibm1104	ibm-1104_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1104_P100-2003	ibm1104p1002003	ibm-1104_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1105	ibm1105	ibm-1105_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1105_P100-2003	ibm1105p1002003	ibm-1105_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1106	ibm1106	ibm-1106_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1106_P100-2003	ibm1106p1002003	ibm-1106_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1107	ibm1107	ibm-1107_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1107_P100-2003	ibm1107p1002003	ibm-1107_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-1112	ibm1112	ibm-1112_P100-1995	shipped-cnv	no
+A	ibm-1112_P100-1995	ibm1112p1001995	ibm-1112_P100-1995	shipped-cnv	no
+A	ibm-1114	ibm1114	ibm-1114_P100-2001	not-in-cnv-or-algorithmic	no
+A	ibm-1114_P100-2001	ibm1114p1002001	ibm-1114_P100-2001	not-in-cnv-or-algorithmic	no
+A	ibm-1115	ibm1115	ibm-1115_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1115_P100-1995	ibm1115p1001995	ibm-1115_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1122	ibm1122	ibm-1122_P100-1999	shipped-cnv	no
+A	ibm-1122_P100-1999	ibm1122p1001999	ibm-1122_P100-1999	shipped-cnv	no
+A	ibm-1123	ibm1123	ibm-1123_P100-1995	shipped-cnv	no
+A	ibm-1123_P100-1995	ibm1123p1001995	ibm-1123_P100-1995	shipped-cnv	no
+A	ibm-1124	ibm1124	ibm-1124_P100-1996	shipped-cnv	no
+A	ibm-1124_P100-1996	ibm1124p1001996	ibm-1124_P100-1996	shipped-cnv	no
+A	ibm-1125	ibm1125	ibm-1125_P100-1997	shipped-cnv	no
+A	ibm-1125_P100-1997	ibm1125p1001997	ibm-1125_P100-1997	shipped-cnv	no
+A	ibm-1127	ibm1127	ibm-1127_P100-2004	not-in-cnv-or-algorithmic	no
+A	ibm-1127_P100-2004	ibm1127p1002004	ibm-1127_P100-2004	not-in-cnv-or-algorithmic	no
+A	ibm-1129	ibm1129	ibm-1129_P100-1997	shipped-cnv	no
+A	ibm-1129_P100-1997	ibm1129p1001997	ibm-1129_P100-1997	shipped-cnv	no
+A	ibm-1130	ibm1130	ibm-1130_P100-1997	shipped-cnv	no
+A	ibm-1130_P100-1997	ibm1130p1001997	ibm-1130_P100-1997	shipped-cnv	no
+A	ibm-1131	ibm1131	ibm-1131_P100-1997	shipped-cnv	no
+A	ibm-1131_P100-1997	ibm1131p1001997	ibm-1131_P100-1997	shipped-cnv	no
+A	ibm-1132	ibm1132	ibm-1132_P100-1998	shipped-cnv	no
+A	ibm-1132_P100-1998	ibm1132p1001998	ibm-1132_P100-1998	shipped-cnv	no
+A	ibm-1133	ibm1133	ibm-1133_P100-1997	shipped-cnv	no
+A	ibm-1133_P100-1997	ibm1133p1001997	ibm-1133_P100-1997	shipped-cnv	no
+A	ibm-1137	ibm1137	ibm-1137_P100-1999	shipped-cnv	no
+A	ibm-1137_P100-1999	ibm1137p1001999	ibm-1137_P100-1999	shipped-cnv	no
+A	ibm-1140	ibm1140	ibm-1140_P100-1997	shipped-cnv	no
+A	ibm-1140_P100-1997	ibm1140p1001997	ibm-1140_P100-1997	shipped-cnv	no
+A	ibm-1140_P100-1997,swaplfnl	ibm1140p1001997swaplfnl	ibm-1140_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1140-s390	ibm1140s390	ibm-1140_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1141	ibm1141	ibm-1141_P100-1997	shipped-cnv	no
+A	IBM1141_LF	ibm1141lf	ibm-1141_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1141_P100-1997	ibm1141p1001997	ibm-1141_P100-1997	shipped-cnv	no
+A	ibm-1141_P100-1997,swaplfnl	ibm1141p1001997swaplfnl	ibm-1141_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1141-s390	ibm1141s390	ibm-1141_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1142	ibm1142	ibm-1142_P100-1997	shipped-cnv	no
+A	ibm-1142_P100-1997	ibm1142p1001997	ibm-1142_P100-1997	shipped-cnv	no
+A	ibm-1142_P100-1997,swaplfnl	ibm1142p1001997swaplfnl	ibm-1142_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1142-s390	ibm1142s390	ibm-1142_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1143	ibm1143	ibm-1143_P100-1997	shipped-cnv	no
+A	ibm-1143_P100-1997	ibm1143p1001997	ibm-1143_P100-1997	shipped-cnv	no
+A	ibm-1143_P100-1997,swaplfnl	ibm1143p1001997swaplfnl	ibm-1143_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1143-s390	ibm1143s390	ibm-1143_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1144	ibm1144	ibm-1144_P100-1997	shipped-cnv	no
+A	ibm-1144_P100-1997	ibm1144p1001997	ibm-1144_P100-1997	shipped-cnv	no
+A	ibm-1144_P100-1997,swaplfnl	ibm1144p1001997swaplfnl	ibm-1144_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1144-s390	ibm1144s390	ibm-1144_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1145	ibm1145	ibm-1145_P100-1997	shipped-cnv	no
+A	ibm-1145_P100-1997	ibm1145p1001997	ibm-1145_P100-1997	shipped-cnv	no
+A	ibm-1145_P100-1997,swaplfnl	ibm1145p1001997swaplfnl	ibm-1145_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1145-s390	ibm1145s390	ibm-1145_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1146	ibm1146	ibm-1146_P100-1997	shipped-cnv	no
+A	ibm-1146_P100-1997	ibm1146p1001997	ibm-1146_P100-1997	shipped-cnv	no
+A	ibm-1146_P100-1997,swaplfnl	ibm1146p1001997swaplfnl	ibm-1146_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1146-s390	ibm1146s390	ibm-1146_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1147	ibm1147	ibm-1147_P100-1997	shipped-cnv	no
+A	ibm-1147_P100-1997	ibm1147p1001997	ibm-1147_P100-1997	shipped-cnv	no
+A	ibm-1147_P100-1997,swaplfnl	ibm1147p1001997swaplfnl	ibm-1147_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1147-s390	ibm1147s390	ibm-1147_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1148	ibm1148	ibm-1148_P100-1997	shipped-cnv	no
+A	ibm-1148_P100-1997	ibm1148p1001997	ibm-1148_P100-1997	shipped-cnv	no
+A	ibm-1148_P100-1997,swaplfnl	ibm1148p1001997swaplfnl	ibm-1148_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1148-s390	ibm1148s390	ibm-1148_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1149	ibm1149	ibm-1149_P100-1997	shipped-cnv	no
+A	ibm-1149_P100-1997	ibm1149p1001997	ibm-1149_P100-1997	shipped-cnv	no
+A	ibm-1149_P100-1997,swaplfnl	ibm1149p1001997swaplfnl	ibm-1149_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1149-s390	ibm1149s390	ibm-1149_P100-1997,swaplfnl	shipped-cnv	no
+A	ibm-1153	ibm1153	ibm-1153_P100-1999	shipped-cnv	no
+A	ibm-1153_P100-1999	ibm1153p1001999	ibm-1153_P100-1999	shipped-cnv	no
+A	ibm-1153_P100-1999,swaplfnl	ibm1153p1001999swaplfnl	ibm-1153_P100-1999,swaplfnl	shipped-cnv	no
+A	ibm-1153-s390	ibm1153s390	ibm-1153_P100-1999,swaplfnl	shipped-cnv	no
+A	ibm-1154	ibm1154	ibm-1154_P100-1999	shipped-cnv	no
+A	ibm-1154_P100-1999	ibm1154p1001999	ibm-1154_P100-1999	shipped-cnv	no
+A	ibm-1155	ibm1155	ibm-1155_P100-1999	shipped-cnv	no
+A	ibm-1155_P100-1999	ibm1155p1001999	ibm-1155_P100-1999	shipped-cnv	no
+A	ibm-1156	ibm1156	ibm-1156_P100-1999	shipped-cnv	no
+A	ibm-1156_P100-1999	ibm1156p1001999	ibm-1156_P100-1999	shipped-cnv	no
+A	ibm-1157	ibm1157	ibm-1157_P100-1999	shipped-cnv	no
+A	ibm-1157_P100-1999	ibm1157p1001999	ibm-1157_P100-1999	shipped-cnv	no
+A	ibm-1158	ibm1158	ibm-1158_P100-1999	shipped-cnv	no
+A	ibm-1158_P100-1999	ibm1158p1001999	ibm-1158_P100-1999	shipped-cnv	no
+A	ibm-1160	ibm1160	ibm-1160_P100-1999	shipped-cnv	no
+A	ibm-1160_P100-1999	ibm1160p1001999	ibm-1160_P100-1999	shipped-cnv	no
+A	ibm-1161	ibm1161	ibm-1161_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1161_P100-1999	ibm1161p1001999	ibm-1161_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1162	ibm1162	ibm-1162_P100-1999	shipped-cnv	no
+A	ibm-1162_P100-1999	ibm1162p1001999	ibm-1162_P100-1999	shipped-cnv	no
+A	ibm-1163	ibm1163	ibm-1163_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1163_P100-1999	ibm1163p1001999	ibm-1163_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1164	ibm1164	ibm-1164_P100-1999	shipped-cnv	no
+A	ibm-1164_P100-1999	ibm1164p1001999	ibm-1164_P100-1999	shipped-cnv	no
+A	ibm-1165	ibm1165	ibm-1165_P101-2000	not-in-cnv-or-algorithmic	no
+A	ibm-1165_P101-2000	ibm1165p1012000	ibm-1165_P101-2000	not-in-cnv-or-algorithmic	no
+A	ibm-1166	ibm1166	ibm-1166_P100-2002	not-in-cnv-or-algorithmic	no
+A	ibm-1166_P100-2002	ibm1166p1002002	ibm-1166_P100-2002	not-in-cnv-or-algorithmic	no
+A	ibm-1167	ibm1167	ibm-1167_P100-2002	not-in-cnv-or-algorithmic	no
+A	ibm-1167_P100-2002	ibm1167p1002002	ibm-1167_P100-2002	not-in-cnv-or-algorithmic	no
+A	ibm-1168	ibm1168	ibm-1168_P100-2002	shipped-cnv	no
+A	ibm-1168_P100-2002	ibm1168p1002002	ibm-1168_P100-2002	shipped-cnv	no
+A	ibm-1174	ibm1174	ibm-1174_X100-2007	not-in-cnv-or-algorithmic	no
+A	ibm-1174_X100-2007	ibm1174x1002007	ibm-1174_X100-2007	not-in-cnv-or-algorithmic	no
+A	ibm-1200	ibm1200	UTF-16BE	algorithmic	no
+A	ibm-1201	ibm1201	UTF-16BE	algorithmic	no
+A	ibm-1202	ibm1202	UTF-16LE	algorithmic	no
+A	ibm-1203	ibm1203	UTF-16LE	algorithmic	no
+A	ibm-1204	ibm1204	UTF-16	algorithmic	no
+A	ibm-1205	ibm1205	UTF-16	algorithmic	no
+A	ibm-1208	ibm1208	UTF-8	algorithmic	no
+A	ibm-1209	ibm1209	UTF-8	algorithmic	no
+A	ibm-1212	ibm1212	SCSU	algorithmic	no
+A	ibm-1213	ibm1213	SCSU	algorithmic	no
+A	ibm-1214	ibm1214	BOCU-1	algorithmic	no
+A	ibm-1215	ibm1215	BOCU-1	algorithmic	no
+A	ibm-1232	ibm1232	UTF-32BE	algorithmic	no
+A	ibm-1233	ibm1233	UTF-32BE	algorithmic	no
+A	ibm-1234	ibm1234	UTF-32LE	algorithmic	no
+A	ibm-1235	ibm1235	UTF-32LE	algorithmic	no
+A	ibm-1236	ibm1236	UTF-32	algorithmic	no
+A	ibm-1237	ibm1237	UTF-32	algorithmic	no
+A	ibm-1250	ibm1250	ibm-1250_P100-1995	shipped-cnv	no
+A	ibm-1250_P100-1995	ibm1250p1001995	ibm-1250_P100-1995	shipped-cnv	no
+A	ibm-1251	ibm1251	ibm-1251_P100-1995	shipped-cnv	no
+A	ibm-1251_P100-1995	ibm1251p1001995	ibm-1251_P100-1995	shipped-cnv	no
+A	ibm-1252	ibm1252	ibm-1252_P100-2000	shipped-cnv	no
+A	ibm-1252_P100-2000	ibm1252p1002000	ibm-1252_P100-2000	shipped-cnv	no
+A	ibm-1253	ibm1253	ibm-1253_P100-1995	shipped-cnv	no
+A	ibm-1253_P100-1995	ibm1253p1001995	ibm-1253_P100-1995	shipped-cnv	no
+A	ibm-1254	ibm1254	ibm-1254_P100-1995	shipped-cnv	no
+A	ibm-1254_P100-1995	ibm1254p1001995	ibm-1254_P100-1995	shipped-cnv	no
+A	ibm-1255	ibm1255	ibm-1255_P100-1995	shipped-cnv	no
+A	ibm-1255_P100-1995	ibm1255p1001995	ibm-1255_P100-1995	shipped-cnv	no
+A	ibm-1256	ibm1256	ibm-1256_P110-1997	shipped-cnv	no
+A	ibm-1256_P110-1997	ibm1256p1101997	ibm-1256_P110-1997	shipped-cnv	no
+A	ibm-1257	ibm1257	ibm-1257_P100-1995	shipped-cnv	no
+A	ibm-1257_P100-1995	ibm1257p1001995	ibm-1257_P100-1995	shipped-cnv	no
+A	ibm-1258	ibm1258	ibm-1258_P100-1997	shipped-cnv	no
+A	ibm-1258_P100-1997	ibm1258p1001997	ibm-1258_P100-1997	shipped-cnv	no
+A	ibm-12712	ibm12712	ibm-12712_P100-1998	shipped-cnv	no
+A	ibm-12712_P100-1998	ibm12712p1001998	ibm-12712_P100-1998	shipped-cnv	no
+A	ibm-12712_P100-1998,swaplfnl	ibm12712p1001998swaplfnl	ibm-12712_P100-1998,swaplfnl	shipped-cnv	no
+A	ibm-12712-s390	ibm12712s390	ibm-12712_P100-1998,swaplfnl	shipped-cnv	no
+A	ibm-1276	ibm1276	ibm-1276_P100-1995	shipped-cnv	no
+A	ibm-1276_P100-1995	ibm1276p1001995	ibm-1276_P100-1995	shipped-cnv	no
+A	ibm-1277	ibm1277	ibm-1277_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1277_P100-1995	ibm1277p1001995	ibm-1277_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-13125	ibm13125	ibm-13125_P100-1997	not-in-cnv-or-algorithmic	no
+A	ibm-13125_P100-1997	ibm13125p1001997	ibm-13125_P100-1997	not-in-cnv-or-algorithmic	no
+A	ibm-13140	ibm13140	ibm-13140_P101-2000	not-in-cnv-or-algorithmic	no
+A	ibm-13140_P101-2000	ibm13140p1012000	ibm-13140_P101-2000	not-in-cnv-or-algorithmic	no
+A	ibm-13218	ibm13218	ibm-13218_P100-1996	not-in-cnv-or-algorithmic	no
+A	ibm-13218_P100-1996	ibm13218p1001996	ibm-13218_P100-1996	not-in-cnv-or-algorithmic	no
+A	ibm-13488	ibm13488	UTF-16BE	algorithmic	no
+A	ibm-13489	ibm13489	UTF-16BE	algorithmic	no
+A	ibm-13490	ibm13490	UTF-16LE	algorithmic	no
+A	ibm-13491	ibm13491	UTF-16LE	algorithmic	no
+A	ibm-13496	ibm13496	UTF-8	algorithmic	no
+A	ibm-13497	ibm13497	UTF-8	algorithmic	no
+A	ibm-1350	ibm1350	ibm-1350_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-1350_P110-1997	ibm1350p1101997	ibm-1350_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-1351	ibm1351	ibm-1351_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-1351_P110-1997	ibm1351p1101997	ibm-1351_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-1362	ibm1362	ibm-1362_P110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1362_P110-1999	ibm1362p1101999	ibm-1362_P110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1363	ibm1363	ibm-1363_P110-1997	shipped-cnv	yes
+A	ibm-1363_P110-1997	ibm1363p1101997	ibm-1363_P110-1997	shipped-cnv	no
+A	ibm-1363_P11B-1998	ibm1363p11b1998	ibm-1363_P11B-1998	shipped-cnv	no
+A	ibm-1363_VASCII_VSUB_VPUA	ibm1363vasciivsubvpua	ibm-1363_P110-1997	shipped-cnv	no
+A	ibm-1363_VSUB_VPUA	ibm1363vsubvpua	ibm-1363_P11B-1998	shipped-cnv	no
+A	ibm-1364	ibm1364	ibm-1364_P110-2007	shipped-cnv	no
+A	ibm-1364_P110-2007	ibm1364p1102007	ibm-1364_P110-2007	shipped-cnv	no
+A	ibm-13676	ibm13676	ibm-13676_P102-2001	not-in-cnv-or-algorithmic	no
+A	ibm-13676_P102-2001	ibm13676p1022001	ibm-13676_P102-2001	not-in-cnv-or-algorithmic	no
+A	ibm-1370	ibm1370	ibm-1370_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1370_P100-1999	ibm1370p1001999	ibm-1370_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1371	ibm1371	ibm-1371_P100-1999	shipped-cnv	no
+A	ibm-1371_P100-1999	ibm1371p1001999	ibm-1371_P100-1999	shipped-cnv	no
+A	ibm-1373	ibm1373	ibm-1373_P100-2002	shipped-cnv	no
+A	ibm-1373_P100-2002	ibm1373p1002002	ibm-1373_P100-2002	shipped-cnv	no
+A	ibm-1375	ibm1375	ibm-1375_P100-2008	shipped-cnv	no
+A	ibm-1375_P100-2008	ibm1375p1002008	ibm-1375_P100-2008	shipped-cnv	no
+A	ibm-1380	ibm1380	ibm-1380_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1380_P100-1995	ibm1380p1001995	ibm-1380_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1381	ibm1381	ibm-1381_P110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1381_P110-1999	ibm1381p1101999	ibm-1381_P110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-1382	ibm1382	ibm-1382_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1382_P100-1995	ibm1382p1001995	ibm-1382_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-1383	ibm1383	ibm-1383_P110-1999	shipped-cnv	no
+A	ibm-1383_P110-1999	ibm1383p1101999	ibm-1383_P110-1999	shipped-cnv	no
+A	ibm-1383_VPUA	ibm1383vpua	ibm-1383_P110-1999	shipped-cnv	no
+A	ibm-1385	ibm1385	ibm-9577_P100-2001	not-in-cnv-or-algorithmic	no
+A	ibm-1386	ibm1386	ibm-1386_P100-2001	shipped-cnv	no
+A	ibm-1386_P100-2001	ibm1386p1002001	ibm-1386_P100-2001	shipped-cnv	no
+A	ibm-1386_VSUB_VPUA	ibm1386vsubvpua	ibm-1386_P100-2001	shipped-cnv	no
+A	ibm-1388	ibm1388	ibm-1388_P103-2001	shipped-cnv	no
+A	ibm-1388_P103-2001	ibm1388p1032001	ibm-1388_P103-2001	shipped-cnv	no
+A	ibm-1390	ibm1390	ibm-1390_P110-2003	shipped-cnv	no
+A	ibm-1390_P110-2003	ibm1390p1102003	ibm-1390_P110-2003	shipped-cnv	no
+A	ibm-1392	ibm1392	gb18030	shipped-cnv	no
+A	ibm-1399	ibm1399	ibm-1399_P110-2003	shipped-cnv	no
+A	ibm-1399_P110-2003	ibm1399p1102003	ibm-1399_P110-2003	shipped-cnv	no
+A	ibm-16684	ibm16684	ibm-16684_P110-2003	shipped-cnv	no
+A	ibm-16684_P110-2003	ibm16684p1102003	ibm-16684_P110-2003	shipped-cnv	no
+A	ibm-16804	ibm16804	ibm-16804_X110-1999	shipped-cnv	no
+A	ibm-16804-s390	ibm16804s390	ibm-16804_X110-1999,swaplfnl	shipped-cnv	no
+A	ibm-16804_X110-1999	ibm16804x1101999	ibm-16804_X110-1999	shipped-cnv	no
+A	ibm-16804_X110-1999,swaplfnl	ibm16804x1101999swaplfnl	ibm-16804_X110-1999,swaplfnl	shipped-cnv	no
+A	ibm-17221	ibm17221	ibm-17221_P100-2001	not-in-cnv-or-algorithmic	no
+A	ibm-17221_P100-2001	ibm17221p1002001	ibm-17221_P100-2001	not-in-cnv-or-algorithmic	no
+A	ibm-17248	ibm17248	ibm-17248_X110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-17248_X110-1999	ibm17248x1101999	ibm-17248_X110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-17584	ibm17584	UTF-16BE	algorithmic	no
+A	ibm-17585	ibm17585	UTF-16BE	algorithmic	no
+A	ibm-17586	ibm17586	UTF-16LE	algorithmic	no
+A	ibm-17587	ibm17587	UTF-16LE	algorithmic	no
+A	ibm-17592	ibm17592	UTF-8	algorithmic	no
+A	ibm-17593	ibm17593	UTF-8	algorithmic	no
+A	ibm-20780	ibm20780	ibm-16684_P110-2003	shipped-cnv	no
+A	ibm-21344	ibm21344	ibm-21344_P101-2000	not-in-cnv-or-algorithmic	no
+A	ibm-21344_P101-2000	ibm21344p1012000	ibm-21344_P101-2000	not-in-cnv-or-algorithmic	no
+A	ibm-21427	ibm21427	ibm-21427_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-21427_P100-1999	ibm21427p1001999	ibm-21427_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-21680	ibm21680	UTF-16BE	algorithmic	no
+A	ibm-21681	ibm21681	UTF-16BE	algorithmic	no
+A	ibm-21682	ibm21682	UTF-16LE	algorithmic	no
+A	ibm-21683	ibm21683	UTF-16LE	algorithmic	no
+A	ibm-25546	ibm25546	ISO_2022,locale=ko,version=1	algorithmic	no
+A	ibm-256	ibm256	ibm-256_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-256_P100-1995	ibm256p1001995	ibm-256_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-25776	ibm25776	UTF-16BE	algorithmic	no
+A	ibm-25777	ibm25777	UTF-16BE	algorithmic	no
+A	ibm-25778	ibm25778	UTF-16LE	algorithmic	no
+A	ibm-25779	ibm25779	UTF-16LE	algorithmic	no
+A	ibm-259	ibm259	ibm-259_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-259_P100-1995	ibm259p1001995	ibm-259_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-273	ibm273	ibm-273_P100-1995	shipped-cnv	no
+A	ibm-273_P100-1995	ibm273p1001995	ibm-273_P100-1995	shipped-cnv	no
+A	ibm-274	ibm274	ibm-274_P100-2000	not-in-cnv-or-algorithmic	no
+A	ibm-274_P100-2000	ibm274p1002000	ibm-274_P100-2000	not-in-cnv-or-algorithmic	no
+A	ibm-275	ibm275	ibm-275_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-275_P100-1995	ibm275p1001995	ibm-275_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-277	ibm277	ibm-277_P100-1995	shipped-cnv	no
+A	ibm-277_P100-1995	ibm277p1001995	ibm-277_P100-1995	shipped-cnv	no
+A	ibm-278	ibm278	ibm-278_P100-1995	shipped-cnv	no
+A	ibm-278_P100-1995	ibm278p1001995	ibm-278_P100-1995	shipped-cnv	no
+A	ibm-280	ibm280	ibm-280_P100-1995	shipped-cnv	no
+A	ibm-280_P100-1995	ibm280p1001995	ibm-280_P100-1995	shipped-cnv	no
+A	ibm-284	ibm284	ibm-284_P100-1995	shipped-cnv	no
+A	ibm-284_P100-1995	ibm284p1001995	ibm-284_P100-1995	shipped-cnv	no
+A	ibm-285	ibm285	ibm-285_P100-1995	shipped-cnv	no
+A	ibm-285_P100-1995	ibm285p1001995	ibm-285_P100-1995	shipped-cnv	no
+A	ibm-286	ibm286	ibm-286_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-286_P100-2003	ibm286p1002003	ibm-286_P100-2003	not-in-cnv-or-algorithmic	no
+A	ibm-290	ibm290	ibm-290_P100-1995	shipped-cnv	no
+A	ibm-290_P100-1995	ibm290p1001995	ibm-290_P100-1995	shipped-cnv	no
+A	ibm-293	ibm293	ibm-293_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-293_P100-1995	ibm293p1001995	ibm-293_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-297	ibm297	ibm-297_P100-1995	shipped-cnv	no
+A	ibm-297_P100-1995	ibm297p1001995	ibm-297_P100-1995	shipped-cnv	no
+A	ibm-29872	ibm29872	UTF-16BE	algorithmic	no
+A	ibm-29873	ibm29873	UTF-16BE	algorithmic	no
+A	ibm-29874	ibm29874	UTF-16LE	algorithmic	no
+A	ibm-29875	ibm29875	UTF-16LE	algorithmic	no
+A	ibm-300	ibm300	ibm-300_P120-2006	not-in-cnv-or-algorithmic	no
+A	ibm-300_P120-2006	ibm300p1202006	ibm-300_P120-2006	not-in-cnv-or-algorithmic	no
+A	ibm-301	ibm301	ibm-301_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-301_P110-1997	ibm301p1101997	ibm-301_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-33058	ibm33058	ibm-33058_P100-2000	not-in-cnv-or-algorithmic	no
+A	ibm-33058_P100-2000	ibm33058p1002000	ibm-33058_P100-2000	not-in-cnv-or-algorithmic	no
+A	ibm-33722	ibm33722	ibm-33722_P120-1999	shipped-cnv	yes
+A	ibm-33722_P120-1999	ibm33722p1201999	ibm-33722_P120-1999	shipped-cnv	no
+A	ibm-33722_P12A_P12A-2009_U2	ibm33722p12ap12a2009u2	ibm-33722_P12A_P12A-2009_U2	shipped-cnv	no
+A	ibm-33722_VASCII_VPUA	ibm33722vasciivpua	ibm-33722_P120-1999	shipped-cnv	no
+A	ibm-33722_VPUA	ibm33722vpua	ibm-33722_P12A_P12A-2009_U2	shipped-cnv	no
+A	ibm-367	ibm367	US-ASCII	algorithmic	no
+A	ibm-37	ibm37	ibm-37_P100-1995	shipped-cnv	no
+A	ibm-37_P100-1995	ibm37p1001995	ibm-37_P100-1995	shipped-cnv	no
+A	ibm-37_P100-1995,swaplfnl	ibm37p1001995swaplfnl	ibm-37_P100-1995,swaplfnl	shipped-cnv	no
+A	ibm-37-s390	ibm37s390	ibm-37_P100-1995,swaplfnl	shipped-cnv	no
+A	ibm-420	ibm420	ibm-420_X120-1999	shipped-cnv	no
+A	ibm-420_X120-1999	ibm420x1201999	ibm-420_X120-1999	shipped-cnv	no
+A	ibm-424	ibm424	ibm-424_P100-1995	shipped-cnv	no
+A	ibm-424_P100-1995	ibm424p1001995	ibm-424_P100-1995	shipped-cnv	no
+A	ibm-425	ibm425	ibm-425_P101-2000	not-in-cnv-or-algorithmic	no
+A	ibm-425_P101-2000	ibm425p1012000	ibm-425_P101-2000	not-in-cnv-or-algorithmic	no
+A	ibm-437	ibm437	ibm-437_P100-1995	shipped-cnv	no
+A	ibm-437_P100-1995	ibm437p1001995	ibm-437_P100-1995	shipped-cnv	no
+A	ibm-4517	ibm4517	ibm-4517_P100-2005	shipped-cnv	no
+A	ibm-4517_P100-2005	ibm4517p1002005	ibm-4517_P100-2005	shipped-cnv	no
+A	ibm-4899	ibm4899	ibm-4899_P100-1998	shipped-cnv	no
+A	ibm-4899_P100-1998	ibm4899p1001998	ibm-4899_P100-1998	shipped-cnv	no
+A	ibm-4902	ibm4902	ISCII,version=0	algorithmic	no
+A	ibm-4909	ibm4909	ibm-4909_P100-1999	shipped-cnv	no
+A	ibm-4909_P100-1999	ibm4909p1001999	ibm-4909_P100-1999	shipped-cnv	no
+A	ibm-4930	ibm4930	ibm-4930_P110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-4930_P110-1999	ibm4930p1101999	ibm-4930_P110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-4933	ibm4933	ibm-4933_P100-2002	not-in-cnv-or-algorithmic	no
+A	ibm-4933_P100-2002	ibm4933p1002002	ibm-4933_P100-2002	not-in-cnv-or-algorithmic	no
+A	ibm-4948	ibm4948	ibm-4948_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-4948_P100-1995	ibm4948p1001995	ibm-4948_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-4951	ibm4951	ibm-4951_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-4951_P100-1995	ibm4951p1001995	ibm-4951_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-4952	ibm4952	ibm-4952_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-4952_P100-1995	ibm4952p1001995	ibm-4952_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-4960	ibm4960	ibm-4960_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-4960_P100-1995	ibm4960p1001995	ibm-4960_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-4971	ibm4971	ibm-4971_P100-1999	shipped-cnv	no
+A	ibm-4971_P100-1999	ibm4971p1001999	ibm-4971_P100-1999	shipped-cnv	no
+A	ibm-500	ibm500	ibm-500_P100-1995	shipped-cnv	no
+A	ibm-500_P100-1995	ibm500p1001995	ibm-500_P100-1995	shipped-cnv	no
+A	ibm-5012	ibm5012	ibm-5012_P100-1999	shipped-cnv	no
+A	ibm-5012_P100-1999	ibm5012p1001999	ibm-5012_P100-1999	shipped-cnv	no
+A	ibm-5026	ibm5026	ibm-930_P120-1999	shipped-cnv	no
+A	ibm-5035	ibm5035	ibm-939_P120-1999	shipped-cnv	no
+A	ibm-5039	ibm5039	ibm-5039_P11A-1998	not-in-cnv-or-algorithmic	no
+A	ibm-5039_P11A-1998	ibm5039p11a1998	ibm-5039_P11A-1998	not-in-cnv-or-algorithmic	no
+A	ibm-5048	ibm5048	ibm-5048_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-5048_P100-1995	ibm5048p1001995	ibm-5048_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-5049	ibm5049	ibm-5049_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-5049_P100-1995	ibm5049p1001995	ibm-5049_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-5050	ibm5050	ibm-33722_P120-1999	shipped-cnv	yes
+A	ibm-5054	ibm5054	ISO_2022,locale=ja,version=1	algorithmic	no
+A	ibm-5067	ibm5067	ibm-5067_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-5067_P100-1995	ibm5067p1001995	ibm-5067_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-5104	ibm5104	ibm-5104_X110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-5104_X110-1999	ibm5104x1101999	ibm-5104_X110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-5123	ibm5123	ibm-5123_P100-1999	shipped-cnv	no
+A	ibm-5123_P100-1999	ibm5123p1001999	ibm-5123_P100-1999	shipped-cnv	no
+A	ibm-5233	ibm5233	ibm-5233_P100-2011	not-in-cnv-or-algorithmic	no
+A	ibm-5233_P100-2011	ibm5233p1002011	ibm-5233_P100-2011	not-in-cnv-or-algorithmic	no
+A	ibm-5304	ibm5304	UTF-8	algorithmic	no
+A	ibm-5305	ibm5305	UTF-8	algorithmic	no
+A	ibm-5346	ibm5346	ibm-5346_P100-1998	shipped-cnv	no
+A	ibm-5346_P100-1998	ibm5346p1001998	ibm-5346_P100-1998	shipped-cnv	no
+A	ibm-5347	ibm5347	ibm-5347_P100-1998	shipped-cnv	no
+A	ibm-5347_P100-1998	ibm5347p1001998	ibm-5347_P100-1998	shipped-cnv	no
+A	ibm-5348	ibm5348	ibm-5348_P100-1997	shipped-cnv	no
+A	ibm-5348_P100-1997	ibm5348p1001997	ibm-5348_P100-1997	shipped-cnv	no
+A	ibm-5349	ibm5349	ibm-5349_P100-1998	shipped-cnv	no
+A	ibm-5349_P100-1998	ibm5349p1001998	ibm-5349_P100-1998	shipped-cnv	no
+A	ibm-5350	ibm5350	ibm-5350_P100-1998	shipped-cnv	no
+A	ibm-5350_P100-1998	ibm5350p1001998	ibm-5350_P100-1998	shipped-cnv	no
+A	ibm-5351	ibm5351	ibm-5351_P100-1998	shipped-cnv	no
+A	ibm-5351_P100-1998	ibm5351p1001998	ibm-5351_P100-1998	shipped-cnv	no
+A	ibm-5352	ibm5352	ibm-5352_P100-1998	shipped-cnv	no
+A	ibm-5352_P100-1998	ibm5352p1001998	ibm-5352_P100-1998	shipped-cnv	no
+A	ibm-5353	ibm5353	ibm-5353_P100-1998	shipped-cnv	no
+A	ibm-5353_P100-1998	ibm5353p1001998	ibm-5353_P100-1998	shipped-cnv	no
+A	ibm-5354	ibm5354	ibm-5354_P100-1998	shipped-cnv	no
+A	ibm-5354_P100-1998	ibm5354p1001998	ibm-5354_P100-1998	shipped-cnv	no
+A	ibm-5471	ibm5471	ibm-5471_P100-2006	shipped-cnv	no
+A	ibm-5471_P100-2006	ibm5471p1002006	ibm-5471_P100-2006	shipped-cnv	no
+A	ibm-5478	ibm5478	ibm-5478_P100-1995	shipped-cnv	no
+A	ibm-5478_P100-1995	ibm5478p1001995	ibm-5478_P100-1995	shipped-cnv	no
+A	ibm-61955	ibm61955	UTF-16BE	algorithmic	no
+A	ibm-61956	ibm61956	UTF-16BE	algorithmic	no
+A	ibm-65025	ibm65025	LMBCS-1	algorithmic	no
+A	ibm-720	ibm720	ibm-720_P100-1997	shipped-cnv	no
+A	ibm-720_P100-1997	ibm720p1001997	ibm-720_P100-1997	shipped-cnv	no
+A	ibm-737	ibm737	ibm-737_P100-1997	shipped-cnv	no
+A	ibm-737_P100-1997	ibm737p1001997	ibm-737_P100-1997	shipped-cnv	no
+A	ibm-775	ibm775	ibm-775_P100-1996	shipped-cnv	no
+A	ibm-775_P100-1996	ibm775p1001996	ibm-775_P100-1996	shipped-cnv	no
+A	ibm-803	ibm803	ibm-803_P100-1999	shipped-cnv	no
+A	ibm-803_P100-1999	ibm803p1001999	ibm-803_P100-1999	shipped-cnv	no
+A	ibm-806	ibm806	ibm-806_P100-1998	not-in-cnv-or-algorithmic	no
+A	ibm-806_P100-1998	ibm806p1001998	ibm-806_P100-1998	not-in-cnv-or-algorithmic	no
+A	ibm-808	ibm808	ibm-808_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-808_P100-1999	ibm808p1001999	ibm-808_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-813	ibm813	ibm-813_P100-1995	shipped-cnv	no
+A	ibm-813_P100-1995	ibm813p1001995	ibm-813_P100-1995	shipped-cnv	no
+A	ibm-819	ibm819	ISO-8859-1	algorithmic	no
+A	ibm-833	ibm833	ibm-833_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-833_P100-1995	ibm833p1001995	ibm-833_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-834	ibm834	ibm-834_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-834_P100-1995	ibm834p1001995	ibm-834_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-835	ibm835	ibm-835_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-835_P100-1995	ibm835p1001995	ibm-835_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-836	ibm836	ibm-836_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-836_P100-1995	ibm836p1001995	ibm-836_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-837	ibm837	ibm-837_P100-2011	not-in-cnv-or-algorithmic	no
+A	ibm-837_P100-2011	ibm837p1002011	ibm-837_P100-2011	not-in-cnv-or-algorithmic	no
+A	ibm-838	ibm838	ibm-838_P100-1995	shipped-cnv	no
+A	ibm-838_P100-1995	ibm838p1001995	ibm-838_P100-1995	shipped-cnv	no
+A	ibm-848	ibm848	ibm-848_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-8482	ibm8482	ibm-8482_P100-1999	shipped-cnv	no
+A	ibm-8482_P100-1999	ibm8482p1001999	ibm-8482_P100-1999	shipped-cnv	no
+A	ibm-848_P100-1999	ibm848p1001999	ibm-848_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-849	ibm849	ibm-849_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-849_P100-1999	ibm849p1001999	ibm-849_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-850	ibm850	ibm-850_P100-1995	shipped-cnv	no
+A	ibm-850_P100-1995	ibm850p1001995	ibm-850_P100-1995	shipped-cnv	no
+A	ibm-851	ibm851	ibm-851_P100-1995	shipped-cnv	no
+A	ibm-851_P100-1995	ibm851p1001995	ibm-851_P100-1995	shipped-cnv	no
+A	ibm-852	ibm852	ibm-852_P100-1995	shipped-cnv	no
+A	ibm-852_P100-1995	ibm852p1001995	ibm-852_P100-1995	shipped-cnv	no
+A	ibm-855	ibm855	ibm-855_P100-1995	shipped-cnv	no
+A	ibm-855_P100-1995	ibm855p1001995	ibm-855_P100-1995	shipped-cnv	no
+A	ibm-856	ibm856	ibm-856_P100-1995	shipped-cnv	no
+A	ibm-856_P100-1995	ibm856p1001995	ibm-856_P100-1995	shipped-cnv	no
+A	ibm-857	ibm857	ibm-857_P100-1995	shipped-cnv	no
+A	ibm-857_P100-1995	ibm857p1001995	ibm-857_P100-1995	shipped-cnv	no
+A	ibm-858	ibm858	ibm-858_P100-1997	shipped-cnv	no
+A	ibm-858_P100-1997	ibm858p1001997	ibm-858_P100-1997	shipped-cnv	no
+A	ibm-859	ibm859	ibm-859_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-859_P100-1999	ibm859p1001999	ibm-859_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-860	ibm860	ibm-860_P100-1995	shipped-cnv	no
+A	ibm-860_P100-1995	ibm860p1001995	ibm-860_P100-1995	shipped-cnv	no
+A	ibm-861	ibm861	ibm-861_P100-1995	shipped-cnv	no
+A	ibm-8612	ibm8612	ibm-8612_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-8612_P100-1995	ibm8612p1001995	ibm-8612_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-861_P100-1995	ibm861p1001995	ibm-861_P100-1995	shipped-cnv	no
+A	ibm-862	ibm862	ibm-862_P100-1995	shipped-cnv	no
+A	ibm-862_P100-1995	ibm862p1001995	ibm-862_P100-1995	shipped-cnv	no
+A	ibm-863	ibm863	ibm-863_P100-1995	shipped-cnv	no
+A	ibm-863_P100-1995	ibm863p1001995	ibm-863_P100-1995	shipped-cnv	no
+A	ibm-864	ibm864	ibm-864_X110-1999	shipped-cnv	no
+A	ibm-864s	ibm864s	windows-864-2000	not-in-cnv-or-algorithmic	no
+A	ibm-864_X110-1999	ibm864x1101999	ibm-864_X110-1999	shipped-cnv	no
+A	ibm-865	ibm865	ibm-865_P100-1995	shipped-cnv	no
+A	ibm-865_P100-1995	ibm865p1001995	ibm-865_P100-1995	shipped-cnv	no
+A	ibm-866	ibm866	ibm-866_P100-1995	shipped-cnv	no
+A	ibm-866_P100-1995	ibm866p1001995	ibm-866_P100-1995	shipped-cnv	no
+A	ibm-867	ibm867	ibm-867_P100-1998	shipped-cnv	no
+A	ibm-867_P100-1998	ibm867p1001998	ibm-867_P100-1998	shipped-cnv	no
+A	ibm-868	ibm868	ibm-868_P100-1995	shipped-cnv	no
+A	ibm-868_P100-1995	ibm868p1001995	ibm-868_P100-1995	shipped-cnv	no
+A	ibm-869	ibm869	ibm-869_P100-1995	shipped-cnv	no
+A	ibm-869_P100-1995	ibm869p1001995	ibm-869_P100-1995	shipped-cnv	no
+A	ibm-870	ibm870	ibm-870_P100-1995	shipped-cnv	no
+A	ibm-870_P100-1995	ibm870p1001995	ibm-870_P100-1995	shipped-cnv	no
+A	ibm-871	ibm871	ibm-871_P100-1995	shipped-cnv	no
+A	ibm-871_P100-1995	ibm871p1001995	ibm-871_P100-1995	shipped-cnv	no
+A	ibm-872	ibm872	ibm-872_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-872_P100-1999	ibm872p1001999	ibm-872_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-874	ibm874	ibm-874_P100-1995	shipped-cnv	no
+A	ibm-874_P100-1995	ibm874p1001995	ibm-874_P100-1995	shipped-cnv	no
+A	ibm-875	ibm875	ibm-875_P100-1995	shipped-cnv	no
+A	ibm-875_P100-1995	ibm875p1001995	ibm-875_P100-1995	shipped-cnv	no
+A	ibm-878	ibm878	ibm-878_P100-1996	shipped-cnv	no
+A	ibm-878_P100-1996	ibm878p1001996	ibm-878_P100-1996	shipped-cnv	no
+A	ibm-880	ibm880	ibm-880_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-880_P100-1995	ibm880p1001995	ibm-880_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-896	ibm896	ibm-896_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-896_P100-1995	ibm896p1001995	ibm-896_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-897	ibm897	ibm-897_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-897_P100-1995	ibm897p1001995	ibm-897_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-9005	ibm9005	ibm-9005_X110-2007	shipped-cnv	no
+A	ibm-9005_X110-2007	ibm9005x1102007	ibm-9005_X110-2007	shipped-cnv	no
+A	ibm-901	ibm901	ibm-901_P100-1999	shipped-cnv	no
+A	ibm-901_P100-1999	ibm901p1001999	ibm-901_P100-1999	shipped-cnv	no
+A	ibm-902	ibm902	ibm-902_P100-1999	shipped-cnv	no
+A	ibm-9027	ibm9027	ibm-9027_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-9027_P100-1999	ibm9027p1001999	ibm-9027_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-902_P100-1999	ibm902p1001999	ibm-902_P100-1999	shipped-cnv	no
+A	ibm-9030	ibm9030	ibm-838_P100-1995	shipped-cnv	no
+A	ibm-9048	ibm9048	ibm-9048_P100-1998	not-in-cnv-or-algorithmic	no
+A	ibm-9048_P100-1998	ibm9048p1001998	ibm-9048_P100-1998	not-in-cnv-or-algorithmic	no
+A	ibm-905	ibm905	ibm-905_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-9056	ibm9056	ibm-9056_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-9056_P100-1995	ibm9056p1001995	ibm-9056_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-905_P100-1995	ibm905p1001995	ibm-905_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-9061	ibm9061	ibm-9061_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-9061_P100-1999	ibm9061p1001999	ibm-9061_P100-1999	not-in-cnv-or-algorithmic	no
+A	ibm-9066	ibm9066	ibm-874_P100-1995	shipped-cnv	no
+A	ibm-9067	ibm9067	ibm-9067_X100-2005	shipped-cnv	no
+A	ibm-9067_X100-2005	ibm9067x1002005	ibm-9067_X100-2005	shipped-cnv	no
+A	ibm-912	ibm912	ibm-912_P100-1995	shipped-cnv	no
+A	ibm-912_P100-1995	ibm912p1001995	ibm-912_P100-1995	shipped-cnv	no
+A	ibm-913	ibm913	ibm-913_P100-2000	shipped-cnv	no
+A	ibm-913_P100-2000	ibm913p1002000	ibm-913_P100-2000	shipped-cnv	no
+A	ibm-914	ibm914	ibm-914_P100-1995	shipped-cnv	no
+A	ibm-9145	ibm9145	ibm-9145_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-9145_P110-1997	ibm9145p1101997	ibm-9145_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-914_P100-1995	ibm914p1001995	ibm-914_P100-1995	shipped-cnv	no
+A	ibm-915	ibm915	ibm-915_P100-1995	shipped-cnv	no
+A	ibm-915_P100-1995	ibm915p1001995	ibm-915_P100-1995	shipped-cnv	no
+A	ibm-916	ibm916	ibm-916_P100-1995	shipped-cnv	no
+A	ibm-916_P100-1995	ibm916p1001995	ibm-916_P100-1995	shipped-cnv	no
+A	ibm-918	ibm918	ibm-918_P100-1995	shipped-cnv	no
+A	ibm-918_P100-1995	ibm918p1001995	ibm-918_P100-1995	shipped-cnv	no
+A	ibm-920	ibm920	ibm-920_P100-1995	shipped-cnv	no
+A	ibm-920_P100-1995	ibm920p1001995	ibm-920_P100-1995	shipped-cnv	no
+A	ibm-921	ibm921	ibm-921_P100-1995	shipped-cnv	no
+A	ibm-921_P100-1995	ibm921p1001995	ibm-921_P100-1995	shipped-cnv	no
+A	ibm-922	ibm922	ibm-922_P100-1999	shipped-cnv	no
+A	ibm-922_P100-1999	ibm922p1001999	ibm-922_P100-1999	shipped-cnv	no
+A	ibm-923	ibm923	ibm-923_P100-1998	shipped-cnv	no
+A	ibm-9238	ibm9238	ibm-9238_X110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-9238_X110-1999	ibm9238x1101999	ibm-9238_X110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-923_P100-1998	ibm923p1001998	ibm-923_P100-1998	shipped-cnv	no
+A	ibm-924	ibm924	ibm-924_P100-1998	not-in-cnv-or-algorithmic	no
+A	IBM924_LF	ibm924lf	ibm-924_P100-1998,swaplfnl	not-in-cnv-or-algorithmic	no
+A	ibm-924_P100-1998	ibm924p1001998	ibm-924_P100-1998	not-in-cnv-or-algorithmic	no
+A	ibm-924_P100-1998,swaplfnl	ibm924p1001998swaplfnl	ibm-924_P100-1998,swaplfnl	not-in-cnv-or-algorithmic	no
+A	ibm-924-s390	ibm924s390	ibm-924_P100-1998,swaplfnl	not-in-cnv-or-algorithmic	no
+A	ibm-926	ibm926	ibm-926_P100-2000	not-in-cnv-or-algorithmic	no
+A	ibm-926_P100-2000	ibm926p1002000	ibm-926_P100-2000	not-in-cnv-or-algorithmic	no
+A	ibm-927	ibm927	ibm-927_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-927_P100-1995	ibm927p1001995	ibm-927_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-928	ibm928	ibm-928_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-928_P100-1995	ibm928p1001995	ibm-928_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-930	ibm930	ibm-930_P120-1999	shipped-cnv	no
+A	ibm-930_P120-1999	ibm930p1201999	ibm-930_P120-1999	shipped-cnv	no
+A	ibm-931	ibm931	ibm-939_P120-1999	shipped-cnv	no
+A	ibm-932	ibm932	ibm-942_P12A-1999	shipped-cnv	no
+A	ibm-932_VSUB_VPUA	ibm932vsubvpua	ibm-942_P12A-1999	shipped-cnv	no
+A	ibm-933	ibm933	ibm-933_P110-1995	shipped-cnv	no
+A	ibm-933_P110-1995	ibm933p1101995	ibm-933_P110-1995	shipped-cnv	no
+A	ibm-935	ibm935	ibm-935_P110-1999	shipped-cnv	no
+A	ibm-935_P110-1999	ibm935p1101999	ibm-935_P110-1999	shipped-cnv	no
+A	ibm-937	ibm937	ibm-937_P110-1999	shipped-cnv	no
+A	ibm-937_P110-1999	ibm937p1101999	ibm-937_P110-1999	shipped-cnv	no
+A	ibm-939	ibm939	ibm-939_P120-1999	shipped-cnv	no
+A	ibm-939_P120-1999	ibm939p1201999	ibm-939_P120-1999	shipped-cnv	no
+A	ibm-9400	ibm9400	CESU-8	algorithmic	no
+A	ibm-941	ibm941	ibm-941_P13A-2001	not-in-cnv-or-algorithmic	no
+A	ibm-941_P13A-2001	ibm941p13a2001	ibm-941_P13A-2001	not-in-cnv-or-algorithmic	no
+A	ibm-942	ibm942	ibm-942_P12A-1999	shipped-cnv	no
+A	ibm-9424	ibm9424	UTF-32BE	algorithmic	no
+A	ibm-942_P12A-1999	ibm942p12a1999	ibm-942_P12A-1999	shipped-cnv	no
+A	ibm-942_VSUB_VPUA	ibm942vsubvpua	ibm-942_P12A-1999	shipped-cnv	no
+A	ibm-943	ibm943	ibm-943_P130-1999	shipped-cnv	yes
+A	IBM-943C	ibm943c	ibm-943_P15A-2003	shipped-cnv	no
+A	ibm-943_P130-1999	ibm943p1301999	ibm-943_P130-1999	shipped-cnv	no
+A	ibm-943_P15A-2003	ibm943p15a2003	ibm-943_P15A-2003	shipped-cnv	no
+A	ibm-943_VASCII_VSUB_VPUA	ibm943vasciivsubvpua	ibm-943_P130-1999	shipped-cnv	no
+A	ibm-943_VSUB_VPUA	ibm943vsubvpua	ibm-943_P15A-2003	shipped-cnv	no
+A	ibm-944	ibm944	ibm-944_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-9447	ibm9447	ibm-9447_P100-2002	shipped-cnv	no
+A	ibm-9447_P100-2002	ibm9447p1002002	ibm-9447_P100-2002	shipped-cnv	no
+A	ibm-9448	ibm9448	ibm-9448_X100-2005	shipped-cnv	no
+A	ibm-9448_X100-2005	ibm9448x1002005	ibm-9448_X100-2005	shipped-cnv	no
+A	ibm-9449	ibm9449	ibm-9449_P100-2002	shipped-cnv	no
+A	ibm-9449_P100-2002	ibm9449p1002002	ibm-9449_P100-2002	shipped-cnv	no
+A	ibm-944_P100-1995	ibm944p1001995	ibm-944_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-946	ibm946	ibm-946_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-946_P100-1995	ibm946p1001995	ibm-946_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-947	ibm947	ibm-947_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-947_P100-1995	ibm947p1001995	ibm-947_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-948	ibm948	ibm-948_P110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-948_P110-1999	ibm948p1101999	ibm-948_P110-1999	not-in-cnv-or-algorithmic	no
+A	ibm-949	ibm949	ibm-949_P110-1999	shipped-cnv	yes
+A	IBM-949C	ibm949c	ibm-949_P11A-1999	shipped-cnv	no
+A	ibm-949_P110-1999	ibm949p1101999	ibm-949_P110-1999	shipped-cnv	no
+A	ibm-949_P11A-1999	ibm949p11a1999	ibm-949_P11A-1999	shipped-cnv	no
+A	ibm-949_VASCII_VSUB_VPUA	ibm949vasciivsubvpua	ibm-949_P110-1999	shipped-cnv	no
+A	ibm-949_VSUB_VPUA	ibm949vsubvpua	ibm-949_P11A-1999	shipped-cnv	no
+A	ibm-950	ibm950	ibm-950_P110-1999	shipped-cnv	no
+A	ibm-950_P110-1999	ibm950p1101999	ibm-950_P110-1999	shipped-cnv	no
+A	ibm-951	ibm951	ibm-951_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-951_P100-1995	ibm951p1001995	ibm-951_P100-1995	not-in-cnv-or-algorithmic	no
+A	ibm-952	ibm952	ibm-952_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-952_P110-1997	ibm952p1101997	ibm-952_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-953	ibm953	ibm-953_P100-2000	not-in-cnv-or-algorithmic	no
+A	ibm-953_P100-2000	ibm953p1002000	ibm-953_P100-2000	not-in-cnv-or-algorithmic	no
+A	ibm-954	ibm954	ibm-954_P101-2007	shipped-cnv	no
+A	ibm-954_P101-2007	ibm954p1012007	ibm-954_P101-2007	shipped-cnv	no
+A	ibm-955	ibm955	ibm-955_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-955_P110-1997	ibm955p1101997	ibm-955_P110-1997	not-in-cnv-or-algorithmic	no
+A	ibm-9577	ibm9577	ibm-9577_P100-2001	not-in-cnv-or-algorithmic	no
+A	ibm-9577_P100-2001	ibm9577p1002001	ibm-9577_P100-2001	not-in-cnv-or-algorithmic	no
+A	ibm-9580	ibm9580	ibm-1388_P103-2001	shipped-cnv	no
+A	ibm-964	ibm964	ibm-964_P110-1999	shipped-cnv	no
+A	ibm-964_P110-1999	ibm964p1101999	ibm-964_P110-1999	shipped-cnv	no
+A	ibm-964_VPUA	ibm964vpua	ibm-964_P110-1999	shipped-cnv	no
+A	ibm-970	ibm970	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	ibm-970_P110_P110-2006_U2	ibm970p110p1102006u2	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	ibm-970_VPUA	ibm970vpua	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	ibm-971	ibm971	ibm-971_P100-1995	shipped-cnv	no
+A	ibm-971_P100-1995	ibm971p1001995	ibm-971_P100-1995	shipped-cnv	no
+A	ibm-971_VPUA	ibm971vpua	ibm-971_P100-1995	shipped-cnv	no
+A	ibm-eucCN	ibmeuccn	ibm-1383_P110-1999	shipped-cnv	no
+A	IBM-eucJP	ibmeucjp	ibm-33722_P12A_P12A-2009_U2	shipped-cnv	no
+A	ibm-eucKR	ibmeuckr	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	ibm-eucTW	ibmeuctw	ibm-964_P110-1999	shipped-cnv	no
+A	IBM-Symbols	ibmsymbols	ibm-259_P100-1995	not-in-cnv-or-algorithmic	no
+A	IBM-Thai	ibmthai	ibm-838_P100-1995	shipped-cnv	no
+A	IMAP-mailbox-name	imapmailboxname	IMAP-mailbox-name	algorithmic	no
+A	iscii-bng	isciibng	ISCII,version=1	algorithmic	no
+A	iscii-dev	isciidev	ISCII,version=0	algorithmic	no
+A	iscii-guj	isciiguj	ISCII,version=3	algorithmic	no
+A	iscii-gur	isciigur	ISCII,version=2	algorithmic	no
+A	iscii-knd	isciiknd	ISCII,version=7	algorithmic	no
+A	iscii-mlm	isciimlm	ISCII,version=8	algorithmic	no
+A	iscii-ori	isciiori	ISCII,version=4	algorithmic	no
+A	iscii-tlg	isciitlg	ISCII,version=6	algorithmic	no
+A	iscii-tml	isciitml	ISCII,version=5	algorithmic	no
+A	ISCII,version=0	isciiversion0	ISCII,version=0	algorithmic	no
+A	ISCII,version=1	isciiversion1	ISCII,version=1	algorithmic	no
+A	ISCII,version=2	isciiversion2	ISCII,version=2	algorithmic	no
+A	ISCII,version=3	isciiversion3	ISCII,version=3	algorithmic	no
+A	ISCII,version=4	isciiversion4	ISCII,version=4	algorithmic	no
+A	ISCII,version=5	isciiversion5	ISCII,version=5	algorithmic	no
+A	ISCII,version=6	isciiversion6	ISCII,version=6	algorithmic	no
+A	ISCII,version=7	isciiversion7	ISCII,version=7	algorithmic	no
+A	ISCII,version=8	isciiversion8	ISCII,version=8	algorithmic	no
+A	ISO-10646-UCS-2	iso10646ucs2	UTF-16	algorithmic	no
+A	ISO-10646-UCS-4	iso10646ucs4	UTF-32	algorithmic	no
+A	ISO-2022-CN	iso2022cn	ISO_2022,locale=zh,version=0	algorithmic	no
+A	ISO-2022-CN-CNS	iso2022cncns	ISO_2022,locale=zh,version=2	algorithmic	no
+A	ISO-2022-CN-EXT	iso2022cnext	ISO_2022,locale=zh,version=1	algorithmic	no
+A	ISO-2022-JP	iso2022jp	ISO_2022,locale=ja,version=0	algorithmic	no
+A	ISO-2022-JP-1	iso2022jp1	ISO_2022,locale=ja,version=1	algorithmic	no
+A	ISO-2022-JP-2	iso2022jp2	ISO_2022,locale=ja,version=2	algorithmic	no
+A	ISO-2022-KR	iso2022kr	ISO_2022,locale=ko,version=0	algorithmic	no
+A	ISO_2022,locale=ja,version=0	iso2022localejaversion0	ISO_2022,locale=ja,version=0	algorithmic	no
+A	ISO_2022,locale=ja,version=1	iso2022localejaversion1	ISO_2022,locale=ja,version=1	algorithmic	no
+A	ISO_2022,locale=ja,version=2	iso2022localejaversion2	ISO_2022,locale=ja,version=2	algorithmic	no
+A	ISO_2022,locale=ja,version=3	iso2022localejaversion3	ISO_2022,locale=ja,version=3	algorithmic	no
+A	ISO_2022,locale=ja,version=4	iso2022localejaversion4	ISO_2022,locale=ja,version=4	algorithmic	no
+A	ISO_2022,locale=ko,version=0	iso2022localekoversion0	ISO_2022,locale=ko,version=0	algorithmic	no
+A	ISO_2022,locale=ko,version=1	iso2022localekoversion1	ISO_2022,locale=ko,version=1	algorithmic	no
+A	ISO_2022,locale=zh,version=0	iso2022localezhversion0	ISO_2022,locale=zh,version=0	algorithmic	no
+A	ISO_2022,locale=zh,version=1	iso2022localezhversion1	ISO_2022,locale=zh,version=1	algorithmic	no
+A	ISO_2022,locale=zh,version=2	iso2022localezhversion2	ISO_2022,locale=zh,version=2	algorithmic	no
+A	ISO646-CA	iso646ca	ibm-1020_P100-2003	not-in-cnv-or-algorithmic	no
+A	ISO646-DE	iso646de	ibm-1011_P100-1995	not-in-cnv-or-algorithmic	no
+A	ISO646-DK	iso646dk	ibm-1107_P100-2003	not-in-cnv-or-algorithmic	no
+A	ISO646-ES	iso646es	ibm-1023_P100-2003	not-in-cnv-or-algorithmic	no
+A	ISO646-ES2	iso646es2	ibm-1014_P100-1995	not-in-cnv-or-algorithmic	no
+A	ISO646-FI	iso646fi	ibm-1018_P100-1995	not-in-cnv-or-algorithmic	no
+A	ISO646-FR	iso646fr	ibm-1010_P100-1995	not-in-cnv-or-algorithmic	no
+A	ISO646-FR1	iso646fr1	ibm-1104_P100-2003	not-in-cnv-or-algorithmic	no
+A	ISO646-GB	iso646gb	ibm-1013_P100-1995	not-in-cnv-or-algorithmic	no
+A	iso_646.irv:1983	iso646irv1983	US-ASCII	algorithmic	no
+A	ISO_646.irv:1991	iso646irv1991	US-ASCII	algorithmic	no
+A	ISO646-IT	iso646it	ibm-1012_P100-1995	not-in-cnv-or-algorithmic	no
+A	ISO646-NO	iso646no	ibm-1016_P100-1995	not-in-cnv-or-algorithmic	no
+A	ISO646-PT2	iso646pt2	ibm-1015_P100-1995	not-in-cnv-or-algorithmic	no
+A	ISO646-SE	iso646se	ibm-1018_P100-1995	not-in-cnv-or-algorithmic	no
+A	ISO646-US	iso646us	US-ASCII	algorithmic	no
+A	ISO-8859-1	iso88591	ISO-8859-1	algorithmic	no
+A	ISO-8859-10	iso885910	iso-8859_10-1998	shipped-cnv	no
+A	ISO_8859-10:1992	iso8859101992	iso-8859_10-1998	shipped-cnv	no
+A	iso-8859_10-1998	iso8859101998	iso-8859_10-1998	shipped-cnv	no
+A	ISO-8859-11	iso885911	iso-8859_11-2001	shipped-cnv	no
+A	iso-8859_11-2001	iso8859112001	iso-8859_11-2001	shipped-cnv	no
+A	ISO_8859-1:1987	iso885911987	ISO-8859-1	algorithmic	no
+A	ISO-8859-13	iso885913	ibm-921_P100-1995	shipped-cnv	no
+A	ISO-8859-14	iso885914	iso-8859_14-1998	shipped-cnv	no
+A	iso-8859_14-1998	iso8859141998	iso-8859_14-1998	shipped-cnv	no
+A	ISO-8859-15	iso885915	ibm-923_P100-1998	shipped-cnv	no
+A	iso8859_15_fdis	iso885915fdis	ibm-923_P100-1998	shipped-cnv	no
+A	ISO-8859-16	iso885916	iso-8859_16-2001	not-in-cnv-or-algorithmic	no
+A	iso-8859_16-2001	iso8859162001	iso-8859_16-2001	not-in-cnv-or-algorithmic	no
+A	ISO-8859-2	iso88592	ibm-912_P100-1995	shipped-cnv	no
+A	ISO_8859-2:1987	iso885921987	ibm-912_P100-1995	shipped-cnv	no
+A	ISO-8859-3	iso88593	ibm-913_P100-2000	shipped-cnv	no
+A	ISO_8859-3:1988	iso885931988	ibm-913_P100-2000	shipped-cnv	no
+A	ISO-8859-4	iso88594	ibm-914_P100-1995	shipped-cnv	no
+A	ISO_8859-4:1988	iso885941988	ibm-914_P100-1995	shipped-cnv	no
+A	ISO-8859-5	iso88595	ibm-915_P100-1995	shipped-cnv	no
+A	ISO_8859-5:1988	iso885951988	ibm-915_P100-1995	shipped-cnv	no
+A	ISO-8859-6	iso88596	ibm-1089_P100-1995	shipped-cnv	no
+A	ISO_8859-6:1987	iso885961987	ibm-1089_P100-1995	shipped-cnv	no
+A	ISO-8859-6-E	iso88596e	ibm-1089_P100-1995	shipped-cnv	no
+A	ISO-8859-6-I	iso88596i	ibm-1089_P100-1995	shipped-cnv	no
+A	ISO-8859-7	iso88597	ibm-9005_X110-2007	shipped-cnv	no
+A	ISO_8859-7:1987	iso885971987	ibm-9005_X110-2007	shipped-cnv	no
+A	ISO-8859-8	iso88598	ibm-5012_P100-1999	shipped-cnv	no
+A	ISO_8859-8:1988	iso885981988	ibm-5012_P100-1999	shipped-cnv	no
+A	ISO-8859-8-E	iso88598e	ibm-5012_P100-1999	shipped-cnv	no
+A	ISO-8859-8-I	iso88598i	ibm-5012_P100-1999	shipped-cnv	no
+A	ISO-8859-9	iso88599	ibm-920_P100-1995	shipped-cnv	no
+A	ISO_8859-9:1989	iso885991989	ibm-920_P100-1995	shipped-cnv	no
+A	iso-celtic	isoceltic	iso-8859_14-1998	shipped-cnv	no
+A	iso-ir-10	isoir10	ibm-1018_P100-1995	not-in-cnv-or-algorithmic	no
+A	iso-ir-100	isoir100	ISO-8859-1	algorithmic	no
+A	iso-ir-101	isoir101	ibm-912_P100-1995	shipped-cnv	no
+A	iso-ir-109	isoir109	ibm-913_P100-2000	shipped-cnv	no
+A	iso-ir-110	isoir110	ibm-914_P100-1995	shipped-cnv	no
+A	iso-ir-121	isoir121	ibm-1020_P100-2003	not-in-cnv-or-algorithmic	no
+A	iso-ir-126	isoir126	ibm-9005_X110-2007	shipped-cnv	no
+A	iso-ir-127	isoir127	ibm-1089_P100-1995	shipped-cnv	no
+A	iso-ir-138	isoir138	ibm-5012_P100-1999	shipped-cnv	no
+A	iso-ir-144	isoir144	ibm-915_P100-1995	shipped-cnv	no
+A	iso-ir-148	isoir148	ibm-920_P100-1995	shipped-cnv	no
+A	iso-ir-149	isoir149	windows-949-2000	shipped-cnv	yes
+A	iso-ir-15	isoir15	ibm-1012_P100-1995	not-in-cnv-or-algorithmic	no
+A	iso-ir-157	isoir157	iso-8859_10-1998	shipped-cnv	no
+A	iso-ir-17	isoir17	ibm-1023_P100-2003	not-in-cnv-or-algorithmic	no
+A	iso-ir-199	isoir199	iso-8859_14-1998	shipped-cnv	no
+A	iso-ir-21	isoir21	ibm-1011_P100-1995	not-in-cnv-or-algorithmic	no
+A	iso-ir-226	isoir226	iso-8859_16-2001	not-in-cnv-or-algorithmic	no
+A	iso-ir-25	isoir25	ibm-1104_P100-2003	not-in-cnv-or-algorithmic	no
+A	iso-ir-4	isoir4	ibm-1013_P100-1995	not-in-cnv-or-algorithmic	no
+A	iso-ir-58	isoir58	ibm-5478_P100-1995	shipped-cnv	no
+A	iso-ir-6	isoir6	US-ASCII	algorithmic	no
+A	iso-ir-60	isoir60	ibm-1016_P100-1995	not-in-cnv-or-algorithmic	no
+A	iso-ir-69	isoir69	ibm-1010_P100-1995	not-in-cnv-or-algorithmic	no
+A	iso-ir-84	isoir84	ibm-1015_P100-1995	not-in-cnv-or-algorithmic	no
+A	iso-ir-85	isoir85	ibm-1014_P100-1995	not-in-cnv-or-algorithmic	no
+A	IT	it	ibm-1012_P100-1995	not-in-cnv-or-algorithmic	no
+A	java-Cp1390A-1.6_P	javacp1390a16p	java-Cp1390A-1.6_P	not-in-cnv-or-algorithmic	no
+A	java-Cp1399A-1.6_P	javacp1399a16p	java-Cp1399A-1.6_P	not-in-cnv-or-algorithmic	no
+A	java-Cp420s-1.6_P	javacp420s16p	java-Cp420s-1.6_P	not-in-cnv-or-algorithmic	no
+A	java-euc_jp_linux-1.6_P	javaeucjplinux16p	java-euc_jp_linux-1.6_P	not-in-cnv-or-algorithmic	no
+A	java-sjis_0213-1.6_P	javasjis21316p	java-sjis_0213-1.6_P	not-in-cnv-or-algorithmic	no
+A	JIS	jis	ISO_2022,locale=ja,version=1	algorithmic	no
+A	JIS7	jis7	ISO_2022,locale=ja,version=3	algorithmic	no
+A	JIS8	jis8	ISO_2022,locale=ja,version=4	algorithmic	no
+A	JIS_Encoding	jisencoding	ISO_2022,locale=ja,version=1	algorithmic	no
+A	JIS_X0201	jisx201	ibm-897_P100-1995	not-in-cnv-or-algorithmic	no
+A	JIS_X0212-1990	jisx2121990	ibm-953_P100-2000	not-in-cnv-or-algorithmic	no
+A	johab	johab	windows-1361-2000	not-in-cnv-or-algorithmic	no
+A	koi8	koi8	ibm-878_P100-1996	shipped-cnv	no
+A	KOI8-R	koi8r	ibm-878_P100-1996	shipped-cnv	no
+A	KOI8-RU	koi8ru	ibm-1167_P100-2002	not-in-cnv-or-algorithmic	no
+A	KOI8-U	koi8u	ibm-1168_P100-2002	shipped-cnv	no
+A	korean	korean	windows-949-2000	shipped-cnv	yes
+A	ksc	ksc	ibm-1363_P11B-1998	shipped-cnv	no
+A	KSC_5601	ksc5601	windows-949-2000	shipped-cnv	yes
+A	KS_C_5601-1987	ksc56011987	windows-949-2000	shipped-cnv	yes
+A	KS_C_5601-1989	ksc56011989	windows-949-2000	shipped-cnv	yes
+A	ksc5601_1992	ksc56011992	windows-1361-2000	not-in-cnv-or-algorithmic	no
+A	KZ-1048	kz1048	ibm-1174_X100-2007	not-in-cnv-or-algorithmic	no
+A	l1	l1	ISO-8859-1	algorithmic	no
+A	l10	l10	iso-8859_16-2001	not-in-cnv-or-algorithmic	no
+A	l2	l2	ibm-912_P100-1995	shipped-cnv	no
+A	l3	l3	ibm-913_P100-2000	shipped-cnv	no
+A	l4	l4	ibm-914_P100-1995	shipped-cnv	no
+A	l5	l5	ibm-920_P100-1995	shipped-cnv	no
+A	l6	l6	iso-8859_10-1998	shipped-cnv	no
+A	l8	l8	iso-8859_14-1998	shipped-cnv	no
+A	l9	l9	ibm-923_P100-1998	shipped-cnv	no
+A	latin0	latin0	ibm-923_P100-1998	shipped-cnv	no
+A	latin1	latin1	ISO-8859-1	algorithmic	no
+A	latin10	latin10	iso-8859_16-2001	not-in-cnv-or-algorithmic	no
+A	latin2	latin2	ibm-912_P100-1995	shipped-cnv	no
+A	latin3	latin3	ibm-913_P100-2000	shipped-cnv	no
+A	latin4	latin4	ibm-914_P100-1995	shipped-cnv	no
+A	latin5	latin5	ibm-920_P100-1995	shipped-cnv	no
+A	latin6	latin6	iso-8859_10-1998	shipped-cnv	no
+A	latin8	latin8	iso-8859_14-1998	shipped-cnv	no
+A	Latin-9	latin9	ibm-923_P100-1998	shipped-cnv	no
+A	lmbcs	lmbcs	LMBCS-1	algorithmic	no
+A	LMBCS-1	lmbcs1	LMBCS-1	algorithmic	no
+A	mac	mac	macos-0_2-10.2	shipped-cnv	no
+A	MacArabic	macarabic	macos-518-10.2	not-in-cnv-or-algorithmic	no
+A	macce	macce	macos-29-10.2	shipped-cnv	no
+A	maccentraleurope	maccentraleurope	macos-29-10.2	shipped-cnv	no
+A	MacCroatian	maccroatian	macos-36_2-10.2	not-in-cnv-or-algorithmic	no
+A	maccy	maccy	macos-7_3-10.2	shipped-cnv	no
+A	mac-cyrillic	maccyrillic	macos-7_3-10.2	shipped-cnv	no
+A	MacDingbat	macdingbat	macos-34-10.2	not-in-cnv-or-algorithmic	no
+A	macgr	macgr	macos-6_2-10.4	shipped-cnv	no
+A	MacHebrew	machebrew	macos-1285-10.2	not-in-cnv-or-algorithmic	no
+A	MacIceland	maciceland	macos-37_5-10.2	not-in-cnv-or-algorithmic	no
+A	macintosh	macintosh	macos-0_2-10.2	shipped-cnv	no
+A	macos-0_2-10.2	macos02102	macos-0_2-10.2	shipped-cnv	no
+A	macos-1285-10.2	macos1285102	macos-1285-10.2	not-in-cnv-or-algorithmic	no
+A	macos-21-10.5	macos21105	macos-21-10.5	not-in-cnv-or-algorithmic	no
+A	macos-29-10.2	macos29102	macos-29-10.2	shipped-cnv	no
+A	macos-33-10.5	macos33105	macos-33-10.5	not-in-cnv-or-algorithmic	no
+A	macos-34-10.2	macos34102	macos-34-10.2	not-in-cnv-or-algorithmic	no
+A	macos-35-10.2	macos35102	macos-35-10.2	shipped-cnv	no
+A	macos-36_2-10.2	macos362102	macos-36_2-10.2	not-in-cnv-or-algorithmic	no
+A	macos-37_5-10.2	macos375102	macos-37_5-10.2	not-in-cnv-or-algorithmic	no
+A	macos-38_2-10.2	macos382102	macos-38_2-10.2	not-in-cnv-or-algorithmic	no
+A	macos-518-10.2	macos518102	macos-518-10.2	not-in-cnv-or-algorithmic	no
+A	macos-6_2-10.4	macos62104	macos-6_2-10.4	shipped-cnv	no
+A	macos-7_3-10.2	macos73102	macos-7_3-10.2	shipped-cnv	no
+A	macroman	macroman	macos-0_2-10.2	shipped-cnv	no
+A	MacRomania	macromania	macos-38_2-10.2	not-in-cnv-or-algorithmic	no
+A	MacSymbol	macsymbol	macos-33-10.5	not-in-cnv-or-algorithmic	no
+A	MacThai	macthai	macos-21-10.5	not-in-cnv-or-algorithmic	no
+A	mactr	mactr	macos-35-10.2	shipped-cnv	no
+A	ms1361	ms1361	windows-1361-2000	not-in-cnv-or-algorithmic	no
+A	MS874	ms874	windows-874-2000	shipped-cnv	no
+A	ms932	ms932	ibm-943_P15A-2003	shipped-cnv	no
+A	MS936	ms936	windows-936-2000	shipped-cnv	no
+A	ms949	ms949	windows-949-2000	shipped-cnv	no
+A	ms950	ms950	windows-950-2000	shipped-cnv	no
+A	MS950_HKSCS	ms950hkscs	ibm-5471_P100-2006	shipped-cnv	no
+A	MS_Kanji	mskanji	ibm-943_P15A-2003	shipped-cnv	no
+A	NF_Z_62-010	nfz6210	ibm-1010_P100-1995	not-in-cnv-or-algorithmic	no
+A	NF_Z_62-010_1973	nfz62101973	ibm-1104_P100-2003	not-in-cnv-or-algorithmic	no
+A	no	no	ibm-1016_P100-1995	not-in-cnv-or-algorithmic	no
+A	NS_4551-1	ns45511	ibm-1016_P100-1995	not-in-cnv-or-algorithmic	no
+A	pck	pck	ibm-943_P15A-2003	shipped-cnv	no
+A	PC-Multilingual-850+euro	pcmultilingual850euro	ibm-858_P100-1997	shipped-cnv	no
+A	PT154	pt154	glibc-PT154-2.3.3	not-in-cnv-or-algorithmic	no
+A	PT2	pt2	ibm-1015_P100-1995	not-in-cnv-or-algorithmic	no
+A	PTCP154	ptcp154	glibc-PT154-2.3.3	not-in-cnv-or-algorithmic	no
+A	r8	r8	ibm-1051_P100-1995	shipped-cnv	no
+A	RK1048	rk1048	ibm-1174_X100-2007	not-in-cnv-or-algorithmic	no
+A	roman8	roman8	ibm-1051_P100-1995	shipped-cnv	no
+A	SCSU	scsu	SCSU	algorithmic	no
+A	se	se	ibm-1018_P100-1995	not-in-cnv-or-algorithmic	no
+A	SEN_850200_B	sen850200b	ibm-1018_P100-1995	not-in-cnv-or-algorithmic	no
+A	Shift_JIS	shiftjis	ibm-943_P15A-2003	shipped-cnv	yes
+A	shift_jis78	shiftjis78	ibm-942_P12A-1999	shipped-cnv	no
+A	sjis	sjis	ibm-943_P15A-2003	shipped-cnv	no
+A	sjis78	sjis78	ibm-942_P12A-1999	shipped-cnv	no
+A	solaris-zh_TW_big5-2.7	solariszhtwbig527	solaris-zh_TW_big5-2.7	not-in-cnv-or-algorithmic	no
+A	STRK1048-2002	strk10482002	ibm-1174_X100-2007	not-in-cnv-or-algorithmic	no
+A	sun_eu_greek	suneugreek	ibm-9005_X110-2007	shipped-cnv	no
+A	thai8	thai8	iso-8859_11-2001	shipped-cnv	no
+A	TIS-620	tis620	windows-874-2000	shipped-cnv	yes
+A	tis620.2533	tis6202533	ibm-874_P100-1995	shipped-cnv	no
+A	turkish	turkish	ibm-920_P100-1995	shipped-cnv	no
+A	turkish8	turkish8	ibm-920_P100-1995	shipped-cnv	no
+A	ucs-2	ucs2	UTF-16	algorithmic	no
+A	ucs-4	ucs4	UTF-32	algorithmic	no
+A	ujis	ujis	euc-jp-2007	shipped-cnv	no
+A	uk	uk	ibm-1013_P100-1995	not-in-cnv-or-algorithmic	no
+A	unicode	unicode	UTF-16	algorithmic	no
+A	unicode-1-1-utf-7	unicode11utf7	UTF-7	algorithmic	no
+A	unicode-1-1-utf-8	unicode11utf8	UTF-8	algorithmic	no
+A	unicode-2-0-utf-7	unicode20utf7	UTF-7	algorithmic	no
+A	unicode-2-0-utf-8	unicode20utf8	UTF-8	algorithmic	no
+A	UnicodeBig	unicodebig	UTF-16BE,version=1	algorithmic	no
+A	UnicodeBigUnmarked	unicodebigunmarked	UTF-16BE	algorithmic	no
+A	UnicodeLittle	unicodelittle	UTF-16LE,version=1	algorithmic	no
+A	UnicodeLittleUnmarked	unicodelittleunmarked	UTF-16LE	algorithmic	no
+A	us	us	US-ASCII	algorithmic	no
+A	US-ASCII	usascii	US-ASCII	algorithmic	no
+A	UTF-16	utf16	UTF-16	algorithmic	no
+A	UTF-16BE	utf16be	UTF-16BE	algorithmic	no
+A	UTF-16BE,version=1	utf16beversion1	UTF-16BE,version=1	algorithmic	no
+A	UTF16_BigEndian	utf16bigendian	UTF-16BE	algorithmic	no
+A	UTF-16LE	utf16le	UTF-16LE	algorithmic	no
+A	UTF-16LE,version=1	utf16leversion1	UTF-16LE,version=1	algorithmic	no
+A	UTF16_LittleEndian	utf16littleendian	UTF-16LE	algorithmic	no
+A	UTF16_OppositeEndian	utf16oppositeendian	UTF16_OppositeEndian	algorithmic	no
+A	UTF16_PlatformEndian	utf16platformendian	UTF16_PlatformEndian	algorithmic	no
+A	UTF-16,version=1	utf16version1	UTF-16,version=1	algorithmic	no
+A	UTF-16,version=2	utf16version2	UTF-16,version=2	algorithmic	no
+A	UTF-32	utf32	UTF-32	algorithmic	no
+A	UTF-32BE	utf32be	UTF-32BE	algorithmic	no
+A	UTF32_BigEndian	utf32bigendian	UTF-32BE	algorithmic	no
+A	UTF-32LE	utf32le	UTF-32LE	algorithmic	no
+A	UTF32_LittleEndian	utf32littleendian	UTF-32LE	algorithmic	no
+A	UTF32_OppositeEndian	utf32oppositeendian	UTF32_OppositeEndian	algorithmic	no
+A	UTF32_PlatformEndian	utf32platformendian	UTF32_PlatformEndian	algorithmic	no
+A	UTF-7	utf7	UTF-7	algorithmic	no
+A	UTF-8	utf8	UTF-8	algorithmic	no
+A	windows-10000	windows10000	macos-0_2-10.2	shipped-cnv	no
+A	windows-10006	windows10006	macos-6_2-10.4	shipped-cnv	no
+A	windows-10007	windows10007	macos-7_3-10.2	shipped-cnv	no
+A	windows-10029	windows10029	macos-29-10.2	shipped-cnv	no
+A	windows-10081	windows10081	macos-35-10.2	shipped-cnv	no
+A	windows-1200	windows1200	UTF-16LE	algorithmic	no
+A	windows-1201	windows1201	UTF-16BE	algorithmic	no
+A	windows-1250	windows1250	ibm-5346_P100-1998	shipped-cnv	yes
+A	windows-1251	windows1251	ibm-5347_P100-1998	shipped-cnv	yes
+A	windows-1252	windows1252	ibm-5348_P100-1997	shipped-cnv	yes
+A	windows-1253	windows1253	ibm-5349_P100-1998	shipped-cnv	yes
+A	windows-1254	windows1254	ibm-5350_P100-1998	shipped-cnv	yes
+A	windows-1255	windows1255	ibm-9447_P100-2002	shipped-cnv	yes
+A	windows-1256	windows1256	ibm-9448_X100-2005	shipped-cnv	yes
+A	windows-1257	windows1257	ibm-9449_P100-2002	shipped-cnv	yes
+A	windows-1258	windows1258	ibm-5354_P100-1998	shipped-cnv	yes
+A	windows-1361-2000	windows13612000	windows-1361-2000	not-in-cnv-or-algorithmic	no
+A	windows-20127	windows20127	US-ASCII	algorithmic	no
+A	windows-20866	windows20866	ibm-878_P100-1996	shipped-cnv	no
+A	windows-20880	windows20880	ibm-880_P100-1995	not-in-cnv-or-algorithmic	no
+A	windows-20905	windows20905	ibm-905_P100-1995	not-in-cnv-or-algorithmic	no
+A	windows-21866	windows21866	ibm-1168_P100-2002	shipped-cnv	no
+A	windows-28592	windows28592	ibm-912_P100-1995	shipped-cnv	no
+A	windows-28593	windows28593	ibm-913_P100-2000	shipped-cnv	no
+A	windows-28594	windows28594	ibm-914_P100-1995	shipped-cnv	no
+A	windows-28595	windows28595	ibm-915_P100-1995	shipped-cnv	no
+A	windows-28596	windows28596	ibm-1089_P100-1995	shipped-cnv	no
+A	windows-28597	windows28597	ibm-9005_X110-2007	shipped-cnv	no
+A	windows-28598	windows28598	ibm-5012_P100-1999	shipped-cnv	no
+A	windows-28599	windows28599	ibm-920_P100-1995	shipped-cnv	no
+A	windows-28603	windows28603	ibm-921_P100-1995	shipped-cnv	no
+A	windows-28605	windows28605	ibm-923_P100-1998	shipped-cnv	no
+A	windows-31j	windows31j	ibm-943_P15A-2003	shipped-cnv	no
+A	windows-437	windows437	ibm-437_P100-1995	shipped-cnv	no
+A	windows-51932	windows51932	windows-51932-2006	not-in-cnv-or-algorithmic	no
+A	windows-51932-2006	windows519322006	windows-51932-2006	not-in-cnv-or-algorithmic	no
+A	windows-51949	windows51949	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	windows-54936	windows54936	gb18030	shipped-cnv	no
+A	windows-57002	windows57002	ISCII,version=0	algorithmic	no
+A	windows-57003	windows57003	ISCII,version=1	algorithmic	no
+A	windows-57004	windows57004	ISCII,version=5	algorithmic	no
+A	windows-57005	windows57005	ISCII,version=6	algorithmic	no
+A	windows-57006	windows57006	ISCII,version=1	algorithmic	no
+A	windows-57007	windows57007	ISCII,version=4	algorithmic	no
+A	windows-57008	windows57008	ISCII,version=7	algorithmic	no
+A	windows-57009	windows57009	ISCII,version=8	algorithmic	no
+A	windows-57010	windows57010	ISCII,version=3	algorithmic	no
+A	windows-57011	windows57011	ISCII,version=2	algorithmic	no
+A	windows-65000	windows65000	UTF-7	algorithmic	no
+A	windows-65001	windows65001	UTF-8	algorithmic	no
+A	windows-720	windows720	ibm-720_P100-1997	shipped-cnv	no
+A	windows-737	windows737	ibm-737_P100-1997	shipped-cnv	no
+A	windows-775	windows775	ibm-775_P100-1996	shipped-cnv	no
+A	windows-850	windows850	ibm-850_P100-1995	shipped-cnv	no
+A	windows-852	windows852	ibm-852_P100-1995	shipped-cnv	no
+A	windows-855	windows855	ibm-855_P100-1995	shipped-cnv	no
+A	windows-857	windows857	ibm-857_P100-1995	shipped-cnv	no
+A	windows-858	windows858	ibm-858_P100-1997	shipped-cnv	no
+A	windows-861	windows861	ibm-861_P100-1995	shipped-cnv	no
+A	windows-862	windows862	ibm-862_P100-1995	shipped-cnv	no
+A	windows-864-2000	windows8642000	windows-864-2000	not-in-cnv-or-algorithmic	no
+A	windows-866	windows866	ibm-866_P100-1995	shipped-cnv	no
+A	windows-869	windows869	ibm-869_P100-1995	shipped-cnv	no
+A	windows-874	windows874	windows-874-2000	shipped-cnv	no
+A	windows-874-2000	windows8742000	windows-874-2000	shipped-cnv	no
+A	windows-932	windows932	ibm-943_P15A-2003	shipped-cnv	no
+A	windows-936	windows936	windows-936-2000	shipped-cnv	yes
+A	windows-936-2000	windows9362000	windows-936-2000	shipped-cnv	no
+A	windows-949	windows949	windows-949-2000	shipped-cnv	yes
+A	windows-949-2000	windows9492000	windows-949-2000	shipped-cnv	no
+A	windows-950	windows950	windows-950-2000	shipped-cnv	yes
+A	windows-950-2000	windows9502000	windows-950-2000	shipped-cnv	no
+A	x11-compound-text	x11compoundtext	x11-compound-text	algorithmic	no
+A	X0201	x201	ibm-897_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-big5	xbig5	windows-950-2000	shipped-cnv	no
+A	x-Big5-Solaris	xbig5solaris	solaris-zh_TW_big5-2.7	not-in-cnv-or-algorithmic	no
+A	x-compound-text	xcompoundtext	x11-compound-text	algorithmic	no
+A	X-EUC-JP	xeucjp	euc-jp-2007	shipped-cnv	no
+A	x-EUC_JP_LINUX	xeucjplinux	java-euc_jp_linux-1.6_P	not-in-cnv-or-algorithmic	no
+A	x-eucJP-Open	xeucjpopen	ibm-1350_P110-1997	not-in-cnv-or-algorithmic	no
+A	x-IBM1006	xibm1006	ibm-1006_P100-1995	shipped-cnv	no
+A	x-IBM1025	xibm1025	ibm-1025_P100-1995	shipped-cnv	no
+A	x-IBM1027	xibm1027	ibm-1027_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM1041	xibm1041	ibm-1041_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM1043	xibm1043	ibm-1043_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM1046	xibm1046	ibm-1046_X110-1999	not-in-cnv-or-algorithmic	no
+A	x-IBM1046S	xibm1046s	ibm-1046_X110-1999	not-in-cnv-or-algorithmic	no
+A	x-IBM1088	xibm1088	ibm-1088_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM1097	xibm1097	ibm-1097_P100-1995	shipped-cnv	no
+A	x-IBM1098	xibm1098	ibm-1098_P100-1995	shipped-cnv	no
+A	x-IBM1112	xibm1112	ibm-1112_P100-1995	shipped-cnv	no
+A	x-IBM1114	xibm1114	ibm-1114_P100-2001	not-in-cnv-or-algorithmic	no
+A	x-IBM1115	xibm1115	ibm-1115_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM1122	xibm1122	ibm-1122_P100-1999	shipped-cnv	no
+A	x-IBM1123	xibm1123	ibm-1123_P100-1995	shipped-cnv	no
+A	x-IBM1124	xibm1124	ibm-1124_P100-1996	shipped-cnv	no
+A	x-IBM1153	xibm1153	ibm-1153_P100-1999	shipped-cnv	no
+A	x-IBM1351	xibm1351	ibm-1351_P110-1997	not-in-cnv-or-algorithmic	no
+A	x-IBM1362	xibm1362	ibm-1362_P110-1999	not-in-cnv-or-algorithmic	no
+A	x-IBM1363	xibm1363	ibm-1363_P110-1997	shipped-cnv	no
+A	x-IBM1363C	xibm1363c	ibm-1363_P11B-1998	shipped-cnv	no
+A	x-IBM1364	xibm1364	ibm-1364_P110-2007	shipped-cnv	no
+A	x-IBM1370	xibm1370	ibm-1370_P100-1999	not-in-cnv-or-algorithmic	no
+A	x-IBM1371	xibm1371	ibm-1371_P100-1999	shipped-cnv	no
+A	x-IBM1380	xibm1380	ibm-1380_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM1381	xibm1381	ibm-1381_P110-1999	not-in-cnv-or-algorithmic	no
+A	x-IBM1382	xibm1382	ibm-1382_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM1385	xibm1385	ibm-9577_P100-2001	not-in-cnv-or-algorithmic	no
+A	x-IBM1388	xibm1388	ibm-1388_P103-2001	shipped-cnv	no
+A	x-IBM1390	xibm1390	ibm-1390_P110-2003	shipped-cnv	no
+A	x-IBM1390A	xibm1390a	java-Cp1390A-1.6_P	not-in-cnv-or-algorithmic	no
+A	x-IBM1399	xibm1399	ibm-1399_P110-2003	shipped-cnv	no
+A	x-IBM1399A	xibm1399a	java-Cp1399A-1.6_P	not-in-cnv-or-algorithmic	no
+A	x-IBM300	xibm300	ibm-300_P120-2006	not-in-cnv-or-algorithmic	no
+A	x-IBM301	xibm301	ibm-301_P110-1997	not-in-cnv-or-algorithmic	no
+A	x-IBM33722	xibm33722	ibm-33722_P120-1999	shipped-cnv	no
+A	x-IBM33722A	xibm33722a	ibm-33722_P120-1999	shipped-cnv	no
+A	x-IBM33722C	xibm33722c	ibm-33722_P120-1999	shipped-cnv	no
+A	x-IBM420S	xibm420s	java-Cp420s-1.6_P	not-in-cnv-or-algorithmic	no
+A	x-IBM720	xibm720	ibm-720_P100-1997	shipped-cnv	no
+A	x-IBM737	xibm737	ibm-737_P100-1997	shipped-cnv	no
+A	x-IBM808	xibm808	ibm-808_P100-1999	not-in-cnv-or-algorithmic	no
+A	x-IBM833	xibm833	ibm-833_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM834	xibm834	ibm-834_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM835	xibm835	ibm-835_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM836	xibm836	ibm-836_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM837	xibm837	ibm-837_P100-2011	not-in-cnv-or-algorithmic	no
+A	x-IBM856	xibm856	ibm-856_P100-1995	shipped-cnv	no
+A	x-IBM859	xibm859	ibm-859_P100-1999	not-in-cnv-or-algorithmic	no
+A	x-IBM864S	xibm864s	windows-864-2000	not-in-cnv-or-algorithmic	no
+A	x-IBM867	xibm867	ibm-867_P100-1998	shipped-cnv	no
+A	x-IBM874	xibm874	ibm-874_P100-1995	shipped-cnv	no
+A	x-IBM875	xibm875	ibm-875_P100-1995	shipped-cnv	no
+A	x-IBM897	xibm897	ibm-897_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM921	xibm921	ibm-921_P100-1995	shipped-cnv	no
+A	x-IBM922	xibm922	ibm-922_P100-1999	shipped-cnv	no
+A	x-IBM927	xibm927	ibm-927_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM930	xibm930	ibm-930_P120-1999	shipped-cnv	no
+A	x-IBM930A	xibm930a	ibm-930_P120-1999	shipped-cnv	no
+A	x-IBM933	xibm933	ibm-933_P110-1995	shipped-cnv	no
+A	x-IBM935	xibm935	ibm-935_P110-1999	shipped-cnv	no
+A	x-IBM937	xibm937	ibm-937_P110-1999	shipped-cnv	no
+A	x-IBM939	xibm939	ibm-939_P120-1999	shipped-cnv	no
+A	x-IBM939A	xibm939a	ibm-939_P120-1999	shipped-cnv	no
+A	x-IBM942	xibm942	ibm-942_P12A-1999	shipped-cnv	no
+A	x-IBM942C	xibm942c	ibm-942_P12A-1999	shipped-cnv	no
+A	x-IBM943	xibm943	ibm-943_P130-1999	shipped-cnv	no
+A	x-IBM947	xibm947	ibm-947_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM948	xibm948	ibm-948_P110-1999	not-in-cnv-or-algorithmic	no
+A	x-IBM949	xibm949	ibm-949_P110-1999	shipped-cnv	no
+A	x-IBM949C	xibm949c	ibm-949_P11A-1999	shipped-cnv	no
+A	x-IBM950	xibm950	ibm-950_P110-1999	shipped-cnv	no
+A	x-IBM951	xibm951	ibm-951_P100-1995	not-in-cnv-or-algorithmic	no
+A	x-IBM954	xibm954	ibm-954_P101-2007	shipped-cnv	no
+A	x-IBM954C	xibm954c	ibm-954_P101-2007	shipped-cnv	no
+A	x-IBM964	xibm964	ibm-964_P110-1999	shipped-cnv	no
+A	x-IBM970	xibm970	ibm-970_P110_P110-2006_U2	shipped-cnv	no
+A	x-IBM971	xibm971	ibm-971_P100-1995	shipped-cnv	no
+A	x-IBM-udcJP	xibmudcjp	aix-IBM_udcJP-4.3.6	not-in-cnv-or-algorithmic	no
+A	x-ISCII91	xiscii91	ISCII,version=0	algorithmic	no
+A	x-iscii-as	xisciias	ISCII,version=1	algorithmic	no
+A	x-iscii-be	xisciibe	ISCII,version=1	algorithmic	no
+A	x-iscii-de	xisciide	ISCII,version=0	algorithmic	no
+A	x-iscii-gu	xisciigu	ISCII,version=3	algorithmic	no
+A	x-iscii-ka	xisciika	ISCII,version=7	algorithmic	no
+A	x-iscii-ma	xisciima	ISCII,version=8	algorithmic	no
+A	x-iscii-or	xisciior	ISCII,version=4	algorithmic	no
+A	x-iscii-pa	xisciipa	ISCII,version=2	algorithmic	no
+A	x-iscii-ta	xisciita	ISCII,version=5	algorithmic	no
+A	x-iscii-te	xisciite	ISCII,version=6	algorithmic	no
+A	x-ISO-2022-CN-CNS	xiso2022cncns	ISO_2022,locale=zh,version=2	algorithmic	no
+A	x-ISO-2022-CN-GB	xiso2022cngb	ISO_2022,locale=zh,version=0	algorithmic	no
+A	x-iso-8859-11	xiso885911	iso-8859_11-2001	shipped-cnv	no
+A	x-ISO-8859-6S	xiso88596s	ibm-1089_P100-1995	shipped-cnv	no
+A	x-JIS0208	xjis208	ibm-952_P110-1997	not-in-cnv-or-algorithmic	no
+A	x-JISAutoDetect	xjisautodetect	ibm-943_P15A-2003	shipped-cnv	no
+A	x-Johab	xjohab	windows-1361-2000	not-in-cnv-or-algorithmic	no
+A	x-KOI8_RU	xkoi8ru	ibm-1167_P100-2002	not-in-cnv-or-algorithmic	no
+A	x-KSC5601	xksc5601	windows-949-2000	shipped-cnv	no
+A	x-MacArabic	xmacarabic	macos-518-10.2	not-in-cnv-or-algorithmic	no
+A	x-mac-ce	xmacce	macos-29-10.2	shipped-cnv	no
+A	x-MacCentralEurope	xmaccentraleurope	macos-29-10.2	shipped-cnv	no
+A	x-mac-centraleurroman	xmaccentraleurroman	macos-29-10.2	shipped-cnv	no
+A	x-MacCroatian	xmaccroatian	macos-36_2-10.2	not-in-cnv-or-algorithmic	no
+A	x-mac-cyrillic	xmaccyrillic	macos-7_3-10.2	shipped-cnv	no
+A	x-MacDingbat	xmacdingbat	macos-34-10.2	not-in-cnv-or-algorithmic	no
+A	x-mac-greek	xmacgreek	macos-6_2-10.4	shipped-cnv	no
+A	x-MacHebrew	xmachebrew	macos-1285-10.2	not-in-cnv-or-algorithmic	no
+A	x-MacIceland	xmaciceland	macos-37_5-10.2	not-in-cnv-or-algorithmic	no
+A	x-macroman	xmacroman	macos-0_2-10.2	shipped-cnv	no
+A	x-MacRomania	xmacromania	macos-38_2-10.2	not-in-cnv-or-algorithmic	no
+A	x-MacSymbol	xmacsymbol	macos-33-10.5	not-in-cnv-or-algorithmic	no
+A	x-MacThai	xmacthai	macos-21-10.5	not-in-cnv-or-algorithmic	no
+A	x-mac-turkish	xmacturkish	macos-35-10.2	shipped-cnv	no
+A	x-MacUkraine	xmacukraine	macos-7_3-10.2	shipped-cnv	no
+A	x-MS932_0213	xms932213	ibm-943_P15A-2003	shipped-cnv	no
+A	x-MS950-HKSCS	xms950hkscs	ibm-5471_P100-2006	shipped-cnv	no
+A	x-ms-cp932	xmscp932	ibm-943_P15A-2003	shipped-cnv	no
+A	x-roman8	xroman8	ibm-1051_P100-1995	shipped-cnv	no
+A	x-sjis	xsjis	ibm-943_P15A-2003	shipped-cnv	no
+A	x-SJIS_0213	xsjis213	java-sjis_0213-1.6_P	not-in-cnv-or-algorithmic	no
+A	x-utf-16be	xutf16be	UTF-16BE	algorithmic	no
+A	x-utf-16le	xutf16le	UTF-16LE	algorithmic	no
+A	x-UTF-16LE-BOM	xutf16lebom	UTF-16LE,version=1	algorithmic	no
+A	x-UTF_8J	xutf8j	UTF-8	algorithmic	no
+A	x-windows-1256S	xwindows1256s	ibm-9448_X100-2005	shipped-cnv	no
+A	x-windows-50220	xwindows50220	ISO_2022,locale=ja,version=0	algorithmic	no
+A	x-windows-50221	xwindows50221	ISO_2022,locale=ja,version=1	algorithmic	no
+A	x-windows-874	xwindows874	windows-874-2000	shipped-cnv	no
+A	x-windows-950	xwindows950	windows-950-2000	shipped-cnv	no
+A	x-windows-iso2022jp	xwindowsiso2022jp	ISO_2022,locale=ja,version=0	algorithmic	no
+K	BOCU-1
+K	CESU-8
+K	HZ
+K	IMAP-mailbox-name
+K	ISO-8859-1
+K	ISO8859-1
+K	ISO88591
+K	ISO_8859-1
+K	LMBCS-1
+K	SCSU
+K	US-ASCII
+K	UTF-16
+K	UTF-16BE
+K	UTF-16LE
+K	UTF-32
+K	UTF-32BE
+K	UTF-32LE
+K	UTF-7
+K	UTF-8
+K	UTF16
+K	UTF16BE
+K	UTF16LE
+K	UTF16_OppositeEndian
+K	UTF16_PlatformEndian
+K	UTF32
+K	UTF32BE
+K	UTF32LE
+K	UTF32_OppositeEndian
+K	UTF32_PlatformEndian
+K	UTF7
+K	UTF8
+K	bocu1
+K	cesu8
+K	hz
+K	imapmailboxname
+K	iscii
+K	iso88591
+K	lmbcs1
+K	lmbcs11
+K	lmbcs16
+K	lmbcs17
+K	lmbcs18
+K	lmbcs19
+K	lmbcs2
+K	lmbcs3
+K	lmbcs4
+K	lmbcs5
+K	lmbcs6
+K	lmbcs8
+K	scsu
+K	usascii
+K	utf16
+K	utf16be
+K	utf16le
+K	utf16oppositeendian
+K	utf16platformendian
+K	utf32
+K	utf32be
+K	utf32le
+K	utf32oppositeendian
+K	utf32platformendian
+K	utf7
+K	utf8
+K	x11-compound-text
+K	x11compoundtext
+O	ANSI1251	ACCEPT
+O	ANSI_X3.110	ACCEPT
+O	ANSI_X3.110-1983	ACCEPT
+O	ANSI_X3.4	ACCEPT
+O	ANSI_X3.4-1968	ACCEPT
+O	ANSI_X3.4-1986	ACCEPT
+O	ARABIC	ACCEPT
+O	ARABIC7	ACCEPT
+O	ARMSCII-8	ACCEPT
+O	ARMSCII8	ACCEPT
+O	ASCII	ACCEPT
+O	ASMO-708	ACCEPT
+O	ASMO_449	ACCEPT
+O	Adobe-Standard-Encoding	ACCEPT
+O	BALTIC	ACCEPT
+O	BIG-5	ACCEPT
+O	BIG-FIVE	ACCEPT
+O	BIG5	ACCEPT
+O	BIG5-HKSCS	ACCEPT
+O	BIG5HKSCS	ACCEPT
+O	BIGFIVE	ACCEPT
+O	BOCU-1	ACCEPT
+O	BRF	ACCEPT
+O	BS_4730	ACCEPT
+O	Big5	ACCEPT
+O	Big5-HKSCS	ACCEPT
+O	CA	ACCEPT
+O	CCSID00858	ACCEPT
+O	CCSID01140	ACCEPT
+O	CCSID01141	ACCEPT
+O	CCSID01142	ACCEPT
+O	CCSID01143	ACCEPT
+O	CCSID01144	ACCEPT
+O	CCSID01145	ACCEPT
+O	CCSID01146	ACCEPT
+O	CCSID01147	ACCEPT
+O	CCSID01148	ACCEPT
+O	CCSID01149	ACCEPT
+O	CESU-8	ACCEPT
+O	CN	ACCEPT
+O	CN-BIG5	ACCEPT
+O	CN-GB	ACCEPT
+O	COMPOUND_TEXT	ACCEPT
+O	CP-AR	ACCEPT
+O	CP-GR	ACCEPT
+O	CP-HU	ACCEPT
+O	CP037	ACCEPT
+O	CP038	ACCEPT
+O	CP10007	ACCEPT
+O	CP1004	ACCEPT
+O	CP1008	ACCEPT
+O	CP1025	ACCEPT
+O	CP1026	ACCEPT
+O	CP1046	ACCEPT
+O	CP1047	ACCEPT
+O	CP1070	ACCEPT
+O	CP1079	ACCEPT
+O	CP1081	ACCEPT
+O	CP1084	ACCEPT
+O	CP1089	ACCEPT
+O	CP1097	ACCEPT
+O	CP1112	ACCEPT
+O	CP1122	ACCEPT
+O	CP1123	ACCEPT
+O	CP1124	ACCEPT
+O	CP1125	ACCEPT
+O	CP1129	ACCEPT
+O	CP1130	ACCEPT
+O	CP1132	ACCEPT
+O	CP1133	ACCEPT
+O	CP1137	ACCEPT
+O	CP1140	ACCEPT
+O	CP1141	ACCEPT
+O	CP1142	ACCEPT
+O	CP1143	ACCEPT
+O	CP1144	ACCEPT
+O	CP1145	ACCEPT
+O	CP1146	ACCEPT
+O	CP1147	ACCEPT
+O	CP1148	ACCEPT
+O	CP1149	ACCEPT
+O	CP1153	ACCEPT
+O	CP1154	ACCEPT
+O	CP1155	ACCEPT
+O	CP1156	ACCEPT
+O	CP1157	ACCEPT
+O	CP1158	ACCEPT
+O	CP1160	ACCEPT
+O	CP1161	ACCEPT
+O	CP1162	ACCEPT
+O	CP1163	ACCEPT
+O	CP1164	ACCEPT
+O	CP1166	ACCEPT
+O	CP1167	ACCEPT
+O	CP1250	ACCEPT
+O	CP1251	ACCEPT
+O	CP1252	ACCEPT
+O	CP1253	ACCEPT
+O	CP1254	ACCEPT
+O	CP1255	ACCEPT
+O	CP1256	ACCEPT
+O	CP1257	ACCEPT
+O	CP1258	ACCEPT
+O	CP12712	ACCEPT
+O	CP1282	ACCEPT
+O	CP1361	ACCEPT
+O	CP1364	ACCEPT
+O	CP1371	ACCEPT
+O	CP1388	ACCEPT
+O	CP1390	ACCEPT
+O	CP1399	ACCEPT
+O	CP16804	ACCEPT
+O	CP273	ACCEPT
+O	CP274	ACCEPT
+O	CP275	ACCEPT
+O	CP278	ACCEPT
+O	CP280	ACCEPT
+O	CP281	ACCEPT
+O	CP282	ACCEPT
+O	CP284	ACCEPT
+O	CP285	ACCEPT
+O	CP290	ACCEPT
+O	CP297	ACCEPT
+O	CP367	ACCEPT
+O	CP420	ACCEPT
+O	CP423	ACCEPT
+O	CP424	ACCEPT
+O	CP437	ACCEPT
+O	CP4517	ACCEPT
+O	CP4899	ACCEPT
+O	CP4909	ACCEPT
+O	CP4971	ACCEPT
+O	CP500	ACCEPT
+O	CP5347	ACCEPT
+O	CP737	ACCEPT
+O	CP770	ACCEPT
+O	CP771	ACCEPT
+O	CP772	ACCEPT
+O	CP773	ACCEPT
+O	CP774	ACCEPT
+O	CP775	ACCEPT
+O	CP803	ACCEPT
+O	CP813	ACCEPT
+O	CP819	ACCEPT
+O	CP850	ACCEPT
+O	CP851	ACCEPT
+O	CP852	ACCEPT
+O	CP855	ACCEPT
+O	CP856	ACCEPT
+O	CP857	ACCEPT
+O	CP858	ACCEPT
+O	CP860	ACCEPT
+O	CP861	ACCEPT
+O	CP862	ACCEPT
+O	CP863	ACCEPT
+O	CP864	ACCEPT
+O	CP865	ACCEPT
+O	CP866	ACCEPT
+O	CP866NAV	ACCEPT
+O	CP868	ACCEPT
+O	CP869	ACCEPT
+O	CP870	ACCEPT
+O	CP871	ACCEPT
+O	CP874	ACCEPT
+O	CP875	ACCEPT
+O	CP880	ACCEPT
+O	CP891	ACCEPT
+O	CP901	ACCEPT
+O	CP902	ACCEPT
+O	CP903	ACCEPT
+O	CP9030	ACCEPT
+O	CP904	ACCEPT
+O	CP905	ACCEPT
+O	CP9066	ACCEPT
+O	CP912	ACCEPT
+O	CP915	ACCEPT
+O	CP916	ACCEPT
+O	CP918	ACCEPT
+O	CP920	ACCEPT
+O	CP921	ACCEPT
+O	CP922	ACCEPT
+O	CP930	ACCEPT
+O	CP932	ACCEPT
+O	CP933	ACCEPT
+O	CP935	ACCEPT
+O	CP936	ACCEPT
+O	CP937	ACCEPT
+O	CP939	ACCEPT
+O	CP9448	ACCEPT
+O	CP949	ACCEPT
+O	CP950	ACCEPT
+O	CPIBM861	ACCEPT
+O	CSA7-1	ACCEPT
+O	CSA7-2	ACCEPT
+O	CSASCII	ACCEPT
+O	CSA_T500	ACCEPT
+O	CSA_T500-1983	ACCEPT
+O	CSA_Z243.4-1985-1	ACCEPT
+O	CSA_Z243.4-1985-2	ACCEPT
+O	CSA_Z243.419851	ACCEPT
+O	CSA_Z243.419852	ACCEPT
+O	CSDECMCS	ACCEPT
+O	CSEBCDICATDE	ACCEPT
+O	CSEBCDICATDEA	ACCEPT
+O	CSEBCDICCAFR	ACCEPT
+O	CSEBCDICDKNO	ACCEPT
+O	CSEBCDICDKNOA	ACCEPT
+O	CSEBCDICES	ACCEPT
+O	CSEBCDICESA	ACCEPT
+O	CSEBCDICESS	ACCEPT
+O	CSEBCDICFISE	ACCEPT
+O	CSEBCDICFISEA	ACCEPT
+O	CSEBCDICFR	ACCEPT
+O	CSEBCDICIT	ACCEPT
+O	CSEBCDICPT	ACCEPT
+O	CSEBCDICUK	ACCEPT
+O	CSEBCDICUS	ACCEPT
+O	CSEUCKR	ACCEPT
+O	CSEUCPKDFMTJAPANESE	ACCEPT
+O	CSGB2312	ACCEPT
+O	CSHPROMAN8	ACCEPT
+O	CSIBM037	ACCEPT
+O	CSIBM038	ACCEPT
+O	CSIBM1008	ACCEPT
+O	CSIBM1025	ACCEPT
+O	CSIBM1026	ACCEPT
+O	CSIBM1097	ACCEPT
+O	CSIBM1112	ACCEPT
+O	CSIBM1122	ACCEPT
+O	CSIBM1123	ACCEPT
+O	CSIBM1124	ACCEPT
+O	CSIBM1129	ACCEPT
+O	CSIBM1130	ACCEPT
+O	CSIBM1132	ACCEPT
+O	CSIBM1133	ACCEPT
+O	CSIBM1137	ACCEPT
+O	CSIBM1140	ACCEPT
+O	CSIBM1141	ACCEPT
+O	CSIBM1142	ACCEPT
+O	CSIBM1143	ACCEPT
+O	CSIBM1144	ACCEPT
+O	CSIBM1145	ACCEPT
+O	CSIBM1146	ACCEPT
+O	CSIBM1147	ACCEPT
+O	CSIBM1148	ACCEPT
+O	CSIBM1149	ACCEPT
+O	CSIBM1153	ACCEPT
+O	CSIBM1154	ACCEPT
+O	CSIBM1155	ACCEPT
+O	CSIBM1156	ACCEPT
+O	CSIBM1157	ACCEPT
+O	CSIBM1158	ACCEPT
+O	CSIBM1160	ACCEPT
+O	CSIBM1161	ACCEPT
+O	CSIBM11621162	ACCEPT
+O	CSIBM1163	ACCEPT
+O	CSIBM1164	ACCEPT
+O	CSIBM1166	ACCEPT
+O	CSIBM1167	ACCEPT
+O	CSIBM12712	ACCEPT
+O	CSIBM1364	ACCEPT
+O	CSIBM1371	ACCEPT
+O	CSIBM1388	ACCEPT
+O	CSIBM1390	ACCEPT
+O	CSIBM1399	ACCEPT
+O	CSIBM16804	ACCEPT
+O	CSIBM273	ACCEPT
+O	CSIBM274	ACCEPT
+O	CSIBM275	ACCEPT
+O	CSIBM277	ACCEPT
+O	CSIBM278	ACCEPT
+O	CSIBM280	ACCEPT
+O	CSIBM281	ACCEPT
+O	CSIBM284	ACCEPT
+O	CSIBM285	ACCEPT
+O	CSIBM290	ACCEPT
+O	CSIBM297	ACCEPT
+O	CSIBM420	ACCEPT
+O	CSIBM423	ACCEPT
+O	CSIBM424	ACCEPT
+O	CSIBM4517	ACCEPT
+O	CSIBM4899	ACCEPT
+O	CSIBM4909	ACCEPT
+O	CSIBM4971	ACCEPT
+O	CSIBM500	ACCEPT
+O	CSIBM5347	ACCEPT
+O	CSIBM803	ACCEPT
+O	CSIBM851	ACCEPT
+O	CSIBM855	ACCEPT
+O	CSIBM856	ACCEPT
+O	CSIBM857	ACCEPT
+O	CSIBM860	ACCEPT
+O	CSIBM863	ACCEPT
+O	CSIBM864	ACCEPT
+O	CSIBM865	ACCEPT
+O	CSIBM866	ACCEPT
+O	CSIBM868	ACCEPT
+O	CSIBM869	ACCEPT
+O	CSIBM870	ACCEPT
+O	CSIBM871	ACCEPT
+O	CSIBM880	ACCEPT
+O	CSIBM891	ACCEPT
+O	CSIBM901	ACCEPT
+O	CSIBM902	ACCEPT
+O	CSIBM903	ACCEPT
+O	CSIBM9030	ACCEPT
+O	CSIBM904	ACCEPT
+O	CSIBM905	ACCEPT
+O	CSIBM9066	ACCEPT
+O	CSIBM918	ACCEPT
+O	CSIBM921	ACCEPT
+O	CSIBM922	ACCEPT
+O	CSIBM930	ACCEPT
+O	CSIBM932	ACCEPT
+O	CSIBM933	ACCEPT
+O	CSIBM935	ACCEPT
+O	CSIBM937	ACCEPT
+O	CSIBM939	ACCEPT
+O	CSIBM943	ACCEPT
+O	CSIBM9448	ACCEPT
+O	CSISO10367BOX	ACCEPT
+O	CSISO103T618BIT	ACCEPT
+O	CSISO10SWEDISH	ACCEPT
+O	CSISO111ECMACYRILLIC	ACCEPT
+O	CSISO11SWEDISHFORNAMES	ACCEPT
+O	CSISO121CANADIAN1	ACCEPT
+O	CSISO122CANADIAN2	ACCEPT
+O	CSISO139CSN369103	ACCEPT
+O	CSISO141JUSIB1002	ACCEPT
+O	CSISO143IECP271	ACCEPT
+O	CSISO14JISC6220RO	ACCEPT
+O	CSISO150	ACCEPT
+O	CSISO150GREEKCCITT	ACCEPT
+O	CSISO151CUBA	ACCEPT
+O	CSISO153GOST1976874	ACCEPT
+O	CSISO15ITALIAN	ACCEPT
+O	CSISO16PORTUGESE	ACCEPT
+O	CSISO17SPANISH	ACCEPT
+O	CSISO18GREEK7OLD	ACCEPT
+O	CSISO19LATINGREEK	ACCEPT
+O	CSISO2022CN	ACCEPT
+O	CSISO2022JP	ACCEPT
+O	CSISO2022JP2	ACCEPT
+O	CSISO2022KR	ACCEPT
+O	CSISO2033	ACCEPT
+O	CSISO21GERMAN	ACCEPT
+O	CSISO25FRENCH	ACCEPT
+O	CSISO27LATINGREEK1	ACCEPT
+O	CSISO49INIS	ACCEPT
+O	CSISO4UNITEDKINGDOM	ACCEPT
+O	CSISO50INIS8	ACCEPT
+O	CSISO51INISCYRILLIC	ACCEPT
+O	CSISO5427CYRILLIC	ACCEPT
+O	CSISO5427CYRILLIC1981	ACCEPT
+O	CSISO5428GREEK	ACCEPT
+O	CSISO58GB1988	ACCEPT
+O	CSISO60DANISHNORWEGIAN	ACCEPT
+O	CSISO60NORWEGIAN1	ACCEPT
+O	CSISO61NORWEGIAN2	ACCEPT
+O	CSISO646DANISH	ACCEPT
+O	CSISO69FRENCH	ACCEPT
+O	CSISO84PORTUGUESE2	ACCEPT
+O	CSISO85SPANISH2	ACCEPT
+O	CSISO86HUNGARIAN	ACCEPT
+O	CSISO88GREEK7	ACCEPT
+O	CSISO89ASMO449	ACCEPT
+O	CSISO90	ACCEPT
+O	CSISO92JISC62991984B	ACCEPT
+O	CSISO99NAPLPS	ACCEPT
+O	CSISOLATIN1	ACCEPT
+O	CSISOLATIN2	ACCEPT
+O	CSISOLATIN3	ACCEPT
+O	CSISOLATIN4	ACCEPT
+O	CSISOLATIN5	ACCEPT
+O	CSISOLATIN6	ACCEPT
+O	CSISOLATINARABIC	ACCEPT
+O	CSISOLATINCYRILLIC	ACCEPT
+O	CSISOLATINGREEK	ACCEPT
+O	CSISOLATINHEBREW	ACCEPT
+O	CSKOI8R	ACCEPT
+O	CSKSC5636	ACCEPT
+O	CSMACINTOSH	ACCEPT
+O	CSNATSDANO	ACCEPT
+O	CSNATSSEFI	ACCEPT
+O	CSN_369103	ACCEPT
+O	CSPC775BALTIC	ACCEPT
+O	CSPC850MULTILINGUAL	ACCEPT
+O	CSPC858MULTILINGUAL	ACCEPT
+O	CSPC862LATINHEBREW	ACCEPT
+O	CSPC8CODEPAGE437	ACCEPT
+O	CSPCP852	ACCEPT
+O	CSSHIFTJIS	ACCEPT
+O	CSUCS4	ACCEPT
+O	CSUNICODE	ACCEPT
+O	CSWINDOWS31J	ACCEPT
+O	CUBA	ACCEPT
+O	CWI	ACCEPT
+O	CWI-2	ACCEPT
+O	CYRILLIC	ACCEPT
+O	DE	ACCEPT
+O	DEC	ACCEPT
+O	DEC-MCS	ACCEPT
+O	DECMCS	ACCEPT
+O	DIN_66003	ACCEPT
+O	DK	ACCEPT
+O	DOS-720	ACCEPT
+O	DOS-862	ACCEPT
+O	DS2089	ACCEPT
+O	DS_2089	ACCEPT
+O	E13B	ACCEPT
+O	EBCDIC-AT-DE	ACCEPT
+O	EBCDIC-AT-DE-A	ACCEPT
+O	EBCDIC-BE	ACCEPT
+O	EBCDIC-BR	ACCEPT
+O	EBCDIC-CA-FR	ACCEPT
+O	EBCDIC-CP-AR1	ACCEPT
+O	EBCDIC-CP-AR2	ACCEPT
+O	EBCDIC-CP-BE	ACCEPT
+O	EBCDIC-CP-CA	ACCEPT
+O	EBCDIC-CP-CH	ACCEPT
+O	EBCDIC-CP-DK	ACCEPT
+O	EBCDIC-CP-ES	ACCEPT
+O	EBCDIC-CP-FI	ACCEPT
+O	EBCDIC-CP-FR	ACCEPT
+O	EBCDIC-CP-GB	ACCEPT
+O	EBCDIC-CP-GR	ACCEPT
+O	EBCDIC-CP-HE	ACCEPT
+O	EBCDIC-CP-IS	ACCEPT
+O	EBCDIC-CP-IT	ACCEPT
+O	EBCDIC-CP-NL	ACCEPT
+O	EBCDIC-CP-NO	ACCEPT
+O	EBCDIC-CP-ROECE	ACCEPT
+O	EBCDIC-CP-SE	ACCEPT
+O	EBCDIC-CP-TR	ACCEPT
+O	EBCDIC-CP-US	ACCEPT
+O	EBCDIC-CP-WT	ACCEPT
+O	EBCDIC-CP-YU	ACCEPT
+O	EBCDIC-CYRILLIC	ACCEPT
+O	EBCDIC-Cyrillic	ACCEPT
+O	EBCDIC-DK-NO	ACCEPT
+O	EBCDIC-DK-NO-A	ACCEPT
+O	EBCDIC-ES	ACCEPT
+O	EBCDIC-ES-A	ACCEPT
+O	EBCDIC-ES-S	ACCEPT
+O	EBCDIC-FI-SE	ACCEPT
+O	EBCDIC-FI-SE-A	ACCEPT
+O	EBCDIC-FR	ACCEPT
+O	EBCDIC-GREEK	ACCEPT
+O	EBCDIC-INT	ACCEPT
+O	EBCDIC-INT1	ACCEPT
+O	EBCDIC-IS-FRISS	ACCEPT
+O	EBCDIC-IT	ACCEPT
+O	EBCDIC-JP-E	ACCEPT
+O	EBCDIC-JP-KANA	ACCEPT
+O	EBCDIC-JP-kana	ACCEPT
+O	EBCDIC-PT	ACCEPT
+O	EBCDIC-UK	ACCEPT
+O	EBCDIC-US	ACCEPT
+O	EBCDICATDE	ACCEPT
+O	EBCDICATDEA	ACCEPT
+O	EBCDICCAFR	ACCEPT
+O	EBCDICDKNO	ACCEPT
+O	EBCDICDKNOA	ACCEPT
+O	EBCDICES	ACCEPT
+O	EBCDICESA	ACCEPT
+O	EBCDICESS	ACCEPT
+O	EBCDICFISE	ACCEPT
+O	EBCDICFISEA	ACCEPT
+O	EBCDICFR	ACCEPT
+O	EBCDICISFRISS	ACCEPT
+O	EBCDICIT	ACCEPT
+O	EBCDICPT	ACCEPT
+O	EBCDICUK	ACCEPT
+O	EBCDICUS	ACCEPT
+O	ECMA-114	ACCEPT
+O	ECMA-118	ACCEPT
+O	ECMA-128	ACCEPT
+O	ECMA-CYRILLIC	ACCEPT
+O	ECMACYRILLIC	ACCEPT
+O	ELOT_928	ACCEPT
+O	ES	ACCEPT
+O	ES2	ACCEPT
+O	EUC-CN	ACCEPT
+O	EUC-JISX0213	ACCEPT
+O	EUC-JP	ACCEPT
+O	EUC-JP-MS	ACCEPT
+O	EUC-KR	ACCEPT
+O	EUC-TW	ACCEPT
+O	EUCCN	ACCEPT
+O	EUCJP	ACCEPT
+O	EUCJP-MS	ACCEPT
+O	EUCJP-OPEN	ACCEPT
+O	EUCJP-WIN	ACCEPT
+O	EUCKR	ACCEPT
+O	EUCTW	ACCEPT
+O	Extended_UNIX_Code_Packed_Format_for_Japanese	ACCEPT
+O	FI	ACCEPT
+O	FR	ACCEPT
+O	GB	ACCEPT
+O	GB13000	ACCEPT
+O	GB18030	ACCEPT
+O	GB2312	ACCEPT
+O	GB2312.1980-0	ACCEPT
+O	GBK	ACCEPT
+O	GB_1988-80	ACCEPT
+O	GB_198880	ACCEPT
+O	GB_2312-80	ACCEPT
+O	GEORGIAN-ACADEMY	ACCEPT
+O	GEORGIAN-PS	ACCEPT
+O	GOST_19768	ACCEPT
+O	GOST_19768-74	ACCEPT
+O	GOST_1976874	ACCEPT
+O	GREEK	ACCEPT
+O	GREEK-CCITT	ACCEPT
+O	GREEK7	ACCEPT
+O	GREEK7-OLD	ACCEPT
+O	GREEK7OLD	ACCEPT
+O	GREEK8	ACCEPT
+O	GREEKCCITT	ACCEPT
+O	GSM0338	ACCEPT
+O	HEBREW	ACCEPT
+O	HKSCS-BIG5	ACCEPT
+O	HP-GREEK8	ACCEPT
+O	HP-ROMAN8	ACCEPT
+O	HP-ROMAN9	ACCEPT
+O	HP-THAI8	ACCEPT
+O	HP-TURKISH8	ACCEPT
+O	HPGREEK8	ACCEPT
+O	HPROMAN8	ACCEPT
+O	HPROMAN9	ACCEPT
+O	HPTHAI8	ACCEPT
+O	HPTURKISH8	ACCEPT
+O	HTML	ACCEPT
+O	HU	ACCEPT
+O	HZ	ACCEPT
+O	HZ-GB-2312	ACCEPT
+O	IBM-1008	ACCEPT
+O	IBM-1025	ACCEPT
+O	IBM-1046	ACCEPT
+O	IBM-1047	ACCEPT
+O	IBM-1097	ACCEPT
+O	IBM-1112	ACCEPT
+O	IBM-1122	ACCEPT
+O	IBM-1123	ACCEPT
+O	IBM-1124	ACCEPT
+O	IBM-1129	ACCEPT
+O	IBM-1130	ACCEPT
+O	IBM-1132	ACCEPT
+O	IBM-1133	ACCEPT
+O	IBM-1137	ACCEPT
+O	IBM-1140	ACCEPT
+O	IBM-1141	ACCEPT
+O	IBM-1142	ACCEPT
+O	IBM-1143	ACCEPT
+O	IBM-1144	ACCEPT
+O	IBM-1145	ACCEPT
+O	IBM-1146	ACCEPT
+O	IBM-1147	ACCEPT
+O	IBM-1148	ACCEPT
+O	IBM-1149	ACCEPT
+O	IBM-1153	ACCEPT
+O	IBM-1154	ACCEPT
+O	IBM-1155	ACCEPT
+O	IBM-1156	ACCEPT
+O	IBM-1157	ACCEPT
+O	IBM-1158	ACCEPT
+O	IBM-1160	ACCEPT
+O	IBM-1161	ACCEPT
+O	IBM-1162	ACCEPT
+O	IBM-1163	ACCEPT
+O	IBM-1164	ACCEPT
+O	IBM-1166	ACCEPT
+O	IBM-1167	ACCEPT
+O	IBM-12712	ACCEPT
+O	IBM-1364	ACCEPT
+O	IBM-1371	ACCEPT
+O	IBM-1388	ACCEPT
+O	IBM-1390	ACCEPT
+O	IBM-1399	ACCEPT
+O	IBM-16804	ACCEPT
+O	IBM-4517	ACCEPT
+O	IBM-4899	ACCEPT
+O	IBM-4909	ACCEPT
+O	IBM-4971	ACCEPT
+O	IBM-5347	ACCEPT
+O	IBM-803	ACCEPT
+O	IBM-856	ACCEPT
+O	IBM-901	ACCEPT
+O	IBM-902	ACCEPT
+O	IBM-9030	ACCEPT
+O	IBM-9066	ACCEPT
+O	IBM-921	ACCEPT
+O	IBM-922	ACCEPT
+O	IBM-930	ACCEPT
+O	IBM-932	ACCEPT
+O	IBM-933	ACCEPT
+O	IBM-935	ACCEPT
+O	IBM-937	ACCEPT
+O	IBM-939	ACCEPT
+O	IBM-943	ACCEPT
+O	IBM-943C	ACCEPT
+O	IBM-9448	ACCEPT
+O	IBM-949C	ACCEPT
+O	IBM-Thai	ACCEPT
+O	IBM-eucJP	ACCEPT
+O	IBM037	ACCEPT
+O	IBM038	ACCEPT
+O	IBM1004	ACCEPT
+O	IBM1008	ACCEPT
+O	IBM1025	ACCEPT
+O	IBM1026	ACCEPT
+O	IBM1046	ACCEPT
+O	IBM1047	ACCEPT
+O	IBM1047_LF	ACCEPT
+O	IBM1089	ACCEPT
+O	IBM1097	ACCEPT
+O	IBM1112	ACCEPT
+O	IBM1122	ACCEPT
+O	IBM1123	ACCEPT
+O	IBM1124	ACCEPT
+O	IBM1129	ACCEPT
+O	IBM1130	ACCEPT
+O	IBM1132	ACCEPT
+O	IBM1133	ACCEPT
+O	IBM1137	ACCEPT
+O	IBM1140	ACCEPT
+O	IBM1141	ACCEPT
+O	IBM1141_LF	ACCEPT
+O	IBM1142	ACCEPT
+O	IBM1143	ACCEPT
+O	IBM1144	ACCEPT
+O	IBM1145	ACCEPT
+O	IBM1146	ACCEPT
+O	IBM1147	ACCEPT
+O	IBM1148	ACCEPT
+O	IBM1149	ACCEPT
+O	IBM1153	ACCEPT
+O	IBM1154	ACCEPT
+O	IBM1155	ACCEPT
+O	IBM1156	ACCEPT
+O	IBM1157	ACCEPT
+O	IBM1158	ACCEPT
+O	IBM1160	ACCEPT
+O	IBM1161	ACCEPT
+O	IBM1162	ACCEPT
+O	IBM1163	ACCEPT
+O	IBM1164	ACCEPT
+O	IBM1166	ACCEPT
+O	IBM1167	ACCEPT
+O	IBM12712	ACCEPT
+O	IBM1364	ACCEPT
+O	IBM1371	ACCEPT
+O	IBM1388	ACCEPT
+O	IBM1390	ACCEPT
+O	IBM1399	ACCEPT
+O	IBM16804	ACCEPT
+O	IBM256	ACCEPT
+O	IBM273	ACCEPT
+O	IBM274	ACCEPT
+O	IBM275	ACCEPT
+O	IBM277	ACCEPT
+O	IBM278	ACCEPT
+O	IBM280	ACCEPT
+O	IBM281	ACCEPT
+O	IBM284	ACCEPT
+O	IBM285	ACCEPT
+O	IBM290	ACCEPT
+O	IBM297	ACCEPT
+O	IBM367	ACCEPT
+O	IBM420	ACCEPT
+O	IBM423	ACCEPT
+O	IBM424	ACCEPT
+O	IBM437	ACCEPT
+O	IBM4517	ACCEPT
+O	IBM4899	ACCEPT
+O	IBM4909	ACCEPT
+O	IBM4971	ACCEPT
+O	IBM500	ACCEPT
+O	IBM5347	ACCEPT
+O	IBM775	ACCEPT
+O	IBM803	ACCEPT
+O	IBM813	ACCEPT
+O	IBM819	ACCEPT
+O	IBM848	ACCEPT
+O	IBM850	ACCEPT
+O	IBM851	ACCEPT
+O	IBM852	ACCEPT
+O	IBM855	ACCEPT
+O	IBM856	ACCEPT
+O	IBM857	ACCEPT
+O	IBM858	ACCEPT
+O	IBM860	ACCEPT
+O	IBM861	ACCEPT
+O	IBM862	ACCEPT
+O	IBM863	ACCEPT
+O	IBM864	ACCEPT
+O	IBM865	ACCEPT
+O	IBM866	ACCEPT
+O	IBM866NAV	ACCEPT
+O	IBM868	ACCEPT
+O	IBM869	ACCEPT
+O	IBM870	ACCEPT
+O	IBM871	ACCEPT
+O	IBM874	ACCEPT
+O	IBM875	ACCEPT
+O	IBM880	ACCEPT
+O	IBM891	ACCEPT
+O	IBM901	ACCEPT
+O	IBM902	ACCEPT
+O	IBM903	ACCEPT
+O	IBM9030	ACCEPT
+O	IBM904	ACCEPT
+O	IBM905	ACCEPT
+O	IBM9066	ACCEPT
+O	IBM912	ACCEPT
+O	IBM915	ACCEPT
+O	IBM916	ACCEPT
+O	IBM918	ACCEPT
+O	IBM920	ACCEPT
+O	IBM921	ACCEPT
+O	IBM922	ACCEPT
+O	IBM930	ACCEPT
+O	IBM932	ACCEPT
+O	IBM933	ACCEPT
+O	IBM935	ACCEPT
+O	IBM937	ACCEPT
+O	IBM939	ACCEPT
+O	IBM943	ACCEPT
+O	IBM9448	ACCEPT
+O	IEC_P27-1	ACCEPT
+O	IEC_P271	ACCEPT
+O	IMAP-mailbox-name	ACCEPT
+O	INIS	ACCEPT
+O	INIS-8	ACCEPT
+O	INIS-CYRILLIC	ACCEPT
+O	INIS8	ACCEPT
+O	INISCYRILLIC	ACCEPT
+O	ISIRI-3342	ACCEPT
+O	ISIRI3342	ACCEPT
+O	ISO-10646	ACCEPT
+O	ISO-10646-UCS-2	ACCEPT
+O	ISO-10646-UCS-4	ACCEPT
+O	ISO-2022-CN	ACCEPT
+O	ISO-2022-CN-CNS	ACCEPT
+O	ISO-2022-CN-EXT	ACCEPT
+O	ISO-2022-JP	ACCEPT
+O	ISO-2022-JP-1	ACCEPT
+O	ISO-2022-JP-2	ACCEPT
+O	ISO-2022-JP-3	ACCEPT
+O	ISO-2022-KR	ACCEPT
+O	ISO-8859-1	ACCEPT
+O	ISO-8859-10	ACCEPT
+O	ISO-8859-11	ACCEPT
+O	ISO-8859-13	ACCEPT
+O	ISO-8859-14	ACCEPT
+O	ISO-8859-15	ACCEPT
+O	ISO-8859-16	ACCEPT
+O	ISO-8859-2	ACCEPT
+O	ISO-8859-3	ACCEPT
+O	ISO-8859-4	ACCEPT
+O	ISO-8859-5	ACCEPT
+O	ISO-8859-6	ACCEPT
+O	ISO-8859-6-E	ACCEPT
+O	ISO-8859-6-I	ACCEPT
+O	ISO-8859-7	ACCEPT
+O	ISO-8859-8	ACCEPT
+O	ISO-8859-8-E	ACCEPT
+O	ISO-8859-8-I	ACCEPT
+O	ISO-8859-9	ACCEPT
+O	ISO-8859-9E	ACCEPT
+O	ISO-CELTIC	ACCEPT
+O	ISO-IR-10	ACCEPT
+O	ISO-IR-100	ACCEPT
+O	ISO-IR-101	ACCEPT
+O	ISO-IR-103	ACCEPT
+O	ISO-IR-109	ACCEPT
+O	ISO-IR-11	ACCEPT
+O	ISO-IR-110	ACCEPT
+O	ISO-IR-111	ACCEPT
+O	ISO-IR-121	ACCEPT
+O	ISO-IR-122	ACCEPT
+O	ISO-IR-126	ACCEPT
+O	ISO-IR-127	ACCEPT
+O	ISO-IR-138	ACCEPT
+O	ISO-IR-139	ACCEPT
+O	ISO-IR-14	ACCEPT
+O	ISO-IR-141	ACCEPT
+O	ISO-IR-143	ACCEPT
+O	ISO-IR-144	ACCEPT
+O	ISO-IR-148	ACCEPT
+O	ISO-IR-15	ACCEPT
+O	ISO-IR-150	ACCEPT
+O	ISO-IR-151	ACCEPT
+O	ISO-IR-153	ACCEPT
+O	ISO-IR-155	ACCEPT
+O	ISO-IR-156	ACCEPT
+O	ISO-IR-157	ACCEPT
+O	ISO-IR-16	ACCEPT
+O	ISO-IR-166	ACCEPT
+O	ISO-IR-17	ACCEPT
+O	ISO-IR-179	ACCEPT
+O	ISO-IR-18	ACCEPT
+O	ISO-IR-19	ACCEPT
+O	ISO-IR-193	ACCEPT
+O	ISO-IR-197	ACCEPT
+O	ISO-IR-199	ACCEPT
+O	ISO-IR-203	ACCEPT
+O	ISO-IR-209	ACCEPT
+O	ISO-IR-21	ACCEPT
+O	ISO-IR-226	ACCEPT
+O	ISO-IR-25	ACCEPT
+O	ISO-IR-27	ACCEPT
+O	ISO-IR-37	ACCEPT
+O	ISO-IR-4	ACCEPT
+O	ISO-IR-49	ACCEPT
+O	ISO-IR-50	ACCEPT
+O	ISO-IR-51	ACCEPT
+O	ISO-IR-54	ACCEPT
+O	ISO-IR-55	ACCEPT
+O	ISO-IR-57	ACCEPT
+O	ISO-IR-6	ACCEPT
+O	ISO-IR-60	ACCEPT
+O	ISO-IR-61	ACCEPT
+O	ISO-IR-69	ACCEPT
+O	ISO-IR-8-1	ACCEPT
+O	ISO-IR-84	ACCEPT
+O	ISO-IR-85	ACCEPT
+O	ISO-IR-86	ACCEPT
+O	ISO-IR-88	ACCEPT
+O	ISO-IR-89	ACCEPT
+O	ISO-IR-9-1	ACCEPT
+O	ISO-IR-90	ACCEPT
+O	ISO-IR-92	ACCEPT
+O	ISO-IR-98	ACCEPT
+O	ISO-IR-99	ACCEPT
+O	ISO-LATIN-1	ACCEPT
+O	ISO-LATIN-2	ACCEPT
+O	ISO11548-1	ACCEPT
+O	ISO2022CN	ACCEPT
+O	ISO2022CNEXT	ACCEPT
+O	ISO2022JP	ACCEPT
+O	ISO2022JP2	ACCEPT
+O	ISO2022KR	ACCEPT
+O	ISO646-CA	ACCEPT
+O	ISO646-CA2	ACCEPT
+O	ISO646-CN	ACCEPT
+O	ISO646-CU	ACCEPT
+O	ISO646-DE	ACCEPT
+O	ISO646-DK	ACCEPT
+O	ISO646-ES	ACCEPT
+O	ISO646-ES2	ACCEPT
+O	ISO646-FI	ACCEPT
+O	ISO646-FR	ACCEPT
+O	ISO646-FR1	ACCEPT
+O	ISO646-GB	ACCEPT
+O	ISO646-HU	ACCEPT
+O	ISO646-IT	ACCEPT
+O	ISO646-JP	ACCEPT
+O	ISO646-JP-OCR-B	ACCEPT
+O	ISO646-KR	ACCEPT
+O	ISO646-NO	ACCEPT
+O	ISO646-NO2	ACCEPT
+O	ISO646-PT	ACCEPT
+O	ISO646-PT2	ACCEPT
+O	ISO646-SE	ACCEPT
+O	ISO646-SE2	ACCEPT
+O	ISO646-US	ACCEPT
+O	ISO646-YU	ACCEPT
+O	ISO6937	ACCEPT
+O	ISO8859-1	ACCEPT
+O	ISO8859-10	ACCEPT
+O	ISO8859-11	ACCEPT
+O	ISO8859-13	ACCEPT
+O	ISO8859-14	ACCEPT
+O	ISO8859-15	ACCEPT
+O	ISO8859-16	ACCEPT
+O	ISO8859-2	ACCEPT
+O	ISO8859-3	ACCEPT
+O	ISO8859-4	ACCEPT
+O	ISO8859-5	ACCEPT
+O	ISO8859-6	ACCEPT
+O	ISO8859-7	ACCEPT
+O	ISO8859-8	ACCEPT
+O	ISO8859-9	ACCEPT
+O	ISO8859-9E	ACCEPT
+O	ISO88591	ACCEPT
+O	ISO885910	ACCEPT
+O	ISO885911	ACCEPT
+O	ISO885913	ACCEPT
+O	ISO885914	ACCEPT
+O	ISO885915	ACCEPT
+O	ISO885916	ACCEPT
+O	ISO88592	ACCEPT
+O	ISO88593	ACCEPT
+O	ISO88594	ACCEPT
+O	ISO88595	ACCEPT
+O	ISO88596	ACCEPT
+O	ISO88597	ACCEPT
+O	ISO88598	ACCEPT
+O	ISO88599	ACCEPT
+O	ISO88599E	ACCEPT
+O	ISO_10367-BOX	ACCEPT
+O	ISO_10367BOX	ACCEPT
+O	ISO_11548-1	ACCEPT
+O	ISO_2033	ACCEPT
+O	ISO_2033-1983	ACCEPT
+O	ISO_5427	ACCEPT
+O	ISO_5427-EXT	ACCEPT
+O	ISO_5427EXT	ACCEPT
+O	ISO_5428	ACCEPT
+O	ISO_6937	ACCEPT
+O	ISO_6937-2	ACCEPT
+O	ISO_69372	ACCEPT
+O	ISO_8859-1	ACCEPT
+O	ISO_8859-10	ACCEPT
+O	ISO_8859-14	ACCEPT
+O	ISO_8859-15	ACCEPT
+O	ISO_8859-16	ACCEPT
+O	ISO_8859-2	ACCEPT
+O	ISO_8859-3	ACCEPT
+O	ISO_8859-4	ACCEPT
+O	ISO_8859-5	ACCEPT
+O	ISO_8859-6	ACCEPT
+O	ISO_8859-7	ACCEPT
+O	ISO_8859-8	ACCEPT
+O	ISO_8859-9	ACCEPT
+O	ISO_8859-9E	ACCEPT
+O	ISO_9036	ACCEPT
+O	IT	ACCEPT
+O	JIS	ACCEPT
+O	JIS7	ACCEPT
+O	JIS8	ACCEPT
+O	JIS_C6220-1969-RO	ACCEPT
+O	JIS_C62201969RO	ACCEPT
+O	JIS_C6229-1984-B	ACCEPT
+O	JIS_C62291984B	ACCEPT
+O	JIS_Encoding	ACCEPT
+O	JOHAB	ACCEPT
+O	JP	ACCEPT
+O	JP-OCR-B	ACCEPT
+O	JS	ACCEPT
+O	JUS_I.B1.002	ACCEPT
+O	KOI-7	ACCEPT
+O	KOI-8	ACCEPT
+O	KOI8	ACCEPT
+O	KOI8-R	ACCEPT
+O	KOI8-RU	ACCEPT
+O	KOI8-T	ACCEPT
+O	KOI8-U	ACCEPT
+O	KOI8R	ACCEPT
+O	KOI8U	ACCEPT
+O	KSC5636	ACCEPT
+O	KSC_5601	ACCEPT
+O	KS_C_5601-1987	ACCEPT
+O	KS_C_5601-1989	ACCEPT
+O	L1	ACCEPT
+O	L10	ACCEPT
+O	L2	ACCEPT
+O	L3	ACCEPT
+O	L4	ACCEPT
+O	L5	ACCEPT
+O	L6	ACCEPT
+O	L7	ACCEPT
+O	L8	ACCEPT
+O	LATIN-9	ACCEPT
+O	LATIN-GREEK	ACCEPT
+O	LATIN-GREEK-1	ACCEPT
+O	LATIN1	ACCEPT
+O	LATIN10	ACCEPT
+O	LATIN2	ACCEPT
+O	LATIN3	ACCEPT
+O	LATIN4	ACCEPT
+O	LATIN5	ACCEPT
+O	LATIN6	ACCEPT
+O	LATIN7	ACCEPT
+O	LATIN8	ACCEPT
+O	LATIN9	ACCEPT
+O	LATINGREEK	ACCEPT
+O	LATINGREEK1	ACCEPT
+O	LMBCS-1	ACCEPT
+O	Latin-9	ACCEPT
+O	MAC	ACCEPT
+O	MAC-CENTRALEUROPE	ACCEPT
+O	MAC-CYRILLIC	ACCEPT
+O	MAC-IS	ACCEPT
+O	MAC-SAMI	ACCEPT
+O	MAC-UK	ACCEPT
+O	MACCYRILLIC	ACCEPT
+O	MACINTOSH	ACCEPT
+O	MACIS	ACCEPT
+O	MACUK	ACCEPT
+O	MACUKRAINIAN	ACCEPT
+O	MIK	ACCEPT
+O	MS-ANSI	ACCEPT
+O	MS-ARAB	ACCEPT
+O	MS-CYRL	ACCEPT
+O	MS-EE	ACCEPT
+O	MS-GREEK	ACCEPT
+O	MS-HEBR	ACCEPT
+O	MS-MAC-CYRILLIC	ACCEPT
+O	MS-TURK	ACCEPT
+O	MS874	ACCEPT
+O	MS932	ACCEPT
+O	MS936	ACCEPT
+O	MS950_HKSCS	ACCEPT
+O	MSCP1361	ACCEPT
+O	MSCP949	ACCEPT
+O	MSMACCYRILLIC	ACCEPT
+O	MSZ_7795.3	ACCEPT
+O	MS_KANJI	ACCEPT
+O	MS_Kanji	ACCEPT
+O	NAPLPS	ACCEPT
+O	NATS-DANO	ACCEPT
+O	NATS-SEFI	ACCEPT
+O	NATSDANO	ACCEPT
+O	NATSSEFI	ACCEPT
+O	NC_NC00-10	ACCEPT
+O	NC_NC0010	ACCEPT
+O	NF_Z_62-010	ACCEPT
+O	NF_Z_62-010_1973	ACCEPT
+O	NF_Z_62010	ACCEPT
+O	NF_Z_62010_1973	ACCEPT
+O	NO	ACCEPT
+O	NO2	ACCEPT
+O	NS_4551-1	ACCEPT
+O	NS_4551-2	ACCEPT
+O	NS_45511	ACCEPT
+O	NS_45512	ACCEPT
+O	OS2LATIN1	ACCEPT
+O	OSF00010001	ACCEPT
+O	OSF00010002	ACCEPT
+O	OSF00010003	ACCEPT
+O	OSF00010004	ACCEPT
+O	OSF00010005	ACCEPT
+O	OSF00010006	ACCEPT
+O	OSF00010007	ACCEPT
+O	OSF00010008	ACCEPT
+O	OSF00010009	ACCEPT
+O	OSF0001000A	ACCEPT
+O	OSF00010020	ACCEPT
+O	OSF00010100	ACCEPT
+O	OSF00010101	ACCEPT
+O	OSF00010102	ACCEPT
+O	OSF00010104	ACCEPT
+O	OSF00010105	ACCEPT
+O	OSF00010106	ACCEPT
+O	OSF00030010	ACCEPT
+O	OSF0004000A	ACCEPT
+O	OSF0005000A	ACCEPT
+O	OSF05010001	ACCEPT
+O	OSF10010001	ACCEPT
+O	OSF10010004	ACCEPT
+O	OSF10010006	ACCEPT
+O	OSF10020025	ACCEPT
+O	OSF10020111	ACCEPT
+O	OSF10020115	ACCEPT
+O	OSF10020116	ACCEPT
+O	OSF10020118	ACCEPT
+O	OSF1002011C	ACCEPT
+O	OSF1002011D	ACCEPT
+O	OSF10020122	ACCEPT
+O	OSF10020129	ACCEPT
+O	OSF100201A4	ACCEPT
+O	OSF100201A8	ACCEPT
+O	OSF100201B5	ACCEPT
+O	OSF100201F4	ACCEPT
+O	OSF10020352	ACCEPT
+O	OSF10020354	ACCEPT
+O	OSF10020357	ACCEPT
+O	OSF10020359	ACCEPT
+O	OSF1002035D	ACCEPT
+O	OSF1002035E	ACCEPT
+O	OSF1002035F	ACCEPT
+O	OSF10020360	ACCEPT
+O	OSF10020364	ACCEPT
+O	OSF10020365	ACCEPT
+O	OSF10020366	ACCEPT
+O	OSF10020367	ACCEPT
+O	OSF1002036B	ACCEPT
+O	OSF10020370	ACCEPT
+O	OSF1002037B	ACCEPT
+O	OSF10020387	ACCEPT
+O	OSF10020388	ACCEPT
+O	OSF10020396	ACCEPT
+O	OSF100203B5	ACCEPT
+O	OSF10020402	ACCEPT
+O	OSF10020417	ACCEPT
+O	PT	ACCEPT
+O	PT154	ACCEPT
+O	PT2	ACCEPT
+O	R8	ACCEPT
+O	R9	ACCEPT
+O	RK1048	ACCEPT
+O	ROMAN8	ACCEPT
+O	ROMAN9	ACCEPT
+O	RUSCII	ACCEPT
+O	SCSU	ACCEPT
+O	SE	ACCEPT
+O	SE2	ACCEPT
+O	SEN_850200_B	ACCEPT
+O	SEN_850200_C	ACCEPT
+O	SHIFT-JIS	ACCEPT
+O	SHIFTJISX0213	ACCEPT
+O	SHIFT_JIS	ACCEPT
+O	SHIFT_JISX0213	ACCEPT
+O	SJIS	ACCEPT
+O	SJIS-OPEN	ACCEPT
+O	SJIS-WIN	ACCEPT
+O	SS636127	ACCEPT
+O	STRK1048-2002	ACCEPT
+O	ST_SEV_358-88	ACCEPT
+O	Shift_JIS	ACCEPT
+O	T.61	ACCEPT
+O	T.61-8BIT	ACCEPT
+O	T.618BIT	ACCEPT
+O	TCVN	ACCEPT
+O	TCVN-5712	ACCEPT
+O	TCVN5712-1	ACCEPT
+O	THAI8	ACCEPT
+O	TIS-620	ACCEPT
+O	TIS620	ACCEPT
+O	TIS620-0	ACCEPT
+O	TIS620.2529-1	ACCEPT
+O	TIS620.2533-0	ACCEPT
+O	TS-5881	ACCEPT
+O	TSCII	ACCEPT
+O	TURKISH8	ACCEPT
+O	UCS-2	ACCEPT
+O	UCS-2BE	ACCEPT
+O	UCS-2LE	ACCEPT
+O	UCS-4	ACCEPT
+O	UCS-4BE	ACCEPT
+O	UCS-4LE	ACCEPT
+O	UCS2	ACCEPT
+O	UCS4	ACCEPT
+O	UHC	ACCEPT
+O	UJIS	ACCEPT
+O	UK	ACCEPT
+O	UNICODE	ACCEPT
+O	UNICODEBIG	ACCEPT
+O	UNICODELITTLE	ACCEPT
+O	US	ACCEPT
+O	US-ASCII	ACCEPT
+O	UTF-16	ACCEPT
+O	UTF-16BE	ACCEPT
+O	UTF-16LE	ACCEPT
+O	UTF-32	ACCEPT
+O	UTF-32BE	ACCEPT
+O	UTF-32LE	ACCEPT
+O	UTF-7	ACCEPT
+O	UTF-7-IMAP	ACCEPT
+O	UTF-8	ACCEPT
+O	UTF16	ACCEPT
+O	UTF16BE	ACCEPT
+O	UTF16LE	ACCEPT
+O	UTF16_BigEndian	ACCEPT
+O	UTF16_LittleEndian	ACCEPT
+O	UTF16_OppositeEndian	ACCEPT
+O	UTF16_PlatformEndian	ACCEPT
+O	UTF32	ACCEPT
+O	UTF32BE	ACCEPT
+O	UTF32LE	ACCEPT
+O	UTF32_BigEndian	ACCEPT
+O	UTF32_LittleEndian	ACCEPT
+O	UTF32_OppositeEndian	ACCEPT
+O	UTF32_PlatformEndian	ACCEPT
+O	UTF7	ACCEPT
+O	UTF8	ACCEPT
+O	UnicodeBig	ACCEPT
+O	UnicodeBigUnmarked	ACCEPT
+O	UnicodeLittle	ACCEPT
+O	UnicodeLittleUnmarked	ACCEPT
+O	VISCII	ACCEPT
+O	WCHAR_T	ACCEPT
+O	WIN-SAMI-2	ACCEPT
+O	WINBALTRIM	ACCEPT
+O	WINDOWS-1250	ACCEPT
+O	WINDOWS-1251	ACCEPT
+O	WINDOWS-1252	ACCEPT
+O	WINDOWS-1253	ACCEPT
+O	WINDOWS-1254	ACCEPT
+O	WINDOWS-1255	ACCEPT
+O	WINDOWS-1256	ACCEPT
+O	WINDOWS-1257	ACCEPT
+O	WINDOWS-1258	ACCEPT
+O	WINDOWS-31J	ACCEPT
+O	WINDOWS-874	ACCEPT
+O	WINDOWS-936	ACCEPT
+O	WINSAMI2	ACCEPT
+O	WS2	ACCEPT
+O	X-EUC-JP	ACCEPT
+O	YU	ACCEPT
+O	arabic	ACCEPT
+O	ascii7	ACCEPT
+O	big5hk	ACCEPT
+O	bocu1	ACCEPT
+O	ca	ACCEPT
+O	cesu8	ACCEPT
+O	chinese	ACCEPT
+O	cns-11643-1992	ACCEPT
+O	cns11643	ACCEPT
+O	cp-ar	ACCEPT
+O	cp-gr	ACCEPT
+O	cp-is	ACCEPT
+O	cp037	ACCEPT
+O	cp1006	ACCEPT
+O	cp1025	ACCEPT
+O	cp1047	ACCEPT
+O	cp1089	ACCEPT
+O	cp1097	ACCEPT
+O	cp1098	ACCEPT
+O	cp1112	ACCEPT
+O	cp1122	ACCEPT
+O	cp1123	ACCEPT
+O	cp1124	ACCEPT
+O	cp1125	ACCEPT
+O	cp1131	ACCEPT
+O	cp1140	ACCEPT
+O	cp1141	ACCEPT
+O	cp1142	ACCEPT
+O	cp1143	ACCEPT
+O	cp1144	ACCEPT
+O	cp1145	ACCEPT
+O	cp1146	ACCEPT
+O	cp1147	ACCEPT
+O	cp1148	ACCEPT
+O	cp1149	ACCEPT
+O	cp1200	ACCEPT
+O	cp1201	ACCEPT
+O	cp1208	ACCEPT
+O	cp1250	ACCEPT
+O	cp1251	ACCEPT
+O	cp1252	ACCEPT
+O	cp1253	ACCEPT
+O	cp1254	ACCEPT
+O	cp1255	ACCEPT
+O	cp1256	ACCEPT
+O	cp1257	ACCEPT
+O	cp1258	ACCEPT
+O	cp1363	ACCEPT
+O	cp1383	ACCEPT
+O	cp1386	ACCEPT
+O	cp275	ACCEPT
+O	cp277	ACCEPT
+O	cp278	ACCEPT
+O	cp290	ACCEPT
+O	cp297	ACCEPT
+O	cp33722	ACCEPT
+O	cp367	ACCEPT
+O	cp420	ACCEPT
+O	cp424	ACCEPT
+O	cp437	ACCEPT
+O	cp737	ACCEPT
+O	cp775	ACCEPT
+O	cp803	ACCEPT
+O	cp813	ACCEPT
+O	cp819	ACCEPT
+O	cp838	ACCEPT
+O	cp850	ACCEPT
+O	cp851	ACCEPT
+O	cp852	ACCEPT
+O	cp855	ACCEPT
+O	cp856	ACCEPT
+O	cp857	ACCEPT
+O	cp858	ACCEPT
+O	cp860	ACCEPT
+O	cp861	ACCEPT
+O	cp862	ACCEPT
+O	cp863	ACCEPT
+O	cp864	ACCEPT
+O	cp865	ACCEPT
+O	cp866	ACCEPT
+O	cp869	ACCEPT
+O	cp874	ACCEPT
+O	cp875	ACCEPT
+O	cp878	ACCEPT
+O	cp880	ACCEPT
+O	cp912	ACCEPT
+O	cp913	ACCEPT
+O	cp914	ACCEPT
+O	cp915	ACCEPT
+O	cp916	ACCEPT
+O	cp920	ACCEPT
+O	cp921	ACCEPT
+O	cp922	ACCEPT
+O	cp923	ACCEPT
+O	cp930	ACCEPT
+O	cp932	ACCEPT
+O	cp933	ACCEPT
+O	cp935	ACCEPT
+O	cp937	ACCEPT
+O	cp939	ACCEPT
+O	cp943	ACCEPT
+O	cp943c	ACCEPT
+O	cp949	ACCEPT
+O	cp949c	ACCEPT
+O	cp950	ACCEPT
+O	cp964	ACCEPT
+O	cp970	ACCEPT
+O	cpibm284	ACCEPT
+O	cpibm285	ACCEPT
+O	cpibm297	ACCEPT
+O	cpibm37	ACCEPT
+O	csASCII	ACCEPT
+O	csAdobeStandardEncoding	ACCEPT
+O	csBOCU-1	ACCEPT
+O	csBig5	ACCEPT
+O	csDECMCS	ACCEPT
+O	csEBCDICATDEA	ACCEPT
+O	csEUCKR	ACCEPT
+O	csEUCPkdFmtJapanese	ACCEPT
+O	csGB2312	ACCEPT
+O	csHPRoman8	ACCEPT
+O	csIBM037	ACCEPT
+O	csIBM1026	ACCEPT
+O	csIBM273	ACCEPT
+O	csIBM274	ACCEPT
+O	csIBM275	ACCEPT
+O	csIBM277	ACCEPT
+O	csIBM278	ACCEPT
+O	csIBM280	ACCEPT
+O	csIBM284	ACCEPT
+O	csIBM285	ACCEPT
+O	csIBM290	ACCEPT
+O	csIBM297	ACCEPT
+O	csIBM420	ACCEPT
+O	csIBM424	ACCEPT
+O	csIBM500	ACCEPT
+O	csIBM855	ACCEPT
+O	csIBM857	ACCEPT
+O	csIBM860	ACCEPT
+O	csIBM861	ACCEPT
+O	csIBM863	ACCEPT
+O	csIBM864	ACCEPT
+O	csIBM865	ACCEPT
+O	csIBM866	ACCEPT
+O	csIBM868	ACCEPT
+O	csIBM869	ACCEPT
+O	csIBM870	ACCEPT
+O	csIBM871	ACCEPT
+O	csIBM880	ACCEPT
+O	csIBM905	ACCEPT
+O	csIBM918	ACCEPT
+O	csIBMThai	ACCEPT
+O	csISO10Swedish	ACCEPT
+O	csISO121Canadian1	ACCEPT
+O	csISO15Italian	ACCEPT
+O	csISO17Spanish	ACCEPT
+O	csISO2022CN	ACCEPT
+O	csISO2022JP	ACCEPT
+O	csISO2022JP2	ACCEPT
+O	csISO2022KR	ACCEPT
+O	csISO21German	ACCEPT
+O	csISO25French	ACCEPT
+O	csISO4UnitedKingdom	ACCEPT
+O	csISO58GB231280	ACCEPT
+O	csISO60DanishNorwegian	ACCEPT
+O	csISO60Norwegian1	ACCEPT
+O	csISO646Danish	ACCEPT
+O	csISO69French	ACCEPT
+O	csISO84Portuguese2	ACCEPT
+O	csISO85Spanish2	ACCEPT
+O	csISOLatin1	ACCEPT
+O	csISOLatin2	ACCEPT
+O	csISOLatin3	ACCEPT
+O	csISOLatin4	ACCEPT
+O	csISOLatin5	ACCEPT
+O	csISOLatin6	ACCEPT
+O	csISOLatinArabic	ACCEPT
+O	csISOLatinCyrillic	ACCEPT
+O	csISOLatinGreek	ACCEPT
+O	csISOLatinHebrew	ACCEPT
+O	csJISEncoding	ACCEPT
+O	csKOI8R	ACCEPT
+O	csKSC56011987	ACCEPT
+O	csMacintosh	ACCEPT
+O	csPC775Baltic	ACCEPT
+O	csPC850Multilingual	ACCEPT
+O	csPC851	ACCEPT
+O	csPC862LatinHebrew	ACCEPT
+O	csPC8CodePage437	ACCEPT
+O	csPCp852	ACCEPT
+O	csPCp855	ACCEPT
+O	csShiftJIS	ACCEPT
+O	csUCS4	ACCEPT
+O	csUnicode	ACCEPT
+O	csWindows31J	ACCEPT
+O	csa7-1	ACCEPT
+O	csisolatin0	ACCEPT
+O	csisolatin9	ACCEPT
+O	cyrillic	ACCEPT
+O	de	ACCEPT
+O	dec	ACCEPT
+O	dk	ACCEPT
+O	ebcdic-ar	ACCEPT
+O	ebcdic-cp-ar1	ACCEPT
+O	ebcdic-cp-ar2	ACCEPT
+O	ebcdic-cp-be	ACCEPT
+O	ebcdic-cp-ca	ACCEPT
+O	ebcdic-cp-ch	ACCEPT
+O	ebcdic-cp-es	ACCEPT
+O	ebcdic-cp-fi	ACCEPT
+O	ebcdic-cp-fr	ACCEPT
+O	ebcdic-cp-gb	ACCEPT
+O	ebcdic-cp-he	ACCEPT
+O	ebcdic-cp-is	ACCEPT
+O	ebcdic-cp-it	ACCEPT
+O	ebcdic-cp-nl	ACCEPT
+O	ebcdic-cp-roece	ACCEPT
+O	ebcdic-cp-se	ACCEPT
+O	ebcdic-cp-tr	ACCEPT
+O	ebcdic-cp-us	ACCEPT
+O	ebcdic-cp-wt	ACCEPT
+O	ebcdic-cp-yu	ACCEPT
+O	ebcdic-de	ACCEPT
+O	ebcdic-dk	ACCEPT
+O	ebcdic-gb	ACCEPT
+O	ebcdic-he	ACCEPT
+O	ebcdic-is	ACCEPT
+O	ebcdic-sv	ACCEPT
+O	ebcdic-xml-us	ACCEPT
+O	euc-jp-2007	ACCEPT
+O	euc-tw-2014	ACCEPT
+O	eucJP-Open	ACCEPT
+O	eucTH	ACCEPT
+O	eucjis	ACCEPT
+O	fr	ACCEPT
+O	gb	ACCEPT
+O	gb18030	ACCEPT
+O	gb2312-1980	ACCEPT
+O	greek	ACCEPT
+O	greek8	ACCEPT
+O	gsm-03.38-2009	ACCEPT
+O	hebrew	ACCEPT
+O	hebrew8	ACCEPT
+O	hkbig5	ACCEPT
+O	hp-roman8	ACCEPT
+O	hp15CN	ACCEPT
+O	hz	ACCEPT
+O	ibm-1006	ACCEPT
+O	ibm-1006_P100-1995	ACCEPT
+O	ibm-1008	ACCEPT
+O	ibm-1025	ACCEPT
+O	ibm-1025_P100-1995	ACCEPT
+O	ibm-1026	ACCEPT
+O	ibm-1026_P100-1995	ACCEPT
+O	ibm-1046	ACCEPT
+O	ibm-1047	ACCEPT
+O	ibm-1047-s390	ACCEPT
+O	ibm-1047_P100-1995	ACCEPT
+O	ibm-1051	ACCEPT
+O	ibm-1051_P100-1995	ACCEPT
+O	ibm-1089	ACCEPT
+O	ibm-1089_P100-1995	ACCEPT
+O	ibm-1097	ACCEPT
+O	ibm-1097_P100-1995	ACCEPT
+O	ibm-1098	ACCEPT
+O	ibm-1098_P100-1995	ACCEPT
+O	ibm-1112	ACCEPT
+O	ibm-1112_P100-1995	ACCEPT
+O	ibm-1122	ACCEPT
+O	ibm-1122_P100-1999	ACCEPT
+O	ibm-1123	ACCEPT
+O	ibm-1123_P100-1995	ACCEPT
+O	ibm-1124	ACCEPT
+O	ibm-1124_P100-1996	ACCEPT
+O	ibm-1125	ACCEPT
+O	ibm-1125_P100-1997	ACCEPT
+O	ibm-1129	ACCEPT
+O	ibm-1129_P100-1997	ACCEPT
+O	ibm-1130	ACCEPT
+O	ibm-1130_P100-1997	ACCEPT
+O	ibm-1131	ACCEPT
+O	ibm-1131_P100-1997	ACCEPT
+O	ibm-1132	ACCEPT
+O	ibm-1132_P100-1998	ACCEPT
+O	ibm-1133	ACCEPT
+O	ibm-1133_P100-1997	ACCEPT
+O	ibm-1137	ACCEPT
+O	ibm-1137_P100-1999	ACCEPT
+O	ibm-1140	ACCEPT
+O	ibm-1140-s390	ACCEPT
+O	ibm-1140_P100-1997	ACCEPT
+O	ibm-1141	ACCEPT
+O	ibm-1141-s390	ACCEPT
+O	ibm-1141_P100-1997	ACCEPT
+O	ibm-1142	ACCEPT
+O	ibm-1142-s390	ACCEPT
+O	ibm-1142_P100-1997	ACCEPT
+O	ibm-1143	ACCEPT
+O	ibm-1143-s390	ACCEPT
+O	ibm-1143_P100-1997	ACCEPT
+O	ibm-1144	ACCEPT
+O	ibm-1144-s390	ACCEPT
+O	ibm-1144_P100-1997	ACCEPT
+O	ibm-1145	ACCEPT
+O	ibm-1145-s390	ACCEPT
+O	ibm-1145_P100-1997	ACCEPT
+O	ibm-1146	ACCEPT
+O	ibm-1146-s390	ACCEPT
+O	ibm-1146_P100-1997	ACCEPT
+O	ibm-1147	ACCEPT
+O	ibm-1147-s390	ACCEPT
+O	ibm-1147_P100-1997	ACCEPT
+O	ibm-1148	ACCEPT
+O	ibm-1148-s390	ACCEPT
+O	ibm-1148_P100-1997	ACCEPT
+O	ibm-1149	ACCEPT
+O	ibm-1149-s390	ACCEPT
+O	ibm-1149_P100-1997	ACCEPT
+O	ibm-1153	ACCEPT
+O	ibm-1153-s390	ACCEPT
+O	ibm-1153_P100-1999	ACCEPT
+O	ibm-1154	ACCEPT
+O	ibm-1154_P100-1999	ACCEPT
+O	ibm-1155	ACCEPT
+O	ibm-1155_P100-1999	ACCEPT
+O	ibm-1156	ACCEPT
+O	ibm-1156_P100-1999	ACCEPT
+O	ibm-1157	ACCEPT
+O	ibm-1157_P100-1999	ACCEPT
+O	ibm-1158	ACCEPT
+O	ibm-1158_P100-1999	ACCEPT
+O	ibm-1160	ACCEPT
+O	ibm-1160_P100-1999	ACCEPT
+O	ibm-1161	ACCEPT
+O	ibm-1162	ACCEPT
+O	ibm-1162_P100-1999	ACCEPT
+O	ibm-1163	ACCEPT
+O	ibm-1164	ACCEPT
+O	ibm-1164_P100-1999	ACCEPT
+O	ibm-1166	ACCEPT
+O	ibm-1167	ACCEPT
+O	ibm-1168	ACCEPT
+O	ibm-1168_P100-2002	ACCEPT
+O	ibm-1200	ACCEPT
+O	ibm-1201	ACCEPT
+O	ibm-1202	ACCEPT
+O	ibm-1203	ACCEPT
+O	ibm-1204	ACCEPT
+O	ibm-1205	ACCEPT
+O	ibm-1208	ACCEPT
+O	ibm-1209	ACCEPT
+O	ibm-1212	ACCEPT
+O	ibm-1213	ACCEPT
+O	ibm-1214	ACCEPT
+O	ibm-1215	ACCEPT
+O	ibm-1232	ACCEPT
+O	ibm-1233	ACCEPT
+O	ibm-1234	ACCEPT
+O	ibm-1235	ACCEPT
+O	ibm-1236	ACCEPT
+O	ibm-1237	ACCEPT
+O	ibm-1250	ACCEPT
+O	ibm-1250_P100-1995	ACCEPT
+O	ibm-1251	ACCEPT
+O	ibm-1251_P100-1995	ACCEPT
+O	ibm-1252	ACCEPT
+O	ibm-1252_P100-2000	ACCEPT
+O	ibm-1253	ACCEPT
+O	ibm-1253_P100-1995	ACCEPT
+O	ibm-1254	ACCEPT
+O	ibm-1254_P100-1995	ACCEPT
+O	ibm-1255	ACCEPT
+O	ibm-1255_P100-1995	ACCEPT
+O	ibm-1256	ACCEPT
+O	ibm-1256_P110-1997	ACCEPT
+O	ibm-1257	ACCEPT
+O	ibm-1257_P100-1995	ACCEPT
+O	ibm-1258	ACCEPT
+O	ibm-1258_P100-1997	ACCEPT
+O	ibm-12712	ACCEPT
+O	ibm-12712-s390	ACCEPT
+O	ibm-12712_P100-1998	ACCEPT
+O	ibm-1276	ACCEPT
+O	ibm-1276_P100-1995	ACCEPT
+O	ibm-13488	ACCEPT
+O	ibm-13489	ACCEPT
+O	ibm-13490	ACCEPT
+O	ibm-13491	ACCEPT
+O	ibm-13496	ACCEPT
+O	ibm-13497	ACCEPT
+O	ibm-1363	ACCEPT
+O	ibm-1363_P110-1997	ACCEPT
+O	ibm-1363_P11B-1998	ACCEPT
+O	ibm-1363_VASCII_VSUB_VPUA	ACCEPT
+O	ibm-1363_VSUB_VPUA	ACCEPT
+O	ibm-1364	ACCEPT
+O	ibm-1364_P110-2007	ACCEPT
+O	ibm-1371	ACCEPT
+O	ibm-1371_P100-1999	ACCEPT
+O	ibm-1373	ACCEPT
+O	ibm-1373_P100-2002	ACCEPT
+O	ibm-1375	ACCEPT
+O	ibm-1375_P100-2008	ACCEPT
+O	ibm-1383	ACCEPT
+O	ibm-1383_P110-1999	ACCEPT
+O	ibm-1383_VPUA	ACCEPT
+O	ibm-1386	ACCEPT
+O	ibm-1386_P100-2001	ACCEPT
+O	ibm-1386_VSUB_VPUA	ACCEPT
+O	ibm-1388	ACCEPT
+O	ibm-1388_P103-2001	ACCEPT
+O	ibm-1390	ACCEPT
+O	ibm-1390_P110-2003	ACCEPT
+O	ibm-1392	ACCEPT
+O	ibm-1399	ACCEPT
+O	ibm-1399_P110-2003	ACCEPT
+O	ibm-16684	ACCEPT
+O	ibm-16684_P110-2003	ACCEPT
+O	ibm-16804	ACCEPT
+O	ibm-16804-s390	ACCEPT
+O	ibm-16804_X110-1999	ACCEPT
+O	ibm-17584	ACCEPT
+O	ibm-17585	ACCEPT
+O	ibm-17586	ACCEPT
+O	ibm-17587	ACCEPT
+O	ibm-17592	ACCEPT
+O	ibm-17593	ACCEPT
+O	ibm-20780	ACCEPT
+O	ibm-21680	ACCEPT
+O	ibm-21681	ACCEPT
+O	ibm-21682	ACCEPT
+O	ibm-21683	ACCEPT
+O	ibm-25546	ACCEPT
+O	ibm-25776	ACCEPT
+O	ibm-25777	ACCEPT
+O	ibm-25778	ACCEPT
+O	ibm-25779	ACCEPT
+O	ibm-273	ACCEPT
+O	ibm-273_P100-1995	ACCEPT
+O	ibm-277	ACCEPT
+O	ibm-277_P100-1995	ACCEPT
+O	ibm-278	ACCEPT
+O	ibm-278_P100-1995	ACCEPT
+O	ibm-280	ACCEPT
+O	ibm-280_P100-1995	ACCEPT
+O	ibm-284	ACCEPT
+O	ibm-284_P100-1995	ACCEPT
+O	ibm-285	ACCEPT
+O	ibm-285_P100-1995	ACCEPT
+O	ibm-290	ACCEPT
+O	ibm-290_P100-1995	ACCEPT
+O	ibm-297	ACCEPT
+O	ibm-297_P100-1995	ACCEPT
+O	ibm-29872	ACCEPT
+O	ibm-29873	ACCEPT
+O	ibm-29874	ACCEPT
+O	ibm-29875	ACCEPT
+O	ibm-33722	ACCEPT
+O	ibm-33722_P120-1999	ACCEPT
+O	ibm-33722_P12A_P12A-2004_U2	ACCEPT
+O	ibm-33722_P12A_P12A-2009_U2	ACCEPT
+O	ibm-33722_VASCII_VPUA	ACCEPT
+O	ibm-33722_VPUA	ACCEPT
+O	ibm-367	ACCEPT
+O	ibm-37	ACCEPT
+O	ibm-37-s390	ACCEPT
+O	ibm-37_P100-1995	ACCEPT
+O	ibm-420	ACCEPT
+O	ibm-420_X120-1999	ACCEPT
+O	ibm-424	ACCEPT
+O	ibm-424_P100-1995	ACCEPT
+O	ibm-437	ACCEPT
+O	ibm-437_P100-1995	ACCEPT
+O	ibm-4517	ACCEPT
+O	ibm-4517_P100-2005	ACCEPT
+O	ibm-4899	ACCEPT
+O	ibm-4899_P100-1998	ACCEPT
+O	ibm-4902	ACCEPT
+O	ibm-4909	ACCEPT
+O	ibm-4909_P100-1999	ACCEPT
+O	ibm-4971	ACCEPT
+O	ibm-4971_P100-1999	ACCEPT
+O	ibm-500	ACCEPT
+O	ibm-500_P100-1995	ACCEPT
+O	ibm-5012	ACCEPT
+O	ibm-5012_P100-1999	ACCEPT
+O	ibm-5026	ACCEPT
+O	ibm-5035	ACCEPT
+O	ibm-5050	ACCEPT
+O	ibm-5054	ACCEPT
+O	ibm-5123	ACCEPT
+O	ibm-5123_P100-1999	ACCEPT
+O	ibm-5304	ACCEPT
+O	ibm-5305	ACCEPT
+O	ibm-5346	ACCEPT
+O	ibm-5346_P100-1998	ACCEPT
+O	ibm-5347	ACCEPT
+O	ibm-5347_P100-1998	ACCEPT
+O	ibm-5348	ACCEPT
+O	ibm-5348_P100-1997	ACCEPT
+O	ibm-5349	ACCEPT
+O	ibm-5349_P100-1998	ACCEPT
+O	ibm-5350	ACCEPT
+O	ibm-5350_P100-1998	ACCEPT
+O	ibm-5351	ACCEPT
+O	ibm-5351_P100-1998	ACCEPT
+O	ibm-5352	ACCEPT
+O	ibm-5352_P100-1998	ACCEPT
+O	ibm-5353	ACCEPT
+O	ibm-5353_P100-1998	ACCEPT
+O	ibm-5354	ACCEPT
+O	ibm-5354_P100-1998	ACCEPT
+O	ibm-5471	ACCEPT
+O	ibm-5471_P100-2006	ACCEPT
+O	ibm-5478	ACCEPT
+O	ibm-5478_P100-1995	ACCEPT
+O	ibm-61955	ACCEPT
+O	ibm-61956	ACCEPT
+O	ibm-65025	ACCEPT
+O	ibm-720	ACCEPT
+O	ibm-720_P100-1997	ACCEPT
+O	ibm-737	ACCEPT
+O	ibm-737_P100-1997	ACCEPT
+O	ibm-775	ACCEPT
+O	ibm-775_P100-1996	ACCEPT
+O	ibm-803	ACCEPT
+O	ibm-803_P100-1999	ACCEPT
+O	ibm-813	ACCEPT
+O	ibm-813_P100-1995	ACCEPT
+O	ibm-819	ACCEPT
+O	ibm-838	ACCEPT
+O	ibm-838_P100-1995	ACCEPT
+O	ibm-8482	ACCEPT
+O	ibm-8482_P100-1999	ACCEPT
+O	ibm-850	ACCEPT
+O	ibm-850_P100-1995	ACCEPT
+O	ibm-851	ACCEPT
+O	ibm-851_P100-1995	ACCEPT
+O	ibm-852	ACCEPT
+O	ibm-852_P100-1995	ACCEPT
+O	ibm-855	ACCEPT
+O	ibm-855_P100-1995	ACCEPT
+O	ibm-856	ACCEPT
+O	ibm-856_P100-1995	ACCEPT
+O	ibm-857	ACCEPT
+O	ibm-857_P100-1995	ACCEPT
+O	ibm-858	ACCEPT
+O	ibm-858_P100-1997	ACCEPT
+O	ibm-860	ACCEPT
+O	ibm-860_P100-1995	ACCEPT
+O	ibm-861	ACCEPT
+O	ibm-861_P100-1995	ACCEPT
+O	ibm-862	ACCEPT
+O	ibm-862_P100-1995	ACCEPT
+O	ibm-863	ACCEPT
+O	ibm-863_P100-1995	ACCEPT
+O	ibm-864	ACCEPT
+O	ibm-864_X110-1999	ACCEPT
+O	ibm-865	ACCEPT
+O	ibm-865_P100-1995	ACCEPT
+O	ibm-866	ACCEPT
+O	ibm-866_P100-1995	ACCEPT
+O	ibm-867	ACCEPT
+O	ibm-867_P100-1998	ACCEPT
+O	ibm-868	ACCEPT
+O	ibm-868_P100-1995	ACCEPT
+O	ibm-869	ACCEPT
+O	ibm-869_P100-1995	ACCEPT
+O	ibm-870	ACCEPT
+O	ibm-870_P100-1995	ACCEPT
+O	ibm-871	ACCEPT
+O	ibm-871_P100-1995	ACCEPT
+O	ibm-874	ACCEPT
+O	ibm-874_P100-1995	ACCEPT
+O	ibm-875	ACCEPT
+O	ibm-875_P100-1995	ACCEPT
+O	ibm-878	ACCEPT
+O	ibm-878_P100-1996	ACCEPT
+O	ibm-9005	ACCEPT
+O	ibm-9005_X110-2007	ACCEPT
+O	ibm-901	ACCEPT
+O	ibm-901_P100-1999	ACCEPT
+O	ibm-902	ACCEPT
+O	ibm-902_P100-1999	ACCEPT
+O	ibm-9030	ACCEPT
+O	ibm-9066	ACCEPT
+O	ibm-9067	ACCEPT
+O	ibm-9067_X100-2005	ACCEPT
+O	ibm-912	ACCEPT
+O	ibm-912_P100-1995	ACCEPT
+O	ibm-913	ACCEPT
+O	ibm-913_P100-2000	ACCEPT
+O	ibm-914	ACCEPT
+O	ibm-914_P100-1995	ACCEPT
+O	ibm-915	ACCEPT
+O	ibm-915_P100-1995	ACCEPT
+O	ibm-916	ACCEPT
+O	ibm-916_P100-1995	ACCEPT
+O	ibm-918	ACCEPT
+O	ibm-918_P100-1995	ACCEPT
+O	ibm-920	ACCEPT
+O	ibm-920_P100-1995	ACCEPT
+O	ibm-921	ACCEPT
+O	ibm-921_P100-1995	ACCEPT
+O	ibm-922	ACCEPT
+O	ibm-922_P100-1999	ACCEPT
+O	ibm-923	ACCEPT
+O	ibm-923_P100-1998	ACCEPT
+O	ibm-930	ACCEPT
+O	ibm-930_P120-1999	ACCEPT
+O	ibm-931	ACCEPT
+O	ibm-932	ACCEPT
+O	ibm-932_VSUB_VPUA	ACCEPT
+O	ibm-933	ACCEPT
+O	ibm-933_P110-1995	ACCEPT
+O	ibm-935	ACCEPT
+O	ibm-935_P110-1999	ACCEPT
+O	ibm-937	ACCEPT
+O	ibm-937_P110-1999	ACCEPT
+O	ibm-939	ACCEPT
+O	ibm-939_P120-1999	ACCEPT
+O	ibm-9400	ACCEPT
+O	ibm-942	ACCEPT
+O	ibm-9424	ACCEPT
+O	ibm-942_P12A-1999	ACCEPT
+O	ibm-942_VSUB_VPUA	ACCEPT
+O	ibm-943	ACCEPT
+O	ibm-943_P130-1999	ACCEPT
+O	ibm-943_P15A-2003	ACCEPT
+O	ibm-943_VASCII_VSUB_VPUA	ACCEPT
+O	ibm-943_VSUB_VPUA	ACCEPT
+O	ibm-9447	ACCEPT
+O	ibm-9447_P100-2002	ACCEPT
+O	ibm-9448	ACCEPT
+O	ibm-9448_X100-2005	ACCEPT
+O	ibm-9449	ACCEPT
+O	ibm-9449_P100-2002	ACCEPT
+O	ibm-949	ACCEPT
+O	ibm-949_P110-1999	ACCEPT
+O	ibm-949_P11A-1999	ACCEPT
+O	ibm-949_VASCII_VSUB_VPUA	ACCEPT
+O	ibm-949_VSUB_VPUA	ACCEPT
+O	ibm-950	ACCEPT
+O	ibm-950_P110-1999	ACCEPT
+O	ibm-954	ACCEPT
+O	ibm-954_P101-2007	ACCEPT
+O	ibm-9580	ACCEPT
+O	ibm-964	ACCEPT
+O	ibm-964_P110-1999	ACCEPT
+O	ibm-964_VPUA	ACCEPT
+O	ibm-970	ACCEPT
+O	ibm-970_P110_P110-2006_U2	ACCEPT
+O	ibm-970_VPUA	ACCEPT
+O	ibm-971	ACCEPT
+O	ibm-971_P100-1995	ACCEPT
+O	ibm-971_VPUA	ACCEPT
+O	ibm-eucCN	ACCEPT
+O	ibm-eucKR	ACCEPT
+O	ibm-eucTW	ACCEPT
+O	icu-internal-25546	ACCEPT
+O	icu-internal-compound-d1	ACCEPT
+O	icu-internal-compound-d2	ACCEPT
+O	icu-internal-compound-d3	ACCEPT
+O	icu-internal-compound-d4	ACCEPT
+O	icu-internal-compound-d5	ACCEPT
+O	icu-internal-compound-d6	ACCEPT
+O	icu-internal-compound-d7	ACCEPT
+O	icu-internal-compound-s1	ACCEPT
+O	icu-internal-compound-s2	ACCEPT
+O	icu-internal-compound-s3	ACCEPT
+O	icu-internal-compound-t	ACCEPT
+O	imapmailboxname	ACCEPT
+O	iscii	ACCEPT
+O	iscii-bng	ACCEPT
+O	iscii-dev	ACCEPT
+O	iscii-guj	ACCEPT
+O	iscii-gur	ACCEPT
+O	iscii-knd	ACCEPT
+O	iscii-mlm	ACCEPT
+O	iscii-ori	ACCEPT
+O	iscii-tlg	ACCEPT
+O	iscii-tml	ACCEPT
+O	iso-8859_10-1998	ACCEPT
+O	iso-8859_11-2001	ACCEPT
+O	iso-8859_14-1998	ACCEPT
+O	iso-celtic	ACCEPT
+O	iso-ir-10	ACCEPT
+O	iso-ir-100	ACCEPT
+O	iso-ir-101	ACCEPT
+O	iso-ir-109	ACCEPT
+O	iso-ir-110	ACCEPT
+O	iso-ir-121	ACCEPT
+O	iso-ir-126	ACCEPT
+O	iso-ir-127	ACCEPT
+O	iso-ir-138	ACCEPT
+O	iso-ir-144	ACCEPT
+O	iso-ir-148	ACCEPT
+O	iso-ir-149	ACCEPT
+O	iso-ir-15	ACCEPT
+O	iso-ir-157	ACCEPT
+O	iso-ir-165	ACCEPT
+O	iso-ir-17	ACCEPT
+O	iso-ir-199	ACCEPT
+O	iso-ir-21	ACCEPT
+O	iso-ir-226	ACCEPT
+O	iso-ir-25	ACCEPT
+O	iso-ir-4	ACCEPT
+O	iso-ir-58	ACCEPT
+O	iso-ir-6	ACCEPT
+O	iso-ir-60	ACCEPT
+O	iso-ir-69	ACCEPT
+O	iso-ir-84	ACCEPT
+O	iso-ir-85	ACCEPT
+O	iso88591	ACCEPT
+O	iso8859_15_fdis	ACCEPT
+O	jisx-212	ACCEPT
+O	johab	ACCEPT
+O	koi8	ACCEPT
+O	korean	ACCEPT
+O	ksc	ACCEPT
+O	l1	ACCEPT
+O	l10	ACCEPT
+O	l2	ACCEPT
+O	l3	ACCEPT
+O	l4	ACCEPT
+O	l5	ACCEPT
+O	l6	ACCEPT
+O	l8	ACCEPT
+O	l9	ACCEPT
+O	latin0	ACCEPT
+O	latin1	ACCEPT
+O	latin10	ACCEPT
+O	latin2	ACCEPT
+O	latin3	ACCEPT
+O	latin4	ACCEPT
+O	latin5	ACCEPT
+O	latin6	ACCEPT
+O	latin8	ACCEPT
+O	lmb-excp	ACCEPT
+O	lmbcs	ACCEPT
+O	lmbcs1	ACCEPT
+O	lmbcs11	ACCEPT
+O	lmbcs16	ACCEPT
+O	lmbcs17	ACCEPT
+O	lmbcs18	ACCEPT
+O	lmbcs19	ACCEPT
+O	lmbcs2	ACCEPT
+O	lmbcs3	ACCEPT
+O	lmbcs4	ACCEPT
+O	lmbcs5	ACCEPT
+O	lmbcs6	ACCEPT
+O	lmbcs8	ACCEPT
+O	mac	ACCEPT
+O	mac-cyrillic	ACCEPT
+O	macce	ACCEPT
+O	maccentraleurope	ACCEPT
+O	maccy	ACCEPT
+O	macgr	ACCEPT
+O	macintosh	ACCEPT
+O	macos-0_2-10.2	ACCEPT
+O	macos-29-10.2	ACCEPT
+O	macos-35-10.2	ACCEPT
+O	macos-6_2-10.4	ACCEPT
+O	macos-7_3-10.2	ACCEPT
+O	macroman	ACCEPT
+O	mactr	ACCEPT
+O	ms932	ACCEPT
+O	ms949	ACCEPT
+O	ms950	ACCEPT
+O	no	ACCEPT
+O	pck	ACCEPT
+O	r8	ACCEPT
+O	roman8	ACCEPT
+O	scsu	ACCEPT
+O	se	ACCEPT
+O	shift_jis78	ACCEPT
+O	sjis	ACCEPT
+O	sjis78	ACCEPT
+O	sun_eu_greek	ACCEPT
+O	thai8	ACCEPT
+O	tis620.2533	ACCEPT
+O	turkish	ACCEPT
+O	turkish8	ACCEPT
+O	ucs-2	ACCEPT
+O	ucs-4	ACCEPT
+O	ujis	ACCEPT
+O	uk	ACCEPT
+O	unicode	ACCEPT
+O	unicode-1-1-utf-7	ACCEPT
+O	unicode-1-1-utf-8	ACCEPT
+O	unicode-2-0-utf-7	ACCEPT
+O	unicode-2-0-utf-8	ACCEPT
+O	us	ACCEPT
+O	usascii	ACCEPT
+O	utf16	ACCEPT
+O	utf16be	ACCEPT
+O	utf16le	ACCEPT
+O	utf16oppositeendian	ACCEPT
+O	utf16platformendian	ACCEPT
+O	utf32	ACCEPT
+O	utf32be	ACCEPT
+O	utf32le	ACCEPT
+O	utf32oppositeendian	ACCEPT
+O	utf32platformendian	ACCEPT
+O	utf7	ACCEPT
+O	utf8	ACCEPT
+O	windows-10000	ACCEPT
+O	windows-10006	ACCEPT
+O	windows-10007	ACCEPT
+O	windows-10029	ACCEPT
+O	windows-10081	ACCEPT
+O	windows-1200	ACCEPT
+O	windows-1201	ACCEPT
+O	windows-1250	ACCEPT
+O	windows-1251	ACCEPT
+O	windows-1252	ACCEPT
+O	windows-1253	ACCEPT
+O	windows-1254	ACCEPT
+O	windows-1255	ACCEPT
+O	windows-1256	ACCEPT
+O	windows-1257	ACCEPT
+O	windows-1258	ACCEPT
+O	windows-20127	ACCEPT
+O	windows-20866	ACCEPT
+O	windows-21866	ACCEPT
+O	windows-28592	ACCEPT
+O	windows-28593	ACCEPT
+O	windows-28594	ACCEPT
+O	windows-28595	ACCEPT
+O	windows-28596	ACCEPT
+O	windows-28597	ACCEPT
+O	windows-28598	ACCEPT
+O	windows-28599	ACCEPT
+O	windows-28603	ACCEPT
+O	windows-28605	ACCEPT
+O	windows-31j	ACCEPT
+O	windows-437	ACCEPT
+O	windows-51949	ACCEPT
+O	windows-54936	ACCEPT
+O	windows-57002	ACCEPT
+O	windows-57003	ACCEPT
+O	windows-57004	ACCEPT
+O	windows-57005	ACCEPT
+O	windows-57006	ACCEPT
+O	windows-57007	ACCEPT
+O	windows-57008	ACCEPT
+O	windows-57009	ACCEPT
+O	windows-57010	ACCEPT
+O	windows-57011	ACCEPT
+O	windows-65000	ACCEPT
+O	windows-65001	ACCEPT
+O	windows-720	ACCEPT
+O	windows-737	ACCEPT
+O	windows-775	ACCEPT
+O	windows-850	ACCEPT
+O	windows-852	ACCEPT
+O	windows-855	ACCEPT
+O	windows-857	ACCEPT
+O	windows-858	ACCEPT
+O	windows-861	ACCEPT
+O	windows-862	ACCEPT
+O	windows-866	ACCEPT
+O	windows-869	ACCEPT
+O	windows-874	ACCEPT
+O	windows-874-2000	ACCEPT
+O	windows-932	ACCEPT
+O	windows-936	ACCEPT
+O	windows-936-2000	ACCEPT
+O	windows-949	ACCEPT
+O	windows-949-2000	ACCEPT
+O	windows-950	ACCEPT
+O	windows-950-2000	ACCEPT
+O	x-IBM1006	ACCEPT
+O	x-IBM1025	ACCEPT
+O	x-IBM1097	ACCEPT
+O	x-IBM1098	ACCEPT
+O	x-IBM1112	ACCEPT
+O	x-IBM1122	ACCEPT
+O	x-IBM1123	ACCEPT
+O	x-IBM1124	ACCEPT
+O	x-IBM1153	ACCEPT
+O	x-IBM1363	ACCEPT
+O	x-IBM1363C	ACCEPT
+O	x-IBM1364	ACCEPT
+O	x-IBM1371	ACCEPT
+O	x-IBM1388	ACCEPT
+O	x-IBM1390	ACCEPT
+O	x-IBM1399	ACCEPT
+O	x-IBM33722	ACCEPT
+O	x-IBM33722A	ACCEPT
+O	x-IBM33722C	ACCEPT
+O	x-IBM720	ACCEPT
+O	x-IBM737	ACCEPT
+O	x-IBM856	ACCEPT
+O	x-IBM867	ACCEPT
+O	x-IBM874	ACCEPT
+O	x-IBM875	ACCEPT
+O	x-IBM921	ACCEPT
+O	x-IBM922	ACCEPT
+O	x-IBM930	ACCEPT
+O	x-IBM930A	ACCEPT
+O	x-IBM933	ACCEPT
+O	x-IBM935	ACCEPT
+O	x-IBM937	ACCEPT
+O	x-IBM939	ACCEPT
+O	x-IBM939A	ACCEPT
+O	x-IBM942	ACCEPT
+O	x-IBM942C	ACCEPT
+O	x-IBM943	ACCEPT
+O	x-IBM949	ACCEPT
+O	x-IBM949C	ACCEPT
+O	x-IBM950	ACCEPT
+O	x-IBM954	ACCEPT
+O	x-IBM954C	ACCEPT
+O	x-IBM964	ACCEPT
+O	x-IBM970	ACCEPT
+O	x-IBM971	ACCEPT
+O	x-ISCII91	ACCEPT
+O	x-ISO-2022-CN-CNS	ACCEPT
+O	x-ISO-2022-CN-GB	ACCEPT
+O	x-ISO-8859-6S	ACCEPT
+O	x-JISAutoDetect	ACCEPT
+O	x-KSC5601	ACCEPT
+O	x-MS932_0213	ACCEPT
+O	x-MS950-HKSCS	ACCEPT
+O	x-MacCentralEurope	ACCEPT
+O	x-MacUkraine	ACCEPT
+O	x-UTF-16LE-BOM	ACCEPT
+O	x-UTF_8J	ACCEPT
+O	x-big5	ACCEPT
+O	x-compound-text	ACCEPT
+O	x-iscii-as	ACCEPT
+O	x-iscii-be	ACCEPT
+O	x-iscii-de	ACCEPT
+O	x-iscii-gu	ACCEPT
+O	x-iscii-ka	ACCEPT
+O	x-iscii-ma	ACCEPT
+O	x-iscii-or	ACCEPT
+O	x-iscii-pa	ACCEPT
+O	x-iscii-ta	ACCEPT
+O	x-iscii-te	ACCEPT
+O	x-iso-8859-11	ACCEPT
+O	x-mac-ce	ACCEPT
+O	x-mac-centraleurroman	ACCEPT
+O	x-mac-cyrillic	ACCEPT
+O	x-mac-greek	ACCEPT
+O	x-mac-turkish	ACCEPT
+O	x-macroman	ACCEPT
+O	x-ms-cp932	ACCEPT
+O	x-roman8	ACCEPT
+O	x-sjis	ACCEPT
+O	x-utf-16be	ACCEPT
+O	x-utf-16le	ACCEPT
+O	x-windows-1256S	ACCEPT
+O	x-windows-50220	ACCEPT
+O	x-windows-50221	ACCEPT
+O	x-windows-874	ACCEPT
+O	x-windows-950	ACCEPT
+O	x-windows-iso2022jp	ACCEPT
+O	x11-compound-text	ACCEPT
+O	x11compoundtext	ACCEPT
+O	Big5_Solaris	REJECT
+O	CCSID00924	REJECT
+O	CNS-11643-1992	REJECT
+O	CP00924	REJECT
+O	CP154	REJECT
+O	CP51932	REJECT
+O	Cyrillic-Asian	REJECT
+O	IBM-33722_P12A_P12A-2004_U2	REJECT
+O	IBM-Symbols	REJECT
+O	IBM924_LF	REJECT
+O	ICU-INTERNAL-25546	REJECT
+O	ICU-INTERNAL-COMPOUND-D1	REJECT
+O	ICU-INTERNAL-COMPOUND-D2	REJECT
+O	ICU-INTERNAL-COMPOUND-D3	REJECT
+O	ICU-INTERNAL-COMPOUND-D4	REJECT
+O	ICU-INTERNAL-COMPOUND-D5	REJECT
+O	ICU-INTERNAL-COMPOUND-D6	REJECT
+O	ICU-INTERNAL-COMPOUND-D7	REJECT
+O	ICU-INTERNAL-COMPOUND-S1	REJECT
+O	ICU-INTERNAL-COMPOUND-S2	REJECT
+O	ICU-INTERNAL-COMPOUND-S3	REJECT
+O	ICU-INTERNAL-COMPOUND-T	REJECT
+O	ISO-IR-165	REJECT
+O	JISX-212	REJECT
+O	JIS_X0201	REJECT
+O	JIS_X0212-1990	REJECT
+O	KZ-1048	REJECT
+O	LMB-EXCP	REJECT
+O	MacArabic	REJECT
+O	MacCroatian	REJECT
+O	MacDingbat	REJECT
+O	MacHebrew	REJECT
+O	MacIceland	REJECT
+O	MacRomania	REJECT
+O	MacSymbol	REJECT
+O	MacThai	REJECT
+O	PTCP154	REJECT
+O	X0201	REJECT
+O	aix-IBM_udcJP-4.3.6	REJECT
+O	cns116431992	REJECT
+O	cp1381	REJECT
+O	cp864s	REJECT
+O	csCP51932	REJECT
+O	csHalfWidthKatakana	REJECT
+O	csIBMSymbols	REJECT
+O	csKZ1048	REJECT
+O	csPTCP154	REJECT
+O	ebcdic-Latin9--euro	REJECT
+O	euc-jp-linux	REJECT
+O	glibc-PT154-2.3.3	REJECT
+O	ibm-1004	REJECT
+O	ibm-1004_P100-1995	REJECT
+O	ibm-1008_P100-1995	REJECT
+O	ibm-1009	REJECT
+O	ibm-1009_P100-1995	REJECT
+O	ibm-1010	REJECT
+O	ibm-1010_P100-1995	REJECT
+O	ibm-1011	REJECT
+O	ibm-1011_P100-1995	REJECT
+O	ibm-1012	REJECT
+O	ibm-1012_P100-1995	REJECT
+O	ibm-1013	REJECT
+O	ibm-1013_P100-1995	REJECT
+O	ibm-1014	REJECT
+O	ibm-1014_P100-1995	REJECT
+O	ibm-1015	REJECT
+O	ibm-1015_P100-1995	REJECT
+O	ibm-1016	REJECT
+O	ibm-1016_P100-1995	REJECT
+O	ibm-1017	REJECT
+O	ibm-1017_P100-1995	REJECT
+O	ibm-1018	REJECT
+O	ibm-1018_P100-1995	REJECT
+O	ibm-1019	REJECT
+O	ibm-1019_P100-1995	REJECT
+O	ibm-1020	REJECT
+O	ibm-1020_P100-2003	REJECT
+O	ibm-1021	REJECT
+O	ibm-1021_P100-2003	REJECT
+O	ibm-1023	REJECT
+O	ibm-1023_P100-2003	REJECT
+O	ibm-1027	REJECT
+O	ibm-1027_P100-1995	REJECT
+O	ibm-1041	REJECT
+O	ibm-1041_P100-1995	REJECT
+O	ibm-1043	REJECT
+O	ibm-1043_P100-1995	REJECT
+O	ibm-1046_X110-1999	REJECT
+O	ibm-1088	REJECT
+O	ibm-1088_P100-1995	REJECT
+O	ibm-1100	REJECT
+O	ibm-1100_P100-2003	REJECT
+O	ibm-1101	REJECT
+O	ibm-1101_P100-2003	REJECT
+O	ibm-1102	REJECT
+O	ibm-1102_P100-2003	REJECT
+O	ibm-1103	REJECT
+O	ibm-1103_P100-2003	REJECT
+O	ibm-1104	REJECT
+O	ibm-1104_P100-2003	REJECT
+O	ibm-1105	REJECT
+O	ibm-1105_P100-2003	REJECT
+O	ibm-1106	REJECT
+O	ibm-1106_P100-2003	REJECT
+O	ibm-1107	REJECT
+O	ibm-1107_P100-2003	REJECT
+O	ibm-1114	REJECT
+O	ibm-1114_P100-2001	REJECT
+O	ibm-1115	REJECT
+O	ibm-1115_P100-1995	REJECT
+O	ibm-1127	REJECT
+O	ibm-1127_P100-2004	REJECT
+O	ibm-1161_P100-1999	REJECT
+O	ibm-1163_P100-1999	REJECT
+O	ibm-1165	REJECT
+O	ibm-1165_P101-2000	REJECT
+O	ibm-1166_P100-2002	REJECT
+O	ibm-1167_P100-2002	REJECT
+O	ibm-1174	REJECT
+O	ibm-1174_X100-2007	REJECT
+O	ibm-1277	REJECT
+O	ibm-1277_P100-1995	REJECT
+O	ibm-13125	REJECT
+O	ibm-13125_P100-1997	REJECT
+O	ibm-13140	REJECT
+O	ibm-13140_P101-2000	REJECT
+O	ibm-13218	REJECT
+O	ibm-13218_P100-1996	REJECT
+O	ibm-1350	REJECT
+O	ibm-1350_P110-1997	REJECT
+O	ibm-1351	REJECT
+O	ibm-1351_P110-1997	REJECT
+O	ibm-1362	REJECT
+O	ibm-1362_P110-1999	REJECT
+O	ibm-13676	REJECT
+O	ibm-13676_P102-2001	REJECT
+O	ibm-1370	REJECT
+O	ibm-1370_P100-1999	REJECT
+O	ibm-1380	REJECT
+O	ibm-1380_P100-1995	REJECT
+O	ibm-1381	REJECT
+O	ibm-1381_P110-1999	REJECT
+O	ibm-1382	REJECT
+O	ibm-1382_P100-1995	REJECT
+O	ibm-1385	REJECT
+O	ibm-17221	REJECT
+O	ibm-17221_P100-2001	REJECT
+O	ibm-17248	REJECT
+O	ibm-17248_X110-1999	REJECT
+O	ibm-21344	REJECT
+O	ibm-21344_P101-2000	REJECT
+O	ibm-21427	REJECT
+O	ibm-21427_P100-1999	REJECT
+O	ibm-256	REJECT
+O	ibm-256_P100-1995	REJECT
+O	ibm-259	REJECT
+O	ibm-259_P100-1995	REJECT
+O	ibm-274	REJECT
+O	ibm-274_P100-2000	REJECT
+O	ibm-275	REJECT
+O	ibm-275_P100-1995	REJECT
+O	ibm-286	REJECT
+O	ibm-286_P100-2003	REJECT
+O	ibm-293	REJECT
+O	ibm-293_P100-1995	REJECT
+O	ibm-300	REJECT
+O	ibm-300_P120-2006	REJECT
+O	ibm-301	REJECT
+O	ibm-301_P110-1997	REJECT
+O	ibm-33058	REJECT
+O	ibm-33058_P100-2000	REJECT
+O	ibm-33722_p12a_p12a-2004_u2	REJECT
+O	ibm-425	REJECT
+O	ibm-425_P101-2000	REJECT
+O	ibm-4930	REJECT
+O	ibm-4930_P110-1999	REJECT
+O	ibm-4933	REJECT
+O	ibm-4933_P100-2002	REJECT
+O	ibm-4948	REJECT
+O	ibm-4948_P100-1995	REJECT
+O	ibm-4951	REJECT
+O	ibm-4951_P100-1995	REJECT
+O	ibm-4952	REJECT
+O	ibm-4952_P100-1995	REJECT
+O	ibm-4960	REJECT
+O	ibm-4960_P100-1995	REJECT
+O	ibm-5039	REJECT
+O	ibm-5039_P11A-1998	REJECT
+O	ibm-5048	REJECT
+O	ibm-5048_P100-1995	REJECT
+O	ibm-5049	REJECT
+O	ibm-5049_P100-1995	REJECT
+O	ibm-5067	REJECT
+O	ibm-5067_P100-1995	REJECT
+O	ibm-5104	REJECT
+O	ibm-5104_X110-1999	REJECT
+O	ibm-5233	REJECT
+O	ibm-5233_P100-2011	REJECT
+O	ibm-806	REJECT
+O	ibm-806_P100-1998	REJECT
+O	ibm-808	REJECT
+O	ibm-808_P100-1999	REJECT
+O	ibm-833	REJECT
+O	ibm-833_P100-1995	REJECT
+O	ibm-834	REJECT
+O	ibm-834_P100-1995	REJECT
+O	ibm-835	REJECT
+O	ibm-835_P100-1995	REJECT
+O	ibm-836	REJECT
+O	ibm-836_P100-1995	REJECT
+O	ibm-837	REJECT
+O	ibm-837_P100-2011	REJECT
+O	ibm-848	REJECT
+O	ibm-848_P100-1999	REJECT
+O	ibm-849	REJECT
+O	ibm-849_P100-1999	REJECT
+O	ibm-859	REJECT
+O	ibm-859_P100-1999	REJECT
+O	ibm-8612	REJECT
+O	ibm-8612_P100-1995	REJECT
+O	ibm-864s	REJECT
+O	ibm-872	REJECT
+O	ibm-872_P100-1999	REJECT
+O	ibm-880	REJECT
+O	ibm-880_P100-1995	REJECT
+O	ibm-896	REJECT
+O	ibm-896_P100-1995	REJECT
+O	ibm-897	REJECT
+O	ibm-897_P100-1995	REJECT
+O	ibm-9027	REJECT
+O	ibm-9027_P100-1999	REJECT
+O	ibm-9048	REJECT
+O	ibm-9048_P100-1998	REJECT
+O	ibm-905	REJECT
+O	ibm-9056	REJECT
+O	ibm-9056_P100-1995	REJECT
+O	ibm-905_P100-1995	REJECT
+O	ibm-9061	REJECT
+O	ibm-9061_P100-1999	REJECT
+O	ibm-9145	REJECT
+O	ibm-9145_P110-1997	REJECT
+O	ibm-9238	REJECT
+O	ibm-9238_X110-1999	REJECT
+O	ibm-924	REJECT
+O	ibm-924-s390	REJECT
+O	ibm-924_P100-1998	REJECT
+O	ibm-926	REJECT
+O	ibm-926_P100-2000	REJECT
+O	ibm-927	REJECT
+O	ibm-927_P100-1995	REJECT
+O	ibm-928	REJECT
+O	ibm-928_P100-1995	REJECT
+O	ibm-941	REJECT
+O	ibm-941_P13A-2001	REJECT
+O	ibm-944	REJECT
+O	ibm-944_P100-1995	REJECT
+O	ibm-946	REJECT
+O	ibm-946_P100-1995	REJECT
+O	ibm-947	REJECT
+O	ibm-947_P100-1995	REJECT
+O	ibm-948	REJECT
+O	ibm-948_P110-1999	REJECT
+O	ibm-951	REJECT
+O	ibm-951_P100-1995	REJECT
+O	ibm-952	REJECT
+O	ibm-952_P110-1997	REJECT
+O	ibm-953	REJECT
+O	ibm-953_P100-2000	REJECT
+O	ibm-955	REJECT
+O	ibm-955_P110-1997	REJECT
+O	ibm-9577	REJECT
+O	ibm-9577_P100-2001	REJECT
+O	ibm33722p12ap12a2004u2	REJECT
+O	icuinternal25546	REJECT
+O	icuinternalcompoundd1	REJECT
+O	icuinternalcompoundd2	REJECT
+O	icuinternalcompoundd3	REJECT
+O	icuinternalcompoundd4	REJECT
+O	icuinternalcompoundd5	REJECT
+O	icuinternalcompoundd6	REJECT
+O	icuinternalcompoundd7	REJECT
+O	icuinternalcompounds1	REJECT
+O	icuinternalcompounds2	REJECT
+O	icuinternalcompounds3	REJECT
+O	icuinternalcompoundt	REJECT
+O	iso-8859_16-2001	REJECT
+O	iso2022	REJECT
+O	isoir165	REJECT
+O	java-Cp1390A-1.6_P	REJECT
+O	java-Cp1399A-1.6_P	REJECT
+O	java-Cp420s-1.6_P	REJECT
+O	java-euc_jp_linux-1.6_P	REJECT
+O	java-sjis_0213-1.6_P	REJECT
+O	jisx212	REJECT
+O	ksc5601_1992	REJECT
+O	lmbexcp	REJECT
+O	macos-1285-10.2	REJECT
+O	macos-21-10.5	REJECT
+O	macos-33-10.5	REJECT
+O	macos-34-10.2	REJECT
+O	macos-36_2-10.2	REJECT
+O	macos-37_5-10.2	REJECT
+O	macos-38_2-10.2	REJECT
+O	macos-518-10.2	REJECT
+O	ms1361	REJECT
+O	solaris-zh_TW_big5-2.7	REJECT
+O	windows-1361-2000	REJECT
+O	windows-20880	REJECT
+O	windows-20905	REJECT
+O	windows-51932	REJECT
+O	windows-51932-2006	REJECT
+O	windows-864-2000	REJECT
+O	x-Big5-Solaris	REJECT
+O	x-EUC_JP_LINUX	REJECT
+O	x-IBM-udcJP	REJECT
+O	x-IBM1027	REJECT
+O	x-IBM1041	REJECT
+O	x-IBM1043	REJECT
+O	x-IBM1046	REJECT
+O	x-IBM1046S	REJECT
+O	x-IBM1088	REJECT
+O	x-IBM1114	REJECT
+O	x-IBM1115	REJECT
+O	x-IBM1351	REJECT
+O	x-IBM1362	REJECT
+O	x-IBM1370	REJECT
+O	x-IBM1380	REJECT
+O	x-IBM1381	REJECT
+O	x-IBM1382	REJECT
+O	x-IBM1385	REJECT
+O	x-IBM1390A	REJECT
+O	x-IBM1399A	REJECT
+O	x-IBM300	REJECT
+O	x-IBM301	REJECT
+O	x-IBM420S	REJECT
+O	x-IBM808	REJECT
+O	x-IBM833	REJECT
+O	x-IBM834	REJECT
+O	x-IBM835	REJECT
+O	x-IBM836	REJECT
+O	x-IBM837	REJECT
+O	x-IBM859	REJECT
+O	x-IBM864S	REJECT
+O	x-IBM897	REJECT
+O	x-IBM927	REJECT
+O	x-IBM947	REJECT
+O	x-IBM948	REJECT
+O	x-IBM951	REJECT
+O	x-JIS0208	REJECT
+O	x-Johab	REJECT
+O	x-KOI8_RU	REJECT
+O	x-MacArabic	REJECT
+O	x-MacCroatian	REJECT
+O	x-MacDingbat	REJECT
+O	x-MacHebrew	REJECT
+O	x-MacIceland	REJECT
+O	x-MacRomania	REJECT
+O	x-MacSymbol	REJECT
+O	x-MacThai	REJECT
+O	x-SJIS_0213	REJECT
+O	x-eucJP-Open	REJECT

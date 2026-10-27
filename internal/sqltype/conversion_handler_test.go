@@ -95,7 +95,7 @@ func TestConversionHandlerRawEncodingGate(t *testing.T) {
 		t.Fatal("encoding identity disagreement")
 	}
 	long := "UTF8" + strings.Repeat("-", 60)
-	if EncodingID(long) != -1 || stringEncodingID(clipName(long)) != 6 {
+	if EncodingID(long) != -1 || pgencoding18.ID(clipName(long)) != 6 {
 		t.Fatal("CREATE Sconst gate confused with NAME clipping")
 	}
 	_, _, unchanged, err := PrepareBinaryEncoding(context.Background(), "", "UTF8", "LATIN1")

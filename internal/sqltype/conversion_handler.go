@@ -78,16 +78,6 @@ func (h EncodingConversionHandler) convert(ctx context.Context, raw string, sour
 }
 
 // EncodingID preserves CREATE's raw Sconst length gate, unlike NAME coercion.
-func EncodingID(name string) int {
-	if len(name) >= 64 {
-		return -1
-	}
-	return stringEncodingID(name)
-}
+func EncodingID(name string) int { return pgencoding18.ID(name) }
 
-func EncodingName(id int) string {
-	if id < 0 || id >= len(stringEncodingNames) {
-		return ""
-	}
-	return stringEncodingNames[id]
-}
+func EncodingName(id int) string { return pgencoding18.Name(id) }

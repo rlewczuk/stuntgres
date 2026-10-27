@@ -4,9 +4,12 @@ This package uses PostgreSQL **REL_18_0**, not the local development checkout,
 Go's Unicode tables, iconv, or an external codec dependency. The immutable
 runtime registry contains the release's 128 direct conversion pairs and their
 actual associations to 84 routines, including grouped WIN/ISO-8859 handlers.
-Identity verification covers the 42 release encoding IDs; SQL_ASCII and identity
-shortcuts remain in the sqltype provider. SQL default selection belongs to the
-engine's current conversion catalog, not this codec capability registry.
+Identity verification and the shared `ID`/`Name` lookup cover the 42 release
+encoding IDs (`Count`). `ID` rejects raw names of 64 bytes or more before
+C-locale ASCII-alphanumeric cleaning; `Name` returns empty for invalid IDs.
+NAME clipping, SQL_ASCII/identity shortcuts and SQL default selection belong to
+callers, not this codec capability registry. The engine owns its current
+conversion catalog, not this package.
 No indirect conversion path is added.
 
 ## Release inputs and licensing
@@ -19,6 +22,7 @@ The corresponding ordinary source references are:
 - [pg_conversion.dat](https://github.com/postgres/postgres/blob/REL_18_0/src/include/catalog/pg_conversion.dat): direct pair-to-real-routine registry.
 - [conv.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/utils/mb/conv.c): radix traversal, packed-word emission, combined-map precedence and MIC helpers.
 - [wchar.c](https://github.com/postgres/postgres/blob/REL_18_0/src/common/wchar.c) and [pg_wchar.h](https://github.com/postgres/postgres/blob/REL_18_0/src/include/mb/pg_wchar.h): encoding IDs, verifier/mblen semantics, MIC prefixes and maximum expansion.
+- [encnames.c](https://github.com/postgres/postgres/blob/REL_18_0/src/common/encnames.c): the single canonical-name/alias registry and raw-name length gate.
 - [conversion_procs](https://github.com/postgres/postgres/tree/REL_18_0/src/backend/utils/mb/conversion_procs): dedicated Cyrillic, LATIN2/WIN1250, Japanese NEC/IBM/UDC, BIG5/CNS, MIC and JIS2004 algorithms; GB18030's 13 inclusive algorithmic ranges.
 
 `LICENSE` retains the complete PostgreSQL grant and disclaimers, also preserved
@@ -51,11 +55,13 @@ and grouped argument checks. These capabilities are separate from SQL routine
 ownership/metadata, default objects, diagnostics and portable dump definitions.
 
 The hand-ported character algorithms use fixed packed words, not rune arrays or
-an intermediate UTF8 conversion. Source validation, exact-size counting and
-emission in the provider each poll the admitted context at bounded intervals.
-A transform allocates only its final immutable output; identity and SQL_ASCII
-paths reuse the source string. Numeric size checks use the release huge
-allocation and result-allocation limits before output publication.
+an intermediate UTF8 conversion. Kernels (`Verify`, `Length`, `Step`, `Width`)
+operate on one character/combined pair and do not accept or retain a context.
+The full-string caller owns whole-source validation, exact-size counting,
+emission, bounded cancellation and publication. Both sqltype and the XML
+adapter use that contract without importing one another or duplicating tables.
+Transforms allocate only final immutable output; no-op callers may share source
+strings. Callers apply the release huge/result-allocation guards before use.
 
 ## Testing
 
@@ -67,7 +73,9 @@ JIS2004 plane boundaries, BIG5/CNS private planes and direct table holes.
 Generator units exercise invalid syntax, declarations and reachable bounds.
 Public, independently specified PostgreSQL goldens live in `reference/`; they
 are never generated from this implementation.
+`TestEncodingNames` owns the complete pure alias/identity corpus and raw-length
+gate; sqltype retains SQL policy and NAME-clipping assertions.
 
 ```sh
-make check RUN='^TestBinaryEncoding'
+make check RUN='^(TestBinaryEncoding|TestEncodingNames)'
 ```

@@ -54,7 +54,7 @@ func TestBinaryEncodingPairs(t *testing.T) {
 	}
 	seen := map[[2]int]bool{}
 	for _, p := range pairs {
-		key := [2]int{stringEncodingID(p.src), stringEncodingID(p.dst)}
+		key := [2]int{pgencoding18.ID(p.src), pgencoding18.ID(p.dst)}
 		if seen[key] {
 			t.Fatal("duplicate pair", key)
 		}

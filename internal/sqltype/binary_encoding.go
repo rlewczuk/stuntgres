@@ -31,12 +31,12 @@ func PrepareBinaryEncoding(ctx context.Context, raw, sourceName, destinationName
 	if err = ctx.Err(); err != nil {
 		return
 	}
-	source = stringEncodingID(sourceName)
+	source = pgencoding18.ID(sourceName)
 	if source < 0 {
 		err = failure("22023", `invalid source encoding name "`+sourceName+`"`)
 		return
 	}
-	destination = stringEncodingID(destinationName)
+	destination = pgencoding18.ID(destinationName)
 	if destination < 0 {
 		err = failure("22023", `invalid destination encoding name "`+destinationName+`"`)
 		return
@@ -58,7 +58,7 @@ func PrepareBinaryEncoding(ctx context.Context, raw, sourceName, destinationName
 }
 
 func MissingBinaryConversion(source, destination int) error {
-	return failure("42883", fmt.Sprintf("default conversion function for encoding %q to %q does not exist", stringEncodingNames[source], stringEncodingNames[destination]))
+	return failure("42883", fmt.Sprintf("default conversion function for encoding %q to %q does not exist", pgencoding18.Name(source), pgencoding18.Name(destination)))
 }
 
 func emitBinaryEncoding(ctx context.Context, raw string, source, destination int) (string, error) {
@@ -116,7 +116,7 @@ func binaryEncodingBytes(raw string, id int) string {
 	return string(buf[:pos])
 }
 func binaryEncodingInvalid(raw string, id int) error {
-	return failure("22021", fmt.Sprintf("invalid byte sequence for encoding %q: %s", stringEncodingNames[id], binaryEncodingBytes(raw, id)))
+	return failure("22021", fmt.Sprintf("invalid byte sequence for encoding %q: %s", pgencoding18.Name(id), binaryEncodingBytes(raw, id)))
 }
 func binaryEncodingPass(ctx context.Context, raw string, source, destination int, out *strings.Builder) (int, error) {
 	size, next := 0, 0
@@ -132,7 +132,7 @@ func binaryEncodingPass(ctx context.Context, raw string, source, destination int
 			return 0, binaryEncodingInvalid(raw[i:], source)
 		}
 		if n == 0 {
-			return 0, failure("22P05", fmt.Sprintf("character with byte sequence %s in encoding %q has no equivalent in encoding %q", binaryEncodingBytes(raw[i:], source), stringEncodingNames[source], stringEncodingNames[destination]))
+			return 0, failure("22P05", fmt.Sprintf("character with byte sequence %s in encoding %q has no equivalent in encoding %q", binaryEncodingBytes(raw[i:], source), pgencoding18.Name(source), pgencoding18.Name(destination)))
 		}
 		width := pgencoding18.Width(a) + pgencoding18.Width(b)
 		if size >= 0x3fffffff-width {
