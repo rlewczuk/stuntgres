@@ -13,7 +13,7 @@ func SummaryTable(oid ids.OID) bool {
 	switch oid {
 	case TypeOID, 1213, 1249, ids.RoleClassID, AuthMembersOID, 1262, 2600, AMOID, 2605, 2612, 2613, TransformOID, TSParserOID, TSConfigOID, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ids.ParameterClassID, 826:
 		return true
-	case TSConfigMapOID:
+	case TSConfigMapOID, StatisticExtOID:
 		return true
 	}
 	return false

@@ -33,6 +33,7 @@ func icProviderInventory(c *icCase) {
 		"pg_inherits":                            fixture.PGInheritsColumns,
 		"pg_event_trigger":                       strings.Fields("oid evtname evtevent evtowner evtfoid evtenabled evttags"),
 		"pg_attrdef":                             strings.Fields("oid adrelid adnum adbin"),
+		"pg_statistic_ext":                       strings.Fields("oid stxrelid stxname stxnamespace stxowner stxkeys stxstattarget stxkind stxexprs"),
 		"pg_proc":                                strings.Fields("oid proname pronamespace proowner pronargs pronargdefaults prorettype provolatile proisstrict proparallel prokind proargnames prolang proretset prorows prosrc proargtypes provariadic proallargtypes proargmodes proacl procost prosecdef proconfig"),
 		"pg_index":                               strings.Fields("indexrelid indrelid indisunique indisprimary indisvalid indisready indislive indnullsnotdistinct indkey indcollation indclass indoption"),
 		"pg_rewrite":                             strings.Fields("oid rulename ev_class ev_type ev_enabled is_instead"),

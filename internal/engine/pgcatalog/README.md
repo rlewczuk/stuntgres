@@ -62,6 +62,21 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Reads neither execute referenced functions nor manufacture definitions.
   `evttags` is a nullable one-dimensional text array, consistent with its
   source-owned `pg_attribute` facts.
+- `pg_statistic_ext` (3381) is a real PUBLIC-readable nine-column definitions
+  catalog. Its authenticated, current-generation source is typed and empty:
+  ordinary tables and ANALYZE do not create statistics definitions. CREATE
+  STATISTICS separately owns population and its nonempty projection; there is
+  no definition store or dormant population adapter here. `stxkeys` is an
+  INT2VECTOR of table attribute identities, `stxkind` an internal `"char"`
+  array, and nullable `stxexprs` a PG_NODE_TREE expression-tree list, not SQL.
+  `stxstattarget` is nullable, not a substituted -1 default. Collected metrics
+  belong exclusively to `pg_statistic_ext_data`, not this source. Index presence
+  is a catalog fact, not a claim of physical backing indexes. Even an empty
+  capture requires the catalog's owner, reference domain and epoch, exact
+  relation address (no subobject), and owner-bound role authority to agree.
+  Retained captures remain valid with their original catalog generation and
+  captured roles. Common ACL, capture and guarded-mutation admission remain
+  authoritative.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual

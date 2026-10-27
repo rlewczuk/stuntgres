@@ -223,6 +223,9 @@ func GuardedCatalogRelation(d *catalog.Relation) bool {
 	if d == nil || d.RelationKind != catalog.CatalogRelation || d.Address().ClassID != ids.RelationClassID {
 		return false
 	}
+	if d.Address().ObjectID == pgcatalog.StatisticExtOID {
+		return true
+	}
 	return d.Address().ObjectID == pgcatalog.AggregateOID || d.Address().ObjectID == pgcatalog.AMOID || d.Address().ObjectID == 2602 || d.Address().ObjectID == 2603 || d.Address().ObjectID == pgcatalog.TypeOID || d.Address().ObjectID == pgcatalog.TSParserOID || d.Address().ObjectID == pgcatalog.TSConfigOID || d.Address().ObjectID == pgcatalog.TSConfigMapOID || d.Address().ObjectID == pgcatalog.TransformOID
 }
 

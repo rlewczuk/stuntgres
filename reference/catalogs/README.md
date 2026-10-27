@@ -1,6 +1,7 @@
 # reference/catalogs
 
 `pg_catalog` relation and type catalogs: `pg_class`, `pg_attribute`, `pg_attrdef`,
+`pg_statistic_ext` (typed empty definitions; CREATE STATISTICS owns population),
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, `pg_inherits`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
 `pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
@@ -28,6 +29,13 @@ catalog packages listed above are the only ones whose oracle loads the legacy
 OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
+
+Extended-statistics definition reads cover exact schema and row/array links,
+PUBLIC access and current ACL revocation, ordinary-role mutation diagnostics,
+and native controls without privileged PostgreSQL catalog writes. Select the
+family in either native or real-reference mode with
+`make check RUN='^TestReferencePGStatisticExt'` (add `REFERENCE=1` for PostgreSQL).
+Collected statistics and nonempty definition lifecycle are separately owned.
 
 Type identity scenarios retain attribute privilege identities across rename and
 retire obsolete lookup names.
@@ -97,6 +105,9 @@ retire obsolete lookup names.
   into float64, so compare `pg_enum.enumsortorder` after rounding to binary32;
   TEXT reports `Length() = (math.MaxInt64, true)` on both adapters; bound OID
   input errors carry Context `unnamed portal parameter $1 = '...'` on both.
+  OID result rows use `fixture.OidReferenceRows` to validate pq decimal bytes
+  versus native int64 and normalize exact uint32 identities without changing
+  the expected OID column types or values.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

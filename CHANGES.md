@@ -1,5 +1,12 @@
 # Changes
 
+- Register PUBLIC-readable `pg_statistic_ext` with its exact nine definition
+  columns, authentic row/array carriers, attribute nullability and catalog
+  index/table summaries. Reads are truthfully empty until separately owned
+  CREATE STATISTICS population; ANALYZE metrics never manufacture definitions.
+  Preserve current ACL checks, guarded unsupported native mutations and
+  Reset/Dump/Restore metadata ownership.
+
 - Add standalone ANALYZE collection, retained typed column distributions and
   logical EXPLAIN selectivity, with selected-column staleness, maintenance locks,
   privilege notices and transactional column publication distinct from

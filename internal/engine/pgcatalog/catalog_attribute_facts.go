@@ -118,7 +118,7 @@ func InitializeAttributes(d *catalog.Relation) {
 			switch d.Address().ObjectID {
 			case InfoSQLFeaturesOID, InfoSQLSizingOID, InfoSQLImplementationInfoOID, InfoSQLPartsOID:
 				fact.NotNull = !column.Nullable
-			case ids.EventTriggerClassID:
+			case ids.EventTriggerClassID, StatisticExtOID:
 				fact.NotNull = !column.Nullable
 			case ids.ProcedureClassID:
 				fact.NotNull = !column.Nullable
