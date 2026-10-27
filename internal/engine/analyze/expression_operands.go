@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"reflect"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -12,11 +13,16 @@ import (
 
 // Unknown state exists only during analysis. It never becomes an executable Value.
 type ComparisonOperand struct {
-	Node expr.Expr
-	raw  parser.Expr
+	Node                expr.Expr
+	raw                 parser.Expr
+	typeInquiryUnknown  functions.TypeInquiryUnknownArgument
+	typeInquiryStringIO *sqltype.Descriptor
 }
 
 func (o ComparisonOperand) descriptor() *sqltype.Descriptor {
+	if o.typeInquiryStringIO != nil || o.typeInquiryUnknown.CastType != nil {
+		return nil // Logical UNKNOWN participates in applicability, not TEXT.
+	}
 	if o.Node == nil {
 		return nil
 	}
@@ -42,49 +48,113 @@ func (b *Binder) comparisonOperand(raw parser.Expr) (ComparisonOperand, error) {
 func (b *Binder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequest) (functions.Argument, error) {
 	var operand ComparisonOperand
 	var err error
-	switch request.Intent {
-	case functions.ComparisonArgument:
-		operand, err = b.comparisonOperand(raw)
-	case functions.ThresholdArrayArgument:
-		operand, err = b.comparisonOperandPolicy(raw, ExpressionPolicy{Context: ProjectionContext, thresholdArrayInput: true})
-	case functions.ZoneArgument:
-		// Only explicit casts read the flag; restoring it keeps nested and
-		// adjacent calls unaffected.
-		previous := b.Consumer.DatetimeZoneOperands
-		b.Consumer.DatetimeZoneOperands = true
-		operand, err = b.comparisonOperand(raw)
-		b.Consumer.DatetimeZoneOperands = previous
-	case functions.StringTextArgument, functions.StringOtherArgument:
-		operand, err = b.StringOperand(raw, request.Intent == functions.StringTextArgument)
-	case functions.RecordBaseArgument:
-		previous := b.Clause.JSONBRecordBase
-		b.Clause.JSONBRecordBase = true
-		operand, err = b.StringOperand(raw, false)
-		b.Clause.JSONBRecordBase = previous
-	case functions.StringProjectionArgument, functions.ProjectionArgument:
-		operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
-		operand.raw = raw
-		if err == nil && unknownNullSyntax(raw) {
-			if literal, ok := operand.Node.(plan.LiteralExpr); ok {
-				literal.UnknownNull = true
-				operand.Node = literal
-			}
+	var typeInquiryUnknown *functions.TypeInquiryUnknownArgument
+	var typeInquiryStringIO *sqltype.Descriptor
+	if request.Intent == functions.TypeInquiryArgument && b.Clause.selectedTypeInquiryStringIO != nil {
+		procedure := b.Clause.selectedProcedure
+		slot, ok := raw.(parser.ParameterExpr)
+		if procedure == nil || procedure.Builtin == nil || procedure.Builtin.Identity.ID != 1619 || procedure.Builtin.Providers&functions.CatalogRoutineProvider == 0 || !ok || slot.Number != -1 || len(b.Clause.SelectedOperatorArgs) != 1 {
+			return functions.Argument{}, fmt.Errorf("stuntgres: invalid selected unknown IO authority")
 		}
-	case functions.BareProjectionArgument:
 		operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
-		operand.raw = raw
-	case functions.DirectDeferredArgument:
-		if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+		if err != nil {
+			return functions.Argument{}, err
+		}
+		original, private := b.OriginalArgument(raw)
+		carrier, ok := operand.Node.(expr.InputCaster)
+		if !private || !ok {
+			return functions.Argument{}, fmt.Errorf("stuntgres: invalid selected unknown IO source")
+		}
+		cast, err := carrier.LogicalInputCast()
+		if err != nil {
+			return functions.Argument{}, err
+		}
+		occurrence := parser.Expr(cast.Syntax)
+		if len(cast.Transparent) != 0 {
+			occurrence = cast.Transparent[len(cast.Transparent)-1].Syntax
+		}
+		if cast.Target.Type != b.Clause.selectedTypeInquiryStringIO || !reflect.DeepEqual(occurrence, original) {
+			return functions.Argument{}, fmt.Errorf("stuntgres: mismatched selected unknown IO occurrence")
+		}
+		operand.raw = original
+		typeInquiryStringIO = b.Clause.selectedTypeInquiryStringIO
+	} else if request.Intent == functions.TypeInquiryArgument && b.Clause.selectedTypeInquiryUnknown != nil {
+		witness := b.Clause.selectedTypeInquiryUnknown
+		procedure := b.Clause.selectedProcedure
+		original, private := b.OriginalArgument(raw)
+		if procedure == nil || procedure.Builtin == nil || procedure.Builtin.Identity.ID != 1619 || procedure.Builtin.Providers&functions.CatalogRoutineProvider == 0 || !reflect.DeepEqual(original, witness.Raw) {
+			return functions.Argument{}, fmt.Errorf("stuntgres: invalid selected unknown input authority")
+		}
+		if private {
+			slot, ok := raw.(parser.ParameterExpr)
+			if !ok || slot.Number != -1 || len(b.Clause.SelectedOperatorArgs) != 1 {
+				return functions.Argument{}, fmt.Errorf("stuntgres: invalid selected unknown input slot")
+			}
+			operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
+		}
+		operand.raw, typeInquiryUnknown = witness.Literal, witness
+	} else {
+		switch request.Intent {
+		case functions.TypeInquiryArgument:
 			operand.raw = raw
-		} else {
+			switch input := raw.(type) {
+			case parser.LiteralExpr:
+				if input.Value.Kind == parser.StringValue || input.Value.Kind == parser.NullValue {
+					typeInquiryUnknown = &functions.TypeInquiryUnknownArgument{Literal: input, Raw: raw}
+				} else {
+					operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
+				}
+			case parser.CastExpr:
+				operand.Node, err = b.cast(input, ExpressionPolicy{Context: ProjectionContext}, &typeInquiryUnknown, &typeInquiryStringIO)
+			default:
+				operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
+			}
+		case functions.ComparisonArgument:
+			operand, err = b.comparisonOperand(raw)
+		case functions.ThresholdArrayArgument:
+			operand, err = b.comparisonOperandPolicy(raw, ExpressionPolicy{Context: ProjectionContext, thresholdArrayInput: true})
+		case functions.ZoneArgument:
+			// Only explicit casts read the flag; restoring it keeps nested and
+			// adjacent calls unaffected.
+			previous := b.Consumer.DatetimeZoneOperands
+			b.Consumer.DatetimeZoneOperands = true
+			operand, err = b.comparisonOperand(raw)
+			b.Consumer.DatetimeZoneOperands = previous
+		case functions.StringTextArgument, functions.StringOtherArgument:
+			operand, err = b.StringOperand(raw, request.Intent == functions.StringTextArgument)
+		case functions.RecordBaseArgument:
+			previous := b.Clause.JSONBRecordBase
+			b.Clause.JSONBRecordBase = true
+			operand, err = b.StringOperand(raw, false)
+			b.Clause.JSONBRecordBase = previous
+		case functions.StringProjectionArgument, functions.ProjectionArgument:
 			operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
 			operand.raw = raw
+			if err == nil && unknownNullSyntax(raw) {
+				if literal, ok := operand.Node.(plan.LiteralExpr); ok {
+					literal.UnknownNull = true
+					operand.Node = literal
+				}
+			}
+		case functions.BareProjectionArgument:
+			operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
+			operand.raw = raw
+		case functions.DirectDeferredArgument:
+			if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+				operand.raw = raw
+			} else {
+				operand.Node, err = b.Bind(raw, ExpressionPolicy{Context: ProjectionContext})
+				operand.raw = raw
+			}
+		default:
+			return functions.Argument{}, fmt.Errorf("stuntgres: invalid function argument analysis")
 		}
-	default:
-		return functions.Argument{}, fmt.Errorf("stuntgres: invalid function argument analysis")
+	}
+	if err == nil && typeInquiryUnknown != nil && operand.Node != nil {
+		operand.Node, err = typeInquiryUnknownTransport(operand.Node, typeInquiryUnknown)
 	}
 	original, _ := b.OriginalArgument(operand.raw)
-	argument := functions.Argument{Expression: operand.Node, Raw: original}
+	argument := functions.Argument{Expression: operand.Node, Raw: original, TypeInquiryUnknown: typeInquiryUnknown, TypeInquiryStringIO: typeInquiryStringIO}
 	if operand.Node != nil {
 		argument.Usage = operand.Node.ResultUsage()
 		if argument.Usage.Type == nil {
@@ -96,6 +166,21 @@ func (b *Binder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequ
 		argument.Kind = functions.DeferredStringArgument
 	}
 	return argument, err
+}
+
+func typeInquiryUnknownTransport(node expr.Expr, source *functions.TypeInquiryUnknownArgument) (expr.Expr, error) {
+	if source == nil {
+		return node, nil
+	}
+	literal, ok := node.(plan.LiteralExpr)
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: unknown input lacks literal transport")
+	}
+	literal.UnknownInput = &expr.UnknownInput{Literal: source.Literal, Source: source.Raw, CastType: source.CastType, Chain: source.Chain}
+	if err := literal.UnknownInput.Validate(literal.Usage, literal.Value); err != nil {
+		return nil, err
+	}
+	return literal, nil
 }
 
 func (b *Binder) CoerceArgument(argument functions.Argument, request functions.CoercionRequest) (expr.Expr, error) {
@@ -111,7 +196,11 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 	}
 	switch request.Intent {
 	case functions.FinalizeArgument:
-		return b.finalizeOperand(operand, request.Target.Type)
+		node, err := b.finalizeOperand(operand, request.Target.Type)
+		if err != nil {
+			return nil, err
+		}
+		return typeInquiryUnknownTransport(node, argument.TypeInquiryUnknown)
 	case functions.LikeArgument:
 		return b.likeOperand(operand, request.Target.Type)
 	case functions.RecordFormalArgument:
@@ -276,6 +365,22 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}, nil
 }
 
+// Candidate inspection retains semantic UNKNOWN separately from its concrete
+// transport. Only an actual selected inquiry consumes this optional evidence.
+func (b *Binder) comparisonTypeInquiryOperand(raw parser.Expr) (ComparisonOperand, error) {
+	if cast, ok := raw.(parser.CastExpr); ok {
+		var noop *functions.TypeInquiryUnknownArgument
+		var io *sqltype.Descriptor
+		node, err := b.cast(cast, ExpressionPolicy{Context: ProjectionContext}, &noop, &io)
+		operand := ComparisonOperand{Node: node, raw: raw, typeInquiryStringIO: io}
+		if noop != nil {
+			operand.typeInquiryUnknown = *noop
+		}
+		return operand, err
+	}
+	return b.comparisonOperand(raw)
+}
+
 func (b *Binder) comparisonOperandPolicy(raw parser.Expr, policy ExpressionPolicy) (ComparisonOperand, error) {
 	if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 		return ComparisonOperand{raw: raw}, nil
@@ -299,7 +404,7 @@ func (b *Binder) comparisonOperandPolicy(raw parser.Expr, policy ExpressionPolic
 			}
 			switch target.Type.ID() {
 			case sqltype.Unknown, 2276, 2283, 2776, 5077, 5079:
-				return ComparisonOperand{raw: annotation.Child}, nil
+				return ComparisonOperand{raw: annotation.Child, typeInquiryUnknown: functions.TypeInquiryUnknownArgument{Literal: literal, CastType: target.Type, Raw: annotation}}, nil
 			}
 		}
 	}
@@ -326,6 +431,9 @@ func (b *Binder) CoerceParameter(p plan.ParameterExpr, u sqltype.Usage) (expr.Ex
 }
 
 func (b *Binder) finalizeOperand(o ComparisonOperand, typ *sqltype.Descriptor) (expr.Expr, error) {
+	if o.Node != nil && (o.typeInquiryStringIO != nil || o.typeInquiryUnknown.CastType != nil) {
+		return o.Node, nil
+	}
 	if o.descriptor() != nil {
 		return o.Node, nil
 	}

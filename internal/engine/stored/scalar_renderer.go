@@ -377,6 +377,10 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		return "CAST(" + child + " AS " + declaration + ")", nil
 	case plan.CoercionExpr:
+		logical, err := n.LogicalInputCast()
+		if err != nil {
+			return "", err
+		}
 		if n.Child == nil {
 			return "", fmt.Errorf("stuntgres: missing default coercion child")
 		}
@@ -404,6 +408,23 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		child, err := r.SQL(ctx, view, n.Child)
 		if err != nil || n.Mode != sqltype.Explicit && !sqlJSONResult(n.Child) {
 			return child, err
+		}
+		if logical.Target.Type != nil {
+			if err := regobj.ValidateUnknownInputTargets(view, r.Definition, logical.Target.Type, logical.Transparent); err != nil {
+				return "", err
+			}
+			if _, literal := n.Child.(plan.LiteralExpr); literal {
+				declaration, err := regobj.TypeDeclarationAt(view, r.Definition, n.Child.ResultUsage())
+				if err != nil {
+					return "", err
+				}
+				child = "CAST(" + child + " AS " + declaration + ")"
+			}
+			declaration, err := regobj.UnknownInputDeclaration(view, r.Definition, logical.Target)
+			if err != nil {
+				return "", err
+			}
+			return "CAST(" + child + " AS " + declaration + ")", nil
 		}
 		// Identifier literals already render with their scalar authority. A
 		// transparent relabel must not grow another CAST on each Restore.

@@ -4,6 +4,12 @@ The public Go contract of package `stuntgres`. SQL behavior follows
 [PostgreSQL 18](https://www.postgresql.org/docs/18/sql.html); native snapshot
 controls are in [FIXTURES.md](FIXTURES.md).
 
+Type inquiry expressions publish ordinary typed metadata: `format_type` returns
+TEXT and `pg_typeof`/`pg_basetype` return REGTYPE (OID 2206), not display text
+masquerading as an OID alias. Native REGTYPE scan values are strings formatted
+from the result's captured catalog/path; retained rows keep that spelling across
+later catalog replacement. Typed NULL operands still carry logical identity.
+
 ## Opening databases
 
 - `stuntgres.NewDriver()` returns a Driver that owns independent in-memory

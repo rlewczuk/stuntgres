@@ -121,13 +121,9 @@ func TestReferencePGCastExclusions(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE DOMAIN pgcast_domain AS INT", 0))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE pgcast_domain_seed(v pgcast_domain)", 0))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO pgcast_domain_seed VALUES(7)", 1))
-		if b.PG {
-			// PostgreSQL exposes domain identity through pg_typeof. Native
-			// proves all domain omissions through its exact complete bag below.
-			s = fixture.Select("SELECT castsource,casttarget FROM pg_catalog.pg_cast WHERE castsource=(SELECT pg_typeof(v)::oid FROM pgcast_domain_seed) OR casttarget=(SELECT pg_typeof(v)::oid FROM pgcast_domain_seed)", []string{"castsource", "casttarget"}, []string{"OID", "OID"}, [][]any{})
-			fixture.PgDescriptionRows(t, p, b, s)
-			fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
-		}
+		s = fixture.Select("SELECT castsource,casttarget FROM pg_catalog.pg_cast WHERE castsource=(SELECT pg_typeof(v)::oid FROM pgcast_domain_seed) OR casttarget=(SELECT pg_typeof(v)::oid FROM pgcast_domain_seed)", []string{"castsource", "casttarget"}, []string{"OID", "OID"}, [][]any{})
+		fixture.PgDescriptionRows(t, p, b, s)
+		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT v::int4 AS base,7::int4::text AS words,7::int4::text::int4 AS roundtrip FROM pgcast_domain_seed", []string{"base", "words", "roundtrip"}, []string{"INT4", "TEXT", "INT4"}, [][]any{{int64(7), "7", int64(7)}}))
 		fixture.PgCastCheckFacts(t, p, b, b.DB, pgCastFacts(), true)
 	})

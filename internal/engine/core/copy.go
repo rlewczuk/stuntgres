@@ -264,7 +264,9 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	}()
 	if foreign == nil {
 		dml.BeginInsertReturning(h, b)
-		if s.InsertReturning != nil { defer s.InsertReturning.Rows.Close() }
+		if s.InsertReturning != nil {
+			defer s.InsertReturning.Rows.Close()
+		}
 	}
 	state := &dml.CopyFromState{Options: options, Predicate: b.Predicate}
 	if options.OnError == copyfmt.Ignore {
@@ -352,6 +354,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 		return
 	}
 	b.Storage = auth.StorageLocked(b.Ref.Address)
+	var predicateVisibilitySnapshot bool
 	if syntax.Where != nil {
 		binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 		binder.Query.Auth = &auth
@@ -378,6 +381,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 		b.UsedColumns, b.Dependencies = binder.Target.Uses, binder.Dependencies
 		s.Input = binder.Input
 		s.RoutineDependencies = b.Dependencies
+		predicateVisibilitySnapshot = binder.Consumer.VisibilitySnapshot
 	}
 	b.Targets, err = copyfmt.ResolveColumns(b.Relation, syntax.Columns)
 	if err != nil {
@@ -391,6 +395,12 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 	if err == nil && len(b.UsedColumns) != 0 {
 		err = auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns)
 	}
+	if err == nil && predicateVisibilitySnapshot {
+		// Capture only after target and predicate-column authorization. Retained
+		// write recipes may add demand later; their capture cannot replace this
+		// statement-owned frontier before predicate preflight.
+		err = e.captureVisibilitySnapshotLocked(s)
+	}
 	return
 }
 
@@ -403,6 +413,11 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth
 		return err
 	}
 	s.Input = binder.Input
+	if binder.Consumer.VisibilitySnapshot {
+		if err := e.captureVisibilitySnapshotLocked(s); err != nil {
+			return err
+		}
+	}
 	for _, target := range b.Targets {
 		var err error
 		usage := b.Relation.Columns[target].Usage

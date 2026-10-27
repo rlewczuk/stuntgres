@@ -2,15 +2,120 @@ package stored
 
 import (
 	"fmt"
+	"reflect"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
+
+// Captured casts may name logical UNKNOWN or a source-authenticated literal
+// pseudo cast. Neither grants executable pseudo Usage authority.
+func (v *View) validCapturedCastUsage(view catalog.Read, path analyze.ViewLiteralPath, usage sqltype.Usage) bool {
+	if usage.Type != nil && usage.Type.ID() == sqltype.Unknown {
+		_, err := regobj.UnknownInputDeclaration(view, nil, usage)
+		return err == nil
+	}
+	if ValidExpressionUsage(view, usage) {
+		return true
+	}
+	if !expr.TransparentUnknownTarget(usage.Type) || usage != usage.Type.Usage() {
+		return false
+	}
+	current, ok := catalog.DefinitionTypeAt(view, nil, usage.Type.ID())
+	if !ok || current != usage.Type {
+		return false
+	}
+	if marker, target := v.capturedUnknownLiteralCast(path); marker != nil {
+		return target == usage.Type
+	}
+	return true // ValidateLiterals separately authenticates the source occurrence.
+}
+
+// Locate a cast through the authenticated chain's ordinal distance, not by
+// peeling source spellings or assuming that its immediate child is a literal.
+func (v *View) capturedUnknownLiteralCast(path analyze.ViewLiteralPath) (*expr.UnknownInput, *sqltype.Descriptor) {
+	for literalPath, literal := range v.literals {
+		distance := literalPath.Node - path.Node
+		candidate := path
+		candidate.Node = literalPath.Node
+		if distance <= 0 || candidate != literalPath || literal.UnknownInput == nil {
+			continue
+		}
+		marker := literal.UnknownInput
+		if marker.Validate(literal.Usage, literal.Value) != nil {
+			continue
+		}
+		if len(marker.Chain) != 0 {
+			if distance <= len(marker.Chain) {
+				return marker, marker.Chain[distance-1].Target
+			}
+		} else if distance == 1 && marker.CastType != nil {
+			return marker, marker.CastType
+		}
+	}
+	return nil, nil
+}
+
+// Pair a frozen occurrence with the already authenticated executable capture,
+// not another entry in the presentation map. The raw traversal supplies the
+// original ordinal; syntax (including source positions) identifies the carrier
+// or transparent step within that occurrence's owning query frame.
+func (v *View) capturedInputCastUsage(path analyze.ViewLiteralPath, raw parser.CastExpr) (sqltype.Usage, bool, error) {
+	var usage sqltype.Usage
+	found, transparent := false, false
+	var failure error
+	check := func(node expr.Expr) {
+		if failure != nil {
+			return
+		}
+		caster, ok := node.(expr.InputCaster)
+		if !ok {
+			return
+		}
+		capture, err := caster.LogicalInputCast()
+		if err != nil {
+			failure = err
+			return
+		}
+		accept := func(candidate sqltype.Usage, step bool) {
+			if found && (usage != candidate || transparent != step) {
+				failure = fmt.Errorf("stuntgres: ambiguous frozen input cast source")
+				return
+			}
+			usage, found, transparent = candidate, true, step
+		}
+		if capture.Target.Type != nil && reflect.DeepEqual(capture.Syntax, raw) {
+			accept(capture.Target, false)
+		}
+		for _, step := range capture.Transparent {
+			if reflect.DeepEqual(step.Syntax, raw) {
+				accept(step.Target.Usage(), true)
+			}
+		}
+	}
+	var walk func(plan.Node)
+	walk = func(node plan.Node) {
+		if node == nil || failure != nil {
+			return
+		}
+		if project, ok := node.(*plan.ProjectNode); ok && project.Frame != path.Query {
+			return
+		}
+		plan.QueryExpressions(node, func(bound expr.Expr) { plan.WalkExpression(bound, check) })
+		left, right := plan.QueryInputs(node)
+		walk(left)
+		walk(right)
+	}
+	walk(v.frames[path.Query])
+	return usage, found, failure
+}
 
 // Pseudo-row validation is invocation-free and local to this traversal. Ordinary
 // views retain their query-frame rules; trigger rows close over their owner.
@@ -400,6 +505,20 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 		return nil
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		if literal, ok := v.literals[path]; ok {
+			if err := literal.UnknownInput.Validate(literal.Usage, literal.Value); err != nil {
+				return err
+			}
+			if source := literal.UnknownInput; source != nil {
+				if !source.MatchesLiteral(raw) {
+					return fmt.Errorf("stuntgres: mismatched frozen unknown literal source")
+				}
+				if source.CastType != nil {
+					current, ok := catalog.LookupType(source.CastType.ID())
+					if !ok || current != source.CastType {
+						return fmt.Errorf("stuntgres: foreign unknown cast target")
+					}
+				}
+			}
 			if err := analyze.ValidateRegroleStoredLiteral(literal.Value); err != nil {
 				return err
 			}
@@ -558,6 +677,22 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 		}
 		return child(r.Child)
 	case parser.CastExpr:
+		usage := v.castUsages[path]
+		captured, logical, err := v.capturedInputCastUsage(path, r)
+		if err != nil {
+			return err
+		}
+		if logical {
+			if usage != captured {
+				return fmt.Errorf("stuntgres: mismatched frozen input cast occurrence")
+			}
+		} else if marker, target := v.capturedUnknownLiteralCast(path); marker != nil {
+			if marker.CastTarget(r) != target || usage != target.Usage() {
+				return fmt.Errorf("stuntgres: mismatched frozen unknown cast source")
+			}
+		} else if expr.TransparentUnknownTarget(usage.Type) {
+			return fmt.Errorf("stuntgres: unbacked frozen unknown cast occurrence")
+		}
 		return child(r.Child)
 	case parser.RegclassExpr:
 		return child(r.Child)

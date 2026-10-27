@@ -38,19 +38,12 @@ func TestReferenceJSONRecordDiscoveryDomains(t *testing.T) {
 		} {
 			jsonRecordErrorBoth(t, p, b, c, tc.q, tc.want, false)
 		}
-		// pg_typeof is not an executable native provider. Keep the PostgreSQL
-		// logical identity witnesses, with an explicit native inquiry boundary;
-		// shared raw results and metadata below still exercise each domain.
 		for _, tc := range []struct{ q, domain string }{
 			{`SELECT pg_typeof(json_populate_record(NULL::jr_pair_domain, '{"a":2}'))::text`, "jr_pair_domain"},
 			{`SELECT pg_typeof(json_populate_record(NULL::jr_plain_domain, '{"a":2}'))::text`, "jr_plain_domain"},
 			{`SELECT pg_typeof(json_populate_recordset(NULL::jr_pair_domain, '[{"a":2}]'))::text`, "jr_pair_domain"},
 		} {
-			if b.PG {
-				jsonRecordBoth(t, p, b, c, fixture.Select(tc.q, []string{"pg_typeof"}, []string{"TEXT"}, [][]any{{tc.domain}}))
-			} else {
-				jsonRecordErrorBoth(t, p, b, c, tc.q, jsonRecordSignature("pg_typeof("+tc.domain+")", 8), true)
-			}
+			jsonRecordBoth(t, p, b, c, fixture.Select(tc.q, []string{"pg_typeof"}, []string{"TEXT"}, [][]any{{tc.domain}}))
 		}
 		for _, tc := range []struct {
 			name string

@@ -173,7 +173,13 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
 		}
 	}
-	for _, name := range []string{"", "uuid_generate_v4x", "concat_w\u017f", "concatenate", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "range_agg", "int4range",
+	for _, name := range []string{"format_type", "pg_basetype", "pg_typeof"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || definition.ProbeCall == nil || !definition.ExactSpelling || definition.SharedGates || definition.Claims != nil {
+			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
+		}
+	}
+	for _, name := range []string{"", "uuid_generate_v4x", "concat_w\u017f", "concatenate", "formats", "Format_Type", "PG_TYPEOF", "pg_base_types", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "range_agg", "int4range",
 		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays",
 		"Date_Trunc", "MAKE_DATE", "AGE", "ISFINITE", "overlaps", "TO_NUMBER",
 		"RANDOM", "Random_Normal", "SETSEED", "randoms", "setseeds", "PG_SLEEP", "Pg_Sleep_For", "pg_sleep_untill", "sleep",

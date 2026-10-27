@@ -54,6 +54,9 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 	facts = append(facts, irBuiltinFacts3...)
 	facts = append(facts, irBuiltinCastFacts...)
 	facts = append(facts,
+		irBuiltinFact{1081, "format_type", "format_type", "INTERNAL", "INVOKER"},
+		irBuiltinFact{1619, "pg_typeof", "pg_typeof", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6315, "pg_basetype", "pg_basetype", "INTERNAL", "INVOKER"},
 		irBuiltinFact{2160, "text_pattern_lt", "text_pattern_lt", "INTERNAL", "INVOKER"},
 		irBuiltinFact{2161, "text_pattern_le", "text_pattern_le", "INTERNAL", "INVOKER"},
 		irBuiltinFact{2163, "text_pattern_ge", "text_pattern_ge", "INTERNAL", "INVOKER"},
@@ -75,8 +78,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3830, "pg_last_xact_replay_timestamp", "pg_last_xact_replay_timestamp", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6224, "pg_get_wal_resource_managers", "pg_get_wal_resource_managers", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1716 {
-		t.Fatalf("released represented inventory: got %d, want 1716", len(facts))
+	if len(facts) != 1719 {
+		t.Fatalf("released represented inventory: got %d, want 1719", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

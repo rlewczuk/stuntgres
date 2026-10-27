@@ -92,10 +92,20 @@ func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 	}
 	n := len(raw.Args)
 	if raw.Variadic {
-		if variadic == 0 || n != len(declared) {
+		fixedInquiry := false
+		if variadic == 0 && d.Builtin != nil && d.Builtin.Providers&functions.CatalogRoutineProvider != 0 {
+			switch d.Builtin.Identity.ID {
+			case 1081, 1619, 6315:
+				fixedInquiry = true
+			}
+		}
+		if variadic == 0 && !fixedInquiry || n != len(declared) {
 			return candidate, false
 		}
 		candidate.Inputs = declared
+		// The genuine selected family's pure probe, not this shape gate, owns
+		// the exact fixed formals and matching VARIADIC decoration.
+		candidate.polymorphic = candidate.polymorphic || fixedInquiry
 		return candidate, true
 	}
 	if variadic != 0 {

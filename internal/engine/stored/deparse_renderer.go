@@ -121,6 +121,9 @@ func pgLiteralSimple(n plan.LiteralExpr, rendered string) bool {
 func (r Deparser) Literal(ctx context.Context, n plan.LiteralExpr) (string, error) {
 	u := n.ResultUsage()
 	v := n.Value
+	if n.UnknownInput != nil {
+		return regobj.ConstantLiteral(ctx, n)
+	}
 	if n.UnknownNull && (!v.IsNull() || u.Type == nil || u.Type.ID() != sqltype.Text) {
 		return "", fmt.Errorf("stuntgres: invalid unknown NULL provenance")
 	}
@@ -526,6 +529,24 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		}
 		return "(" + text + ")", nil
 	case plan.CoercionExpr:
+		logical, err := n.LogicalInputCast()
+		if err != nil {
+			return "", err
+		}
+		if logical.Target.Type != nil {
+			if err := regobj.ValidateUnknownInputTargets(r.View, nil, logical.Target.Type, logical.Transparent); err != nil {
+				return "", err
+			}
+			text, err := child(logical.Source)
+			if err != nil {
+				return "", err
+			}
+			declaration, err := regobj.UnknownInputDeclaration(r.View, nil, logical.Target)
+			if err != nil {
+				return "", err
+			}
+			return "CAST(" + text + " AS " + declaration + ")", nil
+		}
 		if n.Plan.IsJSONReturning() {
 			spec, supported, err := jsonReturningRendering(n.Child)
 			if err != nil {
@@ -922,13 +943,21 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		}
 		return r.rendering(ctx, n, spec, parent)
 	case plan.HstoreComparisonExpr:
-		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) { return "", fmt.Errorf("stuntgres: invalid stored hstore comparison reference") }
+		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
+			return "", fmt.Errorf("stuntgres: invalid stored hstore comparison reference")
+		}
 		procedure, err := currentHstoreComparison(n, r.View)
-		if err != nil { return "", err }
+		if err != nil {
+			return "", err
+		}
 		namespace, ok := r.View.Namespace(procedure.Namespace())
-		if !ok { return "", fmt.Errorf("stuntgres: missing hstore comparison namespace") }
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing hstore comparison namespace")
+		}
 		spec, err := hstoreComparisonRendering(n, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()))
-		if err != nil { return "", err }
+		if err != nil {
+			return "", err
+		}
 		return r.rendering(ctx, n, spec, parent)
 	case plan.CubeComparisonExpr:
 		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {

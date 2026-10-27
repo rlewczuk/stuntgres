@@ -181,6 +181,9 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 	binder := analyze.Binder{Host: e.AnalysisHost(s.Op), Ctx: s.Op.Context(), Input: plan.Input, Query: analyze.QueryScopeState{Auth: &auth}}
 	e.Mu.Lock()
 	err := binder.CaptureRetainedWriteInput(plan.Defaults, nil, nil)
+	if err == nil && binder.Consumer.VisibilitySnapshot {
+		err = e.captureVisibilitySnapshotLocked(s)
+	}
 	e.Mu.Unlock()
 	if err != nil {
 		return err

@@ -382,6 +382,12 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			return nil, false, err
 		}
 		e.Child = child
+		if e.UnknownInputCast != nil {
+			if _, err := e.LogicalInputCast(); err != nil {
+				return nil, false, err
+			}
+			return e, changed, nil // Preserve the logical cast while preflighting its source.
+		}
 		if e.Plan.ChecksDomain() {
 			if err := prepareDomainConversion(c, e.Child.ResultUsage().Type, e.Usage.Type); err != nil {
 				return nil, false, err

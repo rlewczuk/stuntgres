@@ -106,18 +106,7 @@ func arrayTransformTypingContract(t *testing.T, p *fixture.Pair, b fixture.Backe
 	if !ok {
 		t.Fatalf("missing independent typing expectation for %q", oracle)
 	}
-	// The public native logical name identifies the actual associated array;
-	// pq exposes no DatabaseTypeName for user arrays. Neither needs pg_typeof.
-	projected := want
-	projected.names, projected.nativeTypes = want.names[:1], want.nativeTypes[:1]
-	projected.pgTypes, projected.raw = want.pgTypes[:1], want.raw[:1]
-	projected.pgMetadata = want.pgMetadata[:1]
-	projected.rows = [][]any{{want.rows[0][0]}}
-	arrayTransformRunContract(t, p, b, c, name, "SELECT "+expr+" AS a FROM at_one", projected)
-	if b.PG {
-		// Retain the independently observed PostgreSQL identity assertion.
-		arrayTransformRunContract(t, p, b, c, name+"_pg_identity", oracle, want)
-	}
+	arrayTransformRunContract(t, p, b, c, name, oracle, want)
 }
 
 func arrayTransformRunContract(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, name, query string, want arrayTransformContract, args ...any) {

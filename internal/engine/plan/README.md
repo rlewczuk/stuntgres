@@ -95,6 +95,17 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   protocol and cursors.
   Literal evaluation requires exact descriptor identity and concrete values,
   except for the finite, canonically owned query-only pseudo NULL capability.
+  A literal may retain `expr.UnknownInput` source provenance for selected argument
+  transport. Generic frozen capture records every original no-op's target and
+  ordinal on that same literal; retagging maps every resolved chain descriptor,
+  preserving immutable backing when descriptors do not change.
+  A genuine string-to-UNKNOWN cast instead retains `UnknownInputCast` metadata on
+  the existing `CoercionExpr`: its exact nominal source, logical target and syntax
+  authenticate a type-owned output-to-TEXT-input plan. It preserves producer
+  effects/domain checks and BPCHAR padding, and is not a literal no-op marker.
+  Outer transparent casts are ordered metadata beside that one real IO plan,
+  never extra evaluator nodes. Validation checks chain order and source, and
+  selected inquiry reconstruction retains the accepted syntax/target generations.
   COALESCE also preserves canonical catalog-only NULL result usages through
   `ResultNull` and `ValidResult`; this grants neither non-NULL values nor
   comparison/input/storage authority to those descriptors.

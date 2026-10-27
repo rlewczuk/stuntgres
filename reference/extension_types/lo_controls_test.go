@@ -38,11 +38,9 @@ func loControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixtur
 		s = fixture.Select("SELECT v::text AS canonical FROM lo_controls WHERE id=4", []string{"canonical"}, []string{"TEXT"}, [][]any{{"4294967295"}})
 		s.Prepared = prepared
 		loRun(t, p, b, db, s)
-		if b.PG {
-			s = fixture.Select("SELECT pg_typeof(v)::text AS logical,v::text AS canonical FROM lo_controls WHERE id=4", []string{"logical", "canonical"}, []string{"TEXT", "TEXT"}, [][]any{{"lo", "4294967295"}})
-			s.Prepared = prepared
-			loRun(t, p, b, db, s)
-		}
+		s = fixture.Select("SELECT pg_typeof(v)::text AS logical,v::text AS canonical FROM lo_controls WHERE id=4", []string{"logical", "canonical"}, []string{"TEXT", "TEXT"}, [][]any{{"lo", "4294967295"}})
+		s.Prepared = prepared
+		loRun(t, p, b, db, s)
 	}
 	loRun(t, p, b, db, fixture.Select("SELECT atttypid='lo'::regtype AS logical FROM pg_attribute WHERE attrelid='lo_controls'::regclass AND attname='v'", []string{"logical"}, []string{"BOOL"}, [][]any{{true}}))
 	loIdentity(t, p, b, db)

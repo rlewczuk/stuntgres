@@ -2,8 +2,9 @@
 
 Dual-mode tests for domains (CREATE/ALTER DOMAIN defaults, nullability, CHECK
 and identity lifecycle); the `information_schema` domains; the type identity
-lifecycle of domains, composites and installed extension types; and
-transactional domain/composite/type lifecycle.
+lifecycle of domains, composites and installed extension types; transactional
+domain/composite/type lifecycle; and type inquiry/formatting with nominal
+identity, metadata, stored consumers and native replay.
 
 Other type families:
 [reference/geometry_network](../geometry_network/README.md#testing) (geometry
@@ -93,6 +94,46 @@ Actual simple/extended protocol coverage belongs in
 ### Family selectors
 
 - Domains (all): `RUN='^TestReferenceDomain'`
+- Type inquiry and canonical formatting: `RUN='^TestReferenceTypeDescribe'`
+- Inquiry frozen-source matrix: `RUN='^TestReferenceTypeDescribe(Consumers|Controls)$'`
+  covers string and NULL inputs for all five transparent pseudo casts, original
+  and `pg_get_viewdef`-recreated views, and native Dump/Restore with OID remapping.
+  Consumers also checks catalog-dependent DEFAULT execution through direct and
+  prepared foreign-key SET DEFAULT actions.
+- Inquiry selected-provider reentry: `RUN='^TestReferenceTypeDescribeDiagnostics/has_casts_fixed_variadic$'`
+  covers matching fixed VARIADIC calls after a real catalog cast is installed,
+  raw/no-op UNKNOWN inputs, string-IO constants/columns, and a user-routine winner.
+  Run both selectors natively and with `REFERENCE=1`; expected identities come
+  from PostgreSQL's released contracts, not from native output.
+- Review1 counterexamples:
+  `RUN='^TestReferenceTypeDescribe(TempVisibility|ComposedUnknown|UnknownArity|CopyWhere)$'`.
+  TEMP row types participate in type visibility, including a TEMP `text` hiding
+  builtin TEXT and held execution after path changes. Composed raw/no-op/StringIO
+  UNKNOWN stays OID705 through direct/prepared calls, both frozen view presentation
+  variants, and native Reset/Restore and foreign-identity replay; concrete TEXT and
+  integer controls remain distinct, invalid integer casts still fail, and volatile
+  children run once. Wrong-arity diagnostics assert the full logical UNKNOWN
+  signature through ordinary and actual HasCasts selected-provider resolution.
+  COPY WHERE uses the existing public `fixture.CopyFrom` transport on a plain
+  table (no DEFAULT/CHECK demand), with exact filtered counts, NULL rows and
+  predicate-error statement atomicity. SQL observations are direct/prepared;
+  COPY itself uses the public streaming API, not unsupported prepared COPY.
+  Run this selector natively and with `REFERENCE=1`; pinned PostgreSQL confirmed
+  these independent expectations before production remedies were authorized.
+- Explicit logical UNKNOWN-to-TEXT exit:
+  `RUN='^TestReferenceTypeDescribeTextExit$'`.
+  Constant/NULL, raw and transparent pseudo casts, typed held parameters and
+  text/domain/bpchar columns end at OID25 with a final explicit `::text`, versus
+  OID705 without it. Both `pg_get_viewdef` boolean presentation variants recreate
+  valid views, while scalar DEFAULT/CHECK recipes are re-executed after native
+  Dump/Reset/Restore and foreign restore with actual domain identity displacement.
+  UNKNOWN casts remain inside selected inquiry arguments; padded bpchar source
+  values and typed identities are retained without widening ordinary cast admission.
+  Volatile producers run once; source errors, domain checks and integer-to-UNKNOWN
+  rejection remain observable. Wrong-arity diagnostics distinguish TEXT from
+  UNKNOWN through ordinary and actual HasCasts routes, including UTF8 positions.
+  Run this selector natively and with `REFERENCE=1`; expectations are independent
+  released-rule assertions, not native goldens or a claim of oracle verification.
 - Domain defaults: `RUN='^TestReferenceDomainDefault'`
 - Domain CHECK: `RUN='^TestReferenceDomainCheck'`
 - ALTER DOMAIN: `RUN='^TestReferenceDomainAlter'`

@@ -11,8 +11,11 @@ import (
 
 type LiteralExpr struct {
 	expr.Info
-	Value sqltype.Value
+	Value        sqltype.Value
+	UnknownInput *expr.UnknownInput
 }
+
+func (e LiteralExpr) UnknownInputSource() *expr.UnknownInput { return e.UnknownInput }
 
 func (e LiteralExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
@@ -67,9 +70,10 @@ func (e ParameterExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type CoercionExpr struct {
 	expr.Info
-	Child expr.Expr
-	Plan  sqltype.CoercionPlan
-	Mode  sqltype.CoercionContext
+	Child            expr.Expr
+	Plan             sqltype.CoercionPlan
+	Mode             sqltype.CoercionContext
+	UnknownInputCast *UnknownInputCast
 	// The explicit conversion belongs to the enclosing ARRAY or ROW cast, not
 	// to a written cast at this element's raw syntax occurrence.
 	SyntheticConstructorElement bool

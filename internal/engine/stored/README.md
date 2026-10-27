@@ -27,6 +27,32 @@ sources and typed local Usages participate in validation, equivalence and remap;
 declared pseudo signatures pass the same determinability and language checks as
 creation, separately from concrete invocation validation. No activation values or
 evaluated PL expressions enter stored payloads.
+
+Type inquiry recipes retain their selected declaration, ordered demanded
+operands and logical type witness through generic rebuild, retag and remap.
+Unknown literal and analyzer-confirmed pseudo-cast syntax remains unknown on
+replay despite concrete TEXT execution transport. Genuine string-to-UNKNOWN IO
+casts retain actual producers and logical target705 in the existing cast Usage
+map, render a real UNKNOWN cast (not TEXT or no-op elision), and validate target
+catalog ownership through a bounded metadata-only declaration helper. Retagging
+revalidates source/target/operation/properties without copying unchanged backing.
+Every original transparent cast retains its resolved target and normal frozen
+child ordinal. Literal chains terminate at the exact authenticated raw literal;
+IO chains terminate at one genuine executable conversion. Rendering may elide
+authenticated no-ops, never real IO or explicit concrete casts. Publication checks
+every target generation and chain order. Frozen cast usages must also match the
+actual bound IO carrier or transparent step at the original source occurrence:
+complete syntax, including positions, and its owning query frame are authority,
+not neighboring entries in the cast map or canonical descriptor ownership alone.
+The same literal-validation seam rejects cast-usage substitutions from UNKNOWN
+to TEXT, concrete to UNKNOWN, and between outer steps in both views and policies.
+An actual explicit concrete TEXT exit is a separate ordinary coercion around
+the authenticated inner carrier: frozen and scalar rendering retain that boundary
+and replay concrete identity25 without replacing genuine source-output IO.
+Identity retag/remap preserves accepted backing and rejected publication cannot
+mutate it. These captures grant no executable pseudo usage or unbacked
+presentation authority.
+Stable inquiry outputs are not serialized or retained as planning constants.
 Procedure result policy remains declaration-owned through validation and remap:
 every OUT/INOUT tuple is RECORD even with one member, while no-output is VOID.
 The shared original-occurrence memo maps output shape, formals and child
@@ -772,6 +798,9 @@ is involved. Ordinary view/rule/routine replay modes remain unchanged.
 redump/replacement, renamed providers/attributes and retained payload ownership.
 
 ## Testing
+
+Type inquiry immutable recipe ownership and frozen view/policy cast-occurrence
+authority use `RUN='^TestTypeDescribe(StoredOwnership|ComposedStoredOwnership|FrozenCastOccurrence)$'`.
 
 Package units cover the payload API, rule presentation, routine recipes and aggregate recipes.
 `TestViewPartsRoundTrip` and `TestRulePartsRoundTrip` require every `View`,

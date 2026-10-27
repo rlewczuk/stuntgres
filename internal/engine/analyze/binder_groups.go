@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -113,14 +114,16 @@ type ClauseState struct {
 	FunctionProjection  FunctionProjectionScope
 	// Selected operator and SQL routine calls bind their arguments once and
 	// expose them to provider binding through these slots.
-	SelectedOperatorArgs   []expr.Expr
-	SelectedOperatorSyntax []parser.Expr
-	SelectedCallArguments  bool              // Known arguments remain reusable throughout provider binding.
-	selectedCallReentry    bool              // Only the immediate selected occurrence skips selection once.
-	selectedWindowCallee   parser.ObjectName // Diagnostic spelling, never lookup authority.
-	selectedAggregate      *catalog.Procedure
-	selectedProcedure      *catalog.Procedure // Live catalog winner; provider symbol is not a public alias.
-	selectedFilter         expr.Expr          // Bound FILTER belongs only to the immediate selected call.
+	SelectedOperatorArgs        []expr.Expr
+	SelectedOperatorSyntax      []parser.Expr
+	SelectedCallArguments       bool              // Known arguments remain reusable throughout provider binding.
+	selectedCallReentry         bool              // Only the immediate selected occurrence skips selection once.
+	selectedWindowCallee        parser.ObjectName // Diagnostic spelling, never lookup authority.
+	selectedAggregate           *catalog.Procedure
+	selectedProcedure           *catalog.Procedure                    // Live catalog winner; provider symbol is not a public alias.
+	selectedTypeInquiryUnknown  *functions.TypeInquiryUnknownArgument // Current selected unary input only; saved/restored with its operand frame.
+	selectedTypeInquiryStringIO *sqltype.Descriptor
+	selectedFilter              expr.Expr // Bound FILTER belongs only to the immediate selected call.
 }
 
 // GroupingState collects the aggregates, grouping sets and window calls of

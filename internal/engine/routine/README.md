@@ -151,6 +151,9 @@ package or the engine.
   the builtin SQL-body edges. Each executable declaration names its routine
   provider with fixed OID, signature and attributes; lookup-only identities
   never become executable or grant a binding.
+  The three type inquiries (1081, 1619, 6315) use `CatalogRoutineProvider`,
+  with released formal/result, stable/strict and display facts in the same
+  inventories; the ANY formal remains distinct from its concrete invocation.
   Fixed OUT type IDs and complete formal names live on those same declaration
   rows as immutable `catalog.RoutineOutputs`, checked against the sole input
   signature. VARIADIC retains the existing declared signature and element/ANY

@@ -72,6 +72,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_xact_commit_timestamp", "pg_xact_commit_timestamp_origin", "pg_last_committed_xact"}, Claims: parser.CommitTimestampFunctionName, Bind: bindCommitTimestamp, NamedCall: namedCommitTimestamp},
 	{Names: []string{"pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence"}, ExactSpelling: true, SharedGates: true, Bind: bindDeparse},
 	{Names: []string{"col_description", "obj_description", "shobj_description"}, ExactSpelling: true, SharedGates: true, Bind: bindCommentInquiry},
+	{Names: []string{"format_type", "pg_basetype", "pg_typeof"}, ExactSpelling: true, Bind: bindTypeInquiry, ProbeCall: probeTypeInquiry},
 	{Names: []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_collation_actual_version", "pg_database_collation_actual_version", "pg_import_system_collations"}, ExactSpelling: true, SharedGates: true, Bind: bindVisibilityInquiry},
 	{Names: []string{"pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property"}, ExactSpelling: true, SharedGates: true, Bind: bindIndexProperty},
 	{Names: []string{"pg_identify_object", "pg_identify_object_as_address", "pg_get_object_address", "pg_describe_object"}, Claims: parser.ObjectAddressFunctionName, Bind: bindObjectAddress, NamedCall: namedObjectAddress},

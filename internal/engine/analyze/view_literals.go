@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"reflect"
 	"stuntgres/internal/engine/catalog"
 
 	"stuntgres/internal/engine/exec"
@@ -205,6 +206,12 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 		}
 		if literal, ok := bound.(plan.LiteralExpr); ok {
+			if err := literal.UnknownInput.Validate(literal.Usage, literal.Value); err != nil {
+				return err
+			}
+			if literal.UnknownInput != nil && !literal.UnknownInput.MatchesLiteral(raw) {
+				return fmt.Errorf("stuntgres: mismatched unknown input literal source")
+			}
 			if err := ValidateRegroleStoredLiteral(literal.Value); err != nil {
 				return err
 			}
@@ -444,6 +451,29 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return child(r.Child, n.Child)
 		}
 	case parser.CastExpr:
+		if caster, ok := bound.(expr.InputCaster); ok {
+			logical, err := caster.LogicalInputCast()
+			if err != nil {
+				return err
+			}
+			if target := expr.TransparentInputCastTarget(logical.Transparent, r); target != nil {
+				if b.Capture.CastUsages == nil {
+					b.Capture.CastUsages = make(map[ViewLiteralPath]sqltype.Usage)
+				}
+				b.Capture.CastUsages[path] = target.Usage()
+				return child(r.Child, bound)
+			}
+			if logical.Target.Type != nil {
+				if !reflect.DeepEqual(logical.Syntax, r) {
+					return fmt.Errorf("stuntgres: mismatched logical input cast source")
+				}
+				if b.Capture.CastUsages == nil {
+					b.Capture.CastUsages = make(map[ViewLiteralPath]sqltype.Usage)
+				}
+				b.Capture.CastUsages[path] = logical.Target
+				return child(r.Child, logical.Source)
+			}
+		}
 		_, typeNameShortcut := b.Prepared.Types[PreparedTypeKey{Offset: r.Pos.Offset, Kind: TypeNameCast}]
 		if r.Syntax == parser.FunctionCast && !typeNameShortcut {
 			procedure, err := exec.ExpressionRoutineDescriptor(bound)
@@ -481,6 +511,12 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			b.Capture.CastUsages = make(map[ViewLiteralPath]sqltype.Usage)
 		}
 		b.Capture.CastUsages[path] = bound.ResultUsage()
+		if literal, ok := bound.(plan.LiteralExpr); ok && literal.UnknownInput != nil && literal.UnknownInput.MatchesCast(r) {
+			if err := literal.UnknownInput.Validate(literal.Usage, literal.Value); err != nil {
+				return err
+			}
+			b.Capture.CastUsages[path] = literal.UnknownInput.CastTarget(r).Usage()
+		}
 		if coercion, ok := bound.(plan.CoercionExpr); ok && coercion.Mode == sqltype.Explicit {
 			bound = coercion.Child
 		}

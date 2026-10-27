@@ -164,6 +164,12 @@ func PlanJSONReturning(source, target Usage) (CoercionPlan, error) {
 // Rebind preserves admitted binary and SQL/JSON conversion operations across
 // descriptor generations without consulting a later catalog edge.
 func (p CoercionPlan) Rebind(source, target Usage, mode CoercionContext) (CoercionPlan, error) {
+	if p.unknownInput {
+		if mode != Explicit {
+			return CoercionPlan{}, fmt.Errorf("invalid unknown input cast context")
+		}
+		return PlanUnknownInputTransport(source, target)
+	}
 	if p.binary.method != binaryCoercionNone {
 		next, err := PlanDeclaredBinaryCoercion(source, target)
 		if err == nil && next.binary.method != p.binary.method {

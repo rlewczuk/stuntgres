@@ -22,7 +22,21 @@ type Argument struct {
 	Raw        parser.Expr
 	Usage      sqltype.Usage
 	Kind       ArgumentKind
+	// TypeInquiryUnknown is analyzer-confirmed logical UNKNOWN provenance,
+	// including an existing successful pseudo-cast no-op.
+	TypeInquiryUnknown *TypeInquiryUnknownArgument
+	// TypeInquiryStringIO authenticates a real explicit string-output to
+	// UNKNOWN cast; Expression owns its concrete IO transport and source.
+	TypeInquiryStringIO *sqltype.Descriptor
 }
+
+type TypeInquiryUnknownArgument struct {
+	Literal  parser.LiteralExpr
+	CastType *sqltype.Descriptor
+	Raw      parser.Expr
+	Chain    []expr.TransparentInputCast
+}
+
 type AnalysisIntent uint8
 
 const (
@@ -45,6 +59,9 @@ const (
 	// BareProjectionArgument binds the operand in projection context without
 	// the unknown-NULL annotation, as aggregate arguments are bound.
 	BareProjectionArgument
+	// TypeInquiryArgument preserves direct unknown literals and the logical
+	// witness of the analyzer's already-admitted pseudo-cast no-op branch.
+	TypeInquiryArgument
 )
 
 type AnalysisRequest struct{ Intent AnalysisIntent }

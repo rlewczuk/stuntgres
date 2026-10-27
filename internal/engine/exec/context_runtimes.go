@@ -101,6 +101,22 @@ func (c *Context) BlockingInquiry(kind functions.BlockingKind, pid int64, result
 
 var _ functions.CatalogInquiryRuntime = (*Context)(nil)
 
+func (c *Context) FormatType(oid uint32, typmod int32, specified bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing type inquiry snapshot")
+	}
+	return host.FormatType(oid, typmod, specified, result)
+}
+
+func (c *Context) BaseType(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing type inquiry snapshot")
+	}
+	return host.BaseType(oid, result)
+}
+
 func (c *Context) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
 	if host == nil {

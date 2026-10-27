@@ -248,6 +248,12 @@ func ConstantLiteral(ctx context.Context, n plan.LiteralExpr) (string, error) {
 	if n.Value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
 	}
+	if n.UnknownInput != nil {
+		if err := n.UnknownInput.Validate(u, n.Value); err != nil {
+			return "", err
+		}
+		return u.Type.SQLLiteral(ctx, n.Value)
+	}
 	if n.UnknownNull {
 		if !n.Value.IsNull() || u.Type.ID() != sqltype.Text {
 			return "", fmt.Errorf("stuntgres: invalid unknown NULL provenance")

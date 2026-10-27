@@ -91,7 +91,24 @@ an occurrence-owned deferred transport before argument assembly. The accepted
 signature follows that transport or its completed FROM shape into private
 invocation; the published declaration and provider reference remain unchanged.
 Unknown string and NULL casts to scalar-family pseudo identities preserve their
-UNKNOWN provenance rather than constructing pseudo datums.
+UNKNOWN provenance rather than constructing pseudo datums. Selected type-inquiry
+analysis recursively binds cast children once, carrying ordered resolved no-op
+steps through stack-local results and authenticated private selected-call reentry.
+The same logical UNKNOWN facts precede concrete transport in wrong-arity names,
+including multiple actuals on the catalog-cast callable route. Genuine string-
+category expressions cast to UNKNOWN retain one producing child and one true
+output-to-TEXT-input coercion, with outer no-ops only in immutable provenance.
+Domains keep their nominal source and producer checks. Every original cast has
+its exact resolved target/dependency and frozen ordinal; ordinary nil-sink casts,
+concrete TEXT, and unresolved parameter inference are not widened.
+An explicit concrete TEXT exit from authenticated UNKNOWN retains an ordinary
+explicit identity coercion even when its physical transport is already TEXT.
+The result clears logical UNKNOWN evidence; the inner raw/no-op or genuine IO
+carrier retains its exact syntax, generations and effects for capture and replay.
+The coarse callable path also runs the genuine inquiry family's pure formal
+probe: catalog-cast presence must not erase an ANY/UNKNOWN candidate. Matching
+fixed-signature VARIADIC syntax on those three selected builtin identities reaches
+that same probe; unrelated fixed declarations keep their existing shape gate.
 
 ## Imports
 
@@ -273,6 +290,13 @@ library, and never the root engine or `session`. The engine, the root driver
   identity and admission/remap ownership; `CachedOrderExpr` only reads a slot.
 - **Default evaluation** (`default_eval.go`): `ApplyDefaultOrigin` and
   `EvalDefault` over an `exec.Context`.
+  `CaptureRetainedWriteInput` also walks retained defaults, generation plans and
+  CHECKs for each node's `SnapshotDemander` visibility demand. These recipes skip
+  ordinary function binding: runtime demand must reach the consuming statement's
+  captured snapshot even when the outer node (such as `pg_typeof`) needs none.
+  This walk captures no catalog authority and evaluates no children. Non-binding
+  COPY and foreign-key SET DEFAULT consumers forward the resulting demand to
+  the same statement-owned snapshot capture used by bound commands.
 
 ## Invariants
 

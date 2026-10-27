@@ -17,7 +17,7 @@ import (
 // CREATE OR REPLACE declarations. These are not native observations or copies
 // of production display/signature/property data. Only represented membership
 // comes from the actual routine declaration/cast completion and fixed conversion,
-// access-method, BRIN, shared-memory and generic-file descriptor owners. The existing 1716
+// access-method, BRIN, shared-memory and generic-file descriptor owners. The existing 1719
 // information_schema fact approach is reused, not mistaken for complete membership.
 // The fourteen parser/vector/DDL-receiver and twelve RI supplements are included.
 // Sources:
@@ -120,9 +120,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 		}
 	}
 	// This is the exact represented membership, not a guessed PostgreSQL total:
-	// 1869 actual primary + 96 other fixed owners + 26 metadata supplements.
-	if len(facts) != 1991 {
-		t.Fatalf("released represented overloads: got %d, want 1991", len(facts))
+	// 1872 actual primary + 96 other fixed owners + 26 metadata supplements.
+	if len(facts) != 1994 {
+		t.Fatalf("released represented overloads: got %d, want 1994", len(facts))
 	}
 	return facts
 }

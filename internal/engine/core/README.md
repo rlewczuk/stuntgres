@@ -782,6 +782,18 @@ It retains immutable vectors, not mutable heap headers or prepared numeric/ACL
 results. The allocation model belongs to
 [`storage`](../storage/README.md#logical-allocation-estimates).
 
+`statementHost.FormatType` consumes the existing immutable visibility catalog
+and authorized relation/type-compatible path, including the session's TEMP
+namespace. `BaseType` needs only that catalog. Both are captured at the execution
+frontier with schema USAGE filtering and normal implicit/explicit pg_catalog
+precedence. The TEMP-filtered conversion/collation path keeps independent backing
+and is not used for type formatting. Expression snapshot demand and retained
+DEFAULT/generation/CHECK/view recipes select the capture; evaluation never rereads
+session settings. COPY WHERE forwards its local binder's demand after target and
+used-column authorization, before predicate preflight. Retained write demand adds
+to that capture without replacing or clearing it. REGTYPE results use ordinary
+retained row-output spelling, independently of formatter TEXT.
+
 `DDLHost` keeps only the `ddl.Host` methods, what core paths call
 (`LookupCollation`, `NamedType`, `OtherDatabaseDependencies`) and the methods
 that unrelated family hosts share (`AddDomainBase`, `RemoveObject`,
@@ -1473,6 +1485,16 @@ Other planner-option admission, actual collection/publication, branch selection,
 cursor-source retention and scoped recursive estimates use `RUN='^TestPlannerOther'`.
 Composed witnesses inspect the real admitted owners; public SQL bags and
 diagnostics remain in `reference/session_state`.
+
+Type inquiry retained-definition, stored and concurrent ownership units use
+`RUN='^TestTypeDescribe(PreparedOwnership|StoredOwnership|ConcurrentReuse)$'`,
+also with `RACE=1`. The composed cases inspect real accepted bindings, private
+producer frames and immutable fold generations rather than SQL equality.
+
+Type-path backing and COPY predicate/retained-recipe demand units use
+`RUN='^TestTypeDescribe(CapturedTypePath|CopySnapshotDemand|RetainedSnapshotDemand)$'`.
+These inspect the real authorized capture and preflight boundary; public SQL
+TEMP qualification and COPY rows/errors remain in the reference definitions.
 
 Statistics definition/capture/replay invariants use `RUN='^TestStatisticsObject'`.
 Publication units use real provider barriers and exact namespace/name resources,

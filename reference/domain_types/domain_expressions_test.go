@@ -35,19 +35,15 @@ func TestReferenceDomainExpressions(t *testing.T) {
 			run(s)
 			run(fixture.Prepared(s))
 		}
-		// Explicit external-only identity controls: RowDescription flattens domains.
-		// These controls do not introduce pg_typeof into the native SQL dialect.
-		if backend.PG {
-			identity := []fixture.Step{
-				fixture.Select("SELECT pg_typeof(i)::text AS bare,pg_typeof(i+1)::text AS base,pg_typeof((i+1)::domain_s.di)::text AS restored FROM domain_s.expr WHERE id=1", []string{"bare", "base", "restored"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"domain_s.di", "integer", "domain_s.di"}}),
-				fixture.Select("SELECT pg_typeof(coalesce(NULL::domain_s.di,7::domain_s.di))::text AS same,pg_typeof(coalesce(NULL::domain_s.di,7::integer))::text AS mixed,pg_typeof(coalesce(NULL::domain_s.di,7::domain_s.dj))::text AS distinct", []string{"same", "mixed", "distinct"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"domain_s.di", "integer", "integer"}}),
-				fixture.Select("SELECT pg_typeof(CASE WHEN TRUE THEN 7::domain_s.di ELSE NULL::domain_s.di END)::text AS same,pg_typeof(CASE WHEN TRUE THEN 7::domain_s.di ELSE 8 END)::text AS mixed", []string{"same", "mixed"}, []string{"TEXT", "TEXT"}, [][]any{{"domain_s.di", "integer"}}),
-				fixture.Select("SELECT pg_typeof(v)::text AS same FROM (VALUES (7::domain_s.di),(NULL::domain_s.di)) AS x(v)", []string{"same"}, []string{"TEXT"}, [][]any{{"domain_s.di"}, {"domain_s.di"}}),
-			}
-			for _, s := range identity {
-				run(s)
-				run(fixture.Prepared(s))
-			}
+		identity := []fixture.Step{
+			fixture.Select("SELECT pg_typeof(i)::text AS bare,pg_typeof(i+1)::text AS base,pg_typeof((i+1)::domain_s.di)::text AS restored FROM domain_s.expr WHERE id=1", []string{"bare", "base", "restored"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"domain_s.di", "integer", "domain_s.di"}}),
+			fixture.Select("SELECT pg_typeof(coalesce(NULL::domain_s.di,7::domain_s.di))::text AS same,pg_typeof(coalesce(NULL::domain_s.di,7::integer))::text AS mixed,pg_typeof(coalesce(NULL::domain_s.di,7::domain_s.dj))::text AS distinct", []string{"same", "mixed", "distinct"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"domain_s.di", "integer", "integer"}}),
+			fixture.Select("SELECT pg_typeof(CASE WHEN TRUE THEN 7::domain_s.di ELSE NULL::domain_s.di END)::text AS same,pg_typeof(CASE WHEN TRUE THEN 7::domain_s.di ELSE 8 END)::text AS mixed", []string{"same", "mixed"}, []string{"TEXT", "TEXT"}, [][]any{{"domain_s.di", "integer"}}),
+			fixture.Select("SELECT pg_typeof(v)::text AS same FROM (VALUES (7::domain_s.di),(NULL::domain_s.di)) AS x(v)", []string{"same"}, []string{"TEXT"}, [][]any{{"domain_s.di"}, {"domain_s.di"}}),
+		}
+		for _, s := range identity {
+			run(s)
+			run(fixture.Prepared(s))
 		}
 	})
 }

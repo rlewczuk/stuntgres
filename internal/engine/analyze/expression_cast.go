@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -26,11 +27,27 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 }
 
 func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.Expr, error) {
+	return b.cast(raw, outerPolicy, nil, nil)
+}
+
+// The optional witness belongs only to selected argument analysis. The ordinary
+// cast path remains identical and no lexical flag can escape into sibling calls.
+func (b *Binder) cast(raw parser.CastExpr, outerPolicy ExpressionPolicy, witness **functions.TypeInquiryUnknownArgument, stringIO **sqltype.Descriptor) (expr.Expr, error) {
 	rawNull, isNull := raw.Child.(parser.LiteralExpr)
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
 	var target sqltype.Usage
 	var err error
 	var boundChild expr.Expr
+	var childUnknown *functions.TypeInquiryUnknownArgument
+	var childIO *sqltype.Descriptor
+	// Selected recursion resolves each child cast before its enclosing target.
+	// The bound child is reused even when the outer target is not transparent.
+	if childCast, ok := raw.Child.(parser.CastExpr); ok && witness != nil && stringIO != nil {
+		boundChild, err = b.cast(childCast, outerPolicy, &childUnknown, &childIO)
+		if err != nil {
+			return nil, err
+		}
+	}
 	annotation, err := b.castAnnotation(raw)
 	if err != nil {
 		return nil, err
@@ -45,7 +62,9 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		case parser.LiteralExpr:
 			return nil, err
 		}
-		boundChild, _ = b.Bind(raw.Child, ExpressionPolicy{Context: ProjectionContext})
+		if boundChild == nil {
+			boundChild, _ = b.Bind(raw.Child, ExpressionPolicy{Context: ProjectionContext})
+		}
 		if boundChild == nil || boundChild.ResultUsage().Type == nil {
 			return nil, err
 		}
@@ -56,10 +75,53 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		target = resolved
 		err = nil
 	}
+	// Selected analysis owns the child once, including its logical authority.
+	// Redundant casts extend provenance, never the executable evaluator graph.
+	if boundChild != nil {
+		if (childUnknown != nil || childIO != nil) && expr.TransparentUnknownTarget(target.Type) {
+			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.Type.ID())}
+			descriptor, ok := b.definitionDescriptor(address)
+			if !ok {
+				return nil, fmt.Errorf("stuntgres: missing composed unknown cast authority")
+			}
+			b.dependency(b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), address), descriptor.Revision())
+			step := expr.TransparentInputCast{Syntax: raw, Target: target.Type}
+			if childUnknown != nil {
+				count := max(1, len(childUnknown.Chain))
+				steps := make([]expr.TransparentInputCast, count+1)
+				if len(childUnknown.Chain) == 0 {
+					steps[0] = expr.TransparentInputCast{Syntax: childUnknown.Raw.(parser.CastExpr), Target: childUnknown.CastType}
+				} else {
+					copy(steps, childUnknown.Chain)
+				}
+				steps[count] = step
+				*witness = &functions.TypeInquiryUnknownArgument{Literal: childUnknown.Literal, Raw: raw, CastType: target.Type, Chain: steps}
+			} else {
+				coercion, ok := boundChild.(plan.CoercionExpr)
+				if !ok {
+					return nil, fmt.Errorf("stuntgres: composed unknown IO lacks transport")
+				}
+				if _, err := coercion.LogicalInputCast(); err != nil {
+					return nil, err
+				}
+				marker := *coercion.UnknownInputCast
+				marker.Transparent = make([]expr.TransparentInputCast, len(marker.Transparent)+1)
+				copy(marker.Transparent, coercion.UnknownInputCast.Transparent)
+				marker.Transparent[len(marker.Transparent)-1] = step
+				coercion.UnknownInputCast = &marker
+				boundChild, *stringIO = coercion, childIO
+			}
+			return boundChild, nil
+		}
+	}
 	if target.Type.ID() == 2281 {
 		source := "unknown"
 		if !isNull || rawNull.Value.Kind != parser.NullValue && rawNull.Value.Kind != parser.StringValue {
-			child, bindErr := b.Bind(raw.Child, ExpressionPolicy{Context: ProjectionContext})
+			child := boundChild
+			var bindErr error
+			if child == nil {
+				child, bindErr = b.Bind(raw.Child, ExpressionPolicy{Context: ProjectionContext})
+			}
 			if bindErr != nil {
 				return nil, bindErr
 			}
@@ -70,7 +132,17 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	if literal, ok := raw.Child.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.NullValue || literal.Value.Kind == parser.StringValue) {
 		switch target.Type.ID() {
 		case 2276, 2283, 2776, 5077, 5079:
-			return b.Bind(raw.Child, outerPolicy)
+			node, err := b.Bind(raw.Child, outerPolicy)
+			if err == nil && witness != nil {
+				address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.Type.ID())}
+				descriptor, ok := b.definitionDescriptor(address)
+				if !ok {
+					return nil, fmt.Errorf("stuntgres: missing unknown cast type authority")
+				}
+				b.dependency(b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), address), descriptor.Revision())
+				*witness = &functions.TypeInquiryUnknownArgument{Literal: literal, CastType: target.Type, Raw: raw}
+			}
+			return node, err
 		case 3500:
 			return nil, expr.ErrorAt("42846", "cannot cast type unknown to anyenum", raw.Pos)
 		case 269, 325, 2280, 3115, 3310, 2279, 3838:
@@ -98,13 +170,30 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		b.Prepared.Types[key] = TypeOccurrence{Kind: kind, Base: target}
 	}
 	if target.Type.ID() == sqltype.Unknown {
-		// Only an unresolved input can retain UNKNOWN syntax provenance.
-		// A known SQL type must not gain a cast merely because no datum is built.
-		source, err := b.comparisonOperand(raw.Child)
-		if err != nil {
-			return nil, err
+		// Selected type inquiries can retain a genuine string-category IO
+		// cast without constructing an executable UNKNOWN value.
+		source := ComparisonOperand{Node: boundChild, raw: raw.Child}
+		if boundChild == nil {
+			source, err = b.comparisonOperand(raw.Child)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if typ := source.descriptor(); typ != nil {
+			if stringIO != nil {
+				transport, err := sqltype.PlanUnknownInputTransport(source.Node.ResultUsage(), b.Type(sqltype.Text).Usage())
+				if err == nil {
+					address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.Type.ID())}
+					descriptor, ok := b.definitionDescriptor(address)
+					if !ok {
+						return nil, fmt.Errorf("stuntgres: missing unknown IO target authority")
+					}
+					b.dependency(b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), address), descriptor.Revision())
+					info := b.Info(b.Type(sqltype.Text).Usage(), raw.Pos, CoercionProperties(source.Node, transport))
+					*stringIO = target.Type
+					return plan.CoercionExpr{Info: info, Child: source.Node, Plan: transport, Mode: sqltype.Explicit, UnknownInputCast: &plan.UnknownInputCast{Source: source.Node.ResultUsage(), Target: target.Type, Syntax: raw}}, nil
+				}
+			}
 			if _, parameter := raw.Child.(parser.ParameterExpr); parameter && b.Expected.Held {
 				// The accepted recipe already admitted this UNKNOWN no-op before
 				// output inference. Its retained parameter type is not a new cast.
@@ -115,7 +204,20 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 			}
 			return nil, expr.ErrorAt("42846", "cannot cast type "+b.DiagnosticTypeName(typ)+" to unknown", raw.Pos)
 		}
-		return b.Bind(raw.Child, outerPolicy)
+		node := boundChild
+		if node == nil {
+			node, err = b.Bind(raw.Child, outerPolicy)
+		}
+		if literal, ok := raw.Child.(parser.LiteralExpr); err == nil && witness != nil && ok && (literal.Value.Kind == parser.NullValue || literal.Value.Kind == parser.StringValue) {
+			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.Type.ID())}
+			descriptor, ok := b.definitionDescriptor(address)
+			if !ok {
+				return nil, fmt.Errorf("stuntgres: missing unknown cast type authority")
+			}
+			b.dependency(b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), address), descriptor.Revision())
+			*witness = &functions.TypeInquiryUnknownArgument{Literal: literal, CastType: target.Type, Raw: raw}
+		}
+		return node, err
 	}
 	if row, ok := raw.Child.(parser.RowExpr); ok && target.Type.BaseType().IsComposite() && target.Type.ID() != 2249 {
 		return b.BindRow(row, target, sqltype.Explicit, raw.Pos)
@@ -177,6 +279,16 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	}
 	if err != nil {
 		return nil, err
+	}
+	// Logical UNKNOWN can use TEXT physically without having exited to TEXT.
+	// Keep the explicit boundary and attach raw authority to its inner literal,
+	// not to the concrete result. Genuine IO already owns its inner authority.
+	textExit := target.Type.ID() == sqltype.Text && (childUnknown != nil || childIO != nil)
+	if textExit && childUnknown != nil {
+		child, err = typeInquiryUnknownTransport(child, childUnknown)
+		if err != nil {
+			return nil, err
+		}
 	}
 	// Bind annotations before moving them so their original type checks,
 	// locations, captured identities and child effects remain authoritative.
@@ -240,7 +352,7 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	if coercionPlan.RequiresCatalogOutput() {
 		b.Prepared.RegclassConcat = true
 	}
-	if source == target {
+	if source == target && !textExit {
 		return RestoreDomainCastCollations(annotations, child), nil
 	}
 	info.Property = CoercionProperties(child, coercionPlan)

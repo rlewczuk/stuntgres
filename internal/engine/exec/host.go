@@ -69,6 +69,8 @@ type Host interface {
 	Advisory(c *Context, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error)
 	BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.CatalogInquiryRuntime
+	FormatType(uint32, int32, bool, *sqltype.Descriptor) (sqltype.Value, error)
+	BaseType(uint32, *sqltype.Descriptor) (sqltype.Value, error)
 	CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error)

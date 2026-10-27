@@ -29,6 +29,14 @@ import it.
   use; the caller passes the inquiry catalog and path on every call.
   Diagnostic `WriteRoutineArguments` accepts a transient definition reader so
   CREATE validation sees staged argument types without cloning a catalog.
+- **Raw type inquiries** (`type_format.go`): `FormatType` renders canonical SQL
+  names and raw typmods over a supplied catalog and type path, keeping absent
+  modifiers distinct from explicit -1. This is not declaration validation or
+  REGTYPE's missing-OID output. `BaseType` follows each immediate domain link
+  through that same catalog, returning not-found for a missing link.
+  Logical UNKNOWN cast naming authenticates every ordered no-op target against
+  the current definition/catalog descriptor generation. This metadata-only
+  check cannot grant a pseudo codec or turn an outer no-op into a second IO cast.
 - **Prepared reg\* literal analysis** (`regtype_analysis.go`): `Analysis`,
   the cell a prepared statement holds for its reg\* constants (`Constants`,
   the role, database and lookup paths they were resolved under), with
@@ -232,6 +240,9 @@ in `internal/engine/core`
 and [reference/types](../../../reference/types/README.md#testing) (`aclitem`).
 Input-origin changes must keep the direct, parameter and runtime presentation
 groups of every reg\* family passing. Add `REFERENCE=1` for the oracle.
+Raw type formatting and immediate-base traversal units live in `enginetests`
+and use `RUN='^TestTypeDescribe(Formatter|BaseType)$'`; shared public scenarios
+live in `reference/domain_types`.
 
 ```sh
 make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|DroppedIdentity|VisibilityInquiryCollation|GeometryConversionCBox|GeometryRelationLiteral)'

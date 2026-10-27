@@ -55,13 +55,9 @@ func TestReferenceLoIdentityMetadata(t *testing.T) {
 			s := fixture.Select("SELECT t.typname AS logical,t.typtype AS kind,t.typbasetype::bigint AS base FROM pg_attribute a JOIN pg_type t ON t.oid=a.atttypid WHERE a.attrelid='lo_metadata'::regclass AND a.attname='v'", []string{"logical", "kind", "base"}, []string{"NAME", "CHAR", "INT8"}, [][]any{{"lo", "d", int64(26)}})
 			s.Prepared = prepared
 			loRun(t, p, b, c, s)
-			// PostgreSQL's expression inquiry supplements the shared catalog
-			// identity witness, as in the ordinary domain-expression scenarios.
-			if b.PG {
-				s = fixture.Select("SELECT pg_typeof(v)::text AS logical,pg_typeof(v::oid)::text AS physical,pg_typeof(NULL::lo)::text AS typed_null FROM lo_metadata WHERE id=2", []string{"logical", "physical", "typed_null"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"lo", "oid", "lo"}})
-				s.Prepared = prepared
-				loRun(t, p, b, c, s)
-			}
+			s = fixture.Select("SELECT pg_typeof(v)::text AS logical,pg_typeof(v::oid)::text AS physical,pg_typeof(NULL::lo)::text AS typed_null FROM lo_metadata WHERE id=2", []string{"logical", "physical", "typed_null"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"lo", "oid", "lo"}})
+			s.Prepared = prepared
+			loRun(t, p, b, c, s)
 		}
 		loRun(t, p, b, c, fixture.Select("SELECT atttypid='lo'::regtype AS logical,atttypid<>26 AS not_base FROM pg_attribute WHERE attrelid='lo_metadata'::regclass AND attname='v'", []string{"logical", "not_base"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 	})

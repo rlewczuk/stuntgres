@@ -19,19 +19,21 @@ func (definition *View) Validate(v catalog.Read, d *catalog.Relation) error {
 	if definition == nil || definition.syntax == nil || definition.query == nil || definition.query.Root == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.Columns) {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}
-	for _, usage := range definition.castUsages {
+	// Authenticate original cast occurrences before accepting their descriptor
+	// usages independently. Canonical ownership alone is not cast authority.
+	if err := definition.ValidateLiterals(v); err != nil {
+		return err
+	}
+	for path, usage := range definition.castUsages {
 		if usage.Type == nil {
 			return fmt.Errorf("stuntgres: missing view cast type")
 		}
-		if !ValidExpressionUsage(v, usage) {
+		if !definition.validCapturedCastUsage(v, path, usage) {
 			return fmt.Errorf("stuntgres: invalid view cast authority")
 		}
 		if err := ValidateUsageCollation(v, usage); err != nil {
 			return err
 		}
-	}
-	if err := definition.ValidateLiterals(v); err != nil {
-		return err
 	}
 	if err := ValidateViewLeaves(v, definition); err != nil {
 		return err

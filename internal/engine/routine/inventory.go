@@ -15,6 +15,9 @@ import (
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 // Fixed OUT type/name facts below follow PostgreSQL REL_18_6 pg_proc.dat.
 var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDeclaration{
+	{catalog.RoutineIdentity{1081, ids.PGCatalogNamespaceOID, "format_type", "26,23"}, catalog.FunctionRoutine, 25, false, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{6315, ids.PGCatalogNamespaceOID, "pg_basetype", "2206"}, catalog.FunctionRoutine, 2206, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{1619, ids.PGCatalogNamespaceOID, "pg_typeof", "2276"}, catalog.FunctionRoutine, 2206, false, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3355, ids.PGCatalogNamespaceOID, "pg_ndistinct_in", "2275"}, catalog.FunctionRoutine, 3361, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
 	{catalog.RoutineIdentity{3356, ids.PGCatalogNamespaceOID, "pg_ndistinct_out", "3361"}, catalog.FunctionRoutine, 2275, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
 	{catalog.RoutineIdentity{3357, ids.PGCatalogNamespaceOID, "pg_ndistinct_recv", "2281"}, catalog.FunctionRoutine, 3361, true, expr.Stable, 's', false, 0, 0, 0, nil},

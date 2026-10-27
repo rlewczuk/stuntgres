@@ -18,6 +18,12 @@ variadic arguments and declared OUT/INOUT result columns. Calls share the
 executing statement's atomic effects and cancellation. Native fixture controls
 preserve routine declarations and data; see [routine execution](docs/DRIVER.md).
 
+Type inquiries use the same direct, prepared and stored expression paths:
+`pg_typeof(NULL::integer)` returns the REGTYPE identity `integer`,
+`format_type(1700,327686)` returns `numeric(5,2)`, and `pg_basetype` follows
+nested domains without replacing nominal `pg_typeof` identity. Native fixture
+controls preserve the underlying type graph and stored expressions.
+
 `CREATE EXTENSION tablefunc` provides `normal_rand` and the four documented
 `connectby` hierarchy-source overloads. A connectby call in `FROM` supplies its
 anonymous record columns: key, parent, integer depth, optional text branch,

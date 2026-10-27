@@ -1392,7 +1392,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && (enumFunctionName(token.lexeme.text) || jsonCreateFunction(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
-	if token.code == IDENT && VersionInformationFunctionName(token.lexeme.text) {
+	if token.code == IDENT && (VersionInformationFunctionName(token.lexeme.text) || TypeInquiryFunctionName(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
 	if token.code == IDENT && (SnapshotFunctionName(token.lexeme.text) || CatalogRelationFunctionName(token.lexeme.text) || TransactionIdentityFunctionName(token.lexeme.text) || ACLValueFunctionName(token.lexeme.text) || ObjectAddressFunctionName(token.lexeme.text) || RangeInspectFunctionName(token.lexeme.text) || UUIDExtractFunctionName(token.lexeme.text) || NetworkFormatFunctionName(token.lexeme.text) || CommitTimestampFunctionName(token.lexeme.text)) {
@@ -1651,7 +1651,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == CHECK_FUNC && strings.EqualFold(token.lexeme.text, "parse_ident") {
 		token.code = TX_TIME_FUNC
 	}
-	if (token.code == SELECTED_FUNC || token.code == CHECK_FUNC) && VersionInformationFunctionName(token.lexeme.text) {
+	if (token.code == SELECTED_FUNC || token.code == CHECK_FUNC) && (VersionInformationFunctionName(token.lexeme.text) || TypeInquiryFunctionName(token.lexeme.text)) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {

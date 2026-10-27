@@ -138,8 +138,24 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 	case plan.InstalledVerifyHeapamExpr:
 		r.Add(n.Ref.Address)
 	case plan.LiteralExpr:
+		if source := n.UnknownInput; source != nil {
+			if err := source.Validate(n.Usage, n.Value); err != nil {
+				r.Err = err
+				return
+			}
+			if err := regobj.ValidateUnknownInputTargets(r.Catalog, r.definition, source.CastType, source.Chain); err != nil {
+				r.Err = err
+				return
+			}
+		}
 		if typ := n.ResultUsage().Type; typ != nil {
 			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+		}
+		if source := n.UnknownInput; source != nil && source.CastType != nil {
+			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.CastType.ID())})
+			for _, step := range source.Chain {
+				r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(step.Target.ID())})
+			}
 		}
 		r.Add(n.RegclassRef.Address)
 		if r.Err == nil {
@@ -171,6 +187,21 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
 	case plan.CoercionExpr:
+		logical, err := n.LogicalInputCast()
+		if err != nil {
+			r.Err = err
+			return
+		}
+		if err := regobj.ValidateUnknownInputTargets(r.Catalog, r.definition, logical.Target.Type, logical.Transparent); err != nil {
+			r.Err = err
+			return
+		}
+		if logical.Target.Type != nil {
+			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(logical.Target.Type.ID())})
+		}
+		for _, step := range logical.Transparent {
+			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(step.Target.ID())})
+		}
 		if typ := n.ResultUsage().Type; typ != nil {
 			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}

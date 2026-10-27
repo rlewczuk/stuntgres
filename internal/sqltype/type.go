@@ -1850,6 +1850,7 @@ type CoercionPlan struct {
 	jsonUnique                   bool
 	// jsonReturning owns a constructor output conversion, not an enclosing assignment.
 	jsonReturning bool
+	unknownInput  bool // Genuine output-to-TEXT-input transport for logical UNKNOWN.
 }
 
 // ChecksDomain reports runtime CHECK demand, not free VALUE-frame dependence.

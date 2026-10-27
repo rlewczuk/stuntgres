@@ -1059,7 +1059,19 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		if err != nil {
 			return "", err
 		}
+		if marker, target := v.capturedUnknownLiteralCast(path); marker != nil {
+			if marker.CastTarget(e) != target || v.castUsages[path] != target.Usage() {
+				return "", fmt.Errorf("stuntgres: mismatched frozen unknown cast source")
+			}
+			return text, nil
+		}
 		if rawLiteral, ok := e.Child.(parser.LiteralExpr); ok && (rawLiteral.Value.Kind == parser.NullValue || rawLiteral.Value.Kind == parser.StringValue) {
+			if literal, ok := v.literals[literalPath]; ok && literal.UnknownInput != nil && literal.UnknownInput.MatchesCast(e) {
+				if err := literal.UnknownInput.Validate(literal.Usage, literal.Value); err != nil {
+					return "", err
+				}
+				return text, nil
+			}
 			if literal, ok := v.literals[literalPath]; ok && literal.ResultUsage().Type.ID() == sqltype.PgSnapshot {
 				return text, nil
 			}
@@ -1072,6 +1084,20 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		usage, ok := v.castUsages[path]
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
+		}
+		if usage.Type != nil && usage.Type.ID() != sqltype.Unknown && expr.TransparentUnknownTarget(usage.Type) {
+			next := path
+			next.Node++
+			if incoming, ok := v.castUsages[next]; ok && expr.TransparentUnknownTarget(incoming.Type) && v.validCapturedCastUsage(catalogView, path, usage) {
+				return text, nil
+			}
+		}
+		if usage.Type != nil && usage.Type.ID() == sqltype.Unknown {
+			declaration, err := regobj.UnknownInputDeclaration(catalogView, nil, usage)
+			if err != nil {
+				return "", err
+			}
+			return "CAST(" + text + " AS " + declaration + ")", nil
 		}
 		if v.Presentation.Deparse {
 			switch e.Child.(type) {

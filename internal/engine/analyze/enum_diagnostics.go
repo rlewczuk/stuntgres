@@ -102,12 +102,17 @@ func (b *Binder) captureRetainedViewInput(relation *catalog.Relation) error {
 }
 
 // Retained write expressions are not rebound with the consuming statement.
-// Capture input authority and lazy naming without evaluating defaults or branches.
+// Capture input authority, runtime snapshot demand and lazy naming without
+// evaluating defaults or branches. Retained recipes bypass ordinary call binding.
 func (b *Binder) CaptureRetainedWriteInput(defaults []expr.Expr, generations map[int32]catalog.ColumnGeneration, checks []catalog.CheckConstraint) error {
 	var failure error
 	visit := func(node expr.Expr) {
 		if failure != nil {
 			return
+		}
+		if inquiry, ok := node.(expr.SnapshotDemander); ok {
+			_, _, visibility := inquiry.SnapshotDemand(plan.NullLiteral)
+			b.Consumer.VisibilitySnapshot = b.Consumer.VisibilitySnapshot || visibility
 		}
 		failure = CaptureRetainedExpressionInput(node, b.captureElementInput, b.CaptureFTSParserInput, b.CaptureTypeDiagnosticInput)
 	}

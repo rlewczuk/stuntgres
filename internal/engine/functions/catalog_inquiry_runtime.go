@@ -10,6 +10,8 @@ import (
 // CatalogInquiryRuntime borrows captured statement authority for catalog-backed
 // operations. Children are evaluated by their immutable owners before this seam.
 type CatalogInquiryRuntime interface {
+	FormatType(uint32, int32, bool, *sqltype.Descriptor) (sqltype.Value, error)
+	BaseType(uint32, *sqltype.Descriptor) (sqltype.Value, error)
 	CatalogUserName(uint32, *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceLocation(uint32, *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceDatabase(uint32, *sqltype.Descriptor) (sqltype.Value, bool, error)

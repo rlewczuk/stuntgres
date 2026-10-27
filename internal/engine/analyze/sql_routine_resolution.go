@@ -33,10 +33,12 @@ type SQLCallable struct {
 }
 type sqlCallableSelection struct {
 	SQLCallable
-	auth       Authority
-	args       []expr.Expr
-	filter     expr.Expr
-	properties expr.Properties
+	auth                Authority
+	args                []expr.Expr
+	filter              expr.Expr
+	properties          expr.Properties
+	typeInquiryUnknown  *functions.TypeInquiryUnknownArgument
+	typeInquiryStringIO *sqltype.Descriptor
 	// Ordinary selected typename calls retain their target and analyzed operand,
 	// not a synthetic parser FunctionCast or a speculative routine winner.
 	typeNameTarget  sqltype.Usage
@@ -136,6 +138,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		seen = make(map[catalog.ProcedureSignature]bool)
 	}
 	hasSQL, hasCube := false, false
+	typeInquiryCandidate := false
 	for i := range path.Count() {
 		for d := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.Host.DefinitionOf(auth), path.At(i), name) {
 			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || len(raw.ArgNames) == 0 && seen[d.Signature] {
@@ -162,6 +165,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			}
 			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil && !internalSignature {
 				continue
+			}
+			if !raw.ProcedureCall && d.Builtin != nil && d.Builtin.Identity.ID == 1619 && d.Builtin.Providers&functions.CatalogRoutineProvider != 0 {
+				typeInquiryCandidate = true
 			}
 			candidate, valid := SQLCallableShape(auth.ReadCatalog(), b.Host.DefinitionOf(auth), d, raw)
 			if valid {
@@ -241,7 +247,11 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		if raw.ProcedureCall {
 			b.Dependencies = nil
 		}
-		operands[i], err = b.comparisonOperand(arg)
+		if typeInquiryCandidate {
+			operands[i], err = b.comparisonTypeInquiryOperand(arg)
+		} else {
+			operands[i], err = b.comparisonOperand(arg)
+		}
 		if raw.ProcedureCall {
 			callArguments[i].dependencies, b.Dependencies = b.Dependencies, previousDependencies
 		}
@@ -423,6 +433,21 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		}
 	}
 	for i, o := range operands {
+		if i == 0 && len(operands) == 1 && selection.Procedure.Builtin != nil && selection.Procedure.Builtin.Identity.ID == 1619 && selection.Procedure.Builtin.Providers&functions.CatalogRoutineProvider != 0 && o.typeInquiryUnknown.CastType != nil {
+			witness := o.typeInquiryUnknown
+			selection.typeInquiryUnknown = &witness
+			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(witness.CastType.ID())}
+			descriptor, ok := b.definitionDescriptor(address)
+			if !ok {
+				return selection, true, fmt.Errorf("stuntgres: missing selected unknown cast authority")
+			}
+			b.dependency(b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), address), descriptor.Revision())
+			selection.args[i] = o.Node
+		}
+		if i == 0 && len(operands) == 1 && selection.Procedure.Builtin != nil && selection.Procedure.Builtin.Identity.ID == 1619 && selection.Procedure.Builtin.Providers&functions.CatalogRoutineProvider != 0 && o.typeInquiryStringIO != nil {
+			selection.typeInquiryStringIO = o.typeInquiryStringIO
+			selection.args[i] = o.Node
+		}
 		target := selection.Inputs[i]
 		if selection.Targets != nil {
 			target = selection.Targets[i]
@@ -1056,6 +1081,8 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	}
 	previous, previousSyntax, previousArguments := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments
 	previousReentry, previousCallee := b.Clause.selectedCallReentry, b.Clause.selectedWindowCallee
+	previousTypeInquiryUnknown := b.Clause.selectedTypeInquiryUnknown
+	previousTypeInquiryStringIO := b.Clause.selectedTypeInquiryStringIO
 	previousAggregate := b.Clause.selectedAggregate
 	previousProcedure := b.Clause.selectedProcedure
 	b.Clause.selectedProcedure = d
@@ -1068,6 +1095,8 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		b.Clause.selectedAggregate = d
 	}
 	b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments = selected.args, raw.Args, true
+	b.Clause.selectedTypeInquiryUnknown = selected.typeInquiryUnknown
+	b.Clause.selectedTypeInquiryStringIO = selected.typeInquiryStringIO
 	// The winner's immediate gateway consumes this bit before its provider
 	// analyzes FILTER, ORDER BY or other previously unanalyzed children.
 	b.Clause.selectedCallReentry = true
@@ -1081,6 +1110,8 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		b.Clause.selectedCallReentry = previousReentry
 		b.Clause.selectedWindowCallee = previousCallee
 		b.Clause.selectedProcedure = previousProcedure
+		b.Clause.selectedTypeInquiryUnknown = previousTypeInquiryUnknown
+		b.Clause.selectedTypeInquiryStringIO = previousTypeInquiryStringIO
 	}()
 	args := append([]parser.Expr(nil), raw.Args...)
 	for i, arg := range selected.args {

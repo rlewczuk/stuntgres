@@ -22,14 +22,6 @@ func TestReferenceStringCoreOracle(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Prepared(step))
 	}
 
-	// Parameter inference is checked independently via PostgreSQL's logical type function.
-	for _, q := range []string{"SELECT pg_typeof($1||$2)::text AS v", "SELECT pg_typeof($1||42)::text AS v", "SELECT pg_typeof(42||$1)::text AS v"} {
-		args := []any{"x"}
-		if q == "SELECT pg_typeof($1||$2)::text AS v" {
-			args = append(args, "y")
-		}
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Prepared(fixture.Select(q, []string{"v"}, []string{"TEXT"}, [][]any{{"text"}}, args...)))
-	}
 }
 
 func stringCoreOracleParameterTypes(t *testing.T, p *fixture.Pair) {

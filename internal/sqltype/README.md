@@ -339,6 +339,13 @@ or widen it.
 
 ## Coercion and operator resolution
 
+- `PlanUnknownInputTransport` is the selected-consumer CoerceViaIO operation:
+  genuine string-category output feeds concrete TEXT input while the analyzer
+  separately retains logical UNKNOWN. In particular BPCHAR padding is preserved;
+  ordinary BPCHAR-to-TEXT coercion trims and is not interchangeable. Rebinding
+  retains this operation and rejects implicit use, non-string sources and non-TEXT
+  transport targets. It adds no UNKNOWN datum/input capability.
+
 - `PlanCoercion(source, target, context)` selects released direct providers before
   same-context array element conversion and restricted PostgreSQL string-category
   I/O. Ineligible direct declarations block fallback; there is no transitive

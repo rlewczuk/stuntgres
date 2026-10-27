@@ -468,3 +468,6 @@
 2997	pg_table_size	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	20	2205	\N	\N	\N	false	\N	pg_table_size	\N	false	\N
 2998	pg_indexes_size	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	20	2205	\N	\N	\N	false	\N	pg_indexes_size	\N	false	\N
 2286	pg_total_relation_size	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	20	2205	\N	\N	\N	false	\N	pg_total_relation_size	\N	false	\N
+1081	format_type	11	12	1	0	0	0	f	false	false	false	false	s	s	2	0	25	26 23	\N	\N	\N	false	\N	format_type	\N	false	\N
+1619	pg_typeof	11	12	1	0	0	0	f	false	false	false	false	s	s	1	0	2206	2276	\N	\N	\N	false	\N	pg_typeof	\N	false	\N
+6315	pg_basetype	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2206	2206	\N	\N	\N	false	\N	pg_basetype	\N	false	\N

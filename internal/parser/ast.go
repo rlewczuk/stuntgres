@@ -1664,7 +1664,7 @@ func singletonArgument(expr Expr) bool {
 			case "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
-				if VersionInformationFunctionName(name) {
+				if VersionInformationFunctionName(name) || TypeInquiryFunctionName(name) {
 					break
 				}
 				if strings.EqualFold(name, "int_array_enum") || strings.EqualFold(name, "pgrowlocks") {

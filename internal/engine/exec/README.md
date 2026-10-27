@@ -167,6 +167,9 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Dropped-object inspection forwards per opening to the live statement's lexical
   event command; no host or inactive `sql_drop` yields the protocol diagnostic.
   The context retains neither records nor a phase guard between invocations.
+  Catalog-backed type inquiries forward `FormatType`/`BaseType` to that live host
+  and its coherent catalog/path capture; detached contexts cannot recapture it.
+  Logical `pg_typeof` identity stays on its immutable expression, not the frame.
   PL assignment projections borrow a balanced planning-origin flag while
   evaluating their child; SQL calls forward it explicitly, excluding active
   domain VALUE frames. Diagnostic cloning preserves planning-origin markers;
@@ -533,6 +536,9 @@ materialization and disposal, portals and rule execution;
 the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 ## Testing
+
+Type inquiry datum identity, ordinary cancellation and detached-authority units
+use `RUN='^TestTypeDescribeExecutionOwnership$'` in `enginetests`.
 
 Crosstab pivot, directional type compatibility and source cleanup units share
 `RUN='^TestTablefuncCrosstab'`; the cursor owner asserts error precedence and

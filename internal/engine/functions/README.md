@@ -19,6 +19,23 @@ only its fixed three-member OUT record; metadata binding never borrows a
 physical registry. Demanding source opening rejects that unavailable mechanism
 with an explicit diagnostic, without synthesizing manager rows or progress.
 
+`TypeInquiry` binds `format_type`, `pg_basetype` and `pg_typeof` through ordinary
+selected routine admission. Stable calls never retain evaluated results;
+preflight preserves demanded child work. Logical type identity is separate from
+the concrete TEXT transport of raw unknown literals, analyzer-confirmed ordered
+pseudo/no-op chains and genuine string-to-UNKNOWN IO. The latter validates one
+existing coercion's source/target/operation and outer chain, preserving producer
+effects and BPCHAR padding. Wrong-arity names use authenticated logical identity
+before concrete usage on both ordinary and selected-provider routes; malformed
+authority is an invariant error, not permission to label arbitrary TEXT unknown.
+Nodes retain only immutable witnesses and operands, never catalog authority.
+Authorized retagging checks every raw-chain target against the descriptor mapper
+by identity, including structurally equal inner replacements. True identity
+mappings retain accepted marker and chain backing; reconstruction alone cannot
+authorize a foreign descriptor generation.
+`CatalogInquiryRuntime.FormatType` and `BaseType` borrow captured catalog/path
+authority; `pg_typeof` uses its validated logical witness without a catalog read.
+
 `GenericFileList` binds eleven `pg_ls_*` signatures as volatile, strict typed
 sources, retaining only a closed kind, immutable operands and result shape.
 Ordinary EXECUTE admission precedes runtime NULL handling; all written operands
@@ -645,6 +662,10 @@ publication and lock-manager tickets stay in the engine.
   logical replay.
 
 ## Testing
+
+Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
+frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.
+Public SQL and metadata scenarios live in `reference/domain_types`.
 
 Leaf units of nodes, kernels, providers and the registry live here. Tests of
 builtin functions and aggregates that bind through the real analyzer or run on

@@ -1012,6 +1012,33 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 	case plan.LiteralExpr:
 		info.UnknownNull = n.UnknownNull
 		info.RegclassRef = n.RegclassRef
+		if n.UnknownInput != nil {
+			if err := n.UnknownInput.Validate(n.Usage, n.Value); err != nil {
+				return nil, false, err
+			}
+			chain, chainChanged, failure := expr.RetagTransparentInputCasts(n.UnknownInput.Chain, retainedType)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if chainChanged {
+				marker := *n.UnknownInput
+				marker.Chain = chain
+				n.UnknownInput = &marker
+				changed = true
+			}
+			if n.UnknownInput.CastType != nil {
+				target := retainedType(n.UnknownInput.CastType)
+				if target == nil {
+					return nil, false, fmt.Errorf("stuntgres: missing remapped unknown cast target")
+				}
+				if target != n.UnknownInput.CastType {
+					marker := *n.UnknownInput
+					marker.CastType = target
+					n.UnknownInput = &marker
+					changed = true
+				}
+			}
+		}
 		if !changed && (view.State() == nil || view.State().ACLItemImport() == nil || !n.Value.Type().ContainsACLItem()) {
 			return node, false, nil
 		}
@@ -1038,7 +1065,32 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		n.Info = info
 		rebound = n
 	case plan.CoercionExpr:
+		if _, failure := n.LogicalInputCast(); failure != nil {
+			return nil, false, failure
+		}
 		n.Child = child(n.Child)
+		if n.UnknownInputCast != nil {
+			chain, chainChanged, failure := expr.RetagTransparentInputCasts(n.UnknownInputCast.Transparent, retainedType)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if chainChanged {
+				marker := *n.UnknownInputCast
+				marker.Transparent = chain
+				n.UnknownInputCast = &marker
+				changed = true
+			}
+			target := retainedType(n.UnknownInputCast.Target)
+			if target == nil {
+				return nil, false, fmt.Errorf("stuntgres: missing remapped logical input cast target")
+			}
+			if target != n.UnknownInputCast.Target || n.Child.ResultUsage() != n.UnknownInputCast.Source {
+				marker := *n.UnknownInputCast
+				marker.Target, marker.Source = target, n.Child.ResultUsage()
+				n.UnknownInputCast = &marker
+				changed = true
+			}
+		}
 		if !changed {
 			return node, false, err
 		}
@@ -1049,6 +1101,9 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			n.Plan, err = n.Plan.Rebind(n.Child.ResultUsage(), info.Usage, n.Mode)
 		}
 		n.Info = info
+		if err == nil {
+			_, err = n.LogicalInputCast()
+		}
 		rebound = n
 	case plan.BitwiseExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)

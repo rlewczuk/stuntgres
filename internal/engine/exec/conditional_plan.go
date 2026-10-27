@@ -517,7 +517,7 @@ func ConditionalConstantInputs(node expr.Expr) bool {
 	case plan.CollationExpr:
 		return literal(e.Child)
 	case plan.CoercionExpr:
-		return !e.Plan.ChecksDomain() && literal(e.Child)
+		return e.UnknownInputCast == nil && !e.Plan.ChecksDomain() && literal(e.Child)
 	case plan.BitwiseExpr:
 		return literal(e.Left) && (e.Right == nil || literal(e.Right))
 	case plan.SelectedOperatorExpr:

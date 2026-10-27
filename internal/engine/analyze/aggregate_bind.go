@@ -220,7 +220,10 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		return ok && same(e.Child, o.Child)
 	case plan.CoercionExpr:
 		o, ok := other.(plan.CoercionExpr)
-		return ok && e.Plan.Equal(o.Plan) && (checkDefinitionEquality || e.Mode == o.Mode) && same(e.Child, o.Child)
+		return ok && e.Plan.Equal(o.Plan) && (checkDefinitionEquality || e.Mode == o.Mode) &&
+			(e.UnknownInputCast == nil) == (o.UnknownInputCast == nil) &&
+			// Authenticated transparent steps change no value or logical type.
+			(e.UnknownInputCast == nil || e.UnknownInputCast.Target == o.UnknownInputCast.Target && e.UnknownInputCast.Source == o.UnknownInputCast.Source) && same(e.Child, o.Child)
 	case plan.BitwiseExpr:
 		o, ok := other.(plan.BitwiseExpr)
 		return ok && e.Provider == o.Provider && e.Bits == o.Bits && e.Network == o.Network && e.MAC == o.MAC && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)

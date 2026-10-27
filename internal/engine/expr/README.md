@@ -19,6 +19,13 @@ imports only `ids`, `parser`, `sqlstate`, `sqltype` and the standard library.
   unknown-NULL marker, captured REGCLASS reference, collation conflict data,
   routine references); its methods implement the metadata half of `Expr`.
   `InfoOf` copies it for a wrapper without `UnknownNull` or `RegclassRef`.
+- **`UnknownInput`**: immutable raw literal and ordered resolved transparent-cast
+  provenance for one concrete TEXT literal. Each chain step authenticates its
+  exact child syntax and admitted target, without an executable UNKNOWN value.
+  Direct inputs need no chain allocation; identity retag preserves backing.
+- **`InputCaster`**: optional logical input-cast capture on one existing executable
+  coercion. Genuine source/target/syntax remain separate from ordered outer
+  transparent steps; no no-op creates another IO operation or runtime authority.
 - **`RoutineReference`/`RoutineRecipeReference`**: opaque identity tokens for
   the selected routine and the stored recipe a grafted node came from; they
   carry no catalog or permission authority. **`RoutineProvider`** is the 64-bit

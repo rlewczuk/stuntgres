@@ -56,6 +56,22 @@ func QueryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqlt
 			if typ(expr.ResultUsage().Type) != expr.ResultUsage().Type {
 				changed = true
 			}
+			if literal, ok := expr.(plan.LiteralExpr); ok && literal.UnknownInput != nil && literal.UnknownInput.CastType != nil && typ(literal.UnknownInput.CastType) != literal.UnknownInput.CastType {
+				changed = true
+			}
+			if coercion, ok := expr.(plan.CoercionExpr); ok && coercion.UnknownInputCast != nil && typ(coercion.UnknownInputCast.Target) != coercion.UnknownInputCast.Target {
+				changed = true
+			}
+			if literal, ok := expr.(plan.LiteralExpr); ok && literal.UnknownInput != nil {
+				for _, step := range literal.UnknownInput.Chain {
+					changed = changed || typ(step.Target) != step.Target
+				}
+			}
+			if coercion, ok := expr.(plan.CoercionExpr); ok && coercion.UnknownInputCast != nil {
+				for _, step := range coercion.UnknownInputCast.Transparent {
+					changed = changed || typ(step.Target) != step.Target
+				}
+			}
 			if earth, ok := expr.(plan.InstalledEarthExpr); ok && typ(earth.Plan.Earth()) != earth.Plan.Earth() {
 				changed = true
 			}

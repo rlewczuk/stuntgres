@@ -45,8 +45,8 @@ func ValidatePolicy(view catalog.Read, owner *catalog.Relation, expression *Poli
 	if err := frozen.validateNamespaces(); err != nil {
 		return err
 	}
-	for _, usage := range frozen.castUsages {
-		if !ValidExpressionUsage(view, usage) {
+	for path, usage := range frozen.castUsages {
+		if !frozen.validCapturedCastUsage(view, path, usage) {
 			return fmt.Errorf("stuntgres: invalid policy cast authority")
 		}
 		if err := ValidateUsageCollation(view, usage); err != nil {
