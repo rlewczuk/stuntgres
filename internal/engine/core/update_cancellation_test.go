@@ -77,12 +77,18 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 					tx = transactionBegin(t, a)
 					sessionSQL(t, a, "UPDATE t SET v=3 WHERE v=1")
 				}
-				ctx, cancel := context.WithCancel(context.Background())
+				var ctx context.Context
+				var cancel context.CancelFunc
+				var armed *lockObservedDeadlineContext
 				want := error(context.Canceled)
 				if deadline {
-					cancel()
-					ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+					// The real caller deadline starts at the second row, so it
+					// interrupts mid-payload without being waited out.
+					armed = lockObservedDeadline(t)
+					ctx, cancel = armed, func() {}
 					want = context.DeadlineExceeded
+				} else {
+					ctx, cancel = context.WithCancel(context.Background())
 				}
 				defer cancel()
 				op, scope, b, source := updateBoundSource(t, e, a, ctx, "UPDATE t SET v=v")
@@ -91,6 +97,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 					calls++
 					if calls == 2 {
 						if deadline {
+							armed.arm(time.Millisecond)
 							<-ctx.Done()
 						} else {
 							cancel()

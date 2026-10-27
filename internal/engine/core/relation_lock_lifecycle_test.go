@@ -125,7 +125,8 @@ func TestRelationLockWaitingDeadlineAndEnd(t *testing.T) {
 						mode = lock.RowExclusive
 					}
 					lockObservedRequest(t, e, b, lock.Resource{ObjectRef: enginetest.RoleTableRef(t, e, "t")}, mode)
-					ctx.arm(time.Second)
+					// The waiter is already observed: any deadline now proves it.
+					ctx.arm(time.Millisecond)
 					enginetest.LockAwait(t, done, context.DeadlineExceeded)
 					enginetest.LockPending(t, e, 0)
 					if explicit {

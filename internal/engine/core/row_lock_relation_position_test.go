@@ -19,7 +19,7 @@ func TestRowLockRelationWaitPosition(t *testing.T) {
 					a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 					enginetest.SessionSQL(t, a, "CREATE TABLE t(v INT)")
 					enginetest.SessionSQL(t, a, "CREATE TABLE destination(v INT)")
-					enginetest.SessionSQL(t, b, "SET lock_timeout='100ms'")
+					enginetest.SessionSQL(t, b, "SET lock_timeout='10ms'")
 					ast := enginetest.Statement(t, tc.query+clause)
 					op := enginetest.TransactionOperation(t, b)
 					desc, err := e.Describe(op, ast)
