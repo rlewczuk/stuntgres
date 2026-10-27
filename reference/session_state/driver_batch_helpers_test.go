@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -31,6 +32,19 @@ func batchValues(t *testing.T, p *fixture.Pair, b fixture.Backend, x fixture.Exe
 	}
 	fixture.RunStep(t, p.Ctx, x, b.Recorder, fixture.Select(q, []string{"i"}, []string{"INT4"}, rows))
 }
+
+// batchCancelDeadline bounds a blocked batch's context. PostgreSQL cancels
+// the batch once its lock wait is observed, so the deadline only bounds a
+// failed observation; native mode has no external wait catalog and lets the
+// deadline itself interrupt the batch, so it is short, like an armed
+// statement timer.
+func batchCancelDeadline(b fixture.Backend) time.Duration {
+	if b.PG {
+		return 2 * time.Second
+	}
+	return 100 * time.Millisecond
+}
+
 func batchDiag(code, message string) fixture.Diagnostic {
 	return fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }

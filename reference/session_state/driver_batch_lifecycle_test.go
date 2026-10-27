@@ -173,7 +173,7 @@ func TestReferenceDriverBatchCancellationLifecycle(t *testing.T) {
 				if explicit {
 					f.exec(f.owner, "BEGIN", 0)
 				}
-				ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, batchCancelDeadline(b))
 				defer cancel()
 				done := make(chan error, 1)
 				go func() {

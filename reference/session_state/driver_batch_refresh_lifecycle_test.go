@@ -22,7 +22,7 @@ func TestReferenceDriverBatchRefreshCancellation(t *testing.T) {
 		holder := fixture.QueryLockBegin(t, p.Ctx, f.B)
 		defer holder.Rollback()
 		batchRefreshRows(t, p, b, holder, "batch_refresh_blocked", batchRefreshOld())
-		ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+		ctx, cancel := context.WithTimeout(p.Ctx, batchCancelDeadline(b))
 		defer cancel()
 		pid, blocker := 0, 0
 		var oid int64
