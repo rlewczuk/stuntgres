@@ -170,34 +170,13 @@ func TestReferenceRegexpActualCancellation(t *testing.T) {
 func TestReferenceRegexpStatementTimeout(t *testing.T) {
 	regexpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`CREATE TABLE cancel_regexp(s TEXT,p TEXT,sentinel INT)`, 0))
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`INSERT INTO cancel_regexp VALUES($1,'',7)`, 1, strings.Repeat("a", 2*1024*1024)))
-		conn, err := b.DB.Conn(p.Ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer conn.Close()
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`INSERT INTO cancel_regexp VALUES('a','',7)`, 1))
 		for _, prepared := range []bool{false, true} {
 			for _, c := range regexpCancellationQueries() {
 				t.Run(c.q+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
-					var stmt *sql.Stmt
-					if prepared {
-						stmt, err = conn.PrepareContext(p.Ctx, c.q)
-						if err != nil {
-							t.Fatal(err)
-						}
-						defer stmt.Close()
-					}
-					if _, err := conn.ExecContext(p.Ctx, `BEGIN`); err != nil {
-						t.Fatal(err)
-					}
-					rolledBack := false
-					defer func() {
-						if !rolledBack {
-							if _, err := conn.ExecContext(context.Background(), `ROLLBACK`); err != nil {
-								t.Error(err)
-							}
-						}
-					}()
+					holder, conn, stmt := regexpTimeoutOwners(t, p, b, prepared, c.q)
+					physical := fixture.SettingsPhysical(t, conn)
+					regexpTimeoutBlock(t, p, holder, conn)
 					if _, err := conn.ExecContext(p.Ctx, `SET LOCAL statement_timeout='10ms'`); err != nil {
 						t.Fatal(err)
 					}
@@ -215,9 +194,8 @@ func TestReferenceRegexpStatementTimeout(t *testing.T) {
 					if _, err := conn.ExecContext(p.Ctx, `ROLLBACK`); err != nil {
 						t.Fatal(err)
 					}
-					rolledBack = true
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select(`SELECT sentinel FROM cancel_regexp`, []string{"sentinel"}, []string{"INT4"}, [][]any{{int64(7)}}))
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, regexpOne(b, `regexp_count('a','a')`, "INT4", int64(1)))
+					fixture.LockExec(t, p.Ctx, holder, `ROLLBACK`, 0)
+					regexpTimeoutRecovery(t, p, b, conn, physical)
 				})
 			}
 		}

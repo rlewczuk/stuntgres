@@ -40,6 +40,14 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
     This proves admitted SQL cancellation, not provider entry; matcher-level
     cancellation is covered by internal units (`TestSimilarActualMatcherCancellation`,
     `TestRegexpSubstrCancellation`).
+- **Regexp statement timeout.** All six scalar/set-returning commands, direct
+  and held, use the finite row `s='a',p=''` behind a durable ACCESS EXCLUSIVE
+  relation blocker with the unchanged 10 ms timer. A separate timeout-zero
+  witness strictly observes those same commands queued, releases the blocker,
+  drains/closes bounded finite results and checks full transactional state and
+  same-physical-owner recovery. This proves SQL admission, not matcher entry;
+  `TestReferenceRegexpActualCancellation` independently retains real provider
+  work/cancellation and PostgreSQL streaming coverage.
 - **Frame names matched by tests.** `sqltype.matchLike`,
   `sqltype.LikeEscapePlan.Evaluate`, `sqltype.(*PGRegexProgram)` methods and the
   test worker `likeReferenceCancelEntered.func1`. Update the probes when renaming them.
