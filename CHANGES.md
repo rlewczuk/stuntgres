@@ -1,3 +1,10 @@
+Dedicated `pg_event_trigger` contract coverage checks actual definition, owner
+and private-function identities, empty direct/prepared schemas, nonowner
+visibility and held-statement transactional freshness. Metadata reads retain
+disabled definitions and NULL/ordered tags without executing referenced functions.
+Source-owned `pg_attribute` metadata now correctly marks `evttags` nullable
+while retaining NOT NULL for the other six event-trigger columns.
+
 `pg_conversion` contract coverage now checks raw eight-column metadata for
 off-path nondefault objects, held-statement rename/drop freshness and exact
 failed-publication diagnostics. Rows remain backed by implemented conversion

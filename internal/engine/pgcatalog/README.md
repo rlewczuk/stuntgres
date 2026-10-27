@@ -54,6 +54,13 @@ type Producer func(Input) ([][]sqltype.Value, error)
   occurrences, including repeats, retain their one-based list positions and
   actual dictionary references. Sequence order is semantic, not a guarantee of
   SQL row order without `ORDER BY`.
+- `pg_event_trigger` projects actual database-local definitions from the immutable
+  captured catalog and paired role authority, retaining trigger, owner and
+  function identities. Unfiltered tags are SQL NULL; filtered tags retain their
+  order, and disabled definitions remain visible through ordinary catalog reads.
+  Reads neither execute referenced functions nor manufacture definitions.
+  `evttags` is a nullable one-dimensional text array, consistent with its
+  source-owned `pg_attribute` facts.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual

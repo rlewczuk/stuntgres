@@ -4,6 +4,9 @@ Public dual-mode event-trigger scenarios cover database-local declarations,
 function frames and identity, command-phase ordering, private DDL publication,
 actual object/subobject drops, semantic table rewrites, target-sensitive utility
 eligibility, ownership, disabled state, transaction recovery and held statements.
+Dedicated catalog scenarios check the full schema on actual empty sources,
+definition/owner/private-function identity, nonowner visibility and held-query
+freshness across transactional publication without executing referenced functions.
 Native-control phases exercise committed capture, final-section activation,
 two replacement rounds, fresh-driver remapping, unchanged-stream PostgreSQL
 replay and failed replacement preservation.
@@ -50,7 +53,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` delegates directly t
 `fixture.Main`. Existing ordinary DML-trigger scenarios remain in
 [reference/operators](../operators/README.md#testing).
 
-Event-trigger family selector: `RUN='^TestReferenceEventTrigger'`. Add
+Event-trigger family selector: `RUN='^TestReference(EventTrigger|PGEventTriggerCatalog)'`. Add
 `REFERENCE=1` for the pinned PostgreSQL oracle. Direct, fresh-prepared and held
 utility handles share the same SQL definitions and independent expected rows,
 metadata, diagnostics and atomicity assertions.
