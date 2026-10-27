@@ -187,7 +187,7 @@ func TestTIDCancellationAndCoercion(t *testing.T) {
 			t.Fatal(pair, err)
 		}
 	}
-	if types[1010].Concrete() {
-		t.Fatal("TID array became executable")
+	if !types[1010].Concrete() || types[1010].Element()!=types[Tid] {
+		t.Fatal("TID array is not executable")
 	}
 }

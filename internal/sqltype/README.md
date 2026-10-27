@@ -514,7 +514,11 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
 
-Native physical datum and BRIN byte-reader units use `RUN='^TestPageinspectBrin'`.
+Native physical datum and BRIN/B-tree byte-reader units use `RUN='^TestPageinspect'`.
+The immutable B-tree reader preserves encoded TIDs, pivot trailers and posting
+lists separately from page-context dead flags. Posting results use executable
+generic `tid[]` (OID 1010, element 27), with ordinary array ownership and codecs;
+this does not admit TID binary COPY.
 
 - **Frames matched by tests.** `TestSimilarActualMatcherCancellation` and
   `TestRegexpSubstrCancellation` cancel only when specific frames are on the

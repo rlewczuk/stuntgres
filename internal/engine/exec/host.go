@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/sqlstate"
 )
 
 // Host is everything the query runtime reaches above its own layer. Every
@@ -105,6 +106,7 @@ type Host interface {
 	UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error)
 	Amcheck(n plan.InstalledAmcheckExpr, oid uint32, options [3]bool) error
 	Pageinspect(n plan.InstalledPageinspectExpr, index uint32) ([]sqltype.BrinStoredColumn, error)
+	PageinspectNotice(notice sqlstate.Error)
 	// functions.SequenceRuntime
 	Sequence(request functions.SequenceRequest) (int64, error)
 	// functions.LargeObjectRuntime

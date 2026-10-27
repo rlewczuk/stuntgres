@@ -119,15 +119,17 @@ The public resource Lifecycle definition additionally isolates first use of
 empty native SELECT/UPDATE/DELETE/MERGE/COPY TO sources on fresh physical
 owners, separately from populated shared PostgreSQL preservation witnesses.
 
-## Installed BRIN pageinspect runtime
+## Installed byte pageinspect runtime
 
 `pageinspect_capture.go` checks current installed identity and superuser
-authority after STRICT argument evaluation. Item decoding opens the exact
+authority after STRICT argument evaluation. BRIN item decoding opens the exact
 regclass descriptor with a temporary AccessShare contribution, waits outside
 metadata locks, and readmits the same descriptor before capturing per-column
 stored types. It never reads table rows or fabricates physical pages. The
 execution context decodes caller-owned bytea outside metadata locks through
-the SQL-independent native readers in `sqltype`.
+the SQL-independent native readers in `sqltype`. B-tree byte decoding needs no
+relation capture; physical relname page acquisition is not an engine provider
+overload and local table contents are never synthesized into raw index pages.
 
 ## Installed amcheck B-tree runtime
 

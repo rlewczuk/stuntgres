@@ -21,12 +21,13 @@ import (
 func TestPageinspectBrinProviderIdentity(t *testing.T){
  e:=engine.New();op,done:=enginetest.RoleOperation(t,e,"postgres");defer done();enginetest.RoleExecute(t,e,op,"CREATE EXTENSION pageinspect")
  view:=e.CatalogRead();ext:=view.MustExtension(view.State().NameAddress(ids.NameKey{ClassID:ids.ExtensionClassID,Name:"pageinspect"}))
- if len(ext.Members)!=4 || extension.StockPageinspect.Control().Version!="1.13"{t.Fatal(ext)}
+ if len(ext.Members)!=5 || extension.StockPageinspect.Control().Version!="1.13"{t.Fatal(ext)}
  for i,address:=range ext.Members{
   p:=view.MustProcedure(address);m:=extension.PageinspectMembers[i]
   if p.Name()!=m.Name || p.Signature!=m.Signature || p.Result!=m.Result || p.Installed!=m.Declaration || p.Volatility!=expr.Volatile || !p.Strict || core.ProcedureReturnsSet(p)!=(i>=2){t.Fatal(p)}
   for _,mutate:=range []func(*catalog.Procedure){
    func(p *catalog.Procedure){p.Strict=false},func(p *catalog.Procedure){p.Result=16},func(p *catalog.Procedure){p.ObjectRevision=0},func(p *catalog.Procedure){p.Implementation=new(extension.PageinspectProvider)},
+   func(p *catalog.Procedure){p.Display.Source="forged_source"},
    func(p *catalog.Procedure){p.Installed.Outputs=catalog.NewRoutineOutputs([]ids.OID{25},"page","foreign")},
   }{
    state:=catalog.CloneState(view.State());bad:=*p;mutate(&bad);state.SetDescriptor(address,&bad)
@@ -56,6 +57,7 @@ func TestPageinspectBrinOwnerCodec(t *testing.T){
   {Slot:1,Schema:"brin_moved",Kind:"procedure",Name:"brin_metapage_info",Signature:"17",Owner:"postgres"},
   {Slot:2,Schema:"brin_moved",Kind:"procedure",Name:"brin_revmap_data",Signature:"17",Owner:"postgres"},
   {Slot:3,Schema:"brin_moved",Kind:"procedure",Name:"brin_page_items",Signature:"17,2205",Owner:"postgres"},
+  {Slot:4,Schema:"brin_moved",Kind:"procedure",Name:"bt_page_items",Signature:"17",Owner:"postgres"},
  }}
  encode:=func(record extension.OwnerRecord)string{
   data,err:=json.Marshal(record);if err!=nil{t.Fatal(err)}
@@ -69,7 +71,7 @@ func TestPageinspectBrinOwnerCodec(t *testing.T){
   {"extra_member",func(r *extension.OwnerRecord){r.Members=append(r.Members,r.Members[0])}},
   {"duplicate_slot",func(r *extension.OwnerRecord){r.Members[3].Slot=0}},
   {"negative_slot",func(r *extension.OwnerRecord){r.Members[0].Slot=-1}},
-  {"foreign_slot",func(r *extension.OwnerRecord){r.Members[3].Slot=4}},
+  {"foreign_slot",func(r *extension.OwnerRecord){r.Members[3].Slot=5}},
   {"wrong_signature",func(r *extension.OwnerRecord){r.Members[3].Signature="17,26"}},
   {"wrong_kind",func(r *extension.OwnerRecord){r.Members[0].Kind="type"}},
   {"missing_namespace",func(r *extension.OwnerRecord){r.Members[0].Schema=""}},
@@ -114,4 +116,35 @@ func TestPageinspectBrinNamedValidation(t *testing.T){
  rebuilt,err:=call.Rebuild(call.Info,borrowed);if err!=nil{t.Fatal(err)}
  borrowed[0]=nil
  if rebuilt.(plan.InstalledPageinspectExpr).Args[0]==nil || call.Args[0]==nil{t.Fatal("rebuild retained borrowed backing")}
+}
+
+func TestPageinspectBtreeProviderIdentity(t *testing.T){
+ e:=engine.New();op,done:=enginetest.RoleOperation(t,e,"postgres");defer done();enginetest.RoleExecute(t,e,op,"CREATE EXTENSION pageinspect")
+ b:=enginetest.ExpressionBinder(t,context.Background(),e,sqltype.InputEnvironment{},nil);b.Clause.AggregateClause="SELECT"
+ raw:=parser.FunctionExpr{Name:parser.ObjectName{Parts:[]parser.Identifier{{Text:"bt_page_items"}}},Args:[]parser.Expr{parser.LiteralExpr{Value:parser.Value{Kind:parser.StringValue,Text:"\\x"}}}}
+ bound,err:=b.BindFunctionProvider(raw);if err!=nil{t.Fatal(err)};n:=bound.(plan.InstalledPageinspectExpr);view:=e.CatalogRead()
+ if n.Procedure.Display.Source!="bt_page_items_bytea" || n.Member!="bt_page_items" || n.Ref.Domain()!=view.Owner().Domain || n.Ref.Epoch!=view.Epoch(){t.Fatal(n)}
+ outputs:=[]sqltype.ID{21,27,21,16,16,25,16,27,1010};names:=[]string{"itemoffset","ctid","itemlen","nulls","vars","data","dead","htid","tids"}
+ if n.ResultUsage().Type.CompositeLen()!=len(outputs){t.Fatal(n.ResultUsage())}
+ for i,id:=range outputs{m:=n.ResultUsage().Type.CompositeMember(i);collation:=uint32(0);if id==sqltype.Text{collation=100};if m.Attribute!=int32(i+1) || m.Name!=names[i] || m.Usage.Type.ID()!=id || m.Usage.Typmod!=-1 || m.Usage.Collation.ID!=collation{t.Fatal(i,m)}}
+ children:=append([]expr.Expr(nil),n.Args...);rebuilt,err:=n.Rebuild(n.Info,children);if err!=nil{t.Fatal(err)};copy:=rebuilt.(plan.InstalledPageinspectExpr);children[0]=nil
+ if copy.Args[0]==nil || &copy.Args[0]==&n.Args[0] || copy.Ref!=n.Ref || copy.Procedure!=n.Procedure || copy.RoutineReference!=n.RoutineReference{t.Fatal("retained authority/backing changed")}
+ // Stored carriers resolve a same-domain declaration against the current view;
+ // live invocation identity separately requires the exact catalog epoch.
+ stale:=n;stale.Ref.Epoch++
+ if err:=extension.ValidatePageinspectIdentity(view,stale.Procedure,stale.Ref);err==nil{t.Fatal("foreign invocation epoch accepted")}
+ for _,mutate:=range []func(*plan.InstalledPageinspectExpr){
+  func(x *plan.InstalledPageinspectExpr){x.Ref.Address.SubID=1},
+  func(x *plan.InstalledPageinspectExpr){x.Ref.Address.ObjectID++},
+  func(x *plan.InstalledPageinspectExpr){x.Member="brin_page_items"},
+  func(x *plan.InstalledPageinspectExpr){x.RoutineReference=nil},
+  func(x *plan.InstalledPageinspectExpr){x.Usage.Type=view.MustType(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:25}).SQLType},
+ }{bad:=n;mutate(&bad);if err:=stored.ValidateInstalledPageinspect(bad,view);err==nil{t.Fatal("forged retained authority accepted",bad)}}
+ other:=engine.New();if err:=stored.ValidateInstalledPageinspect(n,other.CatalogRead());err==nil{t.Fatal("foreign domain accepted")}
+ for _,source:=range []string{"bt_page_items","brin_page_items",""}{
+  state:=catalog.CloneState(view.State());bad:=*n.Procedure;bad.Display.Source=source;state.SetDescriptor(bad.Address(),&bad)
+  if _,err:=extension.ProcedureSymbol(e.Catalog.Read(state),&bad);err==nil{t.Fatal("forged source published",source)}
+ }
+ if err:=stored.ValidateInstalledPageinspect(n,view);err!=nil{t.Fatal("rejected candidate mutated original",err)}
+ if n.Procedure.Display.Source!="bt_page_items_bytea" || n.Args[0]==nil{t.Fatal("original retained definition changed")}
 }

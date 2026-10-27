@@ -19,7 +19,7 @@ func StoredArrayElement(typ *sqltype.Descriptor) bool {
 		_, custom := r.RangeDefinition()
 		return custom
 	}
-	if physical.ID() == sqltype.Lseg || physical.ID() == sqltype.Circle || physical.ID() == sqltype.Tid || physical.ID() == sqltype.Macaddr || physical.ID() == sqltype.Macaddr8 || sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
+	if physical.ID() == sqltype.Lseg || physical.ID() == sqltype.Circle || physical.ID() == sqltype.Macaddr || physical.ID() == sqltype.Macaddr8 || sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
 		return false
 	}
 	if physical.IsArray() {

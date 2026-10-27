@@ -297,7 +297,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if slot >= count { return invalid() }
 		m := PageinspectMembers[slot]
 		name, signature, result, volatility = m.Name, m.Signature, m.Result, expr.Volatile
-		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 { return invalid() }
+		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 { return invalid() }
 	case StockAmcheck:
 		count = 1 + len(AmcheckMembers)
 		if slot >= count {

@@ -23,6 +23,7 @@ func TestCastImplementedInventory(t *testing.T) {
 	}
 	arrayIDs := map[ID]ID{
 		1002: 18,
+		1010: 27,
 		1000: 16, 1001: 17, 1003: 19, 1005: 21, 1007: 23, 1016: 20, 1009: 25, 1028: 26, 199: 114, 3807: 3802, 4073: 4072, 1014: 1042, 1015: 1043, 1021: 700, 1022: 701,
 		1182: 1082, 1183: 1083, 1270: 1266, 1115: 1114, 1185: 1184, 1187: 1186, 1231: 1700, 2951: 2950, 2210: 2205, 2211: 2206, 1008: 24, 2207: 2202, 4097: 4096, 4192: 4191, 4090: 4089, 1034: 1033, 1011: 28,
 		3735: 3734, 3770: 3769,
@@ -87,7 +88,7 @@ func TestCastImplementedInventory(t *testing.T) {
 		}
 	}
 	// These are explicit lookup-only boundaries, not inferred from a companion ID.
-	forbidden := "_cstring _pg_lsn _money _macaddr _macaddr8 _tid _inet _cidr _refcursor _tsvector _tsquery _point _lseg _path _box _polygon _line _circle _pg_snapshot _xid8 _cid _regoper _regoperator datemultirange tsmultirange tstzmultirange"
+	forbidden := "_cstring _pg_lsn _money _macaddr _macaddr8 _inet _cidr _refcursor _tsvector _tsquery _point _lseg _path _box _polygon _line _circle _pg_snapshot _xid8 _cid _regoper _regoperator datemultirange tsmultirange tstzmultirange"
 	boundaries := map[string]bool{}
 	for _, name := range strings.Fields(forbidden) {
 		boundaries[name] = false

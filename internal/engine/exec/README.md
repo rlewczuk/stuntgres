@@ -211,11 +211,13 @@ returned values and sibling invocations. The scalar path creates no set buffer.
   (`row_detail.go`), single-relation source capture (`source_capture.go`),
   CURRENT OF scans (`cursor_scan.go`), `pgrowlocks` values and the session
   identity snapshot (`identity.go`).
-- **BRIN pageinspect** (`pageinspect.go`): scalar/record/source invocation
+- **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and written-order STRICT argument
-  evaluation. The host supplies current superuser and exact index-descriptor
-  authority before raw validation; `sqltype` decodes immutable bytea without
-  table-row access. Declared result shapes own cursor metadata and NULLs.
+  evaluation. The host supplies current superuser and, for BRIN items, exact
+  index-descriptor authority before raw validation. Separate immutable BRIN
+  and B-tree readers decode bytea without table-row access. Declared result
+  shapes own cursor metadata, NULL records and generic TID arrays; deleted
+  B-tree notices use the current statement operation.
 - **Heap verification** (`verify_heapam.go`): validate required NULLs and skip
   before target-kind admission; explicit physical heap/visibility-map/TOAST
   requests raise `0A000`. `VerifyHeapamPrefix` retains an unfiltered prefix,

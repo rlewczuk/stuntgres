@@ -16,12 +16,13 @@ var StockPageinspect=&PageinspectProvider{control:catalog.ExtensionControl{Versi
 func(p *PageinspectProvider)Control()catalog.ExtensionControl{return p.control.Detached()}
 func(*PageinspectProvider)Versions()catalog.ExtensionVersions{return catalog.ExtensionVersions{Bases:[]string{"1.13"}}}
 func PageinspectProviderOf(p *catalog.Procedure)*PageinspectProvider { if p==nil{return nil};provider,_:=p.Implementation.(*PageinspectProvider);return provider }
-type PageinspectMember struct{Name string;Signature catalog.ProcedureSignature;Result ids.OID;Declaration catalog.InstalledRoutineDeclaration}
+type PageinspectMember struct{Name,Source string;Signature catalog.ProcedureSignature;Result ids.OID;Declaration catalog.InstalledRoutineDeclaration}
 var PageinspectMembers=[...]PageinspectMember{
- {"brin_page_type","17",25,catalog.InstalledRoutineDeclaration{Parallel:'s',ArgumentNames:[4]string{"page"}}},
- {"brin_metapage_info","17",2249,catalog.InstalledRoutineDeclaration{Parallel:'s',Outputs:catalog.NewRoutineOutputs([]ids.OID{25,23,23,20},"page","magic","version","pagesperrange","lastrevmappage")}},
- {"brin_revmap_data","17",27,catalog.InstalledRoutineDeclaration{Parallel:'s',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{27},"page","pages")}},
- {"brin_page_items","17,2205",2249,catalog.InstalledRoutineDeclaration{Parallel:'r',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{23,20,23,16,16,16,16,25},"page","index_oid","itemoffset","blknum","attnum","allnulls","hasnulls","placeholder","empty","value")}},
+ {"brin_page_type","brin_page_type","17",25,catalog.InstalledRoutineDeclaration{Parallel:'s',ArgumentNames:[4]string{"page"}}},
+ {"brin_metapage_info","brin_metapage_info","17",2249,catalog.InstalledRoutineDeclaration{Parallel:'s',Outputs:catalog.NewRoutineOutputs([]ids.OID{25,23,23,20},"page","magic","version","pagesperrange","lastrevmappage")}},
+ {"brin_revmap_data","brin_revmap_data","17",27,catalog.InstalledRoutineDeclaration{Parallel:'s',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{27},"page","pages")}},
+ {"brin_page_items","brin_page_items","17,2205",2249,catalog.InstalledRoutineDeclaration{Parallel:'r',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{23,20,23,16,16,16,16,25},"page","index_oid","itemoffset","blknum","attnum","allnulls","hasnulls","placeholder","empty","value")}},
+ {"bt_page_items","bt_page_items_bytea","17",2249,catalog.InstalledRoutineDeclaration{Parallel:'s',ReturnsSet:true,Rows:1000,Outputs:catalog.NewRoutineOutputs([]ids.OID{21,27,21,16,16,25,16,27,1010},"page","itemoffset","ctid","itemlen","nulls","vars","data","dead","htid","tids")}},
 }
 func(p *PageinspectProvider)ValidateExtension(v catalog.Read,ext *catalog.Extension)error{
  if p!=StockPageinspect || !currentManifest(v,ext) || ext.Name()!="pageinspect" || ext.Version!="1.13" || len(ext.Members)!=len(PageinspectMembers){return fmt.Errorf("stuntgres: invalid pageinspect manifest")}
@@ -43,7 +44,7 @@ func(p *PageinspectProvider)Stage(stage Stage,ext *catalog.Extension,owner autho
  for i,m:=range PageinspectMembers {
   oid,err:=stage.AllocateOID();if err!=nil{return err};revision,err:=stage.Revision();if err!=nil{return err}
   address:=ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:oid}
-  proc:=&catalog.Procedure{ObjectAddress:address,ObjectNamespace:ext.TargetNamespace,Extension:ext.Address(),ObjectRevision:revision,ObjectName:m.Name,Signature:m.Signature,RoutineKind:catalog.FunctionRoutine,Owner:owner,Result:m.Result,Volatility:expr.Volatile,Strict:true,Installed:m.Declaration,Display:catalog.RoutineDisplay{Language:catalog.CRoutineLanguage,Source:m.Name},Implementation:p}
+  proc:=&catalog.Procedure{ObjectAddress:address,ObjectNamespace:ext.TargetNamespace,Extension:ext.Address(),ObjectRevision:revision,ObjectName:m.Name,Signature:m.Signature,RoutineKind:catalog.FunctionRoutine,Owner:owner,Result:m.Result,Volatility:expr.Volatile,Strict:true,Installed:m.Declaration,Display:catalog.RoutineDisplay{Language:catalog.CRoutineLanguage,Source:m.Source},Implementation:p}
   if stage.LookupName(catalog.DescriptorNameKey(proc))!=(ids.ObjectAddress{}){return &sqlstate.Error{Severity:"ERROR",SeverityUnlocalized:"ERROR",Code:"42723",Message:fmt.Sprintf("function %q already exists with same argument types",proc.Name())}}
   if err:=stage.Create(proc);err!=nil{return err};ext.Members[i]=address
  }
