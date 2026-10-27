@@ -186,8 +186,8 @@ func (r *PLRun) Statements(statements []PLInstruction) (sqltype.Value, PLFlow, e
 			value, flow, err = r.forQuery(instruction)
 		case instruction.Cursor != nil:
 			value, flow, err = r.Host.Cursor(r, f, instruction)
-		case instruction.Loop != nil:
-			value, flow, err = r.executePLLoop(instruction.Loop)
+		case instruction.Loop != nil || instruction.While != nil:
+			value, flow, err = r.executePLLoop(instruction)
 		case instruction.Transfer != nil:
 			value, flow, err = r.transfer(instruction)
 		case instruction.Raise != nil || instruction.Assert != nil:

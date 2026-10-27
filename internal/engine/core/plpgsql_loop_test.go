@@ -109,3 +109,66 @@ func TestPLpgSQLLoopCancellation(t *testing.T) {
 		}
 	}
 }
+
+func TestPLpgSQLWhileFrame(t *testing.T) {
+	for _, tc := range []struct {
+		name, source string
+		want         int64
+		fail         bool
+	}{
+		{"false", "DECLARE n integer:=0; BEGIN WHILE false LOOP n:=1; END LOOP; RETURN n; END", 0, false},
+		{"null", "DECLARE n integer:=0; BEGIN WHILE NULL::boolean LOOP n:=1; END LOOP; RETURN n; END", 0, false},
+		{"reevaluation", "DECLARE n integer:=0; BEGIN WHILE n<3 LOOP n:=n+1; CONTINUE; END LOOP; RETURN n; END", 3, false},
+		{"block_reentry", "DECLARE n integer:=0; s integer:=0; BEGIN <<o>> WHILE n<3 LOOP n:=n+1; DECLARE x integer:=10; BEGIN x:=x+1; s:=s+x; CONTINUE o; END; END LOOP; RETURN s; END", 33, false},
+		{"outward_exit", "DECLARE n integer:=0; BEGIN <<b>> BEGIN WHILE true LOOP n:=n+1; EXIT b WHEN n=2; END LOOP; n:=99; END b; RETURN n; END", 2, false},
+		{"return", "BEGIN WHILE true LOOP RETURN 7; END LOOP; RETURN 99; END", 7, false},
+		{"handler_continue", "DECLARE n integer:=0; BEGIN <<o>> WHILE n<3 LOOP n:=n+1; BEGIN n:=1/0; EXCEPTION WHEN division_by_zero THEN CONTINUE o; END; RETURN 99; END LOOP; RETURN n; END", 3, false},
+		{"handled_condition", "DECLARE n integer:=0; BEGIN BEGIN WHILE 1/0=0 LOOP END LOOP; EXCEPTION WHEN division_by_zero THEN n:=7; END; RETURN n; END", 7, false},
+		{"condition_error", "BEGIN WHILE 1/0=0 LOOP END LOOP; RETURN 7; END", 0, true},
+		{"conversion_error", "BEGIN WHILE 'nope'::text LOOP END LOOP; RETURN 7; END", 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, d, f, read := loopUnitFrame(t, tc.source)
+			value, flow, err := core.ScopeNewPLRun(s, d, f, read).Block(d.SQL.PL.Root)
+			if tc.fail {
+				if err == nil || flow.Kind != proc.PLNormal {
+					t.Fatal("condition failure lost", flow, err)
+				}
+			} else if err != nil || flow.Kind != proc.PLReturn {
+				t.Fatal("WHILE flow failed", flow, err)
+			}
+			if len(f.Scopes) != 0 || f.HandledError() != nil || core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s)) != nil || core.ScopeActiveSQLRoutineDepth(s) != 0 {
+				t.Fatal("WHILE retained lexical/handler/query authority")
+			}
+			for slot, v := range f.Values {
+				if slot != f.Program.FoundSlot && v.Type() != nil {
+					t.Fatal("WHILE retained unwound local value")
+				}
+			}
+			f.Close()
+			if !tc.fail {
+				got, err := value.Integer()
+				if err != nil || got != tc.want {
+					t.Fatal("immutable WHILE result lost after frame close", got, err)
+				}
+			}
+		})
+	}
+	for _, source := range []string{"BEGIN WHILE true LOOP END LOOP; RETURN 7; END", "BEGIN WHILE true LOOP CONTINUE; END LOOP; RETURN 7; END"} {
+		s, d, f, read := loopUnitFrame(t, source)
+		ctx, cancel := context.WithCancel(s.Op.Context())
+		s.Op.Ctx = loopFrameCancel{Context: ctx, cancel: cancel, frame: f}
+		_, flow, err := core.ScopeNewPLRun(s, d, f, read).Block(d.SQL.PL.Root)
+		cancel()
+		if !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal {
+			t.Fatal("WHILE cancellation lost", flow, err)
+		}
+		var state interface{ SQLState() string }
+		if errors.As(err, &state) {
+			t.Fatal("WHILE cancellation acquired SQLSTATE", err)
+		}
+		if len(f.Scopes) != 0 || f.HandledError() != nil || core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s)) != nil || core.ScopeActiveSQLRoutineDepth(s) != 0 {
+			t.Fatal("canceled WHILE retained frame authority")
+		}
+	}
+}

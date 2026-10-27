@@ -256,7 +256,7 @@ package parser
 %token <tok> PL_THEN PL_WHEN PL_WHEN_COMMA
 %token <tok> PL_ASSERT PL_RAISE_LEVEL PL_MESSAGE_COMMA PL_RAISE_USING
 %token <tok> TRIGGER EVENT
-%token <tok> PL_OPEN PL_LOOP PL_NEXT PL_PRIOR PL_LAST PL_EXIT PL_CONTINUE
+%token <tok> PL_OPEN PL_LOOP PL_WHILE PL_NEXT PL_PRIOR PL_LAST PL_EXIT PL_CONTINUE
 %token <tok> PL_FOREACH PL_SLICE
 %token <tok> PL_INTEGER_FOR PL_REVERSE PL_BY
 %token <tok> SETOF_TYPE
@@ -563,6 +563,7 @@ package parser
 %type <tok> pl_name pl_declaration_name
 %type <tok> pl_if_head pl_elsif_head pl_when_head pl_case_head pl_when_separator
 %type <tok> pl_transfer_kind pl_transfer_when_head
+%type <tok> pl_while_head
 %type <plCursor> pl_open_tail pl_cursor_actuals
 %type <plMotion> pl_cursor_motion
 %type <plActual> pl_cursor_actual
@@ -1875,6 +1876,7 @@ pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_label FOR pl_target IN pl_query_loop_source PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);$5.Target=$3;$5.Start=l.plSourceStart($5.End,$5.Delimiter,$4);$5.Body=l.plLoop($1,$7,$10,$6.pos);$$=PLStatement{QueryLoop:$5,Pos:$2.pos};if l.err!=nil{return 1}}
  | pl_label PL_FOREACH pl_foreach_targets pl_foreach_slice IN pl_foreach_array pl_expression PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);loop:=$4;loop.Targets=$3.Targets;loop.TargetCommas=$3.TargetCommas;loop.Source=l.plBoundExpression($7,$6);loop.Body=l.plLoop($1,$9,$12,$8.pos);l.plAfterForeach=true;$$=PLStatement{Foreach:loop,Pos:$2.pos};if l.err!=nil{return 1}}
  | pl_label PL_LOOP pl_statements END PL_LOOP pl_end_label {$$=PLStatement{Loop:sqllex.(*lexer).plLoop($1,$3,$6,$2.pos),Pos:$2.pos};if sqllex.(*lexer).err!=nil{return 1}}
+ | pl_label pl_while_head pl_integer_operand PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);condition:=l.plDelimitedExpression($3,$2,$4);$$=PLStatement{While:&PLWhile{Condition:condition,Body:l.plLoop($1,$5,$8,$4.pos)},Pos:$2.pos};if l.err!=nil{return 1}}
  | pl_transfer_kind pl_end_label pl_transfer_when {value:=$3;$$=PLStatement{Transfer:&PLTransfer{Continue:$1.text=="continue",Label:$2,Alias:value.Alias},Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
  | pl_case_head pl_search pl_case_arms pl_else END CASE {l:=sqllex.(*lexer);search:=l.plBoundExpression($2,$1);if search.Expression==nil {for _,arm:=range $3 {if len(arm.Conditions)!=1 {l.failAt("42601","syntax error at or near \",\"",arm.Conditions[0].Delimiter.Offset);return 1}}};$$=PLStatement{Case:&PLConditional{Search:search,Arms:$3,HasElse:$4.HasElse,Else:$4.Else},Pos:$1.pos}} ;
 pl_return_value: /* empty */ {$$=PLExpression{}} | pl_expression {$$=$1} ;
@@ -1882,6 +1884,7 @@ pl_transfer_kind: PL_EXIT {$$=$1} | PL_CONTINUE {$$=$1} ;
 pl_transfer_when: /* empty */ {$$=PLExpression{}}
  | pl_transfer_when_head pl_transfer_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} ;
 pl_transfer_when_head: WHEN {sqllex.(*lexer).plBeginExpression(plSemicolonBoundary);$$=$1} ;
+pl_while_head: PL_WHILE {sqllex.(*lexer).plBeginExpression(plLoopBoundary);$$=$1} ;
 pl_transfer_expression: pl_expression_start projection_item {l:=sqllex.(*lexer);l.plExpression=false;$$=l.plParsedExpression($2.Targets[0]);$$.Alias=$2.Labels[0]} ;
 pl_expression: pl_expression_start scalar_projection {l:=sqllex.(*lexer);l.plExpression=false;$$=l.plParsedExpression($2)} ;
 pl_expression_start: /* empty */ {sqllex.(*lexer).plExpression=true} ;

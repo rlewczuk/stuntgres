@@ -1004,6 +1004,8 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = PL_SLICE
 			case "loop":
 				token.code = PL_LOOP
+			case "while":
+				token.code = PL_WHILE
 			case "exit":
 				token.code = PL_EXIT
 			case "continue":

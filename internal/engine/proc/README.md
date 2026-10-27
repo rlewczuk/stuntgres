@@ -213,7 +213,10 @@ declarations. Loop scopes retain label identity and any loop-owned private slots
 Immutable acyclic control tokens identify each executable block/loop and the
 hidden function namespace; transfers retain the exact enclosing target token.
 Validation reconstructs owner order, kind, ancestry and condition queries, including
-positioned projection aliases. No invocation flow or evaluated WHEN value persists.
+positioned projection aliases. WHILE owns one immutable condition query and an
+ordinary loop body, with no additional variable/search slot. Its condition's
+compound names precede the body's names in the diagnostic ledger. No invocation
+flow or evaluated condition value persists.
 Static query-loop instructions resolve existing whole RECORD/composite slots in
 the enclosing namespace, without cursor recipes, implicit records or extra Usages.
 Their ordinary statement syntax, source spans, target and loop body are checked
@@ -373,9 +376,14 @@ whole rows use `AssignRow`, with producer-shaped NULL fields for no rows.
 
 RETURN/EXIT/CONTINUE use compact non-error flow, so successful protected
 transfers release checkpoints rather than invoking handlers. Blocks and loops
-consume only their own transfers. Loop iteration checks `Host.Context()` even for
-an empty body; `executePLLoop` keeps its name because a reference cancellation
-fixture waits for that frame. The hidden function namespace is not a block-exit
+consume only their own transfers. LOOP and WHILE share one scope-balanced walker,
+checking `Host.Context()` at each head even for an empty body. WHILE evaluates
+its retained query against the current frame and uses host Boolean assignment
+conversion; NULL/false ends the loop, own CONTINUE returns to the head, and
+EXIT/RETURN/outward flow does not evaluate another condition. Failures retain
+their causal expression/conversion phase and WHILE source origin.
+`executePLLoop` keeps its name because a reference cancellation fixture waits
+for that frame. The hidden function namespace is not a block-exit
 consumer; an escaping EXIT reaches the routine's missing-RETURN diagnostic.
 Query loops use one width-sized demand buffer. Anonymous records are detached
 per row; named rows use ordinal assignment conversion. An empty first demand
@@ -407,4 +415,5 @@ make check RUN='^TestReferenceRoutine(Core|SQLBodies|Review|Parameters)'
 make check RACE=1 RUN='^TestPLException(Matcher|ProgramValidation)$'
 make check RACE=1 RUN='^TestPLpgSQLConditional(Compiler|Validation|Frame|Remap)$'
 make check RACE=1 RUN='^TestPLpgSQLLoop(Compiler|Validation|Frame|Remap|Cancellation)$'
+make check RACE=1 RUN='^TestPLpgSQLWhile(Parser|Compiler|Validation|Frame|Remap)$'
 ```

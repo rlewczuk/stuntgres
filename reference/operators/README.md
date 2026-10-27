@@ -135,8 +135,10 @@ with constant-folding failures. Native cleanup-provider units also exercise
 simple CASE WHEN through called PL and SQL wrappers without admitting OTHERS
 after fatal cleanup failure.
 Loop scenarios reuse the same direct/prepared, held and replay helpers for bounded
-iteration, nested label transfers, reached WHEN evaluation, complete diagnostics,
-protected effects and actively admitted cancellation.
+iteration, nested label transfers, reached condition evaluation, complete
+diagnostics, protected effects and actively admitted cancellation. WHILE cases
+also assert pre-entry/reevaluated NULL/false termination, volatile condition
+counts and original held handles across native replacement rounds.
 Integer-range scenarios additionally cover private INT4 names, entry-time bounds,
 positive steps, inclusive overflow-safe traversal, labels/FOUND and retained
 handles/native replay. Family selector: `RUN='^TestReferencePLpgSQLIntegerFor'`.
@@ -158,6 +160,7 @@ make check RUN='^TestSQLRoutineDumpEventsUseResolver$'
 ```sh
 make check RUN='^TestReferencePLpgSQLConditional(If|Conversion|SearchedCase|SimpleCase|Nested|Diagnostics|Atomicity|Persistence|ReviewProvenance)$'
 make check RUN='^TestReferencePLpgSQLLoop(Bounded|Continue|Conditions|Labels|Diagnostics|HiddenLabel|Atomicity|Cancellation|Persistence)$'
+make check RUN='^TestReferencePLpgSQLWhile(Entry|Conditions|Control|Diagnostics|Atomicity|Cancellation|Persistence)$'
 ```
 
 Static query-result loops reuse `plpgsqlScenario`, direct/prepared value and

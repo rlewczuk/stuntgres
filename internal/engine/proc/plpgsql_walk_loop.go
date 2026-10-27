@@ -10,7 +10,17 @@ import (
 
 // executePLLoop keeps its name: the reference loop cancellation fixture
 // waits for this frame before cancelling.
-func (r *PLRun) executePLLoop(loop *PLBlock) (sqltype.Value, PLFlow, error) {
+func (r *PLRun) executePLLoop(in PLInstruction) (sqltype.Value, PLFlow, error) {
+	loop := in.Loop
+	var boolean sqltype.Usage
+	if in.While != nil {
+		loop = in.While.Body
+		typ, ok := r.Host.LookupType(sqltype.Bool)
+		if !ok {
+			return sqltype.Value{}, PLFlow{}, fmt.Errorf("stuntgres: missing PL condition Boolean type")
+		}
+		boolean = typ.Usage()
+	}
 	f := r.Frame
 	f.Enter(loop)
 	defer f.Leave(loop)
@@ -18,6 +28,29 @@ func (r *PLRun) executePLLoop(loop *PLBlock) (sqltype.Value, PLFlow, error) {
 		// An empty body and a continue-only body must both remain cancellable.
 		if err := r.Host.Context().Err(); err != nil {
 			return sqltype.Value{}, PLFlow{}, err
+		}
+		if in.While != nil {
+			raw := in.Syntax
+			at := PLOrigin{Position: raw.Pos, Action: "at WHILE"}
+			value, _, err := r.Host.Evaluate(f, in.While.Condition, at)
+			expressionError := err != nil
+			if err == nil {
+				value, err = r.Host.Convert(value, boolean, at)
+			}
+			if err != nil {
+				condition := raw.While.Condition
+				return sqltype.Value{}, PLFlow{}, PLRuntimeError(err, r.Definition, r.Host.Identity, condition.Start, condition.End, raw.Pos, at.Action, expressionError)
+			}
+			if value.IsNull() {
+				return sqltype.Value{}, PLFlow{}, nil
+			}
+			truth, err := value.Boolean()
+			if err != nil {
+				return sqltype.Value{}, PLFlow{}, err
+			}
+			if !truth {
+				return sqltype.Value{}, PLFlow{}, nil
+			}
 		}
 		value, flow, err := r.Statements(loop.Statements)
 		if err != nil || flow.Kind == PLReturn {

@@ -82,6 +82,7 @@ type PLInstruction struct {
 	Case       *PLConditional
 	Cursor     *PLCursorInstruction
 	Loop       *PLBlock
+	While      *PLWhile
 	Transfer   *PLControl
 	QueryLoop  *PLQueryLoop
 	Foreach    *PLForeach
@@ -90,6 +91,10 @@ type PLInstruction struct {
 	Assert     *PLAssert
 	Into       *PLInto
 	SQL        *PLSQL
+}
+type PLWhile struct {
+	Condition *parser.Select
+	Body      *PLBlock
 }
 type PLQueryLoop struct {
 	Target PLTarget
@@ -429,6 +434,16 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 				}
 			case statement.Loop != nil:
 				instruction.Loop, err = compile(statement.Loop, scopes)
+			case statement.While != nil:
+				rawLoop := statement.While
+				if err := diagnostics.expression(p, definition.Source, rawLoop.Condition.Start, rawLoop.Condition.End, scopes); err != nil {
+					return nil, err
+				}
+				body, bodyErr := compile(rawLoop.Body, scopes)
+				if bodyErr != nil {
+					return nil, bodyErr
+				}
+				instruction.While = &PLWhile{Condition: plOperandQuery(rawLoop.Condition), Body: body}
 			case statement.Transfer != nil:
 				instruction.Transfer, err = resolvePLControl(statement.Transfer, statement.Pos, scopes)
 				if statement.Transfer.Alias.Text != "" && instruction.Query != nil {

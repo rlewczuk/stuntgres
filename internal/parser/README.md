@@ -176,8 +176,12 @@ RAISE retains severity, explicit source form, decoded format, ordered arguments
 and option occurrences; bare rethrow remains distinct. ASSERT retains separate
 condition and optional-message spans. Their depth-zero commas and RAISE USING
 boundaries do not consume nested SQL delimiters or quoted identifiers.
-LOOP and cursor-FOR bodies retain opening/closing labels and an explicit loop
-discriminator. Transfers retain positioned labels and WHEN expression boundaries;
+LOOP, WHILE and cursor-FOR bodies retain opening/closing labels and an explicit
+loop discriminator. WHILE retains a scalar projection condition, its optional
+alias and token-exclusive span separately from the WHILE and LOOP positions.
+Its depth-zero LOOP boundary shares the ordinary operand grammar and does not
+change quoted PL names or ordinary SQL identifiers.
+Transfers retain positioned labels and WHEN expression boundaries;
 WHEN projection aliases use the ordinary projection grammar and remain positioned
 syntax. Target legality belongs to checked compilation, including unreachable flow.
 Label diagnostics surround decoded contents with literal quotes without applying
@@ -277,7 +281,7 @@ feature prefix.
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`
 - Typed literals and operators: `RUN='^Test(GeometryConversionCLiteralSyntax|INETSubnetParser)$'`
 - Database creation: `RUN='^TestCreateDatabase'`
-- PL block/conditional/control syntax and full consumption: `RUN='^TestPLpgSQL(ConditionalParser|LoopParser|QueryLoopParser|ParserFullConsumption)$'`
+- PL block/conditional/control syntax and full consumption: `RUN='^TestPLpgSQL(ConditionalParser|LoopParser|WhileParser|QueryLoopParser|ParserFullConsumption)$'`
 - Exception syntax and handler full consumption: `RUN='^TestPLExceptionParsing$'`
 - Message and assertion syntax: `RUN='^TestPLpgSQL(Raise|Assert)Parser$'`
 - Array-loop syntax, integer bounds, spans and cursor-keyword reachability: `RUN='^TestPLpgSQLForeach(Parser|SliceConstants|CursorKeyword)$'`

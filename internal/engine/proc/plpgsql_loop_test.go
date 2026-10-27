@@ -141,3 +141,112 @@ func TestPLpgSQLLoopValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestPLpgSQLWhileCompiler(t *testing.T) {
+	const source = "DECLARE n integer:=0; BEGIN <<o>> WHILE n<3 admitted LOOP <<b>> BEGIN LOOP CONTINUE o; EXIT b; END LOOP; END b; EXIT; END LOOP o; RETURN n; END"
+	d := conditionalUnitDefinition(t, source)
+	body := d.PL.Root.Statements[0].Block
+	loop := body.Statements[0].While
+	block := loop.Body.Statements[0].Block
+	inner := block.Statements[0].Loop
+	if d.PL.Root.Control.ID != 1 || body.Control.ID != 2 || loop.Body.Control.ID != 3 || block.Control.ID != 4 || inner.Control.ID != 5 || !loop.Body.Control.Loop {
+		t.Fatal("WHILE owner preorder changed")
+	}
+	if inner.Statements[0].Transfer != loop.Body.Control || inner.Statements[1].Transfer != block.Control || loop.Body.Statements[1].Transfer != loop.Body.Control {
+		t.Fatal("WHILE mixed-loop ancestry changed")
+	}
+	if len(d.PL.Variables) != 2 || d.PL.SearchCount != 0 || len(loop.Body.Declarations) != 0 || len(loop.Body.Bindings) != 0 {
+		t.Fatal("WHILE introduced executable slots")
+	}
+	raw := body.Statements[0].Syntax.While.Condition
+	if !reflect.DeepEqual(loop.Condition.Targets[0], raw.Expression) || len(loop.Condition.Labels) != 1 || loop.Condition.Labels[0] != raw.Alias || loop.Condition.Pos != raw.Expression.SourcePosition() {
+		t.Fatal("WHILE condition/alias recipe changed")
+	}
+	before, err := parser.ParsePLpgSQL(source, parser.PLReturnPolicy{})
+	if err != nil || !reflect.DeepEqual(before, d.PLSyntax) {
+		t.Fatal("compilation mutated WHILE syntax", err)
+	}
+	ledger := walkUnitDefinition(t, "DECLARE r record; BEGIN WHILE r.head LOOP r.body:=1; EXIT; END LOOP; CASE 1 WHEN 1 THEN RETURN 7; END CASE; END")
+	if got := ledger.PL.Root.Statements[0].Block.Statements[1].Case.SearchName; got != "__Case__Variable_4__" {
+		t.Fatal("WHILE condition/body diagnostic ledger order", got)
+	}
+}
+
+func TestPLpgSQLWhileValidation(t *testing.T) {
+	const source = "BEGIN <<o>> WHILE true admitted LOOP WHILE false LOOP EXIT o; END LOOP; EXIT; END LOOP o; WHILE false LOOP END LOOP; RETURN 7; END"
+	for _, name := range []string{"missing_variant", "missing_condition", "redirected_query", "duplicate_query", "extra_clause", "alias", "extra_alias", "start", "end", "delimiter", "body_position", "missing_body", "body_kind", "missing_owner", "foreign_owner", "sibling_target", "foreign_target", "mixed_checked", "mixed_raw", "raw_condition"} {
+		t.Run(name, func(t *testing.T) {
+			d := conditionalUnitDefinition(t, source)
+			body := d.PL.Root.Statements[0].Block
+			in := &body.Statements[0]
+			loop, raw := in.While, in.Syntax.While
+			inner := loop.Body.Statements[0].While
+			switch name {
+			case "missing_variant":
+				in.While = nil
+			case "missing_condition":
+				loop.Condition = nil
+			case "redirected_query":
+				loop.Condition.Targets[0] = inner.Condition.Targets[0]
+			case "duplicate_query":
+				inner.Condition = loop.Condition
+			case "extra_clause":
+				loop.Condition.Where = loop.Condition.Targets[0]
+			case "alias":
+				loop.Condition.Labels = nil
+			case "extra_alias":
+				loop.Condition.Labels = append(loop.Condition.Labels, loop.Condition.Labels[0])
+			case "start":
+				raw.Condition.Start.Character++
+			case "end":
+				raw.Condition.End.Offset++
+			case "delimiter":
+				raw.Condition.Delimiter = raw.Condition.End
+			case "body_position":
+				raw.Body.Pos = raw.Condition.Start
+			case "missing_body":
+				loop.Body = nil
+			case "body_kind":
+				raw.Body.IsLoop = false
+			case "missing_owner":
+				loop.Body.Control = nil
+			case "foreign_owner":
+				loop.Body.Control = &PLControl{ID: 99, Loop: true}
+			case "sibling_target":
+				inner.Body.Statements[0].Transfer = body.Statements[1].While.Body.Control
+			case "foreign_target":
+				inner.Body.Statements[0].Transfer = &PLControl{ID: 3, Loop: true}
+			case "mixed_checked":
+				in.Loop = loop.Body
+			case "mixed_raw":
+				in.Syntax.Loop = raw.Body
+			case "raw_condition":
+				raw.Condition.Expression = nil
+			}
+			if err := d.PL.ValidateDefinition(d); err == nil {
+				t.Fatal("forged WHILE accepted", name)
+			}
+		})
+	}
+	for _, change := range []string{"condition", "body", "owner"} {
+		a, b := conditionalUnitDefinition(t, source), conditionalUnitDefinition(t, source)
+		if !a.PL.SameLayout(b.PL) {
+			t.Fatal("equivalent WHILE layouts differ")
+		}
+		loop := b.PL.Root.Statements[0].Block.Statements[0].While
+		switch change {
+		case "condition":
+			loop.Condition.Targets[0] = loop.Body.Statements[0].While.Condition.Targets[0]
+		case "body":
+			loop.Body.Statements = nil
+		case "owner":
+			loop.Body.Control.ID++
+		}
+		if a.PL.SameLayout(b.PL) {
+			t.Fatal("WHILE layout discarded", change)
+		}
+		if err := a.PL.ValidateDefinition(a); err != nil {
+			t.Fatal("layout comparison mutated original", err)
+		}
+	}
+}

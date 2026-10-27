@@ -39,6 +39,7 @@ type PLDeclaration struct {
 type PLStatement struct {
 	Block               *PLBlock
 	Loop                *PLBlock
+	While               *PLWhile
 	Transfer            *PLTransfer
 	Target              Expr
 	Expression          Expr
@@ -58,6 +59,12 @@ type PLStatement struct {
 	Assert              *PLAssert
 	Into                *PLIntoStatement
 	SQL                 *PLSQLStatement
+}
+
+// PLWhile owns a reevaluated scalar condition and the ordinary loop body.
+type PLWhile struct {
+	Condition PLExpression
+	Body      *PLBlock
 }
 
 // PLQueryLoop retains the ordinary SQL syntax and its original source boundary.
@@ -386,6 +393,10 @@ func ParsePLpgSQL(source string, returns PLReturnPolicy) (*PLBlock, error) {
 			}
 			if l.plThen && (l.current.text == ";" || l.current.text == "") {
 				copy.Message = "missing \"THEN\" at end of SQL expression"
+				return nil, &copy
+			}
+			if l.plBoundary == plLoopBoundary && (l.current.text == ";" || l.current.text == "") {
+				copy.Message = "missing \"LOOP\" at end of SQL expression"
 				return nil, &copy
 			}
 			if l.plExpression && l.current.text == ";" {

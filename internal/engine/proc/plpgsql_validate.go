@@ -213,6 +213,9 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			if (instruction.IntegerFor != nil) != (raw.IntegerFor != nil) {
 				return invalid()
 			}
+			if (instruction.While != nil) != (raw.While != nil) {
+				return invalid()
+			}
 			if (instruction.Foreach != nil) != (raw.Foreach != nil) || (instruction.QueryLoop != nil) != (raw.QueryLoop != nil) || (instruction.Loop != nil) != (raw.Loop != nil) || (instruction.Transfer != nil) != (raw.Transfer != nil) {
 				return invalid()
 			}
@@ -226,7 +229,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			variants := 0
-			for _, present := range []bool{raw.SQL != nil, raw.Into != nil, raw.IntegerFor != nil, raw.Foreach != nil, raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
+			for _, present := range []bool{raw.SQL != nil, raw.Into != nil, raw.IntegerFor != nil, raw.Foreach != nil, raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.While != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
 				if present {
 					variants++
 				}
@@ -352,6 +355,21 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 					return invalid()
 				}
 				if diagnostics.expression(p, d.Source, q.Target.SourcePosition(), q.Start, scopes) != nil || diagnostics.expression(p, d.Source, q.Start, q.End, scopes) != nil || walk(checked.Body, q.Body, scopes) != nil {
+					return invalid()
+				}
+			case raw.While != nil:
+				q, checked := raw.While, instruction.While
+				empty := instruction
+				empty.While = nil
+				condition := q.Condition
+				if checked == nil || instruction.Block != nil || !emptyPLInstructionPayload(empty) || raw.Expression != nil ||
+					condition.Expression == nil || !plSourceSpan(d.Source, condition.Expression, condition.Start, condition.End, condition.Delimiter) ||
+					condition.Delimiter.Offset+4 > len(d.Source) || !strings.EqualFold(d.Source[condition.Delimiter.Offset:condition.Delimiter.Offset+4], "loop") ||
+					q.Body == nil || !q.Body.IsLoop || q.Body.Pos != condition.Delimiter ||
+					!query(checked.Condition, condition.Expression, condition.Alias) {
+					return invalid()
+				}
+				if diagnostics.expression(p, d.Source, condition.Start, condition.End, scopes) != nil || walk(checked.Body, q.Body, scopes) != nil {
 					return invalid()
 				}
 			case raw.Loop != nil:
@@ -795,5 +813,5 @@ func (p *PLProgram) validCursorInstruction(raw *parser.PLCursorStatement, in *PL
 }
 
 func emptyPLInstructionPayload(in PLInstruction) bool {
-	return in.SQL == nil && in.Into == nil && in.IntegerFor == nil && in.Foreach == nil && in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
+	return in.SQL == nil && in.Into == nil && in.IntegerFor == nil && in.Foreach == nil && in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.While == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
 }
