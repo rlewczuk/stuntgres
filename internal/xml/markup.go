@@ -7,6 +7,10 @@ import (
 )
 
 func (p *parser) comment() {
+ start,id:=p.i,p.inputID
+ defer func(){
+  if p.err==nil&&id==p.inputID&&p.i>=start+7&&p.s[p.i-3:p.i]=="-->" {p.collectMarkup(commentNode,"",start+4,p.i-3,start)}
+ }()
  defer func(){p.cdataStale=false}()
  p.advance(4);data:=p.i
  size:=0;committed:=p.i
@@ -95,20 +99,23 @@ func (p *parser) commentPreview(start,end int) string {
  return b.String()
 }
 func (p *parser) pi() {
+ start,id:=p.i,p.inputID
  p.advance(2);target:=p.name()
+ dataStart:=p.i
+ defer func(){
+  if p.err==nil&&id==p.inputID&&p.i>=start+4&&p.s[p.i-2:p.i]=="?>" {
+   if p.tree==nil{if !p.inDTD{p.noteKind(piNode)};return}
+   p.collectMarkup(piNode,target,dataStart,p.i-2,start)
+  }
+ }()
  if p.err!=nil{return}
  if target=="" {p.event("XML_ERR_PI_NOT_STARTED","xmlParsePI : no target name");return}
- if len(target)>=3&&(target[0]=='x'||target[0]=='X')&&(target[1]=='m'||target[1]=='M')&&(target[2]=='l'||target[2]=='L') {
-  if len(target)==3 {
-   if target=="xml" {p.event("XML_ERR_RESERVED_XML_NAME","XML declaration allowed only at the start of the document")}else{p.event("XML_ERR_RESERVED_XML_NAME","Invalid PI name")}
-  }else if target!="xml-stylesheet"&&target!="xml-model" {
-   p.eventLevel("XML_ERR_RESERVED_XML_NAME","xmlParsePITarget: invalid name prefix 'xml'",Warning)
-  }
- }
+ p.checkPITarget(target)
  if p.has("?>") {p.advance(2);return}
  if !p.spaces() {p.event("XML_ERR_SPACE_REQUIRED",p.joinMessage("ParsePI: PI ",target," space expected"))}
+ dataStart=p.i
  size:=0
- catalog:=target=="oasis-xml-catalog"&&p.effective==Document&&p.depth==0&&!p.rootSeen
+ catalog:=target=="oasis-xml-catalog"&&p.effective==Document&&p.depth==0&&!p.rootSeen&&!p.inDTD
  data:=namespaceValue{capture:true,construction:true,start:p.i,end:p.i}
  readStart:=p.i
  r,n:=p.currentNormalizedCharacter()
@@ -176,6 +183,8 @@ func (p *parser) catalogPI(value string) {
  }
 }
 func (p *parser) cdata() {
+ start,id:=p.i,p.inputID
+ defer func(){if p.err==nil&&id==p.inputID&&p.i>=start+12&&p.s[p.i-3:p.i]=="]]>"{p.collectValue(cdataNode,p.s[start+9:p.i-3])}}()
  p.advance(9)
  data:=p.i;singleByte:=p.failedSingleByte
  r,rl:=p.currentNormalizedCharacter()

@@ -38,6 +38,8 @@ type namespaceValue struct {
  hash uint64
  uri strings.Builder
  transformed,capture,construction,deferAmp bool
+ owned bool
+ value string
 }
 func (v *namespaceValue) append(scalar rune) {
  if v.matches==0 {v.length=1;return}
@@ -72,15 +74,17 @@ func (p *parser) namespaceAppend(v *namespaceValue,scalar rune,start,end int) {
   v.transformed=true
   p.namespaceCopy(&v.uri,p.s[v.start:v.end])
  }
- if p.err==nil {v.uri.Write(encoded[:n])}
+ if p.ensureBuilder(&v.uri,n){v.uri.Write(encoded[:n])}
  v.end=end
 }
 
 func (p *parser) namespaceCopy(dst *strings.Builder,s string) {
+ if !p.ensureBuilder(dst,len(s)){return}
  for len(s)>0 {
   p.err=p.ctx.Err();if p.err!=nil{return}
   n:=min(4096,len(s));dst.WriteString(s[:n]);s=s[n:]
  }
+ if p.err==nil{p.err=p.ctx.Err()}
 }
 
 type namespaceURI struct {value string;next int}
@@ -93,15 +97,15 @@ func (p *parser) namespaceRestore(undo []namespaceUndo) {
   if binding.previous==0 {delete(p.namespaceBindings,binding.prefix)}else{p.namespaceBindings[binding.prefix]=binding.previous}
  }
 }
-type ordinaryAttribute struct {name,local string}
+type ordinaryAttribute struct {name,local,value string;defaulted bool}
 type attributeIdentity struct {prefix,local string}
 type expandedAttribute struct {local string;uri int}
 
 // URI zero is unbound, one is the implicit xml binding. All remaining IDs
 // belong only to this parser operation, never the immutable Result.
 func (p *parser) namespaceIntern(v *namespaceValue) int {
- value:=p.s[v.start:v.end]
- if v.transformed {value=v.uri.String()}
+ value:=v.value
+ if !v.owned{value=p.s[v.start:v.end];if v.transformed{value=v.uri.String()}}
  if p.namespaceHashes==nil {p.namespaceHashes=make(map[uint64]int)}
  for id:=p.namespaceHashes[v.hash];id!=0;id=p.namespaceURIs[id-2].next {
   p.err=p.ctx.Err();if p.err!=nil{return 0}
@@ -109,7 +113,7 @@ func (p *parser) namespaceIntern(v *namespaceValue) int {
   if p.err!=nil{return 0}
  }
  id:=len(p.namespaceURIs)+2
- p.namespaceURIs=append(p.namespaceURIs,namespaceURI{value,p.namespaceHashes[v.hash]})
+ p.namespaceURIs=checkedAppend(p,p.namespaceURIs,namespaceURI{value,p.namespaceHashes[v.hash]});if p.err!=nil{return 0}
  p.namespaceHashes[v.hash]=id
  return id
 }

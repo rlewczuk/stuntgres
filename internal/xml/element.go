@@ -17,6 +17,7 @@ func (p *parser) element() {
   p.event("XML_ERR_NAME_REQUIRED","StartTag: invalid element name")
   if p.effective==Content||p.depth>0 {p.stopped=true};return
  }
+ p.noteKind(elementNode)
  p.depth++
  defer func(){p.depth--}()
  var namespaces attributeNames
@@ -25,6 +26,7 @@ func (p *parser) element() {
  var firstUndo [1]namespaceUndo
  undo:=firstUndo[:0]
  defer func(){p.namespaceRestore(undo)}()
+ var collectedNamespaces []nodeAttribute
  p.spaces()
  if !p.fragmentGrow(){return}
  for xmlChar(rune(p.byte()))&&p.poll()&&!p.stopped {
@@ -34,10 +36,12 @@ func (p *parser) element() {
   if p.err!=nil||p.stopped{return}
   namespace:=attr=="xmlns"||len(attr)-len(attrLocal)==6&&attr[:6]=="xmlns:"
   xmlSpace:=attrLocal=="space"&&attributePrefix(attr,attrLocal)=="xml"
+  definition:=p.attributeDefinition(name,attr)
   var facts *namespaceValue
   var normalized namespaceValue
-  if namespace {normalized.matches=3;normalized.capture=attr!="xmlns"&&attrLocal!="xml"&&attrLocal!="xmlns";facts=&normalized}
-  if xmlSpace {normalized.capture=true;normalized.construction=true;normalized.deferAmp=p.effective==Content;facts=&normalized}
+  if namespace {normalized.matches=3;normalized.capture=attr!="xmlns"&&attrLocal!="xml"&&attrLocal!="xmlns"||attr=="xmlns"&&p.tree!=nil;facts=&normalized}
+  if xmlSpace {normalized.capture=true;normalized.construction=true;normalized.deferAmp=!p.replaceEntities;facts=&normalized}
+  if p.tree!=nil&&facts==nil {normalized.capture=true;facts=&normalized}
   value:=false
   if attr=="" {
    p.event("XML_ERR_NAME_REQUIRED","error parsing attribute name")
@@ -46,7 +50,7 @@ func (p *parser) element() {
    if p.byte()!='=' {
     p.event("XML_ERR_ATTRIBUTE_WITHOUT_VALUE",p.joinMessage("Specification mandates value for attribute ",attrLocal))
    }else{
-    p.advance(1);p.spaces();value=p.attribute(facts)
+    p.advance(1);p.spaces();value=p.attribute(facts,definition!=nil&&definition.typ!="CDATA")
     if p.stopped&&p.err==nil {
      // Attribute2 restores CONTENT after the value's GROW halted input.
      // Keep the immutable-source offset while exposing the halted empty input.
@@ -72,15 +76,24 @@ func (p *parser) element() {
     if normalized.admitted(attr,attrLocal) {
      if namespaces.add(attr) {
       p.event("XML_ERR_ATTRIBUTE_REDEFINED",p.joinMessage("Attribute ",attr," redefined"))
-     }else if attr!="xmlns" {
-      uri:=p.namespaceIntern(&normalized)
+     }else{
+      if p.tree!=nil {v:=p.s[normalized.start:normalized.end];if normalized.transformed{v=normalized.uri.String()};collectedNamespaces=checkedAppend(p,collectedNamespaces,nodeAttribute{name:attr,local:attrLocal,prefix:attributePrefix(attr,attrLocal),value:v})}
       if p.err!=nil{return}
-      if p.namespaceBindings==nil {p.namespaceBindings=make(map[string]int)}
-      undo=append(undo,namespaceUndo{attrLocal,p.namespaceBindings[attrLocal]})
-      p.namespaceBindings[attrLocal]=uri
+      if attr=="xmlns"&&p.tree!=nil||attrLocal!="xml"&&attrLocal!="xmlns" {
+       uri:=p.namespaceIntern(&normalized)
+       if p.err!=nil{return}
+       if p.namespaceBindings==nil {p.namespaceBindings=make(map[string]int)}
+       prefix:=attrLocal;if attr=="xmlns"{prefix=""}
+       undo=checkedAppend(p,undo,namespaceUndo{prefix,p.namespaceBindings[prefix]});if p.err!=nil{return}
+       p.namespaceBindings[prefix]=uri
+      }
      }
     }
-   }else{attributes=append(attributes,ordinaryAttribute{attr,attrLocal})}
+   }else{
+    v:="";if p.tree!=nil{v=p.collectedAttribute(&normalized)}
+    attributes=checkedAppend(p,attributes,ordinaryAttribute{name:attr,local:attrLocal,value:v})
+    if p.err!=nil{return}
+   }
   }
   // All attribute outcomes share next_attr. A supplied tag delimiter wins
   // over separator recovery, even when the preceding attribute failed.
@@ -94,10 +107,14 @@ func (p *parser) element() {
   if !p.fragmentGrow(){return}
  }
  if p.err!=nil||p.stopped{return}
+ attributes=p.applyDefaults(name,local,attributes,&namespaces,&undo,&collectedNamespaces)
  // Resolve after every declaration, including ones following attributes.
  // First-prior namespace collisions terminate the ordinary lexical search.
  p.attributeDuplicates(attributes)
  if p.err!=nil||p.stopped{return}
+ parent:=p.parent
+ current:=p.collectElement(name,local,attributes,collectedNamespaces)
+ if current!=nil {p.appendNode(current);p.parent=current;defer func(){p.parent=parent}()}
  if p.has("/>") {p.advance(2);p.cdataStale=false;return}
  // A QName can recover at physical input end without entering parser EOF.
  // Its incomplete opening tag still needs the start-tag, not content, error.
@@ -123,7 +140,7 @@ func (p *parser) element() {
   case p.has("<!--"):p.comment()
   case p.has("<?"):p.pi()
   case p.has("<![CDATA["):p.cdata()
-  case p.has("<!DOCTYPE"):p.dtd();return
+  case p.has("<!DOCTYPE"):p.element()
   case p.has("<"):p.element()
   default:p.text()
   }
@@ -146,8 +163,14 @@ func (p *parser) startUnfinished(name string,line int) {
 // The return value models a non-NULL parsed value, not error-free validation.
 // Complex scalar/termination errors still return their constructed value to the
 // lexical duplicate collector; missing quotes and length failures do not.
-func (p *parser) attribute(facts *namespaceValue) bool {
+func (p *parser) attribute(facts *namespaceValue,tokenized bool) bool {
  quote:=p.byte()
+ oldAttribute,oldCapture,oldNormalization:=p.inAttribute,p.attributeCapture,p.attributeNormalization
+ var normalization *attributeNormalization
+ p.inAttribute=true;p.attributeCapture=facts!=nil
+ if tokenized{normalization=&attributeNormalization{facts:facts}}
+ p.attributeNormalization=normalization
+ defer func(){p.inAttribute=oldAttribute;p.attributeCapture=oldCapture;p.attributeNormalization=oldNormalization}()
  if quote!='\''&&quote!='"' {p.event("XML_ERR_ATTRIBUTE_NOT_STARTED","AttValue: \" or ' expected");return false}
  // The fast ASCII path reports overlength at its opening quote, just as the
  // release scanner does, while the slow path counts normalized construction.
@@ -155,17 +178,41 @@ func (p *parser) attribute(facts *namespaceValue) bool {
  p.advance(1)
  if facts!=nil {facts.start=p.i;facts.end=p.i}
  size:=0;fast:=true
+ fastStart:=p.i;leading:=tokenized;trailing:=false
  var current rune
  var width int
  cached:=false
  readStart:=p.i
  for p.i<len(p.s)&&p.byte()!=quote&&p.poll() {
   if p.byte()=='<' {p.event("XML_ERR_LT_IN_ATTRIBUTE","Unescaped '<' not allowed in attributes values");return true}
-  if p.byte()=='&'||p.byte()<0x20||p.byte()>=128 {fast=false}
+  leadingSpace:=tokenized&&fast&&leading&&space(p.byte())
+  if tokenized&&fast {
+   if !leadingSpace {
+    leading=false
+    if trailing {
+     if !space(p.byte()){fast=false}
+    }else if space(p.byte())&&(p.byte()!=' '||p.i+1<len(p.s)&&p.s[p.i+1]==' '){trailing=true
+    }else if p.byte()=='&'||p.byte()<0x20||p.byte()>=128{fast=false}
+   }
+  }else if p.byte()=='&'||p.byte()<0x20||p.byte()>=128{fast=false}
   n:=0
   contributionStart:=p.i
   var scalar rune
-  if p.byte()=='&' {n,scalar=p.reference()}else{
+  if p.byte()=='&' {
+   if p.i+1<len(p.s)&&p.s[p.i+1]!='#'&&!p.addEntityCount(1){return false}
+   p.attributeReplacement="";p.attributeReplacementSize=0
+   n,scalar=p.reference()
+   if !tokenized{if !appendSize(size,p.attributeReplacementSize){p.err=appendSizeError(size,p.attributeReplacementSize);return false};size+=p.attributeReplacementSize}
+   if replacement:=p.attributeReplacement;replacement!="" {
+    if facts!=nil {
+     nextPoll:=0
+     for at,r:=range replacement {
+      if at>=nextPoll{p.err=p.ctx.Err();if p.err!=nil{return false};nextPoll=at+min(4096,len(replacement)-at)}
+      p.namespaceAppend(facts,r,p.i,p.i)
+     }
+    }
+   }
+  }else{
    if cached {contributionStart=readStart}else{current,width=p.currentNormalizedCharacter()}
    if width==0 {if p.err==nil {p.event("XML_ERR_ATTRIBUTE_NOT_FINISHED","AttValue: ' expected")};return p.err==nil}
    r:=current
@@ -180,9 +227,13 @@ func (p *parser) attribute(facts *namespaceValue) bool {
   // Namespace comparison keeps canonical scalar bytes. CONTENT's value
   // construction instead defers both ampersand reference forms as "&#38;".
   constructed:=n
-  if scalar=='&'&&p.effective==Content {constructed=5}
-  size+=constructed
+  if scalar=='&'&&!p.replaceEntities {constructed=5}
   contributionEnd:=p.i
+  if tokenized {
+   if n!=0{p.normalizeAttributeScalar(normalization,scalar,contributionStart,contributionEnd)}
+   size=normalization.size
+  }else{size+=constructed}
+  if leadingSpace{fastStart=p.i}
   if !fast {
    // Complex AttValue commits its contribution, grows, then decodes the
    // next character before checking length. Retain that read for the next
@@ -191,13 +242,14 @@ func (p *parser) attribute(facts *namespaceValue) bool {
    readStart=p.i;current,width=p.currentNormalizedCharacter();cached=true
    if p.err!=nil{return false}
   }
-  if size>maxText {
+  limitSize:=size;if tokenized&&fast{limitSize=p.i-fastStart}
+  if limitSize>maxText {
    if fast {p.i,p.line,p.column=quoteAt,quoteLine,quoteCol}
    p.event("XML_ERR_ATTRIBUTE_NOT_FINISHED","AttValue length too long")
    if !fast {p.event("XML_ERR_NO_MEMORY","Memory allocation failed")}
    return false
   }
-  if facts!=nil&&n!=0 {p.namespaceAppend(facts,scalar,contributionStart,contributionEnd)}
+  if !tokenized&&facts!=nil&&n!=0 {p.namespaceAppend(facts,scalar,contributionStart,contributionEnd)}
  }
  if p.err!=nil{return false}
  if p.i==len(p.s) {p.event("XML_ERR_ATTRIBUTE_NOT_FINISHED","AttValue: ' expected");return true}

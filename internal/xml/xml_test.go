@@ -59,11 +59,11 @@ func TestXMLCoreNamespaces(t *testing.T) {
   reject(t,`<a p:1="1" p:1="2"/>`,m)
  }
 }
-func TestXMLCoreDTDBoundary(t *testing.T) {
+func TestXMLCoreDTDRecognition(t *testing.T) {
  for _,s:=range []string{`<!DOCTYPE a><a/>`,`<!DOCTYPE a [<!ENTITY x "v">]><a>&x;</a>`,`<!DOCTYPE a SYSTEM "file:///never-open"><a/>`,`<?xml version='1.0'?> <!--p--><?go?><!DOCTYPE a><a/>`} {
   for _,m:=range []Mode{Content,Document} {
-   r,e:=Parse(context.Background(),s,Options{Mode:m});var d *UnsupportedCapabilityError
-   if !errors.As(e,&d)||r.valid||d.Capability!=DTD||d.RequestedMode!=m||d.EffectiveMode!=Document||d.Offset!=strings.Index(s,"<!DOCTYPE") {t.Fatalf("DTD boundary %+v %v",d,e)}
+   r,e:=Parse(context.Background(),s,Options{Mode:m})
+   if e!=nil||!r.valid||r.RequestedMode()!=m||r.EffectiveMode()!=Document||r.Original()!=s{t.Fatal(r,e)}
   }
  }
  for _,s:=range []string{`<!-- <!DOCTYPE a> --><a/>`,`<a><![CDATA[<!DOCTYPE a>]]>&lt;!DOCTYPE a&gt;</a>`} {accept(t,s,Document)}
@@ -86,5 +86,5 @@ func TestXMLCoreFeatureSmoke(t *testing.T) {
  if e2.Detail()!="line 1: Entity 'idontexist' not defined\n<twoerrors>&idontexist;</unbalanced>\n                       ^\nline 1: Opening and ending tag mismatch: twoerrors line 1 and unbalanced\n<twoerrors>&idontexist;</unbalanced>\n                                    ^"{t.Fatal(e2.Detail())}
  ctx,cancel:=context.WithCancel(context.Background());cancel();r,e=Parse(ctx,"<a/>",Options{});if !errors.Is(e,context.Canceled)||r.valid{t.Fatal(r,e)}
  accept(t,"<a/>",Content)
- _,e=Parse(context.Background(),"<!DOCTYPE a><a/>",Options{});var d *UnsupportedCapabilityError;if !errors.As(e,&d)||d.EffectiveMode!=Document{t.Fatal(e)}
+ r,e=Parse(context.Background(),"<!DOCTYPE a><a/>",Options{});if e!=nil||r.EffectiveMode()!=Document{t.Fatal(r,e)}
 }

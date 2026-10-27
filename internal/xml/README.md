@@ -2,9 +2,11 @@
 
 `Parse(context.Context, string, Options)` is the concrete, handwritten XML
 DOCUMENT/CONTENT validator. `Content` permits empty values, text and multiple
-roots; `Document` requires one root with legal prolog/epilog. The scanner uses
-fixed XML 1.0 fifth-edition names and characters, not host Unicode categories.
-Version compatibility does not change those character ranges.
+roots; a leading DOCTYPE after legal declaration/misc selects document grammar
+while retaining CONTENT error classification. `Document` requires one root with
+legal prolog/epilog. The scanner uses fixed XML 1.0 fifth-edition names and
+characters, not host Unicode categories. Version compatibility does not change
+those character ranges.
 
 `Options.InputKind` distinguishes already-decoded `Text` from raw-byte `Binary`
 strings. Text declarations never reinterpret the characters. Binary preflight
@@ -19,10 +21,24 @@ uses separate immutable recognition metadata; it adds no binary codecs.
 `Result` contains the immutable original **character spelling**, requested and
 effective modes, declaration metadata, ordered warnings and a validity bit. The
 original binary transport is decoded, not retained. No DOM, parser, open-element
-stack, context, attribute map or conversion scratch survives a call. Immutable
-input strings and no-op outputs safely share backing storage. `Diagnostics()`
-returns an independent slice; its strings are immutable. A zero Result is not
-accepted empty CONTENT and cannot be output.
+stack, context, declaration table or conversion scratch survives in Result.
+The private `parseExpanded` entry uses the same parser with a nullable transient
+collector. Its operation-owned document preserves ordered element/text/CDATA/
+comment/PI/DOCTYPE nodes, resolved names, namespace declarations, normalized
+explicit/default attributes and unresolved entity-reference identity. It is not
+retained by Result. Repeated entity occurrences have independent mutable nodes.
+Immutable input strings and unchanged node values safely share backing storage.
+Adjacent text is coalesced once; temporary text-part slices are cleared before
+publication rather than retained as mutable collector scratch.
+Literal source collection normalizes CR/CRLF line endings; already-decoded
+character references append their scalar unchanged, including U+000D. Numeric
+references decoded eagerly in an EntityValue instead become replacement input
+and follow literal-source normalization when that replacement is parsed.
+PI completion retains the grammar's target and data-start endpoint, never
+rescans separator whitespace, and skips collector-only work in validation mode.
+`Diagnostics()` returns an independent slice; its strings are immutable. A zero
+Result is not accepted empty CONTENT and cannot be output. All failures return
+zero Result and no partial transient document.
 
 `Declaration` distinguishes absent and present-empty encoding/version properties,
 retains written labels and has an exclusive UTF8-original byte `End`. CONTENT's
@@ -47,8 +63,12 @@ distinct termination behavior.
 `ParseError` distinguishes custom declaration failures from grammar errors and
 retains requested/effective modes, declaration and ordered `Diagnostic` values.
 Conditions are libxml symbolic identities with domain and severity. XML
-line/character-column and original byte offset are separate from the byte-based
+line/character-column and source-local byte offset are separate from the byte-based
 80-byte context/caret; contexts can contain split or malformed UTF8 bytes.
+`Diagnostic.Source` distinguishes original character input from entity replacement
+input; `EntityName` identifies a replacement. Offset and SourceBaseOffset belong
+to that source, not an invented original-document position. Invoking failures are
+separate later events in the parent's source.
 `Detail()` joins only error/fatal blocks without a terminal newline; general
 warnings remain separately observable. Namespace-domain failures do not establish
 ill-formedness. An ordinary lexical duplicate does only when it is the first prior
@@ -202,10 +222,101 @@ hyphen is still reported after a malformed-byte decoding event.
 `EncodingError` distinguishes invalid label, missing direct pair, invalid sequence
 and untranslatable character, exposing canonical IDs/names, bytes and English
 message/detail. `SizeError` distinguishes conversion from append overflow.
-`UnsupportedCapabilityError{Capability: DTD}` is the explicit DOCTYPE boundary,
-including effective DOCUMENT promotion for leading CONTENT DOCTYPE. No external
-entity loader or I/O exists. DTD semantics, pretty serialization and SQL adapters
-belong to their own owners, not this package.
+DOCTYPE and the complete internal ELEMENT/ATTLIST/ENTITY/NOTATION grammar are
+nonvalidating: unused declarations are syntax-checked, but root/content-model,
+ID, required-attribute, enumeration-membership and FIXED-equality validity are
+not enforced. First entity/attribute definitions bind; later declarations are
+still parsed. The transient DOCTYPE retains raw declaration order/identity and
+processed internal entity definitions for later parsed serialization.
+External general entities require whitespace before `NDATA` after their SYSTEM
+or PUBLIC identifier, even when unused. A missing separator reports a syntax
+error and continues parsing the NDATA clause and declaration terminator; an
+undeclared notation remains a deliberately unenforced validity constraint.
+Unparsed identity is explicit, independent of the notation string. A properly
+separated NDATA clause may retain an absent name as empty and succeed unused;
+content and attribute references still fail as unparsed, not empty external data.
+ENTITY's initial, percent and successful-name separator errors continue through
+the remaining declaration syntax; its absent-Name branch still returns.
+ELEMENT/NOTATION retain their distinct initial-error returns. The pinned percent
+separator diagnostic contains two literal percent signs (`'%%'`).
+In contrast, a missing final ENTITY terminator reports at the original failure
+cursor and stops parsing. Subset/DOCTYPE/document callers do not append recovery
+errors after that halt; earlier genuine separator diagnostics remain ordered.
+
+General entities parse balanced replacement content with the same element/text
+grammar and isolated open-element/source frames. Parameter entities are resumable
+DTD inputs, with semantic boundary whitespace, placement/input-identity checks
+and eager declaration-value timing. Defaults expand at declaration time; literal
+attribute whitespace becomes spaces, direct numeric references retain their scalar,
+and tokenized attributes collapse U+0020 only. Defaults bind namespaces before
+ordinary attribute resolution and follow explicit attributes in declaration order.
+Missing REQUIRED/IMPLIED attributes remain absent; explicit values override FIXED.
+String-based PE lookup honors `standalone="yes"` even after earlier PE use.
+Missing lookups retain the release's reference count, suppressed-warning/error
+bookkeeping, density checks and PE-seen update; a fatal lookup alone does not
+short-circuit the remaining declaration-value string.
+Fatal missing string-GE lookup likewise consumes the valid reference, preserves
+lookup/count and both nil checks, then continues through later references unless
+accounting or an ordinary error stops it; it is not a generic decoder halt.
+GE/PE string references and raw EntityValue reference prechecking share a
+50000-byte XML Name scanner. Its pinned overlength label is `NCName`, without
+tightening the Name grammar. A failed scan leaves the local pointer at Name
+begin and retains the active input's source context. String-reference callers
+report their own missing-Name diagnostic, check nil and decode residual bytes;
+malformed tokens perform no lookup/count/PE-seen update. Missing semicolons leave
+the failed delimiter unconsumed. Raw EntityValue prechecking instead reports its
+reference-character error and returns. Input-based Name/PE scanning stays distinct.
+
+Recursive GE/PE result copies check density only at semantic buffer growth, not
+at completed replacement size. Each decoder starts at capacity300; ordinary,
+numeric/predefined scalar and reference contributions all track byte capacity,
+growing to twice the previous capacity plus100. Recursive-copy checkpoints from
+an empty buffer are201,601,1401,3001, not additive100-byte intervals. These checks
+still run after syntax failures. The outer attribute/default copy itself adds no
+recursive gate. Validation tracks the same capacity history without disposable
+expansion buffers; physical Go builder capacity need not mirror libxml's buffer.
+The string decoder derives content presence separately from entity type: an
+internal empty entity has nonNULL empty content, a named unparsed entity has its
+notation text as nonNULL content, and parsed external or notation-absent unparsed
+entities have NULL content. Eligible nonNULL content is inspected and recursively
+counted even after an unparsed-reference diagnostic; raw declaration identity
+and the fatal unparsed restriction are unchanged.
+
+For NULL GE content, the local decoder retains immutable `&`, Name and `;`
+pieces without loading anything. It reserves after the ampersand with increment
+Name byte length plus100, with no ordinary growth before or after that reserve.
+Strict reserve equality can leave the current size one byte past the usual
+threshold: the next nonempty recursive copy checks its next actual byte, never
+a past checkpoint; empty copies perform no growth/check. These private strings
+after failed lookups are not successful external-resource values or published
+XML. Ordinary external content remains empty and failures publish neither Result
+nor transient tree.
+
+All external SYSTEM/PUBLIC subsets and general/parameter entities are intrinsically
+empty. There is no loader interface, fetch option, filesystem/network/catalog
+lookup or host executable dispatch. External entities in attributes and unparsed
+entity uses remain errors. Suppressible direct undeclared references retain an
+entity-reference node; declared external general entities contribute no nodes.
+Nested general-entity contexts do not inherit external-subset/PE/standalone
+leniency. Entity counts, local density, copy volume, input/decode depth, names,
+identifier and construct lengths use the pinned release accounting, independently
+of whether collection is enabled. Pretty serialization and SQL adapters remain
+separate owners.
+Replacement-copy volume charges source byte length plus five on first and cached
+nonempty GE publication, in document and balanced replacement contexts and with
+or without collection. Single-text ownership does not exempt the first use;
+childless/empty replacement lists return before this charge. The pinned
+million-byte entity accepts ten references and rejects at the eleventh.
+The no-size/nil-entity accounting branch applies above 10000 references to
+both fatal undeclared errors and suppressed undeclared warnings. Replacing
+a prior fatal with that warning does not exempt the count limit; at exactly
+10000 this branch still admits either code.
+Input-based PE lookups record the suppressed warning before this check too;
+outward suppression never discards its accounting identity. Real-entry external
+subset tests cover acceptance at 10000 and the sole loop diagnostic at 10001.
+Entity-string chunks align valid UTF8 within at most three boundary bytes and
+always advance. Already-failed single-byte input progresses without clearing or
+suppressing its original malformed-byte diagnostic.
 
 ## Typed output and lifecycle
 
@@ -241,10 +352,11 @@ counting, emission and copy loops poll cancellation with at most 4096 bytes of
 progress plus one character/packed word between polls; phase ends and publication
 also check context. Cancellation is an ordinary context error with zero result or
 empty output, never a partial successful value. The caller supplies a nonnil
-context. Exact conversion/output sizes are checked before allocation; validation
-counts normalized construct lengths without retaining expanded payloads, except
-the transient namespace/value and eligible catalog-PI captures needed by grammar
-diagnostics and duplicate admission.
+context. Construct/counter/copy sizes are checked before allocation or arithmetic;
+noncursor entity decoding, token normalization, default insertion and collector
+work poll independently of the source cursor. Validation does not construct
+ordinary nodes or text/attribute payloads. DTD declaration/default tables and
+namespace/value/catalog-PI captures are transient grammar state.
 
 ## Recognition inputs
 
@@ -276,7 +388,32 @@ The generator family validates immutable input and whole generated output;
 recognition tests separately assert literal labels and all finite observations.
 Cancellation tests admit real private production/conversion phases; ownership
 cases also support selected race execution.
+DTD units use independent pinned PostgreSQL18.6 UTF8/C diagnostics (the literal
+`data/dtd-oracle.json` corpus) and shared-parser parsed-serialization projections.
+The distinct XPath parse and unsuccessful `xmlsend` discovery query are not
+expansion/default expectations. Internal DTD units never issue SQL. DTD source
+frame identities, strict density comparisons, arithmetic boundaries, actual-phase
+cancellation, immutable Result ownership and concurrent declaration isolation are
+covered by the same family.
+The captured mutual PE cycle generated with numeric percent references has a
+permanent full-Detail/source-identity witness in both requested modes and both
+collection settings. It is distinct from illegal raw-percent placement and the
+accepted eager-declaration `q`-empty timing case. Literal reference line-ending
+projections and long-separator PI completion/cancellation are also covered.
+
+The 68-case runtime corpus is distinct from additional source-derived URI,
+attribute-type recovery, default-value, storage and accounting witnesses; those
+witnesses do not claim an oracle execution that was not performed.
+
+Follow-up pinned captures cover the string-PE standalone override and malformed
+EntityValue bytes. The latter were delivered to genuine PostgreSQL binary XML
+receive using binary COPY, not invalid UTF8 SQL text. The package's ordinary
+Text-input regression exercises the shared parser's existing failed-byte contract;
+it does not bypass Binary encoding preflight. A captured two-byte boundary scalar
+projection is extended with source-derived three/four-byte alignments, tokenized
+attributes and cancellation during valid and already-failed string decoding.
 
 ```sh
 make check RUN='^TestXMLCore'
+make check RUN='^TestXMLDTD'
 ```

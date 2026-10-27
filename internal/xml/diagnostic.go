@@ -10,12 +10,16 @@ type Domain string
 type Severity uint8
 const ( Warning Severity = iota+1; Error; Fatal )
 const ( ParserDomain Domain = "parser"; NamespaceDomain Domain = "namespace" )
+type DiagnosticSource uint8
+const (OriginalSource DiagnosticSource=iota; EntitySource)
 type Diagnostic struct {
  Condition Condition
  Domain Domain
  Severity Severity
  Line, Column, Offset, SourceBaseOffset int
  Message, SourceContext, Caret string
+ Source DiagnosticSource
+ EntityName string
 }
 func (d Diagnostic) String() string { return fmt.Sprintf("line %d: %s\n%s\n%s", d.Line,d.Message,d.SourceContext,d.Caret) }
 type ErrorCategory uint8
@@ -58,7 +62,9 @@ func fileContext(s string, base, at int) (string,string) {
 func (p *parser) event(code Condition, message string) { p.eventLevel(code,message,Fatal) }
 func (p *parser) eventLevel(code Condition, message string, level Severity) {
  if p.err!=nil { return }
- if code=="XML_WAR_UNDECLARED_ENTITY"||code=="XML_ERR_NOT_WELL_BALANCED"&&p.illFormed {return}
+ if level==Fatal{p.saxDisabled=true}
+ if code=="XML_WAR_UNDECLARED_ENTITY"{p.lastEntityError=code;return}
+ if code=="XML_ERR_NOT_WELL_BALANCED"&&(p.illFormed||p.priorError){p.lastEntityError=code;return}
  context,caret:="","^"
  if !p.haltedInput {context,caret=fileContext(p.s,p.base,p.i)}
  // Bound the eventual rendered Detail as well as event-slice storage before
@@ -69,16 +75,19 @@ func (p *parser) eventLevel(code Condition, message string, level Severity) {
  if !appendSize(p.diagnosticBytes,needed) {p.err=appendSizeError(p.diagnosticBytes,needed);return}
  p.diagnosticBytes+=needed
  if level>=Error {p.illFormed=true}
- p.events=append(p.events,Diagnostic{Condition:code, Domain:ParserDomain, Severity:level, Line:p.line, Column:p.column, Offset:p.i, SourceBaseOffset:p.base, Message:message,SourceContext:context,Caret:caret})
+ p.lastEntityError=code
+ p.events=checkedAppend(p,p.events,Diagnostic{Condition:code, Domain:ParserDomain, Severity:level, Line:p.line, Column:p.column, Offset:p.i, SourceBaseOffset:p.base, Message:message,SourceContext:context,Caret:caret,Source:p.source,EntityName:p.entityName})
 }
-func (p *parser) failed() bool {return p.illFormed}
+func (p *parser) failed() bool {return p.illFormed||p.saxDisabled}
 func (p *parser) parseError() *ParseError { return &ParseError{Category:GrammarError,RequestedMode:p.requested,EffectiveMode:p.effective,Declaration:p.declaration,SourceBaseOffset:p.base,Diagnostics:p.events} }
 
 // joinMessage bounds copies of potentially long written names/version labels.
 // It leaves cancellation/size errors ordinary and publishes no partial event.
 func (p *parser) joinMessage(parts ...string) string {
+ if p.err!=nil{return ""}
  total:=0
- for _,s:=range parts {if !appendSize(total,len(s)){p.err=appendSizeError(total,len(s));return ""};total+=len(s)}
+ for at,s:=range parts {if at&255==0{p.err=p.ctx.Err();if p.err!=nil{return ""}};if !appendSize(total,len(s)){p.err=appendSizeError(total,len(s));return ""};total+=len(s)}
+ p.err=p.ctx.Err();if p.err!=nil{return ""}
  var b strings.Builder;b.Grow(total)
  for _,s:=range parts {
   for len(s)>0 {

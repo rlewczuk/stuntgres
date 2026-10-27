@@ -38,46 +38,52 @@ func (r Result) Declaration() Declaration { return r.declaration }
 func (r Result) Diagnostics() []Diagnostic { return append([]Diagnostic(nil), r.diagnostics...) }
 
 func Parse(ctx context.Context, input string, opts Options) (Result, error) {
- if err := ctx.Err(); err != nil { return Result{}, err }
- if opts.Mode > Document || opts.InputKind > Binary { return Result{}, fmt.Errorf("invalid XML options") }
+ r,_,err:=parse(ctx,input,opts,false);return r,err
+}
+func parse(ctx context.Context,input string,opts Options,collect bool)(Result,*document,error) {
+ if err := ctx.Err(); err != nil { return Result{},nil,err }
+ if opts.Mode > Document || opts.InputKind > Binary { return Result{},nil,fmt.Errorf("invalid XML options") }
  if opts.InputKind == Binary {
   d, _, err := readContentDeclaration(ctx, input)
-  if err != nil { return Result{}, err }
+  if err != nil { return Result{},nil,err }
   id := 6
   if d.EncodingPresent {
    id = encodingID(d.Encoding)
    if id < 0 {
     messageParser:=parser{ctx:ctx}
     message:=messageParser.joinMessage("invalid encoding name \"",d.Encoding,"\"")
-    if messageParser.err!=nil{return Result{},messageParser.err}
-    return Result{}, &EncodingError{Kind:InvalidEncodingName,Label:d.Encoding,SourceID:-1,DestinationID:6,DestinationName:"UTF8",Message:message}
+    if messageParser.err!=nil{return Result{},nil,messageParser.err}
+    return Result{},nil,&EncodingError{Kind:InvalidEncodingName,Label:d.Encoding,SourceID:-1,DestinationID:6,DestinationName:"UTF8",Message:message}
    }
   }
   var errConvert error
   input, errConvert = convert(ctx, input, id, 6)
-  if errConvert != nil { return Result{}, errConvert }
+  if errConvert != nil { return Result{},nil,errConvert }
  }
- p := parser{ctx:ctx, s:input, requested:opts.Mode, effective:opts.Mode, line:1, column:1}
+ p := parser{ctx:ctx, s:input, requested:opts.Mode, effective:opts.Mode, line:1, column:1,replaceEntities:opts.Mode==Document}
+ if collect {p.tree=&document{}}
  if opts.Mode == Content {
   d, detail, err := readContentDeclaration(ctx,input)
-  if err != nil { return Result{}, err }
+  if err != nil { return Result{},nil,err }
   p.declaration = d
-  if detail != "" { return Result{}, &ParseError{Category:DeclarationError, RequestedMode:opts.Mode, EffectiveMode:opts.Mode, Declaration:d, DeclarationDetail:detail} }
+  if detail != "" { return Result{},nil,&ParseError{Category:DeclarationError, RequestedMode:opts.Mode, EffectiveMode:opts.Mode, Declaration:d, DeclarationDetail:detail} }
   p.base, p.i = d.End, d.End
   p.fragmentInput=true;p.windowBase=d.End
+  if p.leadingDoctype(d.End) {
+   p.effective=Document;p.base=0;p.i=0;p.fragmentInput=false;p.windowBase=0
+   p.replaceEntities=true
+   p.documentDeclaration()
+  }
  } else { p.documentDeclaration() }
  if p.err == nil { p.top() }
- if p.err != nil { return Result{}, p.err }
- if err := ctx.Err(); err != nil { return Result{}, err }
- if p.failed() { return Result{}, p.parseError() }
- return Result{original:input, requested:opts.Mode, effective:p.effective, declaration:p.declaration, diagnostics:p.events, valid:true}, nil
+ if p.err != nil { return Result{},nil,p.err }
+ if err := ctx.Err(); err != nil { return Result{},nil,err }
+ if p.failed() { return Result{},nil,p.parseError() }
+ if collect{
+  p.finishDocument()
+  if p.err!=nil{return Result{},nil,p.err}
+  if err:=ctx.Err();err!=nil{return Result{},nil,err}
+ }
+ return Result{original:input, requested:opts.Mode, effective:p.effective, declaration:p.declaration, diagnostics:p.events, valid:true},p.tree,nil
 }
 
-type Capability string
-const DTD Capability = "DTD"
-type UnsupportedCapabilityError struct {
- Capability Capability
- Offset int
- RequestedMode, EffectiveMode Mode
-}
-func (e *UnsupportedCapabilityError) Error() string { return "XML capability not implemented: " + string(e.Capability) }

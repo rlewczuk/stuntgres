@@ -1,10 +1,5 @@
 package xml
 
-func (p *parser) dtd() {
- if p.illFormed {p.stopped=true;return}
- if p.requested==Content && !p.rootSeen && p.depth==0 {p.effective=Document}
- p.err=&UnsupportedCapabilityError{Capability:DTD,Offset:p.i,RequestedMode:p.requested,EffectiveMode:p.effective}
-}
 func (p *parser) top() {
  if p.stopped||p.err!=nil {return}
  if p.has("\xff\xfe") || p.has("\xfe\xff") {
@@ -14,9 +9,10 @@ func (p *parser) top() {
   if len(p.s)==0 {p.event("XML_ERR_INTERNAL_ERROR","switching encoding : no input");p.event("XML_ERR_DOCUMENT_EMPTY","Document is empty");return}
   p.misc()
   if p.err!=nil||p.stopped{return}
-  if p.has("<!DOCTYPE") {p.dtd();return}
+  if p.has("<!DOCTYPE") {p.dtd();p.misc()}
+  if p.err!=nil||p.stopped{return}
   if p.i==len(p.s) {p.event("XML_ERR_DOCUMENT_EMPTY","Start tag expected, '<' not found");return}
-  if !p.has("<")||p.has("</")||p.has("<!") {p.event("XML_ERR_DOCUMENT_EMPTY","Start tag expected, '<' not found");return}
+  if !p.has("<")||p.has("</")||p.has("<!")&&p.dtdState==nil {p.event("XML_ERR_DOCUMENT_EMPTY","Start tag expected, '<' not found");return}
   p.element();p.rootSeen=true
   if p.stopped||p.err!=nil{return}
   p.misc()
@@ -30,8 +26,7 @@ func (p *parser) top() {
   if p.byte()==0&&p.illFormed {return}
   before:=p.i
   switch {
-  case p.has("<!DOCTYPE"):
-   p.dtd();return
+  case p.has("<!DOCTYPE")&&p.illFormed:p.stopped=true;return
   case p.has("<!--"):p.comment()
   case p.has("<?"):p.pi()
   case p.has("<![CDATA["):p.cdata();p.rootSeen=true
@@ -52,10 +47,12 @@ func (p *parser) misc() {
 }
 func (p *parser) text() {
  if p.cdataStale {
-  if p.byte()=='&' {p.reference()}else{p.failedCDataText()}
+  if p.byte()=='&' {p.contentReference()}else{p.failedCDataText()}
   return
  }
  start:=p.i;ascii:=true
+ collectStart:=p.i
+ defer func(){if p.i>collectStart{p.collectValue(textNode,p.s[collectStart:p.i])}}()
  for p.i<len(p.s)&&p.byte()!='<'&&p.poll() {
   if p.depth==0&&!space(p.byte()) {p.rootSeen=true}
   if p.has("]]>") {
@@ -67,7 +64,9 @@ func (p *parser) text() {
   }
   if p.byte()=='&' {
    if p.i!=start&&!p.contentBoundary(){return}
-   p.reference()
+   if p.i>collectStart{p.collectValue(textNode,p.s[collectStart:p.i])}
+   p.contentReference()
+   collectStart=p.i
    if !p.contentBoundary(){return}
    start=p.i;ascii=true;continue
   }

@@ -1,0 +1,546 @@
+[
+  {
+    "label": "internal",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY word \"ok\">]><a>&word;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "nested-markup",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY inner \"<b>ok</b>\"><!ENTITY outer \"&inner;&inner;\">]><a>&outer;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "defaults",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a c CDATA \"  a  b  \" n NMTOKENS \"  a  b  \" f CDATA #FIXED \"x\" req CDATA #REQUIRED>]><a/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "explicit-normalization",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a c CDATA #IMPLIED n NMTOKENS #IMPLIED>]><a c=\"  a\t b&#9;c  \" n=\"  a\t b&#9;c  \"/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "fixed-mismatch",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a f CDATA #FIXED \"x\">]><a f=\"y\"/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "wrong-root-invalid-content-model",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE z [<!ELEMENT z EMPTY><!ELEMENT a EMPTY>]><a>text<b/></a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "duplicate-element",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a EMPTY><!ELEMENT a ANY>]><a/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "duplicate-attlist",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x CDATA \"first\"><!ATTLIST a x CDATA \"second\">]><a/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "duplicate-entity",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"first\"><!ENTITY e \"second\">]><a>&e;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "duplicate-enum",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x (one|one) \"one\">]><a/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "duplicate-notation",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!NOTATION n SYSTEM \"one\"><!NOTATION n SYSTEM \"two\">]><a/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "standalone-default",
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" standalone=\"yes\"?><!DOCTYPE a [<!ATTLIST a x NMTOKENS \"  a b  \">]><a/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "parameter-declaration",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p '<!ENTITY e \"ok\">'>%p;]><a>&e;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "parameter-model-illegal",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p \"EMPTY\"><!ELEMENT a %p;>]><a/>",
+    "message": "invalid XML document",
+    "detail": "line 1: PEReference: forbidden within markup decl in internal subset\n<!DOCTYPE a [<!ENTITY % p \"EMPTY\"><!ELEMENT a %p;>]><a/>\n                                              ^\nline 1: internal error: xmlParseInternalSubset: error detected in Markup declaration\nEMPTY\n^\nline 1: internal error: xmlParseInternalSubset: error detected in Markup declaration\n<!DOCTYPE a [<!ENTITY % p \"EMPTY\"><!ELEMENT a %p;>]><a/>\n                                                 ^\nline 1: Start tag expected, '<' not found\n<!DOCTYPE a [<!ENTITY % p \"EMPTY\"><!ELEMENT a %p;>]><a/>\n                                                  ^",
+    "warnings": ""
+  },
+  {
+    "label": "parameter-entityvalue-illegal",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p \"ok\"><!ENTITY e \"%p;\">]><a>&e;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: PEReferences forbidden in internal subset\n<!DOCTYPE a [<!ENTITY % p \"ok\"><!ENTITY e \"%p;\">]><a>&e;</a>\n                                               ^\nline 1: Entity 'e' not defined\n<!DOCTYPE a [<!ENTITY % p \"ok\"><!ENTITY e \"%p;\">]><a>&e;</a>\n                                                        ^",
+    "warnings": ""
+  },
+  {
+    "label": "parameter-undefined",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [%missing;]><a/>",
+    "message": "invalid XML document",
+    "detail": "line 1: PEReference: %missing; not found\n<!DOCTYPE a [%missing;]><a/>\n                      ^",
+    "warnings": ""
+  },
+  {
+    "label": "parameter-cycle",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p \"%p;\">%p;]><a/>",
+    "message": "invalid XML document",
+    "detail": "line 1: PEReferences forbidden in internal subset\n<!DOCTYPE a [<!ENTITY % p \"%p;\">%p;]><a/>\n                               ^\nline 1: PEReference: %p; not found\n<!DOCTYPE a [<!ENTITY % p \"%p;\">%p;]><a/>\n                                   ^",
+    "warnings": ""
+  },
+  {
+    "label": "parameter-boundary",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p \"<!ELEMENT a EMPTY\">%p;>]><a/>",
+    "message": "invalid XML document",
+    "detail": "line 1: Element declaration doesn't start and stop in the same entity\n<!DOCTYPE a [<!ENTITY % p \"<!ELEMENT a EMPTY\">%p;>]><a/>\n                                                 ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-cycle",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"&e;\">]><a>&e;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n<!DOCTYPE a [<!ENTITY e \"&e;\">]><a>&e;</a>\n                                      ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-mutual-cycle",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"&f;\"><!ENTITY f \"&e;\">]><a>&e;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&f;\n   ^\nline 1: Detected an entity reference loop\n<!DOCTYPE a [<!ENTITY e \"&f;\"><!ENTITY f \"&e;\">]><a>&e;</a>\n                                                       ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-unbalanced",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"<b>\">]><a>&e;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Premature end of data in tag b line 1\n<b>\n   ^\nline 1: Entity 'e' failed to parse\n<!DOCTYPE a [<!ENTITY e \"<b>\">]><a>&e;</a>\n                                      ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-close-parent",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"</a>\">]><a>&e;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: chunk is not well balanced\n</a>\n^\nline 1: Entity 'e' failed to parse\n<!DOCTYPE a [<!ENTITY e \"</a>\">]><a>&e;</a>\n                                       ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-attr-markup",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"<b/>\">]><a x=\"&e;\"/>",
+    "message": "invalid XML document",
+    "detail": "line 1: '<' in entity 'e' is not allowed in attributes values\n<!DOCTYPE a [<!ENTITY e \"<b/>\">]><a x=\"&e;\"/>\n                                          ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-quotes",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e '&quot; &apos; &#60; &amp;'>]><a x=\"&e;\">&e;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: '<' in entity 'e' is not allowed in attributes values\n<!DOCTYPE a [<!ENTITY e '&quot; &apos; &#60; &amp;'>]><a x=\"&e;\">&e;</a>\n                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "unused-malformed-element",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT unused (b|)>]><a/>",
+    "message": "invalid XML document",
+    "detail": "line 1: ContentDecl : Name or '(' expected\n<!DOCTYPE a [<!ELEMENT unused (b|)>]><a/>\n                                 ^\nline 1: expected '>'\n<!DOCTYPE a [<!ELEMENT unused (b|)>]><a/>\n                                 ^\nline 1: internal error: xmlParseInternalSubset: error detected in Markup declaration\n<!DOCTYPE a [<!ELEMENT unused (b|)>]><a/>\n                                 ^\nline 1: DOCTYPE improperly terminated\n<!DOCTYPE a [<!ELEMENT unused (b|)>]><a/>\n                                 ^\nline 1: Start tag expected, '<' not found\n<!DOCTYPE a [<!ELEMENT unused (b|)>]><a/>\n                                 ^",
+    "warnings": ""
+  },
+  {
+    "label": "unused-malformed-attlist",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST unused x BOGUS #IMPLIED>]><a/>",
+    "message": "invalid XML document",
+    "detail": "line 1: '(' required to start ATTLIST enumeration\n<!DOCTYPE a [<!ATTLIST unused x BOGUS #IMPLIED>]><a/>\n                                ^\nline 1: internal error: xmlParseInternalSubset: error detected in Markup declaration\n<!DOCTYPE a [<!ATTLIST unused x BOGUS #IMPLIED>]><a/>\n                                ^\nline 1: DOCTYPE improperly terminated\n<!DOCTYPE a [<!ATTLIST unused x BOGUS #IMPLIED>]><a/>\n                                ^\nline 1: Start tag expected, '<' not found\n<!DOCTYPE a [<!ATTLIST unused x BOGUS #IMPLIED>]><a/>\n                                ^",
+    "warnings": ""
+  },
+  {
+    "label": "unused-malformed-entity",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"&#0;\">]><a/>",
+    "message": "invalid XML document",
+    "detail": "line 1: xmlParseStringCharRef: invalid xmlChar value 0\n<!DOCTYPE a [<!ENTITY e \"&#0;\">]><a/>\n                              ^",
+    "warnings": ""
+  },
+  {
+    "label": "unused-undeclared-entity",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"&missing;\">]><a/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "unused-malformed-notation",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!NOTATION n PUBLIC>]><a/>",
+    "message": "invalid XML document",
+    "detail": "line 1: Space required after 'PUBLIC'\n<!DOCTYPE a [<!NOTATION n PUBLIC>]><a/>\n                                ^\nline 1: SystemLiteral \" or ' expected\n<!DOCTYPE a [<!NOTATION n PUBLIC>]><a/>\n                                ^\nline 1: PUBLIC, the Public Identifier is missing\n<!DOCTYPE a [<!NOTATION n PUBLIC>]><a/>\n                                ^",
+    "warnings": ""
+  },
+  {
+    "label": "unparsed-unused",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!NOTATION n SYSTEM \"n\"><!ENTITY e SYSTEM \"file:///etc/passwd\" NDATA n>]><a/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "unparsed-used",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!NOTATION n SYSTEM \"n\"><!ENTITY e SYSTEM \"file:///etc/passwd\" NDATA n>]><a>&e;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Entity reference to unparsed entity e\n[<!NOTATION n SYSTEM \"n\"><!ENTITY e SYSTEM \"file:///etc/passwd\" NDATA n>]><a>&e;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "notation-undefined",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"x\" NDATA missing>]><a/>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "conditional-internal",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<![INCLUDE[<!ELEMENT a EMPTY>]]>]><a/>",
+    "message": "invalid XML document",
+    "detail": "line 1: internal error: xmlParseInternalSubset: error detected in Markup declaration\n<!DOCTYPE a [<![INCLUDE[<!ELEMENT a EMPTY>]]>]><a/>\n             ^\nline 1: DOCTYPE improperly terminated\n<!DOCTYPE a [<![INCLUDE[<!ELEMENT a EMPTY>]]>]><a/>\n             ^\nline 1: StartTag: invalid element name\n<!DOCTYPE a [<![INCLUDE[<!ELEMENT a EMPTY>]]>]><a/>\n              ^\nline 1: Extra content at the end of the document\n<!DOCTYPE a [<![INCLUDE[<!ELEMENT a EMPTY>]]>]><a/>\n              ^",
+    "warnings": ""
+  },
+  {
+    "label": "content-leading",
+    "mode": "CONTENT",
+    "input": " \n<!--ok--><?go x?><!DOCTYPE a [<!ENTITY e \"ok\">]><a>&e;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "content-multiroot",
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a><a/><b/>",
+    "message": "invalid XML content",
+    "detail": "line 1: Extra content at the end of the document\n<!DOCTYPE a><a/><b/>\n                ^",
+    "warnings": ""
+  },
+  {
+    "label": "content-text-before",
+    "mode": "CONTENT",
+    "input": "text<!DOCTYPE a><a/>",
+    "message": "invalid XML content",
+    "detail": "line 1: StartTag: invalid element name\ntext<!DOCTYPE a><a/>\n     ^",
+    "warnings": ""
+  },
+  {
+    "label": "content-comment-malformed",
+    "mode": "CONTENT",
+    "input": "<!--bad--x><!DOCTYPE a><a/>",
+    "message": "invalid XML content",
+    "detail": "line 1: Double hyphen within comment: <!--bad\n<!--bad--x><!DOCTYPE a><a/>\n       ^\nline 1: Comment not terminated\n<!--bad--x><!DOCTYPE a><a/>\n                           ^",
+    "warnings": ""
+  },
+  {
+    "label": "external-subset-file:///etc/passwd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a SYSTEM \"file:///etc/passwd\"><a>&missing;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-general-file:///etc/passwd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///etc/passwd\">]><a>x&e;y</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-parameter-file:///etc/passwd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p SYSTEM \"file:///etc/passwd\">%p;]><a>&missing;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-attribute-file:///etc/passwd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///etc/passwd\">]><a x=\"&e;\"/>",
+    "message": "invalid XML document",
+    "detail": "line 1: Attribute references external entity 'e'\n<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///etc/passwd\">]><a x=\"&e;\"/>\n                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "external-subset-http://127.0.0.1:9/never.dtd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a SYSTEM \"http://127.0.0.1:9/never.dtd\"><a>&missing;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-general-http://127.0.0.1:9/never.dtd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"http://127.0.0.1:9/never.dtd\">]><a>x&e;y</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-parameter-http://127.0.0.1:9/never.dtd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p SYSTEM \"http://127.0.0.1:9/never.dtd\">%p;]><a>&missing;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-attribute-http://127.0.0.1:9/never.dtd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"http://127.0.0.1:9/never.dtd\">]><a x=\"&e;\"/>",
+    "message": "invalid XML document",
+    "detail": "line 1: Attribute references external entity 'e'\n<!DOCTYPE a [<!ENTITY e SYSTEM \"http://127.0.0.1:9/never.dtd\">]><a x=\"&e;\"/>\n                                                                         ^",
+    "warnings": ""
+  },
+  {
+    "label": "external-subset-relative.dtd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a SYSTEM \"relative.dtd\"><a>&missing;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-general-relative.dtd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"relative.dtd\">]><a>x&e;y</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-parameter-relative.dtd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p SYSTEM \"relative.dtd\">%p;]><a>&missing;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-attribute-relative.dtd",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"relative.dtd\">]><a x=\"&e;\"/>",
+    "message": "invalid XML document",
+    "detail": "line 1: Attribute references external entity 'e'\n<!DOCTYPE a [<!ENTITY e SYSTEM \"relative.dtd\">]><a x=\"&e;\"/>\n                                                         ^",
+    "warnings": ""
+  },
+  {
+    "label": "external-standalone",
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\"?><!DOCTYPE a SYSTEM \"relative.dtd\"><a>&missing;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-standalone standalone=\"no\"",
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" standalone=\"no\"?><!DOCTYPE a SYSTEM \"relative.dtd\"><a>&missing;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-standalone standalone=\"yes\"",
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" standalone=\"yes\"?><!DOCTYPE a SYSTEM \"relative.dtd\"><a>&missing;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Entity 'missing' not defined\nl version=\"1.0\" standalone=\"yes\"?><!DOCTYPE a SYSTEM \"relative.dtd\"><a>&missing;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "public-subset",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a PUBLIC \"public id\" \"file:///etc/passwd\"><a>&missing;</a>",
+    "message": null,
+    "detail": null,
+    "warnings": ""
+  },
+  {
+    "label": "external-warning-order",
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.1\"?><!DOCTYPE a SYSTEM \"relative.dtd\"><a xml:space=\"bad\">&missing;</b>",
+    "message": "invalid XML document",
+    "detail": "line 1: Opening and ending tag mismatch: a line 1 and b\nersion=\"1.1\"?><!DOCTYPE a SYSTEM \"relative.dtd\"><a xml:space=\"bad\">&missing;</b>\n                                                                               ^",
+    "warnings": "WARNING:  line 1: Unsupported version '1.1'\n<?xml version=\"1.1\"?><!DOCTYPE a SYSTEM \"relative.dtd\"><a xml:space=\"bad\">&missi\n                   ^\nWARNING:  line 1: Invalid value \"bad\" for xml:space : \"default\" or \"preserve\" expected\n<?xml version=\"1.1\"?><!DOCTYPE a SYSTEM \"relative.dtd\"><a xml:space=\"bad\">&missi\n                                                                         ^"
+  },
+  {
+    "label": "entity-warning-order",
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.1\"?><!DOCTYPE a [<!ENTITY e \"<b xml:space='bad'>&missing;</b>\">]><a>&e;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Entity 'missing' not defined\n<b xml:space='bad'>&missing;</b>\n                            ^\nline 1: Entity 'e' failed to parse\nrsion=\"1.1\"?><!DOCTYPE a [<!ENTITY e \"<b xml:space='bad'>&missing;</b>\">]><a>&e;\n                                                                               ^",
+    "warnings": "WARNING:  line 1: Unsupported version '1.1'\n<?xml version=\"1.1\"?><!DOCTYPE a [<!ENTITY e \"<b xml:space='bad'>&missing;</b>\">\n                   ^\nWARNING:  line 1: Invalid value \"bad\" for xml:space : \"default\" or \"preserve\" expected\n<b xml:space='bad'>&missing;</b>\n                  ^"
+  },
+  {
+    "label": "entity-depth-38",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\"><!ENTITY e18 \"&e17;\"><!ENTITY e19 \"&e18;\"><!ENTITY e20 \"&e19;\"><!ENTITY e21 \"&e20;\"><!ENTITY e22 \"&e21;\"><!ENTITY e23 \"&e22;\"><!ENTITY e24 \"&e23;\"><!ENTITY e25 \"&e24;\"><!ENTITY e26 \"&e25;\"><!ENTITY e27 \"&e26;\"><!ENTITY e28 \"&e27;\"><!ENTITY e29 \"&e28;\"><!ENTITY e30 \"&e29;\"><!ENTITY e31 \"&e30;\"><!ENTITY e32 \"&e31;\"><!ENTITY e33 \"&e32;\"><!ENTITY e34 \"&e33;\"><!ENTITY e35 \"&e34;\"><!ENTITY e36 \"&e35;\"><!ENTITY e37 \"&e36;\"><!ENTITY e38 \"&e37;\">]><a>&e38;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e18;\n     ^\nline 1: Detected an entity reference loop\n&e19;\n     ^\nline 1: Detected an entity reference loop\n&e20;\n     ^\nline 1: Detected an entity reference loop\n&e21;\n     ^\nline 1: Detected an entity reference loop\n&e22;\n     ^\nline 1: Detected an entity reference loop\n&e23;\n     ^\nline 1: Detected an entity reference loop\n&e24;\n     ^\nline 1: Detected an entity reference loop\n&e25;\n     ^\nline 1: Detected an entity reference loop\n&e26;\n     ^\nline 1: Detected an entity reference loop\n&e27;\n     ^\nline 1: Detected an entity reference loop\n&e28;\n     ^\nline 1: Detected an entity reference loop\n&e29;\n     ^\nline 1: Detected an entity reference loop\n&e30;\n     ^\nline 1: Detected an entity reference loop\n&e31;\n     ^\nline 1: Detected an entity reference loop\n&e32;\n     ^\nline 1: Detected an entity reference loop\n&e33;\n     ^\nline 1: Detected an entity reference loop\n&e34;\n     ^\nline 1: Detected an entity reference loop\n&e35;\n     ^\nline 1: Detected an entity reference loop\n&e36;\n     ^\nline 1: Detected an entity reference loop\n&e37;\n     ^\nline 1: Detected an entity reference loop\n&e34;\"><!ENTITY e36 \"&e35;\"><!ENTITY e37 \"&e36;\"><!ENTITY e38 \"&e37;\">]><a>&e38;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-depth-39",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\"><!ENTITY e18 \"&e17;\"><!ENTITY e19 \"&e18;\"><!ENTITY e20 \"&e19;\"><!ENTITY e21 \"&e20;\"><!ENTITY e22 \"&e21;\"><!ENTITY e23 \"&e22;\"><!ENTITY e24 \"&e23;\"><!ENTITY e25 \"&e24;\"><!ENTITY e26 \"&e25;\"><!ENTITY e27 \"&e26;\"><!ENTITY e28 \"&e27;\"><!ENTITY e29 \"&e28;\"><!ENTITY e30 \"&e29;\"><!ENTITY e31 \"&e30;\"><!ENTITY e32 \"&e31;\"><!ENTITY e33 \"&e32;\"><!ENTITY e34 \"&e33;\"><!ENTITY e35 \"&e34;\"><!ENTITY e36 \"&e35;\"><!ENTITY e37 \"&e36;\"><!ENTITY e38 \"&e37;\"><!ENTITY e39 \"&e38;\">]><a>&e39;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e19;\n     ^\nline 1: Detected an entity reference loop\n&e20;\n     ^\nline 1: Detected an entity reference loop\n&e21;\n     ^\nline 1: Detected an entity reference loop\n&e22;\n     ^\nline 1: Detected an entity reference loop\n&e23;\n     ^\nline 1: Detected an entity reference loop\n&e24;\n     ^\nline 1: Detected an entity reference loop\n&e25;\n     ^\nline 1: Detected an entity reference loop\n&e26;\n     ^\nline 1: Detected an entity reference loop\n&e27;\n     ^\nline 1: Detected an entity reference loop\n&e28;\n     ^\nline 1: Detected an entity reference loop\n&e29;\n     ^\nline 1: Detected an entity reference loop\n&e30;\n     ^\nline 1: Detected an entity reference loop\n&e31;\n     ^\nline 1: Detected an entity reference loop\n&e32;\n     ^\nline 1: Detected an entity reference loop\n&e33;\n     ^\nline 1: Detected an entity reference loop\n&e34;\n     ^\nline 1: Detected an entity reference loop\n&e35;\n     ^\nline 1: Detected an entity reference loop\n&e36;\n     ^\nline 1: Detected an entity reference loop\n&e37;\n     ^\nline 1: Detected an entity reference loop\n&e38;\n     ^\nline 1: Detected an entity reference loop\n&e35;\"><!ENTITY e37 \"&e36;\"><!ENTITY e38 \"&e37;\"><!ENTITY e39 \"&e38;\">]><a>&e39;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-depth-40",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\"><!ENTITY e18 \"&e17;\"><!ENTITY e19 \"&e18;\"><!ENTITY e20 \"&e19;\"><!ENTITY e21 \"&e20;\"><!ENTITY e22 \"&e21;\"><!ENTITY e23 \"&e22;\"><!ENTITY e24 \"&e23;\"><!ENTITY e25 \"&e24;\"><!ENTITY e26 \"&e25;\"><!ENTITY e27 \"&e26;\"><!ENTITY e28 \"&e27;\"><!ENTITY e29 \"&e28;\"><!ENTITY e30 \"&e29;\"><!ENTITY e31 \"&e30;\"><!ENTITY e32 \"&e31;\"><!ENTITY e33 \"&e32;\"><!ENTITY e34 \"&e33;\"><!ENTITY e35 \"&e34;\"><!ENTITY e36 \"&e35;\"><!ENTITY e37 \"&e36;\"><!ENTITY e38 \"&e37;\"><!ENTITY e39 \"&e38;\"><!ENTITY e40 \"&e39;\">]><a>&e40;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e20;\n     ^\nline 1: Detected an entity reference loop\n&e21;\n     ^\nline 1: Detected an entity reference loop\n&e22;\n     ^\nline 1: Detected an entity reference loop\n&e23;\n     ^\nline 1: Detected an entity reference loop\n&e24;\n     ^\nline 1: Detected an entity reference loop\n&e25;\n     ^\nline 1: Detected an entity reference loop\n&e26;\n     ^\nline 1: Detected an entity reference loop\n&e27;\n     ^\nline 1: Detected an entity reference loop\n&e28;\n     ^\nline 1: Detected an entity reference loop\n&e29;\n     ^\nline 1: Detected an entity reference loop\n&e30;\n     ^\nline 1: Detected an entity reference loop\n&e31;\n     ^\nline 1: Detected an entity reference loop\n&e32;\n     ^\nline 1: Detected an entity reference loop\n&e33;\n     ^\nline 1: Detected an entity reference loop\n&e34;\n     ^\nline 1: Detected an entity reference loop\n&e35;\n     ^\nline 1: Detected an entity reference loop\n&e36;\n     ^\nline 1: Detected an entity reference loop\n&e37;\n     ^\nline 1: Detected an entity reference loop\n&e38;\n     ^\nline 1: Detected an entity reference loop\n&e39;\n     ^\nline 1: Detected an entity reference loop\n&e36;\"><!ENTITY e38 \"&e37;\"><!ENTITY e39 \"&e38;\"><!ENTITY e40 \"&e39;\">]><a>&e40;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-depth-41",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\"><!ENTITY e18 \"&e17;\"><!ENTITY e19 \"&e18;\"><!ENTITY e20 \"&e19;\"><!ENTITY e21 \"&e20;\"><!ENTITY e22 \"&e21;\"><!ENTITY e23 \"&e22;\"><!ENTITY e24 \"&e23;\"><!ENTITY e25 \"&e24;\"><!ENTITY e26 \"&e25;\"><!ENTITY e27 \"&e26;\"><!ENTITY e28 \"&e27;\"><!ENTITY e29 \"&e28;\"><!ENTITY e30 \"&e29;\"><!ENTITY e31 \"&e30;\"><!ENTITY e32 \"&e31;\"><!ENTITY e33 \"&e32;\"><!ENTITY e34 \"&e33;\"><!ENTITY e35 \"&e34;\"><!ENTITY e36 \"&e35;\"><!ENTITY e37 \"&e36;\"><!ENTITY e38 \"&e37;\"><!ENTITY e39 \"&e38;\"><!ENTITY e40 \"&e39;\"><!ENTITY e41 \"&e40;\">]><a>&e41;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e21;\n     ^\nline 1: Detected an entity reference loop\n&e22;\n     ^\nline 1: Detected an entity reference loop\n&e23;\n     ^\nline 1: Detected an entity reference loop\n&e24;\n     ^\nline 1: Detected an entity reference loop\n&e25;\n     ^\nline 1: Detected an entity reference loop\n&e26;\n     ^\nline 1: Detected an entity reference loop\n&e27;\n     ^\nline 1: Detected an entity reference loop\n&e28;\n     ^\nline 1: Detected an entity reference loop\n&e29;\n     ^\nline 1: Detected an entity reference loop\n&e30;\n     ^\nline 1: Detected an entity reference loop\n&e31;\n     ^\nline 1: Detected an entity reference loop\n&e32;\n     ^\nline 1: Detected an entity reference loop\n&e33;\n     ^\nline 1: Detected an entity reference loop\n&e34;\n     ^\nline 1: Detected an entity reference loop\n&e35;\n     ^\nline 1: Detected an entity reference loop\n&e36;\n     ^\nline 1: Detected an entity reference loop\n&e37;\n     ^\nline 1: Detected an entity reference loop\n&e38;\n     ^\nline 1: Detected an entity reference loop\n&e39;\n     ^\nline 1: Detected an entity reference loop\n&e40;\n     ^\nline 1: Detected an entity reference loop\n&e37;\"><!ENTITY e39 \"&e38;\"><!ENTITY e40 \"&e39;\"><!ENTITY e41 \"&e40;\">]><a>&e41;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-depth-42",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\"><!ENTITY e18 \"&e17;\"><!ENTITY e19 \"&e18;\"><!ENTITY e20 \"&e19;\"><!ENTITY e21 \"&e20;\"><!ENTITY e22 \"&e21;\"><!ENTITY e23 \"&e22;\"><!ENTITY e24 \"&e23;\"><!ENTITY e25 \"&e24;\"><!ENTITY e26 \"&e25;\"><!ENTITY e27 \"&e26;\"><!ENTITY e28 \"&e27;\"><!ENTITY e29 \"&e28;\"><!ENTITY e30 \"&e29;\"><!ENTITY e31 \"&e30;\"><!ENTITY e32 \"&e31;\"><!ENTITY e33 \"&e32;\"><!ENTITY e34 \"&e33;\"><!ENTITY e35 \"&e34;\"><!ENTITY e36 \"&e35;\"><!ENTITY e37 \"&e36;\"><!ENTITY e38 \"&e37;\"><!ENTITY e39 \"&e38;\"><!ENTITY e40 \"&e39;\"><!ENTITY e41 \"&e40;\"><!ENTITY e42 \"&e41;\">]><a>&e42;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e22;\n     ^\nline 1: Detected an entity reference loop\n&e23;\n     ^\nline 1: Detected an entity reference loop\n&e24;\n     ^\nline 1: Detected an entity reference loop\n&e25;\n     ^\nline 1: Detected an entity reference loop\n&e26;\n     ^\nline 1: Detected an entity reference loop\n&e27;\n     ^\nline 1: Detected an entity reference loop\n&e28;\n     ^\nline 1: Detected an entity reference loop\n&e29;\n     ^\nline 1: Detected an entity reference loop\n&e30;\n     ^\nline 1: Detected an entity reference loop\n&e31;\n     ^\nline 1: Detected an entity reference loop\n&e32;\n     ^\nline 1: Detected an entity reference loop\n&e33;\n     ^\nline 1: Detected an entity reference loop\n&e34;\n     ^\nline 1: Detected an entity reference loop\n&e35;\n     ^\nline 1: Detected an entity reference loop\n&e36;\n     ^\nline 1: Detected an entity reference loop\n&e37;\n     ^\nline 1: Detected an entity reference loop\n&e38;\n     ^\nline 1: Detected an entity reference loop\n&e39;\n     ^\nline 1: Detected an entity reference loop\n&e40;\n     ^\nline 1: Detected an entity reference loop\n&e41;\n     ^\nline 1: Detected an entity reference loop\n&e38;\"><!ENTITY e40 \"&e39;\"><!ENTITY e41 \"&e40;\"><!ENTITY e42 \"&e41;\">]><a>&e42;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-depth-43",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\"><!ENTITY e18 \"&e17;\"><!ENTITY e19 \"&e18;\"><!ENTITY e20 \"&e19;\"><!ENTITY e21 \"&e20;\"><!ENTITY e22 \"&e21;\"><!ENTITY e23 \"&e22;\"><!ENTITY e24 \"&e23;\"><!ENTITY e25 \"&e24;\"><!ENTITY e26 \"&e25;\"><!ENTITY e27 \"&e26;\"><!ENTITY e28 \"&e27;\"><!ENTITY e29 \"&e28;\"><!ENTITY e30 \"&e29;\"><!ENTITY e31 \"&e30;\"><!ENTITY e32 \"&e31;\"><!ENTITY e33 \"&e32;\"><!ENTITY e34 \"&e33;\"><!ENTITY e35 \"&e34;\"><!ENTITY e36 \"&e35;\"><!ENTITY e37 \"&e36;\"><!ENTITY e38 \"&e37;\"><!ENTITY e39 \"&e38;\"><!ENTITY e40 \"&e39;\"><!ENTITY e41 \"&e40;\"><!ENTITY e42 \"&e41;\"><!ENTITY e43 \"&e42;\">]><a>&e43;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e23;\n     ^\nline 1: Detected an entity reference loop\n&e24;\n     ^\nline 1: Detected an entity reference loop\n&e25;\n     ^\nline 1: Detected an entity reference loop\n&e26;\n     ^\nline 1: Detected an entity reference loop\n&e27;\n     ^\nline 1: Detected an entity reference loop\n&e28;\n     ^\nline 1: Detected an entity reference loop\n&e29;\n     ^\nline 1: Detected an entity reference loop\n&e30;\n     ^\nline 1: Detected an entity reference loop\n&e31;\n     ^\nline 1: Detected an entity reference loop\n&e32;\n     ^\nline 1: Detected an entity reference loop\n&e33;\n     ^\nline 1: Detected an entity reference loop\n&e34;\n     ^\nline 1: Detected an entity reference loop\n&e35;\n     ^\nline 1: Detected an entity reference loop\n&e36;\n     ^\nline 1: Detected an entity reference loop\n&e37;\n     ^\nline 1: Detected an entity reference loop\n&e38;\n     ^\nline 1: Detected an entity reference loop\n&e39;\n     ^\nline 1: Detected an entity reference loop\n&e40;\n     ^\nline 1: Detected an entity reference loop\n&e41;\n     ^\nline 1: Detected an entity reference loop\n&e42;\n     ^\nline 1: Detected an entity reference loop\n&e39;\"><!ENTITY e41 \"&e40;\"><!ENTITY e42 \"&e41;\"><!ENTITY e43 \"&e42;\">]><a>&e43;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-binary-5",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\"><!ENTITY e5 \"&e4;&e4;\">]><a>&e5;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e3;&e3;\n    ^\nline 1: Detected an entity reference loop\n&e4;&e4;\n    ^\nline 1: Detected an entity reference loop\n\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\"><!ENTITY e5 \"&e4;&e4;\">]><a>&e5;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-binary-8",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\"><!ENTITY e5 \"&e4;&e4;\"><!ENTITY e6 \"&e5;&e5;\"><!ENTITY e7 \"&e6;&e6;\"><!ENTITY e8 \"&e7;&e7;\">]><a>&e8;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e3;&e3;\n    ^\nline 1: Detected an entity reference loop\n&e4;&e4;\n    ^\nline 1: Detected an entity reference loop\n&e5;&e5;\n    ^\nline 1: Detected an entity reference loop\n&e6;&e6;\n    ^\nline 1: Detected an entity reference loop\n&e7;&e7;\n    ^\nline 1: Detected an entity reference loop\n\"><!ENTITY e6 \"&e5;&e5;\"><!ENTITY e7 \"&e6;&e6;\"><!ENTITY e8 \"&e7;&e7;\">]><a>&e8;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-binary-10",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\"><!ENTITY e5 \"&e4;&e4;\"><!ENTITY e6 \"&e5;&e5;\"><!ENTITY e7 \"&e6;&e6;\"><!ENTITY e8 \"&e7;&e7;\"><!ENTITY e9 \"&e8;&e8;\"><!ENTITY e10 \"&e9;&e9;\">]><a>&e10;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e3;&e3;\n    ^\nline 1: Detected an entity reference loop\n&e4;&e4;\n    ^\nline 1: Detected an entity reference loop\n&e5;&e5;\n    ^\nline 1: Detected an entity reference loop\n&e6;&e6;\n    ^\nline 1: Detected an entity reference loop\n&e7;&e7;\n    ^\nline 1: Detected an entity reference loop\n&e8;&e8;\n    ^\nline 1: Detected an entity reference loop\n&e9;&e9;\n    ^\nline 1: Detected an entity reference loop\n<!ENTITY e8 \"&e7;&e7;\"><!ENTITY e9 \"&e8;&e8;\"><!ENTITY e10 \"&e9;&e9;\">]><a>&e10;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-binary-12",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\"><!ENTITY e5 \"&e4;&e4;\"><!ENTITY e6 \"&e5;&e5;\"><!ENTITY e7 \"&e6;&e6;\"><!ENTITY e8 \"&e7;&e7;\"><!ENTITY e9 \"&e8;&e8;\"><!ENTITY e10 \"&e9;&e9;\"><!ENTITY e11 \"&e10;&e10;\"><!ENTITY e12 \"&e11;&e11;\">]><a>&e12;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e3;&e3;\n    ^\nline 1: Detected an entity reference loop\n&e4;&e4;\n    ^\nline 1: Detected an entity reference loop\n&e5;&e5;\n    ^\nline 1: Detected an entity reference loop\n&e6;&e6;\n    ^\nline 1: Detected an entity reference loop\n&e7;&e7;\n    ^\nline 1: Detected an entity reference loop\n&e8;&e8;\n    ^\nline 1: Detected an entity reference loop\n&e9;&e9;\n    ^\nline 1: Detected an entity reference loop\n&e10;&e10;\n     ^\nline 1: Detected an entity reference loop\n&e11;&e11;\n     ^\nline 1: Detected an entity reference loop\nTY e10 \"&e9;&e9;\"><!ENTITY e11 \"&e10;&e10;\"><!ENTITY e12 \"&e11;&e11;\">]><a>&e12;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-binary-14",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\"><!ENTITY e5 \"&e4;&e4;\"><!ENTITY e6 \"&e5;&e5;\"><!ENTITY e7 \"&e6;&e6;\"><!ENTITY e8 \"&e7;&e7;\"><!ENTITY e9 \"&e8;&e8;\"><!ENTITY e10 \"&e9;&e9;\"><!ENTITY e11 \"&e10;&e10;\"><!ENTITY e12 \"&e11;&e11;\"><!ENTITY e13 \"&e12;&e12;\"><!ENTITY e14 \"&e13;&e13;\">]><a>&e14;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e3;&e3;\n    ^\nline 1: Detected an entity reference loop\n&e4;&e4;\n    ^\nline 1: Detected an entity reference loop\n&e5;&e5;\n    ^\nline 1: Detected an entity reference loop\n&e6;&e6;\n    ^\nline 1: Detected an entity reference loop\n&e7;&e7;\n    ^\nline 1: Detected an entity reference loop\n&e8;&e8;\n    ^\nline 1: Detected an entity reference loop\n&e9;&e9;\n    ^\nline 1: Detected an entity reference loop\n&e10;&e10;\n     ^\nline 1: Detected an entity reference loop\n&e11;&e11;\n     ^\nline 1: Detected an entity reference loop\n&e12;&e12;\n     ^\nline 1: Detected an entity reference loop\n&e13;&e13;\n     ^\nline 1: Detected an entity reference loop\n e12 \"&e11;&e11;\"><!ENTITY e13 \"&e12;&e12;\"><!ENTITY e14 \"&e13;&e13;\">]><a>&e14;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-binary-16",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\"><!ENTITY e5 \"&e4;&e4;\"><!ENTITY e6 \"&e5;&e5;\"><!ENTITY e7 \"&e6;&e6;\"><!ENTITY e8 \"&e7;&e7;\"><!ENTITY e9 \"&e8;&e8;\"><!ENTITY e10 \"&e9;&e9;\"><!ENTITY e11 \"&e10;&e10;\"><!ENTITY e12 \"&e11;&e11;\"><!ENTITY e13 \"&e12;&e12;\"><!ENTITY e14 \"&e13;&e13;\"><!ENTITY e15 \"&e14;&e14;\"><!ENTITY e16 \"&e15;&e15;\">]><a>&e16;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e3;&e3;\n    ^\nline 1: Detected an entity reference loop\n&e4;&e4;\n    ^\nline 1: Detected an entity reference loop\n&e5;&e5;\n    ^\nline 1: Detected an entity reference loop\n&e6;&e6;\n    ^\nline 1: Detected an entity reference loop\n&e7;&e7;\n    ^\nline 1: Detected an entity reference loop\n&e8;&e8;\n    ^\nline 1: Detected an entity reference loop\n&e9;&e9;\n    ^\nline 1: Detected an entity reference loop\n&e10;&e10;\n     ^\nline 1: Detected an entity reference loop\n&e11;&e11;\n     ^\nline 1: Detected an entity reference loop\n&e12;&e12;\n     ^\nline 1: Detected an entity reference loop\n&e13;&e13;\n     ^\nline 1: Detected an entity reference loop\n&e14;&e14;\n     ^\nline 1: Detected an entity reference loop\n&e15;&e15;\n     ^\nline 1: Detected an entity reference loop\n e14 \"&e13;&e13;\"><!ENTITY e15 \"&e14;&e14;\"><!ENTITY e16 \"&e15;&e15;\">]><a>&e16;\n                                                                               ^",
+    "warnings": ""
+  },
+  {
+    "label": "entity-binary-18",
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\"><!ENTITY e5 \"&e4;&e4;\"><!ENTITY e6 \"&e5;&e5;\"><!ENTITY e7 \"&e6;&e6;\"><!ENTITY e8 \"&e7;&e7;\"><!ENTITY e9 \"&e8;&e8;\"><!ENTITY e10 \"&e9;&e9;\"><!ENTITY e11 \"&e10;&e10;\"><!ENTITY e12 \"&e11;&e11;\"><!ENTITY e13 \"&e12;&e12;\"><!ENTITY e14 \"&e13;&e13;\"><!ENTITY e15 \"&e14;&e14;\"><!ENTITY e16 \"&e15;&e15;\"><!ENTITY e17 \"&e16;&e16;\"><!ENTITY e18 \"&e17;&e17;\">]><a>&e18;</a>",
+    "message": "invalid XML document",
+    "detail": "line 1: Detected an entity reference loop\n&e3;&e3;\n    ^\nline 1: Detected an entity reference loop\n&e4;&e4;\n    ^\nline 1: Detected an entity reference loop\n&e5;&e5;\n    ^\nline 1: Detected an entity reference loop\n&e6;&e6;\n    ^\nline 1: Detected an entity reference loop\n&e7;&e7;\n    ^\nline 1: Detected an entity reference loop\n&e8;&e8;\n    ^\nline 1: Detected an entity reference loop\n&e9;&e9;\n    ^\nline 1: Detected an entity reference loop\n&e10;&e10;\n     ^\nline 1: Detected an entity reference loop\n&e11;&e11;\n     ^\nline 1: Detected an entity reference loop\n&e12;&e12;\n     ^\nline 1: Detected an entity reference loop\n&e13;&e13;\n     ^\nline 1: Detected an entity reference loop\n&e14;&e14;\n     ^\nline 1: Detected an entity reference loop\n&e15;&e15;\n     ^\nline 1: Detected an entity reference loop\n&e16;&e16;\n     ^\nline 1: Detected an entity reference loop\n&e17;&e17;\n     ^\nline 1: Detected an entity reference loop\n e16 \"&e15;&e15;\"><!ENTITY e17 \"&e16;&e16;\"><!ENTITY e18 \"&e17;&e17;\">]><a>&e18;\n                                                                               ^",
+    "warnings": ""
+  }
+]

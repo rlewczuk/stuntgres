@@ -25,6 +25,7 @@ type parser struct {
  haltedInput bool
  diagnosticBytes int
  illFormed bool
+ saxDisabled,priorError bool
  cdataStale bool
  fragmentInput bool
  windowBase int
@@ -32,6 +33,25 @@ type parser struct {
  namespaceBindings map[string]int
  namespaceHashes map[uint64]int
  namespaceURIs []namespaceURI
+ tree *document
+ parent *node
+ dtdState *dtdState
+ source DiagnosticSource
+ entityName string
+ entityDepth int
+ entityShape uint8
+ entityCount,entitySize,entityCopies uint64
+ lastEntityError Condition
+ inAttribute bool
+ attributeReplacement string
+ attributeCapture bool
+ attributeReplacementSize int
+ attributeNormalization *attributeNormalization
+ replaceEntities bool
+ inDTD bool
+ peFrames []inputFrame
+ inputID,nextInputID int
+ declarationInput int
 }
 func (p *parser) poll() bool {
  if p.err!=nil { return false }

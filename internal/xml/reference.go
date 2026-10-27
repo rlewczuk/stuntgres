@@ -39,5 +39,12 @@ func (p *parser) reference() (int,rune) {
  if p.byte()!=';' {p.event("XML_ERR_ENTITYREF_SEMICOL_MISSING","EntityRef: expecting ';'");return 0,0}
  p.advance(1)
  switch name {case "amp":return 1,'&';case "lt":return 1,'<';case "gt":return 1,'>';case "apos":return 1,'\'';case "quot":return 1,'"'}
- p.event("XML_ERR_UNDECLARED_ENTITY",p.joinMessage("Entity '",name,"' not defined"));return 0,0
+ e:=p.lookupEntity(name)
+ if e==nil{return 0,0}
+ if p.inAttribute {
+  value,ok:=p.decodeAttributeEntity(e,p.entityDepth)
+  if ok{p.attributeReplacement=value}
+  return 0,0
+ }
+ if !p.saxDisabled{p.expandGeneral(e)};return 0,0
 }
