@@ -3,6 +3,7 @@ package settings
 import (
 	"fmt"
 	"sort"
+	"sync"
 
 	"stuntgres/internal/sqlstate"
 )
@@ -14,9 +15,29 @@ type Registry struct {
 	order       []string
 }
 
+// builtinRegistries holds the registry without registered definitions, built
+// once per track_commit_timestamp boot value. Registries are immutable, so
+// every engine shares it.
+var builtinRegistries [2]struct {
+	once     sync.Once
+	registry Registry
+}
+
 // NewRegistry captures builtin boot values and adds validated registered
 // definitions. track_commit_timestamp boots from trackCommitTimestamps.
 func NewRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
+	if len(registered) != 0 {
+		return newRegistry(registered, trackCommitTimestamps)
+	}
+	shared := &builtinRegistries[0]
+	if trackCommitTimestamps {
+		shared = &builtinRegistries[1]
+	}
+	shared.once.Do(func() { shared.registry = newRegistry(nil, trackCommitTimestamps) })
+	return shared.registry
+}
+
+func newRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
 	groups := [...][]Definition{builtins, developerBuiltins, loggingBuiltins, presetBuiltins, replicationBuiltins, resourceBuiltins, shortBuiltins, vacuumBuiltins, walBuiltins, registered}
 	r := Registry{definitions: make(map[string]Definition, len(builtins)+len(developerBuiltins)+len(loggingBuiltins)+len(presetBuiltins)+len(replicationBuiltins)+len(resourceBuiltins)+len(shortBuiltins)+len(vacuumBuiltins)+len(walBuiltins)+len(registered))}
 	for i, list := range groups {
