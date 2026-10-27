@@ -27,6 +27,56 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   including whole rows and correlated subplans. Prepared-admission coverage
   follows stored aliases through rename/replacement and native Dump/Restore,
   retaining independent PostgreSQL SQL-lifecycle expectations.
+- Standalone ANALYZE families (`analyze_*_test.go`) are untagged public scenarios.
+  They use retained relation facts, real notices and EXPLAIN output, never an
+  internal collector or a native `pg_stats` replacement. Independent expected
+  rows, types, multiplicities, counts and complete diagnostics precede any
+  backend comparison. Native logical estimates and PostgreSQL physical plans
+  are inspected separately; PostgreSQL's minimum-one output estimate is not
+  imposed on native known-zero estimates.
+  The uniform `1..10` range witness independently expects native ranks
+  `<5/<=5/>5 = 4/5/5` and observed pinned PostgreSQL histogram estimates
+  `3/4/6`. PostgreSQL's sampled-statistics estimator and native full-data rank
+  approximation need not agree, even for this small fully collected population.
+- ANALYZE distribution witnesses cover uniform, skewed, NULL and empty inputs,
+  selected-column refresh and deliberately stale estimates, held prepared
+  EXPLAIN, invariant query results, transaction-private column distributions
+  versus globally published relation cardinality, savepoints, partial target
+  progress, hierarchy/ONLY, materialized snapshots and TEMP ownership.
+  Lock tests observe actual requests before cancellation or releasing a blocker;
+  successful reuse and unchanged prior estimates are asserted after cancellation.
+  Lifecycle tests use public native Reset/Dump/Restore only in their native
+  phase; logical dumps intentionally do not transport planner statistics.
+- Hierarchy-transition regressions detach or drop the last inheritance child,
+  collect again, and independently check physical cardinality, ordinary/ONLY
+  estimates, filters and exact rows. Transaction rollback restores the hierarchy
+  before a second refresh, and both direct/prepared collection routes are covered.
+  TRUNCATE ordering regressions distinguish collection before versus after
+  truncation, empty versus reinserted contents, savepoint restoration, and
+  COMMIT versus prepared-transaction completion. Successful scan cardinality and
+  counters survive rollback of column-statistic deltas; later truncation instead
+  invalidates a preceding scan. Unknown PostgreSQL physical estimates are not
+  equated to native's logical 1000-row fallback.
+  Mixed-rewrite regressions additionally carry a post-truncate scan through a
+  later heap rewrite of an unselected column, and prove that an unscanned
+  successor cannot acquire native scan authority from copied maintenance.
+  Rewrite-before-truncate cases and savepoint rollback/release distinguish the
+  retained predecessor from a published later successor. Rows and both column
+  types, compatible filtered estimates, cumulative analyze counts and timestamp
+  preservation/advancement are independently checked in both completion modes.
+  Pinned PostgreSQL can publish unknown `reltuples=-1` after the later rewrite,
+  despite native retaining its genuine two-row scan; rewrite-before-scan-before-
+  truncate instead retains PostgreSQL's earlier estimate of three. These catalog
+  facts are asserted separately. Unknown or physically stale PostgreSQL plans
+  require an actual scan and applicable restriction without guessing physical
+  estimates from the native logical population.
+- Native collected population/NULL/distinct/retained value counts are exact
+  full-data facts at capture. Top-100 MCV selection and at most 101 residual
+  histogram endpoints are deterministic bounded distribution approximations;
+  range interpolation, residual uniformity, independence and displayed logical
+  costs are estimates, not PostgreSQL physical measurements. Full
+  `pg_statistic`/`pg_stats` readers remain outside these scenarios' ownership.
+  Valid BUFFER_USAGE_LIMIT controls do not imply native physical buffers.
 - Assert volatile draws as exact sets and counts without assuming the order in
   which separate calls are scheduled.
 - Window frame kinds, offsets and sorting share one representation: after
@@ -56,3 +106,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - DISTINCT ON: `RUN='^TestReferenceQueryDistinctOn'`
 - Aggregates and `COUNT(expr)`: `RUN='^TestReference(QueryAggregate|CountExpression)'`
 - EXPLAIN: `RUN='^TestReferenceExplain'`
+- Standalone ANALYZE: `RUN='^TestReferenceAnalyze'`
+- ANALYZE feature smoke: `RUN='^TestReferenceAnalyzeSmoke$'`
+- ANALYZE diagnostics and permissions:
+  `RUN='^TestReferenceAnalyze(Diagnostics|Privileges|SyntaxOptions|Verbose)$'`
+- ANALYZE data, refresh and invariance:
+  `RUN='^TestReferenceAnalyze(Distributions|RefreshColumns|ResultInvariance)$'`
+- ANALYZE transaction, lock and lifecycle:
+  `RUN='^TestReferenceAnalyze(Transactions|CancellationLocks|Lifecycle|Hierarchy|HierarchyTransitions|TruncateOrdering|TruncateRewriteOrdering)$'`
+  Run every changed family both with and without `REFERENCE=1`; quickcheck
+  does not replace real pinned PostgreSQL proof. Selected lock/lifecycle race
+  proof uses `make check RUN='^TestReferenceAnalyze(CancellationLocks|Lifecycle)$' RACE=1`.

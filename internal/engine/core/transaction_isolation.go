@@ -267,7 +267,7 @@ func (s *StatementScope) parallelExecutionEligibility(stmt parser.Statement) err
 		*parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard,
 		*parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor,
 		*parser.Listen, *parser.Unlisten, *parser.Notify, *parser.SetConstraints,
-		*parser.Load, *parser.Vacuum:
+		*parser.Load, *parser.Vacuum, *parser.Analyze:
 		// REL_18_6 utility.c denies these utilities parallel-mode permission.
 		// DO and SHOW remain allowed; commands reached inside DO check here.
 		tag = RoutineCommandTag(stmt)

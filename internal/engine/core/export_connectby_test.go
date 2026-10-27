@@ -18,5 +18,5 @@ func ActivateConnectbySource(s *StatementScope, read catalog.Read) func(error) e
 }
 
 func CaptureConnectbySourceRoots(s *StatementScope, e *Engine, refs []ids.ObjectRef) (*visibility.View, error) {
-	return s.captureDataRootsAtLocked(e, refs, false, nil)
+	return s.captureDataRootsAtLocked(e, refs, false, nil, false)
 }

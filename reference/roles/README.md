@@ -44,6 +44,14 @@ authority.
   (`rls_policy_definition_test.go`). Default privileges use `dpScenario`
   (`default_privileges_helpers_test.go`); role attributes use `roleAttributesRun`
   and the facts in `role_attributes_fixture_test.go`.
+- Predefined-role ANALYZE consumers exercise the actual maintenance command:
+  missing MAINTAIN warns and skips successfully, `pg_maintain` admits collection
+  without granting SELECT or ownership, schema USAGE remains mandatory, and a
+  held ANALYZE rechecks authorization after membership revocation. Both direct
+  and prepared scenarios retain their independent PostgreSQL expectations.
+  Denied collection preserves the preceding relation estimate, including
+  PostgreSQL's population estimate already published by CREATE INDEX; native
+  index creation leaves that maintenance estimate unknown.
 - `ownershipCases` runs `DROP OWNED BY ... CASCADE` for every surviving
   `ownershipRoles` entry and drops its nonpublic schemas under a bounded
   context. Establish schema ownership with `CREATE SCHEMA ... AUTHORIZATION`;
@@ -119,6 +127,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Private publication/lineage and cancellation invariants:
   `RUN='^TestTransactionalPrivileges'`
 - Predefined roles: `RUN='^TestReferencePredefined'`
+- Migrated ANALYZE predefined-role consumers:
+  `RUN='^TestReferencePredefined(UnavailableCapabilities|Maintain|MaintainFeatureSmoke)$'`
+  requires both native mode and `REFERENCE=1`.
 - `pg_has_role`, `row_security_active`: `RUN='^TestReferenceAccessRole'`
 - `row_security` setting: `RUN='^TestReferenceRowSecurity'`
 - Policy DDL: `RUN='^TestReferenceRLSPolicy'`

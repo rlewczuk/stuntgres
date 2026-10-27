@@ -704,8 +704,9 @@ package parser
 %type <indexOption> maintenance_index_option reindex_option
 %type <tok> index_option_name reindex_kind maintenance_concurrent
 %type <indexValue> maintenance_index_option_value
-%type <stmt> vacuum
+%type <stmt> vacuum analyze
 %type <vacuumOptions> vacuum_options vacuum_option_list vacuum_legacy
+%type <vacuumOptions> analyze_options
 %type <vacuumOption> vacuum_option
 %type <vacuumTargets> vacuum_targets vacuum_target_list
 %type <vacuumTarget> vacuum_target
@@ -986,6 +987,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | do_statement
  | CALL relation_name '(' function_args ')' {call:=$4;call.Name=$2;call.Pos=$2.Parts[0].Pos;call.ProcedureCall=true;$$=&Call{Function:call,Pos:$1.pos}}
  | vacuum
+ | analyze
  | truncate_table
  | alter_default_privileges
  | alter_owner | reassign_owned | drop_owned
@@ -2243,6 +2245,10 @@ vacuum_target_list: vacuum_target {$$=[]VacuumTarget{$1}} | vacuum_target_list '
 vacuum_target: relation_name vacuum_star view_columns {$$=VacuumTarget{Name:$1,Star:$2,Columns:$3}}
  | ONLY relation_name vacuum_star view_columns {$$=VacuumTarget{Name:$2,Only:true,Star:$3,Columns:$4}} ;
 vacuum_star: /* empty */ {$$=false} | '*' {$$=true} ;
+
+analyze: ANALYZE analyze_options vacuum_targets {$$=&Analyze{Options:$2,Targets:$3,Pos:$1.pos}} ;
+analyze_options: '(' vacuum_option_list ')' {$$=$2}
+ | vacuum_verbose {$$=nil;if $1.pos.Character!=0 {$$=[]VacuumOption{{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}}} ;
 
 index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos} }
  | CREATE INDEX name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Pos:$1.pos} }
@@ -3569,14 +3575,13 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | GROUPING | SETS | ROLLUP | CUBE ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
-/* Bare VACUUM is a complete native command, not an unsupported one-word
- * statement. Preserve its generic-word use in other syntax without letting
- * that fallback compete with the empty legacy VACUUM option prefix. */
+/* Bare maintenance commands are complete native statements. Preserve their
+ * generic-word uses elsewhere without competing with empty legacy options. */
 generic_statement_word: generic_word_base_without_vacuum | WITH | EXISTS ;
-generic_word_base: generic_word_base_without_vacuum | VACUUM | EXPLAIN ;
+generic_word_base: generic_word_base_without_vacuum | VACUUM | EXPLAIN | ANALYZE ;
 /* The RANGE declaration has its own frame-unit token frontier; ENUM keeps
  * generic unsupported-word diagnostics without accepting a range body. */
-generic_word_without_frame: generic_word_base_without_vacuum_frame | VACUUM | EXPLAIN | WITH | EXISTS ;
+generic_word_without_frame: generic_word_base_without_vacuum_frame | VACUUM | EXPLAIN | ANALYZE | WITH | EXISTS ;
 generic_word_base_without_vacuum: generic_word_base_without_vacuum_frame | FRAME_UNIT ;
 generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
@@ -3585,7 +3590,7 @@ generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | 
  | TS_CONFIGURATION
  | CONVERSION
  | RECURSIVE | XML
- | FREEZE | VERBOSE | ANALYZE
+ | FREEZE | VERBOSE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | routine_name_word
  | grant_external_name_word

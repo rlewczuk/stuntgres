@@ -9,9 +9,9 @@ and never the engine.
 
 ## What it owns
 
-- **`Store`** (`store.go`): the published maps `Relations`, `Sequences` and
-  `IndexRoots`, and the row and version identity allocators. The engine
-  holds one store by value (`Engine.Storage`) and never replaces it whole.
+- **`Store`** (`store.go`): the published maps `Relations`, `RelationMetadata`,
+  `Sequences` and `IndexRoots`, and the row and version identity allocators.
+  The engine holds one store by value (`Engine.Storage`) and never replaces it whole.
   The counters are private: read them with `RowFrontier`/`VersionFrontier`,
   reserve with `AllocateRowVersionsLocked` (one row and version per row, in
   order, with the exhaustion diagnostics), `AllocateRowLocked` and
@@ -59,6 +59,30 @@ and never the engine.
   `Relation.StampPublishedBirth` and `CountPublishedInserts` for privately
   built stores; and `Store.ReplacementCapacityLocked`, the identity and
   commit-sequence capacity check of a catalog replacement.
+- **ANALYZE facts** (`relation_metadata.go`, `statistics.go`,
+  `statistics_collect.go`): `Store.RelationMetadata` is the one canonical owner
+  for immutable ANALYZE records across all relation kinds. Partitioned parents
+  retain metadata without any synthetic physical `Relation`. Each record owns
+  the sole committed `Statistics` root, keyed by stable attribute and
+  local/inherited flavor, plus successful scan cardinality/count/time facts.
+  `CollectStatistics` consumes caller-owned visible/layout-mapped borrowed rows
+  outside engine locks. Actual grouping/hash/ordering bind once per column.
+  Population, NULLs, supported non-NULL distinct and MCV counts are exact
+  full-data facts. Unknown distinct is not measured zero. Fixed target100 keeps
+  at most100 repeated MCV groups and101 weighted residual quantile endpoints;
+  deterministic membership/ties and residual rank summaries are approximations,
+  not PostgreSQL physical samples. Frequencies use all rows as denominator.
+  Missing equality keeps NULL facts; missing ordering keeps grouping facts.
+  Empty collection returns no replacements, preserving prior distributions.
+  `MergeStatistics` replaces selected columns without mutating older roots or
+  unselected payloads; `CompatibleStatistics` filters dropped/type/collation
+  incompatible attributes. Callers own transactional column deltas, authority
+  revalidation, lifecycle retention and record replacement under `Engine.mu`.
+  Successful heap ANALYZE also updates existing physical maintenance scan facts
+  and resets only the since-analyze modification counter, retaining cumulative
+  DML/VACUUM and since-vacuum counters. Physical `Relation.Maintenance` does not
+  duplicate typed statistics or ANALYZE count/time/inherited publications.
+
 
 ## Invariants
 

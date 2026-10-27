@@ -38,6 +38,7 @@ type Journal struct {
 	Domain           DomainSlot
 	DomainChanged    bool
 	Indexes          IndexSlot
+	Statistics       map[ids.ObjectAddress]StatisticsChange
 }
 
 // StorageChange is a relation's private storage in the journal.
@@ -52,8 +53,11 @@ type StorageChange struct {
 	HasSnapshot bool
 	Rewritten   bool
 	Truncated   bool
-	Frontier    ids.CommitSeq
-	Fills       map[int32]sqltype.Value
+	// Every actual TRUNCATE resets scan authority, independently of whether
+	// Truncated can certify uninterrupted original-to-final heap lineage.
+	TruncateScanReset bool
+	Frontier          ids.CommitSeq
+	Fills             map[int32]sqltype.Value
 	// Latest replacement's diagnostic mode is distinct from uninterrupted
 	// original-to-final concurrent provenance. A plain rewrite breaks the latter.
 	MaterializedConcurrent bool
@@ -113,6 +117,12 @@ func (c *Journal) Clone() *Journal {
 	}
 	for a, shape := range c.Storage {
 		n.Storage[a] = shape
+	}
+	for a, change := range c.Statistics {
+		if n.Statistics == nil {
+			n.Statistics = make(map[ids.ObjectAddress]StatisticsChange, len(c.Statistics))
+		}
+		n.Statistics[a] = change
 	}
 	if c.Indexes != nil {
 		n.Indexes = c.Indexes.Clone()

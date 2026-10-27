@@ -99,6 +99,37 @@ tokens before atomic installation; peer DML causes recapture, never SQL
 replay. The VACUUM barrier and progress tests park the statement at the
 `vacuumCompletion` frame and at `storage`'s scan frames: keep those names.
 
+## ANALYZE
+
+`ExecuteAnalyze` shares positioned maintenance syntax and lock acquisition, not
+VACUUM's transaction-block prohibition or row retirement. Relation names resolve
+before work; columns validate per target. Each target acquires a real
+ShareUpdateExclusive lock, captures statement-visible immutable row roots and
+stable attribute/layout authority, then collects outside `Engine.Mu`. Final
+publication rechecks epoch, catalog, store, shape, rights and cancellation.
+Notices and comparisons execute without engine locks. Virtual generated columns
+are skipped without evaluation. ONLY suppresses separate descendant refresh,
+not the parent's inherited population.
+Each target owns an independent capture at the same statement frontier, rather
+than releasing or replacing the statement's query-cache view. Collection uses
+the executor's visible-head selection once per physical segment, including own
+replacement substitution; a raw union filtered only by LiveVersion would count
+replaced committed predecessors twice.
+
+Standalone column facts install per completed target; explicit transactions
+record immutable selected-attribute Journal deltas. Maintenance row estimates
+and actual analyze count/time update independently and survive rollback for
+existing committed relations. No row rewrite or DML counters accompany a
+statistics-only publication. Valid BUFFER_USAGE_LIMIT controls are physically
+inapplicable; ordinary execution invents no physical progress.
+A last-child removal followed by local-only collection clears obsolete inherited
+population authority and records inherited-column deletions through the ordinary
+canonical/Journal paths, independent of the selected column list. When scanning
+a private TRUNCATE successor, ANALYZE also records the scan on that actual heap;
+this preserves maintenance ordering through commit and savepoint rollback while
+column deltas remain transactional.
+
+
 ## Hosts
 
 Each embeds core's `DDLHost` with its `{E, Op, CatalogStage}` layout, carries

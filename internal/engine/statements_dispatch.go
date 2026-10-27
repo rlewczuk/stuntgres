@@ -47,6 +47,8 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return dispatched(schemacmds.ExecuteLoad(e, op, stmt.(*parser.Load), count))
 	case *parser.Vacuum:
 		return dispatched(tablecmds.ExecuteVacuum(e, scope, stmt.(*parser.Vacuum), count))
+	case *parser.Analyze:
+		return dispatched(tablecmds.ExecuteAnalyze(e, scope, stmt.(*parser.Analyze), count))
 	case *parser.CreateExtension:
 		return dispatched(schemacmds.ExecuteExtension(e, scope, stmt.(*parser.CreateExtension), count))
 	case *parser.DropExtension:

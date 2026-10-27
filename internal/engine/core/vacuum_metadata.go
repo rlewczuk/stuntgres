@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 )
 
@@ -30,9 +31,22 @@ func (e *Engine) UpdateDatabaseMaintenanceLocked() {
 func (r EngineCatalogRuntime) Maintenance(address ids.ObjectAddress) (pgcatalog.MaintenanceFact, bool) {
 	store := r.engine.Storage.Relations[address]
 	if store == nil {
-		return pgcatalog.MaintenanceFact{}, false
+		store = r.engine.PrivateStorageLocked(r.Auth.PendingCatalog(), address)
 	}
-	return pgcatalog.MaintenanceFact(store.Maintenance), true
+	var fact pgcatalog.MaintenanceFact
+	if store != nil {
+		m := store.Maintenance
+		fact = pgcatalog.MaintenanceFact{FrozenXID: m.FrozenXID, Scanned: m.Scanned, Live: m.Live, Dead: m.Dead, Tuples: m.Tuples, Inserts: m.Inserts, Updates: m.Updates, Deletes: m.Deletes, Modifications: m.Modifications, InsertsSince: m.InsertsSince, VacuumCount: m.VacuumCount, LastVacuum: m.LastVacuum}
+	}
+	metadata := session.ResolveRelationMetadata(r.Auth.PendingCatalog(), r.engine.Storage.RelationMetadata, address)
+	if metadata != nil {
+		fact.AnalyzeCount, fact.LastAnalyze = metadata.AnalyzeCount, metadata.LastAnalyze
+		fact.InheritedScanned, fact.InheritedTuples = metadata.InheritedScanned, metadata.InheritedTuples
+		if store == nil {
+			fact.Scanned, fact.Tuples = metadata.Scanned, metadata.Tuples
+		}
+	}
+	return fact, store != nil || metadata != nil
 }
 func (r EngineCatalogRuntime) DatabaseFrozenXID() uint64 { return r.engine.DatabaseFrozenXID }
 func (r EngineCatalogRuntime) VisitVacuumProgress(ctx context.Context, visit func(pgcatalog.VacuumProgressFact) error) error {

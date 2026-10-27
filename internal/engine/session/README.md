@@ -16,6 +16,25 @@ It imports only lower layers (`ids`, `authorization`, `catalog`, `functions`,
 `extension`, `sequence`, ...) or the root: feature packages import `session` to
 implement its slots, so either import would form a cycle.
 
+`Journal.Statistics` contains immutable selected-column deltas keyed by relation
+and stable attribute/inherited flavor. `Clone` copies the outer map while sharing
+immutable entries; a new collection replaces the delta, so savepoints and
+prepared transactions retain their own prior roots. `ResolveStatistics` overlays
+these facts on the existing Store's canonical `RelationMetadata` root and filters
+incompatible column usages. New-object maintenance is retained privately beside
+the same selected deltas until creation commits; existing-object maintenance
+is not rolled back. Descriptor/epoch and optional real-heap identities fence
+publication, not metadata-pointer changes caused by a peer's compatible refresh.
+This is not a second committed store or a row rewrite.
+Selected-deletion tombstones remain in the immutable delta until commit applies
+them to the newest canonical root, including structural inherited-flavor removal.
+`StorageChange.TruncateScanReset` records actual truncate scan invalidation
+separately from the pure-lineage `Truncated` flag. Compatible successors carry
+the actual private heap's post-truncate scan witness; savepoints/prepared owners
+retain that physical maintenance authority without making column facts
+nontransactional.
+
+
 ## What it owns
 
 - **Sessions and operations** (`session.go`): `Session` (lifecycle, leases,

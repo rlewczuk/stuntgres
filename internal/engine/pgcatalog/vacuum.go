@@ -28,6 +28,10 @@ type MaintenanceFact struct {
 	Inserts, Updates, Deletes, Modifications, InsertsSince int64
 	VacuumCount                                            int64
 	LastVacuum                                             time.Time
+	AnalyzeCount                                           int64
+	LastAnalyze                                            time.Time
+	InheritedScanned                                       bool
+	InheritedTuples                                        int64
 }
 type VacuumProgressFact struct {
 	PID                            int64
@@ -155,7 +159,7 @@ func captureTableStatistics(in Input) ([][]sqltype.Value, error) {
 		counters := [...]struct {
 			column int
 			value  int64
-		}{{9, fact.Inserts}, {10, fact.Updates}, {11, fact.Deletes}, {12, 0}, {13, 0}, {14, fact.Live}, {15, fact.Dead}, {16, fact.Modifications}, {17, fact.InsertsSince}, {22, fact.VacuumCount}, {23, 0}, {24, 0}, {25, 0}}
+		}{{9, fact.Inserts}, {10, fact.Updates}, {11, fact.Deletes}, {12, 0}, {13, 0}, {14, fact.Live}, {15, fact.Dead}, {16, fact.Modifications}, {17, fact.InsertsSince}, {22, fact.VacuumCount}, {23, 0}, {24, fact.AnalyzeCount}, {25, 0}}
 		for _, counter := range counters {
 			if err := integer(counter.column, counter.value); err != nil {
 				return nil, err
@@ -163,6 +167,12 @@ func captureTableStatistics(in Input) ([][]sqltype.Value, error) {
 		}
 		if !fact.LastVacuum.IsZero() {
 			row[18], err = sqltype.TimestampFromTime(in.Source.Columns[18].Usage.Type, fact.LastVacuum)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if !fact.LastAnalyze.IsZero() {
+			row[20], err = sqltype.TimestampFromTime(in.Source.Columns[20].Usage.Type, fact.LastAnalyze)
 			if err != nil {
 				return nil, err
 			}

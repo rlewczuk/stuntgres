@@ -6,7 +6,7 @@ import "stuntgres/internal/parser"
 // its data phase.
 func SnapshotStatement(stmt parser.Statement) bool {
 	switch stmt.(type) {
-	case *parser.Call, *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable, *parser.RefreshMaterializedView, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
+	case *parser.Analyze, *parser.Call, *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable, *parser.RefreshMaterializedView, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		return true
 	}
 	return false
@@ -25,7 +25,7 @@ func SnapshotTargetAdmission(stmt parser.Statement) bool {
 // catalog-replacement read fence for its whole run.
 func ReplacementRead(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
-	case *parser.Explain, *parser.Call, *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard, *parser.Truncate:
+	case *parser.Analyze, *parser.Explain, *parser.Call, *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard, *parser.Truncate:
 		return true
 	case *parser.Comment:
 		return s.Kind == parser.CommentTable || s.Kind == parser.CommentForeignTable || s.Kind == parser.CommentColumn
@@ -52,7 +52,7 @@ func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 	switch s := stmt.(type) {
 	case *parser.TransactionCharacteristics, *parser.SetConstraints, *parser.AlterTableRenameConstraint, *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return DescribeEmpty
-	case *parser.Do, *parser.AlterTableAllInTablespace, *parser.ForeignDDL, *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.Load, *parser.Vacuum, *parser.Truncate, *parser.RefreshMaterializedView:
+	case *parser.Analyze, *parser.Do, *parser.AlterTableAllInTablespace, *parser.ForeignDDL, *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.Load, *parser.Vacuum, *parser.Truncate, *parser.RefreshMaterializedView:
 		return DescribeOperation
 	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:
 		return DescribeOperation

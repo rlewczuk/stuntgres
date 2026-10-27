@@ -160,7 +160,7 @@ func (e *Engine) materializePolicySourcesLocked(s *StatementScope) error {
 		return err
 	}
 	if len(s.rlsDataRefs) != 0 && s.View == nil {
-		if _, err := s.captureDataRootsAtLocked(e, s.rlsDataRefs, false, nil); err != nil {
+		if _, err := s.captureDataRootsAtLocked(e, s.rlsDataRefs, false, nil, false); err != nil {
 			return err
 		}
 	}

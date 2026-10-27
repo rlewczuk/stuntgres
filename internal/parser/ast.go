@@ -58,6 +58,16 @@ type VacuumTarget struct {
 
 func (*Vacuum) statement() {}
 
+// Analyze shares VACUUM's positioned controls and targets without inheriting
+// VACUUM's execution semantics. Options remain in encounter order.
+type Analyze struct {
+	Options []VacuumOption
+	Targets []VacuumTarget
+	Pos     Position
+}
+
+func (*Analyze) statement() {}
+
 // Load retains a decoded filename; native library loading is external.
 type Load struct {
 	Filename string

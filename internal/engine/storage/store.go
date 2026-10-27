@@ -24,11 +24,15 @@ import (
 // state here is distinct from transactional sequence metadata in the
 // catalog.
 type Store struct {
-	Relations   map[ids.ObjectAddress]*Relation
-	Sequences   map[ids.ObjectAddress]*SequenceGenerator
-	IndexRoots  map[ids.ObjectAddress]*IndexRoot
-	nextRow     uint64
-	nextVersion uint64
+	Relations map[ids.ObjectAddress]*Relation
+	// RelationMetadata contains immutable ANALYZE records for all relation
+	// kinds, including partitioned parents that have no physical Relation.
+	// Engine.mu guards replacement of records and map lifecycle.
+	RelationMetadata map[ids.ObjectAddress]*RelationMetadata
+	Sequences        map[ids.ObjectAddress]*SequenceGenerator
+	IndexRoots       map[ids.ObjectAddress]*IndexRoot
+	nextRow          uint64
+	nextVersion      uint64
 }
 
 // AllocateRowVersionsLocked reserves one new row and version identity per

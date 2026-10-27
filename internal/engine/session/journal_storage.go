@@ -19,6 +19,10 @@ func (c *Journal) RecordRowShapes(shapes map[ids.ObjectAddress]storage.RowShape,
 			shape = StorageChange{Original: rowShape.Original, Root: rowShape.Root, Ends: rowShape.ObservedEnds, Generation: rowShape.Generation}
 		}
 		if shape.Replacement != rowShape.Replacement {
+			if shape.TruncateScanReset && shape.Replacement != nil {
+				rowShape.Replacement.Maintenance.Scanned = shape.Replacement.Maintenance.Scanned
+				rowShape.Replacement.Maintenance.Tuples = shape.Replacement.Maintenance.Tuples
+			}
 			shape.Truncated = false
 			shape.MaterializedConcurrent, shape.MaterializedContinuous = false, false
 		}
@@ -62,6 +66,10 @@ func (c *Journal) RecordMaterializedRefresh(r MaterializedRefresh) {
 		shape.MaterializedContinuous = r.Concurrent && r.Committed
 	} else {
 		shape.MaterializedContinuous = shape.MaterializedContinuous && r.Concurrent
+	}
+	if shape.TruncateScanReset && shape.Replacement != nil && shape.Replacement != r.Storage {
+		r.Storage.Maintenance.Scanned = shape.Replacement.Maintenance.Scanned
+		r.Storage.Maintenance.Tuples = shape.Replacement.Maintenance.Tuples
 	}
 	shape.MaterializedConcurrent = r.Concurrent
 	shape.Replacement, shape.Relation = r.Storage, r.Descriptor

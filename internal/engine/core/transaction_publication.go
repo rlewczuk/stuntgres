@@ -40,7 +40,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 		return true
 	}
 	if c != nil && (len(c.Descriptors) != 0 || len(c.Names) != 0 || len(c.DefaultACLs) != 0 ||
-		len(c.Generators) != 0 || len(c.Storage) != 0 || c.Roles != nil ||
+		len(c.Generators) != 0 || len(c.Storage) != 0 || len(c.Statistics) != 0 || c.Roles != nil ||
 		index.JournalOf(c.Indexes).Pending()) {
 		return true
 	}
@@ -468,11 +468,16 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if c != nil {
 			databaseRoots = e.Catalog.ProjectDatabasesLocked(nextCatalog, e.Cluster.Catalogs)
 		}
+		var relationMetadata map[ids.ObjectAddress]*storage.RelationMetadata
+		if c != nil {
+			relationMetadata = e.prepareRelationMetadataLocked(nextCatalog, c)
+		}
 		// No callback, allocation or failure remains after this point.
 		e.installNotificationPublicationLocked(notifications)
 		if c != nil {
 			for _, shape := range c.Storage {
 				if shape.Original != nil {
+					scanned, tuples := shape.Replacement.Maintenance.Scanned, shape.Replacement.Maintenance.Tuples
 					shape.Replacement.Maintenance = shape.Original.Maintenance
 					if shape.Truncated {
 						shape.Replacement.Maintenance.FrozenXID = 0
@@ -481,6 +486,13 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 						shape.Replacement.Maintenance.InsertsSince = 0
 						shape.Replacement.Maintenance.Scanned = false
 						shape.Replacement.Maintenance.Tuples = 0
+					}
+					if shape.TruncateScanReset {
+						shape.Replacement.Maintenance.Scanned = scanned
+						shape.Replacement.Maintenance.Tuples = 0
+						if scanned {
+							shape.Replacement.Maintenance.Tuples = tuples
+						}
 					}
 					if shape.Rewritten && shape.Relation.RelationKind == catalog.MaterializedViewRelation {
 						shape.Replacement.Maintenance.FrozenXID = 0
@@ -556,10 +568,13 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					shape.Replacement.Maintenance.Modifications += n
 					shape.Replacement.Maintenance.Live = n
 				}
-				e.Visibility.InitializeMaintenanceLocked(shape.Replacement)
+				if shape.Relation.RelationKind.Stored() {
+					e.Visibility.InitializeMaintenanceLocked(shape.Replacement)
+				}
 			}
 			e.Storage.ReplaceSequencesLocked(nextSequences)
 			e.Storage.ReplaceRelationsLocked(nextStorage)
+			e.Storage.RelationMetadata = relationMetadata
 			e.Catalog.PublishLocked(nextCatalog)
 			databaseRoots.InstallLocked()
 			e.Catalog.InstallRevisionFrontierLocked(nextRevision)

@@ -57,6 +57,16 @@ func TestExplicitUtilityRefusal(t *testing.T) {
 
 func TestStatementPhases(t *testing.T) {
 	call := &parser.Call{}
+	analyze := &parser.Analyze{}
+	if !SnapshotStatement(analyze) || !ReplacementRead(analyze) || SnapshotTargetAdmission(analyze) || DescribeBeforeSnapshot(analyze) != DescribeOperation || ModifyingTag(analyze) != "" {
+		t.Fatal("ANALYZE phase classification")
+	}
+	if tag, counted, insert, ok := ClassifyCommandTag(analyze, TxIdle); tag != "ANALYZE" || counted || insert || !ok {
+		t.Fatal(tag, counted, insert, ok)
+	}
+	if err := ReadOnlyRefusal(analyze, true); err != nil {
+		t.Fatal("ANALYZE is permitted in read-only transactions", err)
+	}
 	if !SnapshotStatement(call) || !ReplacementRead(call) || SnapshotTargetAdmission(call) || DescribeBeforeSnapshot(call) != DescribeAnalyzed || DescribeAfterSnapshot(call) || !PreparableBody(call) || !ProtocolPlannedStatement(call) || ProtocolPlainSelect(call) || ProtocolHasRows(call, nil) || !ReadOnlyExempt(call) || ModifyingTag(call) != "" {
 		t.Fatal("CALL phase classification")
 	}
@@ -79,6 +89,7 @@ func TestStatementPhases(t *testing.T) {
 		&parser.Notify{}:                   DescribeEmpty,
 		&parser.SetConstraints{}:           DescribeEmpty,
 		&parser.Vacuum{}:                   DescribeOperation,
+		&parser.Analyze{}:                  DescribeOperation,
 		&parser.AlterOwner{Kind: "domain"}: DescribeOperation,
 		&parser.AlterOwner{Kind: "table"}:  DescribeAnalyzed,
 		&parser.CreateTrigger{}:            DescribeAnalyzed,

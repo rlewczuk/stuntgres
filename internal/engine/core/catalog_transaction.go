@@ -127,6 +127,23 @@ func (e *Engine) CatalogPreflightLocked(c *session.Journal) error {
 	if err := e.catalogFencesCurrentLocked(c, fenceTruncateGraph); err != nil {
 		return err
 	}
+	for address, change := range c.Statistics {
+		original, _ := e.Catalog.State.Relation(address)
+		if original != change.OriginalRelation {
+			return catalog.Conflict{}
+		}
+		if e.Storage.Relations[address] != change.Original {
+			return catalog.Conflict{}
+		}
+		if relation, exists := e.Catalog.State.Relation(address); exists && c.Descriptors[address] == nil {
+			for key, fact := range change.Columns {
+				slot := relation.IndexForAttribute(key.Attribute)
+				if slot < 0 || fact != nil && !catalog.SamePartitionColumnUsage(relation.Columns[slot].Usage, fact.Usage) {
+					return catalog.Conflict{}
+				}
+			}
+		}
+	}
 	for a, shape := range c.Storage {
 		store := e.Storage.Relations[a]
 		if store != shape.Original || store != nil && (store.Generation != shape.Generation || len(store.Versions) != len(shape.Root) || store.Ends != shape.Ends || !storage.SameVersionRoot(store.Versions, shape.Root)) {

@@ -30,6 +30,41 @@ retain the combined target/source candidate frame. INSERT RETURNING instead
 uses the produced target row with its accepted target alias, independently of
 input-query labels. OLD/NEW presentation does not replace source ownership.
 
+ANALYZE column facts resolve through the statement/transaction Journal overlay
+of `storage.Store.RelationMetadata`, the single canonical ANALYZE metadata root
+for heap and partition relations alike. Statistics-only commits validate epoch,
+committed descriptor and optional real-heap identity, then merge selected
+compatible attributes at the no-failure boundary without row-root replacement
+or DML counters. Clone/savepoint/prepared ownership
+uses the ordinary Journal lifecycle. Relation scan estimates remain independent
+nontransactional maintenance metadata. EXPLAIN captures immutable compatible
+typed facts by stable attribute and SQL occurrence, compares detached values
+without evaluating expressions, and preserves fallback estimates for unsupported
+predicates. Equality/NULL inputs are exact; bounded distribution/range and
+independence assumptions are logical approximations, not physical plan costs.
+Partition parents never own entries in the physical `Storage.Relations` map.
+Their statistics, row estimates and analyze counters live in the same metadata
+root as other relations. New private-object metadata remains on its creation
+journal until commit; committed-object maintenance remains nontransactional.
+DDL prunes dropped objects and incompatible column facts. Native Reset/Restore
+discards imported/persistent/reminted planner metadata, but preserves compatible
+facts and counters for genuinely retained destination TEMP identities through
+the existing TEMP-retention authority, never address coincidence.
+Parent inherited cardinality is retained separately from independently stale
+child estimates, so ONLY parent refresh works. EXPLAIN requires a current
+hierarchy before using it. A successful local-only refresh clears obsolete
+inherited population authority and column flavors; Journal tombstones preserve
+that structural invalidation transactionally.
+
+A private TRUNCATE creates an unscanned successor. A subsequent ANALYZE records
+its actual scan in that private heap as well as nontransactional committed
+maintenance. Commit preserves this later scan after the truncate reset; another
+TRUNCATE starts a new unscanned successor instead. The private maintenance
+witness survives savepoint rollback independently of transactional column facts,
+and compatible schema successors retain it. No second cardinality owner or
+transaction-private copy of the committed metadata map is introduced.
+
+
 Routine invocation activates concrete checked inputs/results without changing
 catalog declarations. Session-private SQL analysis and PL program retention each
 keep only the last specialization, keyed by complete usages, declaration/name

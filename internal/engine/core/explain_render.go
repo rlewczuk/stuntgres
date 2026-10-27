@@ -424,8 +424,19 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 	if err != nil {
 		return nil, err
 	}
+	if filter, ok := root.(*plan.FilterNode); ok && len(estimates) != 0 {
+		estimate, err = r.filterEstimate(filter.Child, filter.Predicate, estimate, estimates[0].Rows)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if tree.restriction != nil {
+		inputRows := estimate.Rows
 		estimate, err = plan.EstimateExplainNode(&plan.FilterNode{Predicate: tree.restriction}, []plan.ExplainEstimate{estimate}, 0)
+		if err != nil {
+			return nil, err
+		}
+		estimate, err = r.filterEstimate(root, tree.restriction, estimate, inputRows)
 		if err != nil {
 			return nil, err
 		}

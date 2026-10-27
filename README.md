@@ -72,6 +72,35 @@ advertised implementation. Catalog reads do not imply PostgreSQL physical
 storage or callback ABI support; see the
 [operator-family contract](docs/design/PG18-INDEX-OPERATOR-FAMILY.md).
 
+Standalone `ANALYZE`/`ANALYSE` collects actual statement-visible table values
+and refreshes metadata consumed by logical `EXPLAIN`, without changing query
+results. It supports selected columns, inheritance/partition populations,
+materialized snapshots, own temporary tables, `VERBOSE` and `SKIP_LOCKED`.
+Prepare/Describe does not collect. Maintenance privilege denial warns and skips;
+namespace access errors remain errors. Column distributions are transactional
+(including savepoints and prepared transactions); committed relation row
+estimates are maintenance facts and survive rollback. Earlier standalone targets
+remain refreshed if a later target has a bad column; all relation names resolve
+before work starts.
+All retained column facts use one metadata root in the existing storage owner,
+for heap and partition relations alike. Partition parents never acquire physical
+heap storage. New private-object metadata stays private until creation commits.
+
+Native collection scans all visible logical rows with fixed target 100.
+Population, NULL counts, supported typed distinct counts and retained MCV counts
+are exact at capture, not PostgreSQL physical sample claims. Top-100 MCV selection
+and at most 101 residual histogram endpoints are deterministic bounded summaries;
+residual/range selectivity and multicolumn independence are approximations.
+Unavailable equality/ordering omits the corresponding statistic. Distributions
+stay stale after DML and unselected columns retain their facts; empty refresh
+retains old column distributions but refreshes row estimates to zero.
+`BUFFER_USAGE_LIMIT` is validated but its physical buffer-strategy control is
+inapplicable in this in-memory engine. No pages, WAL, sampling workers or
+autovacuum are implied. Full `pg_statistic`/`pg_stats` SQL readers are separate
+coverage; existing `pg_class` and table-statistics views publish real maintenance
+facts. Logical Dump/Restore transports data, not planner statistics.
+
+
 ## Using stuntgres in unit tests
 
 Each `stuntgres.NewDriver()` owns independent in-memory clusters.

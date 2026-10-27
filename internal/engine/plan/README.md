@@ -9,8 +9,8 @@ evaluates them. Node `Eval` methods never name engine state: they use
 ## Imports
 
 Layer L6 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
-only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
-`sqltype` and the standard library, never the engine.
+only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
+`sqlstate`, `sqltype` and the standard library, never the engine.
 
 ## What it owns
 
@@ -29,9 +29,20 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   detached child/source estimates over the closed node family, without
   evaluation or source access. Inclusive logical work and output-cardinality
   heuristics are finite, nonnegative and saturated; display rounds rows upward.
-  Only physical literals affect filter/bound heuristics. Presence-only inactive
-  stages preserve child estimates; mutation estimates separate candidates from
-  emitted RETURNING rows.
+  Literal bounds and detached supported ANALYZE facts affect estimates, never
+  execution. Presence-only inactive stages preserve child estimates; mutation
+  estimates separate candidates from emitted RETURNING rows.
+  `analyze_selectivity.go` consumes immutable typed statistics and exact bound
+  column origin/frame/occurrence/usage authority. It never calls `Expr.Eval`,
+  opens rows, inspects parameters or consults an engine/provider. Supported
+  strict same-type literal equality, inequality, ranges and NULL tests retain
+  SQL three-valued NULL mass; NOT complements known false mass, not NULL mass.
+  MCV/NULL fractions are exact capture facts; unseen equality assumes uniform
+  residual distinct groups, ranges use an explicitly approximate weighted
+  quantile rank CDF (including singleton/duplicate boundaries), and AND/OR assume
+  independence. Unsupported expressions/authority preserve the caller's
+  existing fallback. Probabilities are finite and bounded0..1; the ordinary
+  logical estimator still caps row/cost estimates at1e12 and rounds only display.
 - **Plan records** (`query_records.go`, `query_search.go`, `query.go`,
   `expression_window.go`, `expression_aggregate.go`): `SortKey`, `Grouping`,
   `AggregateCall`, `WindowCall`, `WindowOperation` (and its `Window*`

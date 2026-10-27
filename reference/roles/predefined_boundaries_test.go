@@ -20,7 +20,7 @@ func predefinedMissingFunction(s *membershipScenario, q, signature string) {
 
 func predefinedNativeBoundaries(s *membershipScenario) {
 	s.t.Helper()
-	for _, q := range []string{"CHECKPOINT", "ANALYZE t", "CLUSTER t"} {
+	for _, q := range []string{"CHECKPOINT", "CLUSTER t"} {
 		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
 	}
 	for _, q := range []string{"COPY t FROM '/nonexistent'", "COPY t TO '/nonexistent'"} {
@@ -48,6 +48,11 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		s.actor("pdef_actor")
 		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
 		predefinedFailure(s, "SELECT pg_write_file('/nonexistent','x',false)", fixture.Diagnostic{Code: "42883", Message: "function pg_write_file(unknown, unknown, boolean) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
+		s.clearNotices()
+		s.exec("ANALYZE t")
+		s.notice("WARNING", "01000", `permission denied to analyze "t", skipping it`)
+		s.clearNotices()
+		predefinedSelect(s, "SELECT reltuples FROM pg_class WHERE oid='t'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(-1)}})
 		if !s.backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {
@@ -79,6 +84,12 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		s.actor("pdef_actor")
 		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
 		predefinedFailure(s, "SELECT pg_write_file('/nonexistent','x',false)", fixture.Diagnostic{Code: "42883", Message: "function pg_write_file(unknown, unknown, boolean) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
+		s.clearNotices()
+		s.exec("ANALYZE t")
+		if len(*s.notices) != 0 {
+			s.t.Fatalf("pg_maintain ANALYZE notices %#v", *s.notices)
+		}
+		predefinedSelect(s, "SELECT reltuples FROM pg_class WHERE oid='t'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(1)}})
 		if !s.backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {

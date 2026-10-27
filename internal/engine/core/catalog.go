@@ -788,6 +788,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			databaseRoots = e.Catalog.ProjectDatabasesLocked(next, e.Cluster.Catalogs)
 		}
 		if err == nil {
+			relationMetadata := e.prepareRelationMetadataLocked(next, nil)
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
 			nextRevision := catalog.RevisionFrontier(e.Catalog.NextRevision(), s.Descriptors())
@@ -820,8 +821,10 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 				}
 				e.Visibility.AdvanceCommitSeqLocked()
 			}
-			for address := range s.Descriptors() {
-				e.Visibility.InitializeMaintenanceLocked(relations[address])
+			for address, descriptor := range s.Descriptors() {
+				if relation, ok := descriptor.(*catalog.Relation); ok && relation.RelationKind.Stored() {
+					e.Visibility.InitializeMaintenanceLocked(relations[address])
+				}
 			}
 			if s.InitialTx != (ids.TxRef{}) {
 				e.Visibility.SerializableCommittedLocked(s.InitialTx, e.Visibility.CommitSeq())
@@ -829,6 +832,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			e.Catalog.PublishLocked(next)
 			databaseRoots.InstallLocked()
 			e.Storage.ReplaceRelationsLocked(relations)
+			e.Storage.RelationMetadata = relationMetadata
 			index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.Storage.IndexRoots)
 			e.Storage.ReplaceIndexRootsLocked(indexRoots)
 			for a := range s.Removals() {
@@ -1020,13 +1024,17 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 		if err != nil {
 			return ChangeSet{}, err
 		}
+		metadata, err := e.prepareRetainedRelationMetadataLocked(next, relations)
+		if err != nil {
+			return ChangeSet{}, err
+		}
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
 		if e.Catalog.NextOID() != oids.Base {
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
-		e.installReplacementLocked(next, relations, sequences, roots, nextRow, nextVersion, nextRevision, oids.Next)
+		e.installReplacementLocked(next, relations, sequences, metadata, roots, nextRow, nextVersion, nextRevision, oids.Next)
 		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -1097,10 +1105,14 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	if prepared.Catalog != next || prepared.BaseCatalog != e.Catalog.State || prepared.BaseRow != e.Storage.RowFrontier() || prepared.BaseVersion != e.Storage.VersionFrontier() || prepared.Frontier != e.Visibility.CommitSeq() || e.Catalog.NextOID() != oids.Base {
 		return ids.ErrCatalogReplaced
 	}
+	metadata, err := e.prepareRetainedRelationMetadataLocked(next, relations)
+	if err != nil {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.installReplacementLocked(next, relations, sequences, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision, oids.Next)
+	e.installReplacementLocked(next, relations, sequences, metadata, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision, oids.Next)
 	return nil
 }
 
@@ -1117,7 +1129,7 @@ func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevis
 // catalog, rows, index roots and sequences publish at one boundary, and the
 // reserved OID, row, version, commit and serializable frontiers publish together.
 // The caller holds replacementMu and mu.
-func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision, nextOID ids.OID) {
+func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, metadata map[ids.ObjectAddress]*storage.RelationMetadata, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision, nextOID ids.OID) {
 	e.Storage.SetFrontierLocked(nextRow, nextVersion)
 	e.Storage.ReplaceIndexRootsLocked(roots)
 	e.Visibility.AdvanceCommitSeqLocked()
@@ -1125,10 +1137,13 @@ func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids
 	e.Catalog.PublishLocked(next)
 	e.Catalog.InstallOIDFrontierLocked(nextOID)
 	e.Storage.ReplaceRelationsLocked(relations)
+	e.Storage.RelationMetadata = metadata
 	e.DatabaseFrozenXID = 0
 	e.VacuumProgress = nil
-	for _, store := range relations {
-		e.Visibility.InitializeMaintenanceLocked(store)
+	for address, store := range relations {
+		if relation, ok := next.Relation(address); ok && relation.RelationKind.Stored() {
+			e.Visibility.InitializeMaintenanceLocked(store)
+		}
 	}
 	e.UpdateDatabaseMaintenanceLocked()
 	e.Exclusions.ResetLocked()

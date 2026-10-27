@@ -101,6 +101,8 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "REINDEX"
 	case *parser.Vacuum:
 		base = "VACUUM"
+	case *parser.Analyze:
+		base = "ANALYZE"
 	case *parser.CreateView:
 		base = "CREATE VIEW"
 	case *parser.AlterView:

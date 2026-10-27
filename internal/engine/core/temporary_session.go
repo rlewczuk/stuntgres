@@ -296,9 +296,11 @@ func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *C
 	}
 	catalog.PruneNamespaceDefaults(stage.Base.State(), next, namespaces)
 	nextRevision := catalog.RevisionFrontier(e.Catalog.NextRevision(), stage.Descriptors())
+	relationMetadata := e.prepareRelationMetadataLocked(next, nil)
 	e.Catalog.PublishLocked(next)
 	e.Storage.ReplaceSequencesLocked(sequences)
 	e.Storage.ReplaceRelationsLocked(relations)
+	e.Storage.RelationMetadata = relationMetadata
 	e.Storage.ReplaceIndexRootsLocked(roots)
 	stage.Lifecycle = catalogPublished
 	e.Catalog.InstallRevisionFrontierLocked(nextRevision)

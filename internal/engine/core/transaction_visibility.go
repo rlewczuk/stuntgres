@@ -39,7 +39,7 @@ func (s *StatementScope) AcquireDataViewsLocked(e *Engine, refs []ids.ObjectRef)
 // A dynamic relation extends the active snapshot locally, never the outer
 // source's immutable view or its frontier.
 func (s *StatementScope) CaptureDataViewsAtLocked(e *Engine, refs []ids.ObjectRef, latest bool, base *visibility.Data) (*visibility.View, error) {
-	captured, err := s.captureDataRootsAtLocked(e, refs, latest, base)
+	captured, err := s.captureDataRootsAtLocked(e, refs, latest, base, false)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (s *StatementScope) retainSnapshotTargetRootsLocked(e *Engine) {
 
 // Root retention fixes the statement frontier, but is not itself a relation
 // read. Actual source acquisition enrolls its own refs through the wrapper above.
-func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRef, latest bool, base *visibility.Data) (*visibility.View, error) {
+func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRef, latest bool, base *visibility.Data, fresh bool) (*visibility.View, error) {
 	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -146,7 +146,7 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 	if base != nil {
 		existing = nil
 	}
-	if existing != nil {
+	if existing != nil && !fresh {
 		if err := in.ValidateView(existing, refs); err != nil {
 			return nil, err
 		}
@@ -206,10 +206,29 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 	if err != nil {
 		return nil, err
 	}
-	if latest {
-		s.partitions().ValidationView = captured
-	} else if base == nil || nested || routineBase {
-		s.View = captured
+	if !fresh {
+		if latest {
+			s.partitions().ValidationView = captured
+		} else if base == nil || nested || routineBase {
+			s.View = captured
+		}
+	}
+	return captured, nil
+}
+
+// CaptureMaintenanceDataViewsLocked owns an independent per-target capture at
+// the statement frontier. Unlike the query cache, releasing it cannot poison a
+// later maintenance target or substitute that target's membership set.
+func (s *StatementScope) CaptureMaintenanceDataViewsLocked(e *Engine, refs []ids.ObjectRef) (*visibility.View, error) {
+	captured, err := s.captureDataRootsAtLocked(e, refs, false, nil, true)
+	if err != nil {
+		return nil, err
+	}
+	for _, ref := range refs {
+		if err := e.SerializableReadLocked(s, ref); err != nil {
+			captured.Release()
+			return nil, err
+		}
 	}
 	return captured, nil
 }

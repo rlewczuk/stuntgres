@@ -89,6 +89,7 @@ func (s *StatementScope) stageTruncate() error {
 		// Do not bridge a preceding ordinary private storage rewrite. The marker
 		// means the entire transition from the first committed predecessor is pure.
 		shape.Truncated = !exists || shape.Truncated || shape.Replacement == shape.Original
+		shape.TruncateScanReset = true
 		lineage := store.TruncateLineage
 		if lineage == nil {
 			lineage = &storage.TruncateLineage{}
