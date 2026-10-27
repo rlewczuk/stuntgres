@@ -268,11 +268,26 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(proc.Name()), []expr.Expr{n.Arg})
-	case plan.InstalledTablefuncNormalExpr:
-		if err := ValidateInstalledTablefuncNormal(n, view); err != nil { return "", err }
+	case plan.InstalledConnectbyExpr:
+		if err := ValidateInstalledConnectby(n, view); err != nil {
+			return "", err
+		}
 		procedure, _ := view.Procedure(n.Procedure.Address())
 		namespace, ok := view.Namespace(procedure.Namespace())
-		if !ok { return "", fmt.Errorf("stuntgres: missing stored normal_rand namespace") }
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored connectby namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
+	case plan.InstalledTablefuncNormalExpr:
+		if err := ValidateInstalledTablefuncNormal(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored normal_rand namespace")
+		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args[:])
 	case plan.InstalledPgrowlocksExpr:

@@ -40,6 +40,11 @@ Nominal typed literals for installed ltree and lquery resolve through the ordina
 type lookup before admission. Their resolved scalar descriptors, not their written
 names, authorize input alongside domains.
 
+Installed connectby calls complete anonymous caller definitions through the
+same captured type/collation/input authority as other record sources, before
+FROM schema expansion. Runtime width/depth/branch/serial checks remain after
+STRICT NULL handling; binder completion never eagerly traverses source SQL.
+
 Routine family probing is producer-free and leaves parameter inference untouched.
 Declared inputs own namespace masking and overload ranking; separate concrete
 targets and invocation signatures own actual coercion, defaults and variadic

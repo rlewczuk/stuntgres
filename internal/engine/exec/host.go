@@ -98,6 +98,8 @@ type Host interface {
 	Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error
 	ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error
+	ValidateConnectby(n plan.InstalledConnectbyExpr) error
+	Connectby(request functions.ConnectbyRequest) ([]sqltype.Value, error)
 	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error
 	UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error)

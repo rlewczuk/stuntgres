@@ -47,6 +47,10 @@ func (v *QueryRenderer) renderFunctionTableSQL(ctx context.Context, catalog cata
 		}
 		var shape *sqltype.Descriptor
 		switch record := root.Calls[i].(type) {
+		case plan.InstalledConnectbyExpr:
+			if record.Defined {
+				shape = record.ResultUsage().Type
+			}
 		case functions.JSONRecord:
 			if record.Defined {
 				shape = record.ResultUsage().Type

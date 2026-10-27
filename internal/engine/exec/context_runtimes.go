@@ -641,11 +641,42 @@ func (c *Context) OpenPgrowlocks(n plan.InstalledPgrowlocksExpr) (expr.SourceCur
 }
 
 func (c *Context) OpenTablefuncNormal(n plan.InstalledTablefuncNormalExpr) (expr.SourceCursor, error) {
-	if err := EvaluationContext(c); err != nil { return expr.SourceCursor{}, err }
+	if err := EvaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
 	host := c.LiveHost()
-	if host == nil { return expr.SourceCursor{}, fmt.Errorf("stuntgres: normal_rand lacks statement scope") }
-	if err := host.ValidateTablefuncNormal(n); err != nil { return expr.SourceCursor{}, err }
+	if host == nil {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: normal_rand lacks statement scope")
+	}
+	if err := host.ValidateTablefuncNormal(n); err != nil {
+		return expr.SourceCursor{}, err
+	}
 	return n.TablefuncNormal.OpenSource(c)
+}
+
+func (c *Context) OpenConnectby(n plan.InstalledConnectbyExpr) (expr.SourceCursor, error) {
+	if err := EvaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: connectby lacks statement scope")
+	}
+	if err := host.ValidateConnectby(n); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	return n.Connectby.OpenSource(c)
+}
+func (c *Context) Connectby(request functions.ConnectbyRequest) ([]sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return nil, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: connectby lacks statement scope")
+	}
+	request.Input, request.Output = c.FunctionJSONBRecordInput(), c.Output
+	return host.Connectby(request)
 }
 
 func (c *Context) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error) {

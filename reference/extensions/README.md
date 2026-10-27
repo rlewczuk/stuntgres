@@ -70,6 +70,31 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - fuzzystrmatch: `RUN='^TestReferenceDaitchMokotoff'`, `RUN='^TestReferenceLevenshtein'`, `RUN='^TestReferenceMetaphone'`, `RUN='^TestReferenceSoundex'`
 - tablefunc Gaussian sources: `RUN='^TestReferenceTablefuncNormal'`
 - BRIN pageinspect: `RUN='^TestReferencePageinspectBrin'`
+- tablefunc hierarchy sources: `RUN='^TestReferenceConnectby'`. Shared helpers
+  own caller-record metadata, full SQL diagnostics, retained statements and
+  explicit native-control phases. Renamed members use current names or stored
+  view identities; held original-name SQL follows ordinary reparse semantics.
+  `RawSQLAndQuoting` covers read-only utility rejection with unchanged settings,
+  catalog and data, unsupported SPI transaction/frontend-COPY distinctions and
+  multiple SELECT last-result semantics.
+  Nested derived, CTE, scalar and stored-view locking witnesses cover all four
+  strengths directly and prepared against conflicting held tuple locks with
+  NOWAIT; exact nonvolatile diagnostics distinguish rejection from row-lock
+  execution. An unused locking CTE remains a successful read-only control.
+  Actual PG18.6 diagnostics for weaker enclosing/stronger stored marks include
+  plain `SELECT` when a planned reference/COPY marker precedes the locking
+  markers. Nested-view forms, earlier weak/later unrelated strong ordering, and
+  plain versus ordered view boundaries have separate direct/prepared witnesses.
+  Reversed locking-clause versus FROM order is exercised directly and through
+  stored/nested views. A parent-explicit/earlier-child locking control prevents
+  comparing restarted first-mark orders across query levels.
+  `AuthorityAndPrepared` traverses a
+  recursively protected policy relation under target-only DML with private
+  inserts/deletes; its native phase observes a scheduler wait on the dynamically
+  named source before canceling SELECT and INSERT, checking no exposed rows,
+  atomic target preservation, and subsequent demand. Phase-specific sorting and
+  accumulated-output DML publication proofs live in the composed core owner tests.
+  `Smoke` includes cyclic atomic INSERT and successful bounded INSERT.
 - Mutable routine/provider names and schemas retain genuine OID/kind and
   extension associations; this does not promote lookup-only catalog identities
   to execution. Cross-family ALTER metadata and replay proof lives in

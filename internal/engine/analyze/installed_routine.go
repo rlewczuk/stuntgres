@@ -35,6 +35,9 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		}
 	}
 	var proc *catalog.Procedure
+	if selected := b.Clause.selectedProcedure; selected != nil && family == functions.TablefuncExtension && string(selected.Signature) != signature {
+		return nil, nil
+	}
 	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil && (string(selected.Signature) == signature || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
 		symbol, failure := extension.ProcedureSymbol(auth.ReadCatalog(), selected)
 		if failure != nil {
@@ -307,6 +310,22 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		return r.attachPgrowlocks(c, ref)
 	case functions.TablefuncNormal:
 		return r.attachTablefuncNormal(c, ref)
+	case functions.Connectby:
+		if err := extension.ValidateTablefuncIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		if b.Params.ExecuteParameters {
+			return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos)
+		}
+		if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
+			return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
+		}
+		if err := b.AdmitSetReturning(c.Pos); err != nil {
+			return nil, err
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledConnectbyExpr{Connectby: c, Procedure: p, Ref: ref}, nil
 	case functions.VerifyHeapam:
 		return r.attachVerifyHeapam(c, ref)
 	}

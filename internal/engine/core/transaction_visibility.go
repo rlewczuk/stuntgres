@@ -127,6 +127,14 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 		Published: e.Catalog.State, Owner: &e.Catalog.Owner, Store: &e.Storage, Journal: s.PendingCatalog(),
 		SameLineage: view.SameMaterializedLineage, SameRowShape: index.SameRelationRowShape,
 	}
+	// Runtime-named nested SQL captures its admitted source/RLS closure from
+	// the outer frontier without borrowing the outer source's membership set.
+	// The first capture installs an invocation-local View; later acquisitions
+	// keep the ordinary strict validation path and never recapture its roots.
+	nested := !latest && base == nil && s.View == nil && s.sqlRoutine.sourceBase != nil
+	if nested {
+		base = s.sqlRoutine.sourceBase
+	}
 	existing := s.View
 	if latest {
 		existing = s.PartitionsOrZero().ValidationView
@@ -174,7 +182,7 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 	}
 	if latest {
 		s.partitions().ValidationView = captured
-	} else if base == nil {
+	} else if base == nil || nested {
 		s.View = captured
 	}
 	return captured, nil

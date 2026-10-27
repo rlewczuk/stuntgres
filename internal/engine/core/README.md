@@ -136,6 +136,43 @@ seven scalar B-tree overloads at slots one through seven. Heap verification's
 record-set source and B-tree VOID expressions retain distinct binding,
 transport, admission and runtime paths.
 
+`connectby_runtime.go` executes raw hierarchy SQL through ordinary nested
+parse/bind/execute activation under the caller's current catalog, retained
+snapshot frontier, settings and authority. Runtime-named sources borrow the
+outer snapshot's retained roots, not its fixed source-membership set. The first
+recursive source/RLS capture installs an invocation-local view; later reads
+validate and reuse it. Restoration releases that local view without changing
+the outer view, including when the caller is DML. Each sibling query is fully
+materialized and closed before restoring outer scratch. An explicit frame stack owns depth-first
+traversal; only a completely successful traversal publishes rows. SQL-boundary
+errors receive internal-query diagnostics; later descriptor, conversion and
+cycle errors remain outside that boundary.
+Read-only SPI classification rejects utilities before their execution checks;
+optimizable statements retain ordinary analysis before the nonvolatile-function
+gate. Transaction commands and frontend COPY instead terminate the statement
+list with no children, matching SPI's negative return status. Successful
+read-only SELECT lists retain last-result semantics.
+Connectby enables an invocation-private read-only SPI demand. The ordinary
+description seam classifies the still-live canonical binding after analysis and
+authority checks, omitting analysis-only occurrences. It consumes marks at every
+derived/scalar/CTE query level and recursively follows stored-source occurrence
+marks. Nested row locking is rejected before tuple-lock execution; unused locking
+CTEs remain read-only, and ts_rewrite's separate gate is unchanged.
+Stored expansion propagates and merges inherited tuple marks through
+`stored.ViewLeafRowMark`, with a path-local recursion guard. Diagnostic marker
+presence is distinct from locking strength: a retained stored-query boundary
+marked by its caller contributes a preceding reference/COPY marker with no
+locking strength, yielding the plain `SELECT` tag while still rejecting SPI
+execution. Explicit locking, ordering, bounds, WITH and security-barrier metadata
+retain these represented boundaries; inherited locking alone on a plain view
+does not. Unrelated later strengths do not replace the first marker's tag.
+The canonical bound query walk establishes parent-before-child scope order.
+Within each level, `RowMark.Order` preserves the first written locking-clause
+target order independently of FROM order and later strength upgrades. Orders
+restart at query boundaries and are never globally sorted. Frozen-source
+ownership comes from the retained local FROM graph, stopping at derived and
+projection boundaries; source metadata is neither reordered nor mutated.
+
 `amcheck_*.go` captures exact target/parent and current routine authority, then
 acquires heap followed by index outside metadata locks. A non-index target has
 no heap identity and is rejected only after locking the target itself. Method,
@@ -1029,6 +1066,24 @@ session, transaction, prepared-analysis and typed-frame authorities.
   `StatementScope.Finish`'s disposal; no timer callback mutates the transaction.
 
 ## Testing
+
+Connectby completion, reconstruction, remapping and descriptor units share
+`RUN='^TestConnectby'`; provider manifest/owner units use `RUN='^TestTablefunc'`.
+`TestConnectbyAdmittedExecutionOwnership` observes the complete recursive
+source/RLS capture and local-view release on success, nested conversion failure,
+admitted sort cancellation and cancellation after child output accumulation.
+It reuses real context polls and the existing stack-aware cancellation seam,
+without timing or production hooks. Snapshot ownership units also distinguish
+explicit-base, latest and unrelated activation captures.
+`TestConnectbyAdmittedDMLCancellation` installs that seam on the admitted
+operation and runs the real INSERT owner through both phases, asserting no
+published result or target-root change and complete subsequent DML publication.
+Accumulation evidence requires a second connectby child-query parse and statement
+activation, followed by a poll from the exact traversal function (not its emit
+closure). That later query is reachable only after a completed non-root emit;
+the ownership probe also requires distinct local views for both activations.
+Caller-context Err overrides are not phase probes through the public driver:
+session admission deliberately derives its own cancellation context.
 
 Heap-verification capture, admission, incarnation and pure logical-row units
 share `RUN='^TestVerifyHeapam'`; use `RACE=1` for capture/admission coverage.

@@ -177,6 +177,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledCubeSpatialExpr, plan.InstalledEarthExpr, plan.InstalledEarthPointExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledConnectbyExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledTablefuncNormalExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgrowlocksExpr:

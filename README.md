@@ -18,6 +18,23 @@ variadic arguments and declared OUT/INOUT result columns. Calls share the
 executing statement's atomic effects and cancellation. Native fixture controls
 preserve routine declarations and data; see [routine execution](docs/DRIVER.md).
 
+`CREATE EXTENSION tablefunc` provides `normal_rand` and the four documented
+`connectby` hierarchy-source overloads. A connectby call in `FROM` supplies its
+anonymous record columns: key, parent, integer depth, optional text branch,
+and (for ordered calls) final integer serial. Relation/key/parent/order arguments
+are raw SQL fragments; quote mixed-case identifiers inside those strings.
+Nested SQL follows read-only SPI execution: utility commands such as `SET`,
+`CREATE TABLE` and `TRUNCATE` are rejected, while multiple read-only SELECTs
+remain valid and the last SELECT supplies children. Unsupported transaction
+commands and frontend COPY terminate the nested list without child rows.
+Ordered calls sort siblings and assign global depth-first serials; use an outer
+`ORDER BY serial` when the result order matters. NULL arguments return no rows;
+positive depth limits include that depth, while zero/negative limits are unlimited.
+Cycle detection is textual: separators inside keys can produce PostgreSQL's
+documented false positives. Native fixture controls preserve installed identities
+and caller-owned view definitions. This is bounded tablefunc coverage, not an
+implementation of crosstab or every upstream tablefunc member.
+
 Client connection defaults use one typed settings registry, including
 `SET XML OPTION DOCUMENT/CONTENT`. Presentation, UTF8/C locale boundaries,
 search paths, row security, transaction characteristics and timeouts retain

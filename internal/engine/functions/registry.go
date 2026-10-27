@@ -109,6 +109,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pgrowlocks"}, Bind: bindPgrowlocks, NamedCall: namedPgrowlocks},
 	{Names: pageinspectNames[:], Bind: bindPageinspect, NamedCall: namedPageinspect},
 	{Names: []string{"normal_rand"}, Bind: bindTablefuncNormal},
+	{Names: []string{"connectby"}, Bind: bindConnectby},
 	{Names: []string{"verify_heapam"}, Bind: bindVerifyHeapam, NamedCall: namedVerifyHeapam},
 	{Names: []string{"bt_index_check", "bt_index_parent_check"}, Bind: bindAmcheck, NamedCall: namedAmcheck},
 	{Names: pgcryptoNames[:], Bind: bindPgcrypto},

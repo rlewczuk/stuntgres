@@ -239,7 +239,9 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		}
 		n.Signature.Inputs, n.Signature.Result = inputs, info.Usage
 		n.InputCollation = comparisonCollation(n.InputCollation)
-		if err != nil { return nil, false, err }
+		if err != nil {
+			return nil, false, err
+		}
 		rebound, err = n.Rebuild(info, n.Args)
 	case plan.AssignmentValueExpr:
 		n.Base, n.Value = child(n.Base), child(n.Value)
@@ -515,10 +517,28 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			return nil, false, fmt.Errorf("stuntgres: invalid remapped installed function")
 		}
 		rebound = n
-	case plan.InstalledTablefuncNormalExpr:
-		for i, arg := range n.Args { n.Args[i] = child(arg) }
+	case plan.InstalledConnectbyExpr:
+		args := make([]expr.Expr, len(n.Args))
+		for i, arg := range n.Args {
+			args[i] = child(arg)
+		}
+		n.Args = args
 		proc, ok := originalProcedure(n.Procedure)
-		if !ok { return nil, false, fmt.Errorf("stuntgres: missing remapped normal_rand function") }
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped connectby function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledConnectby(n, view)
+		rebound = n
+	case plan.InstalledTablefuncNormalExpr:
+		for i, arg := range n.Args {
+			n.Args[i] = child(arg)
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped normal_rand function")
+		}
 		changed = changed || n.Procedure != proc
 		n.Procedure, n.Info = proc, info
 		err = ValidateInstalledTablefuncNormal(n, view)

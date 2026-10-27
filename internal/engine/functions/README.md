@@ -29,6 +29,12 @@ Raw IEEE multiplication/addition preserves signed and nonfinite deviations;
 there is no stream or setseed-replay contract. The installed plan wrapper retains
 procedure authority through structural rewrites and stored/native replay.
 
+`Connectby` binds four selected installed signatures through shared TEXT/INT4
+coercion. Its immutable expression retains ordered/branch flags and a caller-owned
+record usage completed by the analyzer. Arguments evaluate once before strict
+NULL handling; non-NULL calls delegate materialized traversal to the statement
+host. Rebuilds retain the selected variant and exact anonymous record shape.
+
 `AccessInquiry` uses closed kinds for role membership, row security, routine,
 language, wrapper, server, database, schema, type, tablespace, table, sequence,
 column, any-column, large-object and parameter privileges. Role NAME/OID,

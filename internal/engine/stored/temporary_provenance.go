@@ -129,7 +129,7 @@ func ViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.O
 		// Old-epoch installed SRFs bridge only through the exact descriptor
 		// captured by this retained TEMP consumer. Ordinary current-epoch COW
 		// declarations take the path above, not this bridge.
-		if ok && (extension.IntaggProviderOf(old) != nil || extension.IntaggProviderOf(actual) != nil || extension.PgrowlocksProviderOf(old) != nil || extension.PgrowlocksProviderOf(actual) != nil) && actual != old {
+		if ok && (extension.IntaggProviderOf(old) != nil || extension.IntaggProviderOf(actual) != nil || extension.PgrowlocksProviderOf(old) != nil || extension.PgrowlocksProviderOf(actual) != nil || extension.TablefuncProviderOf(old) != nil || extension.TablefuncProviderOf(actual) != nil) && actual != old {
 			return false
 		}
 		return ok && old.Address() == address && old.Revision() != 0 &&

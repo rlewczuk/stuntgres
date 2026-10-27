@@ -15,11 +15,12 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 	record, isRecord := call.(functions.JSONRecord)
 	jsonb, isJSONB := call.(functions.JSONBRecord)
 	routine, isRoutine := call.(plan.SQLRoutineExpr)
+	connectby, isConnectby := call.(plan.InstalledConnectbyExpr)
 	// Formal-derived tuples already own their shape, despite prorettype RECORD.
 	isRoutine = isRoutine && routine.Procedure.Result == 2249 && !routine.Procedure.SQL.DerivedResult()
-	anonymous := (isRecord || isJSONB || isRoutine) && call.ResultUsage().Type.ID() == 2249
+	anonymous := (isRecord || isJSONB || isRoutine || isConnectby) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
-		if isRecord && anonymous || JSONBRecordUnresolved(call) || isRoutine {
+		if isRecord && anonymous || JSONBRecordUnresolved(call) || isRoutine || isConnectby && !connectby.Defined {
 			return nil, expr.ErrorAt("42601", `a column definition list is required for functions returning "record"`, raw.Pos)
 		}
 		return call, nil
@@ -54,6 +55,13 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 	shape, err := sqltype.RecordShape(members)
 	if err != nil {
 		return nil, err
+	}
+	if isConnectby {
+		connectby.Usage = shape.Usage()
+		connectby.Defined = true
+		connectby.Property.DomainDependent = connectby.Property.DomainDependent || sqltype.ContainsDomainConstraints(shape)
+		connectby.Property.RuntimeDomainConversion = connectby.Property.RuntimeDomainConversion || sqltype.ContainsDomainConstraints(shape)
+		return connectby, nil
 	}
 	if isRoutine {
 		routine.Usage = shape.Usage()

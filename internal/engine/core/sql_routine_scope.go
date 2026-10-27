@@ -160,8 +160,10 @@ type sqlRoutineDemand struct {
 	scalar             bool                  // Internal single-row SELECT demand, never public finalization.
 	plArgumentRow      bool                  // NonSTRICT bound-argument projection: one row, always SPI.
 	rewrite            bool                  // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
+	readOnlySPI        bool                  // Connectby classifies the canonical executable binding before execution.
 	rows               bool                  // Private all-row PL demand; no rewrite policy or scalar cardinality.
 	plCapture          bool                  // Bounded primary SELECT capture, including after writable CTE completion.
+	sourceBase         *visibility.Data      // Borrowed coherent roots for runtime-named nested sources; saved outer View owns them.
 	result             sqltype.Usage
 	resultPlan         proc.ResultPlan
 	definition         *proc.Definition

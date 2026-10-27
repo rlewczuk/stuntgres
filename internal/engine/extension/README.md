@@ -135,9 +135,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   never a retained preparation epoch. This invocation-local bridge neither
   mutates the stored selection nor authorizes an otherwise stale reference.
 - **tablefunc** (`tablefunc_provider.go`): trusted/relocatable version 1.0
-  installs the strict volatile `normal_rand(integer,float8,float8)` set source.
-  Its member slot, declaration and released source symbol participate in the
-  shared owner/import/remap authority; mutable names never grant execution.
+  retains strict volatile `normal_rand(integer,float8,float8)` at slot zero
+  and appends four strict stable SETOF-record connectby overloads. One ordered
+  manifest drives staging, immutable symbol checks and symbolic owner replay.
+  Caller-owned record definitions are not provider OUT parameters. Mutable names
+  never grant execution; crosstab and other upstream members are not advertised.
 - **pgrowlocks** (`pgrowlocks_provider.go`, `pgrowlocks_stage.go`): the
   nontrusted/superuser/relocatable 1.2 singleton installs exactly
   `pgrowlocks(text) RETURNS SETOF record` (STRICT, VOLATILE, parallel safe).
@@ -329,9 +331,9 @@ and view recipe methods.
 
 `TestRegisterAddsOnlyValidImplementations` pins `Register` (nil registry
 allocated; duplicate, nil, versionless or badly named registrations rejected
-with the registry unchanged). Every other witness needs an engine that installs
-the extension, so provider identity, conflicts, forged manifests and owner import
-are engine units in `internal/engine/schemacmds`. Public SQL lives in
+with the registry unchanged). Pure provider identity and owner-codec units use
+unpublished catalog states; composed installation, conflict and owner-import
+witnesses live in `internal/engine/schemacmds`. Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing) (extension
 DDL and catalogs),
 [reference/extension_types](../../../reference/extension_types/README.md#testing)
@@ -356,6 +358,9 @@ make check RUN='^TestReference(Extension|AvailableExtensions)'
 
 Routine slot/label/provenance proof (no SQL execution):
 `make check RUN='^Test(InstalledProcedure(RelabelIdentity|Forgery|VersionTransition|RemapIdentity)|DetachedUnaccentImmutableCapability|ExtensionOwner(SlotCodec|ImportCurrentSlotIdentity|ImportTransfer))$'`.
+The independently declared selected tablefunc inventory (normal_rand slot zero,
+four connectby slots), mutable-label identity, manifest rejection and symbolic
+owner codec are selected with `make check RUN='^TestTablefuncConnectby'`.
 Engine caller witnesses additionally cover current v2 metadata, unreplayed/
 foreign import labels, COW inventory corruption and genuine provider relabeling.
 Public provider/replay behavior uses shared `TestReferenceRoutineAlter*`

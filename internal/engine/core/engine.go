@@ -401,6 +401,11 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	} else if err := view.CheckRowSecurityBinding(scope.RowSecurity, auth.View, b); err != nil {
 		return Description{}, err
 	}
+	if scope.sqlRoutine.readOnlySPI {
+		if tag := connectbyReadOnlyViolation(stmt, auth.Catalog, b.QuerySources, b.Query); tag != "" {
+			return Description{}, SQLError("0A000", tag+" is not allowed in a non-volatile function")
+		}
+	}
 	var results []catalog.Column
 	if _, call := stmt.(*parser.Call); call {
 		results = analyze.RoutineCallSchema(b)
