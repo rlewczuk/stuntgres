@@ -47,3 +47,9 @@ func CatalogRoleReadFenceRoles(x *catalogRoleReadFence) *access.RoleRecord { ret
 func StageInitialTables(x *CatalogStage) map[ids.ObjectAddress]*storage.Relation {
 	return x.initialTables
 }
+
+// ValidatePublishedCatalog runs the pre-publication checks of next, the stage
+// s applied to current.
+func ValidatePublishedCatalog(e *Engine, current, next *catalog.State, s *CatalogStage) error {
+	return validatePublishedCatalog(e.Catalog.Read(next), current, next, s)
+}

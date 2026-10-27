@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
@@ -653,64 +652,8 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}
-		domainChanged := len(s.DomainTargets) != 0
-		for _, d := range s.Descriptors() {
-			if t, ok := d.(*catalog.Type); ok && t.SQLType.IsUserDefined() {
-				domainChanged = true
-				break
-			}
-		}
-		for _, descriptor := range next.Descriptors() {
-			if relation, ok := descriptor.(*catalog.Relation); ok && relation.Inheritance != nil {
-				if err := table.ValidateInheritance(e.Catalog.Read(next), relation); err != nil {
-					return ChangeSet{}, err
-				}
-			}
-			if domainChanged || s.Get(descriptor.Address()) != nil {
-				if relation, ok := descriptor.(*catalog.Relation); ok {
-					if err := typedef.ValidateTypedAttachment(e.Catalog.Read(next), relation); err != nil {
-						return ChangeSet{}, err
-					}
-				}
-				if err := stored.ValidateTypeProviders(e.Catalog.Read(next), descriptor); err != nil {
-					return ChangeSet{}, err
-				}
-			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Security.Policies) != 0 {
-				if err := view.ValidatePolicies(e.Catalog.Read(next), relation); err != nil {
-					return ChangeSet{}, err
-				}
-			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(stored.RulesOf(relation)) != 0 {
-				if err := stored.ValidateRules(e.Catalog.Read(next), relation); err != nil {
-					return ChangeSet{}, err
-				}
-			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && relation.HasTriggers() {
-				if err := stored.ValidateTriggers(e.Catalog.Read(next), relation); err != nil {
-					return ChangeSet{}, err
-				}
-			}
-			if viewRelation, ok := descriptor.(*catalog.Relation); ok && viewRelation.View != nil {
-				if err := view.ValidateViewDefinition(e.Catalog.Read(next), viewRelation); err != nil {
-					return ChangeSet{}, err
-				}
-			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Constraints.Check) != 0 {
-				if err := table.ValidateCheckProviders(e.Catalog.Read(next), relation); err != nil {
-					return ChangeSet{}, err
-				}
-			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.ColumnMeta.Defaults) != 0 {
-				if err := table.ValidateDefaultProviders(e.Catalog.Read(next), relation); err != nil {
-					return ChangeSet{}, err
-				}
-			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.ColumnMeta.Generations) != 0 {
-				if err := table.ValidateGenerationProviders(e.Catalog.Read(next), relation); err != nil {
-					return ChangeSet{}, err
-				}
-			}
+		if err := validatePublishedCatalog(e.Catalog.Read(next), current, next, s); err != nil {
+			return ChangeSet{}, err
 		}
 		e.Mu.Lock()
 		if op != nil {
