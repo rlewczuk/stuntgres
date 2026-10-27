@@ -64,11 +64,9 @@ func TestReferenceSettingsPreparedBindingAndStages(t *testing.T) {
 				{"SELECT set_config('demo.text','v')", "set_config(unknown, unknown)"},
 				{"SELECT current_setting(true)", "current_setting(boolean)"},
 			} {
-				step := fixture.ErrorDiagnostic(tc.query, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported setting function signature", Position: "8"})
+				step := fixture.ErrorDiagnostic(tc.query, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function " + tc.signature + " does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"})
 				if tc.signature == "" {
 					step = fixture.Select(tc.query, []string{"current_setting"}, []string{"TEXT"}, [][]any{{nil}})
-				} else if backend.PG {
-					step = fixture.ErrorDiagnostic(tc.query, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function " + tc.signature + " does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"})
 				}
 				step.Prepared = prepared
 				step.SelectRows = true

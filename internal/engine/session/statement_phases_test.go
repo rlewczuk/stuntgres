@@ -66,7 +66,7 @@ func TestStatementPhases(t *testing.T) {
 	if _, ddl := EventCommand(call); ddl || TransactionalSchemaUtility(&parser.CreateFunction{Procedure: true}) {
 		t.Fatal("CALL expanded DDL admission")
 	}
-	if !SnapshotStatement(&parser.SettingCall{}) || SnapshotStatement(&parser.CreateTable{}) {
+	if !SnapshotStatement(&parser.Select{}) || SnapshotStatement(&parser.CreateTable{}) {
 		t.Fatal("snapshot statements")
 	}
 	if !SnapshotTargetAdmission(&parser.Copy{From: true}) || SnapshotTargetAdmission(&parser.Copy{}) || !SnapshotTargetAdmission(&parser.Merge{}) || SnapshotTargetAdmission(&parser.Select{}) {

@@ -25,6 +25,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   March 1 BC through lib/pq (its BC formatting). Encode both expectations.
 - Prepared and transaction clock tests synchronize on a bounded, strict clock
   advance, never on sleeps.
+- Typed TIMESTAMP setting-call arguments validate literal input before ordinary
+  function applicability; no implicit TIMESTAMP-to-TEXT cast is introduced.
+  Direct execution and preparation retain complete diagnostics and positions.
 - `TestReferenceTimestampDiagnosticsAndAtomicity` creates its fixture inside each
   input subtest, before any backend work, so every input owns a full 30-second
   scenario. The backend child owns its assertions and never calls a parent-bound

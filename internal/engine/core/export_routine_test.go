@@ -15,8 +15,8 @@ import (
 )
 
 // SameSQLRoutineDemand preserves the old scratch identity comparison while
-// including immutable row-plan slices. Pointer fields compare by identity,
-// never by following their pointees as reflect.DeepEqual would.
+// including immutable row-plan slices. Pointer and map fields compare by
+// identity, never by following their contents as reflect.DeepEqual would.
 func SameSQLRoutineDemand(a, b sqlRoutineDemand) bool {
 	var same func(reflect.Value, reflect.Value) bool
 	same = func(a, b reflect.Value) bool {
@@ -24,6 +24,8 @@ func SameSQLRoutineDemand(a, b sqlRoutineDemand) bool {
 			return a.Equal(b)
 		}
 		switch a.Kind() {
+		case reflect.Map:
+			return a.UnsafePointer() == b.UnsafePointer()
 		case reflect.Struct:
 			for i := range a.NumField() {
 				if !same(a.Field(i), b.Field(i)) {

@@ -16,9 +16,9 @@ func icProviderInventory(c *icCase) {
 	inventory := map[string][]string{
 		"pg_aggregate": fixture.PGAggregateColumns, "pg_am": fixture.PGAMColumns,
 		"pg_attribute": fixture.PGAttributeColumns, "pg_class": fixture.PGClassColumns,
-		"pg_authid":    strings.Fields("oid rolname rolsuper rolinherit rolcreaterole rolcreatedb rolcanlogin rolreplication rolbypassrls rolconnlimit rolpassword rolvaliduntil"),
+		"pg_authid":       strings.Fields("oid rolname rolsuper rolinherit rolcreaterole rolcreatedb rolcanlogin rolreplication rolbypassrls rolconnlimit rolpassword rolvaliduntil"),
 		"pg_auth_members": strings.Fields("oid roleid member grantor admin_option inherit_option set_option"),
-		"pg_collation": fixture.PGCollationColumns, "pg_constraint": fixture.PGConstraintColumns,
+		"pg_collation":    fixture.PGCollationColumns, "pg_constraint": fixture.PGConstraintColumns,
 		"pg_database": fixture.PGDatabaseColumns, "pg_db_role_setting": fixture.PGDBRoleSettingColumns,
 		"pg_default_acl": fixture.PGDefaultACLColumns, "pg_description": fixture.PGDescriptionColumns,
 		"pg_enum": fixture.PGEnumColumns, "pg_extension": fixture.PGExtensionColumns,
@@ -33,7 +33,7 @@ func icProviderInventory(c *icCase) {
 		"pg_inherits":                            fixture.PGInheritsColumns,
 		"pg_event_trigger":                       strings.Fields("oid evtname evtevent evtowner evtfoid evtenabled evttags"),
 		"pg_attrdef":                             strings.Fields("oid adrelid adnum adbin"),
-		"pg_proc":                                strings.Fields("oid proname pronamespace proowner pronargs pronargdefaults prorettype provolatile proisstrict proparallel prokind proargnames prolang proretset prorows prosrc proargtypes provariadic proallargtypes proargmodes proacl procost"),
+		"pg_proc":                                strings.Fields("oid proname pronamespace proowner pronargs pronargdefaults prorettype provolatile proisstrict proparallel prokind proargnames prolang proretset prorows prosrc proargtypes provariadic proallargtypes proargmodes proacl procost prosecdef proconfig"),
 		"pg_index":                               strings.Fields("indexrelid indrelid indisunique indisprimary indisvalid indisready indislive indnullsnotdistinct indkey indcollation indclass indoption"),
 		"pg_rewrite":                             strings.Fields("oid rulename ev_class ev_type ev_enabled is_instead"),
 		"pg_cast":                                strings.Fields("oid castsource casttarget castfunc castcontext castmethod"),
@@ -130,15 +130,9 @@ func icProviderInventory(c *icCase) {
 		for i, field := range inventory[name] {
 			ordinal := i + 1
 			if table == "pg_proc" {
-				if n := map[string]int{"prolang": 5, "pronargs": 17, "pronargdefaults": 18, "prorettype": 19, "provolatile": 15, "proisstrict": 13, "proparallel": 16, "prokind": 12, "proargnames": 23, "proretset": 14, "prorows": 7, "prosrc": 26, "proargtypes": 20, "provariadic": 8, "proallargtypes": 21, "proargmodes": 22, "proacl": 30, "procost": 6}[field]; n != 0 {
+				if n := map[string]int{"prolang": 5, "pronargs": 17, "pronargdefaults": 18, "prorettype": 19, "provolatile": 15, "proisstrict": 13, "proparallel": 16, "prokind": 10, "proargnames": 23, "proretset": 14, "prorows": 7, "prosrc": 26, "proargtypes": 20, "provariadic": 8, "proallargtypes": 21, "proargmodes": 22, "proacl": 30, "procost": 6, "prosecdef": 11, "proconfig": 29}[field]; n != 0 {
 					ordinal = n
 				}
-			}
-			// Existing native pg_proc Attributes preserve prokind12 in
-			// pgcatalog/catalog_attribute_facts.go:24-25; released PG18.6
-			// reports10. Project that authority, never override it in columns.
-			if table == "pg_proc" && field == "prokind" && c.b.PG {
-				ordinal = 10
 			}
 			if table == "pg_index" {
 				if n := map[string]int{"indisunique": 5, "indisprimary": 7, "indisvalid": 11, "indisready": 13, "indislive": 14, "indnullsnotdistinct": 6, "indkey": 16, "indcollation": 17, "indclass": 18, "indoption": 19}[field]; n != 0 {

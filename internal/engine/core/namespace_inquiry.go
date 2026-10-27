@@ -9,7 +9,7 @@ import (
 // Engine.mu is held. Every inquiry sees the statement's private candidate before
 // its transaction overlay; neither lookup nor evaluation publishes shared state.
 func (s *StatementScope) namespaceAuthorizationLocked(e *Engine) (AuthorizationView, error) {
-	auth, err := s.writeAuthorizationLocked(e)
+	auth, err := s.callableAuthorizationLocked(e)
 	if err != nil {
 		return auth, err
 	}

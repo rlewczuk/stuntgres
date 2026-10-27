@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-const RestoreInheritedOwnerBoundary = "restore accepts only immediately paired inherited declaration ownership"
+const RestoreInheritedOwnerBoundary = "restore accepts only immediately paired table declaration ownership"
 
 type RestoredInheritedOwner struct {
 	Ref     ids.ObjectRef
@@ -17,14 +17,14 @@ type RestoredInheritedOwner struct {
 }
 
 // CaptureInheritedOwner pairs owner, the role a named owner directive
-// captured, with created, a permanent ordinary inheritance member the
-// current superuser just created; the next statement must hand it over.
+// captured, with created, a permanent ordinary table (including inheritance
+// members) the current superuser created, for an immediately following transfer.
 func CaptureInheritedOwner(view access.View, created ids.ObjectRef, owner authorization.PrincipalRef) (RestoredInheritedOwner, error) {
 	reject := func() (RestoredInheritedOwner, error) {
 		return RestoredInheritedOwner{}, sqlError("0A000", RestoreInheritedOwnerBoundary)
 	}
 	tbl, ok := view.Catalog.Relation(created.Address)
-	if !ok || tbl.Inheritance == nil || tbl.RelationKind != catalog.TableRelation {
+	if !ok || tbl.RelationKind != catalog.TableRelation || tbl.Partition != nil || tbl.Membership != nil {
 		return reject()
 	}
 	namespace, ok := view.Catalog.Namespace(tbl.Namespace())
@@ -72,14 +72,14 @@ func InheritedOwnerDirective(view access.View, raw *parser.AlterOwner, pair Rest
 }
 
 // InheritedOwnerTarget checks that ref, the relation raw names, is pair's
-// permanent inheritance member, still owned by its creator.
+// permanent ordinary table, still owned by its creator.
 func InheritedOwnerTarget(view catalog.Read, ref ids.ObjectRef, pair RestoredInheritedOwner) error {
 	reject := func() error { return sqlError("0A000", RestoreInheritedOwnerBoundary) }
 	if ref != pair.Ref {
 		return reject()
 	}
 	tbl, ok := view.Relation(ref.Address)
-	if !ok || tbl.Inheritance == nil || tbl.Owner != pair.Creator {
+	if !ok || tbl.RelationKind != catalog.TableRelation || tbl.Partition != nil || tbl.Membership != nil || tbl.Owner != pair.Creator {
 		return reject()
 	}
 	namespace, ok := view.Namespace(tbl.Namespace())

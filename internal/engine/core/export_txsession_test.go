@@ -69,7 +69,7 @@ type TemporarySessionIndexes = temporarySessionIndexes
 
 // EngineApplySetting calls x.applySetting.
 func EngineApplySetting(x *Engine, op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool) (string, error) {
-	return x.applySetting(op.Context(), op, owner, d, input, local, "")
+	return x.applySetting(op.Context(), op, owner, d, input, session.SettingAssignment(local), "")
 }
 
 // EngineBeginAdmitted calls x.beginAdmitted.

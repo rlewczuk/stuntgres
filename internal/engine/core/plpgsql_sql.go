@@ -76,6 +76,9 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 			err = finishCommand(err)
 		}
 	}()
+	if err = s.routineUtilityEligibility(statement); err != nil {
+		return runtimeFailure(err)
+	}
 	var finishEvent func(error) error
 	defer func() {
 		if finishEvent != nil {

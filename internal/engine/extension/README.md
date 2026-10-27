@@ -44,6 +44,9 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   comparable installed declaration carries the shared immutable payload through
   relabeling, owner import and address remapping; identity validation rejects a
   foreign payload even when its numeric formals happen to match.
+  Intagg's enumerator likewise seals its installed set capability and default
+  estimate separately from mutable canonical routine metadata. Public ROWS
+  patches do not rewrite the installed declaration or its implementation identity.
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider` validates
   the extension, text search template and dictionary classes and installed
   member procedures; `ValidateProviderHeader` is the identity check it shares

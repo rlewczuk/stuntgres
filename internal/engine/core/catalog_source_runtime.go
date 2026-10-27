@@ -68,6 +68,13 @@ func (r EngineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.
 		}
 		value := s.TypedValue(name)
 		switch name {
+		case "is_superuser":
+			text, err := r.Auth.settingValue(s, name)
+			if err != nil {
+				s.Mu.Unlock()
+				return nil, err
+			}
+			value = settings.Value{Boolean: text == "on"}
 		case "transaction_isolation":
 			if s.CurrentIsolation != "" {
 				value = settings.Value{Text: s.CurrentIsolation}

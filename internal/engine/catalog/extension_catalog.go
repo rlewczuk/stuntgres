@@ -77,6 +77,11 @@ type Procedure struct {
 	Result                  ids.OID
 	Volatility              expr.Volatility
 	Strict                  bool
+	SecurityDefiner         bool
+	Parallel                byte
+	Cost                    float32
+	Rows                    float32
+	Configuration           *RoutineConfiguration
 	// Implementation is the extension implementation that installed this
 	// routine; nil for builtin, conversion and foreign routines.
 	Implementation ExtensionImplementation

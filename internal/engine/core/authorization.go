@@ -306,11 +306,11 @@ func (e *Engine) AuthorizationLocked(op *session.Operation) (AuthorizationView, 
 		}
 		identity.CurrentUser = OperationReplayOrZero(op).MaterializedOwner
 	}
-	if op.Restricted != nil {
-		if _, err := r.Descriptor(op.Restricted.Owner); err != nil {
+	if owner, active := op.EffectiveUserOwner(); active {
+		if _, err := r.Descriptor(owner); err != nil {
 			return AuthorizationView{}, err
 		}
-		identity.CurrentUser = op.Restricted.Owner
+		identity.CurrentUser = owner
 	}
 	authorization := e.operationAuthority(op, access.View{Owner: &e.Catalog.Owner, PairedCatalog: view, RoleRecord: e.OperationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.Catalog.State.Get(e.Catalog.Owner.DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
 	authorization.Statement = ActiveScopeOfLease(op.Lease)

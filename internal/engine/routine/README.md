@@ -13,18 +13,35 @@ PL/pgSQL admits RETURNS trigger only for zero-formal trigger functions, never as
 a scalar-storable pseudotype. Trigger installation checks function EXECUTE;
 the admitted trigger entry does not recheck it at firing. Ordinary calls and
 helper calls retain their normal effective-actor EXECUTE checks.
-Function STRICT is descriptor-owned and serialized by native Dump. Invocation
-admits the current declaration and privileges before suppressing a NULL-input
-body; aggregate supports retain their transition/final-specific strict rules.
-Explicit VOLATILE selects the ordinary effectful SQL routine mode.
+Routine semantic attributes are descriptor-owned and serialized by native Dump.
+CREATE/REPLACE starts complete SQL/PL defaults; ALTER patches a private current
+copy. Identity and owner checks precede semantic attribute action validation;
+malformed SECURITY modes are rejected by parsing, which supplies only normalized
+definer/invoker values. Duplicate groups retain the second introducer position.
+Ordered SET/RESET clauses validate and capture FROM CURRENT at execution through
+the nonmutating DDL host bridge.
+External Normalize suspends the same command with all publication locks released;
+exact live readmission resumes it once, or rejects stale authority without
+replaying callbacks. No session settings are installed, and rejected declarations
+publish no partial state.
+Reached invocation uses live authority; optimizer-elided strict NULL calls do
+not acquire a runtime invocation. Parallel safety/cost/rows are declaration facts,
+not an operational worker-scheduling capability.
 
 SQL result declarations retain set cardinality independently of scalar/composite
 shape. OUT/INOUT and TABLE fields use the same ordered formal projections and
 input-only signature. Functions with multiple outputs and procedures with any
 output derive a declaration-owned record; TABLE retains output-only mode `t`.
+PL anonymous OUT tuples use this same formal projection and detach their values
+before the invocation frame closes; this does not admit ordinary PL named-composite
+arguments/results or general PL set-returning execution.
 Replacement checks actual row shape and setness, not just the shared RECORD OID.
 Dump renders modes/defaults/VARIADIC and TABLE/SETOF, and orders real formal child
 types and named result types before their callers.
+Non-superuser routine ownership replays with authenticated administrator creation
+and an immediate ordinary FUNCTION/PROCEDURE owner transfer using the input-only
+identity. The emitter then restores the actual owner before dependent events;
+captured ownership never presumes retained schema CREATE or language USAGE.
 
 Declaration safety checks result/output determinability and INTERNAL input
 requirements before replacement compatibility. Language admission follows the
@@ -55,7 +72,7 @@ language lifecycle retain their separate admission contracts.
 ## Routine ALTER contract
 
 `ALTER FUNCTION`, `ALTER PROCEDURE`, `ALTER ROUTINE` and `ALTER AGGREGATE`
-support RENAME TO, SET SCHEMA and OWNER TO. Selection uses exact input identity,
+support attribute patches as well as RENAME TO, SET SCHEMA and OWNER TO. Selection uses exact input identity,
 not call-site coercion or default expansion. Aggregate utilities require an
 explicit signature, with `(*)` for zero inputs; names and IN do not affect
 identity, VARIADIC names the declared type, and output arguments are rejected.
@@ -83,6 +100,18 @@ slots. Held original SQL reanalyzes rather than acquiring an old-name alias.
 Released builtin/window and installed extension execution stays attached to its
 genuine provider. Moving one installed member changes neither membership nor
 the extension target namespace or siblings.
+
+Execution attribute actions (SECURITY DEFINER/INVOKER, SET/RESET/RESET ALL,
+strictness and volatility) are supported only by genuine SQL/PL declarations,
+including their ordinary, trigger and event-trigger entries. Native intrinsic
+and installed providers reject every such action, even semantic no-ops, with
+`0A000: execution attributes are unsupported for native routine providers`.
+The action gate follows real lookup/kind/ownership checks and precedes setting
+normalization, revision allocation and replacement. Parallel/cost/rows remain
+metadata-only patches with ordinary cardinality and provider identity checks.
+ROWS admission uses the catalog's intrinsic `Procedure.ReturnsSet` fact, shared
+with projection; changing an estimate never changes that capability. These
+patches neither replace intrinsic strictness/volatility nor enable workers.
 
 Shipped function, aggregate and operator definitions and routine identity changes
 share explicit, autocommit and retained-message publication. Programs, providers
@@ -140,10 +169,12 @@ package or the engine.
   Aggregate domain INITCOND uses captured type diagnostic naming alongside the
   incumbent locked-domain input boundary, preserving current search-path spelling
   without changing independent schema/type/constraint fields.
-  `display_inventory.go` owns complete REL_18_6 source/language/security facts
-  and explicit costs keyed by genuine declaration OID, including matched
-  SQL-standard replacements. Zero cost denotes an absent override, not zero work.
-  Materialization rejects missing facts; the display inventory never creates rows.
+  `display_inventory.go` owns complete REL_18_6 source/language facts and explicit
+  cost inputs keyed by genuine declaration OID, including SQL-standard replacements.
+  `BuiltinRoutineCost` supplies the immutable released/default cost for both
+  materialization and replay comparison. Projection applies canonical row
+  overrides while retaining genuine builtin/provider defaults.
+  The inventory rejects missing facts and never creates additional rows.
   SQL/PL creation records original quoted source or empty SQL-standard source
   on the descriptor. Identity changes preserve those immutable facts.
   `cast_inventory.go` joins only real executable cast-procedure references to
@@ -348,6 +379,9 @@ must also keep the [`dump`](../dump/README.md#testing) selections passing.
 Public SQL lives in [reference/operators](../../../reference/operators/README.md#testing),
 [reference/query_core](../../../reference/query_core/README.md#testing) (routine
 drop) and [reference/aggregates](../../../reference/aggregates/README.md#testing).
+
+Semantic declaration normalization and private patch/error ownership use
+`RUN='^TestRoutineAttribute'`, also with `RACE=1`.
 
 Ordered declaration units distinguish canonical lookup from expanded execution:
 `FinalDeclarationVectors` checks independent storage and collapsed ANY slots;

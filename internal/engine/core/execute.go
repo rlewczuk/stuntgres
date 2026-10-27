@@ -29,7 +29,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if err := restrictedStatement(op, stmt); err != nil {
 		return Result{}, err
 	}
-	if op.Restricted != nil {
+	if op.Restricted != nil || scope.activeSQLRoutineDepth != 0 {
 		if err := scope.refreshRestrictedPresentation(); err != nil {
 			return Result{}, err
 		}
@@ -76,12 +76,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 	case *parser.Set, *parser.Show, *parser.Reset:
 		result, err := e.executeSetting(ctx, op, stmt, count, !scope.Owner.InBlock())
-		if err == nil {
-			scope.CompleteUtility()
-		}
-		return result, err
-	case *parser.SettingCall:
-		result, err := e.executeSettingCall(ctx, op, stmt.(*parser.SettingCall), count, importFrame, scope.Input, scope.Output)
 		if err == nil {
 			scope.CompleteUtility()
 		}

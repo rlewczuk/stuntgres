@@ -24,6 +24,11 @@ func (ProcedureProvider) ClassID() ids.OID { return ids.ProcedureClassID }
 
 func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Procedure)
+	// Only SQL/PL declarations enter the routine execution environment. Check
+	// this before installed-provider delegation and all intrinsic early returns.
+	if ok && d.SQL == nil && (d.SecurityDefiner || d.Configuration != nil) {
+		return extension.InvalidProviderDescriptor()
+	}
 	if ok && d.RangeConstructor != nil && (d.Implementation != nil || d.AccessMethod != catalog.NoAccessMethod) {
 		return extension.InvalidProviderDescriptor()
 	}
@@ -266,7 +271,13 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if string(d.Signature) != signature.String() {
 		return invalid()
 	}
-	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine || d.SQL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine) || d.RoutineKind == catalog.ProcedureRoutine && (len(d.SQL.OutputFormals) == 0 && !d.SQL.Void() || d.Strict) || d.Volatility != expr.Volatile || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
+	if !d.Configuration.Valid() {
+		return invalid()
+	}
+	if d.RoutineKind == catalog.ProcedureRoutine && (d.Parallel != 'u' || d.Cost != 100) {
+		return invalid()
+	}
+	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine || d.SQL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine) || d.RoutineKind == catalog.ProcedureRoutine && (len(d.SQL.OutputFormals) == 0 && !d.SQL.Void() || d.Strict || d.Volatility != expr.Volatile) || d.Volatility != expr.Volatile && d.Volatility != expr.Stable && d.Volatility != expr.Immutable || d.Parallel != 's' && d.Parallel != 'r' && d.Parallel != 'u' || !(d.Cost > 0) || d.SQL.ReturnsSet && !(d.Rows > 0) || !d.SQL.ReturnsSet && d.Rows != 0 || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
 		return invalid()
 	}
 	return nil

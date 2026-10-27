@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -116,6 +117,87 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 	}
 }
 
+// A trigger's lazy relation reads are not outer expression dependencies. Retain
+// their roots before a peer commit, without adding that cost to trigger-free DML.
+func TestRoutineTriggerSnapshotOwnership(t *testing.T) {
+	for _, volatility := range []string{"STABLE", "IMMUTABLE", "no_trigger"} {
+		t.Run(volatility, func(t *testing.T) {
+			e := engine.New()
+			enginetest.Run(t, e, "CREATE TABLE snapshot_trigger_data(id integer,v integer)")
+			enginetest.Run(t, e, "CREATE TABLE snapshot_trigger_secret(v integer)")
+			enginetest.Run(t, e, "INSERT INTO snapshot_trigger_secret VALUES(42)")
+			if volatility != "no_trigger" {
+				enginetest.Run(t, e, "CREATE FUNCTION snapshot_trigger_fn() RETURNS trigger LANGUAGE plpgsql "+volatility+" AS $$DECLARE n integer; BEGIN SELECT v INTO n FROM snapshot_trigger_secret; NEW.v := n; RETURN NEW; END$$")
+				enginetest.Run(t, e, "CREATE TRIGGER snapshot_trigger BEFORE INSERT ON snapshot_trigger_data FOR EACH ROW EXECUTE FUNCTION snapshot_trigger_fn()")
+			}
+			target := enginetest.RoleTableRef(t, e, "snapshot_trigger_data")
+			secret := enginetest.RoleTableRef(t, e, "snapshot_trigger_secret")
+			op, done, err := enginetest.Operation(e, context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer done()
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer scope.Finish(nil)
+			statement := enginetest.Statement(t, "INSERT INTO snapshot_trigger_data VALUES(1,0)")
+			if err := scope.Gate(statement); err != nil {
+				t.Fatal(err)
+			}
+			scope.Owner.Isolation = session.ReadCommitted
+			if err := scope.AcquireRelation(statement, true); err != nil {
+				t.Fatal(err)
+			}
+			if err := core.ScopeSnapshotPhase(scope, statement); err != nil {
+				t.Fatal(err)
+			}
+			outer, err := scope.AcquireDataView(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			base := outer.Load()
+			snapshot, frontier := core.ScopeCurrentSnapshot(scope), core.ScopeSnapshotFrontier(scope)
+			retained, found := base.DynamicRoots[secret.Address]
+			if volatility == "no_trigger" {
+				if len(base.DynamicRoots) != 0 {
+					t.Fatal("trigger-free DML retained unnecessary dynamic roots")
+				}
+			} else if !found || len(retained.Versions) != 1 || retained.Storage != e.Storage.Relations[secret.Address] {
+				t.Fatal("trigger's lazy source was not retained by the calling command")
+			}
+			enginetest.Run(t, e, "UPDATE snapshot_trigger_secret SET v=43")
+			if found && retained.Versions[0].Version == e.Storage.Relations[secret.Address].Versions[0].Version {
+				t.Fatal("peer did not replace the retained source version")
+			}
+			result, err := core.EngineExecuteStatement(e, scope, statement, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+				return nil
+			})
+			if err != nil || result.Count != 1 {
+				t.Fatal("real trigger insert", result.Count, err)
+			}
+			rows := scope.Stage.Rows[target.Address]
+			want := int64(42)
+			if volatility == "no_trigger" {
+				want = 0
+			}
+			if len(rows) != 1 || enginetest.Export(rows[0].Values[1]) != want {
+				t.Fatal("trigger refreshed its caller's source snapshot", rows)
+			}
+			if scope.View != outer || outer.Load() != base || core.ScopeCurrentSnapshot(scope) != snapshot || core.ScopeSnapshotFrontier(scope) != frontier {
+				t.Fatal("trigger replaced or released its caller's snapshot/backing")
+			}
+			if found && enginetest.Export(retained.Versions[0].Values[0]) != int64(42) {
+				t.Fatal("peer or trigger mutated retained source backing")
+			}
+			if err := scope.Finish(nil); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 // Metadata is constructed directly: these units exercise payloads, frames and
 // write ownership rather than duplicating the public SQL scenarios.
 func triggerUnitFixture(t *testing.T, source string) (*core.Engine, *core.StatementScope, catalog.Read, *catalog.Relation, *catalog.Procedure) {
@@ -182,7 +264,7 @@ func triggerUnitProcedure(t *testing.T, e *core.Engine, s *core.StatementScope, 
 		t.Fatal(err)
 	}
 	namespace := read.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
-	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, Owner: e.Roles().LookupRef("postgres"), Language: language.Address(), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.ID()), Volatility: expr.Volatile, SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Invocation: invocation, Name: name, Source: source, Result: result.Usage(), PLSyntax: raw}}
+	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, Owner: e.Roles().LookupRef("postgres"), Language: language.Address(), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.ID()), Volatility: expr.Volatile, Parallel: 'u', Cost: 100, SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Invocation: invocation, Name: name, Source: source, Result: result.Usage(), PLSyntax: raw}}
 	if err := d.SQL.SetFormals(nil); err != nil {
 		t.Fatal(err)
 	}

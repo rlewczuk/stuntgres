@@ -262,7 +262,7 @@ func TestRoutineActionValidationBoundary(t *testing.T) {
 func routineMergeCaptureFixture(t *testing.T) (catalog.Read, *RoutineProgram, *catalog.Procedure) {
 	t.Helper()
 	read, relation, integer, boolean := routineCaptureFixture(t)
-	callee := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 902}, ObjectNamespace: relation.Namespace(), ObjectRevision: 1, ObjectName: "dormant", RoutineKind: catalog.FunctionRoutine, Result: ids.OID(integer.ID()), Volatility: expr.Volatile, SQL: &proc.Definition{Result: integer.Usage(), Source: "SELECT 1"}}
+	callee := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 902}, ObjectNamespace: relation.Namespace(), ObjectRevision: 1, ObjectName: "dormant", RoutineKind: catalog.FunctionRoutine, Result: ids.OID(integer.ID()), Volatility: expr.Volatile, Parallel: 'u', Cost: 100, SQL: &proc.Definition{Result: integer.Usage(), Source: "SELECT 1"}}
 	callee.Owner = read.Owner().Principals.Principal(10)
 	read.State().SetDescriptor(callee.Address(), callee)
 	ref := read.Owner().Domain.Ref(read.Epoch(), callee.Address())

@@ -21,6 +21,7 @@ func RegistrationError(message string) error { return errors.New("stuntgres: " +
 func (e *Engine) InstallForeignDefinitions(wrappers []fdw.WrapperDefinition, validators []fdw.ValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter) error {
 	e.Foreign.Install(wrappers, validators, importer, exporter)
 	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	procedures := catalog.ProcedureIndexEdit{Index: e.Catalog.State.ProcedureNames()}
 	install := func(name catalog.ForeignFunctionName, p *catalog.ForeignProcedure, result ids.OID, signature catalog.ProcedureSignature) error {
 		namespace := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema})
 		if namespace == (ids.ObjectAddress{}) {
@@ -45,6 +46,8 @@ func (e *Engine) InstallForeignDefinitions(wrappers []fdw.WrapperDefinition, val
 		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: name.Name, Signature: signature, Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: result, Strict: true, Volatility: expr.Volatile, Display: catalog.RoutineDisplay{Language: catalog.GoRoutineLanguage}, Foreign: p}
 		e.Catalog.State.SetDescriptor(d.Address(), d)
 		e.Catalog.State.BindName(key, d.Address())
+		procedures.Replace(nil, d)
+		e.Catalog.State.SetProcedureNames(procedures.Index)
 		return nil
 	}
 	for token := range e.Foreign.ProcedureTokens() {

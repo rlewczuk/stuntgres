@@ -362,6 +362,14 @@ func StrictScalarRoutine(routine *catalog.Procedure) bool {
 // Expanded variadic elements form one non-NULL array argument. A NULL
 // element is not a NULL formal; explicit VARIADIC retains the array child.
 func StrictRoutineArguments(node expr.Expr, visit func(expr.Expr)) {
+	if expression, ok := node.(plan.SQLRoutineExpr); ok {
+		for child, slot := range expression.ChildSlots {
+			if !expression.InputMap[slot].Expanded {
+				visit(expression.Args[child])
+			}
+		}
+		return
+	}
 	if expression, ok := node.(functions.JSONExtract); ok && !expression.Variadic {
 		visit(expression.Args[0])
 		return

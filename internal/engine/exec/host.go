@@ -12,8 +12,8 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/sqltype"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 // Host is everything the query runtime reaches above its own layer. Every
@@ -62,6 +62,8 @@ type Host interface {
 	RowSecurityActive(c *Context, relation functions.AccessRelation) (bool, error)
 	ObjectPrivilege(c *Context, kind functions.AccessKind, actor *functions.AccessRole, object functions.AccessRole, privilege string) (bool, bool, error)
 	RelationPrivilege(c *Context, kind functions.AccessKind, actor *functions.AccessRole, relation functions.AccessRelation, column functions.AccessColumn, privilege string) (bool, bool, error)
+	// functions.SettingRuntime
+	InvokeSetting(string, []sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.AdvisoryRuntime and functions.BlockingRuntime
 	Advisory(c *Context, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error)
 	BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error)

@@ -122,18 +122,17 @@ func TestReferenceTimestampSettingArgumentsUseScopeEnvironmentWithoutNewCasts(t 
 			ctx := context.WithValue(p.Ctx, fixture.RecorderKey{}, backend.Recorder)
 			for _, tc := range []struct{ input, code, message string }{
 				{"nonsense", "22007", `invalid input syntax for type timestamp: "nonsense"`},
-				{"epoch", "42804", "incompatible source and destination types"},
-				{"now", "42804", "incompatible source and destination types"},
+				{"epoch", "42883", "function current_setting(timestamp without time zone) does not exist"},
+				{"now", "42883", "function current_setting(timestamp without time zone) does not exist"},
 			} {
 				for _, q := range []string{"SELECT current_setting(TIMESTAMP '" + tc.input + "')", "SELECT set_config('application_name',TIMESTAMP '" + tc.input + "',FALSE)"} {
 					want := stuntgres.Error{Code: tc.code, Message: tc.message}
 					if tc.code == "22007" {
 						want.Position = strconv.Itoa(strings.LastIndex(q, "'"+tc.input+"'") + 1)
 					}
-					if backend.PG && tc.code == "42804" {
-						want.Code, want.Position = "42883", "8"
+					if tc.code == "42883" {
+						want.Position = "8"
 						want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-						want.Message = "function current_setting(timestamp without time zone) does not exist"
 						if strings.Contains(q, "set_config") {
 							want.Message = "function set_config(unknown, timestamp without time zone, boolean) does not exist"
 						}

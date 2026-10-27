@@ -29,7 +29,6 @@ func TestUnavailableFunctionIdentityBoundary(t *testing.T) {
 		{"pg_terminate_backend(1,true)", "42883"},
 		{"pg_terminate_backend(1,0,0)", "42883"},
 		{"byteacat('a'::bytea,'b'::bytea)", "0A000"},
-		{"current_setting('application_name')", "0A000"},
 		{"pg_backend_pid(1)", "42883"},
 		{"pg_read_file(true)", "42883"},
 		{"current_setting(true)", "42883"},

@@ -33,7 +33,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	if source.Address().ObjectID == ids.ProcedureClassID {
-		expected := [22]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid, 1028, 1002, 1034, sqltype.Int2, sqltype.Float4}
+		expected := [24]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Oid, sqltype.Char, sqltype.Bool, sqltype.Char, sqltype.Char, 1009, sqltype.Oid, sqltype.Bool, sqltype.Float4, sqltype.Text, sqltype.OidVector, sqltype.Oid, 1028, 1002, 1034, sqltype.Int2, sqltype.Float4, sqltype.Bool, 1009}
 		if len(source.Columns) != len(expected) {
 			return nil, fmt.Errorf("stuntgres: invalid procedure source shape")
 		}
@@ -135,6 +135,9 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			if d.Installed.Parallel != 0 {
 				parallel = string(d.Installed.Parallel)
 			}
+			if d.Parallel != 0 {
+				parallel = string(d.Parallel)
+			}
 			text(8, parallel)
 			text(9, string(d.RoutineKind))
 			text(14, d.Display.Source)
@@ -162,13 +165,6 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				}
 				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 			}
-			returnsSet, estimate := d.Installed.ReturnsSet, float64(d.Installed.Rows)
-			if d.SQL != nil && d.SQL.ReturnsSet {
-				returnsSet, estimate = true, 1000
-			}
-			if d.Builtin != nil && d.Builtin.ReturnsSet {
-				returnsSet, estimate = true, builtinRoutineRows(d.Builtin)
-			}
 			if ext, ok := view.Extension(d.Extension); ok && d.Implementation != nil && (ext.Name() == "pgrowlocks" || ext.Name() == "intagg" && d.RoutineKind == catalog.FunctionRoutine && d.Signature == "1007" && d.Result == 23) {
 				if err := d.Implementation.ValidateExtension(view, ext); err != nil {
 					return nil, err
@@ -176,10 +172,9 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				if !slices.Contains(ext.Members, d.Address()) {
 					return nil, fmt.Errorf("stuntgres: nonmember set routine declaration")
 				}
-				returnsSet, estimate = true, 1000
 			}
-			boolean(12, returnsSet)
-			estimateValue, err := sqltype.Float(source.Columns[13].Usage.Type, estimate)
+			boolean(12, d.ReturnsSet())
+			estimateValue, err := sqltype.Float(source.Columns[13].Usage.Type, float64(d.RowEstimate()))
 			if err != nil {
 				return nil, err
 			}
@@ -187,7 +182,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			integer(16, int64(variadic))
 			integer(20, procedureDefaultCount(d))
 			// Explicit immutable declaration facts survive public rename/movement.
-			cost := float64(d.Display.Cost)
+			cost := float64(d.Cost)
 			if cost == 0 {
 				cost = 1
 				if d.Display.Language == catalog.SQLRoutineLanguage || d.Display.Language == catalog.PLpgSQLRoutineLanguage {
@@ -197,6 +192,18 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			row[21], err = sqltype.Float(source.Columns[21].Usage.Type, cost)
 			if err != nil {
 				return nil, err
+			}
+			boolean(22, d.SecurityDefiner)
+			row[23] = sqltype.Null(source.Columns[23].Usage.Type)
+			if d.Configuration.Len() != 0 {
+				elements := make([]sqltype.Value, d.Configuration.Len())
+				for i := range elements {
+					elements[i] = sqltype.String(source.Columns[23].Usage.Type.Element(), d.Configuration.At(i))
+				}
+				row[23], err = sqltype.OwnedArrayValue(source.Columns[23].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
+				if err != nil {
+					return nil, err
+				}
 			}
 			acl, err := in.Runtime.ObjectACL(view, d.Address())
 			if err != nil {

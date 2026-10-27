@@ -81,6 +81,8 @@ func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.Address() == captured.Address() && current.Signature == captured.Signature &&
 		current.RoutineKind == captured.RoutineKind && current.Result == captured.Result &&
 		current.Strict == captured.Strict && current.Volatility == captured.Volatility &&
+		current.SecurityDefiner == captured.SecurityDefiner && current.Parallel == captured.Parallel &&
+		current.Cost == captured.Cost && current.Rows == captured.Rows && current.Configuration == captured.Configuration &&
 		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
 		current.Installed == captured.Installed &&
 		current.Display == captured.Display && current.Language == captured.Language && current.PLHandler == captured.PLHandler &&

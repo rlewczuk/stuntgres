@@ -5,6 +5,8 @@ package settings
 func builtinMetadata(d Definition) Definition {
 	d.Category = "Client Connection Defaults / Statement Behavior"
 	switch d.Name {
+	case "is_superuser":
+		d.Category = "Preset Options"
 	case "deadlock_timeout", "max_locks_per_transaction", "max_pred_locks_per_page", "max_pred_locks_per_relation", "max_pred_locks_per_transaction":
 		d.Category = "Lock Management"
 	case "config_file", "data_directory", "external_pid_file", "hba_file", "ident_file":

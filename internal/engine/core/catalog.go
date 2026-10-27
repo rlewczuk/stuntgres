@@ -85,21 +85,24 @@ type CatalogStage struct {
 	deferredAlterRows map[ids.ObjectAddress]bool
 	// Fresh physical successors have a new catalog base but still read tuples
 	// with the genuinely captured pre-ALTER physical column layout.
-	AlterRowSources     map[ids.ObjectAddress]*catalog.Relation
-	Sequence            *sequence.Stage
-	Typed               *typedef.TypedStage
-	Lifecycle           catalogLifecycle
-	Invalid             error
-	AuthSession         *session.Session
-	statement           *StatementScope
-	AuthRevision        uint64
-	RoleRevision        uint64
-	ExtensionSlot       any // Opaque; owned by the extension host that began the stage.
-	TriggerReplacement  view.TriggerReplacement
-	CreationName        parser.ObjectName // Original destination position across namespace waits.
-	namesAdmitted       bool
-	DatabasePredecessor catalog.Descriptor
-	DatabaseAuthority   catalog.Descriptor
+	AlterRowSources map[ids.ObjectAddress]*catalog.Relation
+	Sequence        *sequence.Stage
+	Typed           *typedef.TypedStage
+	Lifecycle       catalogLifecycle
+	Invalid         error
+	AuthSession     *session.Session
+	statement       *StatementScope
+	AuthRevision    uint64
+	RoleRevision    uint64
+	// A declaration callback has external effects and cannot be replayed by
+	// definition-lock admission if its captured authority becomes stale.
+	RoutineSettingNormalized bool
+	ExtensionSlot            any // Opaque; owned by the extension host that began the stage.
+	TriggerReplacement       view.TriggerReplacement
+	CreationName             parser.ObjectName // Original destination position across namespace waits.
+	namesAdmitted            bool
+	DatabasePredecessor      catalog.Descriptor
+	DatabaseAuthority        catalog.Descriptor
 	// Optional DROP OWNED membership deletions join this publication, not a
 	// separate role installation. Every other catalog caller leaves it nil.
 	RoleCandidateRecord *access.RoleRecord

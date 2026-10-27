@@ -4,47 +4,50 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// BindSettingCall binds current_setting(text [, bool]) or
-// set_config(text, text, bool): builtin visibility first, then each argument
-// in assignment context to its fixed formal, then the routine identity.
-func BindSettingCall(b Binder, function string, name parser.ObjectName, args []parser.Expr) ([]expr.Expr, ids.ObjectRef, error) {
+// bindSettingArguments checks builtin visibility and implicit call applicability
+// before assigning current_setting/set_config operands to their fixed formals.
+func bindSettingArguments(b Binder, function string, name parser.ObjectName, args []parser.Expr) ([]expr.Expr, error) {
 	visible, err := b.BuiltinVisible(name)
 	if err != nil {
-		return nil, ids.ObjectRef{}, err
+		return nil, err
 	}
 	if !visible {
-		return nil, ids.ObjectRef{}, b.CallSignatureError(parser.FunctionExpr{Name: name, Args: args, Pos: name.Parts[0].Pos})
+		return nil, b.CallSignatureError(parser.FunctionExpr{Name: name, Args: args, Pos: name.Parts[0].Pos})
 	}
 	formals := [3]sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Bool}
 	if function == "current_setting" {
 		formals[1] = sqltype.Bool
 	}
-	bound := make([]expr.Expr, len(args))
+	var operands [3]Argument
+	var targets [3]sqltype.Usage
 	for i, raw := range args {
-		switch raw.(type) {
-		case parser.ParameterExpr, parser.TypedLiteralExpr, parser.LiteralExpr:
-		default:
-			// Resolve operands before applying this statement provider's shape
-			// boundary. Analysis cannot execute them or install an ambient row.
-			if _, err := b.AnalyzeArgument(raw, AnalysisRequest{Intent: BareProjectionArgument}); err != nil {
-				return nil, ids.ObjectRef{}, err
-			}
-			return nil, ids.ObjectRef{}, expr.ErrorAt("0A000", "unsupported setting function signature", name.Parts[len(name.Parts)-1].Pos)
+		operands[i], err = b.AnalyzeArgument(raw, AnalysisRequest{Intent: ComparisonArgument})
+		if err != nil {
+			return nil, err
 		}
 		typ := b.Type(formals[i])
 		if typ == nil {
-			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing setting argument type")
+			return nil, fmt.Errorf("stuntgres: missing setting argument type")
 		}
-		bound[i], err = b.CoerceArgument(Argument{Raw: raw}, CoercionRequest{Intent: AssignmentFormalArgument, Target: typ.Usage()})
+		targets[i] = typ.Usage()
+	}
+	if !knownCallEdges(b, operands[:len(args)], targets[:len(args)]) {
+		return nil, b.CallSignatureError(parser.FunctionExpr{Name: name, Args: args, Pos: name.Parts[0].Pos})
+	}
+	bound := make([]expr.Expr, len(args))
+	for i := range args {
+		intent := DirectFormalArgument
+		if operands[i].Usage.Type == nil {
+			intent = AssignmentFormalArgument
+		}
+		bound[i], err = b.CoerceArgument(operands[i], CoercionRequest{Intent: intent, Target: targets[i]})
 		if err != nil {
-			return nil, ids.ObjectRef{}, err
+			return nil, err
 		}
 	}
-	routine, err := b.BuiltinRoutineReference(SettingRoutineProvider, function, formals[:len(bound)]...)
-	return bound, routine, err
+	return bound, nil
 }

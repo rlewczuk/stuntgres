@@ -30,6 +30,7 @@ type dumpScript struct {
 	deferredDomainChecks        map[ids.OID]map[string]bool
 	extensionTypeAfter          ids.OID
 	extensionTypeSQL            string
+	providerEventStatements     map[ids.OID][]string
 
 	policyGroups, ruleGroups, securityGroups  []dump.Group
 	triggerGroups                             []dump.Group

@@ -28,7 +28,7 @@ func (s *SettingsStore) AdmitLocked(domain *ids.Domain, op *Operation) error {
 // ApplyLocked atomically installs recognition, the transaction action
 // and the effective typed/text override of d for op. A nil value resets d.
 // Caller holds Engine.Mu, Settings.Mu and op.Session.Mu, in that order.
-func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry settings.Registry, d settings.Definition, value *settings.Value, notice *sqlstate.Error, local bool) (string, error) {
+func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry settings.Registry, d settings.Definition, value *settings.Value, notice *sqlstate.Error, action SettingAction) (string, error) {
 	if err := s.AdmitLocked(domain, op); err != nil {
 		return "", err
 	}
@@ -42,7 +42,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 				Detail:  `"temp_buffers" cannot be changed after any temporary tables have been accessed in the session.`}
 		}
 	}
-	s.Touch(d.Name, local)
+	s.Touch(d.Name, action)
 	if _, registered := registry.Definitions()[d.Name]; !registered {
 		s.Placeholders[d.Name] = true
 	}
@@ -71,7 +71,7 @@ func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 		if d, ok := registry.Definitions()[key]; ok && d.Access != settings.Session && !(d.Access == settings.Privileged && parameterGrantSetting(d.Name)) {
 			continue
 		}
-		s.Touch(key, false)
+		s.Touch(key, SettingSet)
 		delete(s.Values, key)
 		delete(s.Typed, key)
 		switch key {

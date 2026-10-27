@@ -40,6 +40,7 @@ type SettingsMark struct {
 	Actions     map[string]settingAction
 	RoleAction  roleSettingAction
 	CurrentRole authorization.PrincipalRef
+	NestLevel   int
 }
 
 func (m SettingsMark) Clone() SettingsMark {
@@ -50,7 +51,7 @@ func (m SettingsMark) Clone() SettingsMark {
 func (s *SettingsStore) Savepoint() SettingsMark {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
-	m := SettingsMark{Values: s.Values, Typed: s.Typed, Actions: s.Actions, RoleAction: s.RoleAction}
+	m := SettingsMark{Values: s.Values, Typed: s.Typed, Actions: s.Actions, RoleAction: s.RoleAction, NestLevel: s.NestLevel}
 	if s.Session != nil {
 		s.Session.Mu.Lock()
 		if s.Session.Authorization != nil {
@@ -68,6 +69,7 @@ func (s *SettingsStore) Savepoint() SettingsMark {
 func (s *SettingsStore) RestoreSavepointLocked(candidate SettingsMark, identity authorization.RoleState) {
 	s.Values, s.Typed, s.Actions = candidate.Values, candidate.Typed, candidate.Actions
 	s.RoleAction = candidate.RoleAction
+	s.NestLevel = candidate.NestLevel
 	if s.Session != nil {
 		identity.CurrentUser = candidate.CurrentRole
 		s.RestoreIdentityLocked(identity)

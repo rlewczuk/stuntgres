@@ -112,8 +112,15 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 			return err
 		}
 		next.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, next.Owner)
+	case "attributes":
+		if err = checkRoutineProviderAttributes(d, s.Attributes); err != nil {
+			return err
+		}
+		if err = normalizeRoutineAttributes(h, auth, &next, s.Attributes, d.ReturnsSet()); err != nil {
+			return err
+		}
 	}
-	if s.Action != "owner" {
+	if s.Action == "rename" || s.Action == "schema" {
 		if address := h.Stage().LookupName(catalog.DescriptorNameKey(&next)); address != (ids.ObjectAddress{}) {
 			if !target.SignatureSpecified && d.Signature != "" {
 				canonical, err = utilityRoutineSignatureDiagnostic(h, auth, d.Signature)

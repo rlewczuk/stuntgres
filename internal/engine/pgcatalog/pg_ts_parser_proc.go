@@ -13,7 +13,7 @@ import (
 // internal catalog identities without granting standalone callable providers.
 // A represented Procedure always takes precedence over these selected facts.
 func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype.Value, error) {
-	if len(in.Source.Columns) != 22 {
+	if len(in.Source.Columns) != 24 {
 		return nil, fmt.Errorf("stuntgres: invalid procedure source shape")
 	}
 	p := catalog.DefaultTextParser()
@@ -79,6 +79,8 @@ func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype
 		if err != nil {
 			return nil, err
 		}
+		row[22] = sqltype.Boolean(in.Source.Columns[22].Usage.Type, false)
+		row[23] = sqltype.Null(in.Source.Columns[23].Usage.Type)
 		rows = append(rows, row)
 	}
 	return rows, nil

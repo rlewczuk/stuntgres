@@ -6,7 +6,7 @@ import "stuntgres/internal/parser"
 // its data phase.
 func SnapshotStatement(stmt parser.Statement) bool {
 	switch stmt.(type) {
-	case *parser.Call, *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable, *parser.RefreshMaterializedView, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.SettingCall:
+	case *parser.Call, *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable, *parser.RefreshMaterializedView, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		return true
 	}
 	return false

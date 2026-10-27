@@ -31,6 +31,76 @@ final result: it fails before specialization or successful analysis publication.
 Empty VOID invocations remain valid; rejected analysis never replaces another
 routine's accepted command backing.
 
+Routine command policy is invocation-local and carries no cached actor.
+Reached SQL and PL commands classify their analyzed executable binding before
+opening producers, including writable CTEs and stored-source row marks.
+Stable/immutable bodies borrow the calling query's coherent roots and private
+write frontier; volatile commands merge reached staged changes and acquire a
+fresh read-committed frontier. Transaction-stable isolation retains its roots.
+Each command owns and releases its local visibility view without completing
+the root operation or mutating the caller's retained backing.
+
+Ordinary SQL/PL calls enter routine environments after reached caller admission
+and strict suppression. Admitted DML and event-trigger entries use the same
+balanced environment and lexical volatility/snapshot policy, but retain
+installation-time EXECUTE admission without ordinary-call rechecks or strict
+NULL suppression. Each firing uses current function owner/configuration/
+volatility; relation and WHEN roots remain command-owned. A definer supersedes
+an enclosing RI actor only for its body, without weakening genuine restrictions
+or later RI relation-write authority. Trigger frame/depth/diagnostic and
+SAVE/policy unwind covers success, error, partial entry and cancellation;
+event start/end/drop/rewrite retain their atomic utility owner.
+Trigger-bearing admitted mutation targets also retain dynamic source roots at
+the calling command's initial data-view capture: lazy trigger-body reads are
+not outer expression dependencies. STABLE/IMMUTABLE trigger commands borrow
+those fixed roots and frontier without recapturing after firing. Trigger-free
+DML does not retain an additional dynamic-root map.
+`enterRoutineEnvironment` pushes a distinct
+operation-local definer actor and installs ordered configuration through the
+session's SET/LOCAL/SAVE journal. Invokers inherit the enclosing actor;
+session/authenticated identity remains unchanged. Definers do not create
+maintenance restrictions, detached settings or an implicit safe lookup path.
+An enclosing maintenance restriction still applies. Entry failure and every
+return/error/cancel unwind partial settings and actor state, preserving the
+primary diagnostic. Identity, codecs, lexical namespace inquiry, row-security
+and operation policy refresh after effective changes and restoration; demanded
+catalog/visibility snapshots and output spellings remain query-owned.
+Entry recaptures presentation after the complete configuration list, independently
+of whether a routine command is already active.
+`is_superuser` reads the effective current role's own attribute under that same
+authority for current_setting, SHOW and pg_settings, never inherited membership.
+Nested commands resolve the first temporary namespace from their shared
+statement candidate before the transaction journal or session publishes it.
+Private-catalog namespace scanning is isolated from staged/active lookup so
+unchanged prepared sequence environment validation remains allocation-free.
+`DDLHost.ValidateRoutineSetting` validates without installation. FROM CURRENT
+captures at execution, in the existing ordered attribute fold. External Normalize
+suspends that fold on its stack, releases Engine.Mu and the active statement's
+replacement reservation, and executes exactly once without store/session locks.
+Continuation readmits the live operation, settings attachment, parameter/read
+authority and original catalog/role/session authority before using the value.
+Any stale authority rejects the command; definition-lock admission cannot
+reconstruct a callback-bearing candidate and repeat external work. Registry
+definitions remain immutable engine-owned inputs. Declaration array admission
+runs current-transaction check hooks
+against the DDL snapshot without assigning modes: isolation admits idempotent
+values, read-only admits changes except read-only to read-write after a snapshot,
+and deferrable refuses even idempotent values after a snapshot. CREATE/REPLACE
+then preflight validator SAVE admission; ALTER does not invoke that validator.
+RESET and SAVE refusals precede check hooks and mode mutation. The existing
+private replay directive suppresses only language-validator admission, not
+declaration array checks. Owner admission serializes nonmutating mode inspection;
+the declaration host never acquires the transaction mutex under Engine.Mu.
+Identity mutation restrictions precede setting-expression registry lookup,
+retaining distinct definer and enclosing maintenance diagnostics. Ordinary
+setting expressions and SET/RESET utilities share the live installation path.
+Publication lock order is Engine.Mu -> Settings.Mu -> Session.Mu.
+An actual setting normalizer callback also releases the statement's replacement
+reservation through the shared external-work handoff. Parameter authority is
+rechecked after the callback; installation readmits the live operation and
+settings attachment under the publication locks. Normalization without a callback
+retains its existing reservation. Providers/external work never run in that window.
+
 SET DEFAULT referential actions retain a statement-owned `exec.RoutineProgram`
 while preparing the child recipe, including original calls erased by immutable
 folding. Each call records the actual child-owner actor and defining manifest.
@@ -168,6 +238,10 @@ optimizable statements retain ordinary analysis before the nonvolatile-function
 gate. Transaction commands and frontend COPY instead terminate the statement
 list with no children, matching SPI's negative return status. Successful
 read-only SELECT lists retain last-result semantics.
+Setting function calls are ordinary SELECT expressions here too: their canonical
+function identities retain live EXECUTE checks and setting effects, while SPI
+readonly classification continues to inspect the analyzed SQL command and row
+marks rather than prohibiting every volatile expression.
 Connectby enables an invocation-private read-only SPI demand. The ordinary
 description seam classifies the still-live canonical binding after analysis and
 authority checks, omitting analysis-only occurrences. It consumes marks at every
@@ -825,12 +899,14 @@ to it, and descriptor validation and grant-name canonicalization use the same
 registry. Notice levels, physical-session values, the settings journal and
 timeout publication belong to [`session`](../session/README.md).
 
-Standalone `current_setting(text)` and `current_setting(text,boolean)` share
-the typed setting-call binder, coherent session lookup and routine EXECUTE
-admission. Each overload has its own builtin identity and ACL. Both are strict:
-a NULL name or optional Boolean returns typed TEXT NULL without invocation.
-The optional true flag returns NULL only for unknown names; it does not bypass
-restricted-read authority. Generic expression-provider boundaries are unchanged.
+`current_setting(text[,boolean])` and `set_config(text,text,boolean)` use
+canonical typed setting expressions, shared fixed-formal binding and live
+`InvokeSetting` session lookup/installation. The standalone statement transport
+uses the same runtime; routine bodies normalize it to an ordinary SELECT before
+analysis and frozen capture. Each overload retains its own builtin identity and
+live EXECUTE admission. `current_setting` is strict and returns typed TEXT NULL
+for a NULL name or optional Boolean. The optional true flag returns NULL only
+for unknown names; it does not bypass restricted-read authority.
 
 ## System catalog producer contract
 
@@ -1117,6 +1193,10 @@ dual-mode reference suite.
 
 Routine invocation, CALL projection and retained-fold ownership units use
 `RUN='^Test(SQLRoutine|PLpgSQLProcedure)'`, also with `RACE=1`.
+Composed effective-user and setting environment ownership uses
+`RUN='^TestRoutineEffectiveUser'`, also with `RACE=1`. These units exercise real
+entry/unwind, actor nesting, codecs/policy and partial-entry restoration;
+public SQL behavior remains in reference scenarios.
 The private session cache is observed by same-package handler units over seeded
 catalog descriptors and real session admission; composed external units assert
 checked bindings and compiler ownership. Neither requires an inspection export.

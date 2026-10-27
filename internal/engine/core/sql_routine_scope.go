@@ -120,7 +120,11 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	// Preserve the live operation's presentation/time policy, but create fresh
 	// provider/capture/query state. The parameter frame itself is proc-owned.
 	ownWrites := saved.ownWrites
-	if len(s.Stage.Rows) != 0 {
+	policy := saved.sqlRoutine.policy
+	if policy.readOnly {
+		ownWrites = policy.writes
+	}
+	if !policy.readOnly && len(s.Stage.Rows) != 0 {
 		ownWrites = maps.Clone(ownWrites)
 		if ownWrites == nil {
 			ownWrites = make(map[ids.ObjectAddress][]storage.RowVersion, len(s.Stage.Rows))
@@ -129,8 +133,13 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 			ownWrites[address] = visibility.MergePrivateRows(ownWrites[address], rows, true)
 		}
 	}
-	ownDeletes := visibility.MergeDeletions(saved.ownDeletes, s.Stage.Deletes)
-	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead})
+	ownDeletes := saved.ownDeletes
+	if policy.readOnly {
+		ownDeletes = policy.deletes
+	} else {
+		ownDeletes = visibility.MergeDeletions(ownDeletes, s.Stage.Deletes)
+	}
+	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true, policy: policy}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead})
 	s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignTablesOrZero().owner != nil {
@@ -146,6 +155,16 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 			s.authority.Host = nil
 		}
 		s.installSQLRoutineScratch(saved)
+		if policy.active {
+			// A reached SET may escape this lexical command. Restoring query
+			// scratch must not restore its obsolete codecs, lookup inputs or
+			// identity over the operation's current effective environment.
+			cleanup := s.refreshRestrictedPresentation()
+			s.Input.LockedDomainInput, s.Input.DomainChecks = saved.input.LockedDomainInput, saved.input.DomainChecks
+			if primary == nil {
+				primary = cleanup
+			}
+		}
 		return primary
 	}
 }
@@ -161,6 +180,7 @@ type sqlRoutineDemand struct {
 	plArgumentRow      bool                  // NonSTRICT bound-argument projection: one row, always SPI.
 	rewrite            bool                  // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
 	readOnlySPI        bool                  // Connectby classifies the canonical executable binding before execution.
+	policy             routineCommandPolicy  // Lexical invocation policy, shared by its reached commands only.
 	rows               bool                  // Private all-row PL demand; no rewrite policy or scalar cardinality.
 	plCapture          bool                  // Bounded primary SELECT capture, including after writable CTE completion.
 	sourceBase         *visibility.Data      // Borrowed coherent roots for runtime-named nested sources; saved outer View owns them.

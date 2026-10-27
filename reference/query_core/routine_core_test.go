@@ -111,5 +111,5 @@ func TestReferenceRoutineCoreDiagnostics(t *testing.T) {
 			"CREATE FUNCTION routine_bad_body() RETURNS integer LANGUAGE SQL AS $$SELECT 5$$")
 		routineValue(t, p, b, c, "SELECT routine_bad_result()+routine_bad_width()+routine_bad_body() AS v", "v", "INT4", int64(15))
 	})
-	t.Run("excluded declarations", routineExcludedDeclarations)
+	t.Run("declaration forms", routineDeclarationForms)
 }

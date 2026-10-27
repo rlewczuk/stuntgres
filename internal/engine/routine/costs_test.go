@@ -10,7 +10,7 @@ import (
 func TestBuiltinRoutineCosts(t *testing.T) {
 	// Independently transcribed explicit costs for represented declarations from
 	// REL_18_6 pg_proc.dat and system_functions.sql (including SQL COST 1).
-	// All other represented declarations must retain the language-default marker.
+	// All other represented declarations retain their actual language default.
 	explicit := map[ids.OID]float32{
 		879: 1, 880: 1, 1215: 100, 1216: 100, 1296: 1, 1298: 1,
 		1305: 1, 1306: 1, 1307: 1, 1309: 1, 1310: 1, 1311: 1,
@@ -26,9 +26,18 @@ func TestBuiltinRoutineCosts(t *testing.T) {
 	}
 	for _, p := range BuiltinProcedures(authorization.PrincipalRef{}) {
 		id := p.Address().ObjectID
-		want := explicit[id]
-		if p.Display.Cost != want {
-			t.Fatalf("declaration %d (%s) cost = %g, want %g", id, p.Name(), p.Display.Cost, want)
+		want, explicitCost := explicit[id]
+		if !explicitCost {
+			want = 1
+			if p.Display.Language.String() == "SQL" || p.Display.Language.String() == "PLPGSQL" {
+				want = 100
+			}
+		}
+		if p.Cost != want {
+			t.Fatalf("declaration %d (%s) cost = %g, want %g", id, p.Name(), p.Cost, want)
+		}
+		if got := BuiltinRoutineCost(p.Builtin); got != want {
+			t.Fatalf("declaration %d immutable cost = %g, want %g", id, got, want)
 		}
 		// Presentation changes copy the declaration metadata, not a name lookup.
 		renamed := p
@@ -41,5 +50,10 @@ func TestBuiltinRoutineCosts(t *testing.T) {
 	}
 	if len(explicit) != 0 {
 		t.Fatalf("explicit-cost declarations were not materialized: %v", explicit)
+	}
+	for i := range sharedMemoryDeclarations {
+		if got := BuiltinRoutineCost(&sharedMemoryDeclarations[i]); got != 1 {
+			t.Fatalf("view-authority declaration %d cost = %g, want 1", sharedMemoryDeclarations[i].Identity.ID, got)
+		}
 	}
 }

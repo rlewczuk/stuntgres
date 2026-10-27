@@ -29,6 +29,9 @@ import this package directly.
   `plpgsql.check_asserts` is an ordinary user-settable Boolean, booting on, with
   `Customized Options` metadata. Procedural execution reads its effective session
   value; registry construction does not capture an assertion decision.
+  `is_superuser` is a read-only Boolean inquiry: core projects the effective
+  current role's own superuser attribute for current_setting, SHOW and pg_settings,
+  without inheriting it from memberships or storing it in a SAVE frame.
 - **Values** (`value.go`, `number.go`, `units.go`): `Value` and
   `Definition.Parse`/`Format`, base-unit `Raw` and current-catalog `CurrentRaw`,
   PostgreSQL-compatible number scanning (`ParseNumber`, also used for storage

@@ -162,7 +162,7 @@ func TestSettingCapturedDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	r, err := e.Execute(op, &parser.SettingCall{Name: "set_config", Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "application_name"}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue}}}}, 0, nil)
+	r, err := e.Execute(op, enginetest.Statement(t, "SELECT set_config('application_name',NULL,false)"), 0, nil)
 	if err != nil || enginetest.Tuples(r)[0][0] != want {
 		t.Fatal(r, err)
 	}

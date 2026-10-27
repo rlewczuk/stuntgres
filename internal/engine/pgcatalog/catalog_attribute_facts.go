@@ -30,7 +30,7 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 		case "proparallel":
 			return 16
 		case "prokind":
-			return 12
+			return 10
 		case "proargnames":
 			return 23
 		case "proretset":
@@ -47,6 +47,10 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 			return 22
 		case "proacl":
 			return 30
+		case "prosecdef":
+			return 11
+		case "proconfig":
+			return 29
 		}
 	case 2606:
 		switch name {
@@ -115,6 +119,8 @@ func InitializeAttributes(d *catalog.Relation) {
 			case InfoSQLFeaturesOID, InfoSQLSizingOID, InfoSQLImplementationInfoOID, InfoSQLPartsOID:
 				fact.NotNull = !column.Nullable
 			case ids.EventTriggerClassID:
+				fact.NotNull = !column.Nullable
+			case ids.ProcedureClassID:
 				fact.NotNull = !column.Nullable
 			case TypeOID:
 				fact.NotNull = i < 29

@@ -62,11 +62,12 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 		p := definition.Parts()
 		e.Mu.Lock()
 		current, err := s.RoutineAuthorizationLocked()
+		var d *catalog.Procedure
 		if err == nil {
 			if current.Ref(p.Procedure.Address) != p.Procedure {
 				err = fmt.Errorf("stuntgres: stale trigger function identity")
 			} else {
-				d, _ := current.Catalog.Get(p.Procedure.Address).(*catalog.Procedure)
+				d, _ = current.Catalog.Get(p.Procedure.Address).(*catalog.Procedure)
 				if d == nil || d.SQL == nil || d.SQL.Invocation != proc.DMLTriggerInvocation {
 					err = fmt.Errorf("stuntgres: invalid installed trigger function")
 				} else {
@@ -106,7 +107,6 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 				continue
 			}
 		}
-		d := read.Get(p.Procedure.Address).(*catalog.Procedure)
 		name := "INSERT"
 		if request.Event == dml.BeforeUpdate {
 			name = "UPDATE"
@@ -125,7 +125,7 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 			frame.Close()
 			return result, err
 		}
-		value, err := s.invokePLTrigger(d, frame, read, relation)
+		value, err := s.invokePLTrigger(d, frame, current.Catalog, relation)
 		s.leaveSQLRoutine()
 		frame.Close()
 		if err != nil {

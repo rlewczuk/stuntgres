@@ -98,7 +98,6 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 	}
 	for _, q := range []string{
 		"INSERT INTO t VALUES(num_nulls(NULL))",
-		"SELECT current_setting(num_nulls(NULL))",
 		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(DISTINCT 1) FROM t",
 		"SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
 		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t",
@@ -108,7 +107,23 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 			t.Fatal("excluded syntax admitted", q, statements, err)
 		}
 	}
-	statements, err := Parse("SELECT num_nulls(1) OVER (ORDER BY id) FROM t")
+	statements, err := Parse("SELECT current_setting(num_nulls(NULL))")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	setting, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
+	if !ok || setting.Name.Parts[0].Text != "current_setting" || len(setting.Args) != 1 {
+		t.Fatal("setting call lost ordinary argument", statements)
+	}
+	count, ok := setting.Args[0].(FunctionExpr)
+	if !ok || count.Name.Parts[0].Text != "num_nulls" || count.Pos.Character != 24 || len(count.Args) != 1 {
+		t.Fatal("setting call lost nested null count or position", setting)
+	}
+	null, ok := count.Args[0].(LiteralExpr)
+	if !ok || null.Value.Kind != NullValue || null.SourcePosition().Character != 34 {
+		t.Fatal("nested null count lost NULL argument or position", count)
+	}
+	statements, err = Parse("SELECT num_nulls(1) OVER (ORDER BY id) FROM t")
 	if err != nil || len(statements) != 1 {
 		t.Fatal(statements, err)
 	}

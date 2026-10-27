@@ -78,6 +78,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Rows are immutable once returned: the engine may share one capture across
   statements with the same inputs, so neither producers nor consumers write
   into returned rows.
+- Both `pg_proc` producers share a 24-column condensed shape. Released attribute
+  numbers are independent of projection indexes (prokind10, prosecdef11,
+  proconfig29). Security and configuration project canonical declarations;
+  configuration is a typed nullable, ordered one-based TEXT array. Lookup-only
+  supplemental routines explicitly project invoker/NULL without gaining execution.
+  Builtin/provider set capability remains intrinsic; estimates consume canonical
+  positive `Procedure.Rows` overrides, otherwise retaining genuine released or
+  installed defaults. Scalar estimates remain zero.
 - **Provenance.** `Input.Owner` is the engine's stable `*catalog.Owner`; its
   `Domain`, `Principals` and `ACLAuthority` are compared as the same pointers,
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
@@ -783,7 +791,7 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 - Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders)$'`
 - Ordered routine formal arrays, represented builtin/installed/generated
   declarations and released attribute identities:
-  `RUN='^(TestRoutineResultFormal(Builtin|Owned)?Catalog|TestRoutineProcedureDefaultCount)$'`, also with `RACE=1`.
+  `RUN='^(TestRoutineResultFormal(Builtin|Owned)?Catalog|TestRoutineProcedureDefaultCount|TestRoutineAttributeCatalogProjection)$'`, also with `RACE=1`.
   Composed declaration captures live in `enginetests/`; SQL projection units
   remain here. Expectations include scalar OUT, canonical VARIADIC, one-based
   dimensions, typed all-IN NULL controls and declaration-owned default counts.

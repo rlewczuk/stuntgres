@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,6 +28,9 @@ type providerReplay struct {
 	ownerChanged      bool
 	dictionary        bool
 	options           string // Rendered dictionary ALTER clause, after identity replay.
+	parallel          byte
+	cost, rows        float32
+	readyAfter        ids.OID // Zero for seeded/installed providers; otherwise the creating type event.
 }
 
 func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
@@ -36,6 +40,10 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 	}
 	r := providerReplay{current: providerKey{ns.Name(), p.Name(), p.Signature}}
 	originalOwner := c.source.Bootstrap
+	r.parallel, r.rows = p.Parallel, p.Rows
+	if p.Cost != 0 && (p.Builtin == nil || p.Cost != routine.BuiltinRoutineCost(p.Builtin)) {
+		r.cost = p.Cost
+	}
 	if p.Extension != (ids.ObjectAddress{}) {
 		symbol, err := extension.ProcedureSymbol(c.CatalogView, p)
 		if err != nil {
@@ -51,6 +59,22 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 		}
 		r.original = providerKey{originalNS.Name(), symbol, p.Signature}
 		originalOwner = ext.Owner
+	} else if p.RangeConstructor != nil {
+		// Generated identities belong to the actual type generation, never
+		// the released builtin OID domain. The resolver also collapses a
+		// multirange constructor to its parent range's CREATE TYPE event.
+		r.original = r.current
+		var err error
+		r.readyAfter, err = (Resolver{}).Predecessor(c.CatalogView, catalog.RangeConstructorOwner(p), p.Address())
+		if err != nil {
+			return err
+		}
+		if r.readyAfter == 0 {
+			return fmt.Errorf("stuntgres: missing generated provider declaration")
+		}
+	} else if p.PLHandler != catalog.NoPLHandler {
+		name, signature, _ := p.PLHandler.Declaration()
+		r.original = providerKey{ns.Name(), name, signature}
 	} else if p.Foreign != nil {
 		r.original = providerKey{p.Foreign.Name.Schema, p.Foreign.Name.Name, p.Signature}
 	} else {
@@ -72,7 +96,7 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 		}
 		r.owner = owner.Name
 	}
-	if (r.original != r.current || r.ownerChanged) && p.Signature != "" {
+	if (r.original != r.current || r.ownerChanged || r.parallel != 0 || r.cost != 0 || r.rows > 0) && p.Signature != "" {
 		var args strings.Builder
 		for raw := range strings.SplitSeq(string(p.Signature), ",") {
 			id, err := strconv.ParseUint(raw, 10, 32)
@@ -216,6 +240,26 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 		if p.options != "" {
 			statements = append(statements, alter(p, p.current)+p.options+";\n")
 		}
+		if p.parallel != 0 {
+			parallel := ""
+			switch p.parallel {
+			case 's':
+				parallel = "SAFE"
+			case 'r':
+				parallel = "RESTRICTED"
+			case 'u':
+				parallel = "UNSAFE"
+			default:
+				return nil, fmt.Errorf("stuntgres: invalid provider parallel metadata")
+			}
+			statements = append(statements, alter(p, p.current)+" PARALLEL "+parallel+";\n")
+		}
+		if p.cost != 0 {
+			statements = append(statements, alter(p, p.current)+" COST "+strconv.FormatFloat(float64(p.cost), 'g', -1, 32)+";\n")
+		}
+		if p.rows > 0 {
+			statements = append(statements, alter(p, p.current)+" ROWS "+strconv.FormatFloat(float64(p.rows), 'g', -1, 32)+";\n")
+		}
 	}
 	// Transfer authority last: relabeling must not depend on recipient privileges.
 	for _, p := range providers {
@@ -227,7 +271,27 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 }
 
 func (s *dumpScript) prepareProviderReplay() error {
-	statements, err := planProviderReplay(s.Providers)
+	var early []providerReplay
+	byEvent := make(map[ids.OID][]providerReplay)
+	for _, p := range s.Providers {
+		if p.readyAfter == 0 {
+			early = append(early, p)
+		} else {
+			byEvent[p.readyAfter] = append(byEvent[p.readyAfter], p)
+		}
+	}
+	s.providerEventStatements = make(map[ids.OID][]string, len(byEvent))
+	for oid, providers := range byEvent {
+		if _, exists := s.declarations[oid]; !exists {
+			return fmt.Errorf("stuntgres: missing generated provider declaration event")
+		}
+		statements, err := planProviderReplay(providers)
+		if err != nil {
+			return err
+		}
+		s.providerEventStatements[oid] = statements
+	}
+	statements, err := planProviderReplay(early)
 	if err != nil {
 		return err
 	}
@@ -308,4 +372,17 @@ func emitDumpProviderReplay(ctx context.Context, s *dumpScript, w *dumpWriter) e
 		}
 	}
 	return ctx.Err()
+}
+
+// emitDumpProviderEvent completes intrinsic metadata at its actual constructor
+// installation boundary, before dependent declarations or type ACL repairs.
+func emitDumpProviderEvent(s *dumpScript, w *dumpWriter, oid ids.OID) error {
+	statements := s.providerEventStatements[oid]
+	if len(statements) == 0 {
+		return nil
+	}
+	if err := w.setOwner("postgres"); err != nil {
+		return err
+	}
+	return emitDumpLines(w, statements)
 }

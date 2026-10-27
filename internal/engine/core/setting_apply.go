@@ -15,18 +15,28 @@ import (
 
 // applySetting stages callbacks without publication locks, then installs the
 // parsed value in one Engine.mu -> Settings.Mu -> Session.Mu window.
-func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool, resultName string) (string, error) {
-	// All admitted definitions lack GUC_ALLOW_IN_PARALLEL. PostgreSQL's sole
-	// flagged builtin, is_superuser, and function-local GUC_ACTION_SAVE are
-	// not supported settings routes here. Revisit this when admitting either.
-	// Resolve names first, but reject before access, parsing or installation.
+func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, action session.SettingAction, resultName string) (settingValue string, err error) {
+	// Registered before lock defers: recapture runs after publication unlocks.
+	defer func() {
+		if err == nil {
+			if scope := ActiveScopeOfLease(op.Lease); scope != nil && (scope.activeSQLRoutineDepth != 0 || op.Restricted != nil) {
+				scope.presentationSlot = nil
+				err = scope.refreshRestrictedPresentation()
+			}
+		}
+	}()
+	// Resolve names first, but reject parallel mutation before access/parsing.
 	if exec.InParallelOperation(ctx) {
 		return "", SQLError("25000", fmt.Sprintf(`parameter "%s" cannot be set during a parallel operation`, settings.DisplayName(d.Name)))
 	}
 	if err := restrictedParameter(op, d.Name); err != nil {
 		return "", err
 	}
-	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" || d.Name == "transaction_deferrable" {
+	if err := settingActionEligibility(d, input, action); err != nil {
+		return "", err
+	}
+	if isCurrentTransactionSetting(d.Name) {
+		// Admission precedes the current-transaction characteristic dispatcher.
 		return e.applyCurrentCharacteristic(op, d, input)
 	}
 	if err := settingAccess(d, op); err != nil {
@@ -35,6 +45,15 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 	var value *settings.Value
 	var notice *sqlstate.Error
 	if input != nil {
+		if d.Normalize != nil {
+			// A setting expression can inherit its SELECT's replacement
+			// reservation. Like other external work, normalization must let a
+			// reentrant native replacement proceed. ApplyLocked readmits the
+			// live operation/store before installing the parsed value.
+			if scope := ActiveScopeOfLease(op.Lease); scope != nil {
+				scope.releaseCatalogReservation()
+			}
+		}
 		v, parseNotice, err := owner.ParseValue(d, *input)
 		if err != nil {
 			if parseNotice != nil {
@@ -49,6 +68,13 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 			return "", err
 		}
 		value, notice = &v, parseNotice
+		if d.Normalize != nil {
+			// The callback may have changed parameter grants. Do not retain
+			// the authority that admitted normalization across that boundary.
+			if err := settingAccess(d, op); err != nil {
+				return "", err
+			}
+		}
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -72,14 +98,32 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 	defer owner.Mu.Unlock()
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
-	result, err := owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, local)
-	if err == nil && op.Restricted != nil {
-		if d.Name == "search_path" {
+	result, err := owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, action)
+	if err == nil {
+		if op.Restricted != nil && d.Name == "search_path" {
 			op.Restricted.SafePath = false
 		}
 		op.RefreshInvocationSettingsLocked(owner)
 	}
 	return result, err
+}
+
+func isCurrentTransactionSetting(name string) bool {
+	return name == "transaction_isolation" || name == "transaction_read_only" || name == "transaction_deferrable"
+}
+
+// settingActionEligibility is shared by execution and the non-installing
+// declaration validator. Current-transaction GUCs have no RESET or SAVE action.
+func settingActionEligibility(d settings.Definition, input *string, action session.SettingAction) error {
+	if isCurrentTransactionSetting(d.Name) {
+		if input == nil {
+			return SQLError("0A000", fmt.Sprintf(`parameter "%s" cannot be reset`, d.Name))
+		}
+		if action == session.SettingSave {
+			return SQLError("0A000", fmt.Sprintf(`parameter "%s" cannot be set locally in functions`, d.Name))
+		}
+	}
+	return nil
 }
 
 // SQL setting utilities are refused by PostgreSQL's utility admission before
@@ -91,7 +135,7 @@ func parallelSettingCommandEligibility(ctx context.Context, stmt parser.Statemen
 	return nil
 }
 
-func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
+func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt parser.Statement, count int, implicit bool) (result Result, err error) {
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: settings expect zero arguments")
 	}
@@ -105,6 +149,14 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 	var name string
 	var input *string
 	var all, write bool
+	defer func() {
+		if err == nil && all && write {
+			if scope := ActiveScopeOfLease(op.Lease); scope != nil && (scope.activeSQLRoutineDepth != 0 || op.Restricted != nil) {
+				scope.presentationSlot = nil
+				err = scope.refreshRestrictedPresentation()
+			}
+		}
+	}()
 	switch s := stmt.(type) {
 	case *parser.Set:
 		name = s.Name.Text
@@ -125,6 +177,7 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 	}
 	e.Mu.Lock()
 	readRestricted := false
+	var readAuth AuthorizationView
 	if !write {
 		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
@@ -132,6 +185,7 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 			return Result{}, err
 		}
 		readRestricted, err = auth.canReadRestrictedSettings()
+		readAuth = auth
 		if err != nil {
 			e.Mu.Unlock()
 			return Result{}, err
@@ -158,13 +212,24 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 			owner.ResetAllLocked(e.Settings)
 			if op.Restricted != nil {
 				op.Restricted.SafePath = false
-				op.RefreshInvocationSettingsLocked(owner)
 			}
+			op.RefreshInvocationSettingsLocked(owner)
 			return Result{}, nil
 		}
 		rows, err := owner.ShowAllRowsLocked(ctx, e.Settings, typ, readRestricted)
 		if err != nil {
 			return Result{}, err
+		}
+		for _, row := range rows {
+			name, _ := row[0].Text()
+			if name == "is_superuser" {
+				value, err := readAuth.settingValue(owner, name)
+				if err != nil {
+					return Result{}, err
+				}
+				row[1] = sqltype.String(typ, value)
+				break
+			}
 		}
 		return anonymousResult(settingColumns(typ, "name", "setting", "description"), rows, 0)
 	}
@@ -179,7 +244,7 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 		}
 		unlock()
 		locked = false
-		_, err = e.applySetting(ctx, op, owner, d, input, local, "")
+		_, err = e.applySetting(ctx, op, owner, d, input, session.SettingAssignment(local), "")
 		return Result{}, err
 	}
 	if err := session.SettingReadAccess(d, name, readRestricted); err != nil {
@@ -188,5 +253,9 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	return anonymousResult(settingColumns(typ, settings.DisplayName(d.Name)), [][]sqltype.Value{{sqltype.String(typ, owner.Value(d.Name))}}, 0)
+	value, err := readAuth.settingValue(owner, d.Name)
+	if err != nil {
+		return Result{}, err
+	}
+	return anonymousResult(settingColumns(typ, settings.DisplayName(d.Name)), [][]sqltype.Value{{sqltype.String(typ, value)}}, 0)
 }

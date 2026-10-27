@@ -59,7 +59,8 @@ package parser
  routineParameters []RoutineParameter
  routineResult routineResult
  routineAS routineAS
- routineAttributes []lexeme
+ routineAttributes []RoutineAttribute
+ routineAttribute RoutineAttribute
  createLanguage *CreateLanguage
  plBlock *PLBlock
  plDeclarations []PLDeclaration
@@ -270,7 +271,7 @@ package parser
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN TYPE
 %token <tok> FUNCTION PROCEDURE ROUTINE AGGREGATE OUT_ARG INOUT_ARG RETURNS_CLAUSE
-%token <tok> ROUTINE_CALLED ROUTINE_COST ROUTINE_SUPPORT ROUTINE_PARALLEL
+%token <tok> ROUTINE_CALLED ROUTINE_COST ROUTINE_SUPPORT ROUTINE_PARALLEL ROUTINE_SECURITY ROUTINE_EXTERNAL
 %token <tok> RETURN_BODY ATOMIC_BODY
 %token <tok> CALL
 %token <tok> PARAMETER
@@ -307,7 +308,7 @@ package parser
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
 %token <tok> AT
 %token <tok> INTERVAL HOUR MINUTE SECOND DAY MONTH YEAR
-%token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
+%token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL ON
 %token <tok> NAMES
 %token <tok> SELECTED_FUNC VARIADIC
 %token <tok> STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD LEADING TRAILING BOTH
@@ -404,7 +405,7 @@ package parser
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
 /* RECURSIVE/XML likewise retain KW_U's contextual identifier/type-tail precedence. */
 /* LISTEN/UNLISTEN/LOAD also retain their former KW_U type-tail precedence. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION RECURSIVE XML KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION RECURSIVE XML KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
 /* These words previously used KW_U. Preserve its type-tail and COPY-WITH
  * decisions rather than adding implicit zero-precedence conflicts. */
 %nonassoc RETURN_BODY ATOMIC_BODY
@@ -533,12 +534,12 @@ package parser
 %type <createLanguage> language_head language_flags
 %type <objectName> language_inline language_validator
 %type <routineAS> routine_as
-%type <routineAttributes> function_attributes
+%type <routineAttributes> function_attributes procedure_attributes alter_routine_attributes
+%type <routineAttribute> function_attribute procedure_attribute routine_setting
 %type <tok> function_attribute_word
 %type <stmt> procedure_head
-%type <routineAttributes> procedure_attributes
-%type <tok> procedure_attribute
-%type <tok> procedure_rows_word procedure_input_word procedure_leakproof_word
+%type <tok> procedure_rows_word procedure_input_word procedure_leakproof_word routine_current_word
+%type <tok> routine_security_word
 %type <stmt> create_cast drop_cast
 %type <stmt> do_statement
 %type <plBlock> pl_block
@@ -1796,25 +1797,38 @@ procedure_head: CREATE PROCEDURE relation_name '(' function_arguments ')' {$$=&C
  | CREATE OR replace_word PROCEDURE relation_name '(' function_arguments ')' {$$=&CreateFunction{Name:$5,Arguments:$7,Procedure:true,Replace:true,Pos:$1.pos}} ;
 procedure_attributes: /* empty */ {$$=nil}
  | procedure_attributes procedure_attribute {$$=append($1,$2)} ;
-/* Only complete released option shapes reach procedure semantic validation.
- * Dedicated unreserved introducers retain ordinary names via routine_name_word. */
-procedure_attribute: KW_U {if $1.keyword==nil || ($1.text!="strict" && $1.text!="immutable" && $1.text!="stable" && $1.text!="volatile" && $1.text!="leakproof") {sqllex.(*lexer).syntax($1);return 1};$$=$1}
- | WINDOW {$$=$1}
- | NOT procedure_leakproof_word {$$=$1}
- | ROUTINE_CALLED ON NULL procedure_input_word {$$=$1}
- | RETURNS_CLAUSE NULL ON NULL procedure_input_word {$$=$1}
- | ROUTINE_COST grant_object_number {$$=$1}
- | procedure_rows_word grant_object_number {$$=$1}
- | ROUTINE_SUPPORT relation_name {$$=$1}
- | ROUTINE_PARALLEL name {if !$2.keyword.columnName() {sqllex.(*lexer).syntax($2);return 1};$$=$1} ;
+procedure_attribute: function_attribute {$$=$1}
+ | WINDOW {$$=RoutineAttribute{Kind:"window",Pos:$1.pos}}
+ | NOT procedure_leakproof_word {$$=RoutineAttribute{Kind:"leakproof",Value:"false",Pos:$1.pos}}
+ | ROUTINE_SUPPORT relation_name {$$=RoutineAttribute{Kind:"support",Pos:$1.pos}} ;
 procedure_rows_word: FRAME_UNIT {if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 procedure_input_word: KW_U {if $1.keyword==nil || $1.text!="input" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 procedure_leakproof_word: KW_U {if $1.keyword==nil || $1.text!="leakproof" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 routine_as: STRING {$$=routineAS{Body:$1}}
  | STRING ',' STRING {$$=routineAS{Body:$1,Symbol:$3,HasSymbol:true}} ;
 function_attributes: /* empty */ {$$=nil}
- | function_attributes function_attribute_word {if $2.keyword==nil||($2.text!="strict"&&$2.text!="volatile") {sqllex.(*lexer).failAt("0A000","SQL function attributes are unsupported",$2.pos.Offset);return 1};$$=append($1,$2)} ;
-function_attribute_word: KW_U | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL ;
+ | function_attributes function_attribute {$$=append($1,$2)} ;
+function_attribute_word: KW_U {if $1.keyword==nil||($1.text!="strict"&&$1.text!="volatile"&&$1.text!="stable"&&$1.text!="immutable"&&$1.text!="leakproof") {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+function_attribute: function_attribute_word {$$=RoutineAttribute{Kind:$1.text,Pos:$1.pos}}
+ | ROUTINE_CALLED ON NULL procedure_input_word {$$=RoutineAttribute{Kind:"strict",Value:"false",Pos:$1.pos}}
+ | RETURNS_CLAUSE NULL ON NULL procedure_input_word {$$=RoutineAttribute{Kind:"strict",Value:"true",Pos:$1.pos}}
+ | ROUTINE_COST grant_object_number {$$=RoutineAttribute{Kind:"cost",Value:$2.text,Pos:$1.pos}}
+ | procedure_rows_word grant_object_number {$$=RoutineAttribute{Kind:"rows",Value:$2.text,Pos:$1.pos}}
+ | ROUTINE_PARALLEL name {$$=RoutineAttribute{Kind:"parallel",Value:$2.text,Pos:$1.pos}}
+ | ROUTINE_SECURITY routine_security_word {$$=RoutineAttribute{Kind:"security",Value:$2.text,Pos:$1.pos}}
+ | ROUTINE_EXTERNAL ROUTINE_SECURITY routine_security_word {$$=RoutineAttribute{Kind:"security",Value:$3.text,Pos:$1.pos}}
+ | routine_setting {$$=$1} ;
+routine_setting: SET setting_name setting_assignment setting_values {$$=RoutineAttribute{Kind:"set",Setting:parsedSet($2.identifier(),$4,$1.pos),Pos:$1.pos}}
+ | SET setting_name setting_assignment DEFAULT {$$=RoutineAttribute{Kind:"set",Setting:&Set{Name:$2.identifier(),Default:true,Pos:$1.pos},Pos:$1.pos}}
+ | SET setting_name FROM routine_current_word {$$=RoutineAttribute{Kind:"set",Setting:&Set{Name:$2.identifier(),FromCurrent:true,Pos:$1.pos},Pos:$1.pos}} ;
+routine_current_word: KW_U {if $1.keyword==nil||$1.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+routine_security_word: KW_U {if $1.keyword==nil||($1.text!="definer"&&$1.text!="invoker") {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+alter_routine_attributes: function_attribute {$$=[]RoutineAttribute{$1}}
+ | RESET setting_name {$$=[]RoutineAttribute{{Kind:"set",Setting:&Set{Name:$2.identifier(),Default:true,Pos:$1.pos},Pos:$1.pos}}}
+ | RESET ALL {$$=[]RoutineAttribute{{Kind:"resetall",Pos:$1.pos}}}
+ | alter_routine_attributes function_attribute {$$=append($1,$2)}
+ | alter_routine_attributes RESET setting_name {$$=append($1,RoutineAttribute{Kind:"set",Setting:&Set{Name:$3.identifier(),Default:true,Pos:$2.pos},Pos:$2.pos})}
+ | alter_routine_attributes RESET ALL {$$=append($1,RoutineAttribute{Kind:"resetall",Pos:$2.pos})} ;
 language_flags: LANGUAGE_TRUSTED {$$=&CreateLanguage{Trusted:true}}
  | LANGUAGE_PROCEDURAL {$$=&CreateLanguage{Procedural:true}}
  | LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL {$$=&CreateLanguage{Trusted:true,Procedural:true}} ;
@@ -1929,7 +1943,7 @@ pl_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.te
  | pl_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}}
  | pl_target array_subscript {if base,ok:=$1.(SubscriptExpr);ok {base.Subscripts=append(base.Subscripts,$2);$$=base} else {$$=SubscriptExpr{Base:$1,Subscripts:[]ArraySubscript{$2},Pos:$1.SourcePosition()}}} ;
 pl_name: IDENT | SELECTED_FUNC | KW_U | XML | KW_C | KW_T | RETURN_BODY | PL_SLICE | FIRST | SECOND
- | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL ;
+ | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL | ROUTINE_SECURITY | ROUTINE_EXTERNAL ;
 pl_foreach_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos}}
  | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
  | pl_foreach_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}} ;
@@ -2052,6 +2066,7 @@ drop_routine: DROP grant_routine_kind grant_routines drop_mode {$$=&DropRoutine{
  | DROP AGGREGATE IF EXISTS aggregate_utility_targets drop_mode {$$=&DropRoutine{Kind:"aggregate",Targets:dropRoutineTargets($5),IfExists:true,Mode:$6,Pos:$1.pos}} ;
 alter_routine: ALTER grant_routine_kind grant_routine RENAME TO name {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"rename",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
  | ALTER grant_routine_kind grant_routine SET SCHEMA name {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"schema",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER grant_routine_kind grant_routine alter_routine_attributes {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"attributes",Attributes:$4,Pos:$1.pos}}
  | ALTER grant_routine_kind grant_routine OWNER TO schema_owner {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"owner",Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}}
  | ALTER AGGREGATE aggregate_utility_target RENAME TO name {$$=&AlterRoutine{Kind:"aggregate",Routine:routineUtilityTarget($3),Action:"rename",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
  | ALTER AGGREGATE aggregate_utility_target SET SCHEMA name {$$=&AlterRoutine{Kind:"aggregate",Routine:routineUtilityTarget($3),Action:"schema",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
@@ -2402,8 +2417,8 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | ALTER optional_column name identity_alter_options { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetIdentity,Identity:$4,Pos:$1.pos} }
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
  | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} }
- | KW_U ROW LEVEL KW_U { if $4.text!="security" {sqllex.(*lexer).syntax($4);return 1};kind:=EnableRowSecurity;switch $1.text {case "enable":case "disable":kind=DisableRowSecurity;case "force":kind=ForceRowSecurity;default:sqllex.(*lexer).syntax($1);return 1};$$=&AlterTableAction{Action:kind,Pos:$1.pos} }
- | NO KW_U ROW LEVEL KW_U {if $2.text!="force" {sqllex.(*lexer).syntax($2);return 1};if $5.text!="security" {sqllex.(*lexer).syntax($5);return 1};$$=&AlterTableAction{Action:NoForceRowSecurity,Pos:$1.pos}} ;
+ | KW_U ROW LEVEL ROUTINE_SECURITY {kind:=EnableRowSecurity;switch $1.text {case "enable":case "disable":kind=DisableRowSecurity;case "force":kind=ForceRowSecurity;default:sqllex.(*lexer).syntax($1);return 1};$$=&AlterTableAction{Action:kind,Pos:$1.pos}}
+ | NO KW_U ROW LEVEL ROUTINE_SECURITY {if $2.text!="force" {sqllex.(*lexer).syntax($2);return 1};$$=&AlterTableAction{Action:NoForceRowSecurity,Pos:$1.pos}} ;
 alter_constraint: ADD table_not_null {$$=&AlterTableAction{Column:$2.Column,Constraint:$2.Name,Action:AddNotNull,Pos:$1.pos}}
  | ADD check_constraint {$$=&AlterTableAction{Action:AddCheck,Check:$2,Constraint:$2.Name,Pos:$1.pos}}
  | ADD unique_constraint {$$=&AlterTableAction{Action:AddUnique,Unique:$2,Constraint:$2.Name,Pos:$1.pos}}
@@ -2828,7 +2843,7 @@ cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; 
  | ordinary_call_keyword '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 /* Qualified calls and precision literals share their opener so a function-call
  * shift cannot consume the precision before the literal STRING continuation. */
-qualified_call_head: name '.' col_label '(' {$$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos};if $1.text=="pg_catalog" && ($3.text=="timestamptz" || $3.text=="timetz") && sqllex.(*lexer).temporalLiteralAhead() {sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).dateLiteralModifier=true}} ;
+qualified_call_head: name '.' col_label '(' {$$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos,Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};if $1.text=="pg_catalog" && ($3.text=="timestamptz" || $3.text=="timetz") && sqllex.(*lexer).temporalLiteralAhead() {sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).dateLiteralModifier=true}} ;
 date_literal_precision: DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$1,false);if !ok{return 1}}
  | '-' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
  | '+' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].Pos=$1.pos} ;
@@ -2895,9 +2910,7 @@ query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds
  | with_clause query_set order query_tail { if len($2.With)!=0 {sqllex.(*lexer).failAt("42601","multiple WITH clauses not allowed",$1.Pos.Offset);return 1};$2.With=$1.Definitions;$2.WithRecursive=$1.Recursive;if $3!=nil {$2.Order=$3};if $4.Bounds!=nil {$2.Bounds=$4.Bounds};if $4.Locking!=nil {$2.Locking=$4.Locking};if !sqllex.(*lexer).validateTies($2.Bounds,$2.Order,$2.Locking) {return 1};$$=$2 } ;
 select_query: query_select { $$=$1 }
  | query_set order suffix { if $3.keyword!=nil && $3.keyword.token==ON {if _,table:=$1.From.(*TableReference);!table {sqllex.(*lexer).syntax($3);return 1}};sqllex.(*lexer).capability($3,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
- | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 }
- | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }
- | SELECT name '.' SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$4,$6); if !ok { return 1 };$$.(*SettingCall).Schema=&Identifier{Text:$2.text,Pos:$2.pos};$$.(*SettingCall).Pos=$2.pos } ;
+ | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 } ;
 select: select_query { $$=$1 } ;
 windows: /* empty */ %prec NAME_LIST { $$=nil } | WINDOW window_definitions { $$=$2 } ;
 window_definitions: window_definition { $$=[]WindowDefinition{$1} } | window_definitions ',' window_definition { $$=append($1,$3) } ;
@@ -3238,9 +3251,9 @@ aggregate_call: cast_function target_or ')' { $$=ordinaryCall(columnType($1),[]E
  | cast_function ')' { $$=ordinaryCall(columnType($1),nil,$1) }
  | qualified_call_head ')' { $$=ordinaryCall($1,nil,lexeme{text:$1.Name,pos:$1.Pos}) }
  | cast_function ordinary_named_arguments ')' { call:=$2;call.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};call.Pos=$1.pos;call.CompositeCandidate=true;$$=call }
- | qualified_call_head ordinary_named_arguments ')' { call:=$2;call.Name=ObjectName{Parts:[]Identifier{*$1.Schema,{Text:$1.Name,Pos:$1.Pos}}};call.Pos=$1.Pos;call.CompositeCandidate=true;$$=call }
+ | qualified_call_head ordinary_named_arguments ')' { call:=$2;call.Name=ordinaryCallName($1);call.Pos=$1.Pos;call.CompositeCandidate=true;$$=call }
  | cast_function ordinary_mixed_arguments ')' {call:=$2;call.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};call.Pos=$1.pos;call.CompositeCandidate=true;$$=call}
- | qualified_call_head ordinary_mixed_arguments ')' {call:=$2;call.Name=ObjectName{Parts:[]Identifier{*$1.Schema,{Text:$1.Name,Pos:$1.Pos}}};call.Pos=$1.Pos;call.CompositeCandidate=true;$$=call}
+ | qualified_call_head ordinary_mixed_arguments ')' {call:=$2;call.Name=ordinaryCallName($1);call.Pos=$1.Pos;call.CompositeCandidate=true;$$=call}
  | cast_function DISTINCT count_values aggregate_order ')' { $$=modifiedOrdinaryCall(columnType($1),$3,false,true,false,false,$4) }
  | cast_function ALL count_values aggregate_order ')' { $$=modifiedOrdinaryCall(columnType($1),$3,false,false,true,false,$4) }
  | qualified_call_head DISTINCT count_values aggregate_order ')' { $$=modifiedOrdinaryCall($1,$3,false,true,false,false,$4) }
@@ -3407,7 +3420,7 @@ ownership_name_word: REASSIGN ;
 conditional_word: COALESCE | NULLIF | GREATEST | LEAST | MERGE_ACTION ;
 string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
-setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
+setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION
@@ -3458,7 +3471,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN | PL_SLICE ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
-type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
+type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | PL_SLICE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | TRIGGER | EVENT
@@ -3683,7 +3696,7 @@ grant_targets: grant_relations { $$=&ObjectGrant{Relations:$1} }
  | ALL name IN SCHEMA grant_schema_list { if $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};kind:="";switch $2.text {case "tables":case "sequences":kind="sequence";case "functions":kind="function";case "procedures":kind="procedure";case "routines":kind="routine";default:sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Kind:kind,Schemas:$5} } ;
 grant_routine_kind: FUNCTION | PROCEDURE | ROUTINE ;
 routine_name_word: CALL | FUNCTION | PROCEDURE | ROUTINE | AGGREGATE | PARAMETER | RETURN_BODY | ATOMIC_BODY | RETURNS_CLAUSE
- | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL ;
+ | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL | ROUTINE_SECURITY | ROUTINE_EXTERNAL ;
 grant_external_name_word: LANGUAGE | LARGE | OBJECT | DATA | WRAPPER ;
 grant_routines: grant_routine { $$=[]GrantRoutineTarget{$1} }
  | grant_routines ',' grant_routine { $$=append($1,$3) } ;

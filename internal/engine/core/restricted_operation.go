@@ -9,17 +9,31 @@ import (
 )
 
 func restrictedParameter(op *session.Operation, name string) error {
-	if op.Restricted == nil {
-		return nil
-	}
 	name = settings.FoldName(name)
 	if name == "role" || name == "session_authorization" {
-		return SQLError("42501", fmt.Sprintf("cannot set parameter %q within security-restricted operation", name))
+		if op.Restricted != nil {
+			return SQLError("42501", fmt.Sprintf("cannot set parameter %q within security-restricted operation", name))
+		}
+		if op.EffectiveUser != nil {
+			return SQLError("42501", fmt.Sprintf("cannot set parameter %q within security-definer function", name))
+		}
 	}
 	return nil
 }
 func restrictedStatement(op *session.Operation, statement parser.Statement) error {
 	if op.Restricted == nil {
+		switch s := statement.(type) {
+		case *parser.RoleSelection:
+			return restrictedParameter(op, "role")
+		case *parser.SessionAuthorization:
+			return restrictedParameter(op, "session_authorization")
+		case *parser.Set:
+			return restrictedParameter(op, s.Name.Text)
+		case *parser.Reset:
+			if !s.All {
+				return restrictedParameter(op, s.Name.Text)
+			}
+		}
 		return nil
 	}
 	tag := ""

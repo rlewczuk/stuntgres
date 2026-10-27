@@ -58,9 +58,8 @@ func routineAuthority(t *testing.T) {
 	})
 }
 
-// Exercise admitted declarations before checking the remaining excluded syntax.
-// PostgreSQL accepts those exclusions; no PostgreSQL failure is fabricated.
-func routineExcludedDeclarations(t *testing.T) {
+// Declaration forms share the same independently specified invocation outcome.
+func routineDeclarationForms(t *testing.T) {
 	t.Helper()
 	routineScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		for _, tc := range []struct{ create, call string }{
@@ -69,33 +68,12 @@ func routineExcludedDeclarations(t *testing.T) {
 			{"CREATE FUNCTION routine_multi() RETURNS integer LANGUAGE SQL AS $$SELECT 1; SELECT 4$$", "SELECT routine_multi() AS v"},
 			{"CREATE OR REPLACE FUNCTION routine_replace(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_replace(4) AS v"},
 			{"CREATE FUNCTION routine_strict(integer) RETURNS integer LANGUAGE SQL STRICT AS $$SELECT $1$$", "SELECT routine_strict(4) AS v"},
+			{"CREATE FUNCTION routine_security(integer) RETURNS integer LANGUAGE SQL SECURITY DEFINER AS $$SELECT $1$$", "SELECT routine_security(4) AS v"},
 		} {
 			routineExec(t, p, b, c, tc.create)
 			routineValue(t, p, b, c, tc.call, "v", "INT4", int64(4))
 		}
 		routineExec(t, p, b, c, "CREATE OR REPLACE FUNCTION routine_replace(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+1$$")
 		routineValue(t, p, b, c, "SELECT routine_replace(4) AS v", "v", "INT4", int64(5))
-		for _, tc := range []struct {
-			create, call string
-			value        int64
-		}{
-			{"CREATE FUNCTION routine_security(integer) RETURNS integer LANGUAGE SQL SECURITY DEFINER AS $$SELECT $1$$", "SELECT routine_security(4) AS v", 4},
-		} {
-			if b.PG {
-				routineExec(t, p, b, c, tc.create)
-				routineValue(t, p, b, c, tc.call, "v", "INT4", tc.value)
-			} else {
-				_, err := c.ExecContext(p.Ctx, tc.create)
-				if err == nil {
-					t.Fatalf("excluded declaration accepted: %s", tc.create)
-				}
-				fixture.State(t, err, "0A000")
-				_, err = c.QueryContext(p.Ctx, tc.call)
-				if err == nil {
-					t.Fatalf("excluded signature installed: %s", tc.create)
-				}
-				fixture.State(t, err, "42883")
-			}
-		}
 	})
 }

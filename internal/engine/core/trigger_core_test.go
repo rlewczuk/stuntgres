@@ -337,6 +337,54 @@ func TestTriggerCoreRuntime(t *testing.T) {
 	}
 }
 
+func TestRoutineTriggerLiveAttributeCapture(t *testing.T) {
+	e, s, read, relation, d := triggerUnitFixture(t, "BEGIN IF current_setting('application_name')='live-trigger' THEN NEW.v := NEW.v+10; ELSE NEW.v := NEW.v+1; END IF; RETURN NEW; END")
+	definition := triggerUnitDefinition(t, read, relation, d, "live", stored.TriggerInsert)
+	relation = triggerUnitInstall(t, e, relation, definition)
+	triggerUnitAdmit(t, s, relation)
+	if err := core.ScopeSnapshotDataPhase(s); err != nil {
+		t.Fatal(err)
+	}
+	leavePolicy := core.ActivateRoutineCommandPolicy(s, &catalog.Procedure{Volatility: expr.Stable})
+	defer leavePolicy()
+	callerDemand := core.ScopeSQLRoutine(s)
+	integer, _ := read.LookupType(sqltype.Int4)
+	row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 5)}
+	ref := read.Owner().Domain.Ref(read.Epoch(), relation.Address())
+	request := dml.BeforeRow{Relation: ref, Event: dml.BeforeInsert, New: row}
+	first, err := s.WriteHost().BeforeRow(request)
+	if err != nil || !first.Proceed {
+		t.Fatal(err)
+	}
+	oldCapture := s.BeforeCaptures[dml.BeforeKey{Relation: ref, Event: dml.BeforeInsert}]
+	changed := *d
+	changed.ObjectRevision++
+	changed.Strict = true
+	changed.Configuration = catalog.NewRoutineConfiguration([]string{"application_name=live-trigger"})
+	e.Mu.Lock()
+	next := catalog.CloneState(e.Catalog.State)
+	next.SetDescriptor(d.Address(), &changed)
+	e.Catalog.PublishLocked(next)
+	e.Mu.Unlock()
+	second, err := s.WriteHost().BeforeRow(request)
+	if err != nil || !second.Proceed {
+		t.Fatal(err)
+	}
+	got, _ := second.Row[1].Integer()
+	retained, _ := first.Row[1].Integer()
+	scratch, _ := row[1].Integer()
+	capture := s.BeforeCaptures[dml.BeforeKey{Relation: ref, Event: dml.BeforeInsert}]
+	if got != 15 || retained != 6 || scratch != 5 || capture.Relation != oldCapture.Relation || capture.Catalog != oldCapture.Catalog || capture.Catalog.Get(d.Address()) != d || d.Configuration != nil {
+		t.Fatal("firing lost live attributes, retained relation roots or immutable row backing", got, retained, scratch)
+	}
+	if !core.SameSQLRoutineDemand(callerDemand, core.ScopeSQLRoutine(s)) {
+		t.Fatal("firing replaced caller frame/diagnostic or coherent policy backing")
+	}
+	if core.ScopeActiveSQLRoutineDepth(s) != 0 || s.Op.EffectiveUser != nil {
+		t.Fatal("live revision leaked firing depth/actor")
+	}
+}
+
 func TestTriggerCoreAtomicStage(t *testing.T) {
 	for _, phase := range []string{"finish_veto", "cancel", "close_veto"} {
 		t.Run(phase, func(t *testing.T) {

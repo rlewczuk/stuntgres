@@ -304,7 +304,7 @@ func TestSQLRoutineDomainRecipeTypeGeneration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				source := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 97100}, ObjectRevision: 1, ObjectNamespace: relation.Namespace(), ObjectName: "value", Signature: "23", RoutineKind: catalog.FunctionRoutine, Result: 23, Volatility: expr.Volatile, SQL: definition, SQLDefaults: defaults, SQLBody: program}
+				source := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 97100}, ObjectRevision: 1, ObjectNamespace: relation.Namespace(), ObjectName: "value", Signature: "23", RoutineKind: catalog.FunctionRoutine, Result: 23, Volatility: expr.Volatile, Parallel: 'u', Cost: 100, SQL: definition, SQLDefaults: defaults, SQLBody: program}
 				source.Owner = bootstrap.Ref
 				source.Language = language.Address()
 				read.State().SetDescriptor(source.Address(), source)

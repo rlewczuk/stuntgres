@@ -39,11 +39,21 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	if table(auth.Session.TemporaryNamespace) {
 		return auth.Session.TemporaryNamespace
 	}
-	if owner := auth.Session.Transactions; owner != nil && owner.Catalog != nil {
-		for a, d := range auth.Catalog.Descriptors() {
-			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.Session.SessionToken {
-				return a
-			}
+	// Routine commands can see their first temporary namespace in the statement
+	// candidate before Finish moves it into the transaction journal.
+	statementCandidate := auth.Statement != nil && auth.Statement.Catalog != nil
+	if owner := auth.Session.Transactions; statementCandidate || owner != nil && owner.Catalog != nil {
+		return temporaryNamespaceInCatalog(auth.Catalog, auth.Session.SessionToken)
+	}
+	return ids.ObjectAddress{}
+}
+
+// Keep the iterator's captured state off the common staged/active lookup path.
+// Only a private catalog can introduce a namespace before session publication.
+func temporaryNamespaceInCatalog(read catalog.Read, token ids.SessionToken) ids.ObjectAddress {
+	for a, ns := range read.TemporaryNamespaces() {
+		if !ns.TemporaryToast && ns.Temporary == token {
+			return a
 		}
 	}
 	return ids.ObjectAddress{}

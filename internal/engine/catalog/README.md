@@ -19,11 +19,18 @@ private frames, not catalog authority.
   procedures, operators, collations, conversions, extensions, foreign objects,
   large objects, access methods, casts, operator classes and families, ...) and
   their records. Read identity through the `Descriptor` methods.
-  `Procedure.Display` holds immutable creation-owned language/source/security
-  facts, with invalid zero language and legitimately empty source. It is distinct
-  from execution `Language`, supplies no capability, and survives identity, ACL,
-  ownership and replacement remapping by value. PL call handlers are nonstrict;
+  `Procedure.Display` holds immutable creation-owned language/source facts,
+  with invalid zero language and legitimately empty source. Semantic strictness,
+  volatility, security, parallel safety, cost, rows and configuration belong to
+  `Procedure` itself. `RoutineConfiguration` copies ordered normalized name=value
+  entries once and exposes read-only indexing; nil denotes no configuration.
+  COW identity/principal remaps share that immutable backing. Display is distinct
+  from execution `Language` and supplies no capability. PL call handlers are nonstrict;
   inline and validator handlers are strict, all with zero execution Language.
+  `Procedure.ReturnsSet` reads intrinsic SQL/builtin/installed capability;
+  `RowEstimate` applies positive canonical `Rows` overrides only to genuine set
+  declarations, retaining released/provider defaults when no override exists.
+  Scalar estimates remain zero independently of mutable estimate fields.
   `InstalledRoutineDeclaration` retains immutable parallel/set/row-estimate and
   trailing-default counts by value. Its comparable `Outputs` pointer and the
   builtin declaration's `Outputs` own fixed native OUT type IDs and complete
@@ -420,8 +427,8 @@ publication, including the candidate publication helpers) are units in
 `internal/engine`.
 System-attribute eligibility and provenance use `RUN='^TestCatalogTableOID'`,
 including the bootstrap inventory in the existing external enginetests owner.
-Immutable fixed-OUT declaration backing and comparable installed identities use
-`RUN='^TestRoutineOutputDeclarationOwnership$'`, also with `RACE=1`.
+Immutable routine declaration/configuration backing and comparable installed identities use
+`RUN='^TestRoutine(OutputDeclarationOwnership|Attribute)'`, also with `RACE=1`.
 
 
 ```sh

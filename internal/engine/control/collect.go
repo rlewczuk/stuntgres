@@ -261,7 +261,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
 			return fmt.Errorf("stuntgres: dump cannot serialize altered generated constructor authority")
 		}
-		return nil
+		return c.collectProvider(t)
 	}
 	if t.PLHandler != catalog.NoPLHandler {
 		if err := catalog.ValidatePLHandler(c.CatalogView, t); err != nil {
@@ -270,7 +270,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
 			return fmt.Errorf("stuntgres: dump cannot serialize altered PL handler authority")
 		}
-		return nil
+		return c.collectProvider(t)
 	}
 	if t.DynamicCallable() {
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {

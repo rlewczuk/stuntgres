@@ -1,11 +1,9 @@
-package pgcatalog
-
-import "stuntgres/internal/engine/catalog"
+package catalog
 
 // Released estimates for the set declarations already exposed by this catalog.
 // The default is 1000; exceptions are keyed by declaration identity, not labels.
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
-func builtinRoutineRows(d *catalog.BuiltinRoutineDeclaration) float64 {
+func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 	switch d.Identity.ID {
 	case 2763: // regexp_matches(text,text)
 		return 1
@@ -14,7 +12,7 @@ func builtinRoutineRows(d *catalog.BuiltinRoutineDeclaration) float64 {
 	case 4100, 5052, 5064: // shared-memory allocations and pg_snapshot_xip
 		return 50
 	case 1293, 2331, // multirange and array unnest
-		3084, // extension update paths
+		3084,                                           // extension update paths
 		3205, 3208, 3219, 3465, 3475, 3491, 3931, 3932, // JSONB sets
 		3955, 3957, 3958, 3959, 3961, 3969: // JSON sets
 		return 100

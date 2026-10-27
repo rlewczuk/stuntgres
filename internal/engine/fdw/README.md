@@ -30,6 +30,10 @@ driver import it.
   for bootstrap and replacement. SQL DROP does not unregister a driver's
   capability; a foreign source cannot supply its callback. Tokens are selected
   while constructing a private candidate, never by runtime name fallback.
+  Core installation records each genuine handler/validator descriptor in both
+  the exact name/signature map and the copy-on-write procedure-name index, so
+  ordinary utility admission resolves the same capability identity. Handlers
+  retain their empty input signature; validators retain `text[], oid`.
   Replacement rebinds imported tokens (`RebindReplacementProviders`) before
   the single strict source-principal graph memo is constructed. Historical original carriers use that same scoped
   source-to-destination token map; retained destination TEMP authority stays separate.

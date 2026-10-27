@@ -151,7 +151,14 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 	return s.Op.Context().Err()
 }
 
-func (s *StatementScope) invokePLEventTrigger(d *catalog.Procedure, frame *proc.PLFrame, read catalog.Read) error {
+func (s *StatementScope) invokePLEventTrigger(d *catalog.Procedure, frame *proc.PLFrame, read catalog.Read) (err error) {
+	leaveEnvironment, err := s.enterRoutineEnvironment(d)
+	if err != nil {
+		return err
+	}
+	defer func() { err = leaveEnvironment(err) }()
+	leavePolicy := s.activateRoutineCommandPolicy(d)
+	defer leavePolicy()
 	identity, err := s.plDiagnosticIdentityFor(d, read)
 	if err != nil {
 		return err

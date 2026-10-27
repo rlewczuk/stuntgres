@@ -306,7 +306,7 @@ type TypeName struct {
 	Schema      *Identifier
 	Modifiers   []TypeModifier
 	ArrayBounds []int32
-	// Standalone regtype syntax retains qualification and SQL-alias provenance.
+	// Qualified calls and standalone regtype syntax retain identifier positions.
 	Parts  []Identifier
 	System bool
 	Setof  bool
@@ -2268,12 +2268,13 @@ func ExpressionStart(expr Expr) Position {
 
 // Set uses setting-specific scalar text; Default is distinct from quoted text.
 type Set struct {
-	Name     Identifier
-	Local    bool
-	Default  bool
-	Values   []string
-	Interval *TimeZoneInterval
-	Pos      Position
+	Name        Identifier
+	Local       bool
+	Default     bool
+	FromCurrent bool
+	Values      []string
+	Interval    *TimeZoneInterval
+	Pos         Position
 }
 
 func (*Set) statement() {}
@@ -2513,16 +2514,6 @@ type Reset struct {
 
 func (*Reset) statement() {}
 
-type SettingCall struct {
-	Name    string
-	Args    []Expr
-	Pos     Position
-	NamePos Position // Final function-name component, independently of the qualified call start.
-	Schema  *Identifier
-}
-
-func (*SettingCall) statement() {}
-
 type CreateSchema struct {
 	Name                  string
 	Authorization         string
@@ -2576,10 +2567,20 @@ func settingIdentifier(value string) string {
 	}
 	return "\"" + strings.ReplaceAll(value, "\"", "\"\"") + "\""
 }
+
+// SettingQuotesIdentifiers identifies GUC_LIST_QUOTE settings. Their SQL SET
+// arguments are separate identifiers, not one string containing the joined list.
+func SettingQuotesIdentifiers(name string) bool {
+	switch strings.ToLower(name) {
+	case "search_path", "temp_tablespaces", "local_preload_libraries", "session_preload_libraries", "shared_preload_libraries", "output_plugin_libraries":
+		return true
+	}
+	return false
+}
+
 func parsedSet(name Identifier, list settingList, pos Position) *Set {
 	values := list.values
-	switch strings.ToLower(name.Text) {
-	case "search_path", "temp_tablespaces", "local_preload_libraries", "session_preload_libraries", "shared_preload_libraries", "output_plugin_libraries":
+	if SettingQuotesIdentifiers(name.Text) {
 		for i, isString := range list.stringValues {
 			if isString {
 				values[i] = settingIdentifier(values[i])

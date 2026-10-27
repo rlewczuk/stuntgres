@@ -24,6 +24,12 @@ catalog casts, stored catalog fields and null-extended lateral outputs.
 `resultsCountBoth` checks COUNT's known-nonnullable native result. These profiles
 do not change pq expectations or omit any metadata accessor.
 
+Attribute scenarios use `attributesSettingBoth` for direct setting-call TEXT
+results, with explicit known-nullable native metadata and unchanged pq unknown
+nullability. `attributesTextBoth` keeps computed nullability unknown for wrappers,
+identity casts and user-routine results; profiles are selected by the caller, not
+by inspecting SQL text.
+
 Routine formal-catalog scenarios read the complete represented non-IN builtin
 roster and explicit all-IN counterexamples through direct and prepared queries.
 Declaration expectations come from released catalog/contrib sources. Installed

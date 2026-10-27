@@ -79,6 +79,16 @@ func (c *Context) Advisory(action functions.AdvisoryAction, mode functions.Advis
 	return host.Advisory(c, action, mode, lifetime, first, second, pair, result)
 }
 
+var _ functions.SettingRuntime = (*Context)(nil)
+
+func (c *Context) InvokeSetting(name string, inputs []sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, errors.New("stuntgres: setting call lacks statement authority")
+	}
+	return host.InvokeSetting(name, inputs, result)
+}
+
 var _ functions.BlockingRuntime = (*Context)(nil)
 
 func (c *Context) BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error) {

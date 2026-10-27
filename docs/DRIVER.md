@@ -189,6 +189,29 @@ ordinary SQL errors leave the connection reusable.
   routine kind is checked after selecting the winner. SQL and PL bodies borrow
   the same statement transaction, with no separate commit or result lifetime.
   SQL-body calls with outputs are rejected rather than inventing copyback.
+- **Routine execution context.** Runtime calls check current EXECUTE authority
+  before strict NULL suppression; constant-NULL simplification can avoid a call.
+  A variadic array is one input value, independently of its NULL elements.
+  SECURITY DEFINER uses the current routine owner for the body, without changing
+  the authenticated session identity. Routine-local settings nest with the call:
+  LOCAL changes remain confined, while ordinary SET can survive successful return
+  and remains subject to transaction rollback. SQL and PL bodies share this
+  context and restore it on errors and cancellation. Volatility governs body
+  command admission and snapshots; parallel, cost and rows attributes are
+  declaration metadata, not a promise of worker scheduling.
+  Supported PL DML-trigger and event-trigger bodies install the same live
+  owner/configuration/volatility environment. Firing retains its own admission
+  rules; it does not add an ordinary-call EXECUTE check. ALTER attributes and
+  owner changes affect subsequent firings, including held outer commands.
+  Non-SQL intrinsic/native providers reject execution-attribute clauses (including
+  semantic no-ops) with `0A000` before publication; they do not acquire an
+  invented SQL/PL invocation wrapper. Their admitted parallel/cost/rows patches
+  are real SQL-visible declaration metadata, separate from execution behavior.
+  ROWS changes the estimate, not intrinsic set capability or returned rows;
+  defaults remain provider-owned until explicitly changed. Declaration-time
+  setting normalization is non-installing; native injected callbacks run outside
+  publication locks, and stale or unauthorized candidates cannot publish after
+  callback reentry.
 - **Multi-statement strings.** A parameterless `ExecContext`/`QueryContext` may
   contain several statements. The whole string is parsed first, then commands run
   in order and stop at the first error. `Exec` reports the last command's count;
@@ -227,7 +250,7 @@ do not apply their effects; Execute checks current role, schema and provider
 authority. Held handles participate in the executing owner's transaction and can
 be reused after savepoint recovery. SQL `PREPARE` retains its own syntax policy.
 
-Routine rename/schema/owner DDL has no parameter/result signature; Prepare stays
+Routine identity and attribute DDL has no parameter/result signature; Prepare stays
 effect-free and Execute owns authorization and read-only/transaction admission.
 Affected original Go/SQL prepared source reanalyzes: an old spelling may fail
 42883, and recreating it legitimately binds the replacement. Hard stored calls

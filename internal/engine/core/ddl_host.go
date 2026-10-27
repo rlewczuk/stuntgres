@@ -27,9 +27,11 @@ import (
 // TableHost (table_host.go), TypeHost (typedef_host.go), ViewHost
 // (view_host.go), RoutineHost (routine_host.go), RoleHost (role_host.go)
 // and SchemaHost (schema_host.go). Family code builds its own host.
-// Staging runs under Engine.mu without a StatementScope, so it holds the
-// engine, the operation and the catalog stage, and no authorization view: the
-// handlers pass their authority in. Like extensionHost it wraps the stage and
+// Staging enters and returns under Engine.Mu and holds the engine, operation
+// and catalog stage, but no authorization view: handlers pass their authority
+// in. ValidateRoutineSetting alone suspends staging for external Normalize,
+// releasing Engine.Mu and the active statement's replacement reservation before
+// exact live readmission. Like extensionHost it wraps the stage and
 // is never a defined type over CatalogStage, so Create and Replace keep the
 // stage's lifecycle checks.
 type DDLHost struct {

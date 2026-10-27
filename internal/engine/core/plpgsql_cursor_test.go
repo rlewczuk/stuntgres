@@ -32,7 +32,7 @@ func cursorOwnerRoutine(t *testing.T, e *core.Engine, s *core.StatementScope, so
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := &catalog.Procedure{ObjectName: "cursor_owner_unit", Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "cursor_owner_unit", Source: source, Result: integer.Usage(), PLSyntax: raw}}
+	d := &catalog.Procedure{ObjectName: "cursor_owner_unit", RoutineKind: catalog.FunctionRoutine, Volatility: expr.Volatile, Parallel: 'u', Cost: 100, Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "cursor_owner_unit", Source: source, Result: integer.Usage(), PLSyntax: raw}}
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil {

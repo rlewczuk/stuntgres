@@ -42,8 +42,10 @@ implement its slots, so either import would form a cycle.
   them, payload first. Checked
   handles (`owner_handles.go`) recover owners from the `ids` interfaces;
   `AssignModes`, `CharacteristicMode` and `SessionCharacteristicSetting` decide
-  transaction modes and their session defaults
-  (`transaction_characteristics.go`); `SerializableWriteSurvives` tells rollback
+  transaction modes and their session defaults. `CheckModes` shares the same
+  evaluation without assignment, including caller-owned utility snapshots;
+  callers serialize owner inspection through admission or the owner mutex
+  (`transaction_characteristics.go`). `SerializableWriteSurvives` tells rollback
   which serializable write evidence survives.
   Stable isolation retains immutable tuple roots, the commit frontier, sequence
   catalog and public transaction snapshot as one acquisition on this owner.
@@ -63,10 +65,15 @@ implement its slots, so either import would form a cycle.
   `PublicationPreflightLocked` over a `PreparedPublication`.
   `PreparedTransaction.CheckActor` takes the roles as an `authorization.Read`
   value; the claim shares its permission check.
-- **Settings store** (`settings_store.go`): `SettingsStore` (values, defaults,
-  provider provenance, SET LOCAL and role setting actions, characteristic
-  projections) and `SettingsMark`. Default providers run once at physical
-  startup, never for metadata reads or RESET.
+- **Settings store** (`settings_store.go`, `routine_settings.go`): `SettingsStore`
+  owns values, defaults, provider provenance and one explicit SET/LOCAL/SAVE
+  journal. Routine SAVE levels capture only touched variables, with immutable
+  per-variable tails and masked SET candidates; no whole-store snapshot is used.
+  SAVE restores entry values, LOCAL remains confined, and ordinary SET merges
+  outward while retaining transaction rollback authority. Nested SET/LOCAL
+  merges retain the effective LOCAL until transaction completion. `SettingsMark`
+  retains action state and nesting for exception/savepoint rollback. Default
+  providers run once at physical startup, never for metadata reads or RESET.
   Effective defaults use the registry's cached `DefaultValue`, separately from
   nullable boot/reset metadata. Startup-only provider values must equal that
   effective default; identical supplied values retain provider provenance.
@@ -158,6 +165,12 @@ implement its slots, so either import would form a cycle.
   projections. Internal exception marks retain the complete invocation image
   and initial-path marker; data/catalog rollback is independent of session
   setting restoration.
+- **Local-userid routine environment** (`effective_user.go`): an operation-local
+  `EffectiveUserInvocation` stack selects a definer's live owner without changing
+  SET ROLE, authenticated/session identity or the effective settings store.
+  Invokers inherit it. It is distinct from `RestrictedInvocation`; nesting keeps
+  maintenance restrictions and the most recently entered actor's precedence.
+  Core owns balanced entry, authority/presentation refresh and unwinding.
 - **Statement classification** (pure functions of the AST and owner values):
   command tags (`command_tag.go`); admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,
@@ -371,7 +384,7 @@ types.
 ## Testing
 
 Package units cover the journal with its fences, capture and merge, notices,
-SET LOCAL actions, RESET ALL and SHOW ALL, the 2PC registry's claim and preflight, CHAIN modes and
+SET/LOCAL/SAVE actions, RESET ALL and SHOW ALL, the 2PC registry's claim and preflight, CHAIN modes and
 PREPARE refusals, the notification
 queue, registry and publication, characteristic modes and session
 characteristic settings, serializable write
@@ -381,6 +394,9 @@ tests (in `internal/engine`) cover the host and root slots, catalog fences,
 column-shape projections, data-view and snapshot capture, and settings
 provider capture. Metadata unit fixtures capture validated operation authority
 before reading settings; a zero or incomplete role view is not a visibility grant.
+Routine configuration journal units live in `enginetests/` and use
+`RUN='^TestRoutineConfiguration'`, also with `RACE=1`; they assert typed action
+ownership, immutable checkpoint backing and transaction versus SAVE boundaries.
 
 ```sh
 make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|TransactionalSchemaAdmission|StatementPhases|DataView|PrivateStorage|CommittedRoots|NeedsSnapshotProjection|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'

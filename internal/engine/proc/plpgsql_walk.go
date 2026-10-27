@@ -34,7 +34,7 @@ func (r *PLRun) Invoke(input *Frame, collation sqltype.CollationRef) (sqltype.Va
 	if flow.Kind != PLNormal && flow.Kind != PLReturn {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: unconsumed PL control transfer")
 	}
-	if d.PL.Procedure {
+	if d.PL.Procedure || d.DerivedResult() {
 		if err := r.Host.Context().Err(); err != nil {
 			return sqltype.Value{}, err
 		}

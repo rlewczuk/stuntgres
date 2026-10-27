@@ -21,9 +21,6 @@ import (
 // StageCreateFunction stages CREATE FUNCTION ... LANGUAGE SQL and binds its
 // body against the stage, except during Restore SQL body replay.
 func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
-	if s.Procedure && s.InvalidAttribute.Character != 0 {
-		return expr.ErrorAt("42P13", "invalid attribute in procedure definition", s.InvalidAttribute)
-	}
 	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -96,9 +93,6 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	for i, input := range inputs {
 		signature[i] = strconv.FormatUint(uint64(input.Type.ID()), 10)
 	}
-	if !s.Procedure && s.Language.Text != "sql" && len(layout.OutputFormals) > 1 {
-		return sqlError("0A000", "multiple-output SQL function execution is unsupported")
-	}
 	resultSyntax := s.Result
 	var result sqltype.Usage
 	if s.Procedure && len(layout.OutputFormals) == 0 {
@@ -151,12 +145,9 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Volatile}
-	d.Strict = s.Strict
-	if s.Volatility != "" {
-		if s.Volatility != "volatile" {
-			return expr.ErrorAt("0A000", "SQL function attributes are unsupported", s.Pos)
-		}
-		d.Volatility = expr.Volatile
+	d.Parallel, d.Cost = 'u', 100
+	if layout.ReturnsSet {
+		d.Rows = 1000
 	}
 	d.Language = h.AccessView(auth).Catalog.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: s.Language.Text})
 	if s.Procedure {
@@ -194,6 +185,12 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			return err
 		}
 		d.ObjectAddress, d.Owner, d.ACL, d.Extension = previous.Address(), previous.Owner, previous.ACL, previous.Extension
+	}
+	if err = normalizeRoutineAttributes(h, auth, d, s.Attributes, layout.ReturnsSet); err != nil {
+		return err
+	}
+	if err = h.ValidateRoutineConfiguration(d); err != nil {
+		return err
 	}
 	if err = proc.ValidatePseudoLanguageSignature(inputs, outputs, formals, s.Language.Text, s.Standard != nil); err != nil {
 		return err

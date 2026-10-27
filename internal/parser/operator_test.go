@@ -195,6 +195,7 @@ func TestUserOperatorConsumerAdmissionGrammar(t *testing.T) {
 		"SELECT (num_nulls(NULL))::int FROM t",
 		"SELECT (num_nulls(NULL))+1",
 		"SELECT abs(num_nulls(NULL))",
+		"SELECT current_setting(num_nulls(NULL))",
 		"INSERT INTO t (VALUES(abs(1)) LIMIT 1) UNION ALL SELECT 2",
 	} {
 		if statements, err := Parse(q); err != nil || len(statements) != 1 {
@@ -205,7 +206,6 @@ func TestUserOperatorConsumerAdmissionGrammar(t *testing.T) {
 		"SELECT num_nulls(NULL)::int FROM t",
 		"SELECT CAST(num_nulls(NULL) AS int) FROM t",
 		"SELECT num_nulls(NULL)+1 FROM t",
-		"SELECT current_setting(num_nulls(NULL))",
 		"INSERT INTO t VALUES(abs(1))",
 		"INSERT INTO t ((VALUES(abs(1)) ORDER BY 1 LIMIT 1))",
 		"INSERT INTO t VALUES(num_nulls(NULL))",

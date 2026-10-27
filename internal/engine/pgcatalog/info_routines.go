@@ -151,7 +151,7 @@ func captureInfoRoutines(in Input) ([][]sqltype.Value, error) {
 			return nil, err
 		}
 		text(49, "INVOKER")
-		if routine.Display.SecurityDefiner {
+		if routine.SecurityDefiner {
 			text(49, "DEFINER")
 		}
 		text(53, "NO")

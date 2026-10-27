@@ -25,6 +25,7 @@ type SettingsStore struct {
 	ProviderDefaults    map[string]bool // Captured present responses, even when equal to boot.
 	Actions             map[string]settingAction
 	RoleAction          roleSettingAction
+	NestLevel           int // Zero outside explicit SAVE frames; transaction base is level one.
 	// Physical-session sticky simulated TEMP initialization; not journaled.
 	// Detached images share the original authority rather than snapshotting it.
 	// Atomic access avoids taking the live store mutex under a detached store's
@@ -65,12 +66,15 @@ type settingAction struct {
 	original  settingOverride
 	candidate settingOverride
 	kind      uint8
+	level     int
+	previous  *settingAction // Immutable tail; savepoint map copies may share it.
 }
 
 const (
 	settingSession uint8 = iota
 	settingLocal
 	settingSessionLocal
+	settingSave
 )
 
 // A role has one typed journal entry, not a generic string-setting override.
@@ -129,26 +133,54 @@ func (s *SettingsStore) Restore(name string, v settingOverride) {
 		delete(s.Typed, name)
 	}
 }
-func (s *SettingsStore) Touch(name string, local bool) {
+
+// SettingAction distinguishes ordinary assignment, transaction-local assignment
+// and a routine's save/restore assignment. All three share one journal.
+type SettingAction uint8
+
+const (
+	SettingSet SettingAction = iota
+	SettingLocal
+	SettingSave
+)
+
+func SettingAssignment(local bool) SettingAction {
+	if local {
+		return SettingLocal
+	}
+	return SettingSet
+}
+
+func (s *SettingsStore) Touch(name string, action SettingAction) {
 	if s.Actions == nil {
 		s.Actions = make(map[string]settingAction)
 	}
-	a, exists := s.Actions[name]
-	if !exists {
-		a.original = s.override(name)
+	level := s.NestLevel
+	if level < 1 {
+		level = 1
 	}
-	if !local {
-		a.kind = settingSession
-		a.candidate = settingOverride{}
-	} else if !exists {
-		a.kind = settingLocal
-	} else if a.kind == settingSession {
+	a, exists := s.Actions[name]
+	if !exists || a.level < level {
+		var previous *settingAction
+		if exists {
+			copy := a
+			previous = &copy
+		}
+		a = settingAction{original: s.override(name), level: level, previous: previous}
+		switch action {
+		case SettingSet:
+			a.kind = settingSession
+		case SettingLocal:
+			a.kind = settingLocal
+		case SettingSave:
+			a.kind = settingSave
+		}
+	} else if action == SettingSet {
+		a.kind, a.candidate = settingSession, settingOverride{}
+	} else if action == SettingLocal && a.kind == settingSession {
 		a.kind = settingSessionLocal
 		a.candidate = s.override(name)
 		if !a.candidate.Present {
-			// PostgreSQL restores a masked SET value with source=session,
-			// even when that SET restored a cached default. Preserve the
-			// effective typed value, not an absent override or parsed display.
 			a.candidate = settingOverride{Present: true, Text: s.Value(name), Typed: s.TypedValue(name)}
 		}
 	}
@@ -193,6 +225,7 @@ func (s *SettingsStore) FinishTransaction(commit bool) {
 	}
 	s.Actions = nil
 	s.RoleAction = roleSettingAction{}
+	s.NestLevel = 0
 }
 
 func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]settings.Definition, names []string, provider settings.SessionDefaultProvider) error {
@@ -250,6 +283,7 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.ProviderDefaults = nil
 	s.Actions = nil
 	s.RoleAction = roleSettingAction{}
+	s.NestLevel = 0
 	atomic.StoreInt64(&s.temporaryBuffers, 0)
 	return nil
 }

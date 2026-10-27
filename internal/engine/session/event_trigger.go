@@ -88,7 +88,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		*parser.Do, *parser.Load, *parser.Vacuum, *parser.Truncate, *parser.LockTable,
 		*parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor,
 		*parser.Listen, *parser.Unlisten, *parser.Notify, *parser.Discard,
-		*parser.Set, *parser.Reset, *parser.Show, *parser.SettingCall, *parser.RoleSelection, *parser.SessionAuthorization,
+		*parser.Set, *parser.Reset, *parser.Show, *parser.RoleSelection, *parser.SessionAuthorization,
 		*parser.TransactionControl, *parser.TransactionCharacteristics, *parser.SavepointControl, *parser.SetConstraints:
 		return "", false
 	default:

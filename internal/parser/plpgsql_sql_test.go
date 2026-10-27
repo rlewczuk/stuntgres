@@ -18,6 +18,7 @@ func TestPLpgSQLSQLExecutionParser(t *testing.T) {
 		{"INSERT INTO q VALUES(1)", PLCommandSQL, reflect.TypeOf(&Insert{})},
 		{"UPDATE q SET i=2", PLCommandSQL, reflect.TypeOf(&Update{})},
 		{"DELETE FROM q", PLCommandSQL, reflect.TypeOf(&Delete{})},
+		{"MERGE INTO q d USING (SELECT 1 AS i) s ON d.i=s.i WHEN MATCHED THEN UPDATE SET i=2", PLCommandSQL, reflect.TypeOf(&Merge{})},
 		{"PERFORM /* é */ 1 FROM q", PLPerformSQL, reflect.TypeOf(&Select{})},
 		{"PERFORM set_config('application_name',x::text,false)", PLPerformSQL, reflect.TypeOf(&Select{})},
 		{"VALUES(1)", PLCommandSQL, reflect.TypeOf(&Select{})},
@@ -53,6 +54,18 @@ func TestPLpgSQLSQLExecutionParser(t *testing.T) {
 	block, err := ParsePLpgSQL(source, PLReturnPolicy{})
 	if err != nil || block.Statements[0].Target == nil || block.Statements[1].Into == nil || block.Statements[2].QueryLoop == nil || block.Statements[3].Cursor == nil {
 		t.Fatal("contextual head/capture/cursor boundary", err)
+	}
+	captured, err := ParsePLpgSQL("DECLARE x integer; BEGIN MERGE INTO q d USING s ON d.i=s.i WHEN MATCHED THEN DELETE RETURNING d.i INTO x; END", PLReturnPolicy{})
+	if err != nil {
+		t.Fatal("MERGE relation/destination INTO", err)
+	}
+	capture := captured.Statements[0].Into
+	if capture == nil || len(capture.Targets) != 1 {
+		t.Fatal("MERGE RETURNING lost its procedural destination", capture)
+	}
+	merged, ok := capture.Query.(*Merge)
+	if !ok || merged.Alias.Text != "d" || merged.Returning == nil || len(merged.Returning.Targets) != 1 {
+		t.Fatal("MERGE relation INTO or alias was stripped", capture.Query)
 	}
 	retained := block.Statements[2].QueryLoop.Body.Statements[0].SQL
 	before := *retained

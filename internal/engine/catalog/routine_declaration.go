@@ -31,6 +31,36 @@ type BuiltinRoutineDeclaration struct {
 	Outputs    *RoutineOutputs
 }
 
+// ReturnsSet describes the intrinsic result capability, independently of mutable
+// row estimates and the routine's current public name.
+func (d *Procedure) ReturnsSet() bool {
+	if d.SQL != nil {
+		return d.SQL.ReturnsSet
+	}
+	if d.Builtin != nil {
+		return d.Builtin.ReturnsSet
+	}
+	return d.Installed.ReturnsSet
+}
+
+// RowEstimate applies an explicit canonical estimate only to a genuine set
+// declaration. Zero leaves the immutable provider's released default intact.
+func (d *Procedure) RowEstimate() float32 {
+	if !d.ReturnsSet() {
+		return 0
+	}
+	if d.Rows > 0 {
+		return d.Rows
+	}
+	if d.SQL != nil {
+		return 1000
+	}
+	if d.Builtin != nil {
+		return builtinRoutineRows(d.Builtin)
+	}
+	return d.Installed.Rows
+}
+
 func (d *Procedure) Seeded() bool {
 	return d.PLHandler != NoPLHandler || d.Builtin != nil || d.Conversion.Name() != "" || d.BrinSupport != 0 || d.AccessMethod != NoAccessMethod && NativeHandler(d.Address().ObjectID) == d.AccessMethod
 }

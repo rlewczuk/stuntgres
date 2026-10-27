@@ -23,6 +23,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
 		return invalid()
 	}
+	if p.SecurityDefiner || p.Configuration != nil {
+		return invalid()
+	}
 	if p.Installed.Outputs != nil && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect {
 		return invalid()
 	}
@@ -119,6 +122,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		}
 		m := IntaggMembers[slot]
 		name, signature, result, strict, kind = m.Name, m.Signature, m.Result, m.Strict, m.Kind
+		if p.Installed != intaggDeclaration(slot) {
+			return invalid()
+		}
 	case StockEarthdistance:
 		count = EarthMemberCount
 		if ext.Version != "1.2" || slot < 2 || slot >= EarthPointOperatorSlot {

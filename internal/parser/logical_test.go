@@ -79,13 +79,25 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 	for _, q := range []string{
 		"SELECT id=1=TRUE FROM t",
 		"INSERT INTO t VALUES(TRUE AND FALSE)", "INSERT INTO t VALUES(NOT TRUE)",
-		"SELECT current_setting(TRUE AND FALSE)", "SET application_name TO TRUE AND FALSE",
+		"SET application_name TO TRUE AND FALSE",
 		"CREATE TABLE or(a BOOL)", "SELECT or FROM t", "INSERT INTO t VALUES(1); SELECT TRUE AND FROM t",
 	} {
 		stmts, err := Parse(q)
 		if err == nil || stmts != nil {
 			t.Fatal("scope expansion or executable prefix", q, stmts, err)
 		}
+	}
+	statements, err := Parse("SELECT current_setting(TRUE AND FALSE)")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	call, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
+	if !ok || len(call.Args) != 1 || call.Name.Parts[0].Text != "current_setting" {
+		t.Fatal("setting call lost ordinary argument", statements)
+	}
+	argument, ok := call.Args[0].(LogicalExpr)
+	if !ok || argument.Op != LogicalAnd || argument.Pos.Character != 29 || argument.SourcePosition().Character != 24 {
+		t.Fatal("setting call lost logical argument or positions", call)
 	}
 	for _, q := range []string{"SELECT TRUE AND FALSE", "SELECT a AND b AS result FROM t", "SELECT t.a AND b FROM t", "INSERT INTO t SELECT TRUE AND FALSE FROM t RETURNING a"} {
 		statements, err := Parse(q)

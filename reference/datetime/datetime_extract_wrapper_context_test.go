@@ -44,21 +44,11 @@ func TestReferenceDatetimeExtractWrapperContext(t *testing.T) {
 		step := fixture.Select("SELECT date_part(CASE WHEN random()>-1 THEN 'year' ELSE 'month' END,DATE '2000-01-01')", []string{"date_part"}, []string{"FLOAT8"}, [][]any{{float64(2000)}})
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(step))
-		// current_setting remains outside this bounded argument language.
-		// Preserve its independent PostgreSQL result and native boundary.
-		for _, tc := range []struct{ name, q, code, message, position string }{
-			{"current_setting_boundary", "SELECT date_part(current_setting('application_name'),DATE '2000-01-01')", "0A000", "functions are unsupported", "18"},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				d := datetimeExtractFieldDiagnostic("0A000", "timezone", "timestamp without time zone")
-				stage := "execute"
-				if !b.PG {
-					d = fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
-					d.Position = tc.position
-					stage = "prepare"
-				}
-				datetimeExtractFailure(t, p, b, c, tc.q, d, stage)
-			})
-		}
+		// The setting expression is STABLE, so PostgreSQL inlines the DATE
+		// wrapper without adding a SQL-function execution context.
+		t.Run("current_setting_boundary", func(t *testing.T) {
+			d := datetimeExtractFieldDiagnostic("0A000", "timezone", "timestamp without time zone")
+			datetimeExtractFailure(t, p, b, c, "SELECT date_part(current_setting('application_name'),DATE '2000-01-01')", d, "execute")
+		})
 	})
 }

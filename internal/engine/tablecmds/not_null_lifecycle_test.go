@@ -271,15 +271,29 @@ func TestNotNullIntegratedAXLockTimeout(t *testing.T) {
 				enginetest.SessionSQL(t, a, "CREATE TABLE t(a INT,b INT CONSTRAINT b_nn NOT NULL)")
 			}
 			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(7,8)")
-			enginetest.SessionSQL(t, b, "SET lock_timeout='80ms'")
 			ref := enginetest.RoleTableRef(t, e, "t")
 			old := e.Catalog.State.Get(ref.Address)
 			storage := e.Storage.Relations[ref.Address]
 			ends, generation := storage.Ends, storage.Generation
 			tx := enginetest.TransactionBegin(t, a)
 			enginetest.SessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-			done := waitsCommandAsync(e, b, context.Background(), q, false)
+			// Prove admission without racing the short timeout's expiry.
+			waitContext, cancel := context.WithCancel(context.Background())
+			waiting := waitsCommandAsync(e, b, waitContext, q, false)
+			joined := false
+			defer func() {
+				cancel()
+				if !joined {
+					enginetest.LockAwait(t, waiting, context.Canceled)
+				}
+			}()
 			enginetest.LockPending(t, e, 1)
+			cancel()
+			enginetest.LockAwait(t, waiting, context.Canceled)
+			joined = true
+			enginetest.LockPending(t, e, 0)
+			enginetest.SessionSQL(t, b, "SET lock_timeout='80ms'")
+			done := waitsCommandAsync(e, b, context.Background(), q, false)
 			select {
 			case err := <-done:
 				waitsDiagnostic(t, err, "55P03", "canceling statement due to lock timeout")

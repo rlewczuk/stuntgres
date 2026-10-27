@@ -125,6 +125,9 @@ func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltyp
 	if current.SQL == nil || captured.SQL == nil || current.Strict != captured.Strict || current.Display != captured.Display || current.SQL.Kind != captured.SQL.Kind || current.SQL.Invocation != captured.SQL.Invocation || current.PLHandler != captured.PLHandler || current.SQL.Standard != captured.SQL.Standard || current.SQL.Source != captured.SQL.Source || !slices.Equal(current.SQL.Names, captured.SQL.Names) || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
 		return false, nil
 	}
+	if current.Volatility != captured.Volatility || current.SecurityDefiner != captured.SecurityDefiner || current.Parallel != captured.Parallel || current.Cost != captured.Cost || current.Rows != captured.Rows || !catalog.SameRoutineConfiguration(current.Configuration, captured.Configuration) {
+		return false, nil
+	}
 	if current.SQL.Procedure != captured.SQL.Procedure || current.SQL.ReturnsSet != captured.SQL.ReturnsSet || current.SQL.TableResult != captured.SQL.TableResult {
 		return false, nil
 	}

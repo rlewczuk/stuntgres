@@ -97,6 +97,11 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	if auth.Catalog.State() == stage.Base.State() && auth.Revision == stage.AuthRevision && auth.RoleRecord.Revision == stage.RoleRevision {
 		return stage, nil
 	}
+	if stage.RoutineSettingNormalized {
+		// Reconstructing this stage would repeat external Normalize callbacks.
+		// Keep their original exact admission, or reject the stale command.
+		return stage, ids.ErrCatalogReplaced
+	}
 	for _, address := range addresses {
 		original := stage.Base.Get(address)
 		if original == nil {

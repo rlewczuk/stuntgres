@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
@@ -152,17 +153,21 @@ func TestProviderReplayInstalledTypeOrdering(t *testing.T) {
 			var out bytes.Buffer
 			alter := "ALTER FUNCTION isbn_src.isn_out(" + argument + ") RENAME TO moved_output;\n"
 			s := &dumpScript{Capture: &Capture{
-				Views: []OwnedStatement{{"postgres", "CREATE EXTENSION isn SCHEMA isbn_src;\n"}},
+				Views:       []OwnedStatement{{"postgres", "CREATE EXTENSION isn SCHEMA isbn_src;\n"}},
 				ViewIndices: map[ids.OID]int{10: 0},
 			}, eventOrder: []dump.Event{{OID: 10}},
 				extensionTypeAfter: 10,
-				extensionTypeSQL: schedule,
-				extensionMetadata: map[ids.OID]string{10: "-- member owners\n"},
+				extensionTypeSQL:   schedule,
+				extensionMetadata:  map[ids.OID]string{10: "-- member owners\n"},
 				providerStatements: []string{alter},
 			}
 			w := &dumpWriter{ctx: ctx, dst: &out}
-			if err := emitDumpProviderReplay(ctx, s, w); err != nil { t.Fatal(err) }
-			if err := emitDumpDeclaration(ctx, s, w, dump.Event{OID: 10}); err != nil { t.Fatal(err) }
+			if err := emitDumpProviderReplay(ctx, s, w); err != nil {
+				t.Fatal(err)
+			}
+			if err := emitDumpDeclaration(ctx, s, w, dump.Event{OID: 10}); err != nil {
+				t.Fatal(err)
+			}
 			text := out.String()
 			want := "CREATE EXTENSION isn SCHEMA isbn_src;\n" + schedule + alter + "-- member owners\n"
 			if !strings.HasSuffix(text, want) || strings.Count(text, schedule) != 1 || strings.Count(text, "CREATE EXTENSION") != 1 {
@@ -172,8 +177,12 @@ func TestProviderReplayInstalledTypeOrdering(t *testing.T) {
 			// ownership of the same scalar barrier, also exactly once.
 			s.providerStatements, s.extensionMetadata = nil, nil
 			out.Reset()
-			if err := emitDumpProviderReplay(ctx, s, w); err != nil || out.Len() != 0 { t.Fatal("unexpected early emission", err) }
-			if err := emitDumpDeclaration(ctx, s, w, dump.Event{OID: 10}); err != nil { t.Fatal(err) }
+			if err := emitDumpProviderReplay(ctx, s, w); err != nil || out.Len() != 0 {
+				t.Fatal("unexpected early emission", err)
+			}
+			if err := emitDumpDeclaration(ctx, s, w, dump.Event{OID: 10}); err != nil {
+				t.Fatal(err)
+			}
 			if got := out.String(); !strings.HasSuffix(got, s.Views[0].SQL+schedule) || strings.Count(got, schedule) != 1 {
 				t.Fatalf("ordinary declaration lost or duplicated scalar replay: %q", got)
 			}
@@ -326,5 +335,151 @@ func TestProviderReplayInternalIdentityArguments(t *testing.T) {
 	}
 	if len(broken.Providers) != 0 {
 		t.Fatal("missing identity entered replay")
+	}
+}
+
+func TestProviderReplayMetadataFinalIdentityAndOwner(t *testing.T) {
+	a := replayProvider("public", "a", "public", "b")
+	b := replayProvider("public", "b", "public", "a")
+	a.parallel, a.cost, a.rows = 'r', 9.25, 23
+	a.ownerChanged, a.owner = true, "recipient"
+	got, err := planProviderReplay([]providerReplay{a, b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantSuffix := []string{
+		"ALTER FUNCTION \"public\".\"b\"(integer) PARALLEL RESTRICTED;\n",
+		"ALTER FUNCTION \"public\".\"b\"(integer) COST 9.25;\n",
+		"ALTER FUNCTION \"public\".\"b\"(integer) ROWS 23;\n",
+		"ALTER FUNCTION \"public\".\"b\"(integer) OWNER TO \"recipient\";\n",
+	}
+	if len(got) != 7 || !slices.Equal(got[3:], wantSuffix) {
+		t.Fatalf("metadata did not follow complete collision replay before owner transfer: %q", got)
+	}
+	if a.original.name != "a" || a.current.name != "b" {
+		t.Fatal("planner mutated captured provider")
+	}
+}
+
+func TestProviderReplayCanonicalMetadataCapture(t *testing.T) {
+	source, _, _, _ := fdwUnitSource()
+	for _, seed := range routine.BuiltinProcedures(source.Bootstrap) {
+		if seed.Name() != "abs" || seed.Signature != "23" {
+			continue
+		}
+		original := seed
+		source.State.SetDescriptor(original.Address(), &original)
+		source.State.BindName(catalog.DescriptorNameKey(&original), original.Address())
+		c := &dumpCollection{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}, source: source}
+		if err := collectProcedureDump(context.Background(), c, original.Address(), &original); err != nil {
+			t.Fatal(err)
+		}
+		unchanged, err := planProviderReplay(c.Providers)
+		if err != nil || len(unchanged) != 0 {
+			t.Fatalf("seed cost became a patch: %q, %v", unchanged, err)
+		}
+		patched := original
+		patched.Parallel, patched.Cost = 'r', 9
+		source.State.SetDescriptor(patched.Address(), &patched)
+		c.Providers = nil
+		if err := collectProcedureDump(context.Background(), c, patched.Address(), &patched); err != nil {
+			t.Fatal(err)
+		}
+		got, err := planProviderReplay(c.Providers)
+		want := []string{
+			"ALTER FUNCTION \"pg_catalog\".\"abs\"(integer) PARALLEL RESTRICTED;\n",
+			"ALTER FUNCTION \"pg_catalog\".\"abs\"(integer) COST 9;\n",
+		}
+		if err != nil || !slices.Equal(got, want) {
+			t.Fatalf("canonical capture=%q, %v", got, err)
+		}
+		if original.Parallel != 0 || original.Cost != routine.BuiltinRoutineCost(original.Builtin) {
+			t.Fatal("capture changed original declaration")
+		}
+		return
+	}
+	t.Fatal("released abs(integer) missing")
+}
+
+func TestProviderReplayPLHandlerMetadata(t *testing.T) {
+	source, _, _, _ := fdwUnitSource()
+	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
+	for i, kind := range []catalog.PLHandler{catalog.PLCallHandler, catalog.PLInlineHandler, catalog.PLValidator} {
+		name, signature, result := kind.Declaration()
+		p := &catalog.Procedure{
+			ObjectAddress:   fdwUnitAddress(ids.ProcedureClassID, ids.OID(99000+i)),
+			ObjectNamespace: fdwUnitAddress(ids.NamespaceClassID, ids.PGCatalogNamespaceOID),
+			ObjectRevision:  1, ObjectName: name, Signature: signature, Result: result,
+			Owner: source.Bootstrap, RoutineKind: catalog.FunctionRoutine,
+			Volatility: expr.Volatile, Strict: kind != catalog.PLCallHandler, PLHandler: kind,
+			Display:  catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name},
+			Parallel: 'r', Cost: 9,
+		}
+		source.State.SetDescriptor(p.Address(), p)
+		source.State.BindName(catalog.DescriptorNameKey(p), p.Address())
+		c := &dumpCollection{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}, source: source}
+		if err := collectProcedureDump(context.Background(), c, p.Address(), p); err != nil {
+			t.Fatal(err)
+		}
+		if len(c.Providers) != 1 || c.Providers[0].readyAfter != 0 || c.Providers[0].original != c.Providers[0].current {
+			t.Fatal("handler lost actual seeded identity")
+		}
+		got, err := planProviderReplay(c.Providers)
+		if err != nil || len(got) != 2 || !strings.Contains(got[0], name) || !strings.HasSuffix(got[1], " COST 9;\n") {
+			t.Fatalf("handler metadata=%q, %v", got, err)
+		}
+	}
+}
+
+func TestProviderReplayConstructorDeclarationBoundary(t *testing.T) {
+	source, _, _, _ := fdwUnitSource()
+	p := replayProvider("public", "custom_range", "public", "custom_range")
+	p.cost, p.parallel, p.readyAfter = 9, 'r', 99000
+	s := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles, Providers: []providerReplay{p}},
+		declarations: map[ids.OID]dump.Statement{99000: {Owner: "postgres", SQL: "CREATE TYPE public.custom_range AS RANGE (subtype=integer);\n"}},
+		eventOrder:   []dump.Event{{OID: 99000}},
+	}
+	if err := s.prepareProviderReplay(); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.providerStatements) != 0 || len(s.providerEventStatements[99000]) != 2 {
+		t.Fatal("constructor entered pre-install provider phase")
+	}
+	var out bytes.Buffer
+	w := &dumpWriter{ctx: context.Background(), dst: &out}
+	if err := emitDumpEvents(context.Background(), s, w); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	if strings.Index(text, "CREATE TYPE") < 0 || strings.Index(text, "ALTER FUNCTION") < strings.Index(text, "CREATE TYPE") {
+		t.Fatalf("constructor patch preceded creation: %q", text)
+	}
+	delete(s.declarations, 99000)
+	if err := s.prepareProviderReplay(); err == nil {
+		t.Fatal("constructor with missing installation event accepted")
+	}
+}
+
+func TestProviderReplayForeignMetadata(t *testing.T) {
+	source, wrapper, _, _ := fdwUnitSource()
+	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
+	original := fdwUnitValidator(&source, wrapper)
+	patched := *original
+	patched.Parallel, patched.Cost = 'r', 9
+	source.State.SetDescriptor(patched.Address(), &patched)
+	c := &dumpCollection{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}, source: source}
+	if err := collectProcedureDump(context.Background(), c, patched.Address(), &patched); err != nil {
+		t.Fatal(err)
+	}
+	got, err := planProviderReplay(c.Providers)
+	want := []string{
+		"ALTER FUNCTION \"cap\"\"schema\".\"actual\"\"validator\"(pg_catalog.text[], pg_catalog.oid) PARALLEL RESTRICTED;\n",
+		"ALTER FUNCTION \"cap\"\"schema\".\"actual\"\"validator\"(pg_catalog.text[], pg_catalog.oid) COST 9;\n",
+	}
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("foreign canonical identity metadata=%q, %v", got, err)
+	}
+	if original.Cost != 0 || original.Parallel != 0 {
+		t.Fatal("capture mutated foreign registration descriptor")
 	}
 }

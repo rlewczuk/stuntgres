@@ -38,9 +38,11 @@ single-statement limit of driver calls) belong to callers.
   FROM-list commas retain explicit `JoinReference.Comma` provenance, separate
   from CROSS JOIN despite identical cross-product execution. Binding consumes
   this syntax fact for namespace visibility, never source-text inspection.
-- Setting-call statements retain operand trees for semantic argument analysis;
-  their provider, not a syntactic expression-shape check, resolves row visibility.
-  Call-start and final function-name component positions remain distinct.
+- Setting calls use ordinary SELECT/function expression syntax, including aliases,
+  concatenation, FROM and logical, NULL-predicate or nested-call arguments.
+  Binding owns signatures and implicit function applicability before assignment
+  coercion. Call-start and final name-component positions remain distinct, and
+  arguments retain their own positions through casts and nesting.
 - Standalone `Call` retains the command position and the positioned shared
   `FunctionExpr` argument/notation syntax. Raw expression visitors include every
   actual, including pure OUT placeholders; CALL remains an unreserved name.
@@ -99,17 +101,17 @@ Scratch reuse is an allocation optimization, not a parsed-result cache.
   implicit pg_catalog components of SQL aliases, not resolved type OIDs.
   Aggregate utility heads retain generic declaration-name components so
   canonical operand labels cannot erase that parsed qualification distinction.
-- Function STRICT and VOLATILE clauses retain their declaration facts in both
-  LANGUAGE/AS orders and before SQL-standard bodies. Repeated clauses report
-  their own source position; attribute words remain ordinary unreserved
-  identifiers outside the declaration clause.
-  CREATE OR REPLACE FUNCTION uses those same attribute clauses and diagnostics
-  in every admitted body form, retaining replacement separately from strictness
-  and volatility.
-  Procedure attributes use complete grammar-owned option shapes before retaining
-  their first introducer for semantic rejection. Unknown or incomplete options
-  fail parsing; quoted names never act as introducers. Signed numbers and
-  qualified support names reuse shared grammar, and PARALLEL takes an identifier.
+- Routine CREATE and attribute ALTER retain ordered `RoutineAttribute` clauses,
+  values/settings and introducer positions in every admitted body order.
+  Duplicate groups and procedure-inapplicable attributes are utility-execution
+  decisions, not parser errors. Complete grammar-owned shapes retain signed
+  numbers, NULL-input aliases, SECURITY/EXTERNAL SECURITY, PARALLEL and setting
+  lists/DEFAULT/FROM CURRENT; unknown or incomplete clauses fail the whole parse.
+  Security modes require unquoted DEFINER/INVOKER keyword provenance and normalize
+  to those two values; malformed modes fail at their own token before utility
+  admission. Clause words remain unreserved names outside declarations. ALTER
+  RESET actions retain their original order; identity/owner/rename/schema actions
+  stay distinct.
 - SQL/JSON clause words are contextual to the selected call's own parenthesis
   depth. Wrapper introducers use scoped tokens so `::jsonpath` does not consume
   WITH/WITHOUT as a type-name tail; DEFAULT expressions ending in TRUE/FALSE/NULL
@@ -214,7 +216,9 @@ ordinary SQL syntax, ordered target expressions, STRICT, positioned boundaries
 and original SQL with the procedural interval blanked. At every INTO placement,
 the raw-token probe completes the datum/field list structurally before returning
 the remaining tokens to ordinary SQL grammar, without a SQL-tail keyword list.
-It excludes nested SQL and INSERT's table INTO. Field components retain quoted
+It excludes nested SQL and INSERT/MERGE's relation INTO. A MERGE target alias
+therefore stays in the ordinary SQL grammar, not the procedural target list.
+Field components retain quoted
 identity and PL reserved-word admission; malformed fields fail at their dot.
 Static INTO rejects array subscripts at the opening bracket, independently of
 the broader assignment/FETCH target grammar. The bounded targets use the
@@ -263,8 +267,8 @@ Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifec
 Static capture AST/boundary units use `RUN='^TestPLpgSQLSelectIntoParser$'`.
 Embedded static SQL variants and per-call syntax ownership use
 `RUN='^TestPLpgSQLSQLExecutionParser$'`.
-Routine declarations and positioned CALL/notation/full-input ownership units use
-`RUN='^TestRoutine(ResultDeclarations|ProcedureCall)$'`.
+Routine declaration syntax and positioned CALL/notation/full-input ownership units use
+`RUN='^TestRoutine(ResultDeclarations|ProcedureCall|Attribute)'`.
 
 Unit tests here drive the real lexer and generated parser and check AST shape,
 positions, ownership and complete-input rejection. Public SQL acceptance and

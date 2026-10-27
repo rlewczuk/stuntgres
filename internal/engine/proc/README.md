@@ -127,13 +127,21 @@ uses first-row demand; nonterminal/VOID SELECT, set results and every DML comman
 run fully. Required sort/aggregate/auxiliary work remains query/DML-owned.
 No scalar row yields whole typed NULL; a present all-NULL tuple remains present.
 Standalone CALL rejects an absent SQL output record with XX000, rather than
-fabricating a row of NULL members. PL procedures export final output slots into
-their declared tuple before closing the lexical frame, on bare RETURN or
-fallthrough; the no-output private handler result remains empty.
+fabricating a row of NULL members. PL procedures and anonymous multi-OUT
+functions export final output slots into their declaration-owned tuple before
+closing the lexical frame, on bare RETURN or fallthrough. A function's sole OUT
+remains scalar; a procedure preserves even one OUT as a tuple. The no-output
+procedure's private handler result remains empty.
 Set declarations retain every row and yield zero values when empty. Completed
 set values belong to the existing owned source protocol, not a suspended frame
 or statement scope. Persistence retains TABLE/SETOF and ordered formal modes,
 quoted source or checked standard bodies, never invocation resources.
+
+Setting SELECTs parse directly as ordinary function expressions, before routine
+declaration analysis or immutable standard-body capture. Quoted first-use
+parsing uses that same grammar, including aliases and composed children; no
+standalone setting statement or normalization shim exists. The setting runtime
+and live operation authority are never retained in the definition.
 
 Invocation borrows the same admitted engine statement scope. A balanced lexical
 activation guard saves/restores query, parameter, view and protocol scratch;

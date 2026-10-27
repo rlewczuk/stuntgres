@@ -44,6 +44,14 @@ and the partition parts of the DML path are core's.
   `RestoreInheritedOwner`. They are entered with nothing held and take
   `Engine.Mu` only for their checks of live state; each admission accepts
   only a trusted private import.
+  The owner-pair entry also covers fresh ordinary permanent tables without
+  inheritance: administrator creation followed by the exact captured transfer
+  preserves owners lacking schema CREATE. Creator, target reference and epoch,
+  recipient role and private-import authority are checked without publishing
+  anything; the ordinary ALTER executor performs the transfer.
+  Partitioned roots and partition members retain their named-owner constructor
+  replay, not this ordinary-table pair. A missing transfer remains ordinary SQL
+  and gives no private authority.
 
 ## Testing
 

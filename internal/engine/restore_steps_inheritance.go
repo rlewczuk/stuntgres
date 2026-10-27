@@ -74,11 +74,11 @@ func afterRestoreGenerationPlaceholders(r *restoreRun, _ *session.Operation, stm
 	return nil
 }
 
-// afterRestoreInheritedOwner pairs an inheriting table created under an
+// afterRestoreInheritedOwner pairs an ordinary table created under an
 // owner directive with the ALTER OWNER that follows it.
 func afterRestoreInheritedOwner(r *restoreRun, op *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
 	creation, ok := stmt.(*parser.CreateTable)
-	if !ok || outcome.Created == (ids.ObjectRef{}) || r.cur.ownerForCreate == (authorization.PrincipalRef{}) || len(creation.Parents) == 0 {
+	if !ok || creation.PartitionBy != nil || creation.PartitionOf != nil || outcome.Created == (ids.ObjectRef{}) || r.cur.ownerForCreate == (authorization.PrincipalRef{}) {
 		return nil
 	}
 	var err error

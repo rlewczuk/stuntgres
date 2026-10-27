@@ -17,8 +17,9 @@ and earth-point calls before kernel evaluation. It never imports the engine,
 `analyze`, `session` or another feature package (`routine`, ...).
 
 The shared checked routine call/frame contract also admits PL definitions.
-Declaration equivalence includes real language/body identity; current validated
-PL call capability is required even on retained paths. EXECUTE remains live,
+Declaration equivalence includes real language/body identity, semantic routine
+attributes and immutable configuration identity; stale carriers cannot borrow a
+changed declaration. Current validated PL call capability is required even on retained paths. EXECUTE remains live,
 while language USAGE belongs to DO/CREATE admission rather than each call.
 PL execution stays with the root's existing lexical/root operation owner; no
 second SQLRoutineExpr family or fake handler scalar is introduced.
@@ -302,9 +303,12 @@ preserve the original cause for diagnostic decoration.
 
 `StrictRoutineArguments` maps expression children to actual nullable call
 formals for both permission admission and literal/bound strict-NULL folding. Expanded
-generated multirange constructor members form one non-NULL variadic array:
-a NULL member must reach the constructor's `22004` check, while an explicit
-NULL VARIADIC array and the strict single-range overload retain NULL results.
+SQL/PL variadic tails and generated multirange constructor members form one
+non-NULL array: a NULL member must not erase the call. Only non-expanded
+SQL/PL input slots participate in strict-NULL proofs; the runtime still assembles
+the complete frame and checks live caller authority before testing its formals.
+An explicit NULL VARIADIC array retains the strict NULL result. Multirange NULL
+members instead reach the constructor's `22004` check.
 
 After recursive child planning and typed-input validation, a strict scalar call
 with a literal NULL or a proven NULL in the current typed parameter frame becomes
@@ -487,6 +491,10 @@ for query, DML, row-lock and foreign parallel scan units, in
 `exec.OpenNode`); run row-lock, cursor,
 foreign-scan, CTE and detach selections with `RACE=1`. `InputDomainChecks`
 changes must keep the COPY filter and JSONB record reference tests passing.
+
+Semantic routine descriptor identity and immutable retained configuration use
+`RUN='^TestRoutineAttribute'`, also with `RACE=1`.
+
 Foreign parallel dispatch uses `testing/synctest` (`RUN='^TestFDWParallel'`):
 settled callback counts, never elapsed time, establish backpressure.
 Async protocol, cleanup, filtered-frontier and cursor-boundary units use

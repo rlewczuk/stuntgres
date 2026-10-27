@@ -14,28 +14,41 @@ func TestSettingsGrammar(t *testing.T) {
 			t.Errorf("%s: %v %v", q, s, err)
 		}
 	}
+	// Signature and coercion errors belong to ordinary function binding, not
+	// syntax; invalid calls must parse just like composed or qualified calls.
 	for _, q := range []string{"SELECT current_setting()", "SELECT current_setting('a',true,false)", "SELECT set_config('a','b')", "SELECT current_setting(true)"} {
-		_, err := Parse(q)
-		var d *sqlstate.Error
-		if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "unsupported setting function signature" || d.Position != "8" {
+		if _, err := Parse(q); err != nil {
 			t.Errorf("%s: %v", q, err)
 		}
 	}
 	for _, tc := range []struct {
-		query       string
-		start, name int
+		query                  string
+		start, name, arg, cast int
 	}{
-		{"SELECT current_setting($1::TEXT)", 8, 8},
-		{"SELECT pg_catalog.current_setting($1::TEXT)", 8, 19},
-		{"/*é*/ SELECT pg_catalog.current_setting(a.k)", 14, 25},
+		{"SELECT current_setting($1::TEXT)", 8, 8, 24, 26},
+		{"SELECT pg_catalog.current_setting($1::TEXT)", 8, 19, 35, 37},
+		{"/*é*/ SELECT pg_catalog.current_setting(a.k)", 14, 25, 41, 0},
 	} {
 		statements, err := Parse(tc.query)
 		if err != nil || len(statements) != 1 {
 			t.Fatal(tc.query, statements, err)
 		}
-		call, ok := statements[0].(*SettingCall)
-		if !ok || call.Pos.Character != tc.start || call.NamePos.Character != tc.name {
+		selecting, ok := statements[0].(*Select)
+		if !ok || len(selecting.Targets) != 1 {
+			t.Fatal("setting call is not an ordinary SELECT", tc.query, statements)
+		}
+		call, ok := selecting.Targets[0].(FunctionExpr)
+		if !ok || call.Pos.Character != tc.start || call.Name.Parts[len(call.Name.Parts)-1].Pos.Character != tc.name {
 			t.Fatal("setting call lost component positions", tc.query, call)
+		}
+		if len(call.Args) != 1 || call.Args[0].SourcePosition().Character != tc.arg {
+			t.Fatal("setting call lost argument position", tc.query, call)
+		}
+		if tc.cast != 0 {
+			cast, ok := call.Args[0].(CastExpr)
+			if !ok || cast.Syntax != PostfixCast || cast.Pos.Character != tc.cast || cast.Child.SourcePosition().Character != tc.arg {
+				t.Fatal("setting call lost cast positions", tc.query, call)
+			}
 		}
 	}
 }
@@ -104,6 +117,17 @@ func TestSettingParserOptions(t *testing.T) {
 }
 
 func TestSettingsKeywordAndFunctionComposition(t *testing.T) {
+	for _, q := range []string{
+		`SELECT current_setting('application_name') AS v`,
+		`SELECT current_setting('application_name') || ':' || current_setting('search_path')`,
+		`SELECT current_setting('application_name') FROM settings_input`,
+		`SELECT pg_catalog.set_config('application_name',v,false) AS configured FROM settings_input`,
+		`CREATE FUNCTION settings_body() RETURNS text LANGUAGE SQL BEGIN ATOMIC SELECT current_setting('application_name') AS v; END`,
+	} {
+		if _, err := Parse(q); err != nil {
+			t.Errorf("%s: %v", q, err)
+		}
+	}
 	for _, q := range []string{`CREATE TABLE local(local TEXT)`, `CREATE TABLE reset(reset TEXT)`, `CREATE TABLE current_setting(set_config TEXT)`, `SELECT set_config FROM local`, `SELECT "current_setting"('application_name')`, `SELECT CURRENT_SETTING('application_name')`, `SELECT current_setting(current_setting('application_name'))`, `SELECT current_setting(a.k)`, `SELECT current_setting(qa.a.k)`} {
 		if _, err := Parse(q); err != nil {
 			t.Errorf("%s: %v", q, err)

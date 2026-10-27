@@ -83,9 +83,11 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 			return core.Result{}, err
 		}
 	} else {
-		e.Mu.Lock()
-		stage, err = stageSchemaLocked(e, op, stmt, input, scope.Output)
-		e.Mu.Unlock()
+		func() {
+			e.Mu.Lock()
+			defer e.Mu.Unlock()
+			stage, err = stageSchemaLocked(e, op, stmt, input, scope.Output)
+		}()
 	}
 	if err != nil || stage == nil {
 		return core.Result{}, err
@@ -353,7 +355,8 @@ func stageSchemaDropLocked(e *core.Engine, op *session.Operation, stmt *parser.D
 }
 
 // stageSchemaLocked stages one schema-element statement in a new catalog
-// stage under Engine.Mu, for ExecuteSchema to admit and publish.
+// stage, entering and returning under Engine.Mu. Routine setting normalization
+// may suspend this same command stack without locks before exact readmission.
 func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*core.CatalogStage, error) {
 	auth, err := schemaAuthorizationLocked(e, op)
 	if err != nil {

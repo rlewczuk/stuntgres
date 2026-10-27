@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
@@ -65,6 +66,15 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 			if mode == "cancel" {
 				if !errors.Is(err, context.Canceled) || !errors.Is(finish, context.Canceled) {
 					t.Fatal(err, finish)
+				}
+			} else if mode == "replace" {
+				// Ordinary SELECT retains its transaction publication fence:
+				// a reentrant Reset must not publish a result owned by the old epoch.
+				if err != nil || !errors.Is(finish, ids.ErrCatalogReplaced) {
+					t.Fatal(err, finish)
+				}
+				if result.Rows != nil {
+					result.Rows.Close()
 				}
 			} else {
 				if err != nil || finish != nil {

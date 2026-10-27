@@ -37,7 +37,7 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		return "DELETE", true, false, true
 	case *parser.Merge:
 		return "MERGE", true, false, true
-	case *parser.Select, *parser.SettingCall:
+	case *parser.Select:
 		return "SELECT", true, false, true
 	case *parser.Show:
 		base = "SHOW"

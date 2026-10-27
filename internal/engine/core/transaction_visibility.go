@@ -135,6 +135,10 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 	if nested {
 		base = s.sqlRoutine.sourceBase
 	}
+	routineBase := !latest && base == nil && s.View == nil && s.sqlRoutine.policy.readOnly && s.sqlRoutine.policy.base != nil
+	if routineBase {
+		base = s.sqlRoutine.policy.base
+	}
 	existing := s.View
 	if latest {
 		existing = s.PartitionsOrZero().ValidationView
@@ -171,10 +175,32 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 		if err != nil {
 			return nil, err
 		}
+		// Installed trigger bodies are reached through mutation targets, not
+		// the outer expression dependency manifest. Their lazy reads need the
+		// same retained command roots as ordinary SQL/PL routine calls.
+		if !in.RetainDynamic && s.snapshotTarget.Relation != nil {
+			in.RetainDynamic = len(stored.TriggersOf(s.snapshotTarget.Relation)) != 0
+		}
+		if !in.RetainDynamic {
+			for _, target := range s.snapshotTargets {
+				if len(stored.TriggersOf(target.Relation)) != 0 {
+					in.RetainDynamic = true
+					break
+				}
+			}
+		}
 	}
 	in.Base, in.Latest, in.Stable = base, latest, s.Owner.Isolation.Stable()
 	in.Tx, in.Command = s.TxRef, s.CommandID
 	in.Roots, in.Target, in.Targets = s.Owner.Roots, s.snapshotTarget, s.snapshotTargets
+	if !latest && base == nil && s.sqlRoutine.policy.active && !s.sqlRoutine.policy.readOnly && !in.Stable {
+		// Each reached volatile command has a fresh RC frontier. The lexical
+		// View fixes it for that command; transaction-stable isolation still
+		// uses the transaction roots. Outer mutation-target pins are not this
+		// nested command's source snapshot.
+		in.Frontier = in.CommitSeq
+		in.Target, in.Targets = visibility.Root{}, nil
+	}
 	in.OwnWrites, in.OwnDeletes = s.OwnWrites, s.OwnDeletes
 	captured, err := in.Capture(refs)
 	if err != nil {
@@ -182,7 +208,7 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 	}
 	if latest {
 		s.partitions().ValidationView = captured
-	} else if base == nil || nested {
+	} else if base == nil || nested || routineBase {
 		s.View = captured
 	}
 	return captured, nil

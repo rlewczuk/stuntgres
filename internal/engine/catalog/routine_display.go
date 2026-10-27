@@ -32,11 +32,8 @@ func (l RoutineLanguage) String() string {
 // may legitimately be empty (SQL-standard bodies and native Go callbacks).
 // Copy-on-write identity/ACL changes preserve this value; it grants no authority.
 type RoutineDisplay struct {
-	Language        RoutineLanguage
-	Source          string
-	SecurityDefiner bool
-	// Cost is an explicit declaration cost; zero selects the language default.
-	Cost            float32
+	Language RoutineLanguage
+	Source   string
 }
 
 func (d RoutineDisplay) Valid() bool { return d.Language.String() != "" }

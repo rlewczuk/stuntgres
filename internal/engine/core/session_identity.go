@@ -10,10 +10,10 @@ import (
 func (h *statementHost) IdentityValue(c *exec.Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	identity := s.Identity
-	if c.Query != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Expression != nil {
+	if s.Op.EffectiveUser == nil && c.Query != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Expression != nil {
 		identity = c.Query.Source.Authority.Expression.Identity
 	}
-	if s.ForeignActionAuth != nil {
+	if s.Op.Restricted == nil && s.ForeignActionAuth != nil {
 		auth := s.ForeignActionAuth
 		role, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 		if err != nil {
@@ -59,8 +59,11 @@ func (s *StatementScope) CaptureIdentityLocked(auth AuthorizationView) error {
 // Match current_user's expression identity, not the view's relation check owner.
 func expressionPrincipal(c *exec.Context) authorization.PrincipalRef {
 	s := ScopeOf(c.LiveHost())
-	if s.ForeignActionAuth != nil {
+	if s.Op.Restricted == nil && s.ForeignActionAuth != nil {
 		return s.ForeignActionAuth.State.CurrentUser
+	}
+	if _, active := s.Op.EffectiveUserOwner(); active {
+		return s.Identity.CurrentPrincipal
 	}
 	if c.Query != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Expression != nil {
 		return c.Query.Source.Authority.Expression.Identity.CurrentPrincipal

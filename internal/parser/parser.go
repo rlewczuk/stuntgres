@@ -907,30 +907,6 @@ func validLikeOption(name string) bool {
 	return false
 }
 
-func settingCall(l sqlLexer, name lexeme, args []Expr) (Statement, bool) {
-	n := name.text
-	if n != "current_setting" && n != "set_config" {
-		l.(*lexer).failAt("0A000", "functions are unsupported", name.pos.Offset)
-		return nil, false
-	}
-	valid := n == "current_setting" && (len(args) == 1 || len(args) == 2) || n == "set_config" && len(args) == 3
-	for i, raw := range args {
-		switch v := raw.(type) {
-		case ParameterExpr:
-		case TypedLiteralExpr:
-		case LiteralExpr:
-			if v.Value.Kind != NullValue && v.Value.Kind != StringValue && !((i == 2 || n == "current_setting" && i == 1) && v.Value.Kind == BooleanValue) {
-				valid = false
-			}
-		}
-	}
-	if !valid {
-		l.(*lexer).failAt("0A000", "unsupported setting function signature", name.pos.Offset)
-		return nil, false
-	}
-	return &SettingCall{Name: n, Args: args, Pos: name.pos, NamePos: name.pos}, true
-}
-
 // Accumulate dotted names and join once, avoiding quadratic concatenation.
 // Ordinary one-component settings do not allocate an intermediate slice.
 type settingName struct {

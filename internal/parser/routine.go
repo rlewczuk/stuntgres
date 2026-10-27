@@ -16,35 +16,40 @@ func (*Call) statement() {}
 // CreateFunction is the shared SQL function/procedure declaration. Body inputs
 // are private routine parameters, never parameters of the enclosing command.
 type CreateFunction struct {
-	Name             ObjectName
-	Arguments        []RoutineParameter
-	Result           TypeName
-	ResultSpecified  bool
-	TableResult      []RoutineParameter
-	Language         Identifier
-	Body             string
-	BodyPos          Position
-	Symbol           string
-	SymbolSpecified  bool
-	SymbolPos        Position
-	Procedure        bool
-	Strict           bool
-	Volatility       string
-	Replace          bool
-	InvalidAttribute Position
-	Standard         []Statement // Non-nil for a definition-analyzed SQL-standard body.
-	Pos              Position
+	Name            ObjectName
+	Arguments       []RoutineParameter
+	Result          TypeName
+	ResultSpecified bool
+	TableResult     []RoutineParameter
+	Language        Identifier
+	Body            string
+	BodyPos         Position
+	Symbol          string
+	SymbolSpecified bool
+	SymbolPos       Position
+	Procedure       bool
+	Attributes      []RoutineAttribute
+	Replace         bool
+	Standard        []Statement // Non-nil for a definition-analyzed SQL-standard body.
+	Pos             Position
 }
 
-func (d *CreateFunction) setProcedureAttributes(groups ...[]lexeme) {
+// RoutineAttribute retains utility-validation input in source order.
+// Security values are normalized unquoted "definer" or "invoker" keywords.
+type RoutineAttribute struct {
+	Kind    string
+	Value   string
+	Setting *Set
+	Pos     Position
+}
+
+func (d *CreateFunction) setProcedureAttributes(groups ...[]RoutineAttribute) {
 	for _, group := range groups {
-		if len(group) != 0 && d.InvalidAttribute.Character == 0 {
-			d.InvalidAttribute = group[0].pos
-		}
+		d.Attributes = append(d.Attributes, group...)
 	}
 }
 
-func (l *lexer) functionAttributes(declaration *CreateFunction, groups ...[]lexeme) bool {
+func (l *lexer) functionAttributes(declaration *CreateFunction, groups ...[]RoutineAttribute) bool {
 	if declaration.TableResult != nil {
 		for _, argument := range declaration.Arguments {
 			if argument.Mode == "out" || argument.Mode == "inout" {
@@ -54,18 +59,7 @@ func (l *lexer) functionAttributes(declaration *CreateFunction, groups ...[]lexe
 		}
 	}
 	for _, clauses := range groups {
-		for _, clause := range clauses {
-			if clause.text == "strict" && declaration.Strict || clause.text == "volatile" && declaration.Volatility != "" {
-				l.failAt("42601", "conflicting or redundant options", clause.pos.Offset)
-				return false
-			}
-			switch clause.text {
-			case "strict":
-				declaration.Strict = true
-			case "volatile":
-				declaration.Volatility = clause.text
-			}
-		}
+		declaration.Attributes = append(declaration.Attributes, clauses...)
 	}
 	return true
 }
@@ -157,6 +151,7 @@ type AlterRoutine struct {
 	Action        string
 	Target        Identifier
 	OwnerIdentity bool
+	Attributes    []RoutineAttribute
 	Pos           Position
 }
 

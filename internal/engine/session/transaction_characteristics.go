@@ -7,40 +7,55 @@ import "stuntgres/internal/parser"
 // access and deferrable modes. A failure changes nothing. The caller holds
 // t.Mu and publishes the modes to the settings store afterwards.
 func (t *TransactionOwner) AssignModes(modes []parser.TransactionMode) error {
+	isolation, readOnly, deferrable, err := t.evaluateModes(modes, t.SnapshotSet)
+	if err != nil {
+		return err
+	}
+	t.Isolation, t.ReadOnly, t.Deferrable = isolation, readOnly, deferrable
+	return nil
+}
+
+// CheckModes validates without installing modes. snapshotSet includes a
+// caller-owned utility snapshot that is not retained on the transaction owner.
+// The caller serializes owner access through transaction admission or t.Mu.
+func (t *TransactionOwner) CheckModes(modes []parser.TransactionMode, snapshotSet bool) error {
+	_, _, _, err := t.evaluateModes(modes, t.SnapshotSet || snapshotSet)
+	return err
+}
+
+func (t *TransactionOwner) evaluateModes(modes []parser.TransactionMode, snapshotSet bool) (Isolation, bool, bool, error) {
 	isolation, readOnly, deferrable := t.Isolation, t.ReadOnly, t.Deferrable
 	for _, mode := range modes {
 		if mode.Isolation != parser.IsolationDefault {
 			next := Isolation(mode.Isolation)
-			if t.SnapshotSet && next != isolation {
-				return sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
+			if snapshotSet && next != isolation {
+				return isolation, readOnly, deferrable, sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
 			}
 			if len(t.Savepoints) != 0 && next != isolation {
-				return sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must not be called in a subtransaction")
+				return isolation, readOnly, deferrable, sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must not be called in a subtransaction")
 			}
 			isolation = next
 		}
 		if mode.AccessSet {
 			if len(t.Savepoints) != 0 && readOnly && !mode.ReadOnly {
-				return sqlError("25001", "cannot set transaction read-write mode inside a read-only transaction")
+				return isolation, readOnly, deferrable, sqlError("25001", "cannot set transaction read-write mode inside a read-only transaction")
 			}
-			if t.SnapshotSet && readOnly && !mode.ReadOnly {
-				return sqlError("25001", "transaction read-write mode must be set before any query")
+			if snapshotSet && readOnly && !mode.ReadOnly {
+				return isolation, readOnly, deferrable, sqlError("25001", "transaction read-write mode must be set before any query")
 			}
 			readOnly = mode.ReadOnly
 		}
 		if mode.DeferrableSet {
 			if len(t.Savepoints) != 0 {
-				return sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE cannot be called within a subtransaction")
+				return isolation, readOnly, deferrable, sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE cannot be called within a subtransaction")
 			}
-			if t.SnapshotSet {
-				return sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE must be called before any query")
+			if snapshotSet {
+				return isolation, readOnly, deferrable, sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE must be called before any query")
 			}
 			deferrable = mode.Deferrable
 		}
 	}
-	t.Isolation, t.ReadOnly = isolation, readOnly
-	t.Deferrable = deferrable
-	return nil
+	return isolation, readOnly, deferrable, nil
 }
 
 // CharacteristicMode maps a SET of one of the current transaction

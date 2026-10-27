@@ -24,7 +24,14 @@ func plTriggerRelation(read catalog.Read, relation *catalog.Relation) (proc.PLTr
 
 // invokePLTrigger is reached only by the admitted trigger payload entry, never
 // by ordinary SQL routine dispatch. Its caller owns depth and live provenance.
-func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, read catalog.Read, relation *catalog.Relation) (sqltype.Value, error) {
+func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, read catalog.Read, relation *catalog.Relation) (value sqltype.Value, err error) {
+	leaveEnvironment, err := s.enterRoutineEnvironment(d)
+	if err != nil {
+		return value, err
+	}
+	defer func() { err = leaveEnvironment(err) }()
+	leavePolicy := s.activateRoutineCommandPolicy(d)
+	defer leavePolicy()
 	diagnosticIdentity, err := s.plDiagnosticIdentityFor(d, read)
 	if err != nil {
 		return sqltype.Value{}, err

@@ -131,10 +131,11 @@ type Operation struct {
 	Definition         catalog.DefinitionReader // Scoped once-only DDL cooking, restored before evaluation.
 	LockWait           lock.TimeoutSlot         // queued lock request's SQL-deadline projection
 	NonstandardStrings bool
-	DiscardRoleReset   authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
-	ReplaySlot         ReplaySlot              // Restore and materialized population only; see operationReplay.
-	Analysis           AnalysisSlot            // Immutable after creation; see Host.NewOperation.
-	Restricted         *RestrictedInvocation   // Serial invocation environment, never session identity.
+	DiscardRoleReset   authorization.RoleState  // nonzero Authenticated only during DISCARD ALL publication
+	ReplaySlot         ReplaySlot               // Restore and materialized population only; see operationReplay.
+	Analysis           AnalysisSlot             // Immutable after creation; see Host.NewOperation.
+	Restricted         *RestrictedInvocation    // Serial invocation environment, never session identity.
+	EffectiveUser      *EffectiveUserInvocation // Balanced routine-local actor; session_user stays unchanged.
 }
 
 func (s *Session) Token() ids.SessionToken { return s.SessionToken }

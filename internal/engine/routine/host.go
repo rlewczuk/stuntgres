@@ -10,8 +10,7 @@ import (
 
 // DDLHost is what the operator and CREATE/ALTER/DROP routine handlers need from the
 // engine for one schema statement: the shared ddl.Host plus the routine
-// methods below. Every method runs with Engine.mu held and never takes or
-// releases it.
+// methods below. Methods enter and return with Engine.Mu held.
 type DDLHost interface {
 	ddl.Host
 
@@ -27,6 +26,13 @@ type DDLHost interface {
 	ResolveRegtype(ddl.Authority, parser.TypeName) (ids.OID, error)
 	SelectAggregateSupport(ddl.Authority, parser.ObjectName, []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error)
 	ValidateAggregateInitial(ddl.Authority, sqltype.Usage, string, sqltype.InputEnvironment) error
+	// ValidateRoutineSetting validates/captures a declaration without installing
+	// it. It may suspend the ordered command, release all publication locks for
+	// Normalize, then reacquire Engine.Mu and readmit its exact live authority.
+	ValidateRoutineSetting(auth ddl.Authority, clause *parser.Set) (name string, value string, remove bool, err error)
+	// ValidateRoutineConfiguration admits CREATE/REPLACE validator SAVE actions
+	// without installing settings. ALTER does not invoke a language validator.
+	ValidateRoutineConfiguration(d *catalog.Procedure) error
 	// BindSQLRoutine binds d's body against the stage. It returns nil during
 	// Restore SQL body replay.
 	BindSQLRoutine(auth ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error

@@ -3,13 +3,17 @@ package routine
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/parser"
 )
 
 // RoutineDumpEvents orders owned SQL bodies and real transition aggregates by
@@ -75,7 +79,7 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 	return nil
 }
 
-// RoutineDumpStatement renders an owned callable under its actual owner.
+// RoutineDumpStatement renders an owned callable and its ownership transfer.
 func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Procedure) (dump.Statement, error) {
 	if d.Aggregate != nil {
 		return aggregateDumpStatement(p, view, roles, d)
@@ -93,7 +97,24 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	if d.RoutineKind == catalog.ProcedureRoutine {
 		kind = "PROCEDURE"
 	}
-	sql.WriteString("CREATE " + kind + " " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(d.Name()) + "(")
+	qualified := catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(d.Name())
+	privileged := !owner.Superuser
+	var ownership strings.Builder
+	if privileged {
+		ownership.WriteString("ALTER " + kind + " " + qualified + "(")
+		for i, input := range d.SQL.Inputs {
+			if i != 0 {
+				ownership.WriteString(", ")
+			}
+			name, err := p.ColumnDeclaration(view, catalog.Column{Usage: input})
+			if err != nil {
+				return dump.Statement{}, err
+			}
+			ownership.WriteString(name)
+		}
+		ownership.WriteString(") OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n")
+	}
+	sql.WriteString("CREATE " + kind + " " + qualified + "(")
 	written := 0
 	for i, formal := range d.SQL.Formals {
 		if formal.Mode == "t" {
@@ -169,6 +190,58 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	if d.Strict {
 		sql.WriteString(" STRICT")
 	}
+	if d.RoutineKind != catalog.ProcedureRoutine {
+		switch d.Volatility {
+		case expr.Immutable:
+			sql.WriteString(" IMMUTABLE")
+		case expr.Stable:
+			sql.WriteString(" STABLE")
+		case expr.Volatile:
+			sql.WriteString(" VOLATILE")
+		}
+		sql.WriteString(" PARALLEL ")
+		switch d.Parallel {
+		case 's':
+			sql.WriteString("SAFE")
+		case 'r':
+			sql.WriteString("RESTRICTED")
+		case 'u':
+			sql.WriteString("UNSAFE")
+		default:
+			return dump.Statement{}, fmt.Errorf("invalid routine parallel declaration")
+		}
+		sql.WriteString(" COST " + strconv.FormatFloat(float64(d.Cost), 'g', -1, 32))
+		if d.SQL.ReturnsSet {
+			sql.WriteString(" ROWS " + strconv.FormatFloat(float64(d.Rows), 'g', -1, 32))
+		}
+	}
+	if d.SecurityDefiner {
+		sql.WriteString(" SECURITY DEFINER")
+	}
+	for i := range d.Configuration.Len() {
+		name, value, ok := strings.Cut(d.Configuration.At(i), "=")
+		if !ok {
+			return dump.Statement{}, fmt.Errorf("invalid routine configuration declaration")
+		}
+		sql.WriteString(" SET " + catalog.QuoteIdentifier(name) + " TO ")
+		if parser.SettingQuotesIdentifiers(name) {
+			identifiers, err := settings.ParseIdentifierList(name, value)
+			if err != nil {
+				return dump.Statement{}, err
+			}
+			if len(identifiers) == 0 {
+				sql.WriteString(dump.CommentLiteral(""))
+			}
+			for i, identifier := range identifiers {
+				if i != 0 {
+					sql.WriteString(", ")
+				}
+				sql.WriteString(dump.CommentLiteral(identifier))
+			}
+		} else {
+			sql.WriteString(dump.CommentLiteral(value))
+		}
+	}
 	language, ok := view.Get(d.Language).(*catalog.Language)
 	if !ok || (catalog.LanguageProvider{}).Validate(view, language) != nil {
 		return dump.Statement{}, fmt.Errorf("missing routine language authority")
@@ -200,5 +273,5 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	} else {
 		sql.WriteString("AS " + dump.CommentLiteral(d.SQL.Source) + ";\n")
 	}
-	return dump.Statement{Owner: owner.Name, SQL: sql.String()}, nil
+	return dump.Statement{Owner: owner.Name, SQL: sql.String(), FollowingSQL: ownership.String(), PrivilegedCreation: privileged}, nil
 }

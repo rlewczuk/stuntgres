@@ -68,6 +68,26 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   reconstructed from formals, never emitted as independent named types.
   Replacement maps each original record occurrence through the same context as
   stored calls/views, preserving immutable old rows and current child ownership.
+  Volatility, strictness, security mode, parallel/cost/rows metadata and ordered
+  routine-local configuration are declaration state and survive replacement.
+  FROM CURRENT is saved as its captured value, not recaptured during replay.
+  Identifier-list settings such as `search_path` replay as separate SQL SET
+  arguments, preserving commas and quotes within each member rather than
+  turning the entire canonical list into one schema name.
+  Invocation identities, SAVE frames and live session settings are never dumped;
+  restored definer calls resolve the current mapped owner and EXECUTE authority.
+  Supported PL trigger/event-trigger functions restore this same declaration
+  state; firing installs the current mapped body owner and local configuration
+  without inventing a new firing-time EXECUTE check. Native intrinsic providers
+  cannot import ignored security/configuration state through catalog validation.
+  Declaration normalization uses the ordinary lock-safe callback handoff during
+  replay too; invocation frames and callback results are not persistent authority.
+  Accepted intrinsic-provider parallel/cost/rows patches use the existing
+  provider identity replay, preserving real input signatures and owner ordering.
+  Generated constructor metadata follows its actual type declaration; seeded
+  handlers and installed providers retain their existing installation prerequisites.
+  Fresh native destinations require matching genuine foreign registrations;
+  replay does not fabricate native callbacks or serialize execution authority.
 - Parameter ACLs roundtrip by canonical name through strict typed catalog repairs,
   preserving explicit empty arrays, ordered grantors and grant options. Destination
   parameter identities are allocated locally; session setting values are not dumped.

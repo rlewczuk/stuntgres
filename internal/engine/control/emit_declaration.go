@@ -151,19 +151,18 @@ func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx OwnedStatement
 // repairs, typed attachment, renames and comments.
 func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.DumpRelation) error {
 	t.Descriptor = s.CatalogView.MustRelation(t.Descriptor.Address())
-	inheritedOwnerReplay := t.Descriptor.Inheritance != nil && t.Owner != "postgres"
-	if plan := s.attributeSchedules[t.Descriptor.Address()]; plan != nil && plan.models[t.Descriptor.Address()].Inheritance != nil {
-		inheritedOwnerReplay = t.Owner != "postgres"
-	}
-	if inheritedOwnerReplay {
-		// Retain a real captured-role directive before the privileged CREATE;
-		// the isolated importer pairs this exact new relation and role.
+	privilegedCreation := t.Owner != "postgres" && t.Descriptor.RelationKind == catalog.TableRelation && t.Descriptor.Partition == nil && t.Descriptor.Membership == nil
+	if privilegedCreation {
+		// Pair the captured owner with this exact fresh table. Ownership does
+		// not imply retained schema CREATE; construct as the authenticated
+		// administrator, then transfer before owner-sensitive completion.
 		if err := w.forceOwner(t.Owner); err != nil {
 			return err
 		}
-		if err := w.setOwner("postgres"); err != nil {
+		if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
 			return err
 		}
+		w.currentOwner = ""
 	} else if err := w.setOwner(t.Owner); err != nil {
 		return err
 	}
@@ -185,16 +184,16 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 	if err := s.emitBound(w, castConsumer{Event: dump.Event{OID: t.Descriptor.Address().ObjectID}}, text); err != nil {
 		return err
 	}
-	if schedule == nil {
-		if err := s.emitLocalAttributeRetirements(w, t.Descriptor); err != nil {
-			return err
-		}
-	}
-	if inheritedOwnerReplay {
+	if privilegedCreation {
 		if err := w.emit("ALTER TABLE " + qualified + " OWNER TO " + catalog.QuoteIdentifier(t.Owner) + ";\n"); err != nil {
 			return err
 		}
 		if err := w.setOwner(t.Owner); err != nil {
+			return err
+		}
+	}
+	if schedule == nil {
+		if err := s.emitLocalAttributeRetirements(w, t.Descriptor); err != nil {
 			return err
 		}
 	}

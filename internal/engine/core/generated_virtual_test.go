@@ -126,6 +126,54 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 	}
 }
 
+func TestGeneratedVirtualUnsimplifiedRoutineSecurity(t *testing.T) {
+	_, view, d := generatedUnitDescriptor(t)
+	integer := d.Columns[0].Usage.Type
+	otherwise := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
+	var builtin *catalog.Procedure
+	for _, descriptor := range view.State().Descriptors() {
+		if procedure, ok := descriptor.(*catalog.Procedure); ok && procedure.Builtin != nil && procedure.Volatility == expr.Immutable {
+			builtin = procedure
+			break
+		}
+	}
+	if builtin == nil {
+		t.Fatal("immutable builtin missing")
+	}
+	user := *builtin
+	user.Builtin = nil
+	for _, tc := range []struct {
+		name      string
+		procedure *catalog.Procedure
+		reject    bool
+	}{
+		{"builtin", builtin, false},
+		{"user-defined", &user, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Security examines original call provenance even in an unreachable
+			// branch, before conditional simplification can remove that call.
+			call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), Pos: parser.Position{Character: 17}, RoutineReference: tc.procedure, Property: expr.Properties{Volatility: expr.Immutable}}, Procedure: tc.procedure}
+			tree := plan.CaseExpr{Info: expr.Info{Usage: integer.Usage()}, Arms: []plan.CaseBranch{{Result: call}}, Otherwise: otherwise}
+			err := table.VirtualGenerationSecurity(tree)
+			if !tc.reject {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			var diagnostic *sqlstate.Error
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "generation expression uses user-defined function" || diagnostic.Detail != "Virtual generated columns that make use of user-defined functions are not yet supported." || diagnostic.Position != "17" {
+				t.Fatal(err)
+			}
+			var altered *sqlstate.Error
+			if !errors.As(table.AlterCookingError(err), &altered) || altered.Position != "" || altered.Code != diagnostic.Code || altered.Message != diagnostic.Message || altered.Detail != diagnostic.Detail || diagnostic.Position != "17" {
+				t.Fatal("ALTER cooking changed diagnostic provenance", altered, diagnostic)
+			}
+		})
+	}
+}
+
 func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	typ := d.Columns[0].Usage.Type

@@ -17,13 +17,17 @@ func TestRoutineProcedureOutputFrame(t *testing.T) {
 		outputs      []int64
 		null         bool
 	}{
+		{"function_return", "BEGIN answer:=7;n:=8;RETURN;END", []string{"o", "o"}, nil, []int64{7, 8}, false},
+		{"function_fallthrough", "BEGIN answer:=n+1;n:=n+2;END", []string{"o", "b"}, []int64{10}, []int64{11, 12}, false},
+		{"function_null", "BEGIN RETURN;END", []string{"o", "o"}, nil, nil, true},
 		{"sole", "BEGIN answer:=7;RETURN;END", []string{"o"}, nil, []int64{7}, false},
 		{"fallthrough", "BEGIN BEGIN answer:=n+1;n:=n+2;END;END", []string{"o", "b"}, []int64{10}, []int64{11, 12}, false},
 		{"null", "BEGIN RETURN;END", []string{"o"}, nil, nil, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newWalkHost(t)
-			d := &Definition{Procedure: true, Kind: PLpgSQLBody, Name: "procedure_frame", Source: tc.source}
+			procedure := tc.name != "function_return" && tc.name != "function_fallthrough" && tc.name != "function_null"
+			d := &Definition{Procedure: procedure, Kind: PLpgSQLBody, Name: "output_frame", Source: tc.source}
 			formals := make([]Formal, len(tc.formals))
 			for i, mode := range tc.formals {
 				name := "answer"
@@ -40,11 +44,11 @@ func TestRoutineProcedureOutputFrame(t *testing.T) {
 				t.Fatal(err)
 			}
 			d.Result = tuple.Usage()
-			raw, err := parser.ParsePLpgSQL(tc.source, PLReturnPolicy(d.Result, len(d.OutputFormals), true))
+			raw, err := parser.ParsePLpgSQL(tc.source, PLReturnPolicy(d.Result, len(d.OutputFormals), procedure))
 			if err != nil {
 				t.Fatal(err)
 			}
-			d.PL, err = CompilePL(d, raw, true, plUnitCollation(t), plUnitResolver(t, h.integer.Usage()))
+			d.PL, err = CompilePL(d, raw, procedure, plUnitCollation(t), plUnitResolver(t, h.integer.Usage()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -171,5 +175,52 @@ func TestRoutineProcedureOutputFrame(t *testing.T) {
 	input.Close()
 	if err != nil || value.Type() != tuple || value.CompositeLen() != 1 || !sqltype.SameDatum(value.CompositeField(0), member) {
 		t.Fatal("sole composite OUT collapsed or borrowed frame", err)
+	}
+}
+
+func TestRoutineSoleOutputResultPolicy(t *testing.T) {
+	for _, procedure := range []bool{false, true} {
+		t.Run(map[bool]string{false: "function", true: "procedure"}[procedure], func(t *testing.T) {
+			h := newWalkHost(t)
+			d := &Definition{Procedure: procedure, Kind: PLpgSQLBody, Name: "sole_output", Source: "BEGIN answer:=7;RETURN;END", Result: h.integer.Usage()}
+			if err := d.SetFormals([]Formal{{Mode: "o", Name: "answer", Usage: h.integer.Usage()}}); err != nil {
+				t.Fatal(err)
+			}
+			if d.DerivedResult() != procedure {
+				t.Fatal("sole OUT result policy", procedure)
+			}
+			if procedure {
+				tuple, err := d.OutputTuple()
+				if err != nil {
+					t.Fatal(err)
+				}
+				d.Result = tuple.Usage()
+			}
+			raw, err := parser.ParsePLpgSQL(d.Source, PLReturnPolicy(d.Result, 1, procedure))
+			if err != nil {
+				t.Fatal(err)
+			}
+			d.PL, err = CompilePL(d, raw, procedure, plUnitCollation(t), plUnitResolver(t, h.integer.Usage()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			frame := NewFrame(d.Inputs)
+			defer frame.Close()
+			run := &PLRun{Host: h, Definition: d}
+			value, err := run.Invoke(frame, sqltype.CollationRef{})
+			if err != nil || value.Type() != d.Result.Type || run.Frame.Values != nil || run.Frame.Scopes != nil {
+				t.Fatal("result/frame authority", value, err)
+			}
+			if procedure {
+				if value.CompositeLen() != 1 || !d.MatchesOutputTuple(value.Type()) {
+					t.Fatal("sole procedure OUT collapsed", value)
+				}
+				value = value.CompositeField(0)
+			}
+			got, err := value.Integer()
+			if err != nil || got != 7 {
+				t.Fatal("sole OUT value", got, err)
+			}
+		})
 	}
 }

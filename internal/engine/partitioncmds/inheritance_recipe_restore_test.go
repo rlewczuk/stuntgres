@@ -446,6 +446,239 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	}
 }
 
+func TestRestoreOrdinaryTableOwnerPair(t *testing.T) {
+	e, op, refs, _ := inheritedRestoreFixture(t)
+	owner, ok := e.Roles().Lookup("captured_owner")
+	if !ok {
+		t.Fatal("missing captured role")
+	}
+	before := e.CatalogRead().MustRelation(refs["unrelated"].Address)
+	neighbor := e.CatalogRead().MustRelation(refs["q"].Address)
+	namespace := e.CatalogRead().MustNamespace(before.Namespace())
+	pair, err := partitioncmds.CaptureInheritedOwner(e, op, refs["unrelated"], owner.Ref)
+	if err != nil || pair.Ref != refs["unrelated"] || pair.Owner != owner.Ref || pair.Creator != before.Owner {
+		t.Fatal("ordinary table lost exact fresh ownership pair", pair, err)
+	}
+	raw := enginetest.Statement(t, "ALTER TABLE public.unrelated OWNER TO captured_owner").(*parser.AlterOwner)
+	state := e.Catalog.State
+	for _, sql := range []string{
+		"ALTER TABLE public.q OWNER TO captured_owner",
+		"ALTER TABLE public.unrelated OWNER TO postgres",
+		"ALTER TABLE unrelated OWNER TO captured_owner",
+	} {
+		if err := partitioncmds.RestoreInheritedOwner(e, op, enginetest.Statement(t, sql).(*parser.AlterOwner), pair); err == nil || e.Catalog.State != state {
+			t.Fatal("failed pair changed private catalog", sql, err)
+		}
+	}
+	if err := partitioncmds.RestoreInheritedOwner(e, op, raw, pair); err != nil || e.Catalog.State != state {
+		t.Fatal("exact pair admission must not change ownership", err)
+	}
+	targets := e.ImportTargets
+	e.ImportTargets = nil
+	if err := partitioncmds.RestoreInheritedOwner(e, op, raw, pair); err == nil || e.Catalog.State != state {
+		t.Fatal("ordinary operation acquired private ownership authority", err)
+	}
+	e.ImportTargets = targets
+	roleExecute(t, e, op, "ALTER TABLE public.unrelated OWNER TO captured_owner")
+	after := e.CatalogRead().MustRelation(refs["unrelated"].Address)
+	if after.Owner != owner.Ref || before.Owner == owner.Ref || e.CatalogRead().MustRelation(refs["q"].Address) != neighbor || e.CatalogRead().MustNamespace(before.Namespace()) != namespace {
+		t.Fatal("owner transfer changed old capture, neighbor or schema authority")
+	}
+	state = e.Catalog.State
+	if err := partitioncmds.RestoreInheritedOwner(e, op, raw, pair); err == nil || e.Catalog.State != state {
+		t.Fatal("consumed ordinary owner pair was reusable", err)
+	}
+}
+
+func TestRestoreTableOwnerPairReferenceLifetime(t *testing.T) {
+	e, op, refs, _ := inheritedRestoreFixture(t)
+	owner, ok := e.Roles().Lookup("captured_owner")
+	if !ok {
+		t.Fatal("missing captured role")
+	}
+	pair, err := partitioncmds.CaptureInheritedOwner(e, op, refs["unrelated"], owner.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := enginetest.Statement(t, "ALTER TABLE public.unrelated OWNER TO captured_owner").(*parser.AlterOwner)
+	reject := func(t *testing.T, candidate table.RestoredInheritedOwner) {
+		t.Helper()
+		state, actor := e.Catalog.State, op.RoleState()
+		target := e.CatalogRead().MustRelation(refs["unrelated"].Address)
+		neighbor := e.CatalogRead().MustRelation(refs["q"].Address)
+		namespace := e.CatalogRead().MustNamespace(target.Namespace())
+		revision := target.Revision()
+		if err := partitioncmds.RestoreInheritedOwner(e, op, raw, candidate); err == nil {
+			t.Fatal("foreign or expired declaration reference admitted")
+		}
+		if e.Catalog.State != state || op.RoleState() != actor ||
+			e.CatalogRead().MustRelation(target.Address()) != target || target.Revision() != revision ||
+			e.CatalogRead().MustRelation(neighbor.Address()) != neighbor ||
+			e.CatalogRead().MustNamespace(namespace.Address()) != namespace {
+			t.Fatal("rejected reference changed catalog backing, revision, neighbor, namespace or actor")
+		}
+	}
+	for name, mutate := range map[string]func(*table.RestoredInheritedOwner){
+		"foreign-domain": func(p *table.RestoredInheritedOwner) {
+			p.Ref = engine.New().Catalog.Domain.Ref(p.Ref.Epoch, p.Ref.Address)
+		},
+		"expired-epoch":    func(p *table.RestoredInheritedOwner) { p.Ref.Epoch++ },
+		"column-reference": func(p *table.RestoredInheritedOwner) { p.Ref.Address.SubID = 1 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := pair
+			mutate(&candidate)
+			reject(t, candidate)
+		})
+	}
+	old := e.CatalogRead().MustRelation(pair.Ref.Address)
+	roleExecute(t, e, op, "DROP TABLE public.unrelated")
+	roleExecute(t, e, op, "CREATE TABLE public.unrelated(a INT)")
+	auth, err := core.OperationAuthorization(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := e.ResolveRelationReference(auth, raw.Name, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current == pair.Ref || current.Domain() != pair.Ref.Domain() || current.Epoch != pair.Ref.Epoch {
+		t.Fatal("drop/recreate fixture did not distinguish same-name declaration lifetimes", current, pair.Ref)
+	}
+	refs["unrelated"] = current
+	reject(t, pair)
+	if old.Owner != pair.Creator {
+		t.Fatal("expired declaration backing changed")
+	}
+	fresh, err := partitioncmds.CaptureInheritedOwner(e, op, current, owner.Ref)
+	if err != nil || fresh.Ref != current {
+		t.Fatal("replacement did not capture its own destination reference", fresh, err)
+	}
+	state, actor := e.Catalog.State, op.RoleState()
+	if err := partitioncmds.RestoreInheritedOwner(e, op, raw, fresh); err != nil || e.Catalog.State != state || op.RoleState() != actor {
+		t.Fatal("fresh destination declaration admission changed catalog or actor", err)
+	}
+}
+
+func TestRestoreTableOwnerPairKindBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name, declaration, target string
+	}{
+		{"view", "CREATE VIEW public.not_a_table AS SELECT 1 AS a", "public.not_a_table"},
+		{"sequence", "CREATE SEQUENCE public.not_a_table", "public.not_a_table"},
+		{"temporary", "CREATE TEMP TABLE not_a_table(a INT)", "not_a_table"},
+		{"partitioned", "CREATE TABLE public.not_a_table(a INT) PARTITION BY RANGE(a)", "public.not_a_table"},
+		{"partition", "CREATE TABLE public.not_a_table PARTITION OF public.owner_partition_root DEFAULT", "public.not_a_table"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, op, refs, _ := inheritedRestoreFixture(t)
+			if tc.name == "partition" {
+				roleExecute(t, e, op, "CREATE TABLE public.owner_partition_root(a INT) PARTITION BY RANGE(a)")
+			}
+			roleExecute(t, e, op, tc.declaration)
+			owner, ok := e.Roles().Lookup("captured_owner")
+			if !ok {
+				t.Fatal("missing captured role")
+			}
+			raw := enginetest.Statement(t, "ALTER TABLE "+tc.target+" OWNER TO captured_owner").(*parser.AlterOwner)
+			auth, err := core.OperationAuthorization(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ref, err := e.ResolveRelationReference(auth, raw.Name, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			target := e.CatalogRead().MustRelation(ref.Address)
+			namespace := e.CatalogRead().MustNamespace(target.Namespace())
+			if target.RelationKind == catalog.TableRelation && target.Partition == nil && target.Membership == nil && namespace.Temporary == (ids.SessionToken{}) {
+				t.Fatal("fixture accidentally supplied an ordinary permanent table")
+			}
+			state, actor := e.Catalog.State, op.RoleState()
+			neighbor := e.CatalogRead().MustRelation(refs["unrelated"].Address)
+			pair, err := partitioncmds.CaptureInheritedOwner(e, op, ref, owner.Ref)
+			if err == nil || pair != (table.RestoredInheritedOwner{}) {
+				t.Fatal("wrong-kind or temporary declaration acquired owner pair", pair, err)
+			}
+			if e.Catalog.State != state || op.RoleState() != actor ||
+				e.CatalogRead().MustRelation(ref.Address) != target ||
+				e.CatalogRead().MustNamespace(namespace.Address()) != namespace ||
+				e.CatalogRead().MustRelation(neighbor.Address()) != neighbor {
+				t.Fatal("rejected capture changed target, namespace, neighbor or actor")
+			}
+			ordinary, err := partitioncmds.CaptureInheritedOwner(e, op, refs["unrelated"], owner.Ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ordinary.Ref = ref
+			if err := partitioncmds.RestoreInheritedOwner(e, op, raw, ordinary); err == nil ||
+				e.Catalog.State != state || op.RoleState() != actor ||
+				e.CatalogRead().MustRelation(ref.Address) != target ||
+				e.CatalogRead().MustRelation(neighbor.Address()) != neighbor {
+				t.Fatal("substituted nonordinary target gained owner-pair authority", err)
+			}
+		})
+	}
+}
+
+func TestRestoreTableOwnerPairActorBoundary(t *testing.T) {
+	for _, creator := range []string{"postgres", "replay_admin"} {
+		t.Run(creator, func(t *testing.T) {
+			e, bootstrap, _, _ := inheritedRestoreFixture(t)
+			roleExecute(t, e, bootstrap, "CREATE ROLE replay_admin LOGIN SUPERUSER")
+			op, done := roleOperation(t, e, creator)
+			defer done()
+			roleExecute(t, e, op, "CREATE TABLE public.actor_table(a INT)")
+			owner, ok := e.Roles().Lookup("captured_owner")
+			if !ok {
+				t.Fatal("missing captured role")
+			}
+			raw := enginetest.Statement(t, "ALTER TABLE public.actor_table OWNER TO captured_owner").(*parser.AlterOwner)
+			auth, err := core.OperationAuthorization(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ref, err := e.ResolveRelationReference(auth, raw.Name, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := e.CatalogRead().MustRelation(ref.Address)
+			revision := old.Revision()
+			state, actor := e.Catalog.State, op.RoleState()
+			pair, err := partitioncmds.CaptureInheritedOwner(e, op, ref, owner.Ref)
+			if err != nil || pair.Ref != ref || pair.Creator != actor.CurrentUser || pair.Owner != owner.Ref {
+				t.Fatal("authenticated superuser capture lost exact actor or destination identity", pair, err)
+			}
+			if err := partitioncmds.RestoreInheritedOwner(e, op, raw, pair); err != nil {
+				t.Fatal(err)
+			}
+			if e.Catalog.State != state || op.RoleState() != actor || old.Revision() != revision {
+				t.Fatal("successful capture/admission changed actor or descriptor revision")
+			}
+			roleExecute(t, e, op, "SET SESSION AUTHORIZATION captured_owner")
+			state, namedActor := e.Catalog.State, op.RoleState()
+			if _, err := partitioncmds.CaptureInheritedOwner(e, op, ref, owner.Ref); err == nil {
+				t.Fatal("named nonsuperuser acquired bootstrap capture authority")
+			}
+			if err := partitioncmds.RestoreInheritedOwner(e, op, raw, pair); err == nil ||
+				e.Catalog.State != state || op.RoleState() != namedActor ||
+				e.CatalogRead().MustRelation(ref.Address) != old || old.Revision() != revision {
+				t.Fatal("failed named-actor admission changed catalog, actor or old revision", err)
+			}
+			roleExecute(t, e, op, "SET SESSION AUTHORIZATION DEFAULT")
+			if op.RoleState() != actor {
+				t.Fatal("authenticated prior actor was not restored exactly")
+			}
+			roleExecute(t, e, op, "ALTER TABLE public.actor_table OWNER TO captured_owner")
+			current := e.CatalogRead().MustRelation(ref.Address)
+			if current == old || current.Owner != owner.Ref || old.Owner != actor.CurrentUser ||
+				old.Revision() != revision || current.Revision() <= revision || op.RoleState() != actor {
+				t.Fatal("actual transfer changed old backing or leaked actor authority")
+			}
+		})
+	}
+}
+
 func restoreNNRaw(relation, column, name string) *parser.Update {
 	query := &parser.Select{Targets: []parser.Expr{parser.ColumnExpr{Name: restoreNNName("attnum")}}, From: &parser.TableReference{Name: restoreNNName("pg_catalog", "pg_attribute")}, Where: parser.LogicalExpr{Op: parser.LogicalAnd, Left: restoreNNEqual("attrelid", restoreNNRegclass(relation)), Right: restoreNNEqual("attname", restoreNNText(column))}}
 	return &parser.Update{Name: restoreNNName("pg_catalog", "pg_constraint"), Assignments: []parser.UpdateAssignment{{Target: parser.Identifier{Text: "connoinherit"}, Value: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}}}, Where: parser.LogicalExpr{Op: parser.LogicalAnd, Left: parser.LogicalExpr{Op: parser.LogicalAnd, Left: restoreNNEqual("conrelid", restoreNNRegclass(relation)), Right: restoreNNEqual("conname", restoreNNText(name))}, Right: restoreNNEqual("conkey", parser.ArrayExpr{Elements: []parser.Expr{parser.SubqueryExpr{Kind: parser.SubqueryScalar, Query: query}}})}}

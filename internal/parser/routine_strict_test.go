@@ -1,120 +1,123 @@
 package parser
 
 import (
-	"errors"
-	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
-
-	"stuntgres/internal/sqlstate"
 )
+
+func hasRoutineAttribute(d *CreateFunction, kind string) bool {
+	for _, attribute := range d.Attributes {
+		if attribute.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
 
 func TestAggregateOrderedStrictSupportDeclaration(t *testing.T) {
 	for _, suffix := range []string{
-		"STRICT LANGUAGE SQL AS $$SELECT $1$$",
-		"LANGUAGE SQL STRICT AS $$SELECT $1$$",
-		"LANGUAGE SQL AS $$SELECT $1$$ STRICT",
-		"STRICT AS $$SELECT $1$$ LANGUAGE SQL",
-		"AS $$SELECT $1$$ STRICT LANGUAGE SQL",
-		"AS $$SELECT $1$$ LANGUAGE SQL STRICT",
-		"STRICT RETURN $1",
-		"STRICT LANGUAGE SQL RETURN $1",
-		"LANGUAGE SQL STRICT RETURN $1",
+		"STRICT LANGUAGE SQL AS $$SELECT $1$$", "LANGUAGE SQL STRICT AS $$SELECT $1$$",
+		"LANGUAGE SQL AS $$SELECT $1$$ STRICT", "STRICT AS $$SELECT $1$$ LANGUAGE SQL",
+		"AS $$SELECT $1$$ STRICT LANGUAGE SQL", "AS $$SELECT $1$$ LANGUAGE SQL STRICT",
+		"STRICT RETURN $1", "STRICT LANGUAGE SQL RETURN $1", "LANGUAGE SQL STRICT RETURN $1",
 	} {
 		statements, err := Parse("CREATE FUNCTION step(integer) RETURNS integer " + suffix)
 		if err != nil {
 			t.Fatal(suffix, err)
 		}
-		declaration := statements[0].(*CreateFunction)
-		if !declaration.Strict || declaration.Language.Text != "sql" || declaration.Body != "SELECT $1" && declaration.Standard == nil {
-			t.Fatal("strict support declaration lost its body or mode", suffix, declaration)
+		d := statements[0].(*CreateFunction)
+		if !hasRoutineAttribute(d, "strict") || d.Language.Text != "sql" || d.Body != "SELECT $1" && d.Standard == nil {
+			t.Fatal("strict support body/mode", suffix, d)
 		}
 	}
 	statements, err := Parse("CREATE FUNCTION step(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$")
-	if err != nil || statements[0].(*CreateFunction).Strict {
-		t.Fatal("omitted strictness changed default", statements, err)
-	}
-	query := "/*é*/ CREATE FUNCTION step(integer) RETURNS integer STRICT LANGUAGE SQL STRICT AS $$SELECT $1$$"
-	_, err = Parse(query)
-	var diagnostic *sqlstate.Error
-	position := strconv.Itoa(utf8.RuneCountInString(query[:strings.LastIndex(query, "STRICT")]) + 1)
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || diagnostic.Message != "conflicting or redundant options" || diagnostic.Position != position {
-		t.Fatal("duplicate strictness diagnostic", diagnostic, err)
+	if err != nil || len(statements[0].(*CreateFunction).Attributes) != 0 {
+		t.Fatal("omitted attributes", statements, err)
 	}
 	if statements, err = Parse(`CREATE FUNCTION step(integer) RETURNS integer "strict" LANGUAGE SQL AS $$SELECT $1$$`); err == nil || len(statements) != 0 {
-		t.Fatal("quoted name admitted as strictness clause", statements, err)
+		t.Fatal("quoted attribute", statements, err)
 	}
 }
 
 func TestAggregateOrderedVolatileSupportDeclaration(t *testing.T) {
-	for _, tc := range []struct {
-		suffix string
-		strict bool
-	}{
-		{"VOLATILE LANGUAGE SQL AS $$SELECT $1$$", false},
-		{"LANGUAGE SQL VOLATILE AS $$SELECT $1$$", false},
-		{"LANGUAGE SQL AS $$SELECT $1$$ VOLATILE", false},
-		{"VOLATILE AS $$SELECT $1$$ LANGUAGE SQL", false},
-		{"AS $$SELECT $1$$ VOLATILE LANGUAGE SQL", false},
-		{"AS $$SELECT $1$$ LANGUAGE SQL VOLATILE", false},
-		{"VOLATILE BEGIN ATOMIC SELECT $1; END", false},
-		{"STRICT VOLATILE LANGUAGE SQL AS $$SELECT $1$$", true},
-		{"VOLATILE STRICT LANGUAGE SQL AS $$SELECT $1$$", true},
+	for _, suffix := range []string{
+		"VOLATILE LANGUAGE SQL AS $$SELECT $1$$", "LANGUAGE SQL VOLATILE AS $$SELECT $1$$",
+		"LANGUAGE SQL AS $$SELECT $1$$ VOLATILE", "VOLATILE AS $$SELECT $1$$ LANGUAGE SQL",
+		"AS $$SELECT $1$$ VOLATILE LANGUAGE SQL", "AS $$SELECT $1$$ LANGUAGE SQL VOLATILE",
+		"VOLATILE BEGIN ATOMIC SELECT $1; END", "STRICT VOLATILE LANGUAGE SQL AS $$SELECT $1$$", "VOLATILE STRICT LANGUAGE SQL AS $$SELECT $1$$",
 	} {
-		statements, err := Parse("CREATE FUNCTION step(integer) RETURNS integer " + tc.suffix)
+		statements, err := Parse("CREATE FUNCTION step(integer) RETURNS integer " + suffix)
 		if err != nil {
-			t.Fatal(tc.suffix, err)
+			t.Fatal(suffix, err)
 		}
-		declaration := statements[0].(*CreateFunction)
-		if declaration.Volatility != "volatile" || declaration.Strict != tc.strict || declaration.Language.Text != "sql" {
-			t.Fatal("function attributes lost or conflated", declaration)
+		d := statements[0].(*CreateFunction)
+		if !hasRoutineAttribute(d, "volatile") || hasRoutineAttribute(d, "strict") != strings.Contains(suffix, "STRICT") || d.Language.Text != "sql" {
+			t.Fatal("independent attributes", d)
 		}
-	}
-	query := "CREATE FUNCTION step(integer) RETURNS integer VOLATILE LANGUAGE SQL AS $$SELECT $1$$ VOLATILE"
-	_, err := Parse(query)
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || diagnostic.Message != "conflicting or redundant options" {
-		t.Fatal("duplicate volatility accepted", diagnostic, err)
 	}
 }
 
 func TestFunctionReplacementAttributes(t *testing.T) {
 	for _, suffix := range []string{
-		"STRICT VOLATILE LANGUAGE SQL AS $$SELECT $1$$",
-		"LANGUAGE SQL STRICT VOLATILE AS $$SELECT $1$$",
-		"LANGUAGE SQL AS $$SELECT $1$$ STRICT VOLATILE",
-		"STRICT AS $$SELECT $1$$ VOLATILE LANGUAGE SQL",
-		"AS $$SELECT $1$$ STRICT LANGUAGE SQL VOLATILE",
-		"AS $$SELECT $1$$ LANGUAGE SQL VOLATILE STRICT",
-		"STRICT VOLATILE RETURN $1",
-		"STRICT LANGUAGE SQL VOLATILE RETURN $1",
-		"VOLATILE LANGUAGE SQL STRICT BEGIN ATOMIC SELECT $1; END",
+		"STRICT VOLATILE LANGUAGE SQL AS $$SELECT $1$$", "LANGUAGE SQL STRICT VOLATILE AS $$SELECT $1$$",
+		"LANGUAGE SQL AS $$SELECT $1$$ STRICT VOLATILE", "STRICT AS $$SELECT $1$$ VOLATILE LANGUAGE SQL",
+		"AS $$SELECT $1$$ STRICT LANGUAGE SQL VOLATILE", "AS $$SELECT $1$$ LANGUAGE SQL VOLATILE STRICT",
+		"STRICT VOLATILE RETURN $1", "STRICT LANGUAGE SQL VOLATILE RETURN $1", "VOLATILE LANGUAGE SQL STRICT BEGIN ATOMIC SELECT $1; END",
 	} {
 		statements, err := Parse("CREATE OR REPLACE FUNCTION step(integer) RETURNS integer " + suffix)
 		if err != nil {
 			t.Fatal(suffix, err)
 		}
-		declaration := statements[0].(*CreateFunction)
-		if !declaration.Replace || !declaration.Strict || declaration.Volatility != "volatile" || declaration.Language.Text != "sql" || declaration.Body != "SELECT $1" && declaration.Standard == nil {
-			t.Fatal("replacement lost declaration attributes or body", suffix, declaration)
+		d := statements[0].(*CreateFunction)
+		if !d.Replace || !hasRoutineAttribute(d, "strict") || !hasRoutineAttribute(d, "volatile") || d.Language.Text != "sql" || d.Body != "SELECT $1" && d.Standard == nil {
+			t.Fatal("replacement/body", suffix, d)
 		}
 	}
 	statements, err := Parse("CREATE OR REPLACE FUNCTION event_fn() RETURNS event_trigger STRICT VOLATILE LANGUAGE plpgsql AS $$BEGIN RETURN; END$$")
 	if err != nil {
 		t.Fatal(err)
 	}
-	event := statements[0].(*CreateFunction)
-	if !event.Replace || !event.Strict || event.Volatility != "volatile" || event.Language.Text != "plpgsql" || event.Body != "BEGIN RETURN; END" {
-		t.Fatal("event replacement lost independent declaration attributes", event)
+	d := statements[0].(*CreateFunction)
+	if !d.Replace || !hasRoutineAttribute(d, "strict") || !hasRoutineAttribute(d, "volatile") || d.Language.Text != "plpgsql" || d.Body != "BEGIN RETURN; END" {
+		t.Fatal("event replacement", d)
 	}
-	for _, attribute := range []string{"STRICT", "VOLATILE"} {
-		query := "/*é*/ CREATE OR REPLACE FUNCTION step(integer) RETURNS integer " + attribute + " LANGUAGE SQL AS $$SELECT $1$$ " + attribute
-		_, err := Parse(query)
-		var diagnostic *sqlstate.Error
-		position := strconv.Itoa(utf8.RuneCountInString(query[:strings.LastIndex(query, attribute)]) + 1)
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || diagnostic.Message != "conflicting or redundant options" || diagnostic.Position != position {
-			t.Fatal("replacement lost duplicate attribute diagnostic", attribute, diagnostic, err)
+}
+
+func TestRoutineAttributeSyntax(t *testing.T) {
+	for _, kind := range []string{"STRICT", "VOLATILE"} {
+		query := "/*é*/ CREATE OR REPLACE FUNCTION step(integer) RETURNS integer " + kind + " LANGUAGE SQL AS $$SELECT $1$$ " + kind
+		statements, err := Parse(query)
+		if err != nil {
+			t.Fatal("semantic duplicate rejected during parse", err)
+		}
+		attributes := statements[0].(*CreateFunction).Attributes
+		at := strings.LastIndex(query, kind)
+		if len(attributes) != 2 || attributes[1].Kind != strings.ToLower(kind) || attributes[1].Pos != (Position{Offset: at, Character: utf8.RuneCountInString(query[:at]) + 1}) {
+			t.Fatal("duplicate ordered positions", attributes)
+		}
+	}
+	query := "ALTER FUNCTION f(integer) IMMUTABLE CALLED ON NULL INPUT SECURITY DEFINER PARALLEL RESTRICTED COST -2 ROWS +3 SET work_mem FROM CURRENT RESET ALL SET search_path TO public, pg_catalog"
+	statements, err := Parse(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := statements[0].(*AlterRoutine)
+	want := []string{"immutable", "strict", "security", "parallel", "cost", "rows", "set", "resetall", "set"}
+	if a.Action != "attributes" || len(a.Attributes) != len(want) {
+		t.Fatal(a)
+	}
+	for i, kind := range want {
+		if a.Attributes[i].Kind != kind || i > 0 && a.Attributes[i].Pos.Character <= a.Attributes[i-1].Pos.Character {
+			t.Fatal("order", a.Attributes)
+		}
+	}
+	if !a.Attributes[6].Setting.FromCurrent || a.Attributes[4].Value != "-2" || a.Attributes[8].Setting.Values[1] != "pg_catalog" {
+		t.Fatal("values", a.Attributes)
+	}
+	for _, suffix := range []string{" COST", " SET x FROM", " PARALLEL", " STRICT garbage"} {
+		if statements, err := Parse("CREATE FUNCTION f() RETURNS integer LANGUAGE SQL AS 'SELECT 1'" + suffix); err == nil || len(statements) != 0 {
+			t.Fatal("whole input accepted", suffix, statements, err)
 		}
 	}
 }

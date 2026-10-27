@@ -111,6 +111,9 @@ func emitDumpEvents(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 			}
 		}
 		if event.Phase == dump.Declaration {
+			if err := emitDumpProviderEvent(s, w, event.OID); err != nil {
+				return err
+			}
 			if err := emitObjectACLStatements(ctx, w, s.typeACLStatements[event.OID]); err != nil {
 				return err
 			}

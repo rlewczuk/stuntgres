@@ -125,6 +125,13 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 			}
 		}
 	}
+	leaveEnvironment, err := parent.enterRoutineEnvironment(d)
+	if err != nil {
+		return value, err
+	}
+	defer func() { err = leaveEnvironment(err) }()
+	leavePolicy := parent.activateRoutineCommandPolicy(d)
+	defer leavePolicy()
 	if d.SQL.Kind == proc.PLpgSQLBody {
 		return parent.invokePLRoutineSpecialized(d, frame, read, inputCollation, resultUsage)
 	}
@@ -212,6 +219,9 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, activati
 	_, selecting := statement.(*parser.Select)
 	s.sqlRoutine.scalar, s.sqlRoutine.result = terminal && selecting && values == nil, resultUsage
 	e := s.Engine()
+	if err := s.routineUtilityEligibility(statement); err != nil {
+		return value, err
+	}
 	if _, transaction := statement.(*parser.TransactionControl); transaction {
 		return value, SQLError("0A000", RoutineCommandTag(statement)+" is not allowed in an SQL function")
 	}
@@ -347,6 +357,10 @@ func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *s
 		b, err = view.RefreshRuleActionCTEs(auth, b)
 	}
 	if err != nil {
+		e.Mu.Unlock()
+		return err
+	}
+	if err := s.routineReadOnlyEligibility(action.Syntax(), auth.Catalog, b.QuerySources, b.Query); err != nil {
 		e.Mu.Unlock()
 		return err
 	}

@@ -11,22 +11,24 @@ func ordinaryCall(typ TypeName, args []Expr, callee lexeme) Expr {
 	if ordinaryCastFunction(callee) && len(args) == 1 {
 		return CastExpr{Child: args[0], TypeName: typ, Syntax: FunctionCast, Callee: callee.text, Pos: typ.Pos}
 	}
-	parts := []Identifier{{Text: typ.Name, Pos: typ.Pos}}
-	if typ.Schema != nil {
-		parts = append([]Identifier{*typ.Schema}, parts...)
-	}
-	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, CompositeCandidate: !ordinarySignatureName(typ.Name)}
+	return FunctionExpr{Name: ordinaryCallName(typ), Args: args, Pos: typ.Pos, CompositeCandidate: !ordinarySignatureName(typ.Name)}
 }
 
 func modifiedOrdinaryCall(typ TypeName, args []Expr, star, distinct, all, variadic bool, order []OrderKey) Expr {
 	if ordinaryAggregate(typ.Name) {
 		return AggregateExpr{Name: typ.Name, Schema: typ.Schema, Args: args, Star: star, Distinct: distinct, Variadic: variadic, Order: order, Pos: typ.Pos}
 	}
-	parts := []Identifier{{Text: typ.Name, Pos: typ.Pos}}
-	if typ.Schema != nil {
-		parts = append([]Identifier{*typ.Schema}, parts...)
+	return FunctionExpr{Name: ordinaryCallName(typ), Args: args, Pos: typ.Pos, Star: star, Distinct: distinct, All: all, Variadic: variadic, Order: order, CompositeCandidate: !ordinarySignatureName(typ.Name)}
+}
+
+func ordinaryCallName(typ TypeName) ObjectName {
+	if len(typ.Parts) != 0 {
+		return ObjectName{Parts: typ.Parts}
 	}
-	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, Star: star, Distinct: distinct, All: all, Variadic: variadic, Order: order, CompositeCandidate: !ordinarySignatureName(typ.Name)}
+	if typ.Schema != nil {
+		return ObjectName{Parts: []Identifier{*typ.Schema, {Text: typ.Name, Pos: typ.Pos}}}
+	}
+	return ObjectName{Parts: []Identifier{{Text: typ.Name, Pos: typ.Pos}}}
 }
 
 // Only the unquoted release JSON_OBJECT legacy production rewrites its name.

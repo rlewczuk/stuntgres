@@ -20,17 +20,17 @@ func TestSettingsLocalActions(t *testing.T) {
 			for _, action := range tc.actions {
 				switch action {
 				case 'S':
-					s.Touch("x", false)
+					s.Touch("x", SettingSet)
 					s.Restore("x", settingOverride{Present: true, Text: "s", Typed: settings.Value{Number: 2}})
 				case 'L':
-					s.Touch("x", true)
+					s.Touch("x", SettingLocal)
 					s.Restore("x", settingOverride{Present: true, Text: "l", Typed: settings.Value{Number: 3}})
 				case 'D':
-					s.Touch("x", true)
+					s.Touch("x", SettingLocal)
 					s.Restore("x", settingOverride{})
 				case 'R':
 					if _, ok := s.Values["x"]; ok {
-						s.Touch("x", false)
+						s.Touch("x", SettingSet)
 						s.Restore("x", settingOverride{})
 					}
 				}
@@ -56,7 +56,7 @@ func TestSettingsLocalActions(t *testing.T) {
 
 func TestSettingsLocalEndedCleanup(t *testing.T) {
 	s := &SettingsStore{Values: map[string]string{"x": "b"}, Typed: map[string]settings.Value{}}
-	s.Touch("x", true)
+	s.Touch("x", SettingLocal)
 	s.EndSession(ids.SessionToken{}, 0)
 	s.FinishTransaction(false)
 	if s.Values != nil || s.Typed != nil || s.Actions != nil {

@@ -44,6 +44,29 @@ func indexBuiltinRoutineFormals() map[builtinRoutineKey]*catalog.BuiltinRoutineD
 	return byDeclaration
 }
 
+// BuiltinRoutineCost returns the immutable released cost used when seeding a
+// builtin declaration, independently of its mutable public descriptor.
+func BuiltinRoutineCost(d *catalog.BuiltinRoutineDeclaration) float32 {
+	display, ok := builtinRoutineDisplay[d.Identity.ID]
+	if !ok || display.Language.String() == "" {
+		// View-authority declarations deliberately stay outside the scalar
+		// inventory, but retain their genuine internal-language default.
+		for i := range sharedMemoryDeclarations {
+			if d == &sharedMemoryDeclarations[i] {
+				return 1
+			}
+		}
+		panic("stuntgres: missing builtin routine display declaration")
+	}
+	if display.Cost != 0 {
+		return display.Cost
+	}
+	if display.Language == catalog.SQLRoutineLanguage || display.Language == catalog.PLpgSQLRoutineLanguage {
+		return 100
+	}
+	return 1
+}
+
 // BuiltinProcedures returns a fresh descriptor for every builtin routine
 // declaration, in declaration order, with SQL bodies attached. The engine
 // installs them; descriptor pointers retain the returned backing array.
@@ -57,15 +80,17 @@ func BuiltinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
 	for i := range BuiltinRoutineDeclarations {
 		declaration := &BuiltinRoutineDeclarations[i]
 		display, ok := builtinRoutineDisplay[declaration.Identity.ID]
-		if !ok || !display.Valid() {
+		if !ok || display.Language.String() == "" {
 			panic("stuntgres: missing builtin routine display declaration")
 		}
 		procedures[i] = catalog.Procedure{
 			ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID},
 			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: declaration.Identity.Namespace},
 			ObjectRevision:  1, ObjectName: declaration.Identity.Name, Signature: declaration.Identity.Signature,
-			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner, Display: display,
-			Result: declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
+			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner,
+			Display: catalog.RoutineDisplay{Language: display.Language, Source: display.Source},
+			Cost:    BuiltinRoutineCost(declaration),
+			Result:  declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
 			LiteralDefaults: builtinRoutineLiteralDefaults[declaration.Identity.ID],
 			InputNames:      builtinRoutineInputNames[declaration.Identity.ID],
 		}

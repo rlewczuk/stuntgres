@@ -10,7 +10,13 @@ import (
 // src/backend/catalog/system_functions.sql. Explicit costs include SQL-standard
 // replacements matched by original name and declared inputs; their source is empty.
 // This table never creates routines or grants execution admission.
-var builtinRoutineDisplay = map[ids.OID]catalog.RoutineDisplay{
+type builtinDisplayFacts struct {
+	Language catalog.RoutineLanguage
+	Source   string
+	Cost     float32
+}
+
+var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	3231: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_lt"},
 	3232: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_le"},
 	3233: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_eq"},

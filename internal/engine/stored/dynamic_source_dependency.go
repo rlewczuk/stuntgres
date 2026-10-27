@@ -29,6 +29,9 @@ func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.Expres
 				}
 			}
 			procedure, ok := read.Procedure(ref.Address)
+			if ok && procedure.SQL != nil {
+				return true, nil
+			}
 			if ok && extension.TablefuncProviderOf(procedure) == extension.StockTablefunc {
 				symbol, err := extension.ProcedureSymbol(read, procedure)
 				if err != nil {

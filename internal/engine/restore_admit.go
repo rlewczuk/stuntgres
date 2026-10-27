@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dump"
@@ -109,7 +110,7 @@ func restoreForeignDefault(s *parser.ForeignDDL) *parser.AlterTableDefault {
 }
 
 // admitRestoreAlterOwner admits captured installed-type ownership or pairs an
-// ALTER OWNER with the exact fresh type or inheriting table its directive created.
+// ALTER OWNER with the exact fresh type or ordinary table its directive created.
 func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
 	if s.Kind == "domain" || s.Kind == "type" && r.cur.typeOwnerPair.Kind == "type" {
 		return typecmds.RestoreTypeOwner(r.stage, op, s, r.cur.typeOwnerPair)
@@ -243,11 +244,19 @@ func admitRestoreAlterSequence(r *restoreRun, op *session.Operation, s *parser.A
 	return tablecmds.ValidateRestoreIdentityConfiguration(r.stage, op, s)
 }
 
-// admitRestoreSessionAuthorization admits owner directives and DEFAULT;
-// DEFAULT also ends the open generation recipes.
+// admitRestoreSessionAuthorization admits owner directives and DEFAULT.
+// A DEFAULT immediately before a captured table creation is its administrator
+// switch; other DEFAULT directives end the open generation recipes.
 func admitRestoreSessionAuthorization(r *restoreRun, _ *session.Operation, s *parser.SessionAuthorization) error {
 	if s.Default {
-		r.generationRepairs = nil
+		next := r.cur.index + 1
+		pairedCreation := false
+		if next < len(r.statements) && r.cur.priorAuthorization != (authorization.PrincipalRef{}) {
+			_, pairedCreation = r.statements[next].(*parser.CreateTable)
+		}
+		if !pairedCreation {
+			r.generationRepairs = nil
+		}
 	}
 	if !s.OwnerDirective && !s.Default {
 		return core.SQLError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives or DEFAULT")

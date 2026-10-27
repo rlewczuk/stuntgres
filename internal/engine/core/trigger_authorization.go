@@ -29,7 +29,7 @@ func (s *StatementScope) RoutineAuthorizationLocked() (AuthorizationView, error)
 // Outside that frame, retain the host's existing rule/RI action authority.
 // Genuine relation writes continue to use writeAuthorizationLocked directly.
 func (s *StatementScope) callableAuthorizationLocked(e *Engine) (AuthorizationView, error) {
-	if s.Op.Restricted != nil {
+	if s.Op.Restricted != nil || s.Op.EffectiveUser != nil {
 		return s.RoutineAuthorizationLocked()
 	}
 	return s.writeAuthorizationLocked(e)

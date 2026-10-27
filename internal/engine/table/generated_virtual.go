@@ -50,6 +50,16 @@ func VirtualGenerationSecurity(node expr.Expr) error {
 			err := expr.ErrorAt("0A000", "generation expression uses user-defined type", n.SourcePosition()).(*sqlstate.Error)
 			err.Detail = "Virtual generated columns that make use of user-defined types are not yet supported."
 			failure = err
+			return
+		}
+		call, ok := n.(interface{ CallRoutineReference() expr.RoutineReference })
+		if !ok {
+			return
+		}
+		if procedure, ok := call.CallRoutineReference().(*catalog.Procedure); ok && procedure != nil && procedure.Builtin == nil {
+			err := expr.ErrorAt("0A000", "generation expression uses user-defined function", n.SourcePosition()).(*sqlstate.Error)
+			err.Detail = "Virtual generated columns that make use of user-defined functions are not yet supported."
+			failure = err
 		}
 	})
 	return failure

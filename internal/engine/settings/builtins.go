@@ -17,6 +17,7 @@ var applicationName = Definition{
 }
 var builtins = []Definition{
 	applicationName,
+	{Name: "is_superuser", Type: Boolean, Access: ReadOnly, BootDefault: "off", Description: "Shows whether the current user is a superuser."},
 	{Name: "deadlock_timeout", Type: Integer, Access: Privileged, Unit: Milliseconds, IntegerMin: 1, IntegerMax: math.MaxInt32, BootDefault: "1000", Description: "Sets the time to wait on a lock before checking for deadlock."},
 	{Name: "max_locks_per_transaction", Type: Integer, Access: StartupOnly, IntegerMin: 10, IntegerMax: math.MaxInt32, BootDefault: "64", Description: "Sets the maximum number of locks per transaction."},
 	{Name: "max_pred_locks_per_page", Type: Integer, Access: Sighup, IntegerMax: math.MaxInt32, BootDefault: "2", Description: "Sets the maximum number of predicate-locked tuples per page."},

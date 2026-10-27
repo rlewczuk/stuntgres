@@ -1,11 +1,11 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/core"
 	"testing"
 	"time"
 
@@ -141,6 +141,44 @@ func TestSequencePreparedAuthority(t *testing.T) {
 			t.Fatal("unchanged START failed to invalidate")
 		}
 		sequenceScalar(t, s, "SELECT nextval('b.s')", 13)
+	})
+	t.Run("StableTemporaryPayloadAndEnvironment", func(t *testing.T) {
+		e := engine.New()
+		s := enginetest.StartSession(t, e, nil)
+		sessionSQL(t, s, "CREATE TEMP SEQUENCE s")
+		_, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
+		cell := d.Sequences
+		constant := &cell.Constants[0]
+		path := &cell.Path.Namespaces[0]
+		key, cached := core.PayloadOf(s).Sequences.CachedPathKey()
+		op, err := s.Acquire(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer op.Done()
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.AuthorizationLocked(op)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !cached || key.Temp != s.TemporaryNamespace || key.Temp == (ids.ObjectAddress{}) || core.TemporaryNamespace(auth) != key.Temp || cell.Constants[0].Temporary != s.SessionToken {
+			t.Fatal("missing owned active temporary namespace or literal provenance")
+		}
+		if valid, err := core.EngineSequenceAnalysisValidLocked(e, auth, cell); err != nil || !valid {
+			t.Fatal(valid, err)
+		}
+		allocations := testing.AllocsPerRun(100, func() {
+			if valid, err := core.EngineSequenceAnalysisValidLocked(e, auth, cell); err != nil || !valid {
+				panic("unchanged temporary analysis became invalid")
+			}
+		})
+		if allocations != 0 {
+			t.Fatal("unchanged temporary sequence cache validation allocated", allocations)
+		}
+		if d.Sequences != cell || &cell.Constants[0] != constant || &cell.Path.Namespaces[0] != path || !cachedSequencePathIs(s, key) {
+			t.Fatal("unchanged temporary validation replaced analysis or effective namespace cache")
+		}
 	})
 	t.Run("QueuedRename", func(t *testing.T) {
 		e := engine.New()

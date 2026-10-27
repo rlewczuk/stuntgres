@@ -16,10 +16,23 @@ func settingAccess(d settings.Definition, op *session.Operation) error {
 // deny-only custom definitions retain their separate admission contract.
 // The operation supplies one coherent catalog/role root, not a session ACL cache.
 func parameterSetAllowed(op *session.Operation, name string) (bool, error) {
-	view, err := OperationAuthorization(op)
+	var view AuthorizationView
+	var err error
+	if scope := ActiveScopeOfLease(op.Lease); scope != nil {
+		e := scope.Engine()
+		e.Mu.Lock()
+		view, err = scope.RoutineAuthorizationLocked()
+		e.Mu.Unlock()
+	} else {
+		view, err = OperationAuthorization(op)
+	}
 	if err != nil {
 		return false, err
 	}
+	return parameterSetAuthority(view, name)
+}
+
+func parameterSetAuthority(view AuthorizationView, name string) (bool, error) {
 	role, exists := view.Roles.Find(view.State.CurrentUser)
 	if exists && role.Superuser {
 		return true, nil

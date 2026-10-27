@@ -100,10 +100,22 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 	if conjunction.Op != LogicalAnd || negation.Op != LogicalNot || negation.Left.(PredicateExpr).Kind != IsUnknown {
 		t.Fatal("IS must bind above NOT, then AND", conjunction)
 	}
+	statements, err = Parse("SELECT set_config('x',TRUE IS NULL,FALSE)")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	call, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
+	if !ok || len(call.Args) != 3 || call.Name.Parts[0].Text != "set_config" {
+		t.Fatal("setting call lost ordinary arguments", statements)
+	}
+	predicate, ok = call.Args[1].(PredicateExpr)
+	if !ok || predicate.Kind != IsNull || predicate.Pos.Character != 28 || predicate.Left.SourcePosition().Character != 23 {
+		t.Fatal("setting call lost null predicate or positions", call)
+	}
 	keywordDiagnostic(t, "SELECT 1 IS DISTINCT FROM 1 IS TRUE FROM t", "42601", `syntax error at or near "IS"`, "29")
 	for _, q := range []string{
 		"SELECT v IS DISTINCT FROM 1 IS NULL FROM t",
-		"INSERT INTO t VALUES(1 IS NULL)", "SELECT set_config('x',TRUE IS NULL,FALSE)",
+		"INSERT INTO t VALUES(1 IS NULL)",
 		"SELECT v IS OF (integer) FROM t",
 		"SELECT v=1=1 FROM t",
 		"SELECT num_nulls(v IS NULL) FROM t",

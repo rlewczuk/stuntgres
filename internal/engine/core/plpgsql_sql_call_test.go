@@ -53,7 +53,7 @@ func sqlExecutionUnitProcedure(t *testing.T, s *core.StatementScope, name string
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.ProcedureRoutine, SQL: d, Result: ids.OID(d.Result.Type.ID()), Language: language.Address(), Volatility: expr.Volatile}
+	p := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.ProcedureRoutine, SQL: d, Result: ids.OID(d.Result.Type.ID()), Language: language.Address(), Volatility: expr.Volatile, Parallel: 'u', Cost: 100}
 	entries := make([]expr.Expr, len(d.Inputs))
 	for i, formal := range d.InputFormals {
 		if d.Formals[formal].HasDefault {

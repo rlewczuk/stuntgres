@@ -14,6 +14,12 @@ Procedure result policy remains declaration-owned through validation and remap:
 every OUT/INOUT tuple is RECORD even with one member, while no-output is VOID.
 The shared original-occurrence memo maps output shape, formals and child
 generations once; same-OID foreign/unshaped descriptors remain invalid.
+Only SQL/PL procedure descriptors may carry definer security or routine-local
+configuration. The common procedure validator rejects those impossible native
+states before installed-provider delegation or any intrinsic family early return.
+Installed symbol validation enforces the same invariant for direct provider and
+capture/remap consumers. Builtin and installed strictness/volatility remain sealed
+to their real declarations; allowed parallel/cost/rows changes do not relax them.
 
 Installed crosstab consumers retain their selected procedure and genuine named
 result generation, or their completed anonymous record definition. Reference,
@@ -142,8 +148,10 @@ host methods.
   Both purposes remain in ordinary analysis validity. Only the executable
   projection governs retained-fold retirement; neither purpose caches authority.
   Routine public name/namespace/owner are mutable presentation. Same-address
-  declaration checks retain kind, exact signature/result, SQL/default/body and
-  provider association. Installed captures validate their real manifest slot
+  declaration checks retain kind, exact signature/result, semantic attributes,
+  immutable configuration identity, SQL/default/body and provider association.
+  Logical replay compares configuration values while original retained carriers
+  preserve backing identity. Installed captures validate their real manifest slot
   through `extension.ProcedureSymbol`; labels never select executable capability.
   Scalar serialization and deparse validate the original carrier, then format
   checked current labels without refreshing its pointer or dependency revision.

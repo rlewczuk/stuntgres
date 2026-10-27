@@ -35,18 +35,6 @@ func TestReferenceObjectGrantSettingCallAuthority(t *testing.T) {
 			s.SelectRows, s.ErrorStage = true, "execute"
 			return s
 		}
-		castBoundary := func(s fixture.Step, position string) fixture.Step {
-			if !b.PG {
-				s = fixture.ImplicitError(s.Query, fixture.Diagnostic{
-					Code: "0A000", Message: "unsupported setting function signature", Position: position,
-				}, s.Args...)
-				s.SelectRows, s.ErrorStage = true, "execute"
-				if prepared {
-					s.ErrorStage = "prepare"
-				}
-			}
-			return s
-		}
 
 		// Both released current_setting overloads are strict; set_config is
 		// nonstrict. Each overload owns its independent routine ACL.
@@ -78,13 +66,12 @@ func TestReferenceObjectGrantSettingCallAuthority(t *testing.T) {
 				// generic-plan initialization can retain an EXECUTE requirement.
 				run(value("SELECT current_setting(NULL)", "current_setting", nil))
 				run(value(query, "current_setting", nil, nil))
-				// The native settings parser accepts bare parameters, not cast
-				// expressions. Assert that boundary before any import/admission;
-				// PostgreSQL additionally exercises typed INTEGER import errors.
-				run(castBoundary(value("SELECT pg_catalog.current_setting($1::TEXT)", "current_setting", nil, nil), "19"))
+				// Typed NULL arguments eliminate the strict invocation, while
+				// invalid typed import still fails before routine admission.
+				run(value("SELECT pg_catalog.current_setting($1::TEXT)", "current_setting", nil, nil))
 				castQuery := "SELECT current_setting($1::INTEGER::TEXT)"
-				run(castBoundary(value(castQuery, "current_setting", nil, nil), "8"))
-				run(castBoundary(importFailure(castQuery, "bad"), "8"))
+				run(value(castQuery, "current_setting", nil, nil))
+				run(importFailure(castQuery, "bad"))
 				for _, q := range []string{"SELECT current_setting('application_name')", "SELECT pg_catalog.current_setting('application_name')"} {
 					if allowed {
 						run(value(q, "current_setting", want))

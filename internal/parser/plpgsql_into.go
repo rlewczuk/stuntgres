@@ -33,7 +33,8 @@ func (l *lexer) plBeginCapture(first rawToken) {
 			delimiter = t.lexeme.pos
 			break
 		}
-		if depth == 0 && t.code == INTO && previous != INSERT {
+		// INSERT/MERGE INTO introduce a relation, not a PL destination.
+		if depth == 0 && t.code == INTO && previous != INSERT && previous != MERGE {
 			if into.Character != 0 {
 				l.scannerError("INTO specified more than once", t.lexeme.pos.Offset, t.end)
 				return

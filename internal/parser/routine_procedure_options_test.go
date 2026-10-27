@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -44,8 +45,8 @@ func TestRoutineProcedureOptionShapes(t *testing.T) {
 			if !ok || !d.Procedure || !d.Replace || d.ResultSpecified || len(d.Arguments) != 1 || d.Arguments[0].Mode != "out" || d.Arguments[0].Name.Text != "answer" || d.Language.Text != "sql" {
 				t.Fatal("procedure declaration lost", source, d)
 			}
-			if d.InvalidAttribute != position(source, option) {
-				t.Fatal("complete option introducer position lost", source, d.InvalidAttribute)
+			if len(d.Attributes) != 1 || d.Attributes[0].Pos != position(source, option) {
+				t.Fatal("complete option introducer position lost", source, d.Attributes)
 			}
 			if strings.Contains(form, "ATOMIC") {
 				if len(d.Standard) != 1 || d.Body != "" {
@@ -97,7 +98,7 @@ func TestRoutineProcedureOptionShapes(t *testing.T) {
 	}
 	first := statements[0].(*CreateFunction)
 	second := statements[1].(*CreateFunction)
-	if first.InvalidAttribute != position(source, "COST") || second.InvalidAttribute != (Position{}) {
+	if len(first.Attributes) != 3 || first.Attributes[0].Pos != position(source, "COST") || len(second.Attributes) != 0 {
 		t.Fatal("first complete introducer or per-declaration ownership lost", first, second)
 	}
 	for _, source := range []string{
@@ -110,8 +111,87 @@ func TestRoutineProcedureOptionShapes(t *testing.T) {
 			t.Fatal(source, statements, err)
 		}
 		d := statements[0].(*CreateFunction)
-		if !d.Strict || d.Volatility != "volatile" || d.Procedure {
+		if !hasRoutineAttribute(d, "strict") || !hasRoutineAttribute(d, "volatile") || d.Procedure {
 			t.Fatal("function attributes changed", d)
 		}
+	}
+}
+
+func TestRoutineSecuritySyntax(t *testing.T) {
+	for _, head := range []string{
+		"CREATE FUNCTION security_shape() RETURNS integer LANGUAGE SQL AS 'SELECT 1' ",
+		"CREATE OR REPLACE FUNCTION security_shape() RETURNS integer LANGUAGE SQL AS 'SELECT 1' ",
+		"CREATE PROCEDURE security_shape() LANGUAGE SQL AS 'SELECT 1' ",
+		"CREATE OR REPLACE PROCEDURE security_shape() LANGUAGE SQL AS 'SELECT 1' ",
+		"ALTER FUNCTION security_shape() ",
+		"ALTER PROCEDURE security_shape() ",
+		"ALTER ROUTINE security_shape() ",
+	} {
+		for _, clause := range []string{"SECURITY ", "EXTERNAL SECURITY "} {
+			base := "/* café 雪 */ " + head
+			for _, mode := range []string{"bogus", "current", `"definer"`, `"invoker"`, `"DEFINER"`, "'invoker'", "123", ""} {
+				source := base + clause + mode
+				statements, err := Parse(source)
+				var diagnostic *sqlstate.Error
+				want := sqlstate.Error{
+					Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601",
+					Message:  `syntax error at or near "` + mode + `"`,
+					Position: strconv.Itoa(utf8.RuneCountInString(base+clause) + 1),
+				}
+				if mode == "" {
+					want.Message = "syntax error at end of input"
+				}
+				if len(statements) != 0 || !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, want) {
+					t.Fatal("security mode must fail the whole parse at its token/EOF", source, statements, err, want)
+				}
+				for _, script := range []string{"SELECT 1; " + source, source + "; SELECT 1"} {
+					if statements, err := Parse(script); err == nil || len(statements) != 0 {
+						t.Fatal("malformed security mode published a script prefix", script, statements, err)
+					}
+				}
+			}
+			for _, mode := range []string{"DEFINER", "INVOKER", "dEfInEr", "iNvOkEr"} {
+				source := base + clause + mode
+				statements, err := Parse(source)
+				if err != nil || len(statements) != 1 {
+					t.Fatal("valid unquoted mode", source, statements, err)
+				}
+				var attributes []RoutineAttribute
+				switch node := statements[0].(type) {
+				case *CreateFunction:
+					attributes = node.Attributes
+				case *AlterRoutine:
+					attributes = node.Attributes
+				default:
+					t.Fatalf("unexpected routine node %T", node)
+				}
+				want := RoutineAttribute{
+					Kind: "security", Value: strings.ToLower(mode),
+					Pos: Position{Offset: len(base), Character: utf8.RuneCountInString(base) + 1},
+				}
+				if len(attributes) != 1 || attributes[0] != want {
+					t.Fatal("normalized security value/introducer position", source, attributes, want)
+				}
+			}
+		}
+	}
+	for _, source := range []string{
+		`SELECT definer,invoker,"definer","invoker" FROM definer`,
+		`CREATE TABLE invoker(definer integer, invoker integer)`,
+		`CREATE FUNCTION definer(invoker integer) RETURNS integer LANGUAGE SQL AS 'SELECT invoker'`,
+		`CREATE PROCEDURE invoker(definer integer) LANGUAGE SQL AS 'SELECT definer'`,
+	} {
+		if statements, err := Parse(source); err != nil || len(statements) != 1 {
+			t.Fatal("security words must remain ordinary identifiers", source, statements, err)
+		}
+	}
+	const duplicate = "ALTER FUNCTION security_shape() SECURITY DEFINER EXTERNAL SECURITY INVOKER"
+	statements, err := Parse(duplicate)
+	if err != nil || len(statements) != 1 {
+		t.Fatal("complete duplicate security clauses belong to utility validation", statements, err)
+	}
+	attributes := statements[0].(*AlterRoutine).Attributes
+	if len(attributes) != 2 || attributes[0].Value != "definer" || attributes[1].Value != "invoker" || attributes[1].Pos.Offset != strings.Index(duplicate, "EXTERNAL") {
+		t.Fatal("duplicate security order/introducer position", attributes)
 	}
 }

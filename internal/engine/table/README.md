@@ -61,6 +61,10 @@ call live here.
   `BindChecks`, `ValidateChecks`, `PhysicalRowViolation` (first NOT NULL or
   CHECK violation of a row), `EvaluateGenerations`,
   `PrepareGenerationProgram` and `ValidateGenerationPlan`.
+  Virtual generation security inspects the unsimplified expression's logical
+  types and selected routine declarations before conditional simplification.
+  Non-builtin routine provenance is rejected independently of volatility or
+  spelling; stored generation keeps its separate immutability admission.
   `ValidateCheckRow` prepares every ordinary CHECK before completed-row truth,
   retaining each constraint's immutable original manifest and relation consumer.
   `CheckRecipeHost` shares cooked expressions within the live statement and

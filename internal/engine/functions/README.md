@@ -141,10 +141,15 @@ enter through exported `Bind*`, `Finish*` and `Select*` functions and bypass the
 registry. Shared diagnostics: `call_syntax.go` (`ValidateCallSyntax`),
 `resolution_error.go` and `operator_error.go`.
 
-Setting-call statement arguments resolve in their owner's rowless namespace
-before an unsupported expression-shape diagnostic. This analysis does not admit
-new executable argument shapes; literal, parameter and typed-literal inputs keep
-their existing fixed-formal coercion and routine identity.
+Setting calls share fixed-formal typed binding across ordinary queries and routine
+bodies. `Setting` retains only its builtin recipe and typed children;
+`SettingRuntime` resolves the executing operation's effective store, read grants
+and setting installation. Reads remain unfolded STABLE expressions; `set_config`
+remains VOLATILE. No session state or actor is captured. Direct setting results
+declare known-nullable TEXT through `ResultNullability` at SELECT and RETURNING
+sites: strict NULL inputs and missing-ok reads can return NULL, as can a NULL
+`set_config` name. This declaration does not infer metadata for enclosing computed
+expressions.
 
 `CastRoutine` is the selected executable cast-procedure provider. Its checked
 routine declaration supplies signature, namespace, strictness and volatility;
@@ -232,6 +237,10 @@ reviewed decision:
 - `AnalyzeArgument` / `CoerceArgument` / `CanCoerce`: occurrence-owned
   analysis, formal coercion selected by intent (intents are values in
   `arguments.go`, not methods) and effect-free feasibility for call shapes.
+  Setting calls check implicit formal applicability before assignment coercion:
+  an incompatible known argument reports the missing function signature rather
+  than leaking a coercion implementation error. SQL setting SELECTs use this
+  same ordinary expression binder, including aliases and composed children.
 - `Type` / `ArrayType` / `Info`: binding-catalog descriptors (identity
   comparisons and `Usage()` need them) and node metadata that records type and
   collation dependencies.

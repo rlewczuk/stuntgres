@@ -36,7 +36,8 @@ destination identities without publishing temporary grants. Sparse baseline
 normalization, explicit-empty arrays, grantor order and role mapping are preserved;
 setting values and source parameter OIDs are not serialized.
 
-PL bootstrap languages/handlers are validated and omitted, not recreated.
+PL bootstrap languages/handlers are validated and not recreated. Accepted
+handler parallel/cost metadata uses the existing provider ALTER replay.
 Changed retained language owners and raw ACLs replay through bounded catalog
 repairs. Restore compiles PL declarations on CREATE, preserves lazy expression
 binding, and remaps declaration source addresses once without converting replay
@@ -92,6 +93,13 @@ function references once into the destination authority.
   differences; dependent definitions follow.
   Free destinations move first; only occupied cycles or blocked intermediate keys
   need collision-checked temporary names.
+  Canonical parallel/cost/rows patches follow final identities and precede
+  owner transfers; builtin costs compare against immutable released defaults.
+  Generated range/multirange constructor patches use the same replay planner,
+  but emit immediately after their actual parent type declaration, before type
+  ACL repairs and dependent events. Their identities are validated type-owned
+  capabilities, not builtin OIDs; seeded PL handlers use their real declarations.
+  Existing generated constructor/handler authority portability gates remain.
   Owner changes follow relabeling, then stable-slot owner metadata. Authentic
   installed routine ACLs use that metadata's named grantor/grantee codec during
   native Restore, preserving absent/explicit-empty ACLs and grant options.
@@ -149,6 +157,13 @@ function references once into the destination authority.
   uses `dump.Statement.PrivilegedCreation` and `DEFAULT` (the authenticated
   administrator), emits `FollowingSQL` with the actual owner transfer, then
   restores tracked owner authority before any dependent event.
+  Ordinary non-bootstrap-owned tables likewise capture the named owner, create
+  under authenticated `DEFAULT`, transfer that exact fresh table immediately,
+  and restore owner authority before declaration completion or data. The private
+  importer accepts only that captured creator/target/owner pair, including
+  inheritance members; it grants no schema privilege or ordinary DDL exemption.
+  Partitioned roots and partition members instead keep their named-owner
+  constructor replay; ordinary-table pairing does not extend to either.
   **Adding a dumped object:** export the feature's dump function and name it at
   the matching table position.
 - **Adapters** (`resolver.go`, `presenter.go`): `Resolver` (`dump.Resolver`)

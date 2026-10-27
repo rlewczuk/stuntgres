@@ -21,6 +21,9 @@ outer frames. Schema-qualified names do not add FROM sources, and a matched
 inner qualifier owns its missing-column diagnostic rather than retrying outer
 relations. Source column descriptors and origins survive expression composition.
 
+Logical setting-call operands use ordinary function applicability diagnostics
+through direct execution and preparation, not a setting-specific syntax gate.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md).

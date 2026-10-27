@@ -10,7 +10,7 @@ import (
 func TestRoutineBodyPrincipalRemap(t *testing.T) {
 	source, target := new(authorization.Domain), new(authorization.Domain)
 	owner, reader := source.Principal(10), source.Principal(20)
-	body := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90001}, ObjectRevision: 3, Owner: owner, Display: RoutineDisplay{Language: SQLRoutineLanguage, Source: " SELECT $1 ", SecurityDefiner: true},
+	body := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90001}, ObjectRevision: 3, Owner: owner, SecurityDefiner: true, Display: RoutineDisplay{Language: SQLRoutineLanguage, Source: " SELECT $1 "},
 		ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.ExecutePrivilege}}}}
 	outer := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90002}, ObjectRevision: 4, Owner: owner, Display: RoutineDisplay{Language: CRoutineLanguage, Source: "original_symbol"},
 		Body: []RoutineBodyEdge{{Routine: body}, {Routine: body}}}

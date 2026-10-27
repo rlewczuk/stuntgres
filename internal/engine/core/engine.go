@@ -338,14 +338,6 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return Description{}, err
 		}
 		return Description{Results: settingColumns(typ, settings.DisplayName(d.Name))}, nil
-	case *parser.SettingCall:
-		e.Mu.Lock()
-		defer e.Mu.Unlock()
-		binding, err := e.describeSettingCall(op.Ctx, s, &scope.Input, op)
-		typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
-		columns := settingColumns(typ, s.Name)
-		columns[0].Nullable = true
-		return Description{Parameters: binding.parameters, Results: columns}, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -401,11 +393,6 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	} else if err := view.CheckRowSecurityBinding(scope.RowSecurity, auth.View, b); err != nil {
 		return Description{}, err
 	}
-	if scope.sqlRoutine.readOnlySPI {
-		if tag := connectbyReadOnlyViolation(stmt, auth.Catalog, b.QuerySources, b.Query); tag != "" {
-			return Description{}, SQLError("0A000", tag+" is not allowed in a non-volatile function")
-		}
-	}
 	var results []catalog.Column
 	if _, call := stmt.(*parser.Call); call {
 		results = analyze.RoutineCallSchema(b)
@@ -459,7 +446,12 @@ func DescribeWithRule(ctx context.Context, host analyze.Host, stmt parser.Statem
 	return analyze.Describe(ctx, host, stmt, AuthorityOf(auth), requiredRef, input, expectedOf(expected), admission, rule, false, initial...)
 }
 
-func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *Description) (analyze.Binding, error) {
+func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *Description) (binding analyze.Binding, err error) {
+	defer func() {
+		if err == nil {
+			err = scope.routineReadOnlyEligibility(stmt, auth.Catalog, binding.QuerySources, binding.Query)
+		}
+	}()
 	if scope.sqlRoutine.plCallBinding != nil {
 		return *scope.sqlRoutine.plCallBinding, nil
 	}

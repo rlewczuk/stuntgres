@@ -10,6 +10,15 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
+// The enumerator's set capability is immutable provider identity, not a
+// consequence of a mutable public row estimate.
+func intaggDeclaration(slot int) catalog.InstalledRoutineDeclaration {
+	if slot == 1 {
+		return catalog.InstalledRoutineDeclaration{ReturnsSet: true, Rows: 1000}
+	}
+	return catalog.InstalledRoutineDeclaration{}
+}
+
 // Stage installs the intagg aggregate and enumeration function into stage,
 // owned by owner, allocating identities in member order.
 func (p *IntaggProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
@@ -26,6 +35,7 @@ func (p *IntaggProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
 		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: member.Signature, RoutineKind: member.Kind, Owner: owner, Result: member.Result, Volatility: expr.Immutable, Strict: member.Strict, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: [2]string{"aggregate_dummy", "array_unnest"}[i]}, Implementation: p}
+		proc.Installed = intaggDeclaration(i)
 		if i == 0 {
 			state, err := stage.AllocateOID()
 			if err != nil {

@@ -12,7 +12,7 @@ import (
 
 // Restore hook entries for owner directives (SET SESSION AUTHORIZATION).
 // A superuser directive after another owner's directive makes that owner the
-// owner of the next CREATE; the created domain, range or inheriting table is then
+// owner of the next CREATE; the created domain, range or ordinary table is then
 // paired with the ALTER OWNER that follows it.
 
 // beforeRestoreOwnerSnapshot moves the owner directive state into the
@@ -30,7 +30,7 @@ func beforeRestoreOwnerSnapshot(r *restoreRun, _ *session.Operation, _ parser.St
 // switched to, and the create owner it implies.
 func afterRestoreOwnerDirective(r *restoreRun, op *session.Operation, stmt parser.Statement, _ control.Outcome) error {
 	directive, ok := stmt.(*parser.SessionAuthorization)
-	if !ok || !directive.OwnerDirective || directive.Default {
+	if !ok || !directive.OwnerDirective && !directive.Default {
 		return nil
 	}
 	auth, err := core.OperationAuthorization(op)

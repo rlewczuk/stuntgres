@@ -9,12 +9,12 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// CaptureInheritedOwner pairs an inheriting table a private Restore created
-// with the owner role its directive captured.
+// CaptureInheritedOwner pairs an ordinary table a private Restore created
+// (including inheritance members) with the owner role its directive captured.
 //
 // A genuine named owner directive followed immediately by the bootstrap context
-// carries the captured role identity. CREATE/OWNER must be the next exact pair;
-// no input can retarget an existing relation or choose an unrelated owner.
+// carries the captured role identity. Only an immediately following matching
+// OWNER can use the pair; absence of a transfer grants no private authority.
 func CaptureInheritedOwner(e *core.Engine, op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (table.RestoredInheritedOwner, error) {
 	if err := op.Context().Err(); err != nil {
 		return table.RestoredInheritedOwner{}, err
@@ -37,7 +37,7 @@ func CaptureInheritedOwner(e *core.Engine, op *session.Operation, created ids.Ob
 }
 
 // RestoreInheritedOwner admits the ALTER ... OWNER TO that follows an
-// inheriting table's creation in a private Restore, only for its captured pair.
+// ordinary table's creation in a private Restore, only for its captured pair.
 func RestoreInheritedOwner(e *core.Engine, op *session.Operation, raw *parser.AlterOwner, pair table.RestoredInheritedOwner) error {
 	if err := op.Context().Err(); err != nil {
 		return err

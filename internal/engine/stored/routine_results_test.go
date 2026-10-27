@@ -40,7 +40,7 @@ func resultProviderFixture(t *testing.T) (catalog.Read, *catalog.Procedure) {
 		t.Fatal(err)
 	}
 	definition.Result = shape.Usage()
-	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 98000}, ObjectRevision: 1, ObjectNamespace: relation.Namespace(), ObjectName: definition.Name, Signature: "23", RoutineKind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Volatile, SQL: definition, Language: language.Address(), Owner: owner.Ref}
+	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 98000}, ObjectRevision: 1, ObjectNamespace: relation.Namespace(), ObjectName: definition.Name, Signature: "23", RoutineKind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Volatile, Parallel: 'u', Cost: 100, SQL: definition, Language: language.Address(), Owner: owner.Ref}
 	read.State().SetDescriptor(d.Address(), d)
 	return read, d
 }

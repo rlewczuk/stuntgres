@@ -13,28 +13,27 @@ import (
 	"stuntgres/internal/engine/routine"
 )
 
-
 func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
 	seen := make(map[ids.OID]bool)
 	for _, declaration := range routine.BuiltinRoutineDeclarations {
 		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID})
-		if seen[p.Address().ObjectID] || p.Builtin == nil || !p.Display.Valid() || p.Display.SecurityDefiner || p.Display.Source == "see system_functions.sql" {
+		if seen[p.Address().ObjectID] || p.Builtin == nil || !p.Display.Valid() || p.SecurityDefiner || p.Display.Source == "see system_functions.sql" {
 			t.Fatal("incomplete real builtin declaration", p)
 		}
 		seen[p.Address().ObjectID] = true
 	}
 	for _, oid := range []ids.OID{4100, 5052} {
 		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
-		if seen[oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(oid) || p.Builtin.Providers != 0 || !p.Builtin.ReturnsSet || !p.Display.Valid() || p.Display.SecurityDefiner {
+		if seen[oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(oid) || p.Builtin.Providers != 0 || !p.Builtin.ReturnsSet || !p.Display.Valid() || p.SecurityDefiner {
 			t.Fatal("incomplete metadata-only backing declaration", p)
 		}
 		seen[oid] = true
 	}
 	for _, d := range view.Descriptors() {
 		if p, ok := d.(*catalog.Procedure); ok {
-			if !p.Display.Valid() || p.Display.SecurityDefiner {
+			if !p.Display.Valid() || p.SecurityDefiner {
 				t.Fatal("uninitialized real provider", p)
 			}
 			if p.Builtin != nil && !seen[p.Address().ObjectID] {
@@ -55,17 +54,22 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		1397: {Language: catalog.InternalRoutineLanguage, Source: "int4abs"},
 		3100: {Language: catalog.InternalRoutineLanguage, Source: "window_row_number"},
 		2147: {Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy"},
-		879:  {Language: catalog.SQLRoutineLanguage, Cost: 1},
-		1426: {Language: catalog.SQLRoutineLanguage, Cost: 1},
-		1544: {Language: catalog.SQLRoutineLanguage, Cost: 1},
-		1811: {Language: catalog.SQLRoutineLanguage, Cost: 1},
-		1708: {Language: catalog.SQLRoutineLanguage, Cost: 1},
+		879:  {Language: catalog.SQLRoutineLanguage},
+		1426: {Language: catalog.SQLRoutineLanguage},
+		1544: {Language: catalog.SQLRoutineLanguage},
+		1811: {Language: catalog.SQLRoutineLanguage},
+		1708: {Language: catalog.SQLRoutineLanguage},
 		1285: {Language: catalog.SQLRoutineLanguage, Source: "select pg_catalog.quote_literal($1::pg_catalog.text)"},
 		3:    {Language: catalog.InternalRoutineLanguage, Source: "heap_tableam_handler"},
 		330:  {Language: catalog.InternalRoutineLanguage, Source: "bthandler"},
 	} {
 		if got := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}).Display; got != want {
 			t.Fatal("released builtin fact", oid, got, want)
+		}
+		if oid == 879 || oid == 1426 || oid == 1544 || oid == 1811 || oid == 1708 {
+			if got := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}).Cost; got != 1 {
+				t.Fatal("released builtin cost", oid, got)
+			}
 		}
 	}
 }
@@ -89,7 +93,7 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 			"", "", // regexp_replace
 			"", "", // regexp_split_to_array
 			"", "", // regexp_split_to_table
-   "", "", "", "", // strpos, replace, split_part, translate: unnamed SQL scalars
+			"", "", "", "", // strpos, replace, split_part, translate: unnamed SQL scalars
 		}},
 		{"intarray", catalog.CRoutineLanguage, []string{"bqarr_in", "bqarr_out"}},
 		{"isn", catalog.CRoutineLanguage, []string{"ean13_in", "ean13_out", "isbn_in", "isn_out", "isbn_in", "ean13_out", "ismn_in", "isn_out", "ismn_in", "ean13_out", "issn_in", "isn_out", "issn_in", "ean13_out", "upc_in", "isn_out"}},
@@ -124,18 +128,18 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 						language = catalog.CRoutineLanguage
 					case "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
 						language = catalog.SQLRoutineLanguage
-     case "strpos", "replace", "split_part", "translate":
-      symbol,err:=extension.ProcedureSymbol(view,p)
-      if err!=nil||symbol!=p.Name()||p.Implementation!=extension.StockCitext {
-       t.Fatal("invalid citext string display member",p,err)
-      }
-      language=catalog.SQLRoutineLanguage
-      if p.Installed.ArgumentNames!=([4]string{})||p.Installed.Parallel!='s'||p.Installed.ReturnsSet||p.Installed.Rows!=0 {
-       t.Fatal("citext string scalar declaration metadata",p)
-      }
+					case "strpos", "replace", "split_part", "translate":
+						symbol, err := extension.ProcedureSymbol(view, p)
+						if err != nil || symbol != p.Name() || p.Implementation != extension.StockCitext {
+							t.Fatal("invalid citext string display member", p, err)
+						}
+						language = catalog.SQLRoutineLanguage
+						if p.Installed.ArgumentNames != ([4]string{}) || p.Installed.Parallel != 's' || p.Installed.ReturnsSet || p.Installed.Rows != 0 {
+							t.Fatal("citext string scalar declaration metadata", p)
+						}
 					}
 				}
-				if p.Display.Language != language || p.Display.SecurityDefiner {
+				if p.Display.Language != language || p.SecurityDefiner {
 					t.Fatal("extension display authority", p)
 				}
 				got = append(got, p.Display.Source)

@@ -27,6 +27,12 @@ func checkClientSetting(op *session.Operation, d settings.Definition, v *setting
 	if err != nil {
 		return err
 	}
+	return checkClientSettingAuthority(auth, d, v)
+}
+
+// checkClientSettingAuthority consumes already captured authority. DDL callers
+// hold Engine.Mu and must not recapture it through OperationAuthorization.
+func checkClientSettingAuthority(auth AuthorizationView, d settings.Definition, v *settings.Value) error {
 	invalid := func(detail string) error {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "%s": "%s"`, d.Name, v.Text), Detail: detail}
 	}

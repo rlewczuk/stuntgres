@@ -532,6 +532,7 @@ func triggerUnitProcedure(t *testing.T, e *core.Engine, s *core.StatementScope, 
 		invocation = proc.DMLTriggerInvocation
 	}
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, Owner: e.Roles().LookupRef("postgres"), Language: language.Address(), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.ID()), Volatility: expr.Volatile, SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Invocation: invocation, Name: name, Source: source, Result: result.Usage(), PLSyntax: raw}}
+	d.Parallel, d.Cost = 'u', 100
 	if err := d.SQL.SetFormals(nil); err != nil {
 		t.Fatal(err)
 	}
