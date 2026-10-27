@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 )
 
 func lqueryUnitType(t *testing.T, id sqltype.ID) *sqltype.Descriptor {
@@ -152,18 +153,16 @@ func TestLqueryCanonicalAllocation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var retained sqltype.Value
-			result := testing.Benchmark(func(b *testing.B) {
-				for range b.N {
-					var err error
-					retained, err = d.Input(ctx, tc.input, -1)
-					if err != nil { b.Fatal(err) }
-				}
+			_, bytes := util.AllocationsPerCall(64, func() {
+				var err error
+				retained, err = d.Input(ctx, tc.input, -1)
+				if err != nil { t.Fatal(err) }
 			})
 			got, err := d.Output(ctx, retained)
 			if err != nil || got != tc.want { t.Fatal("canonical result", got, err) }
-			// Calibrated per-operation accounting excludes the caller-owned input.
+			// Per-call accounting excludes the caller-owned input.
 			// Compact output must not reserve storage for discarded spelling.
-			if bytes := result.AllocedBytesPerOp(); bytes > 1024 {
+			if bytes > 1024 {
 				t.Fatalf("compact canonical value allocated %d bytes, want at most 1024", bytes)
 			}
 		})

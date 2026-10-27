@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 	"testing"
 )
 
@@ -265,15 +266,13 @@ func TestBitStringFunctionsPayloadAllocations(t *testing.T) {
 		{"overlay", []string{strings.Repeat("1", 32768), "0"}, []int64{2}, 1},
 	} {
 		p, values := bitFunctionPlan(t, tc.name, tc.bits, tc.indexes...)
-		result := testing.Benchmark(func(b *testing.B) {
-			for range b.N {
-				if _, err := p.Evaluate(context.Background(), values...); err != nil {
-					b.Fatal(err)
-				}
+		allocations, _ := util.AllocationsPerCall(64, func() {
+			if _, err := p.Evaluate(context.Background(), values...); err != nil {
+				t.Fatal(err)
 			}
 		})
-		if result.AllocsPerOp() != tc.allocations {
-			t.Fatal(tc.name, "payload allocations", result.AllocsPerOp(), tc.allocations)
+		if allocations != tc.allocations {
+			t.Fatal(tc.name, "payload allocations", allocations, tc.allocations)
 		}
 	}
 }

@@ -103,6 +103,7 @@ func TestFloatCodecs(t *testing.T) {
 func TestFloatBoundaryCorpus(t *testing.T) {
 	// Deterministic raw-bit corpus plus every power-of-two boundary and its
 	// neighbors exercises asymmetric intervals and exponent extremes.
+	types := testTypes()
 	check := func(n float64, id ID) {
 		t.Helper()
 		if math.IsInf(n, 0) || math.IsNaN(n) || n == 0 {
@@ -113,8 +114,7 @@ func TestFloatBoundaryCorpus(t *testing.T) {
 			size = 32
 		}
 		out := floatOutput(n, id)
-		d := testTypes()[id]
-		v, err := d.Input(context.Background(), out, -1)
+		v, err := types[id].Input(context.Background(), out, -1)
 		if err != nil || math.Float64bits(n) != math.Float64bits(v.floating) {
 			t.Fatalf("%x %q: %v", math.Float64bits(n), out, err)
 		}

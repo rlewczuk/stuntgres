@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 	"testing"
 )
 
@@ -177,20 +178,18 @@ func TestDoubleMetaphoneCancellation(t *testing.T) {
 	}
 }
 func TestDoubleMetaphoneAllocations(t *testing.T) {
-	// Calibrated per-call allocation excludes input creation and unrelated runtime
+	// Per-call allocation excludes input creation and unrelated runtime
 	// activity; long borrowed input must never allocate an uppercase/padded copy.
 	source := strings.Repeat("a", 16384)
 	var primary, alternate string
-	result := testing.Benchmark(func(b *testing.B) {
-		for range b.N {
-			var err error
-			primary, alternate, err = DoubleMetaphone(context.Background(), source)
-			if err != nil {
-				b.Fatal(err)
-			}
+	allocations, bytes := util.AllocationsPerCall(64, func() {
+		var err error
+		primary, alternate, err = DoubleMetaphone(context.Background(), source)
+		if err != nil {
+			t.Fatal(err)
 		}
 	})
-	if primary != "A" || alternate != "A" || result.AllocedBytesPerOp() > 32 || result.AllocsPerOp() > 2 {
-		t.Fatal(primary, alternate, result.AllocedBytesPerOp(), result.AllocsPerOp())
+	if primary != "A" || alternate != "A" || bytes > 32 || allocations > 2 {
+		t.Fatal(primary, alternate, bytes, allocations)
 	}
 }

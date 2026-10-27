@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/util"
 )
 
 type bfCancelContext struct {
@@ -112,25 +114,19 @@ func TestPgcryptoBFIsolationAndAllocations(t *testing.T) {
 			return err
 		}
 		// Match the hash-kernel proof: warmed AllocsPerRun for exact counts,
-		// calibrated batches for bytes, amortizing process/runtime allocations.
+		// the smallest of three 16-evaluation samples for bytes.
 		allocations := testing.AllocsPerRun(20, func() {
 			if err := evaluate(); err != nil {
 				t.Fatal(err)
 			}
 		})
-		const batch = 16
-		result := testing.Benchmark(func(b *testing.B) {
-			b.ReportAllocs()
-			for range b.N {
-				for range batch {
-					if err := evaluate(); err != nil {
-						b.Fatal(err)
-					}
-				}
+		_, bytes := util.AllocationsPerCall(16, func() {
+			if err := evaluate(); err != nil {
+				t.Fatal(err)
 			}
 		})
 		return allocationMeasurement{
-			bytes:       float64(result.MemBytes) / (float64(result.N) * batch),
+			bytes:       float64(bytes),
 			allocations: allocations,
 		}
 	}

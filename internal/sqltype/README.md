@@ -548,8 +548,8 @@ this does not admit TID binary COPY.
   `(*Descriptor).normalizeRangeMembers`); grep tests for `frame.Function` and
   `runtime.Stack` before renaming a function.
 - **Allocation budgets.** `TestBinaryHashAllocations` and the pgcrypto
-  BF/bcrypt allocation tests fix per-call allocation counts and bytes; build
-  inputs and plans outside measurement.
+  BF/bcrypt allocation tests fix per-call allocation counts and bytes with
+  `util.AllocationsPerCall`; build inputs and plans outside measurement.
 
 Selectors (add `RACE=1` for cancellation and concurrency units; several also
 match engine tests of the same mechanism):

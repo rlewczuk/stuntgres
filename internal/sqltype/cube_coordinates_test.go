@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 )
 
 func TestCubeCoordinates(t *testing.T) {
@@ -182,17 +183,14 @@ func TestCubeCoordinateAllocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for op := CubeLowerCoordinate; op <= CubeSignedCoordinate; op++ {
-		result := testing.Benchmark(func(b *testing.B) {
-			b.ReportAllocs()
-			for range b.N {
-				got, err := CubeCoordinate(ctx, d, v, op, 1)
-				if err != nil || got == 0 {
-					b.Fatal(got, err)
-				}
+		allocations, bytes := util.AllocationsPerCall(1000, func() {
+			got, err := CubeCoordinate(ctx, d, v, op, 1)
+			if err != nil || got == 0 {
+				t.Fatal(got, err)
 			}
 		})
-		if result.AllocsPerOp() != 0 || result.AllocedBytesPerOp() != 0 {
-			t.Fatal("coordinate extraction allocated", op, result)
+		if allocations != 0 || bytes != 0 {
+			t.Fatal("coordinate extraction allocated", op, allocations, bytes)
 		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 	"testing"
 )
 
@@ -112,18 +113,14 @@ func TestBinaryFormatAllocation(t *testing.T) {
 	if count > 2 || len(sink) != 65536 {
 		t.Fatal(count, len(sink))
 	}
-	result := testing.Benchmark(func(b *testing.B) {
-		for range b.N {
-			for range 16 {
-				var err error
-				sink, err = binaryFormat(ctx, raw, "hex", true)
-				if err != nil {
-					panic(err)
-				}
-			}
+	_, bytes := util.AllocationsPerCall(16, func() {
+		var err error
+		sink, err = binaryFormat(ctx, raw, "hex", true)
+		if err != nil {
+			panic(err)
 		}
 	})
-	if bytes := result.AllocedBytesPerOp() / 16; bytes > 65536+1024 {
+	if bytes > 65536+1024 {
 		t.Fatal("payload-sized scratch allocation", bytes)
 	}
 }

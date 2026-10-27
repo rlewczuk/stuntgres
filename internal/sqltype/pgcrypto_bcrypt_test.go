@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/util"
 )
 
 func TestPgcryptoBcryptVectors(t *testing.T) {
@@ -85,31 +87,30 @@ var pgcryptoBcryptAllocationSink string
 
 func TestPgcryptoBcryptAllocations(t *testing.T) {
 	short, long := "a", strings.Repeat("a", 1<<20)
-	measure := func(password, salt string) testing.BenchmarkResult {
-		return testing.Benchmark(func(b *testing.B) {
-			b.ReportAllocs()
-			for range b.N {
-				var err error
-				pgcryptoBcryptAllocationSink, err = pgcryptoBcrypt(context.Background(), password, salt)
-				if err != nil {
-					b.Fatal(err)
-				}
+	type measurement struct{ allocations, bytes int64 }
+	measure := func(password, salt string) measurement {
+		allocations, bytes := util.AllocationsPerCall(16, func() {
+			var err error
+			pgcryptoBcryptAllocationSink, err = pgcryptoBcrypt(context.Background(), password, salt)
+			if err != nil {
+				t.Fatal(err)
 			}
 		})
+		return measurement{allocations, bytes}
 	}
 	a := measure(short, "$2a$04$......................")
 	b := measure(long, "$2a$04$......................")
 	c := measure(short, "$2a$05$......................")
-	for _, result := range []testing.BenchmarkResult{a, b, c} {
-		if result.AllocedBytesPerOp() > 16384 || result.AllocsPerOp() > 16 {
-			t.Fatal("absolute allocation budget", result, result.MemString())
+	for _, result := range []measurement{a, b, c} {
+		if result.bytes > 16384 || result.allocations > 16 {
+			t.Fatal("absolute allocation budget", result)
 		}
 	}
-	if b.AllocedBytesPerOp()-a.AllocedBytesPerOp() > 1024 || b.AllocsPerOp()-a.AllocsPerOp() > 2 {
-		t.Fatal("input-proportional allocation", a.MemString(), b.MemString())
+	if b.bytes-a.bytes > 1024 || b.allocations-a.allocations > 2 {
+		t.Fatal("input-proportional allocation", a, b)
 	}
-	if c.AllocedBytesPerOp() != a.AllocedBytesPerOp() || c.AllocsPerOp() != a.AllocsPerOp() {
-		t.Fatal("round-proportional allocation", a.MemString(), c.MemString())
+	if c != a {
+		t.Fatal("round-proportional allocation", a, c)
 	}
 }
 

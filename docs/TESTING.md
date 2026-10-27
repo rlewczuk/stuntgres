@@ -292,10 +292,11 @@ Run `make check REFERENCE=1 RUN='^TestReferenceFeatureAnswer$'`, then
 
 ## Allocation checks
 
-For byte-allocation budgets of package functions, use calibrated
-`testing.Benchmark` results and normalize `AllocedBytesPerOp` to one evaluation.
-Short `runtime.MemStats.TotalAlloc` samples charge unrelated runtime allocations,
-especially under the race detector.
+For allocation budgets of package functions, use `util.AllocationsPerCall`
+(`internal/util`): it reports allocations and bytes per call over a fixed batch
+at `GOMAXPROCS(1)` and keeps the smallest of three samples, so unrelated runtime
+allocations cannot fail an exact budget. Do not use `testing.Benchmark`: it
+calibrates for a second per call.
 
 ## Package testing guides
 

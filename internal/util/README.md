@@ -1,9 +1,9 @@
 # util
 
-General-purpose data structures shared by the engine. The package depends only
-on the standard library and on nothing else in this module, so any package may
-use it. Put a structure here only when it is independent of SQL and engine
-concepts.
+General-purpose data structures shared by the engine, and the allocation
+probe of allocation-budget tests. The package depends only on the standard
+library and on nothing else in this module, so any package may use it. Put a
+structure here only when it is independent of SQL and engine concepts.
 
 ## PersistentMap
 
@@ -47,6 +47,14 @@ hash map: a CHAMP-style hash array mapped trie with 32-way bitmap nodes.
 The trie is canonical: no node other than the root holds exactly one entry
 and no children. Keys whose whole 64-bit hashes collide meet in a collision
 node after thirteen levels.
+
+## AllocationsPerCall
+
+`AllocationsPerCall(calls, f)` reports the heap allocations and bytes of one
+call of `f` for allocation-budget tests (see
+[docs/TESTING.md](../../docs/TESTING.md#allocation-checks)): one warm-up call,
+then three samples of `calls` calls at `GOMAXPROCS(1)`, each divided with
+integer division like `testing.BenchmarkResult`; the smallest sample wins.
 
 ## Testing
 

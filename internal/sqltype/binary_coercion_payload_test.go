@@ -6,6 +6,8 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/util"
 )
 
 func TestCastDefinitionBinaryPayload(t *testing.T) {
@@ -185,18 +187,14 @@ func TestCastDefinitionBinaryAllocations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		result := testing.Benchmark(func(b *testing.B) {
-			for range b.N {
-				for range 16 {
-					value, err := p.Apply(ctx, tc.value)
-					if err != nil || value.typ != tc.target {
-						b.Fatal(value, err)
-					}
-				}
+		allocations, bytes := util.AllocationsPerCall(64, func() {
+			value, err := p.Apply(ctx, tc.value)
+			if err != nil || value.typ != tc.target {
+				t.Fatal(value, err)
 			}
 		})
-		if result.AllocedBytesPerOp() != 0 || result.AllocsPerOp() != 0 {
-			t.Fatal("binary mapping allocated payload bytes", tc.source.Name(), tc.target.Name(), result.AllocedBytesPerOp(), result.AllocsPerOp())
+		if bytes != 0 || allocations != 0 {
+			t.Fatal("binary mapping allocated payload bytes", tc.source.Name(), tc.target.Name(), bytes, allocations)
 		}
 	}
 }

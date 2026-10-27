@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/util"
 )
 
 var binaryHashTestNames = []string{"crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512"}
@@ -209,18 +211,11 @@ func TestBinaryHashAllocations(t *testing.T) {
 				t.Fatal("CRC allocations", largeCount)
 			}
 			// A payload-sized scratch copy can keep the allocation count constant.
-			// Benchmark batches amortize process-wide runtime/race allocation noise;
-			// even the first calibration sample measures 1000 evaluations.
+			// Each byte sample averages 64 evaluations; the smallest of three
+			// samples discards unrelated runtime allocations.
 			bytesPerEvaluation := func(v Value) int64 {
-				const batch = 1000
-				result := testing.Benchmark(func(b *testing.B) {
-					for range b.N {
-						for range batch {
-							evaluate(v)
-						}
-					}
-				})
-				return result.AllocedBytesPerOp() / batch
+				_, bytes := util.AllocationsPerCall(64, func() { evaluate(v) })
+				return bytes
 			}
 			smallBytes, largeBytes := bytesPerEvaluation(small), bytesPerEvaluation(large)
 			if largeBytes > 32<<10 || largeBytes > smallBytes+1024 {

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"stuntgres/internal/util"
 )
 
 func networkMaskPlan(t *testing.T, k NetworkFormatKind, input ID) (NetworkFormat, map[ID]*Descriptor) {
@@ -301,22 +303,20 @@ func TestNetworkMaskAllocations(t *testing.T) {
 		if tc.k == NetworkSetMasklen {
 			b, _ = Integer(types[Int4], 113)
 		}
-		measurement := testing.Benchmark(func(bm *testing.B) {
-			for range bm.N {
-				var got Value
-				var err error
-				if tc.k.Arity() == 1 {
-					got, err = p.Unary(context.Background(), a)
-				} else {
-					got, err = p.Binary(context.Background(), a, b)
-				}
-				if err != nil || got.typ != p.result {
-					panic("invalid mask allocation probe")
-				}
+		allocations, bytes := util.AllocationsPerCall(1000, func() {
+			var got Value
+			var err error
+			if tc.k.Arity() == 1 {
+				got, err = p.Unary(context.Background(), a)
+			} else {
+				got, err = p.Binary(context.Background(), a, b)
+			}
+			if err != nil || got.typ != p.result {
+				panic("invalid mask allocation probe")
 			}
 		})
-		if measurement.AllocsPerOp() != 0 || measurement.AllocedBytesPerOp() != 0 {
-			t.Fatal(tc, measurement.AllocsPerOp(), measurement.AllocedBytesPerOp())
+		if allocations != 0 || bytes != 0 {
+			t.Fatal(tc, allocations, bytes)
 		}
 	}
 }
