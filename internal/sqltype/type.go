@@ -294,7 +294,11 @@ func (d *Descriptor) Usage() Usage {
 }
 
 // Builtins returns a new immutable generation, not a shared mutable registry.
-func Builtins() []*Descriptor {
+// It copies a template built once (builtin_template.go).
+func Builtins() []*Descriptor { return cloneBuiltins() }
+
+// buildBuiltins constructs a builtin generation from the compiled tables.
+func buildBuiltins() []*Descriptor {
 	types := []*Descriptor{
 		{id: Bool, name: "bool", sql: "BOOLEAN", database: "BOOL", associatedArray: 1000},
 		{id: Bytea, name: "bytea", sql: "BYTEA", database: "BYTEA", associatedArray: 1001},

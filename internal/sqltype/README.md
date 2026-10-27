@@ -23,6 +23,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   Server Bind, row output, FunctionCall and COPY reuse these methods; there is
   no conversion registry and no second integer parser (`ParseInt8` serves COPY
   options).
+- `Builtins()` returns a new builtin generation on every call: a copy of a
+  template built once (`builtin_template.go`) whose descriptor pointers are
+  moved into the copy. A new descriptor-pointer field must be listed in
+  `descriptorPointers`.
 - A `Usage` is descriptor + typmod + collation. `Value` is an immutable datum;
   shared payloads (arrays, composites, geometry, JSONB) are never mutated after
   construction. `SameDatum`/`Value.SamePayload` compare stored bits,
