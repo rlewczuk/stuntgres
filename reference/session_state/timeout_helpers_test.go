@@ -257,11 +257,12 @@ func timeoutReferenceDeadError(t *testing.T, err error) {
 		t.Fatalf("terminated handle = %T %v, want ErrBadConn or ErrConnDone", err, err)
 	}
 }
+
+const timeoutPrivateTransaction = "BEGIN; LOCK TABLE timeout_sentinel IN ACCESS EXCLUSIVE MODE; INSERT INTO timeout_sentinel VALUES(8)"
+
 func (f timeoutReferenceFixture) beginPrivate() {
 	f.t.Helper()
-	f.exec(f.owner, "BEGIN", 0)
-	f.exec(f.owner, "LOCK TABLE timeout_sentinel IN ACCESS EXCLUSIVE MODE", 0)
-	f.exec(f.owner, "INSERT INTO timeout_sentinel VALUES(8)", 1)
+	f.exec(f.owner, timeoutPrivateTransaction, 1)
 }
 func (f timeoutReferenceFixture) holdBlocked() func() {
 	f.t.Helper()

@@ -25,14 +25,15 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 					if kind != "outside" {
 						setting, code = "idle_in_transaction_session_timeout", "25P03"
 					}
-					f.set(setting, "250ms")
-					if kind != "outside" {
+					if kind == "inside" {
 						f.beginPrivate()
 					}
+					f.set(setting, "250ms")
 					if kind == "aborted" {
-						_, err := f.owner.ExecContext(p.Ctx, "SELECT timeout_missing")
+						query := timeoutPrivateTransaction + "; SELECT timeout_missing"
+						_, err := f.owner.ExecContext(p.Ctx, query)
 						want := fixture.ControlsReferenceDiagnostic("42703", `column "timeout_missing" does not exist`)
-						want.Position = "8"
+						want.Position = batchPosition(query, "timeout_missing")
 						fixture.AssertDiagnostic(t, err, &want)
 					}
 					f.awaitIdleFatal(code, 250*time.Millisecond)

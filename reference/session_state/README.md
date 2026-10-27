@@ -39,6 +39,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rule
   completed sleep never proves that a timer callback ran. `fatalProbe` requires
   terminal state before the first owner SQL. Owner probes restart idle timers, so
   never poll the owner while waiting for idle expiry.
+- **Idle transaction setup.** Finish the normal private transaction setup before
+  arming the idle-in-transaction timer. For an aborted transaction, arm outside
+  the transaction, then send BEGIN, the private lock/write and the failing SELECT
+  in one message; the idle budget starts only after that message completes.
 - Capture PID, OIDs and the log baseline before arming or `BeginTx`, then run Go
   work through that `Tx`: querying its borrowed `Conn` deadlocks behind
   `database/sql` ownership.
