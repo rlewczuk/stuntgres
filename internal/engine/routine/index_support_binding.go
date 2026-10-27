@@ -88,7 +88,7 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 		if err != nil {
 			return class, err
 		}
-		if support.Provider == sqltype.CubeIndexSupport {
+		if support.Provider == sqltype.CubeIndexSupport || support.Provider == sqltype.HstoreIndexSupport {
 			member, _ := view.FamilySupport(fact.Family, fact.InputType, fact.InputType, int16(slot))
 			if member == nil || member.InternalOwner != fact.Address() || fact.Extension == (ids.ObjectAddress{}) {
 				return class, fmt.Errorf("stuntgres: cube support requires its installed class")
@@ -123,6 +123,17 @@ func selectNativeIndexSupport(view catalog.Read, family, left, right uint32, slo
 		return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: inconsistent index support member")
 	}
 	proc, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: member.Function})
+	if ok && extension.HstoreProviderOf(proc) == extension.StockHstore {
+		if err := extension.StockHstore.ValidateProcedure(view, proc); err != nil { return sqltype.IndexSupport{}, err }
+		installation, _ := view.Extension(proc.Extension)
+		fact, exists := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(family)})
+		if !exists || left != right || fact.Extension != proc.Extension { return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid hstore support family") }
+		fs, cs, kind := extension.HstoreBtreeFamilySlot, extension.HstoreBtreeClassSlot, 6
+		if fact.Method == 405 && (slot == 1 || slot == 2) { fs, cs, kind = extension.HstoreHashFamilySlot, extension.HstoreHashClassSlot, 6+int(slot) } else if fact.Method != 403 || slot != 1 { return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid hstore support slot") }
+		class, exists := view.OperatorClass(installation.Members[cs].ObjectID)
+		if !exists || installation.Members[fs] != fact.Address() || member.InternalOwner != class.Address() || class.Family != ids.OID(family) || class.InputType != ids.OID(left) || class.Method != fact.Method || installation.Members[extension.HstoreComparisonProcedureStart+kind] != proc.Address() { return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed hstore support class") }
+		return sqltype.IndexSupport{Provider: sqltype.HstoreIndexSupport, Family: family, Member: uint32(member.Address().ObjectID), Routine: uint32(member.Function), Left: left, Right: right, Revision: uint64(member.Revision()), FamilyRevision: uint64(fact.Revision()), RoutineRevision: uint64(proc.Revision())}, nil
+	}
 	var cube catalog.ExtensionImplementation
 	if ok && proc.Implementation != nil && view.Owner() != nil {
 		cube = view.Owner().Extensions["cube"]

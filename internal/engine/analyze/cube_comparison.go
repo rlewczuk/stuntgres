@@ -111,7 +111,7 @@ func (b *Binder) bindCubeOrdering(usage sqltype.Usage) (sqltype.Comparison, erro
 }
 
 func (b *Binder) bindOrdering(usage sqltype.Usage) (sqltype.Comparison, error) {
-	if usage.Type.BaseType().IsCube() {
+	if usage.Type.BaseType().IsCube() || usage.Type.BaseType().IsHstore() {
 		return b.bindCubeOrdering(usage)
 	}
 	return sqltype.BindOrdering(usage)

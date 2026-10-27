@@ -102,7 +102,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
-	hstoreFamily := name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
+	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
 	if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
@@ -827,6 +827,20 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 				if b.Stored.Syntax == nil {
 					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 				}
+				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+			}
+			return node, err
+		}
+	}
+	if d != nil && extension.HstoreProviderOf(d) == extension.StockHstore {
+		symbol, err := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+		if err != nil { return nil, err }
+		if extension.HstoreComparisonName(symbol) {
+			node, err := b.bindSelectedHstoreComparison(raw, selected, symbol)
+			if err == nil && freezeSyntax {
+				frozen := raw
+				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+				if b.Stored.Syntax == nil { b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr) }
 				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
 			}
 			return node, err

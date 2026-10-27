@@ -84,6 +84,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   expression lowering, while shared targets evaluate runtime bounds before the
   leaf. Each output row privately reconstructs the same original datum; activation
   publication and detached field-ancestor reconstruction belong to the engine.
+  Installed hstore comparison/hash nodes own their argument slice, original
+  procedure and domain/epoch reference. Rebuild rebinds typed comparison without
+  reparsing values; strict evaluation evaluates written children before NULL
+  propagation. Capture and rendering preserve operand order and exact usages.
 - **Generated range constructors** (`range_constructor.go`):
   `RangeConstructorExpr` captures the actual type-owned procedure and result
   generation, with ordinary callable coercion, dependency and EXECUTE admission.

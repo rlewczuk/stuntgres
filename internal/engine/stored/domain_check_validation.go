@@ -56,7 +56,7 @@ func ValidateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) err
 			switch provider.Kind() {
 			case ids.TypeObject, ids.CollationObject, ids.ProcedureObject, ids.RelationObject:
 			case ids.OperatorObject:
-				if err := validateCubeDomainCheckOperator(view, check.Expression, dependency.Ref); err != nil {
+				if err := validateInstalledDomainCheckOperator(view, check.Expression, dependency.Ref); err != nil {
 					return err
 				}
 			default:
@@ -67,10 +67,9 @@ func ValidateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) err
 	return nil
 }
 
-// Selected cube operators are real CHECK dependencies, not aliases for their
-// procedures. Admit only the exact checked stock member; this does not grant a
-// generic arbitrary-operator domain provider capability.
-func validateCubeDomainCheckOperator(view catalog.Read, node expr.Expr, ref ids.ObjectRef) error {
+// Selected installed operators are real CHECK dependencies, not aliases for
+// procedures. Only their exact checked stock membership grants authority.
+func validateInstalledDomainCheckOperator(view catalog.Read, node expr.Expr, ref ids.ObjectRef) error {
 	if view.Owner() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address.ClassID != ids.OperatorClassID || ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: invalid domain CHECK operator reference")
 	}
@@ -83,6 +82,18 @@ func validateCubeDomainCheckOperator(view catalog.Read, node expr.Expr, ref ids.
 	plan.WalkExpression(node, func(child expr.Expr) {
 		selected, ok := child.(plan.SelectedOperatorExpr)
 		if !ok || selected.Ref != ref || failure != nil {
+			return
+		}
+		if capture, hstore := hstoreComparisonCaptureOf(selected.Provider); hstore {
+			captured, ok := expr.InfoOf(selected.Provider).RoutineReference.(*catalog.Procedure)
+			if !ok { return }
+			if err := remapHstoreComparisonRoutine(view, nil, captured, captured, capture, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }); err != nil { failure = err; return }
+			installation, exists := view.Extension(captured.Extension)
+			if !exists || operator.Extension != installation.Address() || operator.Namespace() != installation.TargetNamespace || operator.Left != ids.OID(capture.left.ID()) || operator.Right != ids.OID(capture.right.ID()) || operator.Result != ids.OID(sqltype.Bool) || operator.Function != captured.Address().ObjectID { failure = fmt.Errorf("stuntgres: invalid domain CHECK hstore operator declaration"); return }
+			for i := range 6 {
+				if installation.Members[extension.HstoreComparisonProcedureStart+i] == captured.Address() && installation.Members[extension.HstoreComparisonOperatorStart+i] == operator.Address() { found = true; return }
+			}
+			failure = fmt.Errorf("stuntgres: invalid domain CHECK hstore operator member")
 			return
 		}
 		capture, cube := cubeComparisonCaptureOf(selected.Provider)

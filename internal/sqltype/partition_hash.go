@@ -28,7 +28,16 @@ func BindPartitionHash(u Usage, c IndexClass) (PartitionHash, error) {
 	if err := validateHashClass(u, c); err != nil {
 		return PartitionHash{}, err
 	}
+	if u.Type.BaseType().IsHstore() {
+		if !validHstoreHashSupport(u, c) {
+			return PartitionHash{}, fmt.Errorf("invalid installed hstore extended hash support")
+		}
+		return PartitionHash{usage: u, class: c, input: c.input, routine: c.Support(2).Routine}, nil
+	}
 	s := c.Support(2)
+	if s.Provider != BuiltinIndexSupport {
+		return PartitionHash{}, fmt.Errorf("unknown extended hash support provider")
+	}
 	n, ok := NativeIndexRoutineByOID(s.Routine)
 	if !ok || n.Kind != IndexExtendedHashRoutine || n.Left != s.Left || n.Right != uint32(Int8) || s.Left != s.Right || s.Member == 0 {
 		return PartitionHash{}, fmt.Errorf("partition hash has no registered native support")
@@ -49,6 +58,9 @@ func (p *PartitionHash) Hash(ctx context.Context, v Value, seed uint64) (uint64,
 	}
 	if v.null {
 		return 0, fmt.Errorf("NULL partition hash argument")
+	}
+	if v.typ.BaseType().IsHstore() {
+		return HstoreHash(ctx, v, seed)
 	}
 	if v.typ.BaseType().IsEnum() {
 		return partitionHashUint32(uint32(v.integer), seed), ctx.Err()

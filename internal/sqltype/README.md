@@ -131,11 +131,21 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   bit. SQL NULL is distinct from an empty nonnull payload. Text input uses ASCII
   scanner whitespace and byte-offset syntax errors; output quotes/escapes pairs
   in UTF8 key-byte-length then bytewise order. Duplicate keys retain one original
-  value without a first/last-survivor promise. Representation comparison grants
-  no SQL comparison, grouping, executable hstore-array or binary capability. Authorized generation
-  remapping shares immutable pairs without reparsing stored text. The parser
-  establishes text validity, canonical order and uniqueness once; consumers
-  check the private immutable carrier without rescanning those invariants.
+  value without a first/last-survivor promise. Typed comparison walks canonical
+  key/value byte spans, then pair count and entry boundaries/NULL flags, without
+  formatting or allocating a flattened payload. SQL operator admission is separate:
+  datum ordering does not grant ordinary ordering overloads. Grouping uses that
+  equality and canonical hashing, with SQL NULL in one NOT DISTINCT group.
+  `HstoreHash` streams count, entry words and payload into the shared PostgreSQL
+  hash state; the low 32 bits at seed zero supply the unseeded support result.
+  Both kernels check cancellation within long spans and across metadata.
+  B-tree/hash bindings require catalog-authenticated `HstoreIndexSupport`
+  captures with exact method, family, type and nonzero member/routine revisions;
+  hash binding retains both unseeded and extended support slots. Dynamic routine
+  IDs never enter the builtin native-routine registry.
+  Authorized generation remapping shares immutable pairs without reparsing stored
+  text. The parser establishes text validity, canonical order and uniqueness once;
+  consumers check the private immutable carrier without rescanning those invariants.
   `HstoreArray` transfers fresh flat or rectangular TEXT-array buffers without
   copying immutable strings or exposing pairs. NULL values become typed NULL
   elements; whole NULL and zero-dimensional empty arrays remain distinct.
@@ -577,7 +587,7 @@ match engine tests of the same mechanism):
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
 - Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|Isbn|Ismn|Issn|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
-- Installed hstore codecs and typed conversions: `RUN='^TestHstore'`.
+- Installed hstore codecs, typed comparison/hash, index captures and conversions: `RUN='^TestHstore'`.
 - Refcursor scalar codecs and admission: `RUN='^TestPLpgSQLCursorCodec$'`
 - Composite descriptors, expression shapes and payload ownership: `RUN='^TestComposite'`
 - Trailing array slices and payload ownership: `RUN='^TestArrayForeachSlice$'`

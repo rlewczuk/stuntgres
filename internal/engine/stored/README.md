@@ -35,10 +35,16 @@ presentation independently of mutable function/type labels. Dynamic inner SQL
 remains text, not a frozen dependency on the relations it may later resolve.
 
 Installed hstore array, JSON and JSONB calls retain exact formal/result generations,
-conversion mode and selected procedure/member references. Their remap, retag and
-qualified rendering paths validate authentic source and current declarations
-independently of presentation names; generic selected-operator recipes retain
-the array prefix aliases.
+conversion mode and selected procedure/member references. Comparison and hash
+nodes retain every strict operand, operation, selected declaration and catalog
+domain/epoch reference. Their remap, retag and qualified rendering paths validate
+authentic source and current declarations independently of presentation names.
+Within one type generation, a retained hstore declaration may precede the current
+presentation revision but cannot come from a future revision. Cross-generation
+transport preserves the original declaration revision rather than refreshing it.
+Implicit equality in predicates, membership, CASE and NULLIF retains the same
+installed authority; replay binding windows require its genuine installation.
+Generic selected-operator recipes retain both prefix and comparison operators.
 
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
@@ -746,7 +752,7 @@ reject, while healthy fresh current manifests remain usable.
 - Stored generated columns: `RUN='^TestReferenceGeneratedStored'`
 - Installed comparison capture and lifecycle: `RUN='^TestCube'`
 - Installed earth captures and generation ordering: `RUN='^TestEarth(Coordinate|Point)'`
-- Installed hstore conversion reconstruction, provenance and authorized generation remap:
-  `RUN='^TestHstore(Arrays|JSONB?)Stored'` (also with `RACE=1`). These units preserve
+- Installed hstore conversion/comparison reconstruction, provenance and authorized generation remap:
+  `RUN='^TestHstore((Arrays|JSONB?)Stored|ComparisonOwnership)'` (also with `RACE=1`). These units preserve
   original declaration/operand identity and reject foreign or corrupted
   source/current authority without changing the published graphs.

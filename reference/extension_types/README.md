@@ -77,6 +77,11 @@ these are shared across families:
   `hstore_jsonb_helpers_test.go` applies the JSONB metadata/transport contract;
   independent strict/cast strings and loose exact-numeric normalization drive
   projection, equality predicates, privileges and extension-owned cast lifecycle.
+  `hstore_compare_helpers_test.go` shares typed comparison expectations for
+  equality, real B-tree support operators and comparator/hash routines. The
+  comparison scenarios cover canonical payload boundaries and NULL bits,
+  ordered/grouped consumers, both index methods, complete diagnostics and
+  stored expressions through native controls and actual emitted-SQL replay.
   The reusable family selector is `RUN='^TestReferenceHstore'`.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,

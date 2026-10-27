@@ -125,6 +125,12 @@ func ResolveComparison(operator ComparisonOperator, left, right *Descriptor) (Eq
 			}
 			return EqualitySignature{}, failure("42883", "incompatible comparison operands")
 		}
+		if base.IsHstore() {
+			if operator != CompareEqual && operator != CompareNotEqual || other != nil && other.BaseType() != base {
+				return EqualitySignature{}, failure("42883", "incompatible comparison operands")
+			}
+			return EqualitySignature{base.ID(), base.ID()}, nil
+		}
 		if base.IsArray() || base.IsEnum() || base.IsCube() || base.IsRange() || base.IsMultirange() {
 			// anyenum accepts actual enums, not domains over enums.
 			if base.IsEnum() && (known.IsDomain() || other != nil && other.IsDomain()) ||

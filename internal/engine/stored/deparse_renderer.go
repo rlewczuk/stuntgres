@@ -921,6 +921,15 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", err
 		}
 		return r.rendering(ctx, n, spec, parent)
+	case plan.HstoreComparisonExpr:
+		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) { return "", fmt.Errorf("stuntgres: invalid stored hstore comparison reference") }
+		procedure, err := currentHstoreComparison(n, r.View)
+		if err != nil { return "", err }
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok { return "", fmt.Errorf("stuntgres: missing hstore comparison namespace") }
+		spec, err := hstoreComparisonRendering(n, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()))
+		if err != nil { return "", err }
+		return r.rendering(ctx, n, spec, parent)
 	case plan.CubeComparisonExpr:
 		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
 			return "", fmt.Errorf("stuntgres: invalid stored cube comparison reference")
@@ -1042,7 +1051,7 @@ func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(ex
 		if err != nil {
 			return "", err
 		}
-	} else if itemsSQL != nil && !n.Left.ResultUsage().Type.IsCube() {
+	} else if itemsSQL != nil && !n.Left.ResultUsage().Type.IsCube() && !n.Left.ResultUsage().Type.IsHstore() {
 		right, err = itemsSQL(n.Items)
 		if err != nil {
 			return "", err
@@ -1055,7 +1064,7 @@ func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(ex
 				return "", err
 			}
 		}
-		if n.Left.ResultUsage().Type.IsCube() && n.RoutineRef != (ids.ObjectRef{}) && (n.Operator == "=" && !n.All || n.Operator == "<>" && n.All) {
+		if (n.Left.ResultUsage().Type.IsCube() || n.Left.ResultUsage().Type.IsHstore()) && n.RoutineRef != (ids.ObjectRef{}) && (n.Operator == "=" && !n.All || n.Operator == "<>" && n.All) {
 			membership := "IN"
 			if n.All {
 				membership = "NOT IN"

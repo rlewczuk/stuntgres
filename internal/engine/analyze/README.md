@@ -31,6 +31,13 @@ and coercion. Binding retains genuine routine dependency/revision, result
 generation and frozen provider syntax; relabelled calls dispatch by checked
 provider identity rather than their original spelling.
 
+Installed hstore comparisons and hashes use the same selected-call gateway,
+strict immutable property composition and frozen syntax. Actual operators lower
+through their authenticated backing routines; implicit equality consumers retain
+that routine separately from result type. Ordering captures the current default
+B-tree class, family, support member and comparator before reading rows. Datum
+ordering capability never creates absent ordinary operator overloads.
+
 Standalone CALL uses the common callable selector with the full formal-position
 projection for every candidate kind, including function OUT declarations.
 Candidate ranking and namespace masking precede invocation-kind rejection.

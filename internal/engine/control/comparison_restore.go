@@ -150,13 +150,19 @@ func (c *ComparisonRestore) Before(index int, stmt parser.Statement, current cat
 			if c.state != comparisonOpen || !setting || set.Name.Text != "search_path" || set.Local || set.Default || set.Interval != nil || len(set.Values) != 2 || set.Values[0] != "pg_catalog" {
 				return false, InvalidComparisonContext()
 			}
-			installation, exists := current.Extension(current.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
-			if !exists || current.Owner() == nil || current.Owner().Extensions["cube"] != extension.StockCube {
-				return false, InvalidComparisonContext()
+			var installation *catalog.Extension
+			for _, name := range []string{"cube", "hstore"} {
+				candidate, exists := current.Extension(current.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
+				if !exists || current.Owner() == nil { continue }
+				provider := current.Owner().Extensions[name]
+				if name == "cube" && provider != extension.StockCube || name == "hstore" && provider != extension.StockHstore { continue }
+				ns, exists := current.Namespace(candidate.TargetNamespace)
+				if !exists || ns.Name() != marker.Namespace { continue }
+				if err := provider.ValidateExtension(current, candidate); err != nil { return false, err }
+				installation = candidate
+				break
 			}
-			if err := extension.StockCube.ValidateExtension(current, installation); err != nil {
-				return false, err
-			}
+			if installation == nil { return false, InvalidComparisonContext() }
 			ns, exists := current.Namespace(installation.TargetNamespace)
 			if !exists || ns.Temporary != (ids.SessionToken{}) || ns.Name() == "$user" || ns.Name() == "pg_temp" || ns.Name() != marker.Namespace || set.Values[1] != ns.Name() && set.Values[1] != catalog.QuoteIdentifier(ns.Name()) {
 				return false, InvalidComparisonContext()

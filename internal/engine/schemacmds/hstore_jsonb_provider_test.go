@@ -30,8 +30,8 @@ func TestHstoreJSONBProviderIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
 	base := view.MustType(ext.Members[extension.HstoreTypeSlot])
-	if len(ext.Members) != 12 {
-		t.Fatal("manifest size: need twelve hstore roles")
+	if len(ext.Members) != extension.HstoreMemberCount {
+		t.Fatal("incomplete hstore manifest")
 	}
 	for i, symbol := range []string{"hstore_to_jsonb", "hstore_to_jsonb_loose"} {
 		slot := 9 + i
@@ -91,7 +91,7 @@ func TestHstoreJSONBProviderPublication(t *testing.T) {
 			stage := hstoreArraysStage(t, e, op)
 			view := e.StageRead(stage)
 			ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
-			if len(ext.Members) != 12 { t.Fatal("missing JSONB provider/cast roles") }
+			if len(ext.Members) != extension.HstoreMemberCount { t.Fatal("missing hstore provider roles") }
 			view.MustProcedure(ext.Members[slot]).Result = 1009
 			if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 				t.Fatal("invalid JSON publication admitted")

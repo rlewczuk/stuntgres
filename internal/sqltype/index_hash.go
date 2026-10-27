@@ -141,6 +141,17 @@ func BindIndexHash(u Usage, c IndexClass) (IndexHash, error) {
 	if err := validateHashClass(u, c); err != nil {
 		return IndexHash{}, err
 	}
+	if u.Type.BaseType().IsHstore() {
+		if !validHstoreHashSupport(u, c) {
+			return IndexHash{}, fmt.Errorf("invalid installed hstore hash support")
+		}
+		g, err := BindGrouping(u)
+		if err != nil {
+			return IndexHash{}, err
+		}
+		p := PartitionHash{usage: u, class: c, input: c.input, routine: c.Support(1).Routine}
+		return IndexHash{usage: u, class: c, grouping: g, native: p}, nil
+	}
 	normal := u.Type.BaseType()
 	if !c.enum && normal.id != c.input {
 		// The only admitted representation changes are binary-compatible
@@ -150,6 +161,9 @@ func BindIndexHash(u Usage, c IndexClass) (IndexHash, error) {
 	keyUsage := u
 	keyUsage.Type, keyUsage.Typmod = normal, -1
 	s := c.Support(1)
+	if s.Provider != BuiltinIndexSupport {
+		return IndexHash{}, fmt.Errorf("unknown hash support provider")
+	}
 	n, ok := NativeIndexRoutineByOID(s.Routine)
 	if !ok || n.Kind != IndexHashRoutine || n.Left != s.Left || s.Left != s.Right || s.Member == 0 {
 		return IndexHash{}, fmt.Errorf("index hash has no registered native support")

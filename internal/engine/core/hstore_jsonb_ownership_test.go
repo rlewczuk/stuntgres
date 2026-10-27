@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -31,7 +32,7 @@ func TestHstoreJSONBPreparedOwnership(t *testing.T) {
 			enginetest.SessionSQL(t, s, "CREATE EXTENSION hstore")
 			view := e.CatalogRead()
 			installation := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
-			if len(installation.Members) != 12 { t.Fatal("missing JSONB provider/cast roles") }
+			if len(installation.Members) != extension.HstoreMemberCount { t.Fatal("missing hstore provider roles") }
 			procedure := view.MustProcedure(installation.Members[tc.member])
 			query := "SELECT " + tc.expression + " AS v"
 			enginetest.SessionSQL(t, s, "BEGIN")

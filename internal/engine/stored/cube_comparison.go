@@ -72,7 +72,7 @@ func cubeComparisonCaptureOf(node expr.Expr) (cubeComparisonCapture, bool) {
 			capture.name = "cube_ge"
 		}
 	}
-	return capture, direct || capture.ref != (ids.ObjectRef{}) || capture.left.IsCube() || capture.right.IsCube()
+	return capture, direct || capture.left.IsCube() || capture.right.IsCube()
 }
 
 // The reference is already mapped. The scoped callback supplies the mapped

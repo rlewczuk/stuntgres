@@ -2568,6 +2568,12 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	}
 	a.typ, b.typ = p.left.BaseType(), p.right.BaseType()
 	p.left, p.right = a.typ, b.typ
+	if p.left.IsHstore() {
+		if !a.validHstore() || !b.validHstore() {
+			return 0, fmt.Errorf("invalid hstore comparison payload")
+		}
+		return compareHstore(ctx, a.hstore, b.hstore)
+	}
 	if p.left.IsCube() {
 		if !a.validCube() || !b.validCube() {
 			return 0, fmt.Errorf("invalid cube comparison payload")

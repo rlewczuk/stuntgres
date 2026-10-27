@@ -23,14 +23,7 @@ func (p *HstoreProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 	}
 	ext.Members = make([]ids.ObjectAddress, HstoreMemberCount)
 	for i := range ext.Members {
-		class := ids.ProcedureClassID
-		if i == HstoreTypeSlot {
-			class = ids.TypeClassID
-		} else if i == HstoreArrayOperatorSlot || i == HstoreMatrixOperatorSlot {
-			class = ids.OperatorClassID
-		} else if i == HstoreJSONBCastSlot {
-			class = ids.CastClassID
-		}
+		class := hstoreMemberClass(i)
 		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
@@ -100,5 +93,5 @@ func (p *HstoreProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 	if err := stage.Create(&catalog.Cast{OID: ext.Members[HstoreJSONBCastSlot].ObjectID, ObjectRevision: revision, Source: typ.ID(), Target: sqltype.JSONB, Function: ext.Members[HstoreJSONBProcedureSlot], Context: "e", Method: "f", Extension: ext.Address()}); err != nil {
 		return err
 	}
-	return nil
+	return p.stageComparisons(stage, ext, owner, typ)
 }

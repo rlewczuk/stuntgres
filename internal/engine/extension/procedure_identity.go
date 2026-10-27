@@ -222,7 +222,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if p.Implementation == StockHstore {
 			count = HstoreMemberCount
 		}
-		if slot < 1 || slot >= count || p.Implementation == StockCitext && CitextOperatorSlot(slot) || p.Implementation == StockHstore && (slot == HstoreArrayOperatorSlot || slot == HstoreMatrixOperatorSlot || slot == HstoreJSONBCastSlot) {
+		if slot < 1 || slot >= count || p.Implementation == StockCitext && CitextOperatorSlot(slot) || p.Implementation == StockHstore && hstoreMemberClass(slot) != ids.ProcedureClassID {
 			return invalid()
 		}
 		base, ok := v.Type(ext.Members[0])
@@ -250,6 +250,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			}
 			if slot == HstoreJSONBProcedureSlot || slot == HstoreJSONBLooseProcedureSlot {
 				name = []string{"hstore_to_jsonb", "hstore_to_jsonb_loose"}[slot-HstoreJSONBProcedureSlot]
+			}
+			if slot >= HstoreComparisonProcedureStart {
+				name, signature, result = HstoreComparisonDeclaration(slot-HstoreComparisonProcedureStart, base.SQLType.ID())
 			}
 			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/hstore", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
@@ -279,7 +282,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name = CitextComparisonNames[slot-CitextComparisonProcedureStart]
 			signature, result = CitextComparisonSignature(base.SQLType.ID()), ids.OID(sqltype.Bool)
 		}
-		if p.Implementation == StockHstore && slot >= HstoreArrayProcedureSlot {
+		if p.Implementation == StockHstore && slot >= HstoreArrayProcedureSlot && slot < HstoreComparisonProcedureStart {
 			signature, result = HstoreSignature(base.SQLType.ID()), 1009
 			if slot == HstoreJSONProcedureSlot || slot == HstoreJSONLooseProcedureSlot {
 				result = 114

@@ -228,8 +228,11 @@ package or the engine.
   `catalog.ValidateBrinSupport`, not `NativeIndexRoutine` scalar comparator
   dispatch. Live class/family members remain authority for both supported minmax
   and explicit excluded-algorithm diagnostics.
-  Cube support requires the exact INTERNAL class address,
-  never merely a nonzero family/class owner. Restore binds destination members.
+  Cube and hstore support require the exact INTERNAL class address,
+  never merely a nonzero family/class owner. Hstore binds only its installed
+  B-tree comparator or two distinct hash routines, with authenticated manifest
+  roles, signatures and revisions; dynamic procedures are not builtin OIDs.
+  Restore binds destination members.
   `RangeTypeRebinder` rebuilds a range
   type's support capture with destination identities for
   `typedef.ReownDomainTypes`.

@@ -127,8 +127,10 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if LtreeProviderOf(selected) != nil && member.Slot%3 == 2 {
 					signature = ltreeRecipes[member.Slot/3].name
 				}
-				if HstoreProviderOf(selected) != nil && symbol != "hstore_in" {
-					signature = "hstore"
+				if HstoreProviderOf(selected) != nil {
+					var valid bool
+					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
+					if !valid { return false, fmt.Errorf("stuntgres: invalid hstore ownership signature") }
 				}
 				if CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil || IsnProviderOf(selected) != nil {
 					var valid bool
@@ -144,7 +146,13 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 					if !ok || !valid {
 						return false, fmt.Errorf("stuntgres: invalid hstore ownership slot")
 					}
-					if err := validateHstoreOperator(candidateView, ext, base, member.Slot-HstoreArrayOperatorSlot); err != nil {
+					var err error
+					if member.Slot >= HstoreComparisonOperatorStart {
+						err = validateHstoreComparisons(candidateView, ext, base)
+					} else {
+						err = validateHstoreOperator(candidateView, ext, base, member.Slot-HstoreArrayOperatorSlot)
+					}
+					if err != nil {
 						return false, err
 					}
 					kind, signature = "operator", portable
@@ -206,12 +214,28 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				}
 				kind, signature = "operator", portableSignature
 			case *catalog.OperatorClass:
+				if record.Name == "hstore" {
+					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
+					if !ok || member.Slot != HstoreBtreeClassSlot && member.Slot != HstoreHashClassSlot { return false, fmt.Errorf("stuntgres: invalid hstore class ownership slot") }
+					if err := validateHstoreComparisons(candidateView, ext, base); err != nil { return false, err }
+					kind, signature = "operator_class", "btree"
+					if selected.Method == 405 { signature = "hash" }
+					break
+				}
 				base, ok := candidate.Type(ext.Members[0])
 				if record.Name != "cube" || member.Slot != 17 || !ok || base.SQLType == nil || selected.Namespace() != ext.TargetNamespace || selected.Name() != "cube_ops" || selected.Method != 403 || selected.Family != ext.Members[16].ObjectID || selected.InputType != ids.OID(base.SQLType.ID()) || selected.StorageType != 0 || !selected.Default || candidate.NameAddress(catalog.DescriptorNameKey(selected)) != selected.Address() {
 					return false, fmt.Errorf("stuntgres: invalid extension ownership method")
 				}
 				kind, signature = "operator_class", "btree"
 			case *catalog.OperatorFamily:
+				if record.Name == "hstore" {
+					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
+					if !ok || member.Slot != HstoreBtreeFamilySlot && member.Slot != HstoreHashFamilySlot { return false, fmt.Errorf("stuntgres: invalid hstore family ownership slot") }
+					if err := validateHstoreComparisons(candidateView, ext, base); err != nil { return false, err }
+					kind, signature = "operator_family", "btree"
+					if selected.Method == 405 { signature = "hash" }
+					break
+				}
 				if record.Name != "cube" || member.Slot != 16 || selected.Namespace() != ext.TargetNamespace || selected.Name() != "cube_ops" || selected.Method != 403 || candidate.NameAddress(catalog.DescriptorNameKey(selected)) != selected.Address() {
 					return false, fmt.Errorf("stuntgres: invalid extension ownership method")
 				}

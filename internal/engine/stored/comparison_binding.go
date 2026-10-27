@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// ComparisonBindingNamespace derives the binding requirement of implicit cube
+// ComparisonBindingNamespace derives the binding requirement of implicit installed
 // comparisons from their selected captures, never from replay SQL spelling.
 func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAddress, error) {
 	var namespace ids.ObjectAddress
@@ -27,6 +27,15 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 		if namespace != (ids.ObjectAddress{}) && namespace != ns.Address() {
 			return fmt.Errorf("stuntgres: conflicting comparison binding namespaces")
 		}
+		namespace = ns.Address()
+		return nil
+	}
+	addHstore := func(captured *catalog.Procedure, capture hstoreComparisonCapture) error {
+		if err := remapHstoreComparisonRoutine(view, nil, captured, captured, capture, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }); err != nil { return err }
+		installation, _ := view.Extension(captured.Extension)
+		ns, ok := view.Namespace(installation.TargetNamespace)
+		if !ok || ns.Temporary != (ids.SessionToken{}) || ns.Name() == "$user" || ns.Name() == "pg_temp" { return fmt.Errorf("stuntgres: invalid comparison binding namespace") }
+		if namespace != (ids.ObjectAddress{}) && namespace != ns.Address() { return fmt.Errorf("stuntgres: conflicting comparison binding namespaces") }
 		namespace = ns.Address()
 		return nil
 	}
@@ -58,6 +67,9 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 			implicit = n.Namespace == ""
 		case plan.CaseExpr:
 			for _, arm := range n.Arms {
+				if arm.TestUsage.Type.IsHstore() {
+					if err := addHstore(arm.Routine, hstoreComparisonCapture{ref: arm.RoutineRef, left: arm.TestUsage.Type, right: arm.Condition.ResultUsage().Type, name: "hstore_eq", result: sqltype.Bool}); err != nil { return err }
+				}
 				if arm.TestUsage.Type.IsCube() {
 					if err := add(arm.Routine, cubeComparisonCapture{ref: arm.RoutineRef, left: arm.TestUsage.Type, right: arm.Condition.ResultUsage().Type, name: "cube_eq", result: sqltype.Bool}); err != nil {
 						return err
@@ -88,6 +100,11 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 			if failure != nil {
 				return failure
 			}
+		}
+		if capture, hstore := hstoreComparisonCaptureOf(node); implicit && hstore {
+			captured, ok := expr.InfoOf(node).RoutineReference.(*catalog.Procedure)
+			if !ok { return fmt.Errorf("stuntgres: missing comparison binding capture") }
+			if err := addHstore(captured, capture); err != nil { return err }
 		}
 		if implicit && cube {
 			captured, ok := expr.InfoOf(node).RoutineReference.(*catalog.Procedure)

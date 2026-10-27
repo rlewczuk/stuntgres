@@ -217,6 +217,11 @@ func (b *Binder) selectCatalogOperator(set operatorCandidateSet, raw parser.Oper
 func (b *Binder) requireBuiltinComparison(d *catalog.Operator, pos parser.Position) error {
 	if d.Extension != (ids.ObjectAddress{}) {
 		typ := b.Type(sqltype.ID(d.Left))
+		if typ.IsHstore() && d.Left == d.Right {
+			procedure, err := b.hstoreOperatorProcedure(d.Name(), typ)
+			if err != nil { return err }
+			if procedure.Address().ObjectID == d.Function { return nil }
+		}
 		if typ.IsCube() && d.Left == d.Right {
 			procedure, err := b.cubeOperatorProcedure(d.Name(), typ)
 			if err != nil {

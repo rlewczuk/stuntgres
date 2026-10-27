@@ -371,6 +371,7 @@ type IndexSupportProvider uint8
 const (
 	BuiltinIndexSupport IndexSupportProvider = iota
 	CubeIndexSupport
+	HstoreIndexSupport
 )
 
 type IndexSupport struct {
@@ -412,6 +413,20 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 		return IndexComparison{}, failure("0A000", "index operator class is unsupported")
 	}
 	s := c.Support(1)
+	if u.Type.BaseType().IsHstore() && s.Provider != HstoreIndexSupport {
+		return IndexComparison{}, fmt.Errorf("missing installed hstore index support")
+	}
+	if s.Provider == HstoreIndexSupport {
+		if !validHstoreIndexSupport(u, c, s, 403) {
+			return IndexComparison{}, fmt.Errorf("invalid installed hstore index support")
+		}
+		p, err := BindComparison(u.Type, u.Type, u.Collation, false)
+		if err != nil {
+			return IndexComparison{}, err
+		}
+		p.orderingBound, p.defaultBtreeOpclass = true, c.OID()
+		return IndexComparison{comparison: p, input: c.input, routine: s.Routine, support: s}, nil
+	}
 	if s.Provider == CubeIndexSupport {
 		if !u.Type.BaseType().IsCube() || c.input != u.Type.BaseType().ID() || c.method != 403 || s.Family != c.family || s.Left != uint32(c.input) || s.Right != s.Left || s.Member == 0 || s.Routine == 0 || s.Revision == 0 || s.FamilyRevision == 0 || s.RoutineRevision == 0 || !u.validCollation() {
 			return IndexComparison{}, fmt.Errorf("invalid installed cube index support")
@@ -471,7 +486,7 @@ func (p *IndexComparison) Compare(ctx context.Context, a, b Value, input InputEn
 	if a.typ != p.comparison.left || b.typ != p.comparison.right || a.null || b.null || !a.typ.Concrete() {
 		return 0, fmt.Errorf("invalid index comparison values")
 	}
-	if p.support.Provider == CubeIndexSupport {
+	if p.support.Provider == CubeIndexSupport || p.support.Provider == HstoreIndexSupport {
 		return p.comparison.Compare(ctx, a, b, input)
 	}
 	if p.routine == 351 {

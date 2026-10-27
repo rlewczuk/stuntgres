@@ -20,10 +20,13 @@ func TestHstoreJSONBCastMembership(t *testing.T){
  stage:=hstoreArraysStage(t,e,op);publication,err:=e.ValidateCatalogStage(t.Context(),stage);if err!=nil{t.Fatal(err)}
  if _,err:=e.PublishCatalogOperation(op,nil,publication,core.PublicationToken{Epoch:stage.Base.Epoch()});err!=nil{t.Fatal(err)}
  view:=e.CatalogRead();ext:=view.MustExtension(view.NameAddress(ids.NameKey{ClassID:ids.ExtensionClassID,Name:"hstore"}))
- if len(ext.Members)!=12{t.Fatalf("manifest roles %d want12",len(ext.Members))}
+ if len(ext.Members)!=extension.HstoreMemberCount{t.Fatalf("manifest roles %d want %d",len(ext.Members),extension.HstoreMemberCount)}
  unique:=map[ids.ObjectAddress]bool{}
  for i,a:=range ext.Members{
   class:=ids.ProcedureClassID;if i==0{class=ids.TypeClassID};if i==7 || i==8{class=ids.OperatorClassID};if i==11{class=ids.CastClassID}
+  if i>=extension.HstoreComparisonOperatorStart && i<extension.HstoreBtreeFamilySlot{class=ids.OperatorClassID}
+  if i==extension.HstoreBtreeFamilySlot || i==extension.HstoreHashFamilySlot{class=ids.OperatorFamilyClassID}
+  if i==extension.HstoreBtreeClassSlot || i==extension.HstoreHashClassSlot{class=ids.OperatorClassCatalogID}
   if a.ObjectID==0 || a.ClassID!=class || unique[a]{t.Fatalf("invalid manifest role%d=%v",i,a)};unique[a]=true
  }
  base:=view.MustType(ext.Members[0]);cast,ok:=view.Cast(base.SQLType.ID(),sqltype.JSONB)
@@ -33,8 +36,8 @@ func TestHstoreJSONBCastMembership(t *testing.T){
  owner,acl,columns:=access.DescriptorACL(cast)
  if owner!=(authorization.PrincipalRef{}) || acl.Explicit || len(acl.Entries)!=0 || columns!=nil{t.Fatal("cast acquired owner/ACL",owner,acl,columns)}
  metadata,err:=extension.OwnerMetadata(view,e.RoleStore.PublishedRead(&e.Catalog.Owner,view),ext);if err!=nil{t.Fatal(err)}
- owners,found,err:=extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata),"-- "));if err!=nil || !found || len(owners.Members)!=11{t.Fatal("ownerless cast must not acquire portable ownership",owners,err)}
- for slot,owner:=range owners.Members{if owner.Slot!=slot || owner.Kind=="cast"{t.Fatalf("portable owner role%d=%+v",slot,owner)}}
+ owners,found,err:=extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata),"-- "));if err!=nil || !found || len(owners.Members)!=extension.HstoreMemberCount-1{t.Fatal("ownerless cast must not acquire portable ownership",owners,err)}
+ for i,owner:=range owners.Members{slot:=i;if slot>=extension.HstoreJSONBCastSlot{slot++};if owner.Slot!=slot || owner.Kind=="cast"{t.Fatalf("portable owner role%d=%+v",slot,owner)}}
  foreign:=engine.New()
  foreignOp,foreignDone:=enginetest.RoleOperation(t,foreign,"postgres");defer foreignDone()
  foreignStage:=hstoreArraysStage(t,foreign,foreignOp)

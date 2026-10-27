@@ -33,6 +33,10 @@ func (b *Binder) comparisonRoutineDeclaration(name string, left, right *sqltype.
 		procedure, err := b.cubeOperatorProcedure(name, left)
 		return procedure, sqltype.EqualitySignature{Left: left.ID(), Right: right.ID()}, err
 	}
+	if left.IsHstore() && left == right {
+		procedure, err := b.hstoreOperatorProcedure(name, left)
+		return procedure, sqltype.EqualitySignature{Left: left.ID(), Right: right.ID()}, err
+	}
 	formal := sqltype.EqualitySignature{Left: comparisonFormalID(left.BaseType()), Right: comparisonFormalID(right.BaseType())}
 	declaration := routine.OperatorRoutine(name, ids.OID(formal.Left), ids.OID(formal.Right))
 	if declaration == nil {
@@ -77,7 +81,7 @@ func rangeRoutineFormalID(d *sqltype.Descriptor) sqltype.ID {
 func (b *Binder) selectedComparisonRoutineInfo(info expr.Info, procedure *catalog.Procedure) (expr.Info, ids.ObjectRef, error) {
 	info.RoutineReference = procedure
 	var ref ids.ObjectRef
-	if procedure.Implementation == extension.StockCube {
+	if procedure.Implementation == extension.StockCube || procedure.Implementation == extension.StockHstore {
 		view := b.BindingCatalog()
 		if view.Owner() == nil {
 			return expr.Info{}, ref, fmt.Errorf("stuntgres: missing installed comparison authority")

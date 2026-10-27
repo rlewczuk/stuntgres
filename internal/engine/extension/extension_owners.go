@@ -77,8 +77,10 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if LtreeProviderOf(d) != nil && slot%3 == 2 {
 				member.Signature = ltreeRecipes[slot/3].name
 			}
-			if HstoreProviderOf(d) != nil && symbol != "hstore_in" {
-				member.Signature = "hstore"
+			if HstoreProviderOf(d) != nil {
+				var valid bool
+				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
+				if !valid { return "", fmt.Errorf("stuntgres: invalid hstore ownership signature") }
 			}
 			if CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil || IsnProviderOf(d) != nil {
 				var valid bool
@@ -102,16 +104,18 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			member = MemberOwner{Kind: "operator", Name: d.Name(), Signature: signature}
 			principal = d.Owner
 		case *catalog.OperatorClass:
-			if d.Method != 403 {
+			if d.Method != 403 && !(ext.Name() == "hstore" && d.Method == 405) {
 				return "", fmt.Errorf("stuntgres: unsupported extension class method")
 			}
 			member = MemberOwner{Kind: "operator_class", Name: d.Name(), Signature: "btree"}
+			if d.Method == 405 { member.Signature = "hash" }
 			principal = d.Owner
 		case *catalog.OperatorFamily:
-			if d.Method != 403 {
+			if d.Method != 403 && !(ext.Name() == "hstore" && d.Method == 405) {
 				return "", fmt.Errorf("stuntgres: unsupported extension family method")
 			}
 			member = MemberOwner{Kind: "operator_family", Name: d.Name(), Signature: "btree"}
+			if d.Method == 405 { member.Signature = "hash" }
 			principal = d.Owner
 		case *catalog.TSDictionary:
 			member = MemberOwner{Kind: "dictionary", Name: d.Name()}
@@ -303,7 +307,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		}
 		identity := fmt.Sprint(member.Slot)
 		slots := expectedMembers
-		if record.Name == "unaccent" {
+		if record.Name == "unaccent" || record.Name == "hstore" {
 			slots++
 		}
 		if member.Slot < 0 || member.Slot >= slots || member.Schema == "" || member.Name == "" || member.Owner == "" || seen[identity] {
@@ -337,7 +341,12 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 			if member.Kind == "operator_class" {
 				slot = 17
 			}
-			if record.Name != "cube" || member.Slot != slot || member.Name != "cube_ops" || member.Signature != "btree" {
+			valid := record.Name == "cube" && member.Slot == slot && member.Name == "cube_ops" && member.Signature == "btree"
+			if record.Name == "hstore" {
+				class := member.Kind == "operator_class"
+				valid = member.Name == "btree_hstore_ops" && member.Signature == "btree" && ((!class && member.Slot == HstoreBtreeFamilySlot) || (class && member.Slot == HstoreBtreeClassSlot)) || member.Name == "hash_hstore_ops" && member.Signature == "hash" && ((!class && member.Slot == HstoreHashFamilySlot) || (class && member.Slot == HstoreHashClassSlot))
+			}
+			if !valid {
 				return invalid()
 			}
 		case "dictionary":
@@ -480,6 +489,11 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			}
 		}
 	case "seg", "hstore", "intarray", "citext":
+		if name == "hstore" && slot >= HstoreComparisonProcedureStart && slot < HstoreComparisonOperatorStart {
+			if slot == HstoreComparisonProcedureStart+7 { return "hstore", true }
+			if slot == HstoreComparisonProcedureStart+8 { return "hstore,20", true }
+			return "hstore,hstore", true
+		}
 		if name == "hstore" && (slot >= HstoreArrayProcedureSlot && slot < HstoreArrayOperatorSlot || slot == HstoreJSONBProcedureSlot || slot == HstoreJSONBLooseProcedureSlot) {
 			return "hstore", true
 		}
@@ -532,6 +546,9 @@ func cubeOwnerOperatorIdentity(slot int) (string, string, bool) {
 func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 	switch extension {
 	case "hstore":
+		if slot >= HstoreComparisonOperatorStart && slot < HstoreBtreeFamilySlot {
+			return hstoreComparisonOperators[slot-HstoreComparisonOperatorStart], "hstore,hstore", true
+		}
 		if slot == HstoreArrayOperatorSlot || slot == HstoreMatrixOperatorSlot {
 			return []string{"%%", "%#"}[slot-HstoreArrayOperatorSlot], "0,hstore", true
 		}

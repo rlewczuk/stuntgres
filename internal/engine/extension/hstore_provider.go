@@ -24,7 +24,13 @@ const (
 	HstoreJSONBProcedureSlot
 	HstoreJSONBLooseProcedureSlot
 	HstoreJSONBCastSlot
-	HstoreMemberCount
+	HstoreComparisonProcedureStart
+	HstoreComparisonOperatorStart = HstoreComparisonProcedureStart + 9
+	HstoreBtreeFamilySlot = HstoreComparisonOperatorStart + 6
+	HstoreBtreeClassSlot = HstoreBtreeFamilySlot + 1
+	HstoreHashFamilySlot = HstoreBtreeClassSlot + 1
+	HstoreHashClassSlot = HstoreHashFamilySlot + 1
+	HstoreMemberCount = HstoreHashClassSlot + 1
 )
 
 var StockHstore = &HstoreProvider{control: catalog.ExtensionControl{Version: "1.8", Trusted: true, Superuser: true, Relocatable: true, Comment: new("data type for storing sets of (key, value) pairs")}}
@@ -45,14 +51,7 @@ func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 	}
 	seen := make(map[ids.ObjectAddress]bool, HstoreMemberCount)
 	for i, address := range ext.Members {
-		class := ids.ProcedureClassID
-		if i == HstoreTypeSlot {
-			class = ids.TypeClassID
-		} else if i == HstoreArrayOperatorSlot || i == HstoreMatrixOperatorSlot {
-			class = ids.OperatorClassID
-		} else if i == HstoreJSONBCastSlot {
-			class = ids.CastClassID
-		}
+		class := hstoreMemberClass(i)
 		if address.ClassID != class || address.ObjectID == 0 || address.SubID != 0 || seen[address] {
 			return invalid()
 		}
@@ -90,7 +89,7 @@ func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 	if err := (catalog.CastProvider{}).Validate(v, cast); err != nil {
 		return err
 	}
-	return nil
+	return validateHstoreComparisons(v, ext, base)
 }
 
 func (p *HstoreProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {

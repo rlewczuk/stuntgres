@@ -379,9 +379,9 @@ func (b *Binder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
 						elements = append(elements, item)
 					}
 				}
-				if leftTarget.IsCube() {
-					// The internal batch owns scalar children, not a public cube
-					// array. Keep its IN recipe executable through persistence.
+				if leftTarget.IsCube() || leftTarget.IsHstore() {
+					// The internal batch owns scalar children. Keep its IN
+					// recipe executable through persistence.
 					syntax = parser.InListExpr{Left: raw.Left, Items: elements, Negate: raw.Negate, Pos: raw.Pos}
 				} else {
 					syntax = parser.ArrayComparisonExpr{Left: raw.Left, Right: parser.ArrayExpr{Elements: elements, Pos: raw.Pos}, Name: op.Name, All: raw.Negate, Pos: raw.Pos}

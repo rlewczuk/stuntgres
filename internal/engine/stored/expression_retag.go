@@ -101,6 +101,9 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			if err != nil {
 				return nil, false, err
 			}
+			if capture, installed := hstoreComparisonCaptureOf(node); ok && installed {
+				if failure := remapHstoreComparisonRoutine(view, reader, captured, current, capture, retainedType); failure != nil { return nil, false, failure }
+			}
 			if capture, isCube := cubeComparisonCaptureOf(node); ok && isCube {
 				if failure := remapCubeComparisonRoutine(view, reader, captured, current, capture, retainedType); failure != nil {
 					return nil, false, failure
@@ -362,6 +365,23 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		if changed {
 			rebound, err = n.Rebuild(info, n.Args[:])
 		}
+	case plan.HstoreComparisonExpr:
+		source := n
+		if captured, ok := n.RoutineReference.(*catalog.Procedure); ok && captured != nil {
+			// Reference relocation precedes declaration/type remapping.
+			source.Ref.Address = captured.Address()
+		}
+		if err := source.ValidateStoredProvider(); err != nil {
+			return node, false, err
+		}
+		capture, _ := hstoreComparisonCaptureOf(n)
+		result, ok := view.LookupType(capture.result)
+		if !ok || info.Usage.Type != result {
+			return node, false, fmt.Errorf("stuntgres: foreign hstore comparison result")
+		}
+		n.Args = children(n.Args)
+		if err != nil { return node, false, err }
+		if changed { rebound, err = n.Rebuild(info, n.Args) }
 	case plan.CubeComparisonExpr:
 		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
 		if err != nil {
@@ -864,7 +884,9 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 				if !ok {
 					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
 				}
-				if old.TestUsage.Type.IsCube() || old.Condition.ResultUsage().Type.IsCube() || old.RoutineRef != (ids.ObjectRef{}) {
+				if old.TestUsage.Type.IsHstore() || old.Condition.ResultUsage().Type.IsHstore() {
+					if failure := remapHstoreComparisonRoutine(view, reader, old.Routine, current, hstoreComparisonCapture{ref: old.RoutineRef, left: old.TestUsage.Type, right: old.Condition.ResultUsage().Type, name: "hstore_eq", result: sqltype.Bool}, retainedType); failure != nil { return nil, false, failure }
+				} else if old.TestUsage.Type.IsCube() || old.Condition.ResultUsage().Type.IsCube() || old.RoutineRef != (ids.ObjectRef{}) {
 					if failure := remapCubeComparisonRoutine(view, reader, old.Routine, current, cubeComparisonCapture{ref: old.RoutineRef, left: old.TestUsage.Type, right: old.Condition.ResultUsage().Type, name: "cube_eq", result: sqltype.Bool}, retainedType); failure != nil {
 						return nil, false, failure
 					}
