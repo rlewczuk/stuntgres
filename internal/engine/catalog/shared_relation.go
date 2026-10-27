@@ -9,7 +9,7 @@ func SharedRelation(d *Relation) bool {
 		return false
 	}
 	switch d.Address().ObjectID {
-	case 1213, 1260, 1261, 1262, 2396, 2964, ids.ParameterClassID:
+	case 1213, 1260, 1261, 1262, 2396, 2964, 6100, ids.ParameterClassID:
 		return true
 	}
 	return false

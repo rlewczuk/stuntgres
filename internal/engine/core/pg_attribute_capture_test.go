@@ -165,15 +165,39 @@ func TestPGAttributeCapture(t *testing.T) {
 	d, ref := pgAttributeUnitSource(t, e, view)
 	before, descriptors := e.Catalog.State, maps.Collect(e.Catalog.State.Descriptors())
 	rows := pgAttributeUnitCapture(t, e, view)
+	publicSubscriptionACLs := 0
 	for _, row := range rows.Anonymous {
 		if len(row) != 25 {
 			t.Fatal("width", len(row))
 		}
+		relation, relationErr := row[0].OID()
+		number, numberErr := row[4].Integer()
+		if err := errors.Join(relationErr, numberErr); err != nil {
+			t.Fatal("attribute identity", err)
+		}
+		// Released bootstrap grants PUBLIC SELECT on exactly the seventeen
+		// nonsensitive subscription attributes, not on the table or system attrs.
+		publicSubscriptionACL := relation == 6100 && number >= 1 && number <= 18 && number != 14
 		for i, value := range row {
-			if !value.ValidResult(d.Columns[i].Usage) || value.IsNull() != (i >= 20) {
-				t.Fatal("carrier", i, value)
+			wantNull := i >= 20 && !(i == 21 && publicSubscriptionACL)
+			if !value.ValidResult(d.Columns[i].Usage) || value.IsNull() != wantNull {
+				t.Fatal("carrier", relation, number, i, value)
 			}
 		}
+		if publicSubscriptionACL {
+			acl := row[21]
+			if acl.ArrayLen() != 1 {
+				t.Fatal("subscription PUBLIC ACL length", number, acl.ArrayLen())
+			}
+			authority, grantee, grantor, privileges, options, err := acl.ArrayElement(0).ACLItem()
+			if err != nil || authority != &e.RoleStore.ACLAuthority || grantee != 0 || grantor != 10 || privileges != 2 || options != 0 {
+				t.Fatal("subscription PUBLIC SELECT ACL", number, grantee, grantor, privileges, options, err)
+			}
+			publicSubscriptionACLs++
+		}
+	}
+	if publicSubscriptionACLs != 17 {
+		t.Fatal("subscription PUBLIC ACL count", publicSubscriptionACLs)
 	}
 	self := pgAttributeUnitRows(t, rows, 1249)
 	if len(self) != 31 || self[0] != nil {

@@ -56,7 +56,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			return nil, err
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
-	case pgcatalog.StatisticExtDataOID, pgcatalog.ProgressVacuumOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID:
+	case pgcatalog.SubscriptionOID, pgcatalog.StatisticExtDataOID, pgcatalog.ProgressVacuumOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()

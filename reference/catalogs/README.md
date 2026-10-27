@@ -2,6 +2,7 @@
 
 `pg_catalog` relation and type catalogs: `pg_class`, `pg_attribute`, `pg_attrdef`,
 `pg_statistic_ext` definitions and restricted typed `pg_statistic_ext_data`,
+shared `pg_subscription` identity and projection-aware sensitive-column access,
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, `pg_inherits`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
 `pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
@@ -67,6 +68,13 @@ unbuilt definition while collecting an actual count2 payload. Select these
 witnesses with `make check RUN='^TestReferencePGStatisticExtData'` (add
 `REFERENCE=1`); the existing NDISTINCT family still owns collector lifecycle,
 transactions, hierarchy, cancellation and native controls.
+
+Subscription scenarios cover the exact eighteen-column empty schema, shared
+relation and reciprocal row/array identities, explicit owner-only table ACL,
+PUBLIC column grants, current delegated/inherited authority and complete
+diagnostics on direct, fresh and held prepared routes. Native controls retain
+captured metadata and restore a real sentinel without populating subscriptions. Select the family with
+`make check RUN='^TestReferencePGSubscription'` (add `REFERENCE=1`).
 
 Type identity scenarios retain attribute privilege identities across rename and
 retire obsolete lookup names.

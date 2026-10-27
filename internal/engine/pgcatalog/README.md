@@ -98,6 +98,19 @@ type Producer func(Input) ([][]sqltype.Value, error)
   The canonical NULL-only pg_statistic composite participates in type ACL
   projection through its validated type descriptor, without a fabricated
   relation reader. Ordinary unbacked composites remain authority errors.
+- `pg_subscription` (6100, row6101/array10112) is a real shared catalog with
+  eighteen owned typed attributes and an explicit owner-only table ACL with
+  all table privileges and no grant options. PUBLIC has column SELECT on the
+  seventeen nonsensitive fields, not table SELECT or access to `subconninfo`.
+  The common used-column manifest checks current Execute authority before filtering or
+  LIMIT elimination, including predicates, sorting and whole-row references.
+  Explicit column/table grants and inherited privileges remain authoritative;
+  held statements immediately observe revocation. The authenticated producer
+  validates exact catalog/role roots, engine ownership and type generations
+  even for its nonnil empty result. Reads neither populate subscription
+  definitions nor perform publisher connections, slot creation or replication.
+  Shared and index-presence facts describe catalog identity, not fabricated
+  native physical indexes.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual

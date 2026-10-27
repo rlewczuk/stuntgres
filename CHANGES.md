@@ -1,5 +1,12 @@
 # Changes
 
+- Register the shared eighteen-column `pg_subscription` catalog with exact
+  row/array identity, explicit owner-only table ACL and PUBLIC column grants
+  excluding sensitive `subconninfo`.
+  Current column/table and inherited privileges govern every execution,
+  including filtered and held prepared reads. Catalog availability does not
+  populate subscription definitions or perform remote replication.
+
 - Complete `pg_statistic_ext_data` reader/security acceptance with exact
   six-column metadata, definition/population identity, diagnostics and current
   catalog SELECT checks for direct and retained prepared reads, even WHERE FALSE.

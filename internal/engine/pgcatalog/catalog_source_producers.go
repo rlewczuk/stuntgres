@@ -64,6 +64,7 @@ var producers = [...]Registration{
 	{TSConfigOID, capturePGTSConfig},
 	{TSConfigMapOID, capturePGTSConfigMap},
 	{3764, capturePGTSTemplate},
+	{SubscriptionOID, capturePGSubscription},
 	{6243, capturePGParameterACL},
 	{12000, captureTableViewSummary},
 	{12001, capturePreparedSource},
