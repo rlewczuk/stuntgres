@@ -14,7 +14,7 @@ import (
 
 // Consumes Engine.mu. These cases select capture policy, never producers: all
 // eligible OIDs use the same immutable registry and common row wrapper.
-func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep func(sqltype.Value) bool) (*exec.Source, error) {
+func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep) (*exec.Source, error) {
 	oid := source.Address().ObjectID
 	// These two sources own multi-stage capture/completion, not row producers.
 	if oid == pgcatalog.LocksOID {

@@ -21,7 +21,7 @@ func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 		return nil, err
 	}
 	capacity := len(facts)
-	if in.Keep != nil {
+	if in.Keep.Test != nil {
 		capacity = 0
 	}
 	rows := make([][]sqltype.Value, 0, capacity)
@@ -31,7 +31,9 @@ func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 		}
 		d := fact.Definition
 		name := settings.DisplayName(d.Name)
-		if in.Keep != nil && !in.Keep(sqltype.String(source.Columns[SettingsNameColumn].Usage.Type, name)) {
+		if in.Keep.Rejects(SettingsNameColumn, func() (sqltype.Value, error) {
+			return sqltype.String(source.Columns[SettingsNameColumn].Usage.Type, name), nil
+		}) {
 			continue
 		}
 		row := make([]sqltype.Value, len(source.Columns))

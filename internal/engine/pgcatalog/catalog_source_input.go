@@ -24,10 +24,47 @@ type Input struct {
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress
-	// Keep, when set, tests a candidate row's key cell; a producer that has
-	// a key column (pg_settings: SettingsNameColumn) omits the rows it
-	// rejects. Rows it rejects are ones the statement's filter rejects.
-	Keep func(sqltype.Value) bool
+	// Keep, when set, tests one key column's cell of a candidate row; the
+	// producer omits the rows it rejects (see KeyColumns). Rows it rejects
+	// are ones the statement's filter rejects.
+	Keep Keep
+}
+
+// Keep is a producer row test of one key column. The zero Keep keeps every row.
+type Keep struct {
+	Column int
+	Test   func(sqltype.Value) bool
+}
+
+// Rejects reports whether the test reads column and rejects the cell that
+// cell builds. cell runs only when the test reads column.
+func (k Keep) Rejects(column int, cell func() (sqltype.Value, error)) bool {
+	if k.Test == nil || k.Column != column {
+		return false
+	}
+	v, err := cell()
+	return err == nil && !k.Test(v)
+}
+
+// Key columns whose producers skip rows by Input.Keep.
+const (
+	AttributeRelationColumn = 0 // pg_attribute.attrelid
+	ClassOIDColumn          = 0 // pg_class.oid
+	ClassNameColumn         = 1 // pg_class.relname
+)
+
+// KeyColumns lists the key columns of a system relation whose producer skips
+// rows by Input.Keep, in the order a capture tries them.
+func KeyColumns(relation ids.OID) []int {
+	switch relation {
+	case SettingsOID:
+		return []int{SettingsNameColumn}
+	case AttributeOID:
+		return []int{AttributeRelationColumn}
+	case ClassOID:
+		return []int{ClassOIDColumn, ClassNameColumn}
+	}
+	return nil
 }
 
 // Producer builds the rows of one system relation from a captured Input.

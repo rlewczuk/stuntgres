@@ -14,8 +14,9 @@ import (
 // that leaf occurrence of root scans, so its producer can skip rows the
 // statement's filter rejects. It applies only when root scans the occurrence
 // once, directly under a filter whose first-evaluated conjunct compares column
-// slot of that scan with non-NULL statement constants: "=" or "= ANY" of a
-// list, with a builtin pg_catalog comparison. The test evaluates that
+// slot of that scan with non-NULL statement constants (text, or an oid probe
+// such as a bound 'name'::regclass literal): "=" or "= ANY" of a list, with a
+// builtin pg_catalog comparison. The test evaluates that
 // comparison's own predicate and rejects a cell only when the conjunct is
 // FALSE: the filter then rejects the row without evaluating anything else.
 // TRUE, NULL and a failing evaluation keep the cell for the filter. nil means
@@ -71,10 +72,10 @@ func catalogColumnKeep(evaluation *Context, e expr.Expr, occurrence int, ref ids
 	builtin := func(routine ids.ObjectRef, namespace string, properties expr.Properties) bool {
 		return routine == (ids.ObjectRef{}) && (namespace == "" || namespace == "pg_catalog") && properties.Volatility != expr.Volatile
 	}
-	// A probe is a non-NULL text constant of the column's own type: its value
-	// cannot depend on the input or output environment the filter sees.
+	// A probe is a non-NULL text or oid constant of the column's own type: its
+	// value cannot depend on the input or output environment the filter sees.
 	constant := func(x expr.Expr, column expr.Expr) (sqltype.Value, bool) {
-		if !statementConstant(x) || !textConstant(x) || x.ResultUsage() != column.ResultUsage() {
+		if !statementConstant(x) || !textConstant(x) && !oidConstant(x) || x.ResultUsage() != column.ResultUsage() {
 			return sqltype.Value{}, false
 		}
 		v, err := x.Eval(evaluation)
@@ -150,5 +151,33 @@ func textConstant(x expr.Expr) bool {
 			return true
 		}
 		x = coercion.Child
+	}
+}
+
+// oidConstant reports whether every expression of a statement constant's
+// chain is an oid or regclass, ending in an oid literal or parameter or in a
+// regclass literal. The binder resolves 'name'::regclass literals to their OID
+// (bindRegclass), so no step reads the input environment; a text cast to
+// regclass would, and is rejected.
+func oidConstant(x expr.Expr) bool {
+	for {
+		typ := x.ResultUsage().Type
+		if typ == nil {
+			return false
+		}
+		id := typ.ID()
+		if id != sqltype.Oid && id != sqltype.Regclass {
+			return false
+		}
+		switch c := x.(type) {
+		case plan.CoercionExpr:
+			x = c.Child
+		case plan.LiteralExpr:
+			return true
+		case plan.ParameterExpr:
+			return id == sqltype.Oid
+		default:
+			return false
+		}
 	}
 }

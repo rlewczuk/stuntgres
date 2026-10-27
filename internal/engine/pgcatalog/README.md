@@ -35,7 +35,7 @@ type Input struct {
     Source  *catalog.Relation
     Runtime Runtime
     TypeNamePath []ids.ObjectAddress
-    Keep    func(sqltype.Value) bool
+    Keep    Keep // {Column int; Test func(sqltype.Value) bool}
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -71,10 +71,11 @@ type Producer func(Input) ([][]sqltype.Value, error)
   column's descriptor. Producers check the expected shape and types and fail
   otherwise.
 - Producers check `Context` between descriptors and return its error.
-- `Keep`, when set, tests the key cell of a candidate row; a producer with a
-  key column may omit the rows it rejects, which the statement's own filter
-  rejects anyway (`exec.CatalogSourceKeep`). Only `pg_settings` has one
-  (`SettingsNameColumn`). Captures made with `Keep` are never shared.
+- `Keep`, when set, tests one key column's cell of a candidate row; the
+  producer omits the rows it rejects, which the statement's own filter rejects
+  anyway (`exec.CatalogSourceKeep`). `KeyColumns` lists them: `pg_settings.name`,
+  `pg_attribute.attrelid` (one test per relation) and `pg_class.oid` or
+  `relname`. Captures made with `Keep` are never shared.
 - Rows are immutable once returned: the engine may share one capture across
   statements with the same inputs, so neither producers nor consumers write
   into returned rows.

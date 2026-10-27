@@ -111,3 +111,70 @@ func TestCatalogSourceKeepFilterShapes(t *testing.T) {
 		})
 	}
 }
+
+// TestCatalogSourceKeepOIDProbes checks oid key probes: an oid literal or
+// parameter, or a bound regclass literal (the binder stores its OID) under a
+// regclass-to-oid cast. A text value cast to regclass reads the input
+// environment's resolver, so it yields no test.
+func TestCatalogSourceKeepOIDProbes(t *testing.T) {
+	read := engine.New().CatalogRead()
+	lookup := func(id sqltype.ID) *sqltype.Descriptor {
+		d, ok := read.LookupType(id)
+		if !ok {
+			t.Fatal("missing type", id)
+		}
+		return d
+	}
+	oid, regclass, text, boolean := lookup(sqltype.Oid), lookup(sqltype.Regclass), lookup(sqltype.Text), lookup(sqltype.Bool)
+	equal, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean, sqltype.CollationRef{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toOID, err := sqltype.PlanCoercion(regclass.Usage(), oid.Usage(), sqltype.Explicit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toRegclass, err := sqltype.PlanCoercion(text.Usage(), regclass.Usage(), sqltype.Explicit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domain := &ids.Domain{}
+	ref := domain.Ref(1, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1249})
+	column := plan.ColumnExpr{Info: expr.Info{Usage: oid.Usage()}, Origin: domain.Ref(1, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1249, SubID: 1}), Scope: 1, Frame: 1}
+	cell := func(n uint32) sqltype.Value {
+		v, err := sqltype.OIDValue(oid, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	filtered := func(probe expr.Expr) plan.Node {
+		return &plan.FilterNode{Child: &plan.SourceNode{Ref: ref}, Predicate: plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: column, Right: probe, Predicate: equal, Operator: "="}}
+	}
+	oidLiteral := plan.LiteralExpr{Info: expr.Info{Usage: oid.Usage()}, Value: cell(16384)}
+	boundRegclass := plan.CoercionExpr{Info: expr.Info{Usage: oid.Usage()}, Child: plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage()}, Value: sqltype.String(regclass, "16384")}, Plan: toOID}
+	parameter := plan.ParameterExpr{Info: expr.Info{Usage: oid.Usage()}, Number: 1}
+	textRegclass := plan.CoercionExpr{Info: expr.Info{Usage: oid.Usage()}, Plan: toOID,
+		Child: plan.CoercionExpr{Info: expr.Info{Usage: regclass.Usage()}, Child: plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "t")}, Plan: toRegclass}}
+	for _, tc := range []struct {
+		name  string
+		probe expr.Expr
+		keeps bool
+	}{{"oid literal", oidLiteral, true}, {"bound regclass literal", boundRegclass, true}, {"oid parameter", parameter, true}, {"text cast to regclass", textRegclass, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			keep := exec.CatalogSourceKeep(context.Background(), []sqltype.Value{cell(16384)}, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, filtered(tc.probe), 0, ref, 0)
+			if !tc.keeps {
+				if keep != nil {
+					t.Fatal("unexpected row test")
+				}
+				return
+			}
+			if keep == nil {
+				t.Fatal("missing row test")
+			}
+			if !keep(cell(16384)) || keep(cell(16385)) || keep(cell(1259)) || !keep(sqltype.Null(oid)) {
+				t.Fatal("row test does not match the oid conjunct")
+			}
+		})
+	}
+}

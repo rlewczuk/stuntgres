@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/stored"
 )
 
@@ -22,7 +23,7 @@ func EngineCapturePGPredicateLocksLocked(x *Engine) ([]lock.Record, error) {
 
 // EngineOpenCatalogSourceLocked calls x.openCatalogSourceLocked.
 func EngineOpenCatalogSourceLocked(x *Engine, scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
-	return x.openCatalogSourceLocked(scope, ref, source, nil)
+	return x.openCatalogSourceLocked(scope, ref, source, pgcatalog.Keep{})
 }
 
 // CatalogRuntimeBuiltinViewDefinition calls x.builtinViewDefinition.

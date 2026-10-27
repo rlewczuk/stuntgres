@@ -9,6 +9,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// ClassOID is pg_class.
+const ClassOID ids.OID = 1259
+
 // REL_18_0 catalog headers declare indexes for these exact represented tables;
 // pinned PostgreSQL 18.0 confirms the flags. Install this fact on their owning
 // descriptors without fabricating missing native index relations. This is not

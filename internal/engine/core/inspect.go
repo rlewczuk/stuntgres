@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -196,7 +197,7 @@ func ScopeExecuteSavepoint(x *StatementScope, control *parser.SavepointControl, 
 
 // EngineOpenRelationSourceLocked calls x.openRelationSourceLocked.
 func EngineOpenRelationSourceLocked(x *Engine, scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (*exec.Source, error) {
-	return x.openRelationSourceLocked(scope, ref, invoker, mark, locks, outputUses, nil)
+	return x.openRelationSourceLocked(scope, ref, invoker, mark, locks, outputUses, pgcatalog.Keep{})
 }
 
 // ScopeAcquireMaterializedRefresh calls x.acquireMaterializedRefresh.

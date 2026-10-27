@@ -115,6 +115,13 @@ func capturePGClass(in Input) ([][]sqltype.Value, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		if in.Keep.Rejects(ClassOIDColumn, func() (sqltype.Value, error) {
+			return sqltype.OIDValue(in.Source.Columns[ClassOIDColumn].Usage.Type, uint32(relation.Address().ObjectID))
+		}) || in.Keep.Rejects(ClassNameColumn, func() (sqltype.Value, error) {
+			return sqltype.String(in.Source.Columns[ClassNameColumn].Usage.Type, relation.Name()), nil
+		}) {
+			continue
+		}
 		row, err := ClassRow(in, relation)
 		if err != nil {
 			return nil, err

@@ -88,10 +88,19 @@ func capturePGAttribute(in Input) ([][]sqltype.Value, error) {
 	if !source.Columns[24].Usage.CatalogNullUsage() {
 		return nil, fmt.Errorf("stuntgres: invalid attribute NULL carrier")
 	}
+	// Every row of a relation shares its attrelid cell.
+	rejected := func(relation *catalog.Relation) bool {
+		return in.Keep.Rejects(AttributeRelationColumn, func() (sqltype.Value, error) {
+			return sqltype.OIDValue(source.Columns[AttributeRelationColumn].Usage.Type, uint32(relation.Address().ObjectID))
+		})
+	}
 	count := 0
 	for _, relation := range view.Relations() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if rejected(relation) {
+			continue
 		}
 		count += len(relation.Columns) + len(relation.ColumnMeta.Dropped)
 		if HasSystemAttributes(view, relation) {
@@ -100,6 +109,9 @@ func capturePGAttribute(in Input) ([][]sqltype.Value, error) {
 	}
 	rows := make([][]sqltype.Value, 0, count)
 	for _, relation := range view.Relations() {
+		if rejected(relation) {
+			continue
+		}
 		appendRow := func(metadata catalog.AttributeMetadata) error {
 			if err := ctx.Err(); err != nil {
 				return err
