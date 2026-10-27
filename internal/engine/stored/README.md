@@ -15,6 +15,12 @@ every OUT/INOUT tuple is RECORD even with one member, while no-output is VOID.
 The shared original-occurrence memo maps output shape, formals and child
 generations once; same-OID foreign/unshaped descriptors remain invalid.
 
+Installed crosstab consumers retain their selected procedure and genuine named
+result generation, or their completed anonymous record definition. Reference,
+remap, retag and rendering walkers preserve those captures and resolve current
+presentation independently of mutable function/type labels. Dynamic inner SQL
+remains text, not a frozen dependency on the relations it may later resolve.
+
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
 WHEN recipes and partition-clone provenance, never activation values. Rename
@@ -436,7 +442,7 @@ host methods.
   (`ValidateInstalled*`); the view read graph and volatility
   (`ValidateViewReadGraph`, `ViewVolatile`, `CaptureRetainedInput`); row-mark
   readers (`view_row_marks.go`); `HasDynamicSourceDependency` (installed
-  pgrowlocks, pageinspect, connectby and amcheck capture); view validation and
+  crosstab, pgrowlocks, pageinspect, connectby and amcheck capture); view validation and
   view-write shape; `ValidateRules`; and `DependencyObject` (object
   descriptions for DROP and role diagnostics, including text-search templates
   and dictionaries with class-specific search-path visibility).

@@ -789,10 +789,14 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		args := [1]expr.Expr{n.Arg}
 		return function("pg_extension_update_paths", args[:], true)
 	case plan.InstalledPageinspectExpr:
-		if err := ValidateInstalledPageinspect(n, r.View); err != nil { return "", err }
+		if err := ValidateInstalledPageinspect(n, r.View); err != nil {
+			return "", err
+		}
 		procedure, _ := r.View.Procedure(n.Ref.Address)
 		namespace, ok := r.View.Namespace(procedure.Namespace())
-		if !ok { return "", fmt.Errorf("stuntgres: missing pageinspect namespace") }
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing pageinspect namespace")
+		}
 		return pageinspectCallSQL(n, procedure, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), r.Identifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, arg, DeparseParent{}) })
 	case plan.InstalledAmcheckExpr:
 		if err := ValidateInstalledAmcheck(n, r.View); err != nil {
@@ -975,6 +979,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing normal_rand namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args[:], true)
+	case plan.InstalledTablefuncCrosstabExpr:
+		if err := ValidateInstalledTablefuncCrosstab(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing crosstab namespace")
+		}
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
 	case plan.InstalledPgrowlocksExpr:
 		if err := ValidateInstalledPgrowlocks(n, r.View); err != nil {
 			return "", err

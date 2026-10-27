@@ -40,7 +40,7 @@ func TestTablefuncProviderIdentity(t *testing.T) {
 	done()
 	read := e.CatalogRead()
 	ext := read.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "tablefunc"}))
-	if len(ext.Members) != 5 {
+	if len(ext.Members) != 16 {
 		t.Fatal("selected tablefunc inventory", ext.Members)
 	}
 	proc := read.MustProcedure(ext.Members[0])
@@ -58,7 +58,7 @@ func TestTablefuncProviderIdentity(t *testing.T) {
 	candidate.Members = nil
 	var conflict *sqlstate.Error
 	failure := extension.StockTablefunc.Stage(collision, &candidate, ext.Owner)
-	if !errors.As(failure, &conflict) || conflict.Code != "42723" || conflict.Message != `function "normal_rand" already exists with same argument types` || collision.created || candidate.Members != nil || len(ext.Members) != 5 {
+	if !errors.As(failure, &conflict) || conflict.Code != "42723" || conflict.Message != `function "normal_rand" already exists with same argument types` || collision.created || candidate.Members != nil || len(ext.Members) != 16 {
 		t.Fatal("non-atomic conflicting stage", failure, candidate.Members)
 	}
 	forged := *proc

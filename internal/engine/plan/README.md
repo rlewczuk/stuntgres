@@ -77,6 +77,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity
   against the extension providers.
+  `InstalledTablefuncCrosstabExpr` carries its procedure/reference through
+  reconstruction and source opening. Generic completion supplies an anonymous
+  record usage; fixed wrappers retain their genuine named composite generation.
+  Source/group equality includes both selected identity and result shape.
 - **Three-valued logic** (`expression.go`): `Truth`, `True`, `False`, `Unknown`
   and `TruthOf`.
 - **Structural NULL** (`structural_null.go`): `StructuralNull` recognizes a

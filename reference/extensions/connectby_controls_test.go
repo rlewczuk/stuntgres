@@ -212,7 +212,7 @@ func connectbyBadOwnerDump(t *testing.T, dump string) string {
 		if err := json.Unmarshal(record["members"], &members); err != nil {
 			t.Fatal(err)
 		}
-		if len(members) != 5 {
+		if len(members) != 16 {
 			t.Fatal("selected tablefunc owner inventory", len(members))
 		}
 		// Keep every other field, including ACL provenance, intact.

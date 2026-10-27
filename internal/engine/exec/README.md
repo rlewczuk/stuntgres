@@ -34,6 +34,15 @@ values to `expr.OwnedSource`. Errors expose no partial collection. Closing,
 exhausting or canceling a cursor releases its collection, independently of
 returned values and sibling invocations. The scalar path creates no set buffer.
 
+`ConsumeCrosstab` drains the admitted source before compatibility checks, closes
+it on success, error and cancellation, and transfers only owned immutable tuples.
+The pivot groups adjacent NULL-safe output strings, consumes NULL value slots
+and never serializes discarded excess cells. Declared type identity and
+directional typmods are checked without implicit conversion acceptance. Mismatch
+diagnostics borrow the caller's catalog-backed type namer for scalar and recursive
+array-element qualification and identifier quoting while retaining builtin
+typmods; naming is captured only on failure and is never retained in result tuples.
+
 
 ## What it owns
 
@@ -458,6 +467,10 @@ materialization and disposal, portals and rule execution;
 the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 ## Testing
+
+Crosstab pivot, directional type compatibility and source cleanup units share
+`RUN='^TestTablefuncCrosstab'`; the cursor owner asserts error precedence and
+deterministic cancellation as well as detached immutable results.
 
 Package units cover the preparation seam, stored-view producers, source
 ownership, cursor motion (`RUN='^TestCursor'`), transition aggregates,

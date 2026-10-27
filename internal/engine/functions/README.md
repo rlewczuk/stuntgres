@@ -12,6 +12,14 @@ the authority behind evaluation capabilities in the root
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
 
+Installed `TablefuncCrosstab` nodes retain immutable arguments and the admitted
+record or named-composite usage. They are strict, stable, never planning-folded
+sources; no SQL, catalog authority, cursor or runtime rows are retained on them.
+The statement capability executes the supplied SQL only when the source opens.
+An unresolved generic result uses the shared deferred-record carrier for typed
+NULL frames; only a declared FROM record supplies its executable tuple shape.
+Non-NULL calls without that shape fail when the source opens, not during binding.
+
 `random` and `random_normal` retain their selected declarations and children
 through binding. Conditional planning and statement preflight process required
 constant children before strict literal-NULL elimination. Required immutable
@@ -286,7 +294,7 @@ A family whose evaluation reads subsystem state gets a narrow capability
 interface here (`ACLRuntime`, `TransactionInquiryRuntime`,
 `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `AdvisoryRuntime`,
 `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`,
-`PgrowlocksRuntime`, `FTSQueryRuntime`). The node asserts it from `expr.Context`; `*exec.Context`
+`PgrowlocksRuntime`, `TablefuncCrosstabRuntime`, `FTSQueryRuntime`). The node asserts it from `expr.Context`; `*exec.Context`
 implements it with a compile-time assertion and forwards to the root statement
 host, which owns all locking and returns owned values.
 

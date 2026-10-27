@@ -183,6 +183,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgrowlocksExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledTablefuncCrosstabExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledVerifyHeapamExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case functions.ObjectACL:

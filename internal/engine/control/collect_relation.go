@@ -78,6 +78,9 @@ func isDumpSequence(r *catalog.Relation) bool  { return r.RelationKind == catalo
 func isDumpTable(*catalog.Relation) bool       { return true }
 
 func collectCompositeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, r *catalog.Relation, _ relationDumpContext) error {
+	if typ, ok := c.CatalogView.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}); ok && typ.Extension != (ids.ObjectAddress{}) {
+		return nil
+	}
 	c.Composites[r.Address().ObjectID] = r
 	c.Graph[dump.Event{OID: r.Address().ObjectID}] = nil
 	return nil

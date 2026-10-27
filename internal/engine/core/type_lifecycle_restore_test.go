@@ -41,6 +41,7 @@ func TestTypeLifecycleRestoreLookupAuthority(t *testing.T) {
 		op.Session.Authorization.State = original
 		op.Session.Mu.Unlock()
 		core.OperationReplay(op).TableDestination = false
+		core.OperationReplay(op).InsertAuthority = false
 		e.ImportTargets = nil
 		e.Mu.Unlock()
 	}()
@@ -93,6 +94,33 @@ func TestTypeLifecycleRestoreLookupAuthority(t *testing.T) {
 	checkCode(resolve(old), "42704")
 	core.OperationReplay(op).TableDestination = false
 	checkCode(resolve(raw), "42501")
+	// An ambient insert marker must not change ordinary authorization after
+	// isolated replay ends. Inside a genuine import it admits literal lookup,
+	// but still cannot adopt an unprivileged authenticated principal.
+	core.OperationReplay(op).InsertAuthority = true
+	e.Mu.Lock()
+	e.ImportTargets = nil
+	e.Mu.Unlock()
+	checkCode(resolve(raw), "42501")
+	e.Mu.Lock()
+	e.ImportTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
+	e.Mu.Unlock()
+	if err := resolve(raw); err != nil {
+		t.Fatal("trusted inserted literal lookup denied", err)
+	}
+	e.Mu.Lock()
+	op.Session.Mu.Lock()
+	op.Session.Authorization.State.Authenticated = named.Ref
+	op.Session.Mu.Unlock()
+	_, err = e.AuthorizationLocked(op)
+	op.Session.Mu.Lock()
+	op.Session.Authorization.State.Authenticated = original.Authenticated
+	op.Session.Mu.Unlock()
+	e.Mu.Unlock()
+	if err == nil {
+		t.Fatal("insert marker adopted non-bootstrap authenticated principal")
+	}
+	core.OperationReplay(op).InsertAuthority = false
 	core.OperationReplay(op).TableDestination = true
 	// Both the isolated marker and a live authenticated bootstrap are required.
 	e.Mu.Lock()

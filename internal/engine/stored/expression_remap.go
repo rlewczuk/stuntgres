@@ -394,7 +394,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		next = n
 	case plan.InstalledPageinspectExpr:
 		n.Args = args(n.Args)
-		if ref != nil { n.Ref = ref(n.Ref) }
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
 		next = n
 	case plan.InstalledAmcheckExpr:
 		n.Args = args(n.Args)
@@ -503,6 +505,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		next = n
 	case plan.InstalledPgrowlocksExpr:
 		n.Arg = child(n.Arg)
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
+	case plan.InstalledTablefuncCrosstabExpr:
+		n.Args = args(n.Args)
 		if ref != nil {
 			n.Ref = ref(n.Ref)
 		}

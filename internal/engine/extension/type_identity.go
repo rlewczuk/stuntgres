@@ -13,11 +13,23 @@ type InstalledTypeRole struct {
 	Type *catalog.Type
 }
 
-// InstalledTypes resolves all roles from the validated manifest, not mutable names.
+// InstalledTypes resolves independently declared types from the validated
+// manifest, not mutable names. Generated companions follow their primary type
+// during SQL replay; MemberTypeRole also identifies direct-member companions.
 func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole, error) {
 	name := ""
 	var err error
 	switch ext.Name() {
+	case "tablefunc":
+		if err := StockTablefunc.ValidateExtension(v, ext); err != nil {
+			return nil, err
+		}
+		roles := make([]InstalledTypeRole, 0, 3)
+		for n := 2; n <= 4; n++ {
+			slot := tablefuncCrosstabStart + 1 + 2*(n-2)
+			roles = append(roles, InstalledTypeRole{tablefuncTypeRole(slot), v.MustType(ext.Members[slot])})
+		}
+		return roles, nil
 	case "cube":
 		name = "cube"
 		err = StockCube.ValidateExtension(v, ext)
@@ -79,7 +91,10 @@ func MemberTypeRole(v catalog.Read, ext *catalog.Extension, t *catalog.Type) (st
 		if t.Address() == role.Type.Address() && t.SQLType == role.Type.SQLType {
 			return role.Name, nil
 		}
-		if (ext.Name() == "earthdistance" || ext.Name() == "lo") && t.Address() == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(role.Type.Array)}) {
+		if (ext.Name() == "earthdistance" || ext.Name() == "lo" || ext.Name() == "tablefunc") && t.Address() == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(role.Type.Array)}) {
+			if ext.Name() == "tablefunc" && t.SQLType != v.MustType(t.Address()).SQLType {
+				return "", fmt.Errorf("stuntgres: invalid installed type ownership role")
+			}
 			return role.Name + "[]", nil
 		}
 	}

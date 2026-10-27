@@ -3,10 +3,12 @@ package extension_test
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"testing"
 
-	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -16,20 +18,24 @@ import (
 // production connectby manifest; it can precede the implementation it constrains.
 var tablefuncSelectedSignatures = []string{"23,701,701", "25,25,25,25,23,25", "25,25,25,25,23", "25,25,25,25,25,23,25", "25,25,25,25,25,23"}
 
-func connectbyCatalog() (catalog.Read, *catalog.Extension) {
-	principals := &authorization.Domain{}
-	owner := &catalog.Owner{Domain: &ids.Domain{}, Principals: principals, Extensions: map[string]catalog.ExtensionImplementation{"tablefunc": extension.StockTablefunc}}
-	state := catalog.NewState(1)
+func connectbyCatalog(t *testing.T) (catalog.Read, *catalog.Extension) {
+	t.Helper()
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	enginetest.RoleExecute(t, e, op, "CREATE SCHEMA installed")
+	enginetest.RoleExecute(t, e, op, "CREATE SCHEMA moved")
+	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION tablefunc SCHEMA installed")
+	read := e.CatalogRead()
+	owner, state := read.Owner(), read.State()
 	put := func(d catalog.Descriptor) {
 		state.SetDescriptor(d.Address(), d)
 		state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 9000}
-	put(&catalog.Namespace{ObjectAddress: ns, ObjectName: "installed", ObjectRevision: 1})
-	put(&catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 9001}, ObjectName: "moved", ObjectRevision: 1})
-	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 9002}, ObjectName: "tablefunc", ObjectRevision: 1, Version: "1.0", TargetNamespace: ns, Owner: principals.Principal(10)}
+	ns := state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "installed"})
+	ext := read.MustExtension(state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "tablefunc"}))
 	for slot, sig := range tablefuncSelectedSignatures {
-		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(9100 + slot)}
+		address := ext.Members[slot]
 		name, source, result, volatility := "connectby", "connectby_text", ids.OID(2249), expr.Stable
 		if slot == 0 {
 			name = "normal_rand"
@@ -41,17 +47,16 @@ func connectbyCatalog() (catalog.Read, *catalog.Extension) {
 			source = "connectby_text_serial"
 		}
 		put(&catalog.Procedure{ObjectAddress: address, ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Extension: ext.Address(), Signature: catalog.ProcedureSignature(sig), Result: result, RoutineKind: catalog.FunctionRoutine, Owner: ext.Owner, Volatility: volatility, Strict: true, Installed: catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000}, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source}, Implementation: extension.StockTablefunc})
-		ext.Members = append(ext.Members, address)
 	}
 	put(ext)
 	return catalog.NewRead(owner, state), ext
 }
 func TestTablefuncConnectbySelectedIdentity(t *testing.T) {
-	v, ext := connectbyCatalog()
+	v, ext := connectbyCatalog(t)
 	if err := extension.StockTablefunc.ValidateExtension(v, ext); err != nil {
 		t.Fatal(err)
 	}
-	for slot, address := range ext.Members {
+	for slot, address := range ext.Members[:len(tablefuncSelectedSignatures)] {
 		p := v.MustProcedure(address)
 		want := "connectby"
 		if slot == 0 {
@@ -66,7 +71,7 @@ func TestTablefuncConnectbySelectedIdentity(t *testing.T) {
 		old := p
 		moved := *p
 		moved.ObjectName = "renamed"
-		moved.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 9001}
+		moved.ObjectNamespace = v.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "moved"})
 		moved.Owner = v.Owner().Principals.Principal(99)
 		v.State().UnbindName(catalog.DescriptorNameKey(old))
 		v.State().SetDescriptor(address, &moved)
@@ -87,7 +92,7 @@ func TestTablefuncConnectbySelectedIdentity(t *testing.T) {
 func TestTablefuncConnectbyManifestForgery(t *testing.T) {
 	for _, kind := range []string{"count", "reorder", "duplicate", "signature", "result", "strict", "volatility", "source", "shape", "version"} {
 		t.Run(kind, func(t *testing.T) {
-			v, ext := connectbyCatalog()
+			v, ext := connectbyCatalog(t)
 			p := *v.MustProcedure(ext.Members[1])
 			if err := extension.StockTablefunc.ValidateExtension(v, ext); err != nil {
 				t.Fatal("invalid baseline", err)
@@ -126,6 +131,23 @@ func TestTablefuncConnectbyOwnerCodec(t *testing.T) {
 	for slot, sig := range tablefuncSelectedSignatures {
 		record.Members = append(record.Members, extension.MemberOwner{Slot: slot, Schema: "moved", Kind: "procedure", Name: "renamed", Signature: sig, Owner: "recipient"})
 	}
+	// The incumbent procedure expectations remain independent; append the
+	// composed crosstab declarations rather than accepting a truncated provider.
+	record.Members = append(record.Members, extension.MemberOwner{Slot: 5, Schema: "installed", Kind: "procedure", Name: "crosstab", Signature: "25", Owner: "recipient"})
+	for n := 2; n <= 4; n++ {
+		slot := 6 + 2*(n-2)
+		name := fmt.Sprintf("tablefunc_crosstab_%d", n)
+		record.Members = append(record.Members,
+			extension.MemberOwner{Slot: slot, Schema: "installed", Kind: "type", Name: name, Owner: "recipient"},
+			extension.MemberOwner{Slot: slot + 1, Schema: "installed", Kind: "type", Name: name + "[]", Owner: "recipient"})
+	}
+	for slot := 12; slot <= 15; slot++ {
+		signature := "25"
+		if slot == 15 {
+			signature = "25,23"
+		}
+		record.Members = append(record.Members, extension.MemberOwner{Slot: slot, Schema: "installed", Kind: "procedure", Name: "renamed", Signature: signature, Owner: "recipient"})
+	}
 	decode := func(r extension.OwnerRecord) error {
 		data, err := json.Marshal(r)
 		if err != nil {
@@ -138,7 +160,7 @@ func TestTablefuncConnectbyOwnerCodec(t *testing.T) {
 		return err
 	}
 	if err := decode(record); err != nil {
-		t.Fatal("selected five-member owner record", err)
+		t.Fatal("composed sixteen-member owner record", err)
 	}
 	for _, kind := range []string{"count", "signature", "slot", "version"} {
 		bad := record

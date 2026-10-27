@@ -179,6 +179,13 @@ target's contents; it never merges. Empty input clears all user relations.
 - Roles referenced by owner directives and `regrole` values must already exist in
   the target engine (`regrole` is dumped by name). Provision them before restoring
   into another Driver.
+- Native declaration and row-literal type lookup uses authenticated privileged
+  authority only inside the isolated restore stage. Captured owners need not
+  retain schema USAGE to replay explicitly typed composite cells, including NULLs.
+  Named owners, schema ACLs and destination-resolved type identities remain intact.
+  Row-literal lookup authority ends at routine invocation: lazy routine bodies
+  and dynamic source SQL use ordinary caller namespace permissions. An ambient
+  insertion marker outside the isolated stage grants no lookup authority.
 - Any read, parse, execution or cancellation error leaves the target unchanged.
 - Stored expressions and routines execute through the ordinary staged engine.
   Foreign scans, writes and schema imports are rejected before capability

@@ -42,6 +42,9 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 		if !ok || owner.Ref != ext.Owner {
 			return false, fmt.Errorf("stuntgres: mismatching extension installation owner")
 		}
+		if record.Name == "tablefunc" && (len(ext.Members) != tablefuncMemberCount || !validTablefuncOwnerRoles(record)) {
+			return false, fmt.Errorf("stuntgres: inconsistent tablefunc ownership roles")
+		}
 		if record.Name == "earthdistance" && (len(ext.Members) != EarthMemberCount || !validEarthOwnerRoles(record)) {
 			return false, fmt.Errorf("stuntgres: invalid earthdistance ownership roles")
 		}
@@ -73,6 +76,16 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 			// Do not reorder or mutate the caller's immutable metadata slice.
 			if record.Name == "lo" && record.Members[0].Slot == 1 {
 				member = record.Members[1-i]
+			}
+			if record.Name == "tablefunc" {
+				// Apply primary and companion owners in canonical order even
+				// when portable metadata listed the companion first.
+				for _, selected := range record.Members {
+					if selected.Slot == i {
+						member = selected
+						break
+					}
+				}
 			}
 			owner, ok := roles.Lookup(member.Owner)
 			if !ok {
@@ -218,6 +231,15 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 					n.Owner = owner.Ref
 					n.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, owner.Ref)
 					candidate.SetDescriptor(a, &n)
+					if record.Name == "tablefunc" && d.SQLType.IsComposite() {
+						relation, ok := candidate.Relation(d.OwningRelation)
+						if !ok || relation.RowType != d.SQLType.ID() || relation.Owner != d.Owner {
+							return false, fmt.Errorf("stuntgres: invalid installed composite owner")
+						}
+						backing := *relation
+						backing.Owner = owner.Ref
+						candidate.SetDescriptor(backing.Address(), &backing)
+					}
 					if d.Array != 0 {
 						arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}
 						array, ok := candidate.Type(arrayAddress)

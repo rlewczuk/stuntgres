@@ -18,6 +18,14 @@ the activation's complete scalar Usage in the ordinary PL-local expression.
 Reached WHEN lists use the shared IN binder; no alternate comparison resolver
 or published fake local carries search state.
 
+Installed crosstab selection uses ordinary procedure discovery and coercion.
+Shared function-column completion supplies generic RECORD shape. Installed
+crosstab captures every declared member's type/collation dependency even for
+empty or strict-NULL calls, without adding authority to another provider's
+captured routine manifest during stored-occurrence completion. Fixed wrappers
+retain their actual named composite and reject redundant definitions; set
+placement remains the common source/target-list admission.
+
 Standalone CALL uses the common callable selector with the full formal-position
 projection for every candidate kind, including function OUT declarations.
 Candidate ranking and namespace masking precede invocation-kind rejection.

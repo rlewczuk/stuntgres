@@ -34,7 +34,7 @@ func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.Expres
 				if err != nil {
 					return false, err
 				}
-				if symbol == "connectby" {
+				if symbol == "connectby" || symbol == "crosstab" || symbol == "crosstab2" || symbol == "crosstab3" || symbol == "crosstab4" {
 					return true, nil
 				}
 			}

@@ -224,6 +224,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	}
 	expectedMembers := 0
 	switch {
+	case record.Name == "tablefunc" && record.Version == "1.0":
+		expectedMembers = tablefuncMemberCount
 	case record.Name == "unaccent" && record.Version == "1.1":
 		expectedMembers = 5
 	case record.Name == "hstore" && record.Version == "1.8":
@@ -256,8 +258,6 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = len(PageinspectMembers)
 	case record.Name == "pgrowlocks" && record.Version == "1.2":
 		expectedMembers = 1
-	case record.Name == "tablefunc" && record.Version == "1.0":
-		expectedMembers = len(tablefuncMembers)
 	case record.Name == "pgcrypto" && record.Version == "1.4":
 		expectedMembers = len(functions.PgcryptoMembers)
 	case record.Name == "uuid-ossp" && record.Version == "1.1":
@@ -305,6 +305,13 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 			return invalid()
 		}
 		seen[identity] = true
+		if record.Name == "tablefunc" {
+			if !validTablefuncOwnerMember(member) {
+				return invalid()
+			}
+			record.Members = append(record.Members, member)
+			continue
+		}
 		switch member.Kind {
 		case "procedure":
 			// Mutable procedure labels are checked against the current installed
@@ -362,6 +369,9 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		}
 		record.Members = append(record.Members, member)
 	}
+	if record.Name == "tablefunc" && !validTablefuncOwnerRoles(record) {
+		return invalid()
+	}
 	if record.Name == "earthdistance" && !validEarthOwnerRoles(record) || record.Name == "lo" && record.Members[0].Owner != record.Members[1].Owner {
 		return invalid()
 	}
@@ -371,6 +381,18 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 // The codec admits mutable labels but never mutable executable declarations.
 func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 	switch name {
+	case "tablefunc":
+		if version == "1.0" {
+			if slot >= 0 && slot < tablefuncCrosstabStart {
+				return string(tablefuncMembers[slot].signature), true
+			}
+			switch slot - tablefuncCrosstabStart {
+			case 0, 7, 8, 9:
+				return "25", true
+			case 10:
+				return "25,23", true
+			}
+		}
 	case "earthdistance":
 		if version != "1.2" || slot < 2 || slot >= EarthPointOperatorSlot {
 			return "", false
@@ -419,10 +441,6 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		}
 	case "pgrowlocks":
 		return "25", slot == 0
-	case "tablefunc":
-		if slot >= 0 && slot < len(tablefuncMembers) {
-			return string(tablefuncMembers[slot].signature), true
-		}
 	case "unaccent":
 		signatures := [...]catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}
 		if slot < len(signatures) {

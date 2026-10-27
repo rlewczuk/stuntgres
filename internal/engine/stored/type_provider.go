@@ -39,6 +39,8 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 		}
 		var err error
 		switch {
+		case parent.Name() == "tablefunc" && (t.SQLType.IsComposite() || t.SQLType.IsArray()):
+			_, err = extension.MemberTypeRole(view, parent, t)
 		case parent.Name() == "hstore" && t.SQLType.IsHstore():
 			err = extension.StockHstore.ValidateExtension(view, parent)
 		case parent.Name() == "intarray" && t.SQLType.IsQueryInt():

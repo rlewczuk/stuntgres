@@ -131,6 +131,20 @@ the SQL-independent native readers in `sqltype`. B-tree byte decoding needs no
 relation capture; physical relname page acquisition is not an engine provider
 overload and local table contents are never synthesized into raw index pages.
 
+## Installed crosstab runtime
+
+The crosstab statement host validates the captured procedure against current
+authority before argument evaluation, including strict-NULL calls. Nested source
+SQL borrows the existing SQL-routine activation, caller catalog/visibility and
+effective settings, with an isolated parameter frame. The whole SQL string is
+prepared; only admitted non-volatile commands execute, and the last result owns
+the pivot input. Each executed command has its own SQL-routine activation, so
+expected analysis, relation admission and source authority from an earlier
+command cannot authorize a later command. Commands share caller visibility,
+catalog frontier and effective settings, not query scratch. Every exit closes
+cursors and restores activation scratch. Parsing, typed codecs and source
+execution run outside `Engine.Mu`.
+
 ## Installed amcheck B-tree runtime
 
 The sole `StockAmcheck` installation retains `verify_heapam` at slot zero and
@@ -1086,6 +1100,9 @@ closure). That later query is reachable only after a completed non-root emit;
 the ownership probe also requires distinct local views for both activations.
 Caller-context Err overrides are not phase probes through the public driver:
 session admission deliberately derives its own cancellation context.
+Crosstab capture, generation, prepared-definition ownership and nested activation
+invariants share `RUN='^TestTablefuncCrosstab'`. Their composed helpers exercise
+actual installed declarations, accepted protocol bindings and statement hosts.
 
 Heap-verification capture, admission, incarnation and pure logical-row units
 share `RUN='^TestVerifyHeapam'`; use `RACE=1` for capture/admission coverage.

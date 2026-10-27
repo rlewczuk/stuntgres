@@ -91,7 +91,14 @@ func TestConnectbyCompletionRebuildAndRemap(t *testing.T) {
 		}
 		mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 990000}}
 		for slot, address := range ext.Members {
-			mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(990001 + slot)}
+			// This fixture moves procedure identities, not nominal type codecs.
+			// Keep type addresses and their reciprocal backing/array graph intact;
+			// identity entries still remap each type's extension membership.
+			destination := address
+			if address.ClassID == ids.ProcedureClassID {
+				destination.ObjectID = ids.OID(990001 + slot)
+			}
+			mapping[address] = destination
 		}
 		state := catalog.CloneState(read.State())
 		for address := range mapping {
@@ -115,6 +122,9 @@ func TestConnectbyCompletionRebuildAndRemap(t *testing.T) {
 		state.SetDescriptor(current.Address(), &current)
 		state.SetEpoch(state.Epoch() + 1)
 		destination := e.Catalog.Read(state)
+		if err := extension.StockTablefunc.ValidateExtension(destination, destination.MustExtension(mapping[ext.Address()])); err != nil {
+			t.Fatal("remapped full provider graph", err)
+		}
 		remap := func(ref ids.ObjectRef) ids.ObjectRef {
 			ref.Epoch = state.Epoch()
 			if address, ok := mapping[ref.Address]; ok {

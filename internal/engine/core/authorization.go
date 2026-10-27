@@ -86,8 +86,9 @@ type AuthorizationView struct {
 	PathPrefix ids.ObjectAddress
 	// Trusted replay permissions may elevate without changing $user semantics.
 	namespaceUser authorization.PrincipalRef
-	// Validated private Restore definition lookup only; it never changes the
-	// named destination owner, session identity, ACLs or creation authority.
+	// Validated private Restore declaration and row-literal lookup only; it
+	// never changes the named destination owner, session identity, ACLs or
+	// creation authority.
 	restoreDefinitionLookup bool
 	// An owned TEMP table builder may see its namespace before session publication.
 	StagedTemporary ids.ObjectAddress
@@ -315,7 +316,13 @@ func (e *Engine) AuthorizationLocked(op *session.Operation) (AuthorizationView, 
 	authorization.Statement = ActiveScopeOfLease(op.Lease)
 	authorization.roleAuthority = e.sessionRolesLocked(s)
 	authorization.publishedRoleAuthority = e.RoleStore.Published
-	if OperationReplayOrZero(op).TableDestination {
+	replay := OperationReplayOrZero(op)
+	// An ambient INSERT marker is not definition authority outside the isolated
+	// import. Its row-literal lookup permission also stops at a routine invocation:
+	// lazy body analysis and dynamic source SQL retain the ordinary caller's ACLs.
+	insertLookup := replay.InsertAuthority && e.ImportTargets != nil &&
+		(authorization.Statement == nil || authorization.Statement.activeSQLRoutineDepth == 0)
+	if replay.TableDestination || insertLookup {
 		if !bootstrap.Superuser || e.ImportTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore definition lookup authority")
 		}

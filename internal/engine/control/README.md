@@ -24,6 +24,11 @@ The root's capture window (`captureDumpLocked`, under `Engine.Mu`) calls
 `Dump(ctx, capture, dst)` (`dump.go`) then sorts and completes the `Capture` in
 place, builds the script and writes it; the root never reads the capture again.
 
+Extension-owned composite types are reconstructed by their installation.
+Their standalone backing relations are therefore omitted from CREATE TYPE
+output, and backing-relation dependency edges resolve to the same extension
+event without inventing direct relation membership.
+
 Parameter ACLs use the shared typed ACLITEM[] preflight and deterministic
 object-ACL section. Isolated Restore accepts only the generated single-assignment
 `pg_parameter_acl.paracl` repair selected by literal TEXT `parname`, allocating

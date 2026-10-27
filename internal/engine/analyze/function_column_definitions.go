@@ -16,11 +16,12 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 	jsonb, isJSONB := call.(functions.JSONBRecord)
 	routine, isRoutine := call.(plan.SQLRoutineExpr)
 	connectby, isConnectby := call.(plan.InstalledConnectbyExpr)
+	crosstab, isCrosstab := call.(plan.InstalledTablefuncCrosstabExpr)
 	// Formal-derived tuples already own their shape, despite prorettype RECORD.
 	isRoutine = isRoutine && routine.Procedure.Result == 2249 && !routine.Procedure.SQL.DerivedResult()
-	anonymous := (isRecord || isJSONB || isRoutine || isConnectby) && call.ResultUsage().Type.ID() == 2249
+	anonymous := (isRecord || isJSONB || isRoutine || isConnectby || isCrosstab) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
-		if isRecord && anonymous || JSONBRecordUnresolved(call) || isRoutine || isConnectby && !connectby.Defined {
+		if isRecord && anonymous || JSONBRecordUnresolved(call) || isRoutine || isConnectby && !connectby.Defined || isCrosstab && anonymous {
 			return nil, expr.ErrorAt("42601", `a column definition list is required for functions returning "record"`, raw.Pos)
 		}
 		return call, nil
@@ -51,6 +52,12 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 			return nil, err
 		}
 		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: definition.Name.Text, Usage: u}
+		if isCrosstab {
+			// Installed crosstab owns definition-only type/collation inputs.
+			// Completing another provider's stored occurrence must not add
+			// authority to its already captured routine manifest.
+			b.Info(u, definition.Name.Pos, expr.Properties{})
+		}
 	}
 	shape, err := sqltype.RecordShape(members)
 	if err != nil {
@@ -62,6 +69,10 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 		connectby.Property.DomainDependent = connectby.Property.DomainDependent || sqltype.ContainsDomainConstraints(shape)
 		connectby.Property.RuntimeDomainConversion = connectby.Property.RuntimeDomainConversion || sqltype.ContainsDomainConstraints(shape)
 		return connectby, nil
+	}
+	if isCrosstab {
+		crosstab.Usage = shape.Usage()
+		return crosstab, nil
 	}
 	if isRoutine {
 		routine.Usage = shape.Usage()

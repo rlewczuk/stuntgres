@@ -30,10 +30,10 @@ func TestReferenceConnectbyInstalledIdentity(t *testing.T) {
 		}
 		run(fixture.Select("SELECT extversion FROM pg_extension WHERE extname='tablefunc'", []string{"extversion"}, []string{"TEXT"}, [][]any{{"1.0"}}))
 		run(fixture.Select("SELECT p.pronargdefaults,p.provariadic::integer AS variadic,p.proargnames FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='cb_part' AND p.proname='connectby' ORDER BY p.proargtypes::text", []string{"pronargdefaults", "variadic", "proargnames"}, []string{"INT2", "INT4", "_TEXT"}, [][]any{{int64(0), int64(0), nil}, {int64(0), int64(0), nil}, {int64(0), int64(0), nil}, {int64(0), int64(0), nil}}))
-		// PostgreSQL ships additional tablefunc members; this bounded native
-		// provider retains normal_rand and appends exactly the four connectby slots.
+		// The composed native provider retains normal_rand and all four connectby
+		// overloads alongside the five single-source crosstab procedures.
 		if !b.PG {
-			run(fixture.Select("SELECT p.proname,count(*) AS members FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='cb_part' GROUP BY p.proname ORDER BY p.proname", []string{"proname", "members"}, []string{"NAME", "INT8"}, [][]any{{"connectby", int64(4)}, {"normal_rand", int64(1)}}))
+			run(fixture.Select("SELECT p.proname,count(*) AS members FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='cb_part' GROUP BY p.proname ORDER BY p.proname", []string{"proname", "members"}, []string{"NAME", "INT8"}, [][]any{{"connectby", int64(4)}, {"crosstab", int64(2)}, {"crosstab2", int64(1)}, {"crosstab3", int64(1)}, {"crosstab4", int64(1)}, {"normal_rand", int64(1)}}))
 		}
 		run(fixture.Exec("SET search_path TO cb_part,public", 0))
 		q := strings.Replace(connectbyQuery(0, connectbyArgs[0]), "cb_part.connectby", "connectby", 1)

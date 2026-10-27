@@ -206,17 +206,31 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision(), Purpose: b.dependencyPurpose}
 	switch c := call.(type) {
 	case functions.Pageinspect:
-		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil { return nil, err }
+		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
 		symbol, err := extension.ProcedureSymbol(r.catalog, p)
-		if err != nil { return nil, err }
-		if symbol != c.Member { return nil, fmt.Errorf("stuntgres: invalid pageinspect call member") }
+		if err != nil {
+			return nil, err
+		}
+		if symbol != c.Member {
+			return nil, fmt.Errorf("stuntgres: invalid pageinspect call member")
+		}
 		if p.Installed.ReturnsSet {
-			if b.Params.ExecuteParameters { return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos) }
-			if b.Consumer.PolicyConsumer && b.Query.Frame == 0 { return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions") }
-			if err := b.AdmitSetReturning(c.Pos); err != nil { return nil, err }
+			if b.Params.ExecuteParameters {
+				return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos)
+			}
+			if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
+				return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
+			}
+			if err := b.AdmitSetReturning(c.Pos); err != nil {
+				return nil, err
+			}
 		}
 		c.RoutineReference = p
-		if err := extension.ValidatePageinspectCall(r.catalog, p, c); err != nil { return nil, err }
+		if err := extension.ValidatePageinspectCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPageinspectExpr{Pageinspect: c, Procedure: p, Ref: ref}, nil
 	case functions.Cube:
@@ -326,6 +340,8 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledConnectbyExpr{Connectby: c, Procedure: p, Ref: ref}, nil
+	case functions.TablefuncCrosstab:
+		return r.attachTablefuncCrosstab(c, ref)
 	case functions.VerifyHeapam:
 		return r.attachVerifyHeapam(c, ref)
 	}

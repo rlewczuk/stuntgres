@@ -294,10 +294,14 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		}
 	case StockPageinspect:
 		count = len(PageinspectMembers)
-		if slot >= count { return invalid() }
+		if slot >= count {
+			return invalid()
+		}
 		m := PageinspectMembers[slot]
 		name, signature, result, volatility = m.Name, m.Signature, m.Result, expr.Volatile
-		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 { return invalid() }
+		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+			return invalid()
+		}
 	case StockAmcheck:
 		count = 1 + len(AmcheckMembers)
 		if slot >= count {
@@ -321,13 +325,23 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			return invalid()
 		}
 	case StockTablefunc:
-		count = len(tablefuncMembers)
-		if slot >= count {
+		count = tablefuncMemberCount
+		if len(ext.Members) != count || slot < 0 || slot >= count {
 			return invalid()
 		}
-		member := tablefuncMembers[slot]
-		name, signature, result, volatility = member.name, member.signature, member.result, member.volatility
-		if p.Installed != tablefuncNormalDeclaration() || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.source}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+		declaration, source := tablefuncDeclaration(), "crosstab"
+		if slot < tablefuncCrosstabStart {
+			member := tablefuncMembers[slot]
+			name, signature, result, volatility = member.name, member.signature, member.result, member.volatility
+			declaration, source = tablefuncNormalDeclaration(), member.source
+		} else {
+			name, signature, result = tablefuncProcedure(slot, ext)
+			if name == "" {
+				return invalid()
+			}
+			volatility = expr.Stable
+		}
+		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
 			return invalid()
 		}
 	case StockPgrowlocks:

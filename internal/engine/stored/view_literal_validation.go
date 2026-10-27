@@ -322,6 +322,11 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 			return err
 		}
 		(*routineCount)++
+	} else if tablefuncCrosstabRecipe(raw) {
+		if _, err := v.tablefuncCrosstabRecipeProcedure(catalog, path); err != nil {
+			return err
+		}
+		(*routineCount)++
 	} else if pgrowlocksRecipe(raw) {
 		if _, err := v.pgrowlocksRecipeProcedure(catalog, path); err != nil {
 			return err

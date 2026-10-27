@@ -679,6 +679,31 @@ func (c *Context) Connectby(request functions.ConnectbyRequest) ([]sqltype.Value
 	return host.Connectby(request)
 }
 
+func (c *Context) TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return nil, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: crosstab lacks statement scope")
+	}
+	return host.TablefuncCrosstab(text, result)
+}
+
+func (c *Context) OpenTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) (expr.SourceCursor, error) {
+	if err := EvaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: crosstab lacks statement scope")
+	}
+	if err := host.ValidateTablefuncCrosstab(n); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	return n.TablefuncCrosstab.OpenSource(c)
+}
+
 func (c *Context) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	if err := EvaluationContext(c); err != nil {
 		return nil, err

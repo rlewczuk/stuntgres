@@ -59,6 +59,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='hstore' AND version='1.8'", true, [][]any{{"hstore", "1.8", false, true, true, true, nil, nil, "data type for storing sets of (key, value) pairs"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='seg'", false, [][]any{{"seg", "1.4", nil, "data type for representing line segments or floating-point intervals"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='seg' AND version='1.4'", true, [][]any{{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='tablefunc'", false, [][]any{{"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tablefunc' AND version='1.0'", true, [][]any{{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}}, pg))
 			if !pg {
 				// Native availability is its real embedded registry, not PostgreSQL's
 				// larger system package installation or bootstrap plpgsql descriptor.

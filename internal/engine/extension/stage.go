@@ -28,6 +28,9 @@ type Stage interface {
 	// EarthChecks attaches the three genuine provider domain recipes using
 	// the engine's ordinary constraint allocator/renderer/dependency authority.
 	EarthChecks(*catalog.Type) error
+	// Composite stages a standalone row type and its implicit array through
+	// the ordinary relation allocator, row-type codecs and creation ACLs.
+	Composite(ids.ObjectAddress, string, authorization.PrincipalRef, []catalog.Column, ids.ObjectAddress) (*catalog.Type, *catalog.Type, error)
 }
 
 // ScriptFunction names one helper function an extension script looks up.

@@ -2,21 +2,15 @@ package extension
 
 import (
 	"fmt"
-
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
-// TablefuncProvider owns the selected released tablefunc routines.
 type TablefuncProvider struct{ control catalog.ExtensionControl }
 
-var StockTablefunc = &TablefuncProvider{control: catalog.ExtensionControl{
-	Version: "1.0", Superuser: true, Trusted: true, Relocatable: true,
-	Comment: new("functions that manipulate whole tables, including crosstab"),
-}}
+var StockTablefunc = &TablefuncProvider{control: catalog.ExtensionControl{Version: "1.0", Superuser: true, Trusted: true, Relocatable: true, Comment: new("functions that manipulate whole tables, including crosstab")}}
 
 type tablefuncMember struct {
 	name, source string
@@ -34,57 +28,86 @@ var tablefuncMembers = [...]tablefuncMember{
 	{"connectby", "connectby_text_serial", "25,25,25,25,25,23", 2249, expr.Stable},
 }
 
+func tablefuncNormalDeclaration() catalog.InstalledRoutineDeclaration {
+	return catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000}
+}
+
 func (p *TablefuncProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
 func (p *TablefuncProvider) Versions() catalog.ExtensionVersions {
 	return catalog.ExtensionVersions{Bases: []string{"1.0"}}
 }
 func TablefuncProviderOf(p *catalog.Procedure) *TablefuncProvider {
+	if p == nil {
+		return nil
+	}
 	provider, _ := p.Implementation.(*TablefuncProvider)
 	return provider
 }
-func tablefuncNormalDeclaration() catalog.InstalledRoutineDeclaration {
-	return catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000}
-}
-func (p *TablefuncProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
-	members := make([]ids.ObjectAddress, 0, len(tablefuncMembers))
-	for _, member := range tablefuncMembers {
-		oid, err := stage.AllocateOID()
-		if err != nil {
-			return err
-		}
-		revision, err := stage.Revision()
-		if err != nil {
-			return err
-		}
-		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.name, Signature: member.signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: member.result, Volatility: member.volatility, Strict: true, Installed: tablefuncNormalDeclaration(), Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.source}, Implementation: p}
-		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
-		}
-		if err := stage.Create(proc); err != nil {
-			return err
-		}
-		members = append(members, address)
-	}
-	ext.Members = members
-	return nil
-}
+
 func (p *TablefuncProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
-	if !currentManifest(v, ext) || p != StockTablefunc || v.Owner() == nil || ext.Name() != "tablefunc" || ext.Version != "1.0" || len(ext.Members) != len(tablefuncMembers) {
-		return fmt.Errorf("stuntgres: invalid tablefunc manifest")
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid tablefunc manifest") }
+	if p != StockTablefunc || v.Owner() == nil || !currentManifest(v, ext) || ext.Name() != "tablefunc" || ext.Version != "1.0" || len(ext.Members) != tablefuncMemberCount || v.Owner().Extensions["tablefunc"] != p {
+		return invalid()
 	}
-	for _, address := range ext.Members {
-		proc, ok := v.Procedure(address)
-		if !ok {
-			return fmt.Errorf("stuntgres: invalid tablefunc member")
+	for _, slot := range []int{0, 1, 2, 3, 4, 5, 12, 13, 14, 15} {
+		proc, ok := v.Procedure(ext.Members[slot])
+		if !ok || proc.Extension != ext.Address() || proc.Implementation != p {
+			return invalid()
 		}
 		if _, err := ProcedureSymbol(v, proc); err != nil {
 			return err
 		}
 	}
+	for n := 2; n <= 4; n++ {
+		slot := tablefuncCrosstabStart + 1 + 2*(n-2)
+		typ, ok := v.Type(ext.Members[slot])
+		if !ok {
+			return invalid()
+		}
+		array, ok := v.Type(ext.Members[slot+1])
+		if !ok {
+			return invalid()
+		}
+		for _, member := range []*catalog.Type{typ, array} {
+			if member.SQLType == nil || member.ObjectRevision == 0 || !member.SQLType.Concrete() || member.Dimensions != 0 || len(member.DomainChecks) != 0 || member.DomainNotNull != nil || member.DomainDefault != nil || member.DomainDefaultOwn || member.DomainDefaultText != "" {
+				return invalid()
+			}
+			if err := ValidateProviderHeader(v, member, ids.TypeClassID); err != nil {
+				return err
+			}
+		}
+		if typ.Address() != ext.Members[slot] || array.Address() != ext.Members[slot+1] || array.Array != 0 {
+			return invalid()
+		}
+		if typ.Revision() == 0 || array.Revision() == 0 || typ.Extension != ext.Address() || array.Extension != ext.Address() || !typ.SQLType.IsComposite() || !array.SQLType.IsArray() || typ.Array != array.SQLType.ID() || array.SQLType.Element() != typ.SQLType || typ.Owner.ID() == 0 || typ.Owner != v.Owner().Principals.Principal(typ.Owner.ID()) || array.Owner != typ.Owner || array.Namespace() != typ.Namespace() || v.NameAddress(catalog.DescriptorNameKey(typ)) != typ.Address() || v.NameAddress(catalog.DescriptorNameKey(array)) != array.Address() {
+			return invalid()
+		}
+		relation, ok := v.Relation(typ.OwningRelation)
+		if !ok || relation.RelationKind != catalog.CompositeRelation || relation.RowType != typ.SQLType.ID() || relation.Owner != typ.Owner || relation.Namespace() != typ.Namespace() || relation.Name() != typ.Name() || array.OwningRelation != relation.Address() || relation.Revision() == 0 || len(relation.Columns) != n+1 || len(relation.Attributes) != n+1 || v.NameAddress(catalog.DescriptorNameKey(relation)) != relation.Address() {
+			return invalid()
+		}
+		if typ.SQLType.CompositeLen() != n+1 {
+			return invalid()
+		}
+		text, ok := v.LookupType(sqltype.Text)
+		if !ok {
+			return invalid()
+		}
+		for i, column := range relation.Columns {
+			name := tablefuncColumnNames[i]
+			member := typ.SQLType.CompositeMember(i)
+			if column.Name != name || column.Usage != text.Usage() || !column.Nullable || !column.NullabilityKnown || relation.Attributes[i] != int32(i+1) || member.Name != name || member.Attribute != relation.Attributes[i] || member.Usage != column.Usage {
+				return invalid()
+			}
+		}
+	}
 	return nil
 }
+
 func (p *TablefuncProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
+	if proc == nil {
+		return fmt.Errorf("stuntgres: missing tablefunc procedure")
+	}
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing tablefunc installation")
@@ -92,12 +115,13 @@ func (p *TablefuncProvider) ValidateProcedure(v catalog.Read, proc *catalog.Proc
 	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.Address()) != proc || TablefuncProviderOf(proc) != p {
+	if v.Get(proc.Address()) != proc {
 		return fmt.Errorf("stuntgres: foreign tablefunc procedure")
 	}
 	_, err := ProcedureSymbol(v, proc)
 	return err
 }
+
 func ValidateTablefuncIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef) error {
 	actual, ok := v.Procedure(ref.Address)
 	if v.Owner() == nil || !ok || proc == nil || actual != proc || ref.Domain() != v.Owner().Domain || ref.Epoch != v.Epoch() || TablefuncProviderOf(proc) != StockTablefunc {

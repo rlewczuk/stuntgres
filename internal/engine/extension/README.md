@@ -51,6 +51,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `catalog.ExtensionMembership`. `extension_type_validation.go` validates an
   installed codec's array through the type provider registered in the catalog
   owner.
+  Installed tablefunc procedures enter the same class validator and retain the
+  full provider manifest, composite/array reciprocity, explicit parallel-unsafe
+  declarations and current owner checks; a recognized implementation alone never
+  bypasses installation validation. SQL replay reconstructs the three declared
+  composite identities and their generated arrays together. All six types remain
+  direct extension members with distinct symbolic ownership roles; array role
+  suffixes are not independently declared SQL identifiers.
 - **Seg members** (`seg_provider.go`, `seg_stage.go`): the trusted relocatable
   1.4 provider owns the twelve-byte scalar and strict immutable C input/output
   roles. Its reciprocal array is lookup-only, not an extension member. Staging,
@@ -135,12 +142,24 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   invocation borrows the admitted catalog's canonical procedure and epoch,
   never a retained preparation epoch. This invocation-local bridge neither
   mutates the stored selection nor authorizes an otherwise stale reference.
-- **tablefunc** (`tablefunc_provider.go`): trusted/relocatable version 1.0
-  retains strict volatile `normal_rand(integer,float8,float8)` at slot zero
-  and appends four strict stable SETOF-record connectby overloads. One ordered
-  manifest drives staging, immutable symbol checks and symbolic owner replay.
-  Caller-owned record definitions are not provider OUT parameters. Mutable names
-  never grant execution; crosstab and other upstream members are not advertised.
+- **tablefunc** (`tablefunc_provider.go`, `tablefunc_stage.go`): trusted/relocatable
+  version 1.0 retains strict volatile `normal_rand(integer,float8,float8)` at
+  slot zero and four strict stable SETOF-record connectby overloads at slots
+  one through four. Appended single-source `crosstab(text)`, its ignored-integer
+  overload and `crosstab2`/`crosstab3`/`crosstab4` are STABLE, STRICT and
+  set-returning. Generic calls use caller-owned record definitions, not provider
+  OUT parameters; each fixed wrapper returns its genuine standalone text composite.
+  One ordered sixteen-member manifest contains ten procedures, three named
+  types and their three implicit arrays. Backing composite relations are not
+  extension members. Staging, immutable symbol checks and symbolic owner replay
+  share that inventory; mutable names never grant execution.
+  `Stage.Composite` uses the ordinary relation allocator, row-type staging and
+  type ACLs without SQL reentry. Validation checks current executable symbols,
+  reciprocal primary/backing/array identities, stable attributes and coherent
+  owners. Portable type roles use `tablefunc_crosstab_N` and its `[]` companion,
+  never mutable names or allocator numbers; import reowns each real backing
+  together with its primary and array. Procedure remapping carries actual
+  named result identities.
 - **pgrowlocks** (`pgrowlocks_provider.go`, `pgrowlocks_stage.go`): the
   nontrusted/superuser/relocatable 1.2 singleton installs exactly
   `pgrowlocks(text) RETURNS SETOF record` (STRICT, VOLATILE, parallel safe).
@@ -351,7 +370,7 @@ the retained TEMP descriptor; incidental prerequisite-member counts are not
 collision evidence.
 
 ```sh
-make check RUN='^Test(Extension|Isn|Issn|Citext(Provider|Comparison|Pattern)|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
+make check RUN='^Test(Extension|TablefuncCrosstab(ProviderIdentity|ControlIdentity)|Isn|Issn|Citext(Provider|Comparison|Pattern)|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
 make check RUN='^TestAmcheck'   # installed B-tree manifest and expression identity
 make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```
@@ -359,9 +378,10 @@ make check RUN='^TestReference(Extension|AvailableExtensions)'
 
 Routine slot/label/provenance proof (no SQL execution):
 `make check RUN='^Test(InstalledProcedure(RelabelIdentity|Forgery|VersionTransition|RemapIdentity)|DetachedUnaccentImmutableCapability|ExtensionOwner(SlotCodec|ImportCurrentSlotIdentity|ImportTransfer))$'`.
-The independently declared selected tablefunc inventory (normal_rand slot zero,
-four connectby slots), mutable-label identity, manifest rejection and symbolic
-owner codec are selected with `make check RUN='^TestTablefuncConnectby'`.
+The independently declared incumbent tablefunc procedure inventory (normal_rand
+slot zero, four connectby slots) is checked within the composed manifest;
+mutable-label identity, manifest rejection and symbolic owner codec use
+`make check RUN='^TestTablefuncConnectby'`.
 Engine caller witnesses additionally cover current v2 metadata, unreplayed/
 foreign import labels, COW inventory corruption and genuine provider relabeling.
 Public provider/replay behavior uses shared `TestReferenceRoutineAlter*`

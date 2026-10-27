@@ -160,6 +160,11 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 	if !relation || source.RelationKind == catalog.CatalogRelation {
 		return 0, nil
 	}
+	if source.RelationKind == catalog.CompositeRelation {
+		if typ, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}); ok && typ.Extension != (ids.ObjectAddress{}) {
+			return predecessor(view, typ.Extension, consumer)
+		}
+	}
 	// Inline attachments collapse to their parent. INCLUDE UNIQUE/PK indexes
 	// instead have a real CREATE + attachment graph node of their own.
 	if source.RelationKind == catalog.IndexRelation && source.SQLIndex != nil && source.SQLIndex.Constraint != nil {

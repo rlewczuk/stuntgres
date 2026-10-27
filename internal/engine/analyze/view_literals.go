@@ -671,8 +671,12 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return children(r.Args, n.Args[:])
 		}
 		if n, ok := bound.(plan.InstalledPageinspectExpr); ok {
-			if err := extension.ValidatePageinspectIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil { return err }
-			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil { return err }
+			if err := extension.ValidatePageinspectIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
 			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(plan.InstalledPgrowlocksExpr); ok {
@@ -683,6 +687,15 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 				return err
 			}
 			return children(r.Args, []expr.Expr{n.Arg})
+		}
+		if n, ok := bound.(plan.InstalledTablefuncCrosstabExpr); ok {
+			if err := extension.ValidateTablefuncIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
+			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(plan.InstalledAmcheckExpr); ok {
 			if err := extension.ValidateAmcheckIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {

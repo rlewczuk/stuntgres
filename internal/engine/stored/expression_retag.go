@@ -362,13 +362,19 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		}
 	case plan.InstalledPageinspectExpr:
 		n.Args = children(n.Args)
-		if err != nil { return node, false, err }
+		if err != nil {
+			return node, false, err
+		}
 		proc, ok := originalProcedure(n.Procedure)
-		if !ok || extension.PageinspectProviderOf(proc) != extension.StockPageinspect { return nil, false, fmt.Errorf("stuntgres: missing remapped pageinspect function") }
+		if !ok || extension.PageinspectProviderOf(proc) != extension.StockPageinspect {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped pageinspect function")
+		}
 		changed = changed || n.Procedure != proc
 		n.Procedure, info.RoutineReference = proc, proc
 		n.Info = info
-		if err = ValidateInstalledPageinspect(n, view); err != nil { return nil, false, err }
+		if err = ValidateInstalledPageinspect(n, view); err != nil {
+			return nil, false, err
+		}
 		rebound = n
 	case plan.InstalledAmcheckExpr:
 		n.Args = children(n.Args)
@@ -552,6 +558,19 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		changed = changed || n.Procedure != proc
 		n.Procedure, n.Info = proc, info
 		err = ValidateInstalledPgrowlocks(n, view)
+		rebound = n
+	case plan.InstalledTablefuncCrosstabExpr:
+		n.Args = append([]expr.Expr(nil), n.Args...)
+		for i, arg := range n.Args {
+			n.Args[i] = child(arg)
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped crosstab function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledTablefuncCrosstab(n, view)
 		rebound = n
 	case plan.InstalledVerifyHeapamExpr:
 		for i, arg := range n.Args {

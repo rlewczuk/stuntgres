@@ -101,6 +101,8 @@ type Host interface {
 	ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error
 	ValidateConnectby(n plan.InstalledConnectbyExpr) error
 	Connectby(request functions.ConnectbyRequest) ([]sqltype.Value, error)
+	TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error)
+	ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error
 	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error
 	UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error)
