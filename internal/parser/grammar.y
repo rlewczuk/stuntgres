@@ -96,7 +96,7 @@ package parser
  plDiagnostic PLDiagnosticAssignment
  plDiagnosticAssignments []PLDiagnosticAssignment
  constraints []ColumnConstraint
- constraint ColumnConstraint
+ constraint *ColumnConstraint
  notNull *NotNullConstraint
  check *CheckConstraint
  unique *UniqueConstraint
@@ -105,7 +105,7 @@ package parser
  usingIndex *UsingIndexConstraint
  exclusion *ExclusionConstraint
  exclusionElements []ExclusionElement
- exclusionElement ExclusionElement
+ exclusionElement *ExclusionElement
  alterTarget alterTarget
  lockTargets []LockTarget
  lockMode TableLockMode
@@ -119,7 +119,7 @@ package parser
  step TargetStep
  subscript ArraySubscript
  assignments []UpdateAssignment
- assignment UpdateAssignment
+ assignment *UpdateAssignment
  names []string
  rows [][]Expr
  row []Expr
@@ -131,7 +131,7 @@ package parser
  predicate PredicateKind
  selectStmt *Select
  ctes []CommonTableExpression
- cte CommonTableExpression
+ cte *CommonTableExpression
  cteHint CTEMaterialization
  cteClause cteClause
  cycle *CycleClause
@@ -139,7 +139,7 @@ package parser
  parenthesizedQuery parenthesizedQuery
  insertSource *InsertSource
  mergeArms []MergeArm
- mergeArm MergeArm
+ mergeArm *MergeArm
  valuesQuery *ValuesQuery
  order *Order
  orderKey OrderKey
@@ -214,12 +214,12 @@ package parser
  rangeOption *RangeOption
  alterIndex *AlterIndex
  indexOptions []IndexOption
- indexOption IndexOption
+ indexOption *IndexOption
  indexValue Value
  windowSpec *WindowSpec
- windowOver windowOverClause
+ windowOver *windowOverClause
  windows []WindowDefinition
- window WindowDefinition
+ window *WindowDefinition
  windowFrame *WindowFrame
  frameBound FrameBound
  groupClause *GroupClause
@@ -1743,8 +1743,8 @@ domain_constraints: /* empty */ {$$=nil}
  | domain_column_constraints {$$=$1}
  | '(' {sqllex.(*lexer).syntax($1);return 1}
  | column_suffix {sqllex.(*lexer).capability($1,unsupportedSuffixes,"domain constraints are unsupported");return 1} ;
-domain_column_constraints: column_constraint { $$=[]ColumnConstraint{$1} }
- | domain_column_constraints column_constraint { $$=append($1,$2) }
+domain_column_constraints: column_constraint { $$=[]ColumnConstraint{*$1} }
+ | domain_column_constraints column_constraint { $$=append($1,*$2) }
  | domain_column_constraints NOT nn_modifier {sqllex.(*lexer).syntax($3);return 1}
  | domain_column_constraints NO nn_inherit {if $1[len($1)-1].Check!=nil {$1[len($1)-1].Check.NoInherit=true} else {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported")};$$=$1} ;
 drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode:$4,Pos:$1.pos} }
@@ -2261,15 +2261,15 @@ maintenance_index_option_value: name {$$=Value{Kind:StringValue,Text:$1.text,Pos
  | ON {$$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos}}
  | '-' NUMBER {$$=numberValue($2,"-");$$.Text="-"+$2.text;$$.Pos=$1.pos}
  | '+' NUMBER {$$=numberValue($2,"+");$$.Text="+"+$2.text;$$.Pos=$1.pos} ;
-maintenance_index_option_list: maintenance_index_option {$$=[]IndexOption{$1}} | maintenance_index_option_list ',' maintenance_index_option {$$=append($1,$3)} ;
-maintenance_index_option: index_option_name {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}
- | index_option_name '=' maintenance_index_option_value {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3,HasValue:true}}
- | name '.' index_option_name {$$=IndexOption{Namespace:$1.text,Name:Identifier{Text:$3.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$3.pos}}}
- | name '.' index_option_name '=' maintenance_index_option_value {$$=IndexOption{Namespace:$1.text,Name:Identifier{Text:$3.text,Pos:$1.pos},Value:$5,HasValue:true}} ;
+maintenance_index_option_list: maintenance_index_option {$$=[]IndexOption{*$1}} | maintenance_index_option_list ',' maintenance_index_option {$$=append($1,*$3)} ;
+maintenance_index_option: index_option_name {$$=&IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}
+ | index_option_name '=' maintenance_index_option_value {$$=&IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3,HasValue:true}}
+ | name '.' index_option_name {$$=&IndexOption{Namespace:$1.text,Name:Identifier{Text:$3.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$3.pos}}}
+ | name '.' index_option_name '=' maintenance_index_option_value {$$=&IndexOption{Namespace:$1.text,Name:Identifier{Text:$3.text,Pos:$1.pos},Value:$5,HasValue:true}} ;
 reindex_options: /* empty */ {$$=nil} | '(' reindex_option_list ')' {$$=$2} ;
-reindex_option_list: reindex_option {$$=[]IndexOption{$1}} | reindex_option_list ',' reindex_option {$$=append($1,$3)} ;
-reindex_option: col_label {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}
- | col_label maintenance_index_option_value {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$2,HasValue:true}} ;
+reindex_option_list: reindex_option {$$=[]IndexOption{*$1}} | reindex_option_list ',' reindex_option {$$=append($1,*$3)} ;
+reindex_option: col_label {$$=&IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}
+ | col_label maintenance_index_option_value {$$=&IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$2,HasValue:true}} ;
 reindex_kind: name | TABLE ;
 reindex: REINDEX reindex_options reindex_kind maintenance_concurrent relation_name {if $3.text!="index"&&$3.text!="table"&&$3.text!="schema"&&$3.text!="database"&&$3.text!="system"{sqllex.(*lexer).syntax($3);return 1};$$=&Reindex{Name:$5,Kind:Identifier{Text:$3.text,Pos:$3.pos},Options:$2,Concurrent:$4.pos,Pos:$1.pos}} ;
 
@@ -2436,8 +2436,8 @@ exclusion_definition: exclusion_head index_method '(' exclusion_elements ')' ind
  for _,item:=range $4 {$1.Index.Keys=append($1.Index.Keys,item.Key);$1.Operators=append($1.Operators,item.Operator)}
  $$=$1
 } ;
-exclusion_elements: exclusion_element {$$=[]ExclusionElement{$1}} | exclusion_elements ',' exclusion_element {$$=append($1,$3)} ;
-exclusion_element: index_key WITH exclusion_operator {$$=ExclusionElement{Key:$1,Operator:$3}} ;
+exclusion_elements: exclusion_element {$$=[]ExclusionElement{*$1}} | exclusion_elements ',' exclusion_element {$$=append($1,*$3)} ;
+exclusion_element: index_key WITH exclusion_operator {$$=&ExclusionElement{Key:$1,Operator:$3}} ;
 exclusion_operator: operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}} | qualified_operator ;
 exclusion_storage: exclusion_definition {$$=$1}
  | exclusion_definition WITH '(' maintenance_index_option_list ')' {$1.Index.Options=$4;$1.Index.WithPos=$2.pos;$$=$1} ;
@@ -2645,25 +2645,25 @@ nullability: /* empty */ { $$ = nil }
  | column_suffix { sqllex.(*lexer).capability($1,unsupportedSuffixes,"column constraints are unsupported"); return 1 }
  | '(' { sqllex.(*lexer).failAt("0A000","type modifiers are unsupported",$1.pos.Offset); return 1 } ;
 /* Modifiers require a preceding constraint, never an empty nullability list. */
-column_constraints: column_constraint { $$=[]ColumnConstraint{$1} }
- | column_constraints column_constraint { $$=append($1,$2) }
+column_constraints: column_constraint { $$=[]ColumnConstraint{*$1} }
+ | column_constraints column_constraint { $$=append($1,*$2) }
  | column_constraints NO nn_inherit { if $1[len($1)-1].Check!=nil {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
  | column_constraints NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 } ;
-column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
- | NOT NULL { $$=ColumnConstraint{NotNull:true,Pos:$1.pos} }
- | CONSTRAINT name NULL { $$=ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
- | CONSTRAINT name NOT NULL { $$=ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
- | DEFAULT create_default_target { if !sqllex.(*lexer).defaultIndexPropertyAllowed($2) {return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
- | CONSTRAINT name DEFAULT create_default_target { if !sqllex.(*lexer).defaultIndexPropertyAllowed($4) {return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
- | check_constraint { $$=ColumnConstraint{Check:$1,Pos:$1.Pos} }
- | column_unique { $$=ColumnConstraint{Unique:$1,Pos:$1.Pos} }
- | column_primary {$$=ColumnConstraint{Unique:$1,Pos:$1.Pos}}
- | foreign_definition {$$=ColumnConstraint{ForeignKey:$1,Pos:$1.Pos}}
- | CONSTRAINT name foreign_definition {$3.Name=Identifier{Text:$2.text,Pos:$2.pos};$$=ColumnConstraint{ForeignKey:$3,Pos:$3.Pos}}
- | identity_definition { $$=ColumnConstraint{Identity:$1,Pos:$1.Pos} }
- | CONSTRAINT name identity_definition { $$=ColumnConstraint{Identity:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
- | generation_definition { $$=ColumnConstraint{Generation:$1,Pos:$1.Pos} }
- | CONSTRAINT name generation_definition { $$=ColumnConstraint{Generation:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.Pos} }
+column_constraint: NULL { $$=&ColumnConstraint{Pos:$1.pos} }
+ | NOT NULL { $$=&ColumnConstraint{NotNull:true,Pos:$1.pos} }
+ | CONSTRAINT name NULL { $$=&ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
+ | CONSTRAINT name NOT NULL { $$=&ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
+ | DEFAULT create_default_target { if !sqllex.(*lexer).defaultIndexPropertyAllowed($2) {return 1};$$=&ColumnConstraint{Default:$2,Pos:$1.pos} }
+ | CONSTRAINT name DEFAULT create_default_target { if !sqllex.(*lexer).defaultIndexPropertyAllowed($4) {return 1};$$=&ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
+ | check_constraint { $$=&ColumnConstraint{Check:$1,Pos:$1.Pos} }
+ | column_unique { $$=&ColumnConstraint{Unique:$1,Pos:$1.Pos} }
+ | column_primary {$$=&ColumnConstraint{Unique:$1,Pos:$1.Pos}}
+ | foreign_definition {$$=&ColumnConstraint{ForeignKey:$1,Pos:$1.Pos}}
+ | CONSTRAINT name foreign_definition {$3.Name=Identifier{Text:$2.text,Pos:$2.pos};$$=&ColumnConstraint{ForeignKey:$3,Pos:$3.Pos}}
+ | identity_definition { $$=&ColumnConstraint{Identity:$1,Pos:$1.Pos} }
+ | CONSTRAINT name identity_definition { $$=&ColumnConstraint{Identity:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
+ | generation_definition { $$=&ColumnConstraint{Generation:$1,Pos:$1.Pos} }
+ | CONSTRAINT name generation_definition { $$=&ColumnConstraint{Generation:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.Pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: INHERIT { $$=$1 } ;
@@ -2672,16 +2672,16 @@ update: UPDATE alter_target update_alias SET update_row_assignments update_from 
  | UPDATE alter_target update_alias SET update_row_assignments update_from mutation_where suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 } ;
 update_alias: /* empty */ %prec '=' { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
 update_from: /* empty */ { $$=nil } | FROM from_list { $$=$2 } ;
-update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) }
+update_assignments: update_assignment { $$=[]UpdateAssignment{*$1} } | update_assignments ',' update_assignment { $$=append($1,*$3) }
  | '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$1.pos.Offset);return 1 }
  | update_assignments ',' '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$3.pos.Offset);return 1 } ;
-update_row_assignments: update_row_assignment { $$=[]UpdateAssignment{$1} } | update_row_assignments ',' update_row_assignment { $$=append($1,$3) } ;
+update_row_assignments: update_row_assignment { $$=[]UpdateAssignment{*$1} } | update_row_assignments ',' update_row_assignment { $$=append($1,*$3) } ;
 update_row_assignment: update_assignment { $$=$1 }
- | '(' insert_targets ')' '=' scalar_projection { $$=UpdateAssignment{Targets:$2,Value:$5,Pos:$1.pos} } ;
-update_assignment: name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
- | name target_steps '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Steps:$2,Value:$4} }
- | name target_steps '=' DEFAULT { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Steps:$2,Value:DefaultExpr{Pos:$4.pos}} }
- | name '=' DEFAULT { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:DefaultExpr{Pos:$3.pos}} }
+ | '(' insert_targets ')' '=' scalar_projection { $$=&UpdateAssignment{Targets:$2,Value:$5,Pos:$1.pos} } ;
+update_assignment: name '=' scalar_projection { $$=&UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
+ | name target_steps '=' scalar_projection { $$=&UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Steps:$2,Value:$4} }
+ | name target_steps '=' DEFAULT { $$=&UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Steps:$2,Value:DefaultExpr{Pos:$4.pos}} }
+ | name '=' DEFAULT { $$=&UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:DefaultExpr{Pos:$3.pos}} }
  | name '=' scalar_projection '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
@@ -2708,23 +2708,23 @@ insert_override: OVERRIDING SYSTEM VALUE { $$=OverrideSystem } | OVERRIDING USER
 merge: MERGE INTO relation_name update_alias USING joined_table ON target_or merge_arms returning {
    $$=&Merge{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Source:$6,On:$8,Arms:$9,Returning:$10,Pos:$1.pos}
  } ;
-merge_arms: merge_arm { $$=[]MergeArm{$1} }
- | merge_arms merge_arm { $$=append($1,$2) } ;
+merge_arms: merge_arm { $$=[]MergeArm{*$1} }
+ | merge_arms merge_arm { $$=append($1,*$2) } ;
 merge_target_class: /* empty */ { $$=lexeme{} } | BY TARGET { $$=$2 } ;
 merge_condition: /* empty */ { $$=nil } | AND target_or { $$=$2 } ;
 merge_arm: WHEN NOT MATCHED merge_target_class merge_condition THEN merge_insert { $$=$7;$$.Condition=$5;$$.Pos=$1.pos }
- | WHEN NOT MATCHED merge_target_class merge_condition THEN DO NOTHING { $$=MergeArm{Match:MergeNotMatched,Action:MergeNothingAction,Condition:$5,Pos:$1.pos,ActionPos:$7.pos} }
- | WHEN MATCHED merge_condition THEN UPDATE SET update_assignments { $$=MergeArm{Match:MergeMatched,Action:MergeUpdateAction,Condition:$3,Assignments:$7,Pos:$1.pos,ActionPos:$5.pos} }
- | WHEN MATCHED merge_condition THEN DELETE { $$=MergeArm{Match:MergeMatched,Action:MergeDeleteAction,Condition:$3,Pos:$1.pos,ActionPos:$5.pos} }
- | WHEN MATCHED merge_condition THEN DO NOTHING { $$=MergeArm{Match:MergeMatched,Action:MergeNothingAction,Condition:$3,Pos:$1.pos,ActionPos:$5.pos} }
- | WHEN NOT MATCHED BY SOURCE merge_condition THEN DELETE { $$=MergeArm{Match:MergeNotMatchedBySource,Action:MergeDeleteAction,Condition:$6,Pos:$1.pos,ActionPos:$8.pos} }
- | WHEN NOT MATCHED BY SOURCE merge_condition THEN UPDATE SET update_assignments { $$=MergeArm{Match:MergeNotMatchedBySource,Action:MergeUpdateAction,Condition:$6,Assignments:$10,Pos:$1.pos,ActionPos:$8.pos} }
- | WHEN NOT MATCHED BY SOURCE merge_condition THEN DO NOTHING { $$=MergeArm{Match:MergeNotMatchedBySource,Action:MergeNothingAction,Condition:$6,Pos:$1.pos,ActionPos:$8.pos} } ;
-merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeArm{Values:$4,ActionPos:$1.pos} }
- | INSERT '(' insert_targets ')' VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Values:$7,ActionPos:$1.pos} }
- | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeArm{Override:$2,Values:$5,ActionPos:$1.pos} }
- | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
- | INSERT DEFAULT VALUES { $$=MergeArm{DefaultValues:true,ActionPos:$1.pos} } ;
+ | WHEN NOT MATCHED merge_target_class merge_condition THEN DO NOTHING { $$=&MergeArm{Match:MergeNotMatched,Action:MergeNothingAction,Condition:$5,Pos:$1.pos,ActionPos:$7.pos} }
+ | WHEN MATCHED merge_condition THEN UPDATE SET update_assignments { $$=&MergeArm{Match:MergeMatched,Action:MergeUpdateAction,Condition:$3,Assignments:$7,Pos:$1.pos,ActionPos:$5.pos} }
+ | WHEN MATCHED merge_condition THEN DELETE { $$=&MergeArm{Match:MergeMatched,Action:MergeDeleteAction,Condition:$3,Pos:$1.pos,ActionPos:$5.pos} }
+ | WHEN MATCHED merge_condition THEN DO NOTHING { $$=&MergeArm{Match:MergeMatched,Action:MergeNothingAction,Condition:$3,Pos:$1.pos,ActionPos:$5.pos} }
+ | WHEN NOT MATCHED BY SOURCE merge_condition THEN DELETE { $$=&MergeArm{Match:MergeNotMatchedBySource,Action:MergeDeleteAction,Condition:$6,Pos:$1.pos,ActionPos:$8.pos} }
+ | WHEN NOT MATCHED BY SOURCE merge_condition THEN UPDATE SET update_assignments { $$=&MergeArm{Match:MergeNotMatchedBySource,Action:MergeUpdateAction,Condition:$6,Assignments:$10,Pos:$1.pos,ActionPos:$8.pos} }
+ | WHEN NOT MATCHED BY SOURCE merge_condition THEN DO NOTHING { $$=&MergeArm{Match:MergeNotMatchedBySource,Action:MergeNothingAction,Condition:$6,Pos:$1.pos,ActionPos:$8.pos} } ;
+merge_insert: INSERT VALUES '(' query_cells ')' { $$=&MergeArm{Values:$4,ActionPos:$1.pos} }
+ | INSERT '(' insert_targets ')' VALUES '(' query_cells ')' { $$=&MergeArm{Targets:$3,Values:$7,ActionPos:$1.pos} }
+ | INSERT insert_override VALUES '(' query_cells ')' { $$=&MergeArm{Override:$2,Values:$5,ActionPos:$1.pos} }
+ | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=&MergeArm{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
+ | INSERT DEFAULT VALUES { $$=&MergeArm{DefaultValues:true,ActionPos:$1.pos} } ;
 delete: DELETE FROM alter_target delete_alias delete_using mutation_where returning { $$=&Delete{Name:$3.Name,Only:$3.Only,Star:$3.Star,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
  | DELETE FROM alter_target delete_alias delete_using mutation_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
 delete_using: /* empty */ { $$=nil } | USING from_list { $$=$2 } ;
@@ -2990,9 +2990,9 @@ query_intersection: select_operand { $$=$1 }
  | query_intersection INTERSECT set_modifier select_operand { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
 with_clause: WITH cte_list { $$=cteClause{Definitions:$2,Pos:$1.pos} }
  | WITH RECURSIVE cte_list { $$=cteClause{Definitions:$3,Recursive:true,Pos:$1.pos} } ;
-cte_list: cte_definition { $$=[]CommonTableExpression{$1} }
- | cte_list ',' cte_definition { $$=append($1,$3) } ;
-cte_definition: name alias_columns AS cte_materialization '(' cte_body ')' search_clause cycle_clause { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4,Search:$8,Cycle:$9} } ;
+cte_list: cte_definition { $$=[]CommonTableExpression{*$1} }
+ | cte_list ',' cte_definition { $$=append($1,*$3) } ;
+cte_definition: name alias_columns AS cte_materialization '(' cte_body ')' search_clause cycle_clause { $$=&CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4,Search:$8,Cycle:$9} } ;
 search_clause: /* empty */ { $$=nil }
  | SEARCH BREADTH FIRST BY cte_keys SET name { $$=&SearchClause{Breadth:true,Keys:$5,Sequence:Identifier{Text:$7.text,Pos:$7.pos},Pos:$1.pos} }
  | SEARCH DEPTH FIRST BY cte_keys SET name { $$=&SearchClause{Keys:$5,Sequence:Identifier{Text:$7.text,Pos:$7.pos},Pos:$1.pos} } ;
@@ -3019,10 +3019,10 @@ select_query: query_select { $$=$1 }
  | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 } ;
 select: select_query { $$=$1 } ;
 windows: /* empty */ %prec NAME_LIST { $$=nil } | WINDOW window_definitions { $$=$2 } ;
-window_definitions: window_definition { $$=[]WindowDefinition{$1} } | window_definitions ',' window_definition { $$=append($1,$3) } ;
-window_definition: name AS '(' window_spec ')' { $4.Pos=$3.pos;$$=WindowDefinition{Name:Identifier{Text:$1.text,Pos:$1.pos},Spec:*$4} } ;
-over_clause: OVER name { $$=windowOverClause{spec:&WindowSpec{Name:&Identifier{Text:$2.text,Pos:$2.pos},Pos:$2.pos,Bare:true},token:$1} }
- | OVER '(' window_spec ')' { $3.Pos=$2.pos;$$=windowOverClause{spec:$3,token:$1} } ;
+window_definitions: window_definition { $$=[]WindowDefinition{*$1} } | window_definitions ',' window_definition { $$=append($1,*$3) } ;
+window_definition: name AS '(' window_spec ')' { $4.Pos=$3.pos;$$=&WindowDefinition{Name:Identifier{Text:$1.text,Pos:$1.pos},Spec:*$4} } ;
+over_clause: OVER name { $$=&windowOverClause{spec:&WindowSpec{Name:&Identifier{Text:$2.text,Pos:$2.pos},Pos:$2.pos,Bare:true},token:$1} }
+ | OVER '(' window_spec ')' { $3.Pos=$2.pos;$$=&windowOverClause{spec:$3,token:$1} } ;
 window_spec: window_parent window_partition window_order { $$=&WindowSpec{Name:$1,Partition:$2,Order:$3} }
  | window_parent window_partition window_order window_frame {$$=&WindowSpec{Name:$1,Partition:$2,Order:$3,Frame:$4}} ;
 window_frame: FRAME_UNIT frame_bound window_exclusion {var ok bool;$$,ok=makeWindowFrame(sqllex.(*lexer),$1,$2,FrameBound{Kind:FrameCurrentRow,Pos:$2.Pos},$3,false);if !ok{return 1}}
