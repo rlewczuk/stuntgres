@@ -907,6 +907,12 @@ with row effects; standalone utilities retain their ordinary publication boundar
   identity and immutable `exec.AcceptedFolds`. Its `PreparedResource.Root` is the
   real graph consumed by the cursor, with the existing unlocked terminal close
   capability, never an observation copy or a graph in a shared definition.
+  Strict scalar read erasure removes invocation identity only from the private
+  executable expression; original bound source and analysis manifests retain
+  their routine lifetime. RECORD and set-returning file calls keep invocation
+  identity. Parameter-imported folds belong to each accepted binding, never the
+  definition or another frame; a rejected final publication cannot replace
+  accepted backing or generations.
 - Parse/Describe do not fold; Bind plans supported SELECT/DML/CALL bodies without
   effects. Command portals retain a close capability but no query producer root.
   Old accepted portals keep their fixed group/resource independently
@@ -1219,6 +1225,13 @@ Producers, the OID registry and descriptor specs live in
 `functions` nodes own binding, immutable recipes and argument demand; the core
 runtime bodies (`*_runtime.go`) keep the authority. No prepared node caches an
 owner.
+
+Generic file runtimes borrow live expression-principal roles and logical path
+settings in Engine -> Settings -> Session lock order. Shared lexical validation
+performs no host I/O. Read length checks surround path authorization in released
+order; stat/read then reject their physical mechanism. Tmpdir uses the retained,
+owner-validated catalog inquiry snapshot for typed tablespace existence before
+rejecting physical listing. Nodes retain neither authority nor physical state.
 
 `acl_runtime.go` resolves special inquiry actors under `Engine.Mu` from current
 execution authority. Parameter tokens precede named-role lookup and arbitrary

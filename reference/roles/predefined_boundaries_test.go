@@ -29,7 +29,6 @@ func predefinedNativeBoundaries(s *fixture.RoleMembershipScenario) {
 	predefinedFailure(s, "COPY t TO PROGRAM 'false'", fixture.Diagnostic{Code: "0A000", Message: "COPY PROGRAM is unsupported"}, false, "prepare")
 	predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"}, false, "prepare")
 	for _, tc := range []struct{ q, signature string }{
-		{"SELECT pg_read_file('/nonexistent')", "pg_read_file(unknown)"},
 		{"SELECT pg_cancel_backend(2147483647)", "pg_cancel_backend(integer)"},
 		{"SELECT pg_terminate_backend(2147483647)", "pg_terminate_backend(integer)"},
 	} {
@@ -47,6 +46,7 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		s.Run(fixture.Exec("CREATE MATERIALIZED VIEW pdef_ad.mv AS SELECT id FROM t", 1))
 		s.Actor("pdef_actor")
 		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
+		predefinedFailure(s, "SELECT pg_read_file('/nonexistent')", fixture.Diagnostic{Code: "42501", Message: "permission denied for function pg_read_file"}, true, "execute")
 		predefinedFailure(s, "SELECT pg_write_file('/nonexistent','x',false)", fixture.Diagnostic{Code: "42883", Message: "function pg_write_file(unknown, unknown, boolean) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
 		s.ClearNotices()
 		s.Exec("ANALYZE t")
@@ -84,6 +84,8 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		s.Actor("pdef_actor")
 		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
 		predefinedFailure(s, "SELECT pg_write_file('/nonexistent','x',false)", fixture.Diagnostic{Code: "42883", Message: "function pg_write_file(unknown, unknown, boolean) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
+		// File-path roles do not grant EXECUTE on the callable read provider.
+		predefinedFailure(s, "SELECT pg_read_file('/nonexistent')", fixture.Diagnostic{Code: "42501", Message: "permission denied for function pg_read_file"}, true, "execute")
 		s.ClearNotices()
 		s.Exec("ANALYZE t")
 		if len(*s.Notices) != 0 {

@@ -37,7 +37,13 @@ package's `README.md` under `## Testing`.
   Composed prepared tests use the real `core.Description`, definition registry,
   accepted binding and `core.FoldPublication` operations. Save immutable
   `exec.AcceptedFolds` values when comparing old backing and generations; copying
-  a description does not snapshot its mutable definition owner. Pure typed
+  a description does not snapshot its mutable definition owner. When a failed
+  Execute releases a producer, distinguish terminal detachment of the live
+  resource's graph and fold group from mutation of accepted artifacts. Retain
+  the actual accepted graph and fold objects before execution; assert their
+  provenance, values, generation and backing independently from live-resource
+  cleanup, without constructing replacement bindings or snapshots of authority.
+  Pure typed
   ownership, datum identity and cancellation cases live in `exec/enginetests`;
   stored retagging and pruning cases live in `stored/enginetests`. Keep actual
   graph/resource, occurrence, private-context and rejected-publication assertions

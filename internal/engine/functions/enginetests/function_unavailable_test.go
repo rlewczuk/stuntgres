@@ -20,7 +20,7 @@ func TestUnavailableFunctionIdentityBoundary(t *testing.T) {
 	}{
 		{"pg_backend_pid()", "0A000"},
 		{"pg_catalog.pg_export_snapshot()", "0A000"},
-		{"pg_read_file('missing')", "0A000"},
+		{"pg_current_logfile('stderr')", "0A000"},
 		{"pg_cancel_backend(1)", "0A000"},
 		{"pg_terminate_backend(1)", "0A000"},
 		{"pg_terminate_backend(1,0)", "0A000"},
@@ -31,6 +31,7 @@ func TestUnavailableFunctionIdentityBoundary(t *testing.T) {
 		{"byteacat('a'::bytea,'b'::bytea)", "0A000"},
 		{"pg_backend_pid(1)", "42883"},
 		{"pg_read_file(true)", "42883"},
+		{"pg_current_logfile(true)", "42883"},
 		{"current_setting(true)", "42883"},
 		{"byteacat(1,2)", "42883"},
 		{"public.pg_backend_pid()", "42883"},

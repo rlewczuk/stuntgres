@@ -73,6 +73,8 @@ type Host interface {
 	TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error)
 	// functions.GenericFileListRuntime
 	GenericFileList(functions.GenericFileListKind, string) error
+	GenericFileRead(functions.GenericFileReadKind, string, int64, bool) error
+	GenericFileTmpdir(uint32) error
 	PartitionTree(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionAncestors(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionRoot(uint32, *sqltype.Descriptor) (sqltype.Value, error)

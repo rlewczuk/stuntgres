@@ -133,6 +133,22 @@ func (c *Context) GenericFileList(kind functions.GenericFileListKind, dirname st
 	return host.GenericFileList(kind, dirname)
 }
 
+func (c *Context) GenericFileRead(kind functions.GenericFileReadKind, filename string, length int64, hasLength bool) error {
+	host := c.LiveHost()
+	if host == nil {
+		return fmt.Errorf("stuntgres: missing generic file read host")
+	}
+	return host.GenericFileRead(kind, filename, length, hasLength)
+}
+
+func (c *Context) GenericFileTmpdir(oid uint32) error {
+	host := c.LiveHost()
+	if host == nil {
+		return fmt.Errorf("stuntgres: missing temporary file listing host")
+	}
+	return host.GenericFileTmpdir(oid)
+}
+
 func (c *Context) PartitionTree(oid uint32, result *sqltype.Descriptor) (expr.SourceCursor, error) {
 	host := c.LiveHost()
 	if host == nil {

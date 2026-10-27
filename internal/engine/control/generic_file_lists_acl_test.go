@@ -15,13 +15,16 @@ func TestGenericFileListACLReplayBaseline(t *testing.T) {
 	seed := authorization.Seed(domain)
 	roles := seed.Read(domain.Principal(10))
 	owner, monitor := domain.Principal(10), roles.LookupRef("pg_monitor")
-	// Independent system_functions.sql facts, not SeedGenericFileListACLs output.
+	// Independent system_functions.sql facts, not SeedGenericFileACLs output.
 	for _, tc := range []struct {
 		oid     ids.OID
 		monitor bool
 	}{
 		{2625, false}, {3297, false}, {3353, true}, {3354, true},
 		{5031, true}, {6270, true}, {6271, true}, {6272, true}, {6400, true},
+		{3826, false}, {6208, false}, {2624, false}, {3293, false},
+		{3828, false}, {6209, false}, {3827, false}, {3295, false},
+		{2623, false}, {3307, false}, {5029, true}, {5030, true},
 	} {
 		var original catalog.Procedure
 		for _, p := range routine.BuiltinProcedures(owner) {
@@ -42,7 +45,7 @@ func TestGenericFileListACLReplayBaseline(t *testing.T) {
 			})
 		}
 		t.Run(string(original.Signature)+"/"+original.Name(), func(t *testing.T) {
-			if !genericFileListACLReconstructed(&original, owner, monitor) {
+			if !genericFileACLReconstructed(&original, owner, monitor) {
 				t.Fatal("exact seed must be elided", tc.oid)
 			}
 			changes := map[string]func(*catalog.Procedure){
@@ -74,7 +77,7 @@ func TestGenericFileListACLReplayBaseline(t *testing.T) {
 					p := original
 					p.ACL.Entries = slices.Clone(original.ACL.Entries)
 					change(&p)
-					if genericFileListACLReconstructed(&p, owner, monitor) {
+					if genericFileACLReconstructed(&p, owner, monitor) {
 						t.Fatal("changed raw authority discarded", tc.oid, name)
 					}
 				})

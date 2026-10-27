@@ -11,7 +11,7 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 		return 10
 	case 3713, 3714: // ts_token_type(oid) and ts_token_type(text)
 		return 16
-	case 3353, 3354, 5031, 6270, 6271, 6272, 6400: // physical directory record listings
+	case 3353, 3354, 5029, 5030, 5031, 6270, 6271, 6272, 6400: // physical directory record listings
 		return 20
 	case 4100, 5052, 5064: // shared-memory allocations and pg_snapshot_xip
 		return 50

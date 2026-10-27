@@ -623,7 +623,7 @@ fixture independently runs PostgreSQL 18.6 (180006); its vendor banner is not
 native identity. Logical Reset/Dump/Restore neither serialize nor reset live
 preset values, and restoring tables cannot allocate their simulated resources.
 
-## Server directory listing boundary
+## Server file access boundary
 
 The typed SQL surface includes `pg_ls_dir(text)` and
 `pg_ls_dir(text, boolean, boolean)`, plus `pg_ls_logdir()`, `pg_ls_waldir()`,
@@ -649,6 +649,37 @@ ordinary files are not directories, and absent replication slots fail `42704`.
 Those stock filesystem/slot outcomes are not simulated native directory state.
 Native Dump/Restore preserves procedure ACL edits, not physical listings or
 session settings.
+
+The same typed boundary includes all four overloads each of `pg_read_file`
+and `pg_read_binary_file`, both `pg_stat_file` overloads and both
+`pg_ls_tmpdir` overloads. Read results are TEXT and BYTEA respectively; stat
+exposes `size INT8`, four TIMESTAMPTZ fields (`access`, `modification`, `change`,
+`creation`) and `isdir BOOL`. NULL stat in FROM yields one all-NULL row;
+NULL tmpdir yields no rows with the listing shape above. Scalar read calls
+with planning-constant NULL can erase before EXECUTE admission, even though
+volatile; retained runtime calls, RECORD and SRF calls still require EXECUTE.
+Prepared scalar NULL handling uses each imported typed parameter frame, not a
+PostgreSQL cost-based custom/generic plan heuristic: repeated native NULL
+executions still erase the call. Stock PostgreSQL can instead retain the
+parameterized call in a generic plan and require EXECUTE even for NULL.
+
+Read/stat seeds are owner-only; tmpdir additionally grants `pg_monitor`.
+Path-role membership does not grant EXECUTE. Non-NULL read validation orders
+negative explicit length, lexical path authorization, then excessive length
+(above 1073741819). Every INT8 offset is a valid pure input. Tmpdir validates
+the logical tablespace OID (default 1663), reporting `42704` for missing OIDs
+before the physical boundary.
+
+Authorized reads fail `0A000` with
+`<function_name> physical file reading is unsupported in embedded mode`;
+stat uses `pg_stat_file physical file metadata is unsupported in embedded mode`;
+tmpdir uses `pg_ls_tmpdir physical directory listing is unsupported in embedded mode`.
+Length zero and both `missing_ok` values still require physical access and
+therefore reject, never returning invented empty content or missing-file NULL.
+Stock PostgreSQL instead reads bytes, checks text encoding after reading and
+returns actual file metadata. On-disk encoding validation is unreachable
+natively; ordinary typed text/argument validation remains enforced. No host
+files, timestamps, directory entries or physical state enter Dump/Restore.
 
 
 ## Foreign data wrappers

@@ -195,7 +195,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	catalog.InstallBuiltinTypes(e.Catalog.State, types, bootstrap)
 	catalog.InstallBuiltinCollations(e.Catalog.State, bootstrap)
 	procedures := routine.BuiltinProcedures(bootstrap)
-	routine.SeedGenericFileListACLs(procedures, bootstrap, principals.LookupRef("pg_monitor"))
+	routine.SeedGenericFileACLs(procedures, bootstrap, principals.LookupRef("pg_monitor"))
 	catalog.InstallBuiltinProcedures(e.Catalog.State, typedef.BuiltinConversionProcedures(bootstrap), procedures, routine.NativeAccessMethodProcedures(bootstrap), routine.SharedMemoryProcedures(bootstrap, principals.LookupRef("pg_read_all_stats")))
 	catalog.InstallBuiltinDictionaries(e.Catalog.State, bootstrap, functions.DefaultSimpleDictionary)
 	catalog.InstallBuiltinTSConfigurations(e.Catalog.State, bootstrap)

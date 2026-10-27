@@ -28,12 +28,12 @@ Reached invocation uses live authority; optimizer-elided strict NULL calls do
 not acquire a runtime invocation. Parallel safety/cost/rows are declaration facts,
 not an operational worker-scheduling capability.
 
-The selected generic file-list declarations belong to the ordinary builtin
-inventory, including both independent `pg_ls_dir` overloads and fixed record
-outputs. `SeedGenericFileListACLs` applies fresh explicit owner-only dirname
-ACLs and owner/`pg_monitor` record ACLs at engine installation. These are mutable
-procedure ACLs, not runtime name-based privilege exceptions. Dump repairs
-preserve their raw NULL, empty and explicit states across restricted reseeding.
+Generic file declarations belong to the ordinary builtin inventory, including
+all read/binary/stat/tmpdir overloads and fixed record outputs.
+`SeedGenericFileACLs` installs owner-only read/stat/dirname ACLs and additional
+`pg_monitor` grants for the fixed listing family, including tmpdir. These are
+mutable procedure ACLs, not runtime name-based exceptions. Dump repairs preserve
+raw NULL, empty and explicit states across restricted reseeding.
 
 SQL result declarations retain set cardinality independently of scalar/composite
 shape. OUT/INOUT and TABLE fields use the same ordered formal projections and

@@ -8,7 +8,7 @@ import (
 )
 
 // Omit only the ordered raw authority recreated by the destination seed.
-func genericFileListACLReconstructed(p *catalog.Procedure, bootstrap, monitor authorization.PrincipalRef) bool {
+func genericFileACLReconstructed(p *catalog.Procedure, bootstrap, monitor authorization.PrincipalRef) bool {
 	if p.Address().ClassID != ids.ProcedureClassID || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(p.Address().ObjectID) || p.Owner != bootstrap || p.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
 		return false
 	}
@@ -33,6 +33,30 @@ func genericFileListACLReconstructed(p *catalog.Procedure, bootstrap, monitor au
 		name = "pg_ls_summariesdir"
 	case 5031:
 		name = "pg_ls_archive_statusdir"
+	case 3826:
+		name, signature, entries = "pg_read_file", "25", 1
+	case 6208:
+		name, signature, entries = "pg_read_file", "25,16", 1
+	case 2624:
+		name, signature, entries = "pg_read_file", "25,20,20", 1
+	case 3293:
+		name, signature, entries = "pg_read_file", "25,20,20,16", 1
+	case 3828:
+		name, signature, entries = "pg_read_binary_file", "25", 1
+	case 6209:
+		name, signature, entries = "pg_read_binary_file", "25,16", 1
+	case 3827:
+		name, signature, entries = "pg_read_binary_file", "25,20,20", 1
+	case 3295:
+		name, signature, entries = "pg_read_binary_file", "25,20,20,16", 1
+	case 2623:
+		name, signature, entries = "pg_stat_file", "25", 1
+	case 3307:
+		name, signature, entries = "pg_stat_file", "25,16", 1
+	case 5029:
+		name = "pg_ls_tmpdir"
+	case 5030:
+		name, signature = "pg_ls_tmpdir", "26"
 	default:
 		return false
 	}

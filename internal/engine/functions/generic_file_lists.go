@@ -20,11 +20,13 @@ const (
 	GenericFileReplSlot
 	GenericFileSummaries
 	GenericFileArchiveStatus
+	GenericFileTmp
 )
 
 var genericFileListNames = [...]string{
 	"pg_ls_dir", "pg_ls_logdir", "pg_ls_waldir", "pg_ls_logicalmapdir",
 	"pg_ls_logicalsnapdir", "pg_ls_replslotdir", "pg_ls_summariesdir", "pg_ls_archive_statusdir",
+	"pg_ls_tmpdir",
 }
 
 func (k GenericFileListKind) Name() string {
@@ -86,9 +88,10 @@ func bindGenericFileList(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	arity := len(raw.Args)
 	valid := kind.Name() != "" && (kind == GenericFileDir && (arity == 1 || arity == 3) ||
 		kind == GenericFileReplSlot && arity == 1 ||
-		kind != GenericFileDir && kind != GenericFileReplSlot && arity == 0)
+		kind == GenericFileTmp && (arity == 0 || arity == 1) ||
+		kind != GenericFileDir && kind != GenericFileReplSlot && kind != GenericFileTmp && arity == 0)
 	if len(raw.ArgNames) != 0 {
-		valid = valid && kind == GenericFileReplSlot && arity == 1 && raw.ArgNames[0].Text == "slot_name"
+		valid = valid && arity == 1 && (kind == GenericFileReplSlot && raw.ArgNames[0].Text == "slot_name" || kind == GenericFileTmp && raw.ArgNames[0].Text == "tablespace")
 	}
 	if !visible || !valid || raw.Variadic || raw.ResolutionOnly {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
@@ -98,6 +101,9 @@ func bindGenericFileList(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		formals[i] = sqltype.Text
 		if i > 0 {
 			formals[i] = sqltype.Bool
+		}
+		if kind == GenericFileTmp {
+			formals[i] = sqltype.Oid
 		}
 	}
 	// Reject every impossible formal axis before converting UNKNOWN literals.
@@ -138,6 +144,9 @@ func bindGenericFileList(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err := b.AdmitSetReturning(raw.Pos); err != nil {
 		return nil, err
 	}
+	if kind == GenericFileTmp {
+		b.NoteCatalogSnapshot()
+	}
 	result := b.Type(sqltype.Text)
 	if kind != GenericFileDir {
 		result, err = sqltype.RecordShape([]sqltype.CompositeMember{
@@ -170,6 +179,9 @@ func (n GenericFileList) Validate() error {
 	if n.Kind == GenericFileReplSlot {
 		expected = 1
 	}
+	if n.Kind == GenericFileTmp && n.Arity == 1 {
+		expected = 1
+	}
 	if n.Arity != expected {
 		return fmt.Errorf("stuntgres: invalid generic file listing arity")
 	}
@@ -177,6 +189,9 @@ func (n GenericFileList) Validate() error {
 		id := sqltype.Text
 		if i > 0 {
 			id = sqltype.Bool
+		}
+		if n.Kind == GenericFileTmp {
+			id = sqltype.Oid
 		}
 		if n.Args[i] == nil || n.Args[i].ResultUsage().Type == nil || n.Args[i].ResultUsage().Type.ID() != id {
 			return fmt.Errorf("stuntgres: invalid generic file listing operand")
@@ -229,6 +244,21 @@ func (n GenericFileList) OpenSource(ctx expr.Context) (expr.SourceCursor, error)
 	if null {
 		return expr.NewSourceCursor(expr.SourceCursor{Type: n.Usage.Type, Exhausted: true}), nil
 	}
+	if n.Kind == GenericFileTmp {
+		oid := uint32(1663)
+		if n.Arity != 0 {
+			var err error
+			oid, err = values[0].OID()
+			if err != nil {
+				return expr.SourceCursor{}, err
+			}
+		}
+		runtime, ok := ctx.(GenericFileTmpdirRuntime)
+		if !ok {
+			return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing temporary file listing runtime")
+		}
+		return expr.SourceCursor{}, runtime.GenericFileTmpdir(oid)
+	}
 	dirname := ""
 	if n.Arity != 0 {
 		var err error
@@ -245,7 +275,12 @@ func (n GenericFileList) OpenSource(ctx expr.Context) (expr.SourceCursor, error)
 }
 
 func namedGenericFileList(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
-	if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "pg_ls_replslotdir" || len(args) != 1 || len(raw.ArgNames) != 1 || raw.ArgNames[0].Text != "slot_name" || !declaredTypes(declared, []sqltype.ID{sqltype.Text}) {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	label, typ := "slot_name", sqltype.Text
+	if name == "pg_ls_tmpdir" {
+		label, typ = "tablespace", sqltype.Oid
+	}
+	if name != "pg_ls_replslotdir" && name != "pg_ls_tmpdir" || len(args) != 1 || len(raw.ArgNames) != 1 || raw.ArgNames[0].Text != label || !declaredTypes(declared, []sqltype.ID{typ}) {
 		return nil, nil, false
 	}
 	return namedInputs(b, args, declared, []int{0})

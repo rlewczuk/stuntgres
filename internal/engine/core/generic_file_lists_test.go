@@ -301,8 +301,8 @@ func TestGenericFileListACLPersistence(t *testing.T) {
 	if err := engine.Restore(context.Background(), missing, bytes.NewReader(out.Bytes())); err == nil || missing.CatalogRead().State() != state {
 		t.Fatal("missing-role restore atomicity", err)
 	}
-	// The bounded classifier must include only this part's nine identities.
-	if routine.GenericFileListRoutine(5052) || !routine.GenericFileListRoutine(3297) {
+	// The classifier includes only the selected generic-file identities.
+	if routine.GenericFileRoutine(5052) || !routine.GenericFileRoutine(3297) || !routine.GenericFileRoutine(3826) {
 		t.Fatal("ACL repair scope")
 	}
 }

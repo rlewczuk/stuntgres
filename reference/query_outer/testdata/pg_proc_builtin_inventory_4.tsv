@@ -442,3 +442,15 @@
 6271	pg_ls_logicalmapdir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_logicalmapdir	\N	false	\N
 6272	pg_ls_replslotdir	11	12	10	20	0	0	f	false	false	true	true	v	s	1	0	2249	25	{25,25,20,1184}	{i,o,o,o}	{slot_name,name,size,modification}	false	\N	pg_ls_replslotdir	\N	false	\N
 6400	pg_ls_summariesdir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_summariesdir	\N	false	\N
+2623	pg_stat_file	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	2249	25	{25,20,1184,1184,1184,1184,16}	{i,o,o,o,o,o,o}	{filename,size,access,modification,change,creation,isdir}	false	\N	pg_stat_file_1arg	\N	false	\N
+3307	pg_stat_file	11	12	1	0	0	0	f	false	false	true	false	v	s	2	0	2249	25 16	{25,16,20,1184,1184,1184,1184,16}	{i,i,o,o,o,o,o,o}	{filename,missing_ok,size,access,modification,change,creation,isdir}	false	\N	pg_stat_file	\N	false	\N
+2624	pg_read_file	11	12	1	0	0	0	f	false	false	true	false	v	s	3	0	25	25 20 20	\N	\N	\N	false	\N	pg_read_file_off_len	\N	false	\N
+3293	pg_read_file	11	12	1	0	0	0	f	false	false	true	false	v	s	4	0	25	25 20 20 16	\N	\N	\N	false	\N	pg_read_file_off_len_missing	\N	false	\N
+3826	pg_read_file	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	25	25	\N	\N	\N	false	\N	pg_read_file_all	\N	false	\N
+6208	pg_read_file	11	12	1	0	0	0	f	false	false	true	false	v	s	2	0	25	25 16	\N	\N	\N	false	\N	pg_read_file_all_missing	\N	false	\N
+3827	pg_read_binary_file	11	12	1	0	0	0	f	false	false	true	false	v	s	3	0	17	25 20 20	\N	\N	\N	false	\N	pg_read_binary_file_off_len	\N	false	\N
+3295	pg_read_binary_file	11	12	1	0	0	0	f	false	false	true	false	v	s	4	0	17	25 20 20 16	\N	\N	\N	false	\N	pg_read_binary_file_off_len_missing	\N	false	\N
+3828	pg_read_binary_file	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	17	25	\N	\N	\N	false	\N	pg_read_binary_file_all	\N	false	\N
+6209	pg_read_binary_file	11	12	1	0	0	0	f	false	false	true	false	v	s	2	0	17	25 16	\N	\N	\N	false	\N	pg_read_binary_file_all_missing	\N	false	\N
+5029	pg_ls_tmpdir	11	12	10	20	0	0	f	false	false	true	true	v	s	0	0	2249		{25,20,1184}	{o,o,o}	{name,size,modification}	false	\N	pg_ls_tmpdir_noargs	\N	false	\N
+5030	pg_ls_tmpdir	11	12	10	20	0	0	f	false	false	true	true	v	s	1	0	2249	26	{26,25,20,1184}	{i,o,o,o}	{tablespace,name,size,modification}	false	\N	pg_ls_tmpdir_1arg	\N	false	\N

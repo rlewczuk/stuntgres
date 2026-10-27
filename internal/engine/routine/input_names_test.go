@@ -12,6 +12,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		1689: {"acl", "grantor", "grantee", "privilege_type", "is_grantable"},
 		2284: {"string", "pattern", "replacement"},
 		2285: {"string", "pattern", "replacement", "flags"},
+		2623: {"filename", "size", "access", "modification", "change", "creation", "isdir"},
 		2763: {"string", "pattern"},
 		2764: {"string", "pattern", "flags"},
 		2765: {"string", "pattern"},
@@ -29,6 +30,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		3261: {"target", "strip_in_arrays"},
 		3270: {"key", "value"},
 		3305: {"jsonb_in", "path", "replacement", "create_if_missing"},
+		3307: {"filename", "missing_ok", "size", "access", "modification", "change", "creation", "isdir"},
 		3353: {"name", "size", "modification"},
 		3354: {"name", "size", "modification"},
 		3382: {"classid", "objid", "objsubid", "type", "object_names", "object_args"},
@@ -74,6 +76,8 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		4007: {"target", "path", "vars", "silent"},
 		4008: {"target", "path", "vars", "silent"},
 		4009: {"target", "path", "vars", "silent"},
+		5029: {"name", "size", "modification"},
+		5030: {"tablespace", "name", "size", "modification"},
 		5031: {"name", "size", "modification"},
 		5054: {"jsonb_in", "path", "replacement", "create_if_missing", "null_value_treatment"},
 		6159: {"fktable", "fkcols", "pktable", "pkcols", "is_array", "is_opt"},
@@ -146,7 +150,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 			}
 		}
 	}
-	if seen != 107 {
+	if seen != len(expected) {
 		t.Fatal("incomplete named declaration inventory", seen)
 	}
 }

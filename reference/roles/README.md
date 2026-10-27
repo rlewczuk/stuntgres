@@ -26,6 +26,23 @@ lexical dirname restrictions, held-statement reauthorization and procedure ACL
 control replay. Physical native rejection and stock filesystem/slot outcomes
 have separate independent expectations; actual stock entries are unordered bags.
 
+Generic file-read scenarios cover all twelve read/binary/stat/tmpdir overloads,
+typed scalar and record metadata, scalar strict NULL erasure versus retained
+record/SRF admission, held parameter execution and live ACL controls. Native
+physical rejection and stock file contents have independently stated outcomes.
+The family uses `make check RUN='^TestReferenceGenericFileRead'`; the same shared
+builtin ACL cleanup and emitted-repair rules apply.
+Fixture row expectations use normalized strings for BYTEA payloads; the shared
+fixture still checks raw byte slices, and surface scenarios separately assert
+BYTEA scan metadata. Runtime file validation and physical-boundary errors retain
+the complete ERROR diagnostic, including both severity fields. Malformed-call
+scenarios distinguish impossible typed formals from UNKNOWN conversion, named
+notation grammar from signature lookup, and nonaggregate decorations from
+trailing-input syntax errors; all retain direct/prepared stages and positions.
+Predefined-capability boundaries check read-function EXECUTE denial both before
+and after server-file role grants; those roles grant path authority, not function
+execution. Remaining unavailable functions retain their binding-time boundaries.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.

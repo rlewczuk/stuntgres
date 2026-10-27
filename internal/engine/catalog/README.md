@@ -37,6 +37,8 @@ private frames, not catalog authority.
   `Procedure.ReturnsSet` reads intrinsic SQL/builtin/installed capability;
   `RowEstimate` applies positive canonical `Rows` overrides only to genuine set
   declarations, retaining released/provider defaults when no override exists.
+  Physical directory record listings, including both `pg_ls_tmpdir` overloads,
+  retain the released twenty-row estimate rather than the default thousand.
   Scalar estimates remain zero independently of mutable estimate fields.
   `InstalledRoutineDeclaration` retains immutable parallel/set/row-estimate and
   trailing-default counts by value. Its comparable `Outputs` pointer and the

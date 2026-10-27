@@ -12,14 +12,19 @@ the authority behind evaluation capabilities in the root
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
 
-`GenericFileList` binds the nine selected `pg_ls_*` signatures as volatile,
-strict typed sources, retaining only a closed kind, immutable operands and
-result shape. Ordinary EXECUTE admission precedes runtime NULL handling; all
-written operands evaluate before a NULL produces a typed empty cursor.
-Non-NULL calls borrow `GenericFileListRuntime` from the executing statement.
-Its dirname policy is purely lexical over current logical settings and role
-capabilities; neither expressions nor cursors retain authorization or host
-filesystem access.
+`GenericFileList` binds eleven `pg_ls_*` signatures as volatile, strict typed
+sources, retaining only a closed kind, immutable operands and result shape.
+Ordinary EXECUTE admission precedes runtime NULL handling; all written operands
+evaluate before a NULL produces a typed empty cursor. `pg_ls_tmpdir` borrows a
+typed OID capability and the statement's owner-validated tablespace snapshot.
+Non-NULL calls borrow current statement authority, never host filesystem access.
+
+`GenericFileRead` binds text/binary reads and scalar file metadata with fixed
+typed operands and written-to-formal slots. Scalar reads permit strict NULL
+planning erasure after required child work; RECORD stat calls remain admitted
+before runtime strictness. Scalar sources produce one NULL row, unlike strict
+NULL listing sources. Live runtime capabilities apply pure length/path checks
+before rejecting the unavailable physical mechanism; no content is synthesized.
 
 `StatisticsIO` binds the released internal statistics input/output/send
 declarations through the ordinary signature and coercion owners. Calls are
@@ -585,6 +590,8 @@ Datetime sleep source admission and scalar-once lifetime use
 Statistics I/O volatility and folding units use `RUN='^TestStatisticsObjectIO'`.
 Generic file-list binding, lexical paths, source ownership and ACL persistence
 use `RUN='^TestGenericFileList'`.
+Read/stat/tmpdir binding, scalar strict protocols and runtime ownership use
+`RUN='^TestGenericFileRead'`; public SQL scenarios remain in `reference/roles`.
 
 Native ordered support state, tuple ownership and cancellation units use
 `RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in
