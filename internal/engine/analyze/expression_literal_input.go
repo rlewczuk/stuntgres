@@ -210,13 +210,32 @@ func (b *Binder) InputConstant(text string, u sqltype.Usage, pos parser.Position
 		}
 		if found {
 			catalog := b.BindingCatalog()
-			if hasEnumInput(u.Type) && (b.Expected.CatalogOwner != catalog.Owner() || b.Expected.CatalogEpoch != catalog.Epoch()) {
+			if b.Expected.CatalogOwner != catalog.Owner() || b.Expected.CatalogEpoch != catalog.Epoch() {
+				// Fence held catalog-owned results/parameters before touching a
+				// captured datum from the retired lifetime. Builtin signatures
+				// may rebind their written literals, never retag foreign payloads.
 				if err := b.Expected.CheckLifetime(catalog.Owner(), catalog.Epoch()); err != nil {
-					return sqltype.Value{}, err
+					if hasEnumInput(u.Type) {
+						// Enum and constrained-domain inputs retain their original
+						// concrete error and literal-position provenance.
+						return sqltype.Value{}, err
+					}
+					return sqltype.Value{}, literalLifetimeError{cause: err}
 				}
-				return sqltype.Value{}, ids.ErrCatalogReplaced
+				if hasEnumInput(u.Type) {
+					return sqltype.Value{}, ids.ErrCatalogReplaced
+				}
+				if c.Value.Type() == u.Type {
+					return c.Value, nil
+				}
+				if b.Expected.CatalogOwner == nil || !b.Expected.RefreshTemporals {
+					// Only a full, owner-proven reanalysis may replace captured
+					// input. A structural replay keeps the existing retag gate.
+					return c.Value.Retag(u.Type)
+				}
+			} else {
+				return c.Value.Retag(u.Type)
 			}
-			return c.Value.Retag(u.Type)
 		}
 		if u.Type.ContainsCatalogIdentifier() {
 			if err := b.captureElementInput(); err != nil {
@@ -235,9 +254,20 @@ func (b *Binder) InputConstant(text string, u sqltype.Usage, pos parser.Position
 		}
 		if b.collectTemporalConstants() {
 			i := sort.Search(len(b.Prepared.Temporals), func(i int) bool { return b.Prepared.Temporals[i].Offset >= pos.Offset })
-			b.Prepared.Temporals = append(b.Prepared.Temporals, TemporalConstant{})
-			copy(b.Prepared.Temporals[i+1:], b.Prepared.Temporals[i:])
-			b.Prepared.Temporals[i] = TemporalConstant{Offset: pos.Offset, Typmod: u.Typmod, TypeID: u.Type.ID(), Value: value}
+			existing := -1
+			for j := i; j < len(b.Prepared.Temporals) && b.Prepared.Temporals[j].Offset == pos.Offset; j++ {
+				if b.Prepared.Temporals[j].TypeID == u.Type.ID() && b.Prepared.Temporals[j].Typmod == u.Typmod {
+					existing = j
+					break
+				}
+			}
+			if existing >= 0 {
+				b.Prepared.Temporals[existing].Value = value
+			} else {
+				b.Prepared.Temporals = append(b.Prepared.Temporals, TemporalConstant{})
+				copy(b.Prepared.Temporals[i+1:], b.Prepared.Temporals[i:])
+				b.Prepared.Temporals[i] = TemporalConstant{Offset: pos.Offset, Typmod: u.Typmod, TypeID: u.Type.ID(), Value: value}
+			}
 		}
 		return value, nil
 	}

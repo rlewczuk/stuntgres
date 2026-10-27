@@ -329,6 +329,15 @@ subject to numeric range checks. Explicit `hstore::jsonb` uses strict conversion
 the installed cast does not authorize implicit or assignment coercion.
 Stored JSON and JSONB calls keep installed routine identity across presentation
 changes and native restoration.
+`hstore(record)` uses live field names and each field's text output; a known
+named NULL record produces present NULL-valued keys. `populate_record(base,hstore)`
+and `base #= hstore` return the base's composite type, replacing exact matching
+field names through destination input codecs and declared typmods. Unknown keys
+are ignored, absent fields stay intact, and NULL-valued keys set fields NULL.
+An oversized varchar replacement fails rather than truncating. SQL NULL hstore
+leaves the base unchanged; an empty nonnull hstore with a NULL named base makes
+a nonnull all-NULL tuple. These scalar composites expand through ordinary FROM
+projection. Stored calls preserve installed identity through native controls.
 
 After `CREATE EXTENSION ltree`, ltree, lquery and ltxtquery columns accept literal and bound
 text or non-nil bytes; nil and typed-nil bytes are SQL NULL. Typed literal syntax

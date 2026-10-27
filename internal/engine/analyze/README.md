@@ -206,6 +206,17 @@ library, and never the root engine or `session`. The engine, the root driver
   `Expected.CheckLifetime` applies it to a replaced catalog. The actual retained
   `core.Description` supplies these inputs; core, not the binder or root adapter,
   owns the prepared analysis manifest, validity and lifecycle publication.
+  Captured literal reuse checks a replaced catalog lifetime before datum retagging.
+  Catalog-owned result/parameter signatures retain their cached-plan fences;
+  enum/constrained-domain inputs retain their stronger input fence. Rebindable
+  builtin signatures decode written literals under current authority when their
+  old descriptor retired. Candidate captures replace—not duplicate—old cells,
+  remain private until successful publication, and reuse the current immutable
+  backing thereafter. Same-lifetime captures retain the existing retag path.
+  General signature lifetime failures retain statement-level diagnostic provenance
+  through literal binding and acquire no input position. Enum/constrained-domain
+  input fences preserve their incumbent concrete error and literal positioning;
+  codec-owned errors likewise retain their existing positioning.
   Reused REGCONFIG constants preserve exact occurrence, type, value and original
   operand provenance. Their current operand manifest reads the captured OID's
   actual configuration and mapped dictionaries. Missing original configurations

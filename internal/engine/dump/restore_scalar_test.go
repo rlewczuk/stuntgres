@@ -208,3 +208,29 @@ func TestRangeTypeRestoreRecipeEligibility(t *testing.T) {
 		t.Fatal("supplemental strict constructor skipped recursive parameter guard", err)
 	}
 }
+
+func TestHstoreRecordRestoreScalar(t *testing.T) {
+	for _, prefix := range []string{"", "public."} {
+		raw := selectTarget(t, "SELECT "+prefix+"populate_record(NULL::pair,'i=>oops'::hstore)")
+		if err := RestoreScalar(raw, false); err != nil {
+			t.Fatal("record replacement must reach its ordinary selected binder", err)
+		}
+	}
+	for _, stored := range []bool{false, true} {
+		err := RestoreScalar(selectTarget(t, "SELECT populate_record(NULL::pair,$1::hstore)"), stored)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" || diagnostic.Message != "parameters are not allowed in restore" {
+			t.Fatal("record recipe hid a Restore parameter", err)
+		}
+	}
+	for _, sql := range []string{
+		"SELECT populate_record(NULL::pair)",
+		"SELECT populate_record(NULL::pair,''::hstore,1)",
+		"SELECT populate_record(NULL::pair,VARIADIC ARRAY['i=>42'])",
+		"SELECT populate_record(NULL::pair,unlisted_function())",
+	} {
+		if err := RestoreScalar(selectTarget(t, sql), false); err == nil {
+			t.Fatal("unsupported replacement recipe/child admitted", sql)
+		}
+	}
+}

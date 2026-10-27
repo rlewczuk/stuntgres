@@ -44,6 +44,8 @@ func RestoreFunctionRecipe(r parser.FunctionExpr) bool {
 		return len(r.Name.Parts) == 2 && r.Name.Parts[0].Text == "pg_catalog" && len(r.Args) == 2 && !r.Variadic
 	case "similar_to_escape":
 		return r.Syntax == parser.SimilarEscapeFunctionSyntax && len(r.Name.Parts) == 2 && r.Name.Parts[0].Text == "pg_catalog" && len(r.Args) >= 1 && len(r.Args) <= 2 && !r.Variadic
+	case "populate_record":
+		return len(r.Args) == 2 && len(r.ArgNames) == 0 && !r.Variadic
 	case "left", "right":
 		return len(r.Args) == 2 && !r.Variadic
 	case "substring", "substr":

@@ -51,6 +51,14 @@ func CaptureRetainedExpressionInput(node expr.Expr, element, parserInput func() 
 		}
 	case functions.Enum:
 		return diagnostic(node.Plan.Enum())
+	case functions.HstoreRecord:
+		target := node.Formals[0]
+		if target.ContainsCatalogIdentifier() {
+			if err := element(); err != nil {
+				return err
+			}
+		}
+		return diagnostic(target)
 	case functions.JSONBRecord:
 		targets := [2]*sqltype.Descriptor{node.RecordUsage().Type}
 		if len(node.Args) == 2 {

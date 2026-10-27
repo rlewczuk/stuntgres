@@ -51,6 +51,10 @@ standard library, and holds no state, no mutex and no engine callback.
     recipes in Restore INSERT values. Their ordinary installed binder owns
     overloads, provider authority and value diagnostics; recursive parameter
     rejection remains unconditional. Spatial cube routine names remain excluded.
+  - Two-argument `populate_record` recipes reach the ordinary installed overload
+    binder and destination input diagnostics during Restore INSERT replay.
+    The syntax allowance grants no provider identity; nested parameters and
+    unsupported child recipes remain rejected before execution.
 - **Capabilities** (`capabilities.go`), implemented above this package:
   - `Resolver.Predecessor` maps a dependency address to the OID of the dump
     event that must precede its consumer, or 0.

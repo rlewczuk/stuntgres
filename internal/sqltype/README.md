@@ -189,6 +189,15 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   nodes directly, borrowing the frozen canonical pairs. Loose numbers use the
   existing numeric provider's normalization and range checks; JSONB output,
   comparison and hashing consume the genuine immutable carrier.
+  `HstoreFromRecord` walks the actual live tuple shape and child output codecs;
+  known whole-NULL tuples still emit every key with a NULL value.
+  `HstorePopulateRecord` converts matching strings with destination input codecs
+  and typmods in descriptor order, checks domains, and shares untouched typed
+  fields. Nonempty right operands validate the result domain even when no key
+  matched; unchanged payload sharing never bypasses those checks. SQL NULL and
+  empty right operands retain their separate unchecked no-copy returns for an
+  existing tuple. A NULL base and nonnull right operand construct a distinct
+  nonnull tuple.
 - Seg owns an inline fixed pair of binary32 words, significant-digit counts
   and endpoint markers. Its strict scanner and precision-aware formatter share
   the ordinary type I/O and coercion seams. Representation identity includes all

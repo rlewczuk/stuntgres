@@ -54,6 +54,9 @@ const (
 	HstoreExistsAnyOperatorSlot
 	HstoreContainsOperatorSlot
 	HstoreContainedOperatorSlot
+	HstoreRecordConstructorSlot
+	HstorePopulateRecordSlot
+	HstorePopulateRecordOperatorSlot
 	HstoreMemberCount
 )
 
@@ -97,6 +100,8 @@ var hstoreRoutines = [...]hstoreRoutine{
 	{HstoreContainedSlot, "hs_contained", "hstore_contained", "hstore,hstore", 16, true},
 	{HstoreKeysSlot, "akeys", "hstore_akeys", "hstore", 1009, true},
 	{HstoreValuesSlot, "avals", "hstore_avals", "hstore", 1009, true},
+	{HstoreRecordConstructorSlot, "hstore", "hstore_from_record", "2249", 0, false},
+	{HstorePopulateRecordSlot, "populate_record", "hstore_populate_record", "2283,hstore", 2283, false},
 }
 
 func hstoreRoutineAt(slot int) (hstoreRoutine, bool) {
@@ -128,11 +133,11 @@ func (r hstoreRoutine) declaration(base sqltype.ID) (catalog.ProcedureSignature,
 }
 
 type hstoreOperator struct {
-	slot, procedure int
-	name            string
-	right, result   sqltype.ID
-	rightHstore     bool
-	commutator      int
+	slot, procedure   int
+	name              string
+	right, result     sqltype.ID
+	rightHstore       bool
+	commutator        int
 	restriction, join ids.OID
 }
 
@@ -146,6 +151,7 @@ var hstoreOperators = [...]hstoreOperator{
 	{slot: HstoreExistsAnyOperatorSlot, procedure: HstoreExistsAnySlot, name: "?|", right: 1009, result: 16, restriction: 5040, join: 5041},
 	{slot: HstoreContainsOperatorSlot, procedure: HstoreContainsSlot, name: "@>", rightHstore: true, result: 16, commutator: HstoreContainedOperatorSlot, restriction: 5040, join: 5041},
 	{slot: HstoreContainedOperatorSlot, procedure: HstoreContainedSlot, name: "<@", rightHstore: true, result: 16, commutator: HstoreContainsOperatorSlot, restriction: 5040, join: 5041},
+	{slot: HstorePopulateRecordOperatorSlot, procedure: HstorePopulateRecordSlot, name: "#=", rightHstore: true, result: 2283},
 }
 
 func HstoreOperatorSlot(slot int) bool {
@@ -160,6 +166,9 @@ func HstoreOperatorSlot(slot int) bool {
 	return false
 }
 func (r hstoreOperator) operands(base sqltype.ID) (ids.OID, ids.OID) {
+	if r.slot == HstorePopulateRecordOperatorSlot {
+		return 2283, ids.OID(base)
+	}
 	if r.slot == HstoreArrayOperatorSlot || r.slot == HstoreMatrixOperatorSlot {
 		return 0, ids.OID(base)
 	}

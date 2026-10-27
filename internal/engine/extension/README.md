@@ -139,10 +139,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   renumbering incumbent roles. Key-array existence, pair containment and key/value
   projections add six procedures and five predicates (`?`, `?&`, `?|`, `@>`, `<@`).
   Their recipes own released `matchingsel`/`matchingjoinsel` identities and reciprocal containment
-  commutators. The manifest has fifty-one roles and fifty portable owners.
-  The two-argument constructors are nonstrict;
-  exact recipes authenticate mixed signatures, results, symbols and strictness.
-  Remapping covers builtin operands, unary `0` positions and constructor results.
+  commutators. The manifest has fifty-four roles and fifty-three portable owners.
+  Nonstrict `hstore(record)` and `populate_record(anyelement,hstore)` retain
+  their released pseudo signatures; binary `#=` has ANYELEMENT left/result and
+  the exact replacement backer. Symbolic ownership never substitutes a selected
+  named tuple for these declarations. The two-argument scalar/array constructors
+  are also nonstrict; exact recipes authenticate signatures, results, symbols
+  and strictness. Remapping covers builtin operands, unary `0` positions,
+  polymorphic declarations and installed constructor results.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured

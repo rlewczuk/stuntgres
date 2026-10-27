@@ -8,9 +8,19 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
+// A retained literal can fail the held statement's lifetime contract before its
+// input codec runs. Preserve that producer boundary through literal positioning.
+type literalLifetimeError struct{ cause error }
+
+func (e literalLifetimeError) Error() string { return e.cause.Error() }
+func (e literalLifetimeError) Unwrap() error { return e.cause }
+
 // InputErrorAt positions a literal input error at pos for the SQLSTATEs
 // whose PostgreSQL report carries the literal's position.
 func InputErrorAt(err error, pos parser.Position) error {
+	if lifetime, ok := err.(literalLifetimeError); ok {
+		return lifetime.cause
+	}
 	var d *sqlstate.Error
 	if !errors.As(err, &d) {
 		return err

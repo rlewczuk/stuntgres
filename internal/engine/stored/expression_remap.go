@@ -70,6 +70,14 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case functions.HstoreRecord:
+		for i := range n.Arity() {
+			n.Args[i] = child(n.Args[i])
+		}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case functions.HstoreConstruct:
 		for i := range n.Arity() {
 			n.Args[i] = child(n.Args[i])

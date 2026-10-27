@@ -238,6 +238,9 @@ func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.
 	if err != nil {
 		return false
 	}
+	if name == "hstore_from_record" || name == "hstore_populate_record" {
+		return b.probeRoutineSignature(operands, candidate)
+	}
 	raw = providerFunctionSyntax(raw, name)
 	if candidate.Procedure.RoutineKind == catalog.WindowRoutine {
 		if family, ok := functions.LookupWindowFunction(name); ok && family.ProbeCall != nil {

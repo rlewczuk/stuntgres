@@ -16,6 +16,10 @@
   stale/zero/absent state without recomputation and retains genuine TEMP facts,
   reconstructing retained payloads with the replacement's current type authority.
 
+- Add installed `hstore(record)`, `populate_record` and `#=` with typed composite
+  replacement, destination typmods, precise NULL semantics and preserved stored
+  provider identities through native Dump/Restore.
+
 - Implement CREATE/DROP STATISTICS for simple multicolumn definitions, with
   immutable keys/kinds, ownership, automatic column/relation dependencies and
   populated pg_statistic_ext rows. Native controls preserve definitions and

@@ -187,6 +187,14 @@ operator selection use the same provider; the operator wrapper owns no second
 routine admission. Strict consumers retain literal-NULL preflight while demanded
 children evaluate in order; nonstrict constructors preserve present NULL values.
 Capture, rebuild and qualified replay retain declaration authority, never actors.
+`HstoreRecord` retains the installed record/anyelement declaration separately
+from effective operand/result usages. Constructor and replacement are nonstrict;
+ordered evaluation borrows current output/input and domain environments.
+The ordinary selected-operator wrapper routes `#=` to the same replacement
+node without another routine admission. Rebuild, capture, retag and replay
+preserve exact tuple generations and original occurrence identity.
+Replacement uses the shared scalar source cursor for FROM expansion: every
+invocation yields exactly one tuple, including a whole-NULL tuple, never an SRF.
 `String` optionally retains a `CitextStringCapture` for a selected installed
 scalar. Reconstruction, grouping, rendering and type retagging preserve its
 opaque declaration and member reference; explicit formal replay casts retain

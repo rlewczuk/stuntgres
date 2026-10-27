@@ -17,14 +17,18 @@ import (
 // These are ownership assertions on actual protocol definitions and accepted
 // bindings, not another SQL-result fixture. Public outcomes live in reference/.
 func TestHstoreConstructPreparedOwnership(t *testing.T) {
-	testHstoreSelectedPreparedOwnership(t, false)
+	testHstoreSelectedPreparedOwnership(t, false, false)
 }
 
 func TestHstoreKeysPreparedOwnership(t *testing.T) {
-	testHstoreSelectedPreparedOwnership(t, true)
+	testHstoreSelectedPreparedOwnership(t, true, false)
 }
 
-func testHstoreSelectedPreparedOwnership(t *testing.T, keys bool) {
+func TestHstoreRecordPreparedOwnership(t *testing.T) {
+	testHstoreSelectedPreparedOwnership(t, false, true)
+}
+
+func testHstoreSelectedPreparedOwnership(t *testing.T, keys, records bool) {
 	t.Helper()
 	for _, tc := range []struct {
 		name, expression, want string
@@ -42,14 +46,20 @@ func testHstoreSelectedPreparedOwnership(t *testing.T, keys bool) {
 		{"contained", "'a=>NULL'::hstore <@ 'a=>NULL'", "t", 43, 50, 16},
 		{"keys", "akeys('a=>NULL'::hstore)", "{a}", 44, 0, 1009},
 		{"values", "avals('a=>NULL'::hstore)", "{NULL}", 45, 0, 1009},
+		{"record_constructor", "hstore('(7,keep)'::hs_owned_pair)", `"i"=>"7", "n"=>"keep"`, 51, 0, 0},
+		{"record_function", "populate_record('(7,keep)'::hs_owned_pair,'i=>42'::hstore)", "(42,keep)", 52, 0, 0},
+		{"record_operator", "'(7,keep)'::hs_owned_pair #= 'i=>42'::hstore", "(42,keep)", 52, 53, 0},
 	} {
-		if keys != (tc.member >= 40 || tc.operator == 46) {
+		if records != (tc.member >= 51) || !records && keys != (tc.member >= 40 || tc.operator == 46) {
 			continue
 		}
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, s, "CREATE EXTENSION hstore")
+			if records {
+				enginetest.SessionSQL(t, s, "CREATE TYPE hs_owned_pair AS (i integer,n text)")
+			}
 			view := e.CatalogRead()
 			installation := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
 			procedure := view.MustProcedure(installation.Members[tc.member])
@@ -99,7 +109,9 @@ func testHstoreSelectedPreparedOwnership(t *testing.T, keys bool) {
 			retained := accepted.Entries[index]
 			value := retained.Value
 			arity := 2
-			if tc.member == 44 || tc.member == 45 { arity = 1 }
+			if tc.member == 44 || tc.member == 45 || tc.member == 51 {
+				arity = 1
+			}
 			if retained.Callable != procedure || retained.Occurrence == 0 || len(retained.Inputs) != arity {
 				t.Fatal("selected fold lost original declaration or ordered inputs")
 			}
@@ -109,7 +121,13 @@ func testHstoreSelectedPreparedOwnership(t *testing.T, keys bool) {
 				if tc.member == 35 || tc.member == 40 || tc.member == 41 {
 					wantInputs[1] = 1009
 				}
-				if tc.member == 42 || tc.member == 43 { wantInputs[1] = wantInputs[0] }
+				if tc.member == 42 || tc.member == 43 {
+					wantInputs[1] = wantInputs[0]
+				}
+			}
+			if records {
+				pair := view.MustType(view.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "hs_owned_pair"}))
+				wantInputs = [2]sqltype.ID{pair.SQLType.ID(), view.MustType(installation.Members[0]).SQLType.ID()}
 			}
 			for i, input := range retained.Inputs {
 				formal, ok := view.LookupType(wantInputs[i])
@@ -128,7 +146,9 @@ func testHstoreSelectedPreparedOwnership(t *testing.T, keys bool) {
 				dimensions := value.ArrayDimensions()
 				dimensions[0].Lower = 99
 				wantLen := 2
-				if tc.member == 44 || tc.member == 45 { wantLen = 1 }
+				if tc.member == 44 || tc.member == 45 {
+					wantLen = 1
+				}
 				if value.ArrayDimension(0).Lower != 1 || value.ArrayLen() != wantLen || tc.member == 35 && !value.ArrayElement(1).IsNull() || tc.member == 45 && !value.ArrayElement(0).IsNull() {
 					t.Fatal("retained lookup shape aliases or loses NULL element")
 				}

@@ -87,7 +87,7 @@ these are shared across families:
   and missing versus NULL-valued keys; exact body diagnostics remain separate
   from overload errors. `_TEXT` transport covers array lookups. Native controls
   carry constructors, named backers and operators with the shared exact
-  thirty-nine-owner validator, omitting only the ownerless cast. Nonstrict
+  fifty-three-owner validator, omitting only the ownerless cast. Nonstrict
   constructors preserve present NULL values under current caller admission.
   Held installed-hstore result signatures reject true Reset/Restore replacement
   with the cached-plan result-type diagnostic; builtin TEXT signatures rebind
@@ -105,6 +105,11 @@ these are shared across families:
   The same replay witness preserves escaped and whole-NULL inputs, multi-key and
   matrix construction, direct `_TEXT` metadata and nondefault request bounds,
   duplicates and NULL keys, plus destination-local procedure/arrow relationships.
+  Record fixtures additionally assert declared RECORD/ANYELEMENT identities
+  independently of effective tuples, destination typmods and descriptor-order
+  failures, whole-NULL versus all-NULL tuples, scalar FROM metadata and genuine
+  current-authority calls. Stored constructor/function/operator consumers retain
+  old readers through replacement and replay actual emitted SQL after renames.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,
   count/length diagnostic precedence, held binds, statement atomicity and native

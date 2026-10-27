@@ -48,6 +48,10 @@ Constructor, lookup and predicate nodes retain ordered formal/result generations
 including installed constructor results and consumer inputs. Generic
 selected-operator recipes retain prefix, comparison and binary lookup identities
 with their actual backing routine.
+Record constructor/replacement calls retain declared RECORD/ANYELEMENT signatures
+separately from effective tuple usages. Current and original provider validation,
+authorized remap and qualified rendering preserve that distinction, including
+the `#=` backer, domain identity and anonymous occurrence shapes.
 
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
@@ -795,7 +799,7 @@ reject, while healthy fresh current manifests remain usable.
 - Stored generated columns: `RUN='^TestReferenceGeneratedStored'`
 - Installed comparison capture and lifecycle: `RUN='^TestCube'`
 - Installed earth captures and generation ordering: `RUN='^TestEarth(Coordinate|Point)'`
-- Installed hstore conversion/comparison reconstruction, provenance and authorized generation remap:
-  `RUN='^TestHstore((Arrays|JSONB?)Stored|ComparisonOwnership)'` (also with `RACE=1`). These units preserve
+- Installed hstore conversion/comparison/record reconstruction, provenance and authorized generation remap:
+  `RUN='^TestHstore'` (also with `RACE=1`). These units preserve
   original declaration/operand identity and reject foreign or corrupted
   source/current authority without changing the published graphs.
