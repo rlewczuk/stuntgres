@@ -57,8 +57,8 @@ func (e *Engine) endTemporaryCollations(source *session.Session) (err error) {
 		e.Mu.Lock()
 		base := e.Catalog.Current()
 		var namespaces []*catalog.Namespace
-		for _, d := range base.Descriptors() {
-			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == source.SessionToken {
+		for _, ns := range base.TemporaryNamespaces() {
+			if ns.Temporary == source.SessionToken {
 				namespaces = append(namespaces, ns)
 			}
 		}

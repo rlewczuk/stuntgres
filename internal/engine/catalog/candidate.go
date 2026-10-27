@@ -196,16 +196,19 @@ func (c *Candidate) State() *State {
 	next.defaultClasses = base.defaultClasses
 	next.eventTriggers = base.eventTriggers
 	next.helperOwners = base.helperOwners
+	next.temporaryNamespaces = base.temporaryNamespaces
 	next.oidCeiling = base.oidCeiling
 	for a := range c.removals {
 		next.updateDefaultClasses(c.Base.Get(a), nil)
 		next.updateEventTriggers(c.Base.Get(a), nil)
 		next.updateHelperOwners(c.Base.Get(a), nil)
+		next.updateTemporaryNamespaces(c.Base.Get(a), nil)
 	}
 	for a, d := range c.descriptors {
 		next.updateDefaultClasses(c.Base.Get(a), d)
 		next.updateEventTriggers(c.Base.Get(a), d)
 		next.updateHelperOwners(c.Base.Get(a), d)
+		next.updateTemporaryNamespaces(c.Base.Get(a), d)
 		next.raiseOIDCeiling(a, d)
 	}
 	if len(base.dumpPriorities) != 0 && len(c.removals) != 0 {

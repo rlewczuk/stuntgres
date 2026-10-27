@@ -129,21 +129,22 @@ func (e *Engine) endTemporarySession(s *session.Session) error {
 	for {
 		e.Mu.Lock()
 		base := e.Catalog.Current()
-		for _, d := range base.Descriptors() {
-			if _, ok := d.(*catalog.Collation); !ok {
-				continue
-			}
-			if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == s.SessionToken {
-				e.Mu.Unlock()
-				return nil
-			}
-		}
 		var namespaces []ids.ObjectAddress
 		owned := make(map[ids.ObjectAddress]bool)
-		for a, d := range base.Descriptors() {
-			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.SessionToken {
+		for a, ns := range base.TemporaryNamespaces() {
+			if ns.Temporary == s.SessionToken {
 				namespaces = append(namespaces, a)
 				owned[a] = true
+			}
+		}
+		// Temporary collations belong to endTemporaryCollations. Only a session
+		// with a temporary namespace can own one.
+		if len(namespaces) != 0 {
+			for _, d := range base.Descriptors() {
+				if _, ok := d.(*catalog.Collation); ok && owned[d.Namespace()] {
+					e.Mu.Unlock()
+					return nil
+				}
 			}
 		}
 		if len(namespaces) == 0 {
