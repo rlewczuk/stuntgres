@@ -130,11 +130,12 @@ func TestMembershipInitialAttributeCutover(t *testing.T) {
 	if e.Roles().Memberships()[3] != edge {
 		t.Fatal("ALTER attribute rewrote old initial membership")
 	}
+	membershipOID := e.RoleStore.NextMembershipOID()
 	roleExecute(t, e, actor, "CREATE ROLE owned NOINHERIT ROLE child")
 	owned, _ := e.Roles().Lookup("owned")
 	creator, _ := e.Roles().Lookup("creator")
 	edges := e.Roles().Memberships()
-	if len(edges) != 6 || edges[4] != (authorization.Membership{Role: owned.Ref, Member: creator.Ref, Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}) || edges[5].Role != owned.Ref || edges[5].Member != child.Ref || !edges[5].Inherit || !edges[5].Set {
+	if len(edges) != 6 || edges[4] != (authorization.Membership{OID: uint32(membershipOID), Role: owned.Ref, Member: creator.Ref, Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}) || edges[5].OID == 0 || edges[5].OID == edges[4].OID || edges[5].Role != owned.Ref || edges[5].Member != child.Ref || !edges[5].Inherit || !edges[5].Set {
 		t.Fatal("creator ADMIN and initial membership were not combined", edges)
 	}
 	roleExecute(t, e, actor, "ALTER ROLE owned LOGIN")

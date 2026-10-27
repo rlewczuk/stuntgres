@@ -50,13 +50,13 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	source, target, reader := auth.Roles.LookupRef("ownership_source"), auth.Roles.LookupRef("ownership_target"), auth.Roles.LookupRef("ownership_reader")
 	monitor := auth.Roles.LookupRef("pg_monitor")
 	wantSeed := []authorization.Membership{
-		{Role: auth.Roles.LookupRef("pg_read_all_settings"), Member: monitor, Grantor: bootstrap, Inherit: true, Set: true},
-		{Role: auth.Roles.LookupRef("pg_read_all_stats"), Member: monitor, Grantor: bootstrap, Inherit: true, Set: true},
-		{Role: auth.Roles.LookupRef("pg_stat_scan_tables"), Member: monitor, Grantor: bootstrap, Inherit: true, Set: true},
+		{OID: 16384, Role: auth.Roles.LookupRef("pg_read_all_settings"), Member: monitor, Grantor: bootstrap, Inherit: true, Set: true},
+		{OID: 16385, Role: auth.Roles.LookupRef("pg_read_all_stats"), Member: monitor, Grantor: bootstrap, Inherit: true, Set: true},
+		{OID: 16386, Role: auth.Roles.LookupRef("pg_stat_scan_tables"), Member: monitor, Grantor: bootstrap, Inherit: true, Set: true},
 	}
-	survivor := authorization.Membership{Role: target, Member: source, Grantor: bootstrap, Admin: true}
+	survivor := authorization.Membership{OID: 16387, Role: target, Member: source, Grantor: bootstrap, Admin: true}
 	wantFirst := append(append([]authorization.Membership(nil), wantSeed...), survivor)
-	wantBase := append(append([]authorization.Membership(nil), wantFirst...), authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true})
+	wantBase := append(append([]authorization.Membership(nil), wantFirst...), authorization.Membership{OID: 16388, Role: target, Member: reader, Grantor: source, Inherit: true, Set: true})
 	if !reflect.DeepEqual(baseEdges, wantBase) {
 		t.Fatal("canonical predefined/fixture seed membership mismatch", baseEdges, wantBase)
 	}
@@ -101,20 +101,10 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	// a genuine further deletion of an existing surviving edge for merge proof.
 	if second.RoleCandidateRecord == nil {
 		next := *auth.RoleRecord
-		edges := fixtureEdges(auth.RoleRecord)
-		kept := make([]authorization.Membership, 0, len(edges)-1)
-		removed := 0
-		for _, edge := range edges {
-			if edge == survivor {
-				removed++
-				continue
-			}
-			kept = append(kept, edge)
-		}
-		if removed != 1 {
-			t.Fatal("missing independent surviving fixture membership", edges)
-		}
-		setFixtureEdges(&next, kept)
+		request := &parser.RoleMembership{Revoke:true,Targets:[]parser.RoleSpec{{Name:"ownership_target"}},Members:[]parser.RoleSpec{{Name:"ownership_source"}}}
+		root, changed, _, err := authorization.MembershipCandidate(context.Background(),auth.Roles,authorization.RoleState{CurrentUser:bootstrap,SessionUser:bootstrap},request,nil,false,false)
+		if err != nil || !changed { t.Fatal("missing independent surviving fixture membership",err) }
+		next.Root = root
 		next.Revision++
 		second.RoleCandidateRecord = &next
 	}

@@ -134,9 +134,10 @@ func TestRoleAttributesAuthority(t *testing.T) {
 	op, closeActor := enginetest.RoleOperation(t, e, "creator")
 	defer closeActor()
 	before := e.Roles()
+	membershipOID := e.RoleStore.NextMembershipOID()
 	target := roleAttributeCreate(t, e, op, "owned", false, parser.RoleOptions{})
 	edges := e.Roles().Memberships()
-	wantEdge := authorization.Membership{Role: target.Ref, Member: actor.Ref, Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}
+	wantEdge := authorization.Membership{OID: uint32(membershipOID), Role: target.Ref, Member: actor.Ref, Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}
 	if len(edges) != 4 || edges[3] != wantEdge || len(before.Memberships()) != 3 {
 		t.Fatal("creator ADMIN not atomic", edges)
 	}

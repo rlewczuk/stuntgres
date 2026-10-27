@@ -33,9 +33,9 @@ func TestPredefinedRoleInitialization(t *testing.T) {
 		t.Fatal(bootstrap)
 	}
 	edges := []Membership{
-		{Role: domain.Principal(3374), Member: domain.Principal(3373), Grantor: domain.Principal(10), Inherit: true, Set: true},
-		{Role: domain.Principal(3375), Member: domain.Principal(3373), Grantor: domain.Principal(10), Inherit: true, Set: true},
-		{Role: domain.Principal(3377), Member: domain.Principal(3373), Grantor: domain.Principal(10), Inherit: true, Set: true},
+		{OID: 16384, Role: domain.Principal(3374), Member: domain.Principal(3373), Grantor: domain.Principal(10), Inherit: true, Set: true},
+		{OID: 16385, Role: domain.Principal(3375), Member: domain.Principal(3373), Grantor: domain.Principal(10), Inherit: true, Set: true},
+		{OID: 16386, Role: domain.Principal(3377), Member: domain.Principal(3373), Grantor: domain.Principal(10), Inherit: true, Set: true},
 	}
 	if !reflect.DeepEqual(r.Memberships(), edges) {
 		t.Fatal("seed provenance", r.Memberships())

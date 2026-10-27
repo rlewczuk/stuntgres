@@ -27,6 +27,7 @@ type RoleDescriptor struct {
 	predefined                                                              bool
 }
 type Membership struct {
+	OID                  uint32
 	Role, Member, Grantor PrincipalRef
 	Admin, Inherit, Set   bool
 }

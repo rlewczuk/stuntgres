@@ -67,9 +67,9 @@ func TestPredefinedRoleInitialization(t *testing.T) {
 		t.Fatal(bootstrap)
 	}
 	edges := []authorization.Membership{
-		{Role: e.RoleStore.Domain.Principal(3374), Member: e.RoleStore.Domain.Principal(3373), Grantor: e.RoleStore.Domain.Principal(10), Inherit: true, Set: true},
-		{Role: e.RoleStore.Domain.Principal(3375), Member: e.RoleStore.Domain.Principal(3373), Grantor: e.RoleStore.Domain.Principal(10), Inherit: true, Set: true},
-		{Role: e.RoleStore.Domain.Principal(3377), Member: e.RoleStore.Domain.Principal(3373), Grantor: e.RoleStore.Domain.Principal(10), Inherit: true, Set: true},
+		{OID: 16384, Role: e.RoleStore.Domain.Principal(3374), Member: e.RoleStore.Domain.Principal(3373), Grantor: e.RoleStore.Domain.Principal(10), Inherit: true, Set: true},
+		{OID: 16385, Role: e.RoleStore.Domain.Principal(3375), Member: e.RoleStore.Domain.Principal(3373), Grantor: e.RoleStore.Domain.Principal(10), Inherit: true, Set: true},
+		{OID: 16386, Role: e.RoleStore.Domain.Principal(3377), Member: e.RoleStore.Domain.Principal(3373), Grantor: e.RoleStore.Domain.Principal(10), Inherit: true, Set: true},
 	}
 	if !reflect.DeepEqual(r.Memberships(), edges) {
 		t.Fatal("seed provenance", r.Memberships())

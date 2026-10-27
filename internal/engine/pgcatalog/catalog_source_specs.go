@@ -229,6 +229,15 @@ var Specs = [...]Spec{
 		{"rolpassword", sqltype.Text, true, 950, 0, -1},
 		{"rolvaliduntil", sqltype.Timestamptz, true, 0, 0, -1},
 	}, false, CatalogHasIndexes(ids.RoleClassID), true, true, "stuntgres: missing catalog source type"},
+	{AuthMembersOID, ids.PGCatalogNamespaceOID, "pg_auth_members", []ColumnSpec{
+		{"oid", sqltype.Oid, false, 0, 0, -1},
+		{"roleid", sqltype.Oid, false, 0, 0, -1},
+		{"member", sqltype.Oid, false, 0, 0, -1},
+		{"grantor", sqltype.Oid, false, 0, 0, -1},
+		{"admin_option", sqltype.Bool, false, 0, 0, -1},
+		{"inherit_option", sqltype.Bool, false, 0, 0, -1},
+		{"set_option", sqltype.Bool, false, 0, 0, -1},
+	}, false, CatalogHasIndexes(AuthMembersOID), true, false, "stuntgres: missing catalog source type"},
 	{12007, ids.PGCatalogNamespaceOID, "pg_roles", []ColumnSpec{
 		{"rolname", sqltype.Name, true, 0, 0, -1},
 		{"rolsuper", sqltype.Bool, true, 0, 0, -1},

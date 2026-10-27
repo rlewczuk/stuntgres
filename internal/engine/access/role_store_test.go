@@ -116,3 +116,23 @@ func TestRoleStoreInstallCapture(t *testing.T) {
 		t.Fatal("captured roles are not in the stage domain")
 	}
 }
+
+func TestRoleStoreMembershipCapture(t *testing.T) {
+	source, stage := newRoleStoreFixture(t), &RoleStore{}
+	if source.store.NextMembershipOID() != authorization.FirstMembershipOID+3 {
+		t.Fatal("initial membership frontier", source.store.NextMembershipOID())
+	}
+	source.store.InstallMembershipFrontierLocked(4294967296)
+	stage.Initialize()
+	stage.InstallCapture(source.store.CaptureLocked())
+	if stage.NextMembershipOID() != 4294967296 {
+		t.Fatal("capture lost exhausted frontier", stage.NextMembershipOID())
+	}
+	old := source.store.Published.Root.Read(authorization.PrincipalRef{}).Memberships()
+	copied := stage.Published.Root.Read(authorization.PrincipalRef{}).Memberships()
+	for i := range old {
+		if old[i].OID == 0 || old[i].OID != copied[i].OID || old[i].Role == copied[i].Role {
+			t.Fatal("capture lost identities or principal provenance", old[i], copied[i])
+		}
+	}
+}

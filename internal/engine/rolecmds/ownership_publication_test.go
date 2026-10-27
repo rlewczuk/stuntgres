@@ -22,6 +22,12 @@ func ownershipCleanupStage(t *testing.T) (*core.Engine, *core.CatalogStage, *cat
 	t.Helper()
 	e, owner, source, target, reader := ownershipUnitRoles()
 	setFixtureEdges(e.RoleStore.Published, append(fixtureEdges(e.RoleStore.Published), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
+	// Candidate construction deliberately leaves IDs unassigned. This fixture
+	// installs its initial graph before retaining any transaction predecessor.
+	root, frontier, err := e.RoleStore.Published.Root.AssignMembershipOIDs(authorization.FirstMembershipOID)
+	if err != nil { t.Fatal(err) }
+	e.RoleStore.Published.Root = root
+	e.RoleStore.InstallMembershipFrontierLocked(frontier)
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_guard", ObjectRevision: 1, Owner: owner, ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	if err := setup.Create(ns); err != nil {

@@ -359,6 +359,12 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 
 	}
 	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
+	// Install a fully identified graph before transactions branch from this
+	// fixture. Candidate-only helpers intentionally leave new edge IDs at zero.
+	root, frontier, err := roles.Root.AssignMembershipOIDs(authorization.FirstMembershipOID)
+	if err != nil { t.Fatal(err) }
+	roles.Root = root
+	e.RoleStore.InstallMembershipFrontierLocked(frontier)
 	e.RoleStore.PublishLocked(roles)
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
 	next := catalog.CloneState(e.Catalog.State)

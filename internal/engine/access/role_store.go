@@ -9,8 +9,8 @@ import (
 )
 
 // RoleStore owns the engine's role state: the principal domain, the ACL
-// authority, the committed role publication and the principal and revision
-// allocators. It has no mutex. The engine's mutex guards every field, and
+// authority, the committed role publication and the principal, revision and
+// membership OID allocators. It has no mutex. The engine guards every field, and
 // mutating methods carry the Locked suffix.
 //
 // Cluster runtimes share one pointer-stable store:
@@ -19,7 +19,7 @@ import (
 // store must never be copied. go vet's copylocks check reports copies.
 //
 // Published is the committed record. It changes only through
-// PublishLocked, and the principal and revision frontiers only through
+// PublishLocked, and allocation frontiers only through
 // their Install…Locked writers and AdvanceRevisionFrontierLocked, so every
 // publication point stays greppable. Transaction overlays of the role
 // publication live in session.Journal, not here.
@@ -30,6 +30,7 @@ type RoleStore struct {
 	Published     *RoleRecord
 	nextPrincipal uint64
 	nextRevision  uint64
+	nextMembershipOID uint64
 }
 
 // noCopy makes go vet's copylocks check report copies of the struct that
@@ -57,12 +58,20 @@ func (s *RoleStore) NextRevision() uint64 { return s.nextRevision }
 // after a reserved candidate revision publishes.
 func (s *RoleStore) InstallRevisionFrontierLocked(next uint64) { s.nextRevision = next }
 
+// NextMembershipOID returns the engine-wide membership reservation frontier.
+func (s *RoleStore) NextMembershipOID() uint64 { return s.nextMembershipOID }
+
+// InstallMembershipFrontierLocked publishes accepted-operation reservations.
+// Transaction and savepoint rollback must never rewind this frontier.
+func (s *RoleStore) InstallMembershipFrontierLocked(next uint64) { s.nextMembershipOID = next }
+
 // Initialize seeds the predefined roles and the principal allocator. It runs
 // once, while the engine is not yet shared.
 func (s *RoleStore) Initialize() {
 	s.Published = &RoleRecord{Root: authorization.Seed(&s.Domain), Revision: 1}
 	s.nextPrincipal = authorization.LastPredefinedRoleID + 1
 	s.nextRevision = 2
+	s.nextMembershipOID = authorization.FirstMembershipOID + 3
 }
 
 // PrincipalCandidateLocked returns a private candidate; only successful
@@ -114,24 +123,26 @@ func (s *RoleStore) AdvanceRevisionFrontierLocked(revision uint64) {
 	}
 }
 
-// roleCapture is a store's committed record and principal frontier, captured
+// RoleCapture is a committed record and principal/membership frontiers, captured
 // together under Engine.mu.
 type RoleCapture struct {
 	record        *RoleRecord
 	nextPrincipal uint64
+	nextMembershipOID uint64
 }
 
-// CaptureLocked captures the committed record and the principal frontier.
+// CaptureLocked captures the committed record and identity frontiers.
 func (s *RoleStore) CaptureLocked() RoleCapture {
-	return RoleCapture{record: s.Published, nextPrincipal: s.nextPrincipal}
+	return RoleCapture{record: s.Published, nextPrincipal: s.nextPrincipal, nextMembershipOID: s.nextMembershipOID}
 }
 
 // InstallCapture publishes a captured record in this store's domain, keeping
-// its revision and principal frontier. It returns the source-to-target
+// its revision and identity frontiers. It returns the source-to-target
 // principal map of the copy. The store must not be shared yet.
 func (s *RoleStore) InstallCapture(c RoleCapture) map[authorization.PrincipalRef]authorization.PrincipalRef {
 	targets := make(map[authorization.PrincipalRef]authorization.PrincipalRef, c.record.Root.Read(authorization.PrincipalRef{}).RoleCount())
 	s.Published = &RoleRecord{Root: c.record.Root.Reprovenance(&s.Domain, targets), Revision: c.record.Revision}
 	s.nextPrincipal = c.nextPrincipal
+	s.nextMembershipOID = c.nextMembershipOID
 	return targets
 }

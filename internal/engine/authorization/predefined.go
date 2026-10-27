@@ -9,6 +9,7 @@ const (
 	writeAllDataRoleID   uint64 = 6182
 	maintainRoleID       uint64 = 6337
 	LastPredefinedRoleID uint64 = 6392
+	FirstMembershipOID uint64 = 16384
 )
 
 // Only initialization consumes this table. All subsequent identity, membership,
@@ -39,7 +40,7 @@ func Seed(domain *Domain) Root {
 	}
 	r.edges = make([]Membership, 3)
 	for i, id := range [...]uint64{3374, 3375, StatScanTablesRoleID} {
-		r.edges[i] = Membership{Role: PrincipalRef{domain, id}, Member: PrincipalRef{domain, monitorRoleID}, Grantor: bootstrap, Inherit: true, Set: true}
+		r.edges[i] = Membership{OID: uint32(FirstMembershipOID + uint64(i)), Role: PrincipalRef{domain, id}, Member: PrincipalRef{domain, monitorRoleID}, Grantor: bootstrap, Inherit: true, Set: true}
 	}
 	return r
 }

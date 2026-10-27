@@ -37,9 +37,15 @@ func InstallOperationRolesLocked(e *Engine, op *session.Operation, next *access.
 	if err != nil {
 		return err
 	}
+	root, membershipFrontier, err := next.Root.AssignMembershipOIDs(e.RoleStore.NextMembershipOID())
+	if err != nil {
+		return err
+	}
 	// The caller owns this fresh candidate; retained records are never mutated.
+	next.Root = root
 	next.Revision = revision
 	e.RoleStore.InstallRevisionFrontierLocked(revision + 1)
+	e.RoleStore.InstallMembershipFrontierLocked(membershipFrontier)
 	t := op.Session.Transactions
 	scope := ActiveScopeOfLease(op.Lease)
 	if !t.RetainsTransaction() && t.State != session.TxActive && (scope == nil || scope.Catalog == nil) {

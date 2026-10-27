@@ -11,7 +11,7 @@ import (
 // virtual-source implementation kind, not a PostgreSQL table/view classifier.
 func SummaryTable(oid ids.OID) bool {
 	switch oid {
-	case TypeOID, 1213, 1249, ids.RoleClassID, 1262, 2600, AMOID, 2605, 2612, 2613, TransformOID, TSParserOID, TSConfigOID, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ids.ParameterClassID, 826:
+	case TypeOID, 1213, 1249, ids.RoleClassID, AuthMembersOID, 1262, 2600, AMOID, 2605, 2612, 2613, TransformOID, TSParserOID, TSConfigOID, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ids.ParameterClassID, 826:
 		return true
 	case TSConfigMapOID:
 		return true
@@ -57,7 +57,7 @@ func captureTableViewSummary(in Input) ([][]sqltype.Value, error) {
 			tablespace := sqltype.Null(source.Columns[3].Usage.Type)
 			// Released catalog metadata, not fictitious native backing indexes/storage.
 			// Represented shared catalogs belong to pg_global.
-			if builtinTable && (relation.Address().ObjectID == ids.RoleClassID || relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID) {
+			if builtinTable && (relation.Address().ObjectID == ids.RoleClassID || relation.Address().ObjectID == AuthMembersOID || relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID) {
 				tablespace = text(3, "pg_global")
 			}
 			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), tablespace, boolean(4, relation.History.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.Security.RLSEnabled)})

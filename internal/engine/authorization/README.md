@@ -37,6 +37,11 @@ and ACL DDL decisions are in [`role`](../role/README.md).
   disjoint changes survive and the merged graph is validated before publication.
   `RoleDescriptor.AuthIDVersion` identifies attribute tuple replacements,
   including no-op updates; membership and comments preserve that identity.
+  `Membership.OID` is immutable numeric row metadata, not a principal reference.
+  The logical edge key remains (role, member, grantor). Pure candidates may have
+  zero IDs; `AssignMembershipOIDs` preflights and copies only new edges before
+  accepted publication. Option changes, renames, merge and reprovenance preserve
+  surviving row IDs; removal followed by a new grant obtains a fresh identity.
 - **ACL algorithms:** `Privileges`, `ACLValue`, `ACLEntry` and `ACLGrantee`.
   `ACLRights` evaluates an ACL. `ObjectGrantSource`, `ChangeObjectACL`,
   `ScopedACLGrantOptions` and `OwnedACL` plan GRANT, REVOKE and DROP OWNED;

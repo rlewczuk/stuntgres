@@ -44,6 +44,10 @@ data are removed and the built-in `pg_catalog`, `pg_toast`, `public` and
 owner/ACL authority, roles and their committed shared comments, live sessions and
 their settings, existing pools and non-reusable counters (such as transaction
 IDs) are kept.
+Shared memberships, their stable row OIDs and the nonreusable membership
+reservation frontier are retained by both Reset and Restore. Restore's private
+staging capture preserves these values without replacing destination shared
+authority; Dump never serializes membership identities or GRANT commands.
 
 ## Dump
 

@@ -96,10 +96,7 @@ func (s *membershipScenario) owned(owner string) {
 }
 func (s *membershipScenario) flags(role, member, grantor string, count int, admin, inherit, set bool) {
 	s.t.Helper()
-	// Independent additional catalog witness, not a replacement for shared SQL.
-	if !s.backend.PG {
-		return
-	}
+	// Shared direct-edge witness; options are stored metadata on both backends.
 	rows, err := s.c.QueryContext(s.p.Ctx, `SELECT a.admin_option,a.inherit_option,a.set_option FROM pg_auth_members a JOIN pg_roles r ON r.oid=a.roleid JOIN pg_roles m ON m.oid=a.member JOIN pg_roles g ON g.oid=a.grantor WHERE r.rolname=$1 AND m.rolname=$2 AND g.rolname=$3`, role, member, grantor)
 	if err != nil {
 		s.t.Fatal(err)

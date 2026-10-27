@@ -200,9 +200,10 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 				roleExecute(t, e, op, "CREATE ROLE "+name)
 			}
 			lookup := func(name string) authorization.PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
-			upstream := authorization.Membership{Role: lookup("endpoint"), Member: lookup("grantor"), Grantor: lookup("postgres"), Admin: true, Inherit: true, Set: true}
-			downstream := authorization.Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("grantor"), Inherit: true, Set: true}
-			unrelated := authorization.Membership{Role: lookup("retained"), Member: lookup("member"), Grantor: lookup("postgres")}
+			membershipOID := e.RoleStore.NextMembershipOID()
+			upstream := authorization.Membership{OID: uint32(membershipOID), Role: lookup("endpoint"), Member: lookup("grantor"), Grantor: lookup("postgres"), Admin: true, Inherit: true, Set: true}
+			downstream := authorization.Membership{OID: uint32(membershipOID+1), Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("grantor"), Inherit: true, Set: true}
+			unrelated := authorization.Membership{OID: uint32(membershipOID+2), Role: lookup("retained"), Member: lookup("member"), Grantor: lookup("postgres")}
 			seed := e.Roles().Memberships()
 			for _, edge := range []authorization.Membership{upstream, downstream, unrelated} {
 				if err := grantMembership(t, e, edge); err != nil {

@@ -17,6 +17,7 @@ func icProviderInventory(c *icCase) {
 		"pg_aggregate": fixture.PGAggregateColumns, "pg_am": fixture.PGAMColumns,
 		"pg_attribute": fixture.PGAttributeColumns, "pg_class": fixture.PGClassColumns,
 		"pg_authid":    strings.Fields("oid rolname rolsuper rolinherit rolcreaterole rolcreatedb rolcanlogin rolreplication rolbypassrls rolconnlimit rolpassword rolvaliduntil"),
+		"pg_auth_members": strings.Fields("oid roleid member grantor admin_option inherit_option set_option"),
 		"pg_collation": fixture.PGCollationColumns, "pg_constraint": fixture.PGConstraintColumns,
 		"pg_database": fixture.PGDatabaseColumns, "pg_db_role_setting": fixture.PGDBRoleSettingColumns,
 		"pg_default_acl": fixture.PGDefaultACLColumns, "pg_description": fixture.PGDescriptionColumns,

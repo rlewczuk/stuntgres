@@ -21,6 +21,7 @@ var producers = [...]Registration{
 	{1255, captureExtensionCatalog},
 	{1259, capturePGClass},
 	{ids.RoleClassID, capturePGAuthID},
+	{AuthMembersOID, capturePGAuthMembers},
 	{1262, capturePGDatabase},
 	{1417, captureForeignCatalog},
 	{1418, captureForeignCatalog},

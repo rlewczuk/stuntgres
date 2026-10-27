@@ -62,7 +62,7 @@ No parallel language-permission table or cached grant decision exists.
   merge. It never replaces exact `Stamp` validation or caches permission.
 - **Role store** (`role_store.go`): `RoleStore`, the engine's role state:
   the principal `Domain`, the `ACLAuthority`, the committed `Published`
-  record and the principal and revision allocators. It has no mutex; the
+  record and the principal, revision and membership-row OID allocators. It has no mutex; the
   engine mutex guards every field and mutating methods carry the `Locked`
   suffix. Cluster runtimes share one pointer-stable store, because
   `catalog.Owner.Principals`, `catalog.Owner.ACLAuthority` and
@@ -70,9 +70,11 @@ No parallel language-permission table or cached grant decision exists.
   `noCopy` guard lets `go vet` report copies).
   - Publication: `Published` changes only through `PublishLocked`, the
     frontiers only through `InstallPrincipalFrontierLocked`,
-    `InstallRevisionFrontierLocked` and `AdvanceRevisionFrontierLocked`.
-    `PrincipalCandidateLocked` and `RevisionCandidateLocked` return private
-    candidates; only publication advances allocation.
+    `InstallRevisionFrontierLocked`, `AdvanceRevisionFrontierLocked` and
+    `InstallMembershipFrontierLocked`. The existing engine lock serializes
+    accepted-operation membership reservations, including private journals.
+    IDs observed before commit survive merge; rollback leaves nonreusable gaps.
+    Pure speculative candidates and reads never reserve identities.
   - Reads: `Read` and `PublishedRead`, the store-checked `RoleRead`.
   - Replacement (`role_remap.go`, `aclitem_import.go`): `PrincipalMapper`
     and `PrincipalRemap` map a source's principals by name with
@@ -80,8 +82,8 @@ No parallel language-permission table or cached grant decision exists.
     at each mapping; `ACLItemImporter` reowns typed aclitem values from the
     source store's ACL authority; `ValidateReplacementACLsLocked` checks a
     replacement's ACLs against the committed roles. `CaptureLocked` and
-    `InstallCapture` copy a committed record and principal frontier into a
-    private Restore stage's domain. `PrincipalRemap` takes the
+    `InstallCapture` copy a committed record, principal frontier and membership
+    OID frontier into a private Restore stage's domain. `PrincipalRemap` takes the
     seeded-operator predicate as a value.
 - **Ownership** (`ownership.go`): `OwnershipSuccessor`,
   `OwnershipEligibility`, `OwnershipDatabaseCreate`, `SchemaOwner` and

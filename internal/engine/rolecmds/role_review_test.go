@@ -261,7 +261,7 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 				roleExecute(t, e, op, "CREATE ROLE "+name)
 			}
 			lookup := func(name string) authorization.PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
-			edge := authorization.Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("postgres"), Inherit: true, Set: true}
+			edge := authorization.Membership{OID: uint32(e.RoleStore.NextMembershipOID()), Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("postgres"), Inherit: true, Set: true}
 			expectedEdges := append(e.Roles().Memberships(), edge)
 			if err := grantMembership(t, e, edge); err != nil {
 				t.Fatal(err)

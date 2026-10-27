@@ -1,6 +1,6 @@
 # reference/catalog_privileges
 
-Role, database and privilege catalogs: `pg_authid`, `pg_roles`, `pg_user`, `pg_shadow`, `pg_group`,
+Role, database and privilege catalogs: `pg_authid`, `pg_auth_members`, `pg_roles`, `pg_user`, `pg_shadow`, `pg_group`,
 `pg_db_role_setting`, `pg_database` and database creation, `pg_default_acl`,
 `pg_parameter_acl`, `pg_get_acl`, tablespaces, VACUUM and size functions, and the
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
@@ -55,6 +55,17 @@ and reject cursor exposure. Credential assertions remain redacted.
 and column authority. Credential comparisons use unrecorded raw callbacks and
 redacted failures across direct, fresh and retained prepared reads. PostgreSQL
 catalog ACL phases always roll back; native components publish real ACL values.
+
+`pg_auth_members` scenarios assert the exact public direct-edge bag, physical
+column metadata, distinct grantors and stable row identity across option changes,
+rename, rollback, concurrent private publication and native controls. Generated
+row IDs are checked within each backend's lifetime, not compared numerically
+across servers. Unrelated ordinary readers see the same stored edges; credential
+catalog denial remains independently covered.
+SQL role rename remains a PostgreSQL-only phase because the native role command
+is unsupported. Native immutable-authority rename units check the same principal,
+membership identities/options and projected public role name; all supported
+public lifecycle steps run on both backends using their current role names.
 
 ### SQL feature metadata
 

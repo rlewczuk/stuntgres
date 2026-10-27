@@ -134,11 +134,11 @@ func ExecuteRoleAttributes(e *core.Engine, scope *core.StatementScope, stmt pars
 		if err := core.PublicationOperationLocked(e, op); err != nil {
 			return core.Result{}, err
 		}
-		if _, creating := stmt.(*parser.CreateRole); creating {
-			e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
-		}
 		if err := core.InstallOperationRolesLocked(e, op, &access.RoleRecord{Root: n}); err != nil {
 			return core.Result{}, err
+		}
+		if _, creating := stmt.(*parser.CreateRole); creating {
+			e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
 		}
 		role.EmitPasswordNotice(op, notice)
 		return core.Result{}, nil

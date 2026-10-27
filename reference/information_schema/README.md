@@ -19,6 +19,8 @@ other families' column vectors from `reference/fixture/catalog_columns.go`.
 Protected role catalogs retain exact real-table or view classification;
 `pg_authid` carries the complete twelve-column source facts, and current
 authority filters role-catalog metadata on direct and retained consumers.
+The inventory also includes PUBLIC-readable `pg_auth_members` as a real catalog
+table with its exact seven ordered membership columns.
 
 Every query of these views builds the whole view before filtering, so an
 inventory of builtin or installed objects (view definitions per display mode,

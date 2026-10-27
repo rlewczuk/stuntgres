@@ -83,6 +83,12 @@ type Producer func(Input) ([][]sqltype.Value, error)
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
   `Roles.BelongsTo(Owner.Principals)` and `Source` identity must agree before
   rows are produced.
+- `pg_auth_members` is a PUBLIC-readable real catalog descriptor projecting every
+  captured direct membership edge: four nonnull OIDs and three stored Boolean
+  options. It does not filter by LOGIN or reader, expand closure, or manufacture
+  implicit memberships. Stored row IDs are allocated by role publication, never
+  by reads. Schema/relation/column ACL admission remains in the common path;
+  restricted `pg_authid` credentials remain independent.
 - `pg_shmem_allocations` and `pg_shmem_allocations_numa` materialize a fixed,
   nonempty virtual 1 MiB profile, not process memory or host measurements. The
   named identity `stuntgres simulated arena` is a simulation label. Allocation
