@@ -436,7 +436,7 @@ host methods.
   (`ValidateInstalled*`); the view read graph and volatility
   (`ValidateViewReadGraph`, `ViewVolatile`, `CaptureRetainedInput`); row-mark
   readers (`view_row_marks.go`); `HasDynamicSourceDependency` (installed
-  pgrowlocks and heap-verification capture); view validation and
+  pgrowlocks, pageinspect and amcheck capture); view validation and
   view-write shape; `ValidateRules`; and `DependencyObject` (object
   descriptions for DROP and role diagnostics, including text-search templates
   and dictionaries with class-specific search-path visibility).

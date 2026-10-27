@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for the seventeen bundled extensions (amcheck, citext, cube,
-earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pgcrypto, pgrowlocks, seg, tablefunc, unaccent, uuid-ossp),
+and control data for the eighteen bundled extensions (amcheck, citext, cube,
+earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pageinspect, pgcrypto, pgrowlocks, seg, tablefunc, unaccent, uuid-ossp),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
@@ -39,7 +39,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   daitch_mokotoff; 1.2 inserts it while retaining incumbent addresses. Detached
   unaccent retains exact immutable metadata shape admission, not installed
   execution or replay authority; `ProcedureSymbol` rejects detached declarations.
-  The pgrowlocks and amcheck manifest builders also own immutable fixed OUT
+  The pgrowlocks, pageinspect and amcheck manifest builders also own immutable fixed OUT
   type IDs and complete formal names, including their input names. Their
   comparable installed declaration carries the shared immutable payload through
   relabeling, owner import and address remapping; identity validation rejects a
@@ -110,6 +110,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
   identities).
+- **pageinspect** (`pageinspect_provider.go`): the superuser, untrusted,
+  relocatable 1.13 manifest owns the four BRIN byte decoders. Scalar, scalar
+  record and set results retain exact released declaration shapes and input
+  labels. `ValidatePageinspectCall` validates the selected symbol, formal slots
+  and descriptor-owned results independently of mutable public names.
+  The existing owner codec admits its exact version, four slots and manifest
+  signatures while preserving independent member owners, renames and schema
+  moves; import still validates each actual destination member identity.
 - **amcheck** (`amcheck_provider.go`): the untrusted/superuser/relocatable 1.5
   provider installs eight callable members. Slot zero is `verify_heapam`, with
   six canonical inputs and five trailing defaults, a non-STRICT volatile

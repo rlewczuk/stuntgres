@@ -28,6 +28,18 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   construction. `SameDatum`/`Value.SamePayload` compare stored bits,
   independently of SQL equality. NULL belongs to the caller's framing, not to
   empty text, empty bytes or the zero `Value`.
+- `ReadBrinPage` borrows immutable caller bytes and checks released page
+  headers without consulting table rows. Per-column `BrinStoredColumn` values
+  validate the original admitted input/class and capture the actual opclass
+  storage descriptor resolved from the current catalog. Released storage-key
+  overrides determine stored datum output, not a binary-compatible table alias.
+  Tuple deformation walks those descriptors and renders their values with the
+  caller's output environment.
+  `NativeDatum` owns little-endian PostgreSQL physical datum interpretation,
+  including short/ordinary and PGLZ/LZ4 inline varlena, independently of wire
+  codecs. Bounds failures in undefined corrupt layouts are ordinary internal
+  errors, not invented PostgreSQL diagnostics. Decoding never fetches TOAST or
+  synthesizes physical pages.
 - `PgLSN` retains unsigned 64-bit positions inline. Its descriptor owns strict
   slash-hex text, canonical uppercase output, typed SQL literals and eight-byte
   big-endian codecs. Comparisons and B-tree ordering use unsigned magnitude.
@@ -501,6 +513,8 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 [docs/TESTING.md](../../docs/TESTING.md). Tests of types, operators, casts,
 comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
+
+Native physical datum and BRIN byte-reader units use `RUN='^TestPageinspectBrin'`.
 
 - **Frames matched by tests.** `TestSimilarActualMatcherCancellation` and
   `TestRegexpSubstrCancellation` cancel only when specific frames are on the

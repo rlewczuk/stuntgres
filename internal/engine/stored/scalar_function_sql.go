@@ -14,6 +14,14 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	switch n := node.(type) {
+	case plan.InstalledPageinspectExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) { return "", fmt.Errorf("stuntgres: invalid stored pageinspect reference") }
+		if err := ValidateInstalledPageinspect(n, view); err != nil { return "", err }
+		procedure, _ := view.Procedure(n.Ref.Address)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok { return "", fmt.Errorf("stuntgres: missing pageinspect namespace") }
+		r.record(n.Ref)
+		return pageinspectCallSQL(n, procedure, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), catalog.QuoteIdentifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
 	case plan.InstalledAmcheckExpr:
 		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored amcheck reference")

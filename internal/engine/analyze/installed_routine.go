@@ -98,6 +98,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	}
 	var installed bool
 	switch family {
+	case functions.PageinspectExtension:
+		installed = extension.PageinspectProviderOf(proc) == extension.StockPageinspect
 	case functions.UUIDOsspExtension:
 		installed = extension.UUIDOsspProviderOf(proc) == extension.StockUUIDOssp
 	case functions.PgcryptoExtension:
@@ -138,6 +140,8 @@ type installedExtensionRoutine struct {
 func (r installedExtensionRoutine) Validate() error {
 	p := r.procedure
 	switch {
+	case extension.PageinspectProviderOf(p) != nil:
+		return extension.StockPageinspect.ValidateProcedure(r.catalog, p)
 	case extension.UUIDOsspProviderOf(p) != nil:
 		return extension.StockUUIDOssp.ValidateProcedure(r.catalog, p)
 	case extension.PgcryptoProviderOf(p) != nil:
@@ -198,6 +202,20 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	ref := b.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision(), Purpose: b.dependencyPurpose}
 	switch c := call.(type) {
+	case functions.Pageinspect:
+		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil { return nil, err }
+		symbol, err := extension.ProcedureSymbol(r.catalog, p)
+		if err != nil { return nil, err }
+		if symbol != c.Member { return nil, fmt.Errorf("stuntgres: invalid pageinspect call member") }
+		if p.Installed.ReturnsSet {
+			if b.Params.ExecuteParameters { return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos) }
+			if b.Consumer.PolicyConsumer && b.Query.Frame == 0 { return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions") }
+			if err := b.AdmitSetReturning(c.Pos); err != nil { return nil, err }
+		}
+		c.RoutineReference = p
+		if err := extension.ValidatePageinspectCall(r.catalog, p, c); err != nil { return nil, err }
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPageinspectExpr{Pageinspect: c, Procedure: p, Ref: ref}, nil
 	case functions.Cube:
 		if extension.CubeProviderOf(p) != extension.StockCube {
 			break

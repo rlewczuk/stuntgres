@@ -7,8 +7,8 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// HasDynamicSourceDependency reports calls to installed pgrowlocks or amcheck
-// verification, directly or through analyzed stored-view dependencies.
+// HasDynamicSourceDependency reports installed runtime calls, directly or
+// through analyzed stored-view dependencies.
 // read is the statement's private catalog.
 //
 // Stored calls keep their own lifetime/ACL manifests rather than joining the
@@ -29,7 +29,7 @@ func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.Expres
 				}
 			}
 			procedure, ok := read.Procedure(ref.Address)
-			if ok && (extension.PgrowlocksProviderOf(procedure) == extension.StockPgrowlocks || extension.AmcheckProviderOf(procedure) == extension.StockAmcheck) {
+			if ok && (extension.PageinspectProviderOf(procedure) == extension.StockPageinspect || extension.PgrowlocksProviderOf(procedure) == extension.StockPgrowlocks || extension.AmcheckProviderOf(procedure) == extension.StockAmcheck) {
 				return true, nil
 			}
 		}

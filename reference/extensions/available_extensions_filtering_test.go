@@ -87,6 +87,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions[:14:14], append([][]any{{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}}, wantVersions[14:]...)...)
 				wantAvailable = append(wantAvailable[:14:14], append([][]any{{"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"}}, wantAvailable[14:]...)...)
 				wantVersions = append(wantVersions[:15:15], append([][]any{{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}}, wantVersions[15:]...)...)
+				wantAvailable = append(wantAvailable[:11:11], append([][]any{{"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"}}, wantAvailable[11:]...)...)
+				wantVersions = append(wantVersions[:12:12], append([][]any{{"pageinspect", "1.13", false, true, false, true, nil, nil, "inspect the contents of database pages at a low level"}}, wantVersions[12:]...)...)
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw", "plpgsql"} {

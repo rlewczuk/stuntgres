@@ -39,6 +39,14 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
 - Expected data comes from published vectors, never from native output:
   RFC/NIST/Openwall/PostgreSQL regression vectors for pgcrypto, uuid-ossp and
   fuzzystrmatch.
+- BRIN pageinspect images are independently assembled from released native
+  layouts in `pageinspect_brin_fixture_test.go`; descriptor tables stay empty.
+  The shared scenarios exercise the identical bytes in both modes, including
+  compressed inline datums, typed errors and executable stored/control identities.
+  A shared metadata checker asserts adapter-specific scan types and both native
+  nullability flags independently of cursor contents, including replayed views.
+  Literal catalog identities, retained prepared consumers and unchanged-byte
+  output-setting transitions supplement the stored decoder results.
 - LOAD (`load_fixture_test.go`) checks missing-file candidates inside the oracle
   container only and requires `dynamic_library_path=$libdir` and an installed
   `plpgsql.so`; unexpected files are failed preconditions, never skips.
@@ -61,6 +69,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
 - fuzzystrmatch: `RUN='^TestReferenceDaitchMokotoff'`, `RUN='^TestReferenceLevenshtein'`, `RUN='^TestReferenceMetaphone'`, `RUN='^TestReferenceSoundex'`
 - tablefunc Gaussian sources: `RUN='^TestReferenceTablefuncNormal'`
+- BRIN pageinspect: `RUN='^TestReferencePageinspectBrin'`
 - Mutable routine/provider names and schemas retain genuine OID/kind and
   extension associations; this does not promote lookup-only catalog identities
   to execution. Cross-family ALTER metadata and replay proof lives in

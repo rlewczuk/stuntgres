@@ -252,6 +252,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = len(IntaggMembers)
 	case record.Name == "amcheck" && record.Version == "1.5":
 		expectedMembers = 1 + len(AmcheckMembers)
+	case record.Name == "pageinspect" && record.Version == "1.13":
+		expectedMembers = len(PageinspectMembers)
 	case record.Name == "pgrowlocks" && record.Version == "1.2":
 		expectedMembers = 1
 	case record.Name == "tablefunc" && record.Version == "1.0":
@@ -410,6 +412,10 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		}
 		if slot > 0 && slot <= len(AmcheckMembers) {
 			return string(AmcheckMembers[slot-1].Signature), true
+		}
+	case "pageinspect":
+		if version == "1.13" && slot >= 0 && slot < len(PageinspectMembers) {
+			return string(PageinspectMembers[slot].Signature), true
 		}
 	case "pgrowlocks":
 		return "25", slot == 0

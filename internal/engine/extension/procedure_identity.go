@@ -23,7 +23,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
 		return invalid()
 	}
-	if p.Installed.Outputs != nil && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck {
+	if p.Installed.Outputs != nil && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect {
 		return invalid()
 	}
 	if _, ok := v.Namespace(p.Namespace()); !ok {
@@ -292,6 +292,12 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 				return invalid()
 			}
 		}
+	case StockPageinspect:
+		count = len(PageinspectMembers)
+		if slot >= count { return invalid() }
+		m := PageinspectMembers[slot]
+		name, signature, result, volatility = m.Name, m.Signature, m.Result, expr.Volatile
+		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 { return invalid() }
 	case StockAmcheck:
 		count = 1 + len(AmcheckMembers)
 		if slot >= count {

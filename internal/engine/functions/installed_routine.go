@@ -22,6 +22,7 @@ const (
 	AmcheckExtension
 	CubeExtension
 	EarthdistanceExtension
+	PageinspectExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

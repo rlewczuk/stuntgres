@@ -662,6 +662,11 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			if err := extension.ValidateTablefuncIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil { return err }
 			return children(r.Args, n.Args[:])
 		}
+		if n, ok := bound.(plan.InstalledPageinspectExpr); ok {
+			if err := extension.ValidatePageinspectIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil { return err }
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil { return err }
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(plan.InstalledPgrowlocksExpr); ok {
 			if err := extension.ValidatePgrowlocksIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err

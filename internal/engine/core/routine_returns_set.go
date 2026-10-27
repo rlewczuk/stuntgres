@@ -7,6 +7,7 @@ import (
 
 func procedureReturnsSet(d *catalog.Procedure) bool {
 	return d.SQL != nil && d.SQL.ReturnsSet || d.Builtin != nil && d.Builtin.ReturnsSet ||
+		extension.PageinspectProviderOf(d) == extension.StockPageinspect && d.Installed.ReturnsSet ||
 		extension.CitextProviderOf(d) == extension.StockCitext && d.Installed.ReturnsSet ||
 		extension.PgrowlocksProviderOf(d) == extension.StockPgrowlocks ||
 		extension.TablefuncProviderOf(d) == extension.StockTablefunc && d.Installed.ReturnsSet ||
