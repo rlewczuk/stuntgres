@@ -32,6 +32,13 @@ import this package directly.
   `is_superuser` is a read-only Boolean inquiry: core projects the effective
   current role's own superuser attribute for current_setting, SHOW and pg_settings,
   without inheriting it from memberships or storing it in a SAVE frame.
+  `planner_costs.go` owns the thirteen unrestricted USERSET planner constants.
+  CPU tuple/index/operator costs select real hash candidates versus full
+  traversal; setup, delivery and table-size costs gate existing local workers.
+  Page costs, effective-cache assumptions, index-parallel size and JIT
+  thresholds retain typed transactional values without allocating disk/cache
+  resources, index workers or code generators. All share the numeric/unit
+  parser and ordinary settings journal; JIT thresholds admit all values >= -1.
 - **Values** (`value.go`, `number.go`, `units.go`): `Value` and
   `Definition.Parse`/`Format`, base-unit `Raw` and current-catalog `CurrentRaw`,
   PostgreSQL-compatible number scanning (`ParseNumber`, also used for storage

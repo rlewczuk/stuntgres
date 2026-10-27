@@ -28,6 +28,7 @@ func OpenNestedQueryRows(ctx context.Context, root plan.Node, source *Source, pa
 		source.Close()
 		return nil, fmt.Errorf("stuntgres: nested query lacks projection")
 	}
+	AdmitScan(root, source)
 	r := &nestedQueryRows{schema: project.Schema(), ctx: ctx}
 	r.state = State{Source: source, SourceMode: SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
 	if host := source.LiveHost(); host != nil {

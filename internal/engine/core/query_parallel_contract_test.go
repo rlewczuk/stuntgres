@@ -38,6 +38,8 @@ func parallelTransactionOccurrences(t *testing.T) {
 				t.Fatal(err)
 			}
 			captured.Close()
+			input.PlannerCosts = plan.PlannerCosts{Tuple: .01, IndexTuple: .005, Operator: .0025}
+			input.PlannerRows, input.PlannerColumns = 1000, 3
 			if _, _, ok := exec.ParallelQueryPlan(query.Root, input); !ok {
 				t.Fatal("selected own-write physical scan not eligible")
 			}

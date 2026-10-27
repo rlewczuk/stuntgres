@@ -215,6 +215,7 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	c.plReadOnly = plLoopReadOnly(declaration.Query, root)
 	c.statement, c.created = declaration.Source, created
 	c.scroll = scroll
+	exec.AdmitScan(root, source)
 	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.Input, Output: s.Output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.CaptureAsyncAdmission()
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil

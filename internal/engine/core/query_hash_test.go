@@ -84,6 +84,7 @@ func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, param
 	if filter == nil {
 		t.Fatal("fixture has no top-level filter")
 	}
+	exec.AdmitScan(query.Root, source)
 	state := &exec.State{Source: source, Parameters: parameters, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
 	if scope := core.ScopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.Input, scope.Output

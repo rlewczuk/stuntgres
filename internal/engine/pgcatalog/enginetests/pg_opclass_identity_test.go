@@ -37,7 +37,13 @@ func TestPGOpclassJSONBHashIdentity(t *testing.T) {
 	if got := hashKeys(t, old); !reflect.DeepEqual(got, []string{`{"a": 1.0}`, `{"a": 1}`, `{"b": 2}`}) {
 		t.Fatal("actual JSONB hash entries", got)
 	}
-	query, source, release := hashImplicitQuery(t, e, `SELECT j FROM opclass_jsonb_private WHERE j='{"a":1}'::jsonb`)
+	s := enginetest.StartSession(t, e, nil)
+	// This identity witness requires a real probe, not whichever access method
+	// happens to win at default costs. Admit its explicit CPU profile normally.
+	for _, q := range []string{"SET cpu_tuple_cost=1", "SET cpu_index_tuple_cost=0", "SET cpu_operator_cost=0"} {
+		enginetest.SessionSQL(t, s, q)
+	}
+	query, source, release := hashImplicitQuery(t, s, `SELECT j FROM opclass_jsonb_private WHERE j='{"a":1}'::jsonb`)
 	stage := hashFilterStage(t, query, source, nil)
 	if stage.HashCandidates == nil || stage.HashCandidates.Root != old || len(stage.HashCandidates.Occurrences) != 2 {
 		stage.Close()
@@ -95,17 +101,17 @@ func hashKeys(t *testing.T, root *storage.HashRoot) []string {
 	return keys
 }
 
-func hashImplicitQuery(t *testing.T, e *core.Engine, q string) (*plan.Query, *exec.Source, func()) {
+func hashImplicitQuery(t *testing.T, s *session.Session, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()
-	op, done, err := enginetest.Operation(e, context.Background())
+	op, _, err := s.AcquireCommand(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(done)
-	query, source, release := hashCaptureQuery(t, e, op, q)
+	t.Cleanup(op.Done)
+	query, source, release := hashCaptureQuery(t, core.EngineOf(s), op, q)
 	return query, source, func() {
 		release()
-		done()
+		op.Done()
 	}
 }
 
@@ -115,6 +121,7 @@ func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, param
 	if filter == nil {
 		t.Fatal("fixture has no top-level filter")
 	}
+	exec.AdmitScan(query.Root, source)
 	state := &exec.State{Source: source, Parameters: parameters, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
 	if scope := core.ScopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.Input, scope.Output

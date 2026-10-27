@@ -29,10 +29,7 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 	var names []string
 	visit := func(physical *catalog.Relation) error {
 		names = append(names, r.objectName(physical.Namespace(), physical.Name()))
-		estimate := float64(1000)
-		if storage := r.statisticsStorage(physical.Address()); storage != nil && storage.Maintenance.Scanned {
-			estimate = float64(storage.Maintenance.Tuples)
-		}
+		estimate := plannerSourceRows(r.statisticsStorage(physical.Address()))
 		rows = min(plan.ExplainEstimateLimit, rows+estimate)
 		return nil
 	}

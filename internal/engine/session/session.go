@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
@@ -120,6 +121,7 @@ type Operation struct {
 	TimerCancel        context.CancelFunc
 	LockTimeout        time.Duration
 	ParallelWorkers    int  // Immutable prior-setting snapshot at command admission.
+	PlannerCosts       plan.PlannerCosts // Immutable command admission; retained sources copy it.
 	AsyncAppend        bool // Immutable prior-setting snapshot at command admission.
 	StatementDeadline  time.Time
 	CommandStart       time.Time
@@ -157,9 +159,11 @@ func (s *Session) Operation(ctx context.Context, private bool) *Operation {
 // session (unit tests) gets a plain operation without an analysis slot.
 func (s *Session) newOperation() *Operation {
 	if s.Host != nil {
-		return s.Host.NewOperation(s)
+		op := s.Host.NewOperation(s)
+		op.PlannerCosts = plan.DefaultPlannerCosts()
+		return op
 	}
-	op := &Operation{Session: s}
+	op := &Operation{Session: s, PlannerCosts: plan.DefaultPlannerCosts()}
 	op.Self = op
 	return op
 }

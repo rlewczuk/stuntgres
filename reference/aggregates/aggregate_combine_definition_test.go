@@ -20,6 +20,15 @@ func aggregateCombineScenario(t *testing.T, body func(*testing.T, *fixture.Pair,
 				t.Fatal(err)
 			}
 			defer c.Close()
+			// Native worker fixtures must opt into the implemented local cost
+			// model. Do not force PostgreSQL's different physical planner:
+			// tests requiring its workers prescribe their own profile.
+			if !b.PG {
+				createAggregateRun(t, p, b, c,
+					fixture.Exec("SET min_parallel_table_scan_size=0", 0),
+					fixture.Exec("SET parallel_setup_cost=0", 0),
+					fixture.Exec("SET parallel_tuple_cost=0", 0))
+			}
 			body(t, p, b, c)
 		})
 	}

@@ -1,6 +1,8 @@
 package index
 
 import (
+	"cmp"
+	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -61,7 +63,8 @@ func CaptureHashIndexesLocked(in HashCapture, leaf exec.Leaf, source *exec.Sourc
 		if usage != root.Binding.Usage {
 			continue
 		}
-		source.HashIndexes = append(source.HashIndexes, exec.CapturedHashIndex{Definition: idx.SQLIndex, Root: root, Usage: usage})
+		source.HashIndexes = append(source.HashIndexes, exec.CapturedHashIndex{Address: address, Name: idx.Name(), Definition: idx.SQLIndex, Root: root, Usage: usage})
 	}
+	slices.SortFunc(source.HashIndexes, func(a, b exec.CapturedHashIndex) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	return nil
 }

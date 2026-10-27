@@ -913,6 +913,11 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 `reference/session_state`); follow
 [docs/TESTING.md](../../../docs/TESTING.md) and add `REFERENCE=1` for the oracle.
 
+Composed index-identity witnesses that require actual hash probing prescribe
+their CPU profile through session settings and command admission. Opening a
+private filter stage also admits the source's detached scan decision; retaining
+a hash root alone does not select that access method.
+
 - Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders)$'`
 - Ordered routine formal arrays, represented builtin/installed/generated
   declarations and released attribute identities:

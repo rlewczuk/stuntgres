@@ -426,6 +426,7 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.S
 	if scalar && len(project.Schema()) != 1 {
 		return nil, 0, fmt.Errorf("invalid scalar SQL routine projection")
 	}
+	exec.AdmitScan(root, source)
 	state := exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
 	defer state.ReleaseMemberships()
 	if scope := ScopeOf(source.LiveHost()); scope != nil {

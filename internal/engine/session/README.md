@@ -11,7 +11,7 @@ The engine, the root driver and `cmd/stuntgres` name the session types
 directly.
 
 It imports only lower layers (`ids`, `authorization`, `catalog`, `functions`,
-`lock`, `settings`, `storage`, `visibility`, `access`, `sqltype`, `sqlstate`,
+`lock`, `plan`, `settings`, `storage`, `visibility`, `access`, `sqltype`, `sqlstate`,
 `parser`), never `analyze`, a feature package (`routine`, `typedef`,
 `extension`, `sequence`, ...) or the root: feature packages import `session` to
 implement its slots, so either import would form a cycle.
@@ -49,6 +49,9 @@ nontransactional.
   analysis slots; `Session.AcquireCommand` admits commands. Notice levels,
   emission and the relation skip notices (`ExistingRelation`,
   `MissingRelation`) are in `notices.go`.
+  Command admission captures typed CPU/parallel planner costs under the existing
+  settings mutex alongside the worker ceiling. Changes during evaluation affect
+  the next command, not the running command or a retained source decision.
 - **Transaction owner** (`owner.go`, `savepoint_marks.go`, `protocol_cycle.go`):
   `TransactionOwner` with its state, characteristics, admission and journal;
   `TxState`, `Isolation`, `TxOptions`, `SavepointMark`, `ProtocolCycle`.

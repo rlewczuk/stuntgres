@@ -42,6 +42,9 @@ func queryParallelBag(query string, names, types []string, rows [][]any) fixture
 
 func queryParallelWorkers(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, workers string) {
 	t.Helper()
+	for _, command := range []string{"SET parallel_setup_cost=0", "SET parallel_tuple_cost=0", "SET min_parallel_table_scan_size=0"} {
+		queryParallelRun(t, p, b, c, fixture.Exec(command, 0))
+	}
 	queryParallelRun(t, p, b, c, fixture.Exec("SET max_parallel_workers_per_gather="+workers, 0))
 }
 

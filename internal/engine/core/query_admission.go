@@ -404,6 +404,12 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.Inquiry.CommentCatalog), scope.PartitionRelations), leaf.Relation, source)
 		}
 		source.RLS = program
+		plannerStore := e.Storage.Relations[leaf.Ref.Address]
+		if plannerStore == nil {
+			plannerStore = e.PrivateStorageLocked(scope.PendingCatalog(), leaf.Ref.Address)
+		}
+		source.PlannerRows = plannerSourceRows(plannerStore)
+		source.PlannerColumns = len(leaf.Relation.Columns)
 		borrowQueryAuthority(source, scope)
 		source.Occurrence = i
 		source.Locks = locks
@@ -467,6 +473,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf,
 }
 
 func borrowQueryAuthority(s *exec.Source, scope *StatementScope) {
+	s.PlannerCosts = scope.Op.PlannerCosts
 	s.Authority = scope.authority
 	if scope.sqlRoutine.binding != nil && s.RoutineRecipe == nil {
 		// Borrow the same original frozen action manifest for runtime demand.

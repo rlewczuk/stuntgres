@@ -22,6 +22,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   `json_array_aggregate`, `json_object_aggregate`, `json_object_unique_aggregate`,
   `money_interval_sum`, `ordered_set`, `ordered_set_cancel`, `range_aggregate`,
   `sqljson_object_aggregate`).
+- **Worker profiles.** The shared combine scenario requests cheap costs only
+  for native local workers. PostgreSQL keeps its ordinary planner defaults;
+  a scenario requiring real PostgreSQL workers supplies its own cost profile
+  and checks its physical plan. Do not force PostgreSQL workers globally:
+  restricted support may then run inside a parallel operation rather than the
+  ordinary serial operation whose effects the safety case asserts.
 - **Catalog probes.** CREATE AGGREGATE lifecycle checks select the owning
   procedure in a filtered derived source before catalog joins, so they never
   join complete procedure inventories within the 30-second scenario.

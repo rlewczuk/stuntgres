@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -26,6 +27,14 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	timeout := s.Settings.TypedValue("statement_timeout").Number
 	op.LockTimeout = time.Duration(s.Settings.TypedValue("lock_timeout").Number) * time.Millisecond
 	op.ParallelWorkers = int(s.Settings.TypedValue("max_parallel_workers_per_gather").Number)
+	op.PlannerCosts = plan.PlannerCosts{
+		Tuple: s.Settings.TypedValue("cpu_tuple_cost").Number,
+		IndexTuple: s.Settings.TypedValue("cpu_index_tuple_cost").Number,
+		Operator: s.Settings.TypedValue("cpu_operator_cost").Number,
+		ParallelSetup: s.Settings.TypedValue("parallel_setup_cost").Number,
+		ParallelTuple: s.Settings.TypedValue("parallel_tuple_cost").Number,
+		MinParallelTableBlocks: s.Settings.TypedValue("min_parallel_table_scan_size").Number,
+	}
 	op.AsyncAppend = s.Settings.TypedValue("enable_async_append").Boolean
 	transactionTimeout := s.Settings.TypedValue("transaction_timeout").Number
 	op.NoticeThreshold, _ = messageLevel(s.Settings.Value(settings.ClientMinMessages.Name))

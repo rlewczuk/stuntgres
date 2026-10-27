@@ -184,6 +184,8 @@ func aggregateCombineConcurrent(t *testing.T, mutate bool) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		fresh.PlannerCosts = plan.PlannerCosts{Tuple: .01, IndexTuple: .005, Operator: .0025}
+		fresh.PlannerRows, fresh.PlannerColumns = 1000, 3
 		probe.advance = nil
 		rows, _, err := exec.FinalizeSelect(context.Background(), query.Root, fresh, nil, 2)
 		if err != nil {

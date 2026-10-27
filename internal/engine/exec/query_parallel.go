@@ -16,12 +16,14 @@ import (
 // Positive permission belongs only to the eager top-level SELECT entry. Generic
 // finalization remains serial for writes, cursors, nested queries and controls.
 func FinalizeSelect(ctx context.Context, root plan.Node, source *Source, parameters []sqltype.Value, ceiling int) (RowResult, int, error) {
-	if ceiling >= 2 {
-		if aggregate, eligible := ParallelAggregatePlan(root, source); eligible && QueryParallelWorkers(ceiling, source.Count()) >= 2 {
-			return FinalizeParallelAggregate(ctx, root, aggregate, source, parameters, QueryParallelWorkers(ceiling, source.Count()))
-		}
+	if ceiling < 2 {
+		return Finalize(ctx, root, source, parameters)
 	}
-	if ceiling >= 2 && source != nil && source.Foreign != nil && source.Anonymous != nil && len(source.Anonymous) == 0 {
+	workers := QueryParallelWorkers(ceiling, source.Count())
+	if aggregate, eligible := ParallelAggregatePlan(root, source); eligible && workers >= 2 && source.PlannerCosts.LocalParallel(source.PlannerRows, source.PlannerColumns, workers) {
+		return FinalizeParallelAggregate(ctx, root, aggregate, source, parameters, workers)
+	}
+	if source != nil && source.Foreign != nil && source.Anonymous != nil && len(source.Anonymous) == 0 {
 		if _, ok := source.Foreign.Wrapper.(catalog.ForeignParallelScanProvider); ok {
 			if _, _, eligible := parallelQueryGraph(root, source); eligible {
 				return finalizeQuery(ctx, root, source, parameters, min(ceiling, max(2, runtime.GOMAXPROCS(0))))
@@ -29,8 +31,7 @@ func FinalizeSelect(ctx context.Context, root plan.Node, source *Source, paramet
 		}
 	}
 	project, ordered, eligible := ParallelQueryPlan(root, source)
-	workers := QueryParallelWorkers(ceiling, source.Count())
-	if !eligible || workers < 2 {
+	if !eligible || workers < 2 || source.Foreign == nil && !source.PlannerCosts.LocalParallel(source.PlannerRows, source.PlannerColumns, workers) {
 		return Finalize(ctx, root, source, parameters)
 	}
 	return FinalizeParallelQuery(ctx, project, ordered, source, parameters, workers)
@@ -171,6 +172,7 @@ func ParallelQuerySource(source *Source) (*Source, error) {
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
 	return &Source{View: pin, Ref: source.Ref, Committed: source.Committed, Own: source.Own, Visible: source.Visible,
+		PlannerCosts: source.PlannerCosts, PlannerRows: source.PlannerRows, PlannerColumns: source.PlannerColumns,
 		NeedsBirthFilter: source.NeedsBirthFilter, Occurrence: source.Occurrence, Authority: source.Authority, Host: source.Host}, nil
 }
 

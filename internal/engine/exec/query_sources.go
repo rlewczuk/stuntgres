@@ -224,6 +224,8 @@ func openPGSequencesStage(state *State, source *Source, schema []catalog.Column)
 }
 
 type CapturedHashIndex struct {
+	Address    ids.ObjectAddress
+	Name       string
 	Definition *catalog.IndexDefinition
 	Root       *storage.HashRoot
 	Usage      sqltype.Usage
@@ -263,7 +265,7 @@ func HashQueryFilter(root plan.Node) *plan.FilterNode {
 }
 
 func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode, source *Source) (*hashCandidateSelection, error) {
-	if state.HashFilter != n {
+	if state.HashFilter != n || source == nil || source.ScanDecision.Method != plan.HashCandidates {
 		return nil, nil
 	}
 	if _, ok := n.Child.(*plan.SourceNode); !ok {
@@ -272,31 +274,17 @@ func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 	if source == nil || source.RLS != nil || len(source.HashIndexes) == 0 || source.Count() == 0 || source.Input != nil || source.Final != nil || source.Materialized || source.NestedRoot != nil || len(source.Own) != 0 || state.Source.Sources != nil {
 		return nil, nil
 	}
-	predicate, ok := n.Predicate.(plan.ComparisonExpr)
-	if !ok || predicate.Operator != "=" || predicate.Namespace != "" && predicate.Namespace != "pg_catalog" {
-		return nil, nil
-	}
-	column, ok := predicate.Left.(plan.ColumnExpr)
-	probe := predicate.Right
-	if !ok {
-		column, ok = predicate.Right.(plan.ColumnExpr)
-		probe = predicate.Left
-	}
 	evaluation := state.Evaluation(ctx)
-	if !ok || column.Scope != evaluation.Scope || column.Frame != evaluation.Frame || column.Origin.Domain() != source.Ref.Domain() || column.Origin.Epoch != source.Ref.Epoch || column.Origin.Address.ClassID != source.Ref.Address.ClassID || column.Origin.Address.ObjectID != source.Ref.Address.ObjectID {
-		return nil, nil
-	}
-	switch probe.(type) {
-	case plan.LiteralExpr, plan.ParameterExpr:
-	default:
-		return nil, nil
-	}
-	if probe.ResultUsage() != column.ResultUsage() || !predicate.Predicate.EqualityFor(column.ResultUsage()) {
+	column, probe, ok := plan.HashFilterProbe(n, source.Ref, evaluation.Scope, evaluation.Frame)
+	if !ok {
 		return nil, nil
 	}
 	for _, capture := range source.HashIndexes {
 		key := capture.Definition.Keys[0]
 		if key.Derived != nil || key.Attribute != column.Origin.Address.SubID || column.Slot != capture.Root.Binding.Slot || capture.Usage != column.ResultUsage() || !capture.Root.Binding.Provider.OrdinaryEquality() {
+			continue
+		}
+		if source.ScanDecision.Method != plan.HashCandidates || source.ScanDecision.Index != capture.Address {
 			continue
 		}
 		value, err := probe.Eval(&evaluation)

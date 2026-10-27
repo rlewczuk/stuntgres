@@ -77,6 +77,17 @@ typmods; naming is captured only on failure and is never retained in result tupl
   nested SQL write admission use the operation marker, so leader support cannot
   escape restrictions that apply to worker support. The derived context retains
   request cancellation and does not mark subsequent ordinary executions.
+  Sources retain admitted typed CPU/parallel costs and detached maintenance
+  cardinality, never a settings-store pointer. Each opening selects its scan
+  decision before hashing or allocating candidates; the original predicate
+  still checks every candidate. Core EXPLAIN uses the same metadata-only
+  eligibility/arithmetic and labels these paths Hash Candidates or Full Scan,
+  not physical disk scans. Cursors/portals retain their opening decision;
+  prepared execution admits current command costs without mutating shared IR.
+  `FinalizeSelect` compares serial work with setup+work/workers+tuple-delivery
+  before either local query or partial-aggregate dispatch, after existing
+  safety/shape gates and logical table-size admission. Foreign worker costing
+  remains provider-owned. Explicit worker fixtures must request cheap costs.
 - **Stored-view producers** (`view_producer.go`). A stored-view `Source` owns its
   retained stage and lazy flat prefix; later readers replay the prefix, then
   resume the one producer frontier. Failures stay terminal; `Source.Close`

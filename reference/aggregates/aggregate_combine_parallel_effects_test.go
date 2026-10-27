@@ -69,7 +69,8 @@ func TestReferenceAggregateCombineParallelEffects(t *testing.T) {
 					fixture.Exec("CREATE AGGREGATE ac_effect(integer) (SFUNC=ac_effect_step,STYPE=integer,INITCOND='0',COMBINEFUNC="+tc.combine+tc.final+",PARALLEL=SAFE)", 0),
 					fixture.Exec("SET max_parallel_workers_per_gather=2", 0))
 				if b.PG {
-					// Physical PostgreSQL planning controls, not native feature knobs.
+					// This scenario independently requires PostgreSQL's real
+					// partial/final aggregation, unlike ordinary safety cases.
 					createAggregateRun(t, p, b, c,
 						fixture.Exec("SET min_parallel_table_scan_size=0", 0),
 						fixture.Exec("SET parallel_setup_cost=0", 0),

@@ -32,6 +32,10 @@ func queryCoreFixture(t *testing.T, sql string) (*core.Engine, *plan.Query, *exe
 		t.Fatal(captureErr)
 	}
 	captured.Close()
+	// This low-level fixture explicitly requests the real worker alternative.
+	source.PlannerCosts = plan.DefaultPlannerCosts()
+	source.PlannerCosts.ParallelSetup, source.PlannerCosts.ParallelTuple, source.PlannerCosts.MinParallelTableBlocks = 0, 0, 0
+	source.PlannerRows, source.PlannerColumns = 1000, 3
 	t.Cleanup(source.Close)
 	op, done, err := enginetest.Operation(e, context.Background())
 	if err != nil {

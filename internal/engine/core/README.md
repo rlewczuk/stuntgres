@@ -21,6 +21,13 @@ The renderer describes actual logical stages and rewritten commands, with
 detached maintenance statistics or labelled deterministic heuristics. It never
 counts child rows or evaluates expressions to produce a plan. Results own their
 text lines and complete with the non-counted EXPLAIN command tag.
+Single-source filter access details share execution's detached CPU decision.
+`CPU Cost` is separate from inclusive logical tree costs: it compares actual
+hash-candidate versus full-traversal work without changing unrelated estimates.
+Capture uses maintenance metadata (or default1000), never source counting,
+bucket probing or expression evaluation. Explicit/private/RLS/unsupported
+admission retains the safe full traversal; named hash indexes are ordered by
+object identity. Local-worker costs use the same command-admitted value record.
 Window clauses are resolved through their owning stage's canonical specification
 indices, and SRF outputs through that stage's fixed call/scalar slots. Verbose
 outputs omit private grouping identities and reserved, not-yet-produced SRF

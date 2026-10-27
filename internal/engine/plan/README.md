@@ -43,6 +43,15 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   independence. Unsupported expressions/authority preserve the caller's
   existing fallback. Probabilities are finite and bounded0..1; the ordinary
   logical estimator still caps row/cost estimates at1e12 and rounds only display.
+  `planner_costs.go` separately owns command-admitted CPU/parallel value records
+  and detached scan decisions. Full traversal costs N*(tuple+operator); hash
+  candidates cost one lookup plus N/2*(index-entry+tuple+2*operator).
+  Strictly cheaper eligible hash work wins; ties remain full traversal.
+  Comparisons normalize coefficients before multiplication and only then
+  saturate display estimates. N is maintenance tuple metadata or default1000,
+  never a counted bucket or evaluated probe. Local-worker comparison uses the
+  same CPU work, admitted setup/delivery costs and an approximate footprint of
+  N*(24+8*source-columns) bytes. No physical disk/cache/JIT terms are invented.
 - **Plan records** (`query_records.go`, `query_search.go`, `query.go`,
   `expression_window.go`, `expression_aggregate.go`): `SortKey`, `Grouping`,
   `AggregateCall`, `WindowCall`, `WindowOperation` (and its `Window*`

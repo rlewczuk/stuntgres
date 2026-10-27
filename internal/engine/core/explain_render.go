@@ -55,6 +55,8 @@ type explainRenderer struct {
 	policyReads, policyReturning bool
 	policyPrincipal              authorization.PrincipalRef
 	image                        string
+	scanFilter                   *plan.FilterNode
+	scanDecision                 plan.ScanDecision
 }
 
 func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options explainOptions) (*explainRenderer, error) {
@@ -107,6 +109,14 @@ func (r *explainRenderer) subplan(query *plan.Query) string {
 func (r *explainRenderer) query(query *plan.Query) (*explainTree, error) {
 	if query == nil || query.Root == nil {
 		return nil, fmt.Errorf("stuntgres: missing logical EXPLAIN query")
+	}
+	previousFilter, previousDecision := r.scanFilter, r.scanDecision
+	defer func() { r.scanFilter, r.scanDecision = previousFilter, previousDecision }()
+	r.scanFilter = exec.HashQueryFilter(query.Root)
+	if r.scanFilter != nil {
+		frame := query.Root.(*plan.ProjectNode).Frame
+		if frame == 0 { frame = 1 }
+		r.scanDecision = r.explainScan(r.scanFilter, frame)
 	}
 	r.register(query.Root)
 	return r.node(query.Root)
@@ -439,6 +449,16 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		estimate, err = r.filterEstimate(root, tree.restriction, estimate, inputRows)
 		if err != nil {
 			return nil, err
+		}
+	}
+	if root == r.scanFilter {
+		if r.scanDecision.Method == plan.HashCandidates {
+			tree.details = append(tree.details, "Access Method: Hash Candidates", "Index: "+r.scanDecision.IndexName)
+		} else {
+			tree.details = append(tree.details, "Access Method: Full Scan")
+		}
+		if r.options.costs {
+			tree.details = append(tree.details, fmt.Sprintf("CPU Cost: %.6g", r.scanDecision.Cost()))
 		}
 	}
 	tree.estimate = estimate

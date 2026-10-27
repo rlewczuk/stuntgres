@@ -56,6 +56,10 @@ type Source struct {
 	Foreign          *ForeignQuerySource
 	Visible          []int
 	HashIndexes      []CapturedHashIndex
+	PlannerCosts     plan.PlannerCosts
+	PlannerRows      float64 // Detached maintenance estimate, or the logical default.
+	PlannerColumns   int
+	ScanDecision     plan.ScanDecision
 	CatalogKeys      *CatalogKeyIndex // Indexes Anonymous of a shared catalog capture.
 	Host             Host
 	Authority        *Authority
@@ -1210,6 +1214,7 @@ func finalizeQuery(ctx context.Context, root plan.Node, source *Source, paramete
 	if !ok {
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
+	AdmitScan(root, source)
 	state := &State{Source: source, SourceMode: SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
 	if InParallelOperation(ctx) {
 		state.ExecutionContext = ctx
