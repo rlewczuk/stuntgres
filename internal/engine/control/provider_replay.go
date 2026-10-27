@@ -328,6 +328,11 @@ func (s *dumpScript) prepareProviderReplay() error {
 		return err
 	}
 	statements = append(statements, dictionaryStatements...)
+	operators, err := s.operatorProviderReplayStatements()
+	if err != nil {
+		return err
+	}
+	statements = append(statements, operators...)
 	if len(statements) == 0 {
 		return nil
 	}

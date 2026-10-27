@@ -24,13 +24,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func hstoreConstructOwnershipBinding(t *testing.T, e *core.Engine, s *session.Session, keys bool) *plan.ProjectNode {
+func hstoreConstructOwnershipBinding(t *testing.T, e *core.Engine, s *session.Session, family string) *plan.ProjectNode {
 	t.Helper()
 	query := "SELECT hstore(k,w),fetchval(v,k),v->k,v->ARRAY[k] FROM hs_construct_owner"
 	count := 4
-	if keys {
+	if family == "keys" {
 		query = "SELECT v ? k,v ?& ARRAY[k],v ?| ARRAY[k],v @> v,v <@ v,akeys(v),avals(v) FROM hs_construct_owner"
 		count = 7
+	}
+	if family == "update" {
+		query = "SELECT hs_concat(v,v),delete(v,k),delete(v,ARRAY[k]),delete(v,v),slice(v,ARRAY[k]),v || v,v - k,v - ARRAY[k],v - v FROM hs_construct_owner"
+		count = 9
 	}
 	ast := enginetest.Statement(t, query)
 	op, err := s.Acquire(context.Background())
@@ -75,28 +79,32 @@ func hstoreConstructOwnershipCall(t *testing.T, node expr.Expr) functions.Hstore
 }
 
 func TestHstoreConstructStoredReconstruction(t *testing.T) {
-	testHstoreSelectedStoredReconstruction(t, false)
+	testHstoreSelectedStoredReconstruction(t, "construct")
 }
 
 func TestHstoreKeysStoredOwnership(t *testing.T) {
-	t.Run("reconstruction", func(t *testing.T) { testHstoreSelectedStoredReconstruction(t, true) })
-	t.Run("remap", func(t *testing.T) { testHstoreSelectedStoredRemap(t, true) })
+	t.Run("reconstruction", func(t *testing.T) { testHstoreSelectedStoredReconstruction(t, "keys") })
+	t.Run("remap", func(t *testing.T) { testHstoreSelectedStoredRemap(t, "keys") })
 }
 
-func testHstoreSelectedStoredReconstruction(t *testing.T, keys bool) {
+func testHstoreSelectedStoredReconstruction(t *testing.T, family string) {
 	t.Helper()
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE EXTENSION hstore")
 	enginetest.SessionSQL(t, s, "CREATE TABLE hs_construct_owner(k text,w text,v hstore)")
-	binding := hstoreConstructOwnershipBinding(t, e, s, keys)
+	binding := hstoreConstructOwnershipBinding(t, e, s, family)
 	view := e.CatalogRead()
 	for i, node := range binding.Expressions {
 		names := []string{"constructor", "fetch", "scalar_arrow", "array_arrow"}
 		members := []uint8{31, 34, 34, 35}
-		if keys {
+		if family == "keys" {
 			names = []string{"exists", "all", "any", "contains", "contained", "keys", "values"}
 			members = []uint8{36, 40, 41, 42, 43, 44, 45}
+		}
+		if family == "update" {
+			names = []string{"concat", "scalar", "array", "pair", "slice", "op_concat", "op_scalar", "op_array", "op_pair"}
+			members = []uint8{57, 58, 59, 60, 61, 57, 58, 59, 60}
 		}
 		t.Run(names[i], func(t *testing.T) {
 			call := hstoreConstructOwnershipCall(t, node)
@@ -171,10 +179,10 @@ func testHstoreSelectedStoredReconstruction(t *testing.T, keys bool) {
 }
 
 func TestHstoreConstructStoredRemapOwnership(t *testing.T) {
-	testHstoreSelectedStoredRemap(t, false)
+	testHstoreSelectedStoredRemap(t, "construct")
 }
 
-func testHstoreSelectedStoredRemap(t *testing.T, keys bool) {
+func testHstoreSelectedStoredRemap(t *testing.T, family string) {
 	t.Helper()
 	source, target := engine.New(), engine.New()
 	ss, ts := enginetest.StartSession(t, source, nil), enginetest.StartSession(t, target, nil)
@@ -190,7 +198,7 @@ func testHstoreSelectedStoredRemap(t *testing.T, keys bool) {
 		enginetest.SessionSQL(t, s, "CREATE EXTENSION hstore")
 		enginetest.SessionSQL(t, s, "CREATE TABLE hs_construct_owner(k text,w text,v hstore)")
 	}
-	bound := hstoreConstructOwnershipBinding(t, source, ss, keys)
+	bound := hstoreConstructOwnershipBinding(t, source, ss, family)
 	original := append([]expr.Expr(nil), bound.Expressions...)
 	sv, tv := source.CatalogRead(), target.CatalogRead()
 	installed := func(view catalog.Read) *catalog.Extension {

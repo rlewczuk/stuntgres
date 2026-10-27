@@ -60,6 +60,15 @@ const (
 	HstoreSkeysSlot
 	HstoreSvalsSlot
 	HstoreEachSlot
+	HstoreConcatSlot
+	HstoreDeleteSlot
+	HstoreDeleteArraySlot
+	HstoreDeleteHstoreSlot
+	HstoreUpdateSliceSlot
+	HstoreConcatOperatorSlot
+	HstoreDeleteOperatorSlot
+	HstoreDeleteArrayOperatorSlot
+	HstoreDeleteHstoreOperatorSlot
 	HstoreMemberCount
 )
 
@@ -108,6 +117,11 @@ var hstoreRoutines = [...]hstoreRoutine{
 	{HstoreSkeysSlot, "skeys", "hstore_skeys", "hstore", 25, true},
 	{HstoreSvalsSlot, "svals", "hstore_svals", "hstore", 25, true},
 	{HstoreEachSlot, "each", "hstore_each", "hstore", 2249, true},
+	{HstoreConcatSlot, "hs_concat", "hstore_concat", "hstore,hstore", 0, true},
+	{HstoreDeleteSlot, "delete", "hstore_delete", "hstore,25", 0, true},
+	{HstoreDeleteArraySlot, "delete", "hstore_delete_array", "hstore,1009", 0, true},
+	{HstoreDeleteHstoreSlot, "delete", "hstore_delete_hstore", "hstore,hstore", 0, true},
+	{HstoreUpdateSliceSlot, "slice", "hstore_slice_to_hstore", "hstore,1009", 0, true},
 }
 
 var hstoreEachOutputs = catalog.NewRoutineOutputs([]ids.OID{25, 25}, "hs", "key", "value")
@@ -171,6 +185,10 @@ var hstoreOperators = [...]hstoreOperator{
 	{slot: HstoreContainsOperatorSlot, procedure: HstoreContainsSlot, name: "@>", rightHstore: true, result: 16, commutator: HstoreContainedOperatorSlot, restriction: 5040, join: 5041},
 	{slot: HstoreContainedOperatorSlot, procedure: HstoreContainedSlot, name: "<@", rightHstore: true, result: 16, commutator: HstoreContainsOperatorSlot, restriction: 5040, join: 5041},
 	{slot: HstorePopulateRecordOperatorSlot, procedure: HstorePopulateRecordSlot, name: "#=", rightHstore: true, result: 2283},
+	{slot: HstoreConcatOperatorSlot, procedure: HstoreConcatSlot, name: "||", rightHstore: true},
+	{slot: HstoreDeleteOperatorSlot, procedure: HstoreDeleteSlot, name: "-", right: 25},
+	{slot: HstoreDeleteArrayOperatorSlot, procedure: HstoreDeleteArraySlot, name: "-", right: 1009},
+	{slot: HstoreDeleteHstoreOperatorSlot, procedure: HstoreDeleteHstoreSlot, name: "-", rightHstore: true},
 }
 
 func HstoreOperatorSlot(slot int) bool {
@@ -195,6 +213,13 @@ func (r hstoreOperator) operands(base sqltype.ID) (ids.OID, ids.OID) {
 		return ids.OID(base), ids.OID(base)
 	}
 	return ids.OID(base), ids.OID(r.right)
+}
+
+func (r hstoreOperator) resultOID(base sqltype.ID) ids.OID {
+	if r.result == 0 {
+		return ids.OID(base)
+	}
+	return ids.OID(r.result)
 }
 
 func (r hstoreOperator) commutatorOID(ext *catalog.Extension) ids.OID {
@@ -270,10 +295,29 @@ func validateHstoreOperator(v catalog.Read, ext *catalog.Extension, base *catalo
 		}
 		left, right := recipe.operands(base.SQLType.ID())
 		op, ok := v.Operator(ext.Members[slot])
-		if !ok || op.Address() != ext.Members[slot] || op.Namespace() != ext.TargetNamespace || op.Name() != recipe.name || op.Extension != ext.Address() || op.Left != left || op.Right != right || op.Result != ids.OID(recipe.result) || op.Function != ext.Members[recipe.procedure].ObjectID || op.Commutator != recipe.commutatorOID(ext) || op.Negator != 0 || op.Restriction != recipe.restriction || op.Join != recipe.join || op.Hash || op.Merge {
+		if !ok || op.Address() != ext.Members[slot] || op.Name() != recipe.name || op.Extension != ext.Address() || op.Left != left || op.Right != right || op.Result != recipe.resultOID(base.SQLType.ID()) || op.Function != ext.Members[recipe.procedure].ObjectID || op.Commutator != recipe.commutatorOID(ext) || op.Negator != 0 || op.Restriction != recipe.restriction || op.Join != recipe.join || op.Hash || op.Merge {
 			return fmt.Errorf("stuntgres: invalid hstore operator")
 		}
 		return ValidateProviderHeader(v, op, ids.OperatorClassID)
 	}
 	return fmt.Errorf("stuntgres: invalid hstore operator slot")
+}
+
+// HstoreRelocatableOperator authenticates recipe operators that may move
+// independently of installation. Comparison operators retain their existing
+// family/namespace contract. This does not replace full operator validation.
+func HstoreRelocatableOperator(v catalog.Read, ext *catalog.Extension, address ids.ObjectAddress) bool {
+	if ext == nil || ext.Name() != "hstore" || address.ClassID != ids.OperatorClassID || ext.Version != StockHstore.control.Version || v.Owner().Extensions[ext.Name()] != StockHstore || len(ext.Members) != HstoreMemberCount || !currentManifest(v, ext) {
+		return false
+	}
+	base, ok := v.Type(ext.Members[HstoreTypeSlot])
+	if !ok || base.SQLType == nil {
+		return false
+	}
+	for _, recipe := range hstoreOperators {
+		if ext.Members[recipe.slot] == address {
+			return validateHstoreOperator(v, ext, base, recipe.slot) == nil
+		}
+	}
+	return false
 }

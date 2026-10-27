@@ -87,7 +87,7 @@ these are shared across families:
   and missing versus NULL-valued keys; exact body diagnostics remain separate
   from overload errors. `_TEXT` transport covers array lookups. Native controls
   carry constructors, named backers and operators with the shared exact
-  fifty-three-owner validator, omitting only the ownerless cast. Nonstrict
+  sixty-five-owner validator, omitting only the ownerless cast. Nonstrict
   constructors preserve present NULL values under current caller admission.
   Held installed-hstore result signatures reject true Reset/Restore replacement
   with the cached-plan result-type diagnostic; builtin TEXT signatures rebind
@@ -118,6 +118,11 @@ these are shared across families:
   retained outputs survive native replacement; held builtin TEXT parameters
   rebind through `::text::hstore`, while genuinely hstore-typed parameters retain
   the catalog-lifetime 0A000 fence. The actual emitted SQL is replayed on the oracle.
+  Update scenarios independently specify right bias, exact pair deletion and
+  shape-independent key deletion/slice, including NULL-valued retained pairs.
+  All nine procedure/operator roles survive stored replay and genuine schema
+  changes. Held builtin TEXT signatures reanalyze across replacement; fresh raw
+  hstore results check destination metadata without weakening catalog fences.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,
   count/length diagnostic precedence, held binds, statement atomicity and native

@@ -6,6 +6,12 @@ DDL handlers, and operator/owned-routine dump statements. Immutable SQL routine
 definitions and invocation frames are in [`proc`](../proc/README.md); call
 resolution and SQL body binding stay in the engine.
 
+`OperatorProvider` validates reciprocal extension membership before ordinary
+operand, result and backer checks. Only manifest-authenticated hstore recipe
+operators may live outside the installation schema, through
+`extension.HstoreRelocatableOperator`; full operator and extension validation
+still follows. Comparison families and other providers keep their placement gates.
+
 SQL and PL declarations share formal/default/staging authority. DO and CREATE
 check language USAGE; calls check EXECUTE, not language USAGE again. Dump renders
 the actual language and orders real declaration prerequisites before PL source.

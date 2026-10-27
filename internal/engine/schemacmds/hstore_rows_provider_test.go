@@ -21,7 +21,7 @@ func TestHstoreRowsProviderAuthority(t *testing.T) {
 	if _, err := e.PublishCatalogOperation(op, nil, publication, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil { t.Fatal(err) }
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
-	if extension.HstoreSkeysSlot != 54 || extension.HstoreSvalsSlot != 55 || extension.HstoreEachSlot != 56 || len(ext.Members) != 57 { t.Fatal("append-only row member frontier") }
+	if extension.HstoreSkeysSlot != 54 || extension.HstoreSvalsSlot != 55 || extension.HstoreEachSlot != 56 || len(ext.Members) != extension.HstoreMemberCount { t.Fatal("append-only row member frontier") }
 	for i, symbol := range []string{"hstore_skeys", "hstore_svals", "hstore_each"} {
 		p := view.MustProcedure(ext.Members[extension.HstoreSkeysSlot+i])
 		actual, err := extension.ProcedureSymbol(view, p)

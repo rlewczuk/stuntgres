@@ -139,7 +139,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   renumbering incumbent roles. Key-array existence, pair containment and key/value
   projections add six procedures and five predicates (`?`, `?&`, `?|`, `@>`, `<@`).
   Their recipes own released `matchingsel`/`matchingjoinsel` identities and reciprocal containment
-  commutators. The manifest has fifty-seven roles and fifty-six portable owners.
+  commutators. Update roles append five strict immutable procedures and four
+  operators for concat, scalar/array/pair deletion and slice. Recipe result zero
+  resolves to the installation-local hstore in both staging and validation.
+  Authenticated recipe operators may change schema independently; manifest,
+  signature, result, backer and current header checks retain identity authority.
+  The manifest has sixty-six roles and sixty-five portable owners.
   Nonstrict `hstore(record)` and `populate_record(anyelement,hstore)` retain
   their released pseudo signatures; binary `#=` has ANYELEMENT left/result and
   the exact replacement backer. Symbolic ownership never substitutes a selected

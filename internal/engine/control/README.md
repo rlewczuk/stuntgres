@@ -66,6 +66,11 @@ function references once into the destination authority.
   `dumpRelationCollectors` the same way. **Entry order is error precedence.**
   Feature packages own each entry's decision (`routine.OperatorDumped`,
   `stored.ProcedureProvider`, `stored.TypeProvider`).
+- **Installed operators** (`operator_provider_replay.go`): authenticated moved
+  hstore recipe operators replay with genuine ALTER OPERATOR SET SCHEMA, in
+  extension-event and manifest-slot order. The existing provider phase runs
+  after extension/type identities exist and before owner metadata and stored
+  consumers. Unchanged installed operators emit no statement; none is recreated.
 - **Dictionaries** (`dictionary_replay.go`): builtin simple and installed members
   never get duplicate CREATE statements. Their initialized identities use the
   captured names of their installation namespaces, after namespace replay, and

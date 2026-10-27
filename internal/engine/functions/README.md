@@ -192,7 +192,9 @@ combination; each open evaluates its operand once and owns a separate cursor.
 Reconstruction preserves fixed OUT shape, member identity and occurrence.
 No cursor, caller authority or intermediate array survives in the expression.
 `HstoreConstruct` owns the ordered selected operands, exact formal/result
-generations and installed constructor/lookup/key-predicate/containment/projection role. Shared call and
+generations and installed constructor/lookup/key-predicate/containment/projection
+or concat/deletion/slice role. Hstore-result calls require the exact selected
+base descriptor, not merely its numeric OID. Shared call and
 operator selection use the same provider; the operator wrapper owns no second
 routine admission. Strict consumers retain literal-NULL preflight while demanded
 children evaluate in order; nonstrict constructors preserve present NULL values.

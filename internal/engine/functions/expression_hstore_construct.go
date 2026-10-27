@@ -31,6 +31,8 @@ func (e HstoreConstruct) Symbol() string {
 		return [...]string{"hstore_from_text", "hstore_from_arrays", "hstore_from_array", "hstore_fetchval", "hstore_slice_to_array", "hstore_exists", "hstore_defined"}[e.Member-31]
 	case 40, 41, 42, 43, 44, 45:
 		return [...]string{"hstore_exists_all", "hstore_exists_any", "hstore_contains", "hstore_contained", "hstore_akeys", "hstore_avals"}[e.Member-40]
+	case 57, 58, 59, 60, 61:
+		return [...]string{"hstore_concat", "hstore_delete", "hstore_delete_array", "hstore_delete_hstore", "hstore_slice_to_hstore"}[e.Member-57]
 	}
 	return ""
 }
@@ -61,8 +63,14 @@ func (e HstoreConstruct) Validate() error {
 		inputs, result = [2]sqltype.ID{e.Hstore.ID(), e.Hstore.ID()}, 16
 	case 44, 45:
 		inputs, result = [2]sqltype.ID{e.Hstore.ID(), 0}, 1009
+	case 57, 60:
+		inputs = [2]sqltype.ID{e.Hstore.ID(), e.Hstore.ID()}
+	case 58:
+		inputs = [2]sqltype.ID{e.Hstore.ID(), 25}
+	case 59, 61:
+		inputs = [2]sqltype.ID{e.Hstore.ID(), 1009}
 	}
-	if e.Usage.Type.ID() != result || e.Member <= 33 && e.Usage.Type != e.Hstore {
+	if e.Usage.Type.ID() != result || (e.Member <= 33 || e.Member >= 57) && e.Usage.Type != e.Hstore {
 		return invalid()
 	}
 	for i := range e.Arity() {
@@ -174,6 +182,16 @@ func (e HstoreConstruct) Eval(c expr.Context) (sqltype.Value, error) {
 		return values[1].HstoreContains(ctx, e.Hstore, e.Usage.Type, values[0])
 	case 44, 45:
 		return values[0].HstoreKeyValues(ctx, e.Hstore, e.Usage.Type, e.Member == 45)
+	case 57:
+		return values[0].HstoreConcat(ctx, e.Hstore, values[1])
+	case 58:
+		return values[0].HstoreDelete(ctx, e.Hstore, values[1])
+	case 59:
+		return values[0].HstoreDeleteArray(ctx, e.Hstore, values[1])
+	case 60:
+		return values[0].HstoreDeleteHstore(ctx, e.Hstore, values[1])
+	case 61:
+		return values[0].HstoreSlice(ctx, e.Hstore, values[1])
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid hstore operation")
 }

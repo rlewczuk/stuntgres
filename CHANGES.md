@@ -4,6 +4,11 @@
   row/array ownership, owner+PUBLIC stored ACL and current prepared-read
   authorization. Its authenticated empty state does not simulate replication.
 
+- Implement installed hstore concatenation, scalar/array/pair deletion and slice
+  with immutable typed pair kernels and ordinary selected routine/operator
+  binding. Append nine provider roles, resolve operator results to the local
+  installation and preserve authenticated schema moves and native replay.
+
 - Register the shared eighteen-column `pg_subscription` catalog with exact
   row/array identity, explicit owner-only table ACL and PUBLIC column grants
   excluding sensitive `subconninfo`.

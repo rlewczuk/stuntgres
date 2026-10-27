@@ -178,6 +178,11 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   without sorting or copying; containment compares exact pair bytes and NULL
   flags. Key/value projections own final TEXT[] buffers and share immutable
   strings, retaining aligned pair positions and canonical empty dimensions.
+  `HstoreConcat`, scalar/array/pair deletion and `HstoreSlice` merge private
+  canonical pairs without text roundtrips. Right-biased replacement retains
+  complete NULL flags; key requests flatten shape, omit NULLs and deduplicate.
+  Results own pair headers while sharing immutable strings; exact source
+  generations are validated before whole-NULL handling.
   `HstoreArray` transfers fresh flat or rectangular TEXT-array buffers without
   copying immutable strings or exposing pairs. NULL values become typed NULL
   elements; whole NULL and zero-dimensional empty arrays remain distinct.

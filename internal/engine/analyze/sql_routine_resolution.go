@@ -791,7 +791,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			}
 			return node, err
 		}
-		if symbol == "hstore_from_text" || symbol == "hstore_from_arrays" || symbol == "hstore_from_array" || symbol == "hstore_fetchval" || symbol == "hstore_slice_to_array" || symbol == "hstore_exists" || symbol == "hstore_defined" || symbol == "hstore_exists_all" || symbol == "hstore_exists_any" || symbol == "hstore_contains" || symbol == "hstore_contained" || symbol == "hstore_akeys" || symbol == "hstore_avals" {
+		if symbol == "hstore_from_text" || symbol == "hstore_from_arrays" || symbol == "hstore_from_array" || symbol == "hstore_fetchval" || symbol == "hstore_slice_to_array" || symbol == "hstore_exists" || symbol == "hstore_defined" || symbol == "hstore_exists_all" || symbol == "hstore_exists_any" || symbol == "hstore_contains" || symbol == "hstore_contained" || symbol == "hstore_akeys" || symbol == "hstore_avals" || symbol == "hstore_concat" || symbol == "hstore_delete" || symbol == "hstore_delete_array" || symbol == "hstore_delete_hstore" || symbol == "hstore_slice_to_hstore" {
 			node, err := b.bindSelectedHstoreConstruct(raw, selected, symbol)
 			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 				frozen := raw
