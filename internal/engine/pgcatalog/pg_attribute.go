@@ -89,23 +89,17 @@ func capturePGAttribute(in Input) ([][]sqltype.Value, error) {
 		return nil, fmt.Errorf("stuntgres: invalid attribute NULL carrier")
 	}
 	count := 0
-	for _, descriptor := range view.Descriptors() {
+	for _, relation := range view.Relations() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if relation, ok := descriptor.(*catalog.Relation); ok {
-			count += len(relation.Columns) + len(relation.ColumnMeta.Dropped)
-			if HasSystemAttributes(view, relation) {
-				count += 6
-			}
+		count += len(relation.Columns) + len(relation.ColumnMeta.Dropped)
+		if HasSystemAttributes(view, relation) {
+			count += 6
 		}
 	}
 	rows := make([][]sqltype.Value, 0, count)
-	for _, descriptor := range view.Descriptors() {
-		relation, ok := descriptor.(*catalog.Relation)
-		if !ok {
-			continue
-		}
+	for _, relation := range view.Relations() {
 		appendRow := func(metadata catalog.AttributeMetadata) error {
 			if err := ctx.Err(); err != nil {
 				return err

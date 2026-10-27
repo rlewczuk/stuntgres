@@ -92,23 +92,19 @@ func captureInfoColumns(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	count := 0
-	for _, d := range in.Catalog.Descriptors() {
+	for _, relation := range in.Catalog.Relations() {
 		if err := in.Context.Err(); err != nil {
 			return nil, err
 		}
-		if relation, ok := d.(*catalog.Relation); ok && infoColumnsRelation(in.Catalog, relation) {
+		if infoColumnsRelation(in.Catalog, relation) {
 			count += len(relation.Columns)
 		}
 	}
 	rows := make([][]sqltype.Value, 0, count)
 	database := in.Runtime.DatabaseName()
-	for _, d := range in.Catalog.Descriptors() {
+	for _, relation := range in.Catalog.Relations() {
 		if err := in.Context.Err(); err != nil {
 			return nil, err
-		}
-		relation, ok := d.(*catalog.Relation)
-		if !ok {
-			continue
 		}
 		kind := ClassKind(in.Catalog, relation)
 		if kind != "r" && kind != "v" && kind != "f" && kind != "p" {
