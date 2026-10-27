@@ -36,6 +36,7 @@ func icProviderInventory(c *icCase) {
 		"pg_statistic_ext":                       strings.Fields("oid stxrelid stxname stxnamespace stxowner stxkeys stxstattarget stxkind stxexprs"),
 		"pg_statistic_ext_data":                  strings.Fields("stxoid stxdinherit stxdndistinct stxddependencies stxdmcv stxdexpr"),
 		"pg_subscription":                        strings.Fields("oid subdbid subskiplsn subname subowner subenabled subbinary substream subtwophasestate subdisableonerr subpasswordrequired subrunasowner subfailover subconninfo subslotname subsynccommit subpublications suborigin"),
+		"pg_subscription_rel":                    strings.Fields("srsubid srrelid srsubstate srsublsn"),
 		"pg_proc":                                strings.Fields("oid proname pronamespace proowner prolang procost prorows provariadic prosupport prokind prosecdef proleakproof proisstrict proretset provolatile proparallel pronargs pronargdefaults prorettype proargtypes proallargtypes proargmodes proargnames proargdefaults protrftypes prosrc probin prosqlbody proconfig proacl"),
 		"pg_index":                               strings.Fields("indexrelid indrelid indisunique indisprimary indisvalid indisready indislive indnullsnotdistinct indkey indcollation indclass indoption"),
 		"pg_rewrite":                             strings.Fields("oid rulename ev_class ev_type ev_enabled is_instead"),
@@ -193,6 +194,13 @@ func icProviderInventory(c *icCase) {
 				child.run(child.conn, fixture.Prepared(s))
 				child.run(child.hold(s.Query), s)
 			}
+			if table == "pg_subscription_rel" {
+				rows := icSubscriptionRelRows(c.database)
+				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_subscription_rel'", rows)
+				child.run(child.conn, s)
+				child.run(child.conn, fixture.Prepared(s))
+				child.run(child.hold(s.Query), s)
+			}
 		})
 	}
 	if !c.b.PG {
@@ -232,9 +240,23 @@ func icProviderInventory(c *icCase) {
 	checkProtectedRoles(true)
 	c.exec("CREATE ROLE ic_reader", "SET ROLE ic_reader")
 	checkProtectedRoles(false)
+	// PUBLIC table SELECT exposes all four exact fields to an ordinary role.
+	public := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_subscription_rel'", icSubscriptionRelRows(c.database))
+	c.run(c.conn, public)
+	c.run(c.conn, fixture.Prepared(public))
+	c.run(c.hold(public.Query), public)
 	c.exec("RESET ROLE", "GRANT pg_read_all_data TO ic_reader", "SET ROLE ic_reader")
 	checkProtectedRoles(true)
 	c.exec("RESET ROLE", "REVOKE pg_read_all_data FROM ic_reader", "SET ROLE ic_reader")
 	checkProtectedRoles(false)
 	c.exec("RESET ROLE")
+}
+
+func icSubscriptionRelRows(database string) [][]any {
+	return [][]any{
+		icRow(database, "pg_catalog", "pg_subscription_rel", "srsubid", 1, "oid", "pg_catalog", "oid", map[string]any{"is_nullable": "NO"}),
+		icRow(database, "pg_catalog", "pg_subscription_rel", "srrelid", 2, "oid", "pg_catalog", "oid", map[string]any{"is_nullable": "NO"}),
+		icRow(database, "pg_catalog", "pg_subscription_rel", "srsubstate", 3, "\"char\"", "pg_catalog", "char", map[string]any{"is_nullable": "NO"}),
+		icRow(database, "pg_catalog", "pg_subscription_rel", "srsublsn", 4, "pg_lsn", "pg_catalog", "pg_lsn", nil),
+	}
 }

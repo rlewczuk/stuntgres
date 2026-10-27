@@ -84,6 +84,12 @@ var Specs = [...]Spec{
 		{"subpublications", sqltype.ID(1009), false, 950, 1, -1},
 		{"suborigin", sqltype.Text, true, 950, 0, -1},
 	}, false, CatalogHasIndexes(SubscriptionOID), true, true, "stuntgres: missing catalog source type"},
+	{SubscriptionRelOID, ids.PGCatalogNamespaceOID, "pg_subscription_rel", []ColumnSpec{
+		{"srsubid", sqltype.Oid, false, 0, 0, -1},
+		{"srrelid", sqltype.Oid, false, 0, 0, -1},
+		{"srsubstate", sqltype.Char, false, 0, 0, -1},
+		{"srsublsn", sqltype.PgLSN, true, 0, 0, -1},
+	}, false, CatalogHasIndexes(SubscriptionRelOID), true, false, "stuntgres: missing catalog source type"},
 	{StatAllTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_all_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatSysTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_sys_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatUserTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_user_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},

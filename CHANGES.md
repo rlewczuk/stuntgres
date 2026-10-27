@@ -1,5 +1,9 @@
 # Changes
 
+- Add the database-local four-column `pg_subscription_rel` catalog with exact
+  row/array ownership, owner+PUBLIC stored ACL and current prepared-read
+  authorization. Its authenticated empty state does not simulate replication.
+
 - Register the shared eighteen-column `pg_subscription` catalog with exact
   row/array identity, explicit owner-only table ACL and PUBLIC column grants
   excluding sensitive `subconninfo`.

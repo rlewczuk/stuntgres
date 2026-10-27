@@ -45,6 +45,13 @@ func (e *Engine) initializeCatalogSources() error {
 				d.Security.ColumnACL[attribute] = acl
 			}
 		}
+		if spec.OID == pgcatalog.SubscriptionRelOID {
+			d.Security.ACL = authorization.MaterializeRelationACL(authorization.ACLValue{}, d.Owner)
+			d.Security.ACL.Entries = append(d.Security.ACL.Entries, authorization.ACLEntry{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege})
+			if err := authorization.ValidateACL(roles, d.Security.ACL, authorization.TableGrantPrivileges); err != nil {
+				return err
+			}
+		}
 		if spec.OID == pgcatalog.ShmemAllocationsOID || spec.OID == pgcatalog.ShmemAllocationsNUMAOID {
 			stats := roles.LookupRef("pg_read_all_stats")
 			d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{

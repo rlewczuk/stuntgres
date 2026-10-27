@@ -26,6 +26,8 @@ and real-table classification; its definitions are not filtered by RLS applicabi
 The shared `pg_subscription` catalog contributes all eighteen ordered columns
 for the administrator inventory, including `subconninfo`; PUBLIC column grants
 do not hide its administrator-visible metadata or turn the relation into a view.
+Database-local `pg_subscription_rel` contributes four ordered real-table columns,
+with nullable synchronization position and PUBLIC visibility from table SELECT.
 
 Every query of these views builds the whole view before filtering, so an
 inventory of builtin or installed objects (view definitions per display mode,

@@ -22,7 +22,7 @@ func CatalogHasIndexes(oid ids.OID) bool {
 		ids.PolicyClassID,
 		2608, 2609, 2610, 2611, 2612, 2613, 2615, 2616, 2617, 2618, 2964, 3079, 3456, 3501, pgRangeOID, TransformOID, 3600, TSParserOID, TSConfigOID, 3764, ids.ParameterClassID, 826:
 		return true
-	case TSConfigMapOID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID:
+	case TSConfigMapOID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID, SubscriptionRelOID:
 		return true
 	}
 	return false

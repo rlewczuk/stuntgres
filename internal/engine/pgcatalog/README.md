@@ -111,6 +111,16 @@ type Producer func(Input) ([][]sqltype.Value, error)
   definitions nor perform publisher connections, slot creation or replication.
   Shared and index-presence facts describe catalog identity, not fabricated
   native physical indexes.
+- `pg_subscription_rel` (6102, row10114/array10113) is a real database-local
+  catalog with four attributes: OID subscription/relation identities, internal
+  CHAR state and nullable PG_LSN synchronization position. Its explicit table
+  ACL contains all owner table privileges plus PUBLIC SELECT, without grant
+  options or column grants. Current Execute admission governs every held read.
+  The producer authenticates exact catalog/role roots, backing engine and owned
+  type generations, returning a nonnil empty rowset because no subscription
+  mappings exist. Cancellation and invalid authority return no rows. Reads
+  neither populate mappings nor simulate synchronization or contact publishers.
+  Index presence is metadata, not a fabricated native physical index.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual
