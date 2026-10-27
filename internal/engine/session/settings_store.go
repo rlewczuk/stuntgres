@@ -228,10 +228,22 @@ func (s *SettingsStore) FinishTransaction(commit bool) {
 	s.NestLevel = 0
 }
 
+// InitializeShared starts the store with the shared defaults of a session
+// without a SessionDefaultProvider (settings.Registry.SessionDefaults); the
+// store only reads them. Initialize with a nil provider builds equal maps.
+func (s *SettingsStore) InitializeShared(defaults settings.SessionDefaults) {
+	s.Typed = make(map[string]settings.Value)
+	s.Placeholders = make(map[string]bool)
+	s.Defaults, s.DefaultTyped = defaults.Text, defaults.Typed
+}
+
 func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]settings.Definition, names []string, provider settings.SessionDefaultProvider) error {
 	s.Typed = make(map[string]settings.Value)
 	s.DefaultTyped = make(map[string]settings.Value)
 	s.Placeholders = make(map[string]bool)
+	if s.Defaults == nil {
+		s.Defaults = make(map[string]string, len(names))
+	}
 	for _, name := range names {
 		d := definitions[name]
 		v := d.DefaultValue()

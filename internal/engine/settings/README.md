@@ -41,8 +41,11 @@ import this package directly.
 - **Registry** (`registry.go`): `NewRegistry(registered,
   trackCommitTimestamps)` captures builtin boot and effective native startup
   values once (the engine passes its commit-timestamp tracking flag), adds
-  validated registered definitions and sorts the names. `Lookup`, `Definitions`
-  and `Order` read it.
+  validated registered definitions and sorts the names; without registered
+  definitions every engine shares one registry per flag. `Lookup`, `Definitions`
+  and `Order` read it. `SessionDefaults` (`session_defaults.go`) builds once per
+  registry the default text and typed values that every session without a
+  `SessionDefaultProvider` shares read-only.
 
 ## Invariants
 

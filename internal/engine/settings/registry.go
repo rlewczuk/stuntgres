@@ -13,6 +13,7 @@ import (
 type Registry struct {
 	definitions map[string]Definition
 	order       []string
+	defaults    *sessionDefaults
 }
 
 // builtinRegistries holds the registry without registered definitions, built
@@ -39,7 +40,7 @@ func NewRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
 
 func newRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
 	groups := [...][]Definition{builtins, developerBuiltins, loggingBuiltins, presetBuiltins, replicationBuiltins, resourceBuiltins, shortBuiltins, vacuumBuiltins, walBuiltins, registered}
-	r := Registry{definitions: make(map[string]Definition, len(builtins)+len(developerBuiltins)+len(loggingBuiltins)+len(presetBuiltins)+len(replicationBuiltins)+len(resourceBuiltins)+len(shortBuiltins)+len(vacuumBuiltins)+len(walBuiltins)+len(registered))}
+	r := Registry{defaults: &sessionDefaults{}, definitions: make(map[string]Definition, len(builtins)+len(developerBuiltins)+len(loggingBuiltins)+len(presetBuiltins)+len(replicationBuiltins)+len(resourceBuiltins)+len(shortBuiltins)+len(vacuumBuiltins)+len(walBuiltins)+len(registered))}
 	for i, list := range groups {
 		for _, d := range list {
 			if i < len(groups)-1 {

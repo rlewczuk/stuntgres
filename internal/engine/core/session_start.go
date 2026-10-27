@@ -64,11 +64,18 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	if authErr == nil {
 		s.Authorization = auth
 	}
-	owner := &session.SettingsStore{Session: s, Values: make(map[string]string), Defaults: make(map[string]string)}
+	owner := &session.SettingsStore{Session: s, Values: make(map[string]string)}
 	_, err := op.Attach(session.Settings, owner)
 	if err == nil {
 		s.Settings = owner
-		err = owner.Initialize(op.Context(), e.Settings.Definitions(), e.Settings.Order(), start.Defaults)
+		if start.Defaults == nil {
+			// Provider-less sessions share their registry's defaults.
+			if err = op.Context().Err(); err == nil {
+				owner.InitializeShared(e.Settings.SessionDefaults())
+			}
+		} else {
+			err = owner.Initialize(op.Context(), e.Settings.Definitions(), e.Settings.Order(), start.Defaults)
+		}
 		if err == nil {
 			owner.Mu.Lock()
 			s.Mu.Lock()
