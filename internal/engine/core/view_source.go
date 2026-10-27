@@ -9,11 +9,13 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/sqltype"
 )
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
 // principals affect ACL and row-security checks; expressions keep the invoker.
-func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (*exec.Source, error) {
+// keep is the catalog producer row test (see catalogSourceKeep), or nil.
+func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int, keep func(sqltype.Value) bool) (*exec.Source, error) {
 	ctx := scope.Op.Context()
 	if err := ctx.Err(); err != nil {
 		e.Mu.Unlock()
@@ -34,7 +36,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.Mu.Unlock()
 		return source, err
 	case catalog.CatalogRelation:
-		return e.openCatalogSourceLocked(scope, ref, d)
+		return e.openCatalogSourceLocked(scope, ref, d, keep)
 	case catalog.SequenceRelation:
 		source, err := e.captureSequenceSourceLocked(scope, ref, d)
 		e.Mu.Unlock()

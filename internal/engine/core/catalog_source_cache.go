@@ -55,7 +55,7 @@ func (c *catalogCaptureCache) slot(oid ids.OID) *catalogCaptureSlot {
 func (e *Engine) captureCatalogSourceRowsLocked(in pgcatalog.Input, produce pgcatalog.Producer, roles *access.RoleRecord) (*exec.Source, error) {
 	slot := e.catalogCaptures.slot(in.Source.Address().ObjectID)
 	state := in.Catalog.State()
-	if slot == nil || state == nil || state != e.Catalog.State || roles == nil || roles != e.RoleStore.Published {
+	if slot == nil || in.Keep != nil || state == nil || state != e.Catalog.State || roles == nil || roles != e.RoleStore.Published {
 		return CaptureCatalogSourceRows(in, produce)
 	}
 	key := catalogCaptureKey{state: state, roles: roles, source: in.Source, ref: in.Ref}

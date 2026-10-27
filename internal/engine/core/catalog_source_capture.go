@@ -14,7 +14,7 @@ import (
 
 // Consumes Engine.mu. These cases select capture policy, never producers: all
 // eligible OIDs use the same immutable registry and common row wrapper.
-func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
+func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep func(sqltype.Value) bool) (*exec.Source, error) {
 	oid := source.Address().ObjectID
 	// These two sources own multi-stage capture/completion, not row producers.
 	if oid == pgcatalog.LocksOID {
@@ -33,7 +33,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
-	in := pgcatalog.Input{Context: scope.Op.Context(), Owner: &e.Catalog.Owner, Ref: ref, Source: source}
+	in := pgcatalog.Input{Context: scope.Op.Context(), Owner: &e.Catalog.Owner, Ref: ref, Source: source, Keep: keep}
 	runtime := EngineCatalogRuntime{engine: e}
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.

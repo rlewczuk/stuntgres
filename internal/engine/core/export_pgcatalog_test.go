@@ -22,7 +22,7 @@ func EngineCapturePGPredicateLocksLocked(x *Engine) ([]lock.Record, error) {
 
 // EngineOpenCatalogSourceLocked calls x.openCatalogSourceLocked.
 func EngineOpenCatalogSourceLocked(x *Engine, scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
-	return x.openCatalogSourceLocked(scope, ref, source)
+	return x.openCatalogSourceLocked(scope, ref, source, nil)
 }
 
 // CatalogRuntimeBuiltinViewDefinition calls x.builtinViewDefinition.

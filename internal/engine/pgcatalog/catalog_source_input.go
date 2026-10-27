@@ -24,6 +24,10 @@ type Input struct {
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress
+	// Keep, when set, tests a candidate row's key cell; a producer that has
+	// a key column (pg_settings: SettingsNameColumn) omits the rows it
+	// rejects. Rows it rejects are ones the statement's filter rejects.
+	Keep func(sqltype.Value) bool
 }
 
 // Producer builds the rows of one system relation from a captured Input.

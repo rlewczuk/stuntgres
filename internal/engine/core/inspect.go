@@ -196,7 +196,7 @@ func ScopeExecuteSavepoint(x *StatementScope, control *parser.SavepointControl, 
 
 // EngineOpenRelationSourceLocked calls x.openRelationSourceLocked.
 func EngineOpenRelationSourceLocked(x *Engine, scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (*exec.Source, error) {
-	return x.openRelationSourceLocked(scope, ref, invoker, mark, locks, outputUses)
+	return x.openRelationSourceLocked(scope, ref, invoker, mark, locks, outputUses, nil)
 }
 
 // ScopeAcquireMaterializedRefresh calls x.acquireMaterializedRefresh.

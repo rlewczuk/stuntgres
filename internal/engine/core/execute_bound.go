@@ -676,7 +676,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if scope.QueryLockContext == nil {
 			scope.QueryLockContext = &exec.LockContext{IdentityOnly: true}
 		}
-		source, sourceErr := e.CaptureQuerySourcesLocked(scope, b.QuerySources, s.Query.From == nil && s.Query.Values == nil)
+		source, sourceErr := e.captureSelectSourcesLocked(scope, queryRoot, b.QuerySources, canonical, s.Query.From == nil && s.Query.Values == nil)
 		e.Mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr
@@ -690,7 +690,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if scope.sqlRoutine.cursor != nil && scope.QueryLockContext == nil {
 			scope.QueryLockContext = &exec.LockContext{IdentityOnly: true}
 		}
-		source, sourceErr := e.CaptureQuerySourcesLocked(scope, b.QuerySources, s.From == nil && s.Values == nil)
+		source, sourceErr := e.captureSelectSourcesLocked(scope, queryRoot, b.QuerySources, canonical, s.From == nil && s.Values == nil)
 		e.Mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr

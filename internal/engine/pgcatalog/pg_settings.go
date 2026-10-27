@@ -9,6 +9,9 @@ import (
 // Reserved native relation identity, not a PostgreSQL allocator promise.
 const SettingsOID ids.OID = 16202
 
+// SettingsNameColumn is pg_settings' name column, the Input.Keep key.
+const SettingsNameColumn = 0
+
 // Capture one coherent registry-wide physical-session observation. Conversion
 // runs after the settings lock is released; rows own their mutable array data.
 func capturePGSettings(in Input) ([][]sqltype.Value, error) {
@@ -17,12 +20,20 @@ func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows := make([][]sqltype.Value, len(facts))
-	for i, fact := range facts {
+	capacity := len(facts)
+	if in.Keep != nil {
+		capacity = 0
+	}
+	rows := make([][]sqltype.Value, 0, capacity)
+	for _, fact := range facts {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		d := fact.Definition
+		name := settings.DisplayName(d.Name)
+		if in.Keep != nil && !in.Keep(sqltype.String(source.Columns[SettingsNameColumn].Usage.Type, name)) {
+			continue
+		}
 		row := make([]sqltype.Value, len(source.Columns))
 		for j, column := range source.Columns {
 			row[j] = sqltype.Null(column.Usage.Type)
@@ -30,7 +41,7 @@ func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 		text := func(index int, value string) {
 			row[index] = sqltype.String(source.Columns[index].Usage.Type, value)
 		}
-		text(0, settings.DisplayName(d.Name))
+		text(SettingsNameColumn, name)
 		text(1, d.CurrentRaw(fact.Value))
 		if d.Unit != settings.UnitNone {
 			text(2, [...]string{"", "B", "kB", "MB", "ms", "s", "min", "8kB"}[d.Unit])
@@ -68,7 +79,7 @@ func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 			text(13, d.Raw(fact.Reset))
 		}
 		row[16] = sqltype.Boolean(source.Columns[16].Usage.Type, false)
-		rows[i] = row
+		rows = append(rows, row)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

@@ -35,6 +35,7 @@ type Input struct {
     Source  *catalog.Relation
     Runtime Runtime
     TypeNamePath []ids.ObjectAddress
+    Keep    func(sqltype.Value) bool
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -70,6 +71,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   column's descriptor. Producers check the expected shape and types and fail
   otherwise.
 - Producers check `Context` between descriptors and return its error.
+- `Keep`, when set, tests the key cell of a candidate row; a producer with a
+  key column may omit the rows it rejects, which the statement's own filter
+  rejects anyway (`exec.CatalogSourceKeep`). Only `pg_settings` has one
+  (`SettingsNameColumn`). Captures made with `Keep` are never shared.
 - Rows are immutable once returned: the engine may share one capture across
   statements with the same inputs, so neither producers nor consumers write
   into returned rows.
@@ -494,6 +499,8 @@ authority, never the recorded `Version`.
 - `pg_transform` (3576): checks cancellation, then the five carrier types, and
   returns a non-nil empty source.
 - `pg_settings`: projects registry metadata and one coherent typed snapshot;
+  with `Keep` (a SELECT filtering its own scan by setting name) it builds only
+  the named rows;
   the engine filters restricted rows using captured effective-user INHERIT
   authority before acquiring the settings mutex. Boot/reset metadata preserves
   SQL NULL separately from empty current strings and simulated startup defaults.
