@@ -39,6 +39,15 @@ import this package directly.
   thresholds retain typed transactional values without allocating disk/cache
   resources, index workers or code generators. All share the numeric/unit
   parser and ordinary settings journal; JIT thresholds admit all values >= -1.
+  `geqo.go` owns the seven unrestricted USERSET GEQO descriptors (`geqo`,
+  `geqo_threshold`, `geqo_effort`, `geqo_pool_size`, `geqo_generations`,
+  `geqo_selection_bias`, `geqo_seed`). They reuse ordinary parsing, captured
+  defaults and the session transaction journal. Pool size 1 remains valid;
+  zero pool/generations remain stored zero. This is a stored-only configuration
+  boundary: there is no native genetic enumeration, seed-driven search or
+  threshold-driven plan change. Existing cost-driven access selection and local
+  workers remain operative, independently of these settings; they do not imply
+  PostgreSQL physical workers or disk I/O.
 - **Values** (`value.go`, `number.go`, `units.go`): `Value` and
   `Definition.Parse`/`Format`, base-unit `Raw` and current-catalog `CurrentRaw`,
   PostgreSQL-compatible number scanning (`ParseNumber`, also used for storage

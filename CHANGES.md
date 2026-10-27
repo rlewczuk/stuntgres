@@ -1,5 +1,10 @@
 # Changes
 
+- Register all seven GEQO settings with PostgreSQL metadata, validation and
+  transactional session state. Keep genetic optimization explicitly stored-only;
+  exercise real cost-selected access methods and exact duplicate results under
+  both GEQO profiles.
+
 - Add the database-local four-column `pg_subscription_rel` catalog with exact
   row/array ownership, owner+PUBLIC stored ACL and current prepared-read
   authorization. Its authenticated empty state does not simulate replication.
