@@ -74,9 +74,7 @@ seams, binders and storage paths; do not build parallel implementations.
 
 ## Documentation rules
 
-- Write change notes, change logs, history, task/step IDs, run results and proof
-  notes **only** in [CHANGES.md](CHANGES.md): a brief entry at the top for
-  consumer-visible changes. Never put them in README.md, `docs/` or package READMEs.
+- Do NOT write any change notes to any file, commit log is good enough.
 - `README.md` is consumer-facing only: what the project is, usage, server, building.
 - A package `README.md` states the current contract: responsibility, layering,
   ownership, invariants, lock order and entry points. Its `## Testing` covers
