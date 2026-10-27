@@ -190,6 +190,8 @@ func ExtensionMembership(d Descriptor) ids.ObjectAddress {
 		return d.Extension
 	case *OperatorFamily:
 		return d.Extension
+	case *Cast:
+		return d.Extension
 	}
 	return ids.ObjectAddress{}
 }
@@ -201,7 +203,7 @@ func ValidateExtensionMembership(view Read, d Descriptor) error {
 		return nil
 	}
 	ext, ok := view.Extension(address)
-	if !ok || d.Address().ClassID != ids.TSDictionaryClassID && ext.TargetNamespace != d.Namespace() {
+	if !ok || d.Address().ClassID != ids.TSDictionaryClassID && d.Address().ClassID != ids.CastClassID && ext.TargetNamespace != d.Namespace() {
 		return fmt.Errorf("stuntgres: invalid extension member placement")
 	}
 	for _, member := range ext.Members {

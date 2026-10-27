@@ -33,7 +33,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		t.Fatal("wrong actual owner record", string(data))
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 9 {
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 11 {
 		t.Fatalf("actual bounded owner inventory %s/%v", data, err)
 	}
 	bySlot := make(map[int]map[string]json.RawMessage)
@@ -44,7 +44,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		}
 		bySlot[slot] = member
 	}
-	for slot, want := range []struct{ kind, signature string }{{"type", ""}, {"procedure", "2275"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"operator", "0,hstore"}, {"operator", "0,hstore"}} {
+	for slot, want := range []struct{ kind, signature string }{{"type", ""}, {"procedure", "2275"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"procedure", "hstore"}, {"operator", "0,hstore"}, {"operator", "0,hstore"}, {"procedure", "hstore"}, {"procedure", "hstore"}} {
 		member := bySlot[slot]
 		var kind, signature string
 		if member == nil {
@@ -81,6 +81,16 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		bySlot[5]["signature"] = json.RawMessage(`"25"`)
 	case "json_loose_kind":
 		bySlot[6]["kind"] = json.RawMessage(`"type"`)
+	case "jsonb_signature":
+		bySlot[9]["signature"] = json.RawMessage(`"25"`)
+	case "jsonb_loose_kind":
+		bySlot[10]["kind"] = json.RawMessage(`"type"`)
+	case "jsonb_duplicate":
+		bySlot[10]["slot"] = json.RawMessage(`9`)
+	case "jsonb_missing":
+		members = members[:len(members)-1]
+	case "jsonb_cast_owner":
+		members = append(members, map[string]json.RawMessage{"slot": json.RawMessage(`11`), "kind": json.RawMessage(`"cast"`), "name": json.RawMessage(`"hstore_jsonb"`)})
 	default:
 		t.Fatal("unknown owner mutation", kind)
 	}

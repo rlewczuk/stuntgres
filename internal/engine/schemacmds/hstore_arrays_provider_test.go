@@ -65,7 +65,7 @@ func TestHstoreArraysProviderIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	owners, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
-	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount || owners.Members[3].Signature != "hstore" || owners.Members[extension.HstoreArrayOperatorSlot].Signature != "0,hstore" {
+	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount-1 || owners.Members[3].Signature != "hstore" || owners.Members[extension.HstoreArrayOperatorSlot].Signature != "0,hstore" {
 		t.Fatal("portable roles", owners, err)
 	}
 	for _, corrupt := range []func(*catalog.State, *catalog.Extension){

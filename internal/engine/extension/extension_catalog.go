@@ -64,7 +64,7 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 				return invalid()
 			}
 			switch member.(type) {
-			case *catalog.Type, *catalog.Procedure, *catalog.TSDictionary:
+			case *catalog.Type, *catalog.Procedure, *catalog.TSDictionary, *catalog.Cast:
 				// Their public namespace may change independently of the
 				// installation. Provider manifests retain identity authority.
 			default:

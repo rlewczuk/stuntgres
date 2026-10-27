@@ -227,6 +227,23 @@ func StageDropCast(h DDLHost, a ddl.Authority, s *parser.DropCast) error {
 		}
 		return castTypeError(h, a, source, target, "42704", "cast from type %s to type %s does not exist")
 	}
+	if d.Extension != (ids.ObjectAddress{}) {
+		view := h.AccessView(a).Catalog
+		if err := (catalog.CastProvider{}).Validate(view, d); err != nil {
+			return err
+		}
+		ext, ok := view.Extension(d.Extension)
+		if !ok {
+			return fmt.Errorf("stuntgres: missing cast extension")
+		}
+		object, err := h.DependencyObject(a, d.Address())
+		if err != nil {
+			return err
+		}
+		diagnostic := sqlError("2BP01", "cannot drop "+object+" because extension "+catalog.DependencyIdentifier(ext.Name())+" requires it").(*sqlstate.Error)
+		diagnostic.Hint = "You can drop extension " + catalog.DependencyIdentifier(ext.Name()) + " instead."
+		return diagnostic
+	}
 	if d.GeneratedRange != (ids.ObjectAddress{}) {
 		if err := (catalog.CastProvider{}).Validate(h.AccessView(a).Catalog, d); err != nil {
 			return err

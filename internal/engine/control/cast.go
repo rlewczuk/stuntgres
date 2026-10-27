@@ -18,7 +18,7 @@ func collectCastDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 func (s *dumpScript) castEvents() error {
 	for _, descriptor := range s.CatalogView.Descriptors() {
 		d, ok := descriptor.(*catalog.Cast)
-		if !ok || d.GeneratedRange != (ids.ObjectAddress{}) {
+		if !ok || d.GeneratedRange != (ids.ObjectAddress{}) || d.Extension != (ids.ObjectAddress{}) {
 			continue
 		}
 		event := dump.Event{OID: d.OID}
@@ -38,7 +38,7 @@ func (s *dumpScript) castEvents() error {
 func (s *dumpScript) castDeclarations() error {
 	for _, descriptor := range s.CatalogView.Descriptors() {
 		d, ok := descriptor.(*catalog.Cast)
-		if !ok || d.GeneratedRange != (ids.ObjectAddress{}) {
+		if !ok || d.GeneratedRange != (ids.ObjectAddress{}) || d.Extension != (ids.ObjectAddress{}) {
 			continue
 		}
 		statement, err := castDumpStatement(s.CatalogView, d)

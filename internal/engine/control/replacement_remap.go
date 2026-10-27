@@ -101,7 +101,7 @@ func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddr
 	case *catalog.Cast:
 		n := *r
 		n.OID = target.ObjectID
-		for _, field := range []*ids.ObjectAddress{&n.Function, &n.InputCast, &n.ResultCast, &n.GeneratedRange} {
+		for _, field := range []*ids.ObjectAddress{&n.Function, &n.InputCast, &n.ResultCast, &n.GeneratedRange, &n.Extension} {
 			if mapped, ok := mapping[*field]; ok {
 				*field = mapped
 			}

@@ -143,6 +143,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   builder, sharing the JSON escaper and lexical number scanner with existing
   consumers. Loose detection preserves complete numeric lexemes without
   magnitude conversion; descriptor validation precedes SQL NULL.
+  `HstoreJSONB` instead constructs structural string/null/bool/exact-number
+  nodes directly, borrowing the frozen canonical pairs. Loose numbers use the
+  existing numeric provider's normalization and range checks; JSONB output,
+  comparison and hashing consume the genuine immutable carrier.
 - Seg owns an inline fixed pair of binary32 words, significant-digit counts
   and endpoint markers. Its strict scanner and precision-aware formatter share
   the ordinary type I/O and coercion seams. Representation identity includes all

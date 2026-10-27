@@ -21,6 +21,9 @@ const (
 	HstoreJSONLooseProcedureSlot
 	HstoreArrayOperatorSlot
 	HstoreMatrixOperatorSlot
+	HstoreJSONBProcedureSlot
+	HstoreJSONBLooseProcedureSlot
+	HstoreJSONBCastSlot
 	HstoreMemberCount
 )
 
@@ -45,8 +48,10 @@ func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 		class := ids.ProcedureClassID
 		if i == HstoreTypeSlot {
 			class = ids.TypeClassID
-		} else if i >= HstoreArrayOperatorSlot {
+		} else if i == HstoreArrayOperatorSlot || i == HstoreMatrixOperatorSlot {
 			class = ids.OperatorClassID
+		} else if i == HstoreJSONBCastSlot {
+			class = ids.CastClassID
 		}
 		if address.ClassID != class || address.ObjectID == 0 || address.SubID != 0 || seen[address] {
 			return invalid()
@@ -64,8 +69,8 @@ func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 	if err := validateRegisteredType(v, array); err != nil {
 		return err
 	}
-	for _, address := range ext.Members[HstoreInputSlot:HstoreArrayOperatorSlot] {
-		proc, ok := v.Procedure(address)
+	for _, slot := range [...]int{HstoreInputSlot, HstoreOutputSlot, HstoreArrayProcedureSlot, HstoreMatrixProcedureSlot, HstoreJSONProcedureSlot, HstoreJSONLooseProcedureSlot, HstoreJSONBProcedureSlot, HstoreJSONBLooseProcedureSlot} {
+		proc, ok := v.Procedure(ext.Members[slot])
 		if !ok {
 			return invalid()
 		}
@@ -77,6 +82,13 @@ func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 		if err := validateHstoreOperator(v, ext, base, i); err != nil {
 			return err
 		}
+	}
+	cast, ok := v.Cast(base.SQLType.ID(), sqltype.JSONB)
+	if !ok || cast.Address() != ext.Members[HstoreJSONBCastSlot] || cast.Extension != ext.Address() || cast.Function != ext.Members[HstoreJSONBProcedureSlot] || cast.Context != "e" || cast.Method != "f" || cast.InputCast != (ids.ObjectAddress{}) || cast.ResultCast != (ids.ObjectAddress{}) || cast.GeneratedRange != (ids.ObjectAddress{}) {
+		return invalid()
+	}
+	if err := (catalog.CastProvider{}).Validate(v, cast); err != nil {
+		return err
 	}
 	return nil
 }

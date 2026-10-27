@@ -306,8 +306,13 @@ it does not revive retired type authority.
 `hstore_to_json` and `hstore_to_json_loose` return JSON with string scan types:
 strict conversion quotes nonnull values; loose conversion recognizes complete
 JSON numbers and lowercase `t`/`f`, preserving numeric spelling. Member NULL
-becomes JSON null while SQL NULL remains SQL NULL. Stored calls keep installed
-routine identity across presentation changes and native restoration.
+becomes JSON null while SQL NULL remains SQL NULL.
+`hstore_to_jsonb` and `hstore_to_jsonb_loose` return JSONB through the same
+installed-call hooks. Loose JSONB numbers are normalized exact numerics and
+subject to numeric range checks. Explicit `hstore::jsonb` uses strict conversion;
+the installed cast does not authorize implicit or assignment coercion.
+Stored JSON and JSONB calls keep installed routine identity across presentation
+changes and native restoration.
 
 After `CREATE EXTENSION ltree`, ltree, lquery and ltxtquery columns accept literal and bound
 text or non-nil bytes; nil and typed-nil bytes are SQL NULL. Typed literal syntax

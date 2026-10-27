@@ -102,7 +102,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
-	hstoreFamily := name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose"
+	hstoreFamily := name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
 	if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
@@ -642,7 +642,20 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true, TypeNameCallPosition: raw.Pos})
 	}
 	d := selected.Procedure
-	if _, loweredCast := original.(parser.CastExpr); loweredCast && d != nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+	// Selected operator/cast dispatch passes already-bound arguments through
+	// negative binder-local slots. Only the owning written operator/cast may
+	// freeze their source recipes; a nested provider must not publish those
+	// transport slots into the stored syntax map.
+	freezeSyntax := b.Params.NoParameters || b.Consumer.frozenDefinition
+	if freezeSyntax {
+		for _, arg := range raw.Args {
+			if slot, ok := arg.(parser.ParameterExpr); ok && slot.Number < 0 {
+				freezeSyntax = false
+				break
+			}
+		}
+	}
+	if _, loweredCast := original.(parser.CastExpr); loweredCast && d != nil && freezeSyntax {
 		if b.Stored.Syntax == nil {
 			b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 		}
@@ -724,15 +737,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		result, _ := b.authorityType(selected.auth, sqltype.ID(d.Result))
 		info := b.Info(result.Usage(), raw.Pos, selected.properties)
 		info.RoutineReference = d
-		// Selected operator/cast dispatch already owns bound operands. Its
-		// negative parameter slots are internal transport, never frozen SQL.
-		// The owning cast/operator records the original written children.
-		synthetic := false
-		if len(raw.Args) != 0 {
-			parameter, ok := raw.Args[0].(parser.ParameterExpr)
-			synthetic = ok && parameter.Number < 0
-		}
-		if (b.Params.NoParameters || b.Consumer.frozenDefinition) && !synthetic {
+		if freezeSyntax {
 			namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
 			if !ok {
 				return nil, fmt.Errorf("missing constructor namespace")
@@ -754,15 +759,15 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if err != nil {
 			return nil, err
 		}
-		if symbol == "hstore_to_array" || symbol == "hstore_to_matrix" || symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" {
+		if symbol == "hstore_to_array" || symbol == "hstore_to_matrix" || symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" || symbol == "hstore_to_jsonb" || symbol == "hstore_to_jsonb_loose" {
 			var node expr.Expr
 			var err error
-			if symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" {
+			if symbol == "hstore_to_json" || symbol == "hstore_to_json_loose" || symbol == "hstore_to_jsonb" || symbol == "hstore_to_jsonb_loose" {
 				node, err = b.bindSelectedHstoreJSON(raw, selected, symbol)
 			} else {
 				node, err = b.bindSelectedHstoreArray(raw, selected, symbol)
 			}
-			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			if err == nil && freezeSyntax {
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
 				if b.Stored.Syntax == nil {
@@ -780,7 +785,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		if extension.CitextStringName(symbol) {
 			node, err := b.bindSelectedCitextString(raw, selected, symbol)
-			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			if err == nil && freezeSyntax {
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
 				if b.Stored.Syntax == nil {
@@ -792,7 +797,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		if extension.CitextRegexpName(symbol) {
 			node, err := b.bindSelectedCitextRegexp(raw, selected, symbol)
-			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			if err == nil && freezeSyntax {
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
 				if b.Stored.Syntax == nil {
@@ -804,7 +809,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		if extension.CitextComparisonName(symbol) {
 			node, err := b.bindSelectedCitextComparison(raw, selected, symbol)
-			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			if err == nil && freezeSyntax {
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
 				if b.Stored.Syntax == nil {
@@ -816,7 +821,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		if extension.CitextPatternName(symbol) {
 			node, err := b.bindSelectedCitextPattern(raw, selected, symbol)
-			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			if err == nil && freezeSyntax {
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
 				if b.Stored.Syntax == nil {
@@ -834,7 +839,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		if extension.CubeComparisonName(symbol) {
 			node, err := b.bindSelectedCubeComparison(raw, selected, symbol)
-			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			if err == nil && freezeSyntax {
 				// Scalar comparison lowering owns the same checked source
 				// occurrence, including aggregate-shaped written identifiers.
 				frozen := raw
@@ -904,7 +909,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		info := b.Info(resultUsage, raw.Pos, selected.properties)
 		info.RoutineReference = d
-		if b.Params.NoParameters || b.Consumer.frozenDefinition {
+		if freezeSyntax {
 			namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
 			if !ok {
 				return nil, fmt.Errorf("missing SQL routine namespace")
@@ -1063,7 +1068,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			Filter: raw.Filter, Window: raw.Window, Within: raw.Within, WithinPos: raw.WithinPos,
 		}
 		node, err := b.Bind(lowered, policy)
-		if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+		if err == nil && freezeSyntax {
 			// Ordinary written names can select aggregates and windows after a
 			// relabel. Capture their checked lowering at the same occurrence,
 			// but retain written operands rather than binder-local placeholders.

@@ -19,6 +19,7 @@ type Cast struct {
 	InputCast, ResultCast ids.ObjectAddress
 	Context, Method       string
 	GeneratedRange        ids.ObjectAddress // Canonical range owner; zero for ordinary user casts.
+	Extension             ids.ObjectAddress // Direct extension membership; casts remain ownerless.
 }
 
 func (d *Cast) Address() ids.ObjectAddress {
@@ -99,6 +100,14 @@ func (CastProvider) Validate(v Read, descriptor Descriptor) error {
 	}
 	if (d.Method == "f") != (d.Function.ObjectID != 0) {
 		return fmt.Errorf("stuntgres: invalid cast function")
+	}
+	if d.Extension != (ids.ObjectAddress{}) {
+		if d.GeneratedRange != (ids.ObjectAddress{}) {
+			return fmt.Errorf("stuntgres: conflicting cast ownership")
+		}
+		if err := ValidateExtensionMembership(v, d); err != nil {
+			return err
+		}
 	}
 	for _, a := range CastDependencies(d) {
 		if v.Get(a) == nil {

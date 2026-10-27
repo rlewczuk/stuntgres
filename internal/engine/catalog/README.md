@@ -245,6 +245,9 @@ private frames, not catalog authority.
   inclusion default. Four `BrinSupport` procedure capabilities declare internal
   summary signatures separately from scalar routines; the index owner executes
   summaries. `CastDependencies` is the shared pg_depend/DROP/dump authority.
+  Casts remain ownerless and namespaceless. A direct extension-owned cast carries
+  reciprocal `Extension` membership independently of its endpoint/function
+  dependencies, mutually exclusive with generated-range ownership.
   `Read.Cast` selects stored declarations; builtin casts remain
   intrinsic `sqltype` metadata. `SelectCoercion` and `CanCoerce` are the effect-free
   coercion authority of the analyzer and routine feasibility probes: declared direct pairs
@@ -444,7 +447,7 @@ Immutable routine declaration/configuration backing and comparable installed ide
 
 ```sh
 make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad|Relations)|Candidate|BuiltinRoutineResultInventory|(New)?Store|SeedShare|SharedSeed|InstallCatalogSource)'
-make check RACE=1 RUN='^Test(CastDefinition(PairIndex|CandidateIsolation)|.*PrincipalRemap|OperatorClass(Catalog|Value))'
+make check RACE=1 RUN='^Test(CastDefinition|.*PrincipalRemap|OperatorClass(Catalog|Value))'
 make check RUN='^Test(CatalogProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload|UserOperatorIndex)'
 make check RACE=1 RUN='^Test(AccessMethodDescriptor|PgClassSubclass|TableSummary|DefaultPrivileges(PublicationFence|CreationFence)|SQLRoutineStagedLookup|DropReaderSeam)'
 make check RUN='^(TestOperatorClassDefaultCompatibility|TestOperatorClassDefaultMultiplicity|TestOperatorClassDefaultAmbiguityDiagnostics)$'

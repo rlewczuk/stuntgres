@@ -61,8 +61,13 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 		if record.Name == "cube" && (len(record.Members) != CubeMemberCount || len(ext.Members) != CubeMemberCount) {
 			return false, fmt.Errorf("stuntgres: incomplete cube ownership manifest")
 		}
+		if record.Name == "hstore" {
+			if err := StockHstore.ValidateExtension(candidateView, ext); err != nil {
+				return false, err
+			}
+		}
 		expected := len(ext.Members)
-		if record.Name == "unaccent" {
+		if record.Name == "unaccent" || record.Name == "hstore" {
 			expected--
 		}
 		if len(record.Members) != expected {
@@ -310,6 +315,11 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				}
 			default:
 				return false, fmt.Errorf("stuntgres: ownerless extension metadata member")
+			}
+		}
+		if record.Name == "hstore" {
+			if err := StockHstore.ValidateExtension(candidateView, ext); err != nil {
+				return false, err
 			}
 		}
 	}

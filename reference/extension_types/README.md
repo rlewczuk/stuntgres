@@ -73,8 +73,11 @@ these are shared across families:
   numeric spelling and distinguish whole JSON numbers from string boundaries;
   stored views/defaults execute after restore and current-name dump replay.
   EXECUTE checks use current callers, distinguishing folded literal NULL from
-  demanded row-dependent NULL calls. The reusable family selector is
-  `RUN='^TestReferenceHstore'`.
+  demanded row-dependent NULL calls.
+  `hstore_jsonb_helpers_test.go` applies the JSONB metadata/transport contract;
+  independent strict/cast strings and loose exact-numeric normalization drive
+  projection, equality predicates, privileges and extension-owned cast lifecycle.
+  The reusable family selector is `RUN='^TestReferenceHstore'`.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,
   count/length diagnostic precedence, held binds, statement atomicity and native

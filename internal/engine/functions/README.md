@@ -157,10 +157,11 @@ routine declaration supplies signature, namespace, strictness and volatility;
 and explicitness arguments remain evaluated operands. Rebuild, capture, grouping
 and rendering preserve the selected call rather than reinterpreting it as a
 typename shortcut. No procedure becomes callable from type-catalog presence alone.
-`HstoreArray` and `HstoreJSON` each retain one selected installed conversion
-declaration and one owned typed operand. Reconstruction, retagging, grouping and
-qualified replay preserve formal generation, mode and member identity. Shared
-strict NULL preflight and routine admission use current caller authority; neither
+`HstoreArray` and the shared JSON/JSONB `HstoreJSON` node each retain one selected
+installed conversion declaration and one owned typed operand. Reconstruction,
+retagging, grouping and qualified replay preserve formal/result generations,
+mode and exact member identity.
+Shared strict NULL preflight and routine admission use current caller authority; neither
 node caches ACLs. Typed evaluation belongs to sqltype, not function spelling.
 `String` optionally retains a `CitextStringCapture` for a selected installed
 scalar. Reconstruction, grouping, rendering and type retagging preserve its

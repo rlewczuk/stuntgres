@@ -24,6 +24,8 @@ type castReplay struct {
 }
 
 func sameReplayCast(a, b *catalog.Cast) bool {
+	// Generic frozen recipes omit signature adapters. Authentic extension edges
+	// check those fields separately before relying on their installation.
 	return a.Source == b.Source && a.Target == b.Target && a.Method == b.Method && a.Context == b.Context && a.Function == b.Function && a.GeneratedRange == b.GeneratedRange
 }
 func castContext(context string, mode sqltype.CoercionContext) string {
@@ -212,6 +214,9 @@ rows:
 	for _, required := range requests {
 		for _, d := range required {
 			if final, exists := s.CatalogView.Cast(d.Source, d.Target); exists && !sameReplayCast(final, &d) {
+				if final.Extension != (ids.ObjectAddress{}) {
+					return fmt.Errorf("stuntgres: historical cast conflicts with installed extension")
+				}
 				postponed[pair{d.Source, d.Target}] = true
 			}
 		}
@@ -235,7 +240,7 @@ rows:
 	}
 	for _, descriptor := range s.CatalogView.Descriptors() {
 		final, ok := descriptor.(*catalog.Cast)
-		if !ok || final.GeneratedRange != (ids.ObjectAddress{}) || s.lateForeignCasts[final.OID] {
+		if !ok || final.GeneratedRange != (ids.ObjectAddress{}) || final.Extension != (ids.ObjectAddress{}) || s.lateForeignCasts[final.OID] {
 			continue
 		}
 		for oid := range s.lateForeignCasts {
@@ -269,6 +274,36 @@ rows:
 				continue
 			}
 			final, exists := s.CatalogView.Cast(d.Source, d.Target)
+			if exists && final.Extension != (ids.ObjectAddress{}) {
+				if !sameReplayCast(final, &d) || final.InputCast != d.InputCast || final.ResultCast != d.ResultCast || d.Extension != (ids.ObjectAddress{}) && d.Extension != final.Extension {
+					return fmt.Errorf("stuntgres: stale extension cast replay")
+				}
+				if err := (catalog.CastProvider{}).Validate(s.CatalogView, final); err != nil {
+					return err
+				}
+				installation, ok := s.CatalogView.Extension(final.Extension)
+				if !ok {
+					return fmt.Errorf("stuntgres: missing cast extension")
+				}
+				provider, ok := s.CatalogView.Owner().Extensions[installation.Name()]
+				if !ok {
+					return fmt.Errorf("stuntgres: missing cast extension provider")
+				}
+				if err := provider.ValidateExtension(s.CatalogView, installation); err != nil {
+					return err
+				}
+				if !site.ForeignDefault {
+					oid, err := predecessor(s.CatalogView, final.Address(), ids.ObjectAddress{})
+					if err != nil {
+						return err
+					}
+					s.Graph.Add(event, dump.Event{OID: oid})
+				}
+				continue
+			}
+			if d.Extension != (ids.ObjectAddress{}) {
+				return fmt.Errorf("stuntgres: unavailable extension cast replay")
+			}
 			raw := s.rawFloat4 && d.Source == sqltype.Xid && d.Target == sqltype.Float4
 			if raw && d.Method == "b" && d.Context == "e" {
 				continue

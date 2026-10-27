@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,11 +15,8 @@ func validateCapturedHstoreJSON(call functions.HstoreJSON, captured *catalog.Pro
 	if err := call.Validate(); err != nil {
 		return err
 	}
-	symbol := "hstore_to_json"
-	if call.Loose {
-		symbol = "hstore_to_json_loose"
-	}
-	if captured == nil || call.RoutineReference != captured || captured.Revision() == 0 || call.Ref.Address != captured.Address() || captured.Implementation != extension.StockHstore || captured.Builtin != nil || captured.SQL != nil || captured.Foreign != nil || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Signature != extension.HstoreSignature(call.Formal.ID()) || captured.Result != 114 || captured.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol}) || captured.Installed != (catalog.InstalledRoutineDeclaration{}) {
+	symbol, result, _, _ := functions.HstoreJSONDeclaration(call.Member)
+	if captured == nil || call.RoutineReference != captured || captured.Revision() == 0 || call.Ref.Address != captured.Address() || captured.Implementation != extension.StockHstore || captured.Builtin != nil || captured.SQL != nil || captured.Foreign != nil || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Signature != extension.HstoreSignature(call.Formal.ID()) || captured.Result != ids.OID(result) || captured.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol}) || captured.Installed != (catalog.InstalledRoutineDeclaration{}) {
 		return fmt.Errorf("stuntgres: invalid captured hstore JSON declaration")
 	}
 	return nil
@@ -34,9 +32,9 @@ func validateHstoreJSONDeclaration(view catalog.Read, original *catalog.Procedur
 	if err != nil {
 		return nil, err
 	}
-	want := "hstore_to_json"
-	if call.Loose {
-		want = "hstore_to_json_loose"
+	want, resultID, _, admitted := functions.HstoreJSONDeclaration(call.Member)
+	if !admitted {
+		return invalid()
 	}
 	if current.Implementation != extension.StockHstore || symbol != want {
 		return invalid()
@@ -49,7 +47,7 @@ func validateHstoreJSONDeclaration(view catalog.Read, original *catalog.Procedur
 	if !ok || base.SQLType != types(call.Formal) || base.SQLType != types(call.Arg.ResultUsage().Type) {
 		return invalid()
 	}
-	result, ok := view.LookupType(114)
+	result, ok := view.LookupType(resultID)
 	if !ok || types(call.Usage.Type) != result || current.Signature != extension.HstoreSignature(base.SQLType.ID()) {
 		return invalid()
 	}

@@ -316,6 +316,9 @@ library, and never the root engine or `session`. The engine, the root driver
   callable/operator probes: it binds no routine, checks no EXECUTE and captures
   no losing-candidate dependency. Catalog-free callers pass nil. Prepared
   captures record pair identity or absence for invalidation.
+  Negative selected-routine argument slots are binder-local transport, never
+  frozen source syntax. The owning written cast/operator supplies original
+  argument recipes; provider dispatch cannot overwrite them with placeholders.
   Seed-only comparison resolution retains its allocation-free shortcut for
   ordinary inputs. A missing signature is resolved against visible catalog
   operators and implicit coercions before reporting a missing operator; hidden

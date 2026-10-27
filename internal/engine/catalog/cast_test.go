@@ -63,6 +63,7 @@ func TestCastDefinitionPrincipalRemap(t *testing.T) {
 		InputCast:  ids.ObjectAddress{ClassID: ids.CastClassID, ObjectID: 912},
 		ResultCast: ids.ObjectAddress{ClassID: ids.CastClassID, ObjectID: 913},
 		Context:    "e", Method: "f",
+		Extension: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 914},
 	}
 	state.SetDescriptor(cast.Address(), cast)
 	state.BindName(DescriptorNameKey(cast), cast.Address())
@@ -107,4 +108,49 @@ func TestCatalogVectorCoercionEligibility(t *testing.T) {
 	if i,err:=sqltype.ResolveOperatorWithCoercion(candidates,types[1007],types[1007],false,can);err!=nil||i!=0{t.Fatal("exact anyarray operator lost to vector",i,err)}
 	if _,err:=sqltype.ResolveOperatorWithCoercion(candidates,types[1007],types[1016],false,can);err==nil{t.Fatal("different ordinary arrays gained an operator through vectors")}
 	if i,err:=sqltype.ResolveOperatorWithCoercion(candidates,types[sqltype.OidVector],types[sqltype.OidVector],false,can);err!=nil||i!=1{t.Fatal("exact vector operator lost",i,err)}
+}
+
+func TestCastDefinitionExtensionMembership(t *testing.T) {
+	state, ns, _ := catalogReadFixture()
+	for _, typ := range sqltype.Builtins() {
+		if typ.ID() == sqltype.Int4 || typ.ID() == sqltype.Int8 {
+			d := &Type{SQLType: typ, ObjectRevision: 1}
+			state.SetDescriptor(d.Address(), d)
+		}
+	}
+	cast := &Cast{OID: 920, ObjectRevision: 1, Source: sqltype.Int4, Target: sqltype.Int8, Context: "e", Method: "i", Extension: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 921}}
+	ext := &Extension{ObjectAddress: cast.Extension, ObjectRevision: 1, ObjectName: "cast_owner", Version: "1", TargetNamespace: ns.Address(), Members: []ids.ObjectAddress{cast.Address()}}
+	for _, d := range []Descriptor{ext, cast} {
+		state.SetDescriptor(d.Address(), d)
+		state.BindName(DescriptorNameKey(d), d.Address())
+	}
+	view := Read{state: state}
+	if ExtensionMembership(cast) != ext.Address() || cast.Namespace() != (ids.ObjectAddress{}) {
+		t.Fatal("cast acquired namespace or lost direct membership")
+	}
+	if err := (CastProvider{}).Validate(view, cast); err != nil {
+		t.Fatal("ownerless member rejected", err)
+	}
+	for _, cause := range []string{"missing_extension", "missing_member", "generated_owner"} {
+		t.Run(cause, func(t *testing.T) {
+			candidate := CloneState(state)
+			bad, owner := *cast, *ext
+			switch cause {
+			case "missing_extension":
+				bad.Extension.ObjectID++
+			case "missing_member":
+				owner.Members = nil
+			case "generated_owner":
+				bad.GeneratedRange = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(cast.Source)}
+			}
+			candidate.SetDescriptor(bad.Address(), &bad)
+			candidate.SetDescriptor(owner.Address(), &owner)
+			if err := (CastProvider{}).Validate(Read{state: candidate}, &bad); err == nil {
+				t.Fatal("invalid ownerless membership accepted", cause)
+			}
+			if got, ok := view.Cast(cast.Source, cast.Target); !ok || got != cast || view.Get(ext.Address()) != ext {
+				t.Fatal("candidate changed retained descriptor/pair/owner")
+			}
+		})
+	}
 }

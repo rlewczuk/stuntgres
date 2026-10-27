@@ -35,18 +35,28 @@ func (b *Binder) bindSelectedHstoreJSON(raw parser.FunctionExpr, selected sqlCal
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing hstore JSON installation")
 	}
-	member := extension.HstoreJSONProcedureSlot
-	if symbol == "hstore_to_json_loose" {
+	var member int
+	switch symbol {
+	case "hstore_to_json":
+		member = extension.HstoreJSONProcedureSlot
+	case "hstore_to_json_loose":
 		member = extension.HstoreJSONLooseProcedureSlot
+	case "hstore_to_jsonb":
+		member = extension.HstoreJSONBProcedureSlot
+	case "hstore_to_jsonb_loose":
+		member = extension.HstoreJSONBLooseProcedureSlot
+	default:
+		return nil, fmt.Errorf("stuntgres: invalid hstore JSON symbol")
 	}
+	_, result, loose, _ := functions.HstoreJSONDeclaration(uint8(member))
 	if installation.Members[member] != procedure.Address() {
 		return nil, fmt.Errorf("stuntgres: invalid hstore JSON member")
 	}
 	properties := expr.MergeProperties(expr.Properties{Volatility: expr.Immutable}, arg.Properties())
-	info := b.Info(b.Type(114).Usage(), raw.Pos, properties)
+	info := b.Info(b.Type(result).Usage(), raw.Pos, properties)
 	info.RoutineReference = procedure
 	ref := view.Owner().Domain.Ref(view.Epoch(), procedure.Address())
 	b.dependency(ref, procedure.Revision())
-	node := functions.HstoreJSON{Info: info, Arg: arg, Formal: selected.Inputs[0].Type, Loose: member == extension.HstoreJSONLooseProcedureSlot, Ref: ref, Member: uint8(member), Namespace: view.Get(procedure.Namespace()).Name(), Name: procedure.Name()}
+	node := functions.HstoreJSON{Info: info, Arg: arg, Formal: selected.Inputs[0].Type, Loose: loose, Ref: ref, Member: uint8(member), Namespace: view.Get(procedure.Namespace()).Name(), Name: procedure.Name()}
 	return node, node.Validate()
 }

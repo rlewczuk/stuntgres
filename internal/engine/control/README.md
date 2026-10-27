@@ -221,6 +221,9 @@ function references once into the destination authority.
   cast row is installed once after all windows for its pair. Aggregate binary
   recipes, foreign defaults and generated-column placeholders
   (`table.PrepareGenerationPlaceholders`) use the same windows.
+  Genuine extension-owned casts have no standalone declaration or window:
+  matching frozen semantic recipes depend on their validated extension
+  predecessor. Replacement remaps reciprocal membership as well as endpoints.
 - **Raw FLOAT4 words** (noncanonical NaN only, `regobj.NeedsFloat4RawReplay`)
   replay through a binary `xid → real` cast; Restore has no raw-datum decoder.
 - **Exact Seg cells** share the bounded private row-replay record. A tagged
@@ -399,3 +402,5 @@ compare byte for byte. Never commit the program.
 - Engine remap and TEMP preservation: `RUN='^Test(RuleNamedConstraintRemap|ViewRuleOIDUniquenessAfterRestore|PartitionConstraintsDefinitionRemapping|.*RetainedTemporary.*|.*TemporaryCollision)$'`
 - Round trips: `RUN='^TestReference(Control|DumpRoundTrip)'`
 - Cast replay windows: `RUN='^TestReferenceCastDefinition(ReplayPhases|ReplayConflicts|RawFloat4Persistence|ForeignDefaults)$'`
+- Ownerless cast membership, replay semantics and replacement remapping:
+  `RUN='^TestCastExtension'` (also with `RACE=1`).

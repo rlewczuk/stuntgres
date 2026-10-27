@@ -52,6 +52,11 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			return "", err
 		}
 	}
+	if ext.Name() == "hstore" {
+		if err := StockHstore.ValidateExtension(view, ext); err != nil {
+			return "", err
+		}
+	}
 	for slot, a := range ext.Members {
 		d := view.Get(a)
 		var member MemberOwner
@@ -118,7 +123,7 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			}
 			member = MemberOwner{Kind: "type", Name: roleName}
 			principal = d.Owner
-		case *catalog.TSTemplate:
+		case *catalog.TSTemplate, *catalog.Cast:
 			continue
 		default:
 			return "", fmt.Errorf("stuntgres: missing extension owner member")
@@ -229,7 +234,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	case record.Name == "unaccent" && record.Version == "1.1":
 		expectedMembers = 5
 	case record.Name == "hstore" && record.Version == "1.8":
-		expectedMembers = HstoreMemberCount
+		expectedMembers = HstoreMemberCount - 1 // The cast has no owner or ACL.
 	case record.Name == "seg" && record.Version == "1.4":
 		expectedMembers = 3
 	case record.Name == "intarray" && record.Version == "1.5":
@@ -475,7 +480,7 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			}
 		}
 	case "seg", "hstore", "intarray", "citext":
-		if name == "hstore" && slot >= HstoreArrayProcedureSlot && slot < HstoreArrayOperatorSlot {
+		if name == "hstore" && (slot >= HstoreArrayProcedureSlot && slot < HstoreArrayOperatorSlot || slot == HstoreJSONBProcedureSlot || slot == HstoreJSONBLooseProcedureSlot) {
 			return "hstore", true
 		}
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
