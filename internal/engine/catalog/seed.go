@@ -14,7 +14,7 @@ import (
 // installSeedDescriptor sets d and binds its descriptor name.
 func installSeedDescriptor(state *State, d Descriptor) {
 	state.addSeedDescriptor(d.Address(), d)
-	state.BindName(DescriptorNameKey(d), d.Address())
+	state.bindSeedName(d)
 }
 
 // InstallBuiltinNamespaces installs pg_catalog, pg_toast, public and
@@ -37,7 +37,7 @@ func InstallBuiltinNamespaces(state *State, owner, publicOwner authorization.Pri
 		}
 		d.Comment = NamespaceCommentBaseline(ns.oid)
 		state.SetDescriptor(d.Address(), d)
-		state.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
+		state.bindSeedName(d)
 	}
 }
 
@@ -148,5 +148,5 @@ func InstallCatalogSource(state *State, d *Relation) {
 		}
 	}
 	state.SetDescriptor(d.Address(), d)
-	state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
+	state.bindSeedName(d)
 }

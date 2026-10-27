@@ -148,4 +148,42 @@ func TestBuiltinSeedNamesMatchUnsharedSeed(t *testing.T) {
 			t.Fatalf("database %q: shared seed has %d names, own seed %d", config.database, len(shared), len(own))
 		}
 	}
+	if !core.BuiltinSeed().SharesNames() || core.BuiltinSeed().Fallbacks() != 0 {
+		t.Fatal("engine seeds did not follow the shared names", core.BuiltinSeed().SharesNames(), core.BuiltinSeed().Fallbacks())
+	}
+}
+
+// A seed that follows the shared names reads names during the seed as its own
+// seed would: row types, domain checks and defaults come out the same. Every
+// seeded descriptor holds exactly the name its descriptor key gives.
+func TestSharedSeedMatchesUnsharedSeedDescriptors(t *testing.T) {
+	_ = engine.New()
+	shared := engine.New().Catalog.State
+	saved := core.BuiltinSeed()
+	*core.BuiltinSeedRef() = &catalog.SeedShare{}
+	own := engine.New().Catalog.State
+	*core.BuiltinSeedRef() = saved
+	for _, state := range []*catalog.State{shared, own} {
+		if state.NameCount() != state.DescriptorCount() {
+			t.Fatal("seed names do not bind one name per descriptor", state.NameCount(), state.DescriptorCount())
+		}
+		for k, a := range state.Names() {
+			if catalog.DescriptorNameKey(state.Get(a)) != k {
+				t.Fatalf("name %v does not name %v", k, a)
+			}
+		}
+	}
+	for a, d := range shared.Descriptors() {
+		switch d := d.(type) {
+		case *catalog.Type:
+			o, ok := own.Get(a).(*catalog.Type)
+			if !ok || o.OwningRelation != d.OwningRelation || len(o.DomainChecks) != len(d.DomainChecks) || (o.DomainDefault == nil) != (d.DomainDefault == nil) {
+				t.Fatalf("type %v differs from its own seed", a)
+			}
+		case *catalog.Relation:
+			if o, ok := own.Get(a).(*catalog.Relation); !ok || o.RowType != d.RowType {
+				t.Fatalf("relation %v differs from its own seed", a)
+			}
+		}
+	}
 }

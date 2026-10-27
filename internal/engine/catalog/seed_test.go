@@ -9,37 +9,82 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// seedFixture seeds namespaces, tablespaces and a database named database
-// with share; extra adds a namespace that other seeds do not bind.
-func seedFixture(share *SeedShare, database string, extra bool) *Store {
-	domain := &authorization.Domain{}
-	owner := domain.Principal(authorization.BootstrapPrincipalID)
+// seedFixture seeds namespaces, tablespaces, access methods and a database
+// named database with share, after the steps of variant (seedSteps).
+func seedFixture(share *SeedShare, database, variant string) *Store {
+	s := newSeedStore(share)
+	for _, step := range seedSteps(variant) {
+		step(s.State)
+	}
+	finishSeedFixture(s, share, database)
+	return s
+}
+
+func newSeedStore(share *SeedShare) *Store {
 	s := NewStore(Owner{Providers: map[ids.OID]Provider{}}, 16384, 2)
 	s.PublishLocked(NewState(1))
-	s.State.BeginBulkLoad(16)
-	InstallBuiltinNamespaces(s.State, owner, domain.Principal(6171))
-	InstallBuiltinTablespaces(s.State, owner)
-	if extra {
-		installSeedDescriptor(s.State, &Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99999}, ObjectName: "seed_extra", ObjectRevision: 1, Owner: owner})
-	}
-	installSeedDescriptor(s.State, &Database{ObjectAddress: s.DatabaseAddress(), ObjectRevision: 1, ObjectName: database, Owner: owner})
-	s.FinishSeedLocked(share)
+	s.BeginSeedLocked(share, 16)
 	return &s
+}
+
+// finishSeedFixture binds the database like the engine (a plain bind) and
+// finishes the seed.
+func finishSeedFixture(s *Store, share *SeedShare, database string) {
+	domain := &authorization.Domain{}
+	db := &Database{ObjectAddress: s.DatabaseAddress(), ObjectRevision: 1, ObjectName: database, Owner: domain.Principal(authorization.BootstrapPrincipalID)}
+	s.State.SetDescriptor(db.Address(), db)
+	s.State.BindName(DescriptorNameKey(db), db.Address())
+	s.FinishSeedLocked(share)
+}
+
+// seedSteps returns the install steps of a test seed. "" is the recorded
+// order; the others diverge from it: "extra" binds one more namespace,
+// "missing" skips tablespaces, "reordered" installs tablespaces first,
+// "rebind" moves a seeded name and "unbind" removes one.
+func seedSteps(variant string) []func(*State) {
+	domain := &authorization.Domain{}
+	owner := domain.Principal(authorization.BootstrapPrincipalID)
+	namespaces := func(s *State) { InstallBuiltinNamespaces(s, owner, domain.Principal(6171)) }
+	tablespaces := func(s *State) { InstallBuiltinTablespaces(s, owner) }
+	methods := func(s *State) { InstallBuiltinAccessMethods(s) }
+	public := ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}
+	switch variant {
+	case "extra":
+		return []func(*State){namespaces, tablespaces, func(s *State) {
+			installSeedDescriptor(s, &Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99999}, ObjectName: "seed_extra", ObjectRevision: 1, Owner: owner})
+		}, methods}
+	case "missing":
+		return []func(*State){namespaces, methods}
+	case "reordered":
+		return []func(*State){tablespaces, namespaces, methods}
+	case "rebind":
+		return []func(*State){namespaces, func(s *State) { s.BindName(public, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99998}) }, tablespaces, methods}
+	case "unbind":
+		return []func(*State){namespaces, func(s *State) { s.UnbindName(public) }, tablespaces, methods}
+	}
+	return []func(*State){namespaces, tablespaces, methods}
 }
 
 // A seed finished with a filled share ends with exactly the names it bound,
 // as if it had built its own map, including when it bound different names.
 func TestSeedShareNamesMatchOwnSeed(t *testing.T) {
 	share := &SeedShare{}
-	first := seedFixture(share, "first", false)
-	for _, c := range []struct {
-		database string
-		extra    bool
-	}{{"first", false}, {"second", false}, {"third", true}} {
-		shared := maps.Collect(seedFixture(share, c.database, c.extra).State.Names())
-		own := maps.Collect(seedFixture(&SeedShare{}, c.database, c.extra).State.Names())
+	first := seedFixture(share, "first", "")
+	if !share.SharesNames() {
+		t.Fatal("the first seed did not record its names")
+	}
+	for _, c := range []struct{ database, variant string }{
+		{"first", ""}, {"second", ""}, {"third", "extra"}, {"fourth", "missing"},
+		{"fifth", "reordered"}, {"sixth", "rebind"}, {"seventh", "unbind"},
+	} {
+		before := share.Fallbacks()
+		shared := maps.Collect(seedFixture(share, c.database, c.variant).State.Names())
+		own := maps.Collect(seedFixture(&SeedShare{}, c.database, c.variant).State.Names())
 		if !maps.Equal(shared, own) {
-			t.Fatalf("database %q: shared seed has %d names, own seed %d", c.database, len(shared), len(own))
+			t.Fatalf("%q/%q: shared seed has %d names, own seed %d", c.database, c.variant, len(shared), len(own))
+		}
+		if fell := share.Fallbacks() - before; fell != 0 != (c.variant != "") {
+			t.Fatalf("%q/%q: %d fallbacks", c.database, c.variant, fell)
 		}
 	}
 	if _, ok := first.State.LookupName(ids.NameKey{ClassID: ids.DatabaseClassID, Name: "second"}); ok {

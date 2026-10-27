@@ -17,7 +17,7 @@ func InstallBuiltinClasses(state *State, owner authorization.PrincipalRef) {
 		d := &classes[i]
 		*d = OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(f.OID)}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: f.Name, Owner: owner, Method: ids.OID(f.Method), Family: ids.OID(f.Family), InputType: ids.OID(f.Input), StorageType: ids.OID(f.KeyType), Default: f.Default}
 		state.addSeedDescriptor(d.Address(), d)
-		state.BindName(DescriptorNameKey(d), d.Address())
+		state.bindSeedName(d)
 	}
 }
 func OperatorClassSeeded(d Descriptor) bool {

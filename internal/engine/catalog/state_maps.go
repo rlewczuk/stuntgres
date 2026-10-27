@@ -21,23 +21,30 @@ import (
 // pass. A state in a bulk load is private to its writer and is never copied or
 // published.
 
-// stateBulk holds a state's entries during a bulk load.
+// stateBulk holds a state's entries during a bulk load. seed is set only for
+// the builtin seed (see seed_names.go); names then holds just the bindings
+// that are not reached shared seed names.
 type stateBulk struct {
 	descriptors map[ids.ObjectAddress]Descriptor
 	names       map[ids.NameKey]ids.ObjectAddress
 	relations   map[ids.ObjectAddress]*Relation
+	seed        *seedBinds
 }
 
 // BeginBulkLoad moves s's entries into Go maps with room for capacity
 // entries each, for a writer about to set most of them. Reads and writes see
 // the same entries as before until EndBulkLoad.
 func (s *State) BeginBulkLoad(capacity int) {
+	s.beginBulkLoad(capacity, capacity)
+}
+
+func (s *State) beginBulkLoad(descriptors, names int) {
 	if s.bulk != nil {
 		panic("stuntgres: catalog bulk load already in progress")
 	}
 	b := &stateBulk{
-		descriptors: make(map[ids.ObjectAddress]Descriptor, max(capacity, s.descriptors.Len())),
-		names:       make(map[ids.NameKey]ids.ObjectAddress, max(capacity, s.names.Len())),
+		descriptors: make(map[ids.ObjectAddress]Descriptor, max(descriptors, s.descriptors.Len())),
+		names:       make(map[ids.NameKey]ids.ObjectAddress, max(names, s.names.Len())),
 		relations:   make(map[ids.ObjectAddress]*Relation, s.relations.Len()),
 	}
 	for a, d := range s.descriptors.All() {
@@ -110,14 +117,19 @@ func (s *State) dropDescriptor(a ids.ObjectAddress) {
 
 func (s *State) findName(k ids.NameKey) (ids.ObjectAddress, bool) {
 	if s.bulk != nil {
-		a, ok := s.bulk.names[k]
-		return a, ok
+		if a, ok := s.bulk.names[k]; ok {
+			return a, true
+		}
+		return s.bulk.sharedSeedName(k)
 	}
 	return s.names.Get(k)
 }
 
 func (s *State) putName(k ids.NameKey, a ids.ObjectAddress) {
 	if s.bulk != nil {
+		if s.bulk.sharesSeedKey(k) {
+			s.materializeSeedNames()
+		}
 		s.bulk.names[k] = a
 		return
 	}
@@ -126,6 +138,9 @@ func (s *State) putName(k ids.NameKey, a ids.ObjectAddress) {
 
 func (s *State) dropName(k ids.NameKey) {
 	if s.bulk != nil {
+		if s.bulk.sharesSeedKey(k) {
+			s.materializeSeedNames()
+		}
 		delete(s.bulk.names, k)
 		return
 	}
@@ -164,6 +179,13 @@ func (s *State) allNames() iter.Seq2[ids.NameKey, ids.ObjectAddress] {
 					return
 				}
 			}
+			if seed := bulk.seed; seed != nil && seed.shared != nil {
+				for i := range seed.bound {
+					if !yield(seed.shared.keys[i], seed.shared.order[i]) {
+						return
+					}
+				}
+			}
 			return
 		}
 		for k, a := range version.All() {
@@ -183,6 +205,9 @@ func (s *State) descriptorCount() int {
 
 func (s *State) nameCount() int {
 	if s.bulk != nil {
+		if seed := s.bulk.seed; seed != nil && seed.shared != nil {
+			return len(s.bulk.names) + seed.bound
+		}
 		return len(s.bulk.names)
 	}
 	return s.names.Len()

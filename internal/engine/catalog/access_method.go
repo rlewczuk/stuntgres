@@ -94,7 +94,7 @@ func InstallBuiltinAccessMethods(s *State) {
 	for i := range builtinAccessMethods {
 		d := &builtinAccessMethods[i]
 		s.SetDescriptor(d.Address(), d)
-		s.BindName(DescriptorNameKey(d), d.Address())
+		s.bindSeedName(d)
 	}
 }
 func AccessMethodSeeded(d *AccessMethod) bool {

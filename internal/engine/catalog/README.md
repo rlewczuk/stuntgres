@@ -157,12 +157,18 @@ private frames, not catalog authority.
   and `InstallCatalogSource`, which hands a same-named row type and its array
   to the catalog relation. Owners and the compiled tables of `routine` and
   `typedef` come in as values. A `SeedShare` memoizes what the binary fixes:
-  `ShareProcedureNamesLocked` installs one procedure-name index,
-  `FinishSeedLocked` ends the bulk load with one name map plus the store's
-  database binding (a seed with other names builds its own), and `ValidateSeed`
-  validates the seed once and the database descriptor every time, through
-  `ValidateDescriptors`. Every store seeded with one share holds the same
-  immutable index and name map.
+  `ShareProcedureNamesLocked` installs one procedure-name index, and
+  `ValidateSeed` validates the seed once and the database descriptor every time,
+  through `ValidateDescriptors`. Seed steps bind each descriptor's name through
+  `bindSeedName`/`bindSeedKey`; only the database name is a plain `BindName`.
+  The first seed records those helper binds in its share (`seed_names.go`);
+  a later seed skips each bind that matches the recorded one at its position,
+  sees a recorded name only from that position on, and ends with the shared map
+  plus its database binding. Any other bind, or a plain write or removal of a
+  recorded name, copies the reached names into the bulk load and the seed builds
+  its own map (`SeedShare.Fallbacks`). The helper binds must not depend on
+  engine options. Every store seeded with one share holds the same immutable
+  index and name map.
 - **Text-search descriptors** (`extension_catalog.go`, `dictionary.go`):
   dictionaries hold ordered decoded immutable options, actual owner/template and
   a catalog-free `DictionaryRuntime`. Runtime authority is separate from genuine
@@ -432,7 +438,7 @@ Immutable routine declaration/configuration backing and comparable installed ide
 
 
 ```sh
-make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad|Relations)|Candidate|BuiltinRoutineResultInventory|(New)?Store|SeedShare|InstallCatalogSource)'
+make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad|Relations)|Candidate|BuiltinRoutineResultInventory|(New)?Store|SeedShare|SharedSeed|InstallCatalogSource)'
 make check RACE=1 RUN='^Test(CastDefinition(PairIndex|CandidateIsolation)|.*PrincipalRemap|OperatorClass(Catalog|Value))'
 make check RUN='^Test(CatalogProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload|UserOperatorIndex)'
 make check RACE=1 RUN='^Test(AccessMethodDescriptor|PgClassSubclass|TableSummary|DefaultPrivileges(PublicationFence|CreationFence)|SQLRoutineStagedLookup|DropReaderSeam)'
