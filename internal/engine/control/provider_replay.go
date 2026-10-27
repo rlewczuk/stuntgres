@@ -45,7 +45,7 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 		r.cost = p.Cost
 	}
 	if p.Extension != (ids.ObjectAddress{}) {
-		symbol, err := extension.ProcedureSymbol(c.CatalogView, p)
+		name, err := extension.ProcedureInstallationName(c.CatalogView, p)
 		if err != nil {
 			return err
 		}
@@ -57,7 +57,7 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 		if !ok {
 			return fmt.Errorf("stuntgres: missing provider installation namespace")
 		}
-		r.original = providerKey{originalNS.Name(), symbol, p.Signature}
+		r.original = providerKey{originalNS.Name(), name, p.Signature}
 		originalOwner = ext.Owner
 	} else if p.RangeConstructor != nil {
 		// Generated identities belong to the actual type generation, never

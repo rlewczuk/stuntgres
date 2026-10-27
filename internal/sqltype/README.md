@@ -157,8 +157,11 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   hash binding retains both unseeded and extended support slots. Dynamic routine
   IDs never enter the builtin native-routine registry.
   Authorized generation remapping shares immutable pairs without reparsing stored
-  text. The parser establishes text validity, canonical order and uniqueness once;
-  consumers check the private immutable carrier without rescanning those invariants.
+  text. The parser and typed scalar/array constructors share the owned
+  sort/uniqueness finalizer. Consumers check the private immutable carrier
+  without rescanning canonical invariants. Binary-search lookup distinguishes
+  missing keys from present NULL values; array lookup owns fresh buffers
+  preserving request shape and lower bounds.
   `HstoreArray` transfers fresh flat or rectangular TEXT-array buffers without
   copying immutable strings or exposing pairs. NULL values become typed NULL
   elements; whole NULL and zero-dimensional empty arrays remain distinct.

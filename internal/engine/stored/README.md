@@ -44,7 +44,10 @@ presentation revision but cannot come from a future revision. Cross-generation
 transport preserves the original declaration revision rather than refreshing it.
 Implicit equality in predicates, membership, CASE and NULLIF retains the same
 installed authority; replay binding windows require its genuine installation.
-Generic selected-operator recipes retain both prefix and comparison operators.
+Constructor, lookup and predicate nodes retain ordered formal/result generations,
+including installed constructor results and consumer inputs. Generic
+selected-operator recipes retain prefix, comparison and binary lookup identities
+with their actual backing routine.
 
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable

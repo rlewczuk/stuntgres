@@ -127,12 +127,7 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if LtreeProviderOf(selected) != nil && member.Slot%3 == 2 {
 					signature = ltreeRecipes[member.Slot/3].name
 				}
-				if HstoreProviderOf(selected) != nil {
-					var valid bool
-					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
-					if !valid { return false, fmt.Errorf("stuntgres: invalid hstore ownership signature") }
-				}
-				if CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil || IsnProviderOf(selected) != nil {
+				if HstoreProviderOf(selected) != nil || CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil || IsnProviderOf(selected) != nil {
 					var valid bool
 					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
 					if !valid {
@@ -147,10 +142,10 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 						return false, fmt.Errorf("stuntgres: invalid hstore ownership slot")
 					}
 					var err error
-					if member.Slot >= HstoreComparisonOperatorStart {
+					if member.Slot >= HstoreComparisonOperatorStart && member.Slot < HstoreBtreeFamilySlot {
 						err = validateHstoreComparisons(candidateView, ext, base)
 					} else {
-						err = validateHstoreOperator(candidateView, ext, base, member.Slot-HstoreArrayOperatorSlot)
+						err = validateHstoreOperator(candidateView, ext, base, member.Slot)
 					}
 					if err != nil {
 						return false, err
@@ -216,10 +211,16 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 			case *catalog.OperatorClass:
 				if record.Name == "hstore" {
 					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
-					if !ok || member.Slot != HstoreBtreeClassSlot && member.Slot != HstoreHashClassSlot { return false, fmt.Errorf("stuntgres: invalid hstore class ownership slot") }
-					if err := validateHstoreComparisons(candidateView, ext, base); err != nil { return false, err }
+					if !ok || member.Slot != HstoreBtreeClassSlot && member.Slot != HstoreHashClassSlot {
+						return false, fmt.Errorf("stuntgres: invalid hstore class ownership slot")
+					}
+					if err := validateHstoreComparisons(candidateView, ext, base); err != nil {
+						return false, err
+					}
 					kind, signature = "operator_class", "btree"
-					if selected.Method == 405 { signature = "hash" }
+					if selected.Method == 405 {
+						signature = "hash"
+					}
 					break
 				}
 				base, ok := candidate.Type(ext.Members[0])
@@ -230,10 +231,16 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 			case *catalog.OperatorFamily:
 				if record.Name == "hstore" {
 					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
-					if !ok || member.Slot != HstoreBtreeFamilySlot && member.Slot != HstoreHashFamilySlot { return false, fmt.Errorf("stuntgres: invalid hstore family ownership slot") }
-					if err := validateHstoreComparisons(candidateView, ext, base); err != nil { return false, err }
+					if !ok || member.Slot != HstoreBtreeFamilySlot && member.Slot != HstoreHashFamilySlot {
+						return false, fmt.Errorf("stuntgres: invalid hstore family ownership slot")
+					}
+					if err := validateHstoreComparisons(candidateView, ext, base); err != nil {
+						return false, err
+					}
 					kind, signature = "operator_family", "btree"
-					if selected.Method == 405 { signature = "hash" }
+					if selected.Method == 405 {
+						signature = "hash"
+					}
 					break
 				}
 				if record.Name != "cube" || member.Slot != 16 || selected.Namespace() != ext.TargetNamespace || selected.Name() != "cube_ops" || selected.Method != 403 || candidate.NameAddress(catalog.DescriptorNameKey(selected)) != selected.Address() {

@@ -51,24 +51,14 @@ func (p *HstoreProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 	if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
 		return err
 	}
-	for _, slot := range [...]int{HstoreInputSlot, HstoreOutputSlot, HstoreArrayProcedureSlot, HstoreMatrixProcedureSlot, HstoreJSONProcedureSlot, HstoreJSONLooseProcedureSlot, HstoreJSONBProcedureSlot, HstoreJSONBLooseProcedureSlot} {
+	for _, recipe := range hstoreRoutines {
 		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}
-		name, signature, result := "hstore_in", catalog.ProcedureSignature("2275"), ids.OID(typ.ID())
-		switch slot {
-		case HstoreOutputSlot:
-			name, signature, result = "hstore_out", HstoreSignature(typ.ID()), 2275
-		case HstoreArrayProcedureSlot, HstoreMatrixProcedureSlot:
-			name, signature, result = []string{"hstore_to_array", "hstore_to_matrix"}[slot-HstoreArrayProcedureSlot], HstoreSignature(typ.ID()), 1009
-		case HstoreJSONProcedureSlot, HstoreJSONLooseProcedureSlot:
-			name, signature, result = []string{"hstore_to_json", "hstore_to_json_loose"}[slot-HstoreJSONProcedureSlot], HstoreSignature(typ.ID()), 114
-		case HstoreJSONBProcedureSlot, HstoreJSONBLooseProcedureSlot:
-			name, signature, result = []string{"hstore_to_jsonb", "hstore_to_jsonb_loose"}[slot-HstoreJSONBProcedureSlot], HstoreSignature(typ.ID()), 3802
-		}
-		proc := &catalog.Procedure{ObjectAddress: ext.Members[slot], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}, Implementation: p}
-		proc.Display.Binary, proc.Display.HasBinary = "$libdir/hstore", true
+		signature, result := recipe.declaration(typ.ID())
+		name := recipe.name
+		proc := &catalog.Procedure{ObjectAddress: ext.Members[recipe.slot], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: recipe.strict, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: recipe.symbol, Binary: "$libdir/hstore", HasBinary: true}, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 		}
@@ -76,12 +66,13 @@ func (p *HstoreProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			return err
 		}
 	}
-	for i, name := range []string{"%%", "%#"} {
+	for _, recipe := range hstoreOperators {
 		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}
-		op := &catalog.Operator{ObjectAddress: ext.Members[HstoreArrayOperatorSlot+i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Owner: owner, Right: ids.OID(typ.ID()), Result: 1009, Function: ext.Members[HstoreArrayProcedureSlot+i].ObjectID}
+		left, right := recipe.operands(typ.ID())
+		op := &catalog.Operator{ObjectAddress: ext.Members[recipe.slot], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: recipe.name, Owner: owner, Left: left, Right: right, Result: ids.OID(recipe.result), Function: ext.Members[recipe.procedure].ObjectID}
 		if err := stage.Create(op); err != nil {
 			return err
 		}

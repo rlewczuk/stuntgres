@@ -70,6 +70,14 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case functions.HstoreConstruct:
+		for i := range n.Arity() {
+			n.Args[i] = child(n.Args[i])
+		}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case functions.HstoreArray:
 		n.Arg = child(n.Arg)
 		if ref != nil {
@@ -121,9 +129,13 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		next = n
 	case plan.HstoreComparisonExpr:
 		args := make([]expr.Expr, len(n.Args))
-		for i, a := range n.Args { args[i] = child(a) }
+		for i, a := range n.Args {
+			args[i] = child(a)
+		}
 		n.Args = args
-		if ref != nil { n.Ref = ref(n.Ref) }
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
 		next = n
 	case plan.CubeComparisonExpr:
 		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}

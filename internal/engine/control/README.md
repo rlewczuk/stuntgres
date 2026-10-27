@@ -100,7 +100,8 @@ function references once into the destination authority.
   remap configuration descriptors and REGCONFIG datums through existing owners.
 - **Provider differences** (`provider_replay.go`): immutable released builtin
   identity and checked versioned extension slots, never mutable labels, select
-  real ALTER FUNCTION or ALTER TEXT SEARCH DICTIONARY replay. Required
+  real ALTER FUNCTION or ALTER TEXT SEARCH DICTIONARY replay. Original SQL
+  declaration names are distinct from executable C symbols. Required
   schemas/extensions and every installed scalar identity relocation precede
   differences; dependent definitions follow.
   Free destinations move first; only occupied cycles or blocked intermediate keys

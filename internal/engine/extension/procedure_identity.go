@@ -16,9 +16,19 @@ func ProcedureSymbol(v catalog.Read, p *catalog.Procedure) (string, error) {
 	return procedureSymbol(v, p, false)
 }
 
+// ProcedureInstallationName returns the original SQL declaration name from the
+// checked versioned manifest, not its C symbol or its current public label.
+func ProcedureInstallationName(v catalog.Read, p *catalog.Procedure) (string, error) {
+	return procedureIdentityName(v, p, false, true)
+}
+
 // allowDetached is reserved for incumbent provider metadata validation.
 // It never grants installed execution or portable replay authority.
 func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (string, error) {
+	return procedureIdentityName(v, p, allowDetached, false)
+}
+
+func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, installationName bool) (string, error) {
 	invalid := func() (string, error) { return "", fmt.Errorf("stuntgres: invalid installed procedure identity") }
 	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
 		return invalid()
@@ -86,6 +96,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		return invalid()
 	}
 	name, signature, result := "", catalog.ProcedureSignature(""), ids.OID(0)
+	sqlName := ""
 	kind, volatility, strict := catalog.FunctionRoutine, expr.Immutable, true
 	count := 0
 	switch p.Implementation {
@@ -238,22 +249,13 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		signature, result = "2275", ids.OID(base.SQLType.ID())
 		switch p.Implementation {
 		case StockHstore:
-			name = "hstore_in"
-			if slot == 2 {
-				name = "hstore_out"
+			recipe, ok := hstoreRoutineAt(slot)
+			if !ok {
+				return invalid()
 			}
-			if slot == HstoreArrayProcedureSlot || slot == HstoreMatrixProcedureSlot {
-				name = []string{"hstore_to_array", "hstore_to_matrix"}[slot-HstoreArrayProcedureSlot]
-			}
-			if slot == HstoreJSONProcedureSlot || slot == HstoreJSONLooseProcedureSlot {
-				name = []string{"hstore_to_json", "hstore_to_json_loose"}[slot-HstoreJSONProcedureSlot]
-			}
-			if slot == HstoreJSONBProcedureSlot || slot == HstoreJSONBLooseProcedureSlot {
-				name = []string{"hstore_to_jsonb", "hstore_to_jsonb_loose"}[slot-HstoreJSONBProcedureSlot]
-			}
-			if slot >= HstoreComparisonProcedureStart {
-				name, signature, result = HstoreComparisonDeclaration(slot-HstoreComparisonProcedureStart, base.SQLType.ID())
-			}
+			name = recipe.symbol
+			sqlName = recipe.name
+			strict = recipe.strict
 			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/hstore", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
 			}
@@ -282,13 +284,12 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name = CitextComparisonNames[slot-CitextComparisonProcedureStart]
 			signature, result = CitextComparisonSignature(base.SQLType.ID()), ids.OID(sqltype.Bool)
 		}
-		if p.Implementation == StockHstore && slot >= HstoreArrayProcedureSlot && slot < HstoreComparisonProcedureStart {
-			signature, result = HstoreSignature(base.SQLType.ID()), 1009
-			if slot == HstoreJSONProcedureSlot || slot == HstoreJSONLooseProcedureSlot {
-				result = 114
-			} else if slot == HstoreJSONBProcedureSlot || slot == HstoreJSONBLooseProcedureSlot {
-				result = 3802
+		if p.Implementation == StockHstore {
+			recipe, ok := hstoreRoutineAt(slot)
+			if !ok {
+				return invalid()
 			}
+			signature, result = recipe.declaration(base.SQLType.ID())
 		}
 		if p.Implementation == StockCitext && slot >= CitextConversionProcedureStart && slot < CitextPatternProcedureStart {
 			name, signature, result = "citext", []catalog.ProcedureSignature{"1042", "16", "869"}[slot-CitextConversionProcedureStart], ids.OID(base.SQLType.ID())
@@ -412,6 +413,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 	}
 	if len(ext.Members) != count || p.Signature != signature || p.Result != result || p.RoutineKind != kind || p.Volatility != volatility || p.Strict != strict || kind != catalog.AggregateRoutine && p.Aggregate != nil || p.Implementation != StockUnaccent && p.Dictionary != (ids.ObjectAddress{}) {
 		return invalid()
+	}
+	if installationName && sqlName != "" {
+		return sqlName, nil
 	}
 	return name, nil
 }

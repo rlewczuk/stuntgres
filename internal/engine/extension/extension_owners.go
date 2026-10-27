@@ -77,12 +77,7 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if LtreeProviderOf(d) != nil && slot%3 == 2 {
 				member.Signature = ltreeRecipes[slot/3].name
 			}
-			if HstoreProviderOf(d) != nil {
-				var valid bool
-				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
-				if !valid { return "", fmt.Errorf("stuntgres: invalid hstore ownership signature") }
-			}
-			if CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil || IsnProviderOf(d) != nil {
+			if HstoreProviderOf(d) != nil || CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil || IsnProviderOf(d) != nil {
 				var valid bool
 				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
 				if !valid {
@@ -108,14 +103,18 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 				return "", fmt.Errorf("stuntgres: unsupported extension class method")
 			}
 			member = MemberOwner{Kind: "operator_class", Name: d.Name(), Signature: "btree"}
-			if d.Method == 405 { member.Signature = "hash" }
+			if d.Method == 405 {
+				member.Signature = "hash"
+			}
 			principal = d.Owner
 		case *catalog.OperatorFamily:
 			if d.Method != 403 && !(ext.Name() == "hstore" && d.Method == 405) {
 				return "", fmt.Errorf("stuntgres: unsupported extension family method")
 			}
 			member = MemberOwner{Kind: "operator_family", Name: d.Name(), Signature: "btree"}
-			if d.Method == 405 { member.Signature = "hash" }
+			if d.Method == 405 {
+				member.Signature = "hash"
+			}
 			principal = d.Owner
 		case *catalog.TSDictionary:
 			member = MemberOwner{Kind: "dictionary", Name: d.Name()}
@@ -489,13 +488,11 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			}
 		}
 	case "seg", "hstore", "intarray", "citext":
-		if name == "hstore" && slot >= HstoreComparisonProcedureStart && slot < HstoreComparisonOperatorStart {
-			if slot == HstoreComparisonProcedureStart+7 { return "hstore", true }
-			if slot == HstoreComparisonProcedureStart+8 { return "hstore,20", true }
-			return "hstore,hstore", true
-		}
-		if name == "hstore" && (slot >= HstoreArrayProcedureSlot && slot < HstoreArrayOperatorSlot || slot == HstoreJSONBProcedureSlot || slot == HstoreJSONBLooseProcedureSlot) {
-			return "hstore", true
+		if name == "hstore" {
+			if recipe, ok := hstoreRoutineAt(slot); ok {
+				return recipe.signature, true
+			}
+			return "", false
 		}
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
 			return "citext,citext", true
@@ -551,6 +548,12 @@ func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 		}
 		if slot == HstoreArrayOperatorSlot || slot == HstoreMatrixOperatorSlot {
 			return []string{"%%", "%#"}[slot-HstoreArrayOperatorSlot], "0,hstore", true
+		}
+		if slot == HstoreFetchOperatorSlot {
+			return "->", "hstore,25", true
+		}
+		if slot == HstoreSliceOperatorSlot {
+			return "->", "hstore,1009", true
 		}
 	case "cube":
 		return cubeOwnerOperatorIdentity(slot)

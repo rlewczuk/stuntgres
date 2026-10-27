@@ -172,6 +172,12 @@ retagging, grouping and qualified replay preserve formal/result generations,
 mode and exact member identity.
 Shared strict NULL preflight and routine admission use current caller authority; neither
 node caches ACLs. Typed evaluation belongs to sqltype, not function spelling.
+`HstoreConstruct` owns the ordered selected operands, exact formal/result
+generations and installed constructor/lookup/predicate role. Shared call and
+operator selection use the same provider; the operator wrapper owns no second
+routine admission. Strict consumers retain literal-NULL preflight while demanded
+children evaluate in order; nonstrict constructors preserve present NULL values.
+Capture, rebuild and qualified replay retain declaration authority, never actors.
 `String` optionally retains a `CitextStringCapture` for a selected installed
 scalar. Reconstruction, grouping, rendering and type retagging preserve its
 opaque declaration and member reference; explicit formal replay casts retain

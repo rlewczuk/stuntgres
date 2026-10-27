@@ -3,6 +3,7 @@ package extension
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -26,11 +27,23 @@ const (
 	HstoreJSONBCastSlot
 	HstoreComparisonProcedureStart
 	HstoreComparisonOperatorStart = HstoreComparisonProcedureStart + 9
-	HstoreBtreeFamilySlot = HstoreComparisonOperatorStart + 6
-	HstoreBtreeClassSlot = HstoreBtreeFamilySlot + 1
-	HstoreHashFamilySlot = HstoreBtreeClassSlot + 1
-	HstoreHashClassSlot = HstoreHashFamilySlot + 1
-	HstoreMemberCount = HstoreHashClassSlot + 1
+	HstoreBtreeFamilySlot         = HstoreComparisonOperatorStart + 6
+	HstoreBtreeClassSlot          = HstoreBtreeFamilySlot + 1
+	HstoreHashFamilySlot          = HstoreBtreeClassSlot + 1
+	HstoreHashClassSlot           = HstoreHashFamilySlot + 1
+)
+
+const (
+	HstoreTextConstructorSlot = HstoreHashClassSlot + 1 + iota
+	HstoreArraysConstructorSlot
+	HstoreArrayConstructorSlot
+	HstoreFetchSlot
+	HstoreSliceSlot
+	HstoreExistsSlot
+	HstoreDefinedSlot
+	HstoreFetchOperatorSlot
+	HstoreSliceOperatorSlot
+	HstoreMemberCount
 )
 
 var StockHstore = &HstoreProvider{control: catalog.ExtensionControl{Version: "1.8", Trusted: true, Superuser: true, Relocatable: true, Comment: new("data type for storing sets of (key, value) pairs")}}
@@ -42,6 +55,90 @@ func (p *HstoreProvider) Versions() catalog.ExtensionVersions {
 
 func HstoreSignature(id sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
+}
+
+type hstoreRoutine struct {
+	slot                    int
+	name, symbol, signature string
+	result                  sqltype.ID
+	strict                  bool
+}
+
+var hstoreRoutines = [...]hstoreRoutine{
+	{HstoreInputSlot, "hstore_in", "hstore_in", "2275", 0, true},
+	{HstoreOutputSlot, "hstore_out", "hstore_out", "hstore", 2275, true},
+	{HstoreArrayProcedureSlot, "hstore_to_array", "hstore_to_array", "hstore", 1009, true},
+	{HstoreMatrixProcedureSlot, "hstore_to_matrix", "hstore_to_matrix", "hstore", 1009, true},
+	{HstoreJSONProcedureSlot, "hstore_to_json", "hstore_to_json", "hstore", 114, true},
+	{HstoreJSONLooseProcedureSlot, "hstore_to_json_loose", "hstore_to_json_loose", "hstore", 114, true},
+	{HstoreJSONBProcedureSlot, "hstore_to_jsonb", "hstore_to_jsonb", "hstore", 3802, true},
+	{HstoreJSONBLooseProcedureSlot, "hstore_to_jsonb_loose", "hstore_to_jsonb_loose", "hstore", 3802, true},
+	{HstoreTextConstructorSlot, "hstore", "hstore_from_text", "25,25", 0, false},
+	{HstoreArraysConstructorSlot, "hstore", "hstore_from_arrays", "1009,1009", 0, false},
+	{HstoreArrayConstructorSlot, "hstore", "hstore_from_array", "1009", 0, true},
+	{HstoreFetchSlot, "fetchval", "hstore_fetchval", "hstore,25", 25, true},
+	{HstoreSliceSlot, "slice_array", "hstore_slice_to_array", "hstore,1009", 1009, true},
+	{HstoreExistsSlot, "exist", "hstore_exists", "hstore,25", 16, true},
+	{HstoreDefinedSlot, "defined", "hstore_defined", "hstore,25", 16, true},
+}
+
+func hstoreRoutineAt(slot int) (hstoreRoutine, bool) {
+	if slot >= HstoreComparisonProcedureStart && slot < HstoreComparisonOperatorStart {
+		kind := slot - HstoreComparisonProcedureStart
+		name, _, result := HstoreComparisonDeclaration(kind, 0)
+		signature := "hstore,hstore"
+		if kind == 7 {
+			signature = "hstore"
+		} else if kind == 8 {
+			signature = "hstore,20"
+		}
+		return hstoreRoutine{slot, name, name, signature, sqltype.ID(result), true}, true
+	}
+	for _, r := range hstoreRoutines {
+		if r.slot == slot {
+			return r, true
+		}
+	}
+	return hstoreRoutine{}, false
+}
+func (r hstoreRoutine) declaration(base sqltype.ID) (catalog.ProcedureSignature, ids.OID) {
+	signature := strings.ReplaceAll(r.signature, "hstore", string(HstoreSignature(base)))
+	result := r.result
+	if result == 0 {
+		result = base
+	}
+	return catalog.ProcedureSignature(signature), ids.OID(result)
+}
+
+type hstoreOperator struct {
+	slot, procedure int
+	name            string
+	right, result   sqltype.ID
+}
+
+var hstoreOperators = [...]hstoreOperator{
+	{HstoreArrayOperatorSlot, HstoreArrayProcedureSlot, "%%", 0, 1009},
+	{HstoreMatrixOperatorSlot, HstoreMatrixProcedureSlot, "%#", 0, 1009},
+	{HstoreFetchOperatorSlot, HstoreFetchSlot, "->", 25, 25},
+	{HstoreSliceOperatorSlot, HstoreSliceSlot, "->", 1009, 1009},
+}
+
+func HstoreOperatorSlot(slot int) bool {
+	if slot >= HstoreComparisonOperatorStart && slot < HstoreBtreeFamilySlot {
+		return true
+	}
+	for _, r := range hstoreOperators {
+		if r.slot == slot {
+			return true
+		}
+	}
+	return false
+}
+func (r hstoreOperator) operands(base sqltype.ID) (ids.OID, ids.OID) {
+	if r.slot == HstoreArrayOperatorSlot || r.slot == HstoreMatrixOperatorSlot {
+		return 0, ids.OID(base)
+	}
+	return ids.OID(base), ids.OID(r.right)
 }
 
 func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
@@ -68,8 +165,8 @@ func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 	if err := validateRegisteredType(v, array); err != nil {
 		return err
 	}
-	for _, slot := range [...]int{HstoreInputSlot, HstoreOutputSlot, HstoreArrayProcedureSlot, HstoreMatrixProcedureSlot, HstoreJSONProcedureSlot, HstoreJSONLooseProcedureSlot, HstoreJSONBProcedureSlot, HstoreJSONBLooseProcedureSlot} {
-		proc, ok := v.Procedure(ext.Members[slot])
+	for _, recipe := range hstoreRoutines {
+		proc, ok := v.Procedure(ext.Members[recipe.slot])
 		if !ok {
 			return invalid()
 		}
@@ -77,8 +174,8 @@ func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 			return err
 		}
 	}
-	for i := range 2 {
-		if err := validateHstoreOperator(v, ext, base, i); err != nil {
+	for _, recipe := range hstoreOperators {
+		if err := validateHstoreOperator(v, ext, base, recipe.slot); err != nil {
 			return err
 		}
 	}
@@ -103,10 +200,17 @@ func (p *HstoreProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedu
 	return p.ValidateExtension(v, ext)
 }
 
-func validateHstoreOperator(v catalog.Read, ext *catalog.Extension, base *catalog.Type, i int) error {
-	op, ok := v.Operator(ext.Members[HstoreArrayOperatorSlot+i])
-	if !ok || op.Address() != ext.Members[HstoreArrayOperatorSlot+i] || op.Namespace() != ext.TargetNamespace || op.Name() != []string{"%%", "%#"}[i] || op.Extension != ext.Address() || op.Left != 0 || op.Right != ids.OID(base.SQLType.ID()) || op.Result != 1009 || op.Function != ext.Members[HstoreArrayProcedureSlot+i].ObjectID || op.Commutator != 0 || op.Negator != 0 || op.Restriction != 0 || op.Join != 0 || op.Hash || op.Merge {
-		return fmt.Errorf("stuntgres: invalid hstore operator")
+func validateHstoreOperator(v catalog.Read, ext *catalog.Extension, base *catalog.Type, slot int) error {
+	for _, recipe := range hstoreOperators {
+		if recipe.slot != slot {
+			continue
+		}
+		left, right := recipe.operands(base.SQLType.ID())
+		op, ok := v.Operator(ext.Members[slot])
+		if !ok || op.Address() != ext.Members[slot] || op.Namespace() != ext.TargetNamespace || op.Name() != recipe.name || op.Extension != ext.Address() || op.Left != left || op.Right != right || op.Result != ids.OID(recipe.result) || op.Function != ext.Members[recipe.procedure].ObjectID || op.Commutator != 0 || op.Negator != 0 || op.Restriction != 0 || op.Join != 0 || op.Hash || op.Merge {
+			return fmt.Errorf("stuntgres: invalid hstore operator")
+		}
+		return ValidateProviderHeader(v, op, ids.OperatorClassID)
 	}
-	return ValidateProviderHeader(v, op, ids.OperatorClassID)
+	return fmt.Errorf("stuntgres: invalid hstore operator slot")
 }

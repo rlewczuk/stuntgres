@@ -3,6 +3,7 @@ package reference_test
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -33,7 +34,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		t.Fatal("wrong actual owner record", string(data))
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 30 {
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 39 {
 		t.Fatalf("actual bounded owner inventory %s/%v", data, err)
 	}
 	bySlot := make(map[int]map[string]json.RawMessage)
@@ -61,25 +62,34 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		{"procedure", "hstore"},
 		{"procedure", "hstore"},
 		{}, // Ownerless cast.
-		{"procedure", "hstore,hstore"}, // eq
-		{"procedure", "hstore,hstore"}, // ne
-		{"procedure", "hstore,hstore"}, // lt
-		{"procedure", "hstore,hstore"}, // le
-		{"procedure", "hstore,hstore"}, // gt
-		{"procedure", "hstore,hstore"}, // ge
-		{"procedure", "hstore,hstore"}, // cmp
-		{"procedure", "hstore"},        // hash
-		{"procedure", "hstore,20"},     // hash_extended
-		{"operator", "hstore,hstore"}, // =
-		{"operator", "hstore,hstore"}, // <>
-		{"operator", "hstore,hstore"}, // #<#
-		{"operator", "hstore,hstore"}, // #<=#
-		{"operator", "hstore,hstore"}, // #>#
-		{"operator", "hstore,hstore"}, // #>=#
+		{"procedure", "hstore,hstore"},
+		{"procedure", "hstore,hstore"},
+		{"procedure", "hstore,hstore"},
+		{"procedure", "hstore,hstore"},
+		{"procedure", "hstore,hstore"},
+		{"procedure", "hstore,hstore"},
+		{"procedure", "hstore,hstore"},
+		{"procedure", "hstore"},
+		{"procedure", "hstore,20"},
+		{"operator", "hstore,hstore"},
+		{"operator", "hstore,hstore"},
+		{"operator", "hstore,hstore"},
+		{"operator", "hstore,hstore"},
+		{"operator", "hstore,hstore"},
+		{"operator", "hstore,hstore"},
 		{"operator_family", "btree"},
 		{"operator_class", "btree"},
 		{"operator_family", "hash"},
 		{"operator_class", "hash"},
+		{"procedure", "25,25"},
+		{"procedure", "1009,1009"},
+		{"procedure", "1009"},
+		{"procedure", "hstore,25"},
+		{"procedure", "hstore,1009"},
+		{"procedure", "hstore,25"},
+		{"procedure", "hstore,25"},
+		{"operator", "hstore,25"},
+		{"operator", "hstore,1009"},
 	} {
 		if slot == 11 {
 			continue
@@ -140,7 +150,20 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 	case "jsonb_cast_owner":
 		members = append(members, map[string]json.RawMessage{"slot": json.RawMessage(`11`), "kind": json.RawMessage(`"cast"`), "name": json.RawMessage(`"hstore_jsonb"`)})
 	default:
-		t.Fatal("unknown owner mutation", kind)
+		mutated := false
+		for slot := 31; slot <= 39; slot++ {
+			if kind == fmt.Sprintf("signature_%d", slot) {
+				bySlot[slot]["signature"] = json.RawMessage(`"25"`)
+				mutated = true
+			}
+			if kind == fmt.Sprintf("kind_%d", slot) {
+				bySlot[slot]["kind"] = json.RawMessage(`"type"`)
+				mutated = true
+			}
+		}
+		if !mutated {
+			t.Fatal("unknown owner mutation", kind)
+		}
 	}
 	record["members"], err = json.Marshal(members)
 	if err != nil {

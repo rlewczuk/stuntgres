@@ -180,6 +180,11 @@ func (d *Descriptor) hstoreInput(ctx context.Context, text string) (Value, error
 		}
 		p.pos++
 	}
+	return d.ownedHstore(ctx, pairs)
+}
+
+// ownedHstore takes exclusive ownership and establishes the payload invariants.
+func (d *Descriptor) ownedHstore(ctx context.Context, pairs []hstorePair) (Value, error) {
 	var sortErr error
 	comparisons := 0
 	slices.SortFunc(pairs, func(a, b hstorePair) int {
@@ -202,9 +207,8 @@ func (d *Descriptor) hstoreInput(ctx context.Context, text string) (Value, error
 	return Value{typ: d, hstore: &hstorePayload{pairs: pairs}}, nil
 }
 
-// The checked parser is the sole payload constructor. Its owned pairs are
-// immutable and private, so consumers validate carrier presence, not UTF8,
-// sorting and uniqueness again on each export, comparison or remap.
+// Checked input and typed constructors publish owned, immutable private pairs.
+// Consumers validate carrier presence, not UTF8, sorting and uniqueness again.
 func (v Value) validHstore() bool {
 	return v.hstore != nil
 }

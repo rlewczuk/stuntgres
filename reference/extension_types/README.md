@@ -83,6 +83,23 @@ these are shared across families:
   ordered/grouped consumers, both index methods, complete diagnostics and
   stored expressions through native controls and actual emitted-SQL replay.
   The reusable family selector is `RUN='^TestReferenceHstore'`.
+  Constructor and lookup fixtures preserve literal escaping, array shape/bounds
+  and missing versus NULL-valued keys; exact body diagnostics remain separate
+  from overload errors. `_TEXT` transport covers array lookups. Native controls
+  carry constructors, named backers and operators with the shared exact
+  thirty-nine-owner validator, omitting only the ownerless cast. Nonstrict
+  constructors preserve present NULL values under current caller admission.
+  Held installed-hstore result signatures reject true Reset/Restore replacement
+  with the cached-plan result-type diagnostic; builtin TEXT signatures rebind
+  actual constructor/lookup expressions with current inputs. Fresh hstore result
+  metadata and detached old readers remain independently asserted.
+  Genuine rename/schema moves of all seven constructor/lookup/predicate
+  procedures retain original SQL names and exact overload signatures in actual
+  Dump output. Displaced native Restore and replay of those identical emitted
+  SQL bytes on PostgreSQL exercise both stored consumers and current names.
+  The same replay witness preserves escaped and whole-NULL inputs, multi-key and
+  matrix construction, direct `_TEXT` metadata and nondefault request bounds,
+  duplicates and NULL keys, plus destination-local procedure/arrow relationships.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,
   count/length diagnostic precedence, held binds, statement atomicity and native
