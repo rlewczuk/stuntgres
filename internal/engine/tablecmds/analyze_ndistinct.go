@@ -28,6 +28,10 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 	if !ok {
 		return nil, fmt.Errorf("missing pg_ndistinct type")
 	}
+	dependencyType, ok := read.LookupType(sqltype.PgDependencies)
+	if !ok {
+		return nil, fmt.Errorf("missing pg_dependencies type")
+	}
 	available := make(map[int32]storage.StatisticsColumn, len(columns))
 	for _, column := range columns {
 		available[column.Key.Attribute] = column
@@ -35,13 +39,13 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 	var inputs []capturedExtendedInput
 	for _, raw := range read.Descriptors() {
 		d, ok := raw.(*catalog.Statistics)
-		if !ok || d.Relation.Address != relation.Address() || !strings.ContainsAny(d.Selection.Kinds(), "de") || d.TargetSet && d.Target == 0 {
+		if !ok || d.Relation.Address != relation.Address() || !strings.ContainsAny(d.Selection.Kinds(), "def") || d.TargetSet && d.Target == 0 {
 			continue
 		}
 		if err := (catalog.StatisticsProvider{}).Validate(read, d); err != nil {
 			return nil, err
 		}
-		input := capturedExtendedInput{ExtendedInput: storage.ExtendedInput{Key: storage.ExtendedStatisticsKey{Definition: read.Domain().Ref(read.Epoch(), d.Address())}, Definition: d, Type: typ}}
+		input := capturedExtendedInput{ExtendedInput: storage.ExtendedInput{Key: storage.ExtendedStatisticsKey{Definition: read.Domain().Ref(read.Epoch(), d.Address())}, Definition: d, Type: typ, DependenciesType: dependencyType}}
 		input.Providers = storage.CaptureStatisticsProviders(read, d)
 		eligible := true
 		required := make(map[int32]bool)
@@ -66,9 +70,6 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 			}
 			for j := range recipe.InputLen() {
 				attribute := recipe.Input(j).Address.SubID
-				if _, ok := available[attribute]; !ok {
-					eligible = false
-				}
 				required[attribute] = true
 			}
 			layout := make([]int, recipe.AttributeLen())
@@ -96,9 +97,15 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 			input.layouts[i], input.frames[i] = layout, frame
 			input.Columns = append(input.Columns, storage.StatisticsColumn{Key: storage.StatisticsKey{Attribute: -int32(i + 1)}, Usage: recipe.Usage(), Slot: d.Selection.Len() + i})
 		}
-		for _, column := range columns {
-			if required[column.Key.Attribute] {
-				input.Inputs = append(input.Inputs, column)
+		// Selected ANALYZE columns gate only simple statistics keys. Expressions
+		// evaluate against full captured rows; retain every actual input usage
+		// independently of column selection for compatibility/publication fences.
+		for slot, attribute := range relation.Attributes {
+			if required[attribute] {
+				input.Inputs = append(input.Inputs, storage.StatisticsColumn{
+					Key:   storage.StatisticsKey{Attribute: attribute},
+					Usage: relation.Columns[slot].Usage, Slot: slot,
+				})
 			}
 		}
 		if !eligible {

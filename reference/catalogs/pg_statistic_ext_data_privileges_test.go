@@ -28,7 +28,9 @@ func statisticExtDataACLScenario(t *testing.T, smoke bool) {
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			admin, actor := fixture.LockConnections(t, p.Ctx, b.DB)
-			run := func(e fixture.Executor, q string, count int64) { fixture.RunStep(t, p.Ctx, e, b.Recorder, fixture.Exec(q, count)) }
+			run := func(e fixture.Executor, q string, count int64) {
+				fixture.RunStep(t, p.Ctx, e, b.Recorder, fixture.Exec(q, count))
+			}
 			run(admin, "CREATE ROLE stxd_reader", 0)
 			// Install exact catalog ACL repair before the first catalog GRANT.
 			defer func() {
@@ -66,11 +68,11 @@ func statisticExtDataACLScenario(t *testing.T, smoke bool) {
 				statisticExtDataDenied(t, p, b, actor, "SELECT * FROM pg_statistic_ext_data WHERE FALSE", false)
 			}
 			deny() // Ordinary reader, no definitions or collected facts.
-			for _, q := range []string{"CREATE TABLE stxd_actor_t(a INT,b INT)", "CREATE STATISTICS stxd_actor_s(ndistinct) ON a,b FROM stxd_actor_t"} {
+			for _, q := range []string{"CREATE TABLE stxd_actor_t(a INT,b INT)", "CREATE STATISTICS stxd_actor_s(ndistinct,dependencies) ON a,b FROM stxd_actor_t"} {
 				run(actor, q, 0)
 			}
 			run(actor, "INSERT INTO stxd_actor_t VALUES(1,1),(1,1),(2,2)", 3)
-			for _, q := range []string{"CREATE TABLE stxd_other_t(a INT,b INT)", "CREATE STATISTICS stxd_other_s(ndistinct) ON a,b FROM stxd_other_t"} {
+			for _, q := range []string{"CREATE TABLE stxd_other_t(a INT,b INT)", "CREATE STATISTICS stxd_other_s(ndistinct,dependencies) ON a,b FROM stxd_other_t"} {
 				run(admin, q, 0)
 			}
 			run(admin, "INSERT INTO stxd_other_t VALUES(7,7),(7,7)", 2)
@@ -80,10 +82,10 @@ func statisticExtDataACLScenario(t *testing.T, smoke bool) {
 			fixture.RunStep(t, p.Ctx, admin, b.Recorder, statisticExtDataStep(b.PG, query, nil, args...))
 			deny() // Actual statistics/table ownership does not authorize DATA.
 			run(actor, "ANALYZE stxd_actor_t", 0)
-			want := [][]any{{id, false, `{"1, 2": 2}`, nil, nil, nil}}
+			want := [][]any{{id, false, `{"1, 2": 2}`, dependenciesFull, nil, nil}}
 			if !smoke {
 				run(admin, "ANALYZE stxd_other_t", 0)
-				want = append(want, []any{other, false, `{"1, 2": 1}`, nil, nil, nil})
+				want = append(want, []any{other, false, `{"1, 2": 1}`, dependenciesFull, nil, nil})
 			}
 			sort.Slice(want, func(i, j int) bool { return want[i][0].(int64) < want[j][0].(int64) })
 			fixture.RunStep(t, p.Ctx, admin, b.Recorder, statisticExtDataStep(b.PG, query, want, args...))

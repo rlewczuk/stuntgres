@@ -99,8 +99,40 @@ func DecodeExtendedStatisticsSnapshot(comment string) (ExtendedStatisticsSnapsho
 	// Every field is mandatory, including false/zero-valued fields. Nested
 	// usages have the same rule; NULL was already rejected recursively.
 	var actual map[string]json.RawMessage
-	if err := json.Unmarshal(data, &actual); err != nil || len(actual) != 10 && len(actual) != 11 {
+	if err := json.Unmarshal(data, &actual); err != nil {
 		return invalid()
+	}
+	expectedFields := 10
+	if _, exists := actual["expressions"]; exists {
+		expectedFields++
+	}
+	if _, exists := actual["dependencies"]; exists {
+		expectedFields++
+	}
+	if len(actual) != expectedFields {
+		return invalid()
+	}
+	for _, key := range []string{"schema", "name", "relation_schema", "relation_name", "keys", "kinds", "inherited", "usages", "subsets", "counts"} {
+		if _, exists := actual[key]; !exists {
+			return invalid()
+		}
+	}
+	if raw, exists := actual["dependencies"]; exists {
+		var items []map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &items); err != nil {
+			return invalid()
+		}
+		for _, item := range items {
+			if len(item) != 2 {
+				return invalid()
+			}
+			if _, ok := item["attributes"]; !ok {
+				return invalid()
+			}
+			if _, ok := item["degree"]; !ok {
+				return invalid()
+			}
+		}
 	}
 	var usages []map[string]json.RawMessage
 	if err := json.Unmarshal(actual["usages"], &usages); err != nil {

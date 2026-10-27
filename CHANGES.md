@@ -1,5 +1,14 @@
 # Changes
 
+- ANALYZE now measures directed multicolumn functional dependencies from actual
+  NULL-inclusive projected rows, including stable sparse attributes and existing
+  expression dimensions. Expose genuine `pg_dependencies` catalog values and
+  preserve stale fractional or analyzed-NULL state through native Dump/Restore.
+  Selected-column ANALYZE gates only simple statistics keys; existing expressions
+  evaluate from full captured rows while retaining all input usage authority.
+  Collection is deterministic logical-population technical statistics, not
+  PostgreSQL physical sampling/TOAST-width emulation or planner consumption.
+
 - Register the eight other planner options with exact typed session semantics.
   Apply admitted targets to ANALYZE, constraint eligibility to branch refutation,
   cursor fractions to eligible startup/total scan choices and recursive factors
@@ -17,7 +26,7 @@
   per-expression NULL/distinct/MCV/histogram facts and real signed-dimension
   joint ndistinct through the existing evaluator and metadata root.
   `pg_statistic_ext_data.stxdexpr` exposes genuine row-array values.
-  Joint dependency and joint MCV collection remain unsupported (NULL payloads).
+  Joint MCV collection remains unsupported (NULL payloads).
 
 - Add the database-local four-column `pg_subscription_rel` catalog with exact
   row/array ownership, owner+PUBLIC stored ACL and current prepared-read

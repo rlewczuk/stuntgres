@@ -68,6 +68,15 @@ Native-control phases replay actual emitted definition/target SQL on PostgreSQL,
 which ignores native state comments. Select the family in either mode with
 `make check RUN='^TestReferenceStatisticsNDistinct'` (add `REFERENCE=1`).
 
+Measured functional-dependency scenarios share the same direct/prepared helpers:
+NULL-inclusive row-weighted strengths, all determinant widths, sparse stable
+attributes and signed expression dimensions. Refresh, transaction visibility,
+authorization warning/error distinction, genuine typed results and stale native
+fractional/analyzed-NULL replay are covered by
+`make check RUN='^TestReferenceStatisticsDependencies'` (add `REFERENCE=1`).
+Native values describe complete logical populations, not physical TOAST-width
+filtering or server sample emulation; substantive query rows remain exact.
+
 Expression-statistics scenarios use the same public direct/prepared fixture and
 the genuine `pg_statistic_ext_data.stxdexpr` row array: subscript/field access,
 typed INT4/TEXT MCV slots, FLOAT4 frequencies, NULL fractions/distinct encoding,
@@ -78,7 +87,10 @@ Dependency scenarios assert the full NORMAL/AUTO edge bag, current-name deparse,
 stable identity, selected/unselected column retirement and routine RESTRICT/CASCADE.
 Full diagnostics cover prohibited nodes, name resolution and nonowner admission.
 The mixed/dual-expression witnesses require real NULL-inclusive joint ndistinct;
-joint dependencies and joint MCV collection are not claimed by this feature.
+the dependencies family also covers these dimensions. Joint MCV is not collected.
+Selected-column ANALYZE checks simple statistics keys, while expression-only
+and mixed definitions evaluate their expressions from full captured rows even
+when expression input columns are not selected for scalar collection.
 Native-control phases retain deliberately stale expression summaries through
 Dump/Reset/Restore, sparse input layouts, mixed owners and destination reminting;
 malformed/canceled imports retain destination data and old facts. PostgreSQL

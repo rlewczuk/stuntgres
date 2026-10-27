@@ -17,16 +17,18 @@ type ExtendedStatisticsKey struct {
 // ExtendedStatistics shares the immutable ANALYZE metadata publication root.
 // Items and Usages are owned construction facts, never borrowed row storage.
 type ExtendedStatistics struct {
-	Relation    ids.ObjectRef
-	Selection   catalog.StatisticsSelection
-	Usages      [8]sqltype.Usage
-	Recipes     catalog.StatisticsExpressions
-	expressions []*ColumnStatistics
-	inputs      []StatisticsColumn
-	providers   []catalog.Descriptor
-	Value       sqltype.Value
-	Items       []sqltype.StatisticsItem
-	Hierarchy   *StatisticsHierarchy
+	Relation        ids.ObjectRef
+	Selection       catalog.StatisticsSelection
+	Usages          [8]sqltype.Usage
+	Recipes         catalog.StatisticsExpressions
+	expressions     []*ColumnStatistics
+	inputs          []StatisticsColumn
+	providers       []catalog.Descriptor
+	Value           sqltype.Value
+	Items           []sqltype.StatisticsItem
+	Dependencies    sqltype.Value
+	DependencyItems []sqltype.StatisticsItem
+	Hierarchy       *StatisticsHierarchy
 }
 
 // ExpressionLen and Expression expose immutable summaries in definition order.

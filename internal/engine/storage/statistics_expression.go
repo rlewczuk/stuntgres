@@ -12,19 +12,22 @@ import (
 // ExtendedInput captures every dimension and the stable input usages needed to
 // retain stale summaries safely. Columns address a projected dimension row.
 type ExtendedInput struct {
-	Key        ExtendedStatisticsKey
-	Definition *catalog.Statistics
-	Columns    []StatisticsColumn
-	Inputs     []StatisticsColumn
-	Providers  []catalog.Descriptor
-	Type       *sqltype.Descriptor
+	Key              ExtendedStatisticsKey
+	Definition       *catalog.Statistics
+	Columns          []StatisticsColumn
+	Inputs           []StatisticsColumn
+	Providers        []catalog.Descriptor
+	Type             *sqltype.Descriptor
+	DependenciesType *sqltype.Descriptor
 }
 
 type ExtendedCollector struct {
-	input       ExtendedInput
-	joint       *NDistinctCollector
-	expressions []ProjectedStatisticsCollector
-	rows        uint64
+	input        ExtendedInput
+	joint        *NDistinctCollector
+	dependencies *DependenciesCollector
+	preparer     *NDistinctCollector
+	expressions  []ProjectedStatisticsCollector
+	rows         uint64
 }
 
 func NewExtendedCollector(input ExtendedInput) (*ExtendedCollector, error) {
@@ -33,8 +36,17 @@ func NewExtendedCollector(input ExtendedInput) (*ExtendedCollector, error) {
 	}
 	c := &ExtendedCollector{input: input}
 	var err error
-	if strings.Contains(input.Definition.Selection.Kinds(), "d") {
-		c.joint, err = NewNDistinctCollector(NDistinctInput{Key: input.Key, Definition: input.Definition, Columns: input.Columns, Type: input.Type})
+	if strings.ContainsAny(input.Definition.Selection.Kinds(), "df") {
+		c.preparer, err = newNDistinctCollector(NDistinctInput{Key: input.Key, Definition: input.Definition, Columns: input.Columns, Type: input.Type}, strings.Contains(input.Definition.Selection.Kinds(), "d"))
+		if err != nil {
+			return nil, err
+		}
+		if strings.Contains(input.Definition.Selection.Kinds(), "d") {
+			c.joint = c.preparer
+		}
+	}
+	if strings.Contains(input.Definition.Selection.Kinds(), "f") {
+		c.dependencies, err = newDependenciesCollector(input, c.preparer.grouping)
 		if err != nil {
 			return nil, err
 		}
@@ -53,9 +65,20 @@ func (c *ExtendedCollector) Add(ctx context.Context, dimensions []sqltype.Value)
 	if len(dimensions) != c.input.Definition.Selection.DimensionLen() {
 		return fmt.Errorf("invalid extended statistics dimension row")
 	}
-	if c.joint != nil {
-		if err := c.joint.Add(ctx, dimensions); err != nil {
+	if c.preparer != nil {
+		keys, hashes, err := c.preparer.prepare(ctx, dimensions)
+		if err != nil {
 			return err
+		}
+		if c.joint != nil {
+			if err := c.joint.addPrepared(ctx, &keys, &hashes); err != nil {
+				return err
+			}
+		}
+		if c.dependencies != nil {
+			if err := c.dependencies.addPrepared(ctx, &keys, &hashes); err != nil {
+				return err
+			}
 		}
 	}
 	for i := range c.expressions {
@@ -83,6 +106,13 @@ func (c *ExtendedCollector) Finish(ctx context.Context) (*ExtendedStatistics, er
 		}
 	} else {
 		fact = &ExtendedStatistics{Relation: c.input.Definition.Relation, Selection: c.input.Definition.Selection, Recipes: c.input.Definition.Expressions}
+	}
+	if c.dependencies != nil {
+		var err error
+		fact.Dependencies, fact.DependencyItems, err = c.dependencies.finish(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 	fact.inputs = slices.Clone(c.input.Inputs)
 	fact.providers = slices.Clone(c.input.Providers)

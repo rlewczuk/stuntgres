@@ -34,9 +34,14 @@ func TestReferenceStatisticsExpressionCollection(t *testing.T) {
 		// Mutations retain old facts until the ordinary ANALYZE publication.
 		s.run(fixture.Exec("UPDATE expr_t SET a=9,b=90", 20))
 		s.run(expressionSkew("expr_single", 1, "{2,3}"))
-		s.run(fixture.Exec("ANALYZE expr_t", 0))
+		// Only simple statistics keys gate selected ANALYZE eligibility.
+		// Expressions read a from full rows even though only b is selected.
+		s.run(fixture.Exec("ANALYZE expr_t(b)", 0))
 		s.run(expressionUniform("expr_single", "{10}"))
 		s.run(expressionJoint(s.pg, "expr_joint", `{"2, -1": 1}`, 1))
+		s.run(expressionUniform("expr_pair", "{10}"))
+		s.run(expressionJoint(s.pg, "expr_pair", `{"-1, -2": 1}`, 2))
+		s.run(expressionUniform("expr_default", "{10}"))
 	})
 }
 

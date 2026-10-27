@@ -55,13 +55,17 @@ func TestStatisticsTypeOutput(t *testing.T) {
 	}{
 		{PgNDistinct, 3, `{"1, 2": 3}`, "a4bf52a3010000000100000000000000000008400200000001000200"},
 		{PgDependencies, 1, `{"1 => 2": 1.000000}`, "2c9a54b40100000001000000000000000000f03f020001000200"},
+		{PgDependencies, 1, `{"1 => -1": 1.000000}`, "2c9a54b40100000001000000000000000000f03f02000100ffff"},
 	} {
 		attrs := []int16{1, 2}
+		if tc.want == `{"1 => -1": 1.000000}` {
+			attrs[1] = -1
+		}
 		v, err := StatisticsValue(types[tc.id], []StatisticsItem{{attrs, tc.value}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		equivalent, err := StatisticsValue(types[tc.id], []StatisticsItem{{[]int16{1, 2}, tc.value}})
+		equivalent, err := StatisticsValue(types[tc.id], []StatisticsItem{{append([]int16(nil), attrs...), tc.value}})
 		if err != nil || equivalent.statistics == v.statistics || !SameDatum(v, equivalent) {
 			t.Fatal("independent equivalent statistics datum identity", err)
 		}
@@ -110,7 +114,7 @@ func TestStatisticsTypeOutput(t *testing.T) {
 	if got, err := v.Type().Output(t.Context(), v); err != nil || got != `{"1, 3 => 2": 0.250000, "2 => 1": 0.500000}` {
 		t.Fatal(got, err)
 	}
-	for _, item := range []StatisticsItem{{[]int16{1, 1}, 1}, {[]int16{0, 2}, 1}, {[]int16{1}, 1}, {[]int16{1, 2}, math.NaN()}, {[]int16{1, 2}, 1.1}} {
+	for _, item := range []StatisticsItem{{[]int16{1, 1}, 1}, {[]int16{0, 2}, 1}, {[]int16{-9, 2}, 1}, {[]int16{1}, 1}, {[]int16{1, 2}, math.NaN()}, {[]int16{1, 2}, math.Inf(1)}, {[]int16{1, 2}, 1.1}} {
 		if _, err := StatisticsValue(types[PgDependencies], []StatisticsItem{item}); err == nil {
 			t.Fatal("invalid private item accepted", item)
 		}

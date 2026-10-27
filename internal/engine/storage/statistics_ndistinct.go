@@ -38,6 +38,10 @@ type NDistinctCollector struct {
 }
 
 func NewNDistinctCollector(input NDistinctInput) (*NDistinctCollector, error) {
+	return newNDistinctCollector(input, true)
+}
+
+func newNDistinctCollector(input NDistinctInput, subsets bool) (*NDistinctCollector, error) {
 	if input.Definition == nil || len(input.Columns) != input.Definition.Selection.DimensionLen() || input.Type == nil {
 		return nil, fmt.Errorf("invalid ndistinct layout")
 	}
@@ -53,6 +57,9 @@ func NewNDistinctCollector(input NDistinctInput) (*NDistinctCollector, error) {
 		c.grouping[i] = grouping
 	}
 	width := len(input.Columns)
+	if !subsets {
+		return c, nil
+	}
 	c.subsets = make([]ndistinctSubset, 0, (1<<width)-width-1)
 	var attributes [8]int16
 	var choose func(int, int, int, uint8)
@@ -76,25 +83,36 @@ func NewNDistinctCollector(input NDistinctInput) (*NDistinctCollector, error) {
 }
 
 func (c *NDistinctCollector) Add(ctx context.Context, row []sqltype.Value) error {
-	var keys [8]sqltype.Value
-	var hashes [8]uint64
+	keys, hashes, err := c.prepare(ctx, row)
+	if err != nil {
+		return err
+	}
+	return c.addPrepared(ctx, &keys, &hashes)
+}
+
+// prepare is shared by all multivariate collectors in one projected-row pass.
+func (c *NDistinctCollector) prepare(ctx context.Context, row []sqltype.Value) (keys [8]sqltype.Value, hashes [8]uint64, err error) {
 	for i, column := range c.input.Columns {
 		if err := ctx.Err(); err != nil {
-			return err
+			return keys, hashes, err
 		}
 		if column.Slot >= len(row) || row[column.Slot].Type() != column.Usage.Type {
-			return fmt.Errorf("invalid ndistinct row")
+			return keys, hashes, fmt.Errorf("invalid ndistinct row")
 		}
 		key, err := c.grouping[i].PrepareKey(ctx, row[column.Slot])
 		if err != nil {
-			return err
+			return keys, hashes, err
 		}
 		keys[i] = key
 		hashes[i], err = c.grouping[i].Hash(ctx, key)
 		if err != nil {
-			return err
+			return keys, hashes, err
 		}
 	}
+	return keys, hashes, nil
+}
+
+func (c *NDistinctCollector) addPrepared(ctx context.Context, keys *[8]sqltype.Value, hashes *[8]uint64) error {
 	for i := range c.subsets {
 		subset := &c.subsets[i]
 		hash := uint64(14695981039346656037)
@@ -125,7 +143,7 @@ func (c *NDistinctCollector) Add(ctx context.Context, row []sqltype.Value) error
 			}
 		}
 		if !found {
-			subset.groups = append(subset.groups, ndistinctTuple{values: keys, next: subset.buckets[hash]})
+			subset.groups = append(subset.groups, ndistinctTuple{values: *keys, next: subset.buckets[hash]})
 			subset.buckets[hash] = len(subset.groups)
 		}
 	}

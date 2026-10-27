@@ -64,8 +64,11 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   constructors `StatisticsValue`/`StatisticsMCVValue` freeze real payloads once;
   `StatisticsItem` inputs retain no caller slices. Payload fields stay private
   and compatible retags share backing. Distinct/dependency output uses released
-  map formatting; MCV output follows bytea hex/escape
-  presentation. Send emits the frozen linux/amd64 little-endian serialization
+  map formatting; MCV output follows bytea hex/escape presentation.
+  Dependency dimensions admit positive sparse attribute numbers and expression
+  identities -1..-8 with the dependent last; zero, duplicates and invalid widths
+  remain rejected. This producer authority does not admit SQL datum input.
+  Send emits the frozen linux/amd64 little-endian serialization
   without a varlena header. No comparison, collection or public datum constructor
   follows from descriptor admission.
   MCV validation distinguishes by-value dimensions (zero deserialized allocation)

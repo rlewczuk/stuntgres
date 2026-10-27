@@ -87,13 +87,22 @@ and never the engine.
   Extended facts share this same root, keyed by generation-qualified statistics
   definition and inherited flavor. `ExtendedCollector` reuses the ordinary scalar
   collector for typed projected expression values and shares those values with
-  `NDistinctCollector`. It prepares typed NOT DISTINCT keys once per dimension
-  and collision-checks every canonical subset of widths2..8 (at most247).
+  ndistinct and dependency collectors. Typed NOT DISTINCT keys are bound once
+  per dimension and prepared/hashed once per row for both kinds; every hash
+  collision is equality-checked. Ndistinct covers subsets of widths2..8.
+  Dependencies cover every nonempty proper determinant subset and each other
+  dependent dimension (at most1016 directions). A group contributes all its rows
+  only if every dependent value agrees; conflicting groups contribute zero.
+  Positive row-weighted degrees are retained; all-zero analysis yields typed
+  SQL NULL in an existing analyzed row. This deterministic logical-population
+  estimate does not emulate PostgreSQL sampling or physical TOAST-width filtering.
   NULLs form real groups. Simple keys retain positive attribute identities;
   ordered expression dimensions use -1,-2,... . Serialized members preserve
   positive simple keys followed by expression order, matching PostgreSQL.
-  Expression-only facts have genuine scalar summaries but no joint
-  Value. `MergeExtendedStatistics` preserves unselected backing; compatibility
+  Single-expression, automatic-summary-only (`e`-only) facts have genuine
+  scalar summaries but no joint Value. All-expression multivariate definitions
+  can also collect ndistinct and dependencies. `MergeExtendedStatistics`
+  preserves unselected backing; compatibility
   checks retained recipe identity, stable input/result usages, actual external
   provider revisions and current hierarchy authority, not display names or DML.
   AverageWidth retains the actual result type's available fixed datum width,
@@ -101,9 +110,12 @@ and never the engine.
   never formatted wire size; all-NULL/unsupported variable-width models remain0.
   The strict `stuntgres-ndistinct-v1` channel now transports checked extended
   facts, including optional typed expression summaries and semantic recipes.
-  Column-only records retain their existing byte format. Snapshot import
-  validates canonical signed subsets, integral counts, typed MCV/histogram
-  bounds and destination recipe/usages. The composing engine supplies existing
+  Non-f records retain their existing byte format. A dependencies array is
+  mandatory exactly for f records, including an empty array for analyzed NULL.
+  Snapshot import validates canonical signed direction ordering, positive finite
+  fractional degrees, signed ndistinct subsets, integral counts, typed MCV/histogram
+  bounds and destination recipe/usages. Stale dependency facts are reminted,
+  never recomputed from restored rows. The composing engine supplies existing
   control literal rendering/input; storage never binds expressions or executes SQL.
   Genuine destination TEMP reownership uses the existing retention authority,
   preserving old immutable facts while reminting their recipe/type generation.

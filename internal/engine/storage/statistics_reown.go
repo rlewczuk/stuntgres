@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
@@ -27,6 +28,22 @@ func ReownRetainedExtendedStatistics(fact *ExtendedStatistics, definition *catal
 			value.Value, err = sqltype.StatisticsValue(typ, fact.Items)
 			if err != nil {
 				return nil, err
+			}
+		}
+	}
+	if strings.Contains(definition.Selection.Kinds(), "f") {
+		typ, ok := read.LookupType(sqltype.PgDependencies)
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: missing retained dependencies payload type")
+		}
+		if fact.Dependencies.Type() != typ {
+			value.Dependencies = sqltype.ResultNull(typ.Usage())
+			if len(fact.DependencyItems) != 0 {
+				var err error
+				value.Dependencies, err = sqltype.StatisticsValue(typ, fact.DependencyItems)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}

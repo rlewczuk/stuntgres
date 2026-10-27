@@ -61,6 +61,10 @@ func TestStatisticsExpressionPublicationJournal(t *testing.T) {
 			}
 			enginetest.SessionSQL(t, peer, "ANALYZE expr_owner(b,c)")
 			other := analyzeFacts(e, ref.Address).Extended[b]
+			otherA := analyzeFacts(e, ref.Address).Extended[a]
+			if otherA == baseline.Extended[a] || otherA == selected || otherA.Expression(0).Rows != 5 {
+				t.Fatal("expression-only peer refresh did not own independent backing")
+			}
 			if strings.Contains(completion, "PREPARED") {
 				enginetest.SessionSQL(t, s, "PREPARE TRANSACTION 'expr_journal'")
 				if core.EnginePreparedRef(e).Lookup("expr_journal").Catalog.Statistics[ref.Address].Extended[a] != selected {
@@ -70,7 +74,7 @@ func TestStatisticsExpressionPublicationJournal(t *testing.T) {
 			} else {
 				enginetest.SessionSQL(t, s, completion)
 			}
-			want := baseline.Extended[a]
+			want := otherA
 			if strings.HasPrefix(completion, "COMMIT") {
 				want = selected
 			}

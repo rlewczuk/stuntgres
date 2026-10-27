@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -21,6 +22,11 @@ type NDistinctUsageRecord struct {
 	CollationName   string `json:"collation_name"`
 }
 
+type DependencySnapshot struct {
+	Attributes []int16 `json:"attributes"`
+	Degree     float64 `json:"degree"`
+}
+
 type ExtendedStatisticsSnapshot struct {
 	Schema         string                         `json:"schema"`
 	Name           string                         `json:"name"`
@@ -33,6 +39,7 @@ type ExtendedStatisticsSnapshot struct {
 	Subsets        [][]int16                      `json:"subsets"`
 	Counts         []uint64                       `json:"counts"`
 	Expressions    []StatisticsExpressionSnapshot `json:"expressions,omitempty"`
+	Dependencies   *[]DependencySnapshot          `json:"dependencies,omitempty"`
 }
 
 // CaptureExtendedStatisticsSnapshots transports checked retained construction
@@ -75,6 +82,13 @@ func CaptureExtendedStatisticsSnapshots(ctx context.Context, read catalog.Read, 
 				r.Subsets[i] = slices.Clone(item.Attributes)
 				r.Counts[i] = uint64(item.Value)
 			}
+			if strings.Contains(r.Kinds, "f") {
+				items := make([]DependencySnapshot, len(fact.DependencyItems))
+				for i, item := range fact.DependencyItems {
+					items[i] = DependencySnapshot{Attributes: slices.Clone(item.Attributes), Degree: item.Value}
+				}
+				r.Dependencies = &items
+			}
 			var err error
 			if fact.ExpressionLen() != 0 {
 				r.Expressions, err = captureExpressionSnapshots(ctx, read, relation, fact, codec)
@@ -108,7 +122,7 @@ func (r ExtendedStatisticsSnapshot) Validate() error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid extended statistics snapshot") }
 	width := len(r.Keys) + len(r.Expressions)
 	if r.Schema == "" || r.Name == "" || r.RelationSchema == "" || r.RelationName == "" ||
-		width < 1 || width > 8 || len(r.Usages) != len(r.Keys) || !strings.ContainsAny(r.Kinds, "de") {
+		width < 1 || width > 8 || len(r.Usages) != len(r.Keys) || !strings.ContainsAny(r.Kinds, "def") {
 		return invalid()
 	}
 	selection, err := catalog.NewStatisticsSelection(r.Keys, len(r.Expressions), r.Kinds)
@@ -154,6 +168,31 @@ func (r ExtendedStatisticsSnapshot) Validate() error {
 	for size := 2; expected != 0 && size <= width; size++ {
 		if err := choose(0, size, 0); err != nil {
 			return err
+		}
+	}
+	if strings.Contains(r.Kinds, "f") != (r.Dependencies != nil) {
+		return invalid()
+	}
+	if r.Dependencies != nil {
+		items := *r.Dependencies
+		if items == nil {
+			return invalid()
+		}
+		index := 0
+		if err := visitDependencyDirections(selection, func(_ uint8, _ int, attrs []int16) error {
+			if index < len(items) && slices.Equal(items[index].Attributes, attrs) {
+				degree := items[index].Degree
+				if math.IsNaN(degree) || math.IsInf(degree, 0) || degree <= 0 || degree > 1 {
+					return invalid()
+				}
+				index++
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		if index != len(items) {
+			return invalid()
 		}
 	}
 	return nil
@@ -214,6 +253,23 @@ func RestoreExtendedStatisticsSnapshots(ctx context.Context, read catalog.Read, 
 			fact.Value, err = sqltype.StatisticsValue(typ, fact.Items)
 			if err != nil {
 				return nil, err
+			}
+		}
+		if r.Dependencies != nil {
+			dependencyType, ok := read.LookupType(sqltype.PgDependencies)
+			if !ok {
+				return invalid()
+			}
+			fact.Dependencies = sqltype.ResultNull(dependencyType.Usage())
+			fact.DependencyItems = make([]sqltype.StatisticsItem, len(*r.Dependencies))
+			for i, item := range *r.Dependencies {
+				fact.DependencyItems[i] = sqltype.StatisticsItem{Attributes: slices.Clone(item.Attributes), Value: item.Degree}
+			}
+			if len(fact.DependencyItems) != 0 {
+				fact.Dependencies, err = sqltype.StatisticsValue(dependencyType, fact.DependencyItems)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 		if err := restoreExpressionSnapshots(ctx, read, relation, d, r.Expressions, fact, codec); err != nil {
