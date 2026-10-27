@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/settings"
 )
 
@@ -190,6 +191,30 @@ func TestSharedSeedMatchesUnsharedSeedDescriptors(t *testing.T) {
 			if o, ok := own.Get(a).(*catalog.Relation); !ok || o.RowType != d.RowType {
 				t.Fatalf("relation %v differs from its own seed", a)
 			}
+		}
+	}
+}
+
+// Each engine's catalog sources are its own relations, typed by its own type
+// generation and owned by its own principals, with the same shape in every
+// engine.
+func TestCatalogSourcesUseEngineTypes(t *testing.T) {
+	first, second := engine.New().CatalogRead(), engine.New().CatalogRead()
+	for _, spec := range pgcatalog.Specs {
+		address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: spec.OID}
+		a, ok := first.Get(address).(*catalog.Relation)
+		b, found := second.Get(address).(*catalog.Relation)
+		if !ok || !found || a == b || len(a.Columns) != len(spec.Columns) || len(b.Columns) != len(spec.Columns) || a.Owner == b.Owner {
+			t.Fatalf("%s: engines do not hold their own catalog source", spec.Name)
+		}
+		for i, column := range spec.Columns {
+			want, _ := first.LookupType(column.Type)
+			if a.Columns[i].Usage.Type != want || b.Columns[i].Usage.Type == want || a.Columns[i].Name != b.Columns[i].Name || a.Columns[i].Usage.Typmod != b.Columns[i].Usage.Typmod || a.Columns[i].Usage.Collation != b.Columns[i].Usage.Collation {
+				t.Fatalf("%s.%s: column is not typed by its engine", spec.Name, column.Name)
+			}
+		}
+		if len(a.ColumnMeta.CatalogAttributes) != len(spec.Columns) || a.RowType != b.RowType {
+			t.Fatalf("%s: catalog attribute facts or row type differ", spec.Name)
 		}
 	}
 }

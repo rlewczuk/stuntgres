@@ -977,7 +977,9 @@ Producers, the OID registry and descriptor specs live in
   retain their type and spelling across validated assignment coercion; no
   expression evaluation, provider binding or replay-renderer change occurs.
 - `catalog_sources.go` registers descriptors from `pgcatalog.Specs`, preserving
-  registration order, OIDs, columns and row/array links.
+  registration order, OIDs, columns and row/array links. It copies relation
+  templates built once per process and sets this engine's owner, ACL and column
+  types; engines share the templates' index maps and attribute slices.
 - Provenance is same-pointer authority (`&e.catalog.Owner`), never equal
   names, OIDs or epochs.
 
