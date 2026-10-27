@@ -38,12 +38,12 @@ type NDistinctCollector struct {
 }
 
 func NewNDistinctCollector(input NDistinctInput) (*NDistinctCollector, error) {
-	if input.Definition == nil || len(input.Columns) != input.Definition.Selection.Len() || input.Type == nil {
+	if input.Definition == nil || len(input.Columns) != input.Definition.Selection.DimensionLen() || input.Type == nil {
 		return nil, fmt.Errorf("invalid ndistinct layout")
 	}
 	c := &NDistinctCollector{input: input}
 	for i, column := range input.Columns {
-		if column.Key.Attribute != input.Definition.Selection.Key(i) || column.Slot < 0 {
+		if column.Key.Attribute != input.Definition.Selection.Dimension(i) || column.Slot < 0 {
 			return nil, fmt.Errorf("invalid ndistinct column selection")
 		}
 		grouping, err := sqltype.BindGrouping(column.Usage)
@@ -58,8 +58,9 @@ func NewNDistinctCollector(input NDistinctInput) (*NDistinctCollector, error) {
 	var choose func(int, int, int, uint8)
 	choose = func(start, left, count int, mask uint8) {
 		if left == 0 {
+			owned := slices.Clone(attributes[:count])
 			c.subsets = append(c.subsets, ndistinctSubset{
-				mask: mask, attributes: slices.Clone(attributes[:count]), buckets: make(map[uint64]int),
+				mask: mask, attributes: owned, buckets: make(map[uint64]int),
 			})
 			return
 		}
@@ -148,7 +149,7 @@ func (c *NDistinctCollector) Finish(ctx context.Context) (*ExtendedStatistics, e
 		return nil, err
 	}
 	fact := &ExtendedStatistics{
-		Relation: c.input.Definition.Relation, Selection: c.input.Definition.Selection, Value: value, Items: items,
+		Relation: c.input.Definition.Relation, Selection: c.input.Definition.Selection, Recipes: c.input.Definition.Expressions, Value: value, Items: items,
 	}
 	for i, column := range c.input.Columns {
 		fact.Usages[i] = column.Usage

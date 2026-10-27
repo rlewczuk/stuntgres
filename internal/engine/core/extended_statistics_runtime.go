@@ -10,7 +10,7 @@ import (
 
 // Called under the same capture lock as other runtime catalog facts. The
 // producer retains only immutable typed values, never this runtime adapter.
-func (r EngineCatalogRuntime) VisitNDistinct(ctx context.Context, visit func(ids.OID, bool, sqltype.Value) error) error {
+func (r EngineCatalogRuntime) VisitExtendedStatistics(ctx context.Context, visit func(ids.OID, bool, sqltype.Value, sqltype.Value) error) error {
 	for _, raw := range r.Auth.Catalog.Descriptors() {
 		relation, ok := raw.(*catalog.Relation)
 		if !ok {
@@ -25,7 +25,16 @@ func (r EngineCatalogRuntime) VisitNDistinct(ctx context.Context, visit func(ids
 			continue
 		}
 		for key, fact := range facts.Extended {
-			if err := visit(key.Definition.Address.ObjectID, key.Inherited, fact.Value); err != nil {
+			joint := fact.Value
+			if joint.Type() == nil {
+				d, _ := r.Auth.Catalog.LookupType(sqltype.PgNDistinct)
+				joint = sqltype.ResultNull(d.Usage())
+			}
+			expressions, err := statisticExpressionRows(ctx, r.Auth.Catalog, fact)
+			if err != nil {
+				return err
+			}
+			if err := visit(key.Definition.Address.ObjectID, key.Inherited, joint, expressions); err != nil {
 				return err
 			}
 		}

@@ -180,6 +180,35 @@ func (v Value) validCompositePayload() bool {
 // cast. Retained fields are mapped by stable attribute, missing fields become
 // exact typed NULLs, and dropped fields disappear. Unchanged payloads are shared.
 func (v Value) MapComposite(target *Descriptor, transform func(Value, *Descriptor) (Value, error)) (Value, error) {
+	if v.typ != nil && v.typ.ID() == 10029 && v.typ.Usage().CatalogNullUsage() {
+		if target == nil || target.ID() != 10029 || !target.Usage().CatalogNullUsage() || !v.validStatisticResult() {
+			return Value{}, fmt.Errorf("invalid statistic row mapping")
+		}
+		if v.null {
+			return ResultNull(target.Usage()), nil
+		}
+		var fields []Value
+		for i, old := range v.composite.fields {
+			next, err := transform(old, target.CompositeMember(i).Usage.Type)
+			if err != nil {
+				return Value{}, err
+			}
+			if !next.ValidResult(target.CompositeMember(i).Usage) {
+				return Value{}, fmt.Errorf("invalid mapped statistic field")
+			}
+			if next != old && fields == nil {
+				fields = slices.Clone(v.composite.fields)
+			}
+			if fields != nil {
+				fields[i] = next
+			}
+		}
+		if fields == nil {
+			v.typ = target
+			return v, nil
+		}
+		return OwnedStatisticRowValue(target, fields)
+	}
 	if !v.typ.Concrete() || !v.typ.BaseType().IsComposite() || !target.Concrete() || !target.BaseType().IsComposite() {
 		return Value{}, fmt.Errorf("invalid composite mapping")
 	}

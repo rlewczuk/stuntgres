@@ -46,6 +46,17 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 	retag := func(node expr.Expr) (expr.Expr, bool, error) {
 		return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, procedure, collation)
 	}
+	statisticsRetag := func(node expr.Expr) (expr.Expr, bool, error) {
+		if typesOnly && !routineExpressionChanged(view, node, typ) {
+			// The operation's routine remapper clones even unchanged declarations.
+			// Keep their genuine original identity when the existing declaration
+			// preflight proves it unchanged; the full mapper still checks hidden
+			// type/collation/provider fields and reports actual retag changes.
+			identity := func(p *catalog.Procedure) (*catalog.Procedure, error) { return p, nil }
+			return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, identity, collation)
+		}
+		return retag(node)
+	}
 	if typesOnly {
 		if err := reownSQLRoutineTypes(view, next, typ, routineRemap); err != nil {
 			return err
@@ -55,15 +66,13 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
 		if statistics, ok := descriptor.(*catalog.Statistics); ok {
-			if typesOnly {
-				continue
+			copy, err := reownStatisticsExpressions(statistics, ref, statisticsRetag)
+			if err != nil {
+				return err
 			}
-			mapped := ref(statistics.Relation)
-			if mapped != statistics.Relation {
-				copy := *statistics
-				copy.Relation = mapped
-				next.SetDescriptor(address, &copy)
-				if err := (catalog.StatisticsProvider{}).Validate(view.WithState(next), &copy); err != nil {
+			if copy != statistics {
+				next.SetDescriptor(address, copy)
+				if err := (catalog.StatisticsProvider{}).Validate(view.WithState(next), copy); err != nil {
 					return err
 				}
 			}

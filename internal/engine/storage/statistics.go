@@ -32,6 +32,7 @@ type ColumnStatistics struct {
 	Usage                          sqltype.Usage
 	Rows, NullCount, DistinctCount uint64
 	DistinctKnown                  bool
+	AverageWidth                   int32
 	MCV                            []StatisticMCV
 	Histogram                      []sqltype.Value
 	Hierarchy                      *StatisticsHierarchy

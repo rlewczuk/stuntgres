@@ -66,6 +66,22 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			boundResult = nil
 		}
 	}()
+	if b.Consumer.StatisticsConsumer {
+		switch r := raw.(type) {
+		case parser.ColumnExpr:
+			name := r.Name.Parts[len(r.Name.Parts)-1].Text
+			switch name {
+			case "tableoid", "ctid", "xmin", "xmax", "cmin", "cmax":
+				return nil, expr.ErrorAt("0A000", "statistics creation on system columns is not supported", parser.Position{})
+			}
+		case parser.SubqueryExpr:
+			return nil, expr.ErrorAt("0A000", "cannot use subquery in statistics expression", r.Pos)
+		case parser.IndexSubqueryExpr:
+			return nil, expr.ErrorAt("0A000", "cannot use subquery in statistics expression", r.Pos)
+		case parser.GroupingExpr:
+			return nil, expr.ErrorAt("42803", "grouping operations are not allowed in statistics expressions", r.Pos)
+		}
+	}
 	if b.Consumer.CallArguments {
 		switch r := raw.(type) {
 		case parser.SubqueryExpr:
@@ -270,6 +286,9 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			defer func() { b.Grouping.ArgumentOwner = parentOwner }()
 			if b.Target.GeneratedOwner != nil {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in column generation expressions", r.Pos)
+			}
+			if b.Consumer.StatisticsConsumer {
+				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in statistics expressions", r.Pos)
 			}
 			if b.Consumer.IndexPredicateConsumer {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in index predicates", r.Pos)
@@ -662,6 +681,9 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 		default:
 			return nil, fmt.Errorf("stuntgres: unsupported scalar node")
 		}
+	}
+	if b.Consumer.StatisticsConsumer && exec.SourceReturnsSet(node) {
+		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in statistics expressions", node.SourcePosition())
 	}
 	if b.Consumer.CopyWhere && exec.SourceReturnsSet(node) {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in COPY FROM WHERE conditions", node.SourcePosition())

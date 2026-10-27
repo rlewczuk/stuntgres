@@ -12,6 +12,16 @@ immutable range/column aliases for source, derived, function and aliased VALUES
 occurrences, sharing their alias slices while replacing executable identities,
 schemas and expressions. Distinct self-join occurrences remain distinct.
 
+Statistics recipes use these same expression remap/retag and stable-attribute
+deparse owners. Replacement remaps relation/input/provider references and both
+definition and execution trees before validating destination usages; it never
+retains source OID authority or rebinds a rendered expression during ANALYZE.
+Ordinary descriptor owner/target/name changes share immutable recipe identity.
+Type-only normalization uses the existing routine-declaration change preflight:
+unchanged callable declarations retain their original identity rather than an
+operation-local clone. The complete expression mapper still checks hidden
+type/collation fields, so genuine provider changes replace recipe backing.
+
 SQL/PL routines share callable captures. Language/body kind, declaration replay
 sources and typed local Usages participate in validation, equivalence and remap;
 declared pseudo signatures pass the same determinability and language checks as

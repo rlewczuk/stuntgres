@@ -9,6 +9,24 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
+Statistics expressions share the single-relation binder setup with indexes but
+use a distinct `StatisticsConsumer`: no parameters, subqueries, aggregates,
+grouping, windows or SRFs, and no index-specific IMMUTABLE restriction.
+The DDL host preflights coercions and retains normal conditional execution
+recipes, stable input identities and external dependencies. CREATE does not
+evaluate volatile runtime values. Definition-object locks include these real
+dependencies; publication rejects retired inputs/providers.
+`statistics_snapshot.go` bridges semantic captured statistics to the existing
+control-literal renderer and checked scalar whitelist. Destination typed value
+construction uses the ordinary binder/executor under captured catalog authority.
+The snapshot binding adapter supplies that captured authority and cancellation
+context to type-annotation, namespace and object-name hooks. Constructor casts
+use the existing immutable snapshot resolvers, not live-publication admission:
+the destination generation is deliberately private until final installation.
+Live operation resolution and final publication retain their original fences.
+It is not an expression-statistics evaluator or a re-ANALYZE path. Stable
+deparsing matches retained recipes independently of source object addresses.
+
 EXPLAIN shares the description-only binder, source admission and rule/view
 validation with Prepare. Its command boundary returns before execution fold
 planning, source capture, provider callbacks, DML startup, modifying CTE

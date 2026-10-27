@@ -98,17 +98,20 @@ retains old column distributions but refreshes row estimates to zero.
 inapplicable in this in-memory engine. No pages, WAL, sampling workers or
 autovacuum are implied. Full `pg_statistic`/`pg_stats` SQL readers are separate
 coverage; existing `pg_class` and table-statistics views publish real maintenance
-facts. Logical Dump/Restore transports data and checked multivariate ndistinct
-state; it does not import single-column planner distributions.
+facts. Logical Dump/Restore transports data and checked extended statistics
+state; it does not import ordinary single-column planner distributions.
 
-`CREATE STATISTICS` creates named or generated simple-column definitions with
-`ndistinct`, `dependencies` and `mcv` kinds; `DROP STATISTICS` supports conditional
-and dependency modes. Definitions appear in `pg_statistic_ext` and survive native
-Dump/Restore with ownership and stable column identities. Creation does not
-collect analyzed payloads. `ANALYZE` populates requested `ndistinct` objects from
-real visible tuples, including NULL groups, for every subset of two or more
-selected keys. The restricted six-column `pg_statistic_ext_data` source returns
-genuine typed payloads; other extended payloads remain typed NULL.
+`CREATE STATISTICS` supports single expressions and multivariate combinations
+of columns and expressions. Expressions are bound once to the target relation;
+stable and volatile functions are permitted, without evaluating them at CREATE.
+`ndistinct`, `dependencies` and `mcv` are declaration kinds; expression facts are
+automatic. `DROP STATISTICS` supports conditional and dependency modes.
+Definitions appear in `pg_statistic_ext`, including genuine `stxexprs` trees;
+`pg_get_expr` resolves renamed inputs from their retained attribute identities.
+Creation does not collect payloads. `ANALYZE` computes real joint ndistinct,
+including NULL groups and signed expression dimensions, and typed per-expression
+NULL/distinct/MCV/histogram summaries. `pg_statistic_ext_data.stxdexpr` is a genuine
+`pg_statistic[]` value, with array subscripting and row-field access.
 `ALTER STATISTICS [IF EXISTS] name SET STATISTICS {integer|DEFAULT}` controls
 each object's target: zero retains its old payload without rebuilding, and
 DEFAULT uses the existing target100. Positive targets retain exact native
@@ -117,9 +120,12 @@ statistics and never approximate substantive SELECT results.
 Native versioned comments preserve stale values, target-zero values, absence,
 and local/inherited flavors without reanalysis. PostgreSQL safely ignores these
 comments when replaying the same definition/target SQL; PostgreSQL18 dumps do
-not preserve collected extended statistics. Dependencies/MCV collection,
-expressions, `pg_stats_ext` and planner group-estimate integration are separate.
-The internal statistics types reject non-NULL SQL input and retain native metadata.
+not preserve collected extended statistics. Joint functional-dependency and
+joint MCV payloads remain NULL; their collection, `pg_stats_ext` and planner
+group-estimate integration are separate. Per-expression MCV is supported and
+is distinct from joint MCV. Native replay preserves stale expression summaries,
+not a recomputation from restored rows. Statistics types continue rejecting
+non-NULL SQL input; catalog-owned typed output supplies no input authority.
 
 
 ## Using stuntgres in unit tests

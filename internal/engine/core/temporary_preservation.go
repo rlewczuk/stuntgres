@@ -144,17 +144,25 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	targetProcedure := e.retainedRoutineProcedureRemapper(current)
 	for address, descriptor := range temporary {
 		if statistics, ok := descriptor.(*catalog.Statistics); ok {
-			// This declaration belongs to the genuine destination TEMP set,
-			// not the imported generation. Advance only its reference epoch;
-			// never apply source address/name mapping to its referenced table.
+			// Genuine destination TEMP recipes keep object addresses, but every
+			// expression/input/provider reference must join the new epoch too.
 			relation := statistics.Relation.Address
 			if statistics.Relation.Domain() != current.Domain() || statistics.Relation.Epoch != current.Epoch() ||
 				temporary[relation] == nil && next.Get(relation) != current.Get(relation) {
 				return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary statistics dependencies is unsupported")
 			}
-			copy := *statistics
-			copy.Relation = e.Catalog.Domain.Ref(next.Epoch(), relation)
-			next.SetDescriptor(address, &copy)
+			view := e.Catalog.Read(next)
+			remap := func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch = next.Epoch(); return ref }
+			typ := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
+			collation := stored.NewRoutineRemap(view, nil, typ, targetProcedure, false).Collation
+			replacement, err := stored.RemapStatisticsExpressions(view, statistics, remap, typ, targetProcedure, collation)
+			if err != nil {
+				return err
+			}
+			next.SetDescriptor(address, replacement)
+			if err := (catalog.StatisticsProvider{}).Validate(view, replacement); err != nil {
+				return err
+			}
 			continue
 		}
 		relation, ok := descriptor.(*catalog.Relation)

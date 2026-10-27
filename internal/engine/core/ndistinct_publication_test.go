@@ -150,7 +150,7 @@ func TestStatisticsNDistinctPublication(t *testing.T) {
 						copy.TargetSet = true
 						copy.Target = 0
 					} else {
-						copy.Selection, _ = catalog.NewStatisticsSelection([]int32{2, 3}, "d")
+						copy.Selection, _ = catalog.NewStatisticsSelection([]int32{2, 3}, 0, "d")
 					}
 					next.SetDescriptor(copy.Address(), &copy)
 					e.Catalog.PublishLocked(next)

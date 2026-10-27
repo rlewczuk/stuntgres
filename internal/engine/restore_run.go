@@ -42,7 +42,7 @@ type restoreRun struct {
 	triggerCloneCaptures  []viewcmds.RestoredTriggerClone
 	extensionOwners       []extension.OwnerRecord
 	snapshots             []view.MaterializedSnapshot
-	ndistinct             []storage.NDistinctSnapshot
+	extendedStatistics    []storage.ExtendedStatisticsSnapshot
 	comparison            control.ComparisonRestore
 	attributePairs        control.AttributeConstructorPairs
 	attributeConstructors map[control.AttributeDropTarget]ids.ObjectRef

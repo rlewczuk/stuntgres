@@ -68,6 +68,37 @@ Native-control phases replay actual emitted definition/target SQL on PostgreSQL,
 which ignores native state comments. Select the family in either mode with
 `make check RUN='^TestReferenceStatisticsNDistinct'` (add `REFERENCE=1`).
 
+Expression-statistics scenarios use the same public direct/prepared fixture and
+the genuine `pg_statistic_ext_data.stxdexpr` row array: subscript/field access,
+typed INT4/TEXT MCV slots, FLOAT4 frequencies, NULL fractions/distinct encoding,
+all-NULL versus nonstrict output, and ordered histogram bounds. Definitions
+cover expression-only `{e}`, explicit `{d,e}`, default `{d,f,m,e}`, source-order
+names, width limits, nonimmutable functions and conditional-create identity.
+Dependency scenarios assert the full NORMAL/AUTO edge bag, current-name deparse,
+stable identity, selected/unselected column retirement and routine RESTRICT/CASCADE.
+Full diagnostics cover prohibited nodes, name resolution and nonowner admission.
+The mixed/dual-expression witnesses require real NULL-inclusive joint ndistinct;
+joint dependencies and joint MCV collection are not claimed by this feature.
+Native-control phases retain deliberately stale expression summaries through
+Dump/Reset/Restore, sparse input layouts, mixed owners and destination reminting;
+malformed/canceled imports retain destination data and old facts. PostgreSQL
+replays actual emitted declaration SQL, not native semantic state comments.
+Equality-only XID expression collection checks the authentic MCV equality
+operator, typed values and continued readability of unrelated collected objects;
+single-expression projection does not impose a delayed btree requirement.
+All-NULL INT4 expression width is four, while unknown all-NULL TEXT width is
+zero; native replay retains both stale widths after source rows change.
+Hierarchy coverage attaches an existing child with different physical attribute
+positions, checks separate parent-local/parent-inherited/child-local expression
+distributions and real joint ndistinct, and requires inherited-only data for a
+partitioned parent. Native replay preserves stale inherited expression and joint
+facts despite the restored tables containing a different current distribution.
+Select every expression definition in both modes:
+`make check RUN='^TestReferenceStatisticsExpression'` (add `REFERENCE=1`).
+The end-to-end smoke selector is
+`make check RUN='^TestReferenceStatisticsExpressionFeatureSmoke$'` in both modes;
+it checks real collection, rename, admission failures, staleness and refresh.
+
 DATA-specific catalog scenarios independently assert all six fields (including
 empty-result metadata), relation/row/array identity, genuine analyzed-object
 population and exact missing-column diagnostics. The direct/fresh-prepared and

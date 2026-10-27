@@ -6,9 +6,9 @@ import (
 	"strconv"
 )
 
-// Only the builtin constructor calls this fixed-shape constructor. It does not
-// relax Composite or Array admission and grants no non-NULL value authority.
-func installStatisticNullDescriptors(types map[ID]*Descriptor) {
+// Only builtin construction grants this fixed catalog result authority.
+// Generic Composite and Array admission remain unchanged.
+func installStatisticDescriptors(types map[ID]*Descriptor) {
 	row, array := types[10029], types[10028]
 	members := make([]CompositeMember, 0, 31)
 	add := func(name string, id ID) {
@@ -45,15 +45,13 @@ func installStatisticNullDescriptors(types map[ID]*Descriptor) {
 	array.sql = "pg_statistic[]"
 }
 
-// RebindStatisticNullDescriptors preserves the fixed, NULL-only catalog shape
-// when replacement retains selected destination builtin generations. Only an
-// authentic row/array pair can mint a successor; no ordinary constructor gains
-// pseudo-member or non-NULL authority.
-func RebindStatisticNullDescriptors(row, array *Descriptor, usages []Usage) (*Descriptor, *Descriptor, error) {
+// RebindStatisticDescriptors preserves the authentic fixed catalog shape when
+// replacement retains selected destination builtin member generations.
+func RebindStatisticDescriptors(row, array *Descriptor, usages []Usage) (*Descriptor, *Descriptor, error) {
 	if row == nil || row.id != 10029 || !row.Usage().CatalogNullUsage() ||
 		array == nil || array.id != 10028 || !array.Usage().CatalogNullUsage() || array.element != row ||
 		len(usages) != row.CompositeLen() {
-		return nil, nil, fmt.Errorf("invalid catalog NULL description rebind")
+		return nil, nil, fmt.Errorf("invalid catalog statistic description rebind")
 	}
 	changed := false
 	for i, usage := range usages {
@@ -61,7 +59,7 @@ func RebindStatisticNullDescriptors(row, array *Descriptor, usages []Usage) (*De
 		if usage.Type == nil || usage.Type.ID() != member.Usage.Type.ID() ||
 			!usage.Type.IsBuiltin() || usage.Type.NamespaceName() != "pg_catalog" ||
 			usage != usage.Type.Usage() || !usage.Type.Concrete() && !usage.CatalogNullUsage() {
-			return nil, nil, fmt.Errorf("invalid catalog NULL member rebind")
+			return nil, nil, fmt.Errorf("invalid catalog statistic member rebind")
 		}
 		changed = changed || usage != member.Usage
 	}

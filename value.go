@@ -237,7 +237,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
-	case 2275, 2249:
+	case 2275, 2249, 2277:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point, sqltype.Line, sqltype.Lseg, sqltype.Path:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
@@ -296,6 +296,9 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 }
 
 func scanType(d *sqltype.Descriptor) reflect.Type {
+	if d.Usage().CatalogNullUsage() && d.ID() != 2277 {
+		return reflect.TypeFor[string]()
+	}
 	if d.Usage().CatalogNullUsage() || d.Usage().QueryNullUsage() {
 		return reflect.TypeFor[any]()
 	}

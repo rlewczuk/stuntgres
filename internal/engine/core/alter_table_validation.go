@@ -28,6 +28,8 @@ func (e *Engine) TransferAlterStage(scope *StatementScope, stage *CatalogStage) 
 			provider = &RelationProvider
 		case ids.TypeClassID:
 			provider = stored.TypeProvider{}
+		case ids.StatisticExtClassID:
+			provider = catalog.StatisticsProvider{}
 		case ids.ProcedureClassID:
 			// Type-generation normalization also reowns installed SQL recipes.
 			provider = stored.ProcedureProvider{}

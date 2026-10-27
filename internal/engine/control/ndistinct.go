@@ -5,12 +5,12 @@ import (
 	"stuntgres/internal/engine/storage"
 )
 
-func emitDumpNDistinct(ctx context.Context, s *dumpScript, w *dumpWriter) error {
-	for _, record := range s.NDistinct {
+func emitDumpExtendedStatistics(ctx context.Context, s *dumpScript, w *dumpWriter) error {
+	for _, record := range s.ExtendedStatistics {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		line, err := storage.EncodeNDistinctSnapshot(record)
+		line, err := storage.EncodeExtendedStatisticsSnapshot(record)
 		if err != nil {
 			return err
 		}

@@ -10,7 +10,10 @@ import (
 	"unicode/utf8"
 )
 
-func EncodeNDistinctSnapshot(record NDistinctSnapshot) (string, error) {
+func EncodeExtendedStatisticsSnapshot(record ExtendedStatisticsSnapshot) (string, error) {
+	if err := record.Validate(); err != nil {
+		return "", err
+	}
 	data, err := json.Marshal(record)
 	if err != nil {
 		return "", err
@@ -62,15 +65,15 @@ func validateSnapshotJSON(d *json.Decoder) error {
 	return err
 }
 
-// DecodeNDistinctSnapshot is called only for genuine line comments. A marker
-// in SQL data or a block comment cannot grant native import authority.
-func DecodeNDistinctSnapshot(comment string) (NDistinctSnapshot, bool, error) {
-	var record NDistinctSnapshot
+// DecodeExtendedStatisticsSnapshot only accepts genuine native line comments.
+// The retained marker keeps existing column-only dump bytes unchanged.
+func DecodeExtendedStatisticsSnapshot(comment string) (ExtendedStatisticsSnapshot, bool, error) {
+	var record ExtendedStatisticsSnapshot
 	text := strings.TrimSpace(comment)
 	if !strings.HasPrefix(text, "stuntgres-ndistinct-") {
 		return record, false, nil
 	}
-	invalid := func() (NDistinctSnapshot, bool, error) {
+	invalid := func() (ExtendedStatisticsSnapshot, bool, error) {
 		return record, true, fmt.Errorf("stuntgres: invalid ndistinct snapshot")
 	}
 	marker, payload, ok := strings.Cut(text, " ")
@@ -96,7 +99,7 @@ func DecodeNDistinctSnapshot(comment string) (NDistinctSnapshot, bool, error) {
 	// Every field is mandatory, including false/zero-valued fields. Nested
 	// usages have the same rule; NULL was already rejected recursively.
 	var actual map[string]json.RawMessage
-	if err := json.Unmarshal(data, &actual); err != nil || len(actual) != 10 {
+	if err := json.Unmarshal(data, &actual); err != nil || len(actual) != 10 && len(actual) != 11 {
 		return invalid()
 	}
 	var usages []map[string]json.RawMessage
@@ -106,6 +109,39 @@ func DecodeNDistinctSnapshot(comment string) (NDistinctSnapshot, bool, error) {
 	for _, usage := range usages {
 		if len(usage) != 5 {
 			return invalid()
+		}
+	}
+	if raw, exists := actual["expressions"]; exists {
+		var expressions []map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &expressions); err != nil || len(expressions) == 0 {
+			return invalid()
+		}
+		for _, expression := range expressions {
+			if len(expression) != 11 {
+				return invalid()
+			}
+			var usage map[string]json.RawMessage
+			if err := json.Unmarshal(expression["usage"], &usage); err != nil || len(usage) != 5 {
+				return invalid()
+			}
+			var inputs []map[string]json.RawMessage
+			if err := json.Unmarshal(expression["input_usages"], &inputs); err != nil {
+				return invalid()
+			}
+			for _, usage := range inputs {
+				if len(usage) != 5 {
+					return invalid()
+				}
+			}
+			var mcv []map[string]json.RawMessage
+			if err := json.Unmarshal(expression["mcv"], &mcv); err != nil {
+				return invalid()
+			}
+			for _, item := range mcv {
+				if len(item) != 2 {
+					return invalid()
+				}
+			}
 		}
 	}
 	if err := record.Validate(); err != nil {

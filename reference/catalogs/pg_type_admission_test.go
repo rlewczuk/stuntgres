@@ -40,8 +40,8 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,t.typcategory,t.typcollation,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=1790", []string{"oid", "typname", "typarray", "typcategory", "typcollation", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "CHAR", "OID", "OID", "NAME", "OID"}, [][]any{{int64(1790), "refcursor", int64(2201), "U", int64(0), int64(2201), "_refcursor", int64(1790)}}))
 		// OIDVECTOR is concrete; its real canonical companion is metadata only.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typelem,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=30", []string{"oid", "typname", "typelem", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "OID", "NAME", "OID"}, [][]any{{int64(30), "oidvector", int64(26), int64(1013), int64(1013), "_oidvector", int64(30)}}))
-		// The exact pg_statistic row/array description is catalog metadata
-		// with NULL-only result authority, not a pg_statistic reader or codec.
+		// Catalog-owned pg_statistic row/array values have a restricted output
+		// codec; this grants neither a pg_statistic reader nor external input.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid::bigint AS oid,typtype,typrelid::bigint AS relation,typelem::bigint AS element,typarray::bigint AS array FROM pg_type WHERE oid IN(10028,10029) ORDER BY oid", []string{"oid", "typtype", "relation", "element", "array"}, []string{"INT8", "CHAR", "INT8", "INT8", "INT8"}, [][]any{{int64(10028), "b", int64(0), int64(10029), int64(0)}, {int64(10029), "c", int64(2619), int64(0), int64(10028)}}))
 		if b.PG {
 			return

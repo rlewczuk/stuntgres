@@ -112,11 +112,11 @@ type TriggerFact struct {
 // Qual retains its own checked immutable stored definition.
 type TriggerCatalogFact struct {
 	OID, Relation, Function, Parent ids.OID
-	Name string
-	Type int16
-	Attributes []int32
-	Arguments []string
-	Qual sqltype.Value
+	Name                            string
+	Type                            int16
+	Attributes                      []int32
+	Arguments                       []string
+	Qual                            sqltype.Value
 }
 
 // Capabilities take values, not query bindings or live authority objects.
@@ -128,7 +128,7 @@ type Runtime interface {
 	PreparedCount() int
 	VisitPreparedTransactions(context.Context, func(PreparedFact) error) error
 	Maintenance(ids.ObjectAddress) (MaintenanceFact, bool)
-	VisitNDistinct(context.Context, func(ids.OID, bool, sqltype.Value) error) error
+	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value) error) error
 	DatabaseFrozenXID() uint64
 	VisitVacuumProgress(context.Context, func(VacuumProgressFact) error) error
 	TimezoneInput() sqltype.InputEnvironment

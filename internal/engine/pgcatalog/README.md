@@ -86,6 +86,11 @@ type Producer func(Input) ([][]sqltype.Value, error)
   source is independent of collected immutable metadata.
   `stxkeys` is an INT2VECTOR of table attribute identities, `stxkind` an internal `"char"`
   array, and nullable `stxexprs` a PG_NODE_TREE expression-tree list, not SQL.
+  Expression lists come from retained immutable bindings and deparse through
+  stable input identities, so column rename changes presentation, not recipes.
+  `pg_depend` projects AUTO simple/input-column edges and a whole-table AUTO
+  edge when there are no simple keys; external expression providers have NORMAL
+  dependencies, with ordinary pinned omission.
   `stxstattarget` is nullable, not a substituted -1 default. Collected metrics
   belong exclusively to `pg_statistic_ext_data`, not this source. Index presence
   is a catalog fact, not a claim of physical backing indexes. Even an empty
@@ -99,9 +104,17 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Restricted `pg_statistic_ext_data` (3429, row10033/array10032) projects the same
   canonical ANALYZE metadata roots through the authenticated runtime bridge.
   Its six exact fields are stxoid, stxdinherit, stxdndistinct, stxddependencies,
-  stxdmcv and stxdexpr; there is no oid column. Only ndistinct is collected;
-  remaining payloads are genuine typed NULLs, including canonical
-  pg_statistic[]10028. Bootstrap/default catalog ACL has no PUBLIC SELECT grant;
+  stxdmcv and stxdexpr; there is no oid column. Joint ndistinct and automatic
+  per-expression facts project independently from the same captured fact.
+  `stxdexpr` is a genuine typed pg_statistic[]10028 with FLOAT4 fractions,
+  distinct encoding, MCV values/frequencies and ordered histogram values.
+  Slot operators come from actual catalog families: MCV equality uses the
+  default btree equality member or an equality-only type's default hash member;
+  histogram ordering independently uses the default btree less-than member.
+  ANYARRAY slots retain actual typed arrays; ordinary subscript/field access
+  and explicit text output do not discard element authority. Uncollected joint
+  dependency/MCV payloads remain typed NULLs.
+  Bootstrap/default catalog ACL has no PUBLIC SELECT grant;
   owning the table or statistics grants no reader privilege. Current catalog
   SELECT is checked even for WHERE FALSE and on every held-statement execution.
   An explicit catalog grant permits other owners' data too; revocation affects
@@ -111,7 +124,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
   collection. Retained rowsets own immutable values across reanalysis, definition
   removal and native replacement; retaining a rowset does not authorize a later
   statement execution.
-  The canonical NULL-only pg_statistic composite participates in type ACL
+  The canonical restricted-result pg_statistic composite participates in type ACL
   projection through its validated type descriptor, without a fabricated
   relation reader. Ordinary unbacked composites remain authority errors.
 - `pg_subscription` (6100, row6101/array10112) is a real shared catalog with

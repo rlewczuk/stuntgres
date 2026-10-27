@@ -132,7 +132,7 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 			destination := t.Columns[i].Usage.Type
 			base := destination.BaseType().ID()
 			if typedef.ContainsStoredDomainNull(v) {
-				node, captureErr := captureDomainReplayNode(ctx, catalogView, t.Columns[i].Usage, v)
+				node, captureErr := CaptureDomainReplayNode(ctx, catalogView, t.Columns[i].Usage, v)
 				if captureErr != nil {
 					return captureErr
 				}

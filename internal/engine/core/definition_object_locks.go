@@ -36,6 +36,7 @@ func (s *StatementScope) acquireDefinitionObjectDependencies(stage *CatalogStage
 			addresses = append(addresses, catalog.CastDependencies(d)...)
 		case *catalog.Statistics:
 			addresses = append(addresses, d.Relation.Address)
+			d.VisitDependencies(func(a ids.ObjectAddress, _ byte) { a.SubID = 0; addresses = append(addresses, a) })
 		case *catalog.Conversion:
 			addresses = append(addresses, d.Handler)
 		case *catalog.TSConfiguration:

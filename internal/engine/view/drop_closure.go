@@ -233,9 +233,12 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			}
 			switch d := descriptor.(type) {
 			case *catalog.Statistics:
-				if target.ClassID == ids.RelationClassID && d.Relation.Address.ObjectID == target.ObjectID && (target.SubID == 0 || d.Selection.Selects(target.SubID)) {
-					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true, Label: stored.DependencyObject(base, a, path)})
-				}
+				d.VisitDependencies(func(dependency ids.ObjectAddress, kind byte) {
+					matches := dependency == target || target.SubID == 0 && dependency.ClassID == target.ClassID && dependency.ObjectID == target.ObjectID
+					if matches {
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: kind == 'a', Normal: kind == 'n', Label: stored.DependencyObject(base, a, path)})
+					}
+				})
 			case *catalog.EventTrigger:
 				if d.Function.Address == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})

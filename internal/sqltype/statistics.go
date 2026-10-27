@@ -23,8 +23,10 @@ type statisticsPayload struct {
 }
 
 // StatisticsItem is one checked construction input. Value is an ndistinct
-// count or a dependency degree; the last attribute is the dependent attribute
-// for pg_dependencies. Construction retains no caller-owned slices.
+// count or dependency degree. Ndistinct dimensions retain canonical selection
+// order: increasing positive keys followed by expression identities -1,-2,... .
+// Dependency attributes remain positive with the dependent attribute last.
+// Construction retains no caller-owned slices.
 type StatisticsItem struct {
 	Attributes []int16
 	Value      float64
@@ -50,8 +52,15 @@ func StatisticsValue(d *Descriptor, items []StatisticsItem) (Value, error) {
 			return Value{}, fmt.Errorf("invalid statistics item")
 		}
 		for j, a := range item.Attributes {
-			if a <= 0 {
+			if a == 0 || a < -8 || d.id == PgDependencies && a < 0 {
 				return Value{}, fmt.Errorf("invalid statistics attribute")
+			}
+			if d.id == PgNDistinct && j > 0 {
+				prior := item.Attributes[j-1]
+				ordered := prior > 0 && (a < 0 || prior < a) || prior < 0 && a < 0 && prior > a
+				if !ordered {
+					return Value{}, fmt.Errorf("unordered statistics dimensions")
+				}
 			}
 			for _, prior := range item.Attributes[:j] {
 				if a == prior {

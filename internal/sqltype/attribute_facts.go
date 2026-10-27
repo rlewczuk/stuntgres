@@ -115,9 +115,12 @@ func ResultNull(u Usage) Value {
 	return Null(u.Type)
 }
 
-// ValidResult preserves exact captured descriptor identity, including the
-// narrowly nullable catalog carrier. No nonnull pseudo value can escape.
+// ValidResult preserves captured descriptor identity and checks restricted
+// catalog payloads without granting general pseudo-type storage authority.
 func (v Value) ValidResult(u Usage) bool {
+	if v.typ == u.Type && u.CatalogNullUsage() {
+		return v.validStatisticResult()
+	}
 	if v.typ == u.Type && v.null && u.QueryNullUsage() {
 		return true
 	}

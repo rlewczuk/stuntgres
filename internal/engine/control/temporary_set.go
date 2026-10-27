@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -50,6 +51,22 @@ func TemporarySet(current catalog.Read, next *catalog.State) (map[ids.ObjectAddr
 // This still precedes allocator or publication work.
 func CheckTemporaryDependencies(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor) error {
 	for _, descriptor := range temporary {
+		if statistics, ok := descriptor.(*catalog.Statistics); ok {
+			if err := (catalog.StatisticsProvider{}).Validate(current, statistics); err != nil {
+				return err
+			}
+			var incompatible bool
+			statistics.VisitDependencies(func(address ids.ObjectAddress, _ byte) {
+				address.SubID = 0
+				if temporary[address] == nil && next.Get(address) != current.Get(address) && !compatibleTemporaryPolicyBuiltin(current, next, address) {
+					incompatible = true
+				}
+			})
+			if incompatible {
+				return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary statistics dependencies is unsupported")
+			}
+			continue
+		}
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
@@ -104,6 +121,9 @@ func compatibleTemporaryPolicyBuiltin(current catalog.Read, next *catalog.State,
 	case *catalog.Procedure:
 		replacement, ok := next.Get(address).(*catalog.Procedure)
 		return ok && exec.SameRoutineDeclaration(replacement, old) && (stored.ProcedureProvider{}).Validate(current, old) == nil && (stored.ProcedureProvider{}).Validate(candidate, replacement) == nil
+	case *catalog.Operator:
+		replacement, ok := next.Get(address).(*catalog.Operator)
+		return ok && *replacement == *old && (routine.OperatorProvider{}).Validate(current, old) == nil && (routine.OperatorProvider{}).Validate(candidate, replacement) == nil
 	case *catalog.Type:
 		// Reuse the exact-generation/header rule of retained array codecs.
 		// Row types, domains and user elements have no builtin survivor route.

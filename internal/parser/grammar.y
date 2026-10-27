@@ -829,6 +829,8 @@ package parser
 %type <expr> having
 %type <value> value
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument
+%type <row> statistics_elements
+%type <expr> statistics_element
 %type <expr> create_default_target
 %type <groupedPrimary> grouped_primary
 %type <expr> aggregate_call aggregate_within aggregate_application
@@ -1812,9 +1814,20 @@ drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Na
 statistics_create_head: CREATE STATISTICS {$$=$1} ;
 statistics_kinds: /* empty */ {$$=nil}
  | '(' grant_column_list ')' {$$=$2} ;
-create_statistics: statistics_create_head relation_name statistics_kinds ON grant_column_list FROM relation_name {$$=&CreateStatistics{Name:$2,Kinds:$3,Columns:$5,Relation:$7,Pos:$1.pos}}
- | statistics_create_head statistics_kinds ON grant_column_list FROM relation_name {$$=&CreateStatistics{Kinds:$2,Columns:$4,Relation:$6,Pos:$1.pos}}
- | statistics_create_head IF NOT EXISTS relation_name statistics_kinds ON grant_column_list FROM relation_name {$$=&CreateStatistics{Name:$5,Kinds:$6,Columns:$8,Relation:$10,IfNotExists:true,Pos:$1.pos}} ;
+statistics_elements: statistics_element {$$=[]Expr{$1}}
+ | statistics_elements ',' statistics_element {$$=append($1,$3)} ;
+statistics_element: column_reference {$$=$1}
+ | function {$$=$1}
+ | conditional_call {$$=$1}
+ | string_function {$$=$1}
+ | sqljson_query {$$=$1}
+ | check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
+ | name '(' function_args ')' {$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos}}
+ | name '.' col_label '(' function_args ')' {$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos}}
+ | '(' scalar_projection ')' {$$=$2} ;
+create_statistics: statistics_create_head relation_name statistics_kinds ON statistics_elements FROM relation_name {$$=&CreateStatistics{Name:$2,Kinds:$3,Elements:$5,Relation:$7,Pos:$1.pos}}
+ | statistics_create_head statistics_kinds ON statistics_elements FROM relation_name {$$=&CreateStatistics{Kinds:$2,Elements:$4,Relation:$6,Pos:$1.pos}}
+ | statistics_create_head IF NOT EXISTS relation_name statistics_kinds ON statistics_elements FROM relation_name {$$=&CreateStatistics{Name:$5,Kinds:$6,Elements:$8,Relation:$10,IfNotExists:true,Pos:$1.pos}} ;
 drop_statistics: DROP STATISTICS relation_names drop_mode {$$=&DropStatistics{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP STATISTICS IF EXISTS relation_names drop_mode {$$=&DropStatistics{Names:$5,Mode:$6,IfExists:true,Pos:$1.pos}} ;
 statistics_alter_head: ALTER STATISTICS {$$=$1} ;

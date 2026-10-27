@@ -711,7 +711,7 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 			}
 		}
 	}
-	installStatisticNullDescriptors(byID)
+	installStatisticDescriptors(byID)
 	return result
 }
 

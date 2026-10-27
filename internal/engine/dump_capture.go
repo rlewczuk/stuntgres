@@ -67,7 +67,10 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 	if err != nil {
 		return nil, err
 	}
-	capture.NDistinct = storage.CaptureNDistinctSnapshots(originalCatalog, e.Storage.RelationMetadata)
+	capture.ExtendedStatistics, err = storage.CaptureExtendedStatisticsSnapshots(ctx, originalCatalog, e.Storage.RelationMetadata, core.StatisticsSnapshotCodec(ctx, e, originalCatalog))
+	if err != nil {
+		return nil, err
+	}
 	return capture, nil
 }
 

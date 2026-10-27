@@ -8,6 +8,12 @@ Rule rewriting, view-write lowering and RLS walkers are in
 [`view`](../view/README.md); ON CONFLICT and MERGE execution state is in
 [`dml`](../dml/README.md).
 
+`StatisticsConsumer` is a distinct retained-expression context. Prohibited
+subquery/aggregate/grouping/window/set-returning nodes use statistics-specific
+diagnostics through normal recursive binding, including selected-call routes.
+Structural duplicate detection uses definition equality rather than SQL output
+or occurrence/pointer identity; volatility is not an admission restriction.
+
 Reached PL expressions use the ordinary binder with private lexical slots and
 current RECORD shapes. PL `$n` resolves the current lexical name first, including
 an integer-FOR private counter; outside that scope it identifies all formals.

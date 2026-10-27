@@ -55,6 +55,21 @@ func RetainTemporaryBuiltinTypes(current catalog.Read, next *catalog.State, temp
 		}
 	}
 	for _, descriptor := range temporary {
+		if statistics, ok := descriptor.(*catalog.Statistics); ok {
+			for i := range statistics.Expressions.Len() {
+				recipe := statistics.Expressions.At(i)
+				retainBuiltin(recipe.Usage().Type)
+				for _, node := range []expr.Expr{recipe.Definition(), recipe.Execution()} {
+					analyze.WalkQueryArgumentExpression(node, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
+				}
+				for j := range recipe.DependencyLen() {
+					if provider, ok := current.Type(recipe.Dependency(j).Address); ok {
+						retainBuiltin(provider.SQLType)
+					}
+				}
+			}
+			continue
+		}
 		if relation, ok := descriptor.(*catalog.Relation); ok {
 			for _, column := range relation.Columns {
 				retainBuiltin(column.Usage.Type)

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestStatisticsNDistinctTypeAuthority(t *testing.T) {
+func TestStatisticExpressionValueDescriptorAuthority(t *testing.T) {
 	types := make(map[ID]*Descriptor)
 	other := make(map[ID]*Descriptor)
 	for _, d := range Builtins() {
@@ -68,26 +68,26 @@ func TestStatisticsNDistinctTypeAuthority(t *testing.T) {
 	for i := range usages {
 		usages[i] = row.CompositeMember(i).Usage
 	}
-	unchangedRow, unchangedArray, err := RebindStatisticNullDescriptors(row, array, usages[:])
+	unchangedRow, unchangedArray, err := RebindStatisticDescriptors(row, array, usages[:])
 	if err != nil || unchangedRow != row || unchangedArray != array {
 		t.Fatal("unchanged closure lost backing", err)
 	}
 	usages[4] = other[Int4].Usage()
-	reboundRow, reboundArray, err := RebindStatisticNullDescriptors(row, array, usages[:])
+	reboundRow, reboundArray, err := RebindStatisticDescriptors(row, array, usages[:])
 	if err != nil || reboundRow == row || reboundArray == array || reboundArray.Element() != reboundRow ||
 		!reboundRow.Usage().CatalogNullUsage() || !reboundArray.Usage().CatalogNullUsage() ||
 		reboundRow.Concrete() || reboundArray.Concrete() {
-		t.Fatal("rebound NULL closure lost authority", err)
+		t.Fatal("rebound catalog closure lost authority", err)
 	}
 	if reboundRow.CompositeMember(4).Usage.Type != other[Int4] || row.CompositeMember(4).Usage.Type != types[Int4] || array.Element() != row {
 		t.Fatal("rebind mutated the retained generation or kept the replaced member")
 	}
 	copiedRow := *row
-	if _, _, err := RebindStatisticNullDescriptors(&copiedRow, array, usages[:]); err == nil {
+	if _, _, err := RebindStatisticDescriptors(&copiedRow, array, usages[:]); err == nil {
 		t.Fatal("copied row minted canonical authority")
 	}
 	usages[4] = other[Int8].Usage()
-	if _, _, err := RebindStatisticNullDescriptors(row, array, usages[:]); err == nil {
+	if _, _, err := RebindStatisticDescriptors(row, array, usages[:]); err == nil {
 		t.Fatal("rebind changed fixed member identity")
 	}
 }

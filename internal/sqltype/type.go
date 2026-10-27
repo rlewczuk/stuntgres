@@ -169,7 +169,7 @@ type Descriptor struct {
 	ftsBoolean, ftsDistance, ftsText    *Descriptor
 	ftsChar, ftsTextArray, ftsCharArray *Descriptor
 	lookupOnly                          bool
-	catalogNullOwner                    *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
+	catalogNullOwner                    *Descriptor // Self on authentic restricted catalog result descriptors.
 	queryNullOwner                      *Descriptor // Self only on canonical query-only pseudo NULL identities.
 	polymorphicOwner                    *Descriptor // Self only on canonical polymorphic signature identities.
 	namespace                           string
@@ -525,6 +525,7 @@ type Value struct {
 	polygon         *polygonPayload
 	snapshot        *Snapshot
 	statistics      *statisticsPayload
+	statisticArray  *statisticArrayPayload
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -533,6 +534,9 @@ func (v Value) IsNull() bool      { return v.null }
 // Retag remints descriptor ownership without changing a concrete scalar datum.
 // It preserves logical identity and physical base constraints, not just payload shape.
 func (v Value) Retag(d *Descriptor) (Value, error) {
+	if v.typ != nil && v.typ.Usage().CatalogNullUsage() {
+		return v.retagStatistic(d)
+	}
 	if v.typ == nil || !v.typ.Concrete() || !d.Concrete() || v.typ.id != d.id || v.typ.IsDomain() != d.IsDomain() || v.typ.BaseType().id != d.BaseType().id {
 		return Value{}, fmt.Errorf("incompatible scalar type identity")
 	}
@@ -1222,6 +1226,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	}
 	if d == nil || v.typ != d || v.null {
 		return "", fmt.Errorf("invalid output value")
+	}
+	if d.id == 2277 && d.Usage().CatalogNullUsage() {
+		return v.statisticArrayOutput(ctx, env)
 	}
 	if d.IsDomain() {
 		v.typ = d.BaseType()
@@ -2107,6 +2114,9 @@ func StoredScalarCastType(id ID) bool {
 // PlanCoercion selects a direct released edge before generic array or string I/O
 // rules. An ineligible direct edge is a barrier, never a transitive invitation.
 func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, error) {
+	if source.CatalogNullUsage() && target.Valid() && target.Type.ID() == Text && context == Explicit {
+		return CoercionPlan{source: source, target: target, context: context, method: viaIO}, nil
+	}
 	if !source.Valid() || !target.Valid() {
 		return CoercionPlan{}, fmt.Errorf("invalid coercion usage")
 	}

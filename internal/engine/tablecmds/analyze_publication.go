@@ -106,7 +106,7 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	if ns, ok := auth.Catalog.Namespace(relation.Namespace()); ok {
 		qualified = ns.Name() + "." + qualified
 	}
-	ndistinctInputs, err := captureNDistinct(s, auth.Catalog, relation, columns)
+	extendedInputs, err := captureExtendedStatistics(s, auth.Catalog, relation, columns)
 	if err != nil {
 		e.Mu.Unlock()
 		return err
@@ -181,15 +181,18 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	if len(closure) > 1 || relation.Partition != nil {
 		hierarchy = &storage.StatisticsHierarchy{Relations: closure, Session: s.Op.Session.SessionToken}
 	}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: core.HostOf(s), Input: s.Input, Output: s.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation.RoutineAuthority = &auth
 	collect := func(inherited bool) (*storage.RelationStatistics, uint64, error) {
 		inputs := columns
 		for i := range inputs {
 			inputs[i].Key.Inherited = inherited
 		}
-		collectors := make([]*storage.NDistinctCollector, len(ndistinctInputs))
-		for i, input := range ndistinctInputs {
+		collectors := make([]*storage.ExtendedCollector, len(extendedInputs))
+		for i := range extendedInputs {
+			input := extendedInputs[i].ExtendedInput
 			input.Key.Inherited = inherited
-			collectors[i], err = storage.NewNDistinctCollector(input)
+			collectors[i], err = storage.NewExtendedCollector(input)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -214,8 +217,8 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 						}
 						values = scratch[i]
 					}
-					for _, collector := range collectors {
-						if err := collector.Add(s.Op.Context(), values); err != nil {
+					for j, collector := range collectors {
+						if err := extendedInputs[j].add(&evaluation, collector, values); err != nil {
 							return err
 						}
 					}
@@ -235,7 +238,7 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 				return nil, 0, err
 			}
 			if fact != nil {
-				key := ndistinctInputs[i].Key
+				key := extendedInputs[i].Key
 				key.Inherited = inherited
 				if inherited {
 					fact.Hierarchy = hierarchy

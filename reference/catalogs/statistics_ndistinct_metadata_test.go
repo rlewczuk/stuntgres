@@ -104,8 +104,8 @@ func TestReferenceStatisticsNDistinctDataSchema(t *testing.T) {
 					t.Fatal("nullability adapter", c.Name(), known)
 				}
 			}
-			if !s.pg && columns[3].ScanType() != reflect.TypeFor[any]() {
-				t.Fatal("NULL-only array scan type", columns[3].ScanType())
+			if !s.pg && columns[3].ScanType() != reflect.TypeFor[string]() {
+				t.Fatal("catalog statistic array scan type", columns[3].ScanType())
 			}
 		}
 		s.run(step)

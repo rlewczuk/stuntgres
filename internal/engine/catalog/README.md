@@ -93,10 +93,15 @@ private frames, not catalog authority.
   and replacement remapping include those identities.
 - **Extended statistics.** `StatisticsProvider` validates schema-bound class
   3381 definitions, live owner and domain/epoch-bound input relation authority.
-  `StatisticsSelection` owns a fixed, private canonical attribute vector and
-  kind flags; constructors copy caller data. Attributes use stable positive
-  identities, not current dense slots. Definitions own no collected payloads.
-  Selected columns derive AUTO dependencies; namespaces derive NORMAL edges.
+  `StatisticsSelection` owns fixed canonical positive simple keys, expression
+  count and d/f/m/e flags. Joint dimensions append -1,-2,... in expression order.
+  `StatisticsExpressions` owns comparable immutable recipe identity; recipes
+  retain definition/execution, copied row layouts, stable input references and
+  external dependencies with read-only indexing. Descriptor COW shares backing.
+  Provider validation checks live relation, input, result and dependency authority.
+  Definitions own no collected payloads. Inputs derive AUTO edges, with a
+  whole-table AUTO edge when there are no simple keys; providers/namespaces
+  derive NORMAL edges through one shared dependency visitor.
 - **Relation layout.** `Relation` keeps identity and the live column shape at the
   top level, the sub-records `ColumnMeta`, `Constraints`, `Security` and
   `History`, and the kind payloads (`SQLIndex`, `Partition`, `Sequence`, `View`,

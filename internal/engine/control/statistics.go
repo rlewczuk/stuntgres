@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 )
 
 func collectStatisticsDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddress, raw catalog.Descriptor) error {
@@ -20,8 +21,28 @@ func collectStatisticsDump(ctx context.Context, c *dumpCollection, _ ids.ObjectA
 	if err := (catalog.StatisticsProvider{}).Validate(c.CatalogView, d); err != nil {
 		return err
 	}
+	event := dump.Event{OID: d.Address().ObjectID}
+	predecessors := []dump.Event{{OID: d.Relation.Address.ObjectID}}
+	var dependencyError error
+	d.VisitDependencies(func(a ids.ObjectAddress, _ byte) {
+		if dependencyError != nil || a.ClassID == ids.NamespaceClassID {
+			return
+		}
+		predecessor, err := (Resolver{}).Predecessor(c.CatalogView, a, d.Address())
+		if err != nil {
+			dependencyError = err
+			return
+		}
+		source := dump.Event{OID: predecessor}
+		if predecessor != 0 && !slices.Contains(predecessors, source) {
+			predecessors = append(predecessors, source)
+		}
+	})
+	if dependencyError != nil {
+		return dependencyError
+	}
 	c.Statistics = append(c.Statistics, d)
-	c.Graph[dump.Event{OID: d.Address().ObjectID}] = []dump.Event{{OID: d.Relation.Address.ObjectID}}
+	c.Graph[event] = predecessors
 	return nil
 }
 func statisticsDumpStatement(view catalog.Read, roles authorization.Read, d *catalog.Statistics) (dump.Statement, error) {
@@ -37,8 +58,12 @@ func statisticsDumpStatement(view catalog.Read, roles authorization.Read, d *cat
 	}
 	rel := view.MustRelation(d.Relation.Address)
 	var out strings.Builder
-	out.WriteString("CREATE STATISTICS " + qualified(d) + " (")
-	for i, k := range d.Selection.Kinds() {
+	out.WriteString("CREATE STATISTICS " + qualified(d))
+	kinds := strings.ReplaceAll(d.Selection.Kinds(), "e", "")
+	if kinds != "" {
+		out.WriteString(" (")
+	}
+	for i, k := range kinds {
 		if i > 0 {
 			out.WriteString(", ")
 		}
@@ -51,12 +76,25 @@ func statisticsDumpStatement(view catalog.Read, roles authorization.Read, d *cat
 			out.WriteString("mcv")
 		}
 	}
-	out.WriteString(") ON ")
+	if kinds != "" {
+		out.WriteString(")")
+	}
+	out.WriteString(" ON ")
 	for i := range d.Selection.Len() {
 		if i > 0 {
 			out.WriteString(", ")
 		}
 		out.WriteString(catalog.QuoteIdentifier(rel.Columns[rel.IndexForAttribute(d.Selection.Key(i))].Name))
+	}
+	for i := range d.Expressions.Len() {
+		if i > 0 || d.Selection.Len() > 0 {
+			out.WriteString(", ")
+		}
+		text, err := (stored.Deparser{View: view, Relation: rel}).SQL(context.Background(), d.Expressions.At(i).Definition(), stored.DeparseParent{})
+		if err != nil {
+			return dump.Statement{}, err
+		}
+		out.WriteString("(" + text + ")")
 	}
 	out.WriteString(" FROM " + qualified(rel) + ";\n")
 	statement := dump.Statement{Owner: owner.Name, SQL: out.String()}

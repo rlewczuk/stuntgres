@@ -199,7 +199,15 @@ func (b *Binder) SelectCompositeField(base expr.Expr, name string, pos parser.Po
 func (b *Binder) compositeFieldAt(base expr.Expr, index int, pos parser.Position) (expr.Expr, error) {
 	shape := base.ResultUsage().Type.BaseType()
 	member := shape.CompositeMember(index)
-	if shape.ID() != 2249 {
+	if shape.ID() == 10029 && shape.Usage().CatalogNullUsage() {
+		descriptor, _ := b.definitionDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(shape.ID())})
+		typ, ok := descriptor.(*catalog.Type)
+		if !ok || typ.SQLType != shape {
+			return nil, fmt.Errorf("stuntgres: invalid statistic field type")
+		}
+		read := b.BindingCatalog()
+		b.dependency(read.Owner().Domain.Ref(read.Epoch(), typ.Address()), typ.Revision())
+	} else if shape.ID() != 2249 {
 		descriptor, _ := b.definitionDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(shape.ID())})
 		typ, ok := descriptor.(*catalog.Type)
 		if !ok || typ.SQLType != shape || typ.OwningRelation == (ids.ObjectAddress{}) {

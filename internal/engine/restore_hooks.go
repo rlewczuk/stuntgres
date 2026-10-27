@@ -20,7 +20,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "view: materialized snapshot records", Decode: decodeRestoreMaterializedSnapshot},
 	{Name: "trigger: retained clone records", Decode: decodeRestoreTriggerClone},
 	{Name: "comparison binding records", Decode: decodeRestoreComparisonContext},
-	{Name: "statistics: ndistinct records", Decode: decodeRestoreNDistinct},
+	{Name: "statistics: extended records", Decode: decodeRestoreExtendedStatistics},
 
 	// Before admission.
 	{Name: "comparison binding context", Before: beforeRestoreComparisonContext},
@@ -108,5 +108,5 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "view: materialized snapshots", Finish: finishRestoreMaterializedSnapshots},
 	{Name: "routine: SQL bodies", Finish: finishRestoreSQLRoutines},
 	{Name: "trigger: retained clone links", Finish: finishRestoreTriggerClones},
-	{Name: "statistics: ndistinct facts", Finish: finishRestoreNDistinct},
+	{Name: "statistics: extended facts", Finish: finishRestoreExtendedStatistics},
 }

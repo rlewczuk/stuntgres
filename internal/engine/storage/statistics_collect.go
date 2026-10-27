@@ -8,6 +8,10 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
+// StatisticsTarget is the fixed expression-summary target. Base columns use
+// their captured default or per-column Target instead.
+const StatisticsTarget = 100
+
 
 type StatisticsColumn struct {
 	Key    StatisticsKey
@@ -31,6 +35,7 @@ type statisticsCollector struct {
 	ordered  bool
 	buckets  map[uint64]int
 	groups   []statisticsGroup
+	width    uint64
 }
 
 func missingStatisticsOperator(err error) bool {
@@ -45,29 +50,17 @@ func CollectStatistics(ctx context.Context, columns []StatisticsColumn, rows fun
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
 	}
-	collectors := make([]statisticsCollector, len(columns))
+	collectors := make([]ProjectedStatisticsCollector, len(columns))
 	seen := make(map[StatisticsKey]bool, len(columns))
 	for i, column := range columns {
 		if column.Key.Attribute <= 0 || column.Slot < 0 || column.Target < 1 || column.Target > 10000 || column.Usage.Type == nil || !column.Usage.Type.Concrete() || seen[column.Key] {
 			return nil, 0, fmt.Errorf("invalid statistics column layout")
 		}
 		seen[column.Key] = true
-		c := &collectors[i]
-		c.column, c.stats = column, &ColumnStatistics{Usage: column.Usage}
-		grouping, err := sqltype.BindGrouping(column.Usage)
-		if err != nil {
-			if !missingStatisticsOperator(err) {
-				return nil, 0, err
-			}
-			continue
-		}
-		c.grouping, c.stats.DistinctKnown = grouping, true
-		c.buckets = make(map[uint64]int)
-		ordering, err := sqltype.BindOrdering(column.Usage)
-		if err != nil && !missingStatisticsOperator(err) {
+		if err := collectors[i].initialize(column.Usage); err != nil {
 			return nil, 0, err
 		}
-		c.ordering, c.ordered = ordering, err == nil
+		collectors[i].scalar.column = column
 	}
 	var population uint64
 	err := rows(func(row []sqltype.Value) error {
@@ -76,10 +69,10 @@ func CollectStatistics(ctx context.Context, columns []StatisticsColumn, rows fun
 		}
 		for i := range collectors {
 			c := &collectors[i]
-			if c.column.Slot >= len(row) {
+			if columns[i].Slot >= len(row) {
 				return fmt.Errorf("invalid statistics row layout")
 			}
-			if err := c.add(ctx, row[c.column.Slot]); err != nil {
+			if err := c.Add(ctx, row[columns[i].Slot]); err != nil {
 				return err
 			}
 		}
@@ -98,10 +91,11 @@ func CollectStatistics(ctx context.Context, columns []StatisticsColumn, rows fun
 	result := &RelationStatistics{Columns: make(map[StatisticsKey]*ColumnStatistics, len(columns))}
 	for i := range collectors {
 		c := &collectors[i]
-		if err := c.finish(ctx); err != nil {
+		fact, err := c.Finish(ctx)
+		if err != nil {
 			return nil, 0, err
 		}
-		result.Columns[c.column.Key] = c.stats
+		result.Columns[columns[i].Key] = fact
 	}
 	return result, population, ctx.Err()
 }
@@ -114,6 +108,29 @@ func (c *statisticsCollector) add(ctx context.Context, value sqltype.Value) erro
 	if value.IsNull() {
 		c.stats.NullCount++
 		return ctx.Err()
+	}
+	base, err := value.BaseValue()
+	if err != nil {
+		return err
+	}
+	size := base.Type().AttributeFacts().Length
+	if size > 0 {
+		c.width += uint64(size)
+	} else {
+		switch base.Type().ID() {
+		case sqltype.Text, sqltype.VarChar, sqltype.BPChar:
+			text, err := base.Text()
+			if err != nil {
+				return err
+			}
+			c.width += uint64(len(text) + 4)
+		case sqltype.Bytea:
+			raw, err := base.Binary()
+			if err != nil {
+				return err
+			}
+			c.width += uint64(len(raw) + 4)
+		}
 	}
 	if !c.stats.DistinctKnown {
 		return ctx.Err()
@@ -144,6 +161,9 @@ func (c *statisticsCollector) add(ctx context.Context, value sqltype.Value) erro
 }
 
 func (c *statisticsCollector) finish(ctx context.Context) error {
+	if nonnull := c.stats.Rows - c.stats.NullCount; nonnull != 0 {
+		c.stats.AverageWidth = int32(c.width / nonnull)
+	}
 	if !c.stats.DistinctKnown {
 		return ctx.Err()
 	}
@@ -155,8 +175,10 @@ func (c *statisticsCollector) finish(ctx context.Context) error {
 		}
 		return c.groups[i].first < c.groups[j].first
 	})
+	target := c.column.Target
+	if target == 0 { target = StatisticsTarget }
 	retained := 0
-	for retained < len(c.groups) && retained < c.column.Target && c.groups[retained].count > 1 {
+	for retained < len(c.groups) && retained < target && c.groups[retained].count > 1 {
 		g := c.groups[retained]
 		c.stats.MCV = append(c.stats.MCV, StatisticMCV{Value: g.value, Count: g.count})
 		retained++
@@ -184,7 +206,7 @@ func (c *statisticsCollector) finish(ctx context.Context) error {
 	for _, group := range residual {
 		weight += group.count
 	}
-	boundaries := min(uint64(c.column.Target+1), weight)
+	boundaries := min(uint64(target+1), weight)
 	c.stats.Histogram = make([]sqltype.Value, int(boundaries))
 	var index int
 	cumulative := residual[0].count

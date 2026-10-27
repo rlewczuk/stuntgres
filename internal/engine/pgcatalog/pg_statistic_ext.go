@@ -3,7 +3,9 @@ package pgcatalog
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -74,6 +76,16 @@ func capturePGStatisticExt(in Input) ([][]sqltype.Value, error) {
 			return nil, err
 		}
 		row[8] = sqltype.Null(in.Source.Columns[8].Usage.Type)
+		if d.Expressions.Len() != 0 {
+			expressions := make([]expr.Expr, d.Expressions.Len())
+			for i := range expressions {
+				expressions[i] = d.Expressions.At(i).Definition()
+			}
+			row[8], err = sqltype.Tree(in.Source.Columns[8].Usage.Type, plan.OwnExpressionListTree(expressions))
+			if err != nil {
+				return nil, err
+			}
+		}
 		rows = append(rows, row)
 	}
 	return rows, nil

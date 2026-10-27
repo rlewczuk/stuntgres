@@ -29,6 +29,17 @@ Their standalone backing relations are therefore omitted from CREATE TYPE
 output, and backing-relation dependency edges resolve to the same extension
 event without inventing direct relation membership.
 
+Statistics declarations render simple keys and parenthesized bound expressions
+with current stable-attribute names. Expression-only objects omit the kind list;
+mixed declarations serialize only requested d/f/m kinds, never explicit e.
+Their graph follows input/provider definitions and completed sparse table layouts.
+Recipe dependencies pass through the common predecessor resolver: authentic
+builtins require no dump event, extension-owned members await their extension,
+and user routines/types retain their actual declaration predecessors. Raw
+dependency OIDs never stand in for resolved graph events.
+Native semantic state replay preserves collected stale expression summaries,
+separately from declaration replay and without re-ANALYZE.
+
 Parameter ACLs use the shared typed ACLITEM[] preflight and deterministic
 object-ACL section. Isolated Restore accepts only the generated single-assignment
 `pg_parameter_acl.paracl` repair selected by literal TEXT `parname`, allocating
@@ -98,13 +109,20 @@ function references once into the destination authority.
   owner-only COW, while the root driver alone carries and expires that pair.
   Bootstrap-principal definitions use their named owner directive without a
   redundant transfer; DEFAULT may name a different authenticated role on replay.
-  Deterministic strict `stuntgres-ndistinct-v1` comments transport only checked
-  collected ndistinct facts, including stale values and separate inherited
-  flavors. Restore resolves names/keys/usages after definition finalization and
-  reconstructs immutable typed values before atomic destination publication.
-  No ANALYZE replay or single-column distribution import occurs. Genuine
-  destination TEMP facts retain their separate existing retention authority.
-  PostgreSQL18 script replay ignores these comments and leaves data absent.
+  Deterministic strict `stuntgres-ndistinct-v1` comments transport checked
+  extended facts, including stale joint counts, automatic typed expression
+  null/distinct/MCV/histogram summaries and separate inherited flavors.
+  Expression records add checked optional fields; column-only dump bytes stay
+  unchanged. Restore resolves names, signed dimensions, recipes and usages after
+  definition finalization, then reconstructs immutable destination-owned typed
+  values through the incumbent control literal/input model before atomic
+  destination publication. No ANALYZE replay or base-column distribution import
+  occurs. Genuine destination TEMP statistics retain their separate existing
+  retention authority: preflight certifies every recipe dependency, keeps actual
+  builtin codecs used by the expression trees/results, and advances all retained
+  input/provider/tree references into the destination epoch without source-ID
+  mapping. Facts are then reowned under those valid descriptors. PostgreSQL18
+  script replay ignores these comments and leaves collected state absent.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
   ADD MAPPING statements, never COPY provenance. Namespace, mapped dictionary
   and stored alias/default/view dependencies use the ordinary event graph.

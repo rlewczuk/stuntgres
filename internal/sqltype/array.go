@@ -159,6 +159,35 @@ func (v Value) ArrayDimension(i int) ArrayDimension { return v.array.dimensions[
 // unchanged, otherwise owns one new element buffer. The callback is internal
 // typed transformation, never a driver/user callback.
 func (v Value) MapArray(d *Descriptor, transform func(Value, *Descriptor) (Value, error)) (Value, error) {
+	if v.typ != nil && v.typ.ID() == 10028 && v.typ.Usage().CatalogNullUsage() {
+		if d == nil || d.ID() != 10028 || !d.Usage().CatalogNullUsage() || !v.validStatisticResult() {
+			return Value{}, fmt.Errorf("invalid statistic array mapping")
+		}
+		if v.null {
+			return ResultNull(d.Usage()), nil
+		}
+		var rows []Value
+		for i, old := range v.array.elements {
+			next, err := transform(old, d.Element())
+			if err != nil {
+				return Value{}, err
+			}
+			if next.null || !next.ValidResult(d.Element().Usage()) {
+				return Value{}, fmt.Errorf("invalid mapped statistic row")
+			}
+			if next != old && rows == nil {
+				rows = slices.Clone(v.array.elements)
+			}
+			if rows != nil {
+				rows[i] = next
+			}
+		}
+		if rows == nil {
+			v.typ = d
+			return v, nil
+		}
+		return OwnedStatisticRowsValue(d, rows)
+	}
 	if !v.typ.Concrete() || !v.typ.BaseType().IsArray() || !d.Concrete() || !d.BaseType().IsArray() {
 		return Value{}, fmt.Errorf("invalid array mapping")
 	}

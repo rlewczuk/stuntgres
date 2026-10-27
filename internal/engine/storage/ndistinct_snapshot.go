@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -20,23 +21,24 @@ type NDistinctUsageRecord struct {
 	CollationName   string `json:"collation_name"`
 }
 
-type NDistinctSnapshot struct {
-	Schema         string                 `json:"schema"`
-	Name           string                 `json:"name"`
-	RelationSchema string                 `json:"relation_schema"`
-	RelationName   string                 `json:"relation_name"`
-	Keys           []int32                `json:"keys"`
-	Kinds          string                 `json:"kinds"`
-	Inherited      bool                   `json:"inherited"`
-	Usages         []NDistinctUsageRecord `json:"usages"`
-	Subsets        [][]int16              `json:"subsets"`
-	Counts         []uint64               `json:"counts"`
+type ExtendedStatisticsSnapshot struct {
+	Schema         string                         `json:"schema"`
+	Name           string                         `json:"name"`
+	RelationSchema string                         `json:"relation_schema"`
+	RelationName   string                         `json:"relation_name"`
+	Keys           []int32                        `json:"keys"`
+	Kinds          string                         `json:"kinds"`
+	Inherited      bool                           `json:"inherited"`
+	Usages         []NDistinctUsageRecord         `json:"usages"`
+	Subsets        [][]int16                      `json:"subsets"`
+	Counts         []uint64                       `json:"counts"`
+	Expressions    []StatisticsExpressionSnapshot `json:"expressions,omitempty"`
 }
 
-// CaptureNDistinctSnapshots copies only checked construction facts. It never
-// decodes display/binary data or computes statistics from current relation rows.
-func CaptureNDistinctSnapshots(read catalog.Read, metadata map[ids.ObjectAddress]*RelationMetadata) []NDistinctSnapshot {
-	var records []NDistinctSnapshot
+// CaptureExtendedStatisticsSnapshots transports checked retained construction
+// facts, never refreshed rows. Column-only records retain their original bytes.
+func CaptureExtendedStatisticsSnapshots(ctx context.Context, read catalog.Read, metadata map[ids.ObjectAddress]*RelationMetadata, codec StatisticsSnapshotCodec) ([]ExtendedStatisticsSnapshot, error) {
+	var records []ExtendedStatisticsSnapshot
 	for address, entry := range metadata {
 		relation, ok := read.Relation(address)
 		if !ok || entry == nil {
@@ -47,6 +49,9 @@ func CaptureNDistinctSnapshots(read catalog.Read, metadata map[ids.ObjectAddress
 			continue
 		}
 		for key, fact := range facts.Extended {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			d, ok := read.Statistics(key.Definition.Address)
 			if !ok {
 				continue
@@ -55,7 +60,7 @@ func CaptureNDistinctSnapshots(read catalog.Read, metadata map[ids.ObjectAddress
 			if ns.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			r := NDistinctSnapshot{
+			r := ExtendedStatisticsSnapshot{
 				Schema: ns.Name(), Name: d.Name(),
 				RelationSchema: read.MustNamespace(relation.Namespace()).Name(),
 				RelationName:   relation.Name(), Kinds: d.Selection.Kinds(), Inherited: key.Inherited,
@@ -70,10 +75,17 @@ func CaptureNDistinctSnapshots(read catalog.Read, metadata map[ids.ObjectAddress
 				r.Subsets[i] = slices.Clone(item.Attributes)
 				r.Counts[i] = uint64(item.Value)
 			}
+			var err error
+			if fact.ExpressionLen() != 0 {
+				r.Expressions, err = captureExpressionSnapshots(ctx, read, relation, fact, codec)
+				if err != nil {
+					return nil, err
+				}
+			}
 			records = append(records, r)
 		}
 	}
-	slices.SortFunc(records, func(a, b NDistinctSnapshot) int {
+	slices.SortFunc(records, func(a, b ExtendedStatisticsSnapshot) int {
 		if n := strings.Compare(a.Schema, b.Schema); n != 0 {
 			return n
 		}
@@ -88,26 +100,35 @@ func CaptureNDistinctSnapshots(read catalog.Read, metadata map[ids.ObjectAddress
 		}
 		return -1
 	})
-	return records
+	return records, ctx.Err()
 }
 
 // Validate requires every canonical subset exactly once, in released order.
-func (r NDistinctSnapshot) Validate() error {
-	invalid := func() error { return fmt.Errorf("stuntgres: invalid ndistinct snapshot") }
+func (r ExtendedStatisticsSnapshot) Validate() error {
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid extended statistics snapshot") }
+	width := len(r.Keys) + len(r.Expressions)
 	if r.Schema == "" || r.Name == "" || r.RelationSchema == "" || r.RelationName == "" ||
-		len(r.Keys) < 2 || len(r.Keys) > 8 || len(r.Usages) != len(r.Keys) || !strings.Contains(r.Kinds, "d") {
+		width < 1 || width > 8 || len(r.Usages) != len(r.Keys) || !strings.ContainsAny(r.Kinds, "de") {
 		return invalid()
 	}
-	selection, err := catalog.NewStatisticsSelection(r.Keys, r.Kinds)
+	selection, err := catalog.NewStatisticsSelection(r.Keys, len(r.Expressions), r.Kinds)
 	if err != nil || selection.Kinds() != r.Kinds {
 		return invalid()
+	}
+	for _, expression := range r.Expressions {
+		if err := expression.validate(); err != nil {
+			return err
+		}
 	}
 	for i, key := range r.Keys {
 		if key > 32767 || selection.Key(i) != key || r.Usages[i].TypeSchema == "" || r.Usages[i].TypeName == "" {
 			return invalid()
 		}
 	}
-	expected := (1 << len(r.Keys)) - len(r.Keys) - 1
+	expected := 0
+	if strings.Contains(r.Kinds, "d") {
+		expected = (1 << width) - width - 1
+	}
 	if len(r.Subsets) != expected || len(r.Counts) != expected {
 		return invalid()
 	}
@@ -122,15 +143,15 @@ func (r NDistinctSnapshot) Validate() error {
 			index++
 			return nil
 		}
-		for i := start; i <= len(r.Keys)-left; i++ {
-			attributes[width] = int16(r.Keys[i])
+		for i := start; i <= selection.DimensionLen()-left; i++ {
+			attributes[width] = int16(selection.Dimension(i))
 			if err := choose(i+1, left-1, width+1); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	for size := 2; size <= len(r.Keys); size++ {
+	for size := 2; expected != 0 && size <= width; size++ {
 		if err := choose(0, size, 0); err != nil {
 			return err
 		}
@@ -138,12 +159,15 @@ func (r NDistinctSnapshot) Validate() error {
 	return nil
 }
 
-// RestoreNDistinctSnapshots constructs destination-owned typed facts using only
-// checked names, stable keys and usages. No source OID grants authority.
-func RestoreNDistinctSnapshots(read catalog.Read, records []NDistinctSnapshot) (map[ids.ObjectAddress]*RelationMetadata, error) {
+// RestoreExtendedStatisticsSnapshots remints typed values under destination
+// recipes and usages. No source identity grants destination authority.
+func RestoreExtendedStatisticsSnapshots(ctx context.Context, read catalog.Read, records []ExtendedStatisticsSnapshot, codec StatisticsSnapshotCodec) (map[ids.ObjectAddress]*RelationMetadata, error) {
 	var metadata map[ids.ObjectAddress]*RelationMetadata
 	seen := make(map[ExtendedStatisticsKey]bool, len(records))
 	for _, r := range records {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if err := r.Validate(); err != nil {
 			return nil, err
 		}
@@ -157,7 +181,7 @@ func RestoreNDistinctSnapshots(read catalog.Read, records []NDistinctSnapshot) (
 		}
 		relation, ok := read.Relation(d.Relation.Address)
 		if !ok || relation.Name() != r.RelationName || read.MustNamespace(relation.Namespace()).Name() != r.RelationSchema ||
-			d.Selection.Kinds() != r.Kinds || d.Selection.Len() != len(r.Keys) || relation.Partition != nil && !r.Inherited {
+			d.Selection.Kinds() != r.Kinds || d.Selection.Len() != len(r.Keys) || d.Expressions.Len() != len(r.Expressions) || relation.Partition != nil && !r.Inherited {
 			return invalid()
 		}
 		key := ExtendedStatisticsKey{Definition: read.Domain().Ref(read.Epoch(), d.Address()), Inherited: r.Inherited}
@@ -165,7 +189,8 @@ func RestoreNDistinctSnapshots(read catalog.Read, records []NDistinctSnapshot) (
 			return invalid()
 		}
 		seen[key] = true
-		fact := &ExtendedStatistics{Relation: d.Relation, Selection: d.Selection}
+		fact := &ExtendedStatistics{Relation: d.Relation, Selection: d.Selection, Recipes: d.Expressions}
+		fact.providers = CaptureStatisticsProviders(read, d)
 		for i, attribute := range r.Keys {
 			if d.Selection.Key(i) != attribute {
 				return invalid()
@@ -185,8 +210,13 @@ func RestoreNDistinctSnapshots(read catalog.Read, records []NDistinctSnapshot) (
 			return invalid()
 		}
 		var err error
-		fact.Value, err = sqltype.StatisticsValue(typ, fact.Items)
-		if err != nil {
+		if len(fact.Items) != 0 {
+			fact.Value, err = sqltype.StatisticsValue(typ, fact.Items)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if err := restoreExpressionSnapshots(ctx, read, relation, d, r.Expressions, fact, codec); err != nil {
 			return nil, err
 		}
 		if r.Inherited {

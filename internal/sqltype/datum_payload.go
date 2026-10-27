@@ -17,6 +17,20 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 	if v.null || other.null {
 		return v.null == other.null, nil
 	}
+	if v.statisticArray != nil || other.statisticArray != nil {
+		if !v.validStatisticResult() || !other.validStatisticResult() || v.statisticArray == nil || other.statisticArray == nil {
+			return false, nil
+		}
+		a, b := v.statisticArray, other.statisticArray
+		if a.element.Type.ID() != b.element.Type.ID() || a.element.Typmod != b.element.Typmod || a.element.Collation != b.element.Collation {
+			return false, nil
+		}
+		same, err := a.value.SamePayload(ctx, b.value)
+		if err != nil || !same {
+			return same, err
+		}
+		v.statisticArray, other.statisticArray = nil, nil
+	}
 	if v.typ != nil && other.typ != nil && (v.typ.BaseType().IsSeg() || other.typ.BaseType().IsSeg()) {
 		if !v.typ.BaseType().IsSeg() || !other.typ.BaseType().IsSeg() || !v.seg.valid() || !other.seg.valid() || v.seg != other.seg {
 			return false, nil

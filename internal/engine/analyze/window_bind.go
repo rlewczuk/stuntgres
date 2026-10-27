@@ -38,6 +38,9 @@ func (b *Binder) windowAllowed(pos parser.Position) error {
 		return b.Consumer.partitionExpressionError("42P20", "window functions are not allowed in "+b.Consumer.partitionContextPlural(), pos)
 	}
 	clause := b.Clause.AggregateClause
+	if b.Consumer.StatisticsConsumer {
+		clause = "statistics expressions"
+	}
 	if b.Consumer.CheckConsumer {
 		clause = "check constraints"
 	} else if b.Consumer.IndexPredicateConsumer {

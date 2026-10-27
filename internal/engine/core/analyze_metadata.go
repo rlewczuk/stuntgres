@@ -1,15 +1,12 @@
 package core
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/sqltype"
 )
 
 // prepareRelationMetadataLocked prepares the existing Store's single ANALYZE
@@ -99,10 +96,6 @@ func (e *Engine) prepareRetainedRelationMetadataLocked(next *catalog.State, rela
 		}
 		candidate := *previous
 		if previous.Statistics != nil && len(previous.Statistics.Extended) != 0 {
-			payloadType, exists := e.Catalog.Read(next).LookupType(sqltype.PgNDistinct)
-			if !exists {
-				return nil, fmt.Errorf("stuntgres: missing retained ndistinct payload type")
-			}
 			stats := *previous.Statistics
 			stats.Extended = make(map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics, len(previous.Statistics.Extended))
 			for key, fact := range previous.Statistics.Extended {
@@ -112,19 +105,11 @@ func (e *Engine) prepareRetainedRelationMetadataLocked(next *catalog.State, rela
 					continue
 				}
 				key.Definition = e.Catalog.Domain.Ref(next.Epoch(), definition.Address())
-				value := *fact
-				value.Relation = definition.Relation
-				if value.Value.Type() != payloadType {
-					// TEMP rows retain their exact defining usages, but the
-					// collected payload has independent builtin authority.
-					// Rebuild from checked items before installation, leaving
-					// the old fact and its captured typed value untouched.
-					value.Value, err = sqltype.StatisticsValue(payloadType, fact.Items)
-					if err != nil {
-						return nil, err
-					}
+				value, err := storage.ReownRetainedExtendedStatistics(fact, definition, e.Catalog.Read(next))
+				if err != nil {
+					return nil, err
 				}
-				stats.Extended[key] = &value
+				stats.Extended[key] = value
 			}
 			candidate.Statistics = &stats
 		}

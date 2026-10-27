@@ -49,7 +49,7 @@ func statisticsUnitEngine(t *testing.T) (*core.Engine, *catalog.Relation) {
 	return e, view.MustRelation(address)
 }
 func statisticsUnitCreate() *parser.CreateStatistics {
-	return &parser.CreateStatistics{Name: configName("statistics_definition"), Relation: configName("statistics_input"), Columns: []parser.Identifier{{Text: "c"}, {Text: "a"}}, Kinds: []parser.Identifier{{Text: "mcv"}, {Text: "dependencies"}}}
+	return &parser.CreateStatistics{Name: configName("statistics_definition"), Relation: configName("statistics_input"), Elements: []parser.Expr{parser.ColumnExpr{Name: configName("c")}, parser.ColumnExpr{Name: configName("a")}}, Kinds: []parser.Identifier{{Text: "mcv"}, {Text: "dependencies"}}}
 }
 func statisticsUnitStage(t *testing.T, e *core.Engine, op *session.Operation, s *parser.CreateStatistics) (*core.CatalogStage, error) {
 	t.Helper()
@@ -61,7 +61,7 @@ func statisticsUnitStage(t *testing.T, e *core.Engine, op *session.Operation, s 
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
-	err = ddl.StageCreateStatistics(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, s)
+	err = ddl.StageCreateStatistics(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, s, sqltype.InputEnvironment{})
 	return stage, err
 }
 func statisticsUnitDescriptor(t *testing.T, stage *core.CatalogStage) *catalog.Statistics {
@@ -88,13 +88,13 @@ func TestStatisticsObjectImmutableDefinition(t *testing.T) {
 	if d.Selection.Len() != 2 || d.Selection.Key(0) != 1 || d.Selection.Key(1) != 4 || d.Selection.Kinds() != "fm" || d.Relation.Address != rel.Address() || d.Owner != op.RoleState().CurrentUser {
 		t.Fatal("definition facts", d)
 	}
-	source.Columns[0].Text = "b"
+	source.Elements[0] = parser.ColumnExpr{Name: configName("b")}
 	source.Kinds[0].Text = "bogus"
 	if d.Selection.Key(1) != 4 || d.Selection.Kinds() != "fm" {
 		t.Fatal("parser buffers retained")
 	}
 	keys := []int32{4, 1}
-	frozen, err := catalog.NewStatisticsSelection(keys, "mff")
+	frozen, err := catalog.NewStatisticsSelection(keys, 0, "mff")
 	if err != nil {
 		t.Fatal(err)
 	}

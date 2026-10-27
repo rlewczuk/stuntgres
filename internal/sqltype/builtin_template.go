@@ -5,7 +5,7 @@ import "sync"
 // builtinTemplate is one builtin generation built from the compiled tables,
 // with each descriptor's position. Builtins copies it: every descriptor
 // pointer of a builtin points into its own generation. The only composite
-// definition is the fixed NULL-only pg_statistic description, copied below.
+// definition is the fixed catalog pg_statistic description, copied below.
 type builtinTemplate struct {
 	types    []*Descriptor
 	position map[*Descriptor]int

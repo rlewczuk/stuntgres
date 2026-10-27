@@ -2,21 +2,22 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
-func decodeRestoreNDistinct(r *restoreRun, comment string, _ parser.Position) (bool, error) {
-	record, recognized, err := storage.DecodeNDistinctSnapshot(comment)
+func decodeRestoreExtendedStatistics(r *restoreRun, comment string, _ parser.Position) (bool, error) {
+	record, recognized, err := storage.DecodeExtendedStatisticsSnapshot(comment)
 	if err != nil || !recognized {
 		return recognized, err
 	}
-	r.ndistinct = append(r.ndistinct, record)
+	r.extendedStatistics = append(r.extendedStatistics, record)
 	return true, nil
 }
 
-func finishRestoreNDistinct(r *restoreRun, ctx context.Context, op *session.Operation) error {
+func finishRestoreExtendedStatistics(r *restoreRun, ctx context.Context, op *session.Operation) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -25,7 +26,8 @@ func finishRestoreNDistinct(r *restoreRun, ctx context.Context, op *session.Oper
 	if _, err := r.stage.AuthorizationLocked(op); err != nil {
 		return err
 	}
-	metadata, err := storage.RestoreNDistinctSnapshots(r.stage.Catalog.Current(), r.ndistinct)
+	read := r.stage.Catalog.Current()
+	metadata, err := storage.RestoreExtendedStatisticsSnapshots(ctx, read, r.extendedStatistics, core.StatisticsSnapshotCodec(ctx, r.stage, read))
 	if err != nil {
 		return err
 	}

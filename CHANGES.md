@@ -11,6 +11,14 @@
   exercise real cost-selected access methods and exact duplicate results under
   both GEQO profiles.
 
+- Add expression `CREATE STATISTICS` definitions with retained same-relation
+  binding, stable attribute/provider dependencies, rename-safe expression trees
+  and native declaration/state replay. ANALYZE collects automatic typed
+  per-expression NULL/distinct/MCV/histogram facts and real signed-dimension
+  joint ndistinct through the existing evaluator and metadata root.
+  `pg_statistic_ext_data.stxdexpr` exposes genuine row-array values.
+  Joint dependency and joint MCV collection remain unsupported (NULL payloads).
+
 - Add the database-local four-column `pg_subscription_rel` catalog with exact
   row/array ownership, owner+PUBLIC stored ACL and current prepared-read
   authorization. Its authenticated empty state does not simulate replication.

@@ -43,19 +43,33 @@ func (e *Engine) ResolveAnnotationTypeMode(raw parser.TypeName, op *session.Oper
 // resolves the name there (analyze.ResolveTypeName). Typmod text reads the
 // operation's context and a typmod warning becomes an operation notice.
 func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Operation, unknownNull, domainBase, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
-	name := raw.Name
-	if !raw.Quoted && raw.Schema == nil {
-		name = typedef.CanonicalDeclarationTypeName(name)
-	}
 	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return sqltype.Usage{}, err
+	}
+	if err := e.Catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
+		return sqltype.Usage{}, err
+	}
+	var operation analyze.TypeNameOperation
+	if op != nil {
+		operation.Context = op.Context
+		operation.Warn = func(warning sqlstate.Error) { op.EmitNotice(session.LevelWarning, warning) }
+	}
+	return e.resolveAnnotationTypeAuthority(raw, auth, unknownNull, domainBase, jsonReturning, thresholdArrayInput, operation)
+}
+
+// resolveAnnotationTypeAuthority is the common resolver for live operation and
+// captured native-constructor binders. Both use identical lookup/admission.
+func (e *Engine) resolveAnnotationTypeAuthority(raw parser.TypeName, auth AuthorizationView, unknownNull, domainBase, jsonReturning, thresholdArrayInput bool, operation analyze.TypeNameOperation) (sqltype.Usage, error) {
+	name := raw.Name
+	if !raw.Quoted && raw.Schema == nil {
+		name = typedef.CanonicalDeclarationTypeName(name)
 	}
 	object := parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}
 	if raw.Schema != nil {
 		object.Parts = []parser.Identifier{*raw.Schema, {Text: name, Pos: raw.Pos}}
 	}
-	path, err := e.LookupNamespaces(auth, object, analyze.TypeLookup)
+	path, err := LookupNamespacesSnapshot(auth, object, analyze.TypeLookup)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
@@ -63,11 +77,6 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Ope
 		Catalog: auth.Catalog, Definition: auth.Definition,
 		UnknownNull: unknownNull, DomainBase: domainBase,
 		JSONReturning: jsonReturning, ThresholdArrayInput: thresholdArrayInput,
-	}
-	var operation analyze.TypeNameOperation
-	if op != nil {
-		operation.Context = op.Context
-		operation.Warn = func(warning sqlstate.Error) { op.EmitNotice(session.LevelWarning, warning) }
 	}
 	return analyze.ResolveTypeName(raw, name, object, path, in, operation)
 }

@@ -11,16 +11,18 @@ import (
 // StatisticsSelection owns canonical stable attribute identities and kind flags.
 // Its fixed storage never aliases parser or caller buffers.
 type StatisticsSelection struct {
-	keys  [8]int32
-	count uint8
-	kinds uint8
+	keys        [8]int32
+	count       uint8
+	kinds       uint8
+	expressions uint8
 }
 
-func NewStatisticsSelection(keys []int32, kinds string) (StatisticsSelection, error) {
+func NewStatisticsSelection(keys []int32, expressionCount int, kinds string) (StatisticsSelection, error) {
 	var s StatisticsSelection
-	if len(keys) < 2 || len(keys) > len(s.keys) {
+	if expressionCount < 0 || len(keys)+expressionCount < 1 || len(keys)+expressionCount > len(s.keys) {
 		return s, fmt.Errorf("stuntgres: invalid statistics width")
 	}
+	s.expressions = uint8(expressionCount)
 	copy(s.keys[:], keys)
 	slices.Sort(s.keys[:len(keys)])
 	for i, key := range s.keys[:len(keys)] {
@@ -37,16 +39,29 @@ func NewStatisticsSelection(keys []int32, kinds string) (StatisticsSelection, er
 			s.kinds |= 2
 		case 'm':
 			s.kinds |= 4
+		case 'e':
+			s.kinds |= 8
 		default:
 			return StatisticsSelection{}, fmt.Errorf("stuntgres: invalid statistics kind")
 		}
 	}
-	if s.kinds == 0 {
-		return StatisticsSelection{}, fmt.Errorf("stuntgres: empty statistics kinds")
+	if s.kinds == 0 || (s.kinds&8 != 0) != (expressionCount > 0) || len(keys)+expressionCount == 1 && (expressionCount != 1 || s.kinds != 8) {
+		return StatisticsSelection{}, fmt.Errorf("stuntgres: invalid statistics kinds")
 	}
 	return s, nil
 }
-func (s StatisticsSelection) Len() int { return int(s.count) }
+func (s StatisticsSelection) Len() int           { return int(s.count) }
+func (s StatisticsSelection) ExpressionLen() int { return int(s.expressions) }
+func (s StatisticsSelection) DimensionLen() int  { return s.Len() + s.ExpressionLen() }
+func (s StatisticsSelection) Dimension(i int) int32 {
+	if i < s.Len() {
+		return s.Key(i)
+	}
+	if i >= s.DimensionLen() {
+		panic("statistics dimension index out of range")
+	}
+	return -int32(i - s.Len() + 1)
+}
 func (s StatisticsSelection) Key(i int) int32 {
 	if i < 0 || i >= int(s.count) {
 		panic("statistics key index out of range")
@@ -54,23 +69,15 @@ func (s StatisticsSelection) Key(i int) int32 {
 	return s.keys[i]
 }
 func (s StatisticsSelection) Kinds() string {
-	switch s.kinds {
-	case 1:
-		return "d"
-	case 2:
-		return "f"
-	case 3:
-		return "df"
-	case 4:
-		return "m"
-	case 5:
-		return "dm"
-	case 6:
-		return "fm"
-	case 7:
-		return "dfm"
+	var kinds [4]byte
+	n := 0
+	for i, k := range "dfme" {
+		if s.kinds&(1<<i) != 0 {
+			kinds[n] = byte(k)
+			n++
+		}
 	}
-	return ""
+	return string(kinds[:n])
 }
 func (s StatisticsSelection) Selects(attribute int32) bool {
 	for i := range s.Len() {
@@ -88,6 +95,7 @@ type Statistics struct {
 	Owner                          authorization.PrincipalRef
 	Relation                       ids.ObjectRef
 	Selection                      StatisticsSelection
+	Expressions                    StatisticsExpressions
 	Target                         int16
 	TargetSet                      bool
 }
@@ -128,12 +136,65 @@ func (StatisticsProvider) Validate(v Read, raw Descriptor) error {
 		return invalid()
 	}
 	s := d.Selection
-	if s.Len() < 2 || s.Len() > 8 || s.Kinds() == "" {
+	if s.DimensionLen() < 1 || s.DimensionLen() > 8 || s.Kinds() == "" || s.ExpressionLen() != d.Expressions.Len() {
+		return invalid()
+	}
+	if checked, err := NewStatisticsSelection(s.keys[:s.Len()], s.ExpressionLen(), s.Kinds()); err != nil || checked != s {
 		return invalid()
 	}
 	for i := range s.Len() {
 		if s.Key(i) <= 0 || i > 0 && s.Key(i-1) >= s.Key(i) || !rel.HasAttribute(s.Key(i)) {
 			return invalid()
+		}
+	}
+	for i := range d.Expressions.Len() {
+		e := d.Expressions.At(i)
+		if e.Definition() == nil || e.Execution() == nil || e.Usage().Type == nil || e.Definition().ResultUsage() != e.Usage() || e.Execution().ResultUsage() != e.Usage() {
+			return invalid()
+		}
+		if !e.Usage().Valid() {
+			return invalid()
+		}
+		if typ, ok := v.LookupType(e.Usage().Type.ID()); !ok || typ != e.Usage().Type {
+			return invalid()
+		}
+		for j := range e.AttributeLen() {
+			if e.Attribute(j) <= 0 {
+				return invalid()
+			}
+			for k := range j {
+				if e.Attribute(k) == e.Attribute(j) {
+					return invalid()
+				}
+			}
+		}
+		for j := range e.InputLen() {
+			ref := e.Input(j)
+			if ref.Domain() != v.Domain() || ref.Epoch != v.Epoch() || ref.Address.ClassID != ids.RelationClassID || ref.Address.ObjectID != rel.Address().ObjectID || !rel.HasAttribute(ref.Address.SubID) {
+				return invalid()
+			}
+			found := false
+			for k := range e.AttributeLen() {
+				if e.Attribute(k) == ref.Address.SubID {
+					found = true
+				}
+			}
+			if !found {
+				return invalid()
+			}
+			for k := range j {
+				if e.Input(k) == ref {
+					return invalid()
+				}
+			}
+		}
+		for j := range e.DependencyLen() {
+			ref := e.Dependency(j)
+			address := ref.Address
+			address.SubID = 0
+			if ref.Domain() != v.Domain() || ref.Epoch != v.Epoch() || v.Get(address) == nil {
+				return invalid()
+			}
 		}
 	}
 	return nil

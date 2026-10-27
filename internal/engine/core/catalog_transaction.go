@@ -234,7 +234,13 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						}
 					}
 				case *catalog.Statistics:
-					if candidate.Get(target) == nil && (owner.Relation.Address == target || owner.Namespace() == target) {
+					missing := false
+					owner.VisitDependencies(func(dependency ids.ObjectAddress, _ byte) {
+						if dependency == target || target.SubID == 0 && dependency.ClassID == target.ClassID && dependency.ObjectID == target.ObjectID {
+							missing = candidate.Get(target) == nil
+						}
+					})
+					if missing {
 						return catalog.Conflict{}
 					}
 				case *catalog.Conversion:

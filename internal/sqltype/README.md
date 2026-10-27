@@ -73,15 +73,19 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   aligned allocation extents independently against the released serializer.
 - Canonical `pg_statistic` row10029 describes its exact31 released members,
   including five ANYARRAY fields; array10028 has that actual element identity.
-  These self-owned builtin descriptions grant only `CatalogNullUsage` result
-  authority, not general Concrete/input/storage/operator or non-NULL codecs.
-  Ordinary Composite/Array constructors still reject pseudotype members.
+  These self-owned builtins grant restricted catalog result authority:
+  `StatisticRowValue` and `StatisticRowsValue` freeze checked rows and arrays,
+  while `StatisticArrayValue` retains a genuine concrete array and its element
+  usage behind a catalog ANYARRAY slot. Ordinary Composite/Array constructors,
+  external non-NULL input, storage and comparison admission remain unchanged.
+  Subscript/field projection and explicit text output operate on actual typed
+  payloads, never serialized text storage. `ValidResult`, `SamePayload`, retag
+  and authorized import retain this boundary across genuine generations.
   Builtin cloning remaps every member, element and self-owner into its own
-  generation. Conditional equality's unresolved ANYARRAY diagnostic remains
-  specific to ANYARRAY, not every catalog-only NULL descriptor.
-  `RebindStatisticNullDescriptors` rebuilds only this authentic fixed row/array
-  pair when replacement retains selected builtin member generations. Unchanged
-  closures keep their backing; rebuilt members, element and self-owner are
+  generation. Conditional equality's unresolved ANYARRAY diagnostic remains.
+  `RebindStatisticDescriptors` rebuilds only the authentic fixed row/array pair
+  when replacement retains selected builtin member generations. Unchanged
+  closures keep their backing; rebuilt members, element and self-owner remain
   coherent without weakening type-provider generation checks.
 - `PgLSN` retains unsigned 64-bit positions inline. Its descriptor owns strict
   slash-hex text, canonical uppercase output, typed SQL literals and eight-byte
@@ -646,5 +650,5 @@ match engine tests of the same mechanism):
   metadata, driver values, empty/NULL inputs and two native Dump/Restore passes
   through the canonical catalog-vector provider (native and `REFERENCE=1`).
 - Unsigned LSN codecs, comparison and exact arithmetic: `RUN='^TestPGLSN'`
-- NULL-only catalog descriptor authority and ndistinct construction:
-  `RUN='^TestStatisticsNDistinctTypeAuthority$'`.
+- Restricted catalog statistic row/array/ANYARRAY authority and signed dimensions:
+  `RUN='^TestStatisticExpressionValue'`.

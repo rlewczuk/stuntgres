@@ -68,6 +68,7 @@ type ConsumerContext struct {
 	CheckConsumer           bool
 	PolicyConsumer          bool
 	IndexConsumer           bool
+	StatisticsConsumer      bool
 	IndexPredicateConsumer  bool
 	PartitionConsumer       string
 	CopyWhere               bool

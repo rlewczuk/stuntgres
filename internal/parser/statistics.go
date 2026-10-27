@@ -5,7 +5,7 @@ package parser
 type CreateStatistics struct {
 	Name        ObjectName
 	Relation    ObjectName
-	Columns     []Identifier
+	Elements    []Expr
 	Kinds       []Identifier
 	IfNotExists bool
 	Pos         Position

@@ -60,7 +60,7 @@ type Capture struct {
 	Dictionaries        []*catalog.TSDictionary
 	Configurations      []*catalog.TSConfiguration
 	Statistics          []*catalog.Statistics
-	NDistinct           []storage.NDistinctSnapshot
+	ExtendedStatistics  []storage.ExtendedStatisticsSnapshot
 	Providers           []providerReplay
 	Tables              []table.DumpRelation
 	LargeObjects        []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.

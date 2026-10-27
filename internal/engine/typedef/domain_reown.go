@@ -29,13 +29,13 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			return fmt.Errorf("stuntgres: missing domain base")
 		}
 		if d.SQLType.Usage().CatalogNullUsage() && (d.SQLType.ID() == 10029 || d.SQLType.ID() == 10028) {
-			// These fixed builtin descriptions are NULL-result capabilities,
+			// These fixed builtin descriptions are restricted catalog results,
 			// not user composites with a backing relation to reconstruct.
 			if destination, ok := mapping[address]; ok && destination != address {
-				return fmt.Errorf("stuntgres: catalog NULL type identity cannot be remapped")
+				return fmt.Errorf("stuntgres: catalog statistic type identity cannot be remapped")
 			}
 			if destination, ok := mapping[d.Namespace()]; ok && destination != d.Namespace() {
-				return fmt.Errorf("stuntgres: catalog NULL type namespace cannot be remapped")
+				return fmt.Errorf("stuntgres: catalog statistic type namespace cannot be remapped")
 			}
 			if d.SQLType.IsArray() {
 				return visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10029})
@@ -53,9 +53,9 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10028}
 			array, ok := next.Type(arrayAddress)
 			if !ok {
-				return fmt.Errorf("stuntgres: missing catalog NULL array description")
+				return fmt.Errorf("stuntgres: missing catalog statistic array description")
 			}
-			rowType, arrayType, err := sqltype.RebindStatisticNullDescriptors(d.SQLType, array.SQLType, usages[:])
+			rowType, arrayType, err := sqltype.RebindStatisticDescriptors(d.SQLType, array.SQLType, usages[:])
 			if err != nil {
 				return err
 			}
@@ -456,6 +456,26 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 // Only an explicit catalog identity mapping can reidentify a domain. Ordinary
 // Value.Retag remains a checked same-logical-ID generation reownership operation.
 func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation CollationRemapper, imports map[*sqltype.Descriptor]*sqltype.Descriptor, aclImport func(sqltype.Value) (sqltype.Value, error)) (sqltype.Value, error) {
+	if value.Type().ID() == 2277 && value.Type().Usage().CatalogNullUsage() {
+		return value.MapStatisticArray(target, func(array sqltype.Value, usage sqltype.Usage) (sqltype.Value, sqltype.Usage, error) {
+			destination := array.Type()
+			if imported, ok := imports[destination]; ok {
+				destination = imported
+			}
+			mapped, err := ReownDomainDatum(array, destination, collation, imports, aclImport)
+			if err != nil {
+				return sqltype.Value{}, sqltype.Usage{}, err
+			}
+			usage.Type = mapped.Type().Element()
+			if collation != nil {
+				usage.Collation, err = collation(usage.Collation)
+				if err != nil {
+					return sqltype.Value{}, sqltype.Usage{}, err
+				}
+			}
+			return mapped, usage, nil
+		})
+	}
 	if source := value.Type().BaseType().RangeType(); source != nil {
 		if _, custom := source.RangeDefinition(); custom {
 			physicalTarget := target.BaseType()

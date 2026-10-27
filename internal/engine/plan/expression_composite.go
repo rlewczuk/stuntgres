@@ -150,7 +150,7 @@ func (n FieldExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 		if absent {
-			return sqltype.Null(n.Usage.Type), nil
+			return sqltype.ResultNull(n.Usage), nil
 		}
 		return row.Fields[n.Index].Eval(ctx)
 	}
@@ -159,7 +159,7 @@ func (n FieldExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if value.IsNull() {
-		return sqltype.Null(n.Usage.Type), nil
+		return sqltype.ResultNull(n.Usage), nil
 	}
 	index, ok := value.Type().BaseType().CompositeAttributeIndex(n.Attribute)
 	if !ok {

@@ -23,7 +23,7 @@ func capturePGStatisticExtData(in Input) ([][]sqltype.Value, error) {
 		return nil, err
 	}
 	var rows [][]sqltype.Value
-	err := in.Runtime.VisitNDistinct(in.Context, func(oid ids.OID, inherited bool, value sqltype.Value) error {
+	err := in.Runtime.VisitExtendedStatistics(in.Context, func(oid ids.OID, inherited bool, value, expressions sqltype.Value) error {
 		if err := in.Context.Err(); err != nil {
 			return err
 		}
@@ -38,9 +38,13 @@ func capturePGStatisticExtData(in Input) ([][]sqltype.Value, error) {
 			return fmt.Errorf("stuntgres: foreign ndistinct payload")
 		}
 		row[2] = value
-		for i := 3; i < 6; i++ {
+		for i := 3; i < 5; i++ {
 			row[i] = sqltype.ResultNull(in.Source.Columns[i].Usage)
 		}
+		if !expressions.ValidResult(in.Source.Columns[5].Usage) {
+			return fmt.Errorf("stuntgres: foreign expression statistics payload")
+		}
+		row[5] = expressions
 		rows = append(rows, row)
 		return nil
 	})

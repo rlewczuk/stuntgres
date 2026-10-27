@@ -137,22 +137,30 @@ canonical/Journal paths, independent of the selected column list. When scanning
 a private TRUNCATE successor, ANALYZE also records the scan on that actual heap;
 this preserves maintenance ordering through commit and savepoint rollback while
 column deltas remain transactional.
-Requested ndistinct definitions are captured with the same relation/selection
-authority. Scalar and tuple collectors consume one traversal per population.
-Every key must occur in the current column selection; ineligible definitions
-warn without combining old column facts. Object target zero skips rebuilding
-without clearing its payload. Empty populations retain prior payloads. Ordinary
-parents collect separate local/inherited facts; partitioned parents collect only
-inherited facts and never gain synthetic storage. Tuple values use typed NULL-
-inclusive grouping and canonical stable-attnum subsets, not independent-column
-products. Selected extended deltas follow the same transactional Journal path.
+Requested ndistinct and automatic expression definitions are captured with the
+same relation/selection authority. Scalar and extended collectors consume one
+traversal per population. Every simple key and expression input must occur in
+the current column selection; ineligible definitions warn without combining old
+column facts. Constant expressions need no fictional input column. Object target
+zero skips rebuilding without clearing its payload. Empty populations retain
+prior payloads. Ordinary parents collect separate local/inherited facts;
+partitioned parents collect only inherited facts and never gain synthetic storage.
+Each retained expression executes once per row through the ordinary executor;
+the resulting typed value feeds both the ordinary scalar collector and the joint
+collector. Stable attribute layouts map inherited/sparse rows before execution,
+without reparsing SQL or copying complete rows separately for each expression.
+Tuple values use typed NULL-inclusive grouping and signed canonical dimensions:
+positive simple attribute numbers and expression identities -1, -2, ... .
+Selected extended deltas follow the same transactional Journal path.
 The full-data tuple scan is deterministic. Relative to PostgreSQL's potentially
 sampled estimator, only the numeric technical payload in stxdndistinct is an
 approximation on larger populations; small complete populations have exact
 counts. Definition identity, built-row existence, inheritance, visibility,
-privileges, types and NULL presence are not approximate. The dependencies, MCV
-and expression fields remain typed NULL for explicit simple-column ndistinct
-objects; this collector does not synthesize those independently owned kinds.
+privileges, types and NULL presence are not approximate. Automatic expression
+facts retain typed null/distinct, MCV and histogram summaries under the same
+Extended root; expression-only objects have no joint payload. Functional-
+dependency and joint-MCV payloads remain typed NULL: this collector does not
+synthesize those independently owned kinds.
 
 
 

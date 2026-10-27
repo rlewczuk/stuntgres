@@ -85,13 +85,28 @@ and never the engine.
   DML/VACUUM and since-vacuum counters. Physical `Relation.Maintenance` does not
   duplicate typed statistics or ANALYZE count/time/inherited publications.
   Extended facts share this same root, keyed by generation-qualified statistics
-  definition and inherited flavor. `NDistinctCollector` receives each mapped row
-  beside the scalar collector, prepares typed NOT DISTINCT keys once per column,
+  definition and inherited flavor. `ExtendedCollector` reuses the ordinary scalar
+  collector for typed projected expression values and shares those values with
+  `NDistinctCollector`. It prepares typed NOT DISTINCT keys once per dimension
   and collision-checks every canonical subset of widths2..8 (at most247).
-  NULLs form real groups. `MergeExtendedStatistics` preserves unselected backing;
-  compatibility checks definitions, stable usages and current hierarchy authority.
-  The strict `stuntgres-ndistinct-v1` codec validates complete canonical subsets
-  and positive integral counts and reconstructs `StatisticsValue`, never text input.
+  NULLs form real groups. Simple keys retain positive attribute identities;
+  ordered expression dimensions use -1,-2,... . Serialized members preserve
+  positive simple keys followed by expression order, matching PostgreSQL.
+  Expression-only facts have genuine scalar summaries but no joint
+  Value. `MergeExtendedStatistics` preserves unselected backing; compatibility
+  checks retained recipe identity, stable input/result usages, actual external
+  provider revisions and current hierarchy authority, not display names or DML.
+  AverageWidth retains the actual result type's available fixed datum width,
+  including all-NULL populations. Non-NULL text/bytea use datum byte lengths,
+  never formatted wire size; all-NULL/unsupported variable-width models remain0.
+  The strict `stuntgres-ndistinct-v1` channel now transports checked extended
+  facts, including optional typed expression summaries and semantic recipes.
+  Column-only records retain their existing byte format. Snapshot import
+  validates canonical signed subsets, integral counts, typed MCV/histogram
+  bounds and destination recipe/usages. The composing engine supplies existing
+  control literal rendering/input; storage never binds expressions or executes SQL.
+  Genuine destination TEMP reownership uses the existing retention authority,
+  preserving old immutable facts while reminting their recipe/type generation.
 
 ### Logical allocation estimates
 
@@ -226,6 +241,10 @@ version vectors and end roots; they do not wrap or replace `storage.Relation`.
 
 ## Testing
 
+Signed-dimension collection invariants that require real `plan` expression
+recipes live in external `enginetests/`, avoiding a storage→plan→storage test
+variant import cycle. Pure collector and snapshot-codec units remain local.
+
 Package units pin the allocators, `IndexRootsCurrent`, index identity and
 truncate lineage. Engine witnesses cover storage-map publication
 (materialized views, generated replacement, unique and concurrent index
@@ -241,6 +260,7 @@ make check RUN='^TestVacuum'
 make check RUN='^TestVerifyHeapamLogicalRows$'
 make check RUN='^TestReference(ControlSnapshotSurvivesCatalogReplacement|ControlFailedRestorePreservesCatalog|HashPartition(Controls|FinalRemap))$$'
 make check RUN='^TestStatisticsNDistinct'
+make check RUN='^TestStatisticsExpression(CollectionAllNullWidth|PublicationInheritedAuthority|Snapshot(AllNullWidth|InheritedState))$'
 make check RUN='^TestPlannerOtherStatisticsTarget$'
 make check RUN='^TestRelationSize'
 ```

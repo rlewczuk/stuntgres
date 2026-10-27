@@ -107,6 +107,9 @@ single-statement limit of driver calls) belong to callers.
   The dedicated CREATE head cannot fall into generic unsupported-CREATE parsing
   on incomplete input, without changing STATISTICS's unreserved name legality.
   A supplied kind list requires at least one identifier.
+  CREATE retains ordered `Elements []Expr`, reusing column, function and grouped
+  expression productions. Grouping a column does not change its semantic kind;
+  no SQL-text scanner or alternate expression grammar determines statistics keys.
 - ALTER ROLE and USER share positioned rename and persisted-setting nodes.
   Role specs retain execute-time current/session identity, while ALL and optional
   database scope are separate from RESET ALL. Setting lists reuse ordinary SET

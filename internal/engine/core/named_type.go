@@ -12,7 +12,14 @@ import (
 
 // OF names are catalog object names, not SQL declaration aliases.
 func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, error) {
-	path, err := e.LookupNamespaces(auth, name, analyze.TypeLookup)
+	if err := e.Catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
+		return nil, err
+	}
+	return namedTypeSnapshot(auth, name)
+}
+
+func namedTypeSnapshot(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, error) {
+	path, err := LookupNamespacesSnapshot(auth, name, analyze.TypeLookup)
 	if err != nil {
 		return nil, err
 	}

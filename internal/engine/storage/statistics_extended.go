@@ -17,13 +17,21 @@ type ExtendedStatisticsKey struct {
 // ExtendedStatistics shares the immutable ANALYZE metadata publication root.
 // Items and Usages are owned construction facts, never borrowed row storage.
 type ExtendedStatistics struct {
-	Relation  ids.ObjectRef
-	Selection catalog.StatisticsSelection
-	Usages    [8]sqltype.Usage
-	Value     sqltype.Value
-	Items     []sqltype.StatisticsItem
-	Hierarchy *StatisticsHierarchy
+	Relation    ids.ObjectRef
+	Selection   catalog.StatisticsSelection
+	Usages      [8]sqltype.Usage
+	Recipes     catalog.StatisticsExpressions
+	expressions []*ColumnStatistics
+	inputs      []StatisticsColumn
+	providers   []catalog.Descriptor
+	Value       sqltype.Value
+	Items       []sqltype.StatisticsItem
+	Hierarchy   *StatisticsHierarchy
 }
+
+// ExpressionLen and Expression expose immutable summaries in definition order.
+func (s *ExtendedStatistics) ExpressionLen() int                 { return len(s.expressions) }
+func (s *ExtendedStatistics) Expression(i int) *ColumnStatistics { return s.expressions[i] }
 
 func extendedStatistics(s *RelationStatistics) map[ExtendedStatisticsKey]*ExtendedStatistics {
 	if s == nil {
@@ -70,7 +78,8 @@ func CompatibleExtendedStatistics(stats *RelationStatistics, relation *catalog.R
 		d, ok := read.Statistics(key.Definition.Address)
 		valid := ok && fact != nil && relation != nil &&
 			key.Definition.Domain() == read.Domain() && key.Definition.Epoch == read.Epoch() &&
-			d.Relation == fact.Relation && d.Relation.Address == relation.Address() && d.Selection == fact.Selection
+			d.Relation == fact.Relation && d.Relation.Address == relation.Address() && d.Selection == fact.Selection &&
+			d.Expressions == fact.Recipes
 		if valid && key.Inherited {
 			valid = fact.Hierarchy != nil
 			if valid {
@@ -89,6 +98,38 @@ func CompatibleExtendedStatistics(stats *RelationStatistics, relation *catalog.R
 			for i := range d.Selection.Len() {
 				slot := relation.IndexForAttribute(d.Selection.Key(i))
 				if slot < 0 || relation.Columns[slot].Usage != fact.Usages[i] {
+					valid = false
+					break
+				}
+			}
+		}
+		if valid && len(fact.expressions) != d.Expressions.Len() {
+			valid = false
+		}
+		if valid {
+			for _, provider := range fact.providers {
+				current := read.Get(provider.Address())
+				if current == nil || current.Revision() != provider.Revision() {
+					valid = false
+					break
+				}
+			}
+		}
+		if valid && (catalog.StatisticsProvider{}).Validate(read, d) != nil {
+			valid = false
+		}
+		if valid {
+			for _, input := range fact.inputs {
+				slot := relation.IndexForAttribute(input.Key.Attribute)
+				if slot < 0 || relation.Columns[slot].Usage != input.Usage {
+					valid = false
+					break
+				}
+			}
+		}
+		if valid {
+			for i, expression := range fact.expressions {
+				if expression == nil || expression.Usage != d.Expressions.At(i).Usage() {
 					valid = false
 					break
 				}

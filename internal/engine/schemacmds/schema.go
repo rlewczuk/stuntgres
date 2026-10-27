@@ -382,7 +382,7 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 			return nil, err
 		}
 	case *parser.CreateStatistics:
-		if err = ddl.StageCreateStatistics(schemaHost, auth, s); err != nil {
+		if err = ddl.StageCreateStatistics(schemaHost, auth, s, input); err != nil {
 			return nil, err
 		}
 	case *parser.DropStatistics:

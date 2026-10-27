@@ -63,8 +63,10 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   current-authority/catalog lock window, validating all bindings before notices
   or removals; it never re-resolves a replacement from the original names.
 - **Statistics** (`statistics.go`, `statistics_target.go`): stage schema-bound
-  definitions with immutable selected attributes/kinds, ordered admission and
-  atomic DROP targets. Bounded object-target mutation normalizes bounds/warnings
+  definitions with immutable simple keys and ordered expression recipes, ordered
+  admission and atomic DROP targets. A narrow host binds recipes using the core
+  single-relation binder; ddl never imports an evaluator. One expression forbids
+  explicit kinds before kind-name validation. Bounded object-target mutation normalizes bounds/warnings
   before lookup/ownership and replaces only metadata, preserving collected facts.
   `RestoredStatisticsOwner` retains exact descriptor, namespace and principal
   generations for one immediate private replay; `schemacmds` owns its trusted

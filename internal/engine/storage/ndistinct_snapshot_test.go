@@ -7,12 +7,12 @@ import (
 )
 
 func TestStatisticsNDistinctImportCodec(t *testing.T) {
-	record := NDistinctSnapshot{Schema: "public", Name: "s", RelationSchema: "public", RelationName: "t", Keys: []int32{1, 3}, Kinds: "d", Usages: []NDistinctUsageRecord{{TypeSchema: "pg_catalog", TypeName: "int4", Typmod: -1}, {TypeSchema: "pg_catalog", TypeName: "int4", Typmod: -1}}, Subsets: [][]int16{{1, 3}}, Counts: []uint64{2}}
-	encoded, err := EncodeNDistinctSnapshot(record)
+	record := ExtendedStatisticsSnapshot{Schema: "public", Name: "s", RelationSchema: "public", RelationName: "t", Keys: []int32{1, 3}, Kinds: "d", Usages: []NDistinctUsageRecord{{TypeSchema: "pg_catalog", TypeName: "int4", Typmod: -1}, {TypeSchema: "pg_catalog", TypeName: "int4", Typmod: -1}}, Subsets: [][]int16{{1, 3}}, Counts: []uint64{2}}
+	encoded, err := EncodeExtendedStatisticsSnapshot(record)
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, recognized, err := DecodeNDistinctSnapshot(strings.TrimPrefix(encoded, "-- "))
+	decoded, recognized, err := DecodeExtendedStatisticsSnapshot(strings.TrimPrefix(encoded, "-- "))
 	if err != nil || !recognized || decoded.Counts[0] != 2 || decoded.Keys[1] != 3 {
 		t.Fatal(decoded, recognized, err)
 	}
@@ -37,16 +37,16 @@ func TestStatisticsNDistinctImportCodec(t *testing.T) {
 		strings.Replace(string(raw), `"typmod":-1`, `"unknown":-1`, 1),
 		string(raw) + ` {}`,
 	} {
-		if _, recognized, err := DecodeNDistinctSnapshot(mutate(text)); !recognized || err == nil {
+		if _, recognized, err := DecodeExtendedStatisticsSnapshot(mutate(text)); !recognized || err == nil {
 			t.Fatal("accepted corrupt snapshot", text, recognized, err)
 		}
 	}
 	for _, text := range []string{"stuntgres-ndistinct-v2 e30=", NDistinctSnapshotMarker + " !!!", NDistinctSnapshotMarker + " " + base64.StdEncoding.EncodeToString([]byte{255})} {
-		if _, recognized, err := DecodeNDistinctSnapshot(text); !recognized || err == nil {
+		if _, recognized, err := DecodeExtendedStatisticsSnapshot(text); !recognized || err == nil {
 			t.Fatal(text, recognized, err)
 		}
 	}
-	if _, recognized, err := DecodeNDistinctSnapshot("ordinary comment"); recognized || err != nil {
+	if _, recognized, err := DecodeExtendedStatisticsSnapshot("ordinary comment"); recognized || err != nil {
 		t.Fatal("ordinary comment gained authority")
 	}
 }
