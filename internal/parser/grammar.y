@@ -26,11 +26,11 @@ package parser
  foreignOption ForeignOption
  foreignElements foreignElements
  foreignActions []ForeignTableAction
- foreignTableAction ForeignTableAction
+ foreignTableAction *ForeignTableAction
  foreignText *string
  insertStmt *Insert
  copyStmt *Copy
- copyOption CopyOption
+ copyOption *CopyOption
  copyOptions []CopyOption
  copyWhere copyWhereClause
  insertConflict *InsertConflict
@@ -55,12 +55,12 @@ package parser
  types []TypeName
  grantRoutine GrantRoutineTarget
  grantRoutines []GrantRoutineTarget
- grantRoutineArgument GrantRoutineArgument
+ grantRoutineArgument *GrantRoutineArgument
  grantRoutineArguments []GrantRoutineArgument
- routineParameter RoutineParameter
+ routineParameter *RoutineParameter
  routineParameters []RoutineParameter
- routineResult routineResult
- routineAS routineAS
+ routineResult *routineResult
+ routineAS *routineAS
  routineAttributes []RoutineAttribute
  routineAttribute RoutineAttribute
  createLanguage *CreateLanguage
@@ -155,7 +155,7 @@ package parser
  collation *ObjectName
  settingValues settingList
  settingValue settingAtom
- roleOptions RoleOptions
+ roleOptions *RoleOptions
  roleSpec RoleSpec
  roleSpecs []RoleSpec
  membershipOptions []MembershipOption
@@ -178,7 +178,7 @@ package parser
  mode TransactionMode
  isolation TransactionIsolation
  sequenceOptions []SequenceOption
- sequenceOption SequenceOption
+ sequenceOption *SequenceOption
  sequence *CreateSequence
  alterSequence *AlterSequence
  integer int64
@@ -211,7 +211,7 @@ package parser
  enumLabels []EnumLabel
  alterEnum *AlterEnum
  rangeOptions []RangeOption
- rangeOption RangeOption
+ rangeOption *RangeOption
  alterIndex *AlterIndex
  indexOptions []IndexOption
  indexOption IndexOption
@@ -248,7 +248,7 @@ package parser
  createClass *CreateOperatorClass
  alterClass *AlterOperatorClass
  vacuumOptions []VacuumOption
- vacuumOption VacuumOption
+ vacuumOption *VacuumOption
  vacuumTargets []VacuumTarget
  vacuumTarget VacuumTarget
 }
@@ -1235,26 +1235,26 @@ copy_options: /* empty */ { $$=nil }
  | '(' copy_option_list ')' { $$=$2 }
  | copy_legacy_options { $$=$1 }
  | WITH copy_legacy_options { $$=$2 } ;
-copy_option_list: copy_option { $$=[]CopyOption{$1} }
- | copy_option_list ',' copy_option { $$=append($1,$3) } ;
+copy_option_list: copy_option { $$=[]CopyOption{*$1} }
+ | copy_option_list ',' copy_option { $$=append($1,*$3) } ;
 copy_option_name: generic_word | NULL | DEFAULT ;
-copy_option: copy_option_name { $$=CopyOption{Name:$1.text,Pos:$1.pos} }
+copy_option: copy_option_name { $$=&CopyOption{Name:$1.text,Pos:$1.pos} }
  | copy_option_name copy_option_value { $$=$2;$$.Name=$1.text;$$.Pos=$1.pos} ;
 copy_option_string: STRING | generic_word | TEXT | TRUE | FALSE ;
 copy_option_strings: copy_option_string { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
  | copy_option_strings ',' copy_option_string { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
-copy_option_value: copy_option_string { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text} }
- | NUMBER { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text,Numeric:true} }
- | '+' NUMBER { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"+"+$2.text,Numeric:true} }
- | '-' NUMBER { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"-"+$2.text,Numeric:true} }
- | DEFAULT { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"default"} }
- | '*' { $$=CopyOption{Argument:CopyArgumentStar,HasValue:true,Value:"*"} }
- | '(' copy_option_strings ')' { $$=CopyOption{Argument:CopyArgumentColumns,HasValue:true,Columns:$2} } ;
-copy_legacy_options: copy_legacy_option { $$=[]CopyOption{$1} }
- | copy_legacy_options copy_legacy_option { $$=append($1,$2) } ;
-copy_legacy_option: generic_word STRING { $$=CopyOption{Argument:CopyArgumentScalar,Name:$1.text,Pos:$1.pos,HasValue:true,Value:$2.text} }
- | NULL STRING { $$=CopyOption{Argument:CopyArgumentScalar,Name:"null",Pos:$1.pos,HasValue:true,Value:$2.text} }
- | generic_word {if $1.text!="header" {sqllex.(*lexer).syntax($1);return 1};$$=CopyOption{Name:"header",Pos:$1.pos}} ;
+copy_option_value: copy_option_string { $$=&CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text} }
+ | NUMBER { $$=&CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text,Numeric:true} }
+ | '+' NUMBER { $$=&CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"+"+$2.text,Numeric:true} }
+ | '-' NUMBER { $$=&CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"-"+$2.text,Numeric:true} }
+ | DEFAULT { $$=&CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"default"} }
+ | '*' { $$=&CopyOption{Argument:CopyArgumentStar,HasValue:true,Value:"*"} }
+ | '(' copy_option_strings ')' { $$=&CopyOption{Argument:CopyArgumentColumns,HasValue:true,Columns:$2} } ;
+copy_legacy_options: copy_legacy_option { $$=[]CopyOption{*$1} }
+ | copy_legacy_options copy_legacy_option { $$=append($1,*$2) } ;
+copy_legacy_option: generic_word STRING { $$=&CopyOption{Argument:CopyArgumentScalar,Name:$1.text,Pos:$1.pos,HasValue:true,Value:$2.text} }
+ | NULL STRING { $$=&CopyOption{Argument:CopyArgumentScalar,Name:"null",Pos:$1.pos,HasValue:true,Value:$2.text} }
+ | generic_word {if $1.text!="header" {sqllex.(*lexer).syntax($1);return 1};$$=&CopyOption{Name:"header",Pos:$1.pos}} ;
 copy_where: /* empty */ { $$=copyWhereClause{} } | WHERE target_or { $$=copyWhereClause{expression:$2,pos:$1.pos} } ;
 prepare_sql: PREPARE name prepare_types AS preparable { $$=&PrepareSQL{Name:Identifier{Text:$2.text,Pos:$2.pos},Types:$3,Body:$5,Source:sqllex.(*lexer).input,Pos:$1.pos} } ;
 prepare_types: /* empty */ { $$=nil } | '(' prepare_type_list ')' { $$=$2 } ;
@@ -1319,46 +1319,46 @@ alter_sequence: sequence_alter_head sequence_options { if len($2)==0{sqllex.(*le
  | sequence_alter_head SET UNLOGGED { $1.Action="unlogged"; $$=$1 } ;
 drop_sequence: DROP SEQUENCE relation_names drop_mode { $$=&DropSequence{Names:$3,Mode:$4,Pos:$1.pos} }
  | DROP SEQUENCE IF EXISTS relation_names drop_mode { $$=&DropSequence{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
-sequence_options: /* empty */ { $$=nil } | sequence_options sequence_option { $$=append($1,$2) } ;
+sequence_options: /* empty */ { $$=nil } | sequence_options sequence_option { $$=append($1,*$2) } ;
 sequence_integer: NUMBER { n,ok:=sequenceInteger(sqllex,$1,"");if !ok{return 1};$$=n }
  | '+' NUMBER { n,ok:=sequenceInteger(sqllex,$2,"+");if !ok{return 1};$$=n }
  | '-' NUMBER { n,ok:=sequenceInteger(sqllex,$2,"-");if !ok{return 1};$$=n } ;
-sequence_option: AS type { $$=SequenceOption{Name:"as",Type:$2,Pos:$1.pos} }
- | INCREMENT sequence_integer { $$=SequenceOption{Name:"increment",Value:$2,Pos:$1.pos} }
- | INCREMENT BY sequence_integer { $$=SequenceOption{Name:"increment",Value:$3,Pos:$1.pos} }
- | MINVALUE sequence_integer { $$=SequenceOption{Name:"min",Value:$2,Pos:$1.pos} }
- | NO MINVALUE { $$=SequenceOption{Name:"min",Type:TypeName{Name:"default"},Pos:$1.pos} }
- | MAXVALUE sequence_integer { $$=SequenceOption{Name:"max",Value:$2,Pos:$1.pos} }
- | NO MAXVALUE { $$=SequenceOption{Name:"max",Type:TypeName{Name:"default"},Pos:$1.pos} }
- | START sequence_integer { $$=SequenceOption{Name:"start",Value:$2,Pos:$1.pos} }
- | START WITH sequence_integer { $$=SequenceOption{Name:"start",Value:$3,Pos:$1.pos} }
- | CACHE sequence_integer { $$=SequenceOption{Name:"cache",Value:$2,Pos:$1.pos} }
- | CYCLE { $$=SequenceOption{Name:"cycle",Value:1,Pos:$1.pos} }
- | NO CYCLE { $$=SequenceOption{Name:"cycle",Pos:$1.pos} }
- | RESTART { $$=SequenceOption{Name:"restart",Type:TypeName{Name:"default"},Pos:$1.pos} }
- | RESTART sequence_integer { $$=SequenceOption{Name:"restart",Value:$2,Pos:$1.pos} }
- | RESTART WITH sequence_integer { $$=SequenceOption{Name:"restart",Value:$3,Pos:$1.pos} }
- | OWNED BY comment_column_name { $$=SequenceOption{Name:"owned",Owned:$3,Pos:$1.pos} } ;
+sequence_option: AS type { $$=&SequenceOption{Name:"as",Type:$2,Pos:$1.pos} }
+ | INCREMENT sequence_integer { $$=&SequenceOption{Name:"increment",Value:$2,Pos:$1.pos} }
+ | INCREMENT BY sequence_integer { $$=&SequenceOption{Name:"increment",Value:$3,Pos:$1.pos} }
+ | MINVALUE sequence_integer { $$=&SequenceOption{Name:"min",Value:$2,Pos:$1.pos} }
+ | NO MINVALUE { $$=&SequenceOption{Name:"min",Type:TypeName{Name:"default"},Pos:$1.pos} }
+ | MAXVALUE sequence_integer { $$=&SequenceOption{Name:"max",Value:$2,Pos:$1.pos} }
+ | NO MAXVALUE { $$=&SequenceOption{Name:"max",Type:TypeName{Name:"default"},Pos:$1.pos} }
+ | START sequence_integer { $$=&SequenceOption{Name:"start",Value:$2,Pos:$1.pos} }
+ | START WITH sequence_integer { $$=&SequenceOption{Name:"start",Value:$3,Pos:$1.pos} }
+ | CACHE sequence_integer { $$=&SequenceOption{Name:"cache",Value:$2,Pos:$1.pos} }
+ | CYCLE { $$=&SequenceOption{Name:"cycle",Value:1,Pos:$1.pos} }
+ | NO CYCLE { $$=&SequenceOption{Name:"cycle",Pos:$1.pos} }
+ | RESTART { $$=&SequenceOption{Name:"restart",Type:TypeName{Name:"default"},Pos:$1.pos} }
+ | RESTART sequence_integer { $$=&SequenceOption{Name:"restart",Value:$2,Pos:$1.pos} }
+ | RESTART WITH sequence_integer { $$=&SequenceOption{Name:"restart",Value:$3,Pos:$1.pos} }
+ | OWNED BY comment_column_name { $$=&SequenceOption{Name:"owned",Owned:$3,Pos:$1.pos} } ;
 identity_mode: ALWAYS { $$=IdentityAlways } | BY DEFAULT { $$=IdentityByDefault } ;
 identity_definition: GENERATED identity_mode AS IDENTITY identity_options { $$=&IdentityDefinition{Mode:$2,Options:$5,Pos:$1.pos} } ;
 generation_definition: GENERATED identity_mode AS '(' scalar_projection ')' generation_kind { expression:=$5;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&GenerationDefinition{Expression:expression,Mode:$2,Kind:$7.text,Pos:$1.pos,ModePos:sqllex.(*lexer).generationModePos} } ;
 generation_kind: /* empty */ { $$=lexeme{} } | KW_U { if $1.text!="stored" && $1.text!="virtual" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 generation_expression_word: KW_U { if $1.text!="expression" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 identity_options: /* empty */ { $$=nil } | '(' identity_option_list ')' { $$=$2 } ;
-identity_option_list: /* empty */ { $$=nil } | identity_option_list identity_option { $$=append($1,$2) } ;
-identity_option: sequence_option { $$=$1 } | SEQUENCE name relation_name { if $2.text!="name" {sqllex.(*lexer).syntax($2);return 1}; $$=SequenceOption{Name:"name",Owned:$3,Pos:$1.pos} }
- | LOGGED { $$=SequenceOption{Name:"logged",Pos:$1.pos} }
- | UNLOGGED { $$=SequenceOption{Name:"unlogged",Pos:$1.pos} } ;
+identity_option_list: /* empty */ { $$=nil } | identity_option_list identity_option { $$=append($1,*$2) } ;
+identity_option: sequence_option { $$=$1 } | SEQUENCE name relation_name { if $2.text!="name" {sqllex.(*lexer).syntax($2);return 1}; $$=&SequenceOption{Name:"name",Owned:$3,Pos:$1.pos} }
+ | LOGGED { $$=&SequenceOption{Name:"logged",Pos:$1.pos} }
+ | UNLOGGED { $$=&SequenceOption{Name:"unlogged",Pos:$1.pos} } ;
 identity_set_option: sequence_option { $$=$1 }
- | LOGGED { $$=SequenceOption{Name:"logged",Pos:$1.pos} }
- | UNLOGGED { $$=SequenceOption{Name:"unlogged",Pos:$1.pos} } ;
+ | LOGGED { $$=&SequenceOption{Name:"logged",Pos:$1.pos} }
+ | UNLOGGED { $$=&SequenceOption{Name:"unlogged",Pos:$1.pos} } ;
 identity_alter_options: SET GENERATED identity_mode { $$=&IdentityDefinition{Mode:$3} }
- | SET identity_set_option { if $2.Name=="as" || $2.Name=="owned" || $2.Name=="restart" {name:=$2.Name;if name=="owned"{name="owned_by"};sqllex.(*lexer).failAt("42601","sequence option \""+name+"\" not supported here",$2.Pos.Offset);return 1};$$=&IdentityDefinition{Options:[]SequenceOption{$2}} }
+ | SET identity_set_option { if $2.Name=="as" || $2.Name=="owned" || $2.Name=="restart" {name:=$2.Name;if name=="owned"{name="owned_by"};sqllex.(*lexer).failAt("42601","sequence option \""+name+"\" not supported here",$2.Pos.Offset);return 1};$$=&IdentityDefinition{Options:[]SequenceOption{*$2}} }
  | RESTART { $$=&IdentityDefinition{Options:[]SequenceOption{{Name:"restart",Type:TypeName{Name:"default"},Pos:$1.pos}}} }
  | RESTART sequence_integer { $$=&IdentityDefinition{Options:[]SequenceOption{{Name:"restart",Value:$2,Pos:$1.pos}}} }
  | RESTART WITH sequence_integer { $$=&IdentityDefinition{Options:[]SequenceOption{{Name:"restart",Value:$3,Pos:$1.pos}}} }
  | identity_alter_options SET GENERATED identity_mode { $$=$1; if $$.Mode!=IdentityNone {$$.ConflictingModes=true};$$.Mode=$4 }
- | identity_alter_options SET identity_set_option { if $3.Name=="as" || $3.Name=="owned" || $3.Name=="restart" {name:=$3.Name;if name=="owned"{name="owned_by"};sqllex.(*lexer).failAt("42601","sequence option \""+name+"\" not supported here",$3.Pos.Offset);return 1};$$=$1;$$.Options=append($$.Options,$3) }
+ | identity_alter_options SET identity_set_option { if $3.Name=="as" || $3.Name=="owned" || $3.Name=="restart" {name:=$3.Name;if name=="owned"{name="owned_by"};sqllex.(*lexer).failAt("42601","sequence option \""+name+"\" not supported here",$3.Pos.Offset);return 1};$$=$1;$$.Options=append($$.Options,*$3) }
  | identity_alter_options RESTART { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Type:TypeName{Name:"default"},Pos:$2.pos}) }
  | identity_alter_options RESTART sequence_integer { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Value:$3,Pos:$2.pos}) }
  | identity_alter_options RESTART WITH sequence_integer { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Value:$4,Pos:$2.pos}) } ;
@@ -1709,9 +1709,9 @@ range_word: FRAME_UNIT {
  if $1.text!="range" {sqllex.(*lexer).failAt("0A000","CREATE TYPE syntax is unsupported",$1.pos.Offset);return 1}
  $$=$1
 } ;
-range_options: range_option {$$=[]RangeOption{$1}}
- | range_options ',' range_option {$$=append($1,$3)} ;
-range_option: col_label '=' type {$$=RangeOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3}} ;
+range_options: range_option {$$=[]RangeOption{*$1}}
+ | range_options ',' range_option {$$=append($1,*$3)} ;
+range_option: col_label '=' type {$$=&RangeOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3}} ;
 enum_labels: /* empty */ {$$=nil} | enum_label_list {$$=$1} ;
 enum_label_list: STRING {$$=[]EnumLabel{{Text:$1.text,Pos:$1.pos}}}
  | enum_label_list ',' STRING {$$=append($1,EnumLabel{Text:$3.text,Pos:$3.pos})} ;
@@ -1880,8 +1880,8 @@ procedure_attribute: function_attribute {$$=$1}
 procedure_rows_word: FRAME_UNIT {if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 procedure_input_word: KW_U {if $1.keyword==nil || $1.text!="input" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 procedure_leakproof_word: KW_U {if $1.keyword==nil || $1.text!="leakproof" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
-routine_as: STRING {$$=routineAS{Body:$1}}
- | STRING ',' STRING {$$=routineAS{Body:$1,Symbol:$3,HasSymbol:true}} ;
+routine_as: STRING {$$=&routineAS{Body:$1}}
+ | STRING ',' STRING {$$=&routineAS{Body:$1,Symbol:$3,HasSymbol:true}} ;
 function_attributes: /* empty */ {$$=nil}
  | function_attributes function_attribute {$$=append($1,$2)} ;
 function_attribute_word: KW_U {if $1.keyword==nil||($1.text!="strict"&&$1.text!="volatile"&&$1.text!="stable"&&$1.text!="immutable"&&$1.text!="leakproof") {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
@@ -2117,18 +2117,18 @@ routine_body_statement: nontransaction_statement {$$=$1}
 function_arguments: routine_arguments_start optional_function_arguments {$$=$2} ;
 routine_arguments_start: /* empty */ {l:=sqllex.(*lexer);l.routineFormalDepth=l.jsonParenDepth;l.routineFormalDefault=false} ;
 optional_function_arguments: /* empty */ {$$=nil} | function_declaration_argument_list {$$=$1} ;
-function_declaration_argument_list: function_declaration_argument {$$=[]RoutineParameter{$1}}
- | function_declaration_argument_list ',' function_declaration_argument {$$=append($1,$3)} ;
-function_declaration_argument: grant_routine_argument {$$=RoutineParameter{GrantRoutineArgument:$1}}
- | grant_routine_argument DEFAULT target {$$=RoutineParameter{GrantRoutineArgument:$1,Default:$3}}
- | grant_routine_argument '=' target {$$=RoutineParameter{GrantRoutineArgument:$1,Default:$3}} ;
-function_result: /* empty */ {$$=routineResult{}}
- | returns_word declared_type {$$=routineResult{Type:$2,Specified:true}}
- | returns_word SETOF_TYPE declared_type {typ:=$3;typ.Setof=true;$$=routineResult{Type:typ,Specified:true}}
- | returns_word TABLE '(' table_function_columns ')' {$$=routineResult{Type:TypeName{Name:"record",Setof:true,Pos:$2.pos},Specified:true,Table:$4}} ;
-table_function_columns: table_function_column {$$=[]RoutineParameter{$1}}
- | table_function_columns ',' table_function_column {$$=append($1,$3)} ;
-table_function_column: grant_parameter_name declared_type {$$=RoutineParameter{GrantRoutineArgument:GrantRoutineArgument{Mode:"table",Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Pos:$1.pos}}} ;
+function_declaration_argument_list: function_declaration_argument {$$=[]RoutineParameter{*$1}}
+ | function_declaration_argument_list ',' function_declaration_argument {$$=append($1,*$3)} ;
+function_declaration_argument: grant_routine_argument {$$=&RoutineParameter{GrantRoutineArgument:*$1}}
+ | grant_routine_argument DEFAULT target {$$=&RoutineParameter{GrantRoutineArgument:*$1,Default:$3}}
+ | grant_routine_argument '=' target {$$=&RoutineParameter{GrantRoutineArgument:*$1,Default:$3}} ;
+function_result: /* empty */ {$$=&routineResult{}}
+ | returns_word declared_type {$$=&routineResult{Type:$2,Specified:true}}
+ | returns_word SETOF_TYPE declared_type {typ:=$3;typ.Setof=true;$$=&routineResult{Type:typ,Specified:true}}
+ | returns_word TABLE '(' table_function_columns ')' {$$=&routineResult{Type:TypeName{Name:"record",Setof:true,Pos:$2.pos},Specified:true,Table:$4}} ;
+table_function_columns: table_function_column {$$=[]RoutineParameter{*$1}}
+ | table_function_columns ',' table_function_column {$$=append($1,*$3)} ;
+table_function_column: grant_parameter_name declared_type {$$=&RoutineParameter{GrantRoutineArgument:GrantRoutineArgument{Mode:"table",Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Pos:$1.pos}}} ;
 returns_word: RETURNS_CLAUSE {sqllex.(*lexer).routineResultType=true;$$=$1} ;
 create_operator: CREATE OPERATOR operator_name '(' operator_options ')' {$$=&CreateOperator{Name:$3,Options:$5,Pos:$1.pos}} ;
 operator_name: operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}
@@ -2275,9 +2275,9 @@ reindex: REINDEX reindex_options reindex_kind maintenance_concurrent relation_na
 
 vacuum: VACUUM vacuum_options vacuum_targets {$$=&Vacuum{Options:$2,Targets:$3,Pos:$1.pos}} ;
 vacuum_options: '(' vacuum_option_list ')' {$$=$2} | vacuum_legacy ;
-vacuum_option_list: vacuum_option {$$=[]VacuumOption{$1}} | vacuum_option_list ',' vacuum_option {$$=append($1,$3)} ;
-vacuum_option: col_label {$$=VacuumOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}
- | col_label maintenance_index_option_value {$$=VacuumOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$2,HasValue:true}} ;
+vacuum_option_list: vacuum_option {$$=[]VacuumOption{*$1}} | vacuum_option_list ',' vacuum_option {$$=append($1,*$3)} ;
+vacuum_option: col_label {$$=&VacuumOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}
+ | col_label maintenance_index_option_value {$$=&VacuumOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$2,HasValue:true}} ;
 vacuum_legacy: vacuum_full vacuum_freeze vacuum_verbose vacuum_analyze {$$=nil;for _,t:=range []lexeme{$1,$2,$3,$4} {if t.pos.Character!=0 {$$=append($$,VacuumOption{Name:Identifier{Text:t.text,Pos:t.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:t.pos}})}}} ;
 vacuum_full: /* empty */ {$$=lexeme{}} | FULL ;
 vacuum_freeze: /* empty */ {$$=lexeme{}} | FREEZE ;
@@ -2498,10 +2498,10 @@ alter_actions: ordinary_alter_action { $$=[]AlterTableAction{*$1} }
  | alter_actions ',' ALTER optional_column name DROP DEFAULT { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 } ;
 ordinary_alter_action: alter_selected_action {$$=$1}
  | alter_column_add {if $1.ColumnOptions!=nil {sqllex.(*lexer).syntax($1.columnOptionsToken);return 1};$$=$1.Ordinary} ;
-alter_column_add: ADD optional_column column {c:=$3;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos}}}
- | ADD optional_column IF NOT EXISTS column {c:=$6;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos}}}
- | ADD optional_column name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$3.text,TypeName:$4,Collation:$9,Constraints:$10,Pos:$3.pos};$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos},ColumnOptions:$7,columnOptionsToken:$5}}
- | ADD optional_column IF NOT EXISTS name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$6.text,TypeName:$7,Collation:$12,Constraints:$13,Pos:$6.pos};$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,IfNotExists:true,Pos:$1.pos},ColumnOptions:$10,columnOptionsToken:$8}} ;
+alter_column_add: ADD optional_column column {c:=$3;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos}}}
+ | ADD optional_column IF NOT EXISTS column {c:=$6;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos}}}
+ | ADD optional_column name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$3.text,TypeName:$4,Collation:$9,Constraints:$10,Pos:$3.pos};$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos},ColumnOptions:$7,columnOptionsToken:$5}}
+ | ADD optional_column IF NOT EXISTS name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$6.text,TypeName:$7,Collation:$12,Constraints:$13,Pos:$6.pos};$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,IfNotExists:true,Pos:$1.pos},ColumnOptions:$10,columnOptionsToken:$8}} ;
 alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }
  | SET TABLESPACE name { $$=&AlterTableAction{Action:SetTablespace,Tablespace:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | SET '(' maintenance_index_option_list ')' { $$=&AlterTableAction{Action:SetRelationOptions,Options:$3,Pos:$1.pos} }
@@ -3823,17 +3823,17 @@ aggregate_utility_arguments: '*' {$$=nil}
  | grant_routine_argument_list ORDER BY grant_routine_argument_list {var ok bool;$$,ok=sqllex.(*lexer).aggregateUtilityArguments($1,$4);if !ok {return 1}} ;
 grant_routine_arguments: /* empty */ { $$=nil }
  | grant_routine_argument_list { $$=$1 } ;
-grant_routine_argument_list: grant_routine_argument { $$=[]GrantRoutineArgument{$1} }
- | grant_routine_argument_list ',' grant_routine_argument { $$=append($1,$3) } ;
+grant_routine_argument_list: grant_routine_argument { $$=[]GrantRoutineArgument{*$1} }
+ | grant_routine_argument_list ',' grant_routine_argument { $$=append($1,*$3) } ;
 grant_routine_mode: IN | OUT_ARG | INOUT_ARG | VARIADIC | IN OUT_ARG { $$=lexeme{text:"inout",pos:$1.pos} } ;
 grant_parameter_name: type_name {if $1.keyword!=nil && !$1.keyword.typeFunctionName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 routine_argument_type: declared_type {$$=$1}
  | SETOF_TYPE declared_type {$$=$2;$$.Setof=true} ;
-grant_routine_argument: routine_argument_type { $$=GrantRoutineArgument{Type:$1,Pos:$1.Pos} }
- | grant_parameter_name routine_argument_type { $$=GrantRoutineArgument{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Pos:$1.pos} }
- | grant_routine_mode routine_argument_type { $$=GrantRoutineArgument{Mode:$1.text,Type:$2,Pos:$1.pos} }
- | grant_routine_mode grant_parameter_name routine_argument_type { $$=GrantRoutineArgument{Mode:$1.text,Name:Identifier{Text:$2.text,Pos:$2.pos},Type:$3,Pos:$1.pos} }
- | grant_parameter_name grant_routine_mode routine_argument_type { $$=GrantRoutineArgument{Mode:$2.text,Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$3,Pos:$1.pos} } ;
+grant_routine_argument: routine_argument_type { $$=&GrantRoutineArgument{Type:$1,Pos:$1.Pos} }
+ | grant_parameter_name routine_argument_type { $$=&GrantRoutineArgument{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Pos:$1.pos} }
+ | grant_routine_mode routine_argument_type { $$=&GrantRoutineArgument{Mode:$1.text,Type:$2,Pos:$1.pos} }
+ | grant_routine_mode grant_parameter_name routine_argument_type { $$=&GrantRoutineArgument{Mode:$1.text,Name:Identifier{Text:$2.text,Pos:$2.pos},Type:$3,Pos:$1.pos} }
+ | grant_parameter_name grant_routine_mode routine_argument_type { $$=&GrantRoutineArgument{Mode:$2.text,Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$3,Pos:$1.pos} } ;
 grant_schema_list: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
  | grant_schema_list ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
 grant_grantee: grant_role_spec { $$=$1 } | GROUP grant_role_spec { $$=$2 } ;
@@ -3847,25 +3847,25 @@ grant_grantees: grant_grantee { $$=[]GrantGrantee{$1} }
 grant_option: /* empty */ { $$=false } | WITH GRANT OPTION { $$=true } ;
 role_kind: ROLE { $$=false } | USER { $$=true } | GROUP { $$=false } ;
 optional_with: /* empty */ | WITH ;
-role_options: /* empty */ { $$=RoleOptions{} }
+role_options: /* empty */ { $$=&RoleOptions{} }
  | role_options role_option_word {
-   var ok bool; $$,ok=$1.toggle($2)
+   next,ok:=$1.toggle($2); $$=&next
    if !ok {
     l:=sqllex.(*lexer)
     if unsupportedRoleOptions[$2.text] { l.failAt("0A000","unsupported role option",$2.pos.Offset) } else if $2.keyword!=nil && !$2.keyword.columnName() { l.syntax($2) } else { l.failAt("42601","unrecognized role option \""+$2.text+"\"",$2.pos.Offset) }; return 1
    }
  }
- | role_options IN ROLE membership_role_names { $$=$1.members("in",$2,$4) }
- | role_options IN GROUP membership_role_names { $$=$1.members("in",$2,$4) }
- | role_options ROLE membership_role_names { $$=$1.members("role",$2,$3) }
- | role_options USER membership_role_names { $$=$1.members("role",$2,$3) }
- | role_options ADMIN membership_role_names { $$=$1.members("admin",$2,$3) }
- | role_options ROLE_PASSWORD STRING { $$=$1.add(RolePassword,$2.pos); $$.Password=$3.text; $$.PasswordNull=false }
- | role_options ROLE_PASSWORD NULL { $$=$1.add(RolePassword,$2.pos); $$.Password=""; $$.PasswordNull=true }
- | role_options ROLE_ENCRYPTED ROLE_PASSWORD STRING { $$=$1.add(RolePassword,$2.pos); $$.Password=$4.text; $$.PasswordNull=false }
+ | role_options IN ROLE membership_role_names { $$=cell($1.members("in",$2,$4) )}
+ | role_options IN GROUP membership_role_names { $$=cell($1.members("in",$2,$4) )}
+ | role_options ROLE membership_role_names { $$=cell($1.members("role",$2,$3) )}
+ | role_options USER membership_role_names { $$=cell($1.members("role",$2,$3) )}
+ | role_options ADMIN membership_role_names { $$=cell($1.members("admin",$2,$3) )}
+ | role_options ROLE_PASSWORD STRING { $$=cell($1.add(RolePassword,$2.pos)); $$.Password=$3.text; $$.PasswordNull=false }
+ | role_options ROLE_PASSWORD NULL { $$=cell($1.add(RolePassword,$2.pos)); $$.Password=""; $$.PasswordNull=true }
+ | role_options ROLE_ENCRYPTED ROLE_PASSWORD STRING { $$=cell($1.add(RolePassword,$2.pos)); $$.Password=$4.text; $$.PasswordNull=false }
  | role_options ROLE_UNENCRYPTED ROLE_PASSWORD STRING { sqllex.(*lexer).failDiagnostic("0A000","UNENCRYPTED PASSWORD is no longer supported","Remove UNENCRYPTED to store the password in encrypted form instead.",$2.pos.Offset); return 1 }
- | role_options ROLE_CONNECTION LIMIT role_limit { $$=$1.add(RoleConnectionLimit,$2.pos); $$.ConnectionLimit=int32($4) }
- | role_options ROLE_VALID role_option_word STRING { if $3.text!="until" {sqllex.(*lexer).syntax($3);return 1}; $$=$1.add(RoleValidUntil,$2.pos); $$.ValidUntil=$4.text } ;
+ | role_options ROLE_CONNECTION LIMIT role_limit { $$=cell($1.add(RoleConnectionLimit,$2.pos)); $$.ConnectionLimit=int32($4) }
+ | role_options ROLE_VALID role_option_word STRING { if $3.text!="until" {sqllex.(*lexer).syntax($3);return 1}; $$=cell($1.add(RoleValidUntil,$2.pos)); $$.ValidUntil=$4.text } ;
 role_limit: NUMBER { var ok bool; $$,ok=roleLimit(sqllex,$1,""); if !ok{return 1} }
  | '-' NUMBER { var ok bool; $$,ok=roleLimit(sqllex,$2,"-");if !ok{return 1} }
  | '+' NUMBER { var ok bool; $$,ok=roleLimit(sqllex,$2,"");if !ok{return 1} } ;
@@ -3881,13 +3881,13 @@ role_name: name {
  | SESSION_USER { sqllex.(*lexer).failAt("42939","SESSION_USER cannot be used as a role name here",$1.pos.Offset); return 1 }
  | CURRENT_ROLE { sqllex.(*lexer).failAt("42939","CURRENT_ROLE cannot be used as a role name here",$1.pos.Offset); return 1 } ;
 create_role: CREATE role_kind role_name optional_with role_options {
- $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},DefaultLogin:$2,Options:$5}
+ $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},DefaultLogin:$2,Options:*$5}
  } ;
 alter_role_target: name | CURRENT_ROLE | CURRENT_USER | SESSION_USER ;
 alter_role: ALTER role_alias alter_role_target optional_with role_options {
  if !$5.alter(sqllex) {return 1}
  identity:=""; if $3.keyword!=nil && ($3.text=="current_role" || $3.text=="current_user" || $3.text=="session_user") {identity=$3.text}
- $$=&AlterRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Identity:identity,Options:$5}
+ $$=&AlterRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Identity:identity,Options:*$5}
  }
  | ALTER role_alias alter_role_target RENAME TO role_name {$$=&RenameRole{Role:roleSettingSpec($3),Name:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
  | ALTER role_alias alter_role_target role_setting_database role_setting_action {
@@ -4030,14 +4030,14 @@ foreign_alter_wrapper: foreign_alter_wrapper_prefix FDW_HANDLER relation_name {i
  | foreign_alter_wrapper_prefix FDW_VALIDATOR relation_name {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true;n:=$3;$$.Validator=&n}
  | foreign_alter_wrapper_prefix NO FDW_VALIDATOR {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true} ;
 foreign_version: STRING {v:=$1.text;$$=&v} | NULL {$$=nil} ;
-foreign_table_actions: foreign_table_action {$$=[]ForeignTableAction{$1}}
- | foreign_table_actions ',' foreign_table_action {$$=append($1,$3)} ;
-foreign_table_action: alter_selected_action {$$=ForeignTableAction{Ordinary:$1}}
+foreign_table_actions: foreign_table_action {$$=[]ForeignTableAction{*$1}}
+ | foreign_table_actions ',' foreign_table_action {$$=append($1,*$3)} ;
+foreign_table_action: alter_selected_action {$$=&ForeignTableAction{Ordinary:$1}}
  | alter_column_add {$$=$1}
- | foreign_alter_options {$$=ForeignTableAction{Options:$1}}
- | ALTER optional_column name foreign_alter_options {$$=ForeignTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Options:$4}}
- | ALTER optional_column name SET DEFAULT target_or {$$=ForeignTableAction{Default:&AlterTableDefault{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetDefault,Expression:$6,Pos:$1.pos}}}
- | ALTER optional_column name DROP DEFAULT {$$=ForeignTableAction{Default:&AlterTableDefault{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropDefault,Pos:$1.pos}}} ;
+ | foreign_alter_options {$$=&ForeignTableAction{Options:$1}}
+ | ALTER optional_column name foreign_alter_options {$$=&ForeignTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Options:$4}}
+ | ALTER optional_column name SET DEFAULT target_or {$$=&ForeignTableAction{Default:&AlterTableDefault{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetDefault,Expression:$6,Pos:$1.pos}}}
+ | ALTER optional_column name DROP DEFAULT {$$=&ForeignTableAction{Default:&AlterTableDefault{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropDefault,Pos:$1.pos}}} ;
 foreign_import_head: FDW_IMPORT FOREIGN SCHEMA name {
  $$=&ForeignDDL{Action:"import",Kind:"table",RemoteSchema:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}
 } | foreign_import_head LIMIT TO '(' grant_column_list ')' {if $1.ImportFilter!=nil {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ImportFilter=$5}

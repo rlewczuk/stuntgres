@@ -29,11 +29,11 @@ type sqlSymType struct {
 	foreignOption             ForeignOption
 	foreignElements           foreignElements
 	foreignActions            []ForeignTableAction
-	foreignTableAction        ForeignTableAction
+	foreignTableAction        *ForeignTableAction
 	foreignText               *string
 	insertStmt                *Insert
 	copyStmt                  *Copy
-	copyOption                CopyOption
+	copyOption                *CopyOption
 	copyOptions               []CopyOption
 	copyWhere                 copyWhereClause
 	insertConflict            *InsertConflict
@@ -58,12 +58,12 @@ type sqlSymType struct {
 	types                     []TypeName
 	grantRoutine              GrantRoutineTarget
 	grantRoutines             []GrantRoutineTarget
-	grantRoutineArgument      GrantRoutineArgument
+	grantRoutineArgument      *GrantRoutineArgument
 	grantRoutineArguments     []GrantRoutineArgument
-	routineParameter          RoutineParameter
+	routineParameter          *RoutineParameter
 	routineParameters         []RoutineParameter
-	routineResult             routineResult
-	routineAS                 routineAS
+	routineResult             *routineResult
+	routineAS                 *routineAS
 	routineAttributes         []RoutineAttribute
 	routineAttribute          RoutineAttribute
 	createLanguage            *CreateLanguage
@@ -158,7 +158,7 @@ type sqlSymType struct {
 	collation                 *ObjectName
 	settingValues             settingList
 	settingValue              settingAtom
-	roleOptions               RoleOptions
+	roleOptions               *RoleOptions
 	roleSpec                  RoleSpec
 	roleSpecs                 []RoleSpec
 	membershipOptions         []MembershipOption
@@ -181,7 +181,7 @@ type sqlSymType struct {
 	mode                      TransactionMode
 	isolation                 TransactionIsolation
 	sequenceOptions           []SequenceOption
-	sequenceOption            SequenceOption
+	sequenceOption            *SequenceOption
 	sequence                  *CreateSequence
 	alterSequence             *AlterSequence
 	integer                   int64
@@ -214,7 +214,7 @@ type sqlSymType struct {
 	enumLabels                []EnumLabel
 	alterEnum                 *AlterEnum
 	rangeOptions              []RangeOption
-	rangeOption               RangeOption
+	rangeOption               *RangeOption
 	alterIndex                *AlterIndex
 	indexOptions              []IndexOption
 	indexOption               IndexOption
@@ -251,7 +251,7 @@ type sqlSymType struct {
 	createClass               *CreateOperatorClass
 	alterClass                *AlterOperatorClass
 	vacuumOptions             []VacuumOption
-	vacuumOption              VacuumOption
+	vacuumOption              *VacuumOption
 	vacuumTargets             []VacuumTarget
 	vacuumTarget              VacuumTarget
 }
@@ -18806,17 +18806,17 @@ sqldefault:
 	case 320:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOptions = []CopyOption{sqlDollar[1].copyOption}
+			sqlVAL.copyOptions = []CopyOption{*sqlDollar[1].copyOption}
 		}
 	case 321:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.copyOptions = append(sqlDollar[1].copyOptions, sqlDollar[3].copyOption)
+			sqlVAL.copyOptions = append(sqlDollar[1].copyOptions, *sqlDollar[3].copyOption)
 		}
 	case 325:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.copyOption = &CopyOption{Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}
 		}
 	case 326:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
@@ -18838,57 +18838,57 @@ sqldefault:
 	case 334:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: sqlDollar[1].tok.text}
+			sqlVAL.copyOption = &CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: sqlDollar[1].tok.text}
 		}
 	case 335:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: sqlDollar[1].tok.text, Numeric: true}
+			sqlVAL.copyOption = &CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: sqlDollar[1].tok.text, Numeric: true}
 		}
 	case 336:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: "+" + sqlDollar[2].tok.text, Numeric: true}
+			sqlVAL.copyOption = &CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: "+" + sqlDollar[2].tok.text, Numeric: true}
 		}
 	case 337:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: "-" + sqlDollar[2].tok.text, Numeric: true}
+			sqlVAL.copyOption = &CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: "-" + sqlDollar[2].tok.text, Numeric: true}
 		}
 	case 338:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: "default"}
+			sqlVAL.copyOption = &CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: "default"}
 		}
 	case 339:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentStar, HasValue: true, Value: "*"}
+			sqlVAL.copyOption = &CopyOption{Argument: CopyArgumentStar, HasValue: true, Value: "*"}
 		}
 	case 340:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentColumns, HasValue: true, Columns: sqlDollar[2].identifiers}
+			sqlVAL.copyOption = &CopyOption{Argument: CopyArgumentColumns, HasValue: true, Columns: sqlDollar[2].identifiers}
 		}
 	case 341:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOptions = []CopyOption{sqlDollar[1].copyOption}
+			sqlVAL.copyOptions = []CopyOption{*sqlDollar[1].copyOption}
 		}
 	case 342:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.copyOptions = append(sqlDollar[1].copyOptions, sqlDollar[2].copyOption)
+			sqlVAL.copyOptions = append(sqlDollar[1].copyOptions, *sqlDollar[2].copyOption)
 		}
 	case 343:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos, HasValue: true, Value: sqlDollar[2].tok.text}
+			sqlVAL.copyOption = &CopyOption{Argument: CopyArgumentScalar, Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos, HasValue: true, Value: sqlDollar[2].tok.text}
 		}
 	case 344:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, Name: "null", Pos: sqlDollar[1].tok.pos, HasValue: true, Value: sqlDollar[2].tok.text}
+			sqlVAL.copyOption = &CopyOption{Argument: CopyArgumentScalar, Name: "null", Pos: sqlDollar[1].tok.pos, HasValue: true, Value: sqlDollar[2].tok.text}
 		}
 	case 345:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -18897,7 +18897,7 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[1].tok)
 				return 1
 			}
-			sqlVAL.copyOption = CopyOption{Name: "header", Pos: sqlDollar[1].tok.pos}
+			sqlVAL.copyOption = &CopyOption{Name: "header", Pos: sqlDollar[1].tok.pos}
 		}
 	case 346:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
@@ -19275,7 +19275,7 @@ sqldefault:
 	case 428:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOptions = append(sqlDollar[1].sequenceOptions, sqlDollar[2].sequenceOption)
+			sqlVAL.sequenceOptions = append(sqlDollar[1].sequenceOptions, *sqlDollar[2].sequenceOption)
 		}
 	case 429:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -19307,82 +19307,82 @@ sqldefault:
 	case 432:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "as", Type: sqlDollar[2].typ, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "as", Type: sqlDollar[2].typ, Pos: sqlDollar[1].tok.pos}
 		}
 	case 433:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "increment", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "increment", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
 		}
 	case 434:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "increment", Value: sqlDollar[3].integer, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "increment", Value: sqlDollar[3].integer, Pos: sqlDollar[1].tok.pos}
 		}
 	case 435:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "min", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "min", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
 		}
 	case 436:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "min", Type: TypeName{Name: "default"}, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "min", Type: TypeName{Name: "default"}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 437:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "max", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "max", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
 		}
 	case 438:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "max", Type: TypeName{Name: "default"}, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "max", Type: TypeName{Name: "default"}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 439:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "start", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "start", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
 		}
 	case 440:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "start", Value: sqlDollar[3].integer, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "start", Value: sqlDollar[3].integer, Pos: sqlDollar[1].tok.pos}
 		}
 	case 441:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "cache", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "cache", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
 		}
 	case 442:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "cycle", Value: 1, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "cycle", Value: 1, Pos: sqlDollar[1].tok.pos}
 		}
 	case 443:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "cycle", Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "cycle", Pos: sqlDollar[1].tok.pos}
 		}
 	case 444:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "restart", Type: TypeName{Name: "default"}, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "restart", Type: TypeName{Name: "default"}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 445:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "restart", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "restart", Value: sqlDollar[2].integer, Pos: sqlDollar[1].tok.pos}
 		}
 	case 446:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "restart", Value: sqlDollar[3].integer, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "restart", Value: sqlDollar[3].integer, Pos: sqlDollar[1].tok.pos}
 		}
 	case 447:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "owned", Owned: sqlDollar[3].objectName, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "owned", Owned: sqlDollar[3].objectName, Pos: sqlDollar[1].tok.pos}
 		}
 	case 448:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -19449,7 +19449,7 @@ sqldefault:
 	case 458:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.sequenceOptions = append(sqlDollar[1].sequenceOptions, sqlDollar[2].sequenceOption)
+			sqlVAL.sequenceOptions = append(sqlDollar[1].sequenceOptions, *sqlDollar[2].sequenceOption)
 		}
 	case 459:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -19463,17 +19463,17 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[2].tok)
 				return 1
 			}
-			sqlVAL.sequenceOption = SequenceOption{Name: "name", Owned: sqlDollar[3].objectName, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "name", Owned: sqlDollar[3].objectName, Pos: sqlDollar[1].tok.pos}
 		}
 	case 461:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "logged", Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "logged", Pos: sqlDollar[1].tok.pos}
 		}
 	case 462:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "unlogged", Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "unlogged", Pos: sqlDollar[1].tok.pos}
 		}
 	case 463:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -19483,12 +19483,12 @@ sqldefault:
 	case 464:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "logged", Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "logged", Pos: sqlDollar[1].tok.pos}
 		}
 	case 465:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.sequenceOption = SequenceOption{Name: "unlogged", Pos: sqlDollar[1].tok.pos}
+			sqlVAL.sequenceOption = &SequenceOption{Name: "unlogged", Pos: sqlDollar[1].tok.pos}
 		}
 	case 466:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
@@ -19506,7 +19506,7 @@ sqldefault:
 				sqllex.(*lexer).failAt("42601", "sequence option \""+name+"\" not supported here", sqlDollar[2].sequenceOption.Pos.Offset)
 				return 1
 			}
-			sqlVAL.identity = &IdentityDefinition{Options: []SequenceOption{sqlDollar[2].sequenceOption}}
+			sqlVAL.identity = &IdentityDefinition{Options: []SequenceOption{*sqlDollar[2].sequenceOption}}
 		}
 	case 468:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -19544,7 +19544,7 @@ sqldefault:
 				return 1
 			}
 			sqlVAL.identity = sqlDollar[1].identity
-			sqlVAL.identity.Options = append(sqlVAL.identity.Options, sqlDollar[3].sequenceOption)
+			sqlVAL.identity.Options = append(sqlVAL.identity.Options, *sqlDollar[3].sequenceOption)
 		}
 	case 473:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
@@ -21312,17 +21312,17 @@ sqldefault:
 	case 806:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.rangeOptions = []RangeOption{sqlDollar[1].rangeOption}
+			sqlVAL.rangeOptions = []RangeOption{*sqlDollar[1].rangeOption}
 		}
 	case 807:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.rangeOptions = append(sqlDollar[1].rangeOptions, sqlDollar[3].rangeOption)
+			sqlVAL.rangeOptions = append(sqlDollar[1].rangeOptions, *sqlDollar[3].rangeOption)
 		}
 	case 808:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.rangeOption = RangeOption{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Value: sqlDollar[3].typ}
+			sqlVAL.rangeOption = &RangeOption{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Value: sqlDollar[3].typ}
 		}
 	case 809:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
@@ -22296,12 +22296,12 @@ sqldefault:
 	case 972:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.routineAS = routineAS{Body: sqlDollar[1].tok}
+			sqlVAL.routineAS = &routineAS{Body: sqlDollar[1].tok}
 		}
 	case 973:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.routineAS = routineAS{Body: sqlDollar[1].tok, Symbol: sqlDollar[3].tok, HasSymbol: true}
+			sqlVAL.routineAS = &routineAS{Body: sqlDollar[1].tok, Symbol: sqlDollar[3].tok, HasSymbol: true}
 		}
 	case 974:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
@@ -23824,64 +23824,64 @@ sqldefault:
 	case 1259:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.routineParameters = []RoutineParameter{sqlDollar[1].routineParameter}
+			sqlVAL.routineParameters = []RoutineParameter{*sqlDollar[1].routineParameter}
 		}
 	case 1260:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.routineParameters = append(sqlDollar[1].routineParameters, sqlDollar[3].routineParameter)
+			sqlVAL.routineParameters = append(sqlDollar[1].routineParameters, *sqlDollar[3].routineParameter)
 		}
 	case 1261:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.routineParameter = RoutineParameter{GrantRoutineArgument: sqlDollar[1].grantRoutineArgument}
+			sqlVAL.routineParameter = &RoutineParameter{GrantRoutineArgument: *sqlDollar[1].grantRoutineArgument}
 		}
 	case 1262:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.routineParameter = RoutineParameter{GrantRoutineArgument: sqlDollar[1].grantRoutineArgument, Default: sqlDollar[3].expr}
+			sqlVAL.routineParameter = &RoutineParameter{GrantRoutineArgument: *sqlDollar[1].grantRoutineArgument, Default: sqlDollar[3].expr}
 		}
 	case 1263:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.routineParameter = RoutineParameter{GrantRoutineArgument: sqlDollar[1].grantRoutineArgument, Default: sqlDollar[3].expr}
+			sqlVAL.routineParameter = &RoutineParameter{GrantRoutineArgument: *sqlDollar[1].grantRoutineArgument, Default: sqlDollar[3].expr}
 		}
 	case 1264:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
-			sqlVAL.routineResult = routineResult{}
+			sqlVAL.routineResult = &routineResult{}
 		}
 	case 1265:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.routineResult = routineResult{Type: sqlDollar[2].typ, Specified: true}
+			sqlVAL.routineResult = &routineResult{Type: sqlDollar[2].typ, Specified: true}
 		}
 	case 1266:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			typ := sqlDollar[3].typ
 			typ.Setof = true
-			sqlVAL.routineResult = routineResult{Type: typ, Specified: true}
+			sqlVAL.routineResult = &routineResult{Type: typ, Specified: true}
 		}
 	case 1267:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.routineResult = routineResult{Type: TypeName{Name: "record", Setof: true, Pos: sqlDollar[2].tok.pos}, Specified: true, Table: sqlDollar[4].routineParameters}
+			sqlVAL.routineResult = &routineResult{Type: TypeName{Name: "record", Setof: true, Pos: sqlDollar[2].tok.pos}, Specified: true, Table: sqlDollar[4].routineParameters}
 		}
 	case 1268:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.routineParameters = []RoutineParameter{sqlDollar[1].routineParameter}
+			sqlVAL.routineParameters = []RoutineParameter{*sqlDollar[1].routineParameter}
 		}
 	case 1269:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.routineParameters = append(sqlDollar[1].routineParameters, sqlDollar[3].routineParameter)
+			sqlVAL.routineParameters = append(sqlDollar[1].routineParameters, *sqlDollar[3].routineParameter)
 		}
 	case 1270:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.routineParameter = RoutineParameter{GrantRoutineArgument: GrantRoutineArgument{Mode: "table", Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[2].typ, Pos: sqlDollar[1].tok.pos}}
+			sqlVAL.routineParameter = &RoutineParameter{GrantRoutineArgument: GrantRoutineArgument{Mode: "table", Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[2].typ, Pos: sqlDollar[1].tok.pos}}
 		}
 	case 1271:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -24643,22 +24643,22 @@ sqldefault:
 	case 1430:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.vacuumOptions = []VacuumOption{sqlDollar[1].vacuumOption}
+			sqlVAL.vacuumOptions = []VacuumOption{*sqlDollar[1].vacuumOption}
 		}
 	case 1431:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.vacuumOptions = append(sqlDollar[1].vacuumOptions, sqlDollar[3].vacuumOption)
+			sqlVAL.vacuumOptions = append(sqlDollar[1].vacuumOptions, *sqlDollar[3].vacuumOption)
 		}
 	case 1432:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.vacuumOption = VacuumOption{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Value: Value{Kind: BooleanValue, Boolean: true, Text: "true", Pos: sqlDollar[1].tok.pos}}
+			sqlVAL.vacuumOption = &VacuumOption{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Value: Value{Kind: BooleanValue, Boolean: true, Text: "true", Pos: sqlDollar[1].tok.pos}}
 		}
 	case 1433:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.vacuumOption = VacuumOption{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Value: sqlDollar[2].indexValue, HasValue: true}
+			sqlVAL.vacuumOption = &VacuumOption{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Value: sqlDollar[2].indexValue, HasValue: true}
 		}
 	case 1434:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
@@ -25901,26 +25901,26 @@ sqldefault:
 		{
 			c := sqlDollar[3].col
 			sqllex.(*lexer).excludePrimaryColumnAddition(sqlDollar[1].tok, c)
-			sqlVAL.foreignTableAction = ForeignTableAction{Ordinary: &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, Action: AddColumn, Pos: sqlDollar[1].tok.pos}}
+			sqlVAL.foreignTableAction = &ForeignTableAction{Ordinary: &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, Action: AddColumn, Pos: sqlDollar[1].tok.pos}}
 		}
 	case 1652:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
 			c := sqlDollar[6].col
 			sqllex.(*lexer).excludePrimaryColumnAddition(sqlDollar[1].tok, c)
-			sqlVAL.foreignTableAction = ForeignTableAction{Ordinary: &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, IfNotExists: true, Action: AddColumn, Pos: sqlDollar[1].tok.pos}}
+			sqlVAL.foreignTableAction = &ForeignTableAction{Ordinary: &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, IfNotExists: true, Action: AddColumn, Pos: sqlDollar[1].tok.pos}}
 		}
 	case 1653:
 		sqlDollar = sqlS[sqlpt-10 : sqlpt+1]
 		{
 			c := &Column{Name: sqlDollar[3].tok.text, TypeName: sqlDollar[4].typ, Collation: sqlDollar[9].collation, Constraints: sqlDollar[10].constraints, Pos: sqlDollar[3].tok.pos}
-			sqlVAL.foreignTableAction = ForeignTableAction{Ordinary: &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, Action: AddColumn, Pos: sqlDollar[1].tok.pos}, ColumnOptions: sqlDollar[7].foreignOptions, columnOptionsToken: sqlDollar[5].tok}
+			sqlVAL.foreignTableAction = &ForeignTableAction{Ordinary: &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, Action: AddColumn, Pos: sqlDollar[1].tok.pos}, ColumnOptions: sqlDollar[7].foreignOptions, columnOptionsToken: sqlDollar[5].tok}
 		}
 	case 1654:
 		sqlDollar = sqlS[sqlpt-13 : sqlpt+1]
 		{
 			c := &Column{Name: sqlDollar[6].tok.text, TypeName: sqlDollar[7].typ, Collation: sqlDollar[12].collation, Constraints: sqlDollar[13].constraints, Pos: sqlDollar[6].tok.pos}
-			sqlVAL.foreignTableAction = ForeignTableAction{Ordinary: &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, Action: AddColumn, IfNotExists: true, Pos: sqlDollar[1].tok.pos}, ColumnOptions: sqlDollar[10].foreignOptions, columnOptionsToken: sqlDollar[8].tok}
+			sqlVAL.foreignTableAction = &ForeignTableAction{Ordinary: &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, Action: AddColumn, IfNotExists: true, Pos: sqlDollar[1].tok.pos}, ColumnOptions: sqlDollar[10].foreignOptions, columnOptionsToken: sqlDollar[8].tok}
 		}
 	case 1655:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
@@ -32481,12 +32481,12 @@ sqldefault:
 	case 3531:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.grantRoutineArguments = []GrantRoutineArgument{sqlDollar[1].grantRoutineArgument}
+			sqlVAL.grantRoutineArguments = []GrantRoutineArgument{*sqlDollar[1].grantRoutineArgument}
 		}
 	case 3532:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.grantRoutineArguments = append(sqlDollar[1].grantRoutineArguments, sqlDollar[3].grantRoutineArgument)
+			sqlVAL.grantRoutineArguments = append(sqlDollar[1].grantRoutineArguments, *sqlDollar[3].grantRoutineArgument)
 		}
 	case 3537:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
@@ -32516,27 +32516,27 @@ sqldefault:
 	case 3541:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.grantRoutineArgument = GrantRoutineArgument{Type: sqlDollar[1].typ, Pos: sqlDollar[1].typ.Pos}
+			sqlVAL.grantRoutineArgument = &GrantRoutineArgument{Type: sqlDollar[1].typ, Pos: sqlDollar[1].typ.Pos}
 		}
 	case 3542:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.grantRoutineArgument = GrantRoutineArgument{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[2].typ, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.grantRoutineArgument = &GrantRoutineArgument{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[2].typ, Pos: sqlDollar[1].tok.pos}
 		}
 	case 3543:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.grantRoutineArgument = GrantRoutineArgument{Mode: sqlDollar[1].tok.text, Type: sqlDollar[2].typ, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.grantRoutineArgument = &GrantRoutineArgument{Mode: sqlDollar[1].tok.text, Type: sqlDollar[2].typ, Pos: sqlDollar[1].tok.pos}
 		}
 	case 3544:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.grantRoutineArgument = GrantRoutineArgument{Mode: sqlDollar[1].tok.text, Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Type: sqlDollar[3].typ, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.grantRoutineArgument = &GrantRoutineArgument{Mode: sqlDollar[1].tok.text, Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Type: sqlDollar[3].typ, Pos: sqlDollar[1].tok.pos}
 		}
 	case 3545:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.grantRoutineArgument = GrantRoutineArgument{Mode: sqlDollar[2].tok.text, Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[3].typ, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.grantRoutineArgument = &GrantRoutineArgument{Mode: sqlDollar[2].tok.text, Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Type: sqlDollar[3].typ, Pos: sqlDollar[1].tok.pos}
 		}
 	case 3546:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -32616,13 +32616,13 @@ sqldefault:
 	case 3563:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = RoleOptions{}
+			sqlVAL.roleOptions = &RoleOptions{}
 		}
 	case 3564:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			var ok bool
-			sqlVAL.roleOptions, ok = sqlDollar[1].roleOptions.toggle(sqlDollar[2].tok)
+			next, ok := sqlDollar[1].roleOptions.toggle(sqlDollar[2].tok)
+			sqlVAL.roleOptions = &next
 			if !ok {
 				l := sqllex.(*lexer)
 				if unsupportedRoleOptions[sqlDollar[2].tok.text] {
@@ -32638,46 +32638,46 @@ sqldefault:
 	case 3565:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.members("in", sqlDollar[2].tok, sqlDollar[4].roleSpecs)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.members("in", sqlDollar[2].tok, sqlDollar[4].roleSpecs))
 		}
 	case 3566:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.members("in", sqlDollar[2].tok, sqlDollar[4].roleSpecs)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.members("in", sqlDollar[2].tok, sqlDollar[4].roleSpecs))
 		}
 	case 3567:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.members("role", sqlDollar[2].tok, sqlDollar[3].roleSpecs)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.members("role", sqlDollar[2].tok, sqlDollar[3].roleSpecs))
 		}
 	case 3568:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.members("role", sqlDollar[2].tok, sqlDollar[3].roleSpecs)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.members("role", sqlDollar[2].tok, sqlDollar[3].roleSpecs))
 		}
 	case 3569:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.members("admin", sqlDollar[2].tok, sqlDollar[3].roleSpecs)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.members("admin", sqlDollar[2].tok, sqlDollar[3].roleSpecs))
 		}
 	case 3570:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.add(RolePassword, sqlDollar[2].tok.pos)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.add(RolePassword, sqlDollar[2].tok.pos))
 			sqlVAL.roleOptions.Password = sqlDollar[3].tok.text
 			sqlVAL.roleOptions.PasswordNull = false
 		}
 	case 3571:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.add(RolePassword, sqlDollar[2].tok.pos)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.add(RolePassword, sqlDollar[2].tok.pos))
 			sqlVAL.roleOptions.Password = ""
 			sqlVAL.roleOptions.PasswordNull = true
 		}
 	case 3572:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.add(RolePassword, sqlDollar[2].tok.pos)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.add(RolePassword, sqlDollar[2].tok.pos))
 			sqlVAL.roleOptions.Password = sqlDollar[4].tok.text
 			sqlVAL.roleOptions.PasswordNull = false
 		}
@@ -32690,7 +32690,7 @@ sqldefault:
 	case 3574:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.add(RoleConnectionLimit, sqlDollar[2].tok.pos)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.add(RoleConnectionLimit, sqlDollar[2].tok.pos))
 			sqlVAL.roleOptions.ConnectionLimit = int32(sqlDollar[4].integer)
 		}
 	case 3575:
@@ -32700,7 +32700,7 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[3].tok)
 				return 1
 			}
-			sqlVAL.roleOptions = sqlDollar[1].roleOptions.add(RoleValidUntil, sqlDollar[2].tok.pos)
+			sqlVAL.roleOptions = cell(sqlDollar[1].roleOptions.add(RoleValidUntil, sqlDollar[2].tok.pos))
 			sqlVAL.roleOptions.ValidUntil = sqlDollar[4].tok.text
 		}
 	case 3576:
@@ -32760,7 +32760,7 @@ sqldefault:
 	case 3590:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.stmt = &CreateRole{Name: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, DefaultLogin: sqlDollar[2].desc, Options: sqlDollar[5].roleOptions}
+			sqlVAL.stmt = &CreateRole{Name: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, DefaultLogin: sqlDollar[2].desc, Options: *sqlDollar[5].roleOptions}
 		}
 	case 3595:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
@@ -32772,7 +32772,7 @@ sqldefault:
 			if sqlDollar[3].tok.keyword != nil && (sqlDollar[3].tok.text == "current_role" || sqlDollar[3].tok.text == "current_user" || sqlDollar[3].tok.text == "session_user") {
 				identity = sqlDollar[3].tok.text
 			}
-			sqlVAL.stmt = &AlterRole{Name: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Identity: identity, Options: sqlDollar[5].roleOptions}
+			sqlVAL.stmt = &AlterRole{Name: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Identity: identity, Options: *sqlDollar[5].roleOptions}
 		}
 	case 3596:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
@@ -33524,17 +33524,17 @@ sqldefault:
 	case 3737:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.foreignActions = []ForeignTableAction{sqlDollar[1].foreignTableAction}
+			sqlVAL.foreignActions = []ForeignTableAction{*sqlDollar[1].foreignTableAction}
 		}
 	case 3738:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.foreignActions = append(sqlDollar[1].foreignActions, sqlDollar[3].foreignTableAction)
+			sqlVAL.foreignActions = append(sqlDollar[1].foreignActions, *sqlDollar[3].foreignTableAction)
 		}
 	case 3739:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.foreignTableAction = ForeignTableAction{Ordinary: sqlDollar[1].alterAction}
+			sqlVAL.foreignTableAction = &ForeignTableAction{Ordinary: sqlDollar[1].alterAction}
 		}
 	case 3740:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -33544,22 +33544,22 @@ sqldefault:
 	case 3741:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.foreignTableAction = ForeignTableAction{Options: sqlDollar[1].foreignOptions}
+			sqlVAL.foreignTableAction = &ForeignTableAction{Options: sqlDollar[1].foreignOptions}
 		}
 	case 3742:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.foreignTableAction = ForeignTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Options: sqlDollar[4].foreignOptions}
+			sqlVAL.foreignTableAction = &ForeignTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Options: sqlDollar[4].foreignOptions}
 		}
 	case 3743:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			sqlVAL.foreignTableAction = ForeignTableAction{Default: &AlterTableDefault{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: SetDefault, Expression: sqlDollar[6].expr, Pos: sqlDollar[1].tok.pos}}
+			sqlVAL.foreignTableAction = &ForeignTableAction{Default: &AlterTableDefault{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: SetDefault, Expression: sqlDollar[6].expr, Pos: sqlDollar[1].tok.pos}}
 		}
 	case 3744:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.foreignTableAction = ForeignTableAction{Default: &AlterTableDefault{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: DropDefault, Pos: sqlDollar[1].tok.pos}}
+			sqlVAL.foreignTableAction = &ForeignTableAction{Default: &AlterTableDefault{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: DropDefault, Pos: sqlDollar[1].tok.pos}}
 		}
 	case 3745:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
