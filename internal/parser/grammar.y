@@ -37,15 +37,15 @@ package parser
  col *Column
  columns []Column
  elements []TableElement
- element TableElement
+ element *TableElement
  likeOptions []LikeOption
  likeOption LikeOption
  objectNames []ObjectName
  dropMode DropMode
  typ TypeName
  jsonFormat *JSONFormat
- jsonOptions JSONAggregateOptions
- sqljson SQLJSONExpr
+ jsonOptions *JSONAggregateOptions
+ sqljson *SQLJSONExpr
  sqljsonQuery *SQLJSONQueryExpr
  sqljsonPassing []SQLJSONPassing
  sqljsonBehavior SQLJSONBehavior
@@ -169,7 +169,7 @@ package parser
  defaultPrivileges *AlterDefaultPrivileges
  defaultOptions []DefaultPrivilegesOption
  defaultOption DefaultPrivilegesOption
- settingName settingName
+ settingName *settingName
  tables []*CreateTable
  table *CreateTable
  queryTable *CreateQueryTable
@@ -205,7 +205,7 @@ package parser
  returningAliases []ReturningAlias
  returningAlias ReturningAlias
  indexKeys []IndexKey
- indexKey IndexKey
+ indexKey *IndexKey
  createIndex *CreateIndex
  alterView *AlterView
  enumLabels []EnumLabel
@@ -232,7 +232,7 @@ package parser
  collationOptions []CollationOption
  collationOption CollationOption
  partitionKey *PartitionKey
- partitionBound PartitionBound
+ partitionBound *PartitionBound
  partitionDatum PartitionDatum
  partitionData []PartitionDatum
  extensionOptions []ExtensionOption
@@ -242,7 +242,7 @@ package parser
  operatorSignature *OperatorSignature
  operatorSignatures []OperatorSignature
  alterOperator *AlterOperator
- familyItem OperatorFamilyItem
+ familyItem *OperatorFamilyItem
  familyItems []OperatorFamilyItem
  alterFamily *AlterOperatorFamily
  createClass *CreateOperatorClass
@@ -1491,29 +1491,29 @@ reset: RESET set_name { $$=&Reset{Name:$2.identifier(),Pos:$1.pos} }
  | RESET TIME ZONE { $$=&Reset{Name:Identifier{Text:"timezone",Pos:$2.pos},Pos:$1.pos} }
  | RESET LOCAL { $$=&Reset{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | RESET ALL { $$=&Reset{All:true,Pos:$1.pos} } ;
-setting_name: name { $$=settingName{first:$1} }
+setting_name: name { $$=&settingName{first:$1} }
  | setting_name '.' name { $$=$1; if $$.parts==nil { $$.parts=[]string{$$.first.text,$3.text} } else { $$.parts=append($$.parts,$3.text) } } ;
-set_name: setting_word { $$=settingName{first:$1} }
- | LOCAL '.' name { $$=settingName{first:$1,parts:[]string{$1.text,$3.text}} }
- | ROLE '.' name { $$=settingName{first:$1,parts:[]string{$1.text,$3.text}} }
+set_name: setting_word { $$=&settingName{first:$1} }
+ | LOCAL '.' name { $$=&settingName{first:$1,parts:[]string{$1.text,$3.text}} }
+ | ROLE '.' name { $$=&settingName{first:$1,parts:[]string{$1.text,$3.text}} }
  | set_name '.' name { $$=$1; if $$.parts==nil { $$.parts=[]string{$$.first.text,$3.text} } else { $$.parts=append($$.parts,$3.text) } } ;
 /* An undotted ROLE after SET LOCAL belongs only to the excluded role command,
  * never to the setting-name reduction. Dotted ROLE and ordinary LOCAL remain
  * parameter names, and ROLE stays name-eligible everywhere else. */
 local_setting_name: set_name { $$=$1 }
- | LOCAL { $$=settingName{first:$1} } ;
+ | LOCAL { $$=&settingName{first:$1} } ;
 create_table: CREATE TABLE relation_name '(' optional_elements ')' table_parents partition_by table_on_commit { $$ = &CreateTable{Name:$3, Elements:$5, Parents:$7, Pos:$1.pos,Persistence:"logged",PartitionBy:$8,OnCommit:$9.action,OnCommitPos:$9.pos} }
  | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents partition_by table_on_commit { $$ = &CreateTable{Name:$6, Elements:$8, Parents:$10, Pos:$1.pos,IfNotExists:true,Persistence:"logged",PartitionBy:$11,OnCommit:$12.action,OnCommitPos:$12.pos} }
  | CREATE TEMP TABLE relation_name '(' optional_elements ')' table_parents partition_by table_on_commit { $$ = &CreateTable{Name:$4, Elements:$6, Parents:$8, Pos:$1.pos,Persistence:"temporary",PartitionBy:$9,OnCommit:$10.action,OnCommitPos:$10.pos} }
  | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents partition_by table_on_commit { $$ = &CreateTable{Name:$7, Elements:$9, Parents:$11, Pos:$1.pos,IfNotExists:true,Persistence:"temporary",PartitionBy:$12,OnCommit:$13.action,OnCommitPos:$13.pos} }
- | CREATE TABLE relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$3,Elements:$7,Pos:$1.pos,Persistence:"logged",PartitionOf:&PartitionParent{Name:$6,Bound:$8,Pos:$4.pos},PartitionBy:$9,OnCommit:$10.action,OnCommitPos:$10.pos} }
- | CREATE TABLE IF NOT EXISTS relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$6,Elements:$10,Pos:$1.pos,IfNotExists:true,Persistence:"logged",PartitionOf:&PartitionParent{Name:$9,Bound:$11,Pos:$7.pos},PartitionBy:$12,OnCommit:$13.action,OnCommitPos:$13.pos} }
- | CREATE TEMP TABLE relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$4,Elements:$8,Pos:$1.pos,Persistence:"temporary",PartitionOf:&PartitionParent{Name:$7,Bound:$9,Pos:$5.pos},PartitionBy:$10,OnCommit:$11.action,OnCommitPos:$11.pos} }
+ | CREATE TABLE relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$3,Elements:$7,Pos:$1.pos,Persistence:"logged",PartitionOf:&PartitionParent{Name:$6,Bound:*$8,Pos:$4.pos},PartitionBy:$9,OnCommit:$10.action,OnCommitPos:$10.pos} }
+ | CREATE TABLE IF NOT EXISTS relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$6,Elements:$10,Pos:$1.pos,IfNotExists:true,Persistence:"logged",PartitionOf:&PartitionParent{Name:$9,Bound:*$11,Pos:$7.pos},PartitionBy:$12,OnCommit:$13.action,OnCommitPos:$13.pos} }
+ | CREATE TEMP TABLE relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$4,Elements:$8,Pos:$1.pos,Persistence:"temporary",PartitionOf:&PartitionParent{Name:$7,Bound:*$9,Pos:$5.pos},PartitionBy:$10,OnCommit:$11.action,OnCommitPos:$11.pos} }
  | CREATE TABLE relation_name OF relation_name typed_options table_on_commit {source:=$5;$$=&CreateTable{Name:$3,OfType:&source,Elements:$6,Pos:$1.pos,Persistence:"logged",OnCommit:$7.action,OnCommitPos:$7.pos}}
  | CREATE TABLE IF NOT EXISTS relation_name OF relation_name typed_options table_on_commit {source:=$8;$$=&CreateTable{Name:$6,OfType:&source,Elements:$9,Pos:$1.pos,IfNotExists:true,Persistence:"logged",OnCommit:$10.action,OnCommitPos:$10.pos}}
  | CREATE TEMP TABLE relation_name OF relation_name typed_options table_on_commit {source:=$6;$$=&CreateTable{Name:$4,OfType:&source,Elements:$7,Pos:$1.pos,Persistence:"temporary",OnCommit:$8.action,OnCommitPos:$8.pos}}
  | CREATE TEMP TABLE IF NOT EXISTS relation_name OF relation_name typed_options table_on_commit {source:=$9;$$=&CreateTable{Name:$7,OfType:&source,Elements:$10,Pos:$1.pos,IfNotExists:true,Persistence:"temporary",OnCommit:$11.action,OnCommitPos:$11.pos}}
- | CREATE TEMP TABLE IF NOT EXISTS relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$7,Elements:$11,Pos:$1.pos,IfNotExists:true,Persistence:"temporary",PartitionOf:&PartitionParent{Name:$10,Bound:$12,Pos:$8.pos},PartitionBy:$13,OnCommit:$14.action,OnCommitPos:$14.pos} } ;
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$7,Elements:$11,Pos:$1.pos,IfNotExists:true,Persistence:"temporary",PartitionOf:&PartitionParent{Name:$10,Bound:*$12,Pos:$8.pos},PartitionBy:$13,OnCommit:$14.action,OnCommitPos:$14.pos} } ;
 table_parents: /* empty */ { $$=nil } | INHERITS '(' relation_names ')' { $$=$3 } ;
 table_on_commit: /* empty */ { $$=onCommitClause{} }
  | ON COMMIT DROP { $$=onCommitClause{action:OnCommitDrop,pos:$1.pos} }
@@ -1535,12 +1535,12 @@ partition_by: /* empty */ {$$=nil}
  }
  $$=&PartitionKey{Strategy:strategy,Keys:$5,Pos:$1.pos}
  } ;
-partition_keys: partition_key {$$=[]IndexKey{$1}}
- | partition_keys ',' partition_key {$$=append($1,$3)} ;
+partition_keys: partition_key {$$=[]IndexKey{*$1}}
+ | partition_keys ',' partition_key {$$=append($1,*$3)} ;
 partition_key: index_atom column_collation index_class {$$=$1;$$.Collation=$2;$$.Opclass=$3.Opclass;$$.Options=$3.Options} ;
-partition_bound: DEFAULT {$$=PartitionBound{Default:true,Pos:$1.pos}}
- | FOR VALUES FROM '(' partition_data ')' TO '(' partition_data ')' {$$=PartitionBound{Lower:$5,Upper:$9,Pos:$3.pos}}
- | FOR VALUES IN '(' list_partition_data ')' {$$=PartitionBound{Strategy:PartitionList,Values:$5,Pos:$3.pos}}
+partition_bound: DEFAULT {$$=&PartitionBound{Default:true,Pos:$1.pos}}
+ | FOR VALUES FROM '(' partition_data ')' TO '(' partition_data ')' {$$=&PartitionBound{Lower:$5,Upper:$9,Pos:$3.pos}}
+ | FOR VALUES IN '(' list_partition_data ')' {$$=&PartitionBound{Strategy:PartitionList,Values:$5,Pos:$3.pos}}
  | FOR VALUES WITH '(' hash_bound_options ')' {
  $$=$5;$$.Strategy=PartitionHash;$$.Pos=$3.pos
  if $$.ModulusPos.Character==0 {sqllex.(*lexer).failAt("42601","modulus for hash partition must be specified",$3.pos.Offset);return 1}
@@ -1558,8 +1558,7 @@ hash_bound_options: hash_bound_option {$$=$1}
  }
  } ;
 hash_bound_option: name NUMBER {
- var ok bool
- $$,ok=sqllex.(*lexer).hashBoundOption($1,$2)
+ bound,ok:=sqllex.(*lexer).hashBoundOption($1,$2);$$=&bound
  if !ok{return 1}
  } ;
 list_partition_data: list_partition_datum {$$=[]PartitionDatum{$1}}
@@ -1580,25 +1579,25 @@ partition_datum: target_or {
  } ;
 partition_options: /* empty */ {$$=nil}
  | '(' partition_elements ')' {$$=$2} ;
-partition_elements: partition_element {$$=[]TableElement{$1}}
- | partition_elements ',' partition_element {$$=append($1,$3)} ;
-partition_element: name column_constraints {c:=Column{Name:$1.text,Constraints:$2,Pos:$1.pos};$$=TableElement{Column:&c,Pos:$1.pos}}
- | check_constraint {$$=TableElement{Check:$1,Pos:$1.Pos}}
- | unique_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
- | primary_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
- | exclusion_constraint {$$=TableElement{Exclusion:$1,Pos:$1.Pos}} ;
+partition_elements: partition_element {$$=[]TableElement{*$1}}
+ | partition_elements ',' partition_element {$$=append($1,*$3)} ;
+partition_element: name column_constraints {c:=Column{Name:$1.text,Constraints:$2,Pos:$1.pos};$$=&TableElement{Column:&c,Pos:$1.pos}}
+ | check_constraint {$$=&TableElement{Check:$1,Pos:$1.Pos}}
+ | unique_constraint {$$=&TableElement{Unique:$1,Pos:$1.Pos}}
+ | primary_constraint {$$=&TableElement{Unique:$1,Pos:$1.Pos}}
+ | exclusion_constraint {$$=&TableElement{Exclusion:$1,Pos:$1.Pos}} ;
 typed_options: /* empty */ {$$=nil} | '(' typed_elements ')' {$$=$2} ;
-typed_elements: typed_element {$$=[]TableElement{$1}}
- | typed_elements ',' typed_element {$$=append($1,$3)} ;
-typed_element: name {c:=Column{Name:$1.text,Pos:$1.pos};$$=TableElement{Column:&c,Pos:$1.pos}}
- | name column_constraints {c:=Column{Name:$1.text,Pos:$1.pos,Constraints:$2};$$=TableElement{Column:&c,Pos:$1.pos}}
- | name WITH options_word nullability {c:=Column{Name:$1.text,Pos:$1.pos,Constraints:$4};$$=TableElement{Column:&c,Pos:$1.pos}}
- | check_constraint {$$=TableElement{Check:$1,Pos:$1.Pos}}
- | unique_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
- | primary_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
- | foreign_key {$$=TableElement{ForeignKey:$1,Pos:$1.Pos}}
- | exclusion_constraint {$$=TableElement{Exclusion:$1,Pos:$1.Pos}}
- | table_not_null {$$=TableElement{NotNull:$1,Pos:$1.Pos}} ;
+typed_elements: typed_element {$$=[]TableElement{*$1}}
+ | typed_elements ',' typed_element {$$=append($1,*$3)} ;
+typed_element: name {c:=Column{Name:$1.text,Pos:$1.pos};$$=&TableElement{Column:&c,Pos:$1.pos}}
+ | name column_constraints {c:=Column{Name:$1.text,Pos:$1.pos,Constraints:$2};$$=&TableElement{Column:&c,Pos:$1.pos}}
+ | name WITH options_word nullability {c:=Column{Name:$1.text,Pos:$1.pos,Constraints:$4};$$=&TableElement{Column:&c,Pos:$1.pos}}
+ | check_constraint {$$=&TableElement{Check:$1,Pos:$1.Pos}}
+ | unique_constraint {$$=&TableElement{Unique:$1,Pos:$1.Pos}}
+ | primary_constraint {$$=&TableElement{Unique:$1,Pos:$1.Pos}}
+ | foreign_key {$$=&TableElement{ForeignKey:$1,Pos:$1.Pos}}
+ | exclusion_constraint {$$=&TableElement{Exclusion:$1,Pos:$1.Pos}}
+ | table_not_null {$$=&TableElement{NotNull:$1,Pos:$1.Pos}} ;
 options_word: KW_U {if $1.text!="options" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
  | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
@@ -2204,7 +2203,7 @@ alter_operator_family: operator_family_head ADD family_add_items {$1.Action="add
  | operator_family_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1} ;
 drop_operator_family: DROP OPERATOR family_word relation_name USING name drop_mode {$$=&DropOperatorFamily{Name:$4,Method:Identifier{Text:$6.text,Pos:$6.pos},Mode:$7,Pos:$1.pos}}
  | DROP OPERATOR family_word IF EXISTS relation_name USING name drop_mode {$$=&DropOperatorFamily{Name:$6,Method:Identifier{Text:$8.text,Pos:$8.pos},IfExists:true,Mode:$9,Pos:$1.pos}} ;
-family_add_items: family_add_item {$$=[]OperatorFamilyItem{$1}} | family_add_items ',' family_add_item {$$=append($1,$3)} ;
+family_add_items: family_add_item {$$=[]OperatorFamilyItem{*$1}} | family_add_items ',' family_add_item {$$=append($1,*$3)} ;
 family_add_item: family_operator_item {$$=$1}
  | family_operator_item FOR search_word {$$=$1;$$.Purpose="s"}
  | family_operator_item FOR ORDER BY relation_name {$$=$1;$$.Purpose="o";$$.SortFamily=$5}
@@ -2213,24 +2212,24 @@ family_add_item: family_operator_item {$$=$1}
  * but ADD and subsequent comma-separated members retain its KW_U token. */
 family_operator_word: OPERATOR {$$=$1}
  | KW_U {if $1.text!="operator" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
-family_operator_item: family_operator_word NUMBER operator_name {$$=OperatorFamilyItem{Number:$2.text,Name:$3,Purpose:"s",Pos:$1.pos}}
- | family_operator_word NUMBER operator_name '(' prepare_type_list ')' {$$=OperatorFamilyItem{Number:$2.text,Name:$3,Arguments:$5,Signature:true,Purpose:"s",Pos:$1.pos}} ;
-family_function_item: FUNCTION NUMBER relation_name family_signature {$$=OperatorFamilyItem{Function:true,Number:$2.text,Name:$3,Arguments:$4,Signature:true,Pos:$1.pos}}
- | FUNCTION NUMBER relation_name {$$=OperatorFamilyItem{Function:true,Number:$2.text,Name:$3,Pos:$1.pos}}
- | FUNCTION NUMBER '(' prepare_type_list ')' relation_name family_signature {$$=OperatorFamilyItem{Function:true,Number:$2.text,Association:$4,Name:$6,Arguments:$7,Signature:true,Pos:$1.pos}} ;
+family_operator_item: family_operator_word NUMBER operator_name {$$=&OperatorFamilyItem{Number:$2.text,Name:$3,Purpose:"s",Pos:$1.pos}}
+ | family_operator_word NUMBER operator_name '(' prepare_type_list ')' {$$=&OperatorFamilyItem{Number:$2.text,Name:$3,Arguments:$5,Signature:true,Purpose:"s",Pos:$1.pos}} ;
+family_function_item: FUNCTION NUMBER relation_name family_signature {$$=&OperatorFamilyItem{Function:true,Number:$2.text,Name:$3,Arguments:$4,Signature:true,Pos:$1.pos}}
+ | FUNCTION NUMBER relation_name {$$=&OperatorFamilyItem{Function:true,Number:$2.text,Name:$3,Pos:$1.pos}}
+ | FUNCTION NUMBER '(' prepare_type_list ')' relation_name family_signature {$$=&OperatorFamilyItem{Function:true,Number:$2.text,Association:$4,Name:$6,Arguments:$7,Signature:true,Pos:$1.pos}} ;
 family_signature: '(' ')' {$$=[]TypeName{}} | '(' prepare_type_list ')' {$$=$2} ;
-family_drop_items: family_drop_item {$$=[]OperatorFamilyItem{$1}} | family_drop_items ',' family_drop_item {$$=append($1,$3)} ;
-family_drop_item: family_operator_word NUMBER '(' prepare_type_list ')' {$$=OperatorFamilyItem{Number:$2.text,Association:$4,Purpose:"s",Pos:$1.pos}}
- | FUNCTION NUMBER '(' prepare_type_list ')' {$$=OperatorFamilyItem{Function:true,Number:$2.text,Association:$4,Pos:$1.pos}} ;
+family_drop_items: family_drop_item {$$=[]OperatorFamilyItem{*$1}} | family_drop_items ',' family_drop_item {$$=append($1,*$3)} ;
+family_drop_item: family_operator_word NUMBER '(' prepare_type_list ')' {$$=&OperatorFamilyItem{Number:$2.text,Association:$4,Purpose:"s",Pos:$1.pos}}
+ | FUNCTION NUMBER '(' prepare_type_list ')' {$$=&OperatorFamilyItem{Function:true,Number:$2.text,Association:$4,Pos:$1.pos}} ;
 class_word: OPCLASS {$$=$1} ;
 storage_word: KW_U {if $1.text!="storage" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 operator_class_head: CREATE OPERATOR class_word relation_name FOR TYPE type USING name {$$=&CreateOperatorClass{Name:$4,InputType:$7,Method:Identifier{Text:$9.text,Pos:$9.pos},Pos:$1.pos}}
  | CREATE OPERATOR class_word relation_name DEFAULT FOR TYPE type USING name {$$=&CreateOperatorClass{Name:$4,Default:true,InputType:$8,Method:Identifier{Text:$10.text,Pos:$10.pos},Pos:$1.pos}} ;
 create_operator_class: operator_class_head AS class_items {$1.Items=$3;$$=$1}
  | operator_class_head family_word relation_name AS class_items {$1.Family=$3;$1.Items=$5;$$=$1} ;
-class_items: class_item {$$=[]OperatorFamilyItem{$1}} | class_items ',' class_item {$$=append($1,$3)} ;
+class_items: class_item {$$=[]OperatorFamilyItem{*$1}} | class_items ',' class_item {$$=append($1,*$3)} ;
 class_item: family_add_item {$$=$1}
- | storage_word type {t:=$2;$$=OperatorFamilyItem{Storage:&t,Pos:$1.pos}} ;
+ | storage_word type {t:=$2;$$=&OperatorFamilyItem{Storage:&t,Pos:$1.pos}} ;
 operator_class_alter_head: ALTER OPERATOR class_word relation_name USING name {$$=&AlterOperatorClass{Name:$4,Method:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}} ;
 alter_operator_class: operator_class_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
  | operator_class_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1}
@@ -2321,23 +2320,23 @@ index_tablespace: index_storage {$$=$1}
 create_index: index_tablespace {sqllex.(*lexer).indexExpression=false;$$=$1}
  | index_tablespace WHERE {sqllex.(*lexer).indexExpression=true} target_or {sqllex.(*lexer).indexExpression=false;$1.Predicate=$4;$$=$1} ;
 index_include: /* empty */ {$$=nil} | INCLUDE '(' index_keys ')' {$$=$3} ;
-index_keys: index_key { $$=[]IndexKey{$1} } | index_keys ',' index_key { $$=append($1,$3) } ;
+index_keys: index_key { $$=[]IndexKey{*$1} } | index_keys ',' index_key { $$=append($1,*$3) } ;
 index_key: index_atom column_collation index_class index_direction nulls {
  $$=$1;$$.Collation=$2;$$.Opclass=$3.Opclass;$$.Options=$3.Options
  $$.Desc=$4.text=="desc";$$.DirectionExplicit=$4.text!="";$$.Nulls=$5
 } ;
-index_atom: name {$$=IndexKey{Column:Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos}}
- | '(' scalar_projection ')' {$$=IndexKey{Expression:$2,Pos:$1.pos}}
- | function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
- | conditional_call {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
- | sqljson_query {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
- | check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=IndexKey{Expression:call,Pos:$1.pos}}
- | name '.' check_function_head function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos},Pos:$1.pos}}
- | string_function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
- | name '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos},Pos:$1.pos}}
- | name '.' col_label '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos},Pos:$1.pos}} ;
-index_class: /* empty */ {$$=IndexKey{}}
- | relation_name index_options {name:=$1;$$=IndexKey{Opclass:&name,Options:$2}} ;
+index_atom: name {$$=&IndexKey{Column:Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos}}
+ | '(' scalar_projection ')' {$$=&IndexKey{Expression:$2,Pos:$1.pos}}
+ | function {$$=&IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
+ | conditional_call {$$=&IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
+ | sqljson_query {$$=&IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
+ | check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=&IndexKey{Expression:call,Pos:$1.pos}}
+ | name '.' check_function_head function_args ')' {$$=&IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos},Pos:$1.pos}}
+ | string_function {$$=&IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
+ | name '(' function_args ')' {$$=&IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos},Pos:$1.pos}}
+ | name '.' col_label '(' function_args ')' {$$=&IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos},Pos:$1.pos}} ;
+index_class: /* empty */ {$$=&IndexKey{}}
+ | relation_name index_options {name:=$1;$$=&IndexKey{Opclass:&name,Options:$2}} ;
 index_options: /* empty */ {$$=nil} | '(' index_option_list ')' {$$=$2} ;
 index_option_list: index_option {$$=[]ViewOption{$1}} | index_option_list ',' index_option {$$=append($1,$3)} ;
 index_option: col_label {$$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:"true"}}
@@ -2346,15 +2345,15 @@ index_option_value: view_option_value | '+' NUMBER {$$=$2;$$.text="+"+$2.text}
  | '-' NUMBER {$$=$2;$$.text="-"+$2.text} ;
 index_direction: /* empty */ {$$=lexeme{}} | ASC {$$=$1} | DESC {$$=$1} ;
 optional_elements: /* empty */ { $$=nil } | elements { $$=$1 } ;
-elements: element { $$=[]TableElement{$1} } | elements ',' element { $$=append($1,$3) } ;
-element: column { $$=TableElement{Column:$1,Pos:$1.Pos} }
- | LIKE relation_name like_options { $$=TableElement{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos} }
- | create_not_null { $$=TableElement{NotNull:$1,Pos:$1.Pos} }
- | check_constraint { $$=TableElement{Check:$1,Pos:$1.Pos} }
- | unique_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} }
- | primary_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} }
- | foreign_key { $$=TableElement{ForeignKey:$1,Pos:$1.Pos} }
- | exclusion_constraint { $$=TableElement{Exclusion:$1,Pos:$1.Pos} } ;
+elements: element { $$=[]TableElement{*$1} } | elements ',' element { $$=append($1,*$3) } ;
+element: column { $$=&TableElement{Column:$1,Pos:$1.Pos} }
+ | LIKE relation_name like_options { $$=&TableElement{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos} }
+ | create_not_null { $$=&TableElement{NotNull:$1,Pos:$1.Pos} }
+ | check_constraint { $$=&TableElement{Check:$1,Pos:$1.Pos} }
+ | unique_constraint { $$=&TableElement{Unique:$1,Pos:$1.Pos} }
+ | primary_constraint { $$=&TableElement{Unique:$1,Pos:$1.Pos} }
+ | foreign_key { $$=&TableElement{ForeignKey:$1,Pos:$1.Pos} }
+ | exclusion_constraint { $$=&TableElement{Exclusion:$1,Pos:$1.Pos} } ;
 table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} } ;
 create_not_null: table_not_null {$$=$1}
@@ -2437,7 +2436,7 @@ exclusion_definition: exclusion_head index_method '(' exclusion_elements ')' ind
  $$=$1
 } ;
 exclusion_elements: exclusion_element {$$=[]ExclusionElement{*$1}} | exclusion_elements ',' exclusion_element {$$=append($1,*$3)} ;
-exclusion_element: index_key WITH exclusion_operator {$$=&ExclusionElement{Key:$1,Operator:$3}} ;
+exclusion_element: index_key WITH exclusion_operator {$$=&ExclusionElement{Key:*$1,Operator:$3}} ;
 exclusion_operator: operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}} | qualified_operator ;
 exclusion_storage: exclusion_definition {$$=$1}
  | exclusion_definition WITH '(' maintenance_index_option_list ')' {$1.Index.Options=$4;$1.Index.WithPos=$2.pos;$$=$1} ;
@@ -2468,7 +2467,7 @@ alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { fo
  | alter_schema_single { $$=$1 }
  | ALTER TABLE rename_target KW_U PARTITION relation_name partition_bound {
      if $4.text!="attach" {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset);return 1}
-     $$=&AlterTableAttachPartition{Name:$3.Name,Partition:$6,Bound:$7,IfExists:$3.IfExists,Only:$3.Only,Pos:$1.pos,AttachPos:$4.pos}
+     $$=&AlterTableAttachPartition{Name:$3.Name,Partition:$6,Bound:*$7,IfExists:$3.IfExists,Only:$3.Only,Pos:$1.pos,AttachPos:$4.pos}
    }
  | ALTER TABLE rename_target KW_U PARTITION relation_name {
      if $4.text!="detach" {sqllex.(*lexer).syntax($4);return 1}
@@ -3372,9 +3371,9 @@ aggregate_call: cast_function target_or ')' { $$=ordinaryCall(columnType($1),[]E
  | cast_function target_or ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall(columnType($1),append([]Expr{$2},$4...),false,false,false,false,$7) }
  | qualified_call_head target_or ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,append([]Expr{$2},$4...),false,false,false,false,$7) }
  | cast_function VARIADIC target_or ')' { $$=modifiedOrdinaryCall(columnType($1),[]Expr{$3},false,false,false,true,nil) }
- | json_arrayagg_head target_or json_format aggregate_order json_null_policy json_returning ')' { options:=$6;options.Input=$3;options.Absent=$5.Absent;options.NullPos=$5.NullPos;$$=AggregateExpr{Name:"json_arrayagg",Args:[]Expr{$2},Order:$4,JSON:&options,Pos:$1.pos} }
- | json_objectagg_head json_object_key VALUE target_or json_format json_object_null_policy json_unique_policy json_returning ')' { options:=$8;options.Input=$5;options.Absent=$6.Absent;options.NullPos=$6.NullPos;options.Unique=$7.Unique;options.UniquePos=$7.UniquePos;$$=AggregateExpr{Name:"json_objectagg",Args:[]Expr{$2,$4},JSON:&options,Pos:$1.pos} }
- | json_objectagg_head target_or ':' target_or json_format json_object_null_policy json_unique_policy json_returning ')' { options:=$8;options.Input=$5;options.Absent=$6.Absent;options.NullPos=$6.NullPos;options.Unique=$7.Unique;options.UniquePos=$7.UniquePos;$$=AggregateExpr{Name:"json_objectagg",Args:[]Expr{$2,$4},JSON:&options,Pos:$1.pos} }
+ | json_arrayagg_head target_or json_format aggregate_order json_null_policy json_returning ')' { options:=*$6;options.Input=$3;options.Absent=$5.Absent;options.NullPos=$5.NullPos;$$=AggregateExpr{Name:"json_arrayagg",Args:[]Expr{$2},Order:$4,JSON:&options,Pos:$1.pos} }
+ | json_objectagg_head json_object_key VALUE target_or json_format json_object_null_policy json_unique_policy json_returning ')' { options:=*$8;options.Input=$5;options.Absent=$6.Absent;options.NullPos=$6.NullPos;options.Unique=$7.Unique;options.UniquePos=$7.UniquePos;$$=AggregateExpr{Name:"json_objectagg",Args:[]Expr{$2,$4},JSON:&options,Pos:$1.pos} }
+ | json_objectagg_head target_or ':' target_or json_format json_object_null_policy json_unique_policy json_returning ')' { options:=*$8;options.Input=$5;options.Absent=$6.Absent;options.NullPos=$6.NullPos;options.Unique=$7.Unique;options.UniquePos=$7.UniquePos;$$=AggregateExpr{Name:"json_objectagg",Args:[]Expr{$2,$4},JSON:&options,Pos:$1.pos} }
  | qualified_call_head VARIADIC target_or ')' { $$=modifiedOrdinaryCall($1,[]Expr{$3},false,false,false,true,nil) } ;
 /* Declaration names followed by '(' are not SQL/JSON call scopes. */
 json_arrayagg_head: JSON_ARRAYAGG '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
@@ -3389,22 +3388,22 @@ json_object_key: scalar_atom { $$=$1 }
  | aggregate_application { $$=$1 }
  | overlaps_row { $$=$1 }
  | select_with_parens { $$=SubqueryExpr{Kind:SubqueryScalar,Query:$1.Query,Pos:$1.Pos} } ;
-json_object_null_policy: /* empty */ { $$=JSONAggregateOptions{} }
- | JSON_ABSENT ON NULL { $$=JSONAggregateOptions{Absent:true,NullPos:$1.pos} }
- | JSON_NULL ON NULL { $$=JSONAggregateOptions{NullPos:$1.pos} } ;
-json_unique_policy: /* empty */ { $$=JSONAggregateOptions{} }
- | JSON_WITH UNIQUE { $$=JSONAggregateOptions{Unique:true,UniquePos:$1.pos} }
- | JSON_WITH UNIQUE JSON_KEYS { $$=JSONAggregateOptions{Unique:true,UniquePos:$1.pos} }
- | JSON_WITHOUT UNIQUE { $$=JSONAggregateOptions{UniquePos:$1.pos} }
- | JSON_WITHOUT UNIQUE JSON_KEYS { $$=JSONAggregateOptions{UniquePos:$1.pos} } ;
+json_object_null_policy: /* empty */ { $$=&JSONAggregateOptions{} }
+ | JSON_ABSENT ON NULL { $$=&JSONAggregateOptions{Absent:true,NullPos:$1.pos} }
+ | JSON_NULL ON NULL { $$=&JSONAggregateOptions{NullPos:$1.pos} } ;
+json_unique_policy: /* empty */ { $$=&JSONAggregateOptions{} }
+ | JSON_WITH UNIQUE { $$=&JSONAggregateOptions{Unique:true,UniquePos:$1.pos} }
+ | JSON_WITH UNIQUE JSON_KEYS { $$=&JSONAggregateOptions{Unique:true,UniquePos:$1.pos} }
+ | JSON_WITHOUT UNIQUE { $$=&JSONAggregateOptions{UniquePos:$1.pos} }
+ | JSON_WITHOUT UNIQUE JSON_KEYS { $$=&JSONAggregateOptions{UniquePos:$1.pos} } ;
 json_format: /* empty */ { $$=nil }
  | JSON_FORMAT JSON_FORMAT_TYPE { $$=&JSONFormat{Pos:$1.pos} }
  | JSON_FORMAT JSON_FORMAT_TYPE JSON_ENCODING name { f,ok:=jsonEncoding(sqllex,$1,$4);if !ok{return 1};$$=f } ;
-json_null_policy: /* empty */ { $$=JSONAggregateOptions{Absent:true} }
- | JSON_ABSENT ON NULL { $$=JSONAggregateOptions{Absent:true,NullPos:$1.pos} }
- | JSON_NULL ON NULL { $$=JSONAggregateOptions{NullPos:$1.pos} } ;
-json_returning: /* empty */ { $$=JSONAggregateOptions{} }
- | RETURNING json_return_type json_format { typ:=$2;$$=JSONAggregateOptions{Returning:&typ,Output:$3,ReturningPos:$1.pos} } ;
+json_null_policy: /* empty */ { $$=&JSONAggregateOptions{Absent:true} }
+ | JSON_ABSENT ON NULL { $$=&JSONAggregateOptions{Absent:true,NullPos:$1.pos} }
+ | JSON_NULL ON NULL { $$=&JSONAggregateOptions{NullPos:$1.pos} } ;
+json_returning: /* empty */ { $$=&JSONAggregateOptions{} }
+ | RETURNING json_return_type json_format { typ:=$2;$$=&JSONAggregateOptions{Returning:&typ,Output:$3,ReturningPos:$1.pos} } ;
 json_return_type: type { $$=$1 } | SETOF_TYPE type { $$=$2;$$.Setof=true } ;
 sqljson_array_head: SQLJSON_ARRAY '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
 sqljson_object_head: SQLJSON_OBJECT '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);l.jsonObjectFirst=true;$$=$1 } ;
@@ -3412,29 +3411,29 @@ sqljson_parse_head: SQLJSON_PARSE '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths
 sqljson_scalar_head: SQLJSON_SCALAR '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
 sqljson_serialize_head: SQLJSON_SERIALIZE '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
 sqljson_constructor: sqljson_array_head sqljson_optional_values json_null_policy json_returning ')' {
- n:=$2;n.Kind=$1.text;n.Pos=$1.pos;n.Absent=$3.Absent;n.NullPos=$3.NullPos;n.Returning=$4.Returning;n.Output=$4.Output;$$=n
+ n:=*$2;n.Kind=$1.text;n.Pos=$1.pos;n.Absent=$3.Absent;n.NullPos=$3.NullPos;n.Returning=$4.Returning;n.Output=$4.Output;$$=n
  }
  | sqljson_object_head sqljson_members json_object_null_policy json_unique json_returning ')' {
- n:=$2;n.Kind=$1.text;n.Pos=$1.pos;n.Absent=$3.Absent;n.NullPos=$3.NullPos;n.Unique=$4;n.Returning=$5.Returning;n.Output=$5.Output;$$=n
+ n:=*$2;n.Kind=$1.text;n.Pos=$1.pos;n.Absent=$3.Absent;n.NullPos=$3.NullPos;n.Unique=$4;n.Returning=$5.Returning;n.Output=$5.Output;$$=n
  }
  | sqljson_object_head json_returning ')' { $$=SQLJSONExpr{Kind:$1.text,Pos:$1.pos,Returning:$2.Returning,Output:$2.Output} }
  | sqljson_object_head sqljson_legacy_values ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"json_object",Pos:$1.pos}}},Args:$2,Pos:$1.pos} }
  | sqljson_object_head VARIADIC target_or ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"json_object",Pos:$1.pos}}},Args:[]Expr{$3},Variadic:true,Pos:$1.pos} }
  | sqljson_object_head sqljson_legacy_values ',' VARIADIC target_or ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"json_object",Pos:$1.pos}}},Args:append($2,$5),Variadic:true,Pos:$1.pos} }
  | sqljson_array_head query_select json_format json_returning ')' { $$=SQLJSONExpr{Kind:$1.text,Query:$2,Formats:[]*JSONFormat{$3},Returning:$4.Returning,Output:$4.Output,Absent:true,Pos:$1.pos} }
- | sqljson_parse_head sqljson_value json_unique ')' { n:=$2;n.Kind=$1.text;n.Pos=$1.pos;n.Unique=$3;$$=n }
+ | sqljson_parse_head sqljson_value json_unique ')' { n:=*$2;n.Kind=$1.text;n.Pos=$1.pos;n.Unique=$3;$$=n }
  | sqljson_scalar_head target_or ')' { $$=SQLJSONExpr{Kind:$1.text,Args:[]Expr{$2},Pos:$1.pos} }
- | sqljson_serialize_head sqljson_value json_returning ')' { n:=$2;n.Kind=$1.text;n.Pos=$1.pos;n.Returning=$3.Returning;n.Output=$3.Output;$$=n } ;
+ | sqljson_serialize_head sqljson_value json_returning ')' { n:=*$2;n.Kind=$1.text;n.Pos=$1.pos;n.Returning=$3.Returning;n.Output=$3.Output;$$=n } ;
 sqljson_legacy_values: target_or { $$=[]Expr{$1} }
  | sqljson_legacy_values ',' target_or { $$=append($1,$3) } ;
-sqljson_optional_values: /* empty */ { $$=SQLJSONExpr{} } | sqljson_values { $$=$1 } ;
+sqljson_optional_values: /* empty */ { $$=&SQLJSONExpr{} } | sqljson_values { $$=$1 } ;
 sqljson_values: sqljson_value { $$=$1 }
  | sqljson_values ',' sqljson_value { $$=$1;$$.Args=append($$.Args,$3.Args...);$$.Formats=append($$.Formats,$3.Formats...) } ;
-sqljson_value: target_or json_format { $$=SQLJSONExpr{Args:[]Expr{$1},Formats:[]*JSONFormat{$2}} } ;
+sqljson_value: target_or json_format { $$=&SQLJSONExpr{Args:[]Expr{$1},Formats:[]*JSONFormat{$2}} } ;
 sqljson_members: sqljson_member { $$=$1 }
  | sqljson_members ',' sqljson_member { $$=$1;$$.Args=append($$.Args,$3.Args...);$$.Formats=append($$.Formats,$3.Formats...) } ;
-sqljson_member: target_or ':' target_or json_format { $$=SQLJSONExpr{Args:[]Expr{$1,$3},Formats:[]*JSONFormat{nil,$4},Members:true} }
- | json_object_key VALUE target_or json_format { $$=SQLJSONExpr{Args:[]Expr{$1,$3},Formats:[]*JSONFormat{nil,$4},Members:true} } ;
+sqljson_member: target_or ':' target_or json_format { $$=&SQLJSONExpr{Args:[]Expr{$1,$3},Formats:[]*JSONFormat{nil,$4},Members:true} }
+ | json_object_key VALUE target_or json_format { $$=&SQLJSONExpr{Args:[]Expr{$1,$3},Formats:[]*JSONFormat{nil,$4},Members:true} } ;
 json_unique: /* empty */ { $$=false }
  | WITH UNIQUE json_keys { $$=true }
  | WITHOUT UNIQUE json_keys { $$=false }
