@@ -3,30 +3,31 @@ package reference_test
 import (
 	"regexp"
 	"strings"
+	"stuntgres/reference/fixture"
 	"unicode"
 )
 
 // These assertions concern the public SQL export, not implementation source.
 // Basic independent field expectations supplement actual dependency probes;
 // richer frozen expressions are replayed by Expressions and Controls.
-func policyExportDefinition(s *membershipScenario, dump, name string) string {
-	s.t.Helper()
+func policyExportDefinition(s *fixture.RoleMembershipScenario, dump, name string) string {
+	s.T.Helper()
 	pattern := regexp.MustCompile(`(?is)CREATE\s+POLICY\s+"?` + regexp.QuoteMeta(name) + `"?\s+ON\s+[^;]+;`)
 	definition := pattern.FindString(dump)
 	if definition == "" {
-		s.t.Fatal("named policy missing from export", name, dump)
+		s.T.Fatal("named policy missing from export", name, dump)
 	}
 	return definition
 }
 
 // Read the ordered TO identifier vector, including duplicate targets, rather
 // than finding a role name anywhere in the emitted statement.
-func policyExportRoles(s *membershipScenario, dump, name string) []string {
-	s.t.Helper()
+func policyExportRoles(s *fixture.RoleMembershipScenario, dump, name string) []string {
+	s.T.Helper()
 	definition := policyExportDefinition(s, dump, name)
 	clause := regexp.MustCompile(`(?is)\bTO\s+(.*?)(?:\s+USING\s*\(|\s+WITH\s+CHECK\s*\(|;\s*$)`).FindStringSubmatch(definition)
 	if clause == nil {
-		s.t.Fatal("explicit TO clause missing from export", definition)
+		s.T.Fatal("explicit TO clause missing from export", definition)
 	}
 	identifier := regexp.MustCompile(`^\s*("(?:""|[^"])*"|[A-Za-z_][A-Za-z_0-9$]*)\s*(,|$)`)
 	remaining := clause[1]
@@ -34,7 +35,7 @@ func policyExportRoles(s *membershipScenario, dump, name string) []string {
 	for {
 		match := identifier.FindStringSubmatch(remaining)
 		if match == nil {
-			s.t.Fatal("invalid exported TO identifier vector", definition)
+			s.T.Fatal("invalid exported TO identifier vector", definition)
 		}
 		role := match[1]
 		if strings.HasPrefix(role, `"`) {
@@ -50,8 +51,8 @@ func policyExportRoles(s *membershipScenario, dump, name string) []string {
 	}
 }
 
-func policyExportFields(s *membershipScenario, dump, name, role, using, check string) {
-	s.t.Helper()
+func policyExportFields(s *fixture.RoleMembershipScenario, dump, name, role, using, check string) {
+	s.T.Helper()
 	definition := policyExportDefinition(s, dump, name)
 	upper := strings.ToUpper(definition)
 	usingAt, checkAt := strings.Index(upper, "USING"), strings.Index(upper, "WITH CHECK")
@@ -64,29 +65,29 @@ func policyExportFields(s *membershipScenario, dump, name, role, using, check st
 		}, text))
 	}
 	if using == "" && usingAt >= 0 {
-		s.t.Fatal("absent USING became stored expression", definition)
+		s.T.Fatal("absent USING became stored expression", definition)
 	}
 	if check == "" && checkAt >= 0 {
-		s.t.Fatal("absent CHECK became stored expression", definition)
+		s.T.Fatal("absent CHECK became stored expression", definition)
 	}
 	if using != "" {
 		if usingAt < 0 {
-			s.t.Fatal("retained USING omitted", definition)
+			s.T.Fatal("retained USING omitted", definition)
 		}
 		end := len(definition)
 		if checkAt >= 0 {
 			end = checkAt
 		}
 		if !strings.Contains(compact(definition[usingAt:end]), compact(using)) {
-			s.t.Fatal("USING replacement/retention lost", using, definition)
+			s.T.Fatal("USING replacement/retention lost", using, definition)
 		}
 	}
 	if check != "" {
 		if checkAt < 0 || !strings.Contains(compact(definition[checkAt:]), compact(check)) {
-			s.t.Fatal("CHECK replacement/retention lost", check, definition)
+			s.T.Fatal("CHECK replacement/retention lost", check, definition)
 		}
 	}
 	if role != "public" && !strings.Contains(definition, role) {
-		s.t.Fatal("retained target role omitted", role, definition)
+		s.T.Fatal("retained target role omitted", role, definition)
 	}
 }

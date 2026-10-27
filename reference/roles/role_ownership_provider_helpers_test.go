@@ -11,143 +11,144 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres"
+	"stuntgres/reference/fixture"
 	"testing"
 	"time"
 )
 
-func ownershipProviderCases(t *testing.T, body func(*membershipScenario, string)) {
+func ownershipProviderCases(t *testing.T, body func(*fixture.RoleMembershipScenario, string)) {
 	ownershipProviderCasesFor(t, []bool{false, true}, body)
 }
 
-func ownershipProviderCasesFor(t *testing.T, modes []bool, body func(*membershipScenario, string)) {
-	ownershipCasesFor(t, modes, func(s *membershipScenario) {
+func ownershipProviderCasesFor(t *testing.T, modes []bool, body func(*fixture.RoleMembershipScenario, string)) {
+	ownershipCasesFor(t, modes, func(s *fixture.RoleMembershipScenario) {
 		database := ownershipDatabaseName(s)
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			for _, q := range []string{"ROLLBACK", "RESET SESSION AUTHORIZATION", "ALTER DATABASE " + pq.QuoteIdentifier(database) + " OWNER TO " + pq.QuoteIdentifier(s.bootstrap), "REVOKE CREATE ON DATABASE " + pq.QuoteIdentifier(database) + " FROM PUBLIC"} {
-				if _, err := s.c.ExecContext(ctx, q); err != nil {
-					s.t.Error(err)
+			for _, q := range []string{"ROLLBACK", "RESET SESSION AUTHORIZATION", "ALTER DATABASE " + pq.QuoteIdentifier(database) + " OWNER TO " + pq.QuoteIdentifier(s.Bootstrap), "REVOKE CREATE ON DATABASE " + pq.QuoteIdentifier(database) + " FROM PUBLIC"} {
+				if _, err := s.C.ExecContext(ctx, q); err != nil {
+					s.T.Error(err)
 				}
 			}
 			// Extension members owned by one role drop with their extension,
 			// owned by another, only in one DROP OWNED of both roles.
 			if roles := ownershipExistingRoles(ctx, s); len(roles) > 0 {
-				if _, err := s.c.ExecContext(ctx, "DROP OWNED BY "+strings.Join(roles, ",")+" CASCADE"); err != nil {
-					s.t.Error(err)
+				if _, err := s.C.ExecContext(ctx, "DROP OWNED BY "+strings.Join(roles, ",")+" CASCADE"); err != nil {
+					s.T.Error(err)
 				}
 			}
 		}()
 		body(s, database)
 	})
 }
-func ownershipDatabaseName(s *membershipScenario) string {
-	s.t.Helper()
-	rows, err := s.c.QueryContext(s.p.Ctx, "SELECT current_database()")
+func ownershipDatabaseName(s *fixture.RoleMembershipScenario) string {
+	s.T.Helper()
+	rows, err := s.C.QueryContext(s.P.Ctx, "SELECT current_database()")
 	if err != nil {
-		s.t.Fatal(err)
+		s.T.Fatal(err)
 	}
 	defer rows.Close()
 	types, err := rows.ColumnTypes()
 	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "NAME" {
-		s.t.Fatal("attached database NAME metadata", types, err)
+		s.T.Fatal("attached database NAME metadata", types, err)
 	}
 	var name string
 	if !rows.Next() {
-		s.t.Fatal("missing attached database", rows.Err())
+		s.T.Fatal("missing attached database", rows.Err())
 	}
 	if err = rows.Scan(&name); err != nil || name == "" {
-		s.t.Fatal(name, err)
+		s.T.Fatal(name, err)
 	}
 	if rows.Next() || rows.Err() != nil {
-		s.t.Fatal("attached database cardinality", rows.Err())
+		s.T.Fatal("attached database cardinality", rows.Err())
 	}
 	return name
 }
-func ownershipDatabaseDescription(s *membershipScenario, name string) string {
-	if s.backend.PG {
+func ownershipDatabaseDescription(s *fixture.RoleMembershipScenario, name string) string {
+	if s.Backend.PG {
 		return name
 	} // pinned fixture's independently named database
 	return pq.QuoteIdentifier(name) // opaque native attachment contains path punctuation
 }
-func ownershipDatabaseOwner(s *membershipScenario, owner string) {
-	s.t.Helper()
-	if s.backend.PG {
+func ownershipDatabaseOwner(s *fixture.RoleMembershipScenario, owner string) {
+	s.T.Helper()
+	if s.Backend.PG {
 		ownershipSelect(s, "SELECT r.rolname FROM pg_database d JOIN pg_roles r ON r.oid=d.datdba WHERE d.datname=current_database()", []string{"rolname"}, []string{"NAME"}, [][]any{{owner}})
 	}
 	ownershipInherited(s, owner, "pg_database_owner", "USAGE", true)
-	s.actor(owner)
-	s.exec("SET ROLE pg_database_owner")
+	s.Actor(owner)
+	s.Exec("SET ROLE pg_database_owner")
 	ownershipSelect(s, "SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{"pg_database_owner"}})
-	s.exec("RESET ROLE")
-	s.actor("")
+	s.Exec("RESET ROLE")
+	s.Actor("")
 }
-func ownershipProviderOwners(s *membershipScenario, extension, member string) {
-	s.t.Helper()
+func ownershipProviderOwners(s *fixture.RoleMembershipScenario, extension, member string) {
+	s.T.Helper()
 	ownershipSelect(s, "SELECT r.rolname FROM pg_extension e JOIN pg_roles r ON r.oid=e.extowner WHERE e.extname='unaccent'", []string{"rolname"}, []string{"NAME"}, [][]any{{extension}})
 	ownershipSelect(s, "SELECT r.rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.proname='unaccent' OR p.proname='unaccent_init' OR p.proname='unaccent_lexize' ORDER BY p.oid", []string{"rolname"}, []string{"NAME"}, [][]any{{member}, {member}, {member}, {member}})
 	ownershipSelect(s, "SELECT r.rolname FROM pg_ts_dict d JOIN pg_roles r ON r.oid=d.dictowner WHERE d.dictname='unaccent'", []string{"rolname"}, []string{"NAME"}, [][]any{{member}})
-	if s.backend.PG {
+	if s.Backend.PG {
 		ownershipSelect(s, "SELECT proname,proargtypes::TEXT AS args FROM pg_proc WHERE proname='unaccent' OR proname='unaccent_init' OR proname='unaccent_lexize' ORDER BY proname,args", []string{"proname", "args"}, []string{"NAME", "TEXT"}, [][]any{{"unaccent", "25"}, {"unaccent", "3769 25"}, {"unaccent_init", "2281"}, {"unaccent_lexize", "2281 2281 2281 2281"}})
 	}
 	ownershipSelect(s, "SELECT dictname FROM pg_ts_dict d JOIN pg_ts_template t ON t.oid=d.dicttemplate WHERE d.dictname='unaccent' AND t.tmplname='unaccent'", []string{"dictname"}, []string{"NAME"}, [][]any{{"unaccent"}})
 }
-func ownershipProviderIDs(s *membershipScenario) map[string][]int64 {
-	s.t.Helper()
+func ownershipProviderIDs(s *fixture.RoleMembershipScenario) map[string][]int64 {
+	s.T.Helper()
 	out := map[string][]int64{}
 	for _, entry := range []struct{ key, query string }{{"extension", "SELECT oid::BIGINT FROM pg_extension WHERE extname='unaccent' ORDER BY oid"}, {"procedure", "SELECT oid::BIGINT FROM pg_proc WHERE proname='unaccent' OR proname='unaccent_init' OR proname='unaccent_lexize' ORDER BY oid"}, {"template", "SELECT oid::BIGINT FROM pg_ts_template WHERE tmplname='unaccent' ORDER BY oid"}, {"dictionary", "SELECT oid::BIGINT FROM pg_ts_dict WHERE dictname='unaccent' ORDER BY oid"}} {
-		rows, err := s.c.QueryContext(s.p.Ctx, entry.query)
+		rows, err := s.C.QueryContext(s.P.Ctx, entry.query)
 		if err != nil {
-			s.t.Fatal(err)
+			s.T.Fatal(err)
 		}
 		for rows.Next() {
 			var id int64
 			if err := rows.Scan(&id); err != nil || id <= 0 {
 				rows.Close()
-				s.t.Fatal("provider identity", id, err)
+				s.T.Fatal("provider identity", id, err)
 			}
 			out[entry.key] = append(out[entry.key], id)
 		}
 		err = rows.Err()
 		rows.Close()
 		if err != nil {
-			s.t.Fatal(err)
+			s.T.Fatal(err)
 		}
 	}
 	if len(out["extension"]) != 1 || len(out["procedure"]) != 4 || len(out["template"]) != 1 || len(out["dictionary"]) != 1 {
-		s.t.Fatal("exact seven provider identities", out)
+		s.T.Fatal("exact seven provider identities", out)
 	}
 	ownershipCount(s, fmt.Sprintf("SELECT count(*) FROM pg_depend WHERE refclassid=3079 AND refobjid=%d AND deptype='e'", out["extension"][0]), 6)
 	return out
 }
-func ownershipProviderStable(s *membershipScenario, old map[string][]int64) {
-	s.t.Helper()
+func ownershipProviderStable(s *fixture.RoleMembershipScenario, old map[string][]int64) {
+	s.T.Helper()
 	if next := ownershipProviderIDs(s); !reflect.DeepEqual(next, old) {
-		s.t.Fatal("provider identities reminted", old, next)
+		s.T.Fatal("provider identities reminted", old, next)
 	}
 }
-func ownershipProviderGone(s *membershipScenario) {
-	s.t.Helper()
+func ownershipProviderGone(s *fixture.RoleMembershipScenario) {
+	s.T.Helper()
 	for _, q := range []string{"SELECT count(*) FROM pg_extension WHERE extname='unaccent'", "SELECT count(*) FROM pg_proc WHERE proname='unaccent' OR proname='unaccent_init' OR proname='unaccent_lexize'", "SELECT count(*) FROM pg_ts_template WHERE tmplname='unaccent'", "SELECT count(*) FROM pg_ts_dict WHERE dictname='unaccent'"} {
 		ownershipCount(s, q, 0)
 	}
 }
-func ownershipHotel(s *membershipScenario, q string) {
+func ownershipHotel(s *fixture.RoleMembershipScenario, q string) {
 	ownershipSelect(s, q, []string{"v"}, []string{"TEXT"}, [][]any{{"Hotel"}})
 }
-func ownershipProviderSetup(s *membershipScenario, database string, super bool) {
-	s.exec("CREATE SCHEMA own_provider AUTHORIZATION own_other")
-	s.exec("GRANT own_other TO own_source WITH INHERIT TRUE, SET FALSE")
+func ownershipProviderSetup(s *fixture.RoleMembershipScenario, database string, super bool) {
+	s.Exec("CREATE SCHEMA own_provider AUTHORIZATION own_other")
+	s.Exec("GRANT own_other TO own_source WITH INHERIT TRUE, SET FALSE")
 	if super {
-		s.exec("ALTER ROLE own_source SUPERUSER")
+		s.Exec("ALTER ROLE own_source SUPERUSER")
 	} else {
-		s.exec("GRANT CREATE ON DATABASE " + pq.QuoteIdentifier(database) + " TO own_source")
+		s.Exec("GRANT CREATE ON DATABASE " + pq.QuoteIdentifier(database) + " TO own_source")
 	}
-	s.actor("own_source")
-	s.exec("CREATE EXTENSION unaccent SCHEMA own_provider")
-	s.actor("")
+	s.Actor("own_source")
+	s.Exec("CREATE EXTENSION unaccent SCHEMA own_provider")
+	s.Actor("")
 	if super {
-		s.exec("ALTER ROLE own_source NOSUPERUSER")
+		s.Exec("ALTER ROLE own_source NOSUPERUSER")
 	}
 }
 
@@ -163,10 +164,10 @@ var ownershipProviderMembers = []ownershipProviderMember{
 	{"procedure", "unaccent_lexize", "2281,2281,2281,2281", "unaccent_lexize(internal,internal,internal,internal)"},
 }
 
-func ownershipProviderMemberOwners(s *membershipScenario, owner string, selected ...ownershipProviderMember) {
-	s.t.Helper()
-	s.actor("")
-	if s.backend.PG {
+func ownershipProviderMemberOwners(s *fixture.RoleMembershipScenario, owner string, selected ...ownershipProviderMember) {
+	s.T.Helper()
+	s.Actor("")
+	if s.Backend.PG {
 		members := selected
 		if len(members) == 0 {
 			members = ownershipProviderMembers
@@ -176,19 +177,19 @@ func ownershipProviderMemberOwners(s *membershipScenario, owner string, selected
 			if member.kind == "dictionary" {
 				kind = "TEXT SEARCH DICTIONARY"
 			}
-			s.exec("ALTER " + kind + " own_provider." + member.sqlIdentity + " OWNER TO " + pq.QuoteIdentifier(owner))
+			s.Exec("ALTER " + kind + " own_provider." + member.sqlIdentity + " OWNER TO " + pq.QuoteIdentifier(owner))
 		}
 		return
 	}
 	// Native has no direct member ALTER grammar. Its existing public named-owner
 	// Restore codec sets real independently owned members, not invented providers.
 	var dump bytes.Buffer
-	if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &dump); err != nil {
-		s.t.Fatal(err)
+	if err := stuntgres.Dump(s.P.Ctx, s.P.Native, &dump); err != nil {
+		s.T.Fatal(err)
 	}
-	script := ownershipProviderOwnerScript(s.t, dump.String(), owner, selected...)
-	if err := stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader(script)); err != nil {
-		s.t.Fatal(err)
+	script := ownershipProviderOwnerScript(s.T, dump.String(), owner, selected...)
+	if err := stuntgres.Restore(s.P.Ctx, s.P.Native, strings.NewReader(script)); err != nil {
+		s.T.Fatal(err)
 	}
 }
 func ownershipProviderOwnerScript(t *testing.T, script, memberOwner string, selected ...ownershipProviderMember) string {
@@ -258,35 +259,35 @@ func ownershipProviderOwnerScript(t *testing.T, script, memberOwner string, sele
 	}
 	return script[:start] + marker + base64.StdEncoding.EncodeToString(data) + script[end:]
 }
-func ownershipProviderHeld(s *membershipScenario, q string) *sql.Rows {
-	s.t.Helper()
+func ownershipProviderHeld(s *fixture.RoleMembershipScenario, q string) *sql.Rows {
+	s.T.Helper()
 	var rows *sql.Rows
 	var err error
-	if s.backend.PG {
-		rows, err = s.p.Postgres.QueryContext(s.p.Ctx, q)
+	if s.Backend.PG {
+		rows, err = s.P.Postgres.QueryContext(s.P.Ctx, q)
 	} else {
-		rows, err = s.c.QueryContext(s.p.Ctx, q)
+		rows, err = s.C.QueryContext(s.P.Ctx, q)
 	}
 	if err != nil {
-		s.t.Fatal(err)
+		s.T.Fatal(err)
 	}
 	return rows
 }
-func ownershipProviderHeldHotel(s *membershipScenario, rows *sql.Rows) {
-	s.t.Helper()
+func ownershipProviderHeldHotel(s *fixture.RoleMembershipScenario, rows *sql.Rows) {
+	s.T.Helper()
 	defer rows.Close()
 	types, err := rows.ColumnTypes()
 	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "TEXT" {
-		s.t.Fatal(types, err)
+		s.T.Fatal(types, err)
 	}
 	if !rows.Next() {
-		s.t.Fatal("retained result missing", rows.Err())
+		s.T.Fatal("retained result missing", rows.Err())
 	}
 	var v string
 	if err := rows.Scan(&v); err != nil || v != "Hotel" {
-		s.t.Fatal(v, err)
+		s.T.Fatal(v, err)
 	}
 	if rows.Next() || rows.Err() != nil {
-		s.t.Fatal("retained cardinality", rows.Err())
+		s.T.Fatal("retained cardinality", rows.Err())
 	}
 }

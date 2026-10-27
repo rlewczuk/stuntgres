@@ -84,6 +84,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		return tag, true
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger,
 		*parser.CreateLanguage, *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.CreateRole, *parser.AlterRole, *parser.DropRole,
+		*parser.RenameRole, *parser.AlterRoleSettings,
 		*parser.RoleMembership, *parser.ReassignOwned,
 		*parser.Call, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.Select, *parser.Copy,
 		*parser.Do, *parser.Load, *parser.Vacuum, *parser.Analyze, *parser.Truncate, *parser.LockTable,

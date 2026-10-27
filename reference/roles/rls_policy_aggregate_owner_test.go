@@ -26,7 +26,7 @@ func TestReferenceRLSPolicyAggregateOwner(t *testing.T) {
 	for _, tc := range cases {
 		for _, clause := range []string{"USING", "WITH CHECK"} {
 			t.Run(tc.name+"/"+clause, func(t *testing.T) {
-				membershipCases(t, []string{"policy_aggregate_target"}, func(s *membershipScenario) {
+				fixture.RoleMembershipCases(t, []string{"policy_aggregate_target"}, func(s *fixture.RoleMembershipScenario) {
 					policyAggregateOwnerSetup(s)
 					policyAggregateOwnerFailures(s, clause, tc.expr, "42803", "aggregate functions are not allowed in policy expressions", "")
 				})
@@ -52,16 +52,16 @@ func TestReferenceRLSPolicyAggregateOwnerLocal(t *testing.T) {
 	for _, tc := range cases {
 		for _, clause := range []string{"USING", "WITH CHECK"} {
 			t.Run(tc.name+"/"+clause, func(t *testing.T) {
-				membershipCases(t, nil, func(s *membershipScenario) {
+				fixture.RoleMembershipCases(t, nil, func(s *fixture.RoleMembershipScenario) {
 					policyAggregateOwnerSetup(s)
-					s.exec("CREATE POLICY p ON t " + clause + "(" + tc.expr + ")")
-					s.exec("ALTER POLICY p ON t " + clause + "(" + tc.expr + ")")
+					s.Exec("CREATE POLICY p ON t " + clause + "(" + tc.expr + ")")
+					s.Exec("ALTER POLICY p ON t " + clause + "(" + tc.expr + ")")
 					policyRows(s)
 					if tc.name != "child_constant" {
 						policyRestrict(s, "DROP TABLE helper RESTRICT", "cannot drop table helper because other objects depend on it", "policy p on table t depends on table helper")
 					}
-					s.exec("DROP POLICY p ON t")
-					s.exec("DROP TABLE helper RESTRICT")
+					s.Exec("DROP POLICY p ON t")
+					s.Exec("DROP TABLE helper RESTRICT")
 					policyRows(s)
 				})
 			})
@@ -90,7 +90,7 @@ func TestReferenceRLSPolicyAggregateOwnerPrecedence(t *testing.T) {
 	for _, tc := range cases {
 		for _, clause := range []string{"USING", "WITH CHECK"} {
 			t.Run(tc.name+"/"+clause, func(t *testing.T) {
-				membershipCases(t, []string{"policy_aggregate_target"}, func(s *membershipScenario) {
+				fixture.RoleMembershipCases(t, []string{"policy_aggregate_target"}, func(s *fixture.RoleMembershipScenario) {
 					policyAggregateOwnerSetup(s)
 					policyAggregateOwnerFailures(s, clause, tc.expr, tc.code, tc.message, tc.hint)
 				})
@@ -99,15 +99,15 @@ func TestReferenceRLSPolicyAggregateOwnerPrecedence(t *testing.T) {
 	}
 }
 
-func policyAggregateOwnerSetup(s *membershipScenario) {
-	s.t.Helper()
+func policyAggregateOwnerSetup(s *fixture.RoleMembershipScenario) {
+	s.T.Helper()
 	policySetup(s)
-	s.exec("CREATE TABLE helper(id INTEGER)")
-	s.run(fixture.Exec("INSERT INTO helper VALUES(3),(4)", 2))
+	s.Exec("CREATE TABLE helper(id INTEGER)")
+	s.Run(fixture.Exec("INSERT INTO helper VALUES(3),(4)", 2))
 }
 
-func policyAggregateOwnerFailures(s *membershipScenario, clause, expr, code, message, hint string) {
-	s.t.Helper()
+func policyAggregateOwnerFailures(s *fixture.RoleMembershipScenario, clause, expr, code, message, hint string) {
+	s.T.Helper()
 	using, check := expr, "TRUE"
 	if clause == "WITH CHECK" {
 		using, check = "TRUE", expr
@@ -118,27 +118,27 @@ func policyAggregateOwnerFailures(s *membershipScenario, clause, expr, code, mes
 		// must occur at Execute for direct and prepared callers alike; all
 		// other exposed diagnostic fields, including Position, are empty.
 		step.ErrorStage = "execute"
-		s.run(step)
+		s.Run(step)
 	}
 	fail("CREATE POLICY rejected ON t TO policy_aggregate_target USING(" + using + ") WITH CHECK(" + check + ")")
 	// Failed CREATE publishes neither its name nor its staged role target.
-	s.exec("CREATE POLICY rejected ON t USING(TRUE) WITH CHECK(TRUE)")
-	s.exec("DROP POLICY rejected ON t")
-	s.exec("DROP ROLE policy_aggregate_target")
-	s.exec("CREATE ROLE policy_aggregate_target LOGIN")
+	s.Exec("CREATE POLICY rejected ON t USING(TRUE) WITH CHECK(TRUE)")
+	s.Exec("DROP POLICY rejected ON t")
+	s.Exec("DROP ROLE policy_aggregate_target")
+	s.Exec("CREATE ROLE policy_aggregate_target LOGIN")
 
-	s.exec("CREATE POLICY p ON t AS RESTRICTIVE FOR UPDATE TO policy_aggregate_target USING(id>0) WITH CHECK(allowed)")
+	s.Exec("CREATE POLICY p ON t AS RESTRICTIVE FOR UPDATE TO policy_aggregate_target USING(id>0) WITH CHECK(allowed)")
 	oid := policyOID(s, "p")
 	before := ""
-	if !s.backend.PG {
+	if !s.Backend.PG {
 		before = policyDump(s)
 	}
 	fail("ALTER POLICY p ON t TO PUBLIC USING(" + using + ") WITH CHECK(" + check + ")")
 	policySameOID(s, "p", oid)
 	policyFacts(s, "p", "RESTRICTIVE", "UPDATE", "policy_aggregate_target", "(id > 0)", "allowed")
-	if !s.backend.PG {
+	if !s.Backend.PG {
 		if after := policyDump(s); after != before {
-			s.t.Fatalf("failed aggregate ALTER changed export\nbefore=%s\nafter=%s", before, after)
+			s.T.Fatalf("failed aggregate ALTER changed export\nbefore=%s\nafter=%s", before, after)
 		}
 	}
 	policyRoleBlocked(s, "policy_aggregate_target", "p")
@@ -146,9 +146,9 @@ func policyAggregateOwnerFailures(s *membershipScenario, clause, expr, code, mes
 	policyColumnBlocked(s, "allowed", "p")
 	// Even when the rejected condition mentioned helper, no new provider
 	// dependency may survive failed CREATE or ALTER.
-	s.exec("DROP TABLE helper RESTRICT")
+	s.Exec("DROP TABLE helper RESTRICT")
 	policyRows(s)
-	s.exec("DROP POLICY p ON t")
-	s.exec("DROP ROLE policy_aggregate_target")
+	s.Exec("DROP POLICY p ON t")
+	s.Exec("DROP ROLE policy_aggregate_target")
 	policyRows(s)
 }

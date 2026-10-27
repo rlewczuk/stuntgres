@@ -34,11 +34,23 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   password and VALID UNTIL inputs with no lifecycle lock held, then
   revalidates, takes the initial membership locks of a new role and installs
   the role record. A changed record or allocator restarts the decision.
+- `ExecuteRoleRename` revalidates current authority after cluster principal and
+  destination-name waits, preserves the principal and complete defaults, and
+  replaces the immutable descriptor/name index. Only MD5 verifiers are cleared,
+  with one notice after successful statement installation.
+- `ExecuteRoleSettings` resolves current role/database authority, validates
+  through the existing setting and parameter-ACL owners and replaces only the
+  selected immutable scope row. Cluster row locks serialize conflicting writers;
+  ordinary protected RESET ALL entries remain. Both executors use the normal role
+  journal, savepoints and Finish publication, without changing issuer settings.
 - `ExecuteRole` (role membership GRANT and REVOKE, SET ROLE, SET SESSION
   AUTHORIZATION, DROP ROLE) decides under `Engine.Mu`. Membership releases it
   for its locks and rechecks the role record; SET ROLE and SESSION
-  AUTHORIZATION switch the session identity under `Settings.Mu` and then
-  `Session.Mu`. `AcquireRoleRetirementLocks` runs before it for DROP ROLE.
+  AUTHORIZATION atomically journal/install the complete current-ref/active/text
+  role value and session identity under `Settings.Mu` and then `Session.Mu`,
+  after publication and revision preflights. Explicit authorization clears the
+  active role; RESET/DEFAULT restores its captured startup ref/text pair without
+  rechecking membership. `AcquireRoleRetirementLocks` runs before DROP ROLE.
 - `ExecuteObjectGrant`, `ExecuteDatabaseGrant` and
   `ExecuteDefaultPrivileges` (GRANT and REVOKE on objects and databases,
   ALTER DEFAULT PRIVILEGES) plan under `Engine.Mu`. Object grants admit

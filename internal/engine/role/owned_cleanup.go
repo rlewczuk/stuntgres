@@ -14,7 +14,7 @@ import (
 // memberships (joined to the stage's publication), ACL entries, policy roles
 // and default privileges. roles and publication are the captured role state.
 func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles authorization.Read, publication *access.RoleRecord, sources map[authorization.PrincipalRef]bool) error {
-	candidate, err := access.OwnedMembershipCandidate(ctx, roles, publication.Revision, sources)
+	candidate, err := access.OwnedMembershipCandidate(ctx, roles, publication, sources)
 	if err != nil {
 		return err
 	}

@@ -75,13 +75,22 @@ func TestClientCatalogNameNormalization(t *testing.T) {
 		{strings.Repeat("x", 63), strings.Repeat("x", 63), false},
 		{strings.Repeat("x", 64), strings.Repeat("x", 63), true},
 		{strings.Repeat("x", 62) + "é", strings.Repeat("x", 62), true},
+		{strings.Repeat("x", 61) + "é", strings.Repeat("x", 61) + "é", false},
+		{strings.Repeat("X", 61) + "éZ", strings.Repeat("X", 61) + "é", true},
+		{strings.Repeat("x", 60) + "界Z", strings.Repeat("x", 60) + "界", true},
 	} {
-		got, notice, err := normalizeCatalogName(tc.input)
+		got, notice, err := NormalizeCatalogName(tc.input)
 		if err != nil || got != tc.want || (notice != nil) != tc.notice {
 			t.Fatal(tc, got, notice, err)
 		}
-		if notice != nil && (notice.Code != "42622" || notice.Severity != "NOTICE" || notice.SeverityUnlocalized != "NOTICE") {
+		if notice != nil && !reflect.DeepEqual(*notice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: `identifier "` + tc.input + `" will be truncated to "` + tc.want + `"`}) {
 			t.Fatal(notice)
+		}
+	}
+	for _, input := range []string{"a\x00b", "\xff"} {
+		got, notice, err := NormalizeCatalogName(input)
+		if err == nil || err.Error() != "stuntgres: invalid UTF-8 or NUL setting" || got != "" || notice != nil {
+			t.Fatal("invalid name accepted", input, got, notice, err)
 		}
 	}
 }

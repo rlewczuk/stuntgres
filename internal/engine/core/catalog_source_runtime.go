@@ -91,13 +91,16 @@ func (r EngineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.
 				source = d.NativeStartup.Source
 			}
 		}
+		if captured, present := s.DefaultSources[name]; present {
+			source = captured.String()
+		}
 		if s.ProviderDefaults[name] {
 			source = "client"
 		}
 		if _, present := s.Values[name]; present {
 			source = "session"
 		}
-		facts = append(facts, pgcatalog.SettingsFact{Definition: d, Value: value, Reset: s.DefaultTyped[name], Source: source})
+		facts = append(facts, pgcatalog.SettingsFact{Definition: d, Value: value, Reset: s.DefaultTyped[name], Source: source, ResetCaptured: s.ProviderDefaults[name] || s.DefaultSources[name] != session.DefaultSourceDefault})
 	}
 	s.Mu.Unlock()
 	if err := ctx.Err(); err != nil {

@@ -13,6 +13,22 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// ValidateValueLocked runs session-sensitive pure check hooks without changing
+// recognition, actions, timers or values. Caller holds Settings.Mu.
+func (s *SettingsStore) ValidateValueLocked(d settings.Definition, value *settings.Value) error {
+	if err := s.checkStatistics(d.Name, value); err != nil {
+		return err
+	}
+	if d.Name == "temp_buffers" && value != nil {
+		if initialized := atomic.LoadInt64(&s.temporaryBufferAuthority().temporaryBuffers); initialized != 0 && int64(value.Number) != initialized {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023",
+				Message: fmt.Sprintf(`invalid value for parameter "temp_buffers": %d`, int64(value.Number)),
+				Detail:  `"temp_buffers" cannot be changed after any temporary tables have been accessed in the session.`}
+		}
+	}
+	return nil
+}
+
 // AdmitLocked checks that op is a live publication operation and that
 // the store is still attached. Caller holds Settings.Mu then Session.Mu.
 func (s *SettingsStore) AdmitLocked(domain *ids.Domain, op *Operation) error {
@@ -32,15 +48,8 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 	if err := s.AdmitLocked(domain, op); err != nil {
 		return "", err
 	}
-	if err := s.checkStatistics(d.Name, value); err != nil {
+	if err := s.ValidateValueLocked(d, value); err != nil {
 		return "", err
-	}
-	if d.Name == "temp_buffers" && value != nil {
-		if initialized := atomic.LoadInt64(&s.temporaryBufferAuthority().temporaryBuffers); initialized != 0 && int64(value.Number) != initialized {
-			return "", &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023",
-				Message: fmt.Sprintf(`invalid value for parameter "temp_buffers": %d`, int64(value.Number)),
-				Detail:  `"temp_buffers" cannot be changed after any temporary tables have been accessed in the session.`}
-		}
 	}
 	s.Touch(d.Name, action)
 	if _, registered := registry.Definitions()[d.Name]; !registered {

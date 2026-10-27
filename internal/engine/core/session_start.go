@@ -42,12 +42,18 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		authenticated = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
 	roleDescriptor, authErr := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()).Descriptor(authenticated)
+	startRoles := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current())
+	startRecord, startDatabase := e.RoleStore.Published, e.Catalog.DatabaseAddress()
 	e.Mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
 	}
 	if !roleDescriptor.Login {
 		return nil, role.LoginError(roleDescriptor.Name)
+	}
+	var captured map[string]session.CapturedDefault
+	if !private {
+		captured = capturedRoleDefaults(startRecord, startDatabase, authenticated)
 	}
 	// One allocation holds the session, its root payload and the owner extension.
 	allocation := &sessionAllocation{session: session.Session{Host: (*sessionHost)(e), SessionToken: e.Catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}}
@@ -77,6 +83,9 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 			err = owner.Initialize(op.Context(), e.Settings.Definitions(), e.Settings.Order(), start.Defaults)
 		}
 		if err == nil {
+			err = owner.CapturePersistedDefaults(op.Context(), e.Settings, captured)
+		}
+		if err == nil {
 			owner.Mu.Lock()
 			s.Mu.Lock()
 			s.PublishTimeoutSettingsLocked(owner, false, time.Now())
@@ -88,8 +97,10 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		err = authErr
 	}
 	var resetRole authorization.PrincipalRef
+	var resetRoleText string
 	if err == nil {
-		resetRole, err = e.initialRole(op.Context(), authenticated, start.Defaults)
+		op.SnapshotNoticeThreshold()
+		resetRole, resetRoleText, err = e.initialRole(op, authenticated, start.Defaults, startRoles, captured["role"])
 	}
 	if err == nil {
 		transactions := &session.TransactionOwner{Session: s, Extension: &allocation.owner}
@@ -165,6 +176,8 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		} else if err = ctx.Err(); err == nil {
 			if resetRole != (authorization.PrincipalRef{}) {
 				auth.State.CurrentUser, auth.State.ResetRole = resetRole, resetRole
+				auth.State.ActiveRole = true
+				auth.State.RoleText, auth.State.ResetRoleText = resetRoleText, resetRoleText
 			}
 			s.State = session.Live
 			e.sessions[s.SessionToken] = s
@@ -179,6 +192,11 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	op.Done()
 	if err != nil {
 		return nil, errors.Join(err, s.WaitEnd(context.Background()))
+	}
+	if start.NoticeHandler != nil {
+		for _, notice := range op.DetachNotices() {
+			start.NoticeHandler(notice)
+		}
 	}
 	return s, nil
 }

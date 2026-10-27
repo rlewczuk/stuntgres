@@ -139,7 +139,7 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 			return nil, err
 		}
 	}
-	sess, err := target.StartSession(ctx, session.SessionStart{ID: id, Authenticated: principal})
+	sess, err := target.StartSession(ctx, session.SessionStart{ID: id, Authenticated: principal, NoticeHandler: c.noticeHandler})
 	if err != nil {
 		return nil, err
 	}

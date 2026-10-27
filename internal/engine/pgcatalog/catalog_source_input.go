@@ -14,13 +14,14 @@ import (
 // A producer owns only its rows. The caller chooses coherent immutable roots
 // and owns runtime capture policy, locking and query-source construction.
 type Input struct {
-	Context context.Context
-	Catalog catalog.Read
-	Roles   authorization.Read
-	Owner   *catalog.Owner
-	Ref     ids.ObjectRef
-	Source  *catalog.Relation
-	Runtime Runtime
+	Context      context.Context
+	Catalog      catalog.Read
+	Roles        authorization.Read
+	Owner        *catalog.Owner
+	Ref          ids.ObjectRef
+	Source       *catalog.Relation
+	Runtime      Runtime
+	RoleSettings RoleSettingsProjection
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress
@@ -77,9 +78,10 @@ type CursorFact struct {
 	Created         sqltype.Value
 }
 type SettingsFact struct {
-	Definition   settings.Definition
-	Value, Reset settings.Value
-	Source       string
+	Definition    settings.Definition
+	Value, Reset  settings.Value
+	Source        string
+	ResetCaptured bool // Persisted/provider capture overrides nullable native reset.
 }
 type PreparedFact struct {
 	XID          uint32

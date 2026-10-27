@@ -9,16 +9,16 @@ import (
 
 // Snapshots are compared only within one backend. Allocation identities are
 // opaque; each initial inventory also has independent cardinality/shape checks.
-func ownershipTransactionSnapshot(s *membershipScenario, e fixture.Executor, query string) [][]any {
-	s.t.Helper()
-	rows, err := e.QueryContext(s.p.Ctx, query)
+func ownershipTransactionSnapshot(s *fixture.RoleMembershipScenario, e fixture.Executor, query string) [][]any {
+	s.T.Helper()
+	rows, err := e.QueryContext(s.P.Ctx, query)
 	if err != nil {
-		s.t.Fatal(query, err)
+		s.T.Fatal(query, err)
 	}
 	defer rows.Close()
 	cols, err := rows.Columns()
 	if err != nil {
-		s.t.Fatal(err)
+		s.T.Fatal(err)
 	}
 	var out [][]any
 	for rows.Next() {
@@ -28,7 +28,7 @@ func ownershipTransactionSnapshot(s *membershipScenario, e fixture.Executor, que
 			ptrs[i] = &values[i]
 		}
 		if err := rows.Scan(ptrs...); err != nil {
-			s.t.Fatal(err)
+			s.T.Fatal(err)
 		}
 		for i := range values {
 			values[i] = fixture.Normalize(values[i])
@@ -36,21 +36,21 @@ func ownershipTransactionSnapshot(s *membershipScenario, e fixture.Executor, que
 		out = append(out, values)
 	}
 	if err := rows.Err(); err != nil {
-		s.t.Fatal(err)
+		s.T.Fatal(err)
 	}
 	return out
 }
-func ownershipTransactionSnapshotEqual(s *membershipScenario, e fixture.Executor, query string, want [][]any) {
-	s.t.Helper()
+func ownershipTransactionSnapshotEqual(s *fixture.RoleMembershipScenario, e fixture.Executor, query string, want [][]any) {
+	s.T.Helper()
 	if got := ownershipTransactionSnapshot(s, e, query); !reflect.DeepEqual(got, want) {
-		s.t.Fatalf("retained inventory %s\ngot %#v\nwant %#v", query, got, want)
+		s.T.Fatalf("retained inventory %s\ngot %#v\nwant %#v", query, got, want)
 	}
 }
 
 func TestReferenceRoleOwnershipTransactionalAssociations(t *testing.T) {
-	ownershipTransactionCases(t, func(s *membershipScenario, route string) {
-		s.exec("CREATE SCHEMA own_schema AUTHORIZATION own_source")
-		s.actor("own_source")
+	ownershipTransactionCases(t, func(s *fixture.RoleMembershipScenario, route string) {
+		s.Exec("CREATE SCHEMA own_schema AUTHORIZATION own_source")
+		s.Actor("own_source")
 		for _, q := range []string{
 			"CREATE TABLE own_schema.parent(id SERIAL,identity_id INT GENERATED ALWAYS AS IDENTITY,payload INT DEFAULT 9)",
 			"CREATE INDEX parent_idx ON own_schema.parent(payload)",
@@ -64,29 +64,29 @@ func TestReferenceRoleOwnershipTransactionalAssociations(t *testing.T) {
 			"GRANT UPDATE(payload) ON own_schema.parent TO own_reader WITH GRANT OPTION",
 			"ALTER DEFAULT PRIVILEGES IN SCHEMA own_schema GRANT SELECT ON TABLES TO own_reader",
 		} {
-			s.exec(q)
+			s.Exec(q)
 		}
-		s.run(fixture.Exec("INSERT INTO own_schema.parent(payload) VALUES(7)", 1))
-		s.actor("")
+		s.Run(fixture.Exec("INSERT INTO own_schema.parent(payload) VALUES(7)", 1))
+		s.Actor("")
 		const relations = "SELECT c.oid::BIGINT,c.relname,c.relowner::BIGINT,c.reltype::BIGINT,c.relacl::TEXT FROM pg_class c WHERE c.relnamespace='own_schema'::regnamespace ORDER BY c.relname"
 		const types = "SELECT t.oid::BIGINT,t.typname,t.typowner::BIGINT,t.typarray::BIGINT,t.typelem::BIGINT,t.typrelid::BIGINT,t.typacl::TEXT FROM pg_type t WHERE t.typnamespace='own_schema'::regnamespace ORDER BY t.typname"
 		const columns = "SELECT attnum,attname,attacl::TEXT FROM pg_attribute WHERE attrelid='own_schema.parent'::regclass AND attnum>0 ORDER BY attnum"
 		const defaults = "SELECT oid::BIGINT,defaclrole::BIGINT,defaclnamespace::BIGINT,defaclobjtype,defaclacl::TEXT FROM pg_default_acl WHERE defaclnamespace='own_schema'::regnamespace ORDER BY oid"
 		before := map[string][][]any{}
 		for _, q := range []string{relations, types, columns, defaults} {
-			before[q] = ownershipTransactionSnapshot(s, s.c, q)
+			before[q] = ownershipTransactionSnapshot(s, s.C, q)
 		}
 		if len(before[relations]) != 6 || len(before[columns]) != 3 || len(before[defaults]) != 1 {
-			s.t.Fatal("complete companion inventory", before)
+			s.T.Fatal("complete companion inventory", before)
 		}
 		for _, row := range before[relations] {
 			if row[0].(int64) <= 0 {
-				s.t.Fatal("nonpositive relation identity", row)
+				s.T.Fatal("nonpositive relation identity", row)
 			}
 		}
-		peer, err := s.backend.DB.Conn(s.p.Ctx)
+		peer, err := s.Backend.DB.Conn(s.P.Ctx)
 		if err != nil {
-			s.t.Fatal(err)
+			s.T.Fatal(err)
 		}
 		defer peer.Close()
 		q := "REASSIGN OWNED BY own_source TO own_target"
@@ -116,20 +116,20 @@ func TestReferenceRoleOwnershipTransactionalAssociations(t *testing.T) {
 			x.end(commit)
 			if !commit {
 				for q, rows := range before {
-					ownershipTransactionSnapshotEqual(s, s.c, q, rows)
+					ownershipTransactionSnapshotEqual(s, s.C, q, rows)
 				}
 			}
 		}
 		// Preserved creator defaults apply to genuinely future creation.
-		s.exec("GRANT USAGE,CREATE ON SCHEMA own_schema TO own_source")
-		s.actor("own_source")
-		s.exec("CREATE TABLE own_schema.future(id INT)")
-		s.run(fixture.Exec("INSERT INTO own_schema.future VALUES(7)", 1))
-		s.actor("")
-		s.exec("GRANT USAGE ON SCHEMA own_schema TO own_reader")
-		s.actor("own_reader")
+		s.Exec("GRANT USAGE,CREATE ON SCHEMA own_schema TO own_source")
+		s.Actor("own_source")
+		s.Exec("CREATE TABLE own_schema.future(id INT)")
+		s.Run(fixture.Exec("INSERT INTO own_schema.future VALUES(7)", 1))
+		s.Actor("")
+		s.Exec("GRANT USAGE ON SCHEMA own_schema TO own_reader")
+		s.Actor("own_reader")
 		ownershipRows(s, "own_schema.future")
-		s.actor("")
+		s.Actor("")
 	})
 	t.Run("providers", ownershipTransactionalProviders)
 }
@@ -137,21 +137,21 @@ func TestReferenceRoleOwnershipTransactionalAssociations(t *testing.T) {
 func ownershipTransactionalProviders(t *testing.T) {
 	for _, route := range ownershipTransactionRoutes {
 		t.Run(route, func(t *testing.T) {
-			ownershipProviderCasesFor(t, ownershipRouteModes(route), func(s *membershipScenario, database string) {
+			ownershipProviderCasesFor(t, ownershipRouteModes(route), func(s *fixture.RoleMembershipScenario, database string) {
 				ownershipProviderSetup(s, database, false)
 				ownershipProviderMemberOwners(s, "own_source")
 				initial := ownershipProviderIDs(s)
-				s.exec("CREATE TABLE tx_provider_survivor(id INT,v TEXT DEFAULT own_provider.unaccent('Hôtel'))")
-				s.run(fixture.Exec("INSERT INTO tx_provider_survivor(id) VALUES(7)", 1))
-				s.exec("ALTER TABLE tx_provider_survivor OWNER TO own_other")
-				peer, err := s.backend.DB.Conn(s.p.Ctx)
+				s.Exec("CREATE TABLE tx_provider_survivor(id INT,v TEXT DEFAULT own_provider.unaccent('Hôtel'))")
+				s.Run(fixture.Exec("INSERT INTO tx_provider_survivor(id) VALUES(7)", 1))
+				s.Exec("ALTER TABLE tx_provider_survivor OWNER TO own_other")
+				peer, err := s.Backend.DB.Conn(s.P.Ctx)
 				if err != nil {
-					s.t.Fatal(err)
+					s.T.Fatal(err)
 				}
 				defer peer.Close()
 				owners := func(e fixture.Executor, owner string) {
-					fixture.RunStep(s.t, s.p.Ctx, e, s.record, fixture.Select("SELECT r.rolname FROM pg_extension x JOIN pg_roles r ON r.oid=x.extowner WHERE x.extname='unaccent'", []string{"rolname"}, []string{"NAME"}, [][]any{{owner}}))
-					fixture.RunStep(s.t, s.p.Ctx, e, s.record, fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.pronamespace='own_provider'::regnamespace AND p.proname IN('unaccent','unaccent_init','unaccent_lexize') AND r.rolname='"+owner+"'", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}}))
+					fixture.RunStep(s.T, s.P.Ctx, e, s.Record, fixture.Select("SELECT r.rolname FROM pg_extension x JOIN pg_roles r ON r.oid=x.extowner WHERE x.extname='unaccent'", []string{"rolname"}, []string{"NAME"}, [][]any{{owner}}))
+					fixture.RunStep(s.T, s.P.Ctx, e, s.Record, fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.pronamespace='own_provider'::regnamespace AND p.proname IN('unaccent','unaccent_init','unaccent_lexize') AND r.rolname='"+owner+"'", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}}))
 				}
 				for _, commit := range []bool{false, true} {
 					if route == "auto" && !commit {
@@ -197,7 +197,7 @@ func ownershipTransactionalProviders(t *testing.T) {
 					if route != "auto" {
 						x.exec("ROLLBACK TO extension_member")
 					}
-					s.clearNotices()
+					s.ClearNotices()
 					x.exec(union)
 					ownershipNotices(s, ownershipCascadeNotice("drop cascades to default value for column v of table tx_provider_survivor", ""))
 					x.run(fixture.Select("SELECT count(*) FROM pg_extension WHERE extname='unaccent'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
@@ -209,7 +209,7 @@ func ownershipTransactionalProviders(t *testing.T) {
 				}
 				ownershipProviderGone(s)
 				ownershipCount(s, "SELECT count(*) FROM pg_namespace WHERE nspname='own_provider'", 1)
-				s.run(fixture.Exec("INSERT INTO tx_provider_survivor(id) VALUES(9)", 1))
+				s.Run(fixture.Exec("INSERT INTO tx_provider_survivor(id) VALUES(9)", 1))
 				ownershipSelect(s, "SELECT id,v FROM tx_provider_survivor ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "Hotel"}, {int64(9), nil}})
 			})
 		})

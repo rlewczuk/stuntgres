@@ -37,6 +37,10 @@ func capturePGUser(in Input) ([][]sqltype.Value, error) {
 				return nil, err
 			}
 		}
+		config, err := roleConfig(in, principal, source.Columns[8].Usage.Type)
+		if err != nil {
+			return nil, err
+		}
 		rows = append(rows, []sqltype.Value{
 			sqltype.String(source.Columns[0].Usage.Type, role.Name), id,
 			sqltype.Boolean(source.Columns[2].Usage.Type, role.CreateDB),
@@ -44,7 +48,7 @@ func capturePGUser(in Input) ([][]sqltype.Value, error) {
 			sqltype.Boolean(source.Columns[4].Usage.Type, role.Replication),
 			sqltype.Boolean(source.Columns[5].Usage.Type, role.BypassRLS),
 			sqltype.String(source.Columns[6].Usage.Type, "********"), expiry,
-			sqltype.Null(source.Columns[8].Usage.Type),
+			config,
 		})
 	}
 	if err := ctx.Err(); err != nil {

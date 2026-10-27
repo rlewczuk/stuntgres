@@ -10,15 +10,26 @@ import (
 type RoleRecord struct {
 	Root     authorization.Root
 	Revision uint64
-	// origin changes only when the principal authority changes. Revision-only
-	// ACL publications retain the original immutable authority in constant time.
+	Settings *RoleSettings
+	// origin changes only when principal authority changes. ACL and settings
+	// publications retain the original immutable graph lineage in constant time.
 	origin *RoleRecord
 }
 
 // Advance returns a record with the same root and the next revision. Callers
 // check revision exhaustion first.
 func (r *RoleRecord) Advance() *RoleRecord {
-	return &RoleRecord{Root: r.Root, Revision: r.Revision + 1, origin: r.authorityOrigin()}
+	return &RoleRecord{Root: r.Root, Settings: r.Settings, Revision: r.Revision + 1, origin: r.authorityOrigin()}
+}
+
+// WithRoot replaces graph authority while retaining the same settings root.
+func (r *RoleRecord) WithRoot(next authorization.Root) *RoleRecord {
+	return &RoleRecord{Root: next, Settings: r.Settings, Revision: r.Revision + 1}
+}
+
+// WithSettings retains graph lineage, not complete-record equality.
+func (r *RoleRecord) WithSettings(next *RoleSettings) *RoleRecord {
+	return &RoleRecord{Root: r.Root, Settings: next, Revision: r.Revision + 1, origin: r.authorityOrigin()}
 }
 
 func (r *RoleRecord) authorityOrigin() *RoleRecord {
@@ -28,7 +39,7 @@ func (r *RoleRecord) authorityOrigin() *RoleRecord {
 	return r.origin
 }
 
-// SameAuthority distinguishes principal changes from ACL-only revision bumps.
+// SameAuthority distinguishes principal changes from ACL/settings publications.
 // Exact publication stamps still compare records/revisions, not this lineage.
 func (r *RoleRecord) SameAuthority(other *RoleRecord) bool {
 	return r.authorityOrigin() == other.authorityOrigin()

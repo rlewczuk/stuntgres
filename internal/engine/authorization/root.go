@@ -27,7 +27,7 @@ type RoleDescriptor struct {
 	predefined                                                              bool
 }
 type Membership struct {
-	OID                  uint32
+	OID                   uint32
 	Role, Member, Grantor PrincipalRef
 	Admin, Inherit, Set   bool
 }
@@ -184,7 +184,11 @@ func cloneRoles(r *Root) Root {
 	return n
 }
 
-type RoleState struct{ Authenticated, SessionUser, CurrentUser, ResetRole PrincipalRef }
+type RoleState struct {
+	Authenticated, SessionUser, CurrentUser, ResetRole PrincipalRef
+	ActiveRole                                         bool
+	RoleText, ResetRoleText                            string
+}
 
 // Domain is inert provenance, embedded in the engine that owns allocation.
 // Its nonzero size guarantees distinct embedded instances have distinct addresses.

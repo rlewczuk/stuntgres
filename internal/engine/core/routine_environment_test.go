@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 )
 
 func TestRoutineEffectiveUserEnvironment(t *testing.T) {
-	for _, outcome := range []string{"success", "error", "cancel"} {
+	for _, outcome := range []string{"success", "error", "cancel", "self-success", "self-error", "self-cancel"} {
 		t.Run(outcome, func(t *testing.T) {
 			e := engine.New()
 			enginetest.Run(t, e, "CREATE ROLE re_owner")
@@ -26,6 +27,13 @@ func TestRoutineEffectiveUserEnvironment(t *testing.T) {
 			enginetest.Run(t, e, "ALTER TABLE re_parent OWNER TO re_owner")
 			parent := e.Catalog.State.MustRelation(enginetest.RoleTableRef(t, e, "re_parent").Address)
 			sess := sessionStart(t, e, nil)
+			selected := strings.HasPrefix(outcome, "self-")
+			outcome = strings.TrimPrefix(outcome, "self-")
+			if selected {
+				sess.Mu.Lock()
+				sess.Authorization.State.ActiveRole, sess.Authorization.State.RoleText = true, "postgres"
+				sess.Mu.Unlock()
+			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op, err := sess.Acquire(ctx)
@@ -56,6 +64,22 @@ func TestRoutineEffectiveUserEnvironment(t *testing.T) {
 				got, err := value.Text()
 				if err != nil || got != want {
 					t.Fatalf("effective superuser = %q, %v; want %q", got, err, want)
+				}
+				roleValue, err := core.HostOf(scope).InvokeSetting("current_setting", []sqltype.Value{sqltype.String(textType, "role")}, textType)
+				if err != nil {
+					t.Fatal(err)
+				}
+				gotRole, err := roleValue.Text()
+				wantRole := "none"
+				if selected {
+					wantRole = "postgres"
+				}
+				if err != nil || gotRole != wantRole {
+					t.Fatal("effective actor changed physical role projection", gotRole, err)
+				}
+				_, captured, err := e.PersistedSettingCurrent(op, "role")
+				if err != nil || captured != wantRole || op.RoleState() != before {
+					t.Fatal("physical FROM CURRENT capture changed role owner", captured, err)
 				}
 			}
 			assertIdentityRestriction := func(contextName string) {

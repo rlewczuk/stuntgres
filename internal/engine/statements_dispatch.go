@@ -132,6 +132,18 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 			scope.CompleteUtility()
 		}
 		return result, true, err
+	case *parser.RenameRole:
+		result, err := rolecmds.ExecuteRoleRename(e, scope, stmt.(*parser.RenameRole), count)
+		if err == nil {
+			scope.CompleteUtility()
+		}
+		return result, true, err
+	case *parser.AlterRoleSettings:
+		result, err := rolecmds.ExecuteRoleSettings(e, scope, stmt.(*parser.AlterRoleSettings), count)
+		if err == nil {
+			scope.CompleteUtility()
+		}
+		return result, true, err
 	case *parser.CreateRole, *parser.AlterRole:
 		result, err := rolecmds.ExecuteRoleAttributes(e, scope, stmt, count)
 		if err == nil {

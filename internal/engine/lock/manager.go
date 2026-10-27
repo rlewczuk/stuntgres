@@ -74,6 +74,7 @@ const (
 	AdvisoryPairResource
 	CatalogACLResource
 	DefaultACLResource
+	RoleSettingResource
 )
 
 // Row zero is the relation resource; logical rows use their stable RowID.
@@ -564,6 +565,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 	}
 	advisory := ref.Kind == AdvisoryBigintResource || ref.Kind == AdvisoryPairResource
 	catalogACL := ref.Kind == CatalogACLResource || ref.Kind == DefaultACLResource
+	roleSetting := ref.Kind == RoleSettingResource
 	if advisory {
 		if ref.Database != t.session.Domain() || ref.ObjectRef != (ids.ObjectRef{}) || ref.RoleTuple || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil || ref.DefaultClass != 0 ||
 			mode != AdvisoryShare && mode != AdvisoryExclusive || t.detached {
@@ -577,11 +579,18 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 				return nil, ids.ErrCatalogReplaced
 			}
 		}
-	} else if t.persistent || ref.Database != nil || !catalogACL && (ref.Kind != OrdinaryResource || ref.High != 0 || ref.Low != 0 || ref.DefaultClass != 0) || ref.RoleTuple && (catalogACL || ref.Address.ClassID != ids.RoleClassID) {
+	} else if t.persistent || ref.Database != nil || !catalogACL && !roleSetting && (ref.Kind != OrdinaryResource || ref.High != 0 || ref.Low != 0 || ref.DefaultClass != 0) || ref.RoleTuple && (catalogACL || roleSetting || ref.Address.ClassID != ids.RoleClassID) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid ordinary lock resource")
 	}
-	if catalogACL {
+	if roleSetting {
+		if ref.Domain() != m.roleDomain || ref.Epoch != m.roleEpoch || mode != AccessExclusive ||
+			ref.Address != (ids.ObjectAddress{}) && (ref.Address.ClassID != ids.DatabaseClassID || ref.Address.ObjectID == 0 || ref.Address.SubID != 0) ||
+			ref.Low != 0 || ref.DefaultClass != 0 || ref.RoleTuple || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid role settings lock request")
+		}
+	} else if catalogACL {
 		if !m.validACLResource(t, ref, mode) {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid catalog ACL lock request")

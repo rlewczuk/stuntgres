@@ -36,6 +36,7 @@ type Input struct {
     Runtime Runtime
     TypeNamePath []ids.ObjectAddress
     Keep    Keep // {Column int; Test func(sqltype.Value) bool}
+    RoleSettings RoleSettingsProjection
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -107,6 +108,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Builtin/provider set capability remains intrinsic; estimates consume canonical
   positive `Procedure.Rows` overrides, otherwise retaining genuine released or
   installed defaults. Scalar estimates remain zero.
+- Persisted configuration projections borrow the statement's complete immutable
+  role record through `RoleSettingsProjection`, paired with its role authority.
+  `pg_db_role_setting` enumerates nonempty scope rows with actual database/role
+  identities (zero means ALL); role-only rows supply `pg_roles.rolconfig`,
+  `pg_user.useconfig` and authorized `pg_shadow.useconfig`. Arrays own their row
+  backing. Providers and live overrides never enter these projections.
+  `pg_settings` instead uses the physical owner's captured typed reset image and
+  source, overridden only by live session source; `role` is not an ordinary GUC.
 - **Provenance.** `Input.Owner` is the engine's stable `*catalog.Owner`; its
   `Domain`, `Principals` and `ACLAuthority` are compared as the same pointers,
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
@@ -143,8 +152,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
   passwords and expirations from the immutable statement role frontier.
   Its real-table descriptor has no PUBLIC SELECT authority. `pg_shadow` uses the
   same captured role frontier but includes only LOGIN roles. Missing passwords,
-  expirations and unstored role-wide
-  configuration remain typed SQL NULL. The common relation ACL/column manifest
+  expirations and role-only configuration remain typed SQL NULL. The common
+  relation ACL/column manifest
   and stored-view owner/invoker checks authorize access, including genuine
   delegated authority; the producer creates neither credentials nor permissions.
   Named GRANT and REVOKE validate the original captured source registration before

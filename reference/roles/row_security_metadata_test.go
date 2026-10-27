@@ -18,8 +18,8 @@ func rowSecurityMetadataRow(value, source string) []any {
 	return []any{"row_security", value, nil, "Client Connection Defaults / Statement Behavior", "Enables row security.", "When enabled, row security will be applied to all users.", "user", "bool", source, nil, nil, nil, "on", "on", nil, nil, false}
 }
 
-func rowSecurityMetadata(s *membershipScenario, value, source string) {
-	s.t.Helper()
+func rowSecurityMetadata(s *fixture.RoleMembershipScenario, value, source string) {
+	s.T.Helper()
 	step := fixture.Select(rowSecurityMetadataSQL, rowSecurityMetadataColumns, rowSecurityMetadataTypes, [][]any{rowSecurityMetadataRow(value, source)})
 	step.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		types, err := rows.ColumnTypes()
@@ -31,7 +31,7 @@ func rowSecurityMetadata(s *membershipScenario, value, source string) {
 				t.Fatalf("column %d: %v", i, typ)
 			}
 			nullable, known := typ.Nullable()
-			if known == s.backend.PG || (!s.backend.PG && !nullable) || (s.backend.PG && nullable) {
+			if known == s.Backend.PG || (!s.Backend.PG && !nullable) || (s.Backend.PG && nullable) {
 				t.Fatalf("column %s nullable=(%v,%v)", typ.Name(), nullable, known)
 			}
 			if precision, scale, known := typ.DecimalSize(); precision != 0 || scale != 0 || known {
@@ -49,12 +49,12 @@ func rowSecurityMetadata(s *membershipScenario, value, source string) {
 				scan := reflect.TypeFor[string]()
 				switch rowSecurityMetadataTypes[i] {
 				case "_TEXT":
-					if s.backend.PG {
+					if s.Backend.PG {
 						scan = reflect.TypeFor[any]()
 					}
 				case "INT4":
 					scan = reflect.TypeFor[int64]()
-					if s.backend.PG {
+					if s.Backend.PG {
 						scan = reflect.TypeFor[int32]()
 					}
 				case "BOOL":
@@ -69,13 +69,13 @@ func rowSecurityMetadata(s *membershipScenario, value, source string) {
 			}
 		}
 	}
-	s.run(step)
+	s.Run(step)
 }
 
 func TestReferenceRowSecurityMetadata(t *testing.T) {
-	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
-		s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
-		s.actor("rls_reader")
+	rlsBaseCases(t, func(s *fixture.RoleMembershipScenario, db *sql.DB) {
+		s.Exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
+		s.Actor("rls_reader")
 		rowSecurityMetadata(s, "on", "default")
 		// Provenance follows override presence, not equality with the boot text.
 		// SET to boot text must not be mistaken for RESET/default provenance.
@@ -88,7 +88,7 @@ func TestReferenceRowSecurityMetadata(t *testing.T) {
 			{"reset_all", "RESET ALL", "on", "default"},
 		} {
 			rowSecurityCase(s, tc.name, func() {
-				s.exec(tc.sql)
+				s.Exec(tc.sql)
 				rowSecurityValue(s, tc.value)
 				rowSecurityMetadata(s, tc.value, tc.source)
 			})
@@ -98,27 +98,27 @@ func TestReferenceRowSecurityMetadata(t *testing.T) {
 		predefinedSelect(s, "SELECT set_config('row_security',NULL,false)", []string{"set_config"}, []string{"TEXT"}, [][]any{{"on"}})
 		rowSecurityMetadata(s, "on", "default")
 		for _, value := range []string{"on", "off"} {
-			s.exec("SET row_security=" + value)
-			accessRoleBool(s, "SELECT row_security_active('t'::text) AS v", true)
-			accessRoleBool(s, "SELECT row_security_active('t'::regclass::oid) AS v", true)
+			s.Exec("SET row_security=" + value)
+			fixture.AccessRoleBool(s, "SELECT row_security_active('t'::text) AS v", true)
+			fixture.AccessRoleBool(s, "SELECT row_security_active('t'::regclass::oid) AS v", true)
 		}
 		for _, actor := range []string{"rls_owner", "rls_bypass", ""} {
-			s.actor(actor)
-			accessRoleBool(s, "SELECT row_security_active('t'::text) AS v", false)
+			s.Actor(actor)
+			fixture.AccessRoleBool(s, "SELECT row_security_active('t'::text) AS v", false)
 		}
-		s.actor("rls_owner")
-		s.exec("ALTER TABLE t DISABLE ROW LEVEL SECURITY")
-		s.actor("rls_reader")
-		accessRoleBool(s, "SELECT row_security_active('t'::regclass::oid) AS v", false)
+		s.Actor("rls_owner")
+		s.Exec("ALTER TABLE t DISABLE ROW LEVEL SECURITY")
+		s.Actor("rls_reader")
+		fixture.AccessRoleBool(s, "SELECT row_security_active('t'::regclass::oid) AS v", false)
 		// Native eager rows survive same-session mutation. PostgreSQL must
 		// drain its live protocol stream before issuing the companion SET.
-		rows, err := s.c.QueryContext(s.p.Ctx, rowSecurityMetadataSQL)
+		rows, err := s.C.QueryContext(s.P.Ctx, rowSecurityMetadataSQL)
 		if err != nil {
-			s.t.Fatal(err)
+			s.T.Fatal(err)
 		}
 		defer rows.Close()
-		if !s.backend.PG {
-			s.exec("SET row_security=on")
+		if !s.Backend.PG {
+			s.Exec("SET row_security=on")
 		}
 		values := make([]any, 17)
 		dest := make([]any, 17)
@@ -126,23 +126,23 @@ func TestReferenceRowSecurityMetadata(t *testing.T) {
 			dest[i] = &values[i]
 		}
 		if !rows.Next() {
-			s.t.Fatal("missing held metadata row", rows.Err())
+			s.T.Fatal("missing held metadata row", rows.Err())
 		}
 		if err := rows.Scan(dest...); err != nil {
-			s.t.Fatal(err)
+			s.T.Fatal(err)
 		}
 		for i := range values {
 			values[i] = fixture.Normalize(values[i])
 		}
 		if !reflect.DeepEqual(values, rowSecurityMetadataRow("off", "session")) {
-			s.t.Fatalf("held metadata: %#v", values)
+			s.T.Fatalf("held metadata: %#v", values)
 		}
 		if rows.Next() || rows.Err() != nil {
-			s.t.Fatal("held metadata tail", rows.Err())
+			s.T.Fatal("held metadata tail", rows.Err())
 		}
 		rows.Close()
-		if s.backend.PG {
-			s.exec("SET row_security=on")
+		if s.Backend.PG {
+			s.Exec("SET row_security=on")
 		}
 		rowSecurityMetadata(s, "on", "session")
 	})

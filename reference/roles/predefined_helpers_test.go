@@ -25,7 +25,7 @@ var predefinedRoles = []struct {
 }
 
 // Shared membership fixture semantics, without ever creating/dropping builtins.
-func predefinedCases(t *testing.T, names []string, body func(*membershipScenario, *sql.DB), beforeScenario ...func(*testing.T)) {
+func predefinedCases(t *testing.T, names []string, body func(*fixture.RoleMembershipScenario, *sql.DB), beforeScenario ...func(*testing.T)) {
 	t.Helper()
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprintf("prepared=%v", prepared), func(t *testing.T) {
@@ -46,13 +46,13 @@ func predefinedCases(t *testing.T, names []string, body func(*membershipScenario
 					if b.PG {
 						bootstrap = "stuntgres"
 					}
-					s := &membershipScenario{t, p, b, c, record, &notices, prepared, bootstrap}
+					s := &fixture.RoleMembershipScenario{T: t, P: p, Backend: b, C: c, Record: record, Notices: &notices, Prepared: prepared, Bootstrap: bootstrap}
 					defer c.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
 					if b.PG {
-						s.exec("GRANT USAGE ON SCHEMA public TO PUBLIC")
+						s.Exec("GRANT USAGE ON SCHEMA public TO PUBLIC")
 					}
 					for _, name := range names {
-						s.exec("CREATE ROLE " + name + " LOGIN")
+						s.Exec("CREATE ROLE " + name + " LOGIN")
 					}
 					body(s, db)
 				})
@@ -61,70 +61,70 @@ func predefinedCases(t *testing.T, names []string, body func(*membershipScenario
 	}
 }
 
-func predefinedSelect(s *membershipScenario, q string, columns, types []string, rows [][]any) {
-	s.t.Helper()
-	s.run(fixture.Select(q, columns, types, rows))
+func predefinedSelect(s *fixture.RoleMembershipScenario, q string, columns, types []string, rows [][]any) {
+	s.T.Helper()
+	s.Run(fixture.Select(q, columns, types, rows))
 }
 
-func predefinedFailure(s *membershipScenario, q string, d fixture.Diagnostic, query bool, stage string) {
-	s.t.Helper()
+func predefinedFailure(s *fixture.RoleMembershipScenario, q string, d fixture.Diagnostic, query bool, stage string) {
+	s.T.Helper()
 	d.Severity, d.SeverityUnlocalized = "ERROR", "ERROR"
 	step := fixture.ErrorDiagnostic(q, d)
 	step.SelectRows = query
 	step.ErrorStage = "execute"
-	if s.prepared {
+	if s.Prepared {
 		step.ErrorStage = stage
 	}
-	s.run(step)
+	s.Run(step)
 }
 
-func predefinedDenied(s *membershipScenario, q, message string, query bool) {
-	s.t.Helper()
+func predefinedDenied(s *fixture.RoleMembershipScenario, q, message string, query bool) {
+	s.T.Helper()
 	predefinedFailure(s, q, fixture.Diagnostic{Code: "42501", Message: message}, query, "execute")
 }
 
-func predefinedRows(s *membershipScenario, target string, rows [][]any) {
-	s.t.Helper()
+func predefinedRows(s *fixture.RoleMembershipScenario, target string, rows [][]any) {
+	s.T.Helper()
 	predefinedSelect(s, "SELECT id,v FROM "+target+" ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, rows)
 }
 
-func predefinedDataSetup(s *membershipScenario) {
-	s.t.Helper()
-	s.exec("CREATE SCHEMA pdef_ad")
-	s.exec("CREATE TABLE pdef_ad.t(id INT,v TEXT)")
-	s.run(fixture.Exec("INSERT INTO pdef_ad.t VALUES(1,'a'),(2,'b')", 2))
-	s.exec("CREATE VIEW pdef_ad.v AS SELECT id,v FROM pdef_ad.t")
+func predefinedDataSetup(s *fixture.RoleMembershipScenario) {
+	s.T.Helper()
+	s.Exec("CREATE SCHEMA pdef_ad")
+	s.Exec("CREATE TABLE pdef_ad.t(id INT,v TEXT)")
+	s.Run(fixture.Exec("INSERT INTO pdef_ad.t VALUES(1,'a'),(2,'b')", 2))
+	s.Exec("CREATE VIEW pdef_ad.v AS SELECT id,v FROM pdef_ad.t")
 	// CREATE MATERIALIZED VIEW's SELECT tag reports the population count.
-	s.run(fixture.Exec("CREATE MATERIALIZED VIEW pdef_ad.mv AS SELECT id,v FROM pdef_ad.t", 2))
-	s.exec("CREATE SEQUENCE pdef_ad.s START 10")
+	s.Run(fixture.Exec("CREATE MATERIALIZED VIEW pdef_ad.mv AS SELECT id,v FROM pdef_ad.t", 2))
+	s.Exec("CREATE SEQUENCE pdef_ad.s START 10")
 }
 
 func predefinedInitialRows() [][]any { return [][]any{{int64(1), "a"}, {int64(2), "b"}} }
 
-func predefinedHeld(s *membershipScenario, q string) fixture.HeldStatement {
-	s.t.Helper()
-	stmt, err := s.c.PrepareContext(s.p.Ctx, q)
+func predefinedHeld(s *fixture.RoleMembershipScenario, q string) fixture.HeldStatement {
+	s.T.Helper()
+	stmt, err := s.C.PrepareContext(s.P.Ctx, q)
 	if err != nil {
-		s.t.Fatal(err)
+		s.T.Fatal(err)
 	}
-	s.t.Cleanup(func() {
+	s.T.Cleanup(func() {
 		if err := stmt.Close(); err != nil {
-			s.t.Error(err)
+			s.T.Error(err)
 		}
 	})
-	return fixture.HeldStatement{Executor: s.c, Statement: stmt, SQL: q}
+	return fixture.HeldStatement{Executor: s.C, Statement: stmt, SQL: q}
 }
 
-func predefinedPhysical(s *membershipScenario, name string) (driver.Conn, error) {
-	s.t.Helper()
-	if s.backend.PG {
-		return roleAttributesPhysical(s.t, s.p, s.backend, name)
+func predefinedPhysical(s *fixture.RoleMembershipScenario, name string) (driver.Conn, error) {
+	s.T.Helper()
+	if s.Backend.PG {
+		return fixture.RoleAttributesPhysical(s.T, s.P, s.Backend, name)
 	}
 	// NewScenario belongs to the prepared subtest, not its backend child.
-	dsn := "reference/" + strings.TrimSuffix(s.t.Name(), "/"+s.backend.Name)
-	connector, err := s.p.NativeConnector.Driver().(*stuntgres.Driver).OpenConnectorAs(dsn, name)
+	dsn := "reference/" + strings.TrimSuffix(s.T.Name(), "/"+s.Backend.Name)
+	connector, err := s.P.NativeConnector.Driver().(*stuntgres.Driver).OpenConnectorAs(dsn, name)
 	if err != nil {
-		s.t.Fatal(err)
+		s.T.Fatal(err)
 	}
-	return connector.Connect(s.p.Ctx)
+	return connector.Connect(s.P.Ctx)
 }

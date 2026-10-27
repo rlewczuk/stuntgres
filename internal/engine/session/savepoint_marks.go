@@ -39,7 +39,7 @@ type SettingsMark struct {
 	Typed       map[string]settings.Value
 	Actions     map[string]settingAction
 	RoleAction  roleSettingAction
-	CurrentRole authorization.PrincipalRef
+	CurrentRole roleSetting
 	NestLevel   int
 }
 
@@ -55,7 +55,7 @@ func (s *SettingsStore) Savepoint() SettingsMark {
 	if s.Session != nil {
 		s.Session.Mu.Lock()
 		if s.Session.Authorization != nil {
-			m.CurrentRole = s.Session.Authorization.State.CurrentUser
+			m.CurrentRole = captureRole(s.Session.Authorization.State)
 		}
 		s.Session.Mu.Unlock()
 	}
@@ -71,7 +71,7 @@ func (s *SettingsStore) RestoreSavepointLocked(candidate SettingsMark, identity 
 	s.RoleAction = candidate.RoleAction
 	s.NestLevel = candidate.NestLevel
 	if s.Session != nil {
-		identity.CurrentUser = candidate.CurrentRole
+		candidate.CurrentRole.restore(&identity)
 		s.RestoreIdentityLocked(identity)
 		s.Session.PublishTimeoutSettingsLocked(s, false, time.Now())
 	}

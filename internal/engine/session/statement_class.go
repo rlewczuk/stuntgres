@@ -231,7 +231,7 @@ func ModifyingTag(stmt parser.Statement) string {
 			return "REVOKE ROLE"
 		}
 		return "GRANT ROLE"
-	case *parser.AlterRole:
+	case *parser.AlterRole, *parser.RenameRole, *parser.AlterRoleSettings:
 		return "ALTER ROLE"
 	case *parser.DropRole:
 		return "DROP ROLE"
@@ -276,6 +276,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
 		return true
 	case *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
+		return true
+	case *parser.RenameRole, *parser.AlterRoleSettings:
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true

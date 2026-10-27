@@ -7,7 +7,7 @@ import (
 )
 
 func TestReferenceRoleOwnershipTransactionalRoleCandidates(t *testing.T) {
-	ownershipTransactionCases(t, func(s *membershipScenario, route string) {
+	ownershipTransactionCases(t, func(s *fixture.RoleMembershipScenario, route string) {
 		ownershipSeed(s, "tx_candidate_authority", "own_middle")
 		ownershipSeed(s, "tx_candidate_nil", "own_other")
 		for _, q := range []string{
@@ -17,18 +17,18 @@ func TestReferenceRoleOwnershipTransactionalRoleCandidates(t *testing.T) {
 			"GRANT own_middle TO own_downstream WITH INHERIT TRUE GRANTED BY own_actor",
 			"COMMENT ON ROLE own_source IS 'committed'",
 		} {
-			s.exec(q)
+			s.Exec(q)
 		}
-		peer, err := s.backend.DB.Conn(s.p.Ctx)
+		peer, err := s.Backend.DB.Conn(s.P.Ctx)
 		if err != nil {
-			s.t.Fatal(err)
+			s.T.Fatal(err)
 		}
 		defer peer.Close()
 		first, second, nilStage := "DROP OWNED BY own_source", "DROP OWNED BY own_actor", "ALTER TABLE tx_candidate_nil OWNER TO own_target"
 		state := func(e fixture.Executor, reader, downstream bool, comment string) {
-			s.t.Helper()
-			fixture.RunStep(s.t, s.p.Ctx, e, s.record, fixture.Select("SELECT pg_has_role('own_reader','own_middle','MEMBER') AS reader_member,pg_has_role('own_reader','own_middle','USAGE') AS reader_usage,pg_has_role('own_reader','own_middle','SET') AS reader_set,pg_has_role('own_downstream','own_middle','MEMBER') AS downstream_member,pg_has_role('own_downstream','own_middle','USAGE') AS downstream_usage,pg_has_role('own_downstream','own_middle','SET') AS downstream_set", []string{"reader_member", "reader_usage", "reader_set", "downstream_member", "downstream_usage", "downstream_set"}, []string{"BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{reader, reader, reader, downstream, downstream, downstream}}))
-			fixture.RunStep(s.t, s.p.Ctx, e, s.record, fixture.Select("SELECT shobj_description(oid,'pg_authid') AS comment FROM pg_roles WHERE rolname='own_source'", []string{"comment"}, []string{"TEXT"}, [][]any{{comment}}))
+			s.T.Helper()
+			fixture.RunStep(s.T, s.P.Ctx, e, s.Record, fixture.Select("SELECT pg_has_role('own_reader','own_middle','MEMBER') AS reader_member,pg_has_role('own_reader','own_middle','USAGE') AS reader_usage,pg_has_role('own_reader','own_middle','SET') AS reader_set,pg_has_role('own_downstream','own_middle','MEMBER') AS downstream_member,pg_has_role('own_downstream','own_middle','USAGE') AS downstream_usage,pg_has_role('own_downstream','own_middle','SET') AS downstream_set", []string{"reader_member", "reader_usage", "reader_set", "downstream_member", "downstream_usage", "downstream_set"}, []string{"BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{reader, reader, reader, downstream, downstream, downstream}}))
+			fixture.RunStep(s.T, s.P.Ctx, e, s.Record, fixture.Select("SELECT shobj_description(oid,'pg_authid') AS comment FROM pg_roles WHERE rolname='own_source'", []string{"comment"}, []string{"TEXT"}, [][]any{{comment}}))
 		}
 		for _, commit := range []bool{false, true} {
 			if route == "auto" && !commit {
@@ -85,7 +85,7 @@ func TestReferenceRoleOwnershipTransactionalRoleCandidates(t *testing.T) {
 		// Source endpoint membership is not removed by DROP OWNED.
 		ownershipBool(s, "SELECT pg_has_role('own_source','own_middle','MEMBER')", true)
 		ownershipBool(s, "SELECT pg_has_role('own_actor','own_middle','MEMBER')", true)
-		s.exec("DROP ROLE own_source")
-		s.exec("DROP ROLE own_actor")
+		s.Exec("DROP ROLE own_source")
+		s.Exec("DROP ROLE own_actor")
 	})
 }

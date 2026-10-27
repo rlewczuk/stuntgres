@@ -9,9 +9,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// normalizeCatalogName implements GUC_IS_NAME, without SQL identifier folding.
+// NormalizeCatalogName implements GUC_IS_NAME, without SQL identifier folding.
 // Catalog hooks see the clipped candidate; its NOTICE precedes hook failure too.
-func normalizeCatalogName(input string) (string, *sqlstate.Error, error) {
+func NormalizeCatalogName(input string) (string, *sqlstate.Error, error) {
 	if !utf8.ValidString(input) || strings.IndexByte(input, 0) >= 0 {
 		return "", nil, errors.New("stuntgres: invalid UTF-8 or NUL setting")
 	}

@@ -51,15 +51,19 @@ No parallel language-permission table or cached grant decision exists.
   diagnostics. Both are read at call time, never captured, and only when a
   check needs them (a TEMP namespace, a type denial). Keep it exactly two
   methods wide: it is not a service locator.
-- **Roles** (`roles.go`): `RoleRecord` (a committed root and its revision,
-  with `Advance`) and `RoleRead`, the role view of a record as seen by a
-  catalog read's database owner.
-  `Advance` changes only the revision and preserves a normalized immutable
-  authority origin; an actual root mutation constructs a fresh record.
-  `SameAuthority` is the fast path for checked ACL-only publication and the
-  selected pending-statement authority fence. It is not a blanket completed
-  publication permission: compatible actual roots use the existing explicit
-  merge. It never replaces exact `Stamp` validation or caches permission.
+- **Roles** (`roles.go`): `RoleRecord` pairs the principal graph, immutable
+  `Settings` root and complete-record revision. `Advance` retains both roots;
+  `WithRoot` preserves settings and creates fresh graph lineage; `WithSettings`
+  preserves graph lineage. `SameAuthority` compares only principal authority,
+  never complete-record equality or settings predecessors. Exact `Stamp`
+  validation remains distinct from compatible-root merges.
+- **Persisted defaults** (`role_settings.go`): `RoleSettings` owns persistent
+  scope rows keyed by actual database addresses and principal references; zero
+  means ALL. `WithRow` copies caller input and shares unchanged rows. `Lookup`
+  and deterministic `Rows` lend read-only backing. Empty rows are absent.
+  `MergeRoleSettings` merges disjoint exact row predecessors and rejects a
+  conflicting or canceled merge; `WithoutRoles` performs atomic retirement
+  cleanup without changing retained roots.
 - **Role store** (`role_store.go`): `RoleStore`, the engine's role state:
   the principal `Domain`, the `ACLAuthority`, the committed `Published`
   record and the principal, revision and membership-row OID allocators. It has no mutex; the
@@ -82,9 +86,11 @@ No parallel language-permission table or cached grant decision exists.
     at each mapping; `ACLItemImporter` reowns typed aclitem values from the
     source store's ACL authority; `ValidateReplacementACLsLocked` checks a
     replacement's ACLs against the committed roles. `CaptureLocked` and
-    `InstallCapture` copy a committed record, principal frontier and membership
-    OID frontier into a private Restore stage's domain. `PrincipalRemap` takes the
-    seeded-operator predicate as a value.
+    `InstallCapture` copy the committed graph, principal frontier and membership
+    OID frontier into a private Restore stage's domain, deliberately omitting
+    persisted defaults. Destination defaults remain cluster authority, not replay
+    input or imported state. `PrincipalRemap` takes the seeded-operator predicate
+    as a value.
 - **Ownership** (`ownership.go`): `OwnershipSuccessor`,
   `OwnershipEligibility`, `OwnershipDatabaseCreate`, `SchemaOwner` and
   `OwnershipRoleOperand`, which share the `current_user`/`session_user`

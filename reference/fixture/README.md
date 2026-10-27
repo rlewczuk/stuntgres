@@ -177,6 +177,25 @@ production dependency is involved.
   from the `RoleGrantDenied` step constructor), `RoleGrantError`,
   `RoleGrantSyntax`, `RoleGrantEnvironment`, and `RoleGrantNoticeExec` (quiet
   Prepare, close, execute, ordered notices).
+- **Shared role runtime** (`role_runtime.go`): `RoleAttributesRun`, `Pool` and
+  `Physical` use the scenario's exact cluster and trusted/oracle login;
+  `RoleTransactionBegin`, `Step`, `Conn`, `PID` and `Wait` preserve transaction,
+  actual role-lock admission and joined-owner conventions. `RoleTransactionIdentity`,
+  `Exists`, `ValidOID` and independent `RolePasswordKeys`/`Encoded` supply shared
+  assertions for role identity and persisted-default catalog families.
+  `RoleScenarioNameScan`, `Command` and `Identity` retain exact metadata and
+  held/direct identity assertions.
+- **Role membership** (`role_membership.go`): `RoleMembershipScenario` exposes the
+  original `T`, `P`, `Backend`, `C`, `Record`, `Notices`, `Prepared` and `Bootstrap`
+  state. `RoleMembershipCases`/`CasesFor` register role cleanup and create LOGIN
+  actors for each backend/prepared mode. `Run`/`Exec`/`Actor`, exact failures,
+  membership flags and notices share one pinned notice-enabled connection.
+  `Bootstrap` is `postgres` natively and `stuntgres` on the oracle. Family wrappers
+  keep their own setup; copies used for alternate owners retain existing cleanup.
+- **Role inquiries** (`access_role.go`): `AccessRoleCases`, `Metadata`, `Select`,
+  `Bool`, `OID`, `Vector`, `Graph`, `Table`, `RuntimeError` and `HeldBool` share the
+  membership scenario across `roles` and `object_address`, preserving strict
+  Boolean descriptors, schema setup, direct/held routes and complete diagnostics.
 - **Operator aliases.** `regoperator.go` owns `RegOperatorRows`, `Metadata`,
   `DiagnosticRoutes`, `Error`, `Literal` and `Context`, shared by `operators` and
   `type_resolution`.

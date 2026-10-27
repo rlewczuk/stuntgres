@@ -582,6 +582,29 @@ frontier (including unpublished DDL reservations) and skips imported definition 
 Local object allocation also reserves projected database identities; registering
 a target cannot invalidate stored definitions in an existing or newly copied root.
 
+Persisted defaults share the immutable role publication and its existing
+transaction journal. Scope keys use principal references and cluster database
+identities, never names or local replacement epochs. Settings-only writes retain
+graph authority lineage but still participate in complete-record three-way
+merge, savepoints and final publication. Scope writers use cluster lock authority.
+Physical startup captures one committed defaults root for the login principal
+and selected database before callbacks; provider-present values win per name.
+Typed reset values and their sources remain fixed for that physical lifetime.
+Startup role selection does not recursively load another role's defaults.
+The existing physical `SessionRoleState` capture supplies SHOW/current_setting
+and FROM CURRENT role text, independently of definer/replay/RI effective actors
+and live descriptor renames. Startup retains the accepted reset ref/text pair,
+including active self selection. Explicit session authorization clears the role;
+RESET/DEFAULT and DISCARD restore the captured pair. Persisted role validation
+uses the same source-independent restricted-parameter guard as live mutation.
+Validation clips a local role candidate with `settings.NormalizeCatalogName`
+before lookup but retains original extracted catalog text. Startup normalizes
+only the selected provider-or-persisted input and captures that accepted text
+for both live and reset role state; clipping NOTICE precedes lookup diagnostics.
+Rejected persisted startup roles warn and retain login identity; callbacks run
+outside locks. Private Restore bypasses persisted startup defaults, while
+destination defaults survive replacement.
+
 Creation clones/remints a lazily retained immutable real UTF8/C builtin seed,
 not the application's changing default database. Mutable rows, indexes and
 sequence generators are independent. Copied system owners remain bootstrap

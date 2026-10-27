@@ -36,6 +36,9 @@ import this package directly.
   `Definition.Parse`/`Format`, base-unit `Raw` and current-catalog `CurrentRaw`,
   PostgreSQL-compatible number scanning (`ParseNumber`, also used for storage
   options) and memory/time units.
+  `NormalizeCatalogName` supplies case-preserving, UTF8-safe 63-byte GUC name
+  clipping for catalog hooks and special role validation/startup; callers emit
+  its returned NOTICE before lookup diagnostics.
 - **Search path** (`search_path.go`): the pure list parser. Namespace and ACL
   resolution are in `analyze` (`search_path.go`).
 - **Registry** (`registry.go`): `NewRegistry(registered,

@@ -41,13 +41,15 @@ if err := stuntgres.Restore(ctx, db, bytes.NewReader(seed.Bytes())); err != nil 
 Atomically replaces the catalog with a freshly initialized one: user objects and
 data are removed and the built-in `pg_catalog`, `pg_toast`, `public` and
 `information_schema` namespaces are recreated. Database identity and attachment
-owner/ACL authority, roles and their committed shared comments, live sessions and
-their settings, existing pools and non-reusable counters (such as transaction
-IDs) are kept.
+owner/ACL authority, roles and their committed shared comments and role/database
+defaults, live sessions and their captured settings, existing pools and
+non-reusable counters (such as transaction IDs) are kept.
 Shared memberships, their stable row OIDs and the nonreusable membership
 reservation frontier are retained by both Reset and Restore. Restore's private
 staging capture preserves these values without replacing destination shared
 authority; Dump never serializes membership identities or GRANT commands.
+Persisted defaults remain destination cluster authority during Restore; private
+replay does not apply or import them.
 
 ## Dump
 

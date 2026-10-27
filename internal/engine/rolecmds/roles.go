@@ -38,13 +38,22 @@ func ExecuteRole(e *core.Engine, op *session.Operation, stmt parser.Statement, c
 		if err != nil {
 			return core.Result{}, err
 		}
-		return core.Result{}, switchSessionRoleLocked(e, op, target, s.Local, false)
+		return core.Result{}, switchSessionRoleLocked(e, op, target, s.Local)
 	case *parser.SessionAuthorization:
 		target, err := role.SessionAuthorizationTarget(v.View, s)
 		if err != nil {
 			return core.Result{}, err
 		}
-		return core.Result{}, switchSessionRoleLocked(e, op, target, false, true)
+		state := v.SessionRoleState
+		state.SessionUser, state.CurrentUser = target, target
+		state.ActiveRole, state.RoleText = false, ""
+		if s.Default && state.ResetRole != (authorization.PrincipalRef{}) {
+			if _, err := v.Roles.Descriptor(state.ResetRole); err != nil {
+				return core.Result{}, err
+			}
+			state.CurrentUser, state.ActiveRole, state.RoleText = state.ResetRole, true, state.ResetRoleText
+		}
+		return core.Result{}, switchSessionRoleLocked(e, op, state, false)
 	case *parser.DropRole:
 		plan, err := role.PlanDropRoles(RoleHost{core.DDLHost{E: e, Op: op}}, v, s)
 		if err != nil {
@@ -55,12 +64,10 @@ func ExecuteRole(e *core.Engine, op *session.Operation, stmt parser.Statement, c
 	return core.Result{}, fmt.Errorf("stuntgres: invalid role statement")
 }
 
-// switchSessionRoleLocked makes target op's current user, and its session
-// user too when sessionUser is set (SET SESSION AUTHORIZATION). local marks a
-// SET LOCAL ROLE for the role setting's restore point. The caller holds
-// Engine.mu; this takes Settings.Mu, then Session.Mu, and releases both
-// before it returns.
-func switchSessionRoleLocked(e *core.Engine, op *session.Operation, target authorization.PrincipalRef, local, sessionUser bool) error {
+// switchSessionRoleLocked installs the complete decided physical identity and
+// journals the role GUC before publication. Engine.Mu is held; lock order is
+// Settings.Mu then Session.Mu.
+func switchSessionRoleLocked(e *core.Engine, op *session.Operation, target authorization.RoleState, local bool) error {
 	sess := op.Session
 	settings := sess.Settings
 	settings.Mu.Lock()
@@ -76,11 +83,8 @@ func switchSessionRoleLocked(e *core.Engine, op *session.Operation, target autho
 		return err
 	}
 	touchOperationIdentityLocked(op)
-	settings.TouchRole(a.State.CurrentUser, local)
-	if sessionUser {
-		a.State.SessionUser = target
-	}
-	a.State.CurrentUser = target
+	settings.TouchRole(a.State, local)
+	a.State = target
 	a.Revision++
 	return nil
 }
@@ -96,14 +100,16 @@ func publishDroppedRolesLocked(e *core.Engine, op *session.Operation, plan role.
 	if err := core.InstallOperationRolesLocked(e, op, plan.Roles); err != nil {
 		return core.Result{}, err
 	}
-	if t := op.Session.Transactions; t.State == session.TxActive || t.RetainsTransaction() {
-		// installOperationRolesLocked cloned the same catalog owner; no saved
-		// candidate shares this mutable set. Standalone publication needs none.
-		if t.Catalog.RetiredRoles == nil {
-			t.Catalog.RetiredRoles = make(map[authorization.PrincipalRef]struct{}, len(plan.Retired))
+	scope := core.ActiveScopeOfLease(op.Lease)
+	if t := op.Session.Transactions; t.State == session.TxActive || t.RetainsTransaction() || scope != nil && scope.Catalog != nil {
+		// The installer cloned this exact operation journal; savepoint roots
+		// never share its mutable retirement set.
+		c := core.OperationCatalog(op)
+		if c.RetiredRoles == nil {
+			c.RetiredRoles = make(map[authorization.PrincipalRef]struct{}, len(plan.Retired))
 		}
 		for _, ref := range plan.Retired {
-			t.Catalog.RetiredRoles[ref] = struct{}{}
+			c.RetiredRoles[ref] = struct{}{}
 		}
 	}
 	return core.Result{}, nil

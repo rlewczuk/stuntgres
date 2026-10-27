@@ -37,6 +37,10 @@ func capturePGRoles(in Input) ([][]sqltype.Value, error) {
 		if err != nil {
 			return nil, err
 		}
+		config, err := roleConfig(in, principal, source.Columns[11].Usage.Type)
+		if err != nil {
+			return nil, err
+		}
 		rows = append(rows, []sqltype.Value{
 			sqltype.String(source.Columns[0].Usage.Type, role.Name),
 			sqltype.Boolean(source.Columns[1].Usage.Type, role.Superuser),
@@ -48,7 +52,7 @@ func capturePGRoles(in Input) ([][]sqltype.Value, error) {
 			limit,
 			sqltype.String(source.Columns[8].Usage.Type, "********"), expiry,
 			sqltype.Boolean(source.Columns[10].Usage.Type, role.BypassRLS),
-			sqltype.Null(source.Columns[11].Usage.Type), id,
+			config, id,
 		})
 	}
 	if err := ctx.Err(); err != nil {

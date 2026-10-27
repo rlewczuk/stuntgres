@@ -881,6 +881,9 @@ package parser
 %type <roleOptions> role_options
 %type <integer> role_limit
 %type <tok> alter_role_target
+%type <stmt> role_setting_action
+%type <tok> role_alias current_setting_word
+%type <identifier> role_setting_database
 %type <tables> schema_tables
 %type <table> schema_table
 %type <tok> schema_owner
@@ -3859,22 +3862,29 @@ create_role: CREATE role_kind role_name optional_with role_options {
  $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},DefaultLogin:$2,Options:$5}
  } ;
 alter_role_target: name | CURRENT_ROLE | CURRENT_USER | SESSION_USER ;
-alter_role: ALTER ROLE alter_role_target optional_with role_options {
+alter_role: ALTER role_alias alter_role_target optional_with role_options {
  if !$5.alter(sqllex) {return 1}
  identity:=""; if $3.keyword!=nil && ($3.text=="current_role" || $3.text=="current_user" || $3.text=="session_user") {identity=$3.text}
  $$=&AlterRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Identity:identity,Options:$5}
  }
- | ALTER USER alter_role_target optional_with role_options {
- if !$5.alter(sqllex) {return 1}
- identity:=""; if $3.keyword!=nil && ($3.text=="current_role" || $3.text=="current_user" || $3.text=="session_user") {identity=$3.text}
- $$=&AlterRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Identity:identity,Options:$5}
+ | ALTER role_alias alter_role_target RENAME TO role_name {$$=&RenameRole{Role:roleSettingSpec($3),Name:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER role_alias alter_role_target role_setting_database role_setting_action {
+ s:=$5.(*AlterRoleSettings);s.Role=roleSettingSpec($3);s.Database=$4;s.Pos=$1.pos;$$=s
  }
- | ALTER ROLE alter_role_target SET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
- | ALTER ROLE alter_role_target RESET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
- | ALTER ROLE alter_role_target RENAME {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
- | ALTER USER alter_role_target SET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
- | ALTER USER alter_role_target RESET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
- | ALTER USER alter_role_target RENAME {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1} ;
+ | ALTER role_alias ALL role_setting_database role_setting_action {
+ s:=$5.(*AlterRoleSettings);s.All=true;s.Database=$4;s.Pos=$1.pos;$$=s
+ } ;
+role_alias: ROLE | USER ;
+role_setting_database: /* empty */ {$$=nil}
+ | IN DATABASE name {$$=&Identifier{Text:$3.text,Pos:$3.pos}} ;
+current_setting_word: KW_U {if $1.keyword==nil || $1.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+role_setting_action: SET setting_name setting_assignment setting_values {$$=&AlterRoleSettings{Set:parsedSet($2.identifier(),$4,$1.pos)}}
+ | SET setting_name setting_assignment DEFAULT {$$=&AlterRoleSettings{Set:&Set{Name:$2.identifier(),Default:true,Pos:$1.pos}}}
+ | SET setting_name FROM current_setting_word {$$=&AlterRoleSettings{Set:&Set{Name:$2.identifier(),Pos:$1.pos},FromCurrent:true}}
+ | SET TIME ZONE zone_setting {$4.Name=Identifier{Text:"timezone",Pos:$2.pos};$4.Pos=$1.pos;$$=&AlterRoleSettings{Set:$4}}
+ | RESET setting_name {$$=&AlterRoleSettings{Reset:&Reset{Name:$2.identifier(),Pos:$1.pos}}}
+ | RESET TIME ZONE {$$=&AlterRoleSettings{Reset:&Reset{Name:Identifier{Text:"timezone",Pos:$2.pos},Pos:$1.pos}}}
+ | RESET ALL {$$=&AlterRoleSettings{Reset:&Reset{All:true,Pos:$1.pos}}} ;
 /* IF remains a name unless followed by EXISTS; that lookahead cannot continue
  * an ordinary comma-list. Defer exclusion so malformed suffixes stay 42601. */
 drop_role: DROP role_kind names { $$=&DropRole{Names:$3} }

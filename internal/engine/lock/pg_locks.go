@@ -81,7 +81,7 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 	// Only shared-role participants extend the established database-local view.
 	shared := make(map[*Ticket]bool)
 	for resource, entry := range m.entries {
-		if m.roleDomain == nil || resource.Domain() != m.roleDomain || resource.Kind != OrdinaryResource {
+		if m.roleDomain == nil || resource.Domain() != m.roleDomain || resource.Kind != OrdinaryResource && resource.Kind != RoleSettingResource {
 			continue
 		}
 		for ticket := range entry.holders {
@@ -136,7 +136,7 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 			resource.Name.ClassID != ids.StatisticExtClassID && resource.Name.ClassID != ids.CollationClassID && resource.Name.ClassID != ids.ConversionClassID && resource.Name.ClassID != ids.CastClassID {
 			continue
 		}
-		catalogACL := resource.Kind == CatalogACLResource || resource.Kind == DefaultACLResource
+		catalogACL := resource.Kind == CatalogACLResource || resource.Kind == DefaultACLResource || resource.Kind == RoleSettingResource
 		if (resource.Kind == OrdinaryResource || catalogACL) && resource.completion == nil && resource.Domain() != m.roleDomain && (resource.Domain() != domain || resource.Epoch != epoch) ||
 			(resource.Kind == AdvisoryBigintResource || resource.Kind == AdvisoryPairResource) && resource.Database != domain {
 			continue

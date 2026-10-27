@@ -54,14 +54,10 @@ func TestReferenceInfoTablePrivilegesLifecycle(t *testing.T) {
 			c.seed()
 			c.exec("CREATE SCHEMA tp_moved", "SET ROLE tp_o", "GRANT SELECT ON tp_t TO tp_r", "RESET ROLE")
 			c.check(c.conn, "tp_t", "tp_r", c.r("SELECT", "NO"))
-			// Role rename SQL is not native admission; the native frontier unit
-			// publishes renamed role descriptors and checks the same ACL endpoints.
-			if c.b.PG {
-				c.exec("ALTER ROLE tp_r RENAME TO tp_renamed", "ALTER ROLE tp_o RENAME TO tp_xowner")
-				c.check(c.conn, "tp_t", "tp_r")
-				c.check(c.conn, "tp_t", "tp_renamed", c.row("tp_xowner", "tp_renamed", "public", "tp_t", "SELECT", "NO"))
-				c.exec("ALTER ROLE tp_xowner RENAME TO tp_o", "ALTER ROLE tp_renamed RENAME TO tp_r")
-			}
+			c.exec("ALTER ROLE tp_r RENAME TO tp_renamed", "ALTER ROLE tp_o RENAME TO tp_xowner")
+			c.check(c.conn, "tp_t", "tp_r")
+			c.check(c.conn, "tp_t", "tp_renamed", c.row("tp_xowner", "tp_renamed", "public", "tp_t", "SELECT", "NO"))
+			c.exec("ALTER ROLE tp_xowner RENAME TO tp_o", "ALTER ROLE tp_renamed RENAME TO tp_r")
 			c.exec("ALTER TABLE tp_t RENAME TO tp_later", "ALTER TABLE tp_later SET SCHEMA tp_moved")
 			c.check(c.conn, "tp_t", "tp_r")
 			c.check(c.conn, "tp_later", "tp_r", c.row("tp_o", "tp_r", "tp_moved", "tp_later", "SELECT", "NO"))

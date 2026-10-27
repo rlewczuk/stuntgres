@@ -58,7 +58,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Authorization.State.CurrentUser != login.Ref || s.Authorization.State.ResetRole != (authorization.PrincipalRef{}) {
+		if s.Authorization.State.CurrentUser != login.Ref || s.Authorization.State.ResetRole != (authorization.PrincipalRef{}) || s.Authorization.State.ActiveRole || s.Authorization.State.RoleText != "" || s.Authorization.State.ResetRoleText != "" {
 			t.Fatal(s.Authorization.State)
 		}
 		s.RequestEnd(session.CleanClose)

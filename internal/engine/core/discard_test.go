@@ -1,10 +1,10 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/core"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -493,7 +493,10 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	})
 }
 
-type discardDefaultProvider struct{ calls int }
+type discardDefaultProvider struct {
+	calls int
+	role  string
+}
 
 func (p *discardDefaultProvider) SessionDefault(_ context.Context, d settings.Definition) (string, bool, error) {
 	p.calls++
@@ -501,38 +504,47 @@ func (p *discardDefaultProvider) SessionDefault(_ context.Context, d settings.De
 	case "application_name":
 		return "discard-configured", true, nil
 	case "role":
+		if p.role != "" {
+			return p.role, true, nil
+		}
 		return "discard_reset_role", true, nil
 	}
 	return "", false, nil
 }
 
 func TestDiscardConfiguredReset(t *testing.T) {
-	e := engine.New()
-	enginetest.Run(t, e, "CREATE ROLE discard_reset_role")
-	provider := &discardDefaultProvider{}
-	s := enginetest.StartSession(t, e, provider)
-	calls := provider.calls
-	reset, authenticated, counted := s.Authorization.State.ResetRole, s.Authorization.State.Authenticated, s.CountedAuthenticated
-	// Alter genuine owner overrides without inventing connector options.
-	s.Settings.Values["application_name"] = "changed"
-	s.Settings.Typed["application_name"] = settings.Value{Text: "changed"}
-	s.Settings.Placeholders["discard.placeholder"] = true
-	s.Settings.Values["discard.placeholder"] = "changed"
-	s.Settings.Typed["discard.placeholder"] = settings.Value{Text: "changed"}
-	s.Authorization.State.CurrentUser = authenticated
-	discardUnitApply(t, s, parser.DiscardAll)
-	if provider.calls != calls || s.Settings.Value("application_name") != "discard-configured" || !s.Settings.Placeholders["discard.placeholder"] || s.Authorization.State.CurrentUser != reset || s.Authorization.State.SessionUser != authenticated || s.CountedAuthenticated != counted {
-		t.Fatal("ALL lost configured defaults/recognition/identity")
+	for _, name := range []string{"discard_reset_role", "postgres"} {
+		t.Run(name, func(t *testing.T) {
+			e := engine.New()
+			enginetest.Run(t, e, "CREATE ROLE discard_reset_role")
+			provider := &discardDefaultProvider{role: name}
+			s := enginetest.StartSession(t, e, provider)
+			calls := provider.calls
+			reset, authenticated, counted := s.Authorization.State.ResetRole, s.Authorization.State.Authenticated, s.CountedAuthenticated
+			captured := s.Authorization.State
+			// Alter genuine owner overrides without inventing connector options.
+			s.Settings.Values["application_name"] = "changed"
+			s.Settings.Typed["application_name"] = settings.Value{Text: "changed"}
+			s.Settings.Placeholders["discard.placeholder"] = true
+			s.Settings.Values["discard.placeholder"] = "changed"
+			s.Settings.Typed["discard.placeholder"] = settings.Value{Text: "changed"}
+			s.Authorization.State.CurrentUser = authenticated
+			s.Authorization.State.ActiveRole, s.Authorization.State.RoleText = false, ""
+			discardUnitApply(t, s, parser.DiscardAll)
+			if provider.calls != calls || s.Settings.Value("application_name") != "discard-configured" || !s.Settings.Placeholders["discard.placeholder"] || s.Authorization.State.CurrentUser != reset || s.Authorization.State.SessionUser != authenticated || s.Authorization.State != captured || s.CountedAuthenticated != counted {
+				t.Fatal("ALL lost configured defaults/recognition/identity")
+			}
+			before := s.Authorization.State
+			s.Authorization.Revision = ^uint64(0)
+			op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardAll)
+			_, err := core.ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardAll}, 0)
+			if err == nil || !reflect.DeepEqual(before, s.Authorization.State) || scope.Completed {
+				t.Fatal("revision exhaustion installed effects", err)
+			}
+			scope.Finish(err)
+			op.Done()
+		})
 	}
-	before := s.Authorization.State
-	s.Authorization.Revision = ^uint64(0)
-	op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardAll)
-	_, err := core.ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardAll}, 0)
-	if err == nil || !reflect.DeepEqual(before, s.Authorization.State) || scope.Completed {
-		t.Fatal("revision exhaustion installed effects", err)
-	}
-	scope.Finish(err)
-	op.Done()
 }
 
 // currvalIs reports whether a session memory holds currval want.

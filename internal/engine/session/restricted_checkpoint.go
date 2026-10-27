@@ -20,7 +20,8 @@ func cloneInvocationSettings(source *SettingsStore) *SettingsStore {
 		Defaults:             maps.Clone(source.Defaults), Values: maps.Clone(source.Values),
 		Typed: maps.Clone(source.Typed), DefaultTyped: maps.Clone(source.DefaultTyped),
 		Placeholders: maps.Clone(source.Placeholders), ProviderDefaults: maps.Clone(source.ProviderDefaults),
-		Actions: maps.Clone(source.Actions), RoleAction: source.RoleAction, NestLevel: source.NestLevel,
+		DefaultSources: maps.Clone(source.DefaultSources),
+		Actions:        maps.Clone(source.Actions), RoleAction: source.RoleAction, NestLevel: source.NestLevel,
 		CurrentIsolation: source.CurrentIsolation, CurrentReadOnly: source.CurrentReadOnly, CurrentDeferrable: source.CurrentDeferrable,
 	}
 }

@@ -34,16 +34,8 @@ func TestReferenceInfoUserMappingsLifecycle(t *testing.T) {
 		held(iumProjection(b.PG, where, baseline))
 		run(fixture.Exec("COMMIT", 0))
 		held(iumProjection(b.PG, where, baseline))
-		mappedName := "ium_mapped"
-		renameRole := `ALTER ROLE ium_mapped RENAME TO "IUM Renamed Role"`
-		if b.PG {
-			run(fixture.Exec(renameRole, 0))
-			mappedName = "IUM Renamed Role"
-		} else {
-			s := fixture.Prepared(fixture.ImplicitError(renameRole, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}))
-			s.ErrorStage = "prepare"
-			run(s)
-		}
+		mappedName := "IUM Renamed Role"
+		run(fixture.Exec(`ALTER ROLE ium_mapped RENAME TO "IUM Renamed Role"`, 0))
 		held(iumProjection(b.PG, where, iumRows(database, "ium_server", mappedName, "PUBLIC")))
 		run(fixture.Exec(`ALTER SERVER ium_server RENAME TO "IUM Renamed Server"`, 0))
 		held(iumProjection(b.PG, where, iumRows(database, "IUM Renamed Server", mappedName, "PUBLIC")))

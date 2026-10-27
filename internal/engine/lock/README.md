@@ -47,6 +47,12 @@ engine.
   padding. Keep Resource within its original compact layout and below Go's
   indirect map-key threshold; ordinary immediate/reentrant grants must remain
   zero-allocation, as the existing lock/timeout tests require.
+  Persisted role-default writers use `RoleSettingResource` in the shared role
+  domain: the full database address (zero for ALL) and principal ID in `High`
+  identify one exact row, with no extra resource fields or registry. Principal
+  retirement protection precedes this writer; grants live on the same transaction
+  ticket and restore through ordinary checkpoints. These internal claims project
+  blocker XIDs, never fabricated physical object tags.
 - **Queues and waits.** `StartAcquire` grants at once or returns the queued
   `Request`, which the caller waits on (`Wait`) after releasing its own
   locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,

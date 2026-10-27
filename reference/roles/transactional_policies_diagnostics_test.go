@@ -74,12 +74,12 @@ func TestReferenceTransactionalPoliciesDiagnostics(t *testing.T) {
 		}
 	})
 	t.Run("notices", func(t *testing.T) {
-		membershipCases(t, nil, func(s *membershipScenario) {
+		fixture.RoleMembershipCases(t, nil, func(s *fixture.RoleMembershipScenario) {
 			policySetup(s)
-			s.exec("BEGIN")
-			s.exec("DROP POLICY IF EXISTS absent ON t")
+			s.Exec("BEGIN")
+			s.Exec("DROP POLICY IF EXISTS absent ON t")
 			policyNotice(s, fixture.Diagnostic{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `policy "absent" for relation "t" does not exist, skipping`})
-			s.exec("ROLLBACK")
+			s.Exec("ROLLBACK")
 		})
 	})
 }

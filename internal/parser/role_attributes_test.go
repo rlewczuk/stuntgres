@@ -137,10 +137,9 @@ func TestRoleAttributesGrammarDiagnostics(t *testing.T) {
 		}
 	}
 	for _, query := range []string{"ALTER ROLE r SET application_name TO x", "ALTER ROLE r RESET ALL", "ALTER ROLE r RENAME TO other"} {
-		_, err := Parse(query)
-		var d *sqlstate.Error
-		if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "statement is unsupported" || d.Position != "1" {
-			t.Fatal("adjacent boundary", query, err)
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("selected role command", query, statements, err)
 		}
 	}
 }

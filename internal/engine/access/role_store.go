@@ -24,12 +24,12 @@ import (
 // publication point stays greppable. Transaction overlays of the role
 // publication live in session.Journal, not here.
 type RoleStore struct {
-	_             noCopy
-	Domain        authorization.Domain
-	ACLAuthority  sqltype.ACLAuthority
-	Published     *RoleRecord
-	nextPrincipal uint64
-	nextRevision  uint64
+	_                 noCopy
+	Domain            authorization.Domain
+	ACLAuthority      sqltype.ACLAuthority
+	Published         *RoleRecord
+	nextPrincipal     uint64
+	nextRevision      uint64
 	nextMembershipOID uint64
 }
 
@@ -126,8 +126,8 @@ func (s *RoleStore) AdvanceRevisionFrontierLocked(revision uint64) {
 // RoleCapture is a committed record and principal/membership frontiers, captured
 // together under Engine.mu.
 type RoleCapture struct {
-	record        *RoleRecord
-	nextPrincipal uint64
+	record            *RoleRecord
+	nextPrincipal     uint64
 	nextMembershipOID uint64
 }
 
@@ -137,10 +137,12 @@ func (s *RoleStore) CaptureLocked() RoleCapture {
 }
 
 // InstallCapture publishes a captured record in this store's domain, keeping
-// its revision and identity frontiers. It returns the source-to-target
+// its revision and identity frontiers. It returns the stage-to-source
 // principal map of the copy. The store must not be shared yet.
 func (s *RoleStore) InstallCapture(c RoleCapture) map[authorization.PrincipalRef]authorization.PrincipalRef {
 	targets := make(map[authorization.PrincipalRef]authorization.PrincipalRef, c.record.Root.Read(authorization.PrincipalRef{}).RoleCount())
+	// Restore stages copy graph authority only. Persisted defaults belong to
+	// the destination cluster and must neither affect replay nor be imported.
 	s.Published = &RoleRecord{Root: c.record.Root.Reprovenance(&s.Domain, targets), Revision: c.record.Revision}
 	s.nextPrincipal = c.nextPrincipal
 	s.nextMembershipOID = c.nextMembershipOID

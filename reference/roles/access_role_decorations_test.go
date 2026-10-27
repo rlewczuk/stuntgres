@@ -9,12 +9,12 @@ import (
 )
 
 func TestReferenceAccessRoleDecorations(t *testing.T) {
-	accessRoleCases(t, nil, func(s *membershipScenario) {
+	fixture.AccessRoleCases(t, nil, func(s *fixture.RoleMembershipScenario) {
 		for _, fn := range []struct {
 			name, args, badArgs, badTypes string
 			want                          bool
 		}{
-			{"pg_has_role", pq.QuoteLiteral(s.bootstrap) + ",'MEMBER'", "true,'MEMBER'", "boolean, unknown", true},
+			{"pg_has_role", pq.QuoteLiteral(s.Bootstrap) + ",'MEMBER'", "true,'MEMBER'", "boolean, unknown", true},
 			{"row_security_active", "0::oid", "true", "boolean", false},
 		} {
 			ordinary := "SELECT " + fn.name + "(" + fn.args + ")"
@@ -52,9 +52,9 @@ func TestReferenceAccessRoleDecorations(t *testing.T) {
 				} else if tc.d.Code == "42804" {
 					tc.d.Position = fixture.Position(strings.Index(tc.q, "WHERE 1") + len("WHERE ") + 1)
 				}
-				s.t.Run(tc.q, func(t *testing.T) {
+				s.T.Run(tc.q, func(t *testing.T) {
 					child := *s
-					child.t = t
+					child.T = t
 					for _, query := range []bool{false, true} {
 						predefinedFailure(&child, tc.q, tc.d, query, "prepare")
 					}
@@ -64,9 +64,9 @@ func TestReferenceAccessRoleDecorations(t *testing.T) {
 			// signature. Array VARIADIC remains covered by the missing-signature tests.
 			q := "SELECT row_security_active(VARIADIC 0::oid) AS v"
 			if fn.name == "pg_has_role" {
-				q = "SELECT pg_has_role(" + pq.QuoteLiteral(s.bootstrap) + ",VARIADIC 'MEMBER'::text) AS v"
+				q = "SELECT pg_has_role(" + pq.QuoteLiteral(s.Bootstrap) + ",VARIADIC 'MEMBER'::text) AS v"
 			}
-			accessRoleBool(s, q, fn.want)
+			fixture.AccessRoleBool(s, q, fn.want)
 		}
 	})
 }

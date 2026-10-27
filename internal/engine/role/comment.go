@@ -39,7 +39,7 @@ func PlanRoleComment(view access.View, name, text string) (*access.RoleRecord, e
 	if err != nil {
 		return nil, err
 	}
-	return &access.RoleRecord{Root: next, Revision: view.RoleRecord.Revision + 1}, nil
+	return view.RoleRecord.WithRoot(next), nil
 }
 
 // PlanObjectComment decides COMMENT ON a schema, table, foreign table or

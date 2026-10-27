@@ -61,6 +61,11 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   `PlanDropRoles` checks DROP ROLE (superuser gate, 42704, 55006,
   predefined roles, sorted 2BP01 dependency details) and returns the
   retired role record in a `DropRolesPlan`.
+- **Rename and persisted defaults**: pure decisions resolve role and database
+  targets from the captured authority, check effective administration or actual
+  database ownership and return immutable candidates. Rename preserves principal
+  identity and settings; role-specific defaults use principal/database identities
+  and never mutate the issuing session's settings.
 - **Default privileges** (`default_privileges.go`): `DefaultPrivilegesPlan`
   returns the default ACL records ALTER DEFAULT PRIVILEGES changes, without
   OIDs.

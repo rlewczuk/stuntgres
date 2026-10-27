@@ -50,6 +50,19 @@ func (h *statementHost) InvokeSetting(name string, inputs []sqltype.Value, resul
 				return sqltype.Value{}, err
 			}
 		}
+		if !inputs[0].IsNull() {
+			requested, err := inputs[0].Text()
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			if settings.FoldName(requested) == "role" {
+				value, err := roleSettingValue(auth)
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+				return sqltype.String(result, value), nil
+			}
+		}
 		value, err := owner.CurrentSettingLocked(s.executionContext(), e.Settings, result, inputs[0], missingOK, readRestricted)
 		if err != nil || value.IsNull() {
 			return value, err

@@ -89,15 +89,31 @@ nontransactional.
   `PublicationPreflightLocked` over a `PreparedPublication`.
   `PreparedTransaction.CheckActor` takes the roles as an `authorization.Read`
   value; the claim shares its permission check.
-- **Settings store** (`settings_store.go`, `routine_settings.go`): `SettingsStore`
-  owns values, defaults, provider provenance and one explicit SET/LOCAL/SAVE
-  journal. Routine SAVE levels capture only touched variables, with immutable
-  per-variable tails and masked SET candidates; no whole-store snapshot is used.
-  SAVE restores entry values, LOCAL remains confined, and ordinary SET merges
-  outward while retaining transaction rollback authority. Nested SET/LOCAL
-  merges retain the effective LOCAL until transaction completion. `SettingsMark`
-  retains action state and nesting for exception/savepoint rollback. Default
-  providers run once at physical startup, never for metadata reads or RESET.
+- **Settings store** (`settings_store.go`, `routine_settings.go`, `settings_defaults.go`):
+  `SettingsStore` owns typed/text values and defaults, captured reset sources,
+  provider provenance, role actions, characteristic projections and one explicit
+  SET/LOCAL/SAVE journal. Routine SAVE levels capture only touched variables,
+  with immutable per-variable tails and masked SET candidates; no whole-store
+  snapshot is used. SAVE restores entry values, LOCAL remains confined, and
+  ordinary SET merges outward while retaining transaction rollback authority.
+  Nested SET/LOCAL merges retain the effective LOCAL until transaction completion.
+  `SettingsMark` retains action state and nesting for exception/savepoint rollback.
+  The typed role action and mark retain the complete current-ref/active/text
+  triple, including masked SET candidates and active-only self/NONE changes.
+  Restoration uses captured refs/text without name or membership rechecks.
+  The physical `RoleState` retains its startup reset ref/text pair independently
+  of effective invocation actors; DISCARD restores that same pair.
+  Physical startup selects committed global, database, login-role and
+  database/login defaults before callbacks. Present provider responses win per
+  parameter, including equal values; providers run once at physical startup,
+  never for metadata reads or RESET. Provider-less startup shares immutable
+  registry reset maps until the first ordinary persisted default detaches them;
+  provider-owned maps need no copy. Persisted custom placeholders are captured
+  too. Typed reset values and their `DefaultSource` remain frozen across
+  transactions, detached invocation images, exception marks, pool reuse and
+  logical replacement; EndSession releases them.
+  `SessionStart.NoticeHandler` transports startup diagnostics only after the
+  coherent startup image is complete and all runtime locks are released.
   Effective defaults use the registry's cached `DefaultValue`, separately from
   nullable boot/reset metadata. Startup-only provider values must equal that
   effective default; identical supplied values retain provider provenance.
@@ -106,7 +122,8 @@ nontransactional.
   initialization or restoring captured defaults. A captured simulated name is
   not proof of a catalog object. No provider callback runs on RESET/DEFAULT.
   The settings cores (`Presentation`, `LookupDefinition`, `ParseValue`, `SetInput`,
-  `SettingAccess`) parse and check without installing. Under the root's
+  `SettingAccess`, `ValidateValueLocked`) parse and check without installing. The
+  engine's persisted test path reuses them without changing the issuer. Under the root's
   install window, `AdmitLocked` checks the operation and attachment;
   `ApplyLocked`, `ResetAllLocked` and `ShowAllRowsLocked` (`setting_install.go`)
   install, reset and list values; `CurrentSettingLocked` and
@@ -435,4 +452,5 @@ make check RACE=1 RUN='^Test(PgrowlocksEligibility|SnapshotStatement(Retention|R
 make check RUN='^Test(PGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)|RowSecurity(SettingProvenance|ProviderLifecycle))$$'
 make check RUN='^TestLoggingSettings'
 make check RUN='^TestWALSettings'
+make check RUN='^TestSharedSessionDefaults'
 ```

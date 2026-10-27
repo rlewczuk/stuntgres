@@ -19,65 +19,65 @@ func rowSecurityOffDiagnostic(table string, owner bool) fixture.Diagnostic {
 
 // PostgreSQL's rewrite guard rejects fresh Prepare, not just execution.
 // Full optional diagnostic fields are intentionally empty, not ignored.
-func rowSecurityOff(s *membershipScenario, q, table string, query, owner bool) {
-	s.t.Helper()
+func rowSecurityOff(s *fixture.RoleMembershipScenario, q, table string, query, owner bool) {
+	s.T.Helper()
 	predefinedFailure(s, q, rowSecurityOffDiagnostic(table, owner), query, "prepare")
 }
 
-func rowSecurityValue(s *membershipScenario, value string) {
-	s.t.Helper()
+func rowSecurityValue(s *fixture.RoleMembershipScenario, value string) {
+	s.T.Helper()
 	for _, q := range []string{"SHOW row_security", "SELECT current_setting('row_security')"} {
 		column := "row_security"
 		if q[0] == 'S' && q != "SHOW row_security" {
 			column = "current_setting"
 		}
-		s.run(fixture.Select(q, []string{column}, []string{"TEXT"}, [][]any{{value}}))
+		s.Run(fixture.Select(q, []string{column}, []string{"TEXT"}, [][]any{{value}}))
 	}
 }
 
-func rowSecurityUnchanged(s *membershipScenario) {
-	s.t.Helper()
-	s.actor("rls_bypass")
+func rowSecurityUnchanged(s *fixture.RoleMembershipScenario) {
+	s.T.Helper()
+	s.Actor("rls_bypass")
 	predefinedSelect(s, "SELECT id,v FROM t ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(10)}, {int64(2), int64(20)}})
 }
 
-func rowSecurityPeer(s *membershipScenario, db *sql.DB) *membershipScenario {
-	s.t.Helper()
-	c, err := db.Conn(s.p.Ctx)
+func rowSecurityPeer(s *fixture.RoleMembershipScenario, db *sql.DB) *fixture.RoleMembershipScenario {
+	s.T.Helper()
+	c, err := db.Conn(s.P.Ctx)
 	if err != nil {
-		s.t.Fatal(err)
+		s.T.Fatal(err)
 	}
-	s.t.Cleanup(func() { c.Close() })
+	s.T.Cleanup(func() { c.Close() })
 	peer := *s
-	peer.c = c
-	peer.actor("rls_reader")
+	peer.C = c
+	peer.Actor("rls_reader")
 	return &peer
 }
 
-func rowSecurityRecovery(s *membershipScenario) {
-	s.t.Helper()
+func rowSecurityRecovery(s *fixture.RoleMembershipScenario) {
+	s.T.Helper()
 	predefinedFailure(s, "SELECT id FROM t", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}, true, "prepare")
-	s.exec("ROLLBACK TO SAVEPOINT healthy")
+	s.Exec("ROLLBACK TO SAVEPOINT healthy")
 }
 
-func rowSecurityHeldOff(s *membershipScenario, held fixture.HeldStatement, query bool) {
-	s.t.Helper()
+func rowSecurityHeldOff(s *fixture.RoleMembershipScenario, held fixture.HeldStatement, query bool) {
+	s.T.Helper()
 	step := fixture.ErrorDiagnostic(held.SQL, rowSecurityOffDiagnostic("t", false))
 	step.SelectRows, step.ErrorStage = query, "execute"
-	fixture.RunStep(s.t, s.p.Ctx, held, s.record, step)
+	fixture.RunStep(s.T, s.P.Ctx, held, s.Record, step)
 }
 
-func rowSecurityHeldRows(s *membershipScenario, held fixture.HeldStatement, rows [][]any) {
-	s.t.Helper()
-	fixture.RunStep(s.t, s.p.Ctx, held, s.record, fixture.Select(held.SQL, []string{"id"}, []string{"INT4"}, rows))
+func rowSecurityHeldRows(s *fixture.RoleMembershipScenario, held fixture.HeldStatement, rows [][]any) {
+	s.T.Helper()
+	fixture.RunStep(s.T, s.P.Ctx, held, s.Record, fixture.Select(held.SQL, []string{"id"}, []string{"INT4"}, rows))
 }
 
-func rowSecurityCase(s *membershipScenario, name string, body func()) {
-	s.t.Helper()
-	s.t.Run(name, func(t *testing.T) {
-		previous := s.t
-		s.t = t
-		defer func() { s.t = previous }()
+func rowSecurityCase(s *fixture.RoleMembershipScenario, name string, body func()) {
+	s.T.Helper()
+	s.T.Run(name, func(t *testing.T) {
+		previous := s.T
+		s.T = t
+		defer func() { s.T = previous }()
 		body()
 	})
 }

@@ -11,8 +11,8 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func transactionalPolicyExport(s *membershipScenario, text, id string) {
-	s.t.Helper()
+func transactionalPolicyExport(s *fixture.RoleMembershipScenario, text, id string) {
+	s.T.Helper()
 	definition := policyExportDefinition(s, text, "original")
 	compact := regexp.MustCompile(`[\s"()]`).ReplaceAllString(definition, "")
 	// Stored expressions may qualify their target columns. Compare the logical
@@ -20,73 +20,73 @@ func transactionalPolicyExport(s *membershipScenario, text, id string) {
 	compact = strings.ReplaceAll(compact, "t.", "")
 	want := "CREATEPOLICYoriginalONpublic.tASPERMISSIVEFORALLTOtp_control_ownerUSINGid=" + id + "WITHCHECKallowed;"
 	if compact != want {
-		s.t.Fatalf("incomplete canonical policy definition: want %s in %s", want, definition)
+		s.T.Fatalf("incomplete canonical policy definition: want %s in %s", want, definition)
 	}
 }
 
 func TestReferenceTransactionalPoliciesControls(t *testing.T) {
 	for _, replacement := range []string{"reset", "restore"} {
 		t.Run(replacement, func(t *testing.T) {
-			membershipCases(t, []string{"tp_control_owner"}, func(s *membershipScenario) {
-				s.actor("tp_control_owner")
-				fixture.WithPublicSchemaOwner(t, s.p, s.backend, "tp_control_owner", func() { policySetup(s) })
-				s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
-				s.exec("ALTER TABLE t FORCE ROW LEVEL SECURITY")
-				s.exec("CREATE POLICY original ON t TO tp_control_owner USING(id=1) WITH CHECK(allowed)")
-				s.actor("")
+			fixture.RoleMembershipCases(t, []string{"tp_control_owner"}, func(s *fixture.RoleMembershipScenario) {
+				s.Actor("tp_control_owner")
+				fixture.WithPublicSchemaOwner(t, s.P, s.Backend, "tp_control_owner", func() { policySetup(s) })
+				s.Exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
+				s.Exec("ALTER TABLE t FORCE ROW LEVEL SECURITY")
+				s.Exec("CREATE POLICY original ON t TO tp_control_owner USING(id=1) WITH CHECK(allowed)")
+				s.Actor("")
 				before := ""
-				if !s.backend.PG {
+				if !s.Backend.PG {
 					before = policyDump(s)
 					if !strings.Contains(before, "original") || !strings.Contains(before, "FORCE ROW LEVEL SECURITY") {
 						t.Fatal("missing committed policy/flags", before)
 					}
 				}
-				if !s.backend.PG {
+				if !s.Backend.PG {
 					transactionalPolicyExport(s, before, "1")
 				}
-				s.exec("BEGIN")
-				s.exec("SAVEPOINT before_policy")
-				s.exec("ALTER POLICY original ON t USING(id=2)")
-				s.exec("ALTER POLICY original ON t RENAME TO private")
-				s.run(fixture.Exec("INSERT INTO t VALUES(4,TRUE)", 1))
-				s.actor("tp_control_owner")
-				s.run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
-				s.actor("")
-				if s.backend.PG {
-					s.exec("ROLLBACK")
-					s.actor("tp_control_owner")
-					s.run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
-					s.actor("")
+				s.Exec("BEGIN")
+				s.Exec("SAVEPOINT before_policy")
+				s.Exec("ALTER POLICY original ON t USING(id=2)")
+				s.Exec("ALTER POLICY original ON t RENAME TO private")
+				s.Run(fixture.Exec("INSERT INTO t VALUES(4,TRUE)", 1))
+				s.Actor("tp_control_owner")
+				s.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
+				s.Actor("")
+				if s.Backend.PG {
+					s.Exec("ROLLBACK")
+					s.Actor("tp_control_owner")
+					s.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
+					s.Actor("")
 					return
 				}
 				if got := policyDump(s); got != before {
 					t.Fatal("Dump leaked owner policy/data", got, before)
 				}
 				failure := errors.New("policy transaction reader failure")
-				if err := stuntgres.Restore(s.p.Ctx, s.p.Native, &policyReader{err: failure}); !errors.Is(err, failure) {
+				if err := stuntgres.Restore(s.P.Ctx, s.P.Native, &policyReader{err: failure}); !errors.Is(err, failure) {
 					t.Fatal(err)
 				}
-				if err := stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader("CREATE TABLE partial(id INT); CREATE POLICY invalid ON partial USING(1);")); err == nil {
+				if err := stuntgres.Restore(s.P.Ctx, s.P.Native, strings.NewReader("CREATE TABLE partial(id INT); CREATE POLICY invalid ON partial USING(1);")); err == nil {
 					t.Fatal("invalid late restore succeeded")
 				}
-				s.exec("ALTER POLICY private ON t WITH CHECK(TRUE)")
+				s.Exec("ALTER POLICY private ON t WITH CHECK(TRUE)")
 				if got := policyDump(s); got != before {
 					t.Fatal("failed Restore changed committed predecessor", got)
 				}
-				h, err := s.c.PrepareContext(s.p.Ctx, "DROP POLICY private ON t")
+				h, err := s.C.PrepareContext(s.P.Ctx, "DROP POLICY private ON t")
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer h.Close()
-				retained, err := s.c.QueryContext(s.p.Ctx, "SELECT id FROM t ORDER BY id")
+				retained, err := s.C.QueryContext(s.P.Ctx, "SELECT id FROM t ORDER BY id")
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer retained.Close()
 				if replacement == "reset" {
-					err = stuntgres.Reset(s.p.Ctx, s.p.Native)
+					err = stuntgres.Reset(s.P.Ctx, s.P.Native)
 				} else {
-					err = stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader(before))
+					err = stuntgres.Restore(s.P.Ctx, s.P.Native, strings.NewReader(before))
 				}
 				if err != nil {
 					t.Fatal(err)
@@ -104,40 +104,40 @@ func TestReferenceTransactionalPoliciesControls(t *testing.T) {
 					t.Fatal(retained.Err())
 				}
 				retained.Close()
-				_, err = h.ExecContext(s.p.Ctx)
+				_, err = h.ExecContext(s.P.Ctx)
 				fixture.TransactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
-				_, err = s.c.ExecContext(s.p.Ctx, "ROLLBACK TO before_policy")
+				_, err = s.C.ExecContext(s.P.Ctx, "ROLLBACK TO before_policy")
 				fixture.TransactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
-				_, err = s.c.ExecContext(s.p.Ctx, "COMMIT")
+				_, err = s.C.ExecContext(s.P.Ctx, "COMMIT")
 				fixture.TransactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
-				s.exec("ROLLBACK")
+				s.Exec("ROLLBACK")
 				if replacement == "reset" {
-					if err := stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader(before)); err != nil {
+					if err := stuntgres.Restore(s.P.Ctx, s.P.Native, strings.NewReader(before)); err != nil {
 						t.Fatal(err)
 					}
 				}
 				if got := policyDump(s); got != before {
 					t.Fatal("replacement resurrected private policy/data", got, before)
 				}
-				s.actor("tp_control_owner")
-				s.run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
-				s.actor("")
+				s.Actor("tp_control_owner")
+				s.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
+				s.Actor("")
 				// A representable committed policy stream roundtrips exactly, then
 				// this same physical session can commit another policy transaction.
-				if err := stuntgres.Restore(s.p.Ctx, s.p.Native, bytes.NewBufferString(before)); err != nil {
+				if err := stuntgres.Restore(s.P.Ctx, s.P.Native, bytes.NewBufferString(before)); err != nil {
 					t.Fatal(err)
 				}
-				s.exec("BEGIN")
-				s.exec("ALTER POLICY original ON t USING(id=2)")
-				s.exec("COMMIT")
+				s.Exec("BEGIN")
+				s.Exec("ALTER POLICY original ON t USING(id=2)")
+				s.Exec("COMMIT")
 				after := policyDump(s)
 				if after == before || strings.Contains(after, "private") || !strings.Contains(after, "original") {
 					t.Fatal("committed policy export", after)
 				}
 				transactionalPolicyExport(s, after, "2")
-				s.actor("tp_control_owner")
-				s.run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
-				s.actor("")
+				s.Actor("tp_control_owner")
+				s.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
+				s.Actor("")
 			})
 		})
 	}

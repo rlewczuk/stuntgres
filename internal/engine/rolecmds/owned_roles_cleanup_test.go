@@ -55,7 +55,7 @@ func TestDropOwnedMembershipProvenance(t *testing.T) {
 	setFixtureEdges(e.RoleStore.Published, append(fixtureEdges(e.RoleStore.Published), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Admin: true, Inherit: true, Set: true}, authorization.Membership{Role: target, Member: owner, Grantor: reader, Inherit: true}))
 	old := e.RoleStore.Published
 	retained := append([]authorization.Membership(nil), fixtureEdges(old)...)
-	next, err := access.OwnedMembershipCandidate(context.Background(), e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), old), old.Revision, map[authorization.PrincipalRef]bool{source: true})
+	next, err := access.OwnedMembershipCandidate(context.Background(), e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), old), old, map[authorization.PrincipalRef]bool{source: true})
 	if err != nil || next == nil || next.Revision != old.Revision+1 || !reflect.DeepEqual(fixtureEdges(old), retained) {
 		t.Fatal(next, err)
 	}
@@ -78,7 +78,7 @@ func TestDropOwnedMembershipProvenance(t *testing.T) {
 	alternate := cloneRoleFixture(old)
 	setFixtureEdges(alternate, append(append([]authorization.Membership(nil), retained...), authorization.Membership{Role: target, Member: reader, Grantor: owner, Admin: true, Set: true}))
 	alternateBefore := append([]authorization.Membership(nil), fixtureEdges(alternate)...)
-	supported, err := access.OwnedMembershipCandidate(context.Background(), e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), alternate), alternate.Revision, map[authorization.PrincipalRef]bool{source: true})
+	supported, err := access.OwnedMembershipCandidate(context.Background(), e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), alternate), alternate, map[authorization.PrincipalRef]bool{source: true})
 	if err != nil || supported == nil {
 		t.Fatal("independent membership support", err)
 	}
@@ -94,7 +94,7 @@ func TestDropOwnedMembershipProvenance(t *testing.T) {
 	if next.Root.Read(authorization.PrincipalRef{}).RoleCount() != old.Root.Read(authorization.PrincipalRef{}).RoleCount() || fixtureRole(next, source) != fixtureRole(old, source) {
 		t.Fatal("DROP OWNED removed role endpoint")
 	}
-	if noChange, err := access.OwnedMembershipCandidate(context.Background(), e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), old), old.Revision, map[authorization.PrincipalRef]bool{target: true}); err != nil || noChange != nil {
+	if noChange, err := access.OwnedMembershipCandidate(context.Background(), e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), old), old, map[authorization.PrincipalRef]bool{target: true}); err != nil || noChange != nil {
 		t.Fatal("unchanged membership cloned/revised", noChange, err)
 	}
 }

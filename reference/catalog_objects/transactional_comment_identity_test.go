@@ -87,18 +87,8 @@ func TestReferenceTransactionalCommentIdentity(t *testing.T) {
 			objects(c, true)
 			descriptions(c, true)
 			descriptions(peer, true)
-			liveRole := "tx_comment_role"
-			const renameRole = "ALTER ROLE tx_comment_role RENAME TO tx_comment_renamed"
-			if b.PG {
-				run(fixture.Exec(renameRole, 0))
-				liveRole = "tx_comment_renamed"
-			} else {
-				// Role renaming is an existing adjacent SQL exclusion, not part
-				// of transactional COMMENT admission.
-				s := fixture.ImplicitError(renameRole, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"})
-				s.ErrorStage = "execute"
-				run(s)
-			}
+			const liveRole = "tx_comment_renamed"
+			run(fixture.Exec("ALTER ROLE tx_comment_role RENAME TO "+liveRole, 0))
 			run(fixture.Select("SELECT shobj_description(oid,'pg_authid') AS text FROM pg_roles WHERE rolname='"+liveRole+"'", []string{"text"}, []string{"TEXT"}, [][]any{{"old"}}))
 			run(fixture.Exec("DROP ROLE "+liveRole, 0))
 			run(fixture.Exec("CREATE ROLE tx_comment_role", 0))

@@ -112,19 +112,8 @@ func TestReferenceObjectACLHeldExecution(t *testing.T) {
 		}
 		defer beforeRename.Close()
 		objectACLMetadata(t, beforeRename, b.PG, "_ACLITEM")
-		reader := "acl_obj_held_reader"
-		const renameRole = "ALTER ROLE acl_obj_held_reader RENAME TO acl_obj_held_renamed"
-		if b.PG {
-			fixture.RunStep(t, p.Ctx, admin, b.Recorder, fixture.Exec(renameRole, 0))
-			reader = "acl_obj_held_renamed"
-		} else {
-			// Existing role-rename SQL is outside this selected inquiry.
-			s := fixture.ImplicitError(renameRole, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"})
-			s.ErrorStage = "execute"
-			fixture.RunStep(t, p.Ctx, admin, b.Recorder, s)
-			s.ErrorStage = "prepare"
-			fixture.RunStep(t, p.Ctx, admin, b.Recorder, fixture.Prepared(s))
-		}
+		reader := "acl_obj_held_renamed"
+		fixture.RunStep(t, p.Ctx, admin, b.Recorder, fixture.Exec("ALTER ROLE acl_obj_held_reader RENAME TO acl_obj_held_renamed", 0))
 		fixture.ScalarRows(t, b.PG, beforeRename, []string{"acl"}, []string{"_ACLITEM"}, [][]any{{"{acl_obj_held_reader=r/" + objectACLOwner(b) + "}"}}, false)
 		check(1, "{"+reader+"=r/"+objectACLOwner(b)+"}")
 		run(fixture.Exec("REVOKE SELECT(a) ON acl_obj_held FROM "+reader, 0))

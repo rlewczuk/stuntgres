@@ -86,6 +86,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		unlockBefore = true
 	case ids.RoleClassID, pgcatalog.AuthMembersOID, 12014, 12007, 12008, pgcatalog.ShadowOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles
+		in.RoleSettings = catalogRoleSettings{settings: scope.Inquiry.deparseAuth.RoleRecord.Settings}
 		unlockBefore = true
 	case pgcatalog.InfoReferentialConstraintsOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
@@ -120,6 +121,10 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		runtime.Auth = auth
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+	case 2964:
+		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles
+		in.RoleSettings = catalogRoleSettings{settings: scope.Inquiry.deparseAuth.RoleRecord.Settings}
+		unlockBefore = true
 	case 2396:
 		in.Roles = scope.Inquiry.commentRoles
 	case 2224:

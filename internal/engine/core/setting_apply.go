@@ -184,6 +184,7 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 			e.Mu.Unlock()
 			return Result{}, err
 		}
+		readAuth = auth
 		readRestricted, err = auth.canReadRestrictedSettings()
 		readAuth = auth
 		if err != nil {
@@ -232,6 +233,13 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 			}
 		}
 		return anonymousResult(settingColumns(typ, "name", "setting", "description"), rows, 0)
+	}
+	if !write && settings.FoldName(name) == "role" {
+		value, err := roleSettingValue(readAuth)
+		if err != nil {
+			return Result{}, err
+		}
+		return anonymousResult(settingColumns(typ, "role"), [][]sqltype.Value{{sqltype.String(typ, value)}}, 0)
 	}
 	d, err := owner.LookupDefinition(e.Settings, name, write)
 	if err != nil {

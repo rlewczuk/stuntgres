@@ -11,10 +11,11 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
 )
 
 // Exercise the same typed role/identity journals without adding SQL capability.
-func batchUnitIdentity(m *batchUnitMessage, current authorization.PrincipalRef) bool {
+func batchUnitIdentity(m *batchUnitMessage, current authorization.RoleDescriptor, active bool) bool {
 	s := m.op.Session
 	t := s.Transactions
 	t.Mu.Lock()
@@ -27,12 +28,54 @@ func batchUnitIdentity(m *batchUnitMessage, current authorization.PrincipalRef) 
 		return false
 	}
 	rolecmds.TouchOperationIdentityLocked(m.op)
-	s.Settings.TouchRole(s.Authorization.State.CurrentUser, false)
-	s.Authorization.State.CurrentUser = current
+	s.Settings.TouchRole(s.Authorization.State, false)
+	s.Authorization.State.CurrentUser = current.Ref
+	s.Authorization.State.ActiveRole, s.Authorization.State.RoleText = active, ""
+	if active {
+		s.Authorization.State.RoleText = current.Name
+	}
 	s.Authorization.Revision++
 	return true
 }
 func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
+	t.Run("self-none", func(t *testing.T) {
+		e := engine.New()
+		s := enginetest.StartSession(t, e, nil)
+		self, _ := e.Roles().Lookup("postgres")
+		entry := s.Authorization.State
+		m := batchUnitStart(t, s, context.Background())
+		defer m.end(context.Canceled)
+		if _, err := m.step(enginetest.Statement(t, "BEGIN")); err != nil {
+			t.Fatal(err)
+		}
+		if !batchUnitIdentity(m, self, true) {
+			t.Fatal("self selection rejected")
+		}
+		selected := s.Authorization.State
+		if selected.CurrentUser != entry.CurrentUser || !selected.ActiveRole || selected.RoleText != self.Name {
+			t.Fatal("self selection collapsed", selected)
+		}
+		name := parser.Identifier{Text: "self_mark"}
+		if _, err := m.step(&parser.SavepointControl{Kind: parser.CreateSavepoint, Name: name}); err != nil {
+			t.Fatal(err)
+		}
+		if !batchUnitIdentity(m, self, false) || s.Authorization.State != entry {
+			t.Fatal("NONE did not clear the complete role triple")
+		}
+		revision := s.Authorization.Revision
+		if _, err := m.step(&parser.SavepointControl{Kind: parser.RollbackSavepoint, Name: name}); err != nil {
+			t.Fatal(err)
+		}
+		if s.Authorization.State != selected || s.Authorization.Revision != revision+1 {
+			t.Fatal("active-only mark restoration lost state or revision")
+		}
+		if _, err := m.step(enginetest.Statement(t, "ROLLBACK")); err != nil {
+			t.Fatal(err)
+		}
+		if err := m.end(nil); err != nil || s.Authorization.State != entry || s.Authorization.Revision <= revision+1 {
+			t.Fatal("active-only outer rollback lost state or revision", err)
+		}
+	})
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE ROLE a", "CREATE ROLE b", "CREATE ROLE c"} {
@@ -59,13 +102,13 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	}
 	n := batchUnitStart(t, s, context.Background())
 	defer n.end(context.Canceled)
-	if !batchUnitIdentity(n, b.Ref) {
+	if !batchUnitIdentity(n, b, true) {
 		t.Fatal("internal mutation capacity")
 	}
 	if _, err := n.step(enginetest.Statement(t, "SAVEPOINT q")); err != nil {
 		t.Fatal(err)
 	}
-	if !batchUnitIdentity(n, c.Ref) {
+	if !batchUnitIdentity(n, c, true) {
 		t.Fatal("nested mutation capacity")
 	}
 	if _, err := n.step(enginetest.Statement(t, "RELEASE q")); err != nil {
@@ -83,7 +126,7 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	if _, err := n.step(enginetest.Statement(t, "SAVEPOINT q")); err != nil {
 		t.Fatal(err)
 	}
-	if !batchUnitIdentity(n, b.Ref) {
+	if !batchUnitIdentity(n, b, true) {
 		t.Fatal("recovery mutation capacity")
 	}
 	revision = s.Authorization.Revision
@@ -115,15 +158,15 @@ func TestDriverBatchIdentityRevisionCapacity(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE ROLE a")
-	role, _ := e.Roles().Lookup("a")
+	self, _ := e.Roles().Lookup("postgres")
 	original := s.Authorization.State
 	m := batchUnitStart(t, s, context.Background())
 	defer m.end(context.Canceled)
 	s.Authorization.Revision = ^uint64(0) - 3
-	if !batchUnitIdentity(m, role.Ref) || s.Authorization.Revision != ^uint64(0)-2 {
+	if !batchUnitIdentity(m, self, true) || s.Authorization.Revision != ^uint64(0)-2 {
 		t.Fatal("reserved mutation denied")
 	}
-	if batchUnitIdentity(m, role.Ref) {
+	if batchUnitIdentity(m, self, false) {
 		t.Fatal("rollback reservation consumed")
 	}
 	if _, err := m.step(enginetest.Statement(t, "BEGIN")); err != nil {

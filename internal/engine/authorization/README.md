@@ -17,7 +17,10 @@ and ACL DDL decisions are in [`role`](../role/README.md).
   of its own (`Root.Reprovenance`).
 - **Roles and membership:** `Root` (the stored role graph), `Read` (a capture
   of one root plus the database owner), `RoleDescriptor`, `Membership` and
-  `RoleState` (session, current and reset roles). `Seed` builds the predefined
+  `RoleState` (authenticated/session/current refs, physical role-active flag and
+  accepted role text, plus the captured reset ref/text pair). Explicit self
+  selection remains active; display text is not principal lookup authority and
+  does not track descriptor renames. `Seed` builds the predefined
   roles. Queries: `Lookup`, `Find`, `Descriptor`, `ValidatePrincipal`,
   `RoleClosure`, `InheritsRole`, `AdminOfRole`, `CanSetRole`,
   `ValidateInitialRole`, `HasRole` with `ParseRolePrivileges` (`pg_has_role`),

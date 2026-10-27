@@ -10,7 +10,7 @@ import (
 func TestReferenceRoleOwnershipTransactionalPrepared(t *testing.T) {
 	for _, family := range ownershipTransactionalFamilies {
 		t.Run(family.name, func(t *testing.T) {
-			ownershipCases(t, func(s *membershipScenario) {
+			ownershipCases(t, func(s *fixture.RoleMembershipScenario) {
 				q, tag := family.prefix+" OWNER TO own_absent", "ALTER TABLE"
 				switch family.name {
 				case "database":
@@ -40,55 +40,55 @@ func TestReferenceRoleOwnershipTransactionalPrepared(t *testing.T) {
 						var stmt *sql.Stmt
 						var err error
 						if outside {
-							stmt, err = s.c.PrepareContext(s.p.Ctx, q)
+							stmt, err = s.C.PrepareContext(s.P.Ctx, q)
 							if err != nil {
-								s.t.Fatal("quiet Prepare before object/role exists", err)
+								s.T.Fatal("quiet Prepare before object/role exists", err)
 							}
 						}
-						var e fixture.Executor = s.c
+						var e fixture.Executor = s.C
 						var tx *sql.Tx
 						if goTx {
-							tx, err = s.c.BeginTx(s.p.Ctx, &sql.TxOptions{ReadOnly: true})
+							tx, err = s.C.BeginTx(s.P.Ctx, &sql.TxOptions{ReadOnly: true})
 							if err != nil {
-								s.t.Fatal(err)
+								s.T.Fatal(err)
 							}
 							defer tx.Rollback()
 							e = tx
 						} else {
-							s.exec("BEGIN READ ONLY")
+							s.Exec("BEGIN READ ONLY")
 						}
 						if !outside {
 							if tx != nil {
-								stmt, err = tx.PrepareContext(s.p.Ctx, q)
+								stmt, err = tx.PrepareContext(s.P.Ctx, q)
 							} else {
-								stmt, err = s.c.PrepareContext(s.p.Ctx, q)
+								stmt, err = s.C.PrepareContext(s.P.Ctx, q)
 							}
 							if err != nil {
-								s.t.Fatal("quiet read-only Prepare", err)
+								s.T.Fatal("quiet read-only Prepare", err)
 							}
 						} else if tx != nil {
 							old := stmt
-							stmt = tx.StmtContext(s.p.Ctx, old)
+							stmt = tx.StmtContext(s.P.Ctx, old)
 							defer old.Close()
 						}
-						if result, err := stmt.ExecContext(s.p.Ctx, 1); result != nil || err == nil || err.Error() != "sql: expected 0 arguments, got 1" {
-							s.t.Fatal("zero utility inputs", result, err)
+						if result, err := stmt.ExecContext(s.P.Ctx, 1); result != nil || err == nil || err.Error() != "sql: expected 0 arguments, got 1" {
+							s.T.Fatal("zero utility inputs", result, err)
 						}
 						var statement fixture.Executor = e
-						if s.prepared {
+						if s.Prepared {
 							statement = fixture.HeldStatement{Executor: e, Statement: stmt, SQL: q}
 						}
 						step := fixture.ImplicitError(q, fixture.Diagnostic{Code: "25006", Message: "cannot execute " + tag + " in a read-only transaction"})
 						step.ErrorStage = "execute"
-						fixture.RunStep(s.t, s.p.Ctx, statement, s.record, step)
-						fixture.RunStep(s.t, s.p.Ctx, e, s.record, fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
+						fixture.RunStep(s.T, s.P.Ctx, statement, s.Record, step)
+						fixture.RunStep(s.T, s.P.Ctx, e, s.Record, fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
 						stmt.Close()
 						if tx != nil {
 							if err := tx.Rollback(); err != nil {
-								s.t.Fatal(err)
+								s.T.Fatal(err)
 							}
 						} else {
-							s.exec("ROLLBACK")
+							s.Exec("ROLLBACK")
 						}
 						ownershipBool(s, "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='own_absent')", false)
 					}
@@ -101,25 +101,25 @@ func TestReferenceRoleOwnershipTransactionalPrepared(t *testing.T) {
 func TestReferenceRoleOwnershipTransactionalPreparedFreshness(t *testing.T) {
 	for _, family := range ownershipTransactionalFamilies[:6] {
 		t.Run(family.name, func(t *testing.T) {
-			ownershipTransactionCases(t, func(s *membershipScenario, route string) {
+			ownershipTransactionCases(t, func(s *fixture.RoleMembershipScenario, route string) {
 				q := family.prefix + ` OWNER TO "own Quoted"`
-				s.exec(`DROP ROLE "own Quoted"`)
-				stmt, err := s.c.PrepareContext(s.p.Ctx, q)
+				s.Exec(`DROP ROLE "own Quoted"`)
+				stmt, err := s.C.PrepareContext(s.P.Ctx, q)
 				if err != nil {
-					s.t.Fatal("Prepare before either name exists", err)
+					s.T.Fatal("Prepare before either name exists", err)
 				}
 				defer stmt.Close()
 				ownershipDefinition(s, family.create)
-				s.exec(family.prefix + " OWNER TO own_source")
+				s.Exec(family.prefix + " OWNER TO own_source")
 				if family.name == "table" {
-					s.run(fixture.Exec("INSERT INTO tx_own_table VALUES(7)", 1))
+					s.Run(fixture.Exec("INSERT INTO tx_own_table VALUES(7)", 1))
 				}
 				for range 2 {
 					x := ownershipBegin(s, route)
 					defer x.abort()
 					use := stmt
 					if x.tx != nil {
-						use = x.tx.StmtContext(s.p.Ctx, stmt)
+						use = x.tx.StmtContext(s.P.Ctx, stmt)
 					}
 					x.held[q] = use
 					// A healthy held definition resolves the now-existing object and
@@ -139,12 +139,12 @@ func TestReferenceRoleOwnershipTransactionalPreparedFreshness(t *testing.T) {
 						use.Close()
 					}
 					x.end(false)
-					s.exec(`CREATE ROLE "own Quoted"`)
+					s.Exec(`CREATE ROLE "own Quoted"`)
 					y := ownershipBegin(s, route)
 					defer y.abort()
 					use = stmt
 					if y.tx != nil {
-						use = y.tx.StmtContext(s.p.Ctx, stmt)
+						use = y.tx.StmtContext(s.P.Ctx, stmt)
 					}
 					y.held[q] = use
 					y.exec(q)
@@ -154,10 +154,10 @@ func TestReferenceRoleOwnershipTransactionalPreparedFreshness(t *testing.T) {
 					}
 					y.end(true)
 					ownershipSelect(s, "SELECT r.rolname FROM "+family.catalog+" c JOIN pg_roles r ON r.oid=c."+family.ownerColumn+" WHERE c."+family.key, []string{"rolname"}, []string{"NAME"}, [][]any{{"own Quoted"}})
-					s.exec(family.prefix + " OWNER TO own_source")
-					s.exec(`DROP ROLE "own Quoted"`)
+					s.Exec(family.prefix + " OWNER TO own_source")
+					s.Exec(`DROP ROLE "own Quoted"`)
 				}
-				s.exec(`CREATE ROLE "own Quoted"`)
+				s.Exec(`CREATE ROLE "own Quoted"`)
 			})
 		})
 	}

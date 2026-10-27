@@ -30,22 +30,22 @@ var ownershipTransactionalFamilies = []ownershipTransactionalFamily{
 func TestReferenceRoleOwnershipTransactionalFamilies(t *testing.T) {
 	for _, family := range ownershipTransactionalFamilies {
 		t.Run(family.name, func(t *testing.T) {
-			ownershipTransactionCases(t, func(s *membershipScenario, route string) {
+			ownershipTransactionCases(t, func(s *fixture.RoleMembershipScenario, route string) {
 				f := family
 				if f.name == "database" {
 					database := ownershipDatabaseName(s)
 					f.prefix = "ALTER DATABASE " + pq.QuoteIdentifier(database)
 					defer func() {
-						s.c.ExecContext(s.p.Ctx, "ROLLBACK")
-						s.c.ExecContext(s.p.Ctx, f.prefix+" OWNER TO "+pq.QuoteIdentifier(s.bootstrap))
+						s.C.ExecContext(s.P.Ctx, "ROLLBACK")
+						s.C.ExecContext(s.P.Ctx, f.prefix+" OWNER TO "+pq.QuoteIdentifier(s.Bootstrap))
 					}()
 				} else {
 					ownershipDefinition(s, f.create)
 				}
 				if f.name == "table" || f.name == "reassign" || f.drop {
-					s.run(fixture.Exec("INSERT INTO "+map[bool]string{true: "tx_own_bulk", false: "tx_own_table"}[f.name != "table"]+" VALUES(7)", 1))
+					s.Run(fixture.Exec("INSERT INTO "+map[bool]string{true: "tx_own_bulk", false: "tx_own_table"}[f.name != "table"]+" VALUES(7)", 1))
 				}
-				s.exec(f.prefix + " OWNER TO own_source")
+				s.Exec(f.prefix + " OWNER TO own_source")
 				q := f.prefix + " OWNER TO own_target"
 				switch f.name {
 				case "reassign":
@@ -58,29 +58,29 @@ func TestReferenceRoleOwnershipTransactionalFamilies(t *testing.T) {
 				probe := "SELECT r.rolname FROM " + f.catalog + " c JOIN pg_roles r ON r.oid=c." + f.ownerColumn + " WHERE c." + f.key
 				idQuery := "SELECT oid::BIGINT FROM " + f.catalog + " WHERE " + f.key
 				var original int64
-				if err := s.c.QueryRowContext(s.p.Ctx, idQuery).Scan(&original); err != nil || original <= 0 {
-					s.t.Fatal("positive original identity", original, err)
+				if err := s.C.QueryRowContext(s.P.Ctx, idQuery).Scan(&original); err != nil || original <= 0 {
+					s.T.Fatal("positive original identity", original, err)
 				}
-				peer, err := s.backend.DB.Conn(s.p.Ctx)
+				peer, err := s.Backend.DB.Conn(s.P.Ctx)
 				if err != nil {
-					s.t.Fatal(err)
+					s.T.Fatal(err)
 				}
 				defer peer.Close()
 				state := func(e fixture.Executor, owner string, gone bool) {
-					s.t.Helper()
+					s.T.Helper()
 					var rows [][]any
 					if !gone {
 						rows = [][]any{{owner}}
 					}
-					fixture.RunStep(s.t, s.p.Ctx, e, s.record, fixture.Select(probe, []string{"rolname"}, []string{"NAME"}, rows))
+					fixture.RunStep(s.T, s.P.Ctx, e, s.Record, fixture.Select(probe, []string{"rolname"}, []string{"NAME"}, rows))
 					if !gone {
-						fixture.RunStep(s.t, s.p.Ctx, e, s.record, fixture.Select(idQuery, []string{"oid"}, []string{"INT8"}, [][]any{{original}}))
+						fixture.RunStep(s.T, s.P.Ctx, e, s.Record, fixture.Select(idQuery, []string{"oid"}, []string{"INT8"}, [][]any{{original}}))
 					}
 				}
 				ownerWitness := f.name == "enum" || f.name == "composite" || f.name == "domain" || f.name == "view" || f.name == "materialized"
 				if ownerWitness {
-					s.exec("GRANT own_source TO own_target WITH INHERIT FALSE,SET TRUE")
-					s.exec("GRANT CREATE ON SCHEMA public TO own_source")
+					s.Exec("GRANT own_source TO own_target WITH INHERIT FALSE,SET TRUE")
+					s.Exec("GRANT CREATE ON SCHEMA public TO own_source")
 				}
 				for _, commit := range []bool{false, true} {
 					if route == "auto" && !commit {
@@ -149,18 +149,18 @@ func TestReferenceRoleOwnershipTransactionalFamilies(t *testing.T) {
 }
 
 func TestReferenceRoleOwnershipTransactionalPrivateObjects(t *testing.T) {
-	ownershipTransactionCases(t, func(s *membershipScenario, route string) {
+	ownershipTransactionCases(t, func(s *fixture.RoleMembershipScenario, route string) {
 		if route == "auto" {
 			return
 		} // Earlier-private objects require an explicit owner.
-		peer, err := s.backend.DB.Conn(s.p.Ctx)
+		peer, err := s.Backend.DB.Conn(s.P.Ctx)
 		if err != nil {
-			s.t.Fatal(err)
+			s.T.Fatal(err)
 		}
 		defer peer.Close()
 		peerAbsent := func() {
-			fixture.RunStep(s.t, s.p.Ctx, peer, s.record, fixture.Select("SELECT count(*) FROM pg_namespace WHERE nspname='own_schema'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-			fixture.RunStep(s.t, s.p.Ctx, peer, s.record, fixture.Select("SELECT count(*) FROM pg_class WHERE relname IN('tx_own_private','private_seq','private_view','private_mv')", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Select("SELECT count(*) FROM pg_namespace WHERE nspname='own_schema'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Select("SELECT count(*) FROM pg_class WHERE relname IN('tx_own_private','private_seq','private_view','private_mv')", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		}
 		for _, commit := range []bool{false, true} {
 			x := ownershipBegin(s, route, "ALTER TABLE tx_own_private OWNER TO own_source", "ALTER SCHEMA own_schema OWNER TO own_source", "ALTER SEQUENCE own_schema.private_seq OWNER TO own_source", "ALTER VIEW own_schema.private_view OWNER TO own_source", "ALTER MATERIALIZED VIEW own_schema.private_mv OWNER TO own_source", "REASSIGN OWNED BY own_source TO own_target", "DROP OWNED BY own_target")
@@ -179,11 +179,11 @@ func TestReferenceRoleOwnershipTransactionalPrivateObjects(t *testing.T) {
 			privateIDsQuery := "SELECT c.oid::BIGINT,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='own_schema' AND c.relname IN('private_view','private_mv') ORDER BY c.relname"
 			privateIDs := ownershipTransactionSnapshot(s, x.e, privateIDsQuery)
 			if len(privateIDs) != 2 || privateIDs[0][0].(int64) <= 0 || privateIDs[1][0].(int64) <= 0 || privateIDs[0][0] == privateIDs[1][0] {
-				s.t.Fatal("earlier-private view/MV identities", privateIDs)
+				s.T.Fatal("earlier-private view/MV identities", privateIDs)
 			}
 			x.exec("REASSIGN OWNED BY own_source TO own_target")
 			peerAbsent()
-			fixture.RunStep(s.t, s.p.Ctx, peer, s.record, fixture.Select(privateIDsQuery, []string{"oid", "relname"}, []string{"INT8", "NAME"}, nil))
+			fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Select(privateIDsQuery, []string{"oid", "relname"}, []string{"INT8", "NAME"}, nil))
 			x.exec("SAVEPOINT keep_private")
 			x.exec("DROP OWNED BY own_target")
 			x.exec("ROLLBACK TO keep_private")
@@ -204,15 +204,15 @@ func TestReferenceRoleOwnershipTransactionalPrivateObjects(t *testing.T) {
 				ownershipOwner(s, "tx_own_private", "own_target")
 				ownershipRows(s, "own_schema.private_view")
 				ownershipRows(s, "own_schema.private_mv")
-				s.run(fixture.Select(privateIDsQuery, []string{"oid", "relname"}, []string{"INT8", "NAME"}, privateIDs))
-				fixture.RunStep(s.t, s.p.Ctx, peer, s.record, fixture.Select(privateIDsQuery, []string{"oid", "relname"}, []string{"INT8", "NAME"}, privateIDs))
+				s.Run(fixture.Select(privateIDsQuery, []string{"oid", "relname"}, []string{"INT8", "NAME"}, privateIDs))
+				fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Select(privateIDsQuery, []string{"oid", "relname"}, []string{"INT8", "NAME"}, privateIDs))
 				for _, name := range []string{"own_schema.private_view", "own_schema.private_mv"} {
-					fixture.RunStep(s.t, s.p.Ctx, peer, s.record, fixture.Select("SELECT id FROM "+name, []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
-					fixture.RunStep(s.t, s.p.Ctx, peer, s.record, fixture.Select("SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE c.oid='"+name+"'::regclass", []string{"rolname"}, []string{"NAME"}, [][]any{{"own_target"}}))
+					fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Select("SELECT id FROM "+name, []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+					fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Select("SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE c.oid='"+name+"'::regclass", []string{"rolname"}, []string{"NAME"}, [][]any{{"own_target"}}))
 				}
 			} else {
 				peerAbsent()
-				fixture.RunStep(s.t, s.p.Ctx, peer, s.record, fixture.Select(privateIDsQuery, []string{"oid", "relname"}, []string{"INT8", "NAME"}, nil))
+				fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Select(privateIDsQuery, []string{"oid", "relname"}, []string{"INT8", "NAME"}, nil))
 			}
 		}
 	})

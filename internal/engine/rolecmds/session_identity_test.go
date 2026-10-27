@@ -69,13 +69,16 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 	execute("SET ROLE b")
 	after := op.RoleState()
 	b, _ := e.Roles().Lookup("b")
-	if after.CurrentUser != b.Ref || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || op.Session.Authorization.Revision != revision+1 || e.RoleStore.Published.Revision != catalogRevision {
+	if after.CurrentUser != b.Ref || !after.ActiveRole || after.RoleText != "b" || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || after.ResetRoleText != before.ResetRoleText || op.Session.Authorization.Revision != revision+1 || e.RoleStore.Published.Revision != catalogRevision {
 		t.Fatal(before, after)
 	}
 	// A session superuser is still authoritative while CurrentUser is ordinary.
 	execute("SET ROLE c")
 	execute("SET SESSION AUTHORIZATION a")
 	before = op.RoleState()
+	if before.ActiveRole || before.RoleText != "" {
+		t.Fatal("explicit session authorization retained active role", before)
+	}
 	revision = op.Session.Authorization.Revision
 	_, err = e.Execute(op, enginetest.Statement(t, "SET ROLE b"), 0, nil)
 	enginetest.State(t, err, "42501")
@@ -123,28 +126,49 @@ func TestSessionIdentityNamespaceKeywordIndependence(t *testing.T) {
 }
 
 func TestSessionIdentityConfiguredResetRole(t *testing.T) {
-	e := engine.New()
-	op, done := enginetest.RoleOperation(t, e, "postgres")
-	defer done()
-	for _, q := range []string{"CREATE ROLE identity_reset", "CREATE ROLE identity_selected"} {
-		enginetest.RoleExecute(t, e, op, q)
-	}
-	reset, _ := e.Roles().Lookup("identity_reset")
-	s := enginetest.StartSession(t, e, roleSwitchDefaultProvider{value: "identity_reset"})
-	configured, err := s.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer configured.Done()
-	op = configured
-	enginetest.RoleExecute(t, e, op, "SET ROLE identity_selected")
-	enginetest.RoleExecute(t, e, op, "RESET ROLE")
-	if op.RoleState().CurrentUser != reset.Ref || op.RoleState().ResetRole != reset.Ref {
-		t.Fatal(op.RoleState())
-	}
-	enginetest.RoleExecute(t, e, op, "SET ROLE NONE")
-	if op.RoleState().CurrentUser != op.RoleState().SessionUser || op.RoleState().ResetRole != reset.Ref {
-		t.Fatal(op.RoleState())
+	for _, resetName := range []string{"identity_reset", "postgres"} {
+		t.Run(resetName, func(t *testing.T) {
+			e := engine.New()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
+			defer done()
+			for _, q := range []string{"CREATE ROLE identity_reset", "CREATE ROLE identity_selected"} {
+				enginetest.RoleExecute(t, e, op, q)
+			}
+			reset, _ := e.Roles().Lookup(resetName)
+			s := enginetest.StartSession(t, e, roleSwitchDefaultProvider{value: resetName})
+			configured, err := s.Acquire(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer configured.Done()
+			op = configured
+			enginetest.RoleExecute(t, e, op, "SET ROLE identity_selected")
+			enginetest.RoleExecute(t, e, op, "RESET ROLE")
+			if op.RoleState().CurrentUser != reset.Ref || op.RoleState().ResetRole != reset.Ref || !op.RoleState().ActiveRole || op.RoleState().RoleText != resetName || op.RoleState().ResetRoleText != resetName {
+				t.Fatal(op.RoleState())
+			}
+			enginetest.RoleExecute(t, e, op, "SET ROLE NONE")
+			if op.RoleState().CurrentUser != op.RoleState().SessionUser || op.RoleState().ResetRole != reset.Ref || op.RoleState().ActiveRole || op.RoleState().RoleText != "" || op.RoleState().ResetRoleText != resetName {
+				t.Fatal(op.RoleState())
+			}
+			entry := op.RoleState()
+			for _, statement := range []parser.Statement{
+				&parser.SessionAuthorization{Name: "postgres"},
+				&parser.SessionAuthorization{Default: true},
+			} {
+				if _, err := rolecmds.ExecuteRole(e, op, statement, 0, true); err != nil {
+					t.Fatal(err)
+				}
+				got := op.RoleState()
+				if statement.(*parser.SessionAuthorization).Default {
+					if got.CurrentUser != reset.Ref || !got.ActiveRole || got.RoleText != entry.ResetRoleText || got.ResetRoleText != entry.ResetRoleText {
+						t.Fatal("authorization reset lost captured pair", got)
+					}
+				} else if got.ActiveRole || got.RoleText != "" || got.CurrentUser != got.SessionUser {
+					t.Fatal("explicit authorization failed to clear role", got)
+				}
+			}
+		})
 	}
 }
 

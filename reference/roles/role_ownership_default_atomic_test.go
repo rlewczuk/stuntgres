@@ -8,17 +8,17 @@ import (
 func TestReferenceRoleOwnershipDefaultRestrictAtomicity(t *testing.T) {
 	for _, mode := range []string{"recipient_only", "creator_policy", "creator_stored_empty"} {
 		t.Run(mode, func(t *testing.T) {
-			ownershipCases(t, func(s *membershipScenario) {
+			ownershipCases(t, func(s *fixture.RoleMembershipScenario) {
 				ownershipDefaultSchemas(s)
 				ownershipDefaultTable(s, "own_default_root", "own_source")
-				s.exec("GRANT SELECT ON own_default_root TO own_other,own_reader")
-				s.actor("own_other")
-				fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() { s.exec("CREATE VIEW own_default_external AS SELECT id FROM own_default_root") })
-				s.actor("")
-				s.actor("own_other")
-				fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() { s.exec("CREATE TABLE own_default_sentinel(id INT)") })
-				s.run(fixture.Exec("INSERT INTO own_default_sentinel VALUES(9)", 1))
-				s.actor("")
+				s.Exec("GRANT SELECT ON own_default_root TO own_other,own_reader")
+				s.Actor("own_other")
+				fixture.WithPublicSchemaOwner(s.T, s.P, s.Backend, "own_other", func() { s.Exec("CREATE VIEW own_default_external AS SELECT id FROM own_default_root") })
+				s.Actor("")
+				s.Actor("own_other")
+				fixture.WithPublicSchemaOwner(s.T, s.P, s.Backend, "own_other", func() { s.Exec("CREATE TABLE own_default_sentinel(id INT)") })
+				s.Run(fixture.Exec("INSERT INTO own_default_sentinel VALUES(9)", 1))
+				s.Actor("")
 				if mode == "creator_policy" {
 					ownershipDefault(s, "own_source", "", "GRANT SELECT ON TABLES TO own_reader")
 				}
@@ -28,22 +28,22 @@ func TestReferenceRoleOwnershipDefaultRestrictAtomicity(t *testing.T) {
 				ownershipDefault(s, "own_alt", "own_schema", "GRANT SELECT ON TABLES TO own_source WITH GRANT OPTION")
 				ownershipDefault(s, "own_alt", "", "GRANT INSERT ON TABLES TO own_reader")
 				ownershipDefaultTable(s, "own_schema.own_received", "own_alt")
-				s.actor("own_source")
-				s.exec("GRANT SELECT ON own_schema.own_received TO own_downstream")
-				s.actor("")
+				s.Actor("own_source")
+				s.Exec("GRANT SELECT ON own_schema.own_received TO own_downstream")
+				s.Actor("")
 				ownershipDefault(s, "own_other", "", "GRANT USAGE ON SEQUENCES TO own_source")
-				s.actor("own_other")
-				fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() { s.exec("CREATE SEQUENCE own_default_clock START 7") })
-				s.actor("own_source")
+				s.Actor("own_other")
+				fixture.WithPublicSchemaOwner(s.T, s.P, s.Backend, "own_other", func() { s.Exec("CREATE SEQUENCE own_default_clock START 7") })
+				s.Actor("own_source")
 				ownershipSelect(s, "SELECT nextval('own_default_clock') AS n", []string{"n"}, []string{"INT8"}, [][]any{{int64(7)}})
-				s.actor("")
+				s.Actor("")
 				var rootID, viewID, clockID int64
-				if err := s.c.QueryRowContext(s.p.Ctx, "SELECT 'own_default_root'::regclass::oid::BIGINT,'own_default_external'::regclass::oid::BIGINT,'own_default_clock'::regclass::oid::BIGINT").Scan(&rootID, &viewID, &clockID); err != nil || rootID <= 0 || viewID <= 0 || clockID <= 0 {
-					s.t.Fatal("atomic identities", rootID, viewID, clockID, err)
+				if err := s.C.QueryRowContext(s.P.Ctx, "SELECT 'own_default_root'::regclass::oid::BIGINT,'own_default_external'::regclass::oid::BIGINT,'own_default_clock'::regclass::oid::BIGINT").Scan(&rootID, &viewID, &clockID); err != nil || rootID <= 0 || viewID <= 0 || clockID <= 0 {
+					s.T.Fatal("atomic identities", rootID, viewID, clockID, err)
 				}
 				var sentinelID int64
-				if err := s.c.QueryRowContext(s.p.Ctx, "SELECT 'own_default_sentinel'::regclass::oid::BIGINT").Scan(&sentinelID); err != nil || sentinelID <= 0 {
-					s.t.Fatal("sentinel identity", sentinelID, err)
+				if err := s.C.QueryRowContext(s.P.Ctx, "SELECT 'own_default_sentinel'::regclass::oid::BIGINT").Scan(&sentinelID); err != nil || sentinelID <= 0 {
+					s.T.Fatal("sentinel identity", sentinelID, err)
 				}
 				sourceRecords := 0
 				if mode != "recipient_only" {
@@ -54,7 +54,7 @@ func TestReferenceRoleOwnershipDefaultRestrictAtomicity(t *testing.T) {
 				if mode != "recipient_only" {
 					message = "cannot drop desired object(s) because other objects depend on them"
 				}
-				s.clearNotices()
+				s.ClearNotices()
 				ownershipFailure(s, "DROP OWNED BY own_source RESTRICT", fixture.Diagnostic{Code: "2BP01", Message: message, Detail: "view own_default_external depends on table own_default_root", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
 				ownershipNotices(s)
 				ownershipOwner(s, "own_default_root", "own_source")
@@ -75,57 +75,57 @@ func TestReferenceRoleOwnershipDefaultRestrictAtomicity(t *testing.T) {
 					ownershipDefaultKeyCount(s, "own_source", "", "f", 1)
 				}
 				ownershipDefaultProjection(s, "table_name='own_received' AND grantee='own_source'", [][]any{{"own_alt", "own_source", "own_schema", "own_received", "SELECT", "YES", "YES"}})
-				s.actor("own_reader")
+				s.Actor("own_reader")
 				ownershipRows(s, "own_default_root")
-				s.run(fixture.Exec("INSERT INTO own_schema.own_received VALUES(9)", 1))
-				s.actor("own_downstream")
+				s.Run(fixture.Exec("INSERT INTO own_schema.own_received VALUES(9)", 1))
+				s.Actor("own_downstream")
 				ownershipSelect(s, "SELECT id FROM own_schema.own_received ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(9)}})
-				s.actor("own_source")
+				s.Actor("own_source")
 				ownershipSelect(s, "SELECT currval('own_default_clock') AS n", []string{"n"}, []string{"INT8"}, [][]any{{int64(7)}})
 				ownershipSelect(s, "SELECT nextval('own_default_clock') AS n", []string{"n"}, []string{"INT8"}, [][]any{{int64(8)}})
-				s.actor("")
+				s.Actor("")
 				// Actual future creation proves the veto retained the original recipient key.
 				ownershipDefaultTable(s, "own_schema.own_after_veto", "own_alt")
-				s.actor("own_source")
+				s.Actor("own_source")
 				ownershipRows(s, "own_schema.own_after_veto")
-				s.actor("")
+				s.Actor("")
 				if mode == "creator_policy" {
 					ownershipDefaultTable(s, "own_default_policy_after_veto", "own_source")
-					s.actor("own_reader")
+					s.Actor("own_reader")
 					ownershipRows(s, "own_default_policy_after_veto")
-					s.actor("")
-					s.exec("ALTER TABLE own_default_policy_after_veto OWNER TO own_target")
+					s.Actor("")
+					s.Exec("ALTER TABLE own_default_policy_after_veto OWNER TO own_target")
 				}
 				if mode == "creator_stored_empty" {
 					ownershipRoleDependency(s, "own_source", "owner of table own_default_root", ownershipDefaultLine("own_source", "", "functions", true), ownershipDefaultLine("own_alt", "own_schema", "relations", false), ownershipDefaultLine("own_other", "", "sequences", false), "privileges for table own_schema.own_received", "privileges for table own_schema.own_after_veto", "privileges for sequence own_default_clock")
 				}
-				s.clearNotices()
-				s.exec("DROP OWNED BY own_source CASCADE")
+				s.ClearNotices()
+				s.Exec("DROP OWNED BY own_source CASCADE")
 				ownershipNotices(s, ownershipCascadeNotice("drop cascades to view own_default_external", ""))
 				ownershipCount(s, "SELECT count(*) FROM pg_class WHERE relname='own_default_root' OR relname='own_default_external'", 0)
 				ownershipDefaultKeyCount(s, "own_alt", "own_schema", "r", 0)
 				ownershipDefaultKeyCount(s, "own_other", "", "S", 0)
 				ownershipDefaultProjection(s, "table_name='own_received' AND (grantee='own_source' OR grantee='own_downstream')", nil)
 				for _, role := range []string{"own_source", "own_downstream"} {
-					s.actor(role)
+					s.Actor(role)
 					ownershipDefaultDenied(s, "own_schema.own_received")
 				}
-				s.actor("own_source")
+				s.Actor("own_source")
 				ownershipFailure(s, "SELECT nextval('own_default_clock') AS n", fixture.Diagnostic{Code: "42501", Message: "permission denied for sequence own_default_clock"})
-				s.actor("")
+				s.Actor("")
 				ownershipOwner(s, "own_default_clock", "own_other")
 				ownershipOwner(s, "own_default_sentinel", "own_other")
 				ownershipSelect(s, "SELECT 'own_default_sentinel'::regclass::oid::BIGINT AS oid", []string{"oid"}, []string{"INT8"}, [][]any{{sentinelID}})
 				ownershipSelect(s, "SELECT id FROM own_default_sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(9)}})
-				s.actor("own_reader")
-				s.run(fixture.Exec("INSERT INTO own_schema.own_received VALUES(11)", 1))
-				s.actor("")
+				s.Actor("own_reader")
+				s.Run(fixture.Exec("INSERT INTO own_schema.own_received VALUES(11)", 1))
+				s.Actor("")
 				ownershipSelect(s, "SELECT id FROM own_schema.own_received ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(9)}, {int64(11)}})
 				ownershipDefaultTable(s, "own_schema.own_after_cleanup", "own_alt")
-				s.actor("own_source")
+				s.Actor("own_source")
 				ownershipDefaultDenied(s, "own_schema.own_after_cleanup")
-				s.actor("")
-				s.exec("DROP ROLE own_source")
+				s.Actor("")
+				s.Exec("DROP ROLE own_source")
 			})
 		})
 	}

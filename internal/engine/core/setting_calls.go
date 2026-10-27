@@ -2,6 +2,7 @@ package core
 
 import (
 	"stuntgres/internal/engine/catalog"
+
 	"stuntgres/internal/sqltype"
 )
 

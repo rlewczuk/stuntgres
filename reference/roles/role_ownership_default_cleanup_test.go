@@ -7,45 +7,45 @@ import (
 
 func TestReferenceRoleOwnershipDefaultCleanup(t *testing.T) {
 	t.Run("creator_only_all_keys", func(t *testing.T) {
-		ownershipCases(t, func(s *membershipScenario) {
+		ownershipCases(t, func(s *fixture.RoleMembershipScenario) {
 			ownershipDefaultSchemas(s)
 			for _, creator := range []string{"own_source", "own_target"} {
 				lines := ownershipDefaultTen(s, creator, "own_schema", "own_reader")
 				ownershipRoleDependency(s, creator, lines...)
 			}
 			ownershipDefault(s, "own_alt", "", "REVOKE ALL ON FUNCTIONS FROM own_alt,PUBLIC")
-			s.clearNotices()
-			s.exec("DROP OWNED BY own_source,own_target,own_source RESTRICT")
+			s.ClearNotices()
+			s.Exec("DROP OWNED BY own_source,own_target,own_source RESTRICT")
 			ownershipNotices(s)
-			s.exec("DROP OWNED BY own_source,own_target RESTRICT")
-			s.exec("DROP ROLE own_source,own_target")
+			s.Exec("DROP OWNED BY own_source,own_target RESTRICT")
+			s.Exec("DROP ROLE own_source,own_target")
 			ownershipRoleDependency(s, "own_alt", ownershipDefaultLine("own_alt", "", "functions", true))
-			s.exec("DROP OWNED BY own_alt RESTRICT")
-			s.exec("DROP ROLE own_alt")
+			s.Exec("DROP OWNED BY own_alt RESTRICT")
+			s.Exec("DROP ROLE own_alt")
 		})
 	})
 	t.Run("reassigned_objects_keep_materialized_acl", func(t *testing.T) {
-		ownershipCases(t, func(s *membershipScenario) {
+		ownershipCases(t, func(s *fixture.RoleMembershipScenario) {
 			ownershipDefault(s, "own_source", "", "GRANT SELECT ON TABLES TO own_reader")
 			ownershipDefaultTable(s, "own_default_old", "own_source")
-			s.exec("REASSIGN OWNED BY own_source TO own_target")
+			s.Exec("REASSIGN OWNED BY own_source TO own_target")
 			ownershipRoleDependency(s, "own_source", ownershipDefaultLine("own_source", "", "relations", true))
-			s.exec("DROP OWNED BY own_source RESTRICT")
-			s.exec("DROP ROLE own_source")
+			s.Exec("DROP OWNED BY own_source RESTRICT")
+			s.Exec("DROP ROLE own_source")
 			ownershipOwner(s, "own_default_old", "own_target")
-			s.actor("own_reader")
+			s.Actor("own_reader")
 			ownershipRows(s, "own_default_old")
-			s.actor("")
-			s.exec("CREATE ROLE own_source LOGIN")
+			s.Actor("")
+			s.Exec("CREATE ROLE own_source LOGIN")
 			ownershipDefaultTable(s, "own_default_recreated_creator", "own_source")
-			s.actor("own_reader")
+			s.Actor("own_reader")
 			ownershipDefaultDenied(s, "own_default_recreated_creator")
 			ownershipRows(s, "own_default_old")
-			s.actor("")
+			s.Actor("")
 		})
 	})
 	t.Run("recipients_all_classes_and_key_baselines", func(t *testing.T) {
-		ownershipCases(t, func(s *membershipScenario) {
+		ownershipCases(t, func(s *fixture.RoleMembershipScenario) {
 			ownershipDefaultSchemas(s)
 			for _, c := range ownershipDefaultClasses {
 				ownershipDefault(s, "own_alt", "", "GRANT ALL ON "+c.sql+" TO own_source,own_target WITH GRANT OPTION")
@@ -74,10 +74,10 @@ func TestReferenceRoleOwnershipDefaultCleanup(t *testing.T) {
 			ownershipRoleDependency(s, "own_source", sourceLines...)
 			ownershipRoleDependency(s, "own_target", targetLines...)
 			altIDs := ownershipDefaultIDs(s, "own_alt", 10)
-			s.clearNotices()
-			s.exec("DROP OWNED BY own_source,own_target RESTRICT")
+			s.ClearNotices()
+			s.Exec("DROP OWNED BY own_source,own_target RESTRICT")
 			ownershipNotices(s)
-			s.exec("DROP OWNED BY own_source RESTRICT")
+			s.Exec("DROP OWNED BY own_source RESTRICT")
 			ownershipDefaultKeyCount(s, "own_other", "own_bulk", "r", 0)
 			ownershipDefaultKeyCount(s, "own_other", "", "f", 1)
 			ownershipRoleDependency(s, "own_other", ownershipDefaultLine("own_other", "", "functions", true))
@@ -93,22 +93,22 @@ func TestReferenceRoleOwnershipDefaultCleanup(t *testing.T) {
 			ownershipDefaultTable(s, "own_schema.own_after_recipient", "own_alt")
 			// PUBLIC SELECT remains, but selected ALL/options cannot confer UPDATE.
 			for _, role := range []string{"own_source", "own_target"} {
-				s.actor(role)
+				s.Actor(role)
 				ownershipRows(s, "own_schema.own_after_recipient")
 				ownershipFailure(s, "UPDATE own_schema.own_after_recipient SET id=7", fixture.Diagnostic{Code: "42501", Message: "permission denied for table own_after_recipient"})
 			}
-			s.actor("own_reader")
+			s.Actor("own_reader")
 			ownershipRows(s, "own_schema.own_after_recipient")
-			s.run(fixture.Exec("INSERT INTO own_schema.own_after_recipient VALUES(9)", 1))
-			s.actor("")
+			s.Run(fixture.Exec("INSERT INTO own_schema.own_after_recipient VALUES(9)", 1))
+			s.Actor("")
 			ownershipDefaultProjection(s, "table_schema='own_schema' AND table_name='own_after_recipient' AND (grantee='own_source' OR grantee='own_target')", nil)
 			ownershipDefaultTable(s, "own_bulk.own_scoped_absent", "own_other")
-			s.actor("own_source")
+			s.Actor("own_source")
 			ownershipDefaultDenied(s, "own_bulk.own_scoped_absent")
-			s.actor("")
+			s.Actor("")
 			// Remove no policies by manual reversal: real selected-recipient cleanup is
 			// the only operation making these otherwise root-free roles droppable.
-			s.exec("DROP ROLE own_source,own_target")
+			s.Exec("DROP ROLE own_source,own_target")
 		})
 	})
 }

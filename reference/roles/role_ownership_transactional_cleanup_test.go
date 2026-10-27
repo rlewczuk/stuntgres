@@ -7,7 +7,7 @@ import (
 )
 
 func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
-	ownershipTransactionCases(t, func(s *membershipScenario, route string) {
+	ownershipTransactionCases(t, func(s *fixture.RoleMembershipScenario, route string) {
 		ownershipSeed(s, "tx_cleanup_root", "own_source")
 		ownershipSeed(s, "tx_cleanup_grants", "own_other")
 		ownershipSeed(s, "tx_cleanup_policy_probe", "own_other")
@@ -30,18 +30,18 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 			"ALTER DEFAULT PRIVILEGES FOR ROLE own_source GRANT SELECT ON TABLES TO own_reader",
 			"ALTER DEFAULT PRIVILEGES FOR ROLE own_other GRANT SELECT ON TABLES TO own_source,own_alt",
 		} {
-			s.exec(q)
+			s.Exec(q)
 		}
-		s.actor("own_source")
-		s.exec("GRANT SELECT,UPDATE ON tx_cleanup_grants TO own_downstream")
-		s.exec("GRANT SELECT(id),UPDATE(id) ON tx_cleanup_grants TO own_reader")
-		s.actor("own_alt")
-		s.exec("GRANT SELECT ON tx_cleanup_grants TO own_downstream")
+		s.Actor("own_source")
+		s.Exec("GRANT SELECT,UPDATE ON tx_cleanup_grants TO own_downstream")
+		s.Exec("GRANT SELECT(id),UPDATE(id) ON tx_cleanup_grants TO own_reader")
+		s.Actor("own_alt")
+		s.Exec("GRANT SELECT ON tx_cleanup_grants TO own_downstream")
 		// Establish real delegated UPDATE authority before cleanup, without
 		// leaving a peer-blocking row write inside any later explicit route.
-		s.actor("own_downstream")
-		s.run(fixture.Exec("UPDATE tx_cleanup_grants SET id=id WHERE id=7", 1))
-		s.actor("")
+		s.Actor("own_downstream")
+		s.Run(fixture.Exec("UPDATE tx_cleanup_grants SET id=id WHERE id=7", 1))
+		s.Actor("")
 		const acl = "SELECT c.oid::BIGINT,c.relacl::TEXT FROM pg_class c WHERE c.relname IN('tx_cleanup_root','tx_cleanup_view','tx_cleanup_nested','tx_cleanup_grants') ORDER BY c.relname"
 		const col = "SELECT attnum,attacl::TEXT FROM pg_attribute WHERE attrelid='tx_cleanup_grants'::regclass AND attnum>0 ORDER BY attnum"
 		const def = "SELECT d.oid::BIGINT,d.defaclrole::BIGINT,d.defaclacl::TEXT FROM pg_default_acl d JOIN pg_roles r ON r.oid=d.defaclrole WHERE r.rolname IN('own_source','own_other') ORDER BY d.oid"
@@ -50,26 +50,26 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 		const probePolicies = "SELECT policyname,roles::TEXT FROM pg_policies WHERE tablename='tx_cleanup_policy_probe' ORDER BY policyname"
 		before := map[string][][]any{}
 		for _, q := range []string{acl, col, def, member} {
-			before[q] = ownershipTransactionSnapshot(s, s.c, q)
+			before[q] = ownershipTransactionSnapshot(s, s.C, q)
 		}
 		// These PG-only catalog rows supplement, never replace, common RLS
 		// effects and exact native canonical-descriptor invariants.
-		if s.backend.PG {
-			before[policy] = ownershipTransactionSnapshot(s, s.c, policy)
-			before[probePolicies] = ownershipTransactionSnapshot(s, s.c, probePolicies)
+		if s.Backend.PG {
+			before[policy] = ownershipTransactionSnapshot(s, s.C, policy)
+			before[probePolicies] = ownershipTransactionSnapshot(s, s.C, probePolicies)
 		}
-		if len(before[acl]) != 4 || len(before[col]) != 1 || len(before[def]) != 2 || len(before[member]) != 1 || s.backend.PG && (len(before[policy]) != 2 || len(before[probePolicies]) != 2) {
-			s.t.Fatal("complete cleanup preconditions", before)
+		if len(before[acl]) != 4 || len(before[col]) != 1 || len(before[def]) != 2 || len(before[member]) != 1 || s.Backend.PG && (len(before[policy]) != 2 || len(before[probePolicies]) != 2) {
+			s.T.Fatal("complete cleanup preconditions", before)
 		}
 		ownershipSelect(s, member, []string{"member", "usage", "can_set"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}})
-		peer, err := s.backend.DB.Conn(s.p.Ctx)
+		peer, err := s.Backend.DB.Conn(s.P.Ctx)
 		if err != nil {
-			s.t.Fatal(err)
+			s.T.Fatal(err)
 		}
 		defer peer.Close()
 		policyState := func(e fixture.Executor, cleaned bool) {
-			s.t.Helper()
-			run := func(step fixture.Step) { fixture.RunStep(s.t, s.p.Ctx, e, s.record, step) }
+			s.T.Helper()
+			run := func(step fixture.Step) { fixture.RunStep(s.T, s.P.Ctx, e, s.Record, step) }
 			// A successful empty SELECT proves the independently granted SELECT
 			// survives: missing ACL authority would produce 42501, not no rows.
 			for _, role := range []string{"own_source", "own_reader", "own_alt"} {
@@ -83,8 +83,8 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 			}
 		}
 		grantState := func(e fixture.Executor, cleaned, inside bool) {
-			s.t.Helper()
-			run := func(step fixture.Step) { fixture.RunStep(s.t, s.p.Ctx, e, s.record, step) }
+			s.T.Helper()
+			run := func(step fixture.Step) { fixture.RunStep(s.T, s.P.Ctx, e, s.Record, step) }
 			deny := func(query string, selectRows bool) {
 				if inside {
 					run(fixture.Exec("SAVEPOINT cleanup_acl_probe", 0))
@@ -112,8 +112,8 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 			}
 			run(fixture.Exec("RESET ROLE", 0))
 		}
-		policyState(s.c, false)
-		grantState(s.c, false, false)
+		policyState(s.C, false)
+		grantState(s.C, false, false)
 		cascade := "DROP OWNED BY own_source,own_source CASCADE"
 		for _, commit := range []bool{false, true} {
 			if route == "auto" && !commit {
@@ -147,7 +147,7 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 			}
 			policyState(x.e, false)
 			grantState(x.e, false, route != "auto")
-			s.clearNotices()
+			s.ClearNotices()
 			x.exec(cascade)
 			x.run(fixture.Select(member, []string{"member", "usage", "can_set"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{false, false, false}}))
 			ownershipNotices(s, ownershipCascadeNotice("drop cascades to 2 other objects", "drop cascades to view tx_cleanup_view\ndrop cascades to view tx_cleanup_nested"))
@@ -156,7 +156,7 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 			x.run(fixture.Select("SELECT pg_has_role('own_downstream','own_middle','MEMBER') AS inherited", []string{"inherited"}, []string{"BOOL"}, [][]any{{false}}))
 			grantState(x.e, true, route != "auto")
 			policyState(x.e, true)
-			if s.backend.PG {
+			if s.Backend.PG {
 				x.run(fixture.Select(policy, []string{"policyname", "roles"}, []string{"NAME", "TEXT"}, [][]any{{"tx_policy_mixed", "{own_reader}"}}))
 			}
 			x.run(fixture.Select("SELECT count(*) FROM pg_default_acl d JOIN pg_roles r ON r.oid=d.defaclrole WHERE r.rolname='own_source'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
@@ -177,9 +177,9 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 				grantState(x.e, false, true)
 				x.exec("ROLLBACK TO healthy")
 				x.exec("RELEASE healthy")
-				s.clearNotices()
+				s.ClearNotices()
 				x.exec(cascade)
-				s.clearNotices()
+				s.ClearNotices()
 				policyState(x.e, true)
 				grantState(x.e, true, true)
 			}
@@ -190,29 +190,29 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 			}
 			if !commit {
 				for q, rows := range before {
-					ownershipTransactionSnapshotEqual(s, s.c, q, rows)
+					ownershipTransactionSnapshotEqual(s, s.C, q, rows)
 				}
-				policyState(s.c, false)
-				grantState(s.c, false, false)
+				policyState(s.C, false)
+				grantState(s.C, false, false)
 				ownershipRoleDependency(s, "own_source", "owner of table tx_cleanup_root", "privileges for table tx_cleanup_grants", "privileges for column id of table tx_cleanup_grants", "target of policy tx_policy_mixed on table tx_cleanup_grants", "target of policy tx_policy_mixed on table tx_cleanup_grants", "target of policy tx_policy_last on table tx_cleanup_grants", "target of policy tx_probe_mixed on table tx_cleanup_policy_probe", "target of policy tx_probe_mixed on table tx_cleanup_policy_probe", "target of policy tx_probe_last on table tx_cleanup_policy_probe", "privileges for membership of role own_downstream in role own_middle", ownershipDefaultLine("own_source", "", "relations", true), ownershipDefaultLine("own_other", "", "relations", false))
 			}
 			if commit {
 				for _, target := range []struct{ name, table string }{{"tx_policy_last", "tx_cleanup_grants"}, {"tx_probe_last", "tx_cleanup_policy_probe"}} {
 					ownershipFailure(s, "ALTER POLICY "+target.name+" ON "+target.table, fixture.Diagnostic{Code: "42704", Message: `policy "` + target.name + `" for table "` + target.table + `" does not exist`})
 				}
-				policyState(s.c, true)
-				grantState(s.c, true, false)
+				policyState(s.C, true)
+				grantState(s.C, true, false)
 			}
 		}
 		ownershipCount(s, "SELECT count(*) FROM pg_namespace WHERE nspname='public'", 1)
 		ownershipCount(s, "SELECT count(*) FROM pg_database WHERE datname=current_database()", 1)
-		s.exec("DROP ROLE own_source")
+		s.Exec("DROP ROLE own_source")
 		ownershipRows(s, "tx_cleanup_grants")
 	})
 }
 
 func TestReferenceRoleOwnershipTransactionalClosure(t *testing.T) {
-	ownershipTransactionCases(t, func(s *membershipScenario, route string) {
+	ownershipTransactionCases(t, func(s *fixture.RoleMembershipScenario, route string) {
 		for _, q := range []string{
 			"CREATE TABLE tx_closure_parent(id INT PRIMARY KEY)", "INSERT INTO tx_closure_parent VALUES(7)",
 			"CREATE TABLE tx_closure_fk(id INT REFERENCES tx_closure_parent(id))",
@@ -228,17 +228,17 @@ func TestReferenceRoleOwnershipTransactionalClosure(t *testing.T) {
 			"ALTER TABLE tx_closure_typed OWNER TO own_other",
 		} {
 			if q == "INSERT INTO tx_closure_parent VALUES(7)" {
-				s.run(fixture.Exec(q, 1))
+				s.Run(fixture.Exec(q, 1))
 			} else {
-				s.exec(q)
+				s.Exec(q)
 			}
 		}
-		s.run(fixture.Exec("INSERT INTO tx_closure_fk VALUES(7)", 1))
-		s.run(fixture.Exec("INSERT INTO tx_closure_column VALUES(7,'a')", 1))
-		s.run(fixture.Exec("INSERT INTO tx_closure_typed VALUES(7)", 1))
+		s.Run(fixture.Exec("INSERT INTO tx_closure_fk VALUES(7)", 1))
+		s.Run(fixture.Exec("INSERT INTO tx_closure_column VALUES(7,'a')", 1))
+		s.Run(fixture.Exec("INSERT INTO tx_closure_typed VALUES(7)", 1))
 		var fkID, colID int64
-		if err := s.c.QueryRowContext(s.p.Ctx, "SELECT 'tx_closure_fk'::regclass::oid::BIGINT,'tx_closure_column'::regclass::oid::BIGINT").Scan(&fkID, &colID); err != nil || fkID <= 0 || colID <= 0 {
-			s.t.Fatal(fkID, colID, err)
+		if err := s.C.QueryRowContext(s.P.Ctx, "SELECT 'tx_closure_fk'::regclass::oid::BIGINT,'tx_closure_column'::regclass::oid::BIGINT").Scan(&fkID, &colID); err != nil || fkID <= 0 || colID <= 0 {
+			s.T.Fatal(fkID, colID, err)
 		}
 		for _, commit := range []bool{false, true} {
 			if route == "auto" && !commit {

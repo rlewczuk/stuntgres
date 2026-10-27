@@ -77,7 +77,7 @@ func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 		if !d.BootDefaultNull {
 			text(12, d.Raw(d.BootValue()))
 		}
-		if d.NativeStartup == nil || !d.NativeStartup.ResetNull {
+		if fact.ResetCaptured || d.NativeStartup == nil || !d.NativeStartup.ResetNull {
 			text(13, d.Raw(fact.Reset))
 		}
 		row[16] = sqltype.Boolean(source.Columns[16].Usage.Type, false)

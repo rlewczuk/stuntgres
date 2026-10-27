@@ -79,6 +79,13 @@ names, cursors, `LISTEN` subscriptions, TEMP objects, advisory locks, sequence
 connection. A `*sql.DB` may use any connection, so pin a `*sql.Conn` (or `*sql.Tx`)
 for session-scoped work.
 
+Persisted role/database defaults are shared cluster authority, captured once for
+the login role and selected database when a physical connection opens. Existing
+sessions, pool reuse and identity switches retain their captured reset baseline;
+new connections see committed changes. Role rename preserves the principal and
+its defaults. Configured notice handlers also receive startup diagnostics before
+Connect returns, without running under engine lifecycle locks.
+
 Returning a connection to the pool keeps all of that state: `ResetSession` is a
 health check only, never an implicit `DISCARD` or rollback. Run `DISCARD ALL` on
 the pinned connection before `Conn.Close` to clean it. Canceled statements and

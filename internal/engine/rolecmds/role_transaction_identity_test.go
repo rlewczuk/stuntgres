@@ -23,63 +23,71 @@ func roleTransactionalAST(t *testing.T, e *core.Engine, s *session.Session, stat
 
 func TestRoleTransactionalIdentityRestoration(t *testing.T) {
 	for _, commit := range []bool{false, true} {
-		label := "rollback"
-		if commit {
-			label = "commit"
-		}
-		t.Run(label, func(t *testing.T) {
-			e := engine.New()
-			s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
-			for _, name := range []string{"identity_unit_a", "identity_unit_b"} {
-				roleTransactionalAST(t, e, s, &parser.CreateRole{Name: parser.Identifier{Text: name}})
-			}
-			entry, peerEntry := s.Authorization.State, peer.Authorization.State
-			ref := enginetest.TransactionBegin(t, s)
-			roleTransactionalAST(t, e, s, &parser.RoleSelection{Name: "identity_unit_a", Local: true})
-			roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Name: "identity_unit_b"})
-			selected := s.Authorization.State
-			if selected.Authenticated != entry.Authenticated || selected.ResetRole != entry.ResetRole || selected.SessionUser != selected.CurrentUser || selected.SessionUser == entry.SessionUser || s.Transactions.IdentityEntry != entry {
-				t.Fatal("session selection lost physical entry identity")
-			}
-			name := parser.Identifier{Text: "identity_mark"}
-			roleTransactionalAST(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: name})
-			mark := s.Transactions.Savepoints[len(s.Transactions.Savepoints)-1]
-			for range 2 {
-				roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Name: "identity_unit_a"})
-				roleTransactionalAST(t, e, s, &parser.SavepointControl{Kind: parser.RollbackSavepoint, Name: name})
-				if s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction {
-					t.Fatal("inline restore lost identity or typed role action")
-				}
-			}
-			roleTransactionalAST(t, e, s, &parser.SavepointControl{Kind: parser.ReleaseSavepoint, Name: name})
-			roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Name: "identity_unit_a"})
-			// The failed-statement restoration path consumes a cloned settings mark
-			// and exact refs; it neither resolves names nor repeats SET eligibility.
-			core.RestoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
-			e.Locks.Restore(s.Transactions.Ticket, mark.Locks)
-			if s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction || peer.Authorization.State != peerEntry {
-				t.Fatal("cached restoration changed peer/physical identity or role action")
-			}
-			revision := s.Authorization.Revision
-			s.Authorization.Revision = ^uint64(0) - 1
-			op := enginetest.TransactionOperation(t, s)
-			e.Mu.Lock()
-			err := rolecmds.SwitchSessionRoleLocked(e, op, entry.CurrentUser, false, true)
-			e.Mu.Unlock()
-			op.Done()
-			if err == nil || s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction {
-				t.Fatal("exhausted revision changed identity/settings")
-			}
-			s.Authorization.Revision = revision
-			enginetest.TransactionEnd(t, s, ref, commit)
-			want := entry
+		for _, active := range []bool{false, true} {
+			label := "rollback"
 			if commit {
-				want = selected
+				label = "commit"
 			}
-			if s.Authorization.State != want || peer.Authorization.State != peerEntry || s.Transactions.IdentityCaptured || s.Settings.RoleAction.Present {
-				t.Fatal("outer finish restored the wrong complete identity")
+			if active {
+				label += "-self"
 			}
-		})
+			t.Run(label, func(t *testing.T) {
+				e := engine.New()
+				s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+				for _, name := range []string{"identity_unit_a", "identity_unit_b"} {
+					roleTransactionalAST(t, e, s, &parser.CreateRole{Name: parser.Identifier{Text: name}})
+				}
+				if active {
+					roleTransactionalAST(t, e, s, &parser.RoleSelection{Name: "postgres"})
+				}
+				entry, peerEntry := s.Authorization.State, peer.Authorization.State
+				ref := enginetest.TransactionBegin(t, s)
+				roleTransactionalAST(t, e, s, &parser.RoleSelection{Name: "identity_unit_a", Local: true})
+				roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Name: "identity_unit_b"})
+				selected := s.Authorization.State
+				if selected.Authenticated != entry.Authenticated || selected.ResetRole != entry.ResetRole || selected.ResetRoleText != entry.ResetRoleText || selected.ActiveRole || selected.RoleText != "" || selected.SessionUser != selected.CurrentUser || selected.SessionUser == entry.SessionUser || s.Transactions.IdentityEntry != entry {
+					t.Fatal("session selection lost physical entry identity")
+				}
+				name := parser.Identifier{Text: "identity_mark"}
+				roleTransactionalAST(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: name})
+				mark := s.Transactions.Savepoints[len(s.Transactions.Savepoints)-1]
+				for range 2 {
+					roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Name: "identity_unit_a"})
+					roleTransactionalAST(t, e, s, &parser.SavepointControl{Kind: parser.RollbackSavepoint, Name: name})
+					if s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction {
+						t.Fatal("inline restore lost identity or typed role action")
+					}
+				}
+				roleTransactionalAST(t, e, s, &parser.SavepointControl{Kind: parser.ReleaseSavepoint, Name: name})
+				roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Name: "identity_unit_a"})
+				// The failed-statement restoration path consumes a cloned settings mark
+				// and exact refs; it neither resolves names nor repeats SET eligibility.
+				core.RestoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
+				e.Locks.Restore(s.Transactions.Ticket, mark.Locks)
+				if s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction || peer.Authorization.State != peerEntry {
+					t.Fatal("cached restoration changed peer/physical identity or role action")
+				}
+				revision := s.Authorization.Revision
+				s.Authorization.Revision = ^uint64(0) - 1
+				op := enginetest.TransactionOperation(t, s)
+				e.Mu.Lock()
+				err := rolecmds.SwitchSessionRoleLocked(e, op, entry, false)
+				e.Mu.Unlock()
+				op.Done()
+				if err == nil || s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction {
+					t.Fatal("exhausted revision changed identity/settings")
+				}
+				s.Authorization.Revision = revision
+				enginetest.TransactionEnd(t, s, ref, commit)
+				want := entry
+				if commit {
+					want = selected
+				}
+				if s.Authorization.State != want || peer.Authorization.State != peerEntry || s.Transactions.IdentityCaptured || s.Settings.RoleAction.Present {
+					t.Fatal("outer finish restored the wrong complete identity")
+				}
+			})
+		}
 	}
 }
 

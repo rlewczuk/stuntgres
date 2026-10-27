@@ -1,11 +1,8 @@
 # reference/roles
 
-Roles and table-level authorization: CREATE/ALTER/DROP ROLE and USER
-attributes, passwords, validity and connection limits; trusted connectors and
-authenticated sessions; role membership (GRANT/REVOKE role, ADMIN/INHERIT/SET,
-ALTER GROUP); SET ROLE and SET SESSION AUTHORIZATION; ownership, REASSIGN OWNED,
-DROP OWNED and DROP ROLE; table and column GRANT/REVOKE; ALTER DEFAULT
-PRIVILEGES; predefined roles; `pg_has_role`/`row_security_active`; the
+Table-level authorization: ownership, REASSIGN OWNED, DROP OWNED and DROP ROLE;
+table and column GRANT/REVOKE; ALTER DEFAULT PRIVILEGES; predefined roles;
+`pg_has_role`/`row_security_active`; the
 `row_security` setting; and row security (policy DDL, table flags, policy
 combination, existing-row USING filtering and finalized INSERT/UPDATE proposed-row
 checks with atomic rejection).
@@ -13,6 +10,9 @@ Related: non-table grants and large objects in
 `reference/object_grants`; `pg_roles`, `pg_user`, `pg_group`, `pg_default_acl`
 and ACL inquiry functions in `reference/catalog_privileges`; session identity forms in
 `reference/sessions`.
+Role identity, attributes, membership, trusted connectors, transactional
+lifecycle, rename and persisted-default scenarios live in
+`reference/object_address`. Shared role helpers belong to `reference/fixture`.
 
 Existing-row USING policies filter SELECT sources and UPDATE/DELETE targets before
 non-leakproof user expressions. FALSE or NULL silently suppresses rows; missing
@@ -31,19 +31,12 @@ array and standalone-composite backing owners. Extension membership is not an
 identity-ALTER prohibition. Successor owners exercise the same ordinary lifecycle
 authority.
 
-- `membershipScenario` (`role_membership_helpers_test.go`) is the shared roles
-  fixture: `run`/`exec`/`actor` over one notice-enabled pinned connection, with
-  `s.bootstrap` = `postgres` natively and `stuntgres` on the oracle.
-  `membershipCases(t, roles, body)` builds one per `prepared=false|true` ×
-  backend subtest, after registering cleanup for `roles`, which it creates
-  with LOGIN.
-  Family helpers build on it: `ownershipCases` (`role_ownership_helpers_test.go`),
-  `predefinedCases` (`predefined_helpers_test.go`), `rlsBaseCases`
-  (`rls_base_helpers_test.go`), `combinationCases` (`rls_combination_helpers_test.go`),
-  `accessRoleCases` (`access_role_helpers_test.go`) and `policySetup`
-  (`rls_policy_definition_test.go`). Default privileges use `dpScenario`
-  (`default_privileges_helpers_test.go`); role attributes use `roleAttributesRun`
-  and the facts in `role_attributes_fixture_test.go`.
+- `fixture.RoleMembershipScenario` provides `Run`/`Exec`/`Actor` over one
+  notice-enabled pinned connection. `fixture.RoleMembershipCases` covers both
+  prepared modes and backends after registering role cleanup and creating LOGIN
+  roles. Family wrappers (`ownershipCases`, `predefinedCases`, `rlsBaseCases`,
+  `combinationCases`, `policySetup`) retain their existing setup; access inquiry
+  helpers use `fixture.AccessRole*`. Default privileges use local `dpScenario`.
 - Predefined-role ANALYZE consumers exercise the actual maintenance command:
   missing MAINTAIN warns and skips successfully, `pg_maintain` admits collection
   without granting SELECT or ownership, schema USAGE remains mandatory, and a
@@ -114,10 +107,6 @@ fences, then prove a committed grant survives replacement with its roles intact.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
-- Role attributes: `RUN='^TestReferenceRoleAttributes'`
-- Trusted connectors: `RUN='^TestReferenceRole(Trusted)?Connector'`
-- Membership: `RUN='^TestReferenceRoleMembership'`
-- SET ROLE / SESSION AUTHORIZATION: `RUN='^TestReferenceRoleSwitch'`
 - Ownership, REASSIGN/DROP OWNED, DROP ROLE: `RUN='^TestReferenceRoleOwnership'`
 - Table and column GRANT: `RUN='^TestReferenceRoleGrant'`
 - Table and column REVOKE: `RUN='^TestReferenceRoleRevoke'`
@@ -139,11 +128,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Existing-row USING filtering: `RUN='^TestReferenceRLSFilter'`
 - Proposed-row checks, transformations and statement atomicity: `RUN='^TestReferenceRLSCheck'`
 
-- Role DDL, authorization and sessions:
-  `RUN='^TestReferenceRole(Creation|Authorization|AuthenticatedSessions|ExcludedCommands|DropConditionalBoundary|TransactionMutationBoundary)$'`
-- Retained identities and native controls:
-  `RUN='^TestReferenceRole(Retained|MigratedSmokeControls|ControlsOwners|RestoreOwnerReset)'`
 - Grant and ownership consumer regressions:
-  `RUN='^TestReferenceRole(PreparedSetup|InputPrecedence|NamespaceLookup|LaterDependent|DependencyAddress|PublicGrantOptions)'`
+  `RUN='^TestReferenceRole(InputPrecedence|NamespaceLookup|LaterDependent|DependencyAddress|PublicGrantOptions)'`
 - Engine units use the family names without `Reference`, for example
   `make check RUN='^TestRLSPolicy'` or `make check RUN='^TestDefaultPrivileges'`.

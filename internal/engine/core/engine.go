@@ -311,6 +311,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, nil
 	case *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
 		return Description{}, nil
+	case *parser.RenameRole, *parser.AlterRoleSettings:
+		return Description{}, nil
 	case *parser.AlterTableAllInTablespace, *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableDefault, *parser.AlterTable, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset, *parser.TransactionCharacteristics:
 		return Description{}, nil
 	case *parser.RoleSelection:
@@ -336,6 +338,9 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
 		if s.All {
 			return Description{Results: settingColumns(typ, "name", "setting", "description")}, nil
+		}
+		if settings.FoldName(s.Name.Text) == "role" {
+			return Description{Results: settingColumns(typ, "role")}, nil
 		}
 		d, err := op.EffectiveSettings().LookupDefinition(e.Settings, s.Name.Text, false)
 		if err != nil {

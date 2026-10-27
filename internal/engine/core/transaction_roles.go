@@ -22,6 +22,13 @@ func (e *Engine) OperationRolesLocked(op *session.Operation) *access.RoleRecord 
 	}
 	return e.RoleStore.Published
 }
+
+// OperationRoleSettingsLocked borrows defaults from the same complete record
+// as the operation's principal authority. Caller holds Engine.mu.
+func (e *Engine) OperationRoleSettingsLocked(op *session.Operation) *access.RoleSettings {
+	return e.OperationRolesLocked(op).Settings
+}
+
 func (e *Engine) sessionRolesLocked(session *session.Session) *access.RoleRecord {
 	if session != nil && session.Transactions != nil {
 		if c := session.Transactions.Catalog; c != nil && c.Roles != nil {
@@ -101,7 +108,11 @@ func (e *Engine) mergedJournalRolesLocked(ctx context.Context, c *session.Journa
 	if err != nil {
 		return nil, err
 	}
-	return &access.RoleRecord{Root: *root, Revision: revision}, nil
+	settings, err := access.MergeRoleSettings(ctx, c.RolesBase.Settings, c.Roles.Settings, e.RoleStore.Published.Settings)
+	if err != nil {
+		return nil, err
+	}
+	return &access.RoleRecord{Root: *root, Settings: settings, Revision: revision}, nil
 }
 
 func (e *Engine) refreshOperationRolesLocked(op *session.Operation) error {
@@ -111,18 +122,23 @@ func (e *Engine) refreshOperationRolesLocked(op *session.Operation) error {
 	}
 	// A peer ACL publication changed no principal graph. Preserve the owner's
 	// exact private root/base and logical ACL delta until final publication.
-	if e.RoleStore.Published.SameAuthority(current.RolesBase) {
+	if e.RoleStore.Published.SameAuthority(current.RolesBase) && e.RoleStore.Published.Settings == current.RolesBase.Settings {
 		return nil
 	}
 	if current.Roles.SameAuthority(current.RolesBase) {
-		// Completed ACL work has no actual principal delta. Refresh its view
-		// through the incoming merge, preserving the original logical delta
+		// Graph-unchanged work still has an independent settings delta. Refresh
+		// both roots while retaining the checked logical revision delta,
 		// without reserving the allocator frontier during a read.
 		if _, err := e.journalRolePublicationLocked(current, false); err != nil {
 			return err
 		}
+		settings, err := access.MergeRoleSettings(op.Context(), current.RolesBase.Settings, current.Roles.Settings, e.RoleStore.Published.Settings)
+		if err != nil {
+			return err
+		}
 		c := current.Clone()
 		next := e.RoleStore.Published.Advance()
+		next.Settings = settings
 		next.Revision = e.RoleStore.Published.Revision + (c.Roles.Revision - c.RolesBase.Revision)
 		c.Roles, c.RolesBase = next, e.RoleStore.Published
 		installOperationCatalog(op, c)
@@ -164,11 +180,11 @@ func (e *Engine) publicationRolesLocked(ctx context.Context, c *session.Journal)
 	return &copy, nil
 }
 
-// Completed ACL-only journals preserve their checked revision delta and merge
-// zero actual principal changes into the current authority. SameAuthority is
-// the allocation-free fast path, not an outer-publication authority fence.
-// Actual-role and mixed journals retain the existing explicit root merge.
-// materialize is false during ACL journal validation, avoiding allocations.
+// Graph-unchanged journals preserve their checked revision delta and merge
+// settings independently into current authority. SameAuthority only supplies
+// the zero principal delta, never complete-record equality or a publication
+// fence. Actual-role journals retain the explicit graph-and-settings merge.
+// materialize is false during validation, avoiding a new publication record.
 func (e *Engine) journalRolePublicationLocked(c *session.Journal, materialize bool) (*access.RoleRecord, error) {
 	if c == nil {
 		return nil, nil
@@ -207,6 +223,10 @@ func (e *Engine) journalRolePublicationLocked(c *session.Journal, materialize bo
 			return nil, catalog.Conflict{}
 		}
 	}
+	settings, err := access.MergeRoleSettings(context.Background(), base.Settings, next.Settings, current.Settings)
+	if err != nil {
+		return nil, err
+	}
 	delta := next.Revision - base.Revision
 	if current.Revision > ^uint64(0)-delta {
 		return nil, fmt.Errorf("stuntgres: authorization revision exhausted")
@@ -223,6 +243,7 @@ func (e *Engine) journalRolePublicationLocked(c *session.Journal, materialize bo
 		return next, nil
 	}
 	published := current.Advance()
+	published.Settings = settings
 	published.Revision = revision
 	return published, nil
 }

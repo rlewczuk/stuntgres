@@ -104,6 +104,11 @@ single-statement limit of driver calls) belong to callers.
   The dedicated CREATE head cannot fall into generic unsupported-CREATE parsing
   on incomplete input, without changing STATISTICS's unreserved name legality.
   A supplied kind list requires at least one identifier.
+- ALTER ROLE and USER share positioned rename and persisted-setting nodes.
+  Role specs retain execute-time current/session identity, while ALL and optional
+  database scope are separate from RESET ALL. Setting lists reuse ordinary SET
+  extraction; DEFAULT and FROM CURRENT remain explicit actions. Complete grammar
+  shapes, not prefix guards, reject malformed suffixes before execution.
 
 ### Scratch receivers
 

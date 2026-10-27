@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func combinationCases(t *testing.T, body func(*membershipScenario)) {
+func combinationCases(t *testing.T, body func(*fixture.RoleMembershipScenario)) {
 	t.Helper()
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprintf("prepared=%v", prepared), func(t *testing.T) {
@@ -21,65 +21,65 @@ func combinationCases(t *testing.T, body func(*membershipScenario)) {
 					if b.PG {
 						bootstrap = "stuntgres"
 					}
-					s := &membershipScenario{t, p, b, c, record, &notices, prepared, bootstrap}
+					s := &fixture.RoleMembershipScenario{T: t, P: p, Backend: b, C: c, Record: record, Notices: &notices, Prepared: prepared, Bootstrap: bootstrap}
 					defer c.ExecContext(p.Ctx, "RESET ROLE")
 					for _, name := range names {
-						s.exec("CREATE ROLE " + name)
+						s.Exec("CREATE ROLE " + name)
 					}
-					s.exec("GRANT USAGE ON SCHEMA public TO comb_reader,comb_group,comb_other,comb_middle")
-					s.exec("GRANT comb_group TO comb_reader WITH INHERIT TRUE, SET TRUE")
-					s.exec("CREATE TABLE t(id INT PRIMARY KEY,allowed BOOL,v INT)")
-					s.run(fixture.Exec("INSERT INTO t VALUES(1,TRUE,10),(2,FALSE,20),(3,NULL,30),(4,TRUE,40)", 4))
-					s.exec("GRANT SELECT,INSERT,UPDATE,DELETE ON t TO comb_reader,comb_group,comb_middle")
-					s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
+					s.Exec("GRANT USAGE ON SCHEMA public TO comb_reader,comb_group,comb_other,comb_middle")
+					s.Exec("GRANT comb_group TO comb_reader WITH INHERIT TRUE, SET TRUE")
+					s.Exec("CREATE TABLE t(id INT PRIMARY KEY,allowed BOOL,v INT)")
+					s.Run(fixture.Exec("INSERT INTO t VALUES(1,TRUE,10),(2,FALSE,20),(3,NULL,30),(4,TRUE,40)", 4))
+					s.Exec("GRANT SELECT,INSERT,UPDATE,DELETE ON t TO comb_reader,comb_group,comb_middle")
+					s.Exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
 					body(s)
 				})
 			}
 		})
 	}
 }
-func combinationIDs(s *membershipScenario, q string, ids ...int64) {
-	s.t.Helper()
+func combinationIDs(s *fixture.RoleMembershipScenario, q string, ids ...int64) {
+	s.T.Helper()
 	rows := make([][]any, 0, len(ids))
 	for _, id := range ids {
 		rows = append(rows, []any{id})
 	}
-	s.run(fixture.Select(q, []string{"id"}, []string{"INT4"}, rows))
+	s.Run(fixture.Select(q, []string{"id"}, []string{"INT4"}, rows))
 }
-func combinationDeny(s *membershipScenario, q, policy string, query bool) {
-	s.t.Helper()
+func combinationDeny(s *fixture.RoleMembershipScenario, q, policy string, query bool) {
+	s.T.Helper()
 	message := `new row violates row-level security policy for table "t"`
 	if policy != "" {
 		message = `new row violates row-level security policy "` + policy + `" for table "t"`
 	}
 	predefinedFailure(s, q, fixture.Diagnostic{Code: "42501", Message: message}, query, "execute")
 }
-func combinationError(s *membershipScenario, q, code, message string, query bool) {
-	s.t.Helper()
+func combinationError(s *fixture.RoleMembershipScenario, q, code, message string, query bool) {
+	s.T.Helper()
 	predefinedFailure(s, q, fixture.Diagnostic{Code: code, Message: message}, query, "execute")
 }
-func combinationHeld(s *membershipScenario, q string) fixture.HeldStatement {
-	s.t.Helper()
-	stmt, err := s.c.PrepareContext(s.p.Ctx, q)
+func combinationHeld(s *fixture.RoleMembershipScenario, q string) fixture.HeldStatement {
+	s.T.Helper()
+	stmt, err := s.C.PrepareContext(s.P.Ctx, q)
 	if err != nil {
-		s.t.Fatal(err)
+		s.T.Fatal(err)
 	}
-	s.t.Cleanup(func() { stmt.Close() })
-	return fixture.HeldStatement{Executor: s.c, Statement: stmt, SQL: q}
+	s.T.Cleanup(func() { stmt.Close() })
+	return fixture.HeldStatement{Executor: s.C, Statement: stmt, SQL: q}
 }
-func combinationHeldIDs(s *membershipScenario, h fixture.HeldStatement, ids ...int64) {
+func combinationHeldIDs(s *fixture.RoleMembershipScenario, h fixture.HeldStatement, ids ...int64) {
 	rows := make([][]any, 0, len(ids))
 	for _, id := range ids {
 		rows = append(rows, []any{id})
 	}
-	fixture.RunStep(s.t, s.p.Ctx, h, s.record, fixture.Select(h.SQL, []string{"id"}, []string{"INT4"}, rows))
+	fixture.RunStep(s.T, s.P.Ctx, h, s.Record, fixture.Select(h.SQL, []string{"id"}, []string{"INT4"}, rows))
 }
 
-func combinationViewDemandSource(s *membershipScenario) {
-	s.t.Helper()
-	s.exec("CREATE TABLE helper(obsolete INT,id INT)")
-	s.exec("ALTER TABLE helper DROP COLUMN obsolete")
-	s.run(fixture.Exec("INSERT INTO helper(id) VALUES(1),(3)", 2))
-	s.exec("CREATE VIEW helper_view AS SELECT 10/(id-id) AS unused,id+0 AS lookup FROM helper")
-	s.exec("GRANT SELECT ON helper_view TO comb_reader")
+func combinationViewDemandSource(s *fixture.RoleMembershipScenario) {
+	s.T.Helper()
+	s.Exec("CREATE TABLE helper(obsolete INT,id INT)")
+	s.Exec("ALTER TABLE helper DROP COLUMN obsolete")
+	s.Run(fixture.Exec("INSERT INTO helper(id) VALUES(1),(3)", 2))
+	s.Exec("CREATE VIEW helper_view AS SELECT 10/(id-id) AS unused,id+0 AS lookup FROM helper")
+	s.Exec("GRANT SELECT ON helper_view TO comb_reader")
 }

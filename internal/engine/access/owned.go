@@ -93,18 +93,18 @@ func OwnershipRelationLocks(view catalog.Read, roots []ids.ObjectAddress, policy
 
 // OwnedMembershipCandidate returns the next role record without the memberships
 // that sources granted, or nil when none needs removal.
-func OwnedMembershipCandidate(ctx context.Context, roles authorization.Read, revision uint64, sources map[authorization.PrincipalRef]bool) (*RoleRecord, error) {
+func OwnedMembershipCandidate(ctx context.Context, roles authorization.Read, publication *RoleRecord, sources map[authorization.PrincipalRef]bool) (*RoleRecord, error) {
 	if !authorization.OwnedMembershipNeeded(roles, sources) {
 		return nil, ctx.Err()
 	}
-	if revision == ^uint64(0) {
+	if publication.Revision == ^uint64(0) {
 		return nil, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	root, err := authorization.OwnedMembershipCandidate(ctx, roles, sources)
 	if err != nil {
 		return nil, err
 	}
-	return &RoleRecord{Root: root, Revision: revision + 1}, nil
+	return publication.WithRoot(root), nil
 }
 
 // OwnedPolicies drops sources from policy role lists, removing policies left

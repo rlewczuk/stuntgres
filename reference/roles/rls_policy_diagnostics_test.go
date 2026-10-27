@@ -56,10 +56,10 @@ func TestReferenceRLSPolicyDiagnostics(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			membershipCases(t, nil, func(s *membershipScenario) {
+			fixture.RoleMembershipCases(t, nil, func(s *fixture.RoleMembershipScenario) {
 				policySetup(s)
 				if tc.setup != "" {
-					s.exec(tc.setup)
+					s.Exec(tc.setup)
 				}
 				position := 0
 				if tc.token != "" {
@@ -67,10 +67,10 @@ func TestReferenceRLSPolicyDiagnostics(t *testing.T) {
 				}
 				step := fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: tc.code, Message: tc.message, Detail: tc.detail, Hint: tc.hint, Position: fixture.Position(position)})
 				step.ErrorStage = "execute"
-				if s.prepared {
+				if s.Prepared {
 					step.ErrorStage = tc.stage
 				}
-				s.run(step)
+				s.Run(step)
 				policyRows(s)
 			})
 		})
@@ -93,7 +93,7 @@ func TestReferenceRLSPolicyDiagnostics(t *testing.T) {
 	}
 	for _, tc := range grammar {
 		t.Run(tc.name, func(t *testing.T) {
-			membershipCases(t, nil, func(s *membershipScenario) {
+			fixture.RoleMembershipCases(t, nil, func(s *fixture.RoleMembershipScenario) {
 				policySetup(s)
 				message := `syntax error at or near "` + tc.token + `"`
 				position := utf8.RuneCountInString(tc.q) + 1
@@ -104,23 +104,23 @@ func TestReferenceRLSPolicyDiagnostics(t *testing.T) {
 				}
 				step := fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "42601", Message: message, Position: fixture.Position(position)})
 				step.ErrorStage = "execute"
-				if s.prepared {
+				if s.Prepared {
 					step.ErrorStage = "prepare"
 				}
-				s.run(step)
+				s.Run(step)
 				// Whole-input failure cannot create the valid prefix policy.
-				s.exec("CREATE POLICY p ON t")
+				s.Exec("CREATE POLICY p ON t")
 			})
 		})
 	}
-	membershipCases(t, nil, func(s *membershipScenario) {
+	fixture.RoleMembershipCases(t, nil, func(s *fixture.RoleMembershipScenario) {
 		policySetup(s)
 		for _, tc := range []struct{ q, message string }{
 			{"DROP POLICY IF EXISTS absent ON t", `policy "absent" for relation "t" does not exist, skipping`},
 			{"DROP POLICY IF EXISTS p ON missing", `relation "missing" does not exist, skipping`},
 			{"DROP POLICY IF EXISTS p ON missing.t", `schema "missing" does not exist, skipping`},
 		} {
-			s.exec(tc.q)
+			s.Exec(tc.q)
 			policyNotice(s, fixture.Diagnostic{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: tc.message})
 		}
 		policyRows(s)

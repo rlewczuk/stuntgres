@@ -2,7 +2,6 @@ package rolecmds
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
@@ -47,6 +46,6 @@ func membershipLocked(e *core.Engine, op *session.Operation, v core.Authorizatio
 		if err := core.PublicationOperationLocked(e, op); err != nil {
 			return core.Result{}, err
 		}
-		return core.Result{}, core.InstallOperationRolesLocked(e, op, &access.RoleRecord{Root: n})
+		return core.Result{}, core.InstallOperationRolesLocked(e, op, v.RoleRecord.WithRoot(n))
 	}
 }

@@ -17,12 +17,14 @@ type SettingsStore struct {
 	Mu               sync.Mutex
 	Session          *Session
 	Defaults, Values map[string]string
+	defaultsShared   bool // Registry-owned reset maps; detach before persisted writes.
 	Invocation       bool // Detached image: never publish session lifetime timers.
 	// typed contains only overrides; captured defaults never require reparsing.
 	Typed, DefaultTyped map[string]settings.Value
 	Placeholders        map[string]bool
 	Ended               bool
-	ProviderDefaults    map[string]bool // Captured present responses, even when equal to boot.
+	ProviderDefaults    map[string]bool          // Captured present responses, even when equal to boot.
+	DefaultSources      map[string]DefaultSource // Captured non-registry reset provenance.
 	Actions             map[string]settingAction
 	RoleAction          roleSettingAction
 	NestLevel           int // Zero outside explicit SAVE frames; transaction base is level one.
@@ -77,10 +79,26 @@ const (
 	settingSave
 )
 
+// roleSetting is the complete physical role GUC value, independent of effective
+// invocation authority and of the selected principal's live descriptor name.
+type roleSetting struct {
+	CurrentUser authorization.PrincipalRef
+	ActiveRole  bool
+	RoleText    string
+}
+
+func captureRole(state authorization.RoleState) roleSetting {
+	return roleSetting{state.CurrentUser, state.ActiveRole, state.RoleText}
+}
+
+func (r roleSetting) restore(state *authorization.RoleState) {
+	state.CurrentUser, state.ActiveRole, state.RoleText = r.CurrentUser, r.ActiveRole, r.RoleText
+}
+
 // A role has one typed journal entry, not a generic string-setting override.
 type roleSettingAction struct {
 	Present             bool
-	original, candidate authorization.PrincipalRef
+	original, candidate roleSetting
 	kind                uint8
 }
 
@@ -93,20 +111,20 @@ func RoleRevisionHeadroom(a *AuthorizationState, needed uint64) error {
 
 // Called with settings and Session locked. Role refs were validated before
 // publication; restoration must not repeat membership eligibility checks.
-func (s *SettingsStore) TouchRole(current authorization.PrincipalRef, local bool) {
+func (s *SettingsStore) TouchRole(current authorization.RoleState, local bool) {
 	a := s.RoleAction
 	if !a.Present {
 		a.Present = true
-		a.original = current
+		a.original = captureRole(current)
 	}
 	if !local {
 		a.kind = settingSession
-		a.candidate = authorization.PrincipalRef{}
+		a.candidate = roleSetting{}
 	} else if !s.RoleAction.Present {
 		a.kind = settingLocal
 	} else if a.kind == settingSession {
 		a.kind = settingSessionLocal
-		a.candidate = current
+		a.candidate = captureRole(current)
 	}
 	s.RoleAction = a
 }
@@ -209,12 +227,13 @@ func (s *SettingsStore) FinishTransaction(commit bool) {
 			target.Authenticated = t.IdentityEntry.Authenticated
 			target.SessionUser = t.IdentityEntry.SessionUser
 			target.ResetRole = t.IdentityEntry.ResetRole
+			target.ResetRoleText = t.IdentityEntry.ResetRoleText
 		}
 		if a := s.RoleAction; a.Present {
 			if !commit || a.kind == settingLocal {
-				target.CurrentUser = a.original
+				a.original.restore(&target)
 			} else if a.kind == settingSessionLocal {
-				target.CurrentUser = a.candidate
+				a.candidate.restore(&target)
 			}
 		}
 		s.RestoreIdentityLocked(target)
@@ -229,21 +248,23 @@ func (s *SettingsStore) FinishTransaction(commit bool) {
 }
 
 // InitializeShared starts the store with the shared defaults of a session
-// without a SessionDefaultProvider (settings.Registry.SessionDefaults); the
-// store only reads them. Initialize with a nil provider builds equal maps.
+// without a SessionDefaultProvider (settings.Registry.SessionDefaults). Persisted
+// ordinary defaults detach these maps on first write; otherwise they stay shared.
 func (s *SettingsStore) InitializeShared(defaults settings.SessionDefaults) {
 	s.Typed = make(map[string]settings.Value)
 	s.Placeholders = make(map[string]bool)
 	s.Defaults, s.DefaultTyped = defaults.Text, defaults.Typed
+	s.defaultsShared = true
 }
 
 func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]settings.Definition, names []string, provider settings.SessionDefaultProvider) error {
 	s.Typed = make(map[string]settings.Value)
 	s.DefaultTyped = make(map[string]settings.Value)
 	s.Placeholders = make(map[string]bool)
-	if s.Defaults == nil {
+	if s.Defaults == nil || s.defaultsShared {
 		s.Defaults = make(map[string]string, len(names))
 	}
+	s.defaultsShared = false
 	for _, name := range names {
 		d := definitions[name]
 		v := d.DefaultValue()
@@ -265,6 +286,10 @@ func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]s
 					s.ProviderDefaults = make(map[string]bool)
 				}
 				s.ProviderDefaults[name] = true
+				if s.DefaultSources == nil {
+					s.DefaultSources = make(map[string]DefaultSource)
+				}
+				s.DefaultSources[name] = DefaultSourceClient
 				v, err = d.Parse(input)
 				if err != nil {
 					return err
@@ -291,8 +316,10 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.Values = nil
 	s.Typed = nil
 	s.DefaultTyped = nil
+	s.defaultsShared = false
 	s.Placeholders = nil
 	s.ProviderDefaults = nil
+	s.DefaultSources = nil
 	s.Actions = nil
 	s.RoleAction = roleSettingAction{}
 	s.NestLevel = 0

@@ -40,13 +40,17 @@ func capturePGShadow(in Input) ([][]sqltype.Value, error) {
 				return nil, err
 			}
 		}
+		config, err := roleConfig(in, principal, columns[8].Usage.Type)
+		if err != nil {
+			return nil, err
+		}
 		rows = append(rows, []sqltype.Value{
 			sqltype.String(columns[0].Usage.Type, role.Name), id,
 			sqltype.Boolean(columns[2].Usage.Type, role.CreateDB),
 			sqltype.Boolean(columns[3].Usage.Type, role.Superuser),
 			sqltype.Boolean(columns[4].Usage.Type, role.Replication),
 			sqltype.Boolean(columns[5].Usage.Type, role.BypassRLS),
-			password, expiry, sqltype.Null(columns[8].Usage.Type),
+			password, expiry, config,
 		})
 	}
 	if err := in.Context.Err(); err != nil {

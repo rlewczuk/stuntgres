@@ -57,13 +57,8 @@ func TestReferencePGAuthIDLifecycle(t *testing.T) {
 		}
 		pgShadowSetPassword(t, p, b, "pga_snapshot", &replacement)
 		pgUserExec(t, p, b, "ALTER ROLE pga_snapshot CREATEDB VALID UNTIL '-infinity'")
-		capturedName := "pga_snapshot"
-		if b.PG {
-			pgUserExec(t, p, b, "ALTER ROLE pga_snapshot RENAME TO pga_snapshot_renamed")
-			capturedName = "pga_snapshot_renamed"
-		} else {
-			pgAuthIDUnsupportedRename(t, p, b, "ALTER ROLE pga_snapshot RENAME TO pga_snapshot_renamed")
-		}
+		pgUserExec(t, p, b, "ALTER ROLE pga_snapshot RENAME TO pga_snapshot_renamed")
+		capturedName := "pga_snapshot_renamed"
 		if !b.PG {
 			fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("SET ROLE pga_snapshot_reader", 0))
 			denied := pgAuthIDDenied(q, false)
@@ -77,9 +72,7 @@ func TestReferencePGAuthIDLifecycle(t *testing.T) {
 			t.Fatal("renamed retained execution failed")
 		}
 		pgAuthIDRetained(t, rows, capturedName, replacement, "-infinity", true)
-		if b.PG {
-			pgUserExec(t, p, b, "ALTER ROLE pga_snapshot_renamed RENAME TO pga_snapshot")
-		}
+		pgUserExec(t, p, b, "ALTER ROLE pga_snapshot_renamed RENAME TO pga_snapshot")
 		for _, prepared := range []bool{false, true} {
 			pgAuthIDPassword(t, p, conn, prepared, "pga_snapshot", &replacement)
 		}

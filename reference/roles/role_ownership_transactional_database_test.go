@@ -12,41 +12,41 @@ func TestReferenceRoleOwnershipTransactionalDatabase(t *testing.T) {
 		t.Run(route, func(t *testing.T) {
 			names := []string{"tx_own_remote_direct", "tx_own_remote_held"}
 			fixture.DatabaseReferenceCleanup(t, &names)
-			ownershipProviderCasesFor(t, ownershipRouteModes(route), func(s *membershipScenario, database string) {
+			ownershipProviderCasesFor(t, ownershipRouteModes(route), func(s *fixture.RoleMembershipScenario, database string) {
 				remoteName := "tx_own_remote_direct"
-				if s.prepared {
+				if s.Prepared {
 					remoteName = "tx_own_remote_held"
 				}
-				s.exec("CREATE DATABASE " + remoteName + " OWNER own_other")
-				remote, _, rec := fixture.DatabaseScenarioPool(s.t, s.p, s.backend.PG, remoteName, "")
+				s.Exec("CREATE DATABASE " + remoteName + " OWNER own_other")
+				remote, _, rec := fixture.DatabaseScenarioPool(s.T, s.P, s.Backend.PG, remoteName, "")
 				defer func() {
-					remote.ExecContext(s.p.Ctx, "DROP TABLE IF EXISTS tx_remote_owned CASCADE")
-					remote.ExecContext(s.p.Ctx, "ALTER DATABASE "+remoteName+" OWNER TO "+pq.QuoteIdentifier(s.bootstrap))
+					remote.ExecContext(s.P.Ctx, "DROP TABLE IF EXISTS tx_remote_owned CASCADE")
+					remote.ExecContext(s.P.Ctx, "ALTER DATABASE "+remoteName+" OWNER TO "+pq.QuoteIdentifier(s.Bootstrap))
 					remote.Close()
-					if s.backend.PG {
-						s.c.ExecContext(s.p.Ctx, "DROP DATABASE "+remoteName)
+					if s.Backend.PG {
+						s.C.ExecContext(s.P.Ctx, "DROP DATABASE "+remoteName)
 					}
 				}()
-				remoteRun := func(step fixture.Step) { fixture.RunStep(s.t, s.p.Ctx, remote, rec, step) }
+				remoteRun := func(step fixture.Step) { fixture.RunStep(s.T, s.P.Ctx, remote, rec, step) }
 				remoteRun(fixture.Exec("CREATE TABLE tx_remote_owned(id INT)", 0))
 				remoteRun(fixture.Exec("INSERT INTO tx_remote_owned VALUES(7)", 1))
 				remoteRun(fixture.Exec("ALTER TABLE tx_remote_owned OWNER TO own_source", 0))
 				prefix := "ALTER DATABASE " + pq.QuoteIdentifier(database) + " OWNER TO "
-				s.exec(prefix + "own_source")
-				s.exec("CREATE TABLE tx_database_local(id INT)")
-				s.run(fixture.Exec("INSERT INTO tx_database_local VALUES(7)", 1))
-				s.exec("ALTER TABLE tx_database_local OWNER TO own_source")
-				s.exec("ALTER ROLE own_actor CREATEDB")
-				s.exec("GRANT own_source,own_target TO own_actor WITH INHERIT TRUE,SET TRUE")
-				peer, err := s.backend.DB.Conn(s.p.Ctx)
+				s.Exec(prefix + "own_source")
+				s.Exec("CREATE TABLE tx_database_local(id INT)")
+				s.Run(fixture.Exec("INSERT INTO tx_database_local VALUES(7)", 1))
+				s.Exec("ALTER TABLE tx_database_local OWNER TO own_source")
+				s.Exec("ALTER ROLE own_actor CREATEDB")
+				s.Exec("GRANT own_source,own_target TO own_actor WITH INHERIT TRUE,SET TRUE")
+				peer, err := s.Backend.DB.Conn(s.P.Ctx)
 				if err != nil {
-					s.t.Fatal(err)
+					s.T.Fatal(err)
 				}
 				defer peer.Close()
 				ownerQ := "SELECT r.rolname FROM pg_database d JOIN pg_roles r ON r.oid=d.datdba WHERE d.datname=" + pq.QuoteLiteral(database)
 				check := func(e fixture.Executor, owner string) {
-					s.t.Helper()
-					fixture.RunStep(s.t, s.p.Ctx, e, s.record, fixture.Select(ownerQ, []string{"rolname"}, []string{"NAME"}, [][]any{{owner}}))
+					s.T.Helper()
+					fixture.RunStep(s.T, s.P.Ctx, e, s.Record, fixture.Select(ownerQ, []string{"rolname"}, []string{"NAME"}, [][]any{{owner}}))
 				}
 				implicit := func(x *ownershipTransaction, source, target bool) {
 					x.run(fixture.Select("SELECT pg_has_role('own_source','pg_database_owner','MEMBER') AS source_member,pg_has_role('own_source','pg_database_owner','USAGE') AS source_usage,pg_has_role('own_source','pg_database_owner','SET') AS source_set,pg_has_role('own_target','pg_database_owner','MEMBER') AS target_member,pg_has_role('own_target','pg_database_owner','USAGE') AS target_usage,pg_has_role('own_target','pg_database_owner','SET') AS target_set", []string{"source_member", "source_usage", "source_set", "target_member", "target_usage", "target_set"}, []string{"BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{source, source, source, target, target, target}}))
@@ -62,7 +62,7 @@ func TestReferenceRoleOwnershipTransactionalDatabase(t *testing.T) {
 					if route == "auto" && !commit {
 						continue
 					}
-					s.actor("own_actor") // Select the ordinary session actor before either transaction API.
+					s.Actor("own_actor") // Select the ordinary session actor before either transaction API.
 					x := ownershipBegin(s, route, prefix+"own_target", prefix+"own_source", "REASSIGN OWNED BY own_source TO own_target")
 					defer x.abort()
 					implicit(x, true, false)
@@ -105,7 +105,7 @@ func TestReferenceRoleOwnershipTransactionalDatabase(t *testing.T) {
 					}
 					if route != "auto" {
 						for _, q := range []string{"SET SESSION AUTHORIZATION own_source", "SET ROLE pg_database_owner", "RESET ROLE", "RESET SESSION AUTHORIZATION"} {
-							fixture.RunStep(s.t, s.p.Ctx, peer, s.record, fixture.Exec(q, 0))
+							fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Exec(q, 0))
 						}
 					}
 					x.exec("REASSIGN OWNED BY own_source TO own_target")
@@ -113,7 +113,7 @@ func TestReferenceRoleOwnershipTransactionalDatabase(t *testing.T) {
 					remoteRun(fixture.Exec("CREATE TABLE tx_remote_unrelated(id INT)", 0))
 					remoteRun(fixture.Exec("INSERT INTO tx_remote_unrelated VALUES(9)", 1))
 					x.end(commit)
-					s.actor("")
+					s.Actor("")
 					if commit {
 						check(peer, "own_target")
 						check(remote, "own_target")
@@ -129,11 +129,11 @@ func TestReferenceRoleOwnershipTransactionalDatabase(t *testing.T) {
 						ownershipOwner(s, "tx_database_local", "own_source")
 					}
 				}
-				s.exec("DROP OWNED BY own_source")
-				check(s.c, "own_target") // DROP OWNED never deletes the shared database.
+				s.Exec("DROP OWNED BY own_source")
+				check(s.C, "own_target") // DROP OWNED never deletes the shared database.
 				ownershipRoleDependency(s, "own_source", "1 object in database "+remoteName)
 				remoteRun(fixture.Exec("DROP OWNED BY own_source", 0))
-				s.exec("DROP ROLE own_source")
+				s.Exec("DROP ROLE own_source")
 				ownershipRows(s, "tx_database_local")
 			})
 		})

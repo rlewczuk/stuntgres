@@ -6,77 +6,77 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func policyRestrict(s *membershipScenario, q, message, detail string) {
-	s.t.Helper()
+func policyRestrict(s *fixture.RoleMembershipScenario, q, message, detail string) {
+	s.T.Helper()
 	step := fixture.ImplicitError(q, fixture.Diagnostic{Code: "2BP01", Message: message, Detail: detail, Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
 	step.ErrorStage = "execute"
-	s.run(step)
+	s.Run(step)
 }
 
 func TestReferenceRLSPolicyDependencies(t *testing.T) {
 	t.Run("mixed_closure", func(t *testing.T) {
-		membershipCases(t, nil, func(s *membershipScenario) {
+		fixture.RoleMembershipCases(t, nil, func(s *fixture.RoleMembershipScenario) {
 			policySetup(s)
-			s.exec("CREATE TABLE helper(id INTEGER)")
-			s.exec("CREATE VIEW dependent_view AS SELECT id FROM helper")
-			s.exec("CREATE POLICY p ON t USING(EXISTS(SELECT 1 FROM helper))")
+			s.Exec("CREATE TABLE helper(id INTEGER)")
+			s.Exec("CREATE VIEW dependent_view AS SELECT id FROM helper")
+			s.Exec("CREATE POLICY p ON t USING(EXISTS(SELECT 1 FROM helper))")
 			policyRestrict(s, "DROP TABLE helper", "cannot drop table helper because other objects depend on it", "view dependent_view depends on table helper\npolicy p on table t depends on table helper")
-			s.exec("DROP TABLE helper CASCADE")
+			s.Exec("DROP TABLE helper CASCADE")
 			policyNotice(s, fixture.Diagnostic{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "drop cascades to 2 other objects", Detail: "drop cascades to view dependent_view\ndrop cascades to policy p on table t"})
 			policyError(s, "ALTER POLICY p ON t", "42704", `policy "p" for table "t" does not exist`, "", 0)
 			policyRows(s)
 		})
 	})
-	membershipCases(t, []string{"policy_target"}, func(s *membershipScenario) {
+	fixture.RoleMembershipCases(t, []string{"policy_target"}, func(s *fixture.RoleMembershipScenario) {
 		policySetup(s)
-		s.exec("CREATE TABLE helper(id INTEGER)")
-		s.exec("CREATE TABLE retained(id INTEGER)")
-		s.exec("CREATE POLICY p ON t TO policy_target USING(EXISTS(SELECT 1 FROM helper WHERE helper.id=t.id)) WITH CHECK(EXISTS(SELECT 1 FROM retained WHERE retained.id=t.id))")
+		s.Exec("CREATE TABLE helper(id INTEGER)")
+		s.Exec("CREATE TABLE retained(id INTEGER)")
+		s.Exec("CREATE POLICY p ON t TO policy_target USING(EXISTS(SELECT 1 FROM helper WHERE helper.id=t.id)) WITH CHECK(EXISTS(SELECT 1 FROM retained WHERE retained.id=t.id))")
 		policyRestrict(s, "DROP TABLE helper", "cannot drop table helper because other objects depend on it", "policy p on table t depends on table helper")
 		policyRestrict(s, "DROP TABLE retained", "cannot drop table retained because other objects depend on it", "policy p on table t depends on table retained")
-		s.exec("ALTER POLICY p ON t USING(TRUE)")
-		s.exec("DROP TABLE helper")
+		s.Exec("ALTER POLICY p ON t USING(TRUE)")
+		s.Exec("DROP TABLE helper")
 		policyRestrict(s, "DROP TABLE retained", "cannot drop table retained because other objects depend on it", "policy p on table t depends on table retained")
 		policyRoleBlocked(s, "policy_target", "p")
-		s.exec("ALTER POLICY p ON t WITH CHECK(TRUE)")
-		s.exec("DROP TABLE retained")
+		s.Exec("ALTER POLICY p ON t WITH CHECK(TRUE)")
+		s.Exec("DROP TABLE retained")
 		policyRoleBlocked(s, "policy_target", "p")
-		s.exec("ALTER POLICY p ON t TO PUBLIC")
-		s.exec("DROP ROLE policy_target")
-		s.exec("DROP POLICY p ON t CASCADE")
+		s.Exec("ALTER POLICY p ON t TO PUBLIC")
+		s.Exec("DROP ROLE policy_target")
+		s.Exec("DROP POLICY p ON t CASCADE")
 		policyRows(s)
 	})
 	for _, behavior := range []string{"CASCADE", "RESTRICT"} {
 		t.Run(behavior, func(t *testing.T) {
-			membershipCases(t, []string{"policy_drop_target"}, func(s *membershipScenario) {
+			fixture.RoleMembershipCases(t, []string{"policy_drop_target"}, func(s *fixture.RoleMembershipScenario) {
 				policySetup(s)
-				s.exec("CREATE TABLE helper(id INTEGER)")
-				s.exec("CREATE POLICY p ON t TO policy_drop_target USING(EXISTS(SELECT 1 FROM helper))")
-				s.exec("DROP POLICY p ON t " + behavior)
-				s.exec("DROP ROLE policy_drop_target")
-				s.run(fixture.Exec("INSERT INTO helper VALUES(7)", 1))
+				s.Exec("CREATE TABLE helper(id INTEGER)")
+				s.Exec("CREATE POLICY p ON t TO policy_drop_target USING(EXISTS(SELECT 1 FROM helper))")
+				s.Exec("DROP POLICY p ON t " + behavior)
+				s.Exec("DROP ROLE policy_drop_target")
+				s.Run(fixture.Exec("INSERT INTO helper VALUES(7)", 1))
 				policyRows(s)
 			})
 		})
 	}
-	membershipCases(t, []string{"policy_table_target"}, func(s *membershipScenario) {
+	fixture.RoleMembershipCases(t, []string{"policy_table_target"}, func(s *fixture.RoleMembershipScenario) {
 		policySetup(s)
-		s.exec("CREATE POLICY p ON t TO policy_table_target USING(id>0)")
+		s.Exec("CREATE POLICY p ON t TO policy_table_target USING(id>0)")
 		policyColumnBlocked(s, "id", "p")
 		policyRestrict(s, "ALTER TABLE t DROP COLUMN id", "cannot drop column id of table t because other objects depend on it", "policy p on table t depends on column id of table t")
-		s.exec("ALTER TABLE t DROP COLUMN id CASCADE")
+		s.Exec("ALTER TABLE t DROP COLUMN id CASCADE")
 		policyNotice(s, fixture.Diagnostic{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "drop cascades to policy p on table t"})
 		policyError(s, "ALTER POLICY p ON t", "42704", `policy "p" for table "t" does not exist`, "", 0)
-		s.exec("DROP ROLE policy_table_target")
-		s.run(fixture.Select("SELECT allowed FROM t ORDER BY allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{false}, {true}}))
+		s.Exec("DROP ROLE policy_table_target")
+		s.Run(fixture.Select("SELECT allowed FROM t ORDER BY allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{false}, {true}}))
 	})
-	membershipCases(t, []string{"policy_auto_target"}, func(s *membershipScenario) {
+	fixture.RoleMembershipCases(t, []string{"policy_auto_target"}, func(s *fixture.RoleMembershipScenario) {
 		policySetup(s)
-		s.exec("CREATE TABLE helper(id INTEGER)")
-		s.exec("CREATE POLICY p ON t TO policy_auto_target USING(EXISTS(SELECT 1 FROM helper))")
-		s.exec("DROP TABLE t")
-		s.exec("DROP ROLE policy_auto_target")
-		s.exec("DROP TABLE helper")
+		s.Exec("CREATE TABLE helper(id INTEGER)")
+		s.Exec("CREATE POLICY p ON t TO policy_auto_target USING(EXISTS(SELECT 1 FROM helper))")
+		s.Exec("DROP TABLE t")
+		s.Exec("DROP ROLE policy_auto_target")
+		s.Exec("DROP TABLE helper")
 	})
 	providers := []struct{ name, setup, expr, drop, message, detail string }{
 		{"table", "CREATE TABLE helper(id INTEGER)", "EXISTS(SELECT 1 FROM helper)", "DROP TABLE helper", "cannot drop table helper because other objects depend on it", "policy p on table t depends on table helper"},
@@ -87,12 +87,12 @@ func TestReferenceRLSPolicyDependencies(t *testing.T) {
 	}
 	for _, tc := range providers {
 		t.Run(tc.name, func(t *testing.T) {
-			membershipCases(t, nil, func(s *membershipScenario) {
+			fixture.RoleMembershipCases(t, nil, func(s *fixture.RoleMembershipScenario) {
 				policySetup(s)
-				s.exec(tc.setup)
-				s.exec("CREATE POLICY p ON t USING(" + tc.expr + ")")
+				s.Exec(tc.setup)
+				s.Exec("CREATE POLICY p ON t USING(" + tc.expr + ")")
 				policyRestrict(s, tc.drop, tc.message, tc.detail)
-				s.exec(tc.drop + " CASCADE")
+				s.Exec(tc.drop + " CASCADE")
 				policyNotice(s, fixture.Diagnostic{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "drop cascades to policy p on table t"})
 				policyError(s, "ALTER POLICY p ON t", "42704", `policy "p" for table "t" does not exist`, "", 0)
 				policyRows(s)

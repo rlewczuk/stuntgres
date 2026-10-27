@@ -1,17 +1,19 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"maps"
 	"reflect"
+	"stuntgres/internal/engine/core"
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
@@ -131,6 +133,101 @@ func TestPGDBRoleSettingCapture(t *testing.T) {
 		t.Fatal("canceled capture", rows, err)
 	}
 	unchanged()
+}
+
+func TestRoleSettingsPopulatedCatalogCapture(t *testing.T) {
+	e := engine.New()
+	login := e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
+	key := access.RoleSettingKey{Role: login}
+	first := roleDefaultsInstall(e, key, []access.RoleSetting{{Name: "application_name", Value: "first"}})
+	// A second real scope distinguishes changed-row copying from root rebuilding.
+	databaseKey := access.RoleSettingKey{Database: e.Catalog.DatabaseAddress()}
+	record := roleDefaultsInstall(e, databaseKey, []access.RoleSetting{{Name: "work_mem", Value: "1536kB"}})
+	roleRow, databaseRow := record.Settings.Lookup(key), record.Settings.Lookup(databaseKey)
+	if record == first || !record.SameAuthority(first) || record.Settings == first.Settings || &roleRow[0] != &first.Settings.Lookup(key)[0] {
+		t.Fatal("complete publication did not retain unchanged graph and row backing")
+	}
+	s := roleDefaultsStart(t, e, session.SessionStart{})
+	op, err := s.Acquire(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	view := e.CatalogRead()
+	d, ref := pgDBRoleSettingUnitSource(t, e, view)
+	captureScope := func() *core.StatementScope {
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth := catalogAuthorization(e, view)
+		if auth.RoleRecord != e.RoleStore.Published || !auth.RoleRecord.SameAuthority(record) || auth.Roles.LookupRef("postgres") != login {
+			t.Fatal("capture lacks actual paired role authority")
+		}
+		return &core.StatementScope{Op: op, Inquiry: core.NewInquiry(core.InquiryFields{CommentCatalog: view, CommentRoles: auth.Roles, DeparseAuth: auth})}
+	}
+	capture := func(scope *core.StatementScope) *exec.Source {
+		e.Mu.Lock()
+		rows, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, d)
+		// The real capture owner consumes Engine.Mu.
+		if err != nil || rows == nil || rows.Ref != ref || rows.Anonymous == nil {
+			t.Fatal("populated capture", rows, err)
+		}
+		return rows
+	}
+	check := func(rows *exec.Source, roleValue string) {
+		t.Helper()
+		wantCount := 1
+		if roleValue != "" {
+			wantCount++
+		}
+		if rows.Count() != wantCount {
+			t.Fatal("scope count", rows.Count(), wantCount)
+		}
+		seenRole, seenDatabase := false, false
+		for _, row := range rows.Anonymous {
+			database, databaseErr := row[0].OID()
+			role, roleErr := row[1].OID()
+			value := "work_mem=1536kB"
+			switch {
+			case database == 0 && role == uint32(authorization.BootstrapPrincipalID) && roleValue != "":
+				seenRole = true
+				value = "application_name=" + roleValue
+			case database == uint32(databaseKey.Database.ObjectID) && role == 0:
+				seenDatabase = true
+			default:
+				t.Fatal("unexpected persisted scope", database, role)
+			}
+			want, err := sqltype.OwnedArrayValue(d.Columns[2].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: 1}}, []sqltype.Value{sqltype.String(d.Columns[2].Usage.Type.Element(), value)})
+			if databaseErr != nil || roleErr != nil || err != nil || !reflect.DeepEqual(row[2], want) {
+				t.Fatal("persisted materialized row", row, databaseErr, roleErr, err)
+			}
+		}
+		if !seenDatabase || seenRole != (roleValue != "") {
+			t.Fatal("missing persisted scope")
+		}
+	}
+	oldScope := captureScope()
+	if core.InquiryDeparseAuth(&oldScope.Inquiry).RoleRecord != record {
+		t.Fatal("inquiry did not retain complete record")
+	}
+	old := capture(oldScope)
+	oldBacking := &old.Anonymous[0][0]
+	check(old, "first")
+	replaced := roleDefaultsInstall(e, key, []access.RoleSetting{{Name: "application_name", Value: "second"}})
+	if replaced == record || replaced.Settings == record.Settings || !replaced.SameAuthority(record) || &replaced.Settings.Lookup(key)[0] == &roleRow[0] || &replaced.Settings.Lookup(databaseKey)[0] != &databaseRow[0] {
+		t.Fatal("replacement violated immutable root/row ownership")
+	}
+	check(capture(captureScope()), "second")
+	check(capture(oldScope), "first")
+	removed := roleDefaultsInstall(e, key, nil)
+	if removed == replaced || removed.Settings == replaced.Settings || !removed.SameAuthority(record) || len(removed.Settings.Lookup(key)) != 0 || &removed.Settings.Lookup(databaseKey)[0] != &databaseRow[0] {
+		t.Fatal("removal violated immutable root/row ownership")
+	}
+	check(capture(captureScope()), "")
+	check(capture(oldScope), "first")
+	check(old, "first")
+	if &old.Anonymous[0][0] != oldBacking || &record.Settings.Lookup(key)[0] != &roleRow[0] || roleRow[0].Value != "first" {
+		t.Fatal("retained materialized output or captured input backing changed")
+	}
 }
 
 func TestPGDBRoleSettingSessionDefaultsExcluded(t *testing.T) {

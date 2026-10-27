@@ -5,8 +5,8 @@
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, `pg_inherits`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
 `pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
-`pg_wait_events`, `pg_proc`, catalog foreign keys and the catalog
-controls migrated from the root package. The other catalog packages:
+`pg_wait_events`, `pg_proc`, catalog foreign keys, and catalog controls migrated
+from the root package. The other catalog packages:
 namespaces, schemas, `search_path`, visibility inquiries, operator, cast,
 aggregate, access-method, collation, language, transform, text-search,
 large-object and comment catalogs in `reference/catalog_objects`; role, database

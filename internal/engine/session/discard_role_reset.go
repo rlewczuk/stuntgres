@@ -10,8 +10,10 @@ import (
 func DiscardRoleReset(a *AuthorizationState) authorization.RoleState {
 	reset := a.State
 	reset.SessionUser, reset.CurrentUser = reset.Authenticated, reset.Authenticated
+	reset.ActiveRole, reset.RoleText = false, ""
 	if reset.ResetRole != (authorization.PrincipalRef{}) {
 		reset.CurrentUser = reset.ResetRole
+		reset.ActiveRole, reset.RoleText = true, reset.ResetRoleText
 	}
 	return reset
 }

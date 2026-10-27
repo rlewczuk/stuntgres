@@ -11,37 +11,38 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// SetRoleTarget returns the role SET ROLE or RESET ROLE switches to, after
-// checking that the session user may switch to it.
-func SetRoleTarget(view access.View, s *parser.RoleSelection) (authorization.PrincipalRef, error) {
-	target := view.State.SessionUser
-	if s.Reset && view.State.ResetRole != (authorization.PrincipalRef{}) {
-		target = view.State.ResetRole
+// SetRoleTarget returns the complete physical SET ROLE or RESET ROLE state,
+// after checking session-user authority. Accepted text is not a descriptor name.
+func SetRoleTarget(view access.View, s *parser.RoleSelection) (authorization.RoleState, error) {
+	state := view.SessionRoleState
+	state.CurrentUser, state.ActiveRole, state.RoleText = state.SessionUser, false, ""
+	if s.Reset && state.ResetRole != (authorization.PrincipalRef{}) {
+		state.CurrentUser, state.ActiveRole, state.RoleText = state.ResetRole, true, state.ResetRoleText
 	} else if !s.Reset && s.Name != "none" {
 		d, ok := view.Roles.Lookup(s.Name)
 		if !ok {
-			return authorization.PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", s.Name))
+			return authorization.RoleState{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", s.Name))
 		}
-		target = d.Ref
+		state.CurrentUser, state.ActiveRole, state.RoleText = d.Ref, true, s.Name
 	}
 	if s.Reset {
-		if _, err := view.Roles.Descriptor(target); err != nil {
-			return authorization.PrincipalRef{}, err
+		if _, err := view.Roles.Descriptor(state.CurrentUser); err != nil {
+			return authorization.RoleState{}, err
 		}
-		return target, nil
+		return state, nil
 	}
-	allowed := target == view.State.SessionUser
+	allowed := state.CurrentUser == state.SessionUser
 	if !allowed {
 		var err error
-		allowed, err = view.Roles.CanSetRole(view.State.SessionUser, target)
+		allowed, err = view.Roles.CanSetRole(state.SessionUser, state.CurrentUser)
 		if err != nil {
-			return authorization.PrincipalRef{}, err
+			return authorization.RoleState{}, err
 		}
 	}
 	if !allowed {
-		return authorization.PrincipalRef{}, sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", s.Name))
+		return authorization.RoleState{}, sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", s.Name))
 	}
-	return target, nil
+	return state, nil
 }
 
 // SessionAuthorizationTarget returns the role SET SESSION AUTHORIZATION
@@ -173,5 +174,7 @@ func PlanDropRoles(h Host, auth ddl.Authority, s *parser.DropRole) (DropRolesPla
 		return DropRolesPlan{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	retired := view.RoleRecord.Root.Retire(targets)
-	return DropRolesPlan{Roles: &access.RoleRecord{Root: retired, Revision: view.RoleRecord.Revision + 1}, Retired: ordered}, nil
+	next := view.RoleRecord.WithRoot(retired)
+	next.Settings = next.Settings.WithoutRoles(ordered)
+	return DropRolesPlan{Roles: next, Retired: ordered}, nil
 }
