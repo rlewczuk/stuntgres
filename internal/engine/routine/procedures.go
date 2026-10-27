@@ -2,8 +2,10 @@ package routine
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -73,6 +75,19 @@ func BuiltinRoutineCost(d *catalog.BuiltinRoutineDeclaration) float32 {
 // Immutable cells remain stable; later ACL/owner changes still publish
 // ordinary COW records.
 func BuiltinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
+	procedures := slices.Clone(builtinProcedureTemplate())
+	for i := range procedures {
+		procedures[i].Owner = owner
+	}
+	// Body edges point into this backing array, so each copy attaches its own.
+	attachBuiltinRoutineBodies(procedures)
+	return procedures
+}
+
+// builtinProcedureTemplate holds every field of BuiltinProcedures' result
+// except the owner and the SQL bodies, built once per process: the binary
+// fixes them, and the cells they share are immutable.
+var builtinProcedureTemplate = sync.OnceValue(func() []catalog.Procedure {
 	if len(builtinRoutineDisplay) != len(BuiltinRoutineDeclarations) {
 		panic("stuntgres: incomplete builtin routine display inventory")
 	}
@@ -87,7 +102,7 @@ func BuiltinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
 			ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID},
 			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: declaration.Identity.Namespace},
 			ObjectRevision:  1, ObjectName: declaration.Identity.Name, Signature: declaration.Identity.Signature,
-			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner,
+			RoutineKind: declaration.Kind, Builtin: declaration,
 			Display: catalog.RoutineDisplay{Language: display.Language, Source: display.Source},
 			Cost:    BuiltinRoutineCost(declaration),
 			Result:  declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
@@ -95,9 +110,8 @@ func BuiltinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
 			InputNames:      builtinRoutineInputNames[declaration.Identity.ID],
 		}
 	}
-	attachBuiltinRoutineBodies(procedures)
 	return procedures
-}
+})
 
 // Called only after a concrete existing provider has successfully selected its
 // declaration. Physical child usages are not substituted for declared formals.
