@@ -15,25 +15,42 @@ func (s *StatementScope) completeCommandEffects(allExclusions, bounded bool) err
 		scope.Command = s.effectCommand
 		defer func() { scope.Command, scope.Jobs = previous, previousJobs }()
 	}
-	if err := s.checkExclusionCommandEvents(allExclusions, nil, bounded); err != nil {
-		return err
-	}
-	if err := dml.SettleForeignActions(s.WriteHost()); err != nil {
-		return err
-	}
-	if s.foreignActionsOrZero().ExclusionAdded {
+	for {
+		if err := s.qualifyAfterStatements(); err != nil {
+			return err
+		}
 		if err := s.checkExclusionCommandEvents(allExclusions, nil, bounded); err != nil {
 			return err
 		}
+		if err := dml.SettleForeignActions(s.WriteHost()); err != nil {
+			return err
+		}
+		if s.foreignActionsOrZero().ExclusionAdded {
+			if err := s.checkExclusionCommandEvents(allExclusions, nil, bounded); err != nil {
+				return err
+			}
+		}
+		if !s.ProjectedRoots {
+			if err := dml.CheckForeignKeys(s.WriteHost()); err != nil {
+				return err
+			}
+		}
+		if s.afterTriggers == nil {
+			return nil
+		}
+		f := s.afterTriggers.frames[s.effectCommand]
+		if f == nil || f.draining || f.row == len(f.rows) && f.statement == len(f.statements) {
+			return nil
+		}
+		if err := s.drainAfter(); err != nil {
+			return err
+		}
+		// Settle any immediate effects added during firing before returning.
 	}
-	if !s.ProjectedRoots {
-		return dml.CheckForeignKeys(s.WriteHost())
-	}
-	return nil
 }
 
-// BeginRoutineCommand starts a nested command's effect scope without publishing
-// the root. Call the returned completion before executing a query-loop body.
+// BeginRoutineCommand starts a nested SQL command's effect scope without
+// publishing the root. Complete it before resuming the suspended caller.
 func (s *StatementScope) BeginRoutineCommand() (func(error) error, error) {
 	if s.effectSerial == ^uint64(0) {
 		return nil, fmt.Errorf("stuntgres: SQL command identity exhausted")
@@ -44,6 +61,9 @@ func (s *StatementScope) BeginRoutineCommand() (func(error) error, error) {
 	return func(primary error) error {
 		if primary == nil {
 			primary = s.completeCommandEffects(false, true)
+		}
+		if s.afterTriggers != nil {
+			delete(s.afterTriggers.frames, s.effectCommand)
 		}
 		s.effectCommand = previous
 		return primary

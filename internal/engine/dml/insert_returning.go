@@ -19,10 +19,10 @@ func BeginInsertReturning(h Host, b analyze.Binding) {
 	if b.Returning == nil {
 		beforeInsert := false
 		if state := h.Command().PartitionInsert; state != nil {
-			beforeInsert = state.BeforeInsert
+			beforeInsert = state.BeforeInsert || state.AfterInsert
 		} else {
 			for _, definition := range stored.TriggersOf(b.Relation) {
-				if definition.Fires(stored.TriggerInsert, nil) {
+				if p := definition.Parts(); p.Level == stored.TriggerRow && definition.Fires(stored.TriggerInsert, nil) {
 					beforeInsert = true
 					break
 				}

@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -17,6 +18,7 @@ type CTEInvocation struct {
 	Order     []*CTEProducer
 	Closed    bool
 	failure   error
+	cleanupFailure error
 }
 type CTEProducer struct {
 	state                State
@@ -26,7 +28,13 @@ type CTEProducer struct {
 	Opened, Done, Closed bool
 	Affected             int64 // Completed modifier count, never added to primary results.
 	failure              error
+	cleanupFailure error
 	Recursion            *recursiveUnionStage
+	// Modifiers retain eager typed materialization, but activate on first
+	// consumer demand and qualify statement effects on actual exhaustion.
+	StartMutation        func() error
+	CompleteMutation     func() error
+	MutationPending      bool
 }
 
 func (o *CTEInvocation) Close() error {
@@ -38,17 +46,33 @@ func (o *CTEInvocation) Close() error {
 		if err := producer.close(); o.failure == nil {
 			o.failure = err
 		}
+		if err := producer.cleanupFailure; err != nil {
+			if o.cleanupFailure == nil {
+				o.cleanupFailure = err
+			} else {
+				o.cleanupFailure = errors.Join(o.cleanupFailure, err)
+			}
+		}
 	}
 	return o.failure
 }
+
+// CloseResources releases the invocation without reporting an execution failure
+// a second time as cleanup. Close retains the producer's original terminal cause.
+func (o *CTEInvocation) CloseResources() error {
+	_ = o.Close()
+	return o.cleanupFailure
+}
 func (p *CTEProducer) close() error {
+	p.StartMutation, p.CompleteMutation = nil, nil
 	if p.Closed {
 		return p.failure
 	}
 	p.Closed = true
 	if p.Opened {
-		if err := p.Inner.Close(); p.failure == nil {
-			p.failure = err
+		p.cleanupFailure = p.Inner.Close()
+		if p.failure == nil {
+			p.failure = p.cleanupFailure
 		}
 	}
 	return p.failure
@@ -68,10 +92,24 @@ func (p *CTEProducer) Ensure(ctx context.Context, index int) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, p.Fail(err)
 	}
+	if p.StartMutation != nil {
+		start := p.StartMutation
+		p.StartMutation = nil
+		if err := start(); err != nil {
+			return false, p.Fail(err)
+		}
+	}
 	if index < p.Source.FlatCount {
 		return true, nil
 	}
 	if p.Done {
+		if p.CompleteMutation != nil {
+			complete := p.CompleteMutation
+			p.CompleteMutation = nil
+			if err := complete(); err != nil {
+				return false, p.Fail(err)
+			}
+		}
 		return false, nil
 	}
 	if !p.Opened {

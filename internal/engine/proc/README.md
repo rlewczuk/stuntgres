@@ -44,9 +44,11 @@ shape, while generic RECORD NULL remains indeterminate.
 ordinary routines, DML triggers and event triggers; none is inferred from a
 single trigger boolean. PL DML-trigger definitions have zero formals.
 Their fixed OLD/NEW and TG lexical slots are separate from SQL parameters;
-invocations supply fresh physical row shapes, typed absent records and owned
-zero-based text-array arguments. The engine validates final trigger row returns
-strictly, separately from ordinary permissive PL row assignment.
+invocations supply explicit timing/level, fresh physical row shapes, typed absent
+records and owned zero-based text-array arguments. Row-trigger returns retain
+strict table-row validation even when their AFTER result is ignored. Statement
+returns still evaluate the expression and require RETURN, but skip table-row
+shape conversion; neither kind ignores execution errors.
 Engine-created scalar TG slots resolve fixed `pg_catalog` types regardless of
 search_path or shadow types; user-written declarations keep ordinary lookup.
 The twelve canonical OLD/NEW/TG slots retain their fixed identities. One separate

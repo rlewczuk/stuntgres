@@ -180,6 +180,15 @@ ordinary SQL errors leave the connection reusable.
 - `RowsAffected` counts rows actually inserted, updated, deleted or merged.
   CREATE MATERIALIZED VIEW WITH DATA reports the produced row count; WITH NO
   DATA reports zero without running the producer. `LastInsertId` is not supported.
+- **AFTER triggers.** INSERT, UPDATE and DELETE row triggers run at query
+  completion with completed row images, before statement triggers. Statement
+  triggers also fire for zero-row commands. Returned values do not change the
+  affected rows or results; errors roll back the command and its trigger writes
+  before eager results are exposed. TRUNCATE has statement triggers only, fired
+  after all selected tables and identity restarts are staged. Native Dump/Restore
+  preserves definitions and data without replay-time firing; information-schema
+  trigger metadata reports timing, orientation and per-kind action ordering.
+  Direct and held prepared commands share these firing boundaries.
 - **Procedures.** Standalone `CALL` returns one row of declared OUT/INOUT columns,
   including a sole composite-valued output as one column. A procedure without
   outputs has no row descriptor. CALL reports zero affected rows, independently

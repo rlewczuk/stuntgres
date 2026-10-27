@@ -85,7 +85,7 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 	scratch := make([]sqltype.Value, len(b.Targets))
 	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
 	var copyInsert *CopyInsertionState
-	if producer, ok := cursor.(CopyInsertionCursor); ok && command != nil && (unique || command.PartitionInsert != nil) {
+	if producer, ok := cursor.(CopyInsertionCursor); ok && command != nil && command.InsertReturning == nil && (unique || command.PartitionInsert != nil) {
 		copyInsert = NewCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}

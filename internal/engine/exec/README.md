@@ -100,13 +100,25 @@ typmods; naming is captured only on failure and is never retained in result tupl
   PL/pgSQL static query loops, bounded static SELECT capture and `ts_rewrite` SQL
   borrow. It reads the live host's environments for its whole lifetime, owns its
   source from the call on, and keeps open errors distinct from row-demand errors.
-  Streaming SELECT CTE resources transfer to `CTEOwnedRows`, including completed
-  writable auxiliaries under static capture: its `Close` closes the main stage
-  before its CTE chain and captured sources, which FOUND publication after
-  producer cleanup relies on. Borrowed CTE scope pointers restore independently
-  of retained resource ownership. `ConsumeRewriteRules` reads rule rows in fetches
+  Streaming SELECT CTE resources transfer to `CTEOwnedRows`, including pending
+  writable auxiliaries under static capture. `Finish(primary)` closes the main
+  stage, exhausts auxiliaries on success, then releases its CTE chain and sources;
+  it separates execution failure from resource-cleanup failure. An existing
+  caller failure aborts auxiliaries without evaluating their callbacks. `Close`
+  uses the same owner and returns either cause. Invocation resource close does
+  not report an already retained producer execution error as a new cleanup error.
+  The caller keeps its command frame live through this finish. Borrowed CTE scope
+  pointers restore independently of retained resource ownership.
+  `ConsumeRewriteRules` reads rule rows in fetches
   of at most 100 into `sqltype.FTSRewriteRules` and closes the cursor;
   `RewriteSQLDiagnostic` maps SPI prepare/open errors, never FETCH errors.
+  Modifying CTEs with statement effects may retain activation and exhaustion
+  callbacks on their existing invocation-owned producer. First source demand
+  activates eager typed materialization; reading a RETURNING row does not complete
+  the modifier. EOF completes it exactly once, including empty output. Reader
+  close never exhausts another reader's shared producer; the command owner
+  exhausts remaining auxiliaries before success. Failure/owner close discards
+  callbacks without evaluating helper SQL.
   Statement preparation and dispatch re-entry stay in the engine.
 - **SQL cursor positioning** (`cursor_motion.go`): `CursorPosition` (embedded
   in the root cursor) with its `CursorPlace`, and `Move` and `Rewind`, which

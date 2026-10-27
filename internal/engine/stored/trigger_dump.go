@@ -14,8 +14,9 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-// TriggerDumpGroups emits portable definitions, never invocation frames or
-// partition clones (replay derives clones from their parent definition).
+// TriggerDumpGroups emits portable definitions, never invocation frames.
+// Regenerable row clones are omitted; retained historical clones carry a native
+// provenance annotation paired with their actual child CREATE.
 func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorization.Read) ([]dump.Group, error) {
 	var groups []dump.Group
 	var dependencies []dump.Group
@@ -47,8 +48,29 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				}
 				dependencies = append(dependencies, dump.Group{Owner: owner.Name, Table: table, SQL: "ALTER TRIGGER " + catalog.QuoteIdentifier(p.Name) + " ON " + table + " DEPENDS ON EXTENSION " + catalog.QuoteIdentifier(extension.Name()) + ";\n"})
 			}
+			var retained *TriggerCloneReplay
 			if p.Parent.ObjectID != 0 {
-				continue
+				if relation.Membership == nil {
+					return nil, fmt.Errorf("stuntgres: missing retained trigger clone membership")
+				}
+				parent, ok := read.Relation(relation.Membership.Parent)
+				if !ok {
+					return nil, ids.ErrCatalogReplaced
+				}
+				var source Trigger
+				for _, candidate := range TriggersOf(parent) {
+					if candidate.OID() == p.Parent.ObjectID { source = candidate; break }
+				}
+				if source.OID() == 0 {
+					return nil, ids.ErrCatalogReplaced
+				}
+				if source.Parts().Level == TriggerRow {
+					continue
+				}
+				retained = &TriggerCloneReplay{
+					ParentSchema: read.MustNamespace(parent.Namespace()).Name(), ParentTable: parent.Name(), ParentTrigger: source.Name(),
+					ChildSchema: read.MustNamespace(relation.Namespace()).Name(), ChildTable: relation.Name(), ChildTrigger: p.Name,
+				}
 			}
 			function, ok := read.Get(p.Procedure.Address).(*catalog.Procedure)
 			if !ok {
@@ -59,7 +81,14 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				return nil, fmt.Errorf("stuntgres: dump cannot serialize a trigger referencing a temporary function")
 			}
 			var sql strings.Builder
-			sql.WriteString("CREATE TRIGGER " + catalog.QuoteIdentifier(p.Name) + " BEFORE ")
+			timing, level := "BEFORE", "ROW"
+			if p.Timing == TriggerAfter {
+				timing = "AFTER"
+			}
+			if p.Level == TriggerStatement {
+				level = "STATEMENT"
+			}
+			sql.WriteString("CREATE TRIGGER " + catalog.QuoteIdentifier(p.Name) + " " + timing + " ")
 			var events []string
 			if p.Events&TriggerInsert != 0 {
 				events = append(events, "INSERT")
@@ -81,7 +110,10 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 			if p.Events&TriggerDelete != 0 {
 				events = append(events, "DELETE")
 			}
-			sql.WriteString(strings.Join(events, " OR ") + " ON " + table + " FOR EACH ROW")
+			if p.Events&TriggerTruncate != 0 {
+				events = append(events, "TRUNCATE")
+			}
+			sql.WriteString(strings.Join(events, " OR ") + " ON " + table + " FOR EACH " + level)
 			if p.When != nil {
 				renderer := Deparser{View: read, ShowImplicit: true}
 				renderer.ColumnSQL = func(column plan.ColumnExpr) (string, error) {
@@ -115,7 +147,14 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				args[i] = "'" + strings.ReplaceAll(arg, "'", "''") + "'"
 			}
 			sql.WriteString(" EXECUTE FUNCTION " + catalog.QuoteIdentifier(functionNS.Name()) + "." + catalog.QuoteIdentifier(function.Name()) + "(" + strings.Join(args, ",") + ");\n")
-			groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: sql.String()})
+			text := sql.String()
+			if retained != nil {
+				retained.SQL = text
+				comment, err := retained.Comment()
+				if err != nil { return nil, err }
+				text = comment + text
+			}
+			groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: text})
 		}
 	}
 	slices.SortFunc(groups, func(a, b dump.Group) int {

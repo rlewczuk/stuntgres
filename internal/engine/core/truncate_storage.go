@@ -3,12 +3,14 @@ package core
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 )
@@ -138,7 +140,19 @@ func (s *StatementScope) stageTruncate() error {
 	if err := e.StageCatalogOverlay(s, stage, changes); err != nil {
 		return err
 	}
-	return s.executeForeignTruncate(groups)
+	if err := s.executeForeignTruncate(groups); err != nil {
+		return err
+	}
+	for _, selected := range s.truncateOrZero().Relations {
+		binding := analyze.Binding{Ref: selected.Ref, Relation: selected.Relation}
+		var outcome dml.Outcome
+		err := dml.RegisterAfterStatement(s.WriteHost(), binding, stored.TriggerTruncate)
+		dml.CompleteAfterStatement(s.WriteHost(), binding, stored.TriggerTruncate, &outcome, &err)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // A name observation is a fence, not permission to replay on a new relation.

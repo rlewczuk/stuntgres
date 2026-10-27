@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 )
 
@@ -148,6 +149,12 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.R
 
 func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersion) (err error) {
 	s := w.scope
+	afterDelete := false
+	defer func() {
+		if err == nil && afterDelete {
+			err = s.WriteHost().AfterRow(dml.BeforeRow{Relation: ref, Event: dml.BeforeDelete, Old: old.Values})
+		}
+	}()
 	defer func() {
 		if err == nil {
 			err = s.flushPhysicalEvents()
@@ -175,8 +182,8 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if index.UniqueRowDeleted(old.Row, s.OwnDeletes[ref.Address], w.Deletes[ref.Address]) {
 		return nil
 	}
-	stored := s.foreignActionsOrZero().Admissions[ref.Address].Storage
-	candidate := visibility.DeleteCandidate{Ref: ref, Storage: stored, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
+	childStorage := s.foreignActionsOrZero().Admissions[ref.Address].Storage
+	candidate := visibility.DeleteCandidate{Ref: ref, Storage: childStorage, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
 	if old.Born != 0 {
 		candidate.Base = old.Version
 	}
@@ -184,6 +191,8 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 		return err
 	}
 	s.foreignActions().Admissions[ref.Address].Mutated = true
+	relation, _ := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
+	afterDelete = dml.HasRowTriggers(relation, stored.TriggerDelete, stored.TriggerAfter)
 	return nil
 }
 

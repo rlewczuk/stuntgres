@@ -11,8 +11,10 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -249,6 +251,21 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		return
 	}
 	h := s.WriteHost()
+	if err = dml.RegisterAfterStatement(h, b, stored.TriggerInsert); err != nil {
+		return 0, err
+	}
+	defer func() {
+		if err == nil {
+			err = h.CompleteAfterStatement(b.Ref, stored.TriggerInsert)
+			if err != nil {
+				count = 0
+			}
+		}
+	}()
+	if foreign == nil {
+		dml.BeginInsertReturning(h, b)
+		if s.InsertReturning != nil { defer s.InsertReturning.Rows.Close() }
+	}
 	state := &dml.CopyFromState{Options: options, Predicate: b.Predicate}
 	if options.OnError == copyfmt.Ignore {
 		state.InputChecks = exec.InputDomainChecks(s.Input.DomainChecks, s.Domains.InputCatalog)
@@ -297,11 +314,20 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err := foreign.Begin(s.Op.Context(), s.foreignWrites()); err != nil {
 			return 0, err
 		}
-		n, err := foreign.InsertRows(s.Op.Context(), s.foreignWrites(), rows.Values, false, nil)
+		var accept func([]sqltype.Value) error
+		if dml.HasRowTriggers(b.Relation, stored.TriggerInsert, stored.TriggerAfter) {
+			accept = func(actual []sqltype.Value) error {
+				return h.AfterRow(dml.BeforeRow{Relation: b.Ref, Event: dml.BeforeInsert, New: actual})
+			}
+		}
+		n, err := foreign.InsertRows(s.Op.Context(), s.foreignWrites(), rows.Values, accept != nil, accept)
 		if err != nil {
 			return 0, cursor.Diagnostic(err)
 		}
 		return n, nil
+	}
+	if s.InsertReturning != nil {
+		return int64(s.InsertReturning.Rows.Count), nil
 	}
 	n, err := dml.ApplyInsertValidated(h, b.Ref, rows)
 	if err != nil {

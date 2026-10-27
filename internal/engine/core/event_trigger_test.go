@@ -208,7 +208,7 @@ func TestEventTriggerFrame(t *testing.T) {
 	if got, _ := second.Values[0].Text(); got != "ddl_command_end" {
 		t.Fatal("event frame leaked into next invocation")
 	}
-	if _, err := proc.NewPLTriggerFrame(d.SQL, proc.PLTriggerRelation{}, "bad", "INSERT", nil, nil, nil); err == nil {
+	if _, err := proc.NewPLTriggerFrame(d.SQL, proc.PLTriggerRelation{}, "bad", "INSERT", "BEFORE", "ROW", nil, nil, nil); err == nil {
 		t.Fatal("DML frame accepted event program")
 	}
 	for _, name := range []string{"et_frame_dml", "et_frame_scalar"} {

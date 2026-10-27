@@ -21,6 +21,21 @@ const (
 	TriggerInsert TriggerEvent = 1 << iota
 	TriggerUpdate
 	TriggerDelete
+	TriggerTruncate
+)
+
+type TriggerTiming uint8
+
+const (
+	TriggerBefore TriggerTiming = iota + 1
+	TriggerAfter
+)
+
+type TriggerLevel uint8
+
+const (
+	TriggerRow TriggerLevel = iota + 1
+	TriggerStatement
 )
 
 type TriggerParts struct {
@@ -31,6 +46,8 @@ type TriggerParts struct {
 	Parent         ids.ObjectAddress // Parent trigger identity for a partition clone.
 	ParentRevision ids.DefinitionRevision
 	Events         TriggerEvent
+	Timing         TriggerTiming
+	Level          TriggerLevel
 	UpdateColumns  []int32
 	Arguments      []string
 	When           expr.Expr
@@ -43,8 +60,11 @@ type TriggerParts struct {
 type Trigger struct{ parts TriggerParts }
 
 func validateTriggerParts(p TriggerParts) error {
-	if p.OID == 0 || p.Name == "" || p.Relation.Address.ClassID != ids.RelationClassID || p.Relation.Address.ObjectID == 0 || p.Procedure.Address.ClassID != ids.ProcedureClassID || p.Procedure.Address.ObjectID == 0 || p.Events == 0 || p.Events&^(TriggerInsert|TriggerUpdate|TriggerDelete) != 0 || (p.When == nil) != (p.Presentation == nil) || (p.When == nil) != (p.Binding == nil) {
+	if p.OID == 0 || p.Name == "" || p.Relation.Address.ClassID != ids.RelationClassID || p.Relation.Address.ObjectID == 0 || p.Procedure.Address.ClassID != ids.ProcedureClassID || p.Procedure.Address.ObjectID == 0 || p.Events == 0 || p.Events&^(TriggerInsert|TriggerUpdate|TriggerDelete|TriggerTruncate) != 0 || (p.When == nil) != (p.Presentation == nil) || (p.When == nil) != (p.Binding == nil) {
 		return fmt.Errorf("stuntgres: invalid trigger definition")
+	}
+	if (p.Timing != TriggerBefore && p.Timing != TriggerAfter) || (p.Level != TriggerRow && p.Level != TriggerStatement) || p.Timing == TriggerBefore && p.Level != TriggerRow || p.Events&TriggerTruncate != 0 && p.Level != TriggerStatement || p.Parent.ObjectID != 0 && p.Level != TriggerRow {
+		return fmt.Errorf("stuntgres: invalid trigger timing or level")
 	}
 	if p.When != nil && (p.When.ResultUsage().Type == nil || p.When.ResultUsage().Type.ID() != sqltype.Bool) {
 		return fmt.Errorf("stuntgres: nonboolean trigger condition")

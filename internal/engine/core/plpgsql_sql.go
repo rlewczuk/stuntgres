@@ -58,8 +58,14 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 		return s.plRuntimeQueryError(cause, h.read, h.d, in.Syntax.Pos, action, proc.PLDiagnosticQuery{})
 	}
 	var result Result
+	var finishCommand func(error) error
 	defer func() {
 		err = closePLCapture(result, err, failure)
+		if finishCommand != nil {
+			if completed := finishCommand(err); err == nil && completed != nil {
+				err = failure(completed)
+			}
+		}
 		s.appendPLNoticeContext(noticeStart, origin)
 		err = restore(err)
 	}()
@@ -67,15 +73,11 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if err = s.parallelExecutionEligibility(statement); err != nil {
 		return failure(err)
 	}
-	finishCommand, e := s.BeginRoutineCommand()
+	var e error
+	finishCommand, e = s.BeginRoutineCommand()
 	if e != nil {
 		return e
 	}
-	defer func() {
-		if finishCommand != nil {
-			err = finishCommand(err)
-		}
-	}()
 	if err = s.routineUtilityEligibility(statement); err != nil {
 		return runtimeFailure(err)
 	}

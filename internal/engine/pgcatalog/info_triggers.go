@@ -84,8 +84,15 @@ func captureInfoTriggers(in Input) ([][]sqltype.Value, error) {
 		if !visible {
 			continue
 		}
-		var ranks [3]int64
+		var ranks [3][2][2]int64
 		err = in.Runtime.VisitTriggerDefinitions(in.Context, in.Catalog, relation, owner, func(f TriggerFact) error {
+			timing, level := 0, 0
+			if f.Timing == "AFTER" {
+				timing = 1
+			}
+			if f.Orientation == "STATEMENT" {
+				level = 1
+			}
 			for event, enabled := range [3]bool{f.Insert, f.Delete, f.Update} {
 				if err := in.Context.Err(); err != nil {
 					return err
@@ -93,7 +100,7 @@ func captureInfoTriggers(in Input) ([][]sqltype.Value, error) {
 				if !enabled {
 					continue
 				}
-				ranks[event]++
+				ranks[event][timing][level]++
 				row := make([]sqltype.Value, len(infoTriggersColumns))
 				for i, c := range in.Source.Columns {
 					row[i] = sqltype.Null(c.Usage.Type)
@@ -111,7 +118,7 @@ func captureInfoTriggers(in Input) ([][]sqltype.Value, error) {
 					row[i] = value
 				}
 				typ := in.Source.Columns[7].Usage.Type
-				value, err := sqltype.Integer(typ.BaseType(), ranks[event])
+				value, err := sqltype.Integer(typ.BaseType(), ranks[event][timing][level])
 				if err != nil {
 					return err
 				}

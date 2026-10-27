@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
@@ -44,7 +45,7 @@ type BeforeCapture struct {
 // semantic row boundary, before generation and proposal checks. It never holds
 // Engine.mu. Relations without triggers allocate nothing and call no host.
 func Before(h Host, relation *catalog.Relation, request BeforeRow) (BeforeResult, error) {
-	if !relation.HasTriggers() {
+	if !HasRowTriggers(relation, stored.TriggerEvent(request.Event), stored.TriggerBefore) {
 		return BeforeResult{Row: request.New, Proceed: true}, nil
 	}
 	if request.Event != BeforeDelete {
@@ -58,4 +59,50 @@ func Before(h Host, relation *catalog.Relation, request BeforeRow) (BeforeResult
 		}
 	}
 	return h.BeforeRow(request)
+}
+
+func HasRowTriggers(relation *catalog.Relation, event stored.TriggerEvent, timing stored.TriggerTiming) bool {
+	for _, definition := range stored.TriggersOf(relation) {
+		p := definition.Parts()
+		if p.Timing == timing && p.Level == stored.TriggerRow && p.Events&event != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// RegisterAfterStatement is execution-only and independent of row production.
+func RegisterAfterStatement(h Host, b analyze.Binding, event stored.TriggerEvent) error {
+	for _, definition := range stored.TriggersOf(b.Relation) {
+		p := definition.Parts()
+		if p.Timing == stored.TriggerAfter && p.Level == stored.TriggerStatement && p.Events&event != 0 {
+			var targets []int32
+			if event == stored.TriggerUpdate {
+				targets = UpdateTargetAttributes(h, b.Ref, b.Relation, b.Targets, nil)
+			}
+			return h.AfterStatement(b.Ref, event, targets)
+		}
+	}
+	return nil
+}
+
+// CompleteAfterStatement qualifies statement conditions at producer exhaustion,
+// without draining the shared query's row or statement bodies.
+func CompleteAfterStatement(h Host, b analyze.Binding, event stored.TriggerEvent, outcome *Outcome, failure *error) {
+	if *failure != nil {
+		return
+	}
+	for _, definition := range stored.TriggersOf(b.Relation) {
+		p := definition.Parts()
+		if p.Timing != stored.TriggerAfter || p.Level != stored.TriggerStatement || p.Events&event == 0 {
+			continue
+		}
+		if err := h.CompleteAfterStatement(b.Ref, event); err != nil {
+			if outcome.Rows != nil {
+				outcome.Rows.Close()
+			}
+			*outcome, *failure = Outcome{}, err
+		}
+		return
+	}
 }

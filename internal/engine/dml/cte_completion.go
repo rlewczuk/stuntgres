@@ -10,17 +10,23 @@ import (
 
 // CompleteCTEMutation records the finished data-modifying CTE definition in
 // its owner invocation o: count affected rows and, for RETURNING, the typed
-// output rows, whose buffer the producer takes over without copying. It closes
-// output on every error and fails when the definition completes twice or its
-// output does not match its RETURNING shape.
+// output rows, whose buffer the producer takes over without copying. A pending
+// invocation-owned modifier adopts that buffer into its existing source so
+// already-open readers retain source identity. It closes output on every error
+// and rejects duplicate completion or a mismatched RETURNING shape.
 func CompleteCTEMutation(o *exec.CTEInvocation, definition *plan.CTEDefinition, count int64, output exec.RowResult) error {
-	if o.Closed || o.Producers[definition] != nil {
+	producer := o.Producers[definition]
+	if o.Closed || producer != nil && !producer.MutationPending {
 		if output != nil {
 			output.Close()
 		}
 		return fmt.Errorf("stuntgres: CTE modifier completed more than once")
 	}
-	producer := &exec.CTEProducer{Done: true, Closed: true, Affected: count}
+	if producer == nil {
+		producer = &exec.CTEProducer{}
+	}
+	producer.Done, producer.Closed, producer.Affected = true, true, count
+	producer.MutationPending = false
 	if mutation, _ := analyze.MutationBinding(definition); mutation.Returning != nil {
 		rows, ok := output.(*exec.FinalRows)
 		if !ok {
@@ -29,7 +35,10 @@ func CompleteCTEMutation(o *exec.CTEInvocation, definition *plan.CTEDefinition, 
 			}
 			return fmt.Errorf("stuntgres: CTE modifier lacks typed output")
 		}
-		producer.Source = &exec.Source{Flat: rows.Values, FlatWidth: len(rows.Columns), FlatCount: rows.Count, Materialized: true, Authority: o.State.Source.Authority, Host: o.State.Source.Host, Locks: o.State.Source.Locks}
+		if producer.Source == nil {
+			producer.Source = &exec.Source{Materialized: true, Authority: o.State.Source.Authority, Host: o.State.Source.Host, Locks: o.State.Source.Locks}
+		}
+		producer.Source.Flat, producer.Source.FlatWidth, producer.Source.FlatCount = rows.Values, len(rows.Columns), rows.Count
 		rows.Values = nil // Transfer the typed buffer, never Scan/reimport/copy.
 		if err := rows.Close(); err != nil {
 			return err
@@ -41,7 +50,9 @@ func CompleteCTEMutation(o *exec.CTEInvocation, definition *plan.CTEDefinition, 
 	if o.Producers == nil {
 		o.Producers = make(map[*plan.CTEDefinition]*exec.CTEProducer)
 	}
-	o.Producers[definition] = producer
-	o.Order = append(o.Order, producer)
+	if o.Producers[definition] == nil {
+		o.Producers[definition] = producer
+		o.Order = append(o.Order, producer)
+	}
 	return nil
 }

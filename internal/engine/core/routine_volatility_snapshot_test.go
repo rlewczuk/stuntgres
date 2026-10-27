@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -158,5 +159,30 @@ func TestRoutineVolatilitySnapshotOwnership(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestRoutineProjectedPrivateFrontier(t *testing.T) {
+	e, _, relation := typedUnitCatalog(t, false)
+	reader, _ := blockingUnitOwner(t, e)
+	scope := pgrowlocksUnitScope(t, e, reader)
+	target := relation.Address()
+	other := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: target.ObjectID + 1}
+	scope.OwnWrites = map[ids.ObjectAddress][]storage.RowVersion{
+		target: {{Row: 1, Version: 1}}, other: {{Row: 2, Version: 2}},
+	}
+	scope.OwnDeletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{target: {Rows: map[ids.RowID]visibility.DeleteCandidate{1: {Row: 1, Version: 1}}}}
+	scope.StageProjectedColumnRoots(target, nil, nil)
+	restore := scope.ActivateSQLRoutine(nil, e.CatalogRead())
+	if len(scope.OwnWrites[target]) != 0 || scope.OwnDeletes[target] != nil || len(scope.OwnWrites[other]) != 1 {
+		t.Fatal("nested command resurrected removed projected rows/deletes or lost unrelated private rows")
+	}
+	scope.Stage.Rows[other] = []storage.RowVersion{{Row: 3, Version: 3}}
+	if scope.OwnWrites[other][0].Row != 2 {
+		t.Fatal("nested read frontier aliases mutable complete-stage map")
+	}
+	if err := restore(nil); err != nil { t.Fatal(err) }
+	if scope.OwnWrites[target][0].Row != 1 || scope.OwnWrites[other][0].Row != 2 || scope.OwnDeletes[target] == nil {
+		t.Fatal("nested cleanup did not restore exact caller frontier")
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
@@ -94,6 +95,23 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 	w := &s.Stage
 	rows := batch.Values
 	conflictDistinct, appendOnly := lane == dml.ReplaceConflict, lane != dml.ReplaceMerge
+	after := false
+	defer func() {
+		if err == nil && !stale && after {
+			var targets []int32
+			for i := len(s.BeforeTargets)-1; i >= 0; i-- {
+				if s.BeforeTargets[i].Relation == ref {
+					targets = s.BeforeTargets[i].Attributes
+					break
+				}
+			}
+			for i, row := range rows {
+				if err = h.AfterRow(dml.BeforeRow{Relation: ref, Event: dml.BeforeUpdate, Old: old[i].Values, New: row, Targets: targets}); err != nil {
+					break
+				}
+			}
+		}
+	}()
 	defer func() {
 		if err == nil {
 			err = s.flushPhysicalEvents()
@@ -133,6 +151,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 	if !ok || e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil || len(old) != len(rows) {
 		return false, errors.New("stuntgres: invalid update stage")
 	}
+	after = dml.HasRowTriggers(relation, stored.TriggerUpdate, stored.TriggerAfter)
 	for i, row := range rows {
 		if old[i].Row == 0 || old[i].Version == 0 || len(row) != len(relation.Columns) {
 			return false, errors.New("stuntgres: invalid staged row")
@@ -221,6 +240,16 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	s := h.scope()
 	w := &s.Stage
 	rows := batch.Values
+	after := false
+	defer func() {
+		if err == nil && !stale && after {
+			for _, row := range rows {
+				if err = h.AfterRow(dml.BeforeRow{Relation: ref, Event: dml.BeforeInsert, New: row}); err != nil {
+					break
+				}
+			}
+		}
+	}()
 	s.Owner.Mu.Lock()
 	e := s.Engine()
 	e.Mu.Lock()
@@ -260,6 +289,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	if !ok {
 		return false, errors.New("stuntgres: invalid relation descriptor")
 	}
+	after = dml.HasRowTriggers(relation, stored.TriggerInsert, stored.TriggerAfter)
 	for _, row := range rows {
 		if len(row) != len(relation.Columns) {
 			return false, errors.New("stuntgres: invalid staged row width")
@@ -327,6 +357,12 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	s := h.scope()
 	w := &s.Stage
 	row := candidate.Values
+	after := false
+	defer func() {
+		if err == nil && accepted && after {
+			err = h.AfterRow(dml.BeforeRow{Relation: ref, Event: dml.BeforeInsert, New: row})
+		}
+	}()
 	s.Owner.Mu.Lock()
 	defer s.Owner.Mu.Unlock()
 	e := s.Engine()
@@ -349,6 +385,7 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	if !ok || !index.SameRelationRowShape(s.UniqueBinding.Parent, parent) {
 		return false, false, ids.ErrCatalogReplaced
 	}
+	after = dml.HasRowTriggers(parent, stored.TriggerInsert, stored.TriggerAfter)
 	if e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil {
 		return false, false, errors.New("stuntgres: relation storage is missing")
 	}

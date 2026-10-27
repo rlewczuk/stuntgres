@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
@@ -34,6 +35,11 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	ctx, b, source, from, parameters, schema := in.Context, in.Binding, in.Source, in.From, in.Parameters, in.Schema
 	defer source.Close()
 	source.Host = h
+	if err := RegisterAfterStatement(h, b, stored.TriggerUpdate); err != nil {
+		if from != nil { from.Close() }
+		return Outcome{}, err
+	}
+	defer CompleteAfterStatement(h, b, stored.TriggerUpdate, &outcome, &err)
 	_, lockedStorage := h.Target()
 	virtual := b.Relation.Partition != nil && b.Storage == nil && lockedStorage == nil && h.Command().PartitionInsert != nil && h.Command().PartitionInsert.Target.Address() == b.Ref.Address
 	if !virtual && (b.Storage == nil || b.Storage != lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address)) {

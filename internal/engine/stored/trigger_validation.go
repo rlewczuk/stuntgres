@@ -63,10 +63,14 @@ func validateTriggerWhen(read catalog.Read, owner *catalog.Relation, p TriggerPa
 		switch n := node.(type) {
 		case plan.PLLocalExpr, plan.ParameterExpr, plan.SubqueryExpr:
 			invalid = fmt.Errorf("stuntgres: invocation value or subquery in stored trigger WHEN")
+		case plan.RowExpr:
+			if n.RuleSide != 0 && (p.Level == TriggerStatement || n.RuleSide == 1 && p.Events&TriggerInsert != 0 || n.RuleSide == 2 && p.Events&TriggerDelete != 0 || n.RuleSide == 2 && p.Timing == TriggerBefore && len(owner.ColumnMeta.Generations) != 0) {
+				invalid = fmt.Errorf("stuntgres: unavailable trigger WHEN whole row")
+			}
 		case plan.ColumnExpr:
 			address := n.Origin.Address
 			address.SubID = 0
-			if n.Scope != analyze.RulePseudoScope || n.Frame != 1 && n.Frame != 2 || address != owner.Address() || !ReferenceEpochValid(read, owner, n.Origin) || n.Slot < 0 || n.Slot >= len(owner.Columns) || owner.Attributes[n.Slot] != n.Origin.Address.SubID || n.ResultUsage() != owner.Columns[n.Slot].Usage {
+			if p.Level == TriggerStatement || n.Scope != analyze.RulePseudoScope || n.Frame != 1 && n.Frame != 2 || address != owner.Address() || !ReferenceEpochValid(read, owner, n.Origin) || n.Slot < 0 || n.Slot >= len(owner.Columns) || owner.Attributes[n.Slot] != n.Origin.Address.SubID || n.ResultUsage() != owner.Columns[n.Slot].Usage {
 				invalid = fmt.Errorf("stuntgres: invalid trigger WHEN row reference")
 				return
 			}
@@ -74,7 +78,7 @@ func validateTriggerWhen(read catalog.Read, owner *catalog.Relation, p TriggerPa
 				invalid = fmt.Errorf("stuntgres: unavailable trigger WHEN row")
 				return
 			}
-			if n.Frame == 2 {
+			if n.Frame == 2 && p.Timing == TriggerBefore {
 				if _, generated := owner.ColumnMeta.Generations[n.Origin.Address.SubID]; generated {
 					invalid = fmt.Errorf("stuntgres: generated NEW in BEFORE trigger WHEN")
 					return

@@ -40,6 +40,7 @@ type InsertState struct {
 	Groups       map[ids.ObjectAddress]*InsertGroup
 	Order        []*InsertGroup
 	BeforeInsert bool // Applicable physical INSERT chain in the captured route.
+	AfterInsert  bool // Physical AFTER ROW admission requires accepted images.
 }
 
 // CaptureInsertLocked returns shared DML routing state for target, a member
@@ -86,8 +87,16 @@ func CaptureInsertLocked(read catalog.Read, authority access.View, env access.En
 		// Record applicability once; routing and row admission never rescan it.
 		if d.Partition == nil && !state.BeforeInsert {
 			for _, definition := range stored.TriggersOf(d) {
-				if definition.Fires(stored.TriggerInsert, nil) {
+				if p := definition.Parts(); p.Timing == stored.TriggerBefore && p.Level == stored.TriggerRow && definition.Fires(stored.TriggerInsert, nil) {
 					state.BeforeInsert = true
+					break
+				}
+			}
+		}
+		if d.Partition == nil && !state.AfterInsert {
+			for _, definition := range stored.TriggersOf(d) {
+				if p := definition.Parts(); p.Timing == stored.TriggerAfter && p.Level == stored.TriggerRow && definition.Fires(stored.TriggerInsert, nil) {
+					state.AfterInsert = true
 					break
 				}
 			}

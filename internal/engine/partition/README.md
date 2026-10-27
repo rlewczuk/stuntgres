@@ -23,6 +23,9 @@ it. It never builds a binder.
   `MissingPartition` discloses key values only to an actor without RLS who may
   SELECT them. Routing retains the admitted catalog, layouts, `access.View`
   and environment; per-leaf insertion groups belong only to INSERT/COPY.
+  Captured physical BEFORE/AFTER ROW INSERT applicability is independent of
+  statement definitions. Only row definitions clone to leaves; logical statement
+  targets remain the query-named relation.
 - **Key recipes** (`routine.go`): `EvaluateRecipe` evaluates a key expression
   through `RecipeHost` (the root `statementHost`); `Scope` is the statement's
   partition slot in the root `StatementScope`.

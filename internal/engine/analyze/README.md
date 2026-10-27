@@ -237,6 +237,9 @@ library, and never the root engine or `session`. The engine, the root driver
   retain only a diagnostic target candidate, never a visible target row.
   Routine defaults also resolve against an empty namespace; table defaults
   retain their distinct prohibition on all column references.
+  Trigger WHEN namespaces retain timing and orientation: only BEFORE rejects NEW
+  generated/system columns; statement predicates reject OLD/NEW at binding before
+  whole-row presentation capture. AFTER ROW can bind completed generated values.
   `ExpressionName` shares original typed target-label derivation with stored
   recursive presentation; it neither rebinds syntax nor consults current names.
 - **Cached query outputs** (`query_order_bind.go`, `query_distinct_on_bind.go`,

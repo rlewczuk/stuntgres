@@ -509,10 +509,10 @@ func (e *Engine) PublishCatalogOperation(op *session.Operation, scope *Statement
 			return ChangeSet{}, err
 		}
 	}
-	if op != nil && op.Session.Transactions.RetainsTransaction() && (scope == nil || scope.EventCommand == nil && scope.Catalog == nil) {
+	if op != nil && op.Session.Transactions.RetainsTransaction() && (scope == nil || scope.EventCommand == nil && scope.Catalog == nil && scope.activeSQLRoutineDepth == 0) {
 		return e.stageMessageCatalog(op, p, token)
 	}
-	if scope != nil && (scope.Owner.State == session.TxActive || scope.EventCommand != nil || scope.Catalog != nil) {
+	if scope != nil && (scope.Owner.State == session.TxActive || scope.EventCommand != nil || scope.Catalog != nil || scope.activeSQLRoutineDepth != 0) {
 		defer scope.releaseCatalogReservation()
 		if scope.Op == nil || scope.Op != op || p == nil || p.stage == nil || p.stage.Owner != e || p.stage.Lifecycle != catalogValidated {
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")

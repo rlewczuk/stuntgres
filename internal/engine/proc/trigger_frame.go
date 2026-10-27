@@ -17,7 +17,7 @@ type PLTriggerRelation struct {
 
 // NewPLTriggerFrame owns one invocation. OLD and NEW are both typed records even
 // when their tuple is absent; no table shape is written into the shared program.
-func NewPLTriggerFrame(d *Definition, rel PLTriggerRelation, name, event string, args []string, old, next []sqltype.Value) (*PLFrame, error) {
+func NewPLTriggerFrame(d *Definition, rel PLTriggerRelation, name, event, timing, level string, args []string, old, next []sqltype.Value) (*PLFrame, error) {
 	if d == nil || d.Invocation != DMLTriggerInvocation || d.PL == nil || d.PL.Invocation != DMLTriggerInvocation {
 		return nil, fmt.Errorf("stuntgres: missing checked trigger program")
 	}
@@ -42,7 +42,7 @@ func NewPLTriggerFrame(d *Definition, rel PLTriggerRelation, name, event string,
 	for _, entry := range [...]struct {
 		slot int
 		text string
-	}{{2, name}, {3, "BEFORE"}, {4, "ROW"}, {5, strings.ToUpper(event)}, {7, rel.Name}, {8, rel.Namespace}, {9, rel.Name}} {
+	}{{2, name}, {3, timing}, {4, level}, {5, strings.ToUpper(event)}, {7, rel.Name}, {8, rel.Namespace}, {9, rel.Name}} {
 		f.Values[entry.slot] = sqltype.String(f.Program.Variables[entry.slot].Usage.Type, entry.text)
 	}
 	var err error

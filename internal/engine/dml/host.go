@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -35,6 +36,9 @@ type Host interface {
 	// BeforeRow captures live trigger provenance under synchronization, then
 	// admits/evaluates WHEN and the PL body unlocked in the caller's stage.
 	BeforeRow(BeforeRow) (BeforeResult, error)
+	AfterRow(BeforeRow) error
+	AfterStatement(ids.ObjectRef, stored.TriggerEvent, []int32) error
+	CompleteAfterStatement(ids.ObjectRef, stored.TriggerEvent) error
 }
 
 // FinishHost is Host plus the foreign-key runtime that statement Finish runs:

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -36,8 +37,13 @@ type InsertInput struct {
 // ExecuteInsert runs a captured INSERT VALUES or INSERT ... SELECT with the
 // caller holding nothing: it evaluates, validates and admits every row, then
 // stages the batch or finishes RETURNING.
-func ExecuteInsert(h Host, in InsertInput) (Outcome, error) {
+func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 	ctx, b := in.Context, in.Binding
+	if err := RegisterAfterStatement(h, b, stored.TriggerInsert); err != nil {
+		if in.Query != nil { in.Query.Close() }
+		return Outcome{}, err
+	}
+	defer CompleteAfterStatement(h, b, stored.TriggerInsert, &outcome, &failure)
 	if in.Query != nil {
 		input, output := h.Environments()
 		rows, err := EvaluateInsertQuery(ctx, b, in.Query, in.Parameters, in.Schema, input, output, h)

@@ -36,6 +36,7 @@ type plExceptionCheckpoint struct {
 	EventCommand                                *EventCommand
 	eventDropped                                bool
 	foreignActions                              *dml.ForeignActionScope
+	afterTriggers                               *afterTriggerState
 	indexes                                     *index.Scope
 	multiEvents                                 []lock.MultiEvent
 	notificationActions                         []session.NotificationAction
@@ -135,6 +136,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 		notificationActions: slices.Clone(s.notificationActions), notificationEvents: slices.Clone(s.notificationEvents), completed: s.Completed, sessionCompleted: s.sessionCompleted, ProjectedRoots: s.ProjectedRoots,
 		foreignModifications: len(s.foreignTablesOrZero().modifications)}
 	c.holdPromotions = slices.Clone(s.foreignTablesOrZero().holdPromotions)
+	c.afterTriggers = cloneAfterState(s.afterTriggers)
 	c.alterNames = maps.Clone(s.alterNames)
 	c.EventCommand = s.EventCommand
 	if s.EventCommand != nil {
@@ -234,6 +236,7 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 		} else {
 			s.foreignActionsSlot = c.foreignActions
 		}
+		s.restoreAfter(c.afterTriggers)
 		if c.indexes != nil && s.indexesSlot != nil {
 			*s.indexesSlot = *c.indexes
 		} else {

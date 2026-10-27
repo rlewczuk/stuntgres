@@ -43,12 +43,15 @@ imports `view`.
   lifecycle ownership requires table authority, which a rename checks before
   the trigger's existence. `FreezeDefinition` freezes view queries.
 - **Trigger partition synchronization** (`trigger_sync.go`):
-  `SynchronizeTriggersLocked` keeps partition trigger clones in step with
-  their parents at every catalog publication (CREATE, ATTACH, DETACH and
+  `SynchronizeTriggersLocked` keeps row-level partition trigger clones in step
+  with their parents at every catalog publication (CREATE, ATTACH, DETACH and
   parent replacement). Its inputs are the stage's `*catalog.Candidate`, a
   callback that reads the candidate's current state, a `ddl.Allocator` for
   clone OIDs and revisions, and the stage's `TriggerReplacement`. The
   partition-clone provenance rules live in [`stored`](../stored/README.md).
+  Statement definitions stay local to their named relation. Replacing a parent
+  row definition with statement level retains existing row clones and their
+  parent links; replacing it with row level resynchronizes that lineage.
 - **Query preflight and join legality** (`query_preflight.go`,
   `query_set_preflight.go`, `query_join_legality.go`): `PreflightQuery` copies
   the plan paths that hold folded coercions for one execution;

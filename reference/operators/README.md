@@ -13,9 +13,20 @@ comparison, BETWEEN and conditional expressions are in
 [reference/query_core](../query_core/README.md#testing) and
 [reference/types](../types/README.md#testing); explicit casts and the
 comparison resolution matrix are in `reference/type_resolution`.
-Row-level BEFORE trigger scenarios cover private PL frames, ordered row chains,
-permissions, physical mutation producers and native post-data replay. The shared
+BEFORE row and AFTER row/statement trigger scenarios cover private PL frames,
+ordered chains, query completion, zero-row events, TRUNCATE, permissions,
+physical mutation producers and native post-data replay. The shared
 `triggerScenario` helper follows the ordinary configured-backend loop.
+Queued AFTER function replacement is covered for ROW and STATEMENT firing through
+direct and prepared commands: an earlier trigger replaces a later function before
+its first invocation, with exact current-body audits and atomic rollback of a
+failing replacement, its audit writes and the outer mutation.
+Persistence checks execute restored INSERT/UPDATE/DELETE/TRUNCATE definitions
+with exact audit values and metadata. Retained history distinguishes an old ROW
+clone from a later attached leaf without one across two replay rounds.
+PostgreSQL replay checks ordinary SQL firing; native-only phases check reverse
+ROW replacement exactly once, dependency retirement and failed-import preservation
+of live data, eager results and held writers.
 Lifetime witnesses combine supported routine/relation/column rename with
 dependency RESTRICT/CASCADE/drop-recreate routes. A competing function reusing
 the original name must not retarget an installed trigger, including two native
@@ -116,6 +127,7 @@ Add `REFERENCE=1` for the oracle.
 - <a id="cast-definitions"></a>CREATE CAST definitions: `RUN='^TestReferenceCastDefinition'`
 - Declared CAST/typename authority: `RUN='^TestReferenceCastImplementedDeclaredTypeNameAuthority$'`
 - Row-level triggers: `RUN='^TestReferenceTriggerCore'`
+- AFTER query completion and replay: `RUN='^TestReferenceTriggerAfter'`
 - Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`
 - Transactional trigger integration and protocol: `RUN='^TestReferenceTransactionalTrigger'`
 

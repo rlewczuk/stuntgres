@@ -15,6 +15,7 @@ type foreignTriggerInsert struct {
 	binding      analyze.Binding
 	output       *exec.FinalRows
 	count        int64
+	after        bool
 }
 
 func (s *foreignTriggerInsert) accept(h Host, row []sqltype.Value, evaluation *exec.Context) error {
@@ -22,6 +23,11 @@ func (s *foreignTriggerInsert) accept(h Host, row []sqltype.Value, evaluation *e
 	count, err := s.modification.InsertRows(h.Context(), h, rows[:], true, func(actual []sqltype.Value) error {
 		if err := CheckViewRow(h, &s.binding, actual, evaluation); err != nil {
 			return err
+		}
+		if s.after {
+			if err := h.AfterRow(BeforeRow{Relation: s.binding.Ref, Event: BeforeInsert, New: actual}); err != nil {
+				return err
+			}
 		}
 		return ProjectForeignReturning(h, s.binding, s.output, actual, nil, evaluation)
 	})

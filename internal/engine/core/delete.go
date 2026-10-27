@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -58,6 +59,12 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 		return false, errors.New("stuntgres: foreign or missing write stage")
 	}
 	s := w.scope
+	var afterOld []sqltype.Value
+	defer func() {
+		if err == nil && deleted && afterOld != nil {
+			err = s.WriteHost().AfterRow(dml.BeforeRow{Relation: candidate.Ref, Event: dml.BeforeDelete, Old: afterOld})
+		}
+	}()
 	defer func() {
 		if err == nil {
 			err = s.flushPhysicalEvents()
@@ -127,6 +134,9 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	}
 	if err := w.stageDeletionLocked(e, candidate, original); err != nil {
 		return false, err
+	}
+	if dml.HasRowTriggers(relation, stored.TriggerDelete, stored.TriggerAfter) {
+		afterOld = original.Values
 	}
 	return true, nil
 }

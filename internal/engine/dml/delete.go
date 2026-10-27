@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
@@ -27,6 +28,11 @@ type DeleteInput struct {
 // staged for deletion.
 func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 	b, source, inputs, parameters := in.Binding, in.Source, in.Inputs, in.Parameters
+	if err := RegisterAfterStatement(h, b, stored.TriggerDelete); err != nil {
+		if inputs != nil { inputs.Close() }
+		return Outcome{}, err
+	}
+	defer CompleteAfterStatement(h, b, stored.TriggerDelete, &outcome, &err)
 	_, lockedStorage := h.Target()
 	if b.Storage == nil || b.Storage != lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address) {
 		if inputs != nil {

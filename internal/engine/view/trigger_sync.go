@@ -87,12 +87,21 @@ func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Re
 		for _, t := range list {
 			if t.Parts().Parent.ObjectID == 0 {
 				next = append(next, t)
+			} else if parent != nil && slices.ContainsFunc(stored.TriggersOf(parent), func(source stored.Trigger) bool {
+				return source.OID() == t.Parts().Parent.ObjectID && source.Parts().Level == stored.TriggerStatement
+			}) {
+				// Replacing a parent row definition with a statement definition
+				// does not recurse into its existing row clones.
+				next = append(next, t)
 			} else {
 				changed = true
 			}
 		}
 		if parent != nil {
 			for _, source := range stored.TriggersOf(parent) {
+				if source.Parts().Level != stored.TriggerRow {
+					continue
+				}
 				parentAddress := ids.ObjectAddress{ClassID: 2620, ObjectID: source.OID()}
 				prior := slices.IndexFunc(list, func(t stored.Trigger) bool { return t.Parts().Parent == parentAddress })
 				occupant := slices.IndexFunc(list, func(t stored.Trigger) bool { return t.Name() == source.Name() })

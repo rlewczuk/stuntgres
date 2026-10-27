@@ -97,6 +97,11 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   replacement without running callbacks over the replay prefix. An event-trigger
   owner demoted from superuser is unrepresentable unchanged portable SQL; Dump
   rejects that state before writing, without changing the live role or trigger.
+- Retained partition row triggers beneath a statement-level parent replay as real
+  child CREATE TRIGGER statements. A paired `stuntgres-trigger-clone-v1` comment
+  restores their historical parent link only in native Restore; PostgreSQL
+  ignores the comment and recreates independent child triggers with the same
+  firing behavior, not the native drop/detach dependency link.
 - User-mapping options are written as stored, including credentials.
 - Materialized view contents are carried in `-- stuntgres-matview-v1 <base64>`
   comments (JSON fields `schema`, `name`, `populated`, `rows`). Native Restore

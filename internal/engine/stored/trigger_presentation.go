@@ -18,6 +18,7 @@ type TriggerPresentation struct {
 	Insert, Update, Delete bool
 	Condition, Statement   string
 	HasCondition           bool
+	Timing, Orientation    string
 }
 
 // VisitTriggerDefinitions validates real definitions against the captured root.
@@ -95,6 +96,13 @@ func VisitTriggerDefinitions(ctx context.Context, read catalog.Read, relation *c
 		}
 		statement.WriteByte(')')
 		fact := TriggerPresentation{OID: p.OID, Name: p.Name, Insert: p.Events&TriggerInsert != 0, Update: p.Events&TriggerUpdate != 0, Delete: p.Events&TriggerDelete != 0, Statement: statement.String()}
+		fact.Timing, fact.Orientation = "BEFORE", "ROW"
+		if p.Timing == TriggerAfter {
+			fact.Timing = "AFTER"
+		}
+		if p.Level == TriggerStatement {
+			fact.Orientation = "STATEMENT"
+		}
 		if disclose && p.When != nil {
 			fact.Condition, err = renderer.SQL(ctx, p.When, DeparseParent{})
 			if err != nil {

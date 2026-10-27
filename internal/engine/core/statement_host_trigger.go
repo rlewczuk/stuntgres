@@ -53,7 +53,7 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 	}
 	event := stored.TriggerEvent(request.Event)
 	for _, definition := range list {
-		if !definition.Fires(event, request.Targets) {
+		if p := definition.Parts(); p.Timing != stored.TriggerBefore || p.Level != stored.TriggerRow || !definition.Fires(event, request.Targets) {
 			continue
 		}
 		if err := s.Op.Context().Err(); err != nil {
@@ -117,7 +117,7 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 		if err != nil {
 			return result, err
 		}
-		frame, err := proc.NewPLTriggerFrame(d.SQL, rel, p.Name, name, p.Arguments, request.Old, result.Row)
+		frame, err := proc.NewPLTriggerFrame(d.SQL, rel, p.Name, name, "BEFORE", "ROW", p.Arguments, request.Old, result.Row)
 		if err != nil {
 			return result, err
 		}

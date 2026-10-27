@@ -42,13 +42,20 @@ the array prefix aliases.
 
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
-WHEN recipes and partition-clone provenance, never activation values. Rename
-retains every identity and recipe while reordering the table-local chain.
+WHEN recipes, explicit timing/orientation and row-only partition-clone provenance,
+never activation values. Checked kinds are BEFORE ROW I/U/D, AFTER ROW I/U/D and
+AFTER STATEMENT I/U/D/TRUNCATE. Statement definitions cannot be partition clones.
+Rename retains every identity and recipe while reordering the table-local chain.
 Automatic extension addresses are constructor-owned, sorted unique metadata,
 separate from normal function/WHEN references and extension membership.
 Mapping preserves source snapshots and resolves extension addresses in the
-destination; SQL serialization omits derived clone CREATEs, renders current
+destination; SQL serialization omits regenerable row-clone CREATEs, renders current
 names, and emits clone-local dependency ALTERs after all parent definitions.
+Retained row clones beneath statement parents emit their real child CREATE with
+a strict positioned native-link record; PostgreSQL replays the SQL behavior,
+while only native Restore reinstates historical parent provenance.
+Serialization renders the actual timing, orientation and events in the post-data
+section; queues, row images and firing progress never enter persistent payloads.
 Partition synchronization may replace a conflicting local child definition only
 along the exact CREATE OR REPLACE root definition's stage-local clone lineage.
 Ordinary CREATE, ATTACH and unrelated catalog synchronization retain conflicts;

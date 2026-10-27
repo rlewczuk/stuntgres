@@ -9,14 +9,14 @@ TRUNCATE and FK action records, COPY insertion batching).
 Layer L13 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports `access`,
 `analyze` (payload types and pure functions only), `authorization`, `catalog`,
 `copyfmt`, `exec`, `expr`, `fdw`, `ids`, `index`, `lock`, `partition`, `plan`,
-`session` (the operation's COPY input state), `storage`, `table`, `view`,
+`session` (the operation's COPY input state), `storage`, `stored`, `table`, `view`,
 `visibility`, `parser`, `sqlstate`, `sqltype` and the standard library. Nothing
 below it imports it; it never imports the engine and never builds a binder.
 
 ## Hosts
 
 `Host` (`host.go`) embeds `exec.Host`, `index.WriteHost` and `fdw.WriteRuntime`
-and adds command, stage, row-lock, presentation and BEFORE-row capabilities.
+and adds command, stage, row-lock, presentation and row/statement trigger capabilities.
 The engine's `statementHost` implements them (`statement_host_dml.go`,
 `statement_host_stage.go`, `statement_host_latest_row.go`, `statement_host_trigger.go`).
 
@@ -52,9 +52,25 @@ The engine's `statementHost` implements them (`statement_host_dml.go`,
   Foreign trigger inserts use the existing participant row by row, making each
   accepted insertion available before the next BEFORE invocation without
   introducing another transaction or changing participant rollback guarantees.
+- `AfterRow` queues an accepted physical image after successful staging and before
+  RETURNING. WHEN evaluates at admission on completed generated values; bodies
+  run through the query owner's completion, never in retryable staging windows.
+  `AfterStatement` registers logical target/event independently of row count.
+  Successful producers report exhaustion through `CompleteAfterStatement`,
+  without draining the shared query. Core qualifies exhausted modifiers immediately;
+  a suspended RETURNING source retains candidates until consumer EOF or auxiliary
+  exhaustion. Repeated target/event completions replace prior decisions, including FALSE.
+  Physical movement emits DELETE and INSERT row events while the named command
+  retains its UPDATE statement event. Explicit timing/level filters keep AFTER
+  definitions out of BEFORE generation and suppression decisions.
 
 `FinishHost` adds `ForeignKeys`, the FK runtime's engine side
-(`statement_host_foreign_key.go`). `Staged` never locks; the job, authority and
+(`statement_host_foreign_key.go`). Mutating RI commands register statements even
+for zero matches and qualify each producer at exhaustion. Like SPI execution
+without a separate trigger boundary, their AFTER bodies remain in the caller's
+query frame: all RI changes precede draining, and later same-target/event statement
+sets supersede earlier ones. Helper SQL still owns independent nested frames.
+`Staged` never locks; the job, authority and
 row-image captures and the internal action windows each lock once and never
 wait; `GrantForeignKey` waits with the caller holding nothing, then locks to
 revalidate; `SwapForeignActionAuthority` swaps the running action's authority
@@ -86,6 +102,8 @@ target refs, storage, capture source, the INSERT write overlay and insertion
 groups. Partition routing capture is shared by INSERT/COPY/UPDATE; only physical
 mutation leaves enter a data view. The engine embeds the command by value in its
 per-command mutation, so writable CTEs, rules and SQL routines swap it whole.
+AFTER queues deliberately do not belong to this swapped command: core owns them
+by query effect identity, shared across writable CTEs and separate for nested SQL.
 `Insert.CopyFrom` points at the single `CopyFromState`; ordinary INSERT has none.
 
 ## Entry points

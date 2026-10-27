@@ -20,13 +20,16 @@ func (b *Binder) RuleColumn(raw parser.ColumnExpr) (expr.Expr, bool, error) {
 	}
 	ns := b.Target.RuleNamespace
 	if ns.Trigger {
+		if ns.TriggerStatement {
+			return nil, true, expr.ErrorAt("42P17", "statement trigger's WHEN condition cannot reference column values", raw.Pos)
+		}
 		if side == "old" && ns.TriggerInsert {
 			return nil, true, expr.ErrorAt("42P17", "INSERT trigger's WHEN condition cannot reference OLD values", raw.Pos)
 		}
 		if side == "new" && ns.TriggerDelete {
 			return nil, true, expr.ErrorAt("42P17", "DELETE trigger's WHEN condition cannot reference NEW values", raw.Pos)
 		}
-		if side == "new" && len(raw.Name.Parts) > 1 {
+		if side == "new" && !ns.TriggerAfter && len(raw.Name.Parts) > 1 {
 			name := raw.Name.Parts[1].Text
 			switch name {
 			case "ctid", "xmin", "xmax", "cmin", "cmax", "tableoid":

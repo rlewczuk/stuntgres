@@ -18,6 +18,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "typedef: domain default snapshots", Decode: decodeRestoreDomainDefault},
 	{Name: "extension: owner records", Decode: decodeRestoreExtensionOwners},
 	{Name: "view: materialized snapshot records", Decode: decodeRestoreMaterializedSnapshot},
+	{Name: "trigger: retained clone records", Decode: decodeRestoreTriggerClone},
 	{Name: "comparison binding records", Decode: decodeRestoreComparisonContext},
 
 	// Before admission.
@@ -93,6 +94,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "table: deferred default", After: afterRestoreDefault},
 	{Name: "inheritance: generation capture", After: afterRestoreGeneration},
 	{Name: "table: attribute definition capture", After: afterRestoreAttributeDefinition},
+	{Name: "trigger: retained clone capture", After: afterRestoreTriggerClone},
 
 	// After the last statement.
 	{Name: "comparison context closure", Finish: finishRestoreComparisonContext},
@@ -102,4 +104,5 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "extension: owners", Finish: finishRestoreExtensionOwners},
 	{Name: "view: materialized snapshots", Finish: finishRestoreMaterializedSnapshots},
 	{Name: "routine: SQL bodies", Finish: finishRestoreSQLRoutines},
+	{Name: "trigger: retained clone links", Finish: finishRestoreTriggerClones},
 }

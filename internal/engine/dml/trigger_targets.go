@@ -29,13 +29,13 @@ func UpdateTargetAttributes(h Host, ref ids.ObjectRef, relation *catalog.Relatio
 	generated := 0
 	if len(relation.ColumnMeta.Generations) != 0 {
 		for _, definition := range stored.TriggersOf(relation) {
-			if definition.Parts().Events&stored.TriggerUpdate != 0 {
+			if p := definition.Parts(); p.Timing == stored.TriggerBefore && p.Level == stored.TriggerRow && p.Events&stored.TriggerUpdate != 0 {
 				generated = len(relation.ColumnMeta.Generations)
 				break
 			}
 		}
 	}
-	attributes := make([]int32, len(slots), len(slots)+generated)
+	attributes := make([]int32, len(slots), len(slots)+len(relation.ColumnMeta.Generations))
 	for i, slot := range slots {
 		if layout != nil {
 			slot = layout[slot]
@@ -46,6 +46,22 @@ func UpdateTargetAttributes(h Host, ref ids.ObjectRef, relation *catalog.Relatio
 		for _, attribute := range relation.Attributes {
 			if _, exists := relation.ColumnMeta.Generations[attribute]; exists && !slices.Contains(attributes, attribute) {
 				attributes = append(attributes, attribute)
+			}
+		}
+	} else {
+		for _, attribute := range relation.Attributes {
+			definition, exists := relation.ColumnMeta.Generations[attribute]
+			if !exists {
+				continue
+			}
+			for _, dependency := range definition.Dependencies {
+				address := dependency.Address
+				number := address.SubID
+				address.SubID = 0
+				if address == relation.Address() && slices.Contains(attributes, number) {
+					attributes = append(attributes, attribute)
+					break
+				}
 			}
 		}
 	}

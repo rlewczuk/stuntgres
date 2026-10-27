@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
@@ -9,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -299,8 +301,98 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 			result = Result{}
 		}
 	}()
+	previousDeferred, previousDeferredCommand := scope.deferAfterProducers, scope.deferredAfterCommand
+	defer func() {
+		scope.deferAfterProducers, scope.deferredAfterCommand = previousDeferred, previousDeferredCommand
+	}()
+	consumerEffects := false
+	for i := range commands {
+		for _, definition := range stored.TriggersOf(commands[i].execution.binding.Relation) {
+			p := definition.Parts()
+			if p.Timing == stored.TriggerAfter && p.Level == stored.TriggerStatement {
+				consumerEffects = true
+				break
+			}
+		}
+		if consumerEffects {
+			break
+		}
+	}
+	if consumerEffects {
+		// Keep typed eager materialization, but let the existing CTE source
+		// demand start modifiers and its EOF qualify their statement events.
+		for i := range commands {
+			command := &commands[i]
+			commandOwner := findOwner(command.definition.Owner)
+			if commandOwner == nil {
+				e.Mu.Unlock()
+				return Result{}, fmt.Errorf("stuntgres: missing admitted CTE owner")
+			}
+			if commandOwner.Producers == nil {
+				commandOwner.Producers = make(map[*plan.CTEDefinition]*exec.CTEProducer)
+			}
+			producer := &exec.CTEProducer{MutationPending: true, Source: &exec.Source{FlatWidth: len(command.definition.OutputSchema()), Materialized: true, Authority: source.Authority, Host: source.Host, Locks: source.Locks}}
+			commandOwner.Producers[command.definition] = producer
+			commandOwner.Order = append(commandOwner.Order, producer)
+			producer.StartMutation = func() error {
+				active, scratch, rule := scope.ActiveMutation, scope.ruleScratch(), scope.ruleAction
+				deferred, deferredCommand := scope.deferAfterProducers, scope.deferredAfterCommand
+				previousInvocation := scope.cteInvocation
+				scope.cteInvocation = owner
+				defer func() {
+					scope.activateMutation(active)
+					scope.installRuleScratch(scratch)
+					scope.ruleAction = rule
+					scope.deferAfterProducers, scope.deferredAfterCommand = deferred, deferredCommand
+					scope.cteInvocation = previousInvocation
+				}()
+				scope.activateMutation(command.mutation)
+				scope.installRuleScratch(command.scratch)
+				scope.ruleAction = originalRuleAction
+				if command.ruleOwner {
+					scope.ruleAction = RuleActionScope{Auth: &command.execution.auth}
+				}
+				scope.deferAfterProducers = command.execution.binding.Returning != nil
+				scope.deferredAfterCommand = scope.effectCommand
+				start := 0
+				if scope.afterTriggers != nil && scope.afterTriggers.frames[scope.effectCommand] != nil {
+					start = len(scope.afterTriggers.frames[scope.effectCommand].producers)
+				}
+				e.Mu.Lock()
+				output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil)
+				if err != nil {
+					return err
+				}
+				if err := dml.CompleteCTEMutation(commandOwner, command.definition, output.Count, output.Rows); err != nil {
+					return err
+				}
+				if scope.afterTriggers != nil {
+					if f := scope.afterTriggers.frames[scope.effectCommand]; f != nil && len(f.producers) > start {
+						pending := slices.Clone(f.producers[start:])
+						f.producers = f.producers[:start]
+						producer.CompleteMutation = func() error {
+							for _, event := range pending {
+								if err := scope.qualifyAfterProducer(event); err != nil {
+									return err
+								}
+							}
+							return nil
+						}
+					}
+				}
+				e.Mu.Lock()
+				err = scope.RefreshRelationGrantsLocked(e)
+				e.Mu.Unlock()
+				if err != nil {
+					return err
+				}
+				return scope.Op.Context().Err()
+			}
+		}
+	} else {
 	for i := range commands {
 		command := &commands[i]
+		scope.deferAfterProducers = false
 		scope.ActiveMutation = command.mutation
 		scope.installRuleScratch(command.scratch)
 		scope.ruleAction = originalRuleAction
@@ -328,13 +420,40 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 			return Result{}, err
 		}
 	}
+	}
 	scope.activateMutation(main)
 	scope.installRuleScratch(prepared.MainScratch)
 	scope.ruleAction = originalRuleAction
+	scope.deferAfterProducers = false
 	result, failure = e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
+	var finishModifiers func() error
+	if consumerEffects {
+		finishModifiers = func() error {
+			// ExecutorFinish exhausts remaining auxiliaries individually,
+			// including unreferenced modifiers and consumers stopped before EOF.
+			for i := range commands {
+				command := &commands[i]
+				producer := findOwner(command.definition.Owner).Producers[command.definition]
+				if producer.StartMutation != nil {
+					start := producer.StartMutation
+					producer.StartMutation = nil
+					if err := start(); err != nil {
+						return err
+					}
+				}
+				if _, err := producer.Ensure(scope.Op.Context(), producer.Source.FlatCount); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
 	if failure == nil && result.Rows != nil && (scope.sqlRoutine.plCapture || scope.sqlRoutine.rows && !parser.HasModifyingCTE(statement)) {
-		result.Rows = &exec.CTEOwnedRows{RowResult: result.Rows, Owner: owner, Previous: previousOwner, Source: source}
+		result.Rows = &exec.CTEOwnedRows{RowResult: result.Rows, Owner: owner, Previous: previousOwner, Source: source, Complete: finishModifiers}
 		transferred = true
+	}
+	if failure == nil && !transferred && finishModifiers != nil {
+		failure = finishModifiers()
 	}
 	return result, failure
 }

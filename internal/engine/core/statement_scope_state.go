@@ -91,6 +91,9 @@ type StatementScope struct {
 	initialParameters           []sqltype.Usage
 	activeSQLRoutineDepth       int                        // Root invocation owner; never saved/reset as lexical scratch.
 	effectCommand, effectSerial uint64                     // admission-private command event ownership; never rewound
+	afterTriggers              *afterTriggerState
+	deferAfterProducers         bool   // Lexical eager-CTE materialization boundary.
+	deferredAfterCommand        uint64 // Nested routine queries never borrow that boundary.
 	FoldCaptures                *exec.FoldCaptureCandidate // sealed before executor/source publication
 	Catalog                     *session.Journal
 	EventCommand                *EventCommand // Borrowed lexical boundary; never publication authority.

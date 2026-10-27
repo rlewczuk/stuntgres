@@ -82,6 +82,9 @@ func (r *PLRun) Trigger(rowType sqltype.ID) (sqltype.Value, error) {
 	if flow.Kind != PLReturn {
 		return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2F005", Message: "control reached end of trigger procedure without RETURN", Context: identity}
 	}
+	if level, err := r.Frame.Values[4].Text(); err == nil && level == "STATEMENT" {
+		return result, nil
+	}
 	shape, ok := r.Host.LookupType(rowType)
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: trigger row type disappeared")

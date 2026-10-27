@@ -11,10 +11,12 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
 )
 
@@ -33,6 +35,9 @@ type restoreRun struct {
 	domainReplayPairs     map[*parser.Insert]typedef.DomainReplayRecord
 	domainDefaults        []typedef.PositionedDomainDefault
 	domainDefaultPairs    map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
+	triggerClones         []stored.PositionedTriggerClone
+	triggerClonePairs     map[*parser.CreateTrigger]stored.TriggerCloneReplay
+	triggerCloneCaptures  []viewcmds.RestoredTriggerClone
 	extensionOwners       []extension.OwnerRecord
 	snapshots             []view.MaterializedSnapshot
 	comparison            control.ComparisonRestore
@@ -117,6 +122,10 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 		return err
 	}
 	r.domainDefaultPairs, err = typedef.PairDomainDefaults(r.source, r.statements, r.domainDefaults)
+	if err != nil {
+		return err
+	}
+	r.triggerClonePairs, err = stored.PairTriggerClones(r.source, r.statements, r.triggerClones)
 	if err != nil {
 		return err
 	}

@@ -16,5 +16,7 @@ type RuleNamespace struct {
 	Ref                          ids.ObjectRef
 	Event                        string
 	Trigger                      bool
+	TriggerAfter                 bool
+	TriggerStatement             bool
 	TriggerInsert, TriggerDelete bool
 }

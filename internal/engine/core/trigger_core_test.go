@@ -123,7 +123,7 @@ func TestTriggerCoreFrame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, err := proc.NewPLTriggerFrame(d.SQL, rel, "a", "INSERT", []string{"x", "7"}, nil, row)
+	f, err := proc.NewPLTriggerFrame(d.SQL, rel, "a", "INSERT", "BEFORE", "ROW", []string{"x", "7"}, nil, row)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestTriggerCoreFrame(t *testing.T) {
 	if err != nil || got != 5 {
 		t.Fatal("frame borrowed producer scratch or erased returned composite", got, err)
 	}
-	noargs, err := proc.NewPLTriggerFrame(d.SQL, rel, "b", "DELETE", nil, row, nil)
+	noargs, err := proc.NewPLTriggerFrame(d.SQL, rel, "b", "DELETE", "BEFORE", "ROW", nil, row, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestTriggerCoreFrame(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		frame, err := proc.NewPLTriggerFrame(routine.SQL, rel, "case", "INSERT", nil, nil, nil)
+		frame, err := proc.NewPLTriggerFrame(routine.SQL, rel, "case", "INSERT", "BEFORE", "ROW", nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -471,7 +471,7 @@ func TestTriggerCoreAtomicStage(t *testing.T) {
 
 func triggerUnitDefinition(t *testing.T, read catalog.Read, relation *catalog.Relation, d *catalog.Procedure, name string, event stored.TriggerEvent) stored.Trigger {
 	t.Helper()
-	p := stored.TriggerParts{OID: 9500010, Name: name, Relation: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Procedure: read.Owner().Domain.Ref(read.Epoch(), d.Address()), Events: event, References: []ids.ObjectAddress{d.Address()}}
+	p := stored.TriggerParts{OID: 9500010, Name: name, Relation: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Procedure: read.Owner().Domain.Ref(read.Epoch(), d.Address()), Timing: stored.TriggerBefore, Level: stored.TriggerRow, Events: event, References: []ids.ObjectAddress{d.Address()}}
 	definition, err := stored.NewTrigger(p)
 	if err != nil {
 		t.Fatal(err)

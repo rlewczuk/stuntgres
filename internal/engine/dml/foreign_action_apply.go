@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -91,7 +92,7 @@ func planForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event F
 // transition: RESTRICT reports a still-matching child; CASCADE, SET NULL and
 // SET DEFAULT grant, re-read, revalidate and stage each matching child as the
 // child's owner. SET DEFAULT then rechecks the new keys like NO ACTION.
-func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction) error {
+func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction) (failure error) {
 	view := auth.Access().Catalog
 	ref := view.Domain().Ref(view.Epoch(), job.Child.Address())
 	if err := h.AdmitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
@@ -147,6 +148,26 @@ func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event 
 			return foreignActionError(h, err, job, event, action, view)
 		}
 	}
+	// RI executes with SPI's fire_triggers=false: each generated command owns
+	// producer qualification, but queues AFTER bodies at the caller's query
+	// depth. Do not drain here or split same-target statement supersession.
+	statementEvent := stored.TriggerUpdate
+	binding := analyze.Binding{Ref: ref, Relation: job.Child}
+	if deletion {
+		statementEvent = stored.TriggerDelete
+	} else {
+		binding.Targets = plan.Targets
+	}
+	if err := RegisterAfterStatement(h, binding, statementEvent); err != nil {
+		return err
+	}
+	defer func() {
+		if failure == nil {
+			if err := h.CompleteAfterStatement(ref, statementEvent); err != nil {
+				failure = foreignActionError(h, err, job, event, action, view)
+			}
+		}
+	}()
 	children, err := h.ForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		return err

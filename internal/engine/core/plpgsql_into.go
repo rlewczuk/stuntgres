@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -23,6 +24,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	s.sqlRoutine.lexical, s.sqlRoutine.scalar, s.sqlRoutine.rows = f, false, true
 	s.sqlRoutine.plDiagnostic = diagnosticIdentity
 	var result Result
+	var finishCommand func(error) error
 	origin := s.plNoticeOrigin(f, in.Syntax.Pos, plIntoAction)
 	noticeStart := len(s.Op.Notices)
 	diagnostic := proc.PLDiagnosticQuery{Text: strings.TrimRight(raw.Text, " \t\r\n"), Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
@@ -40,6 +42,13 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	}
 	defer func() {
 		err = closePLCapture(result, err, failure)
+		// Transferred CTE modifiers still execute during demand and Close.
+		// Retire their command frame only after those owners have finished.
+		if finishCommand != nil {
+			if completed := finishCommand(err); err == nil && completed != nil {
+				err = failure(completed)
+			}
+		}
 		s.appendPLNoticeContext(noticeStart, origin)
 		err = restore(err)
 	}()
@@ -71,7 +80,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 			}
 		}
 	}
-	finish, e := s.BeginRoutineCommand()
+	finishCommand, e = s.BeginRoutineCommand()
 	if e != nil {
 		return e
 	}
@@ -81,7 +90,6 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 		}
 		return nil
 	})
-	e = finish(e)
 	if e != nil {
 		var excess *dml.CaptureCardinality
 		if errors.As(e, &excess) {
@@ -96,6 +104,18 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	schema := result.Rows.Schema()
 	fields, present, more, e := demandPLCapture(h.Context(), result.Rows, plColumns(schema), checked.Strict || mutation)
 	if e != nil {
+		return failure(e)
+	}
+	// Finish execution (including unreferenced modifiers and AFTER bodies)
+	// before publishing FOUND/cardinality or evaluating target assignments.
+	closeErr := closePLCapture(result, nil, failure)
+	result.Rows, result.RowSets = nil, nil
+	if closeErr != nil {
+		return closeErr
+	}
+	complete := finishCommand
+	finishCommand = nil
+	if e = complete(nil); e != nil {
 		return failure(e)
 	}
 	f.SetFound(present)
@@ -189,11 +209,22 @@ func closePLCapture(result Result, primary error, format func(error) error) erro
 			primary = causal
 		}
 	}
+	closeRows := func(rows exec.RowResult) {
+		if owned, ok := rows.(*exec.CTEOwnedRows); ok {
+			execution, cleanup := owned.Finish(primary)
+			if primary == nil && execution != nil {
+				primary = format(execution)
+			}
+			closeFailure(cleanup)
+			return
+		}
+		closeFailure(rows.Close())
+	}
 	if result.Rows != nil {
-		closeFailure(result.Rows.Close())
+		closeRows(result.Rows)
 	}
 	for _, rows := range result.RowSets {
-		closeFailure(rows.Close())
+		closeRows(rows)
 	}
 	return primary
 }

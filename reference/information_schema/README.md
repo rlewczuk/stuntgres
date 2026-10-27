@@ -66,8 +66,9 @@ Direct, fresh-prepared and held reads cover lifecycle and role publication;
 native controls retain old rows and use a separate recorded destination pool
 for independent-driver Restore assertions.
 
-Trigger scenarios prescribe seventeen-column domain/driver shape, event ranks,
-current-identity presentation and owner-only WHEN disclosure independently.
+Trigger scenarios prescribe seventeen-column domain/driver shape, independent
+event/timing/orientation ranks, TRUNCATE filtering, current-identity presentation
+and owner-only WHEN disclosure independently.
 Physical held consumers observe DDL, role, ACL and presentation-setting changes.
 The presentation family includes a genuine Boolean-domain WHEN coercion and
 retains one full projection across path/name and standard-string transitions.

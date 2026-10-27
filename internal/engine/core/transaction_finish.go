@@ -24,6 +24,7 @@ func (s *StatementScope) Finish(err error) error {
 	// Finishing still consumes held cursors, foreign-action recipes and index
 	// expressions. Their borrowed admission context ends only after those users.
 	defer func() {
+		s.afterTriggers = nil
 		s.currentSnapshot = nil
 		s.snapshotFrontier = 0
 		s.snapshotTarget = visibility.Root{}

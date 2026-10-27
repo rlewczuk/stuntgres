@@ -47,13 +47,20 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	if err := catalogAccess.Check(auth, access.Requirement{Object: ref, Privileges: authorization.TriggerPrivilege}); err != nil {
 		return RelationChange{}, err
 	}
-	if s.Timing != "before" || !s.Row {
-		return RelationChange{}, sqlError("0A000", "only row-level BEFORE triggers are supported")
+	if s.Timing != "after" && (s.Timing != "before" || !s.Row) {
+		return RelationChange{}, sqlError("0A000", "only row-level BEFORE and row or statement AFTER triggers are supported")
 	}
 	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.PartitionedRelation && old.RelationKind != catalog.ForeignRelation {
 		return RelationChange{}, analyze.TableKindError(old, "change")
 	}
 	p := stored.TriggerParts{Name: s.Name.Text, Relation: ref, Arguments: s.Arguments}
+	p.Timing, p.Level = stored.TriggerAfter, stored.TriggerStatement
+	if s.Timing == "before" {
+		p.Timing = stored.TriggerBefore
+	}
+	if s.Row {
+		p.Level = stored.TriggerRow
+	}
 	if err := triggerEvents(&p, old, s.Events); err != nil {
 		return RelationChange{}, err
 	}
@@ -104,8 +111,7 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	return change, err
 }
 
-// triggerEvents records the INSERT, UPDATE [OF columns] and DELETE events of
-// p, rejecting TRUNCATE, a repeated event and a missing column in order.
+// triggerEvents records events and validates their orientation and columns.
 func triggerEvents(p *stored.TriggerParts, old *catalog.Relation, events []parser.TriggerEvent) error {
 	for _, event := range events {
 		var bit stored.TriggerEvent
@@ -116,8 +122,13 @@ func triggerEvents(p *stored.TriggerParts, old *catalog.Relation, events []parse
 			bit = stored.TriggerUpdate
 		case "delete":
 			bit = stored.TriggerDelete
+		case "truncate":
+			if p.Level == stored.TriggerRow {
+				return sqlError("0A000", "TRUNCATE FOR EACH ROW triggers are not supported")
+			}
+			bit = stored.TriggerTruncate
 		default:
-			return sqlError("0A000", "TRUNCATE triggers are unsupported")
+			return sqlError("0A000", "unsupported trigger event")
 		}
 		if p.Events&bit != 0 {
 			return sqlError("42601", "same event specified more than once")
@@ -158,12 +169,12 @@ func triggerFunction(h Host, auth ddl.Authority, catalogAccess access.View, name
 // triggerWhen binds, validates and freezes the WHEN condition of p, and adds
 // the objects it depends on to p.References.
 func triggerWhen(h Host, auth ddl.Authority, catalogAccess access.View, p *stored.TriggerParts, old *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) error {
-	ns := &analyze.RuleNamespace{Relation: old, Ref: p.Relation, Event: "UPDATE", Trigger: true, TriggerInsert: p.Events&stored.TriggerInsert != 0, TriggerDelete: p.Events&stored.TriggerDelete != 0}
+	ns := &analyze.RuleNamespace{Relation: old, Ref: p.Relation, Event: "UPDATE", Trigger: true, TriggerAfter: p.Timing == stored.TriggerAfter, TriggerStatement: p.Level == stored.TriggerStatement, TriggerInsert: p.Events&stored.TriggerInsert != 0, TriggerDelete: p.Events&stored.TriggerDelete != 0}
 	condition, query, binding, err := h.BindTriggerWhen(auth, ns, raw, input)
 	if err != nil {
 		return err
 	}
-	if err := triggerWhenError(condition, p.Events, old); err != nil {
+	if err := triggerWhenError(condition, *p, old); err != nil {
 		return err
 	}
 	p.When, p.Binding = condition, &binding
@@ -181,7 +192,7 @@ func triggerWhen(h Host, auth ddl.Authority, catalogAccess access.View, p *store
 
 // triggerWhenError returns the first subquery, or OLD/NEW reference the
 // events forbid, in walk order.
-func triggerWhenError(condition expr.Expr, events stored.TriggerEvent, old *catalog.Relation) error {
+func triggerWhenError(condition expr.Expr, p stored.TriggerParts, old *catalog.Relation) error {
 	var invalid error
 	plan.WalkExpression(condition, func(node expr.Expr) {
 		if invalid != nil {
@@ -190,17 +201,34 @@ func triggerWhenError(condition expr.Expr, events stored.TriggerEvent, old *cata
 		switch node := node.(type) {
 		case plan.SubqueryExpr:
 			invalid = expr.ErrorAt("0A000", "cannot use subquery in trigger WHEN condition", node.SourcePosition())
+		case plan.RowExpr:
+			if node.RuleSide == 0 {
+				return
+			}
+			if p.Level == stored.TriggerStatement {
+				invalid = expr.ErrorAt("42P17", "statement trigger's WHEN condition cannot reference column values", node.SourcePosition())
+			} else if node.RuleSide == 1 && p.Events&stored.TriggerInsert != 0 {
+				invalid = expr.ErrorAt("42P17", "INSERT trigger's WHEN condition cannot reference OLD values", node.SourcePosition())
+			} else if node.RuleSide == 2 && p.Events&stored.TriggerDelete != 0 {
+				invalid = expr.ErrorAt("42P17", "DELETE trigger's WHEN condition cannot reference NEW values", node.SourcePosition())
+			} else if node.RuleSide == 2 && p.Timing == stored.TriggerBefore && len(old.ColumnMeta.Generations) != 0 {
+				invalid = expr.ErrorAt("42P17", "BEFORE trigger's WHEN condition cannot reference NEW generated columns", node.SourcePosition())
+			}
 		case plan.ColumnExpr:
 			if node.Scope != analyze.RulePseudoScope {
 				return
 			}
-			if node.Frame == 1 && events&stored.TriggerInsert != 0 {
+			if p.Level == stored.TriggerStatement {
+				invalid = expr.ErrorAt("42P17", "statement trigger's WHEN condition cannot reference column values", node.SourcePosition())
+				return
+			}
+			if node.Frame == 1 && p.Events&stored.TriggerInsert != 0 {
 				invalid = expr.ErrorAt("42P17", "INSERT trigger's WHEN condition cannot reference OLD values", node.SourcePosition())
 			}
-			if node.Frame == 2 && events&stored.TriggerDelete != 0 {
+			if node.Frame == 2 && p.Events&stored.TriggerDelete != 0 {
 				invalid = expr.ErrorAt("42P17", "DELETE trigger's WHEN condition cannot reference NEW values", node.SourcePosition())
 			}
-			if node.Frame == 2 {
+			if node.Frame == 2 && p.Timing == stored.TriggerBefore {
 				if _, generated := old.ColumnMeta.Generations[node.Origin.Address.SubID]; generated {
 					invalid = expr.ErrorAt("42P17", "BEFORE trigger's WHEN condition cannot reference NEW generated columns", node.SourcePosition())
 				}

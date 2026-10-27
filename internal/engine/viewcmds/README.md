@@ -48,6 +48,11 @@ match.
 - Restore hooks: `ImportMaterializedSnapshots` installs dumped materialized
   view rows into the private Restore engine in one publication; it admits
   only the trusted bootstrap import authority.
+  `CaptureRestoredTriggerClone` captures a paired child CREATE's actual identity;
+  `CheckRestoredTriggerCloneCreate` rejects subsequent same-target replacement,
+  including OID-preserving replacement, without rejecting dependency-only ALTERs.
+  `ImportTriggerCloneLinks` validates direct membership, names, row/statement
+  kinds and imported owners before one checked native parent-link publication.
 - For tests that import one snapshot row, here and in `schemacmds`:
   `ImportMaterializedSnapshotRow`.
 

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
@@ -40,6 +41,15 @@ type ForeignCommand struct {
 func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	b, op, inputs, parameters := in.Binding, in.Op, in.Inputs, in.Parameters
 	defer func() { inputs.Close() }()
+	event := stored.TriggerInsert
+	switch op {
+	case catalog.ForeignUpdate:
+		event = stored.TriggerUpdate
+	case catalog.ForeignDelete:
+		event = stored.TriggerDelete
+	}
+	if err := RegisterAfterStatement(h, b, event); err != nil { return Outcome{}, err }
+	defer CompleteAfterStatement(h, b, event, &outcome, &err)
 	m, err := fdw.PlanModification(h.Context(), in.Foreign, op, false)
 	if err != nil {
 		return Outcome{}, err
@@ -67,8 +77,8 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	evaluation.PhysicalTable = b.Ref // Actual relation identity, never a fabricated row ID.
 	if op == catalog.ForeignInsert {
 		var stream *foreignTriggerInsert
-		if b.Relation.HasTriggers() {
-			stream = &foreignTriggerInsert{modification: m, binding: b}
+		if HasRowTriggers(b.Relation, stored.TriggerInsert, stored.TriggerBefore) || HasRowTriggers(b.Relation, stored.TriggerInsert, stored.TriggerAfter) {
+			stream = &foreignTriggerInsert{modification: m, binding: b, after: HasRowTriggers(b.Relation, stored.TriggerInsert, stored.TriggerAfter)}
 			if b.Returning != nil {
 				stream.output = exec.NewFinalRows(b.Returning.Schema, 0)
 				_, stream.output.Output = h.Environments()
@@ -259,6 +269,9 @@ func foreignTargetRows(ctx context.Context, h Host, m *fdw.Modification) ([]Fore
 }
 func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (outcome Outcome, err error) {
 	ctx := h.Context()
+	event := stored.TriggerDelete
+	if b.Update != nil { event = stored.TriggerUpdate }
+	after := HasRowTriggers(b.Relation, event, stored.TriggerAfter)
 	rows, err := foreignTargetRows(ctx, h, m)
 	if err != nil {
 		return Outcome{}, err
@@ -399,6 +412,14 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 				if err := CheckViewRow(h, &b, actual, evaluation); err != nil {
 					return Outcome{}, err
 				}
+			}
+			if after {
+				request := BeforeRow{Relation: b.Ref, Event: BeforeDelete, Old: actual}
+				if b.Update != nil {
+					request.Event, request.Old, request.New = BeforeUpdate, candidate.Row, actual
+					request.Targets = UpdateTargetAttributes(h, b.Ref, b.Relation, b.Targets, nil)
+				}
+				if err := h.AfterRow(request); err != nil { return Outcome{}, err }
 			}
 			if err := ProjectForeignReturning(h, b, output, actual, candidate.Row, evaluation); err != nil {
 				return Outcome{}, err

@@ -406,7 +406,7 @@ func triggerUnitFixture(t *testing.T, source string) (*core.Engine, *core.Statem
 
 func triggerUnitDefinition(t *testing.T, read catalog.Read, relation *catalog.Relation, d *catalog.Procedure, name string, event stored.TriggerEvent) stored.Trigger {
 	t.Helper()
-	p := stored.TriggerParts{OID: 9500010, Name: name, Relation: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Procedure: read.Owner().Domain.Ref(read.Epoch(), d.Address()), Events: event, References: []ids.ObjectAddress{d.Address()}}
+	p := stored.TriggerParts{OID: 9500010, Name: name, Relation: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Procedure: read.Owner().Domain.Ref(read.Epoch(), d.Address()), Timing: stored.TriggerBefore, Level: stored.TriggerRow, Events: event, References: []ids.ObjectAddress{d.Address()}}
 	definition, err := stored.NewTrigger(p)
 	if err != nil {
 		t.Fatal(err)

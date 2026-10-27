@@ -216,7 +216,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
   `character_data` and `yes_or_no` from the captured type catalog.
   Numeric metadata likewise retains genuine `cardinal_number` domain values.
 - `triggers` projects real relation-owned definitions through a captured stored
-  presentation visitor. Each event has an independent name-order rank.
+  presentation visitor. Name-order ranks partition by event, timing and
+  orientation; TRUNCATE contributes no information-schema event row.
   Enabled ownership or non-SELECT table/column write/reference/trigger privileges
   expose rows; only enabled owners see WHEN expressions. Target-schema USAGE
   is not required; other-session temporary relations are excluded. All seventeen

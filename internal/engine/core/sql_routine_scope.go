@@ -124,7 +124,11 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	if policy.readOnly {
 		ownWrites = policy.writes
 	}
-	if !policy.readOnly && len(s.Stage.Rows) != 0 {
+	if !policy.readOnly && s.ProjectedRoots {
+		// Projection/TRUNCATE replaced the complete private frontier. Missing
+		// entries mean removed rows, not an empty append-only suffix.
+		ownWrites = maps.Clone(s.Stage.Rows)
+	} else if !policy.readOnly && len(s.Stage.Rows) != 0 {
 		ownWrites = maps.Clone(ownWrites)
 		if ownWrites == nil {
 			ownWrites = make(map[ids.ObjectAddress][]storage.RowVersion, len(s.Stage.Rows))
@@ -136,6 +140,8 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	ownDeletes := saved.ownDeletes
 	if policy.readOnly {
 		ownDeletes = policy.deletes
+	} else if s.ProjectedRoots {
+		ownDeletes = visibility.MergeDeletions(nil, s.Stage.Deletes)
 	} else {
 		ownDeletes = visibility.MergeDeletions(ownDeletes, s.Stage.Deletes)
 	}

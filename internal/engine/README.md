@@ -67,6 +67,10 @@ fixes when it runs within its phase).
 Dump emits current trigger definitions post-data followed by local dependency
 metadata; Restore admits only qualified positive trigger dependency ALTERs,
 never arbitrary rename/drop utilities.
+Retained child row triggers beneath a statement-level parent emit real child
+CREATE SQL paired with a positioned native clone-link annotation. Begin pairs
+the exact next CREATE, After captures its actual identity, and Finish restores
+checked parent links in one private publication after all definitions exist.
 
 Private Restore definition lookups capture the live authenticated bootstrap
 through the existing trusted-destination/import marker. Only the lookup permission

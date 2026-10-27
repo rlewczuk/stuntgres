@@ -400,6 +400,10 @@ exact enclosing-command restoration. `ProjectedRoots` and `WriteStage.Replacing`
 distinguish complete private roots from appended suffixes; `DiscardRemovedWrites`
 uses the same conversion as column projection. `ActivateSQLRoutine` owns fresh
 lexical admission and restores the exact outer `MaterializedSlot` once on exit.
+Volatile nested commands snapshot complete projected private roots instead of
+merging their removed entries with older transaction writes. Thus AFTER TRUNCATE
+reads the staged empty target even when earlier commands wrote it in the same
+transaction; read-only routine policies retain their calling-query frontier.
 
 
 ## Procedural exception boundaries
@@ -453,10 +457,14 @@ then ends the activation; open failures are already formatted.
 
 Static capture uses the same lexical activation, admission, command completion
 and SQL diagnostic formatter. SELECT demands one row, or two for STRICT, through
-an activation-local capture mode. Writable CTE auxiliaries complete without a
-row cap before the primary SELECT opens its lazy producer; its CTE resources
-remain owned by that producer until close. Ordinary SQL and query-loop demand
-keep their separate completion policies.
+an activation-local capture mode. Transferred writable CTEs retain actual
+first-demand/exhaustion ownership: capture closes the main producer and completes
+remaining auxiliaries while its nested command frame is still live, then drains
+that frame before FOUND, cardinality or target assignment. Execution failures
+remain ordinary catchable SQL errors; only resource-close failures are fatal PL
+cleanup errors. Failure paths abort producers before retiring the frame or
+restoring activation. Ordinary SQL and query-loop demand retain their separate
+completion policies.
 Static PL commands use ordinary statement admission and utility effects under a
 fresh lexical activation. Commands and PERFORM fully drain projections before
 publishing status or diagnosing an unhandled tuple descriptor; all producers
@@ -491,8 +499,9 @@ Rule rewriting transfers only that policy to its designated RETURNING provider
 actions, auxiliary mutations and nested commands do not inherit it; ordinary DML
 without capture remains uncapped.
 Successful commands retain ordinary complete-mutation semantics. Capture closes
-all producers before restoring activation, publishes FOUND before cardinality
-and assignment, and publishes list destinations sequentially, unlike FETCH.
+all producers and finishes its nested command before restoring activation,
+publishes FOUND before cardinality and assignment, and publishes list
+destinations sequentially, unlike FETCH.
 Dynamic PL commands evaluate their command and typed USING values once, then
 parse the complete computed input on each reached execution. The ordinary
 routine activation/binder executes it without PL lexical substitution. An explicit
@@ -670,6 +679,38 @@ manager-mutex acquisition exists. Finish discards private stages on failure.
 Each DML activation captures the current owner-private trigger list, not a
 list cached by its prepared handle. VACUUM is
 [`tablecmds`](../tablecmds/README.md#vacuum)'s.
+
+AFTER state belongs to `StatementScope`, keyed by monotonic effect-command
+identity rather than swapped DML scratch. Writable CTEs share their query frame;
+routine SQL completes its own frame synchronously. Accepted ROW WHEN predicates
+run unlocked on final images; queued bodies run at command completion after
+immediate obligations and before publication, with rows preceding statements.
+Statement registration is execution-only and independent of row count. Statement
+WHEN qualifies each producer's registration at its exhaustion, before immediate
+RI work and row-body draining; firing does not reevaluate it. A repeated
+target/event producer replaces prior decisions, while bodies still drain once
+at query completion. Where statement effects require consumer boundaries, writable
+CTE modifiers activate on demand through their existing typed materialized source.
+RETURNING candidates qualify at that source's EOF; non-RETURNING modifiers qualify
+on execution exhaustion. Remaining auxiliaries exhaust individually after the
+primary, never by blanket lexical deferral. Mutating RI child commands retain the
+outer AFTER query frame, matching SPI execution without a separate trigger
+boundary. They qualify each producer, including zero matches, under the child
+owner; all RI changes precede row/body draining, and later same-target/event
+statement sets supersede earlier sets. Routine/helper SQL remains independently
+framed, and all effects share the existing outer rollback stage.
+Checkpoints detach event/producer suffixes, qualification decisions and completion/
+drain cursors while preserving suspended frame identity; effect serials never rewind. Finish releases
+all queue captures on success, failure and cancellation. No callback holds engine
+or owner mutexes, and trigger-body SQL uses the existing private stage.
+Each AFTER invocation retains the current immutable function descriptor validated
+under the engine mutex, then executes it unlocked against the current routine
+catalog. Queued trigger definitions, physical relation metadata and detached tuple
+images remain tied to event admission, independently of executable replacement.
+Catalog utilities reached inside an active routine stage into the enclosing
+statement's private journal, including implicit commands whose journal was empty
+on entry. Only successful outer completion publishes those definitions together
+with row effects; standalone utilities retain their ordinary publication boundary.
 
 ## Prepared statements
 
@@ -1265,6 +1306,9 @@ Public scenarios use `RUN='^TestReferenceAmcheckHeap'` in `reference/indexes`.
 
 Trigger payload/frame/runtime/remap/stage units share
 `RUN='^TestTriggerCore(Catalog|Frame|Return|Runtime|Persistence|AtomicStage|PartitionPath|WhenProvider)$'`.
+
+AFTER query-owner, detached-image, definition-kind and cancellation invariants
+share `RUN='^TestTriggerAfter'`; test-only accessors expose private frame progress.
 
 Event-trigger journal, frame, projection, drop and rewrite units share
 `RUN='^TestEventTrigger'`; public direct/prepared behavior belongs in the
