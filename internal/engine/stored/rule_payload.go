@@ -16,6 +16,8 @@ func (r RuleList) Validate(v catalog.Read, owner *catalog.Relation) error {
 
 func (r RuleList) Len() int { return len(r) }
 
+func (r RuleList) OID(i int) ids.OID { return r[i].OID }
+
 func (r RuleList) Visit(visit func(catalog.RuleFact) error) error {
 	for _, rule := range r {
 		if err := visit(catalog.RuleFact{OID: rule.OID, Name: rule.Name, Event: ruleEventCode(rule.event), Instead: rule.instead, References: rule.references}); err != nil {

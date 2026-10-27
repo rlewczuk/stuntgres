@@ -11,6 +11,8 @@ type RulesPayload interface {
 	Validate(v Read, owner *Relation) error
 	// Len returns the number of rules.
 	Len() int
+	// OID returns the pg_rewrite OID of rule i in stored order.
+	OID(i int) ids.OID
 	// Visit calls visit for each rule in stored order and stops at the first
 	// error, which it returns.
 	Visit(visit func(RuleFact) error) error

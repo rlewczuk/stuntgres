@@ -168,6 +168,7 @@ type State struct {
 	defaultClasses      util.PersistentMap[defaultClassPair, []ids.OID]
 	eventTriggers       util.PersistentMap[ids.ObjectAddress, *EventTrigger]
 	helperOwners        util.PersistentMap[ids.ObjectAddress, *Procedure]
+	oidCeiling          ids.OID // See oid_ceiling.go.
 	defaultACLs         map[DefaultACLKey]*DefaultACLRecord
 	// Sparse replay identity provenance for collision-remapped declarations.
 	// Absent entries use their current OID; dependencies remain the order authority.
@@ -261,6 +262,7 @@ func CloneState(s *State) *State {
 	n.defaultClasses = s.defaultClasses
 	n.eventTriggers = s.eventTriggers
 	n.helperOwners = s.helperOwners
+	n.oidCeiling = s.oidCeiling
 	if len(s.dumpPriorities) != 0 {
 		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))
 		for address, priority := range s.dumpPriorities {

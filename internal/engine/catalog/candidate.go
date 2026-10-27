@@ -196,6 +196,7 @@ func (c *Candidate) State() *State {
 	next.defaultClasses = base.defaultClasses
 	next.eventTriggers = base.eventTriggers
 	next.helperOwners = base.helperOwners
+	next.oidCeiling = base.oidCeiling
 	for a := range c.removals {
 		next.updateDefaultClasses(c.Base.Get(a), nil)
 		next.updateEventTriggers(c.Base.Get(a), nil)
@@ -205,6 +206,7 @@ func (c *Candidate) State() *State {
 		next.updateDefaultClasses(c.Base.Get(a), d)
 		next.updateEventTriggers(c.Base.Get(a), d)
 		next.updateHelperOwners(c.Base.Get(a), d)
+		next.raiseOIDCeiling(a, d)
 	}
 	if len(base.dumpPriorities) != 0 && len(c.removals) != 0 {
 		next.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(base.dumpPriorities))

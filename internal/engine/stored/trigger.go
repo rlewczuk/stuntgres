@@ -92,6 +92,8 @@ func (t Trigger) Fires(event TriggerEvent, targets []int32) bool {
 type TriggerList []Trigger
 
 func (t TriggerList) Len() int { return len(t) }
+func (t TriggerList) OID(i int) ids.OID { return t[i].parts.OID }
+
 func (t TriggerList) Visit(visit func(catalog.TriggerFact) error) error {
 	for _, definition := range t {
 		p := definition.parts

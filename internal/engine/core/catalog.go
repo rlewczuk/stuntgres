@@ -408,7 +408,11 @@ func (e *Engine) catalogStageValidationRead(s *CatalogStage) (catalog.Read, erro
 	var read catalog.Read
 	if s.DescriptorCount() != 0 || len(s.alterFinal) != 0 {
 		read = e.StageRead(s)
-		if err := catalog.ValidateDefinitionOIDs(read); err != nil {
+		validate := s.Candidate.ValidateStagedDefinitionOIDs
+		if len(s.alterFinal) != 0 {
+			validate = catalog.ValidateDefinitionOIDs
+		}
+		if err := validate(read); err != nil {
 			return catalog.Read{}, err
 		}
 	}

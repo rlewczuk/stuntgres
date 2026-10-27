@@ -143,7 +143,14 @@ func (v *View) With(edit func(*ViewParts)) *View {
 	return NewView(p)
 }
 
-func (v *View) RuleOID() ids.OID { return v.rule }
+// RuleOID returns the view's pg_rewrite OID; a typed-nil view has none, so
+// catalog writers and identity checks can visit invalid payloads safely.
+func (v *View) RuleOID() ids.OID {
+	if v == nil {
+		return 0
+	}
+	return v.rule
+}
 
 // The accessors below read a frozen definition for code outside the stored
 // presentation. Results share the published payload; callers never mutate them.

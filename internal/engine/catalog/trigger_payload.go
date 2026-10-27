@@ -7,6 +7,8 @@ import "stuntgres/internal/engine/ids"
 type TriggersPayload interface {
 	Validate(Read, *Relation) error
 	Len() int
+	// OID returns the OID of trigger i in stored order.
+	OID(i int) ids.OID
 	Visit(func(TriggerFact) error) error
 }
 

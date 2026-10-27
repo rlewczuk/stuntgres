@@ -7,149 +7,125 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// errDefinitionOIDFound stops the rule visit in DefinitionOIDUsed.
+// errDefinitionOIDFound stops the visit in DefinitionOIDUsed.
 var errDefinitionOIDFound = errors.New("definition OID found")
 
-func DefinitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
+// VisitDefinitionOIDs calls visit with each identity the descriptor owns
+// besides its own address: aggregate helpers, domain constraints, and a
+// relation's view rule, rules, triggers, policies, constraints, defaults and
+// generation expressions. It returns the first error visit returns.
+func VisitDefinitionOIDs(descriptor Descriptor, visit func(ids.OID) error) error {
 	d, relation := descriptor.(*Relation)
 	if !relation {
 		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil && proc.Implementation != nil {
 			for _, helper := range proc.Aggregate.Helpers {
-				if helper.ID == id {
-					return true
+				if err := visit(helper.ID); err != nil {
+					return err
 				}
 			}
 		}
 		if domain, ok := descriptor.(*Type); ok {
-			if domain.DomainNotNull != nil && domain.DomainNotNull.OID == id {
-				return true
+			if domain.DomainNotNull != nil {
+				if err := visit(domain.DomainNotNull.OID); err != nil {
+					return err
+				}
 			}
 			for _, check := range domain.DomainChecks {
-				if check.OID == id {
-					return true
+				if err := visit(check.OID); err != nil {
+					return err
 				}
 			}
 		}
-		return false
-	}
-	if d.View != nil && d.View.RuleOID() == id {
-		return true
-	}
-	if d.HasRules() && d.VisitRules(func(r RuleFact) error {
-		if r.OID == id {
-			return errDefinitionOIDFound
-		}
 		return nil
-	}) != nil {
-		return true
 	}
-	if d.VisitTriggers(func(t TriggerFact) error {
-		if t.OID == id {
-			return errDefinitionOIDFound
+	if d.View != nil {
+		if err := visit(d.View.RuleOID()); err != nil {
+			return err
 		}
-		return nil
-	}) != nil {
-		return true
+	}
+	// Indexed, not visited: a callback would make visit escape.
+	if d.Rules != nil {
+		for i := range d.Rules.Len() {
+			if err := visit(d.Rules.OID(i)); err != nil {
+				return err
+			}
+		}
+	}
+	if d.Triggers != nil {
+		for i := range d.Triggers.Len() {
+			if err := visit(d.Triggers.OID(i)); err != nil {
+				return err
+			}
+		}
 	}
 	for _, p := range d.Security.Policies {
-		if p.OID == id {
-			return true
+		if err := visit(p.OID); err != nil {
+			return err
 		}
 	}
 	for _, c := range d.Constraints.NotNull {
-		if c.OID == id {
-			return true
+		if err := visit(c.OID); err != nil {
+			return err
 		}
 	}
 	for _, c := range d.Constraints.Check {
-		if c.OID == id {
-			return true
+		if err := visit(c.OID); err != nil {
+			return err
 		}
 	}
 	for _, c := range d.Constraints.Unique {
-		if c.OID == id {
-			return true
+		if err := visit(c.OID); err != nil {
+			return err
 		}
 	}
 	for _, c := range d.Constraints.Exclusion {
-		if c.OID == id {
-			return true
+		if err := visit(c.OID); err != nil {
+			return err
 		}
 	}
 	for _, c := range d.Constraints.ForeignKeys {
-		if c.OID == id {
-			return true
+		if err := visit(c.OID); err != nil {
+			return err
 		}
 	}
 	for _, c := range d.ColumnMeta.Defaults {
-		if c.OID == id {
-			return true
+		if err := visit(c.OID); err != nil {
+			return err
 		}
 	}
-	for _, definition := range d.ColumnMeta.Generations {
-		if definition.OID == id {
-			return true
+	for _, c := range d.ColumnMeta.Generations {
+		if err := visit(c.OID); err != nil {
+			return err
 		}
 	}
-	return false
+	return nil
+}
+
+// DefinitionOIDUsed reports whether the descriptor owns id, besides its own
+// address.
+func DefinitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
+	return VisitDefinitionOIDs(descriptor, func(owned ids.OID) error {
+		if owned == id {
+			return errDefinitionOIDFound
+		}
+		return nil
+	}) != nil
 }
 
 // ReserveDefinitionOIDs reserves identities owned by the descriptor, not the
 // descriptor's own address. DefinitionOIDUsed probes the same owned identities.
 func ReserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
-	d, relation := descriptor.(*Relation)
-	if !relation {
-		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil && proc.Implementation != nil {
-			for _, helper := range proc.Aggregate.Helpers {
-				reserved[helper.ID] = true
-			}
-		}
-		if domain, ok := descriptor.(*Type); ok {
-			if domain.DomainNotNull != nil {
-				reserved[domain.DomainNotNull.OID] = true
-			}
-			for _, check := range domain.DomainChecks {
-				reserved[check.OID] = true
-			}
-		}
-		return
-	}
-	if d.View != nil {
-		reserved[d.View.RuleOID()] = true
-	}
-	if d.HasRules() {
-		_ = d.VisitRules(func(r RuleFact) error {
-			reserved[r.OID] = true
-			return nil
-		})
-	}
-	_ = d.VisitTriggers(func(t TriggerFact) error { reserved[t.OID] = true; return nil })
-	for _, p := range d.Security.Policies {
-		reserved[p.OID] = true
-	}
-	for _, c := range d.Constraints.NotNull {
-		reserved[c.OID] = true
-	}
-	for _, c := range d.Constraints.Check {
-		reserved[c.OID] = true
-	}
-	for _, c := range d.Constraints.Unique {
-		reserved[c.OID] = true
-	}
-	for _, c := range d.Constraints.Exclusion {
-		reserved[c.OID] = true
-	}
-	for _, c := range d.Constraints.ForeignKeys {
-		reserved[c.OID] = true
-	}
-	for _, c := range d.ColumnMeta.Defaults {
-		reserved[c.OID] = true
-	}
-	for _, c := range d.ColumnMeta.Generations {
-		reserved[c.OID] = true
-	}
+	_ = VisitDefinitionOIDs(descriptor, func(id ids.OID) error {
+		reserved[id] = true
+		return nil
+	})
 }
 
+var errInvalidDefinitionIdentity = fmt.Errorf("stuntgres: invalid stored definition identity")
+
+// ValidateDefinitionOIDs checks that every owned definition identity is
+// nonzero and differs from every descriptor address (outside the large-object
+// class) and every other owned identity.
 func ValidateDefinitionOIDs(view Read) error {
 	// Sized for every descriptor, so the scan below never grows the set.
 	used := make(map[ids.OID]struct{}, view.DescriptorCount())
@@ -160,87 +136,68 @@ func ValidateDefinitionOIDs(view Read) error {
 	}
 	claim := func(id ids.OID) error {
 		if _, taken := used[id]; id == 0 || taken {
-			return fmt.Errorf("stuntgres: invalid stored definition identity")
+			return errInvalidDefinitionIdentity
 		}
 		used[id] = struct{}{}
 		return nil
 	}
 	for _, descriptor := range view.Descriptors() {
-		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil && proc.Implementation != nil {
-			for _, helper := range proc.Aggregate.Helpers {
-				if err := claim(helper.ID); err != nil {
-					return err
-				}
-			}
-		}
-		if domain, ok := descriptor.(*Type); ok {
-			if domain.DomainNotNull != nil {
-				if err := claim(domain.DomainNotNull.OID); err != nil {
-					return err
-				}
-			}
-			for _, check := range domain.DomainChecks {
-				if err := claim(check.OID); err != nil {
-					return err
-				}
-			}
-		}
-		d, ok := descriptor.(*Relation)
-		if !ok {
-			continue
-		}
-		if d.View != nil {
-			if err := claim(d.View.RuleOID()); err != nil {
-				return err
-			}
-		}
-		if d.HasRules() {
-			if err := d.VisitRules(func(r RuleFact) error { return claim(r.OID) }); err != nil {
-				return err
-			}
-		}
-		if err := d.VisitTriggers(func(t TriggerFact) error { return claim(t.OID) }); err != nil {
+		if err := VisitDefinitionOIDs(descriptor, claim); err != nil {
 			return err
 		}
-		for _, p := range d.Security.Policies {
-			if err := claim(p.OID); err != nil {
-				return err
-			}
+	}
+	return nil
+}
+
+// errDefinitionScanNeeded makes ValidateStagedDefinitionOIDs fall back to the
+// catalog scan.
+var errDefinitionScanNeeded = errors.New("definition identity scan needed")
+
+// ValidateStagedDefinitionOIDs is ValidateDefinitionOIDs(read) for read, the
+// candidate applied to its base, given that the base passes it. Only staged
+// descriptors can then break it. A staged identity above the base's OID
+// ceiling, or one the same address already used in the base, is used by no
+// unchanged descriptor, so the staged identities are checked against each
+// other. Any other staged identity falls back to the catalog scan.
+func (c *Candidate) ValidateStagedDefinitionOIDs(read Read) error {
+	base := c.Base.state
+	if base == nil {
+		return ValidateDefinitionOIDs(read)
+	}
+	ceiling := base.oidCeiling
+	addresses := make(map[ids.OID]struct{}, len(c.descriptors))
+	for a, d := range c.descriptors {
+		if d == nil || a.ClassID == ids.LargeObjectClassID {
+			continue
 		}
-		for _, c := range d.Constraints.NotNull {
-			if err := claim(c.OID); err != nil {
-				return err
-			}
+		if _, existed := base.findDescriptor(a); !existed && a.ObjectID <= ceiling {
+			return ValidateDefinitionOIDs(read)
 		}
-		for _, c := range d.Constraints.Check {
-			if err := claim(c.OID); err != nil {
-				return err
-			}
+		addresses[a.ObjectID] = struct{}{}
+	}
+	claimed := make(map[ids.OID]struct{}, len(c.descriptors))
+	for a, d := range c.descriptors {
+		if d == nil {
+			continue
 		}
-		for _, c := range d.Constraints.Unique {
-			if err := claim(c.OID); err != nil {
-				return err
+		old, _ := base.findDescriptor(a)
+		err := VisitDefinitionOIDs(d, func(id ids.OID) error {
+			_, taken := claimed[id]
+			_, address := addresses[id]
+			if id == 0 || taken || address {
+				return errInvalidDefinitionIdentity
 			}
+			if id <= ceiling && (old == nil || !DefinitionOIDUsed(old, id)) {
+				return errDefinitionScanNeeded
+			}
+			claimed[id] = struct{}{}
+			return nil
+		})
+		if err == errDefinitionScanNeeded {
+			return ValidateDefinitionOIDs(read)
 		}
-		for _, c := range d.Constraints.Exclusion {
-			if err := claim(c.OID); err != nil {
-				return err
-			}
-		}
-		for _, c := range d.Constraints.ForeignKeys {
-			if err := claim(c.OID); err != nil {
-				return err
-			}
-		}
-		for _, c := range d.ColumnMeta.Defaults {
-			if err := claim(c.OID); err != nil {
-				return err
-			}
-		}
-		for _, definition := range d.ColumnMeta.Generations {
-			if err := claim(definition.OID); err != nil {
-				return err
-			}
+		if err != nil {
+			return err
 		}
 	}
 	return nil

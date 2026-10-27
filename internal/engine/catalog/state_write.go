@@ -24,6 +24,7 @@ func (s *State) SetDescriptor(a ids.ObjectAddress, d Descriptor) {
 	s.updateDefaultClasses(old, d)
 	s.updateEventTriggers(old, d)
 	s.updateHelperOwners(old, d)
+	s.raiseOIDCeiling(a, d)
 }
 
 // RemoveDescriptor deletes the descriptor at a.
@@ -53,6 +54,7 @@ func (s *State) ResetDescriptors() {
 	s.defaultClasses = util.PersistentMap[defaultClassPair, []ids.OID]{}
 	s.eventTriggers = util.PersistentMap[ids.ObjectAddress, *EventTrigger]{}
 	s.helperOwners = util.PersistentMap[ids.ObjectAddress, *Procedure]{}
+	s.oidCeiling = 0
 }
 
 // ResetMaps gives s empty descriptor and name maps and iterates the previous
@@ -68,5 +70,6 @@ func (s *State) ResetMaps() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	s.defaultClasses = util.PersistentMap[defaultClassPair, []ids.OID]{}
 	s.eventTriggers = util.PersistentMap[ids.ObjectAddress, *EventTrigger]{}
 	s.helperOwners = util.PersistentMap[ids.ObjectAddress, *Procedure]{}
+	s.oidCeiling = 0
 	return previous.All()
 }

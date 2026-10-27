@@ -45,15 +45,16 @@ type allocatedOIDSet struct {
 
 // allocatedOIDUsedLocked reports whether the published state owns id in the
 // global allocation space. Large-object descriptor identities are class-local,
-// as in ValidateDefinitionOIDs. It builds one set per descriptor map instead of
-// scanning every descriptor per candidate. A bulk load writes in place behind
+// as in ValidateDefinitionOIDs. An id above the state's OID ceiling is unused;
+// below it, it builds one set per descriptor map instead of scanning every
+// descriptor per candidate. A bulk load writes in place behind
 // an unchanged map, so it scans using the same identity rules, except for the
 // builtin seed: compiled builtin OIDs are below the first allocated OID, and
 // seed descriptors and definitions take their OIDs from the same cursor, so
 // none owns a candidate.
 func (s *Store) allocatedOIDUsedLocked(id ids.OID) bool {
 	state := s.State
-	if s.seeding {
+	if s.seeding || id > state.oidCeiling {
 		return false
 	}
 	if state.bulk != nil {
