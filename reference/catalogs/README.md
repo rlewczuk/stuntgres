@@ -57,6 +57,17 @@ Native-control phases replay actual emitted definition/target SQL on PostgreSQL,
 which ignores native state comments. Select the family in either mode with
 `make check RUN='^TestReferenceStatisticsNDistinct'` (add `REFERENCE=1`).
 
+DATA-specific catalog scenarios independently assert all six fields (including
+empty-result metadata), relation/row/array identity, genuine analyzed-object
+population and exact missing-column diagnostics. The direct/fresh-prepared and
+retained-prepared ACL matrix proves that owning statistics is insufficient,
+explicit catalog SELECT permits other-owner data, and revoke/regrant affects
+the same held statements, including WHERE FALSE. Its feature smoke retains an
+unbuilt definition while collecting an actual count2 payload. Select these
+witnesses with `make check RUN='^TestReferencePGStatisticExtData'` (add
+`REFERENCE=1`); the existing NDISTINCT family still owns collector lifecycle,
+transactions, hierarchy, cancellation and native controls.
+
 Type identity scenarios retain attribute privilege identities across rename and
 retire obsolete lookup names.
 

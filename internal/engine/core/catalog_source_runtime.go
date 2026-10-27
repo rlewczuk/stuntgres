@@ -182,6 +182,12 @@ var sharedCaptureNames = map[ids.OID]string{
 
 func (r EngineCatalogRuntime) ValidateCapture(view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, oid ids.OID) error {
 	a := r.Auth
+	// DATA resolves stored facts through this engine, including transaction-
+	// private metadata. Pair the engine owner, not its committed catalog root:
+	// Auth may legitimately describe a pending transaction catalog.
+	if oid == pgcatalog.StatisticExtDataOID && (r.engine == nil || a.Owner != &r.engine.Catalog.Owner) {
+		return fmt.Errorf("stuntgres: invalid pg_statistic_ext_data capture")
+	}
 	if name, ok := sharedCaptureNames[oid]; ok {
 		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
 			return fmt.Errorf("stuntgres: invalid %s capture", name)

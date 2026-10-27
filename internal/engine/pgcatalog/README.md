@@ -83,11 +83,18 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Restricted `pg_statistic_ext_data` (3429, row10033/array10032) projects the same
   canonical ANALYZE metadata roots through the authenticated runtime bridge.
   Its six exact fields are stxoid, stxdinherit, stxdndistinct, stxddependencies,
-  stxdmcv and stxdexpr. Only ndistinct is collected; remaining payloads are genuine
-  typed NULLs, including canonical pg_statistic[]10028. Bootstrap/default catalog
-  ACL has no PUBLIC SELECT grant; statistics ownership grants no reader privilege.
-  No row exists before successful nonempty collection. Retained sources own
-  immutable values across reanalysis, definition removal and native replacement.
+  stxdmcv and stxdexpr; there is no oid column. Only ndistinct is collected;
+  remaining payloads are genuine typed NULLs, including canonical
+  pg_statistic[]10028. Bootstrap/default catalog ACL has no PUBLIC SELECT grant;
+  owning the table or statistics grants no reader privilege. Current catalog
+  SELECT is checked even for WHERE FALSE and on every held-statement execution.
+  An explicit catalog grant permits other owners' data too; revocation affects
+  the same held statements immediately. Runtime capture pairs the authenticated
+  catalog/role roots with their backing engine owner, without excluding valid
+  transaction-private catalogs. No row exists before successful nonempty
+  collection. Retained rowsets own immutable values across reanalysis, definition
+  removal and native replacement; retaining a rowset does not authorize a later
+  statement execution.
   The canonical NULL-only pg_statistic composite participates in type ACL
   projection through its validated type descriptor, without a fabricated
   relation reader. Ordinary unbacked composites remain authority errors.

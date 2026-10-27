@@ -137,6 +137,13 @@ parents collect separate local/inherited facts; partitioned parents collect only
 inherited facts and never gain synthetic storage. Tuple values use typed NULL-
 inclusive grouping and canonical stable-attnum subsets, not independent-column
 products. Selected extended deltas follow the same transactional Journal path.
+The full-data tuple scan is deterministic. Relative to PostgreSQL's potentially
+sampled estimator, only the numeric technical payload in stxdndistinct is an
+approximation on larger populations; small complete populations have exact
+counts. Definition identity, built-row existence, inheritance, visibility,
+privileges, types and NULL presence are not approximate. The dependencies, MCV
+and expression fields remain typed NULL for explicit simple-column ndistinct
+objects; this collector does not synthesize those independently owned kinds.
 
 
 

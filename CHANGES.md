@@ -1,5 +1,13 @@
 # Changes
 
+- Complete `pg_statistic_ext_data` reader/security acceptance with exact
+  six-column metadata, definition/population identity, diagnostics and current
+  catalog SELECT checks for direct and retained prepared reads, even WHERE FALSE.
+  Reject DATA runtimes paired with a missing or foreign backing engine while
+  preserving transaction-private catalog capture. Reuse the existing ANALYZE
+  collector; only its deterministic full-data ndistinct metric differs from a
+  potentially sampled PostgreSQL estimator.
+
 - Collect genuine multivariate ndistinct tuples during ANALYZE, including NULL
   groups and canonical subsets, with isolated object targets and inheritance
   flavors. Publish immutable typed facts through the existing metadata Journal.
