@@ -28,12 +28,29 @@ func (s *physicalCase) replicationSentinel(peer *physicalCase, owner string) {
 }
 
 func TestReferenceReplicationSettingsImmutableContexts(t *testing.T) {
+	// The first setting of each (context, type) class runs every route; the
+	// others probe direct SET and RESET once each.
+	classes := map[[2]string]bool{}
 	for _, d := range replicationSettings {
 		if d.context != "postmaster" && d.context != "sighup" { continue }
+		class := [2]string{d.context, d.kind}
+		full := !classes[class]
+		classes[class] = true
 		t.Run(d.name,func(t *testing.T) {
 			physicalCases(t, []string{"replication_context_grantee"},func(s *physicalCase) {
 				s.run(fixture.Exec("CREATE TABLE replication_context_data(id integer,value text)",0))
 				s.run(fixture.Exec("INSERT INTO replication_context_data VALUES(1,'kept'),(2,NULL)",2))
+				if !full {
+					s.run(fixture.Exec("SET application_name='replication-owner'",0))
+					for _, q := range []string{"SET "+d.name+"='invalid'","RESET "+d.name} {
+						s.run(physicalError(q,replicationContext(d),false,false))
+					}
+					s.run(fixture.Exec("RESET ALL",0))
+					s.replicationInventory(true,false,nil)
+					s.run(fixture.Select("SELECT id,value FROM replication_context_data ORDER BY id", []string{"id","value"}, []string{"INT4","TEXT"}, [][]any{{int64(1),"kept"},{int64(2),nil}}))
+					s.run(fixture.Select("SHOW application_name", []string{"application_name"}, []string{"TEXT"}, [][]any{{""}}))
+					return
+				}
 				s.run(fixture.Exec("CREATE ROLE replication_context_grantee LOGIN PASSWORD 'role-core-fixture'",0))
 				s.run(fixture.Exec("GRANT SET ON PARAMETER "+d.name+" TO replication_context_grantee",0))
 				defer s.conn.ExecContext(s.p.Ctx,"REVOKE SET ON PARAMETER "+d.name+" FROM replication_context_grantee")

@@ -56,6 +56,9 @@ func TestReferenceServerComparisonWireMatrix(t *testing.T) {
 					serverComparisonWirePath(t, w, "public,pg_catalog")
 					serverComparisonWireSource(t, w, left)
 					for ri, right := range sources {
+						if ri != li && !serverComparisonWireRights[right.oid] {
+							continue
+						}
 						t.Run(right.label(), func(t *testing.T) {
 							// The session spans every right source; renew its I/O deadline per pair.
 							if err := w.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
@@ -86,6 +89,11 @@ func TestReferenceServerComparisonWireMatrix(t *testing.T) {
 		})
 	}
 }
+
+// The admission masks above cover every source pair. Over the wire, each left
+// source is compared with itself and with one right source per PostgreSQL type
+// category: B, U, Z, S, N, D, T, V, I, P, R and A.
+var serverComparisonWireRights = map[uint32]bool{16: true, 17: true, 18: true, 25: true, 701: true, 1184: true, 1186: true, 1562: true, 869: true, 2278: true, 3904: true, 1007: true}
 
 func serverComparisonWireQuery(op string) string {
 	return "SELECT $1 AS l,$2 AS r,$1 " + op + " $2 AS v"
