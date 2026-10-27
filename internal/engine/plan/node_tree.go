@@ -81,6 +81,59 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	}
 	var err error
 	switch n := node.(type) {
+	case AggregateExpr:
+		fmt.Fprintf(out, "Aggregate frame %d slot %d", n.Frame, n.Slot)
+	case GroupExpr:
+		fmt.Fprintf(out, "Group frame %d slot %d", n.Frame, n.Slot)
+	case *WindowExpr:
+		fmt.Fprintf(out, "Window frame %d slot %d", n.Frame, n.Slot)
+	case SubqueryExpr:
+		if n.QueryPlan == nil || n.QueryPlan.Root == nil {
+			return fmt.Errorf("stuntgres: missing structural subquery")
+		}
+		fmt.Fprintf(out, "SubLink kind %d operator %q negate %t", n.Kind, n.Operator, n.Negate)
+		for _, comparison := range n.Comparisons {
+			if err = pair(comparison.Left, comparison.Right); err != nil {
+				return err
+			}
+		}
+		var query func(Node) error
+		query = func(root Node) error {
+			if root == nil {
+				return nil
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			fmt.Fprintf(out, " {query %T", root)
+			switch node := root.(type) {
+			case *SourceNode:
+				fmt.Fprintf(out, " relation %d occurrence %d", node.Ref.Address.ObjectID, node.Occurrence)
+			case *AggregateNode:
+				for _, call := range node.Calls {
+					fmt.Fprintf(out, " aggregate %d", call.Routine.Address.ObjectID)
+				}
+			}
+			var failure error
+			QueryExpressions(root, func(expression expr.Expr) {
+				if expression != nil && failure == nil {
+					failure = child(expression)
+				}
+			})
+			if failure != nil {
+				return failure
+			}
+			left, right := QueryInputs(root)
+			if err := query(left); err != nil {
+				return err
+			}
+			if err := query(right); err != nil {
+				return err
+			}
+			out.WriteByte('}')
+			return nil
+		}
+		err = query(n.QueryPlan.Root)
 	case TableOIDExpr:
 		fmt.Fprintf(out, "TableOID owner %d", n.Owner.Address.ObjectID)
 	case LiteralExpr:

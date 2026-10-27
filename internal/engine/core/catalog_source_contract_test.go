@@ -14,9 +14,12 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -310,6 +313,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 }
 
 func TestCatalogSourceRuntimeCapture(t *testing.T) {
+	t.Run("policy_admitted_runtime_authority", policyAdmittedRuntimeCapture)
 	t.Run("view_table_usage_database_frontier", infoViewTableUsageCapture)
 	t.Run("user_mappings_database_frontier", func(t *testing.T) {
 		f := newDefaultUnitFixture(t)
@@ -570,6 +574,180 @@ func validateCatalogSourceProducers(entries []pgcatalog.Registration) error {
 		}
 	}
 	return nil
+}
+
+// Exercise the actual admission/capture owner rather than constructing a
+// Runtime with fixture-injected authority. Empty catalogs must validate too.
+func policyAdmittedRuntimeCapture(t *testing.T) {
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
+	for _, populated := range []bool{false, true} {
+		if populated {
+			enginetest.SessionSQL(t, s, "CREATE TABLE runtime_policy_owner(id INT)")
+			enginetest.SessionSQL(t, s, "CREATE TABLE runtime_policy_provider(id INT)")
+			enginetest.SessionSQL(t, s, "CREATE POLICY p ON runtime_policy_owner USING(EXISTS(SELECT 1 FROM runtime_policy_provider WHERE runtime_policy_provider.id=runtime_policy_owner.id))")
+		}
+		func() {
+			op := enginetest.TransactionOperation(t, s)
+			defer op.Done()
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := scope.Finish(nil); err != nil {
+					t.Error(err)
+				}
+			}()
+			e.Mu.Lock()
+			err = e.CaptureCommentSnapshotLocked(scope)
+			e.Mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			view := scope.Inquiry.CommentCatalog
+			d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.PolicyClassID})
+			ref := view.Owner().Domain.Ref(view.Epoch(), d.Address())
+			e.Mu.Lock()
+			source, err := core.EngineOpenRelationSourceLocked(e, scope, ref, d.Owner, plan.RowMark{}, nil, nil)
+			if err != nil || source == nil {
+				t.Fatal("admitted policy capture", err)
+			}
+			defer source.Close()
+			want := 0
+			if populated {
+				want = 1
+			}
+			if source.Ref != ref || source.Anonymous == nil || len(source.Anonymous) != want {
+				t.Fatal("owned policy rowset", source)
+			}
+			if populated {
+				relation := view.MustRelation(enginetest.CatalogRef(t, e, view, "runtime_policy_owner").Address)
+				payload := stored.PolicyOf(relation.Security.Policies[0].Using)
+				tree, err := source.Anonymous[0][6].Tree()
+				carrier, ok := tree.(stored.PolicyCarrier)
+				if err != nil || !ok || carrier.Policy != payload || carrier.Policy.Presentation() != payload.Presentation() {
+					t.Fatal("runtime capture detached frozen policy", tree, err)
+				}
+			}
+			// The same real dispatch must not accept a stale object reference.
+			stale := ref
+			stale.Epoch++
+			e.Mu.Lock()
+			rejected, err := core.EngineOpenCatalogSourceLocked(e, scope, stale, d)
+			if rejected != nil || err == nil {
+				t.Fatal("runtime capture accepted stale authority", rejected, err)
+			}
+		}()
+	}
+}
+
+// Display consumes the statement's captured namespace visibility, independently
+// of the policy creator and of later session/ACL changes. No provider executes.
+func TestPGPolicyDisplayAuthority(t *testing.T) {
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
+	for _, q := range []string{
+		"CREATE ROLE policy_display_reader",
+		"CREATE TABLE policy_display_owner(id INT)",
+		"CREATE TABLE policy_display_provider(id INT)",
+		"CREATE SEQUENCE policy_display_sequence",
+		"CREATE POLICY p ON policy_display_owner USING(EXISTS(SELECT 1 FROM policy_display_provider WHERE policy_display_provider.id=policy_display_owner.id)) WITH CHECK(nextval('policy_display_sequence')>0)",
+		"REVOKE USAGE ON SCHEMA public FROM PUBLIC",
+	} {
+		enginetest.SessionSQL(t, s, q)
+	}
+	created := e.CatalogRead()
+	address := enginetest.CatalogRef(t, e, created, "policy_display_owner").Address
+	policy := stored.PolicyOf(created.MustRelation(address).Security.Policies[0].Using)
+	var retained table.DeparseInputs
+	var retainedValues [3]sqltype.Value
+	check := func(in table.DeparseInputs, values [3]sqltype.Value, qualified bool) {
+		t.Helper()
+		text, _ := in.Catalog.LookupType(sqltype.Text)
+		boolean, _ := in.Catalog.LookupType(sqltype.Bool)
+		provider := "policy_display_provider"
+		if qualified {
+			provider = "public." + provider
+		}
+		for _, pretty := range []bool{false, true} {
+			// The pinned-oracle public policy contract drops the predicate's
+			// extra parentheses only in pretty mode, independently of visibility.
+			predicate := "(policy_display_provider.id = policy_display_owner.id)"
+			if pretty {
+				predicate = "policy_display_provider.id = policy_display_owner.id"
+			}
+			want := "(EXISTS ( SELECT 1\n   FROM " + provider + "\n  WHERE " + predicate + "))"
+			values[2] = sqltype.Boolean(boolean, pretty)
+			got, err := table.Deparse(&exec.Context{EvalStatement: exec.EvalStatement{Context: t.Context()}}, in, functions.DeparseExprPretty, values, text)
+			if err != nil {
+				t.Fatal("display from captured authority", err)
+			}
+			actual, err := got.Text()
+			if err != nil || actual != want {
+				t.Fatalf("qualified=%t pretty=%t got %q, %v; want %q", qualified, pretty, actual, err, want)
+			}
+		}
+	}
+	for _, usable := range []bool{false, true} {
+		if usable {
+			enginetest.SessionSQL(t, s, "RESET SESSION AUTHORIZATION")
+			enginetest.SessionSQL(t, s, "GRANT USAGE ON SCHEMA public TO policy_display_reader")
+		}
+		enginetest.SessionSQL(t, s, "SET SESSION AUTHORIZATION policy_display_reader")
+		func() {
+			op := enginetest.TransactionOperation(t, s)
+			defer op.Done()
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := scope.Finish(nil); err != nil {
+					t.Error(err)
+				}
+			}()
+			e.Mu.Lock()
+			err = e.CaptureCommentSnapshotLocked(scope)
+			e.Mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			in := core.ScopeDeparseInputs(scope)
+			auth := core.InquiryDeparseAuth(&scope.Inquiry)
+			actor, ok := auth.Roles.Lookup("policy_display_reader")
+			if !ok || auth.State.CurrentUser != actor.Ref {
+				t.Fatal("display captured creator instead of current actor")
+			}
+			foundPublic := false
+			for _, ns := range in.Path {
+				foundPublic = foundPublic || ns.ObjectID == ids.PublicNamespaceOID
+			}
+			if foundPublic != usable {
+				t.Fatal("captured namespace visibility", in.Path, usable)
+			}
+			relation := in.Catalog.MustRelation(address)
+			if stored.PolicyOf(relation.Security.Policies[0].Using) != policy {
+				t.Fatal("display replaced original frozen policy")
+			}
+			treeType, _ := in.Catalog.LookupType(sqltype.PgNodeTree)
+			tree, err := stored.PolicyTree(t.Context(), in.Catalog, relation, treeType, policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			oidType, _ := in.Catalog.LookupType(sqltype.Oid)
+			oid, err := sqltype.OIDValue(oidType, uint32(address.ObjectID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			values := [3]sqltype.Value{tree, oid}
+			check(in, values, !usable)
+			if !usable {
+				retained, retainedValues = in, values
+			}
+		}()
+	}
+	check(retained, retainedValues, true)
 }
 
 // captureCatalogSourceLocked runs source's registered producer over view and

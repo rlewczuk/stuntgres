@@ -7,7 +7,9 @@ import "stuntgres/internal/parser"
 // Neither inherits an enclosing query's visibility or result descriptor.
 func (p Presentation) nestedQueryPresentation(visible bool) Presentation {
 	if p.Rule {
-		p.Indent += 8
+		if !p.Policy {
+			p.Indent += 8
+		}
 		p.HideLabels = !visible
 		p.AnchorLabels = false
 		p.Columns = nil

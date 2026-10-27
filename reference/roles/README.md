@@ -105,6 +105,19 @@ Backing-source credentials and function EXECUTE remain independently protected.
 Transactional controls retain committed-only capture and stale-publication
 fences, then prove a committed grant survives replacement with its roles intact.
 
+Policy metadata witnesses read physical `pg_policy` and both `pg_get_expr`
+signatures through shared direct/prepared helpers. They preserve raw role order,
+duplicates and absent CHECK separately from effective RLS checks. Known-OID
+metadata remains readable independently of target/schema execution privileges.
+The authorization witness explicitly revokes PUBLIC schema USAGE before testing
+unrelated actors: native bootstrap grants it, while the oracle fixture's rebuilt
+public does not. Exact provider/sequence qualification follows current captured
+namespace visibility; this is independent of PUBLIC metadata availability.
+Transaction peers use scalar/raw-tree observations while ALTER owns its relation
+lock, and exact display before/after lock release. Native control phases retain
+actual Dump fidelity/replay assertions alongside common logical metadata.
+
+
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Ownership, REASSIGN/DROP OWNED, DROP ROLE: `RUN='^TestReferenceRoleOwnership'`
@@ -123,6 +136,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - `row_security` setting: `RUN='^TestReferenceRowSecurity'`
 - Policy DDL: `RUN='^TestReferenceRLSPolicy'`
 - Transactional policy definitions and existing RLS consumers: `RUN='^TestReferenceTransactionalPolicies(Routes|Retention|Savepoints|Diagnostics|Prepared|Dependencies|Locks|Controls)$'`
+- Policy catalog metadata, definitions, frozen expression display and authorization:
+  `RUN='^TestReferencePGPolicy'`
 - Table RLS flags, default deny, BYPASSRLS: `RUN='^TestReferenceRLSBase'`
 - Policy applicability and combination: `RUN='^TestReferenceRLSCombination'`
 - Existing-row USING filtering: `RUN='^TestReferenceRLSFilter'`

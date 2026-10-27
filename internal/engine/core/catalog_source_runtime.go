@@ -134,6 +134,7 @@ func (r EngineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 // sharedCaptureNames names the information_schema sources that share one
 // capture check; only the error names them apart.
 var sharedCaptureNames = map[ids.OID]string{
+	ids.PolicyClassID:                            "pg_policy",
 	pgcatalog.TablePrivilegesOID:                 "table_privileges",
 	pgcatalog.InfoEnabledRolesOID:                "enabled_roles",
 	pgcatalog.InfoCharacterSetsOID:               "character_sets",
@@ -401,6 +402,9 @@ func visitSequenceOverlay(base *catalog.State, own *session.Journal, check func(
 }
 func (r EngineCatalogRuntime) ExpressionTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
 	return plan.CatalogTree(typ, expression)
+}
+func (r EngineCatalogRuntime) PolicyTree(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, payload catalog.PolicyPayload) (sqltype.Value, error) {
+	return stored.PolicyTree(ctx, view, relation, typ, payload)
 }
 func (r EngineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]pgcatalog.ForeignKeyComparison, error) {
 	bound, err := table.BindForeignKeyComparison(view, child, parent, index, key)

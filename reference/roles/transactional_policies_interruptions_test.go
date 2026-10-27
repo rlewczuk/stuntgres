@@ -17,6 +17,8 @@ func transactionalPolicyInterruptions(t *testing.T) {
 				s.exec("CREATE POLICY p ON u TO tp_reader USING(id=1)")
 				s.run(fixture.Exec("INSERT INTO u VALUES(1,TRUE),(2,FALSE)", 2))
 				tOID, uOID := s.oid("t", "p"), s.oid("u", "p")
+				s.facts("t", "p", "*", true, "tp_reader", "(id <= 2)", "")
+				s.facts("u", "p", "*", true, "tp_reader", "(id = 1)", "")
 				pid := transactionalPolicyLockIdentity(s, s.c)
 				var uRelation int64
 				if err := s.c.QueryRowContext(s.p.Ctx, "SELECT 'u'::regclass::oid").Scan(&uRelation); err != nil {
@@ -121,6 +123,8 @@ func transactionalPolicyInterruptions(t *testing.T) {
 						s.exec("ROLLBACK TO before_wait")
 						s.sameOID("t", "p", tOID)
 						s.sameOID("u", "p", uOID)
+						s.facts("t", "p", "*", true, "tp_reader", "(id <= 2)", "")
+						s.facts("u", "p", "*", true, "tp_reader", "(id = 2)", "")
 						s.ids(1, 2)
 						s.exec("SET ROLE tp_reader")
 						s.run(fixture.Select("SELECT id FROM u ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
@@ -161,6 +165,12 @@ func transactionalPolicyInterruptions(t *testing.T) {
 				// any successful ALTER can overwrite the interrupted candidate.
 				peer.sameOID("t", "p", tOID)
 				peer.sameOID("u", "p", uOID)
+				peer.facts("t", "p", "*", true, "tp_reader", "(id <= 2)", "")
+				uUsing := "(id = 1)"
+				if recovery == "cancel_rollback_to" {
+					uUsing = "(id = 2)"
+				}
+				peer.facts("u", "p", "*", true, "tp_reader", uUsing, "")
 				peer.ids(1, 2)
 				peer.exec("SET ROLE tp_reader")
 				peer.run(fixture.Select("SELECT id FROM u ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{want}}))

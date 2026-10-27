@@ -26,6 +26,7 @@ func TestReferenceTransactionalPoliciesDiagnostics(t *testing.T) {
 			s.run(fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
 			s.exec("ROLLBACK TO failure")
 			s.sameOID("t", "p", oid)
+			s.facts("t", "p", "*", true, "tp_reader", "(id <= 2)", "allowed")
 			s.ids(1, 2)
 			// Valid TO/USING from the failed ALTER must not have installed.
 			// CHECK must still reject FALSE after restoring the statement mark.
@@ -47,6 +48,7 @@ func TestReferenceTransactionalPoliciesDiagnostics(t *testing.T) {
 			s.exec("ROLLBACK TO owner_check")
 			s.exec("RESET ROLE")
 			s.sameOID("t", "p", oid)
+			s.facts("t", "p", "*", true, "tp_reader", "(id <= 2)", "allowed")
 			s.ids(1, 2)
 		}
 		q := "ALTER POLICY p ON t AS RESTRICTIVE"
@@ -71,6 +73,7 @@ func TestReferenceTransactionalPoliciesDiagnostics(t *testing.T) {
 			s.failure(tc.q, "25006", "cannot execute "+tc.tag+" in a read-only transaction")
 			s.exec("ROLLBACK")
 			s.sameOID("t", "p", oid)
+			s.facts("t", "p", "*", true, "tp_reader", "(id <= 2)", "allowed")
 		}
 	})
 	t.Run("notices", func(t *testing.T) {

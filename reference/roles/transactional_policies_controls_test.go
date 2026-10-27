@@ -34,6 +34,7 @@ func TestReferenceTransactionalPoliciesControls(t *testing.T) {
 				s.Exec("ALTER TABLE t FORCE ROW LEVEL SECURITY")
 				s.Exec("CREATE POLICY original ON t TO tp_control_owner USING(id=1) WITH CHECK(allowed)")
 				s.Actor("")
+				pgPolicyFacts(s, "t", "original", "*", true, "tp_control_owner", "(id = 1)", "allowed")
 				before := ""
 				if !s.Backend.PG {
 					before = policyDump(s)
@@ -48,12 +49,14 @@ func TestReferenceTransactionalPoliciesControls(t *testing.T) {
 				s.Exec("SAVEPOINT before_policy")
 				s.Exec("ALTER POLICY original ON t USING(id=2)")
 				s.Exec("ALTER POLICY original ON t RENAME TO private")
+				pgPolicyFacts(s, "t", "private", "*", true, "tp_control_owner", "(id = 2)", "allowed")
 				s.Run(fixture.Exec("INSERT INTO t VALUES(4,TRUE)", 1))
 				s.Actor("tp_control_owner")
 				s.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
 				s.Actor("")
 				if s.Backend.PG {
 					s.Exec("ROLLBACK")
+					pgPolicyFacts(s, "t", "original", "*", true, "tp_control_owner", "(id = 1)", "allowed")
 					s.Actor("tp_control_owner")
 					s.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
 					s.Actor("")
@@ -70,6 +73,7 @@ func TestReferenceTransactionalPoliciesControls(t *testing.T) {
 					t.Fatal("invalid late restore succeeded")
 				}
 				s.Exec("ALTER POLICY private ON t WITH CHECK(TRUE)")
+				pgPolicyFacts(s, "t", "private", "*", true, "tp_control_owner", "(id = 2)", "true")
 				if got := policyDump(s); got != before {
 					t.Fatal("failed Restore changed committed predecessor", got)
 				}
@@ -119,6 +123,7 @@ func TestReferenceTransactionalPoliciesControls(t *testing.T) {
 				if got := policyDump(s); got != before {
 					t.Fatal("replacement resurrected private policy/data", got, before)
 				}
+				pgPolicyFacts(s, "t", "original", "*", true, "tp_control_owner", "(id = 1)", "allowed")
 				s.Actor("tp_control_owner")
 				s.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
 				s.Actor("")
@@ -130,6 +135,7 @@ func TestReferenceTransactionalPoliciesControls(t *testing.T) {
 				s.Exec("BEGIN")
 				s.Exec("ALTER POLICY original ON t USING(id=2)")
 				s.Exec("COMMIT")
+				pgPolicyFacts(s, "t", "original", "*", true, "tp_control_owner", "(id = 2)", "allowed")
 				after := policyDump(s)
 				if after == before || strings.Contains(after, "private") || !strings.Contains(after, "original") {
 					t.Fatal("committed policy export", after)

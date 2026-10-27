@@ -48,6 +48,8 @@ func TestReferenceRLSPolicyPostgresReplay(t *testing.T) {
 			exec("ALTER TABLE replay_type RENAME TO renamed_replay_type")
 			exec("CREATE TABLE replay_type(id INTEGER)")
 			run(fixture.Exec("INSERT INTO replay_type VALUES(22)", 1))
+			metadata := pgPolicyStructuralRow(pgPolicyRow("t", "p", "w", false, "policy_replay_target", "present", "present"))
+			run(metadata)
 			var stream bytes.Buffer
 			if err := stuntgres.Dump(p.Ctx, p.Native, &stream); err != nil {
 				t.Fatal(err)
@@ -63,6 +65,7 @@ func TestReferenceRLSPolicyPostgresReplay(t *testing.T) {
 				if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(stream.Bytes(), again.Bytes()) {
 					t.Fatal("native stable redump", err, again.String())
 				}
+				run(pgPolicyStructuralRow(pgPolicyRow("t", "p", "w", false, "policy_replay_target", "present", "present")))
 			}
 			if p.Postgres != nil {
 				oracle, err := p.Postgres.Conn(p.Ctx)
@@ -87,6 +90,9 @@ func TestReferenceRLSPolicyPostgresReplay(t *testing.T) {
 				if _, err := oracle.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 					t.Fatal(err)
 				}
+				step := pgPolicyStructuralRow(pgPolicyRow("t", "p", "w", false, "policy_replay_target", "present", "present"))
+				step.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, oracle, p.PostgresRecord, step)
 				fixture.RunStep(t, p.Ctx, oracle, p.PostgresRecord, fixture.Prepared(fixture.Select(`SELECT r.rolname AS owner,p.polname,p.polpermissive,p.polcmd::text AS command,p.polroles=ARRAY[(SELECT oid FROM pg_roles WHERE rolname='policy_replay_target')]::oid[] AS targets,p.polqual IS NOT NULL AS using_present,p.polwithcheck IS NOT NULL AS check_present FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid JOIN pg_roles r ON r.oid=c.relowner WHERE p.polrelid='t'::regclass`, []string{"owner", "polname", "polpermissive", "command", "targets", "using_present", "check_present"}, []string{"NAME", "NAME", "BOOL", "TEXT", "BOOL", "BOOL", "BOOL"}, [][]any{{"policy_replay_owner", "p", false, "w", true, true, true}})))
 				// Each provider edge is expected independently of native output;
 				// the recreated old row-type name must not be adopted on replay.

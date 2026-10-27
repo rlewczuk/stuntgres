@@ -23,9 +23,11 @@ func TestReferenceTransactionalPoliciesSavepoints(t *testing.T) {
 			s.exec("SAVEPOINT policy_mark")
 			s.ddl("ALTER POLICY p ON t RENAME TO renamed")
 			s.ddl("ALTER POLICY renamed ON t TO tp_other USING(id=2) WITH CHECK(FALSE)")
+			s.facts("t", "renamed", "*", true, "tp_other", "(id = 2)", "false")
 			s.run(fixture.Exec("DELETE FROM t WHERE id=1", 1))
 			s.ids()
 			s.ddl("DROP POLICY renamed ON t")
+			s.run(pgPolicyAbsent("t", "renamed"))
 			s.ids()
 			s.exec("SET ROLE tp_reader")
 			s.run(fixture.Exec("UPDATE t SET allowed=TRUE", 0))
@@ -34,6 +36,7 @@ func TestReferenceTransactionalPoliciesSavepoints(t *testing.T) {
 			s.exec("ROLLBACK TO policy_mark")
 			s.exec("RESET ROLE")
 			s.sameOID("t", "p", oid)
+			s.facts("t", "p", "*", true, "tp_reader", "(id = 1)", "allowed")
 			s.ids(1)
 			transactionalPolicyRestoredCheck(s, insert)
 			s.run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}, {int64(4)}}))
@@ -41,6 +44,7 @@ func TestReferenceTransactionalPoliciesSavepoints(t *testing.T) {
 			s.ddl("ALTER POLICY p ON t USING(FALSE)")
 			s.exec("ROLLBACK TO policy_mark")
 			s.sameOID("t", "p", oid)
+			s.facts("t", "p", "*", true, "tp_reader", "(id = 1)", "allowed")
 			s.ids(1)
 			transactionalPolicyRestoredCheck(s, insert)
 			s.exec("RELEASE policy_mark")
@@ -48,9 +52,11 @@ func TestReferenceTransactionalPoliciesSavepoints(t *testing.T) {
 			s.sameOID("t", "p", oid)
 			if commit {
 				s.ids(1)
+				s.facts("t", "p", "*", true, "tp_reader", "(id = 1)", "allowed")
 				s.run(fixture.Select("SELECT count(*) FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}}))
 			} else {
 				s.ids(1, 2)
+				s.facts("t", "p", "*", true, "tp_reader", "(id <= 2)", "allowed")
 				s.run(fixture.Select("SELECT count(*) FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}}))
 			}
 			// Probe the final definition in a new transaction without changing

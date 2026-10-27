@@ -1149,6 +1149,19 @@ Producers, the OID registry and descriptor specs live in
   types; engines share the templates' index maps and attribute slices.
 - Provenance is same-pointer authority (`&e.catalog.Owner`), never equal
   names, OIDs or epochs.
+- `pg_policy` captures the statement's paired catalog/principal roots, including
+  transaction-private policy definitions, without a separate cache or policy
+  registry. Its runtime adapter validates authority and constructs the stored
+  immutable carrier; metadata does not evaluate conditions. Existing journal,
+  savepoint and Reset/Restore publication fences own visibility and retention.
+  Actual admitted source dispatch (including empty metadata) is covered by
+  `TestCatalogSourceRuntimeCapture/policy_admitted_runtime_authority`, not only
+  producer fixtures with injected runtime authority. It also asserts original
+  frozen-policy retention and stale-reference rejection.
+  `TestPGPolicyDisplayAuthority` exercises real inquiry capture for a noncreator
+  actor with and without namespace USAGE, including retained deparse inputs
+  after an ACL/session change. Public metadata/deparse does not confer provider
+  execution rights or replace the policy's immutable presentation.
 
 ## Catalog writes and built-in seed
 

@@ -149,6 +149,7 @@ type Runtime interface {
 	IndexKey(*catalog.Relation, catalog.IndexKey) (int32, expr.Expr, error)
 	VisitSequenceDefinitions(context.Context, func(catalog.Descriptor) error) error
 	ExpressionTree(*sqltype.Descriptor, expr.Expr) (sqltype.Value, error)
+	PolicyTree(context.Context, catalog.Read, *catalog.Relation, *sqltype.Descriptor, catalog.PolicyPayload) (sqltype.Value, error)
 	ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]ForeignKeyComparison, error)
 	ValidateType(catalog.Read, *catalog.Type) error
 	TypeOutput(*catalog.Owner, catalog.Read, authorization.Read) sqltype.OutputEnvironment

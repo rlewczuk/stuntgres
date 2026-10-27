@@ -48,15 +48,19 @@ func TestReferenceTransactionalPoliciesRoutes(t *testing.T) {
 				switch i {
 				case 0:
 					oid = s.oid("t", "p")
+					s.facts("t", "p", "r", true, "tp_reader", "(id <= 2)", "")
 					s.ids(1, 2)
 				case 1:
 					s.sameOID("t", "p", oid)
+					s.facts("t", "p", "r", true, "tp_reader", "(id = 2)", "")
 					s.ids(2)
 				case 2:
 					s.sameOID("t", "renamed", oid)
+					s.facts("t", "renamed", "r", true, "tp_reader", "(id = 2)", "")
 					s.ids(2)
 				case 3:
 					s.ids()
+					s.run(pgPolicyAbsent("t", "renamed"))
 				}
 				if mode == "autocommit" {
 					fixture.RunStep(s.t, s.p.Ctx, s.peer, s.b.Recorder, fixture.Exec("SET ROLE tp_reader", 0))
@@ -80,14 +84,17 @@ func TestReferenceTransactionalPoliciesRoutes(t *testing.T) {
 				finish = s.begin(mode)
 				s.ddl(queries[0])
 				private := s.oid("t", "p")
+				s.facts("t", "p", "r", true, "tp_reader", "(id <= 2)", "")
 				s.ids(1, 2)
 				finish(commit)
 				if commit {
 					s.sameOID("t", "p", private)
+					s.facts("t", "p", "r", true, "tp_reader", "(id <= 2)", "")
 					s.ids(1, 2)
 					s.ddl("DROP POLICY p ON t")
 				} else {
 					s.ids()
+					s.run(pgPolicyAbsent("t", "p"))
 				}
 			}
 		}

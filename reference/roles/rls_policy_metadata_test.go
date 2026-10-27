@@ -7,14 +7,10 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// Allocator values are not PostgreSQL goldens. Only validity and continuity are
-// asserted; native immutable identity is covered by real descriptor units in
-// the implementation round, not by adding a catalog surface to POLICY.
+// Allocator values are not PostgreSQL goldens. Assert validity and continuity
+// through the same public catalog on both backends.
 func policyOID(s *fixture.RoleMembershipScenario, name string) int64 {
 	s.T.Helper()
-	if !s.Backend.PG {
-		return 0
-	}
 	var oid int64
 	if err := s.C.QueryRowContext(s.P.Ctx, "SELECT oid FROM pg_policy WHERE polrelid='t'::regclass AND polname=$1", name).Scan(&oid); err != nil {
 		s.T.Fatal(err)
@@ -22,6 +18,7 @@ func policyOID(s *fixture.RoleMembershipScenario, name string) int64 {
 	if oid <= 0 || oid > 1<<32-1 {
 		s.T.Fatal("invalid policy identity", oid)
 	}
+	s.Run(fixture.Select("SELECT oid=$1::oid AS same_identity FROM pg_policy WHERE polrelid='t'::regclass AND polname=$2", []string{"same_identity"}, []string{"BOOL"}, [][]any{{true}}, oid, name))
 	return oid
 }
 
@@ -34,9 +31,6 @@ func policySameOID(s *fixture.RoleMembershipScenario, name string, want int64) {
 
 func policyOrderedRoles(s *fixture.RoleMembershipScenario, name, roles string) {
 	s.T.Helper()
-	if !s.Backend.PG {
-		return
-	}
 	// pg_policies presents a sorted role-name set, not stored duplicate order.
 	// Compare the actual OID vector against independently named live principals.
 	var refs string

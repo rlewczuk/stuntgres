@@ -100,7 +100,7 @@ func (v *QueryRenderer) renderFunctionTableSQL(ctx context.Context, catalog cata
 	for i, column := range root.Schema() {
 		from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 	}
-	if v.Presentation.Rule {
+	if v.logicalSourceNames() {
 		columns := make([]parser.Identifier, len(from.columns))
 		for i, column := range from.columns {
 			columns[i] = parser.Identifier{Text: column.name}

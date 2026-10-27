@@ -20,10 +20,12 @@ func policyColumnBlocked(s *fixture.RoleMembershipScenario, column, policy strin
 	policyError(s, "ALTER TABLE t ALTER COLUMN "+column+" TYPE TEXT", "0A000", "cannot alter type of a column used in a policy definition", fmt.Sprintf(`policy %s on table t depends on column "%s"`, policy, column), 0)
 }
 
-// The PG catalog is an additional independent oracle witness. Native definitions
-// are observed through real Dump rather than a new test-only metadata API.
+// The shared physical catalog witness supplements, rather than replaces, the
+// original PostgreSQL view and native Dump fidelity assertions.
 func policyFacts(s *fixture.RoleMembershipScenario, name, mode, command, role, using, check string) {
 	s.T.Helper()
+	code := map[string]string{"ALL": "*", "SELECT": "r", "INSERT": "a", "UPDATE": "w", "DELETE": "d"}[command]
+	pgPolicyFacts(s, "t", name, code, mode == "PERMISSIVE", role, using, check)
 	if s.Backend.PG {
 		s.Run(fixture.Select("SELECT permissive,cmd,roles::text,qual,with_check FROM pg_policies WHERE schemaname='public' AND tablename='t' AND policyname='"+name+"'", []string{"permissive", "cmd", "roles", "qual", "with_check"}, []string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{mode, command, "{" + role + "}", policyNullable(using), policyNullable(check)}}))
 		return

@@ -22,6 +22,7 @@ type Presentation struct {
 	Deparse, Pretty    bool
 	Wrap               int64
 	Rule               bool // Catalog rule display, not replay or reduced-parenthesis pretty mode.
+	Policy             bool // Policy expressions share rule sublink punctuation, not rule indentation.
 	Indent             int
 	HideLabels         bool // Nested expression/set-arm fallback names are not externally visible.
 	AnchorLabels       bool // Restore original labels hidden by recursive execution's output schema.
@@ -498,7 +499,7 @@ func (renderer *QueryRenderer) selectQueryTailSQL(ctx context.Context, catalog c
 	}
 	if s.Bounds != nil {
 		boundClause := clause
-		if presentation.Deparse && (setOperand || s.Set != nil) {
+		if presentation.Deparse && (presentation.Policy || setOperand || s.Set != nil) {
 			boundClause = presentation.line(1)
 		}
 		for _, bound := range []struct {
@@ -675,6 +676,10 @@ func (v *QueryRenderer) columnSQL(ctx context.Context, catalog catalog.Read, pat
 		return "", fmt.Errorf("stuntgres: missing view column frame")
 	}
 	root := analyze.ViewFromRoot(owner)
+	if v.Presentation.Policy && column.Frame == 1 && path.Query == 1 {
+		leaf := v.sources[0]
+		return (Deparser{Output: v.Presentation.Output}).Attribute(v.PolicyRelation, leaf.Attributes[column.Slot])
+	}
 	if path.Clause == analyze.ViewJoinLiteral && column.Frame == path.Query {
 		root = viewJoinAt(root, path.Target)
 	}
@@ -968,6 +973,9 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		}
 		return text, nil
 	case parser.IdentityExpr:
+		if v.Presentation.Policy {
+			return strings.ToUpper(e.Name), nil
+		}
 		return e.Name, nil
 	case parser.CurrentDateTimeExpr:
 		name := e.Kind.Name()
@@ -1169,7 +1177,22 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			leftParent = DeparseParent{Precedence: 5}
 		}
 		leftParent.unary = len(e.Args) == 1
+		// The parser retains row comparisons with scalar subqueries as an
+		// operator over a tuple and a subquery, not as SubqueryExpr.Left.
+		// PostgreSQL displays that test tuple without ROW and retains the
+		// enclosing sublink parentheses even in reduced-parenthesis mode.
+		rowSublink := false
+		if v.Presentation.Rule && len(e.Args) == 2 {
+			_, row := e.Args[0].(parser.RowExpr)
+			query, subquery := e.Args[1].(parser.SubqueryExpr)
+			rowSublink = row && subquery && (query.Kind == parser.SubqueryScalar || query.Kind == parser.SubqueryRow)
+		}
 		operatorOperand := func(index int, parent DeparseParent) (string, error) {
+			if rowSublink && index == 0 {
+				row := e.Args[0].(parser.RowExpr)
+				row.Explicit = false
+				return operand(row, parent)
+			}
 			if analyze.ArrayMembershipName(spelling) || spelling == "||" {
 				return selectedOperand(index, e.Args[index], parent)
 			}
@@ -1193,7 +1216,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			return "", err
 		}
 		text := left + " " + op + " " + right
-		grouped := !v.Presentation.Pretty || parent.Precedence > precedence
+		grouped := rowSublink || !v.Presentation.Pretty || parent.Precedence > precedence
 		if v.Presentation.Pretty && precedence == 5 {
 			grouped = OperatorGrouped(spelling, true, parent)
 		}

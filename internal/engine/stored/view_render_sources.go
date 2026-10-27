@@ -81,9 +81,11 @@ type QueryRenderer struct {
 	ruleEntryFrame           uint32
 	ruleEntryParent          *ruleRangeTable
 	// Summary names follow current attributes independently of literal presentation.
-	CurrentNames bool
-	rowTargets   map[string]string
-	wholeRows    map[plan.WholeRowSource]viewRenderWholeRow
+	CurrentNames        bool
+	PolicyRelation      *catalog.Relation // Request-private pg_get_expr owner, never a stored recipe.
+	policyReplaySources bool              // Logical source names only; expressions retain replay semantics.
+	rowTargets          map[string]string
+	wholeRows           map[plan.WholeRowSource]viewRenderWholeRow
 }
 
 type viewRenderFrame struct {
@@ -172,6 +174,10 @@ func NewQueryRenderer(v *View) *QueryRenderer {
 		}
 	}
 	return r
+}
+
+func (v *QueryRenderer) logicalSourceNames() bool {
+	return v.Presentation.Rule || v.policyReplaySources
 }
 
 func (v *QueryRenderer) freshLabel(ns analyze.ViewNamespace, attribute int32, physical bool) string {
@@ -528,7 +534,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 	}
 	ns := v.namespaces[v.namespace]
 	var rangeName ruleRangeName
-	if v.Presentation.Rule {
+	if v.logicalSourceNames() {
 		var err error
 		rangeName, err = v.ruleRangeName(ns)
 		if err != nil {
@@ -556,14 +562,14 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 	case *parser.TableReference:
 		if root := ViewCTETable(analyze.ViewFromRoot(v.query.Root), n); root != nil {
 			name := catalog.QuoteIdentifier(n.Name.Parts[0].Text)
-			if v.Presentation.Rule {
+			if v.logicalSourceNames() {
 				name = v.Presentation.identifier(n.Name.Parts[0].Text)
 			}
 			from := viewRenderFrom{text: name, relation: name, root: root}
 			for i, column := range root.Schema() {
 				from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 			}
-			if v.Presentation.Rule {
+			if v.logicalSourceNames() {
 				return v.ruleCTESource(from, n.Name.Parts[0].Text, rangeName), nil
 			}
 			if v.Presentation.Deparse {
@@ -629,8 +635,10 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		}
 		from := viewRenderFrom{root: root}
 		from.rowTarget, from.rowSource = n.Name.Parts[len(n.Name.Parts)-1].Text, true
-		if v.Presentation.Deparse {
-			if v.Presentation.Output.QuoteAllIdentifiers {
+		if v.Presentation.Deparse || v.policyReplaySources {
+			if v.policyReplaySources {
+				from.relation = catalog.QuoteIdentifier(catalogView.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
+			} else if v.Presentation.Output.QuoteAllIdentifiers {
 				from.relation = v.Presentation.identifier(d.Name())
 				if !relationVisibleAt(catalogView, d, v.Presentation.Path) {
 					from.relation = v.Presentation.identifier(catalogView.Get(d.Namespace()).Name()) + "." + from.relation
@@ -650,7 +658,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 				}
 				from.columns = append(from.columns, column)
 			}
-			if v.Presentation.Rule {
+			if v.logicalSourceNames() {
 				relation := from.relation
 				from = v.sourceAlias(from, rangeName.name, rangeName.columns, rangeName.explicit || rangeName.name != d.Name() || len(rangeName.columns) != 0)
 				from.relation = relation
@@ -695,7 +703,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
-		if v.Presentation.Rule {
+		if v.logicalSourceNames() {
 			// The underlying occurrence already has its final name/columns.
 			// Alias wrappers never allocate a phantom default or a second RTE.
 			if v.rowTargets != nil && from.rowSource && n.Name.Text != "" {
@@ -760,7 +768,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		usingAlias := ""
 		if n.UsingAlias != nil {
 			usingAlias = n.UsingAlias.Text
-		} else if !v.Presentation.Deparse || (!v.Presentation.Rule && v.usingOrderAliasNeeded(bound, ns)) {
+		} else if !v.Presentation.Deparse && !v.policyReplaySources || !v.logicalSourceNames() && v.usingOrderAliasNeeded(bound, ns) {
 			for i := range ns.Keys {
 				if ns.Columns[i].Slot >= bound.LeftWidth+bound.RightWidth {
 					// Reserve before rendering descendants. This qualifies the
@@ -774,7 +782,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
-		if v.Presentation.Deparse && !v.Presentation.Rule && len(ns.Keys) != 0 {
+		if (v.Presentation.Deparse && !v.Presentation.Rule || v.policyReplaySources) && len(ns.Keys) != 0 {
 			left = v.usingOperand(left, ns.Keys)
 		}
 		// Function arguments reference the owner's full FROM frame before the
@@ -796,7 +804,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
-		if v.Presentation.Deparse && !v.Presentation.Rule && len(ns.Keys) != 0 {
+		if (v.Presentation.Deparse && !v.Presentation.Rule || v.policyReplaySources) && len(ns.Keys) != 0 {
 			right = v.usingOperand(right, ns.Keys)
 		}
 		from := viewRenderFrom{root: bound, slots: make(map[int]string, len(left.slots)+len(right.slots)+len(bound.Merges))}
@@ -896,7 +904,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 				}
 			}
 		}
-		if v.Presentation.Rule && rangeName.name != "" {
+		if v.logicalSourceNames() && rangeName.name != "" {
 			from.relation = from.text
 			from = v.sourceAlias(from, rangeName.name, rangeName.columns, true)
 		}

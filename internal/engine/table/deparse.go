@@ -198,6 +198,8 @@ func Deparse(c *exec.Context, in DeparseInputs, signature functions.DeparseSigna
 				out.WriteString(part)
 			}
 			text = out.String()
+		case stored.PolicyCarrier:
+			text, err = stored.PolicyDisplay(c.Context, view, relation, tree, stored.Presentation{Pretty: pretty, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings})
 		default:
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign structural tree")
 		}

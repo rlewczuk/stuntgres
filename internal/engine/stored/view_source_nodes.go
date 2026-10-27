@@ -58,7 +58,7 @@ func (v *QueryRenderer) renderDerivedQuerySQL(ctx context.Context, catalogView c
 	for i, column := range root.Schema() {
 		from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 	}
-	if v.Presentation.Rule {
+	if v.logicalSourceNames() {
 		return v.ruleDerivedSource(from, rangeName), nil
 	}
 	if v.Presentation.Deparse {
@@ -82,7 +82,7 @@ func (v *QueryRenderer) renderValuesSourceSQL(ctx context.Context, catalogView c
 	for i, column := range root.Schema() {
 		from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 	}
-	if v.Presentation.Rule {
+	if v.logicalSourceNames() {
 		from.relation = "(" + text + ")"
 		aliased := v.sourceAlias(from, rangeName.name, rangeName.columns, true)
 		aliased.relation = from.relation

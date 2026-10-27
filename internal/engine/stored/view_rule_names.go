@@ -74,14 +74,17 @@ func (t *ruleRangeTable) allocate(key ruleRenderAlias, preferred string, alias *
 }
 
 func (v *QueryRenderer) prepareRuleRangeTable(ctx context.Context, read catalog.Read, project *plan.ProjectNode) error {
-	if !v.Presentation.Rule {
+	if !v.logicalSourceNames() {
 		return nil
 	}
-	if project == nil || project.Syntax == nil {
+	if project == nil {
 		return fmt.Errorf("stuntgres: missing rule range-table frame")
 	}
 	if _, exists := v.ruleTables[project.Frame]; exists {
 		return nil
+	}
+	if project.Syntax == nil {
+		return fmt.Errorf("stuntgres: missing rule range-table frame")
 	}
 	if err := ctx.Err(); err != nil {
 		return err

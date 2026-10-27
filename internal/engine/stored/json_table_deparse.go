@@ -145,7 +145,7 @@ func (v *QueryRenderer) renderJSONTableSQL(ctx context.Context, view catalog.Rea
 	for i, column := range root.Schema() {
 		from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 	}
-	if v.Presentation.Rule {
+	if v.logicalSourceNames() {
 		from = v.sourceAlias(from, name.name, name.columns, name.explicit || name.name != "json_table" || len(name.columns) != 0)
 		from.relation = text
 		return from, nil

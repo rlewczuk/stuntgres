@@ -76,6 +76,14 @@ func TestReferenceRLSPolicyProviderControls(t *testing.T) {
 							subject = provider.subject + namespace + ".policy_provider"
 						}
 						unchanged := func() {
+							metadata := pgPolicyStructuralRow(pgPolicyRow("policy_temp", "temp_policy", "*", true, "public", "", ""))
+							metadata.Query = strings.ReplaceAll(metadata.Query, "ARRAY['public','policy_temp','temp_policy']", "ARRAY['pg_temp','policy_temp','temp_policy']")
+							if clause == "USING" {
+								metadata.Rows[0][6] = true
+							} else {
+								metadata.Rows[0][7] = true
+							}
+							s.Run(metadata)
 							s.Run(fixture.Select("SELECT id FROM sentinel ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(91)}}))
 							s.Run(fixture.Select("SELECT id FROM policy_temp ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(8)}}))
 							policyRestrict(s, provider.drop+qualified, "cannot drop "+subject+" because other objects depend on it", "policy temp_policy on table policy_temp depends on "+subject)

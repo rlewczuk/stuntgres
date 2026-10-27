@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -58,6 +59,14 @@ func PolicySQL(ctx context.Context, view catalog.Read, expression *Policy) (stri
 		return "", fmt.Errorf("stuntgres: policy owner is missing")
 	}
 	r.reserved[d.Name()] = true
+	// Replay keeps logical source aliases, not positional bridge names that
+	// would become user-visible aliases when Restore binds this definition.
+	// Expression/literal rendering remains in the ordinary replay mode.
+	r.policyReplaySources = true
+	root := expression.presentation.query.Root.(*plan.ProjectNode)
+	names := ruleRangeTable{used: map[string]int{d.Name(): 0}}
+	r.ruleTables = map[uint32]ruleRangeTable{root.Frame: names}
+	r.ruleRootNames = &names
 	slots := make(map[int]string, len(leaf.Attributes))
 	for i, attribute := range leaf.Attributes {
 		for j, current := range d.Attributes {

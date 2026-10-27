@@ -41,6 +41,7 @@ func TestReferenceRLSPolicyRestoreSelectors(t *testing.T) {
 		s.Actor("")
 		s.Run(fixture.Exec("INSERT INTO t VALUES(7)", 1))
 		policyOrderedRoles(s, "p", "{"+owner+","+owner+","+owner+"}")
+		pgPolicyFacts(s, "t", "p", "*", true, owner+","+owner+","+owner, "", "")
 		if !s.Backend.PG {
 			stream := policyDump(s)
 			want := []string{owner, owner, owner}
@@ -56,6 +57,7 @@ func TestReferenceRLSPolicyRestoreSelectors(t *testing.T) {
 					s.T.Fatalf("reimported TO targets = %q, want %q", got, want)
 				}
 				s.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+				pgPolicyFacts(s, "t", "p", "*", true, owner+","+owner+","+owner, "", "")
 			}
 			policyRestoreSelectorsReplay(s, stream, owner)
 		}
@@ -65,6 +67,7 @@ func TestReferenceRLSPolicyRestoreSelectors(t *testing.T) {
 		s.Fail("DROP ROLE "+owner, "2BP01", message, "owner of table t\ntarget of policy p on table t\ntarget of policy p on table t\ntarget of policy p on table t")
 		s.Exec("ALTER POLICY p ON t TO PUBLIC")
 		policyOrderedRoles(s, "p", "{public}")
+		pgPolicyFacts(s, "t", "p", "*", true, "public", "", "")
 		s.Fail("DROP ROLE "+owner, "2BP01", message, "owner of table t")
 		s.Exec("DROP POLICY p ON t")
 		s.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
@@ -74,7 +77,7 @@ func TestReferenceRLSPolicyRestoreSelectors(t *testing.T) {
 }
 
 // Supplement the shared SQL/control body with an independent pinned consumer
-// of the actual Dump bytes. Clean its objects/role before membershipCases runs
+// of the actual Dump bytes. Clean its objects/role before fixture.RoleMembershipCases runs
 // its PostgreSQL backend; the stream itself is never rewritten.
 func policyRestoreSelectorsReplay(s *fixture.RoleMembershipScenario, stream, owner string) {
 	s.T.Helper()
@@ -104,6 +107,7 @@ func policyRestoreSelectorsReplay(s *fixture.RoleMembershipScenario, stream, own
 	})
 	consumer.Actor("")
 	policyOrderedRoles(&consumer, "p", "{"+owner+","+owner+","+owner+"}")
+	pgPolicyFacts(&consumer, "t", "p", "*", true, owner+","+owner+","+owner, "", "")
 	consumer.Run(fixture.Select("SELECT r.rolname AS owner FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE c.oid='t'::regclass", []string{"owner"}, []string{"NAME"}, [][]any{{owner}}))
 	consumer.Run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 }

@@ -113,6 +113,9 @@ func (s *transactionalPolicies) oid(table, name string) int64 {
 	if class != 3256 || oid <= 0 || sub != 0 || rows.Next() || rows.Err() != nil {
 		s.t.Fatal("invalid policy address", class, oid, sub, rows.Err())
 	}
+	step := fixture.Select("SELECT oid=$1::oid AS identity,polrelid=$2::regclass AS relation FROM pg_policy WHERE polrelid=$2::regclass AND polname=$3", []string{"identity", "relation"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}, oid, table, name)
+	step.Prepared = s.held
+	s.run(step)
 	return oid
 }
 func (s *transactionalPolicies) sameOID(table, name string, want int64) {

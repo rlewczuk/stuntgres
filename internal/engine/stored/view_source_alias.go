@@ -6,8 +6,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Public inquiry aliases preserve actual current source names and only explicit
-// column aliases. Dump's positional bridge aliases remain owned by aliasFrom.
+// Logical source aliases preserve actual current source names and only explicit
+// column aliases, for public inquiry and policy replay. Ordinary view dump's
+// positional bridge aliases remain owned by aliasFrom.
 func (v *QueryRenderer) sourceAlias(from viewRenderFrom, name string, columns []parser.Identifier, declare bool) viewRenderFrom {
 	identifier := v.Presentation.identifier
 	qualifier := identifier(name)
@@ -29,8 +30,11 @@ func (v *QueryRenderer) sourceAlias(from viewRenderFrom, name string, columns []
 	if declare {
 		from.text += " " + qualifier
 	}
-	if v.Presentation.Rule {
+	if v.logicalSourceNames() {
 		from.wholeSQL = qualifier
+		if v.policyReplaySources {
+			from.alias = name
+		}
 	}
 	if from.rowSource {
 		from.rowTargetSQL = qualifier

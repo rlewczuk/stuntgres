@@ -292,6 +292,12 @@ recaptures exact identities after waits before publishing their candidates.
   reader's waiting controllers only with no engine/session mutex held; the root
   owns admissions, mutex windows and publication.
 
+`pg_get_expr` accepts checked bound-expression and frozen-policy tree carriers.
+Policy display delegates to the stored query renderer (including correlated
+subqueries), with current path/output settings and no evaluation or target-table
+ACL filtering. Missing nonzero relation identities return NULL; owner Vars with
+zero relation identity retain the `expression contains variables` diagnostic.
+
 ## Testing
 
 Package units run over a fake host or a small catalog; most table tests build an

@@ -74,6 +74,7 @@ func TestReferenceRLSPolicyControls(t *testing.T) {
 			s.Run(fixture.Exec("INSERT INTO z_helper VALUES(1)", 1))
 			s.Exec("CREATE POLICY p ON t AS RESTRICTIVE FOR UPDATE TO policy_control_target USING(EXISTS(SELECT 1 FROM z_helper WHERE z_helper.id=t.id)) WITH CHECK(allowed AND current_user=current_role)")
 			policyRoleBlocked(s, "policy_control_target", "p")
+			pgPolicyFacts(s, "t", "p", "w", false, "policy_control_target", "(EXISTS ( SELECT 1\n   FROM z_helper\n  WHERE (z_helper.id = t.id)))", "(allowed AND (CURRENT_USER = CURRENT_ROLE))")
 			if !s.Backend.PG {
 				dump := policyDump(s)
 				if strings.Contains(dump, "CREATE ROLE") || !strings.Contains(dump, "policy_control_target") || !strings.Contains(dump, "CURRENT_USER") && !strings.Contains(dump, "current_user") {
@@ -97,6 +98,7 @@ func TestReferenceRLSPolicyControls(t *testing.T) {
 					s.T.Fatalf("redump changed\n%s\n%s", dump, again)
 				}
 				policyRows(s)
+				pgPolicyFacts(s, "t", "p", "w", false, "policy_control_target", "(EXISTS ( SELECT 1\n   FROM z_helper\n  WHERE (z_helper.id = t.id)))", "(allowed AND (CURRENT_USER = CURRENT_ROLE))")
 				policyRoleBlocked(s, "policy_control_target", "p")
 				policyRestrict(s, "DROP TABLE z_helper", "cannot drop table z_helper because other objects depend on it", "policy p on table t depends on table z_helper")
 			}
@@ -109,6 +111,7 @@ func TestReferenceRLSPolicyControls(t *testing.T) {
 			fixture.RoleMembershipCases(t, []string{"policy_control_target"}, func(s *fixture.RoleMembershipScenario) {
 				policySetup(s)
 				s.Exec("CREATE POLICY original ON t USING(id>0) WITH CHECK(allowed)")
+				pgPolicyFacts(s, "t", "original", "*", true, "public", "(id > 0)", "allowed")
 				if s.Backend.PG {
 					return
 				} // PostgreSQL has no native replacement API.
@@ -159,6 +162,7 @@ func TestReferenceRLSPolicyControls(t *testing.T) {
 					s.T.Fatalf("failed Restore changed catalog\nbefore=%s\nafter=%s", before, after)
 				}
 				policyRows(s)
+				pgPolicyFacts(s, "t", "original", "*", true, "public", "(id > 0)", "allowed")
 				policyColumnBlocked(s, "id", "original")
 			})
 		})
@@ -167,6 +171,7 @@ func TestReferenceRLSPolicyControls(t *testing.T) {
 		fixture.RoleMembershipCases(t, nil, func(s *fixture.RoleMembershipScenario) {
 			policySetup(s)
 			s.Exec("CREATE POLICY p ON t USING(id>0)")
+			pgPolicyFacts(s, "t", "p", "*", true, "public", "(id > 0)", "")
 			if s.Backend.PG {
 				return
 			}
@@ -182,6 +187,7 @@ func TestReferenceRLSPolicyControls(t *testing.T) {
 			if after == before {
 				s.T.Fatal("writer callback mutation absent")
 			}
+			pgPolicyFacts(s, "t", "p", "*", true, "public", "false", "")
 			sentinel := errors.New("policy fixture writer failure")
 			if err := stuntgres.Dump(s.P.Ctx, s.P.Native, &policyWriter{err: sentinel}); !errors.Is(err, sentinel) {
 				s.T.Fatal(err)

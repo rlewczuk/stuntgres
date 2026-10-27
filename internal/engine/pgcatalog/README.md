@@ -491,6 +491,17 @@ every system relation (OID, namespace, name, columns with type, typmod,
 dimensions, nullability and collation, flags). Spec order is the descriptor
 registration order and differs from the registry order.
 
+`pg_policy` (3256) is a physical eight-column source over immutable
+`Relation.Security.Policies`. Capture validates the exact source, captured type
+generations and paired principal authority even for an empty catalog. It
+preserves command/permissiveness, ordered duplicate role references and PUBLIC's
+zero sentinel; only the two expression columns are nullable. Definitions are
+PUBLIC metadata, not an actor's applicable-policy list. Target/provider execution
+ACLs and RLS evaluation remain with their existing owners. `Runtime.PolicyTree`
+retains the actual frozen policy/presentation without evaluating it; cancellation
+discards the entire capture.
+
+
 ### Adding a system relation
 
 1. Add a `Spec` to `Specs` at the position that keeps registration order.
@@ -506,11 +517,15 @@ registration order and differs from the registry order.
 `Runtime` is the narrow interface the engine implements per call
 (`EngineCatalogRuntime`). Methods take and return values, never engine structs.
 Building the adapter reads nothing; only the selected producer calls the
-methods it needs. Rule facts, view options and policy conditions are read from
-catalog payloads directly (`Relation.HasRules`, `Relation.VisitRules`,
-`ViewPayload.Options`, `PolicyDefinition.VisitExpressions`), not through
-`Runtime`. Maintenance-aware projections need an adapter backed by a real
-engine; an empty adapter is not an initialized maintenance capture.
+methods it needs. Rule facts and view options are read from catalog payloads
+directly (`Relation.HasRules`, `Relation.VisitRules`, `ViewPayload.Options`).
+Policy definitions likewise remain relation-owned; `PolicyTree` bridges their
+opaque frozen payload to the stored carrier without exposing its concrete owner
+here. Maintenance-aware projections need an adapter backed by a real engine;
+an empty adapter is not an initialized maintenance capture.
+
+Policy producer authority and immutable structural ownership use
+`make check RUN='^TestPGPolicy'`; add `RACE=1` for retained-output concurrency.
 
 | Methods | Why they are engine-owned |
 |---|---|

@@ -39,7 +39,7 @@ func ViewCTEOrdinal(root plan.Node, ordinal int) plan.Node {
 }
 
 func (r *QueryRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *plan.ProjectNode, columns []catalog.Column, setOperand bool) (string, error) {
-	if r.Presentation.Rule && project != nil {
+	if r.logicalSourceNames() && project != nil {
 		r.ruleScopes = append(r.ruleScopes, project.Frame)
 		defer func() { r.ruleScopes = r.ruleScopes[:len(r.ruleScopes)-1] }()
 		if err := r.prepareRuleRangeTable(ctx, catalog, project); err != nil {

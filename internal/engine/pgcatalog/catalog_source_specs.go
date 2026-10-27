@@ -1136,4 +1136,14 @@ var Specs = [...]Spec{
 		{"is_verified_by", 13246, true, 950, 0, -1},
 		{"comments", 13246, true, 950, 0, -1},
 	}, false, false, false, true, "stuntgres: missing SQL parts domain"},
+	{ids.PolicyClassID, ids.PGCatalogNamespaceOID, "pg_policy", []ColumnSpec{
+		{"oid", sqltype.Oid, false, 0, 0, -1},
+		{"polname", sqltype.Name, false, 950, 0, -1},
+		{"polrelid", sqltype.Oid, false, 0, 0, -1},
+		{"polcmd", sqltype.Char, false, 0, 0, -1},
+		{"polpermissive", sqltype.Bool, false, 0, 0, -1},
+		{"polroles", sqltype.ID(1028), false, 0, 1, -1},
+		{"polqual", sqltype.PgNodeTree, true, 950, 0, -1},
+		{"polwithcheck", sqltype.PgNodeTree, true, 950, 0, -1},
+	}, false, CatalogHasIndexes(ids.PolicyClassID), true, false, "stuntgres: missing policy source type"},
 }

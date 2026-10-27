@@ -702,6 +702,40 @@ type descriptors alone does not authorize cross-ID scalar values.
   (`catalog_source_runtime.go`). `IndexDefinition` renders through
   `index.DefinitionSQL`; relation deparsing is `table.Deparse`.
 
+`PolicyCarrier` retains the actual immutable `Policy`, analyzed expression and
+complete frozen `View` presentation for catalog trees. Structural output visits
+bound expression/query nodes, including subqueries, rather than replaying SQL.
+`PolicyDisplay` uses request-private query-renderer state and the caller's captured
+namespace visibility/current display names, not the creation actor's privileges;
+`PolicySQL` remains the qualified native dump recipe. Retained carriers never
+look up replacement policies by name or OID. Successful lazy datum output is
+shared atomically; a canceled attempt publishes nothing.
+The policy's frozen root is a syntax-less expression frame with its real owner
+source, not a SELECT. Display seeds the outer range-name reservation from that
+owner before visiting captured subquery SELECT frames; it does not manufacture
+FROM syntax, replace retained frames, or rebind correlations. Nested sources
+inherit that reservation through the ordinary rule-display range-name owner.
+Policy SELECT bounds retain PostgreSQL's one-space LIMIT indentation independently
+of ORDER BY. Row-comparison sublink operands display as test tuples, not ROW
+constructors, and retain their enclosing parentheses in both pretty modes.
+Identity SQL value-function nodes display as uppercase keywords only in policy
+display; their lowercase qualified-dump replay rendering is unchanged.
+`TestPGPolicyDisplayRendering` exercises actual frozen scalar/window/row payloads;
+`TestPGPolicyDisplayIdentityKeywords` checks keyword display in both pretty modes,
+unchanged replay SQL and frozen payload ownership.
+
+Policy replay shares only the structural range-table naming owner with logical
+display. Its request-private source mode retains genuine aliases (including
+generated-looking user names), explicit column aliases and lexical correlation
+reservations, while unaliased providers and columns follow captured identities
+to current names. Provider SQL remains schema-qualified; expression, literal,
+type, operator and routine rendering remains in replay mode. Consequently actual
+Dump/Restore does not turn positional bridge aliases into logical policy aliases.
+No SQL-text normalization, alias-name heuristic or parallel provenance registry
+is involved. Ordinary view/rule/routine replay modes remain unchanged.
+`TestPGPolicyDisplayRestoreSources` covers actual native replacement, stable
+redump/replacement, renamed providers/attributes and retained payload ownership.
+
 ## Testing
 
 Package units cover the payload API, rule presentation, routine recipes and aggregate recipes.

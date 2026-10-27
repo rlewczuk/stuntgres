@@ -51,6 +51,7 @@ var producers = [...]Registration{
 	{2995, capturePGLargeObjectMetadata},
 	{3079, captureExtensionCatalog},
 	{3118, captureForeignCatalog},
+	{ids.PolicyClassID, capturePGPolicy},
 	{StatisticExtOID, capturePGStatisticExt},
 	{3456, capturePGCollation},
 	{3466, capturePGEventTrigger},
