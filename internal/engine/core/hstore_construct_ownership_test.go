@@ -17,6 +17,15 @@ import (
 // These are ownership assertions on actual protocol definitions and accepted
 // bindings, not another SQL-result fixture. Public outcomes live in reference/.
 func TestHstoreConstructPreparedOwnership(t *testing.T) {
+	testHstoreSelectedPreparedOwnership(t, false)
+}
+
+func TestHstoreKeysPreparedOwnership(t *testing.T) {
+	testHstoreSelectedPreparedOwnership(t, true)
+}
+
+func testHstoreSelectedPreparedOwnership(t *testing.T, keys bool) {
+	t.Helper()
 	for _, tc := range []struct {
 		name, expression, want string
 		member, operator       int
@@ -26,7 +35,17 @@ func TestHstoreConstructPreparedOwnership(t *testing.T) {
 		{"fetch", "fetchval('a=>1'::hstore,'a')", "1", 34, 0, 25},
 		{"scalar_arrow", "'a=>1'::hstore -> 'a'", "1", 34, 38, 25},
 		{"array_arrow", "'a=>1'::hstore -> ARRAY['a','missing']", "{1,NULL}", 35, 39, 1009},
+		{"exists", "'a=>NULL'::hstore ? 'a'", "t", 36, 46, 16},
+		{"all", "'a=>NULL'::hstore ?& ARRAY['a',NULL]", "t", 40, 47, 16},
+		{"any", "'a=>NULL'::hstore ?| ARRAY['a',NULL]", "t", 41, 48, 16},
+		{"contains", "'a=>NULL'::hstore @> 'a=>NULL'", "t", 42, 49, 16},
+		{"contained", "'a=>NULL'::hstore <@ 'a=>NULL'", "t", 43, 50, 16},
+		{"keys", "akeys('a=>NULL'::hstore)", "{a}", 44, 0, 1009},
+		{"values", "avals('a=>NULL'::hstore)", "{NULL}", 45, 0, 1009},
 	} {
+		if keys != (tc.member >= 40 || tc.operator == 46) {
+			continue
+		}
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
@@ -79,15 +98,18 @@ func TestHstoreConstructPreparedOwnership(t *testing.T) {
 			}
 			retained := accepted.Entries[index]
 			value := retained.Value
-			if retained.Callable != procedure || retained.Occurrence == 0 || len(retained.Inputs) != 2 {
+			arity := 2
+			if tc.member == 44 || tc.member == 45 { arity = 1 }
+			if retained.Callable != procedure || retained.Occurrence == 0 || len(retained.Inputs) != arity {
 				t.Fatal("selected fold lost original declaration or ordered inputs")
 			}
 			wantInputs := [2]sqltype.ID{25, 25}
 			if tc.member != 31 {
 				wantInputs[0] = view.MustType(installation.Members[0]).SQLType.ID()
-				if tc.member == 35 {
+				if tc.member == 35 || tc.member == 40 || tc.member == 41 {
 					wantInputs[1] = 1009
 				}
+				if tc.member == 42 || tc.member == 43 { wantInputs[1] = wantInputs[0] }
 			}
 			for i, input := range retained.Inputs {
 				formal, ok := view.LookupType(wantInputs[i])
@@ -105,7 +127,9 @@ func TestHstoreConstructPreparedOwnership(t *testing.T) {
 			if tc.result == 1009 {
 				dimensions := value.ArrayDimensions()
 				dimensions[0].Lower = 99
-				if value.ArrayDimension(0).Lower != 1 || value.ArrayLen() != 2 || !value.ArrayElement(1).IsNull() {
+				wantLen := 2
+				if tc.member == 44 || tc.member == 45 { wantLen = 1 }
+				if value.ArrayDimension(0).Lower != 1 || value.ArrayLen() != wantLen || tc.member == 35 && !value.ArrayElement(1).IsNull() || tc.member == 45 && !value.ArrayElement(0).IsNull() {
 					t.Fatal("retained lookup shape aliases or loses NULL element")
 				}
 			}

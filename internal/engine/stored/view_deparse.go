@@ -754,6 +754,9 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		return strings.Join(parts, ", "), nil
 	}
 	selectedOperand := func(index int, expr parser.Expr, parent DeparseParent) (string, error) {
+		argumentPath := path
+		argumentPath.Argument = 0
+		argumentPath.Node = *ordinal
 		text, err := operand(expr, parent)
 		if err != nil {
 			return "", err
@@ -763,6 +766,14 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		usage, captured := v.castUsages[key]
 		if !captured {
 			return text, nil
+		}
+		if _, explicitCast := expr.(parser.CastExpr); explicitCast && !v.Presentation.Deparse {
+			// Replayed selected arguments already carry this formal annotation.
+			// Preserve different usages and conversions, but do not nest the same
+			// transport cast on every Dump/Restore cycle.
+			if written, captured := v.castUsages[argumentPath]; captured && written == usage {
+				return text, nil
+			}
 		}
 		if v.Presentation.Deparse {
 			r := Deparser{View: catalogView, Path: v.Presentation.Path, Pretty: v.Presentation.Pretty, Output: v.Presentation.Output}
@@ -1083,11 +1094,11 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 				}
 			}
 		}
-		if !v.Presentation.Deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.IsComposite() || usage.Type.IsCube() || usage.Type.ID() == sqltype.Macaddr || usage.Type.ID() == sqltype.Macaddr8 || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB || usage.Type.ID() == sqltype.JSONPath || usage.Type.ID() == sqltype.PgLSN || sqltype.IsFTS(usage.Type.ID())) {
+		if !v.Presentation.Deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.IsComposite() || usage.Type.IsCube() || usage.Type.IsHstore() || usage.Type.ID() == sqltype.Macaddr || usage.Type.ID() == sqltype.Macaddr8 || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB || usage.Type.ID() == sqltype.JSONPath || usage.Type.ID() == sqltype.PgLSN || sqltype.IsFTS(usage.Type.ID())) {
 			switch e.Child.(type) {
 			case parser.LiteralExpr, parser.TypedLiteralExpr:
 				if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
-					// Captured array, enum, composite, cube, MAC address, JSON/JSONPath, pg_lsn and FTS datums own their typed cast.
+					// Captured array, enum, composite, cube/hstore, MAC address, JSON/JSONPath, pg_lsn and FTS datums own their typed cast.
 					// Elide only this exact leaf annotation, not outer casts,
 					// domain checks, typmod changes or actual conversions.
 					return text, nil

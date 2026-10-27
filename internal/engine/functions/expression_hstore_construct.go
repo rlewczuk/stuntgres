@@ -20,16 +20,19 @@ type HstoreConstruct struct {
 }
 
 func (e HstoreConstruct) Arity() int {
-	if e.Member == 33 {
+	if e.Member == 33 || e.Member == 44 || e.Member == 45 {
 		return 1
 	}
 	return 2
 }
 func (e HstoreConstruct) Symbol() string {
-	if e.Member < 31 || e.Member > 37 {
-		return ""
+	switch e.Member {
+	case 31, 32, 33, 34, 35, 36, 37:
+		return [...]string{"hstore_from_text", "hstore_from_arrays", "hstore_from_array", "hstore_fetchval", "hstore_slice_to_array", "hstore_exists", "hstore_defined"}[e.Member-31]
+	case 40, 41, 42, 43, 44, 45:
+		return [...]string{"hstore_exists_all", "hstore_exists_any", "hstore_contains", "hstore_contained", "hstore_akeys", "hstore_avals"}[e.Member-40]
 	}
-	return [...]string{"hstore_from_text", "hstore_from_arrays", "hstore_from_array", "hstore_fetchval", "hstore_slice_to_array", "hstore_exists", "hstore_defined"}[e.Member-31]
+	return ""
 }
 func (e HstoreConstruct) Strict() bool { return e.Member >= 33 }
 func (e HstoreConstruct) Validate() error {
@@ -52,6 +55,12 @@ func (e HstoreConstruct) Validate() error {
 		inputs, result = [2]sqltype.ID{e.Hstore.ID(), 1009}, 1009
 	case 36, 37:
 		inputs, result = [2]sqltype.ID{e.Hstore.ID(), 25}, 16
+	case 40, 41:
+		inputs, result = [2]sqltype.ID{e.Hstore.ID(), 1009}, 16
+	case 42, 43:
+		inputs, result = [2]sqltype.ID{e.Hstore.ID(), e.Hstore.ID()}, 16
+	case 44, 45:
+		inputs, result = [2]sqltype.ID{e.Hstore.ID(), 0}, 1009
 	}
 	if e.Usage.Type.ID() != result || e.Member <= 33 && e.Usage.Type != e.Hstore {
 		return invalid()
@@ -61,7 +70,7 @@ func (e HstoreConstruct) Validate() error {
 		if e.Args[i] == nil || formal == nil || formal.ID() != inputs[i] || e.Args[i].ResultUsage().Type != formal || !formal.Concrete() {
 			return invalid()
 		}
-		if e.Member >= 34 && i == 0 && formal != e.Hstore {
+		if inputs[i] == e.Hstore.ID() && formal != e.Hstore {
 			return invalid()
 		}
 		if inputs[i] == 1009 && (!formal.IsArray() || formal.Element().ID() != sqltype.Text) {
@@ -80,6 +89,12 @@ func (e HstoreConstruct) Validate() error {
 		if e.Usage.Type != e.Formals[1] {
 			return invalid()
 		}
+	}
+	if result == 16 && !e.Usage.Type.Concrete() {
+		return invalid()
+	}
+	if result == 1009 && (!e.Usage.Type.Concrete() || !e.Usage.Type.IsArray() || e.Usage.Type.Element().ID() != sqltype.Text) {
+		return invalid()
 	}
 	return nil
 }
@@ -151,6 +166,14 @@ func (e HstoreConstruct) Eval(c expr.Context) (sqltype.Value, error) {
 		return values[0].HstoreFetchArray(ctx, e.Hstore, e.Usage.Type, values[1])
 	case 36, 37:
 		return values[0].HstoreExists(ctx, e.Hstore, e.Usage.Type, values[1], e.Member == 37)
+	case 40, 41:
+		return values[0].HstoreExistsKeys(ctx, e.Hstore, e.Usage.Type, values[1], e.Member == 40)
+	case 42:
+		return values[0].HstoreContains(ctx, e.Hstore, e.Usage.Type, values[1])
+	case 43:
+		return values[1].HstoreContains(ctx, e.Hstore, e.Usage.Type, values[0])
+	case 44, 45:
+		return values[0].HstoreKeyValues(ctx, e.Hstore, e.Usage.Type, e.Member == 45)
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid hstore operation")
 }

@@ -43,6 +43,17 @@ const (
 	HstoreDefinedSlot
 	HstoreFetchOperatorSlot
 	HstoreSliceOperatorSlot
+	HstoreExistsAllSlot
+	HstoreExistsAnySlot
+	HstoreContainsSlot
+	HstoreContainedSlot
+	HstoreKeysSlot
+	HstoreValuesSlot
+	HstoreExistsOperatorSlot
+	HstoreExistsAllOperatorSlot
+	HstoreExistsAnyOperatorSlot
+	HstoreContainsOperatorSlot
+	HstoreContainedOperatorSlot
 	HstoreMemberCount
 )
 
@@ -80,6 +91,12 @@ var hstoreRoutines = [...]hstoreRoutine{
 	{HstoreSliceSlot, "slice_array", "hstore_slice_to_array", "hstore,1009", 1009, true},
 	{HstoreExistsSlot, "exist", "hstore_exists", "hstore,25", 16, true},
 	{HstoreDefinedSlot, "defined", "hstore_defined", "hstore,25", 16, true},
+	{HstoreExistsAllSlot, "exists_all", "hstore_exists_all", "hstore,1009", 16, true},
+	{HstoreExistsAnySlot, "exists_any", "hstore_exists_any", "hstore,1009", 16, true},
+	{HstoreContainsSlot, "hs_contains", "hstore_contains", "hstore,hstore", 16, true},
+	{HstoreContainedSlot, "hs_contained", "hstore_contained", "hstore,hstore", 16, true},
+	{HstoreKeysSlot, "akeys", "hstore_akeys", "hstore", 1009, true},
+	{HstoreValuesSlot, "avals", "hstore_avals", "hstore", 1009, true},
 }
 
 func hstoreRoutineAt(slot int) (hstoreRoutine, bool) {
@@ -114,13 +131,21 @@ type hstoreOperator struct {
 	slot, procedure int
 	name            string
 	right, result   sqltype.ID
+	rightHstore     bool
+	commutator      int
+	restriction, join ids.OID
 }
 
 var hstoreOperators = [...]hstoreOperator{
-	{HstoreArrayOperatorSlot, HstoreArrayProcedureSlot, "%%", 0, 1009},
-	{HstoreMatrixOperatorSlot, HstoreMatrixProcedureSlot, "%#", 0, 1009},
-	{HstoreFetchOperatorSlot, HstoreFetchSlot, "->", 25, 25},
-	{HstoreSliceOperatorSlot, HstoreSliceSlot, "->", 1009, 1009},
+	{slot: HstoreArrayOperatorSlot, procedure: HstoreArrayProcedureSlot, name: "%%", result: 1009},
+	{slot: HstoreMatrixOperatorSlot, procedure: HstoreMatrixProcedureSlot, name: "%#", result: 1009},
+	{slot: HstoreFetchOperatorSlot, procedure: HstoreFetchSlot, name: "->", right: 25, result: 25},
+	{slot: HstoreSliceOperatorSlot, procedure: HstoreSliceSlot, name: "->", right: 1009, result: 1009},
+	{slot: HstoreExistsOperatorSlot, procedure: HstoreExistsSlot, name: "?", right: 25, result: 16, restriction: 5040, join: 5041},
+	{slot: HstoreExistsAllOperatorSlot, procedure: HstoreExistsAllSlot, name: "?&", right: 1009, result: 16, restriction: 5040, join: 5041},
+	{slot: HstoreExistsAnyOperatorSlot, procedure: HstoreExistsAnySlot, name: "?|", right: 1009, result: 16, restriction: 5040, join: 5041},
+	{slot: HstoreContainsOperatorSlot, procedure: HstoreContainsSlot, name: "@>", rightHstore: true, result: 16, commutator: HstoreContainedOperatorSlot, restriction: 5040, join: 5041},
+	{slot: HstoreContainedOperatorSlot, procedure: HstoreContainedSlot, name: "<@", rightHstore: true, result: 16, commutator: HstoreContainsOperatorSlot, restriction: 5040, join: 5041},
 }
 
 func HstoreOperatorSlot(slot int) bool {
@@ -138,7 +163,17 @@ func (r hstoreOperator) operands(base sqltype.ID) (ids.OID, ids.OID) {
 	if r.slot == HstoreArrayOperatorSlot || r.slot == HstoreMatrixOperatorSlot {
 		return 0, ids.OID(base)
 	}
+	if r.rightHstore {
+		return ids.OID(base), ids.OID(base)
+	}
 	return ids.OID(base), ids.OID(r.right)
+}
+
+func (r hstoreOperator) commutatorOID(ext *catalog.Extension) ids.OID {
+	if r.commutator == 0 {
+		return 0
+	}
+	return ext.Members[r.commutator].ObjectID
 }
 
 func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
@@ -207,7 +242,7 @@ func validateHstoreOperator(v catalog.Read, ext *catalog.Extension, base *catalo
 		}
 		left, right := recipe.operands(base.SQLType.ID())
 		op, ok := v.Operator(ext.Members[slot])
-		if !ok || op.Address() != ext.Members[slot] || op.Namespace() != ext.TargetNamespace || op.Name() != recipe.name || op.Extension != ext.Address() || op.Left != left || op.Right != right || op.Result != ids.OID(recipe.result) || op.Function != ext.Members[recipe.procedure].ObjectID || op.Commutator != 0 || op.Negator != 0 || op.Restriction != 0 || op.Join != 0 || op.Hash || op.Merge {
+		if !ok || op.Address() != ext.Members[slot] || op.Namespace() != ext.TargetNamespace || op.Name() != recipe.name || op.Extension != ext.Address() || op.Left != left || op.Right != right || op.Result != ids.OID(recipe.result) || op.Function != ext.Members[recipe.procedure].ObjectID || op.Commutator != recipe.commutatorOID(ext) || op.Negator != 0 || op.Restriction != recipe.restriction || op.Join != recipe.join || op.Hash || op.Merge {
 			return fmt.Errorf("stuntgres: invalid hstore operator")
 		}
 		return ValidateProviderHeader(v, op, ids.OperatorClassID)

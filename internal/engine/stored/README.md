@@ -544,8 +544,10 @@ host methods.
   constants use the same path-aware regclass presentation as other literals,
   rather than the fully qualified replay spelling.
   Replay serialization likewise elides the exact captured leaf annotation for
-  typed `pg_lsn` constants, including NULL, without removing written outer casts,
-  domain checks or conversions to another usage.
+  typed hstore and `pg_lsn` constants, including NULL, without removing written
+  outer casts, domain checks or conversions to another usage. Selected argument
+  transport reuses an explicit source cast only when its captured full Usage
+  exactly matches the formal, keeping repeated portable replay idempotent.
 - **View source display.** Public deparsing uses current relation names, explicit
   aliases and natural output labels for every FROM frame, including joins.
   Frozen USING keys retain column aliases on their actual live operand slots;

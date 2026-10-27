@@ -555,6 +555,15 @@ func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 		if slot == HstoreSliceOperatorSlot {
 			return "->", "hstore,1009", true
 		}
+		for _, recipe := range hstoreOperators {
+			if recipe.slot == slot {
+				signature := "hstore," + string(HstoreSignature(recipe.right))
+				if recipe.rightHstore {
+					signature = "hstore,hstore"
+				}
+				return recipe.name, signature, true
+			}
+		}
 	case "cube":
 		return cubeOwnerOperatorIdentity(slot)
 	case "citext":

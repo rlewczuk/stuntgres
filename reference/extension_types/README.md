@@ -93,6 +93,11 @@ these are shared across families:
   with the cached-plan result-type diagnostic; builtin TEXT signatures rebind
   actual constructor/lookup expressions with current inputs. Fresh hstore result
   metadata and detached old readers remain independently asserted.
+  Key predicates cover NULL-valued presence, ignored NULL array elements and
+  shape-independent requests; containment distinguishes NULL values from text
+  NULL. Key/value array fixtures preserve paired positions without an insertion
+  order promise. Selected backers, selectivity and commutator links, live caller
+  admission and stored consumers survive native controls and emitted-SQL replay.
   Genuine rename/schema moves of all seven constructor/lookup/predicate
   procedures retain original SQL names and exact overload signatures in actual
   Dump output. Displaced native Restore and replay of those identical emitted

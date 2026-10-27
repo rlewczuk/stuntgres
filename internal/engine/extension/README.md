@@ -136,8 +136,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   never a source OID. Array, JSON and JSONB roles retain distinct result identities.
   Text-pair and array constructors, scalar/array lookups and presence/defined
   predicates append seven procedures and two binary `->` operators without
-  renumbering incumbent roles. The complete manifest has forty roles and
-  thirty-nine portable owners. The two-argument constructors are nonstrict;
+  renumbering incumbent roles. Key-array existence, pair containment and key/value
+  projections add six procedures and five predicates (`?`, `?&`, `?|`, `@>`, `<@`).
+  Their recipes own released `matchingsel`/`matchingjoinsel` identities and reciprocal containment
+  commutators. The manifest has fifty-one roles and fifty portable owners.
+  The two-argument constructors are nonstrict;
   exact recipes authenticate mixed signatures, results, symbols and strictness.
   Remapping covers builtin operands, unary `0` positions and constructor results.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):

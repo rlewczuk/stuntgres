@@ -72,7 +72,7 @@ func (p *HstoreProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			return err
 		}
 		left, right := recipe.operands(typ.ID())
-		op := &catalog.Operator{ObjectAddress: ext.Members[recipe.slot], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: recipe.name, Owner: owner, Left: left, Right: right, Result: ids.OID(recipe.result), Function: ext.Members[recipe.procedure].ObjectID}
+		op := &catalog.Operator{ObjectAddress: ext.Members[recipe.slot], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: recipe.name, Owner: owner, Left: left, Right: right, Result: ids.OID(recipe.result), Function: ext.Members[recipe.procedure].ObjectID, Commutator: recipe.commutatorOID(ext), Restriction: recipe.restriction, Join: recipe.join}
 		if err := stage.Create(op); err != nil {
 			return err
 		}

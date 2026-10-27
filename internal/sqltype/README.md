@@ -162,6 +162,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   without rescanning canonical invariants. Binary-search lookup distinguishes
   missing keys from present NULL values; array lookup owns fresh buffers
   preserving request shape and lower bounds.
+  Key-array predicates flatten requests, ignore NULL keys and short-circuit
+  without sorting or copying; containment compares exact pair bytes and NULL
+  flags. Key/value projections own final TEXT[] buffers and share immutable
+  strings, retaining aligned pair positions and canonical empty dimensions.
   `HstoreArray` transfers fresh flat or rectangular TEXT-array buffers without
   copying immutable strings or exposing pairs. NULL values become typed NULL
   elements; whole NULL and zero-dimensional empty arrays remain distinct.

@@ -102,7 +102,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
-	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore" || name == "fetchval" || name == "slice_array" || name == "exist" || name == "defined" || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
+	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore" || name == "fetchval" || name == "slice_array" || name == "exist" || name == "defined" || name == "exists_all" || name == "exists_any" || name == "hs_contains" || name == "hs_contained" || name == "akeys" || name == "avals" || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
 	if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
@@ -777,7 +777,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			}
 			return node, err
 		}
-		if symbol == "hstore_from_text" || symbol == "hstore_from_arrays" || symbol == "hstore_from_array" || symbol == "hstore_fetchval" || symbol == "hstore_slice_to_array" || symbol == "hstore_exists" || symbol == "hstore_defined" {
+		if symbol == "hstore_from_text" || symbol == "hstore_from_arrays" || symbol == "hstore_from_array" || symbol == "hstore_fetchval" || symbol == "hstore_slice_to_array" || symbol == "hstore_exists" || symbol == "hstore_defined" || symbol == "hstore_exists_all" || symbol == "hstore_exists_any" || symbol == "hstore_contains" || symbol == "hstore_contained" || symbol == "hstore_akeys" || symbol == "hstore_avals" {
 			node, err := b.bindSelectedHstoreConstruct(raw, selected, symbol)
 			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 				frozen := raw

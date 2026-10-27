@@ -23,7 +23,7 @@ func (b *Binder) bindSelectedHstoreConstruct(raw parser.FunctionExpr, selected s
 		return nil, fmt.Errorf("stuntgres: missing hstore installation")
 	}
 	member := -1
-	for slot := extension.HstoreTextConstructorSlot; slot <= extension.HstoreDefinedSlot; slot++ {
+	for _, slot := range []int{extension.HstoreTextConstructorSlot, extension.HstoreArraysConstructorSlot, extension.HstoreArrayConstructorSlot, extension.HstoreFetchSlot, extension.HstoreSliceSlot, extension.HstoreExistsSlot, extension.HstoreDefinedSlot, extension.HstoreExistsAllSlot, extension.HstoreExistsAnySlot, extension.HstoreContainsSlot, extension.HstoreContainedSlot, extension.HstoreKeysSlot, extension.HstoreValuesSlot} {
 		if installation.Members[slot] == procedure.Address() {
 			member = slot
 			break

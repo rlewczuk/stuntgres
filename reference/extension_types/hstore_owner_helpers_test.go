@@ -34,7 +34,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		t.Fatal("wrong actual owner record", string(data))
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 39 {
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 50 {
 		t.Fatalf("actual bounded owner inventory %s/%v", data, err)
 	}
 	bySlot := make(map[int]map[string]json.RawMessage)
@@ -90,6 +90,17 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		{"procedure", "hstore,25"},
 		{"operator", "hstore,25"},
 		{"operator", "hstore,1009"},
+		{"procedure", "hstore,1009"},
+		{"procedure", "hstore,1009"},
+		{"procedure", "hstore,hstore"},
+		{"procedure", "hstore,hstore"},
+		{"procedure", "hstore"},
+		{"procedure", "hstore"},
+		{"operator", "hstore,25"},
+		{"operator", "hstore,1009"},
+		{"operator", "hstore,1009"},
+		{"operator", "hstore,hstore"},
+		{"operator", "hstore,hstore"},
 	} {
 		if slot == 11 {
 			continue
@@ -151,7 +162,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		members = append(members, map[string]json.RawMessage{"slot": json.RawMessage(`11`), "kind": json.RawMessage(`"cast"`), "name": json.RawMessage(`"hstore_jsonb"`)})
 	default:
 		mutated := false
-		for slot := 31; slot <= 39; slot++ {
+		for slot := 31; slot <= 50; slot++ {
 			if kind == fmt.Sprintf("signature_%d", slot) {
 				bySlot[slot]["signature"] = json.RawMessage(`"25"`)
 				mutated = true

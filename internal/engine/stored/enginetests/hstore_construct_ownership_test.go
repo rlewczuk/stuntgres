@@ -24,9 +24,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func hstoreConstructOwnershipBinding(t *testing.T, e *core.Engine, s *session.Session) *plan.ProjectNode {
+func hstoreConstructOwnershipBinding(t *testing.T, e *core.Engine, s *session.Session, keys bool) *plan.ProjectNode {
 	t.Helper()
-	ast := enginetest.Statement(t, "SELECT hstore(k,w),fetchval(v,k),v->k,v->ARRAY[k] FROM hs_construct_owner")
+	query := "SELECT hstore(k,w),fetchval(v,k),v->k,v->ARRAY[k] FROM hs_construct_owner"
+	count := 4
+	if keys {
+		query = "SELECT v ? k,v ?& ARRAY[k],v ?| ARRAY[k],v @> v,v <@ v,akeys(v),avals(v) FROM hs_construct_owner"
+		count = 7
+	}
+	ast := enginetest.Statement(t, query)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +53,7 @@ func hstoreConstructOwnershipBinding(t *testing.T, e *core.Engine, s *session.Se
 		t.Fatal("missing actual bound conversion query")
 	}
 	project, ok := binding.Query.Root.(*plan.ProjectNode)
-	if !ok || len(project.Expressions) != 4 {
+	if !ok || len(project.Expressions) != count {
 		t.Fatal("missing actual bound conversion projection")
 	}
 	return project
@@ -69,16 +75,32 @@ func hstoreConstructOwnershipCall(t *testing.T, node expr.Expr) functions.Hstore
 }
 
 func TestHstoreConstructStoredReconstruction(t *testing.T) {
+	testHstoreSelectedStoredReconstruction(t, false)
+}
+
+func TestHstoreKeysStoredOwnership(t *testing.T) {
+	t.Run("reconstruction", func(t *testing.T) { testHstoreSelectedStoredReconstruction(t, true) })
+	t.Run("remap", func(t *testing.T) { testHstoreSelectedStoredRemap(t, true) })
+}
+
+func testHstoreSelectedStoredReconstruction(t *testing.T, keys bool) {
+	t.Helper()
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE EXTENSION hstore")
 	enginetest.SessionSQL(t, s, "CREATE TABLE hs_construct_owner(k text,w text,v hstore)")
-	binding := hstoreConstructOwnershipBinding(t, e, s)
+	binding := hstoreConstructOwnershipBinding(t, e, s, keys)
 	view := e.CatalogRead()
 	for i, node := range binding.Expressions {
-		t.Run([]string{"constructor", "fetch", "scalar_arrow", "array_arrow"}[i], func(t *testing.T) {
+		names := []string{"constructor", "fetch", "scalar_arrow", "array_arrow"}
+		members := []uint8{31, 34, 34, 35}
+		if keys {
+			names = []string{"exists", "all", "any", "contains", "contained", "keys", "values"}
+			members = []uint8{36, 40, 41, 42, 43, 44, 45}
+		}
+		t.Run(names[i], func(t *testing.T) {
 			call := hstoreConstructOwnershipCall(t, node)
-			if call.Member != []uint8{31, 34, 34, 35}[i] || call.Info.Occurrence == 0 || call.Ref.Domain() != view.Owner().Domain || call.Ref.Epoch != view.Epoch() {
+			if call.Member != members[i] || call.Info.Occurrence == 0 || call.Ref.Domain() != view.Owner().Domain || call.Ref.Epoch != view.Epoch() {
 				t.Fatal("binding lost genuine shape/provenance")
 			}
 			if err := call.ValidateStoredProvider(); err != nil {
@@ -149,6 +171,11 @@ func TestHstoreConstructStoredReconstruction(t *testing.T) {
 }
 
 func TestHstoreConstructStoredRemapOwnership(t *testing.T) {
+	testHstoreSelectedStoredRemap(t, false)
+}
+
+func testHstoreSelectedStoredRemap(t *testing.T, keys bool) {
+	t.Helper()
 	source, target := engine.New(), engine.New()
 	ss, ts := enginetest.StartSession(t, source, nil), enginetest.StartSession(t, target, nil)
 	// Advance the real destination allocator so numeric identity cannot accidentally
@@ -163,7 +190,7 @@ func TestHstoreConstructStoredRemapOwnership(t *testing.T) {
 		enginetest.SessionSQL(t, s, "CREATE EXTENSION hstore")
 		enginetest.SessionSQL(t, s, "CREATE TABLE hs_construct_owner(k text,w text,v hstore)")
 	}
-	bound := hstoreConstructOwnershipBinding(t, source, ss)
+	bound := hstoreConstructOwnershipBinding(t, source, ss, keys)
 	original := append([]expr.Expr(nil), bound.Expressions...)
 	sv, tv := source.CatalogRead(), target.CatalogRead()
 	installed := func(view catalog.Read) *catalog.Extension {
@@ -232,7 +259,7 @@ func TestHstoreConstructStoredRemapOwnership(t *testing.T) {
 		t.Fatal("authorized installed remap", err)
 	}
 	project, ok := mapped.(*plan.ProjectNode)
-	if !ok || len(project.Expressions) != 4 {
+	if !ok || len(project.Expressions) != len(original) {
 		t.Fatal("lost remapped conversion projection")
 	}
 	for i, node := range project.Expressions {

@@ -173,7 +173,7 @@ mode and exact member identity.
 Shared strict NULL preflight and routine admission use current caller authority; neither
 node caches ACLs. Typed evaluation belongs to sqltype, not function spelling.
 `HstoreConstruct` owns the ordered selected operands, exact formal/result
-generations and installed constructor/lookup/predicate role. Shared call and
+generations and installed constructor/lookup/key-predicate/containment/projection role. Shared call and
 operator selection use the same provider; the operator wrapper owns no second
 routine admission. Strict consumers retain literal-NULL preflight while demanded
 children evaluate in order; nonstrict constructors preserve present NULL values.
