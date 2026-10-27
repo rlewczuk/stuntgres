@@ -75,9 +75,7 @@ func (l *lexer) plBeginCapture(first rawToken) {
 	raw.Delimiter = delimiter
 	text := []byte(l.input[raw.Start.Offset:delimiter.Offset])
 	for i := raw.IntoStart.Offset - raw.Start.Offset; i < raw.TargetsEnd.Offset-raw.Start.Offset; i++ {
-		if text[i] != '\n' && text[i] != '\r' {
-			text[i] = ' '
-		}
+		text[i] = ' '
 	}
 	raw.Text = string(text)
 }

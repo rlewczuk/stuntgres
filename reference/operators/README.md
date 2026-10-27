@@ -161,6 +161,9 @@ Nested successful notices compare complete ordered records through PL and
 non-inline SQL callers, including direct, fresh-prepared and original-held
 execution, source-versus-body FOR ownership, and subsequent context-leak probes.
 Family selector: `RUN='^TestReferencePLpgSQL(Raise|Assert)'`.
+Diagnostics cases share `RUN='^TestReferencePLpgSQLDiagnostics'`, including
+direct/prepared status, current versus caught context, exact error fields and
+held-handle/native-control lifetime through the existing fixture.
 
 ```sh
 make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRecords|Returns|LazyBinding|LanguageAuthority|Persistence|CompositeNull|RecordClear|CompositeDomain|CopiedCollation|InvocationCollation|FormalNamespace)$'
@@ -249,3 +252,21 @@ results, phased diagnostics, closed USING parameter bounds, caught and uncaught
 same-held-handle recovery, and native replay. Family
 selector: `RUN='^TestReferencePLpgSQLDynamicSQL'`; add `REFERENCE=1` for the
 pinned oracle.
+
+The diagnostics Status, Context and Lifecycle definitions also exercise supported
+dynamic commands: complete final-command SELECT/DML counts (separate from INTO
+cardinality), publication before late INTO errors, preserved ordinary EXECUTE
+FOUND, instruction-local RETURN QUERY counts, and no success publication after
+execution failure. Exact live stacks distinguish command/USING operand calls from
+computed SQL execution's SQL statement frame and retain the suspended PL action;
+actual cancellation checks recovery through direct and original-held handles.
+Run `make check RUN='^TestReferencePLpgSQLDiagnostics(Status|Context|Lifecycle)$'`
+in both native and `REFERENCE=1` modes.
+
+Static diagnostics Context witnesses cover SELECT INTO's exact redacted spelling
+(suffix, interior and multiline UTF8/comment forms), PERFORM's SELECT-head
+translation, SQL-wrapper ancestry, and restoration after completion or failure.
+Capture/cursor status witnesses retain late conversion/cardinality boundaries:
+completed query frames are absent from those errors while status and target
+semantics remain unchanged. Private live-owner coverage observes actual static
+producer Begin/Next/End alongside dynamic execution and operand owners.

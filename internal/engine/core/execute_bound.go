@@ -491,7 +491,8 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	// query callback; complex query expressions retain that callback. Record
 	// this actual boundary only on failure, without changing error identity.
 	plExpression := scope.sqlRoutine.lexical != nil && scope.sqlRoutine.cursor == nil
-	simplePL := plExpression && !scope.sqlRoutine.plArgumentRow && execution.binding.Query != nil && plan.PLSimpleExpression(execution.binding.Query.Root)
+	simplePL := plExpression && !scope.sqlRoutine.plArgumentRow && !scope.sqlRoutine.plExpressionFallback && execution.binding.Query != nil && plan.PLSimpleExpression(execution.binding.Query.Root)
+	scope.sqlRoutine.plSimpleExpression = simplePL
 	defer func() {
 		if failure != nil && plExpression {
 			failure = &proc.PLExpressionExecutionError{Err: failure, Simple: simplePL}

@@ -395,7 +395,7 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 		s.RoutineDependencies = nil
 		if err != nil {
 			c.Place = exec.CursorFailed
-			_ = c.dispose(s.Op.Context())
+			err = plCleanupFailure(err, c.dispose(s.Op.Context()), nil)
 		}
 		c.authority.Host = nil
 	}()

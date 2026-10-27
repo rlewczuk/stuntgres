@@ -34,6 +34,8 @@ func NewPLEventTriggerFrame(d *Definition, event, tag string) (*PLFrame, error) 
 // EventTrigger executes only an installed event function. It has a void-like
 // exit, never a scalar pseudotype value or a DML composite-row contract.
 func (r *PLRun) EventTrigger() error {
+	r.Host.EnterRoutine()
+	defer r.Host.LeaveRoutine()
 	_, flow, err := r.Block(r.Definition.PL.Root)
 	if err != nil {
 		return err

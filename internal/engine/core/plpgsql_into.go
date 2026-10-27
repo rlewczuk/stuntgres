@@ -19,6 +19,8 @@ const plIntoAction = "at SQL statement"
 func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction) (err error) {
 	s := h.s
 	raw, checked := in.Syntax.Into, in.Into
+	previousOrigin := h.setOrigin(proc.PLOrigin{Position: in.Syntax.Pos, Action: plIntoAction})
+	defer func() { h.live.origin = previousOrigin }()
 	diagnosticIdentity := s.sqlRoutine.plDiagnostic
 	restore := s.ActivateSQLRoutine(nil, h.read)
 	s.sqlRoutine.lexical, s.sqlRoutine.scalar, s.sqlRoutine.rows = f, false, true
@@ -40,6 +42,14 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 		}
 		return s.plRuntimeQueryError(e, h.read, h.d, in.Syntax.Pos, plIntoAction, proc.PLDiagnosticQuery{})
 	}
+	live := routineLive{parent: s.routineLive, query: diagnostic.Text}
+	liveActive := false
+	defer func() {
+		if liveActive {
+			s.routineLive = live.parent
+			live = routineLive{}
+		}
+	}()
 	defer func() {
 		err = closePLCapture(result, err, failure)
 		// Transferred CTE modifiers still execute during demand and Close.
@@ -84,6 +94,8 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if e != nil {
 		return e
 	}
+	s.routineLive = &live
+	liveActive = true
 	result, e = s.Engine().executeStatement(s, checked.Query, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		for i := range dst {
 			dst[i] = f.Parameter(i)
@@ -93,8 +105,24 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if e != nil {
 		var excess *dml.CaptureCardinality
 		if errors.As(e, &excess) {
+			// This marker already ended execution unsuccessfully. Retire its
+			// owners with the same late diagnostic used by the fallback path,
+			// without executing successful-command effects.
+			cause := cardinality(true)
+			completed := closePLCapture(result, cause, failure)
+			result.Rows, result.RowSets = nil, nil
+			complete := finishCommand
+			finishCommand = nil
+			completed = complete(completed)
+			if completed != cause {
+				return completed
+			}
+			s.routineLive = live.parent
+			live = routineLive{}
+			liveActive = false
+			f.SetRowCount(int64(excess.Count))
 			f.SetFound(true)
-			return cardinality(true)
+			return cause
 		}
 		return failure(e)
 	}
@@ -118,7 +146,21 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if e = complete(nil); e != nil {
 		return failure(e)
 	}
+	s.routineLive = live.parent
+	live = routineLive{}
+	liveActive = false
 	f.SetFound(present)
+	processed := int64(0)
+	if present {
+		processed = 1
+	}
+	if more {
+		processed = 2
+	}
+	if mutation && result.Count > processed {
+		processed = result.Count
+	}
+	f.SetRowCount(processed)
 	if more {
 		return cardinality(true)
 	}
@@ -194,20 +236,7 @@ func demandPLCapture(ctx context.Context, rows plCaptureRows, columns plColumns,
 // owner restores its scratch only after all producers have been closed.
 func closePLCapture(result Result, primary error, format func(error) error) error {
 	closeFailure := func(closeErr error) {
-		if closeErr == nil {
-			return
-		}
-		if primary == nil {
-			primary = &proc.PLExceptionCleanupError{Primary: format(closeErr), Cleanup: closeErr}
-			return
-		}
-		causal := &proc.PLExceptionCleanupError{Primary: primary, Cleanup: closeErr}
-		var diagnostic *sqlstate.Error
-		if errors.As(primary, &diagnostic) {
-			primary = sqlstate.WithDiagnostic(causal, diagnostic)
-		} else {
-			primary = causal
-		}
+		primary = plCleanupFailure(primary, closeErr, format)
 	}
 	closeRows := func(rows exec.RowResult) {
 		if owned, ok := rows.(*exec.CTEOwnedRows); ok {
@@ -227,4 +256,29 @@ func closePLCapture(result Result, primary error, format func(error) error) erro
 		closeRows(rows)
 	}
 	return primary
+}
+
+// Lexical restoration also consults the foreign owner: nested scalar producers
+// may already have closed before the enclosing Result was returned.
+func plCleanupFailure(primary, cleanup error, format func(error) error) error {
+	if cleanup == nil {
+		return primary
+	}
+	var fatal *proc.PLExceptionCleanupError
+	if errors.As(primary, &fatal) && errors.Is(fatal.Cleanup, cleanup) {
+		return primary
+	}
+	if primary == nil {
+		primary = cleanup
+		if format != nil {
+			primary = format(cleanup)
+		}
+		return &proc.PLExceptionCleanupError{Primary: primary, Cleanup: cleanup}
+	}
+	causal := &proc.PLExceptionCleanupError{Primary: primary, Cleanup: cleanup}
+	var diagnostic *sqlstate.Error
+	if errors.As(primary, &diagnostic) {
+		return sqlstate.WithDiagnostic(causal, diagnostic)
+	}
+	return causal
 }

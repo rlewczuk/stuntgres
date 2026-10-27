@@ -102,9 +102,7 @@ func validPLIntoSource(source string, q *parser.PLIntoStatement, position parser
 	}
 	text := []byte(source[q.Start.Offset:q.End.Offset])
 	for i := q.IntoStart.Offset - q.Start.Offset; i < q.TargetsEnd.Offset-q.Start.Offset; i++ {
-		if text[i] != '\n' && text[i] != '\r' {
-			text[i] = ' '
-		}
+		text[i] = ' '
 	}
 	return q.Text == string(text)
 }

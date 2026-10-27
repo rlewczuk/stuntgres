@@ -210,6 +210,9 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			if (instruction.Dynamic != nil) != (raw.Dynamic != nil) {
 				return invalid()
 			}
+			if (instruction.Diagnostics != nil) != (raw.Diagnostics != nil) {
+				return invalid()
+			}
 			if (instruction.SQL != nil) != (raw.SQL != nil) {
 				return invalid()
 			}
@@ -235,7 +238,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			variants := 0
-			for _, present := range []bool{raw.Transaction != nil, raw.Dynamic != nil, raw.SQL != nil, raw.Into != nil, raw.IntegerFor != nil, raw.Foreach != nil, raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.While != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
+			for _, present := range []bool{raw.Transaction != nil, raw.Dynamic != nil, raw.Diagnostics != nil, raw.SQL != nil, raw.Into != nil, raw.IntegerFor != nil, raw.Foreach != nil, raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.While != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
 				if present {
 					variants++
 				}
@@ -254,6 +257,19 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				empty := instruction
 				empty.Dynamic = nil
 				if instruction.Block != nil || raw.Expression != nil || !emptyPLInstructionPayload(empty) || !p.validDynamic(d, raw, instruction.Dynamic, scopes, &diagnostics) {
+					return invalid()
+				}
+			case raw.Diagnostics != nil:
+				if !validPLDiagnosticsSource(d.Source, raw.Pos, raw.Diagnostics) {
+					return invalid()
+				}
+				empty := instruction
+				empty.Diagnostics = nil
+				expected, err := p.compileDiagnostics(raw.Diagnostics, scopes)
+				if err != nil || raw.Diagnostics.Pos != raw.Pos || instruction.Block != nil || raw.Expression != nil || !emptyPLInstructionPayload(empty) || !reflect.DeepEqual(expected, instruction.Diagnostics) {
+					return invalid()
+				}
+				if diagnostics.diagnostics(p, d.Source, raw.Diagnostics, scopes) != nil {
 					return invalid()
 				}
 			case raw.SQL != nil:
@@ -831,5 +847,5 @@ func (p *PLProgram) validCursorInstruction(raw *parser.PLCursorStatement, in *PL
 }
 
 func emptyPLInstructionPayload(in PLInstruction) bool {
-	return in.Transaction == nil && in.Dynamic == nil && in.SQL == nil && in.Into == nil && in.IntegerFor == nil && in.Foreach == nil && in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.While == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
+	return in.Transaction == nil && in.Dynamic == nil && in.Diagnostics == nil && in.SQL == nil && in.Into == nil && in.IntegerFor == nil && in.Foreach == nil && in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.While == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
 }

@@ -93,6 +93,7 @@ type PLInstruction struct {
 	SQL         *PLSQL
 	Dynamic     *PLDynamic
 	Transaction *parser.PLTransaction
+	Diagnostics *PLDiagnostics
 }
 type PLWhile struct {
 	Condition *parser.Select
@@ -128,6 +129,14 @@ type PLDynamic struct {
 	Using       []*parser.Select
 	Targets     []PLTarget
 	Strict      bool
+}
+type PLDiagnostics struct {
+	Stacked     bool
+	Assignments []PLDiagnosticAssignment
+}
+type PLDiagnosticAssignment struct {
+	Target PLTarget
+	Item   parser.PLDiagnosticItem
 }
 type PLIntegerFor struct {
 	Lower, Upper, Step *parser.Select
@@ -347,6 +356,11 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 				instruction.Dynamic, err = p.compileDynamic(definition, statement, scopes)
 				if err == nil {
 					err = diagnostics.dynamic(p, definition.Source, statement.Dynamic, instruction.Dynamic, scopes)
+				}
+			case statement.Diagnostics != nil:
+				instruction.Diagnostics, err = p.compileDiagnostics(statement.Diagnostics, scopes)
+				if err == nil {
+					err = diagnostics.diagnostics(p, definition.Source, statement.Diagnostics, scopes)
 				}
 			case statement.SQL != nil:
 				instruction.SQL = &PLSQL{Kind: statement.SQL.Kind, Query: statement.SQL.Query}
@@ -720,6 +734,7 @@ type PLFrame struct {
 	Scopes         []*PLBlock
 	InputCollation sqltype.CollationRef
 	handled        *sqlstate.Error
+	processed      int64
 	Searches       []PLSearch
 }
 type PLSearch struct {
@@ -768,6 +783,7 @@ func (f *PLFrame) Close() {
 	f.Values = nil
 	f.Scopes = nil
 	f.handled = nil
+	f.processed = 0
 	clear(f.Searches)
 	f.Searches = nil
 	f.InputCollation = sqltype.CollationRef{}
@@ -790,6 +806,8 @@ func (f *PLFrame) LeaveHandler(scope *PLBlock, previous *sqlstate.Error) {
 	f.handled = previous
 }
 func (f *PLFrame) HandledError() *sqlstate.Error { return f.handled }
+func (f *PLFrame) RowCount() int64               { return f.processed }
+func (f *PLFrame) SetRowCount(n int64)           { f.processed = n }
 
 // Usage is invocation-private metadata; published declaration Usages stay immutable.
 func (f *PLFrame) Usage(slot int) sqltype.Usage {

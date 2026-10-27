@@ -4,7 +4,9 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/parser"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestPLpgSQLSelectIntoValidation(t *testing.T) {
@@ -64,6 +66,41 @@ func TestPLpgSQLSelectIntoValidation(t *testing.T) {
 	for _, query := range []string{`SELECT 1 INTO r`, `SELECT 1 INTO a,a`, `SELECT 1 INTO r.a,r.b`, `WITH c AS (SELECT 1 AS i) SELECT i INTO a FROM c`, `INSERT INTO q VALUES(1) RETURNING i INTO a`, `UPDATE q SET i=1 RETURNING i INTO a`, `DELETE FROM q RETURNING i INTO a`} {
 		conditionalUnitDefinition(t, `DECLARE r record; a integer; BEGIN `+query+`; RETURN 7; END`)
 	}
+	t.Run("redacted_newline_source", func(t *testing.T) {
+		for _, newline := range []string{"\n", "\r\n"} {
+			source := "DECLARE a integer; BEGIN SELECT /*é*/" + newline + " 1 INTO" + newline + " a" + newline + " FROM q; RETURN a; END"
+			for _, mutation := range []string{"none", "old_newline_redaction", "coordinate", "outside_trivia"} {
+				definition := conditionalUnitDefinition(t, source)
+				raw := definition.PL.Root.Statements[0].Block.Statements[0].Syntax.Into
+				want := "SELECT /*é*/" + newline + " 1 " + strings.Repeat(" ", 7+2*len(newline)) + "FROM q"
+				if raw.Text != want || raw.TargetsEnd.Character != utf8.RuneCountInString(source[:raw.TargetsEnd.Offset])+1 {
+					t.Fatalf("incorrect admitted redaction/coordinates: %#v, want %q", raw, want)
+				}
+				before, err := parser.ParsePLpgSQL(source, parser.PLReturnPolicy{})
+				if err != nil || !reflect.DeepEqual(before, definition.PLSyntax) {
+					t.Fatal("compilation mutated admitted syntax", err)
+				}
+				switch mutation {
+				case "old_newline_redaction":
+					text := []byte(raw.Text)
+					for at := raw.IntoStart.Offset; at < raw.TargetsEnd.Offset; at++ {
+						if source[at] == '\n' || source[at] == '\r' {
+							text[at-raw.Start.Offset] = source[at]
+						}
+					}
+					raw.Text = string(text)
+				case "coordinate":
+					raw.TargetsEnd.Character++
+				case "outside_trivia":
+					raw.Text = strings.Replace(raw.Text, "/*é*/", "/*a*/", 1)
+				}
+				err = definition.PL.ValidateDefinition(definition)
+				if mutation == "none" && err != nil || mutation != "none" && err == nil {
+					t.Fatalf("source admission %s: %v", mutation, err)
+				}
+			}
+		}
+	})
 	t.Run("ledger_boundaries", func(t *testing.T) {
 		for _, tc := range []struct {
 			query      string

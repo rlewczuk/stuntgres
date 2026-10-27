@@ -45,6 +45,27 @@ func TestPLpgSQLSelectIntoParser(t *testing.T) {
 			}
 		})
 	}
+	t.Run("redacted_query_spelling", func(t *testing.T) {
+		for _, tc := range []struct {
+			query, want string
+		}{
+			{"SELECT /*é*/\n 1 INTO\n x\n FROM q", "SELECT /*é*/\n 1 " + strings.Repeat(" ", 9) + "FROM q"},
+			{"SELECT /*é*/\r\n 1 INTO\r\n x\r\n FROM q", "SELECT /*é*/\r\n 1 " + strings.Repeat(" ", 11) + "FROM q"},
+		} {
+			source := "DECLARE x integer; BEGIN " + tc.query + "; END"
+			block, err := ParsePLpgSQL(source, PLReturnPolicy{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			capture := block.Statements[0].Into
+			if capture == nil || capture.Text != tc.want || len(capture.Text) != len(tc.query) {
+				t.Fatalf("redacted execution text = %#v, want %q", capture, tc.want)
+			}
+			if source[capture.IntoStart.Offset:capture.TargetsEnd.Offset] != tc.query[strings.Index(tc.query, "INTO"):strings.Index(tc.query, "FROM")] || capture.TargetsEnd.Character != utf8.RuneCountInString(source[:capture.TargetsEnd.Offset])+1 {
+				t.Fatal("redaction changed original source coordinates")
+			}
+		}
+	})
 	for _, query := range []string{`SELECT 1 INTO`, `SELECT 1 INTO STRICT`, `SELECT 1 INTO x,`, `SELECT 1 INTO x INTO x`, `SELECT 1 INTO x FETCH FIRST ROW ONLY WHERE false`, `SELECT 1 INTO x[`, `SELECT 1 INTO x; nonsense`} {
 		if _, err := ParsePLpgSQL(`DECLARE x integer; BEGIN RETURN 7; `+query+`; END`, PLReturnPolicy{}); err == nil {
 			t.Fatal("accepted malformed unreachable capture", query)

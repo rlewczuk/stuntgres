@@ -193,6 +193,10 @@ selects the first released condition alias, while handlers retain every alias.
 Validation checks all variant exclusions, source spans and operand order and
 reconstructs the diagnostic ledger for both message statements. Runtime assertion
 settings and rendered diagnostics never enter a published program.
+GET diagnostics retains only checked lexical destinations and item identities.
+Validation binds the parser-admitted GET interval/text and semicolon to the owning
+definition source before reconstructing ordered associations and the destination-field
+datum ledger, including unreachable handlers. Runtime values never enter that payload.
 Bound cursor actuals are the explicit row-projection exception: one ordinary
 multi-target SELECT matches the complete declaration-ordered expression list and
 optional formal aliases, without destination coercions. Each destination retains
@@ -209,10 +213,10 @@ Cursor operands require the actual REFCURSOR descriptor identity, not a domain's
 base identity, in both compilation and checked-program validation. Domains remain
 valid ordinary values and FETCH destinations through the shared conversion owner.
 Cursor recipes contain syntax and slot references only: every typed Usage stays
-in Variables for provider validation and replacement. `PLFrame` owns values/scopes
-and the active handled diagnostic,
-restoring the previous diagnostic on nested handler exit. Closing it cannot mutate
-the program, caller arguments, returned immutable values or transaction-owned portals.
+in Variables for provider validation and replacement. `PLFrame` owns values/scopes,
+processed-row count and the active handled diagnostic, restoring the previous
+diagnostic on nested handler exit. Closing it clears private status and references
+without mutating the program, caller arguments, returned values or owned portals.
 Replacement preserves complete local Usages, including typmods and once-mapped collation capabilities.
 Private effective Usages inherit checked call collation for formals/ordinary
 locals and their lexical `%TYPE` copies; column `%TYPE` stays fixed to its source.
@@ -277,8 +281,11 @@ Static capture instructions retain only ordinary query syntax, resolved ordered
 targets and STRICT. Scalar/field lists add one diagnostic-only ROW after target
 lexing, including singleton lists; whole RECORD/named rows add none. Validation
 reconstructs lexical query/target accounting, source boundaries and target
-legality; a suffix INTO has no post-target SQL span to visit. Nonempty spans
-still use the strict bounded-token visitor. No capture evaluator or runtime
+legality, including exact source-derived INTO redaction: every byte in the
+procedural interval becomes a space, including CR/LF; outside spelling and
+original UTF8 coordinates remain authoritative. A suffix INTO has no post-target
+SQL span to visit. Nonempty spans still use the strict bounded-token visitor.
+No capture evaluator or runtime
 shape is persisted.
 Static command/PERFORM/CALL instructions share ordinary SQL syntax, but retain
 distinct checked result policies. Validation checks exact raw/checked association
@@ -441,6 +448,7 @@ Static capture compiler/validation units use `RUN='^TestPLpgSQLSelectIntoValidat
 Dynamic compiler/validation units use `RUN='^TestPLpgSQLDynamicSQLValidation$'`.
 Runtime diagnostic units use `RUN='^TestPL(FormatError|AssignmentErrorPhase|CaseExpressionError|pgSQLCursorCurrentDiagnostic)'`.
 Message/assertion compilation and validation use `RUN='^TestPLpgSQL(Raise|Assert)'`.
+Diagnostics syntax/program/frame ownership uses `RUN='^TestPLpgSQLDiagnostics'`.
 Statement-walk units over a fake host use `RUN='^TestPLRun'`.
 Array-loop compiler/validator/frame/cancellation units use
 `RUN='^TestPLpgSQLForeach(Compiler|Validation|TargetAdmission|Frame|Cancellation|DatumDiagnostic)$'`.

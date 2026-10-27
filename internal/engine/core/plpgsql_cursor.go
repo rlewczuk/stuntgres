@@ -231,12 +231,21 @@ func (s *StatementScope) movePLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 
 func (s *StatementScope) movePLCursorPortal(run *proc.PLRun, f *proc.PLFrame, targets []proc.PLTarget, cursor *sqlCursor, motion *parser.FetchCursor, read catalog.Read) (err error) {
 	restore := s.ActivateSQLRoutine(nil, read)
-	defer func() { err = restore(err) }()
-	result, err := s.fetchCursorPortal(cursor, motion)
+	var result Result
+	publishFetch, present := false, false
+	defer func() {
+		err = restore(err)
+		if err == nil && publishFetch {
+			f.SetRowCount(result.Count)
+			f.SetFound(present)
+		}
+	}()
+	result, err = s.fetchCursorPortal(cursor, motion)
 	if err != nil {
 		return err
 	}
 	if motion.Move {
+		f.SetRowCount(result.Count)
 		f.SetFound(result.Count != 0)
 		return nil
 	}
@@ -252,12 +261,12 @@ func (s *StatementScope) movePLCursorPortal(run *proc.PLRun, f *proc.PLFrame, ta
 	// Cursor motion already produces an immutable detached typed batch of at
 	// most one row. Transfer its values directly, without a driver projection
 	// or a second scalar-row copy. Empty rows are shaped only when needed.
-	present := rows.Count != 0
+	present = rows.Count != 0
 	fields := rows.Values
 	if err = s.assignPLCursorTargets(run, f, targets, cursor, fields, read); err != nil {
 		return err
 	}
-	f.SetFound(present)
+	publishFetch = true
 	return nil
 }
 
@@ -340,11 +349,13 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, run *proc.PLRun, f *p
 			return value, proc.PLFlow{}, err
 		}
 		previousFound := f.Values[f.Program.FoundSlot]
+		previousCount := f.RowCount()
 		noticeStart := len(s.Op.Notices)
 		err = s.movePLCursorPortal(run, f, targets, cursor, fetch, read)
 		s.appendPLNoticeContext(noticeStart, origin)
 		found, _ := f.Values[f.Program.FoundSlot].Boolean()
 		f.Values[f.Program.FoundSlot] = previousFound
+		f.SetRowCount(previousCount)
 		if err != nil {
 			return value, proc.PLFlow{}, s.plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, in.Syntax.Pos, "at FOR over cursor", false)
 		}
@@ -411,20 +422,14 @@ func (s *StatementScope) evaluatePLArgumentRow(f *proc.PLFrame, query *parser.Se
 	if !ok {
 		return nil, false, fmt.Errorf("stuntgres: cursor argument projection lacks detached typed output")
 	}
-	defer func() {
-		if closeErr := result.Rows.Close(); err == nil {
-			err = closeErr
-		}
-	}()
-	for _, rows := range result.RowSets {
-		defer rows.Close()
-	}
+	defer func() { err = closePLCapture(result, err, func(cause error) error { return cause }) }()
 	if err := s.executionContext().Err(); err != nil {
 		return nil, false, err
 	}
 	// The shared first-row producer already owns a detached flat typed row.
 	// Transfer that slice directly; Close releases its header, not the datums.
 	present, values = rows.Count != 0, rows.Values
+	f.SetRowCount(int64(rows.Count))
 	if !present {
 		schema := rows.Schema()
 		values = make([]sqltype.Value, len(schema))

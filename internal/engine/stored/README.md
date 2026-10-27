@@ -334,6 +334,9 @@ host methods.
   complete formal/result/non-RECORD local Usages, including typmod and collation
   capabilities. PL lexical names belong to immutable `Definition.Name`, not the
   descriptor's mutable public label; relabelling does not recompile the body.
+  Diagnostics instructions share syntax/slots/item identities through this
+  remapper; validator admission precedes sharing. No frame, status, handled error
+  or live provenance is retained by a stored definition.
   Imported containers use captured source-principal/name/incarnation policy only.
   Preflight-retained TEMP containers use a separate checked destination lane:
   genuine historical owners/grantees require nonzero principal-domain provenance,
@@ -740,6 +743,7 @@ reject, while healthy fresh current manifests remain usable.
 - Rule display and replay separation: `RUN='^TestRuleDefinition(Presentation|ReplaySeparation|ReturningLabels)$'`
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`
 - PL array-loop usage remap and immutable controls: `RUN='^TestPLpgSQLForeachRemap$'`
+- Diagnostics remap/admission ownership: `RUN='^TestPLpgSQLDiagnostics'`
 - Aggregate recipes: `RUN='^Test(CreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)|Aggregate(Final.*FrameRemap|MovingFrameRemap))$'`
 - Complete aggregate capture purpose, validation and remap invariants:
   `RUN='^TestRoutineAggregate(DependencyPurpose|ManifestValidation|PurposeRemap)$'`

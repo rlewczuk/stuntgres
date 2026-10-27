@@ -217,6 +217,10 @@ RAISE retains severity, explicit source form, decoded format, ordered arguments
 and option occurrences; bare rethrow remains distinct. ASSERT retains separate
 condition and optional-message spans. Their depth-zero commas and RAISE USING
 boundaries do not consume nested SQL delimiters or quoted identifiers.
+GET diagnostics retains its area, ordered target/item associations and original
+positions. GET and its area/head words are contextual, preserving ordinary
+identifier assignments. The parser seals syntax-only admission; checked
+validation rejects coordinated target/item/area mutation as well as extra variants.
 LOOP, WHILE and cursor-FOR bodies retain opening/closing labels and an explicit
 loop discriminator. WHILE retains a scalar projection condition, its optional
 alias and token-exclusive span separately from the WHILE and LOOP positions.
@@ -252,7 +256,10 @@ assignment-head provenance for diagnostics only. Failure probes never return
 tokens or syntax to executable parsing and cannot turn rejected input into success.
 Static SELECT and DML RETURNING capture retain a separate `PLIntoStatement`:
 ordinary SQL syntax, ordered target expressions, STRICT, positioned boundaries
-and original SQL with the procedural interval blanked. At every INTO placement,
+and original SQL with every byte of the procedural interval blanked to a space,
+including CR/LF. SQL trivia outside that interval and original source coordinates
+remain unchanged; the borrowed text supplies exact execution-context spelling.
+At every INTO placement,
 the raw-token probe completes the datum/field list structurally before returning
 the remaining tokens to ordinary SQL grammar, without a SQL-tail keyword list.
 It excludes nested SQL and INSERT/MERGE's relation INTO. A MERGE target alias
@@ -291,6 +298,10 @@ independently of later delimiter lookahead.
 The private EXECUTE head token is contextual to standalone statements and
 RETURN QUERY; OPEN FOR EXECUTE retains its existing cursor grammar token.
 
+GET diagnostics likewise seals its exact source interval at the statement-list
+semicolon. Checked owners compare that admitted text and UTF8 boundaries with
+their definition source before sharing syntax. Quoted item identifiers, including
+Unicode-quoted spellings of known items, follow the unknown-item scanner path.
 
 Statement-list boundaries also retain an unknown identifier head until a real
 assignment operator clears it. On grammar failure only, a bounded scanner checks
@@ -321,6 +332,7 @@ Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifec
 Static capture AST/boundary units use `RUN='^TestPLpgSQLSelectIntoParser$'`.
 Embedded static SQL variants and per-call syntax ownership use
 `RUN='^TestPLpgSQLSQLExecutionParser$'`.
+Diagnostics syntax/admission ownership uses `RUN='^TestPLpgSQLDiagnostics'`.
 Routine declaration syntax and positioned CALL/notation/full-input ownership units use
 `RUN='^TestRoutine(ResultDeclarations|ProcedureCall|Attribute)'`.
 Statistics owner replay option isolation and full-input positions use

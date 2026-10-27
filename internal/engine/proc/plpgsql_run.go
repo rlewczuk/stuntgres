@@ -41,8 +41,12 @@ type PLHost interface {
 	// Context is the admitted operation context, checked per statement and
 	// per loop iteration.
 	Context() context.Context
-	// Identity renders the routine for diagnostics; it is called only on error paths.
+	// Identity renders only requested diagnostic context, never ordinary statement work.
 	Identity() string
+	// EnterRoutine/LeaveRoutine balance live invocation provenance, not lexical SQL scratch.
+	EnterRoutine()
+	LeaveRoutine()
+	Diagnostics(f *PLFrame, in PLInstruction) error
 	LookupType(id sqltype.ID) (*sqltype.Descriptor, bool)
 	// TypeName uses the current catalog visibility for an error-only type name.
 	TypeName(typ *sqltype.Descriptor) string

@@ -459,6 +459,12 @@ canonical diagnostic argument names. Path changes do not relabel a retained
 signature; replacement immutable procedure carriers invalidate it. Invocation
 scratch balances the selected signature across nested calls and failures, without
 persisting session presentation in catalog definitions or checked PL programs.
+Live PL actions and non-inline SQL statement numbers use an operation-private
+borrowed chain outside lexical scratch. Invocation hosts own their nodes; each
+evaluation/producer restores the suspended action on success, failure and cancel.
+Only requested current context renders the chain. Caught context remains the
+original handled error. GET projects canonical fields through ordinary target
+assignment and reads the admitted declaration's actual RoutineOID.
 RAISE and ASSERT reuse reached-only expression execution and external type output.
 RAISE evaluates arguments and options in written order before buffered notice
 filtering; option expressions and NULL checks precede duplicate detection.
@@ -490,6 +496,11 @@ remain ordinary catchable SQL errors; only resource-close failures are fatal PL
 cleanup errors. Failure paths abort producers before retiring the frame or
 restoring activation. Ordinary SQL and query-loop demand retain their separate
 completion policies.
+Lexical restoration also collects the foreign owner's retained close failure,
+including producers already finalized inside scalar subqueries. It combines
+that failure with the primary as fatal `PLExceptionCleanupError` before restoring
+scratch, preserving both causes and the primary diagnostic without closing a
+producer twice or duplicating an already-classified cleanup failure.
 Static PL commands use ordinary statement admission and utility effects under a
 fresh lexical activation. Commands and PERFORM fully drain projections before
 publishing status or diagnosing an unhandled tuple descriptor; all producers
@@ -499,6 +510,19 @@ then consumes the handler's detached tuple. Copyback publishes successful
 assignments in formal order through the assignment owner; a later failed value
 does not undo earlier locals or alter the failed destination. CALL and utilities
 preserve caller FOUND. Exception/database rollback remains with the shared scope.
+Processed-row status is frame-private: existing drains count without retaining
+discarded rows; DML/capture/cursor publishers use their actual demand counts.
+Bare SELECT publishes its primary drained count and FOUND before the missing-
+destination error; ancillary rowsets do not contribute to that count. FETCH
+publishes count and FOUND together only after successful destination conversion,
+detached-batch close and lexical cleanup; failed FETCH preserves prior status.
+Failed cursor motion retires its producer through the existing cursor owner;
+cleanup failure is fatal and retains both the primary diagnostic and cleanup cause.
+CALL preserves caller status; utilities publish their completion count without
+changing FOUND. Scalar execution reuses admitted simple-expression provenance;
+SQL evaluation publishes its outer row count. Same checked expression-site
+reentry uses an operation-private active chain and the SQL fallback, not mutable
+program flags or a blanket recursive-call rule.
 The command-level SELECT-CTE invocation owns its own captured sources, separate
 from each modifier's input. Raw selection and frozen-layout bridging run outside
 `Engine.Mu`, before any auxiliary effects, followed by grant/context revalidation.
@@ -527,6 +551,15 @@ Successful commands retain ordinary complete-mutation semantics. Capture closes
 all producers and finishes its nested command before restoring activation,
 publishes FOUND before cardinality and assignment, and publishes list
 destinations sequentially, unlike FETCH.
+Static Command and Capture borrow their admitted execution text in the same
+operation-local live query chain as dynamic SQL. PERFORM reuses its existing
+SELECT-head translation; Capture reuses the parser's INTO-redacted text with
+trailing SQL whitespace removed. The query node spans actual execution, producer
+draining/close and event/command completion, then retires before late cardinality,
+conversion or CALL output copyback. Failed execution retains the node through
+fallback cleanup and activation restoration. The outer PL action remains active
+through late assignment; ordinary simple expressions do not gain SQL query frames.
+Live context renders lazily and remains separate from error-unwind callbacks.
 Dynamic PL commands evaluate their command and typed USING values once, then
 parse the complete computed input on each reached execution. The ordinary
 routine activation/binder executes it without PL lexical substitution. An explicit
@@ -535,12 +568,22 @@ shared analysis seam reports undefined parameters before importing values. Fresh
 activations reset that flag and restoration preserves the caller's exact demand,
 without changing public parameter inference or cursor/static binding. All
 producers drain and close before command completion, activation restoration,
-STRICT cardinality or target publication; ordinary EXECUTE does not set FOUND.
+STRICT cardinality or target publication. Ordinary EXECUTE publishes the final
+command's complete primary SELECT count or genuine DML affected count only after
+all commands complete, before INTO descriptor/cardinality/conversion checks, and
+never sets FOUND. Its full count is separate from saturated INTO cardinality;
+execution or cleanup failure does not publish a successful count.
 RETURN QUERY EXECUTE uses the existing SQL-routine set sink, validates exact
-tuple structure even for empty producers, appends detached values and sets
-FOUND from that command's rows. The sink never enters definitions or session
-specializations. Dynamic SQL callbacks describe only SQL producer failures;
-expression and post-execution assignment/cardinality keep their own provenance.
+tuple structure even for empty producers, appends detached values, and publishes
+the instruction-local sink delta as ROW_COUNT and its presence as FOUND after
+successful completion. The sink never enters definitions or session specializations.
+The balanced outer PL action spans command/USING operands, execution, cleanup and
+postexecution assignment. Each executing command borrows the complete computed
+SQL in an operation-local live node through all producer/command/activation cleanup;
+the lazy context renderer emits its SQL statement frame only on request. That node
+is absent during operand evaluation and removed before INTO checks or assignment.
+Dynamic error callbacks remain separate: expression and post-execution
+assignment/cardinality keep their own provenance without duplicate query frames.
 
 Accepted write events retain their actual predecessor/successor and command token.
 `sql_command_effects.go` completes only the active nested SQL command's pending
@@ -1403,6 +1446,8 @@ producer cleanup use `RUN='^Test(PLpgSQLSQLExecution|SQLCallableProcedureOutputA
 with `RACE=1`.
 Dynamic command ownership, complete draining and set-sink units use
 `RUN='^TestPLpgSQLDynamicSQL'` with `RACE=1`.
+Diagnostics live-stack/prepared ownership uses `RUN='^TestPLpgSQLDiagnostics'`
+with `RACE=1`.
 
 - Fixtures never enter `Engine.Execute` while owning admission (that acquires
   its mutex recursively); create stored recipes before retaining admission.

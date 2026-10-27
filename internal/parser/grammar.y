@@ -92,6 +92,9 @@ package parser
  plRaise *PLRaise
  plRaiseOption PLRaiseOption
  plRaiseOptions []PLRaiseOption
+ plDiagnostics *PLDiagnostics
+ plDiagnostic PLDiagnosticAssignment
+ plDiagnosticAssignments []PLDiagnosticAssignment
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
@@ -256,6 +259,7 @@ package parser
 %token <tok> INSERT_SCALAR_VALUES
 %token <tok> TYPE_INPUT
 %token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN PL_EXCEPTION PL_RAISE PL_SQLSTATE PL_ELSIF
+%token <tok> PL_GET PL_CURRENT PL_STACKED PL_DIAGNOSTICS
 %token <tok> PL_TARGETS_ENTRY
 %token <tok> PL_THEN PL_WHEN PL_WHEN_COMMA
 %token <tok> PL_ASSERT PL_RAISE_LEVEL PL_MESSAGE_COMMA PL_RAISE_USING
@@ -565,6 +569,10 @@ package parser
 %type <plDeclaration> pl_declaration
 %type <plStatements> pl_statements
 %type <plStatement> pl_statement
+%type <plDiagnostics> pl_diagnostics_head
+%type <plDiagnostic> pl_diagnostic_assignment
+%type <plDiagnosticAssignments> pl_diagnostic_assignments
+%type <tok> pl_diagnostic_item pl_diagnostic_equal
 %type <plHandlers> pl_exceptions pl_handlers
 %type <plHandler> pl_handler
 %type <plConditions> pl_conditions
@@ -1932,13 +1940,14 @@ pl_type: declared_type {$$=PLType{Type:$1}}
  | declared_type '%' PL_ROW_COPY {$$=plCopiedType($1,true)} ;
 pl_default: /* empty */ {$$=PLExpression{}} | DEFAULT pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | PL_ASSIGN pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | '=' pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} ;
 pl_statements: /* empty */ {sqllex.(*lexer).plStatementBoundaryPending=true;$$=nil}
- | pl_statements pl_statement ';' {l:=sqllex.(*lexer);if command:=$2.SQL;command!=nil{command.finishSQL(l.input,$<tok>3.pos)};if dynamic:=$2.Dynamic;dynamic!=nil{dynamic.finishDynamic($<tok>3.pos)};if loop:=$2.IntegerFor;loop!=nil{l.plCheckEndLabel(loop.Body.Label,loop.Body.EndLabel);if l.err!=nil{return 1}};l.plStatementBoundaryPending=true;$$=append($1,$2)} ;
+ | pl_statements pl_statement ';' {l:=sqllex.(*lexer);if command:=$2.SQL;command!=nil{command.finishSQL(l.input,$<tok>3.pos)};if dynamic:=$2.Dynamic;dynamic!=nil{dynamic.finishDynamic($<tok>3.pos)};if diagnostics:=$2.Diagnostics;diagnostics!=nil{diagnostics.finishSource(l.input,$<tok>3.pos)};if loop:=$2.IntegerFor;loop!=nil{l.plCheckEndLabel(loop.Body.Label,loop.Body.EndLabel);if l.err!=nil{return 1}};l.plStatementBoundaryPending=true;$$=append($1,$2)} ;
 pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_static_statement {l:=sqllex.(*lexer);$$=l.plSQLStatement($1);if l.err!=nil{return 1}}
  | pl_dynamic {$$=PLStatement{Dynamic:$1,Pos:$1.Start}}
  | COMMIT opt_chain {$$=PLStatement{Transaction:plTransaction(KindCommit,$2,$1.pos),Pos:$1.pos}}
  | ROLLBACK opt_chain {$$=PLStatement{Transaction:plTransaction(KindRollback,$2,$1.pos),Pos:$1.pos}}
  | PL_RETURN_QUERY pl_dynamic {$2.ReturnQuery=true;$$=PLStatement{Dynamic:$2,Pos:$1.pos}}
+ | pl_diagnostics_head pl_diagnostic_assignments {l:=sqllex.(*lexer);$1.Assignments=$2;if !l.finishPLDiagnostics($1){return 1};$$=PLStatement{Diagnostics:$1,Pos:$1.Pos}}
  | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}}
  | PL_RAISE pl_raise_body {$$=PLStatement{Raise:$2,Pos:$1.pos}}
  | PL_RAISE PL_RAISE_LEVEL pl_raise_body {$3.Level=plRaiseLevel($2);$$=PLStatement{Raise:$3,Pos:$1.pos}}
@@ -1960,6 +1969,14 @@ pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_label pl_while_head pl_integer_operand PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);condition:=l.plDelimitedExpression($3,$2,$4);$$=PLStatement{While:&PLWhile{Condition:condition,Body:l.plLoop($1,$5,$8,$4.pos)},Pos:$2.pos};if l.err!=nil{return 1}}
  | pl_transfer_kind pl_end_label pl_transfer_when {value:=$3;$$=PLStatement{Transfer:&PLTransfer{Continue:$1.text=="continue",Label:$2,Alias:value.Alias},Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
  | pl_case_head pl_search pl_case_arms pl_else END CASE {l:=sqllex.(*lexer);search:=l.plBoundExpression($2,$1);if search.Expression==nil {for _,arm:=range $3 {if len(arm.Conditions)!=1 {l.failAt("42601","syntax error at or near \",\"",arm.Conditions[0].Delimiter.Offset);return 1}}};$$=PLStatement{Case:&PLConditional{Search:search,Arms:$3,HasElse:$4.HasElse,Else:$4.Else},Pos:$1.pos}} ;
+pl_diagnostics_head: PL_GET PL_DIAGNOSTICS {$$=&PLDiagnostics{Pos:$1.pos}}
+ | PL_GET PL_CURRENT PL_DIAGNOSTICS {$$=&PLDiagnostics{Pos:$1.pos}}
+ | PL_GET PL_STACKED PL_DIAGNOSTICS {$$=&PLDiagnostics{Stacked:true,Pos:$1.pos}} ;
+pl_diagnostic_assignments: pl_diagnostic_assignment {$$=[]PLDiagnosticAssignment{$1}}
+ | pl_diagnostic_assignments ',' pl_diagnostic_assignment {$$=append($1,$3)} ;
+pl_diagnostic_equal: '=' {$$=$<tok>1} | PL_ASSIGN ;
+pl_diagnostic_assignment: pl_target pl_diagnostic_equal pl_diagnostic_item {l:=sqllex.(*lexer);item,ok:=l.plDiagnosticItem($3);if !ok{return 1};$$=PLDiagnosticAssignment{Target:$1,Item:item,ItemPos:$3.pos}} ;
+pl_diagnostic_item: col_label | ';' {$$=$<tok>1} ;
 pl_return_value: /* empty */ {$$=PLExpression{}} | pl_expression {$$=$1} ;
 pl_dynamic_head: PL_EXECUTE {sqllex.(*lexer).plBeginExpression(plDynamicCommandBoundary);$$=$1} ;
 pl_dynamic_command: pl_dynamic_head pl_expression {$$=&PLDynamicStatement{Start:$1.pos,Command:sqllex.(*lexer).plBoundExpression($2,$1)}} ;

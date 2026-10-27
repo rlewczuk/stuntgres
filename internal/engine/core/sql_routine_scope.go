@@ -151,7 +151,11 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignTablesOrZero().owner != nil {
-			primary = s.finishForeignOwner(s.foreignTablesOrZero().owner, primary)
+			// The owner retains cleanup failures even when a nested producer
+			// already closed during scalar evaluation. Do not let an existing
+			// primary hide that fatal cleanup at the activation boundary.
+			cleanup := s.finishForeignOwner(s.foreignTablesOrZero().owner, nil)
+			primary = plCleanupFailure(primary, cleanup, nil)
 		}
 		if s.View != nil && s.View != saved.view {
 			s.View.Release()
@@ -186,6 +190,8 @@ type sqlRoutineDemand struct {
 	plDiagnostic       string                // Invocation-private cached PL signature; balanced with lexical scratch.
 	plPlanning         bool                  // PL diagnostic provenance; cleared at the real executor handoff.
 	closedParameters   bool                  // Reached dynamic USING frame, including an empty frame.
+	plSimpleExpression  bool                  // Actual admitted scalar provenance at executor handoff.
+	plExpressionFallback bool                 // Same checked expression site already active in this operation.
 	assignment         *analyze.PLAssignment // Reached semantic-datum projection, never retained.
 	assignmentPlanning bool                  // Borrowed PL origin for a called SQL body, not its destination.
 	scalar             bool                  // Internal single-row SELECT demand, never public finalization.

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
@@ -17,7 +18,8 @@ import (
 type plDynamicResult struct {
 	columns    []catalog.Column
 	first      []sqltype.Value
-	count      int // Saturated at two for ordinary INTO.
+	count      int   // Saturated at two for ordinary INTO.
+	processed  int64 // Complete primary processed count, independent of INTO demand.
 	descriptor bool
 }
 
@@ -30,6 +32,9 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if checked.ReturnQuery {
 		action = "at RETURN QUERY"
 	}
+	at := proc.PLOrigin{Position: in.Syntax.Pos, Action: action}
+	previous := h.setOrigin(at)
+	defer func() { h.live.origin = previous }()
 	origin := s.plNoticeOrigin(f, in.Syntax.Pos, action)
 	noticeStart := len(s.Op.Notices)
 	defer func() { s.appendPLNoticeContext(noticeStart, origin) }()
@@ -66,7 +71,10 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 		return failure(err)
 	}
 	var final plDynamicResult
-	present := false
+	sinkStart := 0
+	if checked.ReturnQuery && run.Values != nil {
+		sinkStart = len(*run.Values)
+	}
 	for i, statement := range statements {
 		if _, transaction := statement.(*parser.TransactionControl); transaction {
 			// SPI reports unsupported transaction execution after its SQL
@@ -74,21 +82,23 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 			diagnostic = proc.PLDiagnosticQuery{}
 		}
 		capture := !checked.ReturnQuery && len(checked.Targets) != 0 && i == len(statements)-1
-		final, err = h.dynamicCommand(run, statement, inputs, parameters, capture, checked.ReturnQuery)
+		final, err = h.dynamicCommand(run, statement, command, inputs, parameters, capture, checked.ReturnQuery)
 		if err != nil {
 			return failure(err)
 		}
-		present = present || final.count != 0
 	}
 	if checked.ReturnQuery {
 		if len(statements) == 0 {
 			return failure(SQLError("42601", "empty query does not return tuples"))
 		}
-		f.SetFound(present)
+		processed := int64(len(*run.Values) - sinkStart)
+		f.SetRowCount(processed)
+		f.SetFound(processed != 0)
 		return nil
 	}
 	// SPI callbacks end with SQL execution, not cardinality/target publication.
 	diagnostic = proc.PLDiagnosticQuery{}
+	f.SetRowCount(final.processed)
 	if len(checked.Targets) == 0 {
 		return nil
 	}
@@ -101,7 +111,6 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 		}
 		return failure(SQLError("P0003", "query returned more than one row"))
 	}
-	at := proc.PLOrigin{Position: in.Syntax.Pos, Action: action}
 	if len(checked.Targets) == 1 {
 		target := checked.Targets[0]
 		variable := f.Program.Variables[target.Slot]
@@ -125,11 +134,14 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	return nil
 }
 
-func (h *plHost) dynamicCommand(run *proc.PLRun, statement parser.Statement, inputs []sqltype.Usage, parameters []sqltype.Value, capture, set bool) (out plDynamicResult, err error) {
+func (h *plHost) dynamicCommand(run *proc.PLRun, statement parser.Statement, command string, inputs []sqltype.Usage, parameters []sqltype.Value, capture, set bool) (out plDynamicResult, err error) {
 	s := h.s
 	if _, ok := statement.(*parser.TransactionControl); ok {
 		return out, SQLError("0A000", "EXECUTE of transaction commands is not implemented")
 	}
+	live := routineLive{parent: s.routineLive, query: command}
+	s.routineLive = &live
+	defer func() { s.routineLive = live.parent; live = routineLive{} }()
 	previousAtomic := s.plAtomic
 	s.plAtomic = true
 	defer func() { s.plAtomic = previousAtomic }()
@@ -222,10 +234,16 @@ func (h *plHost) dynamicCommand(run *proc.PLRun, statement parser.Statement, inp
 			return out, err
 		}
 	}
+	primaryProcessed := out.processed
 	for _, rows := range result.RowSets {
 		if err = consume(rows); err != nil {
 			return out, err
 		}
+	}
+	if _, selecting := dml.StatementCTERoot(statement).(*parser.Select); selecting {
+		out.processed = primaryProcessed
+	} else {
+		out.processed = result.Count
 	}
 	if set && !out.descriptor {
 		return out, SQLError("42601", "query does not return tuples")
@@ -233,8 +251,8 @@ func (h *plHost) dynamicCommand(run *proc.PLRun, statement parser.Statement, inp
 	return out, nil
 }
 
-// Complete all projections before STRICT or target assignment. Only the first
-// detached tuple and a saturated cardinality survive ordinary result draining.
+// Complete all projections before STRICT or target assignment. Retain the full
+// count separately from the detached first tuple and saturated INTO cardinality.
 func drainPLDynamic(ctx context.Context, rows exec.RowResult, capture bool, appendRow func([]sqltype.Value) error, out *plDynamicResult) error {
 	scratch := make([]sqltype.Value, len(rows.Schema()))
 	if capture {
@@ -260,6 +278,7 @@ func drainPLDynamic(ctx context.Context, rows exec.RowResult, capture bool, appe
 		if out.count < 2 {
 			out.count++
 		}
+		out.processed++
 		if err := appendRow(scratch); err != nil {
 			return err
 		}

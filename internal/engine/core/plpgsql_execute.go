@@ -73,12 +73,31 @@ func (s *StatementScope) executePLExpressionQuery(f *proc.PLFrame, statement *pa
 }
 
 func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment, origin plNoticeOrigin) (value sqltype.Value, usage sqltype.Usage, present bool, err error) {
+	if live := s.routineLive; live != nil && origin.action != "" {
+		previous := live.origin
+		live.origin = proc.PLOrigin{Position: origin.position, Action: origin.action}
+		defer func() { live.origin = previous }()
+	}
 	noticeStart := len(s.Op.Notices)
 	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() {
 		err = restore(err)
 		s.appendPLNoticeContext(noticeStart, origin)
 	}()
+	// Reentry belongs to the operation and the immutable expression SITE, never
+	// to a shared program or every invocation of a recursive routine.
+	for active := s.expressionLive; active != nil; active = active.parent {
+		if active.site == statement {
+			s.sqlRoutine.plExpressionFallback = true
+			break
+		}
+	}
+	if live := s.routineLive; live != nil && live.host != nil {
+		node := &live.host.expression
+		*node = plExpressionLive{parent: s.expressionLive, site: statement}
+		s.expressionLive = node
+		defer func() { s.expressionLive = node.parent; *node = plExpressionLive{} }()
+	}
 	s.sqlRoutine.lexical = f
 	result, err := s.executePLExpressionQuery(f, statement, assignment)
 	if err != nil {
@@ -88,13 +107,8 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 		return value, usage, false, fmt.Errorf("stuntgres: PL expression has no output")
 	}
 	defer func() {
-		if closeErr := result.Rows.Close(); err == nil {
-			err = closeErr
-		}
+		err = closePLCapture(result, err, func(cause error) error { return cause })
 	}()
-	for _, rows := range result.RowSets {
-		defer rows.Close()
-	}
 	schema := result.Rows.Schema()
 	if len(schema) != 1 {
 		return value, usage, false, SQLError("42601", "query returned more than one column")
@@ -106,12 +120,22 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 		return value, usage, false, err
 	}
 	if !present {
+		if !s.sqlRoutine.plSimpleExpression {
+			f.SetRowCount(0)
+		}
 		return sqltype.Null(usage.Type), usage, false, nil
 	}
 	value = row[0]
 	more, err := result.Rows.Next(s.executionContext(), row[:])
 	if err != nil {
 		return value, usage, false, err
+	}
+	if !s.sqlRoutine.plSimpleExpression {
+		if more {
+			f.SetRowCount(2)
+		} else {
+			f.SetRowCount(1)
+		}
 	}
 	if more {
 		return sqltype.Value{}, usage, false, &proc.PLCardinalityError{Err: SQLError("21000", "query returned more than one row")}

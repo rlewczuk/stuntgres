@@ -101,9 +101,9 @@ func TestPLpgSQLSQLExecutionCleanup(t *testing.T) {
 		closedInActivation := false
 		closeErr := errors.New("producer cleanup")
 		rows := &sqlExecutionCloseRows{RowResult: producer, err: closeErr, before: func() { closedInActivation = core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s)) == frame }}
-		present, err := core.DrainPLSQL(context.Background(), rows)
-		if evaluated != 3 || fail && (!errors.Is(err, late) || present) || !fail && (err != nil || !present) {
-			t.Fatal("bounded/partial discard or late error lost", evaluated, present, err)
+		processed, err := core.DrainPLSQL(context.Background(), rows)
+		if evaluated != 3 || fail && (!errors.Is(err, late) || processed != 0) || !fail && (err != nil || processed != 3) {
+			t.Fatal("bounded/partial discard or late error lost", evaluated, processed, err)
 		}
 		err = core.ClosePLCapture(core.Result{Rows: rows}, err, func(e error) error { return e })
 		err = restore(err)

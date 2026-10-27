@@ -61,9 +61,13 @@ func TestPLpgSQLDynamicSQLRuntime(t *testing.T) {
 			closedInActivation := false
 			cleanup := errors.New("dynamic close")
 			rows := &sqlExecutionCloseRows{RowResult: producer, err: cleanup, before: func() { closedInActivation = core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s)) == frame }}
-			first, count, err := core.DrainPLDynamic(context.Background(), rows)
-			if evaluated != 3 || count != 2 || len(first) != 1 || first[0] != one || fail && !errors.Is(err, late) || !fail && err != nil {
-				t.Fatal("incomplete dynamic drain", evaluated, count, first, err)
+			first, count, processed, err := core.DrainPLDynamic(context.Background(), rows)
+			wantProcessed := int64(3)
+			if fail {
+				wantProcessed = 2
+			}
+			if evaluated != 3 || count != 2 || processed != wantProcessed || len(first) != 1 || first[0] != one || fail && !errors.Is(err, late) || !fail && err != nil {
+				t.Fatal("incomplete dynamic drain", evaluated, count, processed, first, err)
 			}
 			err = restore(core.ClosePLCapture(core.Result{Rows: rows}, err, func(e error) error { return e }))
 			var fatal *proc.PLExceptionCleanupError
@@ -72,9 +76,9 @@ func TestPLpgSQLDynamicSQLRuntime(t *testing.T) {
 			}
 		}
 		producer, _ := queryLoopUnitRows(t, schema, nil, nil)
-		first, count, err := core.DrainPLDynamic(context.Background(), producer)
-		if err != nil || count != 0 || len(first) != 1 || first[0].Type() != integer || !first[0].IsNull() {
-			t.Fatal("unshaped empty result", first, count, err)
+		first, count, processed, err := core.DrainPLDynamic(context.Background(), producer)
+		if err != nil || count != 0 || processed != 0 || len(first) != 1 || first[0].Type() != integer || !first[0].IsNull() {
+			t.Fatal("unshaped empty result", first, count, processed, err)
 		}
 		producer.Close()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -83,7 +87,7 @@ func TestPLpgSQLDynamicSQLRuntime(t *testing.T) {
 		projection := queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { close(admitted); <-release; return one, nil })
 		producer, _ = queryLoopUnitRows(t, schema, [][]sqltype.Value{{one}, {two}}, projection)
 		go func() {
-			_, _, err := core.DrainPLDynamic(ctx, producer)
+			_, _, _, err := core.DrainPLDynamic(ctx, producer)
 			joined <- core.ClosePLCapture(core.Result{Rows: producer}, err, func(e error) error { return e })
 		}()
 		<-admitted

@@ -35,6 +35,17 @@ func (d *plDiagnosticDatums) target(program *PLProgram, source string, statement
 	return d.expression(program, source, statement.Pos, statement.ExpressionStart, scopes)
 }
 
+// GET targets are scanned in written order just like ordinary assignment
+// destinations. The item token is not part of the destination's namespace.
+func (d *plDiagnosticDatums) diagnostics(program *PLProgram, source string, raw *parser.PLDiagnostics, scopes []*PLBlock) error {
+	for _, a := range raw.Assignments {
+		if err := d.expression(program, source, a.Target.SourcePosition(), a.ItemPos, scopes); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (d *plDiagnosticDatums) name(program *PLProgram, parts []parser.Identifier, scopes []*PLBlock) error {
 	if len(parts) < 2 {
 		return nil

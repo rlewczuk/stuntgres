@@ -61,6 +61,7 @@ type PLStatement struct {
 	SQL                 *PLSQLStatement
 	Dynamic             *PLDynamicStatement
 	Transaction         *PLTransaction
+	Diagnostics         *PLDiagnostics
 }
 
 // PLTransaction is the bounded procedural transaction instruction.

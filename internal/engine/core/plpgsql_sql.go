@@ -41,6 +41,8 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if checked.Kind == parser.PLCallSQL {
 		action = "at CALL"
 	}
+	previousOrigin := h.setOrigin(proc.PLOrigin{Position: in.Syntax.Pos, Action: action})
+	defer func() { h.live.origin = previousOrigin }()
 	origin := s.plNoticeOrigin(f, in.Syntax.Pos, action)
 	noticeStart := len(s.Op.Notices)
 	text := strings.TrimRight(raw.Text, " \t\r\n")
@@ -57,6 +59,14 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	runtimeFailure := func(cause error) error {
 		return s.plRuntimeQueryError(cause, h.read, h.d, in.Syntax.Pos, action, proc.PLDiagnosticQuery{})
 	}
+	live := routineLive{parent: s.routineLive, query: text}
+	liveActive := false
+	defer func() {
+		if liveActive {
+			s.routineLive = live.parent
+			live = routineLive{}
+		}
+	}()
 	var result Result
 	var finishCommand func(error) error
 	defer func() {
@@ -122,6 +132,8 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if lexical {
 		count = f.Program.FormalCount
 	}
+	s.routineLive = &live
+	liveActive = true
 	result, e = s.Engine().executeStatement(s, statement, count, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		for i := range dst {
 			dst[i] = f.Parameter(i)
@@ -132,12 +144,14 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 		return failure(e)
 	}
 	present := false
+	var processed int64
 	var returned []sqltype.Value
 	if result.Rows != nil {
 		if checked.Kind == parser.PLCallSQL {
 			returned, present, e = consumePLCall(h.Context(), result.Rows)
 		} else {
-			present, e = drainPLSQL(h.Context(), result.Rows)
+			processed, e = drainPLSQL(h.Context(), result.Rows)
+			present = processed != 0
 		}
 		if e != nil {
 			return failure(e)
@@ -167,8 +181,12 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if e = complete(nil); e != nil {
 		return failure(e)
 	}
+	s.routineLive = live.parent
+	live = routineLive{}
+	liveActive = false
 	switch checked.Kind {
 	case parser.PLPerformSQL:
+		f.SetRowCount(processed)
 		f.SetFound(present)
 	case parser.PLCallSQL:
 		if len(outputs) != 0 && (!present || len(returned) != len(outputs)) {
@@ -184,8 +202,14 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 			}
 		}
 	default:
-		if plFoundSQL(statement) {
-			f.SetFound(result.Count != 0)
+		if _, selecting := dml.StatementCTERoot(statement).(*parser.Select); selecting {
+			f.SetRowCount(processed)
+			f.SetFound(present)
+		} else {
+			f.SetRowCount(result.Count)
+			if plFoundSQL(statement) {
+				f.SetFound(result.Count != 0)
+			}
 		}
 		if hasDescriptor {
 			diagnostic := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "query has no destination for result data"}
@@ -225,21 +249,21 @@ func validatePLCallOutputs(f *proc.PLFrame, outputs []analyze.PLCallOutput) erro
 
 // One reusable row buffer drains every projection, including late failures.
 // No scalar/capture demand and no history of discarded rows is retained.
-func drainPLSQL(ctx context.Context, rows exec.RowResult) (bool, error) {
+func drainPLSQL(ctx context.Context, rows exec.RowResult) (int64, error) {
 	row := make([]sqltype.Value, len(rows.Schema()))
-	found := false
+	var processed int64
 	for {
 		if err := ctx.Err(); err != nil {
-			return false, err
+			return 0, err
 		}
 		present, err := rows.Next(ctx, row)
 		if err != nil {
-			return false, err
+			return 0, err
 		}
 		if !present {
-			return found, ctx.Err()
+			return processed, ctx.Err()
 		}
-		found = true
+		processed++
 	}
 }
 

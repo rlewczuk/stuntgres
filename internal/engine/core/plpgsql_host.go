@@ -14,10 +14,13 @@ import (
 // plHost is the root's proc.PLHost for one PL invocation. Each method takes
 // Engine.mu or owner.Mu itself, as the root helpers it calls always did.
 type plHost struct {
-	s    *StatementScope
-	d    *catalog.Procedure
-	read catalog.Read
-	run  *proc.PLRun
+	s          *StatementScope
+	d          *catalog.Procedure
+	read       catalog.Read
+	run        *proc.PLRun
+	live       routineLive
+	expression plExpressionLive
+	identity   string // Captured invocation identity, not a callee's lexical scratch.
 	// Query-FOR adapters by nesting depth: the outermost is inline, nested
 	// ones are kept for reuse by later iterations of this invocation.
 	depth  int
@@ -39,6 +42,7 @@ func (s *StatementScope) newPLRun(d *catalog.Procedure, f *proc.PLFrame, read ca
 	inv := &plInvocation{host: plHost{s: s, d: d, read: read}}
 	inv.host.run = &inv.run
 	inv.run = proc.PLRun{Host: &inv.host, Frame: f}
+	inv.host.identity = s.sqlRoutine.plDiagnostic
 	if d != nil {
 		inv.run.Definition = d.SQL
 	}
@@ -47,7 +51,12 @@ func (s *StatementScope) newPLRun(d *catalog.Procedure, f *proc.PLFrame, read ca
 
 func (h *plHost) Context() context.Context { return h.s.executionContext() }
 
-func (h *plHost) Identity() string { return h.s.plRoutineDiagnosticIdentity(h.read, h.d) }
+func (h *plHost) Identity() string {
+	if h.identity != "" {
+		return h.identity
+	}
+	return h.s.plRoutineDiagnosticIdentity(h.read, h.d)
+}
 
 func (h *plHost) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return h.read.LookupType(id)
@@ -62,11 +71,15 @@ func (h *plHost) TypeName(typ *sqltype.Descriptor) string {
 }
 
 func (h *plHost) Evaluate(f *proc.PLFrame, q *parser.Select, at proc.PLOrigin) (sqltype.Value, sqltype.Usage, error) {
+	previous := h.setOrigin(at)
+	defer func() { h.live.origin = previous }()
 	value, usage, _, err := h.s.evaluatePLExpression(f, q, h.read, nil, h.s.plNoticeOrigin(f, at.Position, at.Action))
 	return value, usage, err
 }
 
 func (h *plHost) Convert(v sqltype.Value, target sqltype.Usage, at proc.PLOrigin) (sqltype.Value, error) {
+	previous := h.setOrigin(at)
+	defer func() { h.live.origin = previous }()
 	noticeStart := len(h.s.Op.Notices)
 	v, err := h.s.convertPLValue(v, target)
 	if at.Action != "" && noticeStart != len(h.s.Op.Notices) {
@@ -76,6 +89,8 @@ func (h *plHost) Convert(v sqltype.Value, target sqltype.Usage, at proc.PLOrigin
 }
 
 func (h *plHost) AssignTarget(f *proc.PLFrame, t proc.PLTarget, raw parser.Expr, q *parser.Select, at proc.PLOrigin) error {
+	previous := h.setOrigin(at)
+	defer func() { h.live.origin = previous }()
 	_, err := h.s.assignPLTarget(f, t, raw, q, h.read, h.s.plNoticeOrigin(f, at.Position, at.Action))
 	return err
 }
@@ -111,6 +126,8 @@ func (h *plHost) TargetUsage(f *proc.PLFrame, target proc.PLTarget) (sqltype.Usa
 }
 
 func (h *plHost) AssignValue(f *proc.PLFrame, target proc.PLTarget, value sqltype.Value, at proc.PLOrigin) (err error) {
+	previous := h.setOrigin(at)
+	defer func() { h.live.origin = previous }()
 	noticeStart := len(h.s.Op.Notices)
 	defer func() { h.s.appendPLNoticeContext(noticeStart, h.s.plNoticeOrigin(f, at.Position, at.Action)) }()
 	candidate, err := h.s.preparePLTargetValue(h.run, f, target, value, f.Values[target.Slot], h.read)
@@ -145,10 +162,29 @@ func (h *plHost) OpenQuery(f *proc.PLFrame, in proc.PLInstruction) (proc.PLRows,
 }
 
 func (h *plHost) Cursor(r *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction) (sqltype.Value, proc.PLFlow, error) {
+	action := "at OPEN"
+	switch in.Syntax.Cursor.Action {
+	case parser.PLFetchCursor:
+		action = "at FETCH"
+	case parser.PLMoveCursor:
+		action = "at MOVE"
+	case parser.PLCloseCursor:
+		action = "at CLOSE"
+	case parser.PLForCursor:
+		action = "at FOR over cursor"
+	}
+	previous := h.setOrigin(proc.PLOrigin{Position: in.Syntax.Pos, Action: action})
+	defer func() { h.live.origin = previous }()
 	return h.s.executePLCursor(h.d, r, f, in, h.read)
 }
 
 func (h *plHost) Message(f *proc.PLFrame, in proc.PLInstruction) error {
+	action := "at RAISE"
+	if in.Assert != nil {
+		action = "at ASSERT"
+	}
+	previous := h.setOrigin(proc.PLOrigin{Position: in.Syntax.Pos, Action: action})
+	defer func() { h.live.origin = previous }()
 	if in.Raise != nil {
 		return h.s.executePLRaise(h.d, f, in, h.read)
 	}

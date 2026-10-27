@@ -84,6 +84,7 @@ type lexer struct {
 	plUnknownHead              lexeme // Failure-only SQL-statement terminator provenance.
 	plIntegerHeader            bool
 	plIntegerReversePending    bool
+	plDiagnosticsHead          bool
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool
@@ -875,6 +876,19 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		return 0
 	}
 	token := l.nextRaw()
+	if l.plDiagnosticsHead {
+		if !quotedIdentifierLexeme(token.lexeme) {
+			switch token.lexeme.text {
+			case "current":
+				token.code = PL_CURRENT
+			case "stacked":
+				token.code = PL_STACKED
+			case "diagnostics":
+				token.code = PL_DIAGNOSTICS
+				l.plDiagnosticsHead = false
+			}
+		}
+	}
 	if l.plMode && !l.plExpression {
 		switch token.code {
 		case DECLARE:
@@ -894,6 +908,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			perform = !l.plHeadAssignment(token)
 		}
 		switch {
+		case token.lexeme.text == "get" && !quotedIdentifierLexeme(token.lexeme) && !l.plHeadAssignment(token):
+			token.code = PL_GET
+			l.plDiagnosticsHead = true
 		case perform:
 			token.code = SELECT
 			l.plBeginCapture(token)

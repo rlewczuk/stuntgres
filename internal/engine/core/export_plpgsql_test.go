@@ -22,14 +22,14 @@ func DemandPLCapture(ctx context.Context, rows plCaptureRows, columns plColumns,
 	return demandPLCapture(ctx, rows, columns, exact)
 }
 
-func DrainPLSQL(ctx context.Context, rows exec.RowResult) (bool, error) {
+func DrainPLSQL(ctx context.Context, rows exec.RowResult) (int64, error) {
 	return drainPLSQL(ctx, rows)
 }
 
-func DrainPLDynamic(ctx context.Context, rows exec.RowResult) ([]sqltype.Value, int, error) {
+func DrainPLDynamic(ctx context.Context, rows exec.RowResult) ([]sqltype.Value, int, int64, error) {
 	var out plDynamicResult
 	err := drainPLDynamic(ctx, rows, true, func([]sqltype.Value) error { return nil }, &out)
-	return out.first, out.count, err
+	return out.first, out.count, out.processed, err
 }
 
 func ScopeInvokePLRoutineSet(x *StatementScope, d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef, values *[]sqltype.Value) (sqltype.Value, error) {

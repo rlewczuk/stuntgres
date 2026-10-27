@@ -24,6 +24,8 @@ func (r *PLRun) Invoke(input *Frame, collation sqltype.CollationRef) (sqltype.Va
 	f := NewPLFrame(d.PL, d, input, collation)
 	defer f.Close()
 	r.Frame = f
+	r.Host.EnterRoutine()
+	defer r.Host.LeaveRoutine()
 	result, flow, err := r.Block(d.PL.Root)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -74,6 +76,8 @@ func (r *PLRun) missingReturn() error {
 // Trigger runs a trigger body in the caller's trigger frame and validates its
 // returned row against the relation's current row type.
 func (r *PLRun) Trigger(rowType sqltype.ID) (sqltype.Value, error) {
+	r.Host.EnterRoutine()
+	defer r.Host.LeaveRoutine()
 	result, flow, err := r.Block(r.Definition.PL.Root)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -178,6 +182,8 @@ func (r *PLRun) Statements(statements []PLInstruction) (sqltype.Value, PLFlow, e
 		switch {
 		case instruction.Transaction != nil:
 			err = r.Host.Transaction(instruction)
+		case instruction.Diagnostics != nil:
+			err = r.Host.Diagnostics(f, instruction)
 		case instruction.Block != nil:
 			value, flow, err = r.Block(instruction.Block)
 		case instruction.If != nil || instruction.Case != nil:

@@ -180,7 +180,11 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 		}
 	}
 	value = sqltype.Null(resultUsage.Type)
+	live := routineLive{parent: parent.routineLive, sqlName: d.Name()}
+	parent.routineLive = &live
+	defer func() { parent.routineLive = live.parent; live = routineLive{} }()
 	for i, statement := range statements {
+		live.statement = i + 1
 		terminal := i == len(statements)-1 && !d.SQL.Void()
 		value, err = parent.executeSQLRoutineCommand(d, retained.activation, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning, values)
 		if err != nil {

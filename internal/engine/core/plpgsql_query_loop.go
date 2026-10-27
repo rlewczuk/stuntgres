@@ -57,6 +57,9 @@ func (h *plHost) beginQueryRows(f *proc.PLFrame, in proc.PLInstruction) *plQuery
 // open plans and executes the loop query. On failure it has already closed q.
 func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
 	s := q.host.s
+	host := q.host
+	previous := host.setOrigin(proc.PLOrigin{Position: q.position, Action: proc.PLQueryLoopAction})
+	defer func() { host.live.origin = previous }()
 	noticeStart, sourceComplete := len(s.Op.Notices), false
 	defer func() {
 		if !sourceComplete {
@@ -135,6 +138,8 @@ func (q *plQueryRows) Next(ctx context.Context, dst []sqltype.Value) (bool, erro
 		return true, nil
 	}
 	s := q.host.s
+	previous := q.host.setOrigin(proc.PLOrigin{Position: q.position, Action: proc.PLQueryLoopAction})
+	defer func() { q.host.live.origin = previous }()
 	noticeStart := len(s.Op.Notices)
 	present, err := q.result.Rows.Next(ctx, dst)
 	s.appendPLNoticeContext(noticeStart, q.origin)
@@ -145,21 +150,14 @@ func (q *plQueryRows) Next(ctx context.Context, dst []sqltype.Value) (bool, erro
 // the adapter for reuse by the next query loop at this depth.
 func (q *plQueryRows) Close(primary error) error {
 	s, err := q.host.s, primary
+	host := q.host
+	previous := host.setOrigin(proc.PLOrigin{Position: q.position, Action: proc.PLQueryLoopAction})
+	defer func() { host.live.origin = previous }()
 	noticeStart := len(s.Op.Notices)
-	if q.result.Rows != nil {
-		if closeErr := q.result.Rows.Close(); err == nil {
-			err = q.queryError(closeErr)
-		}
-	}
-	for _, rows := range q.result.RowSets {
-		if closeErr := rows.Close(); err == nil {
-			err = q.queryError(closeErr)
-		}
-	}
+	err = closePLCapture(q.result, err, q.queryError)
 	s.appendPLNoticeContext(noticeStart, q.origin)
 	err = q.restore(err)
 	s.plLoops = q.previous
-	host := q.host
 	*q = plQueryRows{}
 	host.depth--
 	return err

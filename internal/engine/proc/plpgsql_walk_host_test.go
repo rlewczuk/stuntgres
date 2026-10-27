@@ -36,6 +36,11 @@ func newWalkHost(t *testing.T) *walkHost {
 func (h *walkHost) Context() context.Context { return h.ctx }
 
 func (h *walkHost) Identity() string { return "walk_unit()" }
+func (h *walkHost) EnterRoutine()    {}
+func (h *walkHost) LeaveRoutine()    {}
+func (h *walkHost) Diagnostics(*PLFrame, PLInstruction) error {
+	return fmt.Errorf("walk unit has no diagnostic source")
+}
 
 func (h *walkHost) TypeName(typ *sqltype.Descriptor) string { return typ.DiagnosticName() }
 
