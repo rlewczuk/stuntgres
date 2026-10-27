@@ -120,9 +120,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 		}
 	}
 	// This is the exact represented membership, not a guessed PostgreSQL total:
-	// 1860 actual primary + 96 other fixed owners + 26 metadata supplements.
-	if len(facts) != 1982 {
-		t.Fatalf("released represented overloads: got %d, want 1982", len(facts))
+	// 1869 actual primary + 96 other fixed owners + 26 metadata supplements.
+	if len(facts) != 1991 {
+		t.Fatalf("released represented overloads: got %d, want 1991", len(facts))
 	}
 	return facts
 }

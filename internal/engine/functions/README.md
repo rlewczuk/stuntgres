@@ -42,6 +42,50 @@ Input/output retain immutable declaration volatility; send is STABLE and never
 planning-folded. Receive has released STABLE catalog metadata but no callable
 INTERNAL-argument provider.
 
+`SizeInquiry` binds the nine strict, VOLATILE, scalar BIGINT declarations:
+`pg_database_size(name|oid)`, `pg_tablespace_size(name|oid)`,
+`pg_relation_size(regclass)` and `(regclass,text)`, and
+`pg_table_size(regclass)`, `pg_indexes_size(regclass)`,
+`pg_total_relation_size(regclass)`. Unknown database/tablespace arguments select
+NAME; relation arguments select REGCLASS through the ordinary typed coercer.
+The immutable node retains operands and selected routine provenance, never size
+or ACL results. It never planning-folds, evaluates written children before strict
+NULL handling, and borrows the existing catalog inquiry runtime for each call.
+Results, including NULL and empty-result metadata, remain typed INT8.
+The one-argument SQL wrapper's fixed body edge to the two-argument declaration
+uses the existing routine-body manifest, lifetime and EXECUTE admission owners.
+Its released `SELECT pg_relation_size($1, 'main')` declaration recipe is retained
+separately for `prosqlbody`, not represented as a fabricated checked SQL program.
+
+REGCLASS input owns namespace/search-path/quoted-name resolution and early
+literal identity within the analyzed expression. DDL invalidation can reanalyze
+the original prepared SQL, so an old symbolic literal may then fail after rename;
+an existing numeric relation identity does not require the old name. Missing
+symbolic relations error on input; missing numeric relation
+OIDs return NULL. Existing relations accept exactly main/fsm/vm/init; an invalid
+fork raises 22023 `invalid fork name` with the released valid-forks hint, but a
+missing numeric relation returns NULL before fork validation. Missing fork
+allocations return zero. The body adds no SELECT/ownership/RLS check; ordinary
+namespace and routine EXECUTE admission remains active.
+Native Reset/Restore retires a held persistent REGCLASS literal with the ordinary
+catalog-replaced error; reprepare it. A held REGCLASS parameter resolves its
+target in the replacement catalog, and already returned rows retain their values
+and metadata across controls.
+
+Database/tablespace objects are resolved before privilege checks, including for
+superusers. Missing database NAME raises 3D000; missing database OID and missing
+tablespace NAME/OID raise 42704, with the released object-specific diagnostics.
+Database access requires CONNECT on the specified target or inherited
+pg_read_all_stats privileges. Tablespace access requires CREATE or inherited
+pg_read_all_stats, except for the current database's default pg_default
+tablespace; changing session default_tablespace does not change the exemption.
+Denials use 42501 `permission denied for database NAME` or
+`permission denied for tablespace NAME`, without physical-login Detail.
+The [storage allocation formula](../storage/README.md#logical-allocation-estimates)
+defines every approximate byte component and database/tablespace aggregation;
+all lookup, NULL, typing, diagnostic and authority behavior is exact.
+
+
 Installed `TablefuncCrosstab` nodes retain immutable arguments and the admitted
 record or named-composite usage. They are strict, stable, never planning-folded
 sources; no SQL, catalog authority, cursor or runtime rows are retained on them.

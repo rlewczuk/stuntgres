@@ -93,6 +93,69 @@ and never the engine.
   The strict `stuntgres-ndistinct-v1` codec validates complete canonical subsets
   and positive integral counts and reconstructs `StatisticsValue`, never text input.
 
+### Logical allocation estimates
+
+`relation_size.go` owns checked INT8 arithmetic over captured immutable roots;
+`core` captures descriptors, vector headers, private overlays and index roots
+under the cluster mutex, then releases it before counting. No datum payload is
+copied, rendered or measured through SQL output; predicates and index expressions
+are not reevaluated, and SELECT/RLS visibility does not filter allocations.
+Current-command staged rows are included alongside prior transaction writes.
+Complete projected private roots override the prior private map; replacement
+staging supersedes prior private rows by stable RowID without copying payloads.
+Nested routine activation may expose a staged version through both borrowed
+vectors; matching RowID/VersionID pairs are charged once in heaps and indexes.
+Deletion markers alone do not reclaim allocated physical versions.
+
+These counters are deterministic technical estimates, not PostgreSQL physical
+heap, index, TOAST or map-file bytes. Let `A8(x)=8*ceil(x/8)`, with `A8(0)=0`.
+A NULL cell costs zero; a non-NULL fixed-width datum costs `A8(typlen)`, using
+the type descriptor's PostgreSQL length (including domain base types); any other
+non-NULL datum costs one 32-byte slot, independent of payload length.
+A row costs `24+A8(ceil(cells/8))+sum(cell costs)`. An allocated heap's main
+component is `64+sum(row costs)` over every retained physical version, including
+ended versions. Its `fsm=8*ceil(versions/256)` and `vm=ceil(versions/8)`.
+Empty allocated heaps cost 64; absent roots and storage-less relations cost zero.
+TRUNCATE charges the current root, not retained predecessors; reclamation removes
+reclaimed versions from later estimates. Supported native heaps/indexes have no
+initialization allocation, so their `init` component is zero.
+
+An allocated index's main component is `64+sum(entry costs)`. B-tree/GiST entries
+cost `16+sum(stored key cell costs)+sum(included cell costs)`; included values
+come from stable attributes and matching parent row/version identity. Private
+entries consume their already-held row directly, without searching the published
+prefix. Captured index-entry lookups validate both RowID and VersionID, use the
+position hint when valid, and poll cancellation during any fallback scan.
+Hash counts each bucket entry once at `16+cell(stored key)`, never its duplicate
+lookup maps.
+BRIN counts only summarized ranges: `16+sum(8+cell(min)+cell(max))`, with extrema
+charged only for keys having non-NULL values; unsummarized ranges cost zero.
+Partial/expression indexes charge actual stored memberships/keys, including
+already produced private row outputs exactly once. Pending BRIN suffixes do not
+own summaries until publication. Index `fsm` and `vm` are zero. An allocated
+sequence generator costs main 64, with init 64 only when its actual stored
+sequence options specify unlogged persistence. Native variable datums are inline:
+external TOAST heap and TOAST-index components are both zero, not synthetic roots.
+
+`pg_relation_size` selects one fork (one argument means main); `pg_table_size`
+sums the object's forks and external TOAST components, not attached ordinary
+indexes. `pg_indexes_size` sums every directly attached index's forks once;
+`pg_total_relation_size=pg_table_size+pg_indexes_size`. An index passed to
+`pg_indexes_size` has no attached ordinary indexes. Parents do not recursively
+charge partition or inheritance descendants. Database size sums each owned stored
+relation once, counting indexes separately and excluding shared pg_global
+allocations. Tablespace size sums assigned allocations across registered database
+runtimes once: default storage belongs to pg_default, shared storage to pg_global.
+Virtual catalog rows do not create physical allocations.
+
+For `(INT4,TEXT,BOOL)` rows `(1,'x',TRUE),(2,NULL,FALSE)`, row costs are 80 and
+48, main 192, fsm 8, vm 1, table 201. An ordinary index on the integer costs
+112, giving total 313. Native Dump/Restore reconstructs supported typed contents
+and index metadata through ordinary SQL replay. Clean-state allocations survive
+that round trip; dead-version bloat, stale BRIN extrema, sequence advancement and
+nonserialized auxiliary allocation history are not a replay identity contract.
+
+
 
 ## Invariants
 
@@ -179,4 +242,5 @@ make check RUN='^TestVerifyHeapamLogicalRows$'
 make check RUN='^TestReference(ControlSnapshotSurvivesCatalogReplacement|ControlFailedRestorePreservesCatalog|HashPartition(Controls|FinalRemap))$$'
 make check RUN='^TestStatisticsNDistinct'
 make check RUN='^TestPlannerOtherStatisticsTarget$'
+make check RUN='^TestRelationSize'
 ```

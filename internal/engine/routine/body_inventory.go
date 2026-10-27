@@ -15,6 +15,7 @@ import (
 // parsed recipes are metadata only: they are never checked executable programs.
 var builtinRoutineDeclarationBodies = func() map[ids.OID]sqltype.StructuralTree {
 	recipes := map[ids.OID]string{
+		2325: `SELECT pg_relation_size($1, 'main')`,
 		5023: `SELECT $2 + $1`,
 		879:  `SELECT lpad($1, $2, ' ')`,
 		880:  `SELECT rpad($1, $2, ' ')`,

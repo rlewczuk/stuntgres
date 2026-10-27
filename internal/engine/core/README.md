@@ -742,6 +742,20 @@ with their family ([root README](../README.md#hosts)).
 | `enginePreparation` (`exec_preparation.go`) | `exec.Preparation`, installed with `exec.InstallPreparation` |
 | `sessionHost` (an `Engine` conversion; `session_host.go`) | `session.Host` |
 
+`statementHost.SizeInquiry` uses the existing catalog-inquiry capability.
+It fences the retained catalog's owner and replacement epoch, captures typed
+allocation roots from the current matching private catalog and transaction
+overlays under the shared cluster mutex, and counts outside that lock.
+Database/tablespace admission captures current invoker authority, resolves
+existence before CONNECT/CREATE or inherited statistics privileges, and selects
+registered target runtimes rather than treating the attached store as the cluster.
+The body borrows `RoutineAuthorizationLocked`, never rule relation-write
+authority: effective/restricted invocation owners and legitimate RI precedence
+remain the routine admission owner's responsibility.
+It retains immutable vectors, not mutable heap headers or prepared numeric/ACL
+results. The allocation model belongs to
+[`storage`](../storage/README.md#logical-allocation-estimates).
+
 `DDLHost` keeps only the `ddl.Host` methods, what core paths call
 (`LookupCollation`, `NamedType`, `OtherDatabaseDependencies`) and the methods
 that unrelated family hosts share (`AddDomainBase`, `RemoveObject`,
@@ -1469,6 +1483,10 @@ actual installed declarations, accepted protocol bindings and statement hosts.
 Heap-verification capture, admission, incarnation and pure logical-row units
 share `RUN='^TestVerifyHeapam'`; use `RACE=1` for capture/admission coverage.
 Public scenarios use `RUN='^TestReferenceAmcheckHeap'` in `reference/indexes`.
+
+Logical allocation binding, provider reconstruction, private-root and replacement
+fences share `RUN='^TestRelationSize'`; public SQL belongs to
+`reference/catalog_privileges` under `RUN='^TestReferenceRelationSize'`.
 
 Trigger payload/frame/runtime/remap/stage units share
 `RUN='^TestTriggerCore(Catalog|Frame|Return|Runtime|Persistence|AtomicStage|PartitionPath|WhenProvider)$'`.

@@ -42,8 +42,11 @@ statistics I/O declarations, including non-callable INTERNAL receive metadata,
 and all generic-file read/binary/stat/tmpdir overloads. Twelve metadata-only RI
 trigger functions retain their released volatile classification and defaults.
 Release-owned TSV facts preserve exact membership and all 28 projected fields,
-including tmpdir's explicit cost 10 and row estimate 20; use
-`RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
+including tmpdir's explicit cost 10 and row estimate 20.
+The nine database/relation size overloads retain their released strict volatile
+metadata; the one-argument SQL wrapper has a declaration body and retained
+released cost 1, as do the internal implementations.
+Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 
 Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and
 `proceduresHeld` with declaration-owned output metadata checked before iteration.

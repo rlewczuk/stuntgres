@@ -27,6 +27,8 @@ package.
 - Tablespace directory scenarios use a real container-owned directory
   (`tablespaceContainer`), restore permissions before relation, tablespace and
   directory cleanup, and drop cluster objects explicitly.
+- Rule-action size scenarios defer `DROP OWNED` for both actors before role
+  teardown, releasing database/tablespace ACLs as well as owned action relations.
 - Frame names matched by tests (active-cancel admission): `(*relationRequest).wait`
   in `internal/engine/lock`. Update the tests when renaming it.
 
@@ -41,7 +43,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Role table grants: `RUN='^TestReferenceInfoRoleTableGrants'`
 - Table privileges: `RUN='^TestReferenceInfoTablePrivileges'`
 - Tablespaces: `RUN='^TestReferenceTablespace'`
-- Size functions: `RUN='^TestReferenceSize'`
+- Size formatting: `RUN='^TestReferenceSize'`; logical relation/database/tablespace allocation: `RUN='^TestReferenceRelationSize'`
 - VACUUM: `RUN='^TestReferenceVacuum'`
 
 `TestReferencePGShadowPreparedAuthorization` retains a credential statement

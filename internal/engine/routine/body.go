@@ -10,6 +10,7 @@ var builtinRoutineBodyEdges = [...]struct {
 	outer, inner ids.OID
 	demand       catalog.RoutineBodyDemand
 }{
+	{2325, 2332, catalog.BodyAlways},
 	{879, 873, catalog.BodyAlways}, {880, 874, catalog.BodyAlways},
 	{1811, 1374, catalog.BodyAlways}, {1811, 141, catalog.BodyAlways},
 	{1810, 720, catalog.BodyAlways}, {1810, 141, catalog.BodyAlways}, {1812, 1681, catalog.BodyAlways},

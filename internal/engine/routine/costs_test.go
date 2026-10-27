@@ -26,6 +26,9 @@ func TestBuiltinRoutineCosts(t *testing.T) {
 		3353: 10, 3354: 10, 5029: 10, 5030: 10, 5031: 10, 6270: 10, 6271: 10, 6272: 10, 6400: 10,
 		// Unreplaced quoted SQL declarations retain pg_proc.h bootstrap cost1.
 		1285: 1, 1290: 1, 2003: 1, 2004: 1,
+		// The released pg_relation_size(regclass) SQL wrapper retains cost1,
+		// independently confirmed by the pinned18.6 full pg_proc inventory.
+		2325: 1,
 		// The pinned18.6 oracle confirms the INTERNAL-language default1
 		// after these replacements; SQL's default100 does not apply.
 		1268: 1, 3261: 1, 3305: 1, 3464: 1, 3579: 1,

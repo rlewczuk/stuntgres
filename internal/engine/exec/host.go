@@ -71,6 +71,7 @@ type Host interface {
 	CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error)
+	SizeInquiry(functions.SizeKind, sqltype.Value, string, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.GenericFileListRuntime
 	GenericFileList(functions.GenericFileListKind, string) error
 	GenericFileRead(functions.GenericFileReadKind, string, int64, bool) error

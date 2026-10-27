@@ -125,6 +125,14 @@ func (c *Context) TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sq
 	return host.TablespaceDatabase(oid, result)
 }
 
+func (c *Context) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork string, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing size inquiry snapshot")
+	}
+	return host.SizeInquiry(kind, arg, fork, result)
+}
+
 func (c *Context) GenericFileList(kind functions.GenericFileListKind, dirname string) error {
 	host := c.LiveHost()
 	if host == nil {

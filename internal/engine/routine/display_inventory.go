@@ -17,6 +17,15 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
+	2168: {Language: catalog.InternalRoutineLanguage, Source: "pg_database_size_name"},
+	2324: {Language: catalog.InternalRoutineLanguage, Source: "pg_database_size_oid"},
+	2323: {Language: catalog.InternalRoutineLanguage, Source: "pg_tablespace_size_name"},
+	2322: {Language: catalog.InternalRoutineLanguage, Source: "pg_tablespace_size_oid"},
+	2325: {Language: catalog.SQLRoutineLanguage, Source: "", Cost: 1},
+	2332: {Language: catalog.InternalRoutineLanguage, Source: "pg_relation_size"},
+	2997: {Language: catalog.InternalRoutineLanguage, Source: "pg_table_size"},
+	2998: {Language: catalog.InternalRoutineLanguage, Source: "pg_indexes_size"},
+	2286: {Language: catalog.InternalRoutineLanguage, Source: "pg_total_relation_size"},
 	2625: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_dir_1arg"},
 	3297: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_dir"},
 	3353: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_logdir", Cost: 10},
