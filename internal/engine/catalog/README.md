@@ -166,9 +166,14 @@ private frames, not catalog authority.
   sees a recorded name only from that position on, and ends with the shared map
   plus its database binding. Any other bind, or a plain write or removal of a
   recorded name, copies the reached names into the bulk load and the seed builds
-  its own map (`SeedShare.Fallbacks`). The helper binds must not depend on
-  engine options. Every store seeded with one share holds the same immutable
-  index and name map.
+  its own map (`SeedShare.Fallbacks`). The first seed also records its install
+  order (`seed_descriptors.go`): a later seed of an empty state keeps its
+  descriptors in a slice by recorded position and ends with
+  `util.PersistentMapValues` over the recorded address map; unrecorded
+  addresses use the bulk-load map, and a seed that leaves a position empty
+  builds its own map. The helper binds and installs must not depend on engine
+  options. Every store seeded with one share holds the same immutable index and
+  name map.
 - **Text-search descriptors** (`extension_catalog.go`, `dictionary.go`):
   dictionaries hold ordered decoded immutable options, actual owner/template and
   a catalog-free `DictionaryRuntime`. Runtime authority is separate from genuine

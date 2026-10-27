@@ -29,6 +29,9 @@ type stateBulk struct {
 	names       map[ids.NameKey]ids.ObjectAddress
 	relations   map[ids.ObjectAddress]*Relation
 	seed        *seedBinds
+	// fill, set only for a seed following a recorded install order, holds the
+	// recorded addresses' descriptors; descriptors then holds just the others.
+	fill *seedFill
 }
 
 // BeginBulkLoad moves s's entries into Go maps with room for capacity
@@ -64,7 +67,7 @@ func (s *State) EndBulkLoad() {
 	if s.bulk == nil {
 		panic("stuntgres: no catalog bulk load in progress")
 	}
-	s.descriptors = util.PersistentMapOf(s.bulk.descriptors)
+	s.descriptors = s.bulkDescriptorMap()
 	s.names = util.PersistentMapOf(s.bulk.names)
 	s.relations = util.PersistentMapOf(s.bulk.relations)
 	s.bulk = nil
@@ -78,7 +81,7 @@ func (s *State) EndBulkLoadWithNames(names util.PersistentMap[ids.NameKey, ids.O
 	if s.bulk == nil {
 		panic("stuntgres: no catalog bulk load in progress")
 	}
-	s.descriptors = util.PersistentMapOf(s.bulk.descriptors)
+	s.descriptors = s.bulkDescriptorMap()
 	s.names = names
 	s.relations = util.PersistentMapOf(s.bulk.relations)
 	s.bulk = nil
@@ -93,6 +96,11 @@ func (s *State) mustNotBulkLoad() {
 
 func (s *State) findDescriptor(a ids.ObjectAddress) (Descriptor, bool) {
 	if s.bulk != nil {
+		if f := s.bulk.fill; f != nil {
+			if d, ok, recorded := f.find(a); recorded {
+				return d, ok
+			}
+		}
 		d, ok := s.bulk.descriptors[a]
 		return d, ok
 	}
@@ -101,6 +109,14 @@ func (s *State) findDescriptor(a ids.ObjectAddress) (Descriptor, bool) {
 
 func (s *State) putDescriptor(a ids.ObjectAddress, d Descriptor) {
 	if s.bulk != nil {
+		if f := s.bulk.fill; f != nil && f.put(a, d) {
+			return
+		}
+		if seed := s.bulk.seed; seed != nil && seed.recording {
+			if _, exists := s.bulk.descriptors[a]; !exists {
+				seed.descriptorOrder = append(seed.descriptorOrder, a)
+			}
+		}
 		s.bulk.descriptors[a] = d
 		return
 	}
@@ -109,6 +125,12 @@ func (s *State) putDescriptor(a ids.ObjectAddress, d Descriptor) {
 
 func (s *State) dropDescriptor(a ids.ObjectAddress) {
 	if s.bulk != nil {
+		if f := s.bulk.fill; f != nil && f.drop(a) {
+			return
+		}
+		if seed := s.bulk.seed; seed != nil {
+			seed.descriptorsRemoved = true
+		}
 		delete(s.bulk.descriptors, a)
 		return
 	}
@@ -155,6 +177,9 @@ func (s *State) allDescriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	bulk, version := s.bulk, s.descriptors
 	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
 		if bulk != nil {
+			if bulk.fill != nil && !bulk.fill.all(yield) {
+				return
+			}
 			for a, d := range bulk.descriptors {
 				if !yield(a, d) {
 					return
@@ -198,6 +223,9 @@ func (s *State) allNames() iter.Seq2[ids.NameKey, ids.ObjectAddress] {
 
 func (s *State) descriptorCount() int {
 	if s.bulk != nil {
+		if f := s.bulk.fill; f != nil {
+			return f.filled + len(s.bulk.descriptors)
+		}
 		return len(s.bulk.descriptors)
 	}
 	return s.descriptors.Len()

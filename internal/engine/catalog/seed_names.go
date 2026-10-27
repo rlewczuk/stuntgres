@@ -38,6 +38,9 @@ type seedBinds struct {
 	recording bool                // this seed records its binds for its share
 	order     []ids.ObjectAddress // recorded helper bind addresses
 	diverged  bool                // a shared seed materialized
+
+	descriptorOrder    []ids.ObjectAddress // recorded install addresses (seed_descriptors.go)
+	descriptorsRemoved bool                // a recording seed removed a descriptor
 }
 
 // bindSeedName binds d's descriptor name as a seed helper.

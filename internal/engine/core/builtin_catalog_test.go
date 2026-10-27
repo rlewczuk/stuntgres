@@ -148,8 +148,8 @@ func TestBuiltinSeedNamesMatchUnsharedSeed(t *testing.T) {
 			t.Fatalf("database %q: shared seed has %d names, own seed %d", config.database, len(shared), len(own))
 		}
 	}
-	if !core.BuiltinSeed().SharesNames() || core.BuiltinSeed().Fallbacks() != 0 {
-		t.Fatal("engine seeds did not follow the shared names", core.BuiltinSeed().SharesNames(), core.BuiltinSeed().Fallbacks())
+	if seed := core.BuiltinSeed(); !seed.SharesNames() || !seed.SharesDescriptors() || seed.Fallbacks() != 0 {
+		t.Fatal("engine seeds did not follow the shared seed", seed.SharesNames(), seed.SharesDescriptors(), seed.Fallbacks())
 	}
 }
 
@@ -173,7 +173,13 @@ func TestSharedSeedMatchesUnsharedSeedDescriptors(t *testing.T) {
 			}
 		}
 	}
+	if shared.DescriptorCount() != own.DescriptorCount() {
+		t.Fatal("shared and own seeds hold different descriptor counts", shared.DescriptorCount(), own.DescriptorCount())
+	}
 	for a, d := range shared.Descriptors() {
+		if o := own.Get(a); o == nil || o.Name() != d.Name() || o.Kind() != d.Kind() {
+			t.Fatalf("descriptor %v differs from its own seed", a)
+		}
 		switch d := d.(type) {
 		case *catalog.Type:
 			o, ok := own.Get(a).(*catalog.Type)

@@ -29,9 +29,9 @@ func (s *State) addSeedDescriptor(a ids.ObjectAddress, d Descriptor) {
 		s.SetDescriptor(a, d)
 		return
 	}
-	n := len(s.bulk.descriptors)
+	n := s.descriptorCount()
 	s.replaceDescriptor(a, nil, d)
-	if len(s.bulk.descriptors) == n {
+	if s.descriptorCount() == n {
 		panic("stuntgres: builtin seed installs one catalog address twice")
 	}
 }

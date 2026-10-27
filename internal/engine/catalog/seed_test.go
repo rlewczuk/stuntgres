@@ -70,18 +70,21 @@ func seedSteps(variant string) []func(*State) {
 func TestSeedShareNamesMatchOwnSeed(t *testing.T) {
 	share := &SeedShare{}
 	first := seedFixture(share, "first", "")
-	if !share.SharesNames() {
-		t.Fatal("the first seed did not record its names")
+	if !share.SharesNames() || share.descriptors.Load() == nil {
+		t.Fatal("the first seed did not record its names and descriptors")
 	}
 	for _, c := range []struct{ database, variant string }{
 		{"first", ""}, {"second", ""}, {"third", "extra"}, {"fourth", "missing"},
 		{"fifth", "reordered"}, {"sixth", "rebind"}, {"seventh", "unbind"},
 	} {
 		before := share.Fallbacks()
-		shared := maps.Collect(seedFixture(share, c.database, c.variant).State.Names())
-		own := maps.Collect(seedFixture(&SeedShare{}, c.database, c.variant).State.Names())
+		sharedSeed, ownSeed := seedFixture(share, c.database, c.variant), seedFixture(&SeedShare{}, c.database, c.variant)
+		shared, own := maps.Collect(sharedSeed.State.Names()), maps.Collect(ownSeed.State.Names())
 		if !maps.Equal(shared, own) {
 			t.Fatalf("%q/%q: shared seed has %d names, own seed %d", c.database, c.variant, len(shared), len(own))
+		}
+		if !maps.Equal(seedDescriptorSummary(sharedSeed.State), seedDescriptorSummary(ownSeed.State)) {
+			t.Fatalf("%q/%q: shared seed descriptors differ from an own seed", c.database, c.variant)
 		}
 		if fell := share.Fallbacks() - before; fell != 0 != (c.variant != "") {
 			t.Fatalf("%q/%q: %d fallbacks", c.database, c.variant, fell)

@@ -1,12 +1,24 @@
 package catalog
 
 import (
+	"fmt"
 	"maps"
 	"sync"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
 )
+
+// seedDescriptorSummary renders a state's descriptors by address as their
+// kind and name, which equal seeds share although their descriptor objects
+// differ.
+func seedDescriptorSummary(s *State) map[ids.ObjectAddress]string {
+	out := map[ids.ObjectAddress]string{}
+	for a, d := range s.Descriptors() {
+		out[a] = fmt.Sprintf("%T %s", d, d.Name())
+	}
+	return out
+}
 
 // A seed that follows shared names answers every name read during the seed
 // exactly as a seed that binds its own: a shared name is visible only from its
@@ -22,12 +34,18 @@ func TestSharedSeedReadsMatchOwnSeed(t *testing.T) {
 		if !maps.Equal(maps.Collect(shared.State.Names()), maps.Collect(own.State.Names())) || shared.State.NameCount() != own.State.NameCount() {
 			t.Fatalf("%s: names differ (%d shared, %d own)", step, shared.State.NameCount(), own.State.NameCount())
 		}
-		for k := range keys {
+		for k, address := range keys {
 			a, ok := shared.State.LookupName(k)
 			b, found := own.State.LookupName(k)
 			if a != b || ok != found {
 				t.Fatalf("%s: LookupName(%v) = %v %v, own %v %v", step, k, a, ok, b, found)
 			}
+			if (shared.State.Get(address) == nil) != (own.State.Get(address) == nil) {
+				t.Fatalf("%s: Get(%v) differs", step, address)
+			}
+		}
+		if !maps.Equal(seedDescriptorSummary(shared.State), seedDescriptorSummary(own.State)) || shared.State.DescriptorCount() != own.State.DescriptorCount() {
+			t.Fatalf("%s: descriptors differ (%d shared, %d own)", step, shared.State.DescriptorCount(), own.State.DescriptorCount())
 		}
 	}
 	compare("start")

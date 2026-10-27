@@ -26,7 +26,11 @@ type SeedShare struct {
 	// names holds the first recording seed's helper binds; later seeds skip
 	// matching binds and add their own bindings to the shared map.
 	names atomic.Pointer[seedNames]
-	// fallbacks counts seeds that left shared names after a divergent bind.
+	// descriptors holds the first recording seed's install order; later seeds
+	// keep their descriptors by its positions (seed_descriptors.go).
+	descriptors atomic.Pointer[seedDescriptors]
+	// fallbacks counts seeds that left shared names after a divergent bind or
+	// left a recorded descriptor position empty.
 	fallbacks atomic.Int64
 	// validation is the provider validation result of the seed without its
 	// database descriptor, which depends on engine options.
@@ -51,15 +55,17 @@ func (s *Store) ShareProcedureNamesLocked(share *SeedShare) {
 // binds for the share. Until FinishSeedLocked, OID allocation skips the global
 // identity walk (see allocatedOIDUsedLocked).
 func (s *Store) BeginSeedLocked(share *SeedShare, capacity int) {
-	shared := share.names.Load()
-	if shared != nil && s.State.DescriptorCount() == 0 && s.State.NameCount() == 0 {
-		s.State.beginBulkLoad(capacity, 4)
+	shared, recorded := share.names.Load(), share.descriptors.Load()
+	if fresh := s.State.DescriptorCount() == 0 && s.State.NameCount() == 0; fresh && shared != nil && recorded != nil {
+		s.State.beginBulkLoad(4, 4)
 		s.State.bulk.seed = &seedBinds{shared: shared}
+		s.State.bulk.fill = &seedFill{shared: recorded, values: make([]Descriptor, len(recorded.order))}
 	} else {
 		s.State.BeginBulkLoad(capacity)
 		s.State.bulk.seed = &seedBinds{recording: shared == nil}
 		if shared == nil {
 			s.State.bulk.seed.order = make([]ids.ObjectAddress, 0, capacity)
+			s.State.bulk.seed.descriptorOrder = make([]ids.ObjectAddress, 0, capacity)
 		}
 	}
 	s.seeding = true
@@ -76,6 +82,12 @@ func (s *Store) FinishSeedLocked(share *SeedShare) {
 	address := s.Owner.DatabaseAddress()
 	database := DescriptorNameKey(state.Get(address))
 	seed := state.bulk.seed
+	if fill := state.bulk.fill; fill != nil && !fill.complete() {
+		share.fallbacks.Add(1)
+	}
+	if recorded := recordSeedDescriptors(seed, state.bulk.descriptors); recorded != nil {
+		share.descriptors.CompareAndSwap(nil, recorded)
+	}
 	bound, ok := state.LookupName(database)
 	ok = ok && bound == address
 	if shared := seed.shared; ok && shared != nil && seed.bound == len(shared.order) {
@@ -104,6 +116,9 @@ func (s *Store) FinishSeedLocked(share *SeedShare) {
 
 // SharesNames reports whether the share holds recorded seed names.
 func (s *SeedShare) SharesNames() bool { return s.names.Load() != nil }
+
+// SharesDescriptors reports whether the share holds a recorded install order.
+func (s *SeedShare) SharesDescriptors() bool { return s.descriptors.Load() != nil }
 
 // Fallbacks counts seeds that left the shared names after a divergent bind.
 func (s *SeedShare) Fallbacks() int64 { return s.fallbacks.Load() }
