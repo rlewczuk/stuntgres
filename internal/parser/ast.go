@@ -5,6 +5,22 @@ import "strings"
 // Statement is the closed set of supported statements.
 type Statement interface{ statement() }
 
+// Explain retains a nonexecuting utility wrapper and ordered option syntax.
+// Option interpretation belongs to the command owner, not the parser.
+type Explain struct {
+	Statement Statement
+	Options   []ExplainOption
+	Pos       Position
+}
+
+type ExplainOption struct {
+	Name  string
+	Value Expr // nil means the value was omitted.
+	Pos   Position
+}
+
+func (*Explain) statement() {}
+
 // CreateDatabaseStmt preserves ordered option occurrences for execution-time
 // validation. Preparation is syntax-only and must not resolve these values.
 type CreateDatabaseStmt struct {

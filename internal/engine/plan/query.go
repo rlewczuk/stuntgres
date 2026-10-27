@@ -88,6 +88,10 @@ type ProjectNode struct {
 	CTEOwner            bool // An invocation boundary, not statement-global producer state.
 	HasTargetSet        bool // Analyzed query flag, independent of constant folding.
 	RuleInvocation      bool // A transplanted input reads the existing lateral invocation.
+	// Owned presentation metadata for an aliased VALUES source. It never
+	// changes the source schema, frame authority, or executable expressions.
+	RangeName     string
+	ColumnAliases []string
 }
 
 // Only a physical literal or this execution's imported parameter is row-free.

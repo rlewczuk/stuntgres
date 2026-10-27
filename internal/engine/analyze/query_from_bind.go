@@ -483,6 +483,25 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 				ns.Columns[0].Descriptor.Name = n.Name.Text
 			}
 		}
+		// Retain the accepted range occurrence and final namespace labels for
+		// nonexecuting presentation. No output schema or frame is rewritten.
+		aliases := func() []string {
+			names := make([]string, len(ns.Columns))
+			for i, column := range ns.Columns {
+				names[i] = column.Descriptor.Name
+			}
+			return names
+		}
+		switch source := root.(type) {
+		case *plan.DerivedNode:
+			source.RangeName, source.ColumnAliases = n.Name.Text, aliases()
+		case *plan.WorktableScanNode:
+			source.RangeName, source.ColumnAliases = n.Name.Text, aliases()
+		case *plan.FunctionFromNode:
+			source.RangeName, source.ColumnAliases = n.Name.Text, aliases()
+		case *plan.ProjectNode:
+			source.RangeName, source.ColumnAliases = n.Name.Text, aliases()
+		}
 		q := QueryQualifier{Name: n.Name.Text, Alias: n.Name.Text, Columns: ns.Columns}
 		if _, table := n.Input.(*parser.TableReference); table {
 			q.Ref, q.Schema, q.Original = ns.Qualifiers[0].Ref, ns.Qualifiers[0].Schema, ns.Qualifiers[0].Original

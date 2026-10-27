@@ -23,6 +23,9 @@ func recursiveCTEError(code, message string, pos Position) error {
 }
 
 func AnalyzeRecursiveCTEs(statement Statement) (RecursiveCTEAnalysis, error) {
+	if explanation, ok := statement.(*Explain); ok {
+		statement = explanation.Statement
+	}
 	definitions := StatementWith(statement)
 	result := RecursiveCTEAnalysis{Order: make([]int, 0, len(definitions)), Recursive: make([]bool, len(definitions))}
 	if _, ok := statement.(*Merge); ok && StatementWithRecursive(statement) {

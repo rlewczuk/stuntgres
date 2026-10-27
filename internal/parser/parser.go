@@ -67,13 +67,21 @@ func ParseWithOptions(query string, options Options) ([]Statement, error) {
 		return nil, l.err
 	}
 	for i, statement := range l.statements {
+		explanation, _ := statement.(*Explain)
+		if explanation != nil {
+			statement = explanation.Statement
+		}
 		if query, ok := statement.(*Select); ok {
 			first := LeftmostSelect(query)
 			if first != nil && first.Into != nil {
 				destination := *first.Into
 				first.Into = nil
 				statement = &CreateQueryTable{Name: destination, Query: query, Pos: query.Pos, Form: SelectInto}
-				l.statements[i] = statement
+				if explanation != nil {
+					explanation.Statement = statement
+				} else {
+					l.statements[i] = statement
+				}
 			}
 		}
 		var viewQuery *Select
@@ -446,7 +454,7 @@ func (l *lexer) excludePrimaryColumnAddition(add lexeme, column *Column) {
 
 // These are capability boundaries in explicit grammar positions, not lexical
 // classifications. Quoted names never acquire keyword identity.
-var unsupportedCommands = wordSet("truncate drop alter explain analyze analyse with execute deallocate cluster refresh reset checkpoint")
+var unsupportedCommands = wordSet("truncate drop alter analyze analyse with execute deallocate cluster refresh reset checkpoint")
 var unsupportedCreateObjects = wordSet("temporary temp unlogged view index unique function procedure subscription")
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning group having window for using primary unique check references default constraint collate in")
 var unsupportedCommentKinds = wordSet("type database index view collation conversion extension language publication subscription tablespace trigger policy rule statistics")

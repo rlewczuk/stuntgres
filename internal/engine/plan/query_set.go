@@ -37,6 +37,8 @@ type FunctionFromNode struct {
 	RegexpNamespace        bool
 	Captures               []FunctionCorrelation
 	PresenceSlot           int
+	RangeName              string
+	ColumnAliases          []string
 }
 
 func (*FunctionFromNode) logicalNode() {}

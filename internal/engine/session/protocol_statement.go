@@ -21,7 +21,7 @@ func ProtocolPlannedStatement(stmt parser.Statement) bool {
 		return true
 	}
 	switch stmt.(type) {
-	case *parser.DeclareCursor, *parser.CreateQueryTable:
+	case *parser.Explain, *parser.DeclareCursor, *parser.CreateQueryTable:
 		return true
 	}
 	return false
@@ -55,6 +55,8 @@ func ProtocolHasRows(stmt parser.Statement, columns []catalog.Column) bool {
 		return true
 	}
 	switch raw := stmt.(type) {
+	case *parser.Explain:
+		return true
 	case *parser.Select:
 		return true
 	case *parser.Insert:

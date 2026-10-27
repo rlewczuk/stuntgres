@@ -227,6 +227,11 @@ implement its slots, so either import would form a cycle.
   CALL takes the ordinary statement snapshot and catalog replacement fence,
   with a producer-free analyzed Describe and a non-counted CALL completion tag.
   It is not event DDL; procedure CREATE keeps its existing utility admission.
+  EXPLAIN is an extended-protocol planned, row-bearing utility with a
+  non-counted EXPLAIN completion. It is not a SQL PREPARE body and never enters
+  the child command's execution fold group. Classification keeps the wrapper
+  nonmodifying even when its child writes or requests row locks; ordinary child
+  identity and semantic privilege admission still applies.
 - **Timeouts** (`timeout.go`): transaction, idle-in-transaction and idle session
   budgets and timers.
 - **LISTEN/NOTIFY** (`notification_*.go`): records, persistent listener FIFO,

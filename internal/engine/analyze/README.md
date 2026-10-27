@@ -91,6 +91,10 @@ library, and never the root engine or `session`. The engine, the root driver
   binder state in field groups. `NewBinder` builds one over a `Host`; `Describe`
   (`describe_bind.go`) binds a statement. `functions` reaches it through
   `functions.Binder`.
+  The existing alias binder also retains owned immutable range/column labels on
+  actual source, derived, function and VALUES projection occurrences. Labels
+  reflect the final accepted namespace, including scalar-function alias rules,
+  without mutating source schemas or adding execution stages.
   Installed heap-verification calls retain their exact provider slot and four
   OUT fields, use shared named/default coercion, and map written source
   occurrences to canonical inputs for frozen-literal capture.

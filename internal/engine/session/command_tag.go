@@ -27,6 +27,8 @@ func ForeignDDLTag(s *parser.ForeignDDL) string {
 // Count formatting belongs to Execute after the actual statement has succeeded.
 func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, counted bool, insert bool, ok bool) {
 	switch s := stmt.(type) {
+	case *parser.Explain:
+		base = "EXPLAIN"
 	case *parser.Call:
 		base = "CALL"
 	case *parser.Insert:

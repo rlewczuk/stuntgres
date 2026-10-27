@@ -4,6 +4,8 @@ package parser
 %union {
  tok lexeme
  stmt Statement
+ explainOptions []ExplainOption
+ explainOption ExplainOption
  dictionaryOptions []DictionaryOption
  dictionaryOption DictionaryOption
  alterDictionary *AlterDictionary
@@ -276,7 +278,7 @@ package parser
 %token <tok> CALL
 %token <tok> PARAMETER
 %token <tok> LANGUAGE LARGE OBJECT DATA WRAPPER
-%token <tok> COPY
+%token <tok> COPY EXPLAIN
 %token <tok> TRUNCATE CONTINUE
 %token <tok> ARRAY
 %token <tok> HAVING
@@ -406,6 +408,7 @@ package parser
 /* RECURSIVE/XML likewise retain KW_U's contextual identifier/type-tail precedence. */
 /* LISTEN/UNLISTEN/LOAD also retain their former KW_U type-tail precedence. */
 %nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION RECURSIVE XML KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
+%nonassoc EXPLAIN
 /* These words previously used KW_U. Preserve its type-tail and COPY-WITH
  * decisions rather than adding implicit zero-precedence conflicts. */
 %nonassoc RETURN_BODY ATOMIC_BODY
@@ -438,6 +441,11 @@ package parser
 %type <frameBound> frame_bound
 %type <frameExclusion> window_exclusion
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization role_selection lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> explain explainable
+%type <explainOptions> explain_option_list explain_legacy
+%type <explainOption> explain_option
+%type <tok> explain_option_name explain_word
+%type <expr> explain_option_value explain_optional_value
 %type <stmt> foreign_statement
 %type <foreignDDL> foreign_wrapper_head foreign_wrapper_definition foreign_server_head foreign_server_definition foreign_mapping_head foreign_table_head foreign_import_head foreign_alter_wrapper_head foreign_alter_wrapper_prefix foreign_alter_wrapper
 %type <foreignOptions> foreign_options foreign_option_list foreign_alter_options foreign_alter_option_list
@@ -963,6 +971,7 @@ statement_list: accepted | statement_list ';' separators accepted ;
 accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
 statement: nontransaction_statement | transaction_control ;
 nontransaction_statement: embedded_sql_statement | select | declare_cursor | fetch_cursor | close_cursor | execute_sql
+ | explain
  | generic_statement_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP %prec NAME_LIST { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 } ;
@@ -1002,6 +1011,31 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | foreign_statement
  | notify | listen | unlisten | load
  ;
+explain: EXPLAIN explainable { $$=&Explain{Statement:$2,Pos:$1.pos} }
+ | EXPLAIN explain_legacy explainable { $$=&Explain{Statement:$3,Options:$2,Pos:$1.pos} }
+ | EXPLAIN '(' explain_option_list ')' explainable { $$=&Explain{Statement:$5,Options:$3,Pos:$1.pos} } ;
+explainable: select | insert | update | delete | merge | with_mutation
+ | declare_cursor | execute_sql | create_query_table ;
+explain_legacy: ANALYZE { $$=[]ExplainOption{{Name:"analyze",Pos:$1.pos}} }
+ | VERBOSE { $$=[]ExplainOption{{Name:"verbose",Pos:$1.pos}} }
+ | ANALYZE VERBOSE { $$=[]ExplainOption{{Name:"analyze",Pos:$1.pos},{Name:"verbose",Pos:$2.pos}} } ;
+explain_option_list: explain_option { $$=[]ExplainOption{$1} }
+ | explain_option_list ',' explain_option { $$=append($1,$3) } ;
+explain_option: explain_option_name explain_optional_value { $$=ExplainOption{Name:$1.text,Value:$2,Pos:$1.pos};if $1.keyword!=nil && $1.keyword.token==ANALYZE {$$.Name="analyze"} } ;
+explain_optional_value: /* empty */ { $$=nil } | explain_option_value ;
+explain_option_name: explain_word | ANALYZE ;
+explain_word: name | KW_T | AUTHORIZATION | COLLATION | CONCURRENTLY
+ | CROSS | CURRENT_SCHEMA | FREEZE | FULL | ILIKE | INNER | IS | ISNULL
+ | JOIN | LEFT | LIKE | NATURAL | NOTNULL | OUTER | OVERLAPS | RIGHT
+ | SIMILAR | VERBOSE ;
+explain_option_value: explain_word { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}} }
+ | ON { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}} }
+ | STRING { $$=LiteralExpr{Value:Value{Kind:StringValue,Text:$1.text,Pos:$1.pos}} }
+ | NUMBER { $$=LiteralExpr{Value:numberValue($1,"")} }
+ | '+' NUMBER { v:=numberValue($2,"");v.Pos=$1.pos;$$=LiteralExpr{Value:v} }
+ | '-' NUMBER { v:=numberValue($2,"-");v.Pos=$1.pos;$$=LiteralExpr{Value:v} }
+ | TRUE { $$=LiteralExpr{Value:Value{Kind:BooleanValue,Boolean:true,Pos:$1.pos}} }
+ | FALSE { $$=LiteralExpr{Value:Value{Kind:BooleanValue,Pos:$1.pos}} } ;
 load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
 create_database: CREATE DATABASE name database_options {
  $$=&CreateDatabaseStmt{Name:$3.text,Options:$4}
@@ -2772,6 +2806,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | IDENT STRING {if len($1.raw)==1 && ($1.text=="e" || $1.text=="b" || $1.text=="x") {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};requiresDomain:=$1.text!="box" && $1.text!="point" && $1.text!="circle" && $1.text!="line" && $1.text!="lseg" && $1.text!="path" && $1.text!="polygon" && $1.text!="tsvector" && $1.text!="tsquery" && $1.text!="tid" && $1.text!="macaddr" && $1.text!="macaddr8" && $1.text!="inet" && $1.text!="cidr" && $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money" && $1.text!="pg_lsn";$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:requiresDomain} }
  | KW_U STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:$1.text!="path"} }
  | XML STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:true} }
+ | EXPLAIN STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:true} }
  | KW_C STRING { if $1.text!="json" {sqllex.(*lexer).syntax($2);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | column_reference %prec NAME_LIST { $$=$1 }
  | name '.' col_label STRING {raw,ok:=qualifiedTypedLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos,RequiresDomain:$1.text!="pg_catalog"}}
@@ -3457,7 +3492,7 @@ setting_word: setting_word_without_between | BETWEEN ;
 non_between_name: window_name | PARTITION | FRAME_UNIT | MATCH | PERIOD ;
 window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD
  | TRIGGER | EVENT
- | VACUUM
+ | VACUUM | EXPLAIN
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
@@ -3475,6 +3510,7 @@ name: non_between_name | BETWEEN | PL_SLICE ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | PL_SLICE
+ | EXPLAIN
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | TRIGGER | EVENT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
@@ -3514,10 +3550,10 @@ generic_word_without_exists: generic_word_base | WITH ;
  * statement. Preserve its generic-word use in other syntax without letting
  * that fallback compete with the empty legacy VACUUM option prefix. */
 generic_statement_word: generic_word_base_without_vacuum | WITH | EXISTS ;
-generic_word_base: generic_word_base_without_vacuum | VACUUM ;
+generic_word_base: generic_word_base_without_vacuum | VACUUM | EXPLAIN ;
 /* The RANGE declaration has its own frame-unit token frontier; ENUM keeps
  * generic unsupported-word diagnostics without accepting a range body. */
-generic_word_without_frame: generic_word_base_without_vacuum_frame | VACUUM | WITH | EXISTS ;
+generic_word_without_frame: generic_word_base_without_vacuum_frame | VACUUM | EXPLAIN | WITH | EXISTS ;
 generic_word_base_without_vacuum: generic_word_base_without_vacuum_frame | FRAME_UNIT ;
 generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT

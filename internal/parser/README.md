@@ -46,6 +46,13 @@ single-statement limit of driver calls) belong to callers.
 - Standalone `Call` retains the command position and the positioned shared
   `FunctionExpr` argument/notation syntax. Raw expression visitors include every
   actual, including pure OUT placeholders; CALL remains an unreserved name.
+- `Explain` retains its child statement, command `Position` and ordered
+  `ExplainOption{Name, Value, Pos}` entries. An omitted value is nil; literals
+  retain `LiteralExpr` kinds and identifier values use `ColumnExpr`. All
+  positions refer to the original complete input, including legacy options.
+  Query/source and mutation-target discovery inspect the child for planning;
+  the wrapper itself is not modifying and exposes no executable WITH namespace.
+  SQL PREPARE and SQL routine-body grammar do not gain utility eligibility.
 - Routine signature types retain SETOF in the AST for declaration validation,
   including positioned named/mode-bearing formals. The lexer scopes its type
   token to formal declarations (excluding defaults), the first token of an actual
@@ -283,6 +290,7 @@ feature prefix.
 - CTE SEARCH and recursive views: `RUN='^Test(CTESearch|CreateRecursiveView)'`
 - Access methods and operator families: `RUN='^Test(AccessMethodGrammar|OperatorFamilyParser)$'`
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`
+- EXPLAIN wrapper/options, child positions and traversal: `RUN='^TestExplainParser'`
 - Typed literals and operators: `RUN='^Test(GeometryConversionCLiteralSyntax|INETSubnetParser)$'`
 - Database creation: `RUN='^TestCreateDatabase'`
 - PL block/conditional/control syntax and full consumption: `RUN='^TestPLpgSQL(ConditionalParser|LoopParser|WhileParser|QueryLoopParser|ParserFullConsumption)$'`

@@ -31,13 +31,15 @@ func (n *AggregateNode) DiscardableGrouping() bool {
 // Its output is execution-private; it never owns captured relation pins.
 type DerivedNode struct {
 	QuerySchema
-	Query        *Query
-	CTE          *CTEDefinition
-	Table        *parser.TableReference
-	Ordinal      int
-	ScanFrame    uint32
-	Demand       []bool
-	PresenceSlot int
+	Query         *Query
+	CTE           *CTEDefinition
+	Table         *parser.TableReference
+	Ordinal       int
+	ScanFrame     uint32
+	Demand        []bool
+	PresenceSlot  int
+	RangeName     string
+	ColumnAliases []string
 }
 
 // DistinctNode owns source-typed projected tuples. Its parent projection reads

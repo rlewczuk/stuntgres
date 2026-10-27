@@ -9,6 +9,27 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
+EXPLAIN shares the description-only binder, source admission and rule/view
+validation with Prepare. Its command boundary returns before execution fold
+planning, source capture, provider callbacks, DML startup, modifying CTE
+activation and tuple locking. Bound graphs and expression presentation remain
+activation-local; prepared descriptions retain only ordinary immutable
+dependency/parameter captures and the wrapper's single `QUERY PLAN` TEXT schema.
+Their fold owner is inert: EXPLAIN never grants child fold-publication rights,
+even during Describe or protocol Parse/Bind, and retains no accepted generation.
+The renderer describes actual logical stages and rewritten commands, with
+detached maintenance statistics or labelled deterministic heuristics. It never
+counts child rows or evaluates expressions to produce a plan. Results own their
+text lines and complete with the non-counted EXPLAIN command tag.
+Window clauses are resolved through their owning stage's canonical specification
+indices, and SRF outputs through that stage's fixed call/scalar slots. Verbose
+outputs omit private grouping identities and reserved, not-yet-produced SRF
+slots; neither is an executable SQL output expression.
+UPDATE, DELETE and MERGE RETURNING expressions and their correlated subplans
+retain the combined target/source candidate frame. INSERT RETURNING instead
+uses the produced target row with its accepted target alias, independently of
+input-query labels. OLD/NEW presentation does not replace source ownership.
+
 Routine invocation activates concrete checked inputs/results without changing
 catalog declarations. Session-private SQL analysis and PL program retention each
 keep only the last specialization, keyed by complete usages, declaration/name
@@ -1158,6 +1179,12 @@ session, transaction, prepared-analysis and typed-frame authorities.
   `StatementScope.Finish`'s disposal; no timer callback mutates the transaction.
 
 ## Testing
+
+Logical EXPLAIN ownership/presentation and nonexecution boundary units use
+`RUN='^TestExplain'`. Their real prepared owners must retain no accepted child
+fold group; the installed foreign capability must remain unopened. The render
+cancellation context targets the renderer's cooperative context boundary and
+must follow that boundary if its owning method is renamed.
 
 Connectby completion, reconstruction, remapping and descriptor units share
 `RUN='^TestConnectby'`; provider manifest/owner units use `RUN='^TestTablefunc'`.

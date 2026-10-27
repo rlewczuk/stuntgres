@@ -198,7 +198,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 	case *plan.RowLockNode:
 		next = &plan.RowLockNode{QuerySchema: schema, Child: child(n.Child), Marks: n.Marks, FirstMode: n.FirstMode}
 	case *plan.SourceNode:
-		next = &plan.SourceNode{QuerySchema: schema, Ref: ref(n.Ref), Occurrence: n.Occurrence, PresenceSlot: n.PresenceSlot}
+		next = &plan.SourceNode{QuerySchema: schema, Ref: ref(n.Ref), Occurrence: n.Occurrence, PresenceSlot: n.PresenceSlot, RangeName: n.RangeName, ColumnAliases: n.ColumnAliases}
 	case *plan.JoinNode:
 		next = &plan.JoinNode{QuerySchema: schema, Kind: n.Kind, Left: child(n.Left), Right: child(n.Right), Predicate: expression(n.Predicate), LeftWidth: n.LeftWidth, RightWidth: n.RightWidth, Merges: expressions(n.Merges), ViewOrdinal: n.ViewOrdinal, CorrelatedRight: n.CorrelatedRight, Frame: n.Frame, CorrelationPrefix: n.CorrelationPrefix, CorrelationIdentityPrefix: n.CorrelationIdentityPrefix, Captures: n.Captures, PresenceSlot: n.PresenceSlot}
 	case *plan.SingletonNode:
@@ -221,7 +221,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		}
 		next = &copy
 	case *plan.ProjectNode:
-		next = &plan.ProjectNode{QuerySchema: schema, Child: child(n.Child), Expressions: expressions(n.Expressions), AnalysisExpressions: expressions(n.AnalysisExpressions), FrozenValues: n.FrozenValues, Frame: n.Frame, Syntax: n.Syntax, CTEOwner: n.CTEOwner, HasTargetSet: n.HasTargetSet}
+		next = &plan.ProjectNode{QuerySchema: schema, Child: child(n.Child), Expressions: expressions(n.Expressions), AnalysisExpressions: expressions(n.AnalysisExpressions), FrozenValues: n.FrozenValues, Frame: n.Frame, Syntax: n.Syntax, CTEOwner: n.CTEOwner, HasTargetSet: n.HasTargetSet, RangeName: n.RangeName, ColumnAliases: n.ColumnAliases}
 	case *plan.SetNode, *plan.RecursiveUnionNode:
 		set := QuerySetNode(node)
 		copy := *set

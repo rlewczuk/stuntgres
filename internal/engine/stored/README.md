@@ -5,6 +5,13 @@ descriptors carry (views, rules, policies, routine recipes), the renderers that
 turn them back into SQL, and the mappers that retag and remap them. View, rule
 and policy DDL decisions and rule rewriting live in [`view`](../view/README.md).
 
+The expression deparser is also the presentation owner for nonexecuting logical
+plans. Callers supply bound column/stage/subquery presentation through its
+existing callbacks; no callback evaluates an expression. Query remapping retains
+immutable range/column aliases for source, derived, function and aliased VALUES
+occurrences, sharing their alias slices while replacing executable identities,
+schemas and expressions. Distinct self-join occurrences remain distinct.
+
 SQL/PL routines share callable captures. Language/body kind, declaration replay
 sources and typed local Usages participate in validation, equivalence and remap;
 declared pseudo signatures pass the same determinability and language checks as

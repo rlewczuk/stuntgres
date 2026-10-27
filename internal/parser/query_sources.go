@@ -22,6 +22,9 @@ func VisitQueryExpressions(statement Statement, inspect func(Expr) error) error 
 
 // recursiveLegality changes only SubLink context/order, never ordinary source admission.
 func visitQuerySources(statement Statement, visitQuery func(*Select) error, visitTable func(*TableReference, *Select) error, classify []func(*TableReference, bool, string), resolved func(*TableReference, *CommonTableExpression, string) error, visible []*CommonTableExpression, context string, recursiveLegality bool, inspect ...func(Expr) error) error {
+	if explanation, ok := statement.(*Explain); ok {
+		statement = explanation.Statement
+	}
 	var pending []string
 	var query func(*Select) error
 	var queryBody func(*Select) error

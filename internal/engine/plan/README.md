@@ -22,6 +22,16 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   `DistinctOnNode`, `JoinNode`, `LimitNode`, `EvaluationNode`,
   `WorktableScanNode`, `RecursiveUnionNode`, `RowLockNode`, `SetNode`,
   `FunctionFromNode`, `SetProjectNode` and `WindowNode`.
+  Source, derived, function and alias-bound VALUES projection occurrences retain
+  immutable range names and column aliases for presentation; these labels never
+  change schemas, expression slots, provenance or execution authority.
+- **Logical EXPLAIN estimates** (`explain.go`): `EstimateExplainNode` consumes
+  detached child/source estimates over the closed node family, without
+  evaluation or source access. Inclusive logical work and output-cardinality
+  heuristics are finite, nonnegative and saturated; display rounds rows upward.
+  Only physical literals affect filter/bound heuristics. Presence-only inactive
+  stages preserve child estimates; mutation estimates separate candidates from
+  emitted RETURNING rows.
 - **Plan records** (`query_records.go`, `query_search.go`, `query.go`,
   `expression_window.go`, `expression_aggregate.go`): `SortKey`, `Grouping`,
   `AggregateCall`, `WindowCall`, `WindowOperation` (and its `Window*`
@@ -215,6 +225,10 @@ remap, retag, conditional planning, join legality, aggregate binding, defaults,
 without aliases.
 
 ## Testing
+
+Logical EXPLAIN arithmetic and closed-node units use `RUN='^TestExplain'`.
+Expectations are independently authored over actual logical nodes; estimates
+must never inspect a parameter value, evaluate an expression or access rows.
 
 Package units cover cast IO/binary sizing, multibyte boundaries, NULL, retained
 Rebuild, IO volatility and the walk through installed-routine wrappers. The

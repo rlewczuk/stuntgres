@@ -244,6 +244,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.Explain:
+		return e.describeExplain(scope, s)
 	case *parser.Do, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateCast, *parser.DropCast:
 		return Description{}, nil
 	case *parser.ForeignDDL:
@@ -348,6 +350,14 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return Description{}, err
 	}
+	return e.describeBoundOperationLocked(scope, stmt, auth, nil)
+}
+
+// The same description-only binding and rewrite admission serves Prepare and
+// EXPLAIN. Its capture marks an EXPLAIN activation: the graph is borrowed only
+// here, and its description has no child fold-publication rights.
+func (e *Engine) describeBoundOperationLocked(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, capture *explainBound) (Description, error) {
+	op := scope.Op
 	b, err := e.describeScoped(scope, stmt, auth, nil)
 	if err != nil {
 		return Description{}, err
@@ -384,6 +394,9 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return Description{}, err
 		}
 		b.Dependencies = append(b.Dependencies, program.Events...)
+		if capture != nil {
+			capture.Rules = &program
+		}
 		for _, command := range program.Commands {
 			if command.Binding.Relation != nil {
 				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: command.Binding.Ref, Revision: command.Binding.Relation.Revision()})
@@ -432,7 +445,16 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			scope.sqlRoutine.plCallBinding = &b
 		}
 	}
-	return Description{Parameters: b.Parameters, Results: results, CatalogOwner: auth.Catalog.Owner(), CatalogEpoch: auth.Catalog.Epoch(), Temporals: b.Prepared.Temporals, Types: b.Prepared.Types, Sequences: cell, Regtypes: regtypes, Analysis: prepared, Folds: NewPreparedFolds(), PlanOwner: op.Session.SessionToken, PlanGeneration: op.Session.DiscardPlansGeneration}, nil
+	if capture != nil {
+		capture.Binding = b
+	}
+	var folds *PreparedFolds
+	if capture != nil {
+		folds = &PreparedFolds{}
+	} else {
+		folds = NewPreparedFolds()
+	}
+	return Description{Parameters: b.Parameters, Results: results, CatalogOwner: auth.Catalog.Owner(), CatalogEpoch: auth.Catalog.Epoch(), Temporals: b.Prepared.Temporals, Types: b.Prepared.Types, Sequences: cell, Regtypes: regtypes, Analysis: prepared, Folds: folds, PlanOwner: op.Session.SessionToken, PlanGeneration: op.Session.DiscardPlansGeneration}, nil
 }
 
 // requiredRef is the exact acquired DML/utility target; query source occurrences

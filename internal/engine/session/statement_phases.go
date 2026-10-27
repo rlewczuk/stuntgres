@@ -25,7 +25,7 @@ func SnapshotTargetAdmission(stmt parser.Statement) bool {
 // catalog-replacement read fence for its whole run.
 func ReplacementRead(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
-	case *parser.Call, *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard, *parser.Truncate:
+	case *parser.Explain, *parser.Call, *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard, *parser.Truncate:
 		return true
 	case *parser.Comment:
 		return s.Kind == parser.CommentTable || s.Kind == parser.CommentForeignTable || s.Kind == parser.CommentColumn

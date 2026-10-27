@@ -53,6 +53,9 @@ func HasModifyingCTE(statement Statement) bool {
 // VisitMutationTargets visits AST command occurrences, not FROM names. A target
 // remains physical even when a visible CTE has the same spelling.
 func VisitMutationTargets(statement Statement, visit func(Statement) error) error {
+	if explanation, ok := statement.(*Explain); ok {
+		statement = explanation.Statement
+	}
 	switch s := statement.(type) {
 	case *CreateQueryTable:
 		statement = s.Query

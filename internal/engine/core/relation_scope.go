@@ -25,6 +25,12 @@ import (
 
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (err error) {
+	if explanation, ok := stmt.(*parser.Explain); ok {
+		// Child identities and semantic privileges are admitted in Describe
+		// mode. Planning writes and FOR UPDATE never acquires tuple locks or
+		// enters write eligibility, CTE activation, or command startup.
+		return s.AcquireRelation(explanation.Statement, false)
+	}
 	// Every root, including nested PL and SQL-demand roots, captures its name
 	// environment before admission can wait. Lexical activations own this state.
 	if err := s.selectPreparedAnalysis(stmt); err != nil {

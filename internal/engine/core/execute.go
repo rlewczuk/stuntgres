@@ -41,6 +41,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := scope.executionContext()
 	switch stmt.(type) {
+	case *parser.Explain:
+		return e.executeExplain(scope, stmt.(*parser.Explain), count, importFrame)
 	case *parser.LockTable:
 		// AcquireRelation already performed the actual relation-lock admission,
 		// including nested routine commands. Only completion belongs here.

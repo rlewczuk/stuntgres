@@ -227,7 +227,7 @@ var keywords = [...]keyword{
 	{"exclusive", Unreserved, true, EXCLUSIVE},
 	{"execute", Unreserved, true, EXECUTE},
 	{"exists", ColumnName, true, EXISTS},
-	{"explain", Unreserved, true, 0},
+	{"explain", Unreserved, true, EXPLAIN},
 	{"expression", Unreserved, true, 0},
 	{"extension", Unreserved, true, EXTENSION},
 	{"external", Unreserved, true, ROUTINE_EXTERNAL},
