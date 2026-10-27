@@ -121,6 +121,8 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Conversion:
 		return d.Owner, authorization.ACLValue{}, nil
+	case *catalog.Statistics:
+		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.OperatorFamily:
 		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.OperatorClass:
@@ -157,7 +159,7 @@ func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
 	if d.Kind() == ids.TablespaceObject {
 		return authorization.CreatePrivilege
 	}
-	if d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
+	if d.Kind() == ids.StatisticsObject || d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
 		return 0
 	}
 	if d.Kind() == ids.ExtensionObject || d.Kind() == ids.TSDictionaryObject || d.Kind() == ids.TSTemplateObject || d.Kind() == ids.TSConfigurationObject {
@@ -334,6 +336,8 @@ func (v View) Check(env Environment, req Requirement) error {
 			kind = "collation"
 		} else if d.Kind() == ids.ConversionObject {
 			kind = "conversion"
+		} else if d.Kind() == ids.StatisticsObject {
+			kind = "statistics object"
 		} else if d.Kind() == ids.OperatorFamilyObject {
 			kind = "operator family"
 		} else if d.Kind() == ids.OperatorClassObject {

@@ -124,6 +124,25 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		}
 		return "collation " + name
 	}
+	if d, ok := read.Statistics(base); ok {
+		name := catalog.DependencyIdentifier(d.Name())
+		if path != nil {
+			visible := false
+			for _, ns := range path {
+				if namespace, ok := read.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
+					continue
+				}
+				if a, ok := read.LookupName(ids.NameKey{ClassID: ids.StatisticExtClassID, Namespace: ns, Name: d.Name()}); ok {
+					visible = a == d.Address()
+					break
+				}
+			}
+			if !visible {
+				name = catalog.DependencyIdentifier(read.Get(d.Namespace()).Name()) + "." + name
+			}
+		}
+		return "statistics object " + name
+	}
 	if d, ok := read.Conversion(base); ok {
 		name := catalog.DependencyIdentifier(d.Name())
 		if path != nil {

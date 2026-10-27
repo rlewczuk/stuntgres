@@ -12,6 +12,15 @@ the authority behind evaluation capabilities in the root
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
 
+`StatisticsIO` binds the released internal statistics input/output/send
+declarations through the ordinary signature and coercion owners. Calls are
+strict; non-NULL input delegates to the rejecting concrete codec. Output uses
+the invocation's presentation environment and send shares frozen serialized
+bytes as BYTEA. No collector or public non-NULL construction API is introduced.
+Input/output retain immutable declaration volatility; send is STABLE and never
+planning-folded. Receive has released STABLE catalog metadata but no callable
+INTERNAL-argument provider.
+
 Installed `TablefuncCrosstab` nodes retain immutable arguments and the admitted
 record or named-composite usage. They are strict, stable, never planning-folded
 sources; no SQL, catalog authority, cursor or runtime rows are retained on them.
@@ -550,6 +559,7 @@ behavior is tested only in `reference/`
 ([docs/TESTING.md](../../../docs/TESTING.md)).
 Datetime sleep source admission and scalar-once lifetime use
 `RUN='^TestDatetimeSleepScalarSource$'`, also with `RACE=1`.
+Statistics I/O volatility and folding units use `RUN='^TestStatisticsObjectIO'`.
 
 Native ordered support state, tuple ownership and cancellation units use
 `RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in

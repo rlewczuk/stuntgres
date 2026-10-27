@@ -70,6 +70,12 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 		}
 		v.ltree, other.ltree = nil, nil
 	}
+	if v.statistics != nil || other.statistics != nil {
+		if !v.validStatistics() || !other.validStatistics() || *v.statistics != *other.statistics {
+			return false, nil
+		}
+		v.statistics, other.statistics = nil, nil
+	}
 	v.typ, other.typ = nil, nil
 	if math.Float64bits(v.floating) != math.Float64bits(other.floating) {
 		return false, nil

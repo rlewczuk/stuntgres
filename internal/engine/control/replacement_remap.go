@@ -127,6 +127,13 @@ func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddr
 			n.ObjectNamespace = dest
 		}
 		d = &n
+	case *catalog.Statistics:
+		n := *r
+		n.ObjectAddress = target
+		if dest, ok := mapping[n.Namespace()]; ok {
+			n.ObjectNamespace = dest
+		}
+		d = &n
 	case *catalog.Conversion:
 		namespace, handler := r.Namespace(), r.Handler
 		if dest, ok := mapping[namespace]; ok {

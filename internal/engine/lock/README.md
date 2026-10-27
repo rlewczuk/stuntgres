@@ -16,8 +16,8 @@ engine.
   engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
   detached from its session (`DetachPrepared`).
 - **Resources and modes.** A `Resource` is a real relation, type, namespace,
-  collation, conversion, cast, procedure, text-search template/dictionary, access
-  method, operator family/class or shared role (`ids.ObjectRef`),
+  collation, conversion, statistics, cast, procedure, text-search template/dictionary,
+  access method, operator family/class or shared role (`ids.ObjectRef`),
   an exact catalog destination binding (`Name`),
   a role attribute tuple claim (`RoleTuple`), a logical row (`Row`), an interned
   unique key (`PinUniqueKey`), transaction completion (`CompletionOf`) or a

@@ -204,6 +204,8 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		return d.binaryBits(p, typmod)
 	case Inet, Cidr:
 		return d.binaryNetwork(p)
+	case PgNDistinct, PgDependencies, PgMCVList:
+		return v, 0, failure("0A000", "cannot accept a value of type "+d.name)
 	case PgNodeTree:
 		return v, 0, failure("0A000", "cannot accept a value of type pg_node_tree")
 	case Void:
@@ -307,6 +309,11 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		return appendBinaryBits(dst, v), nil
 	case Inet, Cidr:
 		return appendBinaryNetwork(dst, v), nil
+	case PgNDistinct, PgDependencies, PgMCVList:
+		if !v.validStatistics() {
+			return dst, fmt.Errorf("invalid statistics payload")
+		}
+		return append(dst, v.statistics.binary...), nil
 	case PgNodeTree:
 		text, err := d.OutputWithEnvironment(ctx, v, env)
 		return append(dst, text...), err

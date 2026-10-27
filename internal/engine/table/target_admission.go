@@ -49,6 +49,8 @@ func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) 
 		return Target{}, false, nil
 	}
 	switch v := stmt.(type) {
+	case *parser.CreateStatistics:
+		return Target{Name: v.Relation, Mode: lock.ShareUpdateExclusive}, true, nil
 	case *parser.CreateTrigger:
 		return Target{Name: v.Table, Mode: lock.ShareRowExclusive}, true, nil
 	case *parser.AlterTrigger:

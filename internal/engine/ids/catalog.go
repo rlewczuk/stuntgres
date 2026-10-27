@@ -57,6 +57,7 @@ const (
 	AccessMethodProcedureClassID OID = 2603
 	AccessMethodClassID          OID = 2601
 	LargeObjectClassID           OID = 2995
+	StatisticExtClassID          OID = 3381
 	PGCatalogNamespaceOID        OID = 11
 	PGToastNamespaceOID          OID = 99
 	PublicNamespaceOID           OID = 2200
@@ -97,4 +98,5 @@ const (
 	CastObject
 	LanguageObject
 	TSConfigurationObject
+	StatisticsObject
 )

@@ -333,6 +333,7 @@ package parser
 %token <tok> COLLATE
 %token <tok> COLLATION
 %token <tok> CONVERSION
+%token <tok> STATISTICS
 %token <tok> REFRESH VERSION
 %token <tok> EXTENSION DATABASE
 %token <tok> ISNULL NOTNULL DISTINCT UNKNOWN
@@ -409,7 +410,7 @@ package parser
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
 /* RECURSIVE/XML likewise retain KW_U's contextual identifier/type-tail precedence. */
 /* LISTEN/UNLISTEN/LOAD also retain their former KW_U type-tail precedence. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION RECURSIVE XML KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION RECURSIVE XML KW_C CONVERSION STATISTICS FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
 %nonassoc EXPLAIN
 /* These words previously used KW_U. Preserve its type-tail and COPY-WITH
  * decisions rather than adding implicit zero-precedence conflicts. */
@@ -533,6 +534,9 @@ package parser
 %type <element> typed_element
 %type <stmt> create_collation alter_collation drop_collation
 %type <stmt> create_conversion alter_conversion drop_conversion
+%type <stmt> create_statistics drop_statistics
+%type <identifiers> statistics_kinds
+%type <tok> statistics_create_head statistics_alter_head
 %type <stmt> create_dictionary alter_dictionary drop_dictionary
 %type <tok> dictionary_word
 %type <dictionaryOptions> dictionary_options
@@ -769,6 +773,7 @@ package parser
 %type <tok> column_suffix
 %type <tok> name non_between_name setting_word setting_word_without_between role_name role_option_word type_name bare_label col_label generic_word generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
 %type <tok> generic_statement_word generic_word_base_without_vacuum
+%type <tok> generic_create_word
 %type <tok> predicate_suffix where_predicate_suffix
 %type <tok> role_selection_target role_selection_assignment
 %type <tok> cast_function
@@ -1002,6 +1007,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | create_database
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
+ | drop_statistics
  | alter_dictionary | drop_dictionary
  | alter_configuration | drop_configuration
  | alter_operator | drop_operator
@@ -1660,6 +1666,7 @@ create: create_table { $$=$1 }
  | create_domain { $$=$1 }
  | create_collation { $$=$1 }
  | create_conversion { $$=$1 }
+ | create_statistics { $$=$1 }
  | create_dictionary { $$=$1 }
  | create_configuration { $$=$1 }
  | create_function { $$=$1 }
@@ -1672,7 +1679,7 @@ create: create_table { $$=$1 }
  | create_enum { $$=$1 }
  | create_composite { $$=$1 }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
- | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
+ | CREATE generic_create_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 /* Use a distinct unreserved head token, like DOMAIN, so generic-word
  * reductions cannot steal another CREATE declaration's continuation. */
 create_enum: CREATE TYPE relation_name AS enum_word '(' enum_labels ')' {
@@ -1790,6 +1797,15 @@ alter_conversion: conversion_alter_head RENAME TO name {$1.Action="rename";$1.Ta
 drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP CONVERSION IF EXISTS relation_names drop_mode {$$=&DropConversion{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}}
  | DROP DEFAULT {sqllex.(*lexer).syntax($2);return 1} ;
+statistics_create_head: CREATE STATISTICS {$$=$1} ;
+statistics_kinds: /* empty */ {$$=nil}
+ | '(' grant_column_list ')' {$$=$2} ;
+create_statistics: statistics_create_head relation_name statistics_kinds ON grant_column_list FROM relation_name {$$=&CreateStatistics{Name:$2,Kinds:$3,Columns:$5,Relation:$7,Pos:$1.pos}}
+ | statistics_create_head statistics_kinds ON grant_column_list FROM relation_name {$$=&CreateStatistics{Kinds:$2,Columns:$4,Relation:$6,Pos:$1.pos}}
+ | statistics_create_head IF NOT EXISTS relation_name statistics_kinds ON grant_column_list FROM relation_name {$$=&CreateStatistics{Name:$5,Kinds:$6,Columns:$8,Relation:$10,IfNotExists:true,Pos:$1.pos}} ;
+drop_statistics: DROP STATISTICS relation_names drop_mode {$$=&DropStatistics{Names:$3,Mode:$4,Pos:$1.pos}}
+ | DROP STATISTICS IF EXISTS relation_names drop_mode {$$=&DropStatistics{Names:$5,Mode:$6,IfExists:true,Pos:$1.pos}} ;
+statistics_alter_head: ALTER STATISTICS {if !sqllex.(*lexer).options.StatisticsOwnerReplay {sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported");return 1};$$=$1} ;
 create_aggregate: CREATE AGGREGATE relation_name '(' aggregate_arguments ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments($5,nil);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Options:$8,Pos:$1.pos}}
  | CREATE AGGREGATE relation_name '(' ORDER BY grant_routine_argument_list ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments(nil,$7);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Ordered:true,Options:$10,Pos:$1.pos}}
  | CREATE AGGREGATE relation_name '(' grant_routine_argument_list ORDER BY grant_routine_argument_list ')' '(' operator_options ')' {args,ok:=sqllex.(*lexer).aggregateUtilityArguments($5,$8);if !ok{return 1};$$=&CreateAggregate{Name:$3,Arguments:args,Ordered:true,DirectArgs:len($5),Options:$11,Pos:$1.pos}} ;
@@ -3492,7 +3508,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION
- | CONVERSION
+ | CONVERSION | STATISTICS
  | RECURSIVE | XML
  | string_word
  | TRUNCATE | CONTINUE
@@ -3547,7 +3563,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION
  | SQLJSON_PARSE
- | CONVERSION
+ | CONVERSION | STATISTICS
  | RECURSIVE | XML
  | VACUUM
  | routine_name_word
@@ -3577,14 +3593,17 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | GROUPING | SETS | ROLLUP | CUBE ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
+/* A dedicated declaration head must not reduce to the unsupported CREATE
+ * fallback at EOF. STATISTICS remains an ordinary unreserved word elsewhere. */
+generic_create_word: generic_word_base_without_vacuum_frame | FRAME_UNIT | VACUUM | EXPLAIN | ANALYZE | WITH | EXISTS ;
 /* Bare maintenance commands are complete native statements. Preserve their
  * generic-word uses elsewhere without competing with empty legacy options. */
 generic_statement_word: generic_word_base_without_vacuum | WITH | EXISTS ;
 generic_word_base: generic_word_base_without_vacuum | VACUUM | EXPLAIN | ANALYZE ;
 /* The RANGE declaration has its own frame-unit token frontier; ENUM keeps
  * generic unsupported-word diagnostics without accepting a range body. */
-generic_word_without_frame: generic_word_base_without_vacuum_frame | VACUUM | EXPLAIN | ANALYZE | WITH | EXISTS ;
-generic_word_base_without_vacuum: generic_word_base_without_vacuum_frame | FRAME_UNIT ;
+generic_word_without_frame: generic_word_base_without_vacuum_frame | STATISTICS | VACUUM | EXPLAIN | ANALYZE | WITH | EXISTS ;
+generic_word_base_without_vacuum: generic_word_base_without_vacuum_frame | STATISTICS | FRAME_UNIT ;
 generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | TRIGGER | EVENT
@@ -3876,7 +3895,7 @@ role_selection_assignment: /* empty */ { $$=lexeme{} } | TO { $$=$1 } | '=' { $$
 role_selection_target: name | STRING | DEFAULT ;
 schema_owner: name | CURRENT_USER | CURRENT_ROLE | SESSION_USER ;
 schema_table: create_table { $$=$1.(*CreateTable) }
- | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
+ | CREATE generic_create_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 schema_tables: /* empty */ { $$=nil } | schema_tables schema_table { $$=append($1,$2) }
  | schema_tables KW_R { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 }
  | schema_tables UNIQUE { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 } ;
@@ -3910,6 +3929,7 @@ extension_update_options: /* empty */ { $$=nil } | extension_update_options exte
 extension_update_option: TO extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
 alter_owner: ALTER TYPE relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"type",Name:$3,Target:$6,Pos:$1.pos} }
  | ALTER DOMAIN relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"domain",Name:$3,Target:$6,Pos:$1.pos} }
+ | statistics_alter_head relation_name OWNER TO membership_role_spec {$$=&AlterOwner{Kind:"statistics",Name:$2,Target:$5,Pos:$1.pos}}
  | ALTER DATABASE name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"database",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Target:$6,Pos:$1.pos} } ;
 reassign_owned: REASSIGN OWNED BY membership_role_specs TO membership_role_spec { $$=&ReassignOwned{Sources:$4,Target:$6,Pos:$1.pos} } ;
 drop_owned: DROP OWNED BY membership_role_specs drop_mode { $$=&DropOwned{Sources:$4,Mode:$5,Pos:$1.pos} } ;

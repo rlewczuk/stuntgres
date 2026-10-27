@@ -46,6 +46,7 @@ type Definition struct {
 // The static table is the registry: no init() registration. Names must not
 // overlap any family that is still dispatched by the engine's name chain.
 var definitions = [...]Definition{
+	{Names: statisticsIONames, ExactSpelling: true, SharedGates: true, Bind: bindStatisticsIO},
 	{Names: []string{"ordered_set_transition_multi", "rank_final", "dense_rank_final", "percent_rank_final", "cume_dist_final"}, ExactSpelling: true, SharedGates: true, Bind: bindAggregateContextSupport},
 	{Names: []string{"int4larger"}, ExactSpelling: true, SharedGates: true, Bind: bindInt4Larger},
 	{Names: []string{"tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained"}, ExactSpelling: true, SharedGates: true, Bind: bindFTS},

@@ -17,6 +17,18 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
+	3355: {Language: catalog.InternalRoutineLanguage, Source: "pg_ndistinct_in"},
+	3356: {Language: catalog.InternalRoutineLanguage, Source: "pg_ndistinct_out"},
+	3357: {Language: catalog.InternalRoutineLanguage, Source: "pg_ndistinct_recv"},
+	3358: {Language: catalog.InternalRoutineLanguage, Source: "pg_ndistinct_send"},
+	3404: {Language: catalog.InternalRoutineLanguage, Source: "pg_dependencies_in"},
+	3405: {Language: catalog.InternalRoutineLanguage, Source: "pg_dependencies_out"},
+	3406: {Language: catalog.InternalRoutineLanguage, Source: "pg_dependencies_recv"},
+	3407: {Language: catalog.InternalRoutineLanguage, Source: "pg_dependencies_send"},
+	5018: {Language: catalog.InternalRoutineLanguage, Source: "pg_mcv_list_in"},
+	5019: {Language: catalog.InternalRoutineLanguage, Source: "pg_mcv_list_out"},
+	5020: {Language: catalog.InternalRoutineLanguage, Source: "pg_mcv_list_recv"},
+	5021: {Language: catalog.InternalRoutineLanguage, Source: "pg_mcv_list_send"},
 	3231: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_lt"},
 	3232: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_le"},
 	3233: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_eq"},

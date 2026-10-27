@@ -80,6 +80,18 @@ function references once into the destination authority.
   actual owner without assuming schema CREATE grants or a named administrator.
   Restore executes the emitted SQL, recompiles real resources and remaps
   dictionary/template links and stored regdictionary references.
+- **Statistics** (`statistics.go`) serialize canonical named declarations after
+  all ordinary graph phases, in qualified-name order. This includes completed
+  input attribute history and unrelated row events, so reminted OIDs cannot move
+  definitions across data on redump. Stable keys resolve current column spellings;
+  generated original names replay explicitly. Named owner
+  directives pair privileged creation with one immediate owner transfer in the
+  isolated Restore, without enabling ordinary ALTER STATISTICS. Replacement
+  remaps class-qualified object addresses, owner principals and relation refs.
+  The pair record belongs to `ddl`; `schemacmds` performs trusted capture and
+  owner-only COW, while the root driver alone carries and expires that pair.
+  Bootstrap-principal definitions use their named owner directive without a
+  redundant transfer; DEFAULT may name a different authenticated role on replay.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
   ADD MAPPING statements, never COPY provenance. Namespace, mapped dictionary
   and stored alias/default/view dependencies use the ordinary event graph.

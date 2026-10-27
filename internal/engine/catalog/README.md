@@ -81,6 +81,12 @@ private frames, not catalog authority.
   An immutable descriptor-derived class index follows the same canonical state
   setters, candidate overlays and reset/remap paths; dispatch and projection
   do not scan unrelated descriptors. It is neither a name registry nor a cache.
+- **Extended statistics.** `StatisticsProvider` validates schema-bound class
+  3381 definitions, live owner and domain/epoch-bound input relation authority.
+  `StatisticsSelection` owns a fixed, private canonical attribute vector and
+  kind flags; constructors copy caller data. Attributes use stable positive
+  identities, not current dense slots. Definitions own no collected payloads.
+  Selected columns derive AUTO dependencies; namespaces derive NORMAL edges.
 - **Relation layout.** `Relation` keeps identity and the live column shape at the
   top level, the sub-records `ColumnMeta`, `Constraints`, `Security` and
   `History`, and the kind payloads (`SQLIndex`, `Partition`, `Sequence`, `View`,

@@ -58,6 +58,7 @@ type Capture struct {
 	EventTriggers       []*catalog.EventTrigger
 	Dictionaries        []*catalog.TSDictionary
 	Configurations      []*catalog.TSConfiguration
+	Statistics          []*catalog.Statistics
 	Providers           []providerReplay
 	Tables              []table.DumpRelation
 	LargeObjects        []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.

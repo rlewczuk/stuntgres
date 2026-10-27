@@ -1,7 +1,7 @@
 # reference/catalogs
 
 `pg_catalog` relation and type catalogs: `pg_class`, `pg_attribute`, `pg_attrdef`,
-`pg_statistic_ext` (typed empty definitions; CREATE STATISTICS owns population),
+`pg_statistic_ext` (CREATE STATISTICS definitions),
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, `pg_inherits`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
 `pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
@@ -35,7 +35,18 @@ PUBLIC access and current ACL revocation, ordinary-role mutation diagnostics,
 and native controls without privileged PostgreSQL catalog writes. Select the
 family in either native or real-reference mode with
 `make check RUN='^TestReferencePGStatisticExt'` (add `REFERENCE=1` for PostgreSQL).
-Collected statistics and nonempty definition lifecycle are separately owned.
+Statistics lifecycle scenarios include direct/prepared relation-kind admission,
+virtual-column rejection, creation/removal, namespace/temp lookup, NORMAL/AUTO
+cleanup, malformed source positions, bulk ownership and transaction lifecycle,
+held conditional notices, typed NULLs and native definition replay with exact
+paired-owner guards. Native-only phases cover pre-canceled utilities and gated
+external I/O with live statistics definitions. Their family
+selector is `make check RUN='^TestReferenceStatisticsObject'` in either mode.
+Collected statistics remain independently owned.
+Statistics adapter metadata is asserted independently: native database type names
+are exact, while lib/pq returns an empty name for the three unknown statistics
+OIDs. Catalog type identities remain exact; numeric cross-adapter OID witnesses
+use explicit BIGINT casts rather than comparing driver-specific raw carriers.
 
 Type identity scenarios retain attribute privilege identities across rename and
 retire obsolete lookup names.

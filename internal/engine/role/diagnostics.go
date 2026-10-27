@@ -121,6 +121,10 @@ func DependencyDescription(v access.View, path []ids.ObjectAddress, dep access.R
 		kind = "collation "
 		name = strings.TrimPrefix(stored.DependencyObject(read, c.Address(), path), "collation ")
 	}
+	if c, ok := d.(*catalog.Statistics); ok {
+		kind = "statistics object "
+		name = strings.TrimPrefix(stored.DependencyObject(read, c.Address(), path), "statistics object ")
+	}
 	if c, ok := d.(*catalog.Conversion); ok {
 		kind = "conversion "
 		name = strings.TrimPrefix(stored.DependencyObject(read, c.Address(), path), "conversion ")

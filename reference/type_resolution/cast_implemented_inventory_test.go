@@ -27,6 +27,9 @@ func castScalar(name, diagnostic, family string, oid int, category, seed, output
 	return castImplementedType{name: name, diagnostic: diagnostic, family: family, oid: oid, category: category, kind: "b", seed: seed, output: output, storage: true, parameter: true, target: true}
 }
 
+// This inventory requires a genuine non-NULL seed/source. Concrete internal
+// statistics types instead belong to castImplementedNullOnlyTypes, whose
+// dedicated role scenario covers storage, parameters, casts and rejecting input.
 var castImplementedTypes = func() []castImplementedType {
 	types := []castImplementedType{
 		castScalar("bool", "boolean", "Numeric", 16, "B", "t", "t"),

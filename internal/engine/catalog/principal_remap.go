@@ -183,6 +183,14 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 				return err
 			}
 			state.SetDescriptor(addr, &n)
+		case *Statistics:
+			n := *d
+			var err error
+			n.Owner, err = seedOwner(d.Owner, false)
+			if err != nil {
+				return err
+			}
+			state.SetDescriptor(addr, &n)
 		case *Conversion:
 			n := *d
 			var err error

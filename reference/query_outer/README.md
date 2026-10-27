@@ -37,6 +37,10 @@ owners, canonical aggregate signatures and generated constructor relationships
 reuse the native replay helpers; generated identities are checked within each
 owner, not pinned to another backend's allocation sequence. Raw formal-array
 checks retain oid[] and internal "char"[] metadata even for NULL values.
+The complete represented builtin `pg_proc` inventory includes all twelve
+statistics I/O declarations, including non-callable INTERNAL receive metadata.
+Its release-owned TSV facts preserve exact membership and all 28 projected
+fields; use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 
 Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and
 `proceduresHeld` with declaration-owned output metadata checked before iteration.

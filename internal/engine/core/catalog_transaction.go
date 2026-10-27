@@ -233,6 +233,10 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 							}
 						}
 					}
+				case *catalog.Statistics:
+					if candidate.Get(target) == nil && (owner.Relation.Address == target || owner.Namespace() == target) {
+						return catalog.Conflict{}
+					}
 				case *catalog.Conversion:
 					if candidate.Get(target) == nil && (owner.Handler == target || owner.Namespace() == target) {
 						return catalog.Conflict{}

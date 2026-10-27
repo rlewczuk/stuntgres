@@ -111,6 +111,14 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 			}
 		}
 	}
+	if _, statistics := stmt.(*parser.CreateStatistics); statistics {
+		for address, descriptor := range stage.Descriptors() {
+			if _, ok := descriptor.(*catalog.Statistics); ok && stage.Base.Get(address) == nil {
+				created = e.Catalog.Domain.Ref(stage.Base.Epoch(), address)
+				break
+			}
+		}
+	}
 	defer e.DiscardCatalogStage(stage)
 	if _, droppingRoutine := stmt.(*parser.DropRoutine); droppingRoutine {
 		if err := acquireRoutineRetirementRoots(scope, stage); err != nil {
@@ -180,6 +188,8 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 		domainMode = s.Mode
 		cascade = s.Mode == parser.DropCascade
 	case *parser.DropConversion:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
+	case *parser.DropStatistics:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropOperator:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
@@ -367,6 +377,14 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 	host := core.DDLHost{E: e, Op: op, CatalogStage: stage}
 	typeHost, routineHost, schemaHost := tablecmds.TypeHost{tablecmds.TableHost{host}}, RoutineHost{host}, SchemaHost{host}
 	switch s := stmt.(type) {
+	case *parser.CreateStatistics:
+		if err = ddl.StageCreateStatistics(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropStatistics:
+		if err = ddl.StageDropStatistics(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
 	case *parser.CreateConfiguration:
 		if err = ddl.StageCreateConfiguration(schemaHost, auth, s); err != nil {
 			return nil, err

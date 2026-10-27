@@ -125,6 +125,8 @@ func movableImportedIdentity(next *catalog.State, d catalog.Descriptor) bool {
 		return !builtin && !t.Seeded()
 	case *catalog.Collation:
 		return !t.Seeded()
+	case *catalog.Statistics:
+		return true
 	case *catalog.Conversion:
 		return !t.Seeded()
 	case *catalog.TSConfiguration:

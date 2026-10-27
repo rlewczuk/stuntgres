@@ -15,6 +15,18 @@ import (
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 // Fixed OUT type/name facts below follow PostgreSQL REL_18_6 pg_proc.dat.
 var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDeclaration{
+	{catalog.RoutineIdentity{3355, ids.PGCatalogNamespaceOID, "pg_ndistinct_in", "2275"}, catalog.FunctionRoutine, 3361, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{3356, ids.PGCatalogNamespaceOID, "pg_ndistinct_out", "3361"}, catalog.FunctionRoutine, 2275, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{3357, ids.PGCatalogNamespaceOID, "pg_ndistinct_recv", "2281"}, catalog.FunctionRoutine, 3361, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{3358, ids.PGCatalogNamespaceOID, "pg_ndistinct_send", "3361"}, catalog.FunctionRoutine, 17, true, expr.Stable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{3404, ids.PGCatalogNamespaceOID, "pg_dependencies_in", "2275"}, catalog.FunctionRoutine, 3402, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{3405, ids.PGCatalogNamespaceOID, "pg_dependencies_out", "3402"}, catalog.FunctionRoutine, 2275, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{3406, ids.PGCatalogNamespaceOID, "pg_dependencies_recv", "2281"}, catalog.FunctionRoutine, 3402, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{3407, ids.PGCatalogNamespaceOID, "pg_dependencies_send", "3402"}, catalog.FunctionRoutine, 17, true, expr.Stable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{5018, ids.PGCatalogNamespaceOID, "pg_mcv_list_in", "2275"}, catalog.FunctionRoutine, 5017, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{5019, ids.PGCatalogNamespaceOID, "pg_mcv_list_out", "5017"}, catalog.FunctionRoutine, 2275, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{5020, ids.PGCatalogNamespaceOID, "pg_mcv_list_recv", "2281"}, catalog.FunctionRoutine, 5017, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{5021, ids.PGCatalogNamespaceOID, "pg_mcv_list_send", "5017"}, catalog.FunctionRoutine, 17, true, expr.Stable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
 	{catalog.RoutineIdentity{3231, ids.PGCatalogNamespaceOID, "pg_lsn_lt", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{3232, ids.PGCatalogNamespaceOID, "pg_lsn_le", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{3233, ids.PGCatalogNamespaceOID, "pg_lsn_eq", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},

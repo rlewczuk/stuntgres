@@ -126,6 +126,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.ConversionProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(catalog.StatisticsProvider{}); err != nil {
+		return nil, err
+	}
 	if err := e.RegisterCatalogProvider(catalog.AccessMethodProvider{}); err != nil {
 		return nil, err
 	}
@@ -295,6 +298,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return Description{}, nil
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
+		return Description{}, nil
+	case *parser.CreateStatistics, *parser.DropStatistics:
 		return Description{}, nil
 	case *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration:
 		return Description{}, nil

@@ -100,6 +100,8 @@ func TestAnyValueProviderDatums(t *testing.T) {
 				values = append(values, value)
 			} else {
 				switch d.ID() {
+				case sqltype.PgNDistinct, sqltype.PgDependencies, sqltype.PgMCVList:
+					values = append(values, anyValueStatisticsDatum(t, d))
 				case sqltype.ACLItem:
 					for _, grantee := range []uint32{0, 20} {
 						value, err := sqltype.ACLItemValue(d, aclAuthority, grantee, 30, sqltype.ACLPrivilegeMask, sqltype.ACLPrivilegeMask)

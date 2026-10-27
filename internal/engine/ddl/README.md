@@ -62,6 +62,11 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   its domain/epoch. `StageDropSchema` consumes that manifest under one coherent
   current-authority/catalog lock window, validating all bindings before notices
   or removals; it never re-resolves a replacement from the original names.
+- **Statistics** (`statistics.go`): stage schema-bound definitions with immutable
+  selected attributes/kinds, ordered admission and atomic DROP targets.
+  `RestoredStatisticsOwner` retains exact descriptor, namespace and principal
+  generations for one immediate private replay; `schemacmds` owns its trusted
+  capture and owner-only replacement, and the replay driver expires it.
 - **Text-search configurations** (`ts_configuration.go`): ordinary private stages
   resolve namespace CREATE and owner authority, COPY/PARSER, every ordered mapping
   action, rename/schema/owner transfers and DROP targets. Token aliases resolve

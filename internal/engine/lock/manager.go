@@ -594,7 +594,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		overloaded := key.ClassID == ids.ProcedureClassID || key.ClassID == ids.OperatorClassID
 		validSignature := overloaded || key.Signature == ""
 		validClass := (key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID || overloaded ||
-			key.ClassID == ids.CollationClassID || key.ClassID == ids.ConversionClassID ||
+			key.ClassID == ids.StatisticExtClassID || key.ClassID == ids.CollationClassID || key.ClassID == ids.ConversionClassID ||
 			key.ClassID == ids.TSTemplateClassID || key.ClassID == ids.TSDictionaryClassID || key.ClassID == ids.TSConfigurationClassID) && validNamespace ||
 			key.ClassID == ids.NamespaceClassID && key.Namespace == (ids.ObjectAddress{}) ||
 			key.ClassID == ids.CastClassID && key.Namespace == (ids.ObjectAddress{}) && validCastName(key.Name)
@@ -654,7 +654,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid type lock request")
 		}
-	} else if ref.Address.ClassID == ids.CollationClassID || ref.Address.ClassID == ids.ConversionClassID ||
+	} else if ref.Address.ClassID == ids.StatisticExtClassID || ref.Address.ClassID == ids.CollationClassID || ref.Address.ClassID == ids.ConversionClassID ||
 		ref.Address.ClassID == ids.CastClassID || ref.Address.ClassID == ids.EventTriggerClassID ||
 		ref.Address.ClassID == ids.TSTemplateClassID || ref.Address.ClassID == ids.TSDictionaryClassID || ref.Address.ClassID == ids.TSConfigurationClassID {
 		if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 ||

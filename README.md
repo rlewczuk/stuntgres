@@ -100,6 +100,13 @@ autovacuum are implied. Full `pg_statistic`/`pg_stats` SQL readers are separate
 coverage; existing `pg_class` and table-statistics views publish real maintenance
 facts. Logical Dump/Restore transports data, not planner statistics.
 
+`CREATE STATISTICS` creates named or generated simple-column definitions with
+`ndistinct`, `dependencies` and `mcv` kinds; `DROP STATISTICS` supports conditional
+and dependency modes. Definitions appear in `pg_statistic_ext` and survive native
+Dump/Restore with ownership and stable column identities. Creation does not
+collect analyzed payloads. The internal statistics types support real typed NULL
+columns and results, reject non-NULL SQL input, and retain their native metadata.
+
 
 ## Using stuntgres in unit tests
 

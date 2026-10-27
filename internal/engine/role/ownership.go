@@ -71,6 +71,10 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 		next.Owner = target
 		next.ObjectRevision = revision
 		return stage.Replace(&next)
+	case *catalog.Statistics:
+		next := *old
+		next.Owner, next.ObjectRevision = target, revision
+		return stage.Replace(&next)
 	case *catalog.Conversion:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision

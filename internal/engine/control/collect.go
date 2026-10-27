@@ -113,6 +113,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"type", isDumpType, collectTypeDump},
 	{"collation", isDumpCollation, collectCollationDump},
 	{"conversion", isDumpConversion, collectConversionDump},
+	{"statistics", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Statistics); return ok }, collectStatisticsDump},
 	{"namespace", isDumpNamespace, collectNamespaceDump},
 }
 

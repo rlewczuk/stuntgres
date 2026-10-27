@@ -1298,6 +1298,11 @@ session, transaction, prepared-analysis and typed-frame authorities.
 
 ## Testing
 
+Statistics definition/capture/replay invariants use `RUN='^TestStatisticsObject'`.
+Publication units use real provider barriers and exact namespace/name resources,
+join workers before cleanup, and reject retirement or competing bindings without
+adopting successors. Use `RACE=1` for the publication family.
+
 Logical EXPLAIN ownership/presentation and nonexecution boundary units use
 `RUN='^TestExplain'`. Their real prepared owners must retain no accepted child
 fold group; the installed foreign capability must remain unopened. The render

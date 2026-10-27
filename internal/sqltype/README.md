@@ -58,6 +58,19 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   Safe low page-version, reported GIN-version and stored offset mutations are
   not extra validation gates. Undefined corrupt layouts use the ordinary native
   layout error, never fabricated PostgreSQL SQLSTATEs or physical acquisition.
+- `PgNDistinct`, `PgDependencies` and `PgMCVList` are concrete internal base
+  descriptors. Non-NULL text and binary input reject with 0A000; typed NULL
+  remains valid for storage, parameters and results. Checked internal producer
+  constructors `StatisticsValue`/`StatisticsMCVValue` freeze real payloads once;
+  `StatisticsItem` inputs retain no caller slices. Payload fields stay private
+  and compatible retags share backing. Distinct/dependency output uses released
+  map formatting; MCV output follows bytea hex/escape
+  presentation. Send emits the frozen linux/amd64 little-endian serialization
+  without a varlena header. No comparison, collection or public datum constructor
+  follows from descriptor admission.
+  MCV validation distinguishes by-value dimensions (zero deserialized allocation)
+  from fixed/variable by-reference dimensions, checking their serialized and
+  aligned allocation extents independently against the released serializer.
 - `PgLSN` retains unsigned 64-bit positions inline. Its descriptor owns strict
   slash-hex text, canonical uppercase output, typed SQL literals and eight-byte
   big-endian codecs. Comparisons and B-tree ordering use unsigned magnitude.

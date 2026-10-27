@@ -57,6 +57,8 @@ func bindingDuplicate(claim BindingClaim) error {
 		table, constraint, detail = "pg_collation", "pg_collation_name_enc_nsp_index", fmt.Sprintf("Key (collname, collencoding, collnamespace)=(%s, %d, %d) already exists.", key.Name, claim.CollationEncoding, key.Namespace.ObjectID)
 	case ids.ConversionClassID:
 		table, constraint, detail = "pg_conversion", "pg_conversion_name_nsp_index", fmt.Sprintf("Key (conname, connamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
+	case ids.StatisticExtClassID:
+		table, constraint, detail = "pg_statistic_ext", "pg_statistic_ext_name_index", fmt.Sprintf("Key (stxname, stxnamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
 	case ids.CastClassID:
 		source, target, _ := strings.Cut(key.Name, ",")
 		table, constraint, detail = "pg_cast", "pg_cast_source_target_index", fmt.Sprintf("Key (castsource, casttarget)=(%s, %s) already exists.", source, target)

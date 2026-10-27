@@ -97,6 +97,13 @@ single-statement limit of driver calls) belong to callers.
   keyword identity rather than quoted-identifier spelling. Table validation
   retains the action and constraint-name positions in ordinary complete-input
   action lists; execution owns current constraint lookup and authority.
+- Statistics owner replay has a per-call `StatisticsOwnerReplay` option only
+  for the isolated native Restore parser. It yields the shared positioned
+  `AlterOwner` AST; ordinary calls retain the ALTER capability diagnostic.
+  Parsing permission supplies no execution or ownership authority.
+  The dedicated CREATE head cannot fall into generic unsupported-CREATE parsing
+  on incomplete input, without changing STATISTICS's unreserved name legality.
+  A supplied kind list requires at least one identifier.
 
 ### Scratch receivers
 
@@ -311,6 +318,8 @@ Embedded static SQL variants and per-call syntax ownership use
 `RUN='^TestPLpgSQLSQLExecutionParser$'`.
 Routine declaration syntax and positioned CALL/notation/full-input ownership units use
 `RUN='^TestRoutine(ResultDeclarations|ProcedureCall|Attribute)'`.
+Statistics owner replay option isolation and full-input positions use
+`RUN='^TestStatisticsObjectOwnerReplayParser$'`.
 
 Unit tests here drive the real lexer and generated parser and check AST shape,
 positions, ownership and complete-input rejection. Public SQL acceptance and

@@ -279,6 +279,10 @@
 4549	unicode_version	11	12	1	0	0	0	f	false	false	true	false	i	s	0	0	25		\N	\N	\N	false	\N	unicode_version	\N	false	\N
 5003	tsquery_phrase	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	3615	3615 3615	\N	\N	\N	false	\N	tsquery_phrase	\N	false	\N
 5004	tsquery_phrase	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	3615	3615 3615 23	\N	\N	\N	false	\N	tsquery_phrase_distance	\N	false	\N
+5018	pg_mcv_list_in	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	5017	2275	\N	\N	\N	false	\N	pg_mcv_list_in	\N	false	\N
+5019	pg_mcv_list_out	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2275	5017	\N	\N	\N	false	\N	pg_mcv_list_out	\N	false	\N
+5020	pg_mcv_list_recv	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	5017	2281	\N	\N	\N	false	\N	pg_mcv_list_recv	\N	false	\N
+5021	pg_mcv_list_send	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	17	5017	\N	\N	\N	false	\N	pg_mcv_list_send	\N	false	\N
 5022	pg_lsn_pli	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	3220	3220 1700	\N	\N	\N	false	\N	pg_lsn_pli	\N	false	\N
 5023	numeric_pl_pg_lsn	11	14	1	0	0	0	f	false	false	true	false	i	s	2	0	3220	1700 3220	\N	\N	\N	false	\N		\N	true	\N
 5024	pg_lsn_mii	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	3220	3220 1700	\N	\N	\N	false	\N	pg_lsn_mii	\N	false	\N

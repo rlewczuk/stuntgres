@@ -16,6 +16,16 @@ native Restore; and the family hosts `RoutineHost`, `SchemaHost` and
 [`extension`](../extension/README.md)'s and [`fdw`](../fdw/README.md)'s; this
 package orchestrates them over core's runtime.
 
+CREATE/DROP STATISTICS use `ddl.StageCreateStatistics`/`StageDropStatistics`
+on `SchemaHost`, with the ordinary name/definition admission and catalog
+publication. Input relation lifetime uses the shared relation lock owner;
+validation preserves duplicate-conditional precedence and immutable stable keys.
+`CaptureRestoredStatisticsOwner` and `RestoreStatisticsOwner` admit only the
+private import authority and exact fresh descriptor/namespace/principal pair.
+Capture and owner-only COW replacement revalidate under one catalog lock;
+the root replay driver consumes the pair at the next statement. Ordinary
+ownership execution gains no statistics ALTER capability.
+
 ## Layering
 
 It imports [`core`](../core/README.md),

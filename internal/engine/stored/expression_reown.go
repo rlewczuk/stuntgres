@@ -54,6 +54,21 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
+		if statistics, ok := descriptor.(*catalog.Statistics); ok {
+			if typesOnly {
+				continue
+			}
+			mapped := ref(statistics.Relation)
+			if mapped != statistics.Relation {
+				copy := *statistics
+				copy.Relation = mapped
+				next.SetDescriptor(address, &copy)
+				if err := (catalog.StatisticsProvider{}).Validate(view.WithState(next), &copy); err != nil {
+					return err
+				}
+			}
+			continue
+		}
 		if trigger, ok := descriptor.(*catalog.EventTrigger); ok {
 			if typesOnly {
 				continue

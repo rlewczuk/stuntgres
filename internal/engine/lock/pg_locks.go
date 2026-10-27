@@ -133,7 +133,7 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 		// Exact binding claims have no physical PostgreSQL lock tag. Their
 		// queued dependencies still participate in blocking/deadlock inquiry.
 		if resource.Name != (ids.NameKey{}) && resource.Domain() != m.roleDomain &&
-			resource.Name.ClassID != ids.CollationClassID && resource.Name.ClassID != ids.ConversionClassID && resource.Name.ClassID != ids.CastClassID {
+			resource.Name.ClassID != ids.StatisticExtClassID && resource.Name.ClassID != ids.CollationClassID && resource.Name.ClassID != ids.ConversionClassID && resource.Name.ClassID != ids.CastClassID {
 			continue
 		}
 		catalogACL := resource.Kind == CatalogACLResource || resource.Kind == DefaultACLResource
@@ -280,7 +280,7 @@ func pgResourceRecord(resource Resource, owner RecordOwner, mode Mode) (Record, 
 		switch resource.Address.ClassID {
 		case ids.RelationClassID:
 			r.Kind = RelationRecord
-		case ids.TypeClassID, ids.NamespaceClassID, ids.RoleClassID, ids.CollationClassID, ids.ConversionClassID, ids.CastClassID, ids.ProcedureClassID, ids.AccessMethodClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.EventTriggerClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID:
+		case ids.StatisticExtClassID, ids.TypeClassID, ids.NamespaceClassID, ids.RoleClassID, ids.CollationClassID, ids.ConversionClassID, ids.CastClassID, ids.ProcedureClassID, ids.AccessMethodClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.EventTriggerClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID:
 			r.Kind, r.Class = ObjectRecord, uint32(resource.Address.ClassID)
 			r.Shared = resource.Address.ClassID == ids.RoleClassID
 		case ids.TSConfigurationClassID:

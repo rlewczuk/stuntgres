@@ -62,6 +62,11 @@ Scalar RECORD cases retain genuine result metadata for lawful typename
 shortcuts and distinguish anonymous-composite input errors from missing
 functions. UNKNOWN cases retain final TEXT and inferred parameter metadata;
 VOID protocol cases distinguish non-NULL empty output from SQL NULL.
+The three concrete statistics types have separate `castImplementedNullOnlyTypes`
+roles: typed NULL storage, parameters and casts, with exact rejection of all
+non-NULL text input. They have no fabricated non-NULL seed or collector source
+in the Cartesian inventory. Select the bounded role scenario with
+`RUN='^TestReferenceCastImplementedInternalRoles$'` in both modes.
 The SERVICE_CERTIFICATES public and server regressions retain all five arguments,
 repeated/NULL/error frames and protocol metadata independently of matrix sizing.
 Focused review regressions retain numeric-leading temporal callable resolution

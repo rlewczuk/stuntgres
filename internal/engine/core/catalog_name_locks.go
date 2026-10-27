@@ -41,7 +41,7 @@ func (s *StatementScope) acquireTransactionResource(resource lock.Resource, mode
 func (s *StatementScope) AcquireCatalogResource(resource lock.Resource, mode lock.Mode) error {
 	// These unique-index claims project a real blocker transaction, including
 	// the interval before an implicit statement reaches catalog publication.
-	if resource.Name.ClassID == ids.CollationClassID || resource.Name.ClassID == ids.ConversionClassID || resource.Name.ClassID == ids.CastClassID {
+	if resource.Name.ClassID == ids.StatisticExtClassID || resource.Name.ClassID == ids.CollationClassID || resource.Name.ClassID == ids.ConversionClassID || resource.Name.ClassID == ids.CastClassID {
 		e := s.Engine()
 		e.Mu.Lock()
 		err := e.AssignTransactionXIDLocked(s.TxRef)
@@ -75,7 +75,7 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	namespaces := namespaceScratch[:0]
 	for key, address := range stage.Names() {
 		definition := key.ClassID == ids.AccessMethodClassID || key.ClassID == ids.OperatorFamilyClassID || key.ClassID == ids.OperatorClassCatalogID || key.ClassID == ids.AccessMethodOperatorClassID || key.ClassID == ids.AccessMethodProcedureClassID
-		supported := definition || key.ClassID == ids.NamespaceClassID || key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID || key.ClassID == ids.ProcedureClassID || key.ClassID == ids.OperatorClassID || key.ClassID == ids.CollationClassID || key.ClassID == ids.ConversionClassID || key.ClassID == ids.CastClassID
+		supported := definition || key.ClassID == ids.StatisticExtClassID || key.ClassID == ids.NamespaceClassID || key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID || key.ClassID == ids.ProcedureClassID || key.ClassID == ids.OperatorClassID || key.ClassID == ids.CollationClassID || key.ClassID == ids.ConversionClassID || key.ClassID == ids.CastClassID
 		if !supported || stage.Base.NameAddress(key) == address {
 			continue
 		}

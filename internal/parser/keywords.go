@@ -488,7 +488,7 @@ var keywords = [...]keyword{
 	{"standalone", Unreserved, true, 0},
 	{"start", Unreserved, true, START},
 	{"statement", Unreserved, true, 0},
-	{"statistics", Unreserved, true, 0},
+	{"statistics", Unreserved, true, STATISTICS},
 	{"stdin", Unreserved, true, 0},
 	{"stdout", Unreserved, true, 0},
 	{"storage", Unreserved, true, 0},

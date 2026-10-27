@@ -194,6 +194,9 @@ package or the engine.
   Every registered conversion/constructor also owns explicit released display
   facts in `display_inventory.go`; registration cannot bypass the complete
   materialization guard or invent argument names for unnamed inputs.
+  Statistics I/O declarations carry all twelve released internal-language source
+  facts through that same materialization path. Receive routines retain metadata
+  without a SQL-callable INTERNAL-argument provider.
 - **Operator inventory and metadata** (`operator_*.go`): released operator
   identities, their routine associations (`OperatorRoutine`,
   `OperatorRoutines`), `SeededOperatorNames`, `SupportedOperatorMetadata` and
@@ -394,6 +397,9 @@ drop) and [reference/aggregates](../../../reference/aggregates/README.md#testing
 
 Semantic declaration normalization and private patch/error ownership use
 `RUN='^TestRoutineAttribute'`, also with `RACE=1`.
+Statistics I/O declaration/display and complete seed materialization use
+`RUN='^TestStatisticsObjectIORoutineDeclarations$'`; public catalog metadata
+and strict calls belong to the statistics family in `reference/catalogs`.
 
 Ordered declaration units distinguish canonical lookup from expanded execution:
 `FinalDeclarationVectors` checks independent storage and collapsed ANY slots;

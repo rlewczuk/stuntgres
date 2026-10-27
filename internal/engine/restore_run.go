@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
@@ -68,6 +69,7 @@ type restoreRun struct {
 	lastAuthorization, createOwner authorization.PrincipalRef
 	pairedOwner                    table.RestoredInheritedOwner
 	pairedTypeOwner                typedef.RestoredTypeOwner
+	pairedStatisticsOwner          ddl.RestoredStatisticsOwner
 
 	cur restoreStatement
 }
@@ -85,6 +87,7 @@ type restoreStatement struct {
 	priorAuthorization, ownerForCreate authorization.PrincipalRef
 	ownerPair                          table.RestoredInheritedOwner
 	typeOwnerPair                      typedef.RestoredTypeOwner
+	statisticsOwnerPair                ddl.RestoredStatisticsOwner
 }
 
 // startCaptures allocates the capture maps once the restore session is

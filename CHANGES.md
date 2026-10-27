@@ -1,9 +1,18 @@
 # Changes
 
+- Implement CREATE/DROP STATISTICS for simple multicolumn definitions, with
+  immutable keys/kinds, ownership, automatic column/relation dependencies and
+  populated pg_statistic_ext rows. Native controls preserve definitions and
+  sparse attribute identities. Internal pg_ndistinct, pg_dependencies and
+  pg_mcv_list have concrete typed NULLs and genuine output/send codecs while
+  rejecting non-NULL input; MCV payload validation respects released by-value
+  versus by-reference allocation extents. Analyzed-data collection remains
+  independently owned.
+
 - Register PUBLIC-readable `pg_statistic_ext` with its exact nine definition
   columns, authentic row/array carriers, attribute nullability and catalog
-  index/table summaries. Reads are truthfully empty until separately owned
-  CREATE STATISTICS population; ANALYZE metrics never manufacture definitions.
+  index/table summaries. CREATE STATISTICS populates definitions;
+  ANALYZE metrics never manufacture definitions.
   Preserve current ACL checks, guarded unsupported native mutations and
   Reset/Dump/Restore metadata ownership.
 

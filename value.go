@@ -102,6 +102,9 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.ID() == sqltype.Box || target.Type.ID() == sqltype.Point || target.Type.ID() == sqltype.Lseg || target.Type.ID() == sqltype.Circle || target.Type.ID() == sqltype.Line || target.Type.ID() == sqltype.Path || target.Type.ID() == sqltype.Polygon || target.Type.ID() == sqltype.Tid || target.Type.ID() == sqltype.Macaddr || target.Type.ID() == sqltype.Macaddr8 {
 			return sqltype.Null(target.Type), nil
 		}
+		if sqltype.IsStatisticsType(target.Type.BaseType().ID()) {
+			return sqltype.Null(target.Type), nil
+		}
 		if target.Type.BaseType().ID() == sqltype.PgSnapshot || target.Type.BaseType().ID() == sqltype.PgLSN {
 			return sqltype.Null(target.Type), nil
 		}
@@ -256,6 +259,8 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 			return nil, err
 		}
 		return []byte(raw), nil
+	case sqltype.PgNDistinct, sqltype.PgDependencies, sqltype.PgMCVList:
+		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Char:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Timestamp, sqltype.Timestamptz:
@@ -315,6 +320,8 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
 	case sqltype.Refcursor:
+		return reflect.TypeFor[string]()
+	case sqltype.PgNDistinct, sqltype.PgDependencies, sqltype.PgMCVList:
 		return reflect.TypeFor[string]()
 	case sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Regtype, sqltype.Regproc, sqltype.Regprocedure, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary, sqltype.Char:
 		return reflect.TypeFor[string]()

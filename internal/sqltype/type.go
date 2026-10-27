@@ -37,6 +37,9 @@ const (
 	PgSnapshot       ID = 5038
 	JSON             ID = 114
 	PgNodeTree       ID = 194
+	PgNDistinct      ID = 3361
+	PgDependencies   ID = 3402
+	PgMCVList        ID = 5017
 	Point            ID = 600
 	Lseg             ID = 601
 	Path             ID = 602
@@ -285,7 +288,7 @@ func (d *Descriptor) Usage() Usage {
 		return u
 	}
 	u := Usage{Type: d, Typmod: -1}
-	if IsCharacter(d.id) || d.IsCitext() || d.id == PgNodeTree {
+	if IsCharacter(d.id) || d.IsCitext() || d.id == PgNodeTree || IsStatisticsType(d.id) {
 		u.Collation = CollationRef{ID: 100, Derivation: Default}
 	} else if d.id == Name {
 		u.Collation = CollationRef{ID: 950, Derivation: Default}
@@ -332,6 +335,9 @@ func buildBuiltins() []*Descriptor {
 		{id: Polygon, name: "polygon", sql: "POLYGON", database: "POLYGON", associatedArray: 1027},
 		{id: Line, name: "line", sql: "LINE", database: "LINE", associatedArray: 629},
 		{id: PgNodeTree, name: "pg_node_tree", sql: "PG_NODE_TREE", database: "PG_NODE_TREE"},
+		{id: PgNDistinct, name: "pg_ndistinct", sql: "PG_NDISTINCT", database: "PG_NDISTINCT"},
+		{id: PgDependencies, name: "pg_dependencies", sql: "PG_DEPENDENCIES", database: "PG_DEPENDENCIES"},
+		{id: PgMCVList, name: "pg_mcv_list", sql: "PG_MCV_LIST", database: "PG_MCV_LIST"},
 		{id: BPChar, name: "bpchar", sql: "BPCHAR", database: "BPCHAR", associatedArray: 1014},
 		{id: VarChar, name: "varchar", sql: "VARCHAR", database: "VARCHAR", associatedArray: 1015},
 		{id: Float4, name: "float4", sql: "REAL", database: "FLOAT4", associatedArray: 1021},
@@ -518,6 +524,7 @@ type Value struct {
 	circle          circleDatum
 	polygon         *polygonPayload
 	snapshot        *Snapshot
+	statistics      *statisticsPayload
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -644,6 +651,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if !v.null && v.typ.BaseType().IsComposite() && !v.validCompositePayload() {
 		return Value{}, fmt.Errorf("invalid composite payload")
+	}
+	if !v.null && IsStatisticsType(d.BaseType().id) && !v.validStatistics() {
+		return Value{}, fmt.Errorf("invalid statistics payload")
 	}
 	if !v.null && d.BaseType().IsCatalogVector() && !v.validCatalogVectorPayload() {
 		return Value{}, fmt.Errorf("invalid catalog vector payload")
@@ -875,6 +885,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 			return Value{}, failure("0A000", "input of anonymous composite types is not implemented")
 		}
 		return d.compositeInput(ctx, text, env)
+	}
+	if IsStatisticsType(d.id) {
+		return Value{}, failure("0A000", "cannot accept a value of type "+d.name)
 	}
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
@@ -1213,6 +1226,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsDomain() {
 		v.typ = d.BaseType()
 		return v.typ.OutputWithEnvironment(ctx, v, env)
+	}
+	if IsStatisticsType(d.id) {
+		return d.statisticsOutput(ctx, v, env)
 	}
 	if d.IsCatalogVector() {
 		return d.catalogVectorOutput(ctx, v)
@@ -2076,6 +2092,8 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Refcursor, TSVector, TSQuery, Box, Point, Lseg, Circle, Line, Path, Polygon:
+		return true
+	case PgNDistinct, PgDependencies, PgMCVList:
 		return true
 	case PgSnapshot, PgLSN:
 		return true

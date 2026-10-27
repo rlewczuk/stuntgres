@@ -68,6 +68,11 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration dump.Statement) error {
 	declaration.Binding = s.comparisonBindings[castConsumer{Event: dump.Event{OID: oid}}]
 	if declaration.PrivilegedCreation {
+		if declaration.FollowingSQL != "" && slices.ContainsFunc(s.Statistics, func(d *catalog.Statistics) bool { return d.Address().ObjectID == oid }) {
+			if err := w.forceOwner(declaration.Owner); err != nil {
+				return err
+			}
+		}
 		if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
 			return err
 		}

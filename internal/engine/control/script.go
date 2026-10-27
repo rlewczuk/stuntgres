@@ -334,6 +334,9 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	// NOT VALID CHECK must finish before its conflicting final row exists.
 	phaseDeclarations := make([]dump.Event, 0, len(viewOrder))
 	for _, oid := range viewOrder {
+		if _, statistics := s.CatalogView.Statistics(ids.ObjectAddress{ClassID: ids.StatisticExtClassID, ObjectID: oid}); statistics {
+			continue
+		}
 		if _, cast := s.CatalogView.Descriptor(ids.ObjectAddress{ClassID: ids.CastClassID, ObjectID: oid}); !cast {
 			phaseDeclarations = append(phaseDeclarations, dump.Event{OID: oid})
 		}
@@ -353,6 +356,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		return nil, err
 	}
 	s.finishAttributeScheduleGraph()
+	s.finishStatisticsGraph()
 	// Deferral, inherited recipes and invalid-check phases are now final.
 	// Attach windows to the events that actually emit each expression.
 	if err := s.prepareCastWindows(); err != nil {
@@ -408,6 +412,13 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 			return err
 		}
 		s.declarations[dictionary.Address().ObjectID] = declaration
+	}
+	for _, statistics := range s.Statistics {
+		declaration, err := statisticsDumpStatement(s.CatalogView, s.DomainRoles, statistics)
+		if err != nil {
+			return err
+		}
+		s.declarations[statistics.Address().ObjectID] = declaration
 	}
 	for _, config := range s.Configurations {
 		declaration, err := configurationDumpStatement(s.CatalogView, s.DomainRoles, config)

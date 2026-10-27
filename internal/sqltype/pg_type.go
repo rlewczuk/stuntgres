@@ -171,6 +171,12 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 321, Output: 322, Receive: 323, Send: 324}
 	case 194: // pg_node_tree
 		f = PGTypeMetadata{Kind: "b", Category: "Z", Input: 195, Output: 196, Receive: 197, Send: 198}
+	case PgNDistinct:
+		f = PGTypeMetadata{Kind: "b", Category: "Z", Input: 3355, Output: 3356, Receive: 3357, Send: 3358}
+	case PgDependencies:
+		f = PGTypeMetadata{Kind: "b", Category: "Z", Input: 3404, Output: 3405, Receive: 3406, Send: 3407}
+	case PgMCVList:
+		f = PGTypeMetadata{Kind: "b", Category: "Z", Input: 5018, Output: 5019, Receive: 5020, Send: 5021}
 	case 3802: // jsonb
 		f = PGTypeMetadata{Kind: "b", Category: "U", Subscript: 6098, Input: 3806, Output: 3804, Receive: 3805, Send: 3803}
 	case 4072: // jsonpath

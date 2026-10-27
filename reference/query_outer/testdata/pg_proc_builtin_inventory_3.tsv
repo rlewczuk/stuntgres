@@ -425,6 +425,10 @@
 3334	pg_size_bytes	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	20	25	\N	\N	\N	false	\N	pg_size_bytes	\N	false	\N
 3344	cash_mul_int8	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	790	790 20	\N	\N	\N	false	\N	cash_mul_int8	\N	false	\N
 3345	cash_div_int8	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	790	790 20	\N	\N	\N	false	\N	cash_div_int8	\N	false	\N
+3355	pg_ndistinct_in	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	3361	2275	\N	\N	\N	false	\N	pg_ndistinct_in	\N	false	\N
+3356	pg_ndistinct_out	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2275	3361	\N	\N	\N	false	\N	pg_ndistinct_out	\N	false	\N
+3357	pg_ndistinct_recv	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	3361	2281	\N	\N	\N	false	\N	pg_ndistinct_recv	\N	false	\N
+3358	pg_ndistinct_send	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	17	3361	\N	\N	\N	false	\N	pg_ndistinct_send	\N	false	\N
 3376	pg_safe_snapshot_blocking_pids	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	1007	23	\N	\N	\N	false	\N	pg_safe_snapshot_blocking_pids	\N	false	\N
 3382	pg_identify_object_as_address	11	12	1	0	0	0	f	false	false	true	false	s	s	3	0	2249	26 26 23	{26,26,23,25,1009,1009}	{i,i,i,o,o,o}	{classid,objid,objsubid,type,object_names,object_args}	false	\N	pg_identify_object_as_address	\N	false	\N
 3383	brin_minmax_opcinfo	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2281	2281	\N	\N	\N	false	\N	brin_minmax_opcinfo	\N	false	\N
@@ -434,6 +438,10 @@
 3396	regexp_match	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1009	25 25	\N	\N	{string,pattern}	false	\N	regexp_match_no_flags	\N	false	\N
 3397	regexp_match	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	1009	25 25 25	\N	\N	{string,pattern,flags}	false	\N	regexp_match	\N	false	\N
 3399	int8_mul_cash	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	790	20 790	\N	\N	\N	false	\N	int8_mul_cash	\N	false	\N
+3404	pg_dependencies_in	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	3402	2275	\N	\N	\N	false	\N	pg_dependencies_in	\N	false	\N
+3405	pg_dependencies_out	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2275	3402	\N	\N	\N	false	\N	pg_dependencies_out	\N	false	\N
+3406	pg_dependencies_recv	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	3402	2281	\N	\N	\N	false	\N	pg_dependencies_recv	\N	false	\N
+3407	pg_dependencies_send	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	17	3402	\N	\N	\N	false	\N	pg_dependencies_send	\N	false	\N
 3409	time_hash_extended	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	1083 20	\N	\N	\N	false	\N	time_hash_extended	\N	false	\N
 3410	timetz_hash_extended	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	1266 20	\N	\N	\N	false	\N	timetz_hash_extended	\N	false	\N
 3411	timestamp_hash_extended	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	1114 20	\N	\N	\N	false	\N	timestamp_hash_extended	\N	false	\N

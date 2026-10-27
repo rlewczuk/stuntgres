@@ -58,6 +58,8 @@ func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 		return DescribeOperation
 	case *parser.AlterDomain, *parser.DropDomain, *parser.CreateAccessMethod, *parser.DropAccessMethod:
 		return DescribeOperation
+	case *parser.CreateStatistics, *parser.DropStatistics:
+		return DescribeOperation
 	case *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration:
 		return DescribeOperation
 	case *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:

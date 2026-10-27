@@ -2,7 +2,10 @@ package sqltype
 
 import (
 	"context"
+	"errors"
 	"testing"
+
+	"stuntgres/internal/sqlstate"
 )
 
 func TestOrderingUsage(t *testing.T) {
@@ -25,6 +28,15 @@ func TestOrderingUsage(t *testing.T) {
 			if d.ID() == PgSnapshot {
 				if err == nil {
 					t.Fatal("pg_snapshot ordering admitted")
+				}
+				return
+			}
+			switch d.ID() {
+			case PgNDistinct, PgDependencies, PgMCVList:
+				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + d.Name(), Hint: "Use an explicit ordering operator or modify the query."}
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || *diagnostic != want || provider != (Comparison{}) {
+					t.Fatalf("statistics ordering got %#v (%v), want %#v", diagnostic, err, want)
 				}
 				return
 			}
