@@ -60,7 +60,7 @@ func TestPartitionPruningSearchBound(t *testing.T) {
 				if scope := core.ScopeOf(source.LiveHost()); scope != nil {
 					evaluation.Input = scope.Input
 				}
-				selected, err := source.BranchPruner.Select(ctx, &evaluation, filter.Predicate)
+				selected, err := source.BranchPruner.Select(ctx, &evaluation, filter.Predicate, true)
 				if err != nil {
 					t.Fatal(err)
 				}

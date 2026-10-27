@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
@@ -58,6 +59,7 @@ type sqlRoutineScratch struct {
 	protocol            *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
 	input               sqltype.InputEnvironment
 	output              sqltype.OutputEnvironment
+	methods             plan.PlannerMethods
 	view, partitionView *visibility.View
 	rlsDataRefs         []ids.ObjectRef // Same lexical snapshot owner as view; not a global source cache.
 	ownWrites           map[ids.ObjectAddress][]storage.RowVersion
@@ -82,6 +84,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		routineDependencies: s.RoutineDependencies,
 		prepared:            s.prepared, admissionWaited: s.admissionWaited,
 		initialParameters: s.initialParameters, input: s.Input, output: s.Output,
+		methods: s.PlannerMethods,
 		sqlRoutine: s.sqlRoutine, inquiry: s.Inquiry,
 		protocol: s.protocolSlot,
 		view:     s.View, partitionView: s.PartitionsOrZero().ValidationView, ownWrites: s.OwnWrites, ownDeletes: s.OwnDeletes,
@@ -104,6 +107,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.initialParameters, s.sqlRoutine, s.Inquiry = c.initialParameters, c.sqlRoutine, c.inquiry
 	s.protocolSlot = c.protocol
 	s.Input, s.Output = c.input, c.output
+	s.PlannerMethods = c.methods
 	s.View = c.view
 	s.setPartitionValidationView(c.partitionView)
 	s.OwnWrites, s.OwnDeletes = c.ownWrites, c.ownDeletes
@@ -147,7 +151,7 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	} else {
 		ownDeletes = visibility.MergeDeletions(ownDeletes, s.Stage.Deletes)
 	}
-	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true, policy: policy}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead})
+	s.installSQLRoutineScratch(sqlRoutineScratch{methods: saved.methods, input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true, policy: policy}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead})
 	s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignTablesOrZero().owner != nil {

@@ -116,13 +116,7 @@ func TestReferenceLikeHeldEnteredCancellation(t *testing.T) {
 					db := backend.DB
 					db.SetMaxOpenConns(1)
 					fixture.StringCoreControlExec(t, db, "CREATE TABLE t(v TEXT,p TEXT,e TEXT)")
-					pattern := tc.pattern
-					if !backend.PG && tc.name == "normalizer" {
-						// Preserve the same escape structure while keeping normalization
-						// observable by the unchanged live-provider admission gate.
-						pattern = strings.Repeat(pattern, 8)
-					}
-					if _, err := db.Exec("INSERT INTO t VALUES($1,$2,$3)", tc.input, pattern, tc.escape); err != nil {
+					if _, err := db.Exec("INSERT INTO t VALUES($1,$2,$3)", tc.input, tc.pattern, tc.escape); err != nil {
 						t.Fatal(err)
 					}
 					stmt, err := db.Prepare("SELECT v LIKE p ESCAPE e FROM t")
@@ -142,18 +136,18 @@ func TestReferenceLikeHeldEnteredCancellation(t *testing.T) {
 							t.Fatal(err)
 						}
 					} else {
-						likeReferenceCancelEntered(t, tc.provider, func(ctx context.Context) error {
+						fixture.BinaryConversionActiveCancel(t, p, backend, nil, "", tc.provider, func(ctx context.Context) fixture.RelationOutcome {
 							rows, err := stmt.QueryContext(ctx)
 							if rows != nil {
 								defer rows.Close()
 								if rows.Next() {
-									return errors.New("canceled provider published row")
+									return fixture.RelationOutcome{Err: errors.New("canceled provider published row")}
 								}
 								if err == nil {
 									err = rows.Err()
 								}
 							}
-							return err
+							return fixture.RelationOutcome{Err: err}
 						})
 					}
 					fixture.StringCoreControlExec(t, db, "UPDATE t SET p='%',e='!'")
@@ -193,9 +187,9 @@ func TestReferenceLikeHeldUpdateEnteredCancellation(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				likeReferenceCancelEntered(t, "sqltype.matchLike", func(ctx context.Context) error {
-					_, err := stmt.ExecContext(ctx, "%"+strings.Repeat("a", 100000)+"b")
-					return err
+				fixture.BinaryConversionActiveCancel(t, p, backend, nil, "", "sqltype.matchLike", func(ctx context.Context) fixture.RelationOutcome {
+					result, err := stmt.ExecContext(ctx, "%"+strings.Repeat("a", 100000)+"b")
+					return fixture.RelationOutcome{Result: result, Err: err}
 				})
 			}
 			var value string

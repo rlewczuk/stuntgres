@@ -21,6 +21,10 @@ import (
 func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h Host) (index.WriteBatch, error) {
 	defer source.Close()
 	state := &exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
+	if h != nil {
+		state.Methods = h.AdmittedPlannerMethods()
+	}
+	state.CapturePlannerAdmission()
 	defer state.ReleaseMemberships()
 	return evaluateInsertQuery(ctx, b, state, schema, h)
 }

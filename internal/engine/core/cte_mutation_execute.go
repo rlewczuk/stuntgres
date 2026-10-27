@@ -268,6 +268,7 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 				continue
 			}
 			current := &exec.CTEInvocation{Frame: definition.Owner, Parent: owner, State: exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: scope.Input, Output: scope.Output, Locking: source.Locks != nil}}
+			current.State.CapturePlannerAdmission()
 			current.State.Ctes = current
 			owner = current
 		}

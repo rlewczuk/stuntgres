@@ -306,7 +306,7 @@ func (p *pruneProof) finish(domains []pruneDomain, requirements []pruneMembershi
 	return true, p.ctx.Err()
 }
 
-func (p *pruneProof) branch(query int, physical *catalog.Relation, constraints bool) (bool, error) {
+func (p *pruneProof) branch(query int, physical *catalog.Relation, constraints, membership bool) (bool, error) {
 	if err := p.ctx.Err(); err != nil {
 		return false, err
 	}
@@ -323,7 +323,7 @@ func (p *pruneProof) branch(query int, physical *catalog.Relation, constraints b
 	}
 	root := p.join("and", query, facts)
 	p.requirements = p.requirements[:0]
-	for child := physical; child.Membership != nil; {
+	for child := physical; membership && child.Membership != nil; {
 		parent, ok := p.view.Relation(child.Membership.Parent)
 		if !ok {
 			return false, ids.ErrCatalogReplaced
@@ -367,7 +367,7 @@ func (p *pruneProof) branch(query int, physical *catalog.Relation, constraints b
 	return p.possible(&pruneTask{node: root}, p.domains, func(domains []pruneDomain) (bool, error) { return p.finish(domains, p.requirements) })
 }
 
-func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, predicate expr.Expr) (exec.QueryBranchSelection, error) {
+func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, predicate expr.Expr, membership bool) (exec.QueryBranchSelection, error) {
 	if err := ctx.Err(); err != nil {
 		return exec.QueryBranchSelection{}, err
 	}
@@ -390,7 +390,7 @@ func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, p
 			physical = c.source.Inheritance[i].Leaf.Relation
 			end = c.source.InheritanceEnds[i]
 		}
-		possible, err := proof.Possible(physical)
+		possible, err := proof.Possible(physical, membership)
 		if err != nil {
 			return exec.QueryBranchSelection{}, err
 		}

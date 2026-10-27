@@ -306,7 +306,8 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 		deparseAuth: s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog, visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}
 	c.currentSnapshot, c.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
 	exec.AdmitScan(root, source)
-	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: values, Input: s.Input, Output: s.Output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state = exec.State{Methods: s.PlannerMethods, Source: source, SourceMode: exec.SourceReusable, Parameters: values, Input: s.Input, Output: s.Output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state.CapturePlannerAdmission()
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
 	c.state.Output.Regproc, c.state.Output.Regrole, c.state.Output.Operator = nil, nil, nil

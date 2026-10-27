@@ -59,7 +59,7 @@ func (r *explainRenderer) sourcePruning(tree *explainTree, source *plan.SourceNo
 	if err == nil {
 		for _, physical := range physicals {
 			var possible bool
-			possible, err = proof.Possible(physical)
+			possible, err = proof.Possible(physical, !r.scope.PlannerMethods.NoPartitionPruning)
 			if err != nil {
 				break
 			}

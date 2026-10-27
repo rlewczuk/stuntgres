@@ -217,7 +217,8 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	c.scroll = scroll
 	source.ScanFraction = max(s.Op.CursorTupleFraction, 1e-10)
 	exec.AdmitScan(root, source)
-	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.Input, Output: s.Output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state = exec.State{Methods: s.PlannerMethods, Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.Input, Output: s.Output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state.CapturePlannerAdmission()
 	c.state.CaptureAsyncAdmission()
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	// Presentation readers stored in query frames must not retain this admission.

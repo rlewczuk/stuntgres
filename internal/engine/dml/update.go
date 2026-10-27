@@ -70,6 +70,8 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	}
 	input, outputEnv := h.Environments()
 	state := exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: outputEnv, Locking: inputs.Locks != nil}
+	state.Methods = h.AdmittedPlannerMethods()
+	state.CapturePlannerAdmission()
 	defer state.ReleaseMemberships()
 	defer outcome.finishSources(&state, &err)
 	eval := state.Evaluation(ctx)

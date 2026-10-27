@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -78,6 +79,13 @@ func (h *statementHost) EnlistForeign(ctx context.Context, wrapper catalog.Forei
 // It has no admitted async work; never consult live settings as a fallback.
 func (h *statementHost) AsyncAppendEnabled() bool {
 	return h != nil && h.Op != nil && h.Op.CommandAdmission && h.Op.AsyncAppend
+}
+
+func (h *statementHost) AdmittedPlannerMethods() plan.PlannerMethods {
+	if h == nil {
+		return plan.PlannerMethods{}
+	}
+	return h.PlannerMethods
 }
 
 // TrackForeignModification records m so statement end finishes it.

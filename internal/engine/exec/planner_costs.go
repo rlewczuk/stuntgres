@@ -7,9 +7,9 @@ import (
 
 // ChooseScan is metadata-only: it neither evaluates nor hashes the probe. The
 // final source visibility/root checks remain at hashFilterCandidates.
-func ChooseScan(filter *plan.FilterNode, ref ids.ObjectRef, scope, frame uint32, costs plan.PlannerCosts, rows, fraction float64, indexes []CapturedHashIndex) plan.ScanDecision {
+func ChooseScan(filter *plan.FilterNode, ref ids.ObjectRef, scope, frame uint32, methods plan.PlannerMethods, costs plan.PlannerCosts, rows, fraction float64, indexes []CapturedHashIndex) plan.ScanDecision {
 	full := costs.Scan(rows, fraction, ids.ObjectAddress{}, "")
-	if filter == nil {
+	if methods.NoIndexScan || filter == nil {
 		return full
 	}
 	column, _, ok := plan.HashFilterProbe(filter, ref, scope, frame)
@@ -19,7 +19,11 @@ func ChooseScan(filter *plan.FilterNode, ref ids.ObjectRef, scope, frame uint32,
 	for _, capture := range indexes {
 		key := capture.Definition.Keys[0]
 		if key.Derived == nil && key.Attribute == column.Origin.Address.SubID && column.Slot == capture.Root.Binding.Slot && capture.Usage == column.ResultUsage() && capture.Root.Binding.Provider.OrdinaryEquality() {
-			return costs.Scan(rows, fraction, capture.Address, capture.Name)
+			decision := costs.Scan(rows, fraction, capture.Address, capture.Name)
+			if methods.NoSeqScan {
+				decision.Method = plan.HashCandidates
+			}
+			return decision
 		}
 	}
 	return full
@@ -44,5 +48,5 @@ func AdmitScan(root plan.Node, source *Source) {
 	if fraction == 0 {
 		fraction = 1
 	} // Sources constructed without cursor admission are ordinary.
-	source.ScanDecision = ChooseScan(filter, source.Ref, 1, frame, source.PlannerCosts, source.PlannerRows, fraction, indexes)
+	source.ScanDecision = ChooseScan(filter, source.Ref, 1, frame, sourcePlannerMethods(source), source.PlannerCosts, source.PlannerRows, fraction, indexes)
 }

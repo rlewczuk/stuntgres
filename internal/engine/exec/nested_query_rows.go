@@ -31,6 +31,7 @@ func OpenNestedQueryRows(ctx context.Context, root plan.Node, source *Source, pa
 	AdmitScan(root, source)
 	r := &nestedQueryRows{schema: project.Schema(), ctx: ctx}
 	r.state = State{Source: source, SourceMode: SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
+	r.state.CapturePlannerAdmission()
 	if host := source.LiveHost(); host != nil {
 		r.state.Input, r.state.Output = host.Environments()
 	}

@@ -39,8 +39,6 @@ func builtinMetadata(d Definition) Definition {
 		d.Category = "Version and Platform Compatibility / Other Platforms and Clients"
 	case "max_parallel_workers_per_gather":
 		d.Category = "Resource Usage / Worker Processes"
-	case "enable_async_append":
-		d.Category = "Query Tuning / Planner Method Configuration"
 	}
 	switch d.Name {
 	case "max_locks_per_transaction":

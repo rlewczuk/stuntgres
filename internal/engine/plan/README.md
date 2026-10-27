@@ -25,6 +25,11 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   Source, derived, function and alias-bound VALUES projection occurrences retain
   immutable range names and column aliases for presentation; these labels never
   change schemas, expression slots, provenance or execution authority.
+- **Planner method values** (`planner_methods.go`): `PlannerMethods` carries
+  only operative method discouragement bits, copied at statement admission.
+  Its zero value preserves enabled detached/internal algorithms, without
+  granting async/parallel authority or retaining a settings store. It is
+  execution policy, never a retained prepared-tree property.
 - **Logical EXPLAIN estimates** (`explain.go`): `EstimateExplainNode` consumes
   detached child/source estimates over the closed node family, without
   evaluation or source access. Inclusive logical work and output-cardinality
@@ -46,8 +51,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   `planner_costs.go` separately owns command-admitted CPU/parallel value records
   and detached scan decisions. Full traversal costs N*(tuple+operator); hash
   candidates cost one lookup plus N/2*(index-entry+tuple+2*operator).
-  Eligible hash work wins only when its requested-fraction score is strictly
-  cheaper; ties remain full traversal. Score is startup + fraction*(total-startup).
+  With default method permissions, eligible hash work wins only when its
+  requested-fraction score is strictly cheaper; ties remain full traversal.
+  Exec applies admitted method preferences after safe index eligibility without
+  changing these estimates. Score is startup + fraction*(total-startup).
   Full startup is zero, hash startup is the existing lookup operator, not index
   construction. Ordinary queries use fraction1; cursor declarations capture their
   admitted fraction once, with zero represented as1e-10. No rows are truncated.

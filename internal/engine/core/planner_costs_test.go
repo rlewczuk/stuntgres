@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -38,8 +39,16 @@ func TestPlannerCostsHashExecution(t *testing.T) {
 	if selected.Address().ObjectID>=alternative.Address().ObjectID || selected.Name()<=alternative.Name() || root==otherRoot { t.Fatal("competing-index fixture lacks distinguishing identities") }
 	for _,analyzed:=range []bool{false,true} {
 	if analyzed { plannerCostCommand(t,s,"ANALYZE t") }
-	for _,tc:=range []struct{value,label string; hash bool}{{"0.005","Hash Candidates",true},{"1000000","Full Scan",false},{"0.005","Hash Candidates",true}} {
+	for _,tc:=range []struct{value,label,seq,index string; hash bool}{
+		{"0.005","Hash Candidates","on","on",true},
+		{"1000000","Full Scan","on","on",false},
+		{"1000000","Hash Candidates","off","on",true},
+		{"1000000","Full Scan","off","off",false},
+		{"0.005","Hash Candidates","on","on",true},
+	} {
 		plannerCostCommand(t,s,"SET cpu_index_tuple_cost='"+tc.value+"'")
+		plannerCostCommand(t,s,"SET enable_seqscan="+tc.seq)
+		plannerCostCommand(t,s,"SET enable_indexscan="+tc.index)
 		r:=plannerCostCommand(t,s,"EXPLAIN SELECT n FROM t WHERE n=2")
 		var text strings.Builder
 		for _,row:=range enginetest.Tuples(r) { text.WriteString(row[0].(string)); text.WriteByte('\n') }
@@ -50,6 +59,7 @@ func TestPlannerCostsHashExecution(t *testing.T) {
 		cpu:="12.5"
 		if analyzed { cpu="0.0625" }
 		if tc.hash { cpu="10.0025"; if analyzed {cpu="0.0525"} }
+		if tc.hash && tc.value=="1000000" { cpu="5e+08"; if analyzed { cpu="2.5e+06" } }
 		if !strings.Contains(text.String(),"CPU Cost: "+cpu+"\n") {t.Fatal("detached CPU estimate missing",text.String())}
 		parent:=1e300
 		for _,line:=range strings.Split(text.String(),"\n") {
@@ -66,12 +76,82 @@ func TestPlannerCostsHashExecution(t *testing.T) {
 		if tc.hash {
 			if source.ScanDecision.Method!=plan.HashCandidates || source.ScanDecision.Index!=selected.Address() || source.ScanDecision.IndexName!="planner_cost_hash_z" { t.Fatal("selected decision disagrees with EXPLAIN/captured root",source.ScanDecision) }
 		} else if source.ScanDecision.Method!=plan.FullScan { t.Fatal("costly profile retained hash decision",source.ScanDecision) }
+		expected:=source.PlannerCosts.Scan(source.PlannerRows,1,selected.Address(),"planner_cost_hash_z")
+		if tc.seq=="off" && tc.index=="on" { expected.Method=plan.HashCandidates }
+		if tc.index=="off" { expected=source.PlannerCosts.Scan(source.PlannerRows,1,ids.ObjectAddress{},"") }
+		if source.ScanDecision!=expected { t.Fatal("method preference changed cost fields/index identity",source.ScanDecision,expected) }
 		if tc.hash { if stage.HashCandidates==nil || stage.HashCandidates.Root!=root || len(stage.HashCandidates.Occurrences)!=2 { t.Fatal("actual candidate branch missing",stage.HashCandidates) } } else if stage.HashCandidates!=nil { t.Fatal("full scan probed index",stage.HashCandidates) }
 		if err:=stage.Drain(context.Background()); err!=nil || stage.Count()!=2 { t.Fatal(stage.Count(),err) }
 		if tc.hash && stage.HashCandidates.Position!=2 { t.Fatal("candidate producer not consumed") }
 		if analyzed && source.PlannerRows!=5 || !analyzed && source.PlannerRows!=1000 { t.Fatal("execution did not use detached maintenance estimate",source.PlannerRows) }
 		stage.Close(); release(); op.Done()
 	}
+	}
+}
+
+func TestPlannerSeqscanRetainedAdmission(t *testing.T) {
+	e:=engine.New(); s:=enginetest.StartSession(t,e,nil)
+	for _,q:=range []string{
+		"CREATE TABLE t(n INT,s TEXT)",
+		"INSERT INTO t VALUES(2,'b'),(1,'a'),(2,'b'),(NULL,NULL),(3,'c')",
+		"CREATE INDEX seqscan_retained_hash ON t USING hash(n)",
+		"SET cpu_index_tuple_cost=1000000",
+		"SET enable_seqscan=off",
+	} { plannerCostCommand(t,s,q) }
+	op,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; defer op.Done()
+	query,source,release:=hashCaptureQuery(t,e,op,"SELECT n FROM t WHERE n=2")
+	exec.AdmitScan(query.Root,source)
+	state:=&exec.State{Source:source,HashFilter:exec.HashQueryFilter(query.Root),Frame:query.Root.(*plan.ProjectNode).Frame}
+	scope:=core.ScopeOf(source.LiveHost())
+	state.Input,state.Output=scope.Input,scope.Output
+	state.CapturePlannerAdmission()
+	_,root:=hashRoot(t,e,"seqscan_retained_hash")
+	decision,costs,methods:=source.ScanDecision,source.PlannerCosts,state.Methods
+	if decision.Method!=plan.HashCandidates || decision.HashCost<=decision.FullCost || len(source.HashIndexes)!=1 || source.HashIndexes[0].Root!=root || !methods.NoSeqScan || methods.NoIndexScan {
+		t.Fatal("implicit source missed admitted high-cost preference",decision,methods,source.HashIndexes)
+	}
+	// A live implicit statement owns the session lease. Advance effective
+	// storage under its actual mutex, as in TestPlannerCostsAdmission, rather
+	// than opening an unsafe explicit cursor or overlapping SQL commands.
+	s.Settings.Mu.Lock()
+	s.Settings.Values["enable_seqscan"]="on"
+	s.Settings.Typed["enable_seqscan"]=settings.Value{Boolean:true}
+	s.Settings.Values["enable_indexscan"]="off"
+	s.Settings.Typed["enable_indexscan"]=settings.Value{Boolean:false}
+	s.Settings.Values["cpu_index_tuple_cost"]="0.005"
+	s.Settings.Typed["cpu_index_tuple_cost"]=settings.Value{Number:.005}
+	s.Settings.Mu.Unlock()
+	state.CapturePlannerAdmission()
+	if source.ScanDecision!=decision || source.PlannerCosts!=costs || costs.IndexTuple!=1000000 || state.Methods!=methods || op.PlannerMethods!=methods {
+		t.Fatal("retained admission borrowed effective settings",source.ScanDecision,state.Methods)
+	}
+	stage,err:=exec.OpenNode(context.Background(),state,state.HashFilter)
+	if err!=nil { t.Fatal(err) }
+	if stage.HashCandidates==nil || stage.HashCandidates.Root!=root || len(stage.HashCandidates.Occurrences)!=2 { t.Fatal("retained source did not use original actual root",stage.HashCandidates) }
+	if err:=stage.Drain(context.Background()); err!=nil || stage.Count()!=2 { t.Fatal(stage.Count(),err) }
+	stage.Close()
+	if source.ScanDecision!=decision || source.HashIndexes[0].Root!=root { t.Fatal("opening changed retained decision/root") }
+	release(); op.Done()
+	next,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; defer next.Done()
+	nextQuery,nextSource,nextRelease:=hashCaptureQuery(t,e,next,"SELECT n FROM t WHERE n=2")
+	nextStage:=hashFilterStage(t,nextQuery,nextSource,nil)
+	if nextSource.ScanDecision.Method!=plan.FullScan || nextStage.HashCandidates!=nil || !next.PlannerMethods.NoIndexScan || next.PlannerMethods.NoSeqScan || nextSource.PlannerCosts.IndexTuple!=.005 || len(nextSource.HashIndexes)!=1 || nextSource.HashIndexes[0].Root!=root {
+		t.Fatal("new implicit admission missed changed policy or lost safe root",nextSource.ScanDecision,next.PlannerMethods)
+	}
+	if err:=nextStage.Drain(context.Background()); err!=nil || nextStage.Count()!=2 { t.Fatal(nextStage.Count(),err) }
+	nextStage.Close(); nextRelease()
+}
+
+func TestPlannerSeqscanRequiredFallback(t *testing.T) {
+	e:=engine.New(); s:=enginetest.StartSession(t,e,nil)
+	for _,q:=range []string{"CREATE TABLE t(n INT,s TEXT)","INSERT INTO t VALUES(2,'b'),(2,'b'),(NULL,NULL)","CREATE INDEX seqscan_safe_hash ON t USING hash(n)","SET enable_seqscan=off","SET cpu_index_tuple_cost=1000000"} { plannerCostCommand(t,s,q) }
+	for _,q:=range []string{"SELECT n FROM t WHERE s='b'","SELECT n FROM t WHERE n IS NULL"} {
+		op,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }
+		query,source,release:=hashCaptureQuery(t,e,op,q)
+		stage:=hashFilterStage(t,query,source,nil)
+		if len(source.HashIndexes)!=1 || source.ScanDecision.Method!=plan.FullScan || stage.HashCandidates!=nil { t.Fatal("seqscan off fabricated an eligible index",source.ScanDecision,stage.HashCandidates) }
+		if err:=stage.Drain(context.Background()); err!=nil { t.Fatal(err) }
+		stage.Close(); release(); op.Done()
 	}
 }
 

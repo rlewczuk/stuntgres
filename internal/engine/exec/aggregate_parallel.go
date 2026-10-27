@@ -155,7 +155,7 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	if host := source.LiveHost(); host != nil {
 		input, output = host.Environments()
 	}
-	leader := &State{Source: source, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx}
+	leader := &State{Methods: sourcePlannerMethods(source), methodsCaptured: true, Source: source, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx}
 	defer leader.ReleaseMemberships()
 	evaluation := leader.Evaluation(ctx)
 	auth, dependencies, err := RoutineAdmissionAuthority(&evaluation)
@@ -188,11 +188,12 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	var first error
 	n := source.Count()
 	inheritedCTEs := leader.Ctes // Capture even nil before any support body can mutate host scratch.
+	methods := leader.Methods // Capture before any sibling support changes lexical scope.
 	for i := range workers {
 		joined.Add(1)
 		go func(i int) {
 			defer joined.Done()
-			groups, failure := runAggregatePartition(workerCtx, aggregate, source, parameters, i*n/workers, (i+1)*n/workers, input, output, admission, inheritedCTEs)
+			groups, failure := runAggregatePartition(workerCtx, aggregate, source, parameters, i*n/workers, (i+1)*n/workers, input, output, admission, inheritedCTEs, methods)
 			if failure != nil {
 				errorMu.Lock()
 				if first == nil {
@@ -248,14 +249,14 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	return result, count, nil
 }
 
-func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, source *Source, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, admission *parallelAggregateAdmission, ctes *CTEInvocation) ([]QueryGroup, error) {
+func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, source *Source, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, admission *parallelAggregateAdmission, ctes *CTEInvocation, methods plan.PlannerMethods) ([]QueryGroup, error) {
 	worker, err := ParallelQuerySource(source)
 	if err != nil {
 		return nil, err
 	}
 	defer worker.Close()
 	var groups []QueryGroup
-	state := &State{Source: worker, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end, aggregatePartials: &groups, aggregateAdmission: admission, Ctes: ctes}
+	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end, aggregatePartials: &groups, aggregateAdmission: admission, Ctes: ctes}
 	defer state.ReleaseMemberships()
 	evaluation := state.Evaluation(ctx)
 	for _, call := range aggregate.Calls {

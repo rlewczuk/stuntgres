@@ -43,6 +43,8 @@ func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 	inputs = view.FreezeWriteSources(inputs, b.QuerySources, h.QueryAuthority(), h)
 	input, output := h.Environments()
 	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: in.Parameters, Input: input, Output: output, Locking: inputs.Locks != nil, IdentityReads: MergeHasIdentityReads(b.Merge)}
+	state.Methods = h.AdmittedPlannerMethods()
+	state.CapturePlannerAdmission()
 	if b.Returning != nil {
 		for _, expr := range b.Returning.Expressions {
 			state.IdentityReads = state.IdentityReads || exec.BoundHasIdentityReads(expr)

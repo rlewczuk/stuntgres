@@ -18,7 +18,7 @@ type QueryBranchSelection struct {
 // QueryBranchPruner is optional captured metadata authority. Selection is made
 // unlocked, once per execution/filter opening, and never belongs to a held plan.
 type QueryBranchPruner interface {
-	Select(context.Context, *Context, expr.Expr) (QueryBranchSelection, error)
+	Select(context.Context, *Context, expr.Expr, bool) (QueryBranchSelection, error)
 }
 
 type queryBranchCursor struct {
@@ -31,7 +31,7 @@ func selectQueryBranches(ctx context.Context, state *State, filter *plan.FilterN
 		return queryBranchCursor{}, nil
 	}
 	evaluation := state.Evaluation(ctx)
-	selection, err := child.Source.BranchPruner.Select(ctx, &evaluation, filter.Predicate)
+	selection, err := child.Source.BranchPruner.Select(ctx, &evaluation, filter.Predicate, !state.Methods.NoPartitionPruning)
 	return queryBranchCursor{selection: selection}, err
 }
 

@@ -33,7 +33,10 @@ func openDistinctNode(ctx context.Context, state *State, n *plan.DistinctNode) (
 	}
 	source := &Source{FlatWidth: width, Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host}
 	scratch := make([]sqltype.Value, width)
-	buckets := make(map[uint64][]int)
+	var buckets map[uint64][]int
+	if !state.Methods.NoHashAgg {
+		buckets = make(map[uint64][]int)
+	}
 	evaluation := state.Evaluation(nil)
 	for {
 		i, present, failure := child.NextOccurrence(ctx)
@@ -62,18 +65,27 @@ func openDistinctNode(ctx context.Context, state *State, n *plan.DistinctNode) (
 				return Stage{}, failure
 			}
 			scratch[k] = value
-			h, failure := n.Grouping[k].Hash(ctx, value)
-			if failure != nil {
-				return Stage{}, failure
+			if !state.Methods.NoHashAgg {
+				h, failure := n.Grouping[k].Hash(ctx, value)
+				if failure != nil {
+					return Stage{}, failure
+				}
+				hash = (hash ^ h) * 1099511628211
 			}
-			hash = (hash ^ h) * 1099511628211
 		}
-		index, failure := FindDistinctTuple(ctx, n.Grouping, scratch, source.Flat, buckets[hash])
+		var index int
+		if state.Methods.NoHashAgg {
+			index, failure = findEqualityDistinctTuple(ctx, n.Grouping, scratch, source.Flat)
+		} else {
+			index, failure = FindDistinctTuple(ctx, n.Grouping, scratch, source.Flat, buckets[hash])
+		}
 		if failure != nil {
 			return Stage{}, failure
 		}
 		if index < 0 {
-			buckets[hash] = append(buckets[hash], source.FlatCount)
+			if !state.Methods.NoHashAgg {
+				buckets[hash] = append(buckets[hash], source.FlatCount)
+			}
 			source.Flat = append(source.Flat, scratch...)
 			source.FlatCount++
 		}
@@ -106,6 +118,17 @@ func FindDistinctTuple[G interface {
 		}
 		if equal {
 			return index, ctx.Err()
+		}
+	}
+	return -1, ctx.Err()
+}
+
+func findEqualityDistinctTuple(ctx context.Context, grouping []plan.Grouping, tuple, flat []sqltype.Value) (int, error) {
+	for candidate := range len(flat) / len(grouping) {
+		one := [1]int{candidate}
+		index, err := FindDistinctTuple(ctx, grouping, tuple, flat, one[:])
+		if err != nil || index >= 0 {
+			return index, err
 		}
 	}
 	return -1, ctx.Err()
@@ -184,6 +207,7 @@ func openDistinctOnNode(ctx context.Context, state *State, n *plan.DistinctOnNod
 }
 
 func (s *State) Evaluation(ctx context.Context) Context {
+	s.CapturePlannerAdmission()
 	s.inheritCTEs()
 	frame := s.Frame
 	if frame == 0 {

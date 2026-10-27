@@ -58,6 +58,7 @@ type explainRenderer struct {
 	image                        string
 	scanFilter                   *plan.FilterNode
 	scanDecision                 plan.ScanDecision
+	frame                        uint32
 }
 
 func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options explainOptions) (*explainRenderer, error) {
@@ -65,7 +66,7 @@ func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options e
 	if err != nil {
 		return nil, err
 	}
-	return &explainRenderer{scope: scope, auth: auth, options: options, path: path, frames: make(map[uint32]plan.Node), occurrences: make(map[int]*plan.SourceNode), ctes: make(map[*plan.CTEDefinition]*explainTree), viewActive: make(map[ids.ObjectAddress]bool)}, nil
+	return &explainRenderer{scope: scope, auth: auth, options: options, path: path, frame: 1, frames: make(map[uint32]plan.Node), occurrences: make(map[int]*plan.SourceNode), ctes: make(map[*plan.CTEDefinition]*explainTree), viewActive: make(map[ids.ObjectAddress]bool)}, nil
 }
 
 func (r *explainRenderer) objectName(namespace ids.ObjectAddress, name string) string {
@@ -131,6 +132,14 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 	}
 	if root == nil {
 		return nil, fmt.Errorf("stuntgres: missing logical EXPLAIN child")
+	}
+	if project, ok := root.(*plan.ProjectNode); ok {
+		saved := r.frame
+		r.frame = project.Frame
+		if r.frame == 0 {
+			r.frame = 1
+		}
+		defer func() { r.frame = saved }()
 	}
 	left, right := plan.QueryInputs(root)
 	if derived, ok := root.(*plan.DerivedNode); ok && derived.CTE != nil {
@@ -256,6 +265,13 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 	case *plan.AggregateNode:
 		tree.label = "Aggregate"
+		if len(n.Keys) > 0 {
+			method := "hash grouping"
+			if r.scope.PlannerMethods.NoHashAgg {
+				method = "equality grouping"
+			}
+			tree.details = append(tree.details, "Method: "+method)
+		}
 		if err := list("Group Key", n.Keys, n.Child); err != nil {
 			return nil, err
 		}
@@ -283,6 +299,11 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 	case *plan.DistinctNode:
 		tree.label = "Distinct"
+		method := "hash deduplication"
+		if r.scope.PlannerMethods.NoHashAgg {
+			method = "equality deduplication"
+		}
+		tree.details = append(tree.details, "Method: "+method)
 		if err := list("Distinct Key", n.Expressions, n.Child); err != nil {
 			return nil, err
 		}
@@ -306,6 +327,11 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 			}
 		}
 		tree.label = kind + " Join"
+		method := "nested-loop"
+		if !r.scope.PlannerMethods.NoHashJoin && exec.HashJoinEligible(n, r.frame) {
+			method = "hash-assisted"
+		}
+		tree.details = append(tree.details, "Method: "+method)
 		if n.CorrelatedRight {
 			tree.details = append(tree.details, "Lateral: correlated right input")
 		}

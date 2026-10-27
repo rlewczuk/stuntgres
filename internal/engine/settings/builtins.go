@@ -102,7 +102,6 @@ var builtins = []Definition{
 	{Name: "statement_timeout", Type: Integer, Unit: Milliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any statement."},
 	{Name: "lock_timeout", Type: Integer, Unit: Milliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any wait for a lock."},
 	{Name: "max_parallel_workers_per_gather", Type: Integer, IntegerMax: 1024, BootDefault: "2", Description: "Sets the maximum number of parallel processes per executor node."},
-	{Name: "enable_async_append", Type: Boolean, BootDefault: "on", Description: "Enables the planner's use of async append plans."},
 	{Name: "transaction_timeout", Type: Integer, Unit: Milliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."},
 	{Name: "idle_in_transaction_session_timeout", Type: Integer, Unit: Milliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed idle time between queries, when in a transaction."},
 	{Name: "idle_session_timeout", Type: Integer, Unit: Milliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed idle time between queries, when not in a transaction."},

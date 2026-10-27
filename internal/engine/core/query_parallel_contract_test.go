@@ -145,7 +145,7 @@ func parallelMergeCancellationProof(t *testing.T) {
 	ordered := project.Child.(*plan.SortNode)
 	var runs []exec.QueryParallelRun
 	for i := range 2 {
-		run, err := exec.RunParallelQuery(context.Background(), project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, true)
+		run, err := exec.RunParallelQuery(context.Background(), project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, true, plan.PlannerMethods{})
 		if err != nil {
 			t.Fatal(err)
 		}

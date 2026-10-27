@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -42,6 +43,7 @@ type StatementScope struct {
 	Op                      *session.Operation
 	ruleAction              RuleActionScope
 	RowSecurity             bool                      // Immutable effective setting for this admitted statement.
+	PlannerMethods          plan.PlannerMethods // Immutable effective statement admission.
 	rlsActive               []ids.ObjectAddress       // Active policy expansion path, not an occurrence cache.
 	rlsPrograms             []*rowSecurityProgram     // Owns runtime plus original selected admission identities.
 	rlsAdmissionDepth       int                       // Whole target/source admission, including recursive policies.

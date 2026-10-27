@@ -269,7 +269,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	}()
 	for i := range 2 {
 		go func(i int) {
-			r, err := exec.RunParallelQuery(ctx, project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, false)
+			r, err := exec.RunParallelQuery(ctx, project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, false, plan.PlannerMethods{})
 			done[i] <- workerOutcome{r, err}
 		}(i)
 	}

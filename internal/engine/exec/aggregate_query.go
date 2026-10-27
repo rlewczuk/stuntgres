@@ -9,6 +9,7 @@ import (
 )
 
 type QueryGroup struct {
+	occurrence int // Grouping-set occurrence, including duplicate sets.
 	Keys     []sqltype.Value
 	states   []any
 	ordered  [][]sqltype.Value
@@ -84,13 +85,19 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 		sets = [][]int{keys}
 	}
 	groups := make([]QueryGroup, 0)
-	buckets := make([]map[uint64][]int, len(sets))
+	var buckets []map[uint64][]int
+	if !state.Methods.NoHashAgg {
+		buckets = make([]map[uint64][]int, len(sets))
+	}
 	indices := make([]int, len(sets))
 	for i := range indices {
 		indices[i] = -1
 	}
 	scratch := make([]sqltype.Value, len(n.Keys))
-	hashes := make([]uint64, len(n.Keys))
+	var hashes []uint64
+	if !state.Methods.NoHashAgg {
+		hashes = make([]uint64, len(n.Keys))
+	}
 	orderedWidth := 0
 	hasDistinct := false
 	directWidth := 0
@@ -126,7 +133,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
-		group := QueryGroup{Keys: make([]sqltype.Value, len(n.Schema())), states: make([]any, len(n.Calls))}
+		group := QueryGroup{occurrence: occurrence, Keys: make([]sqltype.Value, len(n.Schema())), states: make([]any, len(n.Calls))}
 		if orderedWidth > 0 {
 			group.ordered = make([][]sqltype.Value, len(n.Calls))
 		}
@@ -192,11 +199,13 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 				return Stage{}, err
 			}
 			scratch[k] = value
-			h, err := n.Grouping[k].Hash(ctx, value)
-			if err != nil {
-				return Stage{}, err
+			if !state.Methods.NoHashAgg {
+				h, err := n.Grouping[k].Hash(ctx, value)
+				if err != nil {
+					return Stage{}, err
+				}
+				hashes[k] = h
 			}
-			hashes[k] = h
 		}
 		for occurrence, set := range sets {
 			if err := ctx.Err(); err != nil {
@@ -206,10 +215,16 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 				continue
 			}
 			hash := uint64(14695981039346656037)
-			for _, k := range set {
-				hash = (hash ^ hashes[k]) * 1099511628211
+			index := -1
+			var err error
+			if state.Methods.NoHashAgg {
+				index, err = findEqualityQueryGroup(ctx, n.Grouping, scratch, set, groups, occurrence)
+			} else {
+				for _, k := range set {
+					hash = (hash ^ hashes[k]) * 1099511628211
+				}
+				index, err = FindQueryGroup(ctx, n.Grouping, scratch, set, groups, buckets[occurrence][hash])
 			}
-			index, err := FindQueryGroup(ctx, n.Grouping, scratch, set, groups, buckets[occurrence][hash])
 			if err != nil {
 				return Stage{}, err
 			}
@@ -218,10 +233,12 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 				if err != nil {
 					return Stage{}, err
 				}
-				if buckets[occurrence] == nil {
-					buckets[occurrence] = make(map[uint64][]int)
+				if !state.Methods.NoHashAgg {
+					if buckets[occurrence] == nil {
+						buckets[occurrence] = make(map[uint64][]int)
+					}
+					buckets[occurrence][hash] = append(buckets[occurrence][hash], index)
 				}
-				buckets[occurrence][hash] = append(buckets[occurrence][hash], index)
 			}
 			indices[occurrence] = index
 		}
@@ -402,6 +419,20 @@ func FindQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltyp
 		}
 		if equal {
 			return candidate, nil
+		}
+	}
+	return -1, ctx.Err()
+}
+
+func findEqualityQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []QueryGroup, occurrence int) (int, error) {
+	for candidate := range groups {
+		if groups[candidate].occurrence != occurrence {
+			continue
+		}
+		one := [1]int{candidate}
+		index, err := FindQueryGroup(ctx, grouping, keys, active, groups, one[:])
+		if err != nil || index >= 0 {
+			return index, err
 		}
 	}
 	return -1, ctx.Err()

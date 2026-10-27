@@ -147,7 +147,10 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 		}
 	}
 	evaluation.PresenceSlots, evaluation.Presence = source.PresenceSlots, presence
-	hash := newJoinHash(n, &evaluation)
+	var hash *joinHash
+	if !state.Methods.NoHashJoin {
+		hash = newJoinHash(n, &evaluation)
+	}
 	var candidates []int
 	candidate, scan := 0, true
 	leftOccurrence, rightOccurrence := -1, 0

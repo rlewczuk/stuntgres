@@ -175,6 +175,7 @@ func (e *Engine) materializePolicySourcesLocked(s *StatementScope) error {
 				return err
 			}
 			pending.clause.State = exec.State{Source: inputs, SourceMode: exec.SourceReusable, Input: s.Input, Output: s.Output, Locking: inputs.Locks.RowMarked()}
+			pending.clause.State.CapturePlannerAdmission()
 			e.Mu.Unlock()
 			err = exec.SelectQuerySources(s.executionContext(), inputs)
 			if err == nil {

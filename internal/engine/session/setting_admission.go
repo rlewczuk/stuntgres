@@ -40,6 +40,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	op.CursorTupleFraction = s.Settings.TypedValue("cursor_tuple_fraction").Number
 	op.RecursiveWorktableFactor = s.Settings.TypedValue("recursive_worktable_factor").Number
 	op.AsyncAppend = s.Settings.TypedValue("enable_async_append").Boolean
+	op.PlannerMethods = s.Settings.PlannerMethodsLocked()
 	transactionTimeout := s.Settings.TypedValue("transaction_timeout").Number
 	op.NoticeThreshold, _ = messageLevel(s.Settings.Value(settings.ClientMinMessages.Name))
 	op.CommandAdmission = true

@@ -56,6 +56,8 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	}
 	input, output := h.Environments()
 	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Ctes: h.CTEInvocation(), Locking: inputs.Locks != nil}
+	state.Methods = h.AdmittedPlannerMethods()
+	state.CapturePlannerAdmission()
 	defer state.ReleaseMemberships()
 	defer outcome.finishSources(state, &err)
 	m.Request.Parameters, err = exec.ForeignParameters(h.Context(), state, in.Foreign)

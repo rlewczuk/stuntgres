@@ -390,11 +390,10 @@ with silent initialization; replacement physical sessions capture defaults anew.
 ## Short-option counterparts
 
 The 26 documented short-option spellings identify 25 ordinary SQL settings;
-there is no command-line parser. Eight planner-method flags, fsync and the four
-performance-statistics flags use shared typed metadata and session storage.
-They do not select physical scan/join plans, write performance logs, synchronize
-files, or change listeners, TLS, authentication delays or catalog safety.
-Existing DateStyle formatting and parsing consumers remain operative.
+there is no command-line parser. Their descriptors keep their owning families:
+planner methods in `planner.go`, fsync in `wal.go`, and statistics flags in
+`builtins.go`/`short.go`. Statistics assignments do not write performance logs;
+fsync does not synchronize files. Existing DateStyle consumers remain operative.
 
 All four statistics flags use effective superuser or parameter SET authority.
 Explicit true assignments reject statement statistics combined with any stage
@@ -405,6 +404,30 @@ conflicting combination, which subsequent explicit assignments must still check.
 Rollback/savepoint restoration likewise restores state without revalidation.
 Trusted providers may capture statistics defaults; fixed, postmaster and sighup
 defaults retain their existing restrictions.
+
+## Planner method settings
+
+`planner.go` owns the 24 Boolean planner-method descriptors, all unrestricted
+user-context settings. The ordinary store owns validation, captured defaults,
+SESSION/LOCAL/savepoint restoration and metadata; no parallel configuration
+store or assignment hook exists. Only partitionwise join/aggregate boot off.
+
+Execution consumes immutable admitted values for hash-assisted joins, published
+hash-index lookup, hash grouping/plain DISTINCT, partition-membership pruning
+and ordered local gather. Async append retains its separate admitted FDW
+capability. Required full scans, nested loops, sorts and materialization remain
+valid when discouraged. These are logical in-memory choices, not disk costs or
+physical worker configuration.
+
+The remaining descriptors retain their real values at named selector boundaries:
+bitmap/index-only/TID tuple producers; merge join and nested-loop Memoize;
+prefix incremental sorting; DISTINCT/GROUP BY key reordering; optional
+materialization selection; Parallel Append/shared parallel hash join;
+partitionwise join/aggregation; presorted aggregate input planning; and
+uniqueness-based self-join elimination. These settings do not substitute other
+algorithms for those mechanisms or remove required aggregate-local ordering
+and DISTINCT work.
+
 
 
 

@@ -44,18 +44,8 @@ func (h *joinHash) add(n *plan.JoinNode, evaluation *Context, e expr.Expr) bool 
 	case plan.LogicalExpr:
 		return c.Op == parser.LogicalAnd && !c.QueryRight && c.Right != nil && h.add(n, evaluation, c.Left) && h.add(n, evaluation, c.Right)
 	case plan.ComparisonExpr:
-		if c.Operator != "=" || c.RoutineRef != (ids.ObjectRef{}) || c.Namespace != "" && c.Namespace != "pg_catalog" || c.Properties().Volatility == expr.Volatile {
-			return false
-		}
-		left, right := c.Left, c.Right
-		if !joinKey(evaluation, left, 0, n.LeftWidth) || !joinKey(evaluation, right, n.LeftWidth, n.RightWidth) {
-			left, right = right, left
-			if !joinKey(evaluation, left, 0, n.LeftWidth) || !joinKey(evaluation, right, n.LeftWidth, n.RightWidth) {
-				return false
-			}
-		}
-		grouping, err := c.Predicate.EqualityGrouping()
-		if err != nil {
+		left, right, grouping, ok := joinHashComparison(n, evaluation, c)
+		if !ok {
 			return false
 		}
 		h.left, h.right = append(h.left, left), append(h.right, right)
@@ -63,6 +53,42 @@ func (h *joinHash) add(n *plan.JoinNode, evaluation *Context, e expr.Expr) bool 
 		return true
 	}
 	return false
+}
+
+// HashJoinEligible is metadata-only: no expression, hash or comparison provider
+// is invoked. EXPLAIN uses the same comparison/frame gate as newJoinHash.
+func HashJoinEligible(n *plan.JoinNode, frame uint32) bool {
+	if n.Predicate == nil || n.CorrelatedRight {
+		return false
+	}
+	evaluation := Context{EvalFrame: EvalFrame{Frame: frame}}
+	var eligible func(expr.Expr) bool
+	eligible = func(e expr.Expr) bool {
+		switch c := e.(type) {
+		case plan.LogicalExpr:
+			return c.Op == parser.LogicalAnd && !c.QueryRight && c.Right != nil && eligible(c.Left) && eligible(c.Right)
+		case plan.ComparisonExpr:
+			_, _, _, ok := joinHashComparison(n, &evaluation, c)
+			return ok
+		}
+		return false
+	}
+	return eligible(n.Predicate)
+}
+
+func joinHashComparison(n *plan.JoinNode, evaluation *Context, c plan.ComparisonExpr) (expr.Expr, expr.Expr, sqltype.Grouping, bool) {
+	if c.Operator != "=" || c.RoutineRef != (ids.ObjectRef{}) || c.Namespace != "" && c.Namespace != "pg_catalog" || c.Properties().Volatility == expr.Volatile {
+		return nil, nil, sqltype.Grouping{}, false
+	}
+	left, right := c.Left, c.Right
+	if !joinKey(evaluation, left, 0, n.LeftWidth) || !joinKey(evaluation, right, n.LeftWidth, n.RightWidth) {
+		left, right = right, left
+		if !joinKey(evaluation, left, 0, n.LeftWidth) || !joinKey(evaluation, right, n.LeftWidth, n.RightWidth) {
+			return nil, nil, sqltype.Grouping{}, false
+		}
+	}
+	grouping, err := c.Predicate.EqualityGrouping()
+	return left, right, grouping, err == nil
 }
 
 // joinKey accepts a plain column of the join's own frame in [start,

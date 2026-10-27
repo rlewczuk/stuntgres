@@ -85,6 +85,12 @@ under on, inherited child branches (not the named parent or a standalone child)
 under partition, and neither under off. Declarative membership proof remains
 independent. EXPLAIN uses no sources or row counts, runs proof comparisons
 unlocked and omits proof details for row-security/row-lock guarded sources.
+The Select membership argument is an admitted value from the executor, not a
+live setting read. When false, RANGE/LIST/DEFAULT/HASH ancestor membership
+facts are omitted; physical CHECK/NOT NULL facts remain governed independently
+by constraint_exclusion, and constant-false query proofs remain active.
+Captured topology, lock manifests and residual evaluation do
+not change when membership pruning is disabled.
 
 - **Shared budget.** Boolean backtracking processes at most 4096 search entries
   across one entire Select, not per branch. Exhaustion retains the current and

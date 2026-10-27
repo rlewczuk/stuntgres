@@ -119,6 +119,11 @@ nontransactional.
   too. Typed reset values and their `DefaultSource` remain frozen across
   transactions, detached invocation images, exception marks, pool reuse and
   logical replacement; EndSession releases them.
+  Command admission captures `plan.PlannerMethods` under the effective store's
+  mutex. Disabled bits make detached zero values preserve enabled algorithms;
+  the value retains no settings owner. Core separately captures effective
+  detached routine settings at each nested SQL admission. Async and parallel
+  permissions retain their separate operation admission facts.
   `SessionStart.NoticeHandler` transports startup diagnostics only after the
   coherent startup image is complete and all runtime locks are released.
   Effective defaults use the registry's cached `DefaultValue`, separately from

@@ -3,6 +3,7 @@ package partition
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
@@ -162,5 +163,146 @@ func TestPartitionPruningProof(t *testing.T) {
 	p.ctx = ctx
 	if _, err := p.normalize(query, false); !errors.Is(err, context.Canceled) {
 		t.Fatal("proof suppressed cancellation", err)
+	}
+}
+
+func TestPlannerSettingsPruningSelection(t *testing.T) {
+	for _, kind := range []string{"range","list","default","hash"} {
+		t.Run(kind,func(t *testing.T) {
+			p,column,boolean:=pruningProofFixture(t)
+			parent:=*p.named
+			state:=catalog.NewState(1)
+			for address,d:=range p.view.Descriptors() { state.SetDescriptor(address,d) }
+			for key,address:=range p.view.Names() { state.BindName(key,address) }
+			physical:=parent
+			physical.ObjectAddress.ObjectID++
+			physical.ObjectName="p_child"
+			one,_:=sqltype.Integer(column.Usage.Type,1)
+			ten,_:=sqltype.Integer(column.Usage.Type,10)
+			twenty,_:=sqltype.Integer(column.Usage.Type,20)
+			// The fixture must capture the same real support declarations as
+			// partition binding, including ordering for RANGE/LIST membership.
+			class,ok:=p.view.UniqueDefaultIndexClass(403,column.Usage.Type); if !ok { t.Fatal("missing ordering class") }
+			ordering,err:=routine.BindIndexOrdering(p.view,column.Usage,class); if err!=nil { t.Fatal(err) }
+			key:=catalog.PartitionKeyEntry{Attribute:1,Usage:column.Usage,Class:class,Comparison:ordering}
+			if kind=="hash" {
+				class,ok=p.view.UniqueDefaultIndexClass(405,column.Usage.Type); if !ok { t.Fatal("missing hash class") }
+				hash,err:=routine.BindPartitionHash(p.view,column.Usage,class); if err!=nil { t.Fatal(err) }
+				key.Class,key.Hash=class,hash
+			}
+			parent.Partition=&catalog.PartitionDefinition{Keys:[]catalog.PartitionKeyEntry{key},Children:[]ids.ObjectAddress{physical.Address()}}
+			physical.Membership=&catalog.PartitionMembership{Parent:parent.Address()}
+			switch kind {
+			case "range":
+				parent.Partition.Strategy=parser.PartitionRange
+				physical.Membership.Lower=[]catalog.PartitionDatum{{Value:ten}}
+				physical.Membership.Upper=[]catalog.PartitionDatum{{Value:twenty}}
+			case "list":
+				parent.Partition.Strategy=parser.PartitionList
+				physical.Membership.Values=[]catalog.PartitionDatum{{Value:ten}}
+			case "default":
+				parent.Partition.Strategy=parser.PartitionList
+				physical.Membership.DefaultBound=true
+				sibling:=physical; sibling.ObjectAddress.ObjectID++; sibling.ObjectName="p_sibling"
+				sibling.Membership=&catalog.PartitionMembership{Parent:parent.Address(),Strategy:parser.PartitionList,Values:[]catalog.PartitionDatum{{Value:one}}}
+				parent.Partition.Children=append(parent.Partition.Children,sibling.Address())
+				state.SetDescriptor(sibling.Address(),&sibling)
+			case "hash":
+				parent.Partition.Strategy=parser.PartitionHash
+				physical.Membership.Modulus=2
+				physical.Membership.Remainder=1
+			}
+			physical.Membership.Strategy=parent.Partition.Strategy
+			state.SetDescriptor(parent.Address(),&parent)
+			state.SetDescriptor(physical.Address(),&physical)
+			view:=catalog.NewRead(nil,state)
+			source:=&exec.Source{Ref:p.ref,Anonymous:[][]sqltype.Value{{one}},Inheritance:[]exec.InheritanceQuerySegment{{Leaf:exec.Leaf{Relation:&physical}}},InheritanceEnds:[]int{1}}
+			pruner:=CapturedPruner{view:view,named:&parent,source:source,mode:"on"}
+			query:=pruningComparison(t,column,boolean,"=",1)
+			for _, mode:=range []string{"on","partition","off"} {
+				pruner.mode=mode
+				for _, membership:=range []bool{true,false} {
+					selected,err:=pruner.Select(context.Background(),p.evaluation,query,membership)
+					want := exec.QueryBranchSelection{Applied: membership}
+					if err!=nil || !reflect.DeepEqual(selected,want) { t.Fatalf("mode=%s membership=%t selected=%+v want=%+v err=%v",mode,membership,selected,want,err) }
+				}
+			}
+			// Constraint-only coverage below deliberately has no membership:
+			// a bound must not hide an independently forbidden CHECK proof.
+			ctx,cancel:=context.WithCancel(context.Background()); cancel()
+			if _,err:=pruner.Select(ctx,p.evaluation,query,false); !errors.Is(err,context.Canceled) { t.Fatal(err) }
+		})
+	}
+	for _, topology := range []string{"ordinary", "only-child", "inherited"} {
+		t.Run(topology, func(t *testing.T) {
+			for _, fact := range []string{"check", "check-null", "not-null", "false"} {
+				t.Run(fact, func(t *testing.T) {
+					p, column, boolean := pruningProofFixture(t)
+					named := *p.named
+					physical := named
+					if topology == "inherited" {
+						physical.ObjectAddress.ObjectID++
+						physical.ObjectName = "p_child"
+					}
+					if topology != "ordinary" {
+						parentAddress := named.Address()
+						if topology == "only-child" {
+							parentAddress.ObjectID += 10
+						}
+						physical.Inheritance = &catalog.TableInheritance{Parents: []catalog.InheritanceParent{{Relation: parentAddress, Seqno: 1}}}
+					}
+					checkColumn := column
+					checkColumn.Origin.Address = physical.Address()
+					checkColumn.Origin.Address.SubID = 1
+					query := pruningComparison(t, column, boolean, "=", 1)
+					switch fact {
+					case "check", "check-null":
+						physical.Constraints.Check = []catalog.CheckConstraint{{Expression: pruningComparison(t, checkColumn, boolean, ">=", 10)}}
+					case "not-null":
+						physical.Constraints.NotNull = []catalog.NotNullConstraint{{Attribute: 1}}
+					}
+					if fact == "check-null" || fact == "not-null" {
+						query = plan.NullTestExpr{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true}}, Child: column}
+					}
+					if fact == "false" {
+						query = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}
+					}
+					source := &exec.Source{Ref: p.ref, Anonymous: make([][]sqltype.Value, 3)}
+					if topology == "inherited" {
+						// Exact nonadjacent retained intervals prove the parent's
+						// occurrence and the unconstrained trailing sibling survive.
+						sibling := named
+						sibling.ObjectAddress.ObjectID += 2
+						source.Anonymous = make([][]sqltype.Value, 7)
+						source.Inheritance = []exec.InheritanceQuerySegment{{Leaf: exec.Leaf{Relation: &named}}, {Leaf: exec.Leaf{Relation: &physical}}, {Leaf: exec.Leaf{Relation: &sibling}}}
+						source.InheritanceEnds = []int{2, 5, 7}
+					} else {
+						named = physical
+					}
+					for _, mode := range []string{"on", "partition", "off"} {
+						for _, membership := range []bool{true, false} {
+							pruner := CapturedPruner{view: p.view, named: &named, source: source, mode: mode}
+							excluded := fact == "false" || fact != "check-null" && (mode == "on" || mode == "partition" && topology == "inherited")
+							want := exec.QueryBranchSelection{Applied: excluded}
+							if excluded && topology == "inherited" && fact != "false" {
+								want.Intervals = []exec.QueryBranchInterval{{Start: 0, End: 2}, {Start: 5, End: 7}}
+							}
+							got, err := pruner.Select(context.Background(), p.evaluation, query, membership)
+							if err != nil || !reflect.DeepEqual(got, want) {
+								t.Fatalf("mode=%s membership=%t got=%+v want=%+v err=%v", mode, membership, got, want, err)
+							}
+							proof, err := NewBranchProof(context.Background(), p.evaluation, p.view, &named, p.ref, query, mode, topology == "inherited")
+							if err != nil {
+								t.Fatal(err)
+							}
+							possible, err := proof.Possible(&physical, membership)
+							if err != nil || possible == excluded {
+								t.Fatalf("metadata feasibility disagrees: possible=%t excluded=%t err=%v", possible, excluded, err)
+							}
+						}
+					}
+				})
+			}
+		})
 	}
 }

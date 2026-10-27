@@ -35,7 +35,7 @@ func pruningSelection(t *testing.T, e *core.Engine, query string, parameters []s
 	if source.BranchPruner == nil {
 		t.Fatal("missing captured branch proof authority")
 	}
-	selected, err := source.BranchPruner.Select(context.Background(), &evaluation, filter.Predicate)
+	selected, err := source.BranchPruner.Select(context.Background(), &evaluation, filter.Predicate, true)
 	if err != nil {
 		t.Fatal(err)
 	}

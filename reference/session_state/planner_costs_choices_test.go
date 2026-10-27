@@ -69,6 +69,59 @@ func TestReferencePlannerCostsChoices(t *testing.T) {
 	})
 }
 
+func TestReferencePlannerSeqscanChoices(t *testing.T) {
+	physicalCases(t,nil,func(s *physicalCase) {
+		s.plannerCostSeed()
+		// Eliminate PostgreSQL's separate bitmap alternative so the independent
+		// properties below distinguish ordinary index scans from full scans.
+		for _,q:=range []string{"SET enable_bitmapscan=off","SET cpu_index_tuple_cost=1000000"} { s.run(fixture.Exec(q,0)) }
+		const query="SELECT n,s FROM planner_cost_rows WHERE n=$1"
+		const explain="EXPLAIN SELECT n,s FROM planner_cost_rows WHERE n=2"
+		const nullQuery="SELECT n,s FROM planner_cost_rows WHERE s IS NULL"
+		held,err:=s.conn.PrepareContext(s.p.Ctx,query); if err!=nil { s.t.Fatal(err) }; defer held.Close()
+		heldExplain,err:=s.conn.PrepareContext(s.p.Ctx,explain); if err!=nil { s.t.Fatal(err) }; defer heldExplain.Close()
+		heldNull,err:=s.conn.PrepareContext(s.p.Ctx,nullQuery); if err!=nil { s.t.Fatal(err) }; defer heldNull.Close()
+		checkPlan:=func(prepared,hash bool) {
+			var rows *sql.Rows; var err error
+			if prepared { rows,err=heldExplain.QueryContext(s.p.Ctx) } else { rows,err=s.conn.QueryContext(s.p.Ctx,explain) }
+			if err!=nil { s.t.Fatal(err) }; defer rows.Close()
+			var text strings.Builder
+			for rows.Next() { var line string; if err:=rows.Scan(&line); err!=nil { s.t.Fatal(err) }; text.WriteString(line); text.WriteByte('\n') }
+			if err:=rows.Err(); err!=nil { s.t.Fatal(err) }
+			plan:=text.String()
+			want,reject:="Access Method: Full Scan","Access Method: Hash Candidates"
+			if s.pg { want,reject="Seq Scan on planner_cost_rows","Index Scan using planner_cost_hash" }
+			if hash { want,reject=reject,want }
+			if !strings.Contains(plan,want) || strings.Contains(plan,reject) { s.t.Fatal("wrong sequential-scan preference",plan) }
+			if !s.pg {
+				cpu:="12.5"; if hash { cpu="5e+08" }
+				if !strings.Contains(plan,"CPU Cost: "+cpu+"\n") || hash && !strings.Contains(plan,"Index: planner_cost_hash\n") { s.t.Fatal("preference lost cost/index facts",plan) }
+			}
+		}
+		for _,profile:=range []struct{seq,index string; hash bool}{
+			{"on","on",false},{"off","on",true},{"off","off",false},{"on","on",false},{"off","on",true},
+		} {
+			s.run(fixture.Exec("SET enable_seqscan="+profile.seq,0))
+			s.run(fixture.Exec("SET enable_indexscan="+profile.index,0))
+			for _,prepared:=range []bool{false,true} {
+				checkPlan(prepared,profile.hash)
+				step:=plannerCostBag("SELECT n,s FROM planner_cost_rows WHERE n=2"); step.Prepared=prepared; s.run(step)
+				// No index exists for s, and a NULL equality probe must not
+				// manufacture a matching tuple or lose the stored NULL row.
+				nulls:=fixture.Select("SELECT n,s FROM planner_cost_rows WHERE s IS NULL",[]string{"n","s"},[]string{"INT4","TEXT"},[][]any{{nil,nil}}); nulls.Prepared=prepared; s.run(nulls)
+				empty:=fixture.Select(query,[]string{"n","s"},[]string{"INT4","TEXT"},nil,nil); empty.Prepared=prepared; s.run(empty)
+			}
+			for _,tc:=range []struct{arg any; rows [][]any}{
+				{2,[][]any{{int64(2),"b"},{int64(2),"b"}}},{1,[][]any{{int64(1),"a"}}},{nil,nil},
+			} {
+				step:=fixture.Select(query,[]string{"n","s"},[]string{"INT4","TEXT"},tc.rows,tc.arg); step.Bag=true
+				fixture.RunStep(s.t,s.p.Ctx,fixture.HeldStatement{Executor:s.conn,Statement:held,SQL:query},s.recorder,step)
+			}
+			fixture.RunStep(s.t,s.p.Ctx,fixture.HeldStatement{Executor:s.conn,Statement:heldNull,SQL:nullQuery},s.recorder,fixture.Select(nullQuery,[]string{"n","s"},[]string{"INT4","TEXT"},[][]any{{nil,nil}}))
+		}
+	})
+}
+
 func (s *physicalCase) plannerCostParallel() {
 	s.run(fixture.Exec("CREATE TABLE planner_parallel(n integer)",0)); s.run(fixture.Exec("INSERT INTO planner_parallel VALUES(1),(2),(3),(4)",4))
 	query:="SELECT n FROM planner_parallel"

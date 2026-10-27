@@ -127,6 +127,7 @@ type Operation struct {
 	CursorTupleFraction      float64
 	RecursiveWorktableFactor float64
 	AsyncAppend              bool // Immutable prior-setting snapshot at command admission.
+	PlannerMethods           plan.PlannerMethods // Immutable effective command admission.
 	StatementDeadline        time.Time
 	CommandStart             time.Time
 	SourceContext            context.Context

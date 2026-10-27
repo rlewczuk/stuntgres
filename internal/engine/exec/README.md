@@ -71,6 +71,17 @@ typmods; naming is captured only on failure and is never retained in result tupl
   repeated worker Evaluation must never consult a shared SQL host whose lexical
   CTE scratch may be installed/restored by a sibling support body. Ordinary and
   nested SQL query states retain their existing live lexical inheritance.
+  `State.Methods` is a value-only admission snapshot. Child, correlated, CTE,
+  view and worker states copy it; retained streams capture before host rebinding.
+  Hashjoin off avoids the join hash structure, indexscan off avoids candidate
+  probing, and hashagg off uses collision-safe equality search without key
+  hashes/buckets (including plain DISTINCT and partial-aggregate admission).
+  Duplicate grouping-set occurrences retain separate groups. Aggregate-local
+  DISTINCT/ORDER BY remain mandatory input operations. Gathermerge off routes
+  only eligible ordered local SELECT to serial finalization; unordered scans,
+  foreign partition scans, async append and other aggregate choices keep their
+  independent permissions. Required scan/loop/sort/materialization work remains
+  valid even when its optional alternatives are discouraged.
   A separate parallel-operation context spans leader admission, partial workers,
   state combination, final support and the result graph. Worker identity implies
   that operation, but the leader is not a worker. Reached sequence mutation and
@@ -80,10 +91,14 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Sources retain admitted typed CPU/parallel costs and detached maintenance
   cardinality, never a settings-store pointer. Each opening selects its scan
   decision before hashing or allocating candidates; the original predicate
-  still checks every candidate. Core EXPLAIN uses the same metadata-only
-  eligibility/arithmetic and labels these paths Hash Candidates or Full Scan,
-  not physical disk scans. Cursors/portals retain their opening decision;
-  prepared execution admits current command costs without mutating shared IR.
+  still checks every candidate. With indexscan enabled, seqscan off prefers a
+  safely eligible captured index even when its estimated cost is higher; both
+  methods off or no eligible index retain the required full-scan fallback.
+  Default-on selection and all numeric cost estimates remain cost-based.
+  Core EXPLAIN uses the same metadata-only eligibility, method policy and
+  arithmetic and labels these paths Hash Candidates or Full Scan, not physical
+  disk scans. Cursors/portals retain their opening decision; prepared execution
+  admits current command methods/costs without mutating shared IR.
   `FinalizeSelect` compares serial work with setup+work/workers+tuple-delivery
   before either local query or partial-aggregate dispatch, after existing
   safety/shape gates and logical table-size admission. Foreign worker costing

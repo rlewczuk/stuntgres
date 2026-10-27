@@ -20,7 +20,7 @@ func TestPartitionPruningSearchBudget(t *testing.T) {
 		if err != nil || possible || p.remaining != 0 {
 			t.Fatalf("last allowed refutation was lost: possible=%v remaining=%d err=%v", possible, p.remaining, err)
 		}
-		later, err := p.branch(1, p.named, true)
+		later, err := p.branch(1, p.named, true, true)
 		if err != nil || !later || possible {
 			t.Fatalf("fallback must retain later branch without changing prior refutation: earlier=%v later=%v err=%v", possible, later, err)
 		}
@@ -78,7 +78,7 @@ func TestPartitionPruningSearchBudget(t *testing.T) {
 		// Later physical branches do not replenish the allowance or construct
 		// more facts, even when their query would trivially refute them.
 		nodes := len(p.nodes)
-		possible, err = p.branch(1, p.named, true)
+		possible, err = p.branch(1, p.named, true, true)
 		if err != nil || !possible || p.remaining != 0 || len(p.nodes) != nodes {
 			t.Fatalf("later branch renewed exhausted search: possible=%v remaining=%d nodes=%d err=%v", possible, p.remaining, len(p.nodes), err)
 		}
@@ -121,7 +121,7 @@ func TestPartitionPruningSearchBudget(t *testing.T) {
 		if _, err := p.possible(nil, nil, finish); !errors.Is(err, context.Canceled) {
 			t.Fatal("search exhaustion suppressed cancellation", err)
 		}
-		if _, err := p.branch(1, p.named, true); !errors.Is(err, context.Canceled) {
+		if _, err := p.branch(1, p.named, true, true); !errors.Is(err, context.Canceled) {
 			t.Fatal("branch exhaustion suppressed cancellation", err)
 		}
 	})

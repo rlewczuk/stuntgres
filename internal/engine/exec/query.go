@@ -308,6 +308,8 @@ const (
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
 // delegates to the sole expression evaluator; each stage owns its private state.
 type State struct {
+	Methods                plan.PlannerMethods
+	methodsCaptured        bool
 	foreignParallelMaximum int // Only admitted eager top-level SELECT may set this.
 	AsyncAppend            bool
 	asyncCaptured          bool

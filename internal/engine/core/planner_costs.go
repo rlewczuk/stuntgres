@@ -63,5 +63,5 @@ func (r *explainRenderer) explainScan(filter *plan.FilterNode, frame uint32) pla
 	slices.SortFunc(indexes, func(a, b exec.CapturedHashIndex) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	// OrdinaryEquality/EqualityFor inspect concrete typed metadata only;
 	// neither invokes the class's hash/equality implementation.
-	return exec.ChooseScan(filter, leaf.Ref, 1, frame, costs, rows, 1, indexes)
+	return exec.ChooseScan(filter, leaf.Ref, 1, frame, s.PlannerMethods, costs, rows, 1, indexes)
 }

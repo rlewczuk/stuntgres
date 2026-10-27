@@ -28,13 +28,14 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 - **Cancellation admission** uses one of two patterns; both reject early
   completion, join workers under bounded cleanup and check nil outputs, the
   sentinel and same-owner/held recovery:
-  - *Native stack observer* (`likeReferenceCancelEntered`, used by LIKE, POSIX
-    and regexp): cancels only when the provider frame and the worker
-    `likeReferenceCancelEntered.func1` are in the same live goroutine stack
-    (creation metadata excluded); misses wait 1 ms on a reset timer. PostgreSQL
-    observes the server command. Observation is scheduler-dependent, so the
-    native workload must keep the provider busy (for example the no-match
-    pattern `a{128}z` over 2 MiB of `a`).
+  - *Native stack observer*: LIKE uses `fixture.BinaryConversionActiveCancel`,
+    whose context holds an actual provider cancellation poll until the observer
+    sees that provider and its `activeProviderCancel` worker in the same live
+    stack and cancels it. Finite normalization cannot escape between samples.
+    POSIX and regexp retain `likeReferenceCancelEntered`, matching the provider
+    and `likeReferenceCancelEntered.func1` in one live stack, with creation
+    metadata excluded. Their workloads must keep the provider busy between
+    samples. PostgreSQL observes the server command.
   - *Relation-lock admission* (SIMILAR, `regexp_substr`): the regex-bearing UPDATE
     waits behind `LOCK TABLE ... IN ACCESS EXCLUSIVE MODE` before cancellation.
     This proves admitted SQL cancellation, not provider entry; matcher-level
@@ -50,7 +51,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   work/cancellation and PostgreSQL streaming coverage.
 - **Frame names matched by tests.** `sqltype.matchLike`,
   `sqltype.LikeEscapePlan.Evaluate`, `sqltype.(*PGRegexProgram)` methods and the
-  test worker `likeReferenceCancelEntered.func1`. Update the probes when renaming them.
+  test workers `activeProviderCancel` and `likeReferenceCancelEntered.func1`.
+  Update the probes when renaming them.
 - **Resource limits.** Regex work budgets are tested only by internal units with
   injected limits; reference tests never assume a portable complexity cutoff.
 - **Replay errors.** Expected errors during PostgreSQL emitted-SQL replay run

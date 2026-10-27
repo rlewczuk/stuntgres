@@ -139,6 +139,7 @@ func (owner *ForeignScanOwner) finishRequests(ctx context.Context) error {
 // CaptureAsyncAdmission snapshots the current admitted host once. A retained
 // cursor calls this at DECLARE; subsequent FETCH hosts cannot change eligibility.
 func (s *State) CaptureAsyncAdmission() {
+	s.CapturePlannerAdmission()
 	if s.asyncCaptured {
 		return
 	}
@@ -158,6 +159,8 @@ func (s *State) asyncAppendEligible() bool {
 }
 
 func (s *State) inheritAsyncAdmission(parent *State) {
+	parent.CapturePlannerAdmission()
+	s.Methods, s.methodsCaptured = parent.Methods, true
 	s.AsyncAppend, s.asyncCaptured = parent.AsyncAppend, parent.asyncCaptured
 	s.asyncInvocation = s.asyncInvocation || parent.asyncInvocation ||
 		parent.Outer != nil || parent.Invocation != nil || s.Outer != nil || s.Invocation != nil

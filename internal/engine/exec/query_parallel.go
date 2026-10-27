@@ -20,7 +20,8 @@ func FinalizeSelect(ctx context.Context, root plan.Node, source *Source, paramet
 		return Finalize(ctx, root, source, parameters)
 	}
 	workers := QueryParallelWorkers(ceiling, source.Count())
-	if aggregate, eligible := ParallelAggregatePlan(root, source); eligible && workers >= 2 && source.PlannerCosts.LocalParallel(source.PlannerRows, source.PlannerColumns, workers) {
+	methods := sourcePlannerMethods(source)
+	if aggregate, eligible := ParallelAggregatePlan(root, source); !methods.NoHashAgg && eligible && workers >= 2 && source.PlannerCosts.LocalParallel(source.PlannerRows, source.PlannerColumns, workers) {
 		return FinalizeParallelAggregate(ctx, root, aggregate, source, parameters, workers)
 	}
 	if source != nil && source.Foreign != nil && source.Anonymous != nil && len(source.Anonymous) == 0 {
@@ -31,7 +32,7 @@ func FinalizeSelect(ctx context.Context, root plan.Node, source *Source, paramet
 		}
 	}
 	project, ordered, eligible := ParallelQueryPlan(root, source)
-	if !eligible || workers < 2 || source.Foreign == nil && !source.PlannerCosts.LocalParallel(source.PlannerRows, source.PlannerColumns, workers) {
+	if !eligible || workers < 2 || ordered != nil && methods.NoGatherMerge || source.Foreign == nil && !source.PlannerCosts.LocalParallel(source.PlannerRows, source.PlannerColumns, workers) {
 		return Finalize(ctx, root, source, parameters)
 	}
 	return FinalizeParallelQuery(ctx, project, ordered, source, parameters, workers)
@@ -222,13 +223,13 @@ func parallelProjectionSlots(project *plan.ProjectNode) ([]int, bool) {
 	return slots, true
 }
 
-func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *Source, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool) (run QueryParallelRun, err error) {
+func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *Source, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool, methods plan.PlannerMethods) (run QueryParallelRun, err error) {
 	worker, err := ParallelQuerySource(source)
 	if err != nil {
 		return run, err
 	}
 	defer worker.Close()
-	state := &State{Source: worker, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end}
+	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end}
 	defer state.ReleaseMemberships()
 	stage, err := OpenQueryProjectStage(ctx, state, project)
 	if err != nil {
@@ -282,6 +283,7 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 	if host := source.LiveHost(); host != nil {
 		input, output = host.Environments()
 	}
+	methods := sourcePlannerMethods(source)
 	slots, direct := parallelProjectionSlots(project)
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -294,7 +296,7 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 		joined.Add(1)
 		go func(i int) {
 			defer joined.Done()
-			run, err := RunParallelQuery(workerCtx, project, source, parameters, i*n/workers, (i+1)*n/workers, input, output, direct)
+			run, err := RunParallelQuery(workerCtx, project, source, parameters, i*n/workers, (i+1)*n/workers, input, output, direct, methods)
 			if err != nil {
 				errorMu.Lock()
 				if first == nil {

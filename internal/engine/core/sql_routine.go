@@ -428,6 +428,7 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.S
 	}
 	exec.AdmitScan(root, source)
 	state := exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
+	state.CapturePlannerAdmission()
 	defer state.ReleaseMemberships()
 	if scope := ScopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.Input, scope.Output

@@ -56,6 +56,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 				return Result{}, sourceErr
 			}
 			state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: canonical, Input: scope.Input, Output: scope.Output, Locking: inputs.Locks != nil, Ctes: scope.cteInvocation}
+			state.CapturePlannerAdmission()
 			defer state.ReleaseMemberships()
 			evaluation.Query = state
 			evaluation.Scope, evaluation.Frame = 1, 1

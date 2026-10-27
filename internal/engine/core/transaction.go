@@ -195,6 +195,10 @@ func newStatementScope(op *session.Operation, owner *session.TransactionOwner, s
 	settings := op.EffectiveSettings()
 	settings.Mu.Lock()
 	s.RowSecurity = settings.Value("row_security") == "on"
+	s.PlannerMethods = op.PlannerMethods
+	if op.Restricted != nil || !op.CommandAdmission {
+		s.PlannerMethods = settings.PlannerMethodsLocked()
+	}
 	settings.Mu.Unlock()
 	return s
 }

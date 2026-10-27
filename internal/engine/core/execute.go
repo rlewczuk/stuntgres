@@ -30,6 +30,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	if op.Restricted != nil || scope.activeSQLRoutineDepth != 0 {
+		store := op.EffectiveSettings()
+		store.Mu.Lock()
+		scope.PlannerMethods = store.PlannerMethodsLocked()
+		store.Mu.Unlock()
 		if err := scope.refreshRestrictedPresentation(); err != nil {
 			return Result{}, err
 		}

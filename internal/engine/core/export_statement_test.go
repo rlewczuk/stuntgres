@@ -495,3 +495,10 @@ func PortalRowsRef(p *protocolPortal) *exec.RowResult             { return &p.ro
 func PortalColumnsRef(p *protocolPortal) *[]catalog.Column        { return &p.columns }
 func PortalStartedRef(p *protocolPortal) *bool                    { return &p.started }
 func PortalContextRef(p *protocolPortal) *session.ProtocolContext { return &p.context }
+
+// CursorExecutionState borrows the cursor's actual retained executor owner.
+func CursorExecutionState(c *sqlCursor) *exec.State { return &c.state }
+
+func ScopeInstallProtocolProducer(s *StatementScope, root plan.Node, source *exec.Source, values []sqltype.Value) (Result, error) {
+	return s.installProtocolProducer(root, source, values)
+}

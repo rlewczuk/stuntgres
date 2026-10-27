@@ -54,6 +54,14 @@ results and releases the producer normally. Worktable estimates are renderer-loc
 scoped by the owning CTEDefinition and its seed rows times the admitted factor.
 EXPLAIN's `Pruned Sources` detail uses partition's actual conservative branch
 proof over captured metadata, with comparisons unlocked and no source opening.
+Method details use admitted `PlannerMethods` and pure shared runtime shape/frame
+predicates: hash-assisted versus nested-loop joins and hash versus equality
+grouping/deduplication. They do not assert runtime index-root eligibility,
+partition interval counts or launched gather/foreign work. Statement scopes
+own copied method values; routine scratch restores the enclosing value
+independently of presentation refresh, while a separately admitted nested SQL
+command captures its current effective settings. Cursor/portal executor owners
+retain their original value across FETCH or suspension.
 Window clauses are resolved through their owning stage's canonical specification
 indices, and SRF outputs through that stage's fixed call/scalar slots. Verbose
 outputs omit private grouping identities and reserved, not-yet-produced SRF

@@ -28,10 +28,10 @@ func NewBranchProof(ctx context.Context, evaluation *exec.Context, view catalog.
 	return p, err
 }
 
-func (p *BranchProof) Possible(physical *catalog.Relation) (bool, error) {
+func (p *BranchProof) Possible(physical *catalog.Relation, membership bool) (bool, error) {
 	p.proof.nodes = p.proof.nodes[:p.queryNodes]
 	// An inheritance child is a branch of this scan, not simply any table
 	// which happens to have an inheritance parent in catalog metadata.
 	constraints := p.mode == "on" || p.mode == "partition" && p.inherited && physical.Address() != p.proof.named.Address()
-	return p.proof.branch(p.query, physical, constraints)
+	return p.proof.branch(p.query, physical, constraints, membership)
 }

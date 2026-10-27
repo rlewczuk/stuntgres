@@ -61,6 +61,8 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 		inputs = view.FreezeWriteSources(inputs, b.QuerySources, h.QueryAuthority(), h)
 		defer inputs.Close()
 		state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Locking: inputs.Locks != nil}
+		state.Methods = h.AdmittedPlannerMethods()
+		state.CapturePlannerAdmission()
 		defer state.ReleaseMemberships()
 		defer outcome.finishSources(state, &err)
 		inputs.Host = h

@@ -265,7 +265,8 @@ func HashQueryFilter(root plan.Node) *plan.FilterNode {
 }
 
 func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode, source *Source) (*hashCandidateSelection, error) {
-	if state.HashFilter != n || source == nil || source.ScanDecision.Method != plan.HashCandidates {
+	state.CapturePlannerAdmission()
+	if state.Methods.NoIndexScan || state.HashFilter != n || source == nil || source.ScanDecision.Method != plan.HashCandidates {
 		return nil, nil
 	}
 	if _, ok := n.Child.(*plan.SourceNode); !ok {
