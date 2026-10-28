@@ -60,6 +60,7 @@ type Capture struct {
 	OwnedRoutines       []*catalog.Procedure
 	EventTriggers       []*catalog.EventTrigger
 	Dictionaries        []*catalog.TSDictionary
+	Templates           []*catalog.TSTemplate
 	Configurations      []*catalog.TSConfiguration
 	Statistics          []*catalog.Statistics
 	ExtendedStatistics  []storage.ExtendedStatisticsSnapshot

@@ -36,7 +36,7 @@ func restoreTableDestination(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateStatistics, *parser.AlterStatisticsTarget:
 		return true
-	case *parser.CreateDictionary, *parser.AlterDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration:
+	case *parser.CreateTemplate, *parser.AlterTemplate, *parser.CreateDictionary, *parser.AlterDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration:
 		return true
 	case *parser.AlterTrigger:
 		return s.Action == "depends"

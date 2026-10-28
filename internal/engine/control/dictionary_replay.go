@@ -21,7 +21,7 @@ func (s *dumpScript) dictionaryProviderReplays() ([]providerReplay, error) {
 		if !ok {
 			return extension.InvalidProviderDescriptor()
 		}
-		r := providerReplay{dictionary: true, original: original, current: providerKey{ns.Name(), d.Name(), ""}, ownerChanged: d.Owner != owner}
+		r := providerReplay{family: dictionaryProvider, original: original, current: providerKey{ns.Name(), d.Name(), ""}, ownerChanged: d.Owner != owner}
 		if d.Seeded() {
 			if len(d.Options) != 0 {
 				r.options = " (" + catalog.DictionaryOptionsText(d.Options) + ")"

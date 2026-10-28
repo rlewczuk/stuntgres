@@ -10,9 +10,9 @@ import (
 )
 
 func TestDictionaryProviderReplayCycle(t *testing.T) {
-	seed := providerReplay{dictionary: true, original: providerKey{"pg_catalog", "simple", ""}, current: providerKey{"pg_catalog", "unaccent", ""}, options: " (stopwords = 'english')"}
-	member := providerReplay{dictionary: true, original: providerKey{"pg_catalog", "unaccent", ""}, current: providerKey{"pg_catalog", "simple", ""}, options: " (rules = 'unaccent')", ownerChanged: true, owner: "recipient"}
-	reserved := providerReplay{dictionary: true, original: providerKey{"pg_catalog", "__stuntgres_dictionary_1", ""}, current: providerKey{"pg_catalog", "__stuntgres_dictionary_1", ""}}
+	seed := providerReplay{family: dictionaryProvider, original: providerKey{"pg_catalog", "simple", ""}, current: providerKey{"pg_catalog", "unaccent", ""}, options: " (stopwords = 'english')"}
+	member := providerReplay{family: dictionaryProvider, original: providerKey{"pg_catalog", "unaccent", ""}, current: providerKey{"pg_catalog", "simple", ""}, options: " (rules = 'unaccent')", ownerChanged: true, owner: "recipient"}
+	reserved := providerReplay{family: dictionaryProvider, original: providerKey{"pg_catalog", "__stuntgres_dictionary_1", ""}, current: providerKey{"pg_catalog", "__stuntgres_dictionary_1", ""}}
 	want := []string{
 		"ALTER TEXT SEARCH DICTIONARY \"pg_catalog\".\"simple\" RENAME TO \"__stuntgres_dictionary_2\";\n",
 		"ALTER TEXT SEARCH DICTIONARY \"pg_catalog\".\"unaccent\" RENAME TO \"simple\";\n",

@@ -369,7 +369,7 @@ package parser
 %token <tok> RULE ALSO INSTEAD NOTIFY LISTEN UNLISTEN LOAD
 %token <tok> FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT
 %token <tok> LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE
-%token <tok> TS_CONFIGURATION
+%token <tok> TS_CONFIGURATION TS_TEMPLATE
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R ANALYZE UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -415,7 +415,7 @@ package parser
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
 /* RECURSIVE/XML likewise retain KW_U's contextual identifier/type-tail precedence. */
 /* LISTEN/UNLISTEN/LOAD also retain their former KW_U type-tail precedence. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION RECURSIVE XML KW_C CONVERSION STATISTICS FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION TS_TEMPLATE RECURSIVE XML KW_C CONVERSION STATISTICS FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
 %nonassoc EXPLAIN
 /* These words previously used KW_U. Preserve its type-tail and COPY-WITH
  * decisions rather than adding implicit zero-precedence conflicts. */
@@ -543,7 +543,7 @@ package parser
 %type <integer> statistics_target
 %type <identifiers> statistics_kinds
 %type <tok> statistics_create_head statistics_alter_head
-%type <stmt> create_dictionary alter_dictionary drop_dictionary
+%type <stmt> create_dictionary alter_dictionary drop_dictionary create_template alter_template drop_template
 %type <tok> dictionary_word
 %type <dictionaryOptions> dictionary_options
 %type <dictionaryOption> dictionary_option
@@ -1024,7 +1024,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
  | drop_statistics
- | alter_dictionary | drop_dictionary
+ | alter_dictionary | drop_dictionary | alter_template | drop_template
  | alter_configuration | drop_configuration
  | alter_operator | drop_operator
  | drop_routine | alter_routine
@@ -1703,6 +1703,7 @@ create: create_table { $$=$1 }
  | create_statistics { $$=$1 }
  | alter_statistics_target { $$=$1 }
  | create_dictionary { $$=$1 }
+ | create_template { $$=$1 }
  | create_configuration { $$=$1 }
  | create_function { $$=$1 }
  | create_language { $$=$1 }
@@ -1871,6 +1872,11 @@ alter_dictionary: dictionary_alter_head '(' dictionary_options ')' {$1.Options=$
  | dictionary_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1} ;
 drop_dictionary: DROP TEXT SEARCH dictionary_word relation_names drop_mode {$$=&DropDictionary{Names:$5,Mode:$6,Pos:$1.pos}}
  | DROP TEXT SEARCH dictionary_word IF EXISTS relation_names drop_mode {$$=&DropDictionary{Names:$7,IfExists:true,Mode:$8,Pos:$1.pos}} ;
+create_template: CREATE TEXT SEARCH TS_TEMPLATE relation_name '(' dictionary_options ')' {$$=&CreateTemplate{Name:$5,Options:$7,Pos:$1.pos}} ;
+alter_template: ALTER TEXT SEARCH TS_TEMPLATE relation_name RENAME TO name {$$=&AlterTemplate{Name:$5,Action:"rename",Target:Identifier{Text:$8.text,Pos:$8.pos},Pos:$1.pos}}
+ | ALTER TEXT SEARCH TS_TEMPLATE relation_name SET SCHEMA name {$$=&AlterTemplate{Name:$5,Action:"schema",Target:Identifier{Text:$8.text,Pos:$8.pos},Pos:$1.pos}} ;
+drop_template: DROP TEXT SEARCH TS_TEMPLATE relation_names drop_mode {$$=&DropTemplate{Names:$5,Mode:$6,Pos:$1.pos}}
+ | DROP TEXT SEARCH TS_TEMPLATE IF EXISTS relation_names drop_mode {$$=&DropTemplate{Names:$7,IfExists:true,Mode:$8,Pos:$1.pos}} ;
 configuration_options: configuration_option {$$=[]ConfigurationOption{$1}}
  | configuration_options ',' configuration_option {$$=append($1,$3)} ;
 configuration_option: dictionary_option {$$=configurationOption($1)} ;
@@ -3591,7 +3597,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | ENFORCED
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
- | TS_CONFIGURATION
+ | TS_CONFIGURATION | TS_TEMPLATE
  | CONVERSION | STATISTICS
  | RECURSIVE | XML
  | string_word
@@ -3646,7 +3652,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | TRIGGER | EVENT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
- | TS_CONFIGURATION
+ | TS_CONFIGURATION | TS_TEMPLATE
  | SQLJSON_PARSE
  | CONVERSION | STATISTICS
  | RECURSIVE | XML
@@ -3693,7 +3699,7 @@ generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | 
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | TRIGGER | EVENT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
- | TS_CONFIGURATION
+ | TS_CONFIGURATION | TS_TEMPLATE
  | CONVERSION
  | RECURSIVE | XML
  | FREEZE | VERBOSE

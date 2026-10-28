@@ -509,7 +509,7 @@ var keywords = [...]keyword{
 	{"tablespace", Unreserved, true, TABLESPACE},
 	{"target", Unreserved, true, TARGET},
 	{"temp", Unreserved, true, TEMP},
-	{"template", Unreserved, true, 0},
+	{"template", Unreserved, true, TS_TEMPLATE},
 	{"temporary", Unreserved, true, TEMP},
 	{"text", Unreserved, true, TEXT},
 	{"then", Reserved, true, THEN},

@@ -38,7 +38,7 @@ func TestDictionaryExtensionProviderValidation(t *testing.T) {
 	if !ok {
 		t.Fatal("installed dictionary lost genuine template")
 	}
-	if runtime, err := extension.CompileDictionary(context.Background(), template, nil); runtime != nil || err == nil {
+	if runtime, err := extension.CompileDictionary(context.Background(), view, template, nil); runtime != nil || err == nil {
 		t.Fatal("missing Rules compiled a fallback dictionary", runtime, err)
 	} else {
 		extensionUnitError(t, err, "22023")

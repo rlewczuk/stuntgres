@@ -45,13 +45,15 @@ func (p *UnaccentProvider) ValidateExtension(v catalog.Read, d *catalog.Extensio
 		}
 	}
 	tmpl, ok := v.TSTemplate(d.Members[4])
-	if !ok || tmpl.Init != d.Members[2] || tmpl.Lexize != d.Members[3] || UnaccentTemplateProviderOf(tmpl) != p {
+	if !ok || tmpl.Extension != d.Address() || tmpl.Init != d.Members[2] || tmpl.Lexize != d.Members[3] || UnaccentTemplateProviderOf(tmpl) != p {
 		return invalid()
 	}
+	if err := ValidateProviderHeader(v, tmpl, ids.TSTemplateClassID); err != nil { return err }
 	dict, ok := v.TSDictionary(d.Members[5])
-	if !ok || dict.Template != d.Members[4] || UnaccentDictionaryProviderOf(dict) != p {
+	if !ok || dict.Extension != d.Address() || dict.Template != d.Members[4] || UnaccentDictionaryProviderOf(dict) != p {
 		return invalid()
 	}
+	if err := ValidateProviderHeader(v, dict, ids.TSDictionaryClassID); err != nil { return err }
 	return nil
 }
 

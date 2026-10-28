@@ -94,6 +94,14 @@ function references once into the destination authority.
   extension-event and manifest-slot order. The existing provider phase runs
   after extension/type identities exist and before owner metadata and stored
   consumers. Unchanged installed operators emit no statement; none is recreated.
+- **Templates** (`template_replay.go`): standalone declarations precede their
+  dictionaries and depend on actual callback predecessors. Authenticated
+  builtin callbacks require no declaration; installed helpers await their
+  extension. Seed and installed template relabels use the common collision
+  planner in their own key family, before dictionary relabels and consumers.
+  Templates have no OWNER directive. Privileged creation restores optional INIT
+  as zero and re-establishes genuine callback capability from destination
+  descriptors; no initialized native pointers are serialized.
 - **Dictionaries** (`dictionary_replay.go`): builtin simple and installed members
   never get duplicate CREATE statements. Their initialized identities use the
   captured names of their installation namespaces, after namespace replay, and

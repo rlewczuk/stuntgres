@@ -22,11 +22,17 @@ type providerKey struct {
 	schema, name string
 	signature    catalog.ProcedureSignature
 }
+type providerFamily uint8
+const (
+	routineProvider providerFamily = iota
+	dictionaryProvider
+	templateProvider
+)
 type providerReplay struct {
 	original, current providerKey
 	arguments, owner  string
 	ownerChanged      bool
-	dictionary        bool
+	family            providerFamily
 	options           string // Rendered dictionary ALTER clause, after identity replay.
 	parallel          byte
 	cost, rows        float32
@@ -183,8 +189,11 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 	var statements []string
 	alter := func(p providerReplay, key providerKey) string {
 		name := catalog.QuoteIdentifier(key.schema) + "." + catalog.QuoteIdentifier(key.name)
-		if p.dictionary {
+		switch p.family {
+		case dictionaryProvider:
 			return "ALTER TEXT SEARCH DICTIONARY " + name
+		case templateProvider:
+			return "ALTER TEXT SEARCH TEMPLATE " + name
 		}
 		return "ALTER FUNCTION " + name + "(" + p.arguments + ")"
 	}
@@ -239,8 +248,9 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 			for {
 				serial++
 				kind := "routine"
-				if p.dictionary {
-					kind = "dictionary"
+				switch p.family {
+				case dictionaryProvider: kind = "dictionary"
+				case templateProvider: kind = "template"
 				}
 				next.name = fmt.Sprintf("__stuntgres_%s_%d", kind, serial)
 				other := next
@@ -319,6 +329,11 @@ func (s *dumpScript) prepareProviderReplay() error {
 	if err != nil {
 		return err
 	}
+	templates, err := s.templateProviderReplays()
+	if err != nil { return err }
+	templateStatements, err := planProviderReplay(templates)
+	if err != nil { return err }
+	statements = append(statements, templateStatements...)
 	dictionaries, err := s.dictionaryProviderReplays()
 	if err != nil {
 		return err

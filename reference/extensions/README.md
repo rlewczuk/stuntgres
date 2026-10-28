@@ -44,6 +44,11 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
 - Expected data comes from published vectors, never from native output:
   RFC/NIST/Openwall/PostgreSQL regression vectors for pgcrypto, uuid-ossp and
   fuzzystrmatch.
+- Template dependency diagnostics isolate each installed callback in a
+  definition-only probe so RESTRICT has one genuine external cause, independent
+  of extension-member allocation order. The executable full callback pair
+  separately checks both catalog edges, dictionary restriction and the complete
+  extension-to-template-to-dictionary CASCADE closure.
 - BRIN pageinspect images are independently assembled from released native
   layouts in `pageinspect_brin_fixture_test.go`; descriptor tables stay empty.
   The shared scenarios exercise the identical bytes in both modes, including
@@ -77,7 +82,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Extensions (registry, TEMP, removal, versions): `RUN='^TestReferencePGExtension'`, `RUN='^TestReferenceExtensionTemporary'`, `RUN='^TestReferenceExtensionDrop'`, `RUN='^TestReferenceExtensionVersion'`, `RUN='^TestReferenceExtension'`
 - Available-extension views: `RUN='^TestReferenceAvailableExtensions'`
 - Installed dictionary metadata: `RUN='^TestReferenceTSDict'`
-- Installed template metadata, diagnostics, lifecycle and native controls: `RUN='^TestReferenceTSTemplate'`
+- Template definitions, callback execution, authority, dependencies, lifecycle and native controls: `RUN='^TestReferenceTSTemplate'`
 - pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
 - fuzzystrmatch: `RUN='^TestReferenceDaitchMokotoff'`, `RUN='^TestReferenceLevenshtein'`, `RUN='^TestReferenceMetaphone'`, `RUN='^TestReferenceSoundex'`

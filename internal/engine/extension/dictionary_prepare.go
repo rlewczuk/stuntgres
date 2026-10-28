@@ -18,6 +18,7 @@ type DictionaryPreparation struct {
 	Namespace catalog.Descriptor
 	Options   []catalog.DictionaryOption
 	Runtime   catalog.DictionaryRuntime
+	View      catalog.Read
 }
 
 func dictionaryCreateInputs(h DictionaryHost, auth ddl.Authority, s *parser.CreateDictionary) (*catalog.TSTemplate, []catalog.DictionaryOption, error) {
@@ -49,6 +50,7 @@ func dictionaryCreateInputs(h DictionaryHost, auth ddl.Authority, s *parser.Crea
 
 func PrepareDictionary(h DictionaryHost, auth ddl.Authority, stmt parser.Statement) (DictionaryPreparation, error) {
 	var p DictionaryPreparation
+	p.View = h.StageRead()
 	switch s := stmt.(type) {
 	case *parser.CreateDictionary:
 		ns, current, err := h.CreationNamespace(auth, s.Name)
@@ -93,10 +95,16 @@ func (p *DictionaryPreparation) Compile(ctx context.Context) error {
 		return ctx.Err()
 	}
 	var err error
-	p.Runtime, err = CompileDictionary(ctx, p.Template, p.Options)
+	p.Runtime, err = CompileDictionary(ctx, p.View, p.Template, p.Options)
 	return err
 }
 func (p *DictionaryPreparation) Current(view catalog.Read) bool {
+	if p.Template != nil {
+		for _, address := range [2]ids.ObjectAddress{p.Template.Init, p.Template.Lexize} {
+			if address != (ids.ObjectAddress{}) && view.Get(address) != p.View.Get(address) { return false }
+		}
+		if dictionaryCapability(view, p.Template) != dictionaryCapability(p.View, p.Template) { return false }
+	}
 	return (p.Template == nil || view.Get(p.Template.Address()) == p.Template) && (p.Original == nil || view.Get(p.Original.Address()) == p.Original) && (p.Namespace == nil || view.Get(p.Namespace.Address()) == p.Namespace)
 }
 
@@ -116,5 +124,5 @@ func initializeDictionary(h DictionaryHost, template *catalog.TSTemplate, option
 		}
 		return p.Runtime, h.Context().Err()
 	}
-	return CompileDictionary(h.Context(), template, options)
+	return CompileDictionary(h.Context(), h.StageRead(), template, options)
 }

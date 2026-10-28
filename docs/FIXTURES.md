@@ -61,6 +61,11 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
 - Not dumped: roles or their shared comments, passwords, memberships, settings,
   TEMP objects, uncommitted or prepared work, sequence `currval`/`lastval` session
   state, and commit timestamp history.
+- Text-search template declarations preserve optional INIT, mandatory LEXIZE and
+  actual callback dependencies before dictionary declarations. Seed and installed
+  template relabels replay without duplicate CREATE or invented ownership.
+  Restore remaps template/dictionary links together and recompiles admitted real
+  dictionary resources rather than copying initialized execution state.
 - Native collected extended statistics retain their stale construction state,
   including joint MCV population/marginal counts and true NULL markers, in strict
   typed comments. Restore remints current type, enum-member and nested array

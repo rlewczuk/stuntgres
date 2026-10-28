@@ -39,6 +39,10 @@ single-statement limit of driver calls) belong to callers.
   parameter indices.
 - The entire input is consumed: a valid prefix followed by junk is an error,
   never a partial parse.
+- Text-search template utilities retain qualified names and ordered positioned
+  callback options, including repeated and bare values. CREATE, identity ALTER
+  and list DROP have distinct nodes; callback signatures and privileges belong
+  to catalog staging, not parsing or preparation.
 - ALTER SYSTEM owns a syntax-only AST distinct from session SET/RESET. External
   value lists are consumed without retention or normalization; signed numeric
   tokens use lexer syntax, not the session setting integer consumer.

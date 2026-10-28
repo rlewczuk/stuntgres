@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -103,7 +104,7 @@ func fdwUnitSource() (Source, *catalog.ForeignObject, *catalog.ForeignObject, *c
 		state.SetDescriptor(d.Address(), d)
 		state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	view := catalog.NewRead(&catalog.Owner{Principals: domain}, state)
+	view := catalog.NewRead(&catalog.Owner{Principals: domain, Providers: map[ids.OID]catalog.Provider{ids.ProcedureClassID: stored.ProcedureProvider{}}}, state)
 	return Source{State: state, CatalogView: view, OriginalCatalog: view, OriginalRoles: roles.Read(owner), DomainRoles: roles.Read(owner), Bootstrap: owner}, wrapper, server, mapping
 }
 

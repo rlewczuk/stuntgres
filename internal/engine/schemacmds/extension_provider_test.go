@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/schemacmds"
@@ -161,16 +162,13 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				}
 			} else {
 				catalogNS := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-				for _, i := range []int{2, 3} {
-					n := *source.Get(ext.Members[i]).(*catalog.Procedure)
-					n.Extension = ids.ObjectAddress{}
-					n.ObjectNamespace = catalogNS
-					if err := loose.Create(&n); err != nil {
-						t.Fatal(err)
-					}
-				}
 				tmpl := *source.Get(ext.Members[4]).(*catalog.TSTemplate)
 				tmpl.Extension = ids.ObjectAddress{}
+				// A name collision needs a real standalone definition, not a
+				// detached claim to the installing extension's capability.
+				tmpl.Implementation = nil
+				tmpl.Init = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}
+				tmpl.Lexize = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726}
 				if kind == "dictionary" {
 					tmpl.ObjectNamespace = catalogNS
 				}
@@ -181,6 +179,9 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				if kind == "dictionary" {
 					dict := *source.Get(ext.Members[5]).(*catalog.TSDictionary)
 					dict.Extension = ids.ObjectAddress{}
+					dict.Implementation = nil
+					dict.Options = nil
+					dict.Runtime = functions.DefaultSimpleDictionary
 					conflict = &dict
 					if err := loose.Create(&dict); err != nil {
 						t.Fatal(err)

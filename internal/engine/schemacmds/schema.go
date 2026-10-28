@@ -175,6 +175,8 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 	switch s := stmt.(type) {
 	case *parser.DropAccessMethod:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
+	case *parser.DropTemplate:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropDictionary:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropConfiguration:
@@ -403,6 +405,18 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 		}
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 		if err = routine.StageEventTrigger(host, auth, stmt); err != nil {
+			return nil, err
+		}
+	case *parser.CreateTemplate:
+		if err = extension.StageCreateTemplate(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterTemplate:
+		if err = extension.StageAlterTemplate(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropTemplate:
+		if err = extension.StageDropTemplate(schemaHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateDictionary:

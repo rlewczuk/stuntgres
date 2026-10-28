@@ -331,13 +331,18 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			case *catalog.TSDictionary:
 				if d.Template == target || d.Namespace() == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+					direct[len(direct)-1].Normal = true
 				}
 				if d.Extension == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
 			case *catalog.TSTemplate:
-				if d.Namespace() == target {
+				if replacement, ok := r.Replacement(a).(*catalog.TSTemplate); ok {
+					d = replacement
+				}
+				if d.Namespace() == target || d.Init == target || d.Lexize == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+					direct[len(direct)-1].Normal = true
 				}
 				if d.Extension == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})

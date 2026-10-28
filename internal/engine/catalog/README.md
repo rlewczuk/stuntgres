@@ -230,6 +230,10 @@ private frames, not catalog authority.
   a catalog-free `DictionaryRuntime`. Runtime authority is separate from genuine
   extension membership; builtin simple is not an extension. Seed classification
   excludes system roots from bulk ownership and independent dump declarations.
+  Templates are ownerless identities with mandatory LEXIZE and optional INIT;
+  absent INIT is the zero address, never a synthetic dependency. Namespace and
+  nonzero callback links are NORMAL dependencies. Public relabeling preserves
+  these identities for standalone, seed and genuine installed templates.
   Authorized installed-dictionary rename/schema changes preserve the original
   reciprocal extension member identity; mutable placement does not redefine the
   extension target namespace or the dictionary's template/provider authority.

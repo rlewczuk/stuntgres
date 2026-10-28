@@ -17,26 +17,28 @@ func dictionaryError(code, message string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }
 
-func SimpleTemplate(d *catalog.TSTemplate) bool {
-	return d != nil && d.Seeded() && d.Implementation == nil && d.Extension == (ids.ObjectAddress{}) && d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726})
-}
 
 // CompileDictionary compiles immutable execution state before catalog publication.
-func CompileDictionary(ctx context.Context, template *catalog.TSTemplate, options []catalog.DictionaryOption) (catalog.DictionaryRuntime, error) {
+func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog.TSTemplate, options []catalog.DictionaryOption) (catalog.DictionaryRuntime, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if template == nil {
 		return nil, InvalidProviderDescriptor()
 	}
-	if SimpleTemplate(template) {
+	if err := validateTemplate(view, template); err != nil { return nil, err }
+	if template.Init == (ids.ObjectAddress{}) && len(options) != 0 {
+		return nil, dictionaryError("42601", fmt.Sprintf(`text search template "%s" does not accept options`, template.Name()))
+	}
+	capability := dictionaryCapability(view, template)
+	if capability == 1 {
 		accept, stopwords, err := simpleOptions(options)
 		if err != nil {
 			return nil, err
 		}
 		return functions.CompileSimpleDictionary(ctx, accept, stopwords)
 	}
-	if UnaccentTemplateProviderOf(template) == StockUnaccent {
+	if capability == 2 {
 		rules := false
 		var resource string
 		for _, o := range options {
@@ -57,7 +59,7 @@ func CompileDictionary(ctx context.Context, template *catalog.TSTemplate, option
 		}
 		return functions.CompileUnaccentDictionary(ctx, resource)
 	}
-	return nil, InvalidProviderDescriptor()
+	return nil, dictionaryError("0A000", fmt.Sprintf(`native dictionary callback execution is not supported for text search template "%s"`, template.Name()))
 }
 
 func simpleOptions(options []catalog.DictionaryOption) (bool, string, error) {
@@ -133,13 +135,13 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 			return InvalidProviderDescriptor()
 		}
 	}
-	if SimpleTemplate(template) {
+	if dictionaryCapability(v, template) == 1 {
 		runtime, ok := d.Runtime.(*functions.SimpleDictionary)
 		accept, stopwords, err := simpleOptions(d.Options)
 		if !ok || err != nil || !runtime.Configured(accept, stopwords) || d.Implementation != nil {
 			return InvalidProviderDescriptor()
 		}
-	} else if UnaccentTemplateProviderOf(template) == StockUnaccent {
+	} else if dictionaryCapability(v, template) == 2 {
 		if d.Runtime != functions.StockUnaccent {
 			return InvalidProviderDescriptor()
 		}

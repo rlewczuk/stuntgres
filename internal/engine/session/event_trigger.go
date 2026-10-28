@@ -80,6 +80,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		*parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy,
 		*parser.CreateExtension, *parser.DropExtension, *parser.AlterExtensionUpdate,
 		*parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary,
+		*parser.CreateTemplate, *parser.AlterTemplate, *parser.DropTemplate,
 		*parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration,
 		*parser.AlterDefaultPrivileges, *parser.DropOwned, *parser.AlterIndex, *parser.DropIndex, *parser.Reindex:
 		tag, _, _, _ = ClassifyCommandTag(stmt, TxIdle)

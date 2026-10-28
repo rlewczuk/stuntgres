@@ -64,7 +64,7 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 				return invalid()
 			}
 			switch member.(type) {
-			case *catalog.Type, *catalog.Procedure, *catalog.TSDictionary, *catalog.Cast:
+			case *catalog.Type, *catalog.Procedure, *catalog.TSDictionary, *catalog.TSTemplate, *catalog.Cast:
 				// Their public namespace may change independently of the
 				// installation. Provider manifests retain identity authority.
 			default:
@@ -117,25 +117,10 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return invalid()
 		}
 	case *catalog.TSTemplate:
-		if SimpleTemplate(d) {
-			for _, address := range [2]ids.ObjectAddress{d.Init, d.Lexize} {
-				procedure, ok := v.Procedure(address)
-				if !ok || procedure.Builtin == nil {
-					return invalid()
-				}
-			}
-			return nil
-		}
-		if d.Name() != "unaccent" || UnaccentTemplateProviderOf(d) != StockUnaccent {
-			return invalid()
+		if err := validateTemplate(v, d); err != nil {
+			return err
 		}
 		ext = d.Extension
-		for i, a := range [2]ids.ObjectAddress{d.Init, d.Lexize} {
-			proc, ok := v.Procedure(a)
-			if !ok || proc.Extension != ext || proc.Signature != [2]catalog.ProcedureSignature{catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}[i] {
-				return invalid()
-			}
-		}
 	case *catalog.TSDictionary:
 		if err := validateDictionary(v, d); err != nil {
 			return err
@@ -146,7 +131,7 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	}
 	if ext != (ids.ObjectAddress{}) {
 		parent, ok := v.Extension(ext)
-		if !ok || d.Address().ClassID != ids.ProcedureClassID && d.Address().ClassID != ids.TSDictionaryClassID && parent.TargetNamespace != namespace && !HstoreRelocatableOperator(v, parent, a) {
+		if !ok || d.Address().ClassID != ids.ProcedureClassID && d.Address().ClassID != ids.TSDictionaryClassID && d.Address().ClassID != ids.TSTemplateClassID && parent.TargetNamespace != namespace && !HstoreRelocatableOperator(v, parent, a) {
 			return invalid()
 		}
 		found := false

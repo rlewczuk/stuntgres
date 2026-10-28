@@ -410,6 +410,11 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 	for oid, statement := range s.familySeedFinal {
 		s.declarations[oid] = statement
 	}
+	for _, template := range s.Templates {
+		declaration, err := extension.TemplateDumpStatement(s.CatalogView, template)
+		if err != nil { return err }
+		s.declarations[template.Address().ObjectID] = declaration
+	}
 	for _, dictionary := range s.Dictionaries {
 		declaration, err := extension.DictionaryDumpStatement(s.CatalogView, s.DomainRoles, dictionary)
 		if err != nil {

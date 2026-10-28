@@ -100,6 +100,23 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   decoding and import retain the same genuine manifest authority.
   Scalar storage metadata uses extended storage. This bounded manifest is not an
   inventory of every object in the upstream extension.
+- **Template definitions** (`template_*.go`): ownerless schema-bound identities
+  hold an optional INIT and mandatory LEXIZE procedure link. Utility lookup
+  validates every supplied exact input signature and INTERNAL result before
+  publishing. Rename and schema changes preserve identity and callback links;
+  genuine unaccent slot-four placement may change independently of siblings
+  and the installation namespace, without weakening reciprocal manifest checks.
+  Explicit member DROP remains forbidden under both RESTRICT and CASCADE;
+  only retirement through the owning extension consumes that membership.
+  Definition validity is separate from native dictionary execution. Compilation
+  admits only the genuine stock-simple pair or a currently authenticated
+  unaccent installation's helper pair. Missing INIT never fabricates initialized
+  state, and unavailable native callback combinations fail before publication.
+  Detached compilation captures the catalog and rechecks both real helpers at
+  completion. No callback or resource I/O runs under the catalog mutex.
+  Callback links remain executable dependencies even when SQL `pg_depend`
+  omits references to pinned builtin procedures. Installed unaccent helpers
+  retain visible NORMAL dependency edges.
 - **Dictionary definitions** (`dictionary_*.go`): ordinary schema-CREATE and
   owner authority, independent of extension installation privileges. Preparation
   captures template/options and compilation runs outside the catalog mutex;

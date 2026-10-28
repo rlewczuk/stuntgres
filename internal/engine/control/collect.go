@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"stuntgres/internal/engine/access"
@@ -319,8 +320,16 @@ func collectTextSearchDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 	}
 	switch d := d.(type) {
 	case *catalog.TSTemplate:
-		if !d.Seeded() {
-			return fmt.Errorf("stuntgres: dump cannot serialize loose text search template")
+		if d.Seeded() { return nil }
+		c.Templates = append(c.Templates, d)
+		event := dump.Event{OID:d.Address().ObjectID}
+		c.Graph[event] = nil
+		for _, address := range [3]ids.ObjectAddress{d.Namespace(), d.Init, d.Lexize} {
+			if address == (ids.ObjectAddress{}) { continue }
+			oid, err := predecessor(c.CatalogView, address, d.Address())
+			if err != nil { return err }
+			dependency := dump.Event{OID:oid}
+			if oid != 0 && oid != event.OID && !slices.Contains(c.Graph[event], dependency) { c.Graph[event] = append(c.Graph[event], dependency) }
 		}
 	case *catalog.TSDictionary:
 		if d.Seeded() {
@@ -329,13 +338,9 @@ func collectTextSearchDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 		c.Dictionaries = append(c.Dictionaries, d)
 		event := dump.Event{OID: d.Address().ObjectID}
 		c.Graph[event] = nil
-		template, ok := c.CatalogView.TSTemplate(d.Template)
-		if !ok {
-			return fmt.Errorf("stuntgres: missing dictionary template")
-		}
-		if template.Extension != (ids.ObjectAddress{}) {
-			c.Graph[event] = []dump.Event{{OID: template.Extension.ObjectID}}
-		}
+		oid, err := predecessor(c.CatalogView, d.Template, d.Address())
+		if err != nil { return err }
+		if oid != 0 { c.Graph[event] = []dump.Event{{OID:oid}} }
 	}
 	return nil
 }

@@ -1772,6 +1772,7 @@ make check RUN='^Test(Serial|SourceProtocol|ViewLiteralProtocol)'  # sequences, 
 make check RUN='^Test([A-Za-z]+RoutineOriginalAuthority|SQLRoutine|UnavailableFunctionIdentityBoundary)'  # routines
 make check RUN='^Test(Extension|PGDepend|CatalogDrop|DropOwned)'  # extensions, drop fences
 make check RUN='^TestDictionary'                      # dictionary providers, publication, remap and retained typed ownership
+make check RUN='^TestTemplate'                        # exact callbacks, capability, manifest, closure, publication and remap
 make check RUN='^TestLqueryProvider'                   # installed scalar authority, staged publication and import
 make check RUN='^Test(Protocol|SessionTimeout|StatementTimeoutAdmission)'  # protocol, timeouts
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # catalog source capture and producers; one catalog: ^TestPG<Name>

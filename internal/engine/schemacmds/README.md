@@ -2,7 +2,7 @@
 
 The schema-object statement executors
 ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3, L16): CREATE,
-ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION, CONVERSION, TEXT SEARCH CONFIGURATION and TEXT SEARCH DICTIONARY; CREATE
+ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION, CONVERSION, TEXT SEARCH CONFIGURATION, TEXT SEARCH TEMPLATE and TEXT SEARCH DICTIONARY; CREATE
 LANGUAGE; ALTER DOMAIN RENAME and SET SCHEMA; CREATE FUNCTION, PROCEDURE and
 AGGREGATE, ALTER and DROP ROUTINE; cast, operator, operator family, operator
 class and access method DDL; COMMENT; CREATE TABLESPACE and ALTER TABLE ALL IN
@@ -80,6 +80,10 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   Configuration DDL uses the ordinary locked stage, definition admission,
   dependency closure and journal publication; it never compiles dictionary
   resources or introduces a detached configuration store.
+  Template utilities use this same locked stage, definition admission and
+  retirement path. Creation and identity alteration apply ownerless-template
+  authority; DROP also admits the containing schema's owner. Callback lookup
+  records actual procedure inputs in the publication fences.
 - `ExecuteComment` stages the comment (the locked-relation check, the
   private role record installation or object stage) and publishes it.
 - `ExecuteCreateTablespace` and `ExecuteLoad` keep the argument count, the

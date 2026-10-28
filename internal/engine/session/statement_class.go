@@ -146,6 +146,12 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "ALTER TEXT SEARCH DICTIONARY"
 	case *parser.DropDictionary:
 		return "DROP TEXT SEARCH DICTIONARY"
+	case *parser.CreateTemplate:
+		return "CREATE TEXT SEARCH TEMPLATE"
+	case *parser.AlterTemplate:
+		return "ALTER TEXT SEARCH TEMPLATE"
+	case *parser.DropTemplate:
+		return "DROP TEXT SEARCH TEMPLATE"
 	case *parser.CreateCollation:
 		return "CREATE COLLATION"
 	case *parser.AlterCollation:
@@ -273,7 +279,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget:
 		return true
-	case *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration:
+	case *parser.CreateTemplate, *parser.AlterTemplate, *parser.DropTemplate, *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration:
 		return true
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
@@ -325,6 +331,7 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.AlterType, *parser.DropDomain, *parser.DropType,
 		*parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation,
 		*parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary,
+		*parser.CreateTemplate, *parser.AlterTemplate, *parser.DropTemplate,
 		*parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration,
 		*parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget,
 		*parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion,

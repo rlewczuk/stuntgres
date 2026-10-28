@@ -164,6 +164,10 @@ imports `view`.
   stage that the root's `DropProvider` implements. `DropClosure` is the
   dependency closure (edges are `table.DomainDependency`); `DependentViews`,
   `KeepRules`, `KeepPolicies` and the `Drop*Dependents` helpers find dependents.
+  Template closure follows namespace and both nonzero callback identities as
+  NORMAL edges, including staged replacements; dictionary-to-template edges
+  retain the same NORMAL provenance. Extension automatic membership does not
+  erase those incoming dependencies or permit explicit member deletion.
   Discovery admits each reached object's genuine bootstrap pin before ordinary
   RESTRICT reporting or CASCADE effects, using the current staged definition
   input and the shared pin authority. A pinned dependent cannot be retired even
