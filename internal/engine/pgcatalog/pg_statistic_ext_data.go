@@ -23,7 +23,7 @@ func capturePGStatisticExtData(in Input) ([][]sqltype.Value, error) {
 		return nil, err
 	}
 	var rows [][]sqltype.Value
-	err := in.Runtime.VisitExtendedStatistics(in.Context, func(oid ids.OID, inherited bool, value, dependencies, expressions sqltype.Value) error {
+	err := in.Runtime.VisitExtendedStatistics(in.Context, func(oid ids.OID, inherited bool, value, dependencies, mcv, expressions sqltype.Value) error {
 		if err := in.Context.Err(); err != nil {
 			return err
 		}
@@ -42,7 +42,10 @@ func capturePGStatisticExtData(in Input) ([][]sqltype.Value, error) {
 			return fmt.Errorf("stuntgres: foreign dependencies payload")
 		}
 		row[3] = dependencies
-		row[4] = sqltype.ResultNull(in.Source.Columns[4].Usage)
+		if !mcv.ValidResult(in.Source.Columns[4].Usage) {
+			return fmt.Errorf("stuntgres: foreign MCV payload")
+		}
+		row[4] = mcv
 		if !expressions.ValidResult(in.Source.Columns[5].Usage) {
 			return fmt.Errorf("stuntgres: foreign expression statistics payload")
 		}

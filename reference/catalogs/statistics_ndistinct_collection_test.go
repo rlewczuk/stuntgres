@@ -40,10 +40,11 @@ func ndistinctRawResult(pg bool, step fixture.Step, columns ...int) fixture.Step
 }
 
 type ndistinctScenario struct {
-	run  func(fixture.Step)
-	pg   bool
-	conn *sql.Conn
-	pair *fixture.Pair
+	run      func(fixture.Step)
+	pg       bool
+	conn     *sql.Conn
+	pair     *fixture.Pair
+	prepared bool
 }
 
 func withNDistinct(t *testing.T, body func(*testing.T, ndistinctScenario)) {
@@ -64,7 +65,7 @@ func withNDistinct(t *testing.T, body func(*testing.T, ndistinctScenario)) {
 						}
 						fixture.RunStep(t, p.Ctx, conn, b.Recorder, s)
 					}
-					body(t, ndistinctScenario{run: run, pg: b.PG, conn: conn, pair: p})
+					body(t, ndistinctScenario{run: run, pg: b.PG, conn: conn, pair: p, prepared: prepared})
 				})
 			}
 		})

@@ -45,7 +45,7 @@ func (c statisticsSnapshotCodec) Expression(owner *catalog.Relation, node expr.E
 }
 
 func (c statisticsSnapshotCodec) Encode(usage sqltype.Usage, value sqltype.Value) (json.RawMessage, error) {
-	node, err := table.CaptureDomainReplayNode(c.ctx, c.read, usage, value)
+	node, err := table.CaptureStatisticsReplayNode(c.ctx, c.read, usage, value)
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +63,7 @@ func (c statisticsSnapshotCodec) Decode(usage sqltype.Usage, data json.RawMessag
 	local.Input.ACLItem = regobj.ACLItemInput{Roles: c.auth.Roles, Authority: c.read.Owner().ACLAuthority}
 	local.Input.DomainChecks = &local
 	env := typedef.DomainReplayEnv{Context: c.ctx, Catalog: c.read, Input: local.Input, Output: local.Output, Scalar: c.scalar, ValidateType: (stored.TypeProvider{}).Validate}
+	env.StatisticsTree = sqltype.StatisticsRetainedTreeValue
 	if _, err := decoder.Token(); err != io.EOF {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid statistics value constructor")
 	}

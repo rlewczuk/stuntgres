@@ -19,12 +19,15 @@ type ExtendedInput struct {
 	Providers        []catalog.Descriptor
 	Type             *sqltype.Descriptor
 	DependenciesType *sqltype.Descriptor
+	MCVType          *sqltype.Descriptor
+	MCVTarget        int
 }
 
 type ExtendedCollector struct {
 	input        ExtendedInput
 	joint        *NDistinctCollector
 	dependencies *DependenciesCollector
+	mcv          *MCVCollector
 	preparer     *NDistinctCollector
 	expressions  []ProjectedStatisticsCollector
 	rows         uint64
@@ -36,7 +39,7 @@ func NewExtendedCollector(input ExtendedInput) (*ExtendedCollector, error) {
 	}
 	c := &ExtendedCollector{input: input}
 	var err error
-	if strings.ContainsAny(input.Definition.Selection.Kinds(), "df") {
+	if strings.ContainsAny(input.Definition.Selection.Kinds(), "dfm") {
 		c.preparer, err = newNDistinctCollector(NDistinctInput{Key: input.Key, Definition: input.Definition, Columns: input.Columns, Type: input.Type}, strings.Contains(input.Definition.Selection.Kinds(), "d"))
 		if err != nil {
 			return nil, err
@@ -47,6 +50,12 @@ func NewExtendedCollector(input ExtendedInput) (*ExtendedCollector, error) {
 	}
 	if strings.Contains(input.Definition.Selection.Kinds(), "f") {
 		c.dependencies, err = newDependenciesCollector(input, c.preparer.grouping)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if strings.Contains(input.Definition.Selection.Kinds(), "m") {
+		c.mcv, err = newMCVCollector(input, c.preparer.grouping)
 		if err != nil {
 			return nil, err
 		}
@@ -80,6 +89,11 @@ func (c *ExtendedCollector) Add(ctx context.Context, dimensions []sqltype.Value)
 				return err
 			}
 		}
+		if c.mcv != nil {
+			if err := c.mcv.addPrepared(ctx, &keys, &hashes); err != nil {
+				return err
+			}
+		}
 	}
 	for i := range c.expressions {
 		if err := c.expressions[i].Add(ctx, dimensions[c.input.Definition.Selection.Len()+i]); err != nil {
@@ -110,6 +124,13 @@ func (c *ExtendedCollector) Finish(ctx context.Context) (*ExtendedStatistics, er
 	if c.dependencies != nil {
 		var err error
 		fact.Dependencies, fact.DependencyItems, err = c.dependencies.finish(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.mcv != nil {
+		var err error
+		fact.MCVData, fact.MCV, err = c.mcv.finish(ctx)
 		if err != nil {
 			return nil, err
 		}

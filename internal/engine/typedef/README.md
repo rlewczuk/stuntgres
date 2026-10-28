@@ -225,6 +225,12 @@ binding passes the core `DDLHost`.
 - **ALTER DOMAIN publication.** Validation observations (graph, storage,
   provider, owner, epoch) gate one immutable publication; cancellation before
   install leaves the roots unchanged.
+- **Retained statistics replay.** The shared typed replay walker recognizes
+  `statistics_tree` only with the core statistics adapter's capability and the
+  exact current pg_node_tree descriptor. Domain/array wrappers recurse normally.
+  This reconstructs immutable retained structural text without parsing SQL or
+  granting domain-NULL/Seg row-sidecar provenance. Ordinary replay never supplies
+  this capability and rejects the same node.
 
 ## What stays in the engine
 

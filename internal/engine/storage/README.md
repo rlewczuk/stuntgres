@@ -87,38 +87,49 @@ and never the engine.
   Extended facts share this same root, keyed by generation-qualified statistics
   definition and inherited flavor. `ExtendedCollector` reuses the ordinary scalar
   collector for typed projected expression values and shares those values with
-  ndistinct and dependency collectors. Typed NOT DISTINCT keys are bound once
-  per dimension and prepared/hashed once per row for both kinds; every hash
-  collision is equality-checked. Ndistinct covers subsets of widths2..8.
+  ndistinct, dependency and MCV collectors. Typed NOT DISTINCT keys are bound once
+  per dimension and prepared/hashed once per row for all requested kinds; every
+  hash collision is equality-checked. Ndistinct covers subsets of widths2..8.
   Dependencies cover every nonempty proper determinant subset and each other
   dependent dimension (at most1016 directions). A group contributes all its rows
   only if every dependent value agrees; conflicting groups contribute zero.
   Positive row-weighted degrees are retained; all-zero analysis yields typed
   SQL NULL in an existing analyzed row. This deterministic logical-population
   estimate does not emulate PostgreSQL sampling or physical TOAST-width filtering.
+  Joint MCV counts every joint and marginal group before applying the captured
+  target. Singleton groups are eligible; ties retain first captured occurrence.
+  Frequencies use the full population, and baselines multiply full-population
+  marginal fractions, never renormalized retained counts. `ExtendedMCV` owns
+  compact non-NULL typed dictionaries, explicit NULL flags and integer joint/
+  marginal counts; `BuildExtendedMCV` derives the single immutable native value.
+  MCV-only definitions do no ndistinct subset work.
   NULLs form real groups. Simple keys retain positive attribute identities;
   ordered expression dimensions use -1,-2,... . Serialized members preserve
   positive simple keys followed by expression order, matching PostgreSQL.
   Single-expression, automatic-summary-only (`e`-only) facts have genuine
   scalar summaries but no joint Value. All-expression multivariate definitions
-  can also collect ndistinct and dependencies. `MergeExtendedStatistics`
+  can also collect ndistinct, dependencies and MCV. `MergeExtendedStatistics`
   preserves unselected backing; compatibility
   checks retained recipe identity, stable input/result usages, actual external
   provider revisions and current hierarchy authority, not display names or DML.
   AverageWidth retains the actual result type's available fixed datum width,
   including all-NULL populations. Non-NULL text/bytea use datum byte lengths,
   never formatted wire size; all-NULL/unsupported variable-width models remain0.
-  The strict `stuntgres-ndistinct-v1` channel now transports checked extended
-  facts, including optional typed expression summaries and semantic recipes.
-  Non-f records retain their existing byte format. A dependencies array is
-  mandatory exactly for f records, including an empty array for analyzed NULL.
-  Snapshot import validates canonical signed direction ordering, positive finite
-  fractional degrees, signed ndistinct subsets, integral counts, typed MCV/histogram
-  bounds and destination recipe/usages. Stale dependency facts are reminted,
-  never recomputed from restored rows. The composing engine supplies existing
-  control literal rendering/input; storage never binds expressions or executes SQL.
-  Genuine destination TEMP reownership uses the existing retention authority,
-  preserving old immutable facts while reminting their recipe/type generation.
+  The strict `stuntgres-ndistinct-v1` channel transports checked extended facts,
+  including optional typed expression summaries and semantic recipes.
+  A dependencies array is mandatory exactly for f records. Optional joint MCV
+  records denote built state, not merely a requested kind; non-MCV records keep
+  their prior bytes. MCV snapshots retain population, full marginal and joint
+  counts, true NULL flags and compact non-NULL constructor dictionaries.
+  Import validates recursive required fields, canonical indexes, logical
+  uniqueness and count bounds before destination typed reconstruction. Current
+  targets do not invalidate older larger summaries. Native bytes are rebuilt
+  with destination type/member/element identities, never recomputed from rows.
+  The composing engine supplies checked typed replay, including a private
+  retained-tree capability; storage never binds SQL or grants input authority.
+  Genuine destination TEMP reownership preserves construction backing for
+  unchanged usages, otherwise remints values through typed replay before atomic
+  publication. Generic Retag cannot adopt enum/domain generations.
 
 ### Logical allocation estimates
 
@@ -256,6 +267,8 @@ version vectors and end roots; they do not wrap or replace `storage.Relation`.
 Signed-dimension collection invariants that require real `plan` expression
 recipes live in external `enginetests/`, avoiding a storage→plan→storage test
 variant import cycle. Pure collector and snapshot-codec units remain local.
+MCV collection, full marginals, typed collision chains and immutable construction
+facts use `make check RUN='^TestStatisticsMCVCollection$'`.
 
 Package units pin the allocators, `IndexRootsCurrent`, index identity and
 truncate lineage. Engine witnesses cover storage-map publication

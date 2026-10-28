@@ -137,7 +137,7 @@ canonical/Journal paths, independent of the selected column list. When scanning
 a private TRUNCATE successor, ANALYZE also records the scan on that actual heap;
 this preserves maintenance ordering through commit and savepoint rollback while
 column deltas remain transactional.
-Requested ndistinct, dependencies and automatic expression definitions are captured with the
+Requested ndistinct, dependencies, MCV and automatic expression definitions are captured with the
 same relation/selection authority. Scalar and extended collectors consume one
 traversal per population. Every simple key must occur in the current column
 selection; ineligible definitions warn without combining old column facts.
@@ -148,7 +148,7 @@ zero skips rebuilding without clearing its payload. Empty populations retain
 prior payloads. Ordinary parents collect separate local/inherited facts;
 partitioned parents collect only inherited facts and never gain synthetic storage.
 Each retained expression executes once per row through the ordinary executor;
-the resulting typed value feeds the ordinary scalar and both multivariate
+the resulting typed value feeds the ordinary scalar and requested multivariate
 collectors. Stable attribute layouts map inherited/sparse rows before execution,
 without reparsing SQL or copying complete rows separately for each expression.
 Tuple values use typed NULL-inclusive grouping and signed canonical dimensions:
@@ -160,10 +160,15 @@ sampling. Dependencies measure the fraction of rows whose determinant group
 has one dependent value, including NULL, never constraint-based confidence.
 Native collection uses all logical projected rows without fictional physical
 varlena width filtering. Definition identity, built-row existence, inheritance,
-visibility, privileges and types are exact. Automatic expression facts and both
+visibility, privileges and types are exact. Automatic expression facts and all
 multivariate kinds share one immutable Extended root. Single-expression (`e`-only)
 objects have no joint payload; definitions with multiple expression dimensions
-can collect both multivariate kinds. Joint-MCV remains typed NULL.
+can collect all three multivariate kinds. MCV captures a positive object target
+or the command's default target. It counts all joint and marginal groups first,
+then retains at most target entries by decreasing count and first occurrence.
+SQL NULLs have explicit flags; singleton groups remain eligible. Joint frequency
+uses all rows; baseline is the product of full-population marginal frequencies.
+No retained estimate changes substantive query results.
 
 
 

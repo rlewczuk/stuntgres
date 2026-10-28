@@ -1026,7 +1026,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 		if err != nil {
 			return ChangeSet{}, err
 		}
-		metadata, err := e.prepareRetainedRelationMetadataLocked(next, relations)
+		metadata, err := e.prepareRetainedRelationMetadataLocked(ctx, next, relations)
 		if err != nil {
 			return ChangeSet{}, err
 		}
@@ -1111,7 +1111,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	if prepared.Catalog != next || prepared.BaseCatalog != e.Catalog.State || prepared.BaseRow != e.Storage.RowFrontier() || prepared.BaseVersion != e.Storage.VersionFrontier() || prepared.Frontier != e.Visibility.CommitSeq() || e.Catalog.NextOID() != oids.Base {
 		return ids.ErrCatalogReplaced
 	}
-	metadata, err := e.prepareRetainedRelationMetadataLocked(next, relations)
+	metadata, err := e.prepareRetainedRelationMetadataLocked(ctx, next, relations)
 	if err != nil {
 		return err
 	}

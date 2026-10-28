@@ -254,8 +254,8 @@ func TestNetworkOrderingAndCapabilities(t *testing.T) {
 		if !ok || class.Name != "inet_ops" || class.Family != "network_ops" || class.OID() != 10015 || class.input != Inet || !class.Accepts(scalar) {
 			t.Fatal(class, ok)
 		}
-		if _, err := BindGrouping(scalar.Usage()); err == nil {
-			t.Fatal("grouping expanded")
+		if _, err := BindGrouping(scalar.Usage()); err != nil {
+			t.Fatal("network grouping unavailable", err)
 		}
 		signature, err := ResolveEquality(types[id], types[Cidr])
 		if err != nil || signature != (EqualitySignature{Inet, Inet}) {

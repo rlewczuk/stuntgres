@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
@@ -63,7 +64,7 @@ func (e *Engine) prepareRelationMetadataLocked(next *catalog.State, journal *ses
 // prepareRetainedRelationMetadataLocked uses the replacement's existing TEMP
 // retention authority, not imported addresses or heap-pointer coincidence.
 // Persistent and reminted identities deliberately receive no planner facts.
-func (e *Engine) prepareRetainedRelationMetadataLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation) (map[ids.ObjectAddress]*storage.RelationMetadata, error) {
+func (e *Engine) prepareRetainedRelationMetadataLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation) (map[ids.ObjectAddress]*storage.RelationMetadata, error) {
 	if len(e.Storage.RelationMetadata) == 0 {
 		return nil, nil
 	}
@@ -105,7 +106,7 @@ func (e *Engine) prepareRetainedRelationMetadataLocked(next *catalog.State, rela
 					continue
 				}
 				key.Definition = e.Catalog.Domain.Ref(next.Epoch(), definition.Address())
-				value, err := storage.ReownRetainedExtendedStatistics(fact, definition, e.Catalog.Read(next))
+				value, err := storage.ReownRetainedExtendedStatistics(ctx, fact, definition, e.Catalog.Read(next), StatisticsSnapshotCodec(ctx, e, e.Catalog.Current()), StatisticsSnapshotCodec(ctx, e, e.Catalog.Read(next)))
 				if err != nil {
 					return nil, err
 				}

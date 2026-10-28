@@ -62,18 +62,24 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   descriptors. Non-NULL text and binary input reject with 0A000; typed NULL
   remains valid for storage, parameters and results. Checked internal producer
   constructors `StatisticsValue`/`StatisticsMCVValue` freeze real payloads once;
-  `StatisticsItem` inputs retain no caller slices. Payload fields stay private
-  and compatible retags share backing. Distinct/dependency output uses released
-  map formatting; MCV output follows bytea hex/escape presentation.
+  `StatisticsMCVBuild` encodes checked typed dictionaries and explicit NULL/index/
+  frequency items using native physical datums, never wire output. Construction
+  retains no caller slices. Payload fields stay private and compatible retags
+  share backing. Distinct/dependency output uses released map formatting; MCV
+  output follows bytea hex/escape presentation.
   Dependency dimensions admit positive sparse attribute numbers and expression
   identities -1..-8 with the dependent last; zero, duplicates and invalid widths
   remain rejected. This producer authority does not admit SQL datum input.
   Send emits the frozen linux/amd64 little-endian serialization
-  without a varlena header. No comparison, collection or public datum constructor
-  follows from descriptor admission.
-  MCV validation distinguishes by-value dimensions (zero deserialized allocation)
-  from fixed/variable by-reference dimensions, checking their serialized and
-  aligned allocation extents independently against the released serializer.
+  without a varlena header. Native MCV dictionaries use significant by-value
+  widths, fixed reference images, or length-prefixed physical varlena payloads;
+  aligned allocation extents are checked independently. Domains retain logical
+  OIDs, enum words retain member OIDs, and embedded arrays retain current element
+  OIDs and complete native element headers. NUMERIC and JSONB use physical
+  containers rather than network headers or textual substitutes. Dictionary order
+  is deterministic first-retained occurrence, not a cross-backend byte-order claim.
+  `StatisticsRetainedTreeValue` is checked internal statistics replay authority
+  for prepared structural text only; it grants neither SQL input nor parser trees.
 - Canonical `pg_statistic` row10029 describes its exact31 released members,
   including five ANYARRAY fields; array10028 has that actual element identity.
   These self-owned builtins grant restricted catalog result authority:
@@ -96,7 +102,9 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   Differences are exact NUMERIC; numeric offsets round the completed exact
   result once before unsigned range validation. The numeric-left addition
   signature retains its SQL-wrapper diagnostic context. Companion identity
-  does not grant executable arrays or hash providers.
+  does not grant executable arrays or index hash support. Grouping hashes the
+  unsigned bits; INET/CIDR grouping hashes family, prefix and address consistently
+  with their existing typed equality.
 - `Composite` freezes catalog members and rejects pseudo-type storage attributes.
   `RecordShape` freezes an anonymous expression/query-result occurrence and
   retains VOID members, including their exact typed NULLs for empty results.
@@ -662,3 +670,5 @@ match engine tests of the same mechanism):
 - Unsigned LSN codecs, comparison and exact arithmetic: `RUN='^TestPGLSN'`
 - Restricted catalog statistic row/array/ANYARRAY authority and signed dimensions:
   `RUN='^TestStatisticExpressionValue'`.
+- Internal statistics payloads, native layouts and immutable producer authority:
+  `RUN='^TestStatistics(Type|MCVNative)'`.

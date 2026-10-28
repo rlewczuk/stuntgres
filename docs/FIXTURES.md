@@ -61,6 +61,14 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
 - Not dumped: roles or their shared comments, passwords, memberships, settings,
   TEMP objects, uncommitted or prepared work, sequence `currval`/`lastval` session
   state, and commit timestamp history.
+- Native collected extended statistics retain their stale construction state,
+  including joint MCV population/marginal counts and true NULL markers, in strict
+  typed comments. Restore remints current type, enum-member and nested array
+  identities without collecting restored rows; records without built MCV remain
+  absent. Structural-tree dictionaries use a private retained-statistics
+  constructor, not SQL input authority or PostgreSQL node syntax. Genuine
+  destination TEMP statistics survive replacement under existing TEMP retention;
+  malformed or canceled reconstruction cannot publish a partial replacement.
 - Dump fails before writing anything when it cannot serialize faithfully, for
   example invalid indexes, invalid raw ACL authority or cyclic view
   dependencies (`stuntgres: cyclic view dump dependencies`).

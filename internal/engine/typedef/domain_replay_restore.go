@@ -27,6 +27,9 @@ type DomainReplayEnv struct {
 	Output       sqltype.OutputEnvironment
 	ValidateType func(catalog.Read, catalog.Descriptor) error
 	Scalar       func(raw parser.Expr, u sqltype.Usage) (sqltype.Value, error)
+	// StatisticsTree is populated only by the retained statistics adapter.
+	// It confers no row-sidecar provenance.
+	StatisticsTree func(sqltype.Usage, string) (sqltype.Value, error)
 }
 
 // DomainReplayProvenance is accumulated only after destination-owned
@@ -88,6 +91,20 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 	}
 	if u.Type.IsDomain() {
 		return bad()
+	}
+	if n.Shape("statistics_tree") {
+		current, ok := env.Catalog.LookupType(sqltype.PgNodeTree)
+		if !ok || current != u.Type || env.StatisticsTree == nil {
+			return bad()
+		}
+		value, err := env.StatisticsTree(u, *n.StatisticsTree)
+		if err != nil {
+			return sqltype.Value{}, 0, err
+		}
+		if value.IsNull() || value.Type() != u.Type {
+			return bad()
+		}
+		return value, 0, nil
 	}
 	if n.Shape("seg") {
 		declared, ok := env.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})

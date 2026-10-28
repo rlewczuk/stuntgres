@@ -16,9 +16,16 @@ The DDL host preflights coercions and retains normal conditional execution
 recipes, stable input identities and external dependencies. CREATE does not
 evaluate volatile runtime values. Definition-object locks include these real
 dependencies; publication rejects retired inputs/providers.
+The authenticated catalog runtime projects ndistinct, dependencies, joint MCV
+and expression summaries from one immutable extended fact. Missing payloads use
+the current descriptor's typed NULL. Catalog SELECT admission precedes capture;
+the runtime never collects populations or rebuilds retained statistics on read.
 `statistics_snapshot.go` bridges semantic captured statistics to the existing
-control-literal renderer and checked scalar whitelist. Destination typed value
+control-literal renderer and checked typed replay traversal. Destination value
 construction uses the ordinary binder/executor under captured catalog authority.
+Only this adapter supplies the retained structural-tree capability; ordinary
+row replay and SQL input remain unchanged. Joint MCV native images are rebuilt
+from typed dictionaries/counts, never copied with source OIDs.
 The snapshot binding adapter supplies that captured authority and cancellation
 context to type-annotation, namespace and object-name hooks. Constructor casts
 use the existing immutable snapshot resolvers, not live-publication admission:
@@ -94,9 +101,10 @@ the existing TEMP-retention authority, never address coincidence.
 Retained TEMP statistics definitions advance their checked relation-reference
 epoch with the replacement, without applying imported identity mappings.
 Incompatible non-retained dependencies reject replacement before installation.
-Their ndistinct payloads reconstruct from checked immutable items when the
-candidate's builtin descriptor changes. All fallible construction precedes
-installation; retained captures keep their original typed values and backing.
+Their collected payloads reconstruct from checked immutable construction facts
+when destination descriptors change, including nested enum/array identities.
+Unchanged usages preserve MCV construction backing. All fallible reconstruction
+precedes installation; retained captures keep their original values and backing.
 Parent inherited cardinality is retained separately from independently stale
 child estimates, so ONLY parent refresh works. EXPLAIN requires a current
 hierarchy before using it. A successful local-only refresh clears obsolete

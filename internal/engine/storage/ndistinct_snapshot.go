@@ -38,6 +38,7 @@ type ExtendedStatisticsSnapshot struct {
 	Usages         []NDistinctUsageRecord         `json:"usages"`
 	Subsets        [][]int16                      `json:"subsets"`
 	Counts         []uint64                       `json:"counts"`
+	MCV            *ExtendedMCVSnapshot           `json:"mcv,omitempty"`
 	Expressions    []StatisticsExpressionSnapshot `json:"expressions,omitempty"`
 	Dependencies   *[]DependencySnapshot          `json:"dependencies,omitempty"`
 }
@@ -96,6 +97,10 @@ func CaptureExtendedStatisticsSnapshots(ctx context.Context, read catalog.Read, 
 					return nil, err
 				}
 			}
+			r.MCV, err = captureMCVSnapshot(ctx, fact, codec)
+			if err != nil {
+				return nil, err
+			}
 			records = append(records, r)
 		}
 	}
@@ -122,12 +127,20 @@ func (r ExtendedStatisticsSnapshot) Validate() error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid extended statistics snapshot") }
 	width := len(r.Keys) + len(r.Expressions)
 	if r.Schema == "" || r.Name == "" || r.RelationSchema == "" || r.RelationName == "" ||
-		width < 1 || width > 8 || len(r.Usages) != len(r.Keys) || !strings.ContainsAny(r.Kinds, "def") {
+		width < 1 || width > 8 || len(r.Usages) != len(r.Keys) || !strings.ContainsAny(r.Kinds, "defm") {
 		return invalid()
 	}
 	selection, err := catalog.NewStatisticsSelection(r.Keys, len(r.Expressions), r.Kinds)
 	if err != nil || selection.Kinds() != r.Kinds {
 		return invalid()
+	}
+	if r.MCV != nil {
+		if !strings.Contains(r.Kinds, "m") {
+			return invalid()
+		}
+		if err := r.MCV.validate(width); err != nil {
+			return err
+		}
 	}
 	for _, expression := range r.Expressions {
 		if err := expression.validate(); err != nil {
@@ -273,6 +286,9 @@ func RestoreExtendedStatisticsSnapshots(ctx context.Context, read catalog.Read, 
 			}
 		}
 		if err := restoreExpressionSnapshots(ctx, read, relation, d, r.Expressions, fact, codec); err != nil {
+			return nil, err
+		}
+		if err := restoreMCVSnapshot(ctx, read, r.MCV, fact, codec); err != nil {
 			return nil, err
 		}
 		if r.Inherited {

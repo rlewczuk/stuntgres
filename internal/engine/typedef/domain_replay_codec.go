@@ -31,14 +31,15 @@ type DomainReplayCell struct {
 // Pointer fields distinguish absent fields from inappropriate empty fields.
 // NULL is not part of this wire format: null nodes are explicit tagged objects.
 type DomainReplayNode struct {
-	Kind       string                   `json:"kind"`
-	Type       *[]string                `json:"type,omitempty"`
-	Scalar     *string                  `json:"scalar,omitempty"`
-	Base       *DomainReplayNode        `json:"base,omitempty"`
-	Members    *[]DomainReplayMember    `json:"members,omitempty"`
-	Dimensions *[]DomainReplayDimension `json:"dimensions,omitempty"`
-	Elements   *[]DomainReplayNode      `json:"elements,omitempty"`
-	Seg        *sqltype.SegDatum        `json:"seg,omitempty"`
+	Kind           string                   `json:"kind"`
+	Type           *[]string                `json:"type,omitempty"`
+	Scalar         *string                  `json:"scalar,omitempty"`
+	Base           *DomainReplayNode        `json:"base,omitempty"`
+	Members        *[]DomainReplayMember    `json:"members,omitempty"`
+	Dimensions     *[]DomainReplayDimension `json:"dimensions,omitempty"`
+	Elements       *[]DomainReplayNode      `json:"elements,omitempty"`
+	Seg            *sqltype.SegDatum        `json:"seg,omitempty"`
+	StatisticsTree *string                  `json:"statistics_tree,omitempty"`
 }
 
 type DomainReplayMember struct {
@@ -232,6 +233,12 @@ func PairDomainReplay(script string, statements []parser.Statement, records []Po
 
 func (n *DomainReplayNode) Shape(kind string) bool {
 	if n == nil || n.Kind != kind {
+		return false
+	}
+	if kind == "statistics_tree" {
+		return n.StatisticsTree != nil && n.Type == nil && n.Scalar == nil && n.Base == nil && n.Members == nil && n.Dimensions == nil && n.Elements == nil && n.Seg == nil
+	}
+	if n.StatisticsTree != nil {
 		return false
 	}
 	if kind == "seg" {

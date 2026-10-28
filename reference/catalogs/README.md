@@ -77,6 +77,26 @@ fractional/analyzed-NULL replay are covered by
 Native values describe complete logical populations, not physical TOAST-width
 filtering or server sample emulation; substantive query rows remain exact.
 
+Multivariate MCV scenarios share the direct/prepared fixture and independently
+decode public `pg_mcv_list_send` BYTEA images using released physical layouts,
+never production codecs. They assert full-population joint/marginal frequencies,
+SQL NULL flags, unrenormalized target caps, typed dictionaries and logical OIDs.
+Native physical images are not COPY-wire values or cross-backend byte goldens.
+Array setup uses each backend's existing usable default-class authority rather
+than shadowing a complete provider with incomplete exact metadata. Explicit
+rejected-provider phases distinguish accepted class metadata from executable
+statistics admission, while retaining native positive physical-codec assertions.
+Remint witnesses combine reachable domain-over-array and scalar enum-domain
+dimensions without introducing new column constructors.
+Reachable native XID/CID/vector phases restore deliberately stale joint facts into
+independent destinations and then distinguish them from real reanalysis. Public
+vector assertions include exact extents, offsets, element OIDs and element words,
+alongside NULL markers and full-population marginal baselines.
+Authority, transaction visibility, real blocked cancellation, stale semantic
+Dump/Restore, destination reminting and genuine retained TEMP facts use public
+APIs. Select the family with `make check RUN='^TestReferenceStatisticsMCV'`
+(add `REFERENCE=1` for the pinned oracle).
+
 Expression-statistics scenarios use the same public direct/prepared fixture and
 the genuine `pg_statistic_ext_data.stxdexpr` row array: subscript/field access,
 typed INT4/TEXT MCV slots, FLOAT4 frequencies, NULL fractions/distinct encoding,
@@ -87,7 +107,7 @@ Dependency scenarios assert the full NORMAL/AUTO edge bag, current-name deparse,
 stable identity, selected/unselected column retirement and routine RESTRICT/CASCADE.
 Full diagnostics cover prohibited nodes, name resolution and nonowner admission.
 The mixed/dual-expression witnesses require real NULL-inclusive joint ndistinct;
-the dependencies family also covers these dimensions. Joint MCV is not collected.
+the dependencies and MCV families also cover these dimensions.
 Selected-column ANALYZE checks simple statistics keys, while expression-only
 and mixed definitions evaluate their expressions from full captured rows even
 when expression input columns are not selected for scalar collection.

@@ -1,5 +1,12 @@
 # Changes
 
+- ANALYZE collects multivariate MCV lists with actual joint frequencies,
+  full-population marginal baselines, separate SQL NULL flags and target caps.
+  Publish genuine `pg_mcv_list` native datum images for executable typed grouping
+  dimensions, not COPY-wire encodings. Native semantic snapshots preserve stale
+  integer construction facts and rebuild destination type/member/element OIDs,
+  including retained TEMP statistics, without reanalysis or SQL input authority.
+
 - ANALYZE now measures directed multicolumn functional dependencies from actual
   NULL-inclusive projected rows, including stable sparse attributes and existing
   expression dimensions. Expose genuine `pg_dependencies` catalog values and
@@ -26,7 +33,6 @@
   per-expression NULL/distinct/MCV/histogram facts and real signed-dimension
   joint ndistinct through the existing evaluator and metadata root.
   `pg_statistic_ext_data.stxdexpr` exposes genuine row-array values.
-  Joint MCV collection remains unsupported (NULL payloads).
 
 - Add the database-local four-column `pg_subscription_rel` catalog with exact
   row/array ownership, owner+PUBLIC stored ACL and current prepared-read

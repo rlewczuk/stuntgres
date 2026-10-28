@@ -28,6 +28,8 @@ type ExtendedStatistics struct {
 	Items           []sqltype.StatisticsItem
 	Dependencies    sqltype.Value
 	DependencyItems []sqltype.StatisticsItem
+	MCV             sqltype.Value
+	MCVData         *ExtendedMCV
 	Hierarchy       *StatisticsHierarchy
 }
 

@@ -114,24 +114,30 @@ stable and volatile functions are permitted, without evaluating them at CREATE.
 automatic. `DROP STATISTICS` supports conditional and dependency modes.
 Definitions appear in `pg_statistic_ext`, including genuine `stxexprs` trees;
 `pg_get_expr` resolves renamed inputs from their retained attribute identities.
-Creation does not collect payloads. `ANALYZE` computes real joint ndistinct,
-including NULL groups and signed expression dimensions, and typed per-expression
-NULL/distinct/MCV/histogram summaries. `pg_statistic_ext_data.stxdexpr` is a genuine
-`pg_statistic[]` value, with array subscripting and row-field access.
+Creation does not collect payloads. `ANALYZE` computes joint ndistinct,
+functional dependencies and multivariate MCV from actual NULL-inclusive rows,
+including signed expression dimensions. MCV frequencies use full-population
+joint counts and products of marginal frequencies before target truncation.
+SQL NULL markers are separate from dictionary values. Per-expression
+NULL/distinct/MCV/histogram summaries remain genuine `pg_statistic[]` values in
+`pg_statistic_ext_data.stxdexpr`, with array subscripting and row-field access.
 `ALTER STATISTICS [IF EXISTS] name SET STATISTICS {integer|DEFAULT}` controls
 each object's target: zero retains its old payload without rebuilding, and
-DEFAULT uses the existing target100. Positive targets retain exact native
-full-scan counts; PostgreSQL can sample larger populations. Counts are technical
+DEFAULT uses the command's `default_statistics_target`. Positive targets bound
+MCV entries without renormalizing frequencies; native ties follow first captured
+occurrence deterministically. Native counts cover the full visible population;
+PostgreSQL can sample larger populations. Counts are technical
 statistics and never approximate substantive SELECT results.
 Native versioned comments preserve stale values, target-zero values, absence,
 and local/inherited flavors without reanalysis. PostgreSQL safely ignores these
 comments when replaying the same definition/target SQL; PostgreSQL18 dumps do
-not preserve collected extended statistics. Joint functional-dependency and
-joint MCV payloads remain NULL; their collection, `pg_stats_ext` and planner
-group-estimate integration are separate. Per-expression MCV is supported and
-is distinct from joint MCV. Native replay preserves stale expression summaries,
-not a recomputation from restored rows. Statistics types continue rejecting
-non-NULL SQL input; catalog-owned typed output supplies no input authority.
+not preserve collected extended statistics. Native replay preserves stale joint
+and expression summaries, not a recomputation from restored rows. Typed dictionary
+constructors remint destination domain, enum-member and array-element identities;
+source-OID-bearing physical bytes never grant destination authority. DATA catalog
+SELECT privileges protect distributions independently of table ownership.
+Statistics types continue rejecting non-NULL SQL input; catalog-owned typed
+output supplies no input authority. These facts do not add a planner consumer.
 
 
 ## Using stuntgres in unit tests

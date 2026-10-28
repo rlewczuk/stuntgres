@@ -110,19 +110,24 @@ function references once into the destination authority.
   Bootstrap-principal definitions use their named owner directive without a
   redundant transfer; DEFAULT may name a different authenticated role on replay.
   Deterministic strict `stuntgres-ndistinct-v1` comments transport checked
-  extended facts, including stale joint counts, automatic typed expression
-  null/distinct/MCV/histogram summaries and separate inherited flavors.
-  Expression records add checked optional fields; column-only dump bytes stay
-  unchanged. Restore resolves names, signed dimensions, recipes and usages after
-  definition finalization, then reconstructs immutable destination-owned typed
-  values through the incumbent control literal/input model before atomic
-  destination publication. No ANALYZE replay or base-column distribution import
-  occurs. Genuine destination TEMP statistics retain their separate existing
-  retention authority: preflight certifies every recipe dependency, keeps actual
-  builtin codecs used by the expression trees/results, and advances all retained
-  input/provider/tree references into the destination epoch without source-ID
-  mapping. Facts are then reowned under those valid descriptors. PostgreSQL18
-  script replay ignores these comments and leaves collected state absent.
+  extended facts, including stale joint counts, dependencies, joint MCV and
+  automatic typed expression summaries, with separate inherited flavors.
+  Optional MCV construction records retain population and marginal counts,
+  true NULL flags, compact non-NULL typed dictionaries and canonical indexes;
+  records without built MCV preserve their previous byte format. Restore checks
+  shape, uniqueness and counts, then resolves current recipes/usages and remints
+  dictionary values before rebuilding native bytes with destination type, enum
+  member and nested array-element identities. It never re-ANALYZEs live rows.
+  The typed replay traversal has one statistics-only structural-tree capability;
+  ordinary row/domain replay and SQL input cannot use it. Retained tree text is
+  backend-local structural output, not PostgreSQL node syntax.
+  Genuine destination TEMP statistics retain their separate existing authority:
+  preflight certifies dependencies and advances retained references into the new
+  epoch. Unchanged usages preserve immutable construction backing; changed usages
+  use checked typed reconstruction, never generic Retag adoption. All failures
+  precede atomic destination publication, preserving held old captures.
+  PostgreSQL18 script replay ignores these comments and leaves collected state
+  absent.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
   ADD MAPPING statements, never COPY provenance. Namespace, mapped dictionary
   and stored alias/default/view dependencies use the ordinary event graph.

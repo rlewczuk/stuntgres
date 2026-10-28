@@ -105,7 +105,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
   canonical ANALYZE metadata roots through the authenticated runtime bridge.
   Its six exact fields are stxoid, stxdinherit, stxdndistinct, stxddependencies,
   stxdmcv and stxdexpr; there is no oid column. Joint ndistinct, measured
-  dependencies and automatic per-expression facts project from one captured fact.
+  dependencies, joint MCV and automatic per-expression facts project from one captured fact.
   `stxdexpr` is a genuine typed pg_statistic[]10028 with FLOAT4 fractions,
   distinct encoding, MCV values/frequencies and ordered histogram values.
   Slot operators come from actual catalog families: MCV equality uses the
@@ -113,7 +113,9 @@ type Producer func(Input) ([][]sqltype.Value, error)
   histogram ordering independently uses the default btree less-than member.
   ANYARRAY slots retain actual typed arrays; ordinary subscript/field access
   and explicit text output do not discard element authority. Unrequested or
-  all-zero dependencies are genuine typed NULLs; joint MCV remains typed NULL.
+  all-zero dependencies are genuine typed NULLs. Joint MCV is a registered
+  pg_mcv_list value with real NULL flags, joint frequencies and full-population
+  marginal baselines, or a genuine typed NULL when absent.
   Bootstrap/default catalog ACL has no PUBLIC SELECT grant;
   owning the table or statistics grants no reader privilege. Current catalog
   SELECT is checked even for WHERE FALSE and on every held-statement execution.

@@ -109,6 +109,12 @@ func DecodeExtendedStatisticsSnapshot(comment string) (ExtendedStatisticsSnapsho
 	if _, exists := actual["dependencies"]; exists {
 		expectedFields++
 	}
+	if raw, exists := actual["mcv"]; exists {
+		expectedFields++
+		if err := validateMCVSnapshotJSON(raw); err != nil {
+			return invalid()
+		}
+	}
 	if len(actual) != expectedFields {
 		return invalid()
 	}

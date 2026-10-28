@@ -62,7 +62,7 @@ func BindGrouping(usage Usage) (Grouping, error) {
 		return g, nil
 	}
 	switch base.id {
-	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Tid, Macaddr, Money, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, JSONB:
+	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Tid, Macaddr, Money, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, JSONB, Inet, Cidr, PgLSN:
 	default:
 		return Grouping{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an equality operator for type " + usage.Type.DiagnosticName()}
 	}
@@ -245,6 +245,15 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		return h, ctx.Err()
 	}
 	switch v.typ.id {
+	case Inet, Cidr:
+		if !v.network.valid(v.typ.id == Cidr) {
+			return 0, fmt.Errorf("invalid network grouping payload")
+		}
+		byteHash(v.network.family)
+		byteHash(v.network.prefix)
+		for _, b := range v.network.address[:networkWidth(v.network)] {
+			byteHash(b)
+		}
 	case JSONB:
 		if v.jsonb == nil {
 			return 0, fmt.Errorf("missing JSONB payload")
@@ -275,7 +284,7 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		} else {
 			byteHash(0)
 		}
-	case Int2, Int4, Int8, Tid, Macaddr, Xid8, Money, Date, Time, Timestamp, Timestamptz:
+	case Int2, Int4, Int8, Tid, Macaddr, Xid8, PgLSN, Money, Date, Time, Timestamp, Timestamptz:
 		integerHash(uint64(v.integer))
 	case Timetz:
 		integerHash(uint64(v.integer))

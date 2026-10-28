@@ -176,12 +176,13 @@ call live here.
   Restore hooks (captures over `catalog.Read`/`access.View`, shape checks
   before authorization, decisions after resolution, stage-local candidates that
   return the next relation for the caller to commit after publication).
-  `CaptureDomainReplayNode` is the shared typed control-value capture used by
-  row replay and retained expression statistics. It preserves concrete array
-  dimensions, composite members, domain-NULL authority and exact Seg construction
-  facts; scalar leaves use the ordinary lossless control literal renderer.
-  Reconstruction remains `typedef.RestoreDomainReplayNode` with the composing
-  engine's checked scalar-constructor input, not an alternate evaluator.
+  `CaptureDomainReplayNode` preserves concrete array dimensions, composite
+  members, domain-NULL authority and exact Seg construction facts; scalar leaves
+  use the ordinary lossless control literal renderer. Retained statistics alone
+  use `CaptureStatisticsReplayNode`, which threads a private structural-tree
+  mode through the same domain/array traversal. Reconstruction remains
+  `typedef.RestoreDomainReplayNode` with checked scalar input and an explicit
+  statistics-only tree capability, never general SQL input or row provenance.
 - **Other cores**: `DropTargets` (over `Resolver`), SET SCHEMA, CREATE TABLE AS
   (`QueryTableColumns`), `RelationProvider` (its `RelationValidators` slots run
   in fixed order), `RecomputeRemappedGenerations`, `Stage.DefinitionProviders`

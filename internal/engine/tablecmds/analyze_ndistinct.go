@@ -32,6 +32,10 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 	if !ok {
 		return nil, fmt.Errorf("missing pg_dependencies type")
 	}
+	mcvType, ok := read.LookupType(sqltype.PgMCVList)
+	if !ok {
+		return nil, fmt.Errorf("missing pg_mcv_list type")
+	}
 	available := make(map[int32]storage.StatisticsColumn, len(columns))
 	for _, column := range columns {
 		available[column.Key.Attribute] = column
@@ -39,13 +43,18 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 	var inputs []capturedExtendedInput
 	for _, raw := range read.Descriptors() {
 		d, ok := raw.(*catalog.Statistics)
-		if !ok || d.Relation.Address != relation.Address() || !strings.ContainsAny(d.Selection.Kinds(), "def") || d.TargetSet && d.Target == 0 {
+		if !ok || d.Relation.Address != relation.Address() || !strings.ContainsAny(d.Selection.Kinds(), "defm") || d.TargetSet && d.Target == 0 {
 			continue
 		}
 		if err := (catalog.StatisticsProvider{}).Validate(read, d); err != nil {
 			return nil, err
 		}
 		input := capturedExtendedInput{ExtendedInput: storage.ExtendedInput{Key: storage.ExtendedStatisticsKey{Definition: read.Domain().Ref(read.Epoch(), d.Address())}, Definition: d, Type: typ, DependenciesType: dependencyType}}
+		input.MCVType = mcvType
+		input.MCVTarget = s.Op.StatisticsTarget
+		if d.TargetSet && d.Target > 0 {
+			input.MCVTarget = int(d.Target)
+		}
 		input.Providers = storage.CaptureStatisticsProviders(read, d)
 		eligible := true
 		required := make(map[int32]bool)

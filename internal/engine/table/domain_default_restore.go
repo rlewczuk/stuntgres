@@ -15,6 +15,19 @@ import (
 // CaptureDomainReplayNode captures the shared typed control-value construction
 // facts used by row replay and retained expression statistics.
 func CaptureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.Usage, v sqltype.Value) (typedef.DomainReplayNode, error) {
+	return captureDomainReplayNode(ctx, view, u, v, false)
+}
+
+// CaptureStatisticsReplayNode alone admits retained structural tree output.
+// This does not grant ordinary row replay or SQL input authority.
+func CaptureStatisticsReplayNode(ctx context.Context, view catalog.Read, u sqltype.Usage, v sqltype.Value) (typedef.DomainReplayNode, error) {
+	return captureDomainReplayNode(ctx, view, u, v, true)
+}
+
+func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.Usage, v sqltype.Value, statistics bool) (typedef.DomainReplayNode, error) {
+	if err := ctx.Err(); err != nil {
+		return typedef.DomainReplayNode{}, err
+	}
 	if !u.Valid() || v.Type() != u.Type {
 		return typedef.DomainReplayNode{}, fmt.Errorf("stuntgres: invalid native captured cell type")
 	}
@@ -39,7 +52,7 @@ func CaptureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 		if err != nil {
 			return n, err
 		}
-		child, err := CaptureDomainReplayNode(ctx, view, u.BaseUsage(), base)
+		child, err := captureDomainReplayNode(ctx, view, u.BaseUsage(), base, statistics)
 		if err != nil {
 			return n, err
 		}
@@ -56,7 +69,7 @@ func CaptureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 		element.Type = u.Type.Element()
 		for i := range elements {
 			var err error
-			elements[i], err = CaptureDomainReplayNode(ctx, view, element, v.ArrayElement(i))
+			elements[i], err = captureDomainReplayNode(ctx, view, element, v.ArrayElement(i), statistics)
 			if err != nil {
 				return n, err
 			}
@@ -67,7 +80,7 @@ func CaptureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 		members := make([]typedef.DomainReplayMember, v.CompositeLen())
 		for i := range members {
 			field := u.Type.CompositeMember(i)
-			child, err := CaptureDomainReplayNode(ctx, view, field.Usage, v.CompositeField(i))
+			child, err := captureDomainReplayNode(ctx, view, field.Usage, v.CompositeField(i), statistics)
 			if err != nil {
 				return n, err
 			}
@@ -81,6 +94,17 @@ func CaptureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 			return n, err
 		}
 		return typedef.DomainReplayNode{Kind: "seg", Seg: &payload}, nil
+	}
+	if statistics && u.Type.ID() == sqltype.PgNodeTree {
+		current, ok := view.LookupType(sqltype.PgNodeTree)
+		if !ok || current != u.Type {
+			return n, fmt.Errorf("stuntgres: invalid retained tree authority")
+		}
+		text, err := u.Type.Output(ctx, v)
+		if err != nil {
+			return n, err
+		}
+		return typedef.DomainReplayNode{Kind: "statistics_tree", StatisticsTree: &text}, nil
 	}
 	literal, err := regobj.Literal(ctx, view, plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: v})
 	if err != nil {

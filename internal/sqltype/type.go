@@ -172,6 +172,7 @@ type Descriptor struct {
 	catalogNullOwner                    *Descriptor // Self on authentic restricted catalog result descriptors.
 	queryNullOwner                      *Descriptor // Self only on canonical query-only pseudo NULL identities.
 	polymorphicOwner                    *Descriptor // Self only on canonical polymorphic signature identities.
+	statisticsProducerOwner             *Descriptor // Self only on genuine internal MCV/tree producers.
 	namespace                           string
 }
 
@@ -467,6 +468,8 @@ func buildBuiltins() []*Descriptor {
 	}
 	for _, d := range types {
 		switch d.id {
+		case PgMCVList, PgNodeTree:
+			d.statisticsProducerOwner = d
 		case Int4:
 			vector.ftsDistance = d
 		case Char:

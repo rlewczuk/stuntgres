@@ -46,7 +46,7 @@ func TestStatisticsExpressionCollectionEqualityOnlyProjection(t *testing.T) {
 			t.Fatal("wrong released xid equality authority", member)
 		}
 		seen := make(map[ids.OID]bool)
-		err = in.Runtime.VisitExtendedStatistics(in.Context, func(oid ids.OID, inherited bool, joint, dependencies, expressions sqltype.Value) error {
+		err = in.Runtime.VisitExtendedStatistics(in.Context, func(oid ids.OID, inherited bool, joint, dependencies, mcv, expressions sqltype.Value) error {
 			if inherited || seen[oid] {
 				t.Fatal("unexpected local projection identity", oid, inherited)
 			}
@@ -54,7 +54,7 @@ func TestStatisticsExpressionCollectionEqualityOnlyProjection(t *testing.T) {
 			if oid != key.Definition.Address.ObjectID {
 				return nil
 			}
-			if !joint.IsNull() || expressions.ArrayLen() != 1 || !expressions.ValidResult(in.Source.Columns[5].Usage) {
+			if !joint.IsNull() || !mcv.IsNull() || !mcv.ValidResult(in.Source.Columns[4].Usage) || expressions.ArrayLen() != 1 || !expressions.ValidResult(in.Source.Columns[5].Usage) {
 				t.Fatal("invalid equality-only typed projection")
 			}
 			captured = expressions
