@@ -114,7 +114,7 @@ func foreignConstructionUnitComplete(t *testing.T, scope *core.StatementScope, t
 			}
 			jobs[i], options = prepared, values
 		}
-		if err := fdw.RunValidations(scope.Op.Context(), jobs[i:i+1], scope.InvokeForeignValidator); err != nil {
+		if err := fdw.RunValidations(scope.Op.Context(), scope, jobs[i:i+1]); err != nil {
 			t.Fatal(err)
 		}
 		if err := token.Advance(jobs[i].Attribute, options); err != nil {
@@ -186,7 +186,7 @@ func TestFDWForeignConstruction(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := fdw.RunValidations(scope.Op.Context(), jobs[:1], scope.InvokeForeignValidator); err != nil {
+			if err := fdw.RunValidations(scope.Op.Context(), scope, jobs[:1]); err != nil {
 				t.Fatal(err)
 			}
 			var primary error

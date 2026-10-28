@@ -75,7 +75,7 @@ func TestFDWStageTable(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if err = fdw.RunValidations(context.Background(), []fdw.Validation{job}, nil); err != nil {
+		if err = fdw.RunValidations(context.Background(), nil, []fdw.Validation{job}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -87,7 +87,7 @@ func TestFDWStageTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	mutateOptions = true
-	if err = fdw.RunValidations(context.Background(), []fdw.Validation{column}, nil); err != nil {
+	if err = fdw.RunValidations(context.Background(), nil, []fdw.Validation{column}); err != nil {
 		t.Fatal(err)
 	}
 	mutateOptions = false
@@ -99,7 +99,7 @@ func TestFDWStageTable(t *testing.T) {
 		t.Fatal("optionless columns staged validator jobs", len(jobs), roots, err)
 	}
 	seen = nil
-	if err = fdw.RunValidations(context.Background(), jobs, nil); err != nil {
+	if err = fdw.RunValidations(context.Background(), nil, jobs); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(seen, []catalog.ForeignObjectKind{catalog.ForeignTable}) {

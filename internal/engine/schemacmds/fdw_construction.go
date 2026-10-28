@@ -76,7 +76,7 @@ func finishForeignTableCreation(e *core.Engine, scope *core.StatementScope, stag
 			}
 			jobs[i], options = prepared, values
 		}
-		if err := fdw.RunValidations(scope.Op.Context(), jobs[i:i+1], scope.InvokeForeignValidator); err != nil {
+		if err := fdw.RunValidations(scope.Op.Context(), scope, jobs[i:i+1]); err != nil {
 			return err
 		}
 		if err := construction.Advance(jobs[i].Attribute, options); err != nil {

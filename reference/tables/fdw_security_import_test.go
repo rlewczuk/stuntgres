@@ -16,6 +16,7 @@ func TestReferenceFDWSecurity(t *testing.T) {
 		fdwMetadata(run)
 		run(fixture.Exec("CREATE ROLE fdw_reader", 0))
 		run(fixture.Exec("CREATE ROLE fdw_other", 0))
+		run(fixture.Exec("CREATE ROLE fdw_owner", 0))
 		run(fixture.Exec("CREATE USER MAPPING FOR fdw_other SERVER fdw_server OPTIONS(secret 'hidden')", 0))
 		run(fixture.Exec("CREATE USER MAPPING FOR PUBLIC SERVER fdw_server OPTIONS(secret 'shared')", 0))
 		run(fixture.Exec("SET ROLE fdw_reader", 0))
@@ -31,7 +32,34 @@ func TestReferenceFDWSecurity(t *testing.T) {
 		run(fixture.Exec("CREATE USER MAPPING FOR CURRENT_USER SERVER fdw_server OPTIONS(secret 'own')", 0))
 		run(fixture.Select("SELECT umoptions::text AS options FROM pg_user_mappings WHERE srvname='fdw_server' AND usename='fdw_reader'", []string{"options"}, []string{"TEXT"}, [][]any{{"{secret=own}"}}))
 		run(fixture.ErrorDiagnostic("ALTER USER MAPPING FOR fdw_other SERVER fdw_server OPTIONS(SET secret 'stolen')", fdwDiagnostic("42501", "must be owner of foreign server fdw_server")))
+		for _, prepared := range []bool{false, true} {
+			for _, tc := range []struct{ q, code, message string }{
+				{"ALTER USER MAPPING FOR fdw_owner SERVER fdw_server OPTIONS(secret 'absent')", "42704", `user mapping for "fdw_owner" does not exist for server "fdw_server"`},
+				{"DROP USER MAPPING FOR fdw_owner SERVER fdw_server", "42704", `user mapping for "fdw_owner" does not exist for server "fdw_server"`},
+				{"CREATE USER MAPPING FOR fdw_owner SERVER fdw_server", "42501", "must be owner of foreign server fdw_server"},
+				{"DROP USER MAPPING FOR fdw_other SERVER fdw_server", "42501", "must be owner of foreign server fdw_server"},
+			} {
+				step := fixture.ErrorDiagnostic(tc.q, fdwDiagnostic(tc.code, tc.message))
+				step.Prepared = prepared
+				run(step)
+			}
+		}
 		run(fixture.Exec("RESET ROLE", 0))
+		run(fixture.Select("SELECT umoptions::text AS options FROM pg_user_mappings WHERE srvname='fdw_server' AND usename='fdw_other'", []string{"options"}, []string{"TEXT"}, [][]any{{"{secret=hidden}"}}))
+		var notices []fixture.Diagnostic
+		_, nc, recorder := fixture.NoticeReferencePool(t, p, b.PG, &notices)
+		fixture.RunStep(t, p.Ctx, nc, recorder, fixture.Exec("SET ROLE fdw_reader", 0))
+		for _, prepared := range []bool{false, true} {
+			notices = nil
+			step := fixture.Exec("DROP USER MAPPING IF EXISTS FOR fdw_owner SERVER fdw_server", 0)
+			step.Prepared = prepared
+			fixture.RunStep(t, p.Ctx, nc, recorder, step)
+			want := []fixture.Diagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `user mapping for "fdw_owner" does not exist for server "fdw_server", skipping`}}
+			if !reflect.DeepEqual(notices, want) {
+				t.Fatalf("missing mapping notices got %#v want %#v", notices, want)
+			}
+		}
+		fixture.RunStep(t, p.Ctx, nc, recorder, fixture.Exec("RESET ROLE", 0))
 	})
 }
 

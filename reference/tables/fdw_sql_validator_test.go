@@ -19,7 +19,7 @@ func fdwCheckerDiagnostic() fixture.Diagnostic {
 	return d
 }
 
-func TestReferenceFDWSQLValidator(t *testing.T) {
+func TestReferenceFDWSQLValidatorCalls(t *testing.T) {
 	t.Run("arguments", func(t *testing.T) {
 		fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fdwSQLReader, run func(fixture.Step)) {
 			run(fixture.Exec("CREATE TABLE fdw_validation_log(n integer GENERATED ALWAYS AS IDENTITY,options text,kind oid)", 0))

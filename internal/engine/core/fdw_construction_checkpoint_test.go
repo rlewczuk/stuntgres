@@ -28,7 +28,7 @@ func TestFDWForeignConstructionCheckpoint(t *testing.T) {
 			}
 			if completed {
 				foreignConstructionUnitComplete(t, scope, token, slices.Clone(jobs))
-			} else if err := fdw.RunValidations(scope.Op.Context(), jobs[:1], scope.InvokeForeignValidator); err != nil {
+			} else if err := fdw.RunValidations(scope.Op.Context(), scope, jobs[:1]); err != nil {
 				t.Fatal(err)
 			}
 			if err := scope.EndPLException(mark, true, errors.New("caught suffix")); err != nil {
@@ -63,7 +63,7 @@ func TestFDWForeignConstructionCheckpoint(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := fdw.RunValidations(scope.Op.Context(), jobs[:1], scope.InvokeForeignValidator); err != nil {
+			if err := fdw.RunValidations(scope.Op.Context(), scope, jobs[:1]); err != nil {
 				t.Fatal(err)
 			}
 			if err := token.Advance(0, nil); err != nil {
@@ -78,7 +78,7 @@ func TestFDWForeignConstructionCheckpoint(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := fdw.RunValidations(scope.Op.Context(), []fdw.Validation{column}, scope.InvokeForeignValidator); err != nil {
+			if err := fdw.RunValidations(scope.Op.Context(), scope, []fdw.Validation{column}); err != nil {
 				t.Fatal(err)
 			}
 			if err := token.Advance(column.Attribute, options); err != nil {

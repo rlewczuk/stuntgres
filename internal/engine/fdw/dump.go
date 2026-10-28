@@ -52,6 +52,27 @@ func DumpProcedure(view catalog.Read, address ids.ObjectAddress, signature catal
 	return catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(proc.Name()), nil
 }
 
+// dumpDeclarationProcedure references ordinary routine declarations separately
+// from native prerequisites. The control graph emits SQL/PL definitions and
+// orders them before their consumers; only native procedures need registration.
+func dumpDeclarationProcedure(view catalog.Read, address ids.ObjectAddress, signature catalog.ProcedureSignature) (string, error) {
+	proc, ok := view.Procedure(address)
+	if !ok || proc.Foreign != nil {
+		return DumpProcedure(view, address, signature)
+	}
+	if !proc.DynamicCallable() || proc.RoutineKind != catalog.FunctionRoutine || proc.Signature != signature {
+		return "", fmt.Errorf("stuntgres: incompatible foreign dump procedure")
+	}
+	if err := (stored.ProcedureProvider{}).Validate(view, proc); err != nil {
+		return "", err
+	}
+	ns, ok := view.Namespace(proc.Namespace())
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing foreign procedure namespace")
+	}
+	return catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(proc.Name()), nil
+}
+
 // DumpObject renders CREATE followed by ordinary owner transfer under bootstrap
 // authority. Mappings name their captured principal and have no OWNER command.
 func DumpObject(view catalog.Read, roles authorization.Read, d *catalog.ForeignObject) (dump.Statement, error) {
@@ -73,7 +94,7 @@ func DumpObject(view catalog.Read, roles authorization.Read, d *catalog.ForeignO
 				sql += " NO " + capability.label
 				continue
 			}
-			function, err := DumpProcedure(view, capability.address, capability.signature)
+			function, err := dumpDeclarationProcedure(view, capability.address, capability.signature)
 			if err != nil {
 				return dump.Statement{}, err
 			}

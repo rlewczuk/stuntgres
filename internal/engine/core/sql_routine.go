@@ -73,9 +73,22 @@ func (h *statementHost) InvokeAggregateSQLRoutine(ctx context.Context, d *catalo
 
 type aggregateInvocationKey struct{}
 
+type sqlRoutineAdmission uint8
+
+const (
+	explicitSQLRoutineAdmission sqlRoutineAdmission = iota
+	fdwValidatorAdmission
+)
+
 // invokeSQLRoutine borrows the admitted operation/transaction. It never acquires
 // a driver connection, starts a root command, calls Finish or ends the operation.
 func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
+	return parent.executeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning, values, explicitSQLRoutineAdmission)
+}
+
+// executeSQLRoutine shares descriptor validation, body authority and unwind.
+// Catalog-selected FDW invocation omits only the explicit-call EXECUTE check.
+func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value, admission sqlRoutineAdmission) (value sqltype.Value, err error) {
 	if err = parent.enterSQLRoutine(); err != nil {
 		return value, err
 	}
@@ -96,7 +109,9 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 				}
 				auth.State.CurrentUser = current.Owner
 			}
-			err = auth.Check(access.Requirement{Object: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege})
+			if admission != fdwValidatorAdmission {
+				err = auth.Check(access.Requirement{Object: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege})
+			}
 		}
 	}
 	changes := parent.Catalog

@@ -83,8 +83,51 @@ func TestFDWParser(t *testing.T) {
 			}
 		}
 	}
+	empty, serverType, version := "", "sql", "next"
+	for _, tc := range []struct {
+		query      string
+		serverType *string
+		version    *string
+		versionSet bool
+	}{
+		{query: "CREATE SERVER s FOREIGN DATA WRAPPER w"},
+		{query: "CREATE SERVER s TYPE '' FOREIGN DATA WRAPPER w", serverType: &empty},
+		{query: "CREATE SERVER s TYPE 'sql' FOREIGN DATA WRAPPER w", serverType: &serverType},
+		{query: "CREATE SERVER s VERSION NULL FOREIGN DATA WRAPPER w", versionSet: true},
+		{query: "CREATE SERVER s VERSION '' FOREIGN DATA WRAPPER w", version: &empty, versionSet: true},
+		{query: "CREATE SERVER s VERSION 'next' FOREIGN DATA WRAPPER w", version: &version, versionSet: true},
+		{query: "CREATE SERVER fdw_vs TYPE '' VERSION NULL FOREIGN DATA WRAPPER fdw_v OPTIONS(seed 'quote''=雪')", serverType: &empty, versionSet: true},
+		{query: "CREATE SERVER IF NOT EXISTS s TYPE 'sql' VERSION NULL FOREIGN DATA WRAPPER w", serverType: &serverType, versionSet: true},
+		{query: "CREATE SERVER s TYPE '' VERSION '' FOREIGN DATA WRAPPER w", serverType: &empty, version: &empty, versionSet: true},
+		{query: "CREATE SERVER s TYPE 'sql' VERSION 'next' FOREIGN DATA WRAPPER w", serverType: &serverType, version: &version, versionSet: true},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil || len(statements) != 1 {
+			t.Fatalf("%s: statements=%#v err=%v", tc.query, statements, err)
+		}
+		f, ok := statements[0].(*ForeignDDL)
+		if !ok {
+			t.Fatalf("%s parsed as %T", tc.query, statements[0])
+		}
+		if f.Action != "create" || f.Kind != "server" || f.VersionSet != tc.versionSet {
+			t.Fatalf("%s: lost server declaration: %#v", tc.query, f)
+		}
+		if (f.ServerType == nil) != (tc.serverType == nil) || f.ServerType != nil && *f.ServerType != *tc.serverType {
+			t.Fatalf("%s: server type=%v, want %v", tc.query, f.ServerType, tc.serverType)
+		}
+		if (f.Version == nil) != (tc.version == nil) || f.Version != nil && *f.Version != *tc.version {
+			t.Fatalf("%s: version=%v, want %v", tc.query, f.Version, tc.version)
+		}
+	}
 	for _, q := range []string{
 		"CREATE FOREIGN DATA WRAPPER w NO HANDLER trailing",
+		"CREATE SERVER s VERSION NULL FOREIGN DATA WRAPPER w trailing",
+		"CREATE SERVER s TYPE '' VERSION NULL FOREIGN DATA WRAPPER w OPTIONS(seed 'value') trailing",
+		"CREATE SERVER s TYPE NULL FOREIGN DATA WRAPPER w",
+		"CREATE SERVER s TYPE NULL VERSION NULL FOREIGN DATA WRAPPER w",
+		"CREATE SERVER s VERSION NULL TYPE '' FOREIGN DATA WRAPPER w",
+		"CREATE SERVER s VERSION NULL VERSION '' FOREIGN DATA WRAPPER w",
+		"CREATE SERVER s VERSION FOREIGN DATA WRAPPER w",
 		"CREATE FOREIGN TABLE f(id integer) SERVER s OPTIONS(a '1') trailing",
 		"DROP USER MAPPING FOR PUBLIC SERVER s CASCADE",
 		"CREATE USER MAPPING FOR SESSION_USER SERVER s",

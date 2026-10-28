@@ -43,6 +43,9 @@ single-statement limit of driver calls) belong to callers.
   callback options, including repeated and bare values. CREATE, identity ALTER
   and list DROP have distinct nodes; callback signatures and privileges belong
   to catalog staging, not parsing or preparation.
+- SQL/MED server declarations retain absent and empty TYPE/VERSION values
+  distinctly. VERSION also retains explicit NULL and clause presence through
+  `ForeignDDL.VersionSet`; CREATE and ALTER share the nullable version grammar.
 - ALTER SYSTEM owns a syntax-only AST distinct from session SET/RESET. External
   value lists are consumed without retention or normalization; signed numeric
   tokens use lexer syntax, not the session setting integer consumer.

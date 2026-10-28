@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqltype"
 )
 
 // ScopeEnlistForeign calls x.enlistForeign.
@@ -79,8 +80,12 @@ func SetForeignTableScopeStatements(x *foreignTableScope, v []*fdw.Participant) 
 
 var ForeignValidatorFrame = foreignValidatorFrame
 
-func ScopeInvokeForeignValidatorFrame(s *StatementScope, p *catalog.Procedure, frame *proc.Frame) error {
-	return s.invokeForeignValidatorFrame(p, frame)
+func ScopePrepareForeignValidator(s *StatementScope, p *catalog.Procedure, kind catalog.ForeignObjectKind, options []catalog.ForeignOption) (*proc.Frame, sqltype.Usage, error) {
+	return s.prepareForeignValidator(p, kind, options)
+}
+
+func ScopeInvokeFDWValidator(s *StatementScope, p *catalog.Procedure, frame *proc.Frame, result sqltype.Usage) error {
+	return s.invokeFDWValidator(p, frame, result)
 }
 
 func ScopePendingForeignConstructions(s *StatementScope) int {

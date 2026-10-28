@@ -4067,8 +4067,8 @@ foreign_server_head: CREATE FDW_SERVER name {$$=&ForeignDDL{Action:"create",Kind
  | CREATE FDW_SERVER IF NOT EXISTS name {$$=&ForeignDDL{Action:"create",Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$6.text,Pos:$6.pos}}},IfNotExists:true,Pos:$1.pos}} ;
 foreign_server_definition: foreign_server_head {$$=$1}
  | foreign_server_head TYPE STRING {$$=$1;s:=$3.text;$$.ServerType=&s}
- | foreign_server_head VERSION STRING {$$=$1;s:=$3.text;$$.Version=&s;$$.VersionSet=true}
- | foreign_server_head TYPE STRING VERSION STRING {$$=$1;s,v:=$3.text,$5.text;$$.ServerType=&s;$$.Version=&v;$$.VersionSet=true} ;
+ | foreign_server_head VERSION foreign_version {$$=$1;$$.Version=$3;$$.VersionSet=true}
+ | foreign_server_head TYPE STRING VERSION foreign_version {$$=$1;s:=$3.text;$$.ServerType=&s;$$.Version=$5;$$.VersionSet=true} ;
 foreign_mapping_head: CREATE USER FDW_MAPPING FOR foreign_role FDW_SERVER name {
  $$=&ForeignDDL{Action:"create",Kind:"mapping",Role:$5,Server:Identifier{Text:$7.text,Pos:$7.pos},Pos:$1.pos}
 } | CREATE USER FDW_MAPPING IF NOT EXISTS FOR foreign_role FDW_SERVER name {

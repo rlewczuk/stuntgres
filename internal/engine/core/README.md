@@ -9,16 +9,6 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
-`StatementScope.InvokeForeignValidator` borrows the current admitted operation
-and normal SQL routine executor after the foreign DDL caller releases engine
-and replacement locks. It owns one typed argument frame until routine success,
-failure or cancellation, discards non-NULL results, and leaves publication to
-the caller. NULL non-void results fail at the validator call boundary. Before
-invocation it retains the existing statement-private journal so local writes and
-foreign metadata reach Finish atomically. SQL validators share routine
-authorization, settings, security and diagnostic context; they never start a
-root command or finish the enclosing operation.
-
 `StageForeignConstruction` strictly validates a complete CREATE candidate with
 table metadata and no column options, forces ordinary publication into the
 statement-private journal, then immediately installs an immutable foreign shell
@@ -168,6 +158,26 @@ An admitted non-VOID SQL invocation with no parsed commands still requires a
 final result: it fails before specialization or successful analysis publication.
 Empty VOID invocations remain valid; rejected analysis never replaces another
 routine's accepted command backing.
+
+Foreign option validation (`fdw_validation.go`) has one statement-owned entry,
+`ValidateForeignOptions`, for declarations, phased table construction, ALTER and
+IMPORT. It owns the typed argument frame through success, failure or cancellation
+and borrows the same SQL/PL executor with the captured procedure, `text[]` and
+catalog class `oid`. Its private catalog-validator admission omits only the
+explicit-call EXECUTE check; ordinary routine calls retain that check. Both
+entries validate the exact descriptor against current authority and share STRICT, caller body
+privileges, SECURITY DEFINER/configuration, cancellation and environment unwind.
+FDW admission supplies no support owner and does not impersonate an owner.
+An empty option list is a non-NULL zero-element array. Non-NULL results are
+discarded; a NULL result fails with the invoked procedure OID diagnostic.
+Genuine native void validators retain their registered callback path. Validation
+runs without `Engine.Mu` or the replacement reservation, before the DDL
+publication fences. The common `ValidateForeignOptions` entry preserves an
+existing private statement catalog journal or opens it before actual SQL work,
+including table ALTER and IMPORT. Metadata and routine writes share root Finish
+and cannot commit independently on body, result or publication failure. Empty
+jobs and native callbacks do not open a journal through this SQL seam. Ordinary
+SQL validators restore as routines, without destination native tokens.
 
 Routine command policy is invocation-local and carries no cached actor.
 Reached SQL and PL commands classify their analyzed executable binding before
@@ -1681,7 +1691,7 @@ Event-trigger journal, frame, projection, drop and rewrite units share
 dual-mode reference suite.
 
 Routine invocation, CALL projection and retained-fold ownership units use
-`RUN='^Test(SQLRoutine|PLpgSQLProcedure)'`, also with `RACE=1`.
+`RUN='^Test(SQLRoutine|PLpgSQLProcedure|FDWSQLValidator)'`, also with `RACE=1`.
 Composed effective-user and setting environment ownership uses
 `RUN='^TestRoutineEffectiveUser'`, also with `RACE=1`. These units exercise real
 entry/unwind, actor nesting, codecs/policy and partial-entry restoration;

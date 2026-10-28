@@ -37,8 +37,8 @@ driver import it.
   Replacement rebinds imported tokens (`RebindReplacementProviders`) before
   the single strict source-principal graph memo is constructed. Historical original carriers use that same scoped
   source-to-destination token map; retained destination TEMP authority stays separate.
-- **Options** (`options.go`): `TransformOptions` applies ADD/SET/DROP option
-  lists with PostgreSQL 18 diagnostics.
+- **Options** (`options.go`): `TransformOptions` applies ordered ADD/SET/DROP
+  operations to a private copy, then validates surviving names.
 - **Row identity** (`identity.go`): `IdentitySet`, the keyed membership of
   foreign row identities, and `IdentityComparable`.
 - **Write protocol** (`modify.go`): `Modification` drives a provider's
@@ -69,12 +69,19 @@ driver import it.
   mapping and ownership authority over an `access.View` (`MappedRole`,
   `MappingAuthority`, `MappingDiagnostic`, `MappingFor`; the owner change rule
   is `access.ForeignOwnershipEligibility`, shared with REASSIGN OWNED),
-  validator jobs (`Validation`, `ValidatorJob`, `RunValidations`) retaining the
-  immutable procedure and owned ordered options. Registered callbacks execute
-  directly; SQL routines execute through the caller-supplied statement-owned
-  invocation, with a non-NULL text[] and the option catalog's OID. Non-NULL result
-  values are discarded; NULL non-void results fail at the call boundary. No
-  validator implementation is inferred from a matching name.
+  validator jobs (`Validation`, `ValidatorJob`, `RunValidations`) retain the
+  captured procedure and owned ordered options. Registered native validators
+  run directly; ordinary SQL/PL validators use the owning statement's mandatory
+  `ValidationRuntime`, with a non-NULL text[] and the option catalog's OID.
+  Non-NULL results are ignored and NULL results rejected.
+  Catalog-selected invocation omits only explicit-call EXECUTE admission, not
+  current descriptor validation, caller body privileges or the shared routine
+  SECURITY DEFINER/configuration and unwind. No owner is impersonated.
+  The common runtime entry retains or opens the private statement journal for
+  actual SQL invocation on every caller, including table ALTER and IMPORT;
+  root Finish owns metadata and transactional routine writes together.
+  Empty jobs and native callbacks do not require that SQL journal admission.
+  No label lookup supplies executable authority.
   Table creation retains raw immutable column syntax and stable attribute
   identities. `PrepareColumnValidation` transforms and resolves one column only
   after table validation and preceding column phases succeed. Its installation
@@ -131,10 +138,14 @@ driver import it.
   `DumpProcedure` and `DumpOptions` render immutable captured declarations,
   actual qualified capability identities and ordered options; `control` owns
   graph ordering and output.
-  - Foreign tables never use storage/row collection. Native handler/validator
-    callbacks require compatible destination registrations, never serialized
-    code. SQL validators use the existing routine dump and dependency graph,
-    preceding their wrappers and executing genuinely during atomic replay.
+  - Foreign tables never use storage/row collection. Declaration references
+    distinguish the actual procedure descriptor: `DumpProcedure` validates only
+    native prerequisites, which require compatible destination registrations,
+    never serialized code. Ordinary SQL/PL validators use the normal routine
+    graph to replay their signature, body, result and dependencies without a
+    native registration, preceding their wrappers and executing genuinely during
+    atomic replay. Replacement only rebinds genuine native tokens to the
+    destination registry; it does not convert ordinary routines into callbacks.
   - Mapping credentials are emitted as stored (sensitive host output).
     Wrapper/server and foreign relation/column raw ACLs replay exactly through
     `control`'s bounded generated catalog repairs.

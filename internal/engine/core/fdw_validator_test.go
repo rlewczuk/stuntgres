@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -102,7 +103,7 @@ func TestFDWSQLValidatorInvocation(t *testing.T) {
 				op.Ctx = foreignValidatorCancel{Context: ctx, cancel: cancel, scope: scope}
 			}
 			options := []catalog.ForeignOption{{Name: "a", Value: "one"}, {Name: "b", Value: "two=three"}, {Name: "empty", Value: ""}}
-			frame, err := core.ForeignValidatorFrame(declaration.SQL.Inputs, catalog.ForeignServer, options)
+			frame, resultUsage, err := core.ScopePrepareForeignValidator(scope, declaration, catalog.ForeignServer, options)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -122,7 +123,7 @@ func TestFDWSQLValidatorInvocation(t *testing.T) {
 				t.Fatal("typed class argument", class, err)
 			}
 			before := e.Catalog.State
-			err = core.ScopeInvokeForeignValidatorFrame(scope, declaration, frame)
+			err = core.ScopeInvokeFDWValidator(scope, declaration, frame, resultUsage)
 			if outcome == "cancel" {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal("routine cancellation", err)
@@ -176,7 +177,8 @@ func TestFDWSQLValidatorInvocation(t *testing.T) {
 			t.Fatal("missing reciprocal text array descriptor")
 		}
 		oid, _ := read.LookupType(sqltype.Oid)
-		frame, err := core.ForeignValidatorFrame([]sqltype.Usage{array.Usage(), oid.Usage()}, catalog.ForeignWrapper, nil)
+		declaration := &catalog.Procedure{SQL: &proc.Definition{Inputs: []sqltype.Usage{array.Usage(), oid.Usage()}, Result: oid.Usage()}}
+		frame, _, err := core.ForeignValidatorFrame(read, declaration, catalog.ForeignWrapper, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

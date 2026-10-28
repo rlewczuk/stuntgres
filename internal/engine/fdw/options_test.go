@@ -25,6 +25,8 @@ func TestFDWOptionsTransform(t *testing.T) {
 	}{
 		{[]parser.ForeignOption{change("set", "a", "bad"), change("add", "b", "duplicate")}, "42710"},
 		{[]parser.ForeignOption{change("drop", "absent", "")}, "42704"},
+		{[]parser.ForeignOption{change("drop", "x=y", "")}, "42704"},
+		{[]parser.ForeignOption{change("add", "x=y", "v"), change("add", "b", "duplicate")}, "42710"},
 		{[]parser.ForeignOption{change("add", "x=y", "v")}, "22023"},
 	} {
 		got, err = TransformOptions(old, tc.changes)
@@ -40,5 +42,9 @@ func TestFDWOptionsTransform(t *testing.T) {
 	got, err = TransformOptions(nil, []parser.ForeignOption{change("add", "x", "1"), change("set", "x", "2"), change("drop", "x", ""), change("add", "x", "3")})
 	if err != nil || !reflect.DeepEqual(got, []catalog.ForeignOption{{"x", "3"}}) {
 		t.Fatal(got, err)
+	}
+	got, err = TransformOptions(old, []parser.ForeignOption{change("add", "x=y", "v"), change("drop", "x=y", ""), change("set", "a", "3"), change("set", "a", "4"), change("drop", "a", ""), change("add", "a", "")})
+	if err != nil || !reflect.DeepEqual(got, []catalog.ForeignOption{{"b", "2"}, {"a", ""}}) || !reflect.DeepEqual(old, []catalog.ForeignOption{{"a", "1"}, {"b", "2"}}) {
+		t.Fatal("ordered surviving options", got, old, err)
 	}
 }

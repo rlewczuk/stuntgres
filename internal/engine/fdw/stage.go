@@ -79,8 +79,10 @@ func StageDDL(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.In
 			}
 			return nil, nil, err
 		}
-		if err = MappingAuthority(view, auth, target.server, target.role); err != nil {
-			return nil, nil, err
+		if s.Action == "create" {
+			if err = MappingAuthority(view, auth, target.server, target.role); err != nil {
+				return nil, nil, err
+			}
 		}
 		target.name = catalog.ForeignMappingName(target.server.Address(), target.role)
 		h.AddDomainBase(target.server)
@@ -117,6 +119,11 @@ func stageDefinition(h Host, auth ddl.Authority, s *parser.ForeignDDL, target st
 		}
 		_, err = Find(view.Catalog, class, name)
 		return nil, nil, err
+	}
+	if s.Action == "alter" && class == ids.ForeignMappingClassID {
+		if err = MappingAuthority(view, auth, server, role); err != nil {
+			return nil, nil, err
+		}
 	}
 	var next catalog.ForeignObject
 	if old != nil {

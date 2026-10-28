@@ -100,10 +100,12 @@ func ValidatorJob(read catalog.Read, wrapper *catalog.ForeignObject, kind catalo
 	return Validation{procedure: p, kind: kind, options: append([]catalog.ForeignOption{}, options...)}, p, nil
 }
 
-// SQLValidator borrows the caller's admitted statement to execute a SQL routine.
-type SQLValidator func(*catalog.Procedure, catalog.ForeignObjectKind, []catalog.ForeignOption) error
+// ValidationRuntime invokes ordinary routines in the owning statement.
+type ValidationRuntime interface {
+	ValidateForeignOptions(*catalog.Procedure, catalog.ForeignObjectKind, []catalog.ForeignOption) error
+}
 
-func RunValidations(ctx context.Context, jobs []Validation, invoke SQLValidator) error {
+func RunValidations(ctx context.Context, runtime ValidationRuntime, jobs []Validation) error {
 	for _, job := range jobs {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -113,10 +115,12 @@ func RunValidations(ctx context.Context, jobs []Validation, invoke SQLValidator)
 		}
 		if job.procedure != nil {
 			var err error
-			if job.procedure.SQL != nil {
-				err = invoke(job.procedure, job.kind, job.options)
-			} else {
+			if job.procedure.Foreign != nil && job.procedure.Foreign.Validator != nil {
 				err = job.procedure.Foreign.Validator(ctx, job.kind, job.options)
+			} else if runtime != nil {
+				err = runtime.ValidateForeignOptions(job.procedure, job.kind, job.options)
+			} else {
+				err = fmt.Errorf("stuntgres: SQL foreign validator requires a statement runtime")
 			}
 			if err != nil {
 				return err

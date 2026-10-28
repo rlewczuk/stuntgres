@@ -47,6 +47,28 @@ func TestReferenceFDWOptionsAtomicity(t *testing.T) {
 		run(want)
 		run(fixture.ErrorDiagnostic("ALTER SERVER fdw_server OPTIONS(SET a 'wrong',ADD c 'duplicate')", fdwDiagnostic("42710", `option "c" provided more than once`)))
 		run(want)
+		for _, prepared := range []bool{false, true} {
+			for _, step := range []fixture.Step{
+				fixture.ErrorDiagnostic(`ALTER SERVER fdw_server OPTIONS(DROP "x=y")`, fdwDiagnostic("42704", `option "x=y" not found`)),
+				fixture.Exec(`ALTER SERVER fdw_server OPTIONS(ADD "x=y" 'transient',DROP "x=y")`, 0),
+				want,
+				fixture.Exec("ALTER SERVER fdw_server OPTIONS(SET a 'first',SET a 'last',DROP c,ADD c '')", 0),
+				fixture.Select("SELECT srvoptions::text AS options FROM pg_foreign_server WHERE srvname='fdw_server'", []string{"options"}, []string{"TEXT"}, [][]any{{"{a=last,c=}"}}),
+				fixture.Exec("ALTER SERVER fdw_server OPTIONS(DROP a,ADD a '3',SET c '4')", 0),
+				fixture.Select("SELECT srvoptions::text AS options FROM pg_foreign_server WHERE srvname='fdw_server'", []string{"options"}, []string{"TEXT"}, [][]any{{"{c=4,a=3}"}}),
+				fixture.Exec("ALTER SERVER fdw_server OPTIONS(DROP c,ADD c '4')", 0),
+			} {
+				step.Prepared = prepared
+				run(step)
+			}
+		}
+		run(fixture.Exec("CREATE SERVER fdw_optionless FOREIGN DATA WRAPPER fdw_meta", 0))
+		for _, prepared := range []bool{false, true} {
+			step := fixture.Exec(`ALTER SERVER fdw_optionless OPTIONS(ADD "x=y" 'transient',DROP "x=y")`, 0)
+			step.Prepared = prepared
+			run(step)
+			run(fixture.Select("SELECT srvoptions IS NULL AS no_options FROM pg_foreign_server WHERE srvname='fdw_optionless'", []string{"no_options"}, []string{"BOOL"}, [][]any{{true}}))
+		}
 		run(fixture.Exec("CREATE FOREIGN TABLE fdw_options(id integer OPTIONS(a 'column')) SERVER fdw_server OPTIONS(a 'table')", 0))
 		run(fixture.ErrorDiagnostic("ALTER FOREIGN TABLE fdw_options OPTIONS(SET a 'wrong'), ALTER COLUMN id OPTIONS(DROP absent)", fdwDiagnostic("42704", `option "absent" not found`)))
 		run(fixture.Select("SELECT ftoptions::text AS options FROM pg_foreign_table WHERE ftrelid='fdw_options'::regclass::oid", []string{"options"}, []string{"TEXT"}, [][]any{{"{a=table}"}}))
@@ -56,6 +78,22 @@ func TestReferenceFDWOptionsAtomicity(t *testing.T) {
 func TestReferenceFDWDiagnostics(t *testing.T) {
 	fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, reader *fdwSQLReader, run func(fixture.Step)) {
 		fdwMetadata(run)
+		run(fixture.Exec("CREATE FUNCTION public.bad_handler() RETURNS integer LANGUAGE SQL AS 'SELECT 1'", 0))
+		for _, prepared := range []bool{false, true} {
+			for _, tc := range []struct{ q, code, message string }{
+				{"CREATE FOREIGN DATA WRAPPER fdw_bad HANDLER public.bad_handler", "42809", "function public.bad_handler must return type fdw_handler"},
+				{"ALTER FOREIGN DATA WRAPPER fdw_meta HANDLER public.bad_handler", "42809", "function public.bad_handler must return type fdw_handler"},
+				{"CREATE FOREIGN DATA WRAPPER fdw_bad HANDLER public.missing_handler", "42883", "function public.missing_handler() does not exist"},
+				{"ALTER FOREIGN DATA WRAPPER fdw_meta VALIDATOR public.missing_validator", "42883", "function public.missing_validator(text[], oid) does not exist"},
+				{"CREATE FOREIGN DATA WRAPPER fdw_bad VALIDATOR public.bad_handler", "42883", "function public.bad_handler(text[], oid) does not exist"},
+			} {
+				step := fixture.ErrorDiagnostic(tc.q, fdwDiagnostic(tc.code, tc.message))
+				step.Prepared = prepared
+				run(step)
+				run(fixture.Select("SELECT count(*) FROM pg_foreign_data_wrapper WHERE fdwname='fdw_bad'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+				run(fixture.Select("SELECT fdwhandler=0 AS no_handler,fdwvalidator=0 AS no_validator,fdwoptions IS NULL AS no_options FROM pg_foreign_data_wrapper WHERE fdwname='fdw_meta'", []string{"no_handler", "no_validator", "no_options"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
+			}
+		}
 		for _, tc := range []struct{ q, code, message string }{
 			{"CREATE FOREIGN DATA WRAPPER fdw_meta", "42710", `foreign-data wrapper "fdw_meta" already exists`},
 			{"CREATE SERVER fdw_server FOREIGN DATA WRAPPER fdw_meta", "42710", `server "fdw_server" already exists`},

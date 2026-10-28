@@ -45,6 +45,8 @@ func stageDrop(h Host, auth ddl.Authority, s *parser.ForeignDDL, target stageTar
 			if er = ddl.Check(h, auth, access.Requirement{Object: ObjectRef(view, d), OwnerOnly: true}); er != nil {
 				return nil, er
 			}
+		} else if er = MappingAuthority(view, auth, target.server, target.role); er != nil {
+			return nil, er
 		}
 		if er = h.RemoveObject(ObjectRef(view, d), false); er != nil {
 			return nil, er

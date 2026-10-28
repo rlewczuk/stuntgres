@@ -92,11 +92,14 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
 - `ExecuteExtension`, `ExecuteExtensionUpdate` and `ExecuteDropExtension`
   (see [Extensions](#extensions)).
 - `ExecuteForeignDDL` stages through `fdw.StageDDL` on `TableHost`, releases
-  the replacement read before wrapper validations and publishes. Direct and
-  imported CREATE FOREIGN TABLE share `finishForeignTableCreation`: a sealed
-  core construction token supplies relation-shape, table and configured-column
-  visibility before the corresponding validators complete. It never routes ALTER
-  through a shell or exposes incomplete descriptors to committed readers;
+  the replacement read before wrapper validations. Actual SQL validators
+  enter core's common private-journal admission, also used by table ALTER and
+  IMPORT; root Finish owns metadata and routine DML together. Empty jobs and
+  native validators do not force that SQL completion path. Direct and imported
+  CREATE FOREIGN TABLE share `finishForeignTableCreation`: a sealed core
+  construction token supplies relation-shape, table and configured-column
+  visibility before the corresponding validators complete. It never routes
+  ALTER through a shell or exposes incomplete descriptors to committed readers;
   `executeForeignImport` keeps the importer callback, the per-table relock,
   re-authorization and epoch check, consumes each completed definition's fresh
   stage into the ordinary statement-private overlay, and retains initial

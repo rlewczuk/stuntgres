@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
@@ -225,6 +226,20 @@ func TestFDWDumpDefinitions(t *testing.T) {
 	source.State.SetDescriptor(invalid.Address(), &invalid)
 	if _, err := (Resolver{}).Predecessor(source.CatalogView, invalid.Address(), w.Address()); err == nil {
 		t.Fatal("incompatible installed validator accepted as prerequisite")
+	}
+	// Removing a native token does not turn the declaration into an ordinary
+	// routine, and an unchecked SQL carrier cannot bypass provider validation.
+	invalid = *validator
+	invalid.Foreign = nil
+	for _, definition := range []*proc.Definition{nil, {}} {
+		invalid.SQL = definition
+		source.State.SetDescriptor(invalid.Address(), &invalid)
+		if _, err := fdw.DumpObject(source.CatalogView, source.DomainRoles, w); err == nil {
+			t.Fatal("unavailable or malformed validator accepted for declaration replay")
+		}
+		if _, err := fdw.DumpProcedure(source.CatalogView, invalid.Address(), invalid.Signature); err == nil {
+			t.Fatal("ordinary carrier accepted as native dump prerequisite")
+		}
 	}
 	source, _, server, _ := fdwUnitSource()
 	ns := &catalog.Namespace{ObjectAddress: fdwUnitAddress(ids.NamespaceClassID, 93000), ObjectName: "unit", ObjectRevision: 1, Owner: source.Bootstrap}

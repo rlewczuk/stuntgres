@@ -73,7 +73,7 @@ func fdwCleanup(t *testing.T, c *sql.Conn) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	for _, q := range []string{"ROLLBACK", "RESET ROLE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_meta CASCADE", "DROP SERVER IF EXISTS fdw_live CASCADE", "DROP SERVER IF EXISTS fdw_second CASCADE", "DROP SERVER IF EXISTS fdw_truncate_second CASCADE", "DROP SERVER IF EXISTS fdw_readonly CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_readonly_wrapper CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_native CASCADE"} {
+	for _, q := range []string{"ROLLBACK", "RESET ROLE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_bad CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_meta CASCADE", "DROP FUNCTION IF EXISTS public.bad_handler()", "DROP SERVER IF EXISTS fdw_live CASCADE", "DROP SERVER IF EXISTS fdw_second CASCADE", "DROP SERVER IF EXISTS fdw_truncate_second CASCADE", "DROP SERVER IF EXISTS fdw_readonly CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_readonly_wrapper CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_native CASCADE"} {
 		if _, err := c.ExecContext(ctx, q); err != nil {
 			t.Errorf("cleanup %s: %v", q, err)
 		}

@@ -12,9 +12,6 @@ func TransformOptions(old []catalog.ForeignOption, changes []parser.ForeignOptio
 	options := append([]catalog.ForeignOption{}, old...)
 	for _, change := range changes {
 		name := change.Name.Text
-		if strings.Contains(name, "=") {
-			return nil, sqlError("22023", fmt.Sprintf(`invalid option name "%s": must not contain "="`, name))
-		}
 		index := -1
 		for i := range options {
 			if options[i].Name == name {
@@ -40,6 +37,11 @@ func TransformOptions(old []catalog.ForeignOption, changes []parser.ForeignOptio
 			options = append(options[:index], options[index+1:]...)
 		default:
 			return nil, fmt.Errorf("stuntgres: invalid foreign option operation %q", change.Action)
+		}
+	}
+	for _, option := range options {
+		if strings.Contains(option.Name, "=") {
+			return nil, sqlError("22023", fmt.Sprintf(`invalid option name "%s": must not contain "="`, option.Name))
 		}
 	}
 	return options, nil
