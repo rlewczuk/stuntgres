@@ -37,6 +37,10 @@ func (b *Binder) comparisonRoutineDeclaration(name string, left, right *sqltype.
 		procedure, err := b.hstoreOperatorProcedure(name, left)
 		return procedure, sqltype.EqualitySignature{Left: left.ID(), Right: right.ID()}, err
 	}
+	if left.IsLtree() && left == right {
+		procedure,err:=b.ltreeOperatorProcedure(name,left)
+		return procedure,sqltype.EqualitySignature{Left:left.ID(),Right:right.ID()},err
+	}
 	formal := sqltype.EqualitySignature{Left: comparisonFormalID(left.BaseType()), Right: comparisonFormalID(right.BaseType())}
 	declaration := routine.OperatorRoutine(name, ids.OID(formal.Left), ids.OID(formal.Right))
 	if declaration == nil {
@@ -81,7 +85,7 @@ func rangeRoutineFormalID(d *sqltype.Descriptor) sqltype.ID {
 func (b *Binder) selectedComparisonRoutineInfo(info expr.Info, procedure *catalog.Procedure) (expr.Info, ids.ObjectRef, error) {
 	info.RoutineReference = procedure
 	var ref ids.ObjectRef
-	if procedure.Implementation == extension.StockCube || procedure.Implementation == extension.StockHstore {
+	if procedure.Implementation == extension.StockCube || procedure.Implementation == extension.StockHstore || procedure.Implementation == extension.StockLtree {
 		view := b.BindingCatalog()
 		if view.Owner() == nil {
 			return expr.Info{}, ref, fmt.Errorf("stuntgres: missing installed comparison authority")
@@ -116,4 +120,17 @@ func (b *Binder) cubeOperatorProcedure(name string, typ *sqltype.Descriptor) (*c
 		b.dependency(ref, d.Revision())
 	}
 	return procedure, nil
+}
+
+func (b *Binder) ltreeOperatorProcedure(name string,typ *sqltype.Descriptor)(*catalog.Procedure,error){
+	view:=b.BindingCatalog()
+	base,ok:=view.Type(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(typ.ID())})
+	if !ok||base.SQLType!=typ{return nil,fmt.Errorf("stuntgres: foreign ltree comparison type")}
+	probe:=&catalog.Operator{ObjectAddress:ids.ObjectAddress{ClassID:ids.OperatorClassID},ObjectNamespace:base.Namespace(),ObjectName:name,Left:ids.OID(typ.ID()),Right:ids.OID(typ.ID())}
+	operator,ok:=view.Operator(view.NameAddress(catalog.DescriptorNameKey(probe)));if !ok{return nil,fmt.Errorf("stuntgres: missing installed ltree operator")}
+	procedure,ok:=view.Procedure(ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:operator.Function})
+	if !ok||extension.LtreeProviderOf(procedure)!=extension.StockLtree||operator.Extension!=base.Extension{return nil,fmt.Errorf("stuntgres: invalid installed ltree operator")}
+	if err:=extension.StockLtree.ValidateProcedure(view,procedure);err!=nil{return nil,err}
+	for _,d:=range []catalog.Descriptor{operator,procedure}{b.dependency(view.Owner().Domain.Ref(view.Epoch(),d.Address()),d.Revision())}
+	return procedure,nil
 }

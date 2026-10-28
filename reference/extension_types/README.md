@@ -128,6 +128,13 @@ these are shared across families:
   count/length diagnostic precedence, held binds, statement atomicity and native
   replacement with retained readers. All three scalar roles are consumers of the same
   extension during lifecycle tests. The reusable selector is `RUN='^TestReferenceLtree'`.
+  Comparison fixtures independently specify label traversal order, strict NULLs,
+  equality consumers and typed B-tree/hash key mutation. Exact catalog and
+  diagnostic records accompany retained stored comparisons through replacement,
+  failed Restore and actual emitted-SQL replay. Populated stored sorting uses a
+  limiting inner order to distinguish comparator execution from empty/NULL-only
+  binding and from an outer result order. Comparison helpers share
+  `RUN='^TestReferenceLtreeComparison'`.
 - `ltree_arrays_helpers_test.go` owns mixed BOOL/installed-text array result
   contracts, including both nullability values for computed and declared stored
   columns. Retained descriptors are checked after consumption/close and native

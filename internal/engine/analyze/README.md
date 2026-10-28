@@ -41,6 +41,12 @@ Installed ltree array routines enter the same catalog callable discovery and
 selection as their backing operators. Recipe spellings are discovery hints only;
 the selected declaration's genuine provider role, exact concrete companion
 formals, current dependencies and privileges authorize binding.
+  The six installed scalar ltree comparisons lower through the shared comparison
+  carrier with authentic operator/backer dependencies. Ordering resolves the
+  current installed default B-tree class and support even for empty input.
+  Stored sort/window keys retain the genuine selected class, family, support
+  member and routine declarations with their exact effective revisions, independently
+  of the operand expression and executable datum-comparison projection.
 
 Installed hstore comparisons and hashes use the same selected-call gateway,
 strict immutable property composition and frozen syntax. Actual operators lower

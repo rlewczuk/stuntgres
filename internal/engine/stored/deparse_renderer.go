@@ -1080,7 +1080,7 @@ func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(ex
 		if err != nil {
 			return "", err
 		}
-	} else if itemsSQL != nil && !n.Left.ResultUsage().Type.IsCube() && !n.Left.ResultUsage().Type.IsHstore() {
+	} else if itemsSQL != nil && !n.Left.ResultUsage().Type.IsCube() && !n.Left.ResultUsage().Type.IsHstore() && !n.Left.ResultUsage().Type.IsLtree() {
 		right, err = itemsSQL(n.Items)
 		if err != nil {
 			return "", err
@@ -1093,7 +1093,7 @@ func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(ex
 				return "", err
 			}
 		}
-		if (n.Left.ResultUsage().Type.IsCube() || n.Left.ResultUsage().Type.IsHstore()) && n.RoutineRef != (ids.ObjectRef{}) && (n.Operator == "=" && !n.All || n.Operator == "<>" && n.All) {
+		if (n.Left.ResultUsage().Type.IsCube() || n.Left.ResultUsage().Type.IsHstore() || n.Left.ResultUsage().Type.IsLtree()) && n.RoutineRef != (ids.ObjectRef{}) && (n.Operator == "=" && !n.All || n.Operator == "<>" && n.All) {
 			membership := "IN"
 			if n.All {
 				membership = "NOT IN"

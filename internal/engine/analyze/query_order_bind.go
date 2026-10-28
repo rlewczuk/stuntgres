@@ -145,7 +145,7 @@ func (b *Binder) FinishOrder(root plan.Node, keys []plan.SortKey, projection []e
 			key.TargetIdentity = key.OutputOrdinal
 		}
 		if !key.Expression.CollationIndeterminate() && !key.Comparison.OrderingBound() {
-			provider, err := b.bindOrdering(key.Expression.ResultUsage())
+			provider,capture,err := b.bindSortOrdering(key.Expression.ResultUsage())
 			if err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
 					positioned := *diagnostic
@@ -157,6 +157,7 @@ func (b *Binder) FinishOrder(root plan.Node, keys []plan.SortKey, projection []e
 				return nil, err
 			}
 			key.Comparison = provider
+			key.Ordering=capture
 		}
 		// Indeterminate set collations reject during execution preflight.
 		// They still participate in the ordinary output/cache equivalence.

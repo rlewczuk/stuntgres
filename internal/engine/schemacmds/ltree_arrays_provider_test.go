@@ -16,7 +16,7 @@ import (
 func TestLtreeArrayProvider(t *testing.T) {
  ltreeArrayProviderConflicts(t)
  e,_,ext,_:=lqueryProviderInstalled(t,false);view:=e.CatalogRead()
- if len(ext.Members)!=41 || extension.LtreeArrayProcedureStart!=9 || extension.LtreeArrayOperatorStart!=25 {t.Fatal("bounded installed manifest")}
+ if len(ext.Members)!=extension.LtreeMemberCount || extension.LtreeArrayProcedureStart!=9 || extension.LtreeArrayOperatorStart!=25 {t.Fatal("bounded installed manifest")}
  for _,slot:=range []int{0,3,6} {
   base:=view.MustType(ext.Members[slot]);array,ok:=view.LookupArray(base.SQLType)
   if !ok || array.Element()!=base.SQLType || array.Concrete()!=(slot!=6){t.Fatal("companion activation split")}
@@ -46,10 +46,10 @@ func TestLtreeArrayProvider(t *testing.T) {
   func(s *catalog.State,d *catalog.Extension){o,_:=s.Operator(d.Members[extension.LtreeArrayOperatorStart]);copy:=*o;copy.Commutator=0;s.SetDescriptor(copy.Address(),&copy)},
   func(s *catalog.State,d *catalog.Extension){o,_:=s.Operator(d.Members[extension.LtreeArrayOperatorStart]);copy:=*o;copy.Restriction=1302;s.SetDescriptor(copy.Address(),&copy)},
   func(s *catalog.State,d *catalog.Extension){o,_:=s.Operator(d.Members[extension.LtreeArrayOperatorStart]);copy:=*o;copy.Join=1303;s.SetDescriptor(copy.Address(),&copy)},
-  func(s *catalog.State,d *catalog.Extension){o,_:=s.Operator(d.Members[extension.LtreeMemberCount-1]);copy:=*o;copy.Function=d.Members[9].ObjectID;s.SetDescriptor(copy.Address(),&copy)},
+  func(s *catalog.State,d *catalog.Extension){o,_:=s.Operator(d.Members[extension.LtreeComparisonProcedureStart-1]);copy:=*o;copy.Function=d.Members[9].ObjectID;s.SetDescriptor(copy.Address(),&copy)},
   func(s *catalog.State,d *catalog.Extension){s.RemoveDescriptor(d.Members[extension.LtreeArrayOperatorStart-1])},
   func(s *catalog.State,d *catalog.Extension){p:=*s.MustProcedure(d.Members[extension.LtreeArrayProcedureStart+int(sqltype.LtreeArrayFirstQuery)]);p.Result=ids.OID(view.MustType(d.Members[0]).SQLType.ID());s.SetDescriptor(p.Address(),&p)},
-  func(s *catalog.State,d *catalog.Extension){o,_:=s.Operator(d.Members[extension.LtreeMemberCount-1]);copy:=*o;copy.Commutator=d.Members[extension.LtreeArrayOperatorStart].ObjectID;s.SetDescriptor(copy.Address(),&copy)},
+  func(s *catalog.State,d *catalog.Extension){o,_:=s.Operator(d.Members[extension.LtreeComparisonProcedureStart-1]);copy:=*o;copy.Commutator=d.Members[extension.LtreeArrayOperatorStart].ObjectID;s.SetDescriptor(copy.Address(),&copy)},
  } {
   candidate:=catalog.CloneState(view.State());bad:=*ext;bad.Members=slices.Clone(ext.Members);candidate.SetDescriptor(bad.Address(),&bad);corrupt(candidate,&bad)
   if err:=extension.StockLtree.ValidateExtension(e.Catalog.Read(candidate),&bad);err==nil{t.Fatal("corrupt selected graph accepted")}
@@ -58,7 +58,7 @@ func TestLtreeArrayProvider(t *testing.T) {
  fresh:=engine.New();op,done:=enginetest.RoleOperation(t,fresh,"postgres");defer done()
  stage:=lqueryProviderStage(t,fresh,op);candidate:=fresh.StageRead(stage)
  staged:=candidate.MustExtension(candidate.NameAddress(ids.NameKey{ClassID:ids.ExtensionClassID,Name:"ltree"}))
- last,_:=candidate.Operator(staged.Members[extension.LtreeMemberCount-1]);last.Function=staged.Members[9].ObjectID
+ last,_:=candidate.Operator(staged.Members[extension.LtreeComparisonProcedureStart-1]);last.Function=staged.Members[9].ObjectID
  before:=fresh.CatalogRead().State()
  if _,err:=fresh.ValidateCatalogStage(context.Background(),stage);err==nil {t.Fatal("late invalid graph admitted",err)}
  if fresh.CatalogRead().State()!=before{t.Fatal("late failure published prefix")}

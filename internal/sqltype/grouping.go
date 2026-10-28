@@ -46,7 +46,7 @@ func BindGrouping(usage Usage) (Grouping, error) {
 		g.element, g.prepare = &element, element.prepare
 		return g, nil
 	}
-	if base.IsCube() || base.IsHstore() {
+	if base.IsCube() || base.IsHstore() || base.IsLtree() {
 		comparison, err := BindComparison(usage.Type, usage.Type, usage.Collation, false)
 		g.comparison = comparison
 		return g, err
@@ -207,6 +207,7 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		return 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string hashing", Hint: "Use the COLLATE clause to set the collation explicitly."}
 	}
 	byteHash(1)
+	if v.typ.IsLtree() { return LtreeHashExtended(ctx,v,0) }
 	if v.typ.IsHstore() {
 		return HstoreHash(ctx, v, 0)
 	}

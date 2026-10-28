@@ -96,7 +96,7 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			member = MemberOwner{Kind: "operator", Name: d.Name(), Signature: signature}
 			principal = d.Owner
 		case *catalog.OperatorClass:
-			if d.Method != 403 && !(ext.Name() == "hstore" && d.Method == 405) {
+			if d.Method != 403 && !((ext.Name() == "hstore" || ext.Name()=="ltree") && d.Method == 405) {
 				return "", fmt.Errorf("stuntgres: unsupported extension class method")
 			}
 			member = MemberOwner{Kind: "operator_class", Name: d.Name(), Signature: "btree"}
@@ -105,7 +105,7 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			}
 			principal = d.Owner
 		case *catalog.OperatorFamily:
-			if d.Method != 403 && !(ext.Name() == "hstore" && d.Method == 405) {
+			if d.Method != 403 && !((ext.Name() == "hstore" || ext.Name()=="ltree") && d.Method == 405) {
 				return "", fmt.Errorf("stuntgres: unsupported extension family method")
 			}
 			member = MemberOwner{Kind: "operator_family", Name: d.Name(), Signature: "btree"}
@@ -342,6 +342,10 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				class := member.Kind == "operator_class"
 				valid = member.Name == "btree_hstore_ops" && member.Signature == "btree" && ((!class && member.Slot == HstoreBtreeFamilySlot) || (class && member.Slot == HstoreBtreeClassSlot)) || member.Name == "hash_hstore_ops" && member.Signature == "hash" && ((!class && member.Slot == HstoreHashFamilySlot) || (class && member.Slot == HstoreHashClassSlot))
 			}
+			if record.Name=="ltree" {
+				class:=member.Kind=="operator_class"
+				valid=member.Name=="ltree_ops"&&member.Signature=="btree"&&(!class&&member.Slot==LtreeBtreeFamilySlot||class&&member.Slot==LtreeBtreeClassSlot)||member.Name=="hash_ltree_ops"&&member.Signature=="hash"&&(!class&&member.Slot==LtreeHashFamilySlot||class&&member.Slot==LtreeHashClassSlot)
+			}
 			if !valid {
 				return invalid()
 			}
@@ -476,6 +480,13 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			}
 		}
 	case "ltree":
+		if slot >= LtreeComparisonProcedureStart && slot < LtreeComparisonOperatorStart {
+			switch slot-LtreeComparisonProcedureStart {
+			case 7:return "ltree",true
+			case 8:return "ltree,20",true
+			default:return "ltree,ltree",true
+			}
+		}
 		if slot >= LtreeArrayProcedureStart && slot < LtreeArrayOperatorStart {
 			recipe := ltreeArrayRecipes[slot-LtreeArrayProcedureStart]
 			return recipe.left+","+recipe.right, true
@@ -544,7 +555,8 @@ func cubeOwnerOperatorIdentity(slot int) (string, string, bool) {
 func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 	switch extension {
 	case "ltree":
-		if slot >= LtreeArrayOperatorStart && slot < LtreeMemberCount {
+		if slot >= LtreeComparisonOperatorStart && slot < LtreeBtreeFamilySlot { return ltreeComparisonOperators[slot-LtreeComparisonOperatorStart],"ltree,ltree",true }
+		if slot >= LtreeArrayOperatorStart && slot < LtreeComparisonProcedureStart {
 			recipe := ltreeArrayRecipes[slot-LtreeArrayOperatorStart]
 			return recipe.operator, recipe.left+","+recipe.right, true
 		}

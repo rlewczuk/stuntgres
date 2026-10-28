@@ -82,6 +82,9 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   Query `Grouping` keys and window peer `SortKey`s retain their selected original
   equality declaration beside its reference and defining recipe in the existing
   key allocation. This proof is independent of a substituted key expression.
+  Installed sort/window `SortKey`s also share `CapturedIndexOrdering` originals
+  beside the typed comparison. This retains source support provenance separately
+  from the executable datum projection and requires no per-comparison allocation.
   Private semantic-tree groupings retain no callable declaration or recipe.
   Function-source captures distinguish ordinary row slots from one-based system
   source occurrences. Correlated joins retain inherited identity explicitly when

@@ -88,6 +88,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   companion stays lookup-only. Routine-name discovery is only a selector hint:
   current catalog declarations, symbolic scalar/array roles and exact signatures,
   never mutable labels or equal OIDs, authorize invocation and owner import.
+  Nine comparison/support routines and six standard operators follow the array
+  tail, with default B-tree and hash classes/families. Staging and validation keep
+  the complete sixty-member graph atomic, preserving all earlier slots.
+  Required strategy/support members have exact INTERNAL class ownership;
+  optional hash support2 has AUTO family/routine dependencies. Symbolic owner
+  signatures include exact B-tree/hash class and family method roles; encoding,
+  decoding and import retain the same genuine manifest authority.
   Scalar storage metadata uses extended storage. This bounded manifest is not an
   inventory of every object in the upstream extension.
 - **Dictionary definitions** (`dictionary_*.go`): ordinary schema-CREATE and

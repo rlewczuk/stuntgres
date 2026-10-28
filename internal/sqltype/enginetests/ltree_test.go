@@ -108,7 +108,7 @@ func TestLtreeIdentity(t *testing.T) {
 	other, _ := d.Input(ctx,"bar",-1)
 	if sqltype.SameDatum(v,other) { t.Fatal("distinct canonical bytes compare equal") }
 	if same, err := v.SamePayload(ctx,other); err != nil || same { t.Fatal("distinct payload",same,err) }
-	if equal, order := sqltype.ComparisonCapabilities(d); equal || order { t.Fatal("storage granted SQL comparison") }
+	if equal, order := sqltype.ComparisonCapabilities(d); !equal || !order { t.Fatal("missing typed comparison capability") }
 	array, err := sqltype.Array(65002,"_ltree",d)
 	if err != nil || !array.Concrete() || array.Element() != d { t.Fatal("concrete exact companion",err) }
 	value, err := array.Input(ctx,`{"",NULL,a.b}`,-1)

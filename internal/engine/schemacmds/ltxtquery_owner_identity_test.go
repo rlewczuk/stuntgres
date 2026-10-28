@@ -18,6 +18,15 @@ func ltxtqueryRenamedOwner(t *testing.T) {
  metadata,err:=extension.OwnerMetadata(view,e.RoleStore.PublishedRead(&e.Catalog.Owner,view),ext);if err!=nil {t.Fatal(err)}
  record,found,err:=extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata,"-- ")))
  if err!=nil || !found || len(record.Members)!=extension.LtreeMemberCount {t.Fatal("renamed owner recipe",err)}
- if extension.LtreeMemberCount!=41 {t.Fatal("ltree provider member count",extension.LtreeMemberCount)}
+ if extension.LtreeMemberCount!=60 || extension.LtreeComparisonProcedureStart!=41 {t.Fatal("ltree provider member bounds",extension.LtreeMemberCount,extension.LtreeComparisonProcedureStart)}
  if record.Members[8].Signature!="ltxtquery" {t.Fatal("output signature lost canonical role",record.Members[8])}
+ for _,role:=range []struct{slot int;kind,name,signature string}{
+  {extension.LtreeBtreeFamilySlot,"operator_family","ltree_ops","btree"},
+  {extension.LtreeBtreeClassSlot,"operator_class","ltree_ops","btree"},
+  {extension.LtreeHashFamilySlot,"operator_family","hash_ltree_ops","hash"},
+  {extension.LtreeHashClassSlot,"operator_class","hash_ltree_ops","hash"},
+ }{
+  member:=record.Members[role.slot]
+  if member.Slot!=role.slot||member.Kind!=role.kind||member.Name!=role.name||member.Signature!=role.signature||member.Owner!="postgres"{t.Fatal("renaming scalar changed comparison class/family role",member)}
+ }
 }

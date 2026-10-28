@@ -20,6 +20,7 @@ func (p PartitionHash) SameOperation(other PartitionHash) bool {
 	for i := range p.class.support {
 		p.class.support[i].Revision, p.class.support[i].FamilyRevision, p.class.support[i].RoutineRevision = 0, 0, 0
 		other.class.support[i].Revision, other.class.support[i].FamilyRevision, other.class.support[i].RoutineRevision = 0, 0, 0
+		p.class.support[i].ClassRevision,other.class.support[i].ClassRevision=0,0
 	}
 	return p == other
 }
@@ -27,6 +28,10 @@ func (p PartitionHash) SameOperation(other PartitionHash) bool {
 func BindPartitionHash(u Usage, c IndexClass) (PartitionHash, error) {
 	if err := validateHashClass(u, c); err != nil {
 		return PartitionHash{}, err
+	}
+	if u.Type.BaseType().IsLtree() {
+		if !validLtreeHashSupport(u,c) { return PartitionHash{},fmt.Errorf("invalid installed ltree extended hash support") }
+		return PartitionHash{usage:u,class:c,input:c.input,routine:c.Support(2).Routine},nil
 	}
 	if u.Type.BaseType().IsHstore() {
 		if !validHstoreHashSupport(u, c) {
@@ -59,6 +64,7 @@ func (p *PartitionHash) Hash(ctx context.Context, v Value, seed uint64) (uint64,
 	if v.null {
 		return 0, fmt.Errorf("NULL partition hash argument")
 	}
+	if v.typ.BaseType().IsLtree() { return LtreeHashExtended(ctx,v,seed) }
 	if v.typ.BaseType().IsHstore() {
 		return HstoreHash(ctx, v, seed)
 	}

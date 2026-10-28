@@ -296,6 +296,11 @@ private frames, not catalog authority.
   inclusion default. Four `BrinSupport` procedure capabilities declare internal
   summary signatures separately from scalar routines; the index owner executes
   summaries. `CastDependencies` is the shared pg_depend/DROP/dump authority.
+  `CapturedIndexOrdering` seals a genuine installed class, family, support member
+  and native routine with their original declarations, effective revisions and
+  domain/epoch references. It shares immutable backing across sort-key copies,
+  retains no catalog/reader, and validates the original kernel pairing before
+  destination reconstruction.
   Casts remain ownerless and namespaceless. A direct extension-owned cast carries
   reciprocal `Extension` membership independently of its endpoint/function
   dependencies, mutually exclusive with generated-range ownership.

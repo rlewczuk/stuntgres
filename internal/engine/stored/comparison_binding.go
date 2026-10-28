@@ -39,6 +39,14 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 		namespace = ns.Address()
 		return nil
 	}
+	addLtree := func(captured *catalog.Procedure,capture ltreeComparisonCapture) error {
+		if err:=remapLtreeComparisonRoutine(view,nil,captured,captured,capture,func(d *sqltype.Descriptor)*sqltype.Descriptor{return d});err!=nil{return err}
+		installation,_:=view.Extension(captured.Extension)
+		ns,ok:=view.Namespace(installation.TargetNamespace)
+		if !ok||ns.Temporary!=(ids.SessionToken{})||ns.Name()=="$user"||ns.Name()=="pg_temp"{return fmt.Errorf("stuntgres: invalid comparison binding namespace")}
+		if namespace!=(ids.ObjectAddress{})&&namespace!=ns.Address(){return fmt.Errorf("stuntgres: conflicting comparison binding namespaces")}
+		namespace=ns.Address();return nil
+	}
 	visit = func(node expr.Expr) error {
 		if node == nil {
 			return nil
@@ -67,6 +75,9 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 			implicit = n.Namespace == ""
 		case plan.CaseExpr:
 			for _, arm := range n.Arms {
+				if arm.TestUsage.Type.IsLtree(){
+					if err:=addLtree(arm.Routine,ltreeComparisonCapture{ref:arm.RoutineRef,left:arm.TestUsage.Type,right:arm.Condition.ResultUsage().Type,name:"ltree_eq",result:sqltype.Bool});err!=nil{return err}
+				}
 				if arm.TestUsage.Type.IsHstore() {
 					if err := addHstore(arm.Routine, hstoreComparisonCapture{ref: arm.RoutineRef, left: arm.TestUsage.Type, right: arm.Condition.ResultUsage().Type, name: "hstore_eq", result: sqltype.Bool}); err != nil { return err }
 				}
@@ -100,6 +111,10 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 			if failure != nil {
 				return failure
 			}
+		}
+		if capture,ltree:=ltreeComparisonCaptureOf(node);implicit&&ltree {
+			captured,ok:=expr.InfoOf(node).RoutineReference.(*catalog.Procedure);if !ok{return fmt.Errorf("stuntgres: missing comparison binding capture")}
+			if err:=addLtree(captured,capture);err!=nil{return err}
 		}
 		if capture, hstore := hstoreComparisonCaptureOf(node); implicit && hstore {
 			captured, ok := expr.InfoOf(node).RoutineReference.(*catalog.Procedure)

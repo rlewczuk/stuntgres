@@ -131,7 +131,7 @@ func ResolveComparison(operator ComparisonOperator, left, right *Descriptor) (Eq
 			}
 			return EqualitySignature{base.ID(), base.ID()}, nil
 		}
-		if base.IsArray() || base.IsEnum() || base.IsCube() || base.IsRange() || base.IsMultirange() {
+		if base.IsArray() || base.IsEnum() || base.IsCube() || base.IsLtree() || base.IsRange() || base.IsMultirange() {
 			// anyenum accepts actual enums, not domains over enums.
 			if base.IsEnum() && (known.IsDomain() || other != nil && other.IsDomain()) ||
 				other != nil && other.BaseType() != base {

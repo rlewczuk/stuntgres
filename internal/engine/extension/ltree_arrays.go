@@ -10,7 +10,6 @@ import (
 
 const LtreeArrayProcedureStart = 9
 const LtreeArrayOperatorStart = LtreeArrayProcedureStart + int(sqltype.LtreeArrayOperationCount)
-const LtreeMemberCount = LtreeArrayOperatorStart + int(sqltype.LtreeArrayOperationCount)
 
 type ltreeArrayRecipe struct { name, operator, left, right, result string }
 var ltreeArrayRecipes = [...]ltreeArrayRecipe{
@@ -50,7 +49,9 @@ func LtreeArrayProcedureName(name string) bool {
 
 func ltreeMemberClass(slot int) ids.OID {
  if slot < LtreeArrayProcedureStart && slot%3 == 0 { return ids.TypeClassID }
- if slot >= LtreeArrayOperatorStart { return ids.OperatorClassID }
+ if slot >= LtreeArrayOperatorStart && slot < LtreeComparisonProcedureStart || slot >= LtreeComparisonOperatorStart && slot < LtreeBtreeFamilySlot { return ids.OperatorClassID }
+ if slot == LtreeBtreeFamilySlot || slot == LtreeHashFamilySlot { return ids.OperatorFamilyClassID }
+ if slot == LtreeBtreeClassSlot || slot == LtreeHashClassSlot { return ids.OperatorClassCatalogID }
  return ids.ProcedureClassID
 }
 

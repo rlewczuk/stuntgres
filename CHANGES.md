@@ -1,5 +1,11 @@
 # Changes
 
+- Add installed ltree standard comparisons with typed label ordering, grouping
+  and B-tree/hash keys, preserving captured comparison identities and immutable
+  operands through prepared execution and native catalog replacement. Stored
+  sort/window captures authenticate original class/support declarations and mapped
+  destination identities without substituting a current default.
+
 - Add the four logical-slot get/peek text/binary SQL signatures with initialized
   empty-options defaults, typed record metadata, ordered option validation and
   live current-role replication authorization. Preserve missing-slot 42704 under

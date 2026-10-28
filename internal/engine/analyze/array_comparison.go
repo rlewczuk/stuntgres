@@ -379,7 +379,7 @@ func (b *Binder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
 						elements = append(elements, item)
 					}
 				}
-				if leftTarget.IsCube() || leftTarget.IsHstore() {
+				if leftTarget.IsCube() || leftTarget.IsHstore() || leftTarget.IsLtree() {
 					// The internal batch owns scalar children. Keep its IN
 					// recipe executable through persistence.
 					syntax = parser.InListExpr{Left: raw.Left, Items: elements, Negate: raw.Negate, Pos: raw.Pos}

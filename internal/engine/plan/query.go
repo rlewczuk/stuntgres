@@ -56,6 +56,7 @@ type FilterNode struct {
 type SortKey struct {
 	Expression        expr.Expr
 	Comparison        sqltype.Comparison
+	Ordering          *catalog.CapturedIndexOrdering // Immutable original installed class/support/declaration authority.
 	EqualityRoutine   ids.ObjectRef // Caller-checked window peers only; ordinary ordering uses support functions.
 	EqualityProcedure *catalog.Procedure
 	EqualityRecipe    expr.RoutineRecipeReference // Original peer-equality occurrence, not the key expression's ancestry.

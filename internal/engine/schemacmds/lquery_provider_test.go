@@ -101,8 +101,27 @@ func TestLqueryProviderIdentity(t *testing.T) {
 			if member.Kind != "procedure" || member.Name != "ltxtq_in" || member.Signature != "2275" { t.Fatal("input owner role",member) }
 		case 8:
 			if member.Kind != "procedure" || member.Name != "ltxtq_out" || member.Signature != "ltxtquery" { t.Fatal("output owner role",member) }
+		case extension.LtreeBtreeFamilySlot:
+			if member.Kind!="operator_family"||member.Name!="ltree_ops"||member.Signature!="btree"{t.Fatal("B-tree family owner role",member)}
+		case extension.LtreeBtreeClassSlot:
+			if member.Kind!="operator_class"||member.Name!="ltree_ops"||member.Signature!="btree"{t.Fatal("B-tree class owner role",member)}
+		case extension.LtreeHashFamilySlot:
+			if member.Kind!="operator_family"||member.Name!="hash_ltree_ops"||member.Signature!="hash"{t.Fatal("hash family owner role",member)}
+		case extension.LtreeHashClassSlot:
+			if member.Kind!="operator_class"||member.Name!="hash_ltree_ops"||member.Signature!="hash"{t.Fatal("hash class owner role",member)}
 		default:
-			if member.Slot < extension.LtreeArrayProcedureStart || member.Slot >= extension.LtreeMemberCount || member.Kind != "procedure" && member.Kind != "operator" { t.Fatal("unrecognized owner slot",member) }
+			switch{
+			case member.Slot>=extension.LtreeComparisonProcedureStart&&member.Slot<extension.LtreeComparisonOperatorStart:
+				index:=member.Slot-extension.LtreeComparisonProcedureStart
+				name:=[]string{"ltree_eq","ltree_ne","ltree_lt","ltree_le","ltree_gt","ltree_ge","ltree_cmp","hash_ltree","hash_ltree_extended"}[index]
+				signature:="ltree,ltree";if index==7{signature="ltree"};if index==8{signature="ltree,20"}
+				if member.Kind!="procedure"||member.Name!=name||member.Signature!=signature{t.Fatal("comparison procedure owner role",member)}
+			case member.Slot>=extension.LtreeComparisonOperatorStart&&member.Slot<extension.LtreeBtreeFamilySlot:
+				name:=[]string{"=","<>","<","<=",">",">="}[member.Slot-extension.LtreeComparisonOperatorStart]
+				if member.Kind!="operator"||member.Name!=name||member.Signature!="ltree,ltree"{t.Fatal("comparison operator owner role",member)}
+			default:
+				if member.Slot < extension.LtreeArrayProcedureStart || member.Slot >= extension.LtreeComparisonProcedureStart || member.Kind != "procedure" && member.Kind != "operator" { t.Fatal("unrecognized owner slot",member) }
+			}
 		}
 	}
 	original := slices.Clone(ext.Members)

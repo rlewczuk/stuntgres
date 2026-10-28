@@ -11,6 +11,12 @@ operand, result and backer checks. Only manifest-authenticated hstore recipe
 operators may live outside the installation schema, through
 `extension.HstoreRelocatableOperator`; full operator and extension validation
 still follows. Comparison families and other providers keep their placement gates.
+  Installed ltree B-tree/hash keys authenticate the complete stock graph and
+  selected support slots before binding typed kernels. Required members retain
+  exact INTERNAL class ownership; optional hash support2 retains AUTO family
+  ownership, with its exact seeded routine and effective revisions.
+  `BindCapturedIndexOrdering` additionally seals the actual source declarations
+  and typed support operation for immutable sort/window transport.
 
 SQL and PL declarations share formal/default/staging authority. DO and CREATE
 check language USAGE; calls check EXECUTE, not language USAGE again. Dump renders

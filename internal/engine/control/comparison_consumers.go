@@ -210,14 +210,14 @@ func (s *dumpScript) prepareComparisonBindings(ctx context.Context) error {
 			s.comparisonBindings = make(map[castConsumer]*dump.DefinitionBinding)
 		}
 		s.comparisonBindings[site] = &dump.DefinitionBinding{CubeNamespace: namespace}
-		addresses := [3]ids.ObjectAddress{namespace}
+		addresses := [4]ids.ObjectAddress{namespace}
 		count := 1
-		for _, name := range []string{"cube", "hstore"} {
+		for _, name := range []string{"cube", "hstore", "ltree"} {
 			installation, exists := s.CatalogView.Extension(s.CatalogView.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
 			if exists && installation.TargetNamespace == namespace {
 				// The typed capture above authenticates the provider. Retain
 				// every installed comparison provider in this namespace so a
-				// shared replay binding orders after both installations.
+				// shared replay binding orders after all such installations.
 				addresses[count] = installation.Address()
 				count++
 			}

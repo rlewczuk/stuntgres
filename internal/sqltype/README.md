@@ -251,6 +251,18 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   UTF8/C grammar, with count-first path bounds and deferred label-length checks.
   A present carrier represents the empty nonnull path; NULL has separate framing.
   Source-authorized import shares compiled backing without text conversion.
+  Typed comparison walks those owned labels without serialization, reparsing or
+  allocation; label bytes, label length and then path depth determine order.
+  Grouping shares that equality with separate SQL NULL framing. `LtreeHash` and
+  `LtreeHashExtended` fold PostgreSQL byte hashes per label with unsigned release
+  arithmetic, checking cancellation across labels and within scans.
+  B-tree/hash keys require authenticated `LtreeIndexSupport` captures and exact
+  method/type/member/routine revisions; hash keys retain both support slots.
+  `Comparison.OrderingFor` checks exact source operand generations and collation.
+  `IndexComparison.DatumComparison` retains flat installed support/revision stamps
+  for exact kernel pairing; original catalog declarations remain with the owning
+  sort capture. Neither operand capabilities nor numeric stamps alone grant
+  authenticated ordering provenance.
 - Ltree and lquery use ordinary concrete companion arrays, including supported
   domain elements. `LtreeArrayOperation` checks exact formal generations and
   implements the selected installed predicates/extractors. Whole NULL arguments
@@ -261,7 +273,7 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   are evaluated within each path. Ancestor, descendant, whole-path and Boolean
   query extractors return the first physical entry's exact ltree carrier, or
   typed NULL when absent. Scratch is invocation-owned, never cached.
-  These kernels grant no scalar SQL comparison, grouping, indexing or binary codec.
+  Matching kernels do not confer additional scalar or binary-codec authority.
 - Text-array input checks declared dimensions early, but child conversion and
   domain CHECK errors precede an extent mismatch, and storage grows only with
   parsed children (shared `ownedArray` guards).
@@ -672,7 +684,7 @@ match engine tests of the same mechanism):
 - Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryAlignment|GeometryRelation|GeometryPosition|GeometryConversion|GeometryMeasure|CubeSpatial|EarthCubeChecks|NetworkSubnet)'`
 - Cube constructors, coordinates and spatial kernels: `RUN='^TestCube'`
 - Installed label-query codecs, identity and cancellation: `RUN='^Test(Lquery|Ltxtquery)'`
-- Installed ltree codecs, identity and cancellation: `RUN='^TestLtree'`
+- Installed ltree codecs, typed comparisons/keys, identity and cancellation: `RUN='^TestLtree'`
 - Installed interval scalar codec and exact representation: `RUN='^TestSeg'`
 - Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|PointKernel)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`

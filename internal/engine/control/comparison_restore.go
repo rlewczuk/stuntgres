@@ -151,11 +151,11 @@ func (c *ComparisonRestore) Before(index int, stmt parser.Statement, current cat
 				return false, InvalidComparisonContext()
 			}
 			var installation *catalog.Extension
-			for _, name := range []string{"cube", "hstore"} {
+			for _, name := range []string{"cube", "hstore", "ltree"} {
 				candidate, exists := current.Extension(current.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
 				if !exists || current.Owner() == nil { continue }
 				provider := current.Owner().Extensions[name]
-				if name == "cube" && provider != extension.StockCube || name == "hstore" && provider != extension.StockHstore { continue }
+				if name == "cube" && provider != extension.StockCube || name == "hstore" && provider != extension.StockHstore || name=="ltree" && provider!=extension.StockLtree { continue }
 				ns, exists := current.Namespace(candidate.TargetNamespace)
 				if !exists || ns.Name() != marker.Namespace { continue }
 				if err := provider.ValidateExtension(current, candidate); err != nil { return false, err }

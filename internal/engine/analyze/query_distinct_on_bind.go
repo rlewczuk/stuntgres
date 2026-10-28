@@ -97,7 +97,7 @@ func (b *Binder) bindOnOrdering(key *plan.SortKey) error {
 	if key.Expression.CollationIndeterminate() {
 		return nil
 	}
-	provider, err := b.bindOrdering(key.Expression.ResultUsage())
+	provider,capture,err := b.bindSortOrdering(key.Expression.ResultUsage())
 	if d, ok := err.(*sqlstate.Error); ok {
 		copy := *d
 		if key.Position > 0 {
@@ -106,6 +106,7 @@ func (b *Binder) bindOnOrdering(key *plan.SortKey) error {
 		return &copy
 	}
 	key.Comparison = provider
+	key.Ordering=capture
 	return err
 }
 

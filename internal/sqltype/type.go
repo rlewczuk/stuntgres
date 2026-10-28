@@ -2399,6 +2399,7 @@ type Comparison struct {
 	left, right            *Descriptor
 	defaultBtreeOpclass    uint32
 	orderingBound          bool
+	orderingSupport        IndexSupport // Flat installed kernel provenance; original declarations belong to the owning sort capture.
 	inputCollation         CollationRef
 	collationIndeterminate bool
 	element                *Comparison
@@ -2414,6 +2415,14 @@ func (p Comparison) DefaultBtreeOpclass() uint32 { return p.defaultBtreeOpclass 
 // OrderingBound distinguishes an admitted sort provider from plain comparison.
 // Occurrence records and bounded vector sorting have no physical index opclass.
 func (p Comparison) OrderingBound() bool { return p.orderingBound }
+
+// OrderingFor checks exact operand-generation and collation ownership before
+// transporting a captured ordering; a type capability alone is insufficient.
+func (p Comparison) OrderingFor(u Usage) bool {
+	return u.Type!=nil && u.Type.Concrete() && u.validCollation() &&
+		p.left==u.Type && p.right==u.Type && p.inputCollation==u.Collation &&
+		p.orderingBound && !p.missingOrdering && !p.collationIndeterminate
+}
 
 // InputCollation is the retained comparison authority, independent of BOOL
 // result metadata. The flag defers implicit conflicts until a comparison occurs.
@@ -2600,6 +2609,10 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	}
 	a.typ, b.typ = p.left.BaseType(), p.right.BaseType()
 	p.left, p.right = a.typ, b.typ
+	if p.left.IsLtree() {
+		if !a.validLtree() || !b.validLtree() { return 0, fmt.Errorf("invalid ltree comparison payload") }
+		return compareLtree(ctx,a.ltree,b.ltree)
+	}
 	if p.left.IsHstore() {
 		if !a.validHstore() || !b.validHstore() {
 			return 0, fmt.Errorf("invalid hstore comparison payload")

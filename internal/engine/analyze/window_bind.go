@@ -454,15 +454,6 @@ func (b *Binder) bindWindowSpec(raw parser.WindowSpec, names map[string]plan.Win
 			_, err := b.bindDistinctGrouping(expr)
 			return spec, err
 		}
-		comparison, err := b.bindOrdering(expr.ResultUsage())
-		if d, ok := err.(*sqlstate.Error); ok {
-			copy := *d
-			copy.Position = fmt.Sprint(key.Pos.Character)
-			return spec, &copy
-		}
-		if err != nil {
-			return spec, err
-		}
 		index := -1
 		for j, previous := range spec.Order {
 			if b.SameGroupExpression(previous.Expression, expr) {
@@ -471,6 +462,11 @@ func (b *Binder) bindWindowSpec(raw parser.WindowSpec, names map[string]plan.Win
 			}
 		}
 		if index < 0 {
+			comparison,capture,err := b.bindSortOrdering(expr.ResultUsage())
+			if d,ok:=err.(*sqlstate.Error);ok{
+				copy:=*d;copy.Position=fmt.Sprint(key.Pos.Character);return spec,&copy
+			}
+			if err!=nil{return spec,err}
 			usage := expr.ResultUsage()
 			base := usage.Type.BaseType()
 			signature, err := sqltype.ResolveEquality(base, base)
@@ -485,7 +481,7 @@ func (b *Binder) bindWindowSpec(raw parser.WindowSpec, names map[string]plan.Win
 				return spec, err
 			}
 			index = len(spec.Order)
-			spec.Order = append(spec.Order, plan.SortKey{Expression: expr, Comparison: comparison, EqualityRoutine: routine, EqualityProcedure: declaration, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
+			spec.Order = append(spec.Order, plan.SortKey{Expression: expr, Comparison: comparison, Ordering:capture, EqualityRoutine: routine, EqualityProcedure: declaration, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
 		}
 		spec.OrderMap[i] = index
 	}

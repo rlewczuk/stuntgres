@@ -213,6 +213,11 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				}
 				kind, signature = "operator", portableSignature
 			case *catalog.OperatorClass:
+				if record.Name=="ltree" {
+					if member.Slot!=LtreeBtreeClassSlot&&member.Slot!=LtreeHashClassSlot{return false,fmt.Errorf("stuntgres: invalid ltree class ownership slot")}
+					if err:=StockLtree.ValidateExtension(candidateView,ext);err!=nil{return false,err}
+					kind,signature="operator_class","btree";if selected.Method==405{signature="hash"};break
+				}
 				if record.Name == "hstore" {
 					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
 					if !ok || member.Slot != HstoreBtreeClassSlot && member.Slot != HstoreHashClassSlot {
@@ -233,6 +238,11 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				}
 				kind, signature = "operator_class", "btree"
 			case *catalog.OperatorFamily:
+				if record.Name=="ltree" {
+					if member.Slot!=LtreeBtreeFamilySlot&&member.Slot!=LtreeHashFamilySlot{return false,fmt.Errorf("stuntgres: invalid ltree family ownership slot")}
+					if err:=StockLtree.ValidateExtension(candidateView,ext);err!=nil{return false,err}
+					kind,signature="operator_family","btree";if selected.Method==405{signature="hash"};break
+				}
 				if record.Name == "hstore" {
 					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
 					if !ok || member.Slot != HstoreBtreeFamilySlot && member.Slot != HstoreHashFamilySlot {

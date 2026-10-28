@@ -209,10 +209,14 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 		}
 	case StockLtree:
 		count = LtreeMemberCount
-		if len(ext.Members) != count || slot < 0 || slot >= LtreeArrayOperatorStart || ltreeMemberClass(slot) != ids.ProcedureClassID {
+		if len(ext.Members) != count || slot < 0 || slot >= count || ltreeMemberClass(slot) != ids.ProcedureClassID {
 			return invalid()
 		}
-		if slot >= LtreeArrayProcedureStart {
+		if slot >= LtreeComparisonProcedureStart {
+			base,ok:=v.Type(ext.Members[3]);if !ok||!base.SQLType.IsLtree()||base.Extension!=ext.Address(){return invalid()}
+			if err:=ValidateProviderHeader(v,base,ids.TypeClassID);err!=nil{return invalid()}
+			name,signature,result=LtreeComparisonDeclaration(slot-LtreeComparisonProcedureStart,base.SQLType.ID())
+		} else if slot >= LtreeArrayProcedureStart {
 			index := slot-LtreeArrayProcedureStart
 			var err error
 			signature, result, err = ltreeArraySignature(v, ext, index)

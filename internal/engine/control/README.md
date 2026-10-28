@@ -352,13 +352,13 @@ function references once into the destination authority.
   Dump writes (`emitDefinition`). `Decode` collects the marker comments,
   `Pair` ties each to the `SET`/`RESET search_path` right after it (only blank
   text between). `Before(index, stmt, current)` walks begin → bind → one DDL
-  → close, repeated, then finish: bind needs stock cube or hstore installed in the
+  → close, repeated, then finish: bind needs stock cube, hstore or ltree installed in the
   named persistent namespace; any unmarked `search_path` change, a non-DDL or
   second DDL in a window, or a statement after finish is invalid. A marked
   statement returns `execute`, and the root runs it with no other entry.
   Dump derives the namespace from authenticated typed captures and orders each
   bound definition after the namespace's installed comparison providers, including
-  both providers when cube and hstore share that namespace.
+  every installed cube, hstore and ltree provider when they share that namespace.
   `After` hands the bound window's check to the root, which captures its
   authorization under `Engine.Mu`, checks USAGE on the namespace and calls
   `ValidateComparisonBinding`; `Bound` then closes the window. Only

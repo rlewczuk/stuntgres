@@ -84,6 +84,21 @@ Captured-source validation precedes authorized remapping; current destination
 manifest/signature/array associations are checked before retagging or rendering.
 Replay casts both operands to genuine destination formals. No matching scratch or
 caller authority is retained.
+  Ltree comparisons use the existing scalar/row, distinctness, membership,
+  NULLIF and simple-CASE carriers. They retain both operand generations, selected
+  immutable routine, operation and catalog-domain/epoch reference. Transport
+  authenticates the original capture and destination manifest independently,
+  shares immutable operand backing and rebinds typed comparison in the destination.
+  Implicit comparison replay uses the authenticated installation namespace;
+  current names never replace captured identity.
+  Sort/window ordering first validates sealed original class/family/member/routine
+  declarations, support revisions and their exact kernel pairing. It maps all
+  four genuine references consistently and authenticates fresh destination support
+  with the shared index binder, never a builtin or current-default fallback.
+  Reference-only traversal shares both source comparator and original capture
+  until the typed remap can validate and rebuild destination ownership.
+  Dependency traversal retains those four captured support references as well as
+  the ordinary key-expression dependencies.
 
 Installed hstore array, JSON and JSONB calls retain exact formal/result generations,
 conversion mode and selected procedure/member references. Comparison and hash

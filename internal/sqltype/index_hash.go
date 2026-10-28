@@ -141,6 +141,12 @@ func BindIndexHash(u Usage, c IndexClass) (IndexHash, error) {
 	if err := validateHashClass(u, c); err != nil {
 		return IndexHash{}, err
 	}
+	if u.Type.BaseType().IsLtree() {
+		if !validLtreeHashSupport(u,c) { return IndexHash{},fmt.Errorf("invalid installed ltree hash support") }
+		g,err:=BindGrouping(u);if err!=nil{return IndexHash{},err}
+		p:=PartitionHash{usage:u,class:c,input:c.input,routine:c.Support(1).Routine}
+		return IndexHash{usage:u,class:c,grouping:g,native:p},nil
+	}
 	if u.Type.BaseType().IsHstore() {
 		if !validHstoreHashSupport(u, c) {
 			return IndexHash{}, fmt.Errorf("invalid installed hstore hash support")

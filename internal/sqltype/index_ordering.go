@@ -372,13 +372,14 @@ const (
 	BuiltinIndexSupport IndexSupportProvider = iota
 	CubeIndexSupport
 	HstoreIndexSupport
+	LtreeIndexSupport
 )
 
 type IndexSupport struct {
 	Provider                             IndexSupportProvider
 	Family, Member, Routine, Left, Right uint32
 	Revision                             uint64
-	FamilyRevision, RoutineRevision      uint64
+	ClassRevision, FamilyRevision, RoutineRevision uint64
 }
 
 func (c IndexClass) WithSupport(slot int, support IndexSupport) IndexClass {
@@ -413,6 +414,12 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 		return IndexComparison{}, failure("0A000", "index operator class is unsupported")
 	}
 	s := c.Support(1)
+	if u.Type.BaseType().IsLtree() {
+		if !validLtreeIndexSupport(u,c,s,403) { return IndexComparison{},fmt.Errorf("invalid installed ltree index support") }
+		p,err:=BindComparison(u.Type,u.Type,u.Collation,false);if err!=nil{return IndexComparison{},err}
+		p.orderingBound,p.defaultBtreeOpclass=true,c.OID()
+		return IndexComparison{comparison:p,input:c.input,routine:s.Routine,support:s},nil
+	}
 	if u.Type.BaseType().IsHstore() && s.Provider != HstoreIndexSupport {
 		return IndexComparison{}, fmt.Errorf("missing installed hstore index support")
 	}
@@ -459,13 +466,18 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 
 func (p IndexComparison) Support() IndexSupport { return p.support }
 
-func (p IndexComparison) DatumComparison() Comparison { return p.comparison }
+func (p IndexComparison) DatumComparison() Comparison {
+	comparison:=p.comparison
+	if p.support.Provider!=BuiltinIndexSupport{comparison.orderingSupport=p.support}
+	return comparison
+}
 
 // SameOperation ignores ACL/name-only descriptor revisions. Captures still
 // retain those revisions, but metadata publication is not an ordering change.
 func (p IndexComparison) SameOperation(other IndexComparison) bool {
 	p.support.Revision, p.support.FamilyRevision, p.support.RoutineRevision = 0, 0, 0
 	other.support.Revision, other.support.FamilyRevision, other.support.RoutineRevision = 0, 0, 0
+	p.support.ClassRevision,other.support.ClassRevision=0,0
 	p.comparison.defaultBtreeOpclass, other.comparison.defaultBtreeOpclass = 0, 0
 	return p == other
 }
@@ -486,7 +498,7 @@ func (p *IndexComparison) Compare(ctx context.Context, a, b Value, input InputEn
 	if a.typ != p.comparison.left || b.typ != p.comparison.right || a.null || b.null || !a.typ.Concrete() {
 		return 0, fmt.Errorf("invalid index comparison values")
 	}
-	if p.support.Provider == CubeIndexSupport || p.support.Provider == HstoreIndexSupport {
+	if p.support.Provider == CubeIndexSupport || p.support.Provider == HstoreIndexSupport || p.support.Provider == LtreeIndexSupport {
 		return p.comparison.Compare(ctx, a, b, input)
 	}
 	if p.routine == 351 {

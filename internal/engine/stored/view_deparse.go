@@ -1120,7 +1120,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 				}
 			}
 		}
-		if !v.Presentation.Deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.IsComposite() || usage.Type.IsCube() || usage.Type.IsHstore() || usage.Type.ID() == sqltype.Macaddr || usage.Type.ID() == sqltype.Macaddr8 || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB || usage.Type.ID() == sqltype.JSONPath || usage.Type.ID() == sqltype.PgLSN || sqltype.IsFTS(usage.Type.ID())) {
+		if !v.Presentation.Deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.IsComposite() || usage.Type.IsCube() || usage.Type.IsHstore() || usage.Type.IsLtree() || usage.Type.ID() == sqltype.Macaddr || usage.Type.ID() == sqltype.Macaddr8 || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB || usage.Type.ID() == sqltype.JSONPath || usage.Type.ID() == sqltype.PgLSN || sqltype.IsFTS(usage.Type.ID())) {
 			switch e.Child.(type) {
 			case parser.LiteralExpr, parser.TypedLiteralExpr:
 				if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {

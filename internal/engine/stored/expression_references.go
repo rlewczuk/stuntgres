@@ -237,6 +237,12 @@ func (r *DependRefs) Query(node plan.Node) {
 	if source, ok := node.(*plan.SourceNode); ok {
 		r.Add(source.Ref.Address)
 	}
+	switch n:=node.(type){
+	case *plan.SortNode:
+		for _,key:=range n.Keys{if key.Ordering!=nil{for _,ref:=range key.Ordering.References(){r.Add(ref.Address)}}}
+	case *plan.WindowNode:
+		for _,spec:=range n.Specs{for _,key:=range spec.Order{if key.Ordering!=nil{for _,ref:=range key.Ordering.References(){r.Add(ref.Address)}}}}
+	}
 	if aggregate, ok := node.(*plan.AggregateNode); ok {
 		for _, call := range aggregate.Calls {
 			if call.Procedure != nil {

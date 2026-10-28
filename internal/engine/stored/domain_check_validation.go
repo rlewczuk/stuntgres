@@ -84,6 +84,14 @@ func validateInstalledDomainCheckOperator(view catalog.Read, node expr.Expr, ref
 		if !ok || selected.Ref != ref || failure != nil {
 			return
 		}
+		if capture,ltree:=ltreeComparisonCaptureOf(selected.Provider);ltree{
+			captured,ok:=expr.InfoOf(selected.Provider).RoutineReference.(*catalog.Procedure);if !ok{return}
+			if err:=remapLtreeComparisonRoutine(view,nil,captured,captured,capture,func(t *sqltype.Descriptor)*sqltype.Descriptor{return t});err!=nil{failure=err;return}
+			installation,exists:=view.Extension(captured.Extension)
+			if !exists||operator.Extension!=installation.Address()||operator.Namespace()!=installation.TargetNamespace||operator.Left!=ids.OID(capture.left.ID())||operator.Right!=ids.OID(capture.right.ID())||operator.Result!=ids.OID(sqltype.Bool)||operator.Function!=captured.Address().ObjectID{failure=fmt.Errorf("stuntgres: invalid domain CHECK ltree operator declaration");return}
+			for i:=range 6{if installation.Members[extension.LtreeComparisonProcedureStart+i]==captured.Address()&&installation.Members[extension.LtreeComparisonOperatorStart+i]==operator.Address(){found=true;return}}
+			failure=fmt.Errorf("stuntgres: invalid domain CHECK ltree operator member");return
+		}
 		if capture, hstore := hstoreComparisonCaptureOf(selected.Provider); hstore {
 			captured, ok := expr.InfoOf(selected.Provider).RoutineReference.(*catalog.Procedure)
 			if !ok { return }

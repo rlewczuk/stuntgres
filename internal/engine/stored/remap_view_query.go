@@ -336,7 +336,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 			copy.Keys[i] = equality(key)
 			copy.Keys[i].Expression = expression(key.Expression)
 			if err == nil && !copy.Keys[i].Expression.CollationIndeterminate() {
-				copy.Keys[i].Comparison, err = sqltype.BindOrdering(copy.Keys[i].Expression.ResultUsage())
+				copy.Keys[i].Comparison,copy.Keys[i].Ordering,err = m.ordering(key,copy.Keys[i].Expression.ResultUsage())
 			}
 		}
 		next = &copy
@@ -359,7 +359,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 				spec.Order[j] = equality(key)
 				spec.Order[j].Expression = expression(key.Expression)
 				if err == nil {
-					spec.Order[j].Comparison, err = sqltype.BindOrdering(spec.Order[j].Expression.ResultUsage())
+					spec.Order[j].Comparison,spec.Order[j].Ordering,err = m.ordering(key,spec.Order[j].Expression.ResultUsage())
 				}
 			}
 			for _, bound := range []*plan.WindowBound{&spec.Frame.Start, &spec.Frame.End} {

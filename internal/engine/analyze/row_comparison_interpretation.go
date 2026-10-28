@@ -59,8 +59,8 @@ func (b *Binder) checkRowComparisonInterpretation(raw parser.OperatorExpr, pairs
 		if err != nil {
 			return err
 		}
-		if left.IsCube() && left == right {
-			if _, err := b.bindCubeOrdering(left.Usage()); err != nil {
+		if (left.IsCube() || left.IsLtree()) && left == right {
+			if _, err := b.bindInstalledOrdering(left.Usage()); err != nil {
 				return err
 			}
 			continue

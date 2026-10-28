@@ -71,48 +71,36 @@ func (b *Binder) bindSelectedCubeComparison(raw parser.FunctionExpr, selected sq
 
 // Ordering selects the current installed default class and its real support
 // routine before reading rows. The static builtin class registry is untouched.
-func (b *Binder) bindCubeOrdering(usage sqltype.Usage) (sqltype.Comparison, error) {
-	view := b.BindingCatalog()
-	class, ok, err := view.DefaultIndexClass(403, usage.Type)
-	if err != nil {
+func (b *Binder) installedOrdering(usage sqltype.Usage, retain bool) (sqltype.Comparison,*catalog.CapturedIndexOrdering,error) {
+	view:=b.BindingCatalog()
+	class,ok,err:=view.DefaultIndexClass(403,usage.Type)
+	if err!=nil{
 		var ambiguity *catalog.DefaultClassAmbiguity
-		if errors.As(err, &ambiguity) {
-			auth, authErr := b.BindingAuthorization()
-			if authErr != nil {
-				return sqltype.Comparison{}, authErr
-			}
-			path, pathErr := b.Host.ReferencePath(auth)
-			if pathErr != nil {
-				return sqltype.Comparison{}, pathErr
-			}
-			err = catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(view, path))
+		if errors.As(err,&ambiguity){
+			auth,failure:=b.BindingAuthorization();if failure!=nil{return sqltype.Comparison{},nil,failure}
+			path,failure:=b.Host.ReferencePath(auth);if failure!=nil{return sqltype.Comparison{},nil,failure}
+			err=catalog.RenderDefaultClassAmbiguity(err,catalog.TypeDiagnosticNamer(view,path))
 		}
-		return sqltype.Comparison{}, err
+		return sqltype.Comparison{},nil,err
 	}
-	if !ok {
-		return sqltype.Comparison{}, fmt.Errorf("stuntgres: missing cube ordering class")
+	if !ok{return sqltype.Comparison{},nil,fmt.Errorf("stuntgres: missing installed ordering class")}
+	var comparison sqltype.IndexComparison
+	var capture *catalog.CapturedIndexOrdering
+	if retain{comparison,capture,err=routine.BindCapturedIndexOrdering(view,usage,class)}else{comparison,err=routine.BindIndexOrdering(view,usage,class)}
+	if err!=nil{return sqltype.Comparison{},nil,err}
+	fact,ok:=view.OperatorClass(ids.OID(class.OID()));if !ok{return sqltype.Comparison{},nil,fmt.Errorf("stuntgres: missing installed ordering descriptor")}
+	for _,address:=range []ids.ObjectAddress{fact.Address(),{ClassID:ids.OperatorFamilyClassID,ObjectID:fact.Family},{ClassID:ids.AccessMethodProcedureClassID,ObjectID:ids.OID(comparison.Support().Member)},{ClassID:ids.ProcedureClassID,ObjectID:ids.OID(comparison.Support().Routine)}}{
+		d:=view.Get(address);if d==nil{return sqltype.Comparison{},nil,fmt.Errorf("stuntgres: missing installed ordering dependency")}
+		b.dependency(view.Owner().Domain.Ref(view.Epoch(),address),d.Revision())
 	}
-	comparison, err := routine.BindIndexOrdering(view, usage, class)
-	if err != nil {
-		return sqltype.Comparison{}, err
-	}
-	fact, ok := view.OperatorClass(ids.OID(class.OID()))
-	if !ok {
-		return sqltype.Comparison{}, fmt.Errorf("stuntgres: missing cube ordering descriptor")
-	}
-	for _, address := range []ids.ObjectAddress{fact.Address(), {ClassID: ids.OperatorFamilyClassID, ObjectID: fact.Family}, {ClassID: ids.AccessMethodProcedureClassID, ObjectID: ids.OID(comparison.Support().Member)}, {ClassID: ids.ProcedureClassID, ObjectID: ids.OID(comparison.Support().Routine)}} {
-		d := view.Get(address)
-		if d == nil {
-			return sqltype.Comparison{}, fmt.Errorf("stuntgres: missing cube ordering dependency")
-		}
-		b.dependency(view.Owner().Domain.Ref(view.Epoch(), address), d.Revision())
-	}
-	return comparison.DatumComparison(), nil
+	return comparison.DatumComparison(),capture,nil
 }
 
-func (b *Binder) bindOrdering(usage sqltype.Usage) (sqltype.Comparison, error) {
-	if usage.Type.BaseType().IsCube() || usage.Type.BaseType().IsHstore() {
-		return b.bindCubeOrdering(usage)
-	}
-	return sqltype.BindOrdering(usage)
+func (b *Binder) bindInstalledOrdering(usage sqltype.Usage)(sqltype.Comparison,error){
+	comparison,_,err:=b.installedOrdering(usage,false);return comparison,err
+}
+
+func (b *Binder) bindSortOrdering(usage sqltype.Usage)(sqltype.Comparison,*catalog.CapturedIndexOrdering,error){
+	if usage.Type.BaseType().IsCube()||usage.Type.BaseType().IsHstore()||usage.Type.BaseType().IsLtree(){return b.installedOrdering(usage,true)}
+	comparison,err:=sqltype.BindOrdering(usage);return comparison,nil,err
 }
