@@ -14,10 +14,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// DetachPartitionLocked runs ALTER TABLE ... DETACH PARTITION.
-//
-// Engine.mu is consumed on every return. The execution scope owns parent AX;
-// DEFAULT, candidate and descendant waits use the same ticket without Engine.mu.
+// DetachPartitionLocked dispatches ordinary, concurrent and FINALIZE execution.
+// Engine.Mu is consumed on every return. Admission owns parent AX for ordinary
+// detach and SUE for the phase-aware modes; all subsequent waits run unlocked.
 func DetachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableDetachPartition, count int) (core.Result, error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
@@ -27,6 +26,9 @@ func DetachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		return tablecmds.SkipMissingRelationLocked(e, scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
 	}
 	parent := scope.LockedDescriptor.(*catalog.Relation)
+	if raw.Mode != parser.DetachOrdinary {
+		return detachConcurrentLocked(e, scope, op, auth, raw, parent)
+	}
 	if parent.Partition == nil {
 		return fail(partition.DetachKindError(auth.Catalog, parent, false))
 	}
@@ -75,6 +77,9 @@ func DetachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 	}
 	if err = partition.DetachMembership(parent, child); err != nil {
 		return core.Result{}, err
+	}
+	if child.Membership.DetachPending {
+		return core.Result{}, partition.PendingDetachError(child, true)
 	}
 	if err = scope.AcquirePartitionDescendants(candidate, lock.AccessExclusive); err != nil {
 		return core.Result{}, err

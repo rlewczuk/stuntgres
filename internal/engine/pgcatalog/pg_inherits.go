@@ -47,7 +47,7 @@ func capturePGInherits(in Input) ([][]sqltype.Value, error) {
 	rows := make([][]sqltype.Value, count)
 	values := make([]sqltype.Value, count*4)
 	at := 0
-	emit := func(child, parent ids.OID, ordinal int64) error {
+	emit := func(child, parent ids.OID, ordinal int64, pending bool) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -65,7 +65,7 @@ func capturePGInherits(in Input) ([][]sqltype.Value, error) {
 		if err != nil {
 			return err
 		}
-		row[3] = sqltype.Boolean(types[3], false)
+		row[3] = sqltype.Boolean(types[3], pending)
 		rows[at] = row
 		at++
 		return nil
@@ -80,19 +80,19 @@ func capturePGInherits(in Input) ([][]sqltype.Value, error) {
 		}
 		if relation.Inheritance != nil {
 			for _, parent := range relation.Inheritance.Parents {
-				if err := emit(relation.Address().ObjectID, parent.Relation.ObjectID, int64(parent.Seqno)); err != nil {
+				if err := emit(relation.Address().ObjectID, parent.Relation.ObjectID, int64(parent.Seqno), false); err != nil {
 					return nil, err
 				}
 			}
 		}
 		if relation.Membership != nil {
-			if err := emit(relation.Address().ObjectID, relation.Membership.Parent.ObjectID, 1); err != nil {
+			if err := emit(relation.Address().ObjectID, relation.Membership.Parent.ObjectID, 1, relation.Membership.DetachPending); err != nil {
 				return nil, err
 			}
 		}
 		// SQLIndex.Parent identifies the indexed table, not an inheritance edge.
 		if relation.SQLIndex != nil && relation.SQLIndex.PartitionParent.ObjectID != 0 {
-			if err := emit(relation.Address().ObjectID, relation.SQLIndex.PartitionParent.ObjectID, 1); err != nil {
+			if err := emit(relation.Address().ObjectID, relation.SQLIndex.PartitionParent.ObjectID, 1, false); err != nil {
 				return nil, err
 			}
 		}

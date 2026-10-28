@@ -38,6 +38,8 @@ type PartitionMembership struct {
 	DefaultBound       bool
 	Lower, Upper       []PartitionDatum
 	Values             []PartitionDatum
+	// DetachPending belongs to the immediate table edge, never index ancestry.
+	DetachPending bool
 }
 
 // PartitionKeyDependsOn reports whether relation's partition key uses target:

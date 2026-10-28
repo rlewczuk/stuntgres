@@ -176,7 +176,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			captured := partition.CaptureCatalog(e.CatalogRead(), reader.PartitionRelations)
+			captured := partition.CaptureCatalog(e.CatalogRead(), reader.PartitionRelations, reader.PendingDetachSnapshot())
 			var admitted, fresh []ids.ObjectAddress
 			if err := partition.PhysicalDescendants(captured, captured.MustRelation(parent.Address()), func(d *catalog.Relation) error { admitted = append(admitted, d.Address()); return nil }); err != nil {
 				t.Fatal(err)

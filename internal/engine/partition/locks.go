@@ -37,6 +37,24 @@ func WriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) err
 // GiST CREATE admission uses only the captured method's native authority;
 // method and option diagnostics remain the ordinary index binder's responsibility.
 func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.Relation, replayAllowed func(parser.Statement, *catalog.Relation) bool) error {
+	if d.Membership != nil && d.Membership.DetachPending {
+		switch s := statement.(type) {
+		case *parser.AlterTable, *parser.AlterTableDefault, *parser.AlterTableAttachPartition, *parser.AlterTableOf:
+			return PendingDetachError(d, false)
+		case *parser.AlterTableDetachPartition:
+			if s.Mode != parser.DetachFinalize {
+				return PendingDetachError(d, false)
+			}
+		case *parser.AlterOwner:
+			if s.Kind == "table" {
+				return PendingDetachError(d, false)
+			}
+		case *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableSetSchema:
+			// Rename and namespace transfer are separate utility paths, not ATPrepCmd.
+			// Their ordinary identity/ownership executors retain the pending edge.
+			return nil
+		}
+	}
 	if !catalog.HierarchyRelation(d) {
 		return nil
 	}
@@ -152,31 +170,68 @@ func AppendCompatible(old, current *catalog.Relation) bool {
 	return old.Partition.DefaultChild == (ids.ObjectAddress{}) || old.Partition.DefaultChild == current.Partition.DefaultChild
 }
 
-// CaptureCatalog returns read with each admitted descriptor of the statement
-// (admitted, keyed by address) put back where the current descriptor is only
-// its append growth. One existing visibility capture owns the admitted
-// descriptors: metadata is copied only when actual concurrent append growth
-// occurred, never on the normal path.
-func CaptureCatalog(read catalog.Read, admitted map[ids.ObjectAddress]*catalog.Relation) catalog.Read {
-	changed := false
+// PendingCompatible admits exactly the constructor's stamped first-phase
+// publication, including inherited CHECK propagation. Later revision clones,
+// final removal, imported graphs and unrelated same-shape replacements fail.
+func PendingCompatible(old, current *catalog.Relation) bool {
+	if old == nil || current == nil || current.History.DetachPredecessor != old ||
+		current.Revision() != current.History.DetachPublication ||
+		!catalog.RelationDefiningAuthorityCompatible(old, current) ||
+		old.RelationKind != current.RelationKind || old.Partition != current.Partition ||
+		old.Inheritance != current.Inheritance || old.Membership == nil || current.Membership == nil {
+		return false
+	}
+	a, b := old.Membership, current.Membership
+	root := current.History.DetachRoot
+	if root == (ids.ObjectAddress{}) || current.Address() == root && !b.DetachPending ||
+		current.Address() != root && a != b {
+		return false
+	}
+	if a.DetachPending || a.Parent != b.Parent || a.Strategy != b.Strategy || a.DefaultBound != b.DefaultBound ||
+		a.Modulus != b.Modulus || a.Remainder != b.Remainder ||
+		len(a.Lower) != len(b.Lower) || len(a.Upper) != len(b.Upper) || len(a.Values) != len(b.Values) {
+		return false
+	}
+	return (len(a.Lower) == 0 || &a.Lower[0] == &b.Lower[0]) &&
+		(len(a.Upper) == 0 || &a.Upper[0] == &b.Upper[0]) &&
+		(len(a.Values) == 0 || &a.Values[0] == &b.Values[0])
+}
+
+// CaptureCatalog pins admitted append-growth descriptors and derives the same
+// pending-edge topology used by lock discovery and routing. Snapshot authority
+// is restricted to current pending-edge eligibility, never name resolution.
+func CaptureCatalog(read catalog.Read, admitted map[ids.ObjectAddress]*catalog.Relation, snapshot *catalog.State) catalog.Read {
+	var state *catalog.State
 	for address, captured := range admitted {
 		current, _ := read.Relation(address)
-		if current != captured && AppendCompatible(captured, current) {
-			changed = true
-			break
+		selected := current
+		if current != captured && (AppendCompatible(captured, current) || PendingCompatible(captured, current)) {
+			selected = captured
+		}
+		if selected == nil {
+			continue
+		}
+		if selected.Partition != nil {
+			children := EffectiveChildren(read, selected, snapshot)
+			if len(children) != len(selected.Partition.Children) {
+				next, definition := *selected, *selected.Partition
+				definition.Children = children
+				next.Partition = &definition
+				selected = &next
+			}
+		}
+		if selected != current {
+			if state == nil {
+				next := *read.State()
+				state = &next
+			}
+			state.SetDescriptor(address, selected)
 		}
 	}
-	if !changed {
+	if state == nil {
 		return read
 	}
-	state := *read.State()
-	for address, captured := range admitted {
-		current, _ := read.Relation(address)
-		if current != captured && AppendCompatible(captured, current) {
-			state.SetDescriptor(address, captured)
-		}
-	}
-	return read.WithState(&state)
+	return read.WithState(state)
 }
 
 // Ancestors returns the ancestors of ref in view, root first, for the caller

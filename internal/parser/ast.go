@@ -697,11 +697,21 @@ type AlterTableAttachPartition struct {
 
 func (*AlterTableAttachPartition) statement() {}
 
+type PartitionDetachMode uint8
+
+const (
+	DetachOrdinary PartitionDetachMode = iota
+	DetachConcurrent
+	DetachFinalize
+)
+
 // DETACH removes only an existing immediate partition edge.
 type AlterTableDetachPartition struct {
 	Name, Partition ObjectName
 	IfExists, Only  bool
 	Pos, DetachPos  Position
+	Mode            PartitionDetachMode
+	ModePos         Position
 }
 
 func (*AlterTableDetachPartition) statement() {}

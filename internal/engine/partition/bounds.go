@@ -79,10 +79,17 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 			}
 		}
 		seen := make(map[ids.ObjectAddress]bool, len(p.Children))
+		pending := false
 		for i, a := range p.Children {
 			child, ok := view.Relation(a)
 			if !ok || seen[a] || child.Membership == nil || child.Membership.Parent != d.Address() {
 				return invalid()
+			}
+			if child.Membership.DetachPending {
+				if pending || child.Membership.DefaultBound || p.DefaultChild != (ids.ObjectAddress{}) {
+					return invalid()
+				}
+				pending = true
 			}
 			seen[a] = true
 			if child.Membership.Strategy != p.Strategy {
@@ -164,6 +171,22 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 		parent, ok := view.Relation(membership.Parent)
 		if !ok || parent.Partition == nil || !slices.Contains(parent.Partition.Children, d.Address()) || len(parent.Columns) != len(d.Columns) {
 			return invalid()
+		}
+		// A pending publication replaces only the child descriptor. Validate
+		// the parent-wide restriction here too: an unchanged parent need not
+		// appear in the stage's descriptor-validation set.
+		if membership.DetachPending {
+			if membership.DefaultBound || parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
+				return invalid()
+			}
+			for _, address := range parent.Partition.Children {
+				if address == d.Address() {
+					continue
+				}
+				if sibling, exists := view.Relation(address); exists && sibling.Membership != nil && sibling.Membership.DetachPending {
+					return invalid()
+				}
+			}
 		}
 		parentNamespace, parentExists := view.Namespace(parent.Namespace())
 		childNamespace, childExists := view.Namespace(d.Namespace())

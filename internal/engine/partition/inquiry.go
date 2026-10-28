@@ -25,11 +25,11 @@ func inquiryRelation(view catalog.Read, address ids.ObjectAddress) (*catalog.Rel
 		return relation, parent, partitioned, partitioned || parent.ObjectID != 0
 	}
 	parent := ids.ObjectAddress{}
-	if relation.Membership != nil {
+	if relation.Membership != nil && !relation.Membership.DetachPending {
 		parent = relation.Membership.Parent
 	}
 	partitioned := relation.Partition != nil
-	return relation, parent, partitioned, partitioned || parent.ObjectID != 0
+	return relation, parent, partitioned, partitioned || relation.Membership != nil
 }
 
 func inquiryResult(view catalog.Read, result *sqltype.Descriptor, tree bool) error {
@@ -123,7 +123,7 @@ func TreeValues(ctx context.Context, view catalog.Read, oid uint32, result *sqlt
 		if indexChildren != nil {
 			children = indexChildren[at.address]
 		} else if r.Partition != nil {
-			children = r.Partition.Children
+			children = EffectiveChildren(view, r, nil)
 		}
 		for _, child := range children {
 			pending = append(pending, entry{child, at.level + 1})

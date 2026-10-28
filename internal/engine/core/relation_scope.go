@@ -457,8 +457,10 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return err
 		}
 	case *parser.Select, *parser.Insert:
-		if err = s.AcquirePartitionDescendants(ref, lock.AccessShare); err != nil {
-			return err
+		if !table.SourceOnly(stmt) {
+			if err = s.AcquirePartitionDescendants(ref, lock.AccessShare); err != nil {
+				return err
+			}
 		}
 	case *parser.Update:
 		if !creation.Only {
@@ -667,7 +669,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	}
 	for address, captured := range s.PartitionRelations {
 		current, _ := view.Relation(address)
-		if current != captured && !partition.AppendCompatible(captured, current) {
+		if current != captured && !partition.AppendCompatible(captured, current) && !partition.PendingCompatible(captured, current) {
 			return ids.ErrCatalogReplaced
 		}
 	}

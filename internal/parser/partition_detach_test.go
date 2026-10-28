@@ -2,7 +2,6 @@ package parser
 
 import (
 	"errors"
-	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -28,20 +27,40 @@ func TestPartitionDetachAST(t *testing.T) {
 }
 
 func TestPartitionDetachExcludedSyntax(t *testing.T) {
-	for _, suffix := range []string{"CONCURRENTLY", "FINALIZE"} {
-		q := "ALTER TABLE parent DETACH PARTITION child " + suffix
-		_, err := Parse(q)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "DETACH PARTITION "+suffix+" is unsupported" || diagnostic.Position != strconv.Itoa(strings.Index(q, suffix)+1) {
-			t.Fatal(q, err)
-		}
-	}
 	for _, suffix := range []string{", ADD COLUMN k INT", " garbage"} {
 		q := "ALTER TABLE parent DETACH PARTITION child" + suffix
 		statements, err := Parse(q)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || len(statements) != 0 {
 			t.Fatal("whole-input parse admitted ordinary prefix", q, statements, err)
+		}
+	}
+}
+
+func TestPartitionDetachConcurrentAST(t *testing.T) {
+	for _, tc := range []struct {
+		suffix string
+		mode   PartitionDetachMode
+	}{{"CONCURRENTLY", DetachConcurrent}, {"FINALIZE", DetachFinalize}} {
+		q := `/*é*/ ALTER TABLE ONLY "schema"."Parent" DETACH PARTITION "schema"."Child" ` + tc.suffix
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+		d, ok := statements[0].(*AlterTableDetachPartition)
+		if !ok || d.Mode != tc.mode || !d.Only || d.Name.Parts[1].Text != "Parent" || d.Partition.Parts[1].Text != "Child" ||
+			d.ModePos.Character != utf8.RuneCountInString(q[:strings.LastIndex(q, tc.suffix)])+1 {
+			t.Fatal("mode/source ownership", statements[0])
+		}
+	}
+}
+
+func TestPartitionDetachConcurrentSyntax(t *testing.T) {
+	for _, suffix := range []string{"CONCURRENTLY CONCURRENTLY", "CONCURRENTLY FINALIZE", "FINALIZE CONCURRENTLY", "FINALIZE FINALIZE", "CONCURRENTLY, ADD COLUMN k INT", "FINALIZE garbage"} {
+		statements, err := Parse("ALTER TABLE parent DETACH PARTITION child " + suffix)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || len(statements) != 0 {
+			t.Fatal("executed valid prefix", suffix, statements, err)
 		}
 	}
 }

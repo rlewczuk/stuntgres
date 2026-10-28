@@ -60,7 +60,7 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 	if err != nil {
 		return nil, err
 	}
-	auth.Recapture(partition.CaptureCatalog(s.inheritanceRead(e.PrivateCatalogLocked(s.PendingCatalog())), s.PartitionRelations))
+	auth.Recapture(partition.CaptureCatalog(s.inheritanceRead(e.PrivateCatalogLocked(s.PendingCatalog())), s.PartitionRelations, s.PendingDetachSnapshot()))
 	p.refs, err = e.QueryTableRefsLocked(auth, invoker, leaves, nil, s.Op.Session.SessionToken, inherited)
 	if err != nil {
 		return nil, err

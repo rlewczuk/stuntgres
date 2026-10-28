@@ -177,14 +177,14 @@ func (reg *Registry) DropSnapshotLocked(ref ids.TxRef) {
 	}
 }
 
-// An index publication phase retires advertisement, not its registered ticket.
+// A completed concurrent utility phase retires advertisement, not its ticket.
 // Preserve canonical assignment and its exact mirror association for later work.
 // Engine.mu is held; lifecycle end/abort/fence still remove the whole entry.
 func (reg *Registry) ResetPhaseLocked(ref ids.TxRef) {
 	if v, ok := reg.Entries[ref]; ok {
 		if v.Ticket != nil {
-			// These index-only hooks retire a completed internal publication
-			// phase. Final/prepared completion instead keeps manager ownership
+			// Completed concurrent index/detach publication phases retire advertisement.
+			// Final/prepared completion instead keeps manager ownership
 			// through end(), including the publication-to-notification interval.
 			v.Ticket.MirrorFullXID(v.FullXID)
 		}

@@ -41,6 +41,14 @@ func NormalizeReplacementSubclassHistory(ctx context.Context, view Read) error {
 		if !ok {
 			continue
 		}
+		if child.History.DetachPredecessor != nil || child.History.DetachPublication != 0 || child.History.DetachRoot != (ids.ObjectAddress{}) {
+			next := *child
+			next.History.DetachPredecessor = nil
+			next.History.DetachPublication = 0
+			next.History.DetachRoot = ids.ObjectAddress{}
+			child = &next
+			view.State().SetDescriptor(child.Address(), child)
+		}
 		if err := VisitSubclassParents(child, func(address ids.ObjectAddress) error {
 			parent, ok := view.Relation(address)
 			if !ok {

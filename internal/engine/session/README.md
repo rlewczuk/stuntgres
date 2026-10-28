@@ -293,6 +293,10 @@ nontransactional.
   keeps read-only/aborted-state precedence and current identity checks. These
   directives do not widen existing role lifecycle/membership, ownership or
   ALTER SYSTEM policies; SQL PREPARE of these utilities remains excluded.
+  `EarlyStandaloneUtility` also places CONCURRENTLY detach's block refusal before
+  relation admission. FINALIZE remains an ordinary transactional schema utility.
+  Concurrent detach uses independent publication phases, not the lexical event
+  utility's one journal, following concurrent-index ownership.
 - **Protocol codec** (`protocol_values.go`, `protocol_statement.go`): the wire
   value types `ProtocolInput`, `ProtocolLogParameter`, `ProtocolContext` and
   `ProtocolField`; format decoding (`ProtocolFormats`,
@@ -387,6 +391,9 @@ nontransactional.
   `Engine.Mu` after its epoch checks and snapshot step and passes it by
   pointer; `SameLineage` and `SameRowShape` are static func fields because
   `session` imports neither `view` nor `index`.
+  The existing stable owner's `SequenceCatalog` is shared with the core's narrow
+  pending-detach eligibility accessor. It does not become general name-resolution
+  or permission authority, and no second snapshot catalog is retained.
 - **Fences** (`fence.go`, `journal_fences.go`): `Fence` with `Kind()`, and
   three session kinds with their fences: `FenceStorageRead`
   (`StorageReadFence`), `FenceIndexSet` (`IndexSetFence`) and `FenceNamespace`

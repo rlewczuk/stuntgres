@@ -87,7 +87,7 @@ func (s *StatementScope) ObservePartitionRelationLocked(e *Engine, ref ids.Objec
 	if !ok || ref.Domain() != e.Catalog.Domain || ref.Epoch != view.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if old := s.PartitionRelations[ref.Address]; old != nil && old != d && !partition.AppendCompatible(old, d) {
+	if old := s.PartitionRelations[ref.Address]; old != nil && old != d && !partition.AppendCompatible(old, d) && !partition.PendingCompatible(old, d) {
 		return ids.ErrCatalogReplaced
 	}
 	if catalog.HierarchyRelation(d) && s.PartitionRelations[ref.Address] == nil {
@@ -139,6 +139,9 @@ func (s *StatementScope) AcquirePartitionDescendants(ref ids.ObjectRef, mode loc
 			d = captured
 		}
 		children = d.Partition.Children
+		if mode == lock.AccessShare || mode == lock.RowExclusive {
+			children = partition.EffectiveChildren(catalog, d, s.PendingDetachSnapshot())
+		}
 	}
 	e.Mu.Unlock()
 	for _, address := range children {

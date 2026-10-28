@@ -105,7 +105,7 @@ type Ticket struct {
 	persistent         bool
 	detached           bool // prepared transaction: independent of its former physical session
 	resources          map[Resource]struct{}
-	assignedXID        uint32 // sync/atomic only: canonical TX mirror; end or completed index phase retires ownership
+	assignedXID        uint32 // sync/atomic only: canonical TX mirror; end/completed utility phase retires ownership
 	fullXID            uint64 // sync/atomic only: exact canonical phase identity, not an allocator.
 	ended              uint32 // sync/atomic only: ownership retirement, readable without manager.mu.
 	completion         uint32 // sync/atomic only: transactionIdentityState before ownership release.

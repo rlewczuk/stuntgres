@@ -40,6 +40,10 @@ it. It never builds a binder.
   retirement. Recursive constraints and backing indexes are not SQL roots.
 - **Proofs** (`proof.go`, `retained_checks.go`): `ConstraintProven` lets ATTACH
   skip its scan; `RetainedChecks.ForRow` picks CHECKs for hash-remap repair.
+  RANGE/LIST concurrent-detach CHECK reconstruction selects the saved opclass's
+  actual family operators, typed datums and binary-compatible input adapters;
+  the ordinary CHECK binder owns cooking, dependencies and recursive propagation.
+  The same conservative implication engine validates restored pending bounds.
 - **Dump and replay** (`dump*.go`, `*_dump.go`, `replacement.go`, `replay.go`):
   SQL builders, `DumpEvents` (over the root's `dump.Resolver`), hash-remap
   repair (`RepairRemappedHash` returns moves without changing storage) and the
@@ -49,6 +53,16 @@ it. It never builds a binder.
   `pg_partition_root` results from the statement's captured `catalog.Read`.
   The result descriptor must belong to that catalog. Index trees follow only
   index attachment edges; a childless partitioned relation is not a leaf.
+  Canonical pending membership remains a dependency edge. Fresh table inquiry
+  traversal omits pending branches and treats a pending child as its own root.
+  Scan/routing eligibility alone may retain the edge from an older stable
+  snapshot; `EffectiveChildren` never resurrects a fully removed edge.
+  Incomplete-detach ALTER admission guards the target's immediate edge, not all
+  descendants or ATTACH candidates. Rename and namespace transfer are separate
+  utility paths and preserve membership identity.
+  Descriptor validation enforces the single-pending/no-DEFAULT invariant from
+  either side of the edge, including a stage replacing only the child while its
+  parent's descriptor remains unchanged.
 
 ## Host and lock contract
 
@@ -143,11 +157,16 @@ adapter; `partition_info_runtime.go` holds the
   nonlocal facts while retaining their real identities and enforcement.
 - **Lock order.** ATTACH: the parent keeps SHARE UPDATE EXCLUSIVE; the
   candidate, its descendants and the incumbent DEFAULT take ACCESS EXCLUSIVE.
-  DETACH: parent, incumbent DEFAULT, candidate, then descendants, all ACCESS
-  EXCLUSIVE. Real waits run without `Engine.Mu`.
+  Ordinary DETACH uses parent, incumbent DEFAULT, candidate and descendants,
+  all ACCESS EXCLUSIVE. Concurrent phase one uses parent/child SUE; finalization
+  uses parent SUE then child/descendant AX. Real waits run without `Engine.Mu`.
 - **Constraint origins.** CHECK/NOT NULL descriptors own exact `PartitionOrigin`
   metadata (CREATE and ATTACH populate it, DETACH removes the top contribution);
   catalog output never infers locality from a matching parent name.
+  Pending publication retains those identities and index ancestry. Its exact
+  predecessor/revision/root stamp permits only that one CHECK/pending transition
+  across admitted-reader fences. Later revisions fail automatically; finalization
+  clears this edge's proof, and replacement/import never carries it forward.
 - **Partitioned exclusions.** ATTACH clones a fresh inherited graph; DETACH
   makes crossing providers local; DROP follows inherited edges only. Coverage
   rules are in the [`index` README](../index/README.md).

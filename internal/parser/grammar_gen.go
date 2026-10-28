@@ -26616,8 +26616,7 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[4].tok)
 				return 1
 			}
-			sqllex.(*lexer).failAt("0A000", "DETACH PARTITION CONCURRENTLY is unsupported", sqlDollar[7].tok.pos.Offset)
-			return 1
+			sqlVAL.stmt = &AlterTableDetachPartition{Name: sqlDollar[3].alterTarget.Name, Partition: sqlDollar[6].objectName, IfExists: sqlDollar[3].alterTarget.IfExists, Only: sqlDollar[3].alterTarget.Only, Pos: sqlDollar[1].tok.pos, DetachPos: sqlDollar[4].tok.pos, Mode: DetachConcurrent, ModePos: sqlDollar[7].tok.pos}
 		}
 	case 1690:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
@@ -26626,13 +26625,13 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[7].tok)
 				return 1
 			}
-			sqllex.(*lexer).failAt("0A000", "DETACH PARTITION FINALIZE is unsupported", sqlDollar[7].tok.pos.Offset)
-			return 1
+			sqlVAL.stmt = &AlterTableDetachPartition{Name: sqlDollar[3].alterTarget.Name, Partition: sqlDollar[6].objectName, IfExists: sqlDollar[3].alterTarget.IfExists, Only: sqlDollar[3].alterTarget.Only, Pos: sqlDollar[1].tok.pos, DetachPos: sqlDollar[4].tok.pos, Mode: DetachFinalize, ModePos: sqlDollar[7].tok.pos}
 		}
 	case 1691:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			if _, ok := sqlDollar[1].stmt.(*AlterTableRenameConstraint); ok {
+			_, detach := sqlDollar[1].stmt.(*AlterTableDetachPartition)
+			if _, ok := sqlDollar[1].stmt.(*AlterTableRenameConstraint); ok || detach {
 				sqllex.(*lexer).failAt("42601", "syntax error at or near \",\"", sqlDollar[2].tok.pos.Offset)
 			} else {
 				sqllex.(*lexer).failAt("0A000", "ALTER TABLE action lists are unsupported", sqlDollar[2].tok.pos.Offset)

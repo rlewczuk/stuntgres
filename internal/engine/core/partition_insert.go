@@ -9,7 +9,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	if !catalog.HierarchyRelation(target) {
 		return nil
 	}
-	read := partition.CaptureCatalog(auth.Catalog, s.PartitionRelations)
+	read := partition.CaptureCatalog(auth.Catalog, s.PartitionRelations, s.PendingDetachSnapshot())
 	target = read.MustRelation(target.Address())
 	state, err := partition.CaptureInsertLocked(read, auth.View, auth, target, func() error {
 		if s.Output.RegTS != nil {

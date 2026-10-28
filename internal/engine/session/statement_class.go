@@ -347,12 +347,14 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 	return false
 }
 
-// Only index utilities have a syntax-only Describe and an early Execute gate.
-// Other utility admission precedence is deliberately unchanged.
-func EarlyIndexUtility(stmt parser.Statement) bool {
-	switch stmt.(type) {
+// EarlyStandaloneUtility identifies syntax-only utilities whose transaction
+// refusal must precede relation waits; other admission precedence is unchanged.
+func EarlyStandaloneUtility(stmt parser.Statement) bool {
+	switch s := stmt.(type) {
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
 		return true
+	case *parser.AlterTableDetachPartition:
+		return s.Mode == parser.DetachConcurrent
 	}
 	return false
 }

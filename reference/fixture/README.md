@@ -134,6 +134,11 @@ production dependency is involved.
   Capture PostgreSQL PIDs before starting a worker; never query its busy Conn.
   The supplied completion signal fails premature native completion; callers
   retain `LockOperation`'s cancellation/join ownership on every exit.
+  `PartitionDetachPending` additionally requires committed `inhdetachpending`,
+  a real virtual-completion wait, and no PostgreSQL parent AX request.
+  `VirtualCompletionPending` observes an exact PostgreSQL virtualxid/blocker
+  pair or the managed native worker's canonical `WaitTransaction` frame; it also
+  covers FINALIZE's older-snapshot wait without assuming a relation lock.
   `ObjectLockPending` observes the actual dependency endpoint class/OID/subobject,
   requested mode and blocker, never a synthetic relation or name-conflict tag.
   Native admission additionally requires the parked manager/worker stack and

@@ -287,6 +287,32 @@ DROP NOT NULL recapture uses the table owner's shared NN selector rather than a
 column-name deletion heuristic. Removing this relation's NN fact does not erase
 another relation/domain reservation, and absent facts do not manufacture removals.
 
+## Pending partition detach ownership
+
+`PartitionRelations` retains canonical admitted descriptors. Query lock discovery,
+leaf capture, pruning and routing derive one effective pending-edge topology;
+catalog membership, bounds and dependency provenance remain canonical until
+finalization. `PendingDetachSnapshot` borrows the existing stable owner's
+`SequenceCatalog` solely for pending-edge eligibility. Fresh/RC-next commands
+exclude pending branches; an older stable snapshot may retain them, never an
+edge already removed or an identity recreated in another epoch.
+`ONLY` source admission locks the named relation without descendants, so a
+parent-only cohort holder does not also prevent pending-child rename/schema
+transfer through an unintended child AccessShare grant.
+
+The first concurrent utility publication is irreversible and retires its snapshot
+advertisement and SUE relation grants before waiting a frozen parent-holder
+cohort. Canonical `WaitTransaction(..., CompletionVirtual)` owns cancellation,
+timeout and replacement fencing; no parent AX or second completion registry is
+introduced. The second phase reopens exact refs and publishes ordinary teardown.
+FINALIZE instead stages transactional teardown after child AX and older-snapshot
+waits, preserving COMMIT/ROLLBACK/savepoint semantics.
+
+Reader admission accepts only the exact predecessor plus final revision stamp
+issued by the pending/CHECK constructor. Later revisions do not inherit that
+permission. Finalization clears this edge's transient proofs; replacement clears
+all source proofs without changing persistent pending membership.
+
 ## Hooks
 
 `NewEngine` (`engine.go`) seeds one engine's state: the stores, settings,

@@ -302,6 +302,14 @@ func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error
 	return session.ReadOnlyRefusal(stmt, s.Op.EffectiveReadOnly())
 }
 func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
+	if detach, ok := stmt.(*parser.AlterTableDetachPartition); ok && detach.Mode == parser.DetachConcurrent {
+		s.Owner.Mu.Lock()
+		inBlock := s.Owner.InBlock()
+		s.Owner.Mu.Unlock()
+		if inBlock {
+			return SQLError("25001", "ALTER TABLE ... DETACH CONCURRENTLY cannot run inside a transaction block")
+		}
+	}
 	if !session.ExplicitUtility(stmt) || session.TransactionalSchemaUtility(stmt) || transactionalIndexMaintenance(stmt) || transactionalRoleUtility(stmt) || s.partitionIndexTransaction(stmt) {
 		return nil
 	}

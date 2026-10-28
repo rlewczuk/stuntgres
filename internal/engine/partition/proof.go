@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -80,9 +79,9 @@ func ProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *ProofGoal
 }
 
 func ConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
-	// Range endpoint implication does not prove LIST or seeded HASH membership.
-	// Private replay attachment uses ordinary full-row validation instead.
-	if bound.Strategy != parser.PartitionRange {
+	// HASH qualifications retain parent identity and are never replacement CHECKs.
+	// Complement/default LIST implication is deliberately left to row validation.
+	if bound.Strategy == parser.PartitionHash || bound.Strategy == parser.PartitionList && (exclude || bound.DefaultBound) {
 		return false, ctx.Err()
 	}
 	var keys [32]expr.Expr
@@ -115,6 +114,19 @@ func ConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view 
 	}
 	proof := prover{view: view, ctx: ctx, input: input, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
 	goalFor := func(membership *catalog.PartitionMembership, complement bool) (*ProofGoal, bool) {
+		if membership.Strategy == parser.PartitionList {
+			goal := &ProofGoal{Op: "false"}
+			nullable := false
+			for _, datum := range membership.Values {
+				if datum.Value.IsNull() {
+					goal = proofOr(goal, &ProofGoal{Op: "null", key: 0})
+					nullable = true
+				} else {
+					goal = proofOr(goal, &ProofGoal{Op: "=", key: 0, value: datum.Value})
+				}
+			}
+			return goal, nullable
+		}
 		if complement {
 			return proofOr(ProofTuple(membership.Lower, 0, false), ProofTuple(membership.Upper, 0, true)), true
 		}
@@ -132,14 +144,16 @@ func ConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view 
 			goal = proofAnd(goal, part)
 		}
 	} else {
-		goal, _ = goalFor(bound, exclude)
+		var nullable bool
+		goal, nullable = goalFor(bound, exclude)
+		nullAllowed = nullAllowed || nullable
 	}
 	if goal.Op == "true" && nullAllowed {
 		return true, nil
 	}
 	if !nullAllowed {
-		for _, key := range proof.keys {
-			if !proof.nonNull(key) {
+		for at := range proof.keys {
+			if !proof.nonNull(at) {
 				return false, nil
 			}
 		}
@@ -161,7 +175,8 @@ func proofSame(a, b expr.Expr) bool {
 	return binder.SameGroupExpression(a, b)
 }
 
-func (p *prover) nonNull(key expr.Expr) bool {
+func (p *prover) nonNull(at int) bool {
+	key := p.keys[at]
 	if column, ok := key.(plan.ColumnExpr); ok {
 		for _, constraint := range p.relation.Constraints.NotNull {
 			if constraint.Attribute == column.Origin.Address.SubID && !constraint.NotValid {
@@ -170,23 +185,23 @@ func (p *prover) nonNull(key expr.Expr) bool {
 		}
 	}
 	for _, check := range p.relation.Constraints.Check {
-		if !check.NotValid && checkNonNull(check.Expression, key) {
+		if !check.NotValid && !check.NotEnforced && p.checkNonNull(check.Expression, at) {
 			return true
 		}
 	}
 	return false
 }
 
-func checkNonNull(node, key expr.Expr) bool {
+func (p *prover) checkNonNull(node expr.Expr, at int) bool {
 	switch e := node.(type) {
 	case plan.NullTestExpr:
-		return e.Not && proofSame(e.Child, key)
+		return e.Not && p.sameKey(e.Child, at)
 	case plan.LogicalExpr:
 		if e.Op == parser.LogicalAnd {
-			return checkNonNull(e.Left, key) || checkNonNull(e.Right, key)
+			return p.checkNonNull(e.Left, at) || p.checkNonNull(e.Right, at)
 		}
 		if e.Op == parser.LogicalOr {
-			return checkNonNull(e.Left, key) && checkNonNull(e.Right, key)
+			return p.checkNonNull(e.Left, at) && p.checkNonNull(e.Right, at)
 		}
 	}
 	return false
@@ -207,7 +222,7 @@ func (p *prover) implies(goal *ProofGoal) (bool, error) {
 		return p.implies(goal.Right)
 	}
 	for _, check := range p.relation.Constraints.Check {
-		if check.NotValid {
+		if check.NotValid || check.NotEnforced {
 			continue
 		}
 		ok, err := p.fact(check.Expression, goal)
@@ -266,23 +281,32 @@ func (p *prover) fact(node expr.Expr, goal *ProofGoal) (bool, error) {
 		return truth == plan.False, err
 	}
 	if e, ok := node.(plan.NullTestExpr); ok {
-		for _, key := range p.keys {
-			if proofSame(e.Child, key) {
-				return !e.Not, nil
-			}
+		if !p.sameKey(e.Child, goal.key) {
+			return false, nil
 		}
+		if goal.Op == "null" {
+			return !e.Not, nil
+		}
+		// IS NULL is a contradiction only in a separately proven non-NULL domain.
+		return !e.Not && p.nonNull(goal.key), nil
+	}
+	if goal.Op == "null" {
 		return false, nil
 	}
-	e, ok := node.(plan.ComparisonExpr)
+	left, right, operator, ok := p.comparison(node, goal.key)
 	if !ok || goal.Op == "false" {
 		return false, nil
 	}
-	key := p.keys[goal.key]
-	operator := e.Operator
-	literal, matched := e.Right.(plan.LiteralExpr)
-	if !proofSame(e.Left, key) || !matched {
-		literal, matched = e.Left.(plan.LiteralExpr)
-		if !matched || !proofSame(e.Right, key) {
+	literal, matched, err := p.comparisonLiteral(right, goal.key)
+	if err != nil {
+		return false, err
+	}
+	if !p.sameKey(left, goal.key) || !matched {
+		literal, matched, err = p.comparisonLiteral(left, goal.key)
+		if err != nil {
+			return false, err
+		}
+		if !matched || !p.sameKey(right, goal.key) {
 			return false, nil
 		}
 		switch operator {
@@ -298,19 +322,6 @@ func (p *prover) fact(node expr.Expr, goal *ProofGoal) (bool, error) {
 	}
 	entry := p.entries[goal.key]
 	if literal.Value.IsNull() || literal.Value.Type() != entry.Usage.Type {
-		return false, nil
-	}
-	// A custom index ordering is not automatically the CHECK operator's family.
-	class, supported := p.view.UniqueDefaultIndexClass(403, entry.Usage.Type)
-	if !supported {
-		return false, nil
-	}
-	ordering, err := routine.BindIndexOrdering(p.view, entry.Usage, class)
-	if err != nil || !ordering.SameOperation(entry.Comparison) {
-		return false, nil
-	}
-	collation, indeterminate := e.Predicate.InputCollation()
-	if indeterminate || collation.ID != entry.Usage.Collation.ID {
 		return false, nil
 	}
 	order := 0

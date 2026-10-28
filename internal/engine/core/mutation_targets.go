@@ -64,7 +64,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 		}
 		var err error
 		if root.Partition != nil {
-			captured := partition.CaptureCatalog(view, s.PartitionRelations)
+			captured := partition.CaptureCatalog(view, s.PartitionRelations, s.PendingDetachSnapshot())
 			err = partition.PhysicalDescendants(captured, captured.MustRelation(root.Address()), collect)
 		} else {
 			err = table.InheritanceQueryClosure(view, root, s.Op.Session.SessionToken, collect)

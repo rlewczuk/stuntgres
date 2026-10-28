@@ -61,6 +61,12 @@ func (m *Manager) TransactionTicket(ref ids.TxRef) *Ticket {
 // Capturing granted holders is not an acquisition of Share: later writers stay
 // admissible and cannot be appended to this exact transaction cohort.
 func (m *Manager) IndexWriters(ticket *Ticket, parent ids.ObjectRef) ([]*Ticket, error) {
+	return m.RelationHolders(ticket, parent, Share)
+}
+
+// RelationHolders freezes the current conflicting granted owners without
+// acquiring or queuing the requested mode. Later holders never join this cohort.
+func (m *Manager) RelationHolders(ticket *Ticket, parent ids.ObjectRef, conflict Mode) ([]*Ticket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.valid(ticket) || ticket.persistent || parent.Domain() != ticket.ref.Domain() || parent.Epoch != ticket.ref.Epoch() {
@@ -69,7 +75,7 @@ func (m *Manager) IndexWriters(ticket *Ticket, parent ids.ObjectRef) ([]*Ticket,
 	var cohort []*Ticket
 	if entry := m.entries[Resource{ObjectRef: parent}]; entry != nil {
 		for owner, mode := range entry.holders {
-			if !sameLockSession(owner, ticket) && m.valid(owner) && Conflicts(Share, mode.Mode) {
+			if !sameLockSession(owner, ticket) && m.valid(owner) && Conflicts(conflict, mode.Mode) {
 				cohort = append(cohort, owner)
 			}
 		}

@@ -33,21 +33,21 @@ type restoreRun struct {
 	statements []parser.Statement
 
 	// Records decoded from the script's line comments.
-	domainReplays         []typedef.PositionedDomainReplay
-	domainReplayPairs     map[*parser.Insert]typedef.DomainReplayRecord
-	domainDefaults        []typedef.PositionedDomainDefault
-	domainDefaultPairs    map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
-	triggerClones         []stored.PositionedTriggerClone
-	triggerClonePairs     map[*parser.CreateTrigger]stored.TriggerCloneReplay
-	triggerCloneCaptures  []viewcmds.RestoredTriggerClone
-	foreignKeyModes       []stored.PositionedForeignKeyMode
+	domainReplays           []typedef.PositionedDomainReplay
+	domainReplayPairs       map[*parser.Insert]typedef.DomainReplayRecord
+	domainDefaults          []typedef.PositionedDomainDefault
+	domainDefaultPairs      map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
+	triggerClones           []stored.PositionedTriggerClone
+	triggerClonePairs       map[*parser.CreateTrigger]stored.TriggerCloneReplay
+	triggerCloneCaptures    []viewcmds.RestoredTriggerClone
+	foreignKeyModes         []stored.PositionedForeignKeyMode
 	foreignKeySnapshotValid bool
-	extensionOwners       []extension.OwnerRecord
-	snapshots             []view.MaterializedSnapshot
-	extendedStatistics    []storage.ExtendedStatisticsSnapshot
-	comparison            control.ComparisonRestore
-	attributePairs        control.AttributeConstructorPairs
-	attributeConstructors map[control.AttributeDropTarget]ids.ObjectRef
+	extensionOwners         []extension.OwnerRecord
+	snapshots               []view.MaterializedSnapshot
+	extendedStatistics      []storage.ExtendedStatisticsSnapshot
+	comparison              control.ComparisonRestore
+	attributePairs          control.AttributeConstructorPairs
+	attributeConstructors   map[control.AttributeDropTarget]ids.ObjectRef
 
 	// Table, NOT NULL and foreign key captures.
 	pendingForeignKeys      []table.RestoredForeignKeys
@@ -66,6 +66,7 @@ type restoreRun struct {
 
 	// Partition captures.
 	partitionTeardowns map[ids.ObjectAddress]partition.ReplayTeardown
+	pendingDetaches    []partition.PendingDetachReplay
 
 	// Owner directives: the last owner directive's principal, the owner a
 	// following CREATE inherits, and the owner pairs a following ALTER OWNER

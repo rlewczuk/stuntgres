@@ -354,8 +354,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (Description, error) {
 		// precedence and persistent-DDL exclusions only when actually executing.
 		return s.Engine().describeOperation(s, stmt)
 	}
-	indexBuild := session.EarlyIndexUtility(stmt)
-	if !queryCreation && s.Owner.State == session.TxActive && session.ExplicitUtility(stmt) && !indexBuild {
+	standalone := session.EarlyStandaloneUtility(stmt)
+	if !queryCreation && s.Owner.State == session.TxActive && session.ExplicitUtility(stmt) && !standalone {
 		return Description{}, session.UnsupportedInBlockError()
 	}
 	if err := s.AcquireRelation(stmt, false); err != nil {
@@ -560,9 +560,9 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		}
 		return s.Engine().executeStatement(s, stmt, count, importFrame)
 	}
-	indexBuild := session.EarlyIndexUtility(stmt)
+	standalone := session.EarlyStandaloneUtility(stmt)
 	_, refreshing := stmt.(*parser.RefreshMaterializedView)
-	earlyEligibility := indexBuild || queryCreation || refreshing
+	earlyEligibility := standalone || queryCreation || refreshing
 	if earlyEligibility && !queryCreation {
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err

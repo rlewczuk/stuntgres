@@ -2521,14 +2521,15 @@ alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { fo
    }
  | ALTER TABLE rename_target KW_U PARTITION relation_name CONCURRENTLY {
      if $4.text!="detach" {sqllex.(*lexer).syntax($4);return 1}
-     sqllex.(*lexer).failAt("0A000","DETACH PARTITION CONCURRENTLY is unsupported",$7.pos.Offset);return 1
+     $$=&AlterTableDetachPartition{Name:$3.Name,Partition:$6,IfExists:$3.IfExists,Only:$3.Only,Pos:$1.pos,DetachPos:$4.pos,Mode:DetachConcurrent,ModePos:$7.pos}
    }
  | ALTER TABLE rename_target KW_U PARTITION relation_name KW_U {
      if $4.text!="detach" || $7.text!="finalize" {sqllex.(*lexer).syntax($7);return 1}
-     sqllex.(*lexer).failAt("0A000","DETACH PARTITION FINALIZE is unsupported",$7.pos.Offset);return 1
+     $$=&AlterTableDetachPartition{Name:$3.Name,Partition:$6,IfExists:$3.IfExists,Only:$3.Only,Pos:$1.pos,DetachPos:$4.pos,Mode:DetachFinalize,ModePos:$7.pos}
    }
  | alter_rename_single ',' {
-     if _,ok:=$1.(*AlterTableRenameConstraint);ok {
+     _,detach:=$1.(*AlterTableDetachPartition)
+     if _,ok:=$1.(*AlterTableRenameConstraint);ok || detach {
        sqllex.(*lexer).failAt("42601","syntax error at or near \",\"",$2.pos.Offset)
      } else {
        sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset)

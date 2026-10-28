@@ -24,7 +24,7 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 			only = leaf.Only
 		}
 	}
-	read := partition.CaptureCatalog(r.scope.inheritanceRead(r.auth.Catalog), r.scope.PartitionRelations)
+	read := partition.CaptureCatalog(r.scope.inheritanceRead(r.auth.Catalog), r.scope.PartitionRelations, r.scope.PendingDetachSnapshot())
 	var rows float64
 	var names []string
 	var physicals []*catalog.Relation

@@ -125,6 +125,11 @@ type PublicationHistory struct {
 	HasSubclasses       bool      // Inheritance, table or index partition publication.
 	SubclassPredecessor *Relation // Exact first-subclass marker publication only.
 	SubclassPublication ids.DefinitionRevision
+	// Exact one-step pending-detach/CHECK publication proof. The revision stamp
+	// makes later ordinary clones fail even when they retain this history.
+	DetachPredecessor *Relation
+	DetachPublication ids.DefinitionRevision
+	DetachRoot        ids.ObjectAddress
 }
 
 func (d *Relation) Address() ids.ObjectAddress { return d.ObjectAddress }

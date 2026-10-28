@@ -32,6 +32,20 @@ and the partition parts of the DML path are core's.
   ticket in the order the [`partition` README](../partition/README.md#invariants)
   states; after each wait they recheck names, ownership and the locked
   relation under `Engine.Mu`, then stage and validate in one catalog stage.
+  CONCURRENTLY instead owns parent/child SUE in phase one, publishes the pending
+  edge and bound CHECK irreversibly, retires those phase grants, then waits a
+  frozen AX-conflicting parent-holder cohort without requesting parent AX.
+  Its second phase reopens the exact identities with parent SUE and child/
+  descendant AX and publishes shared teardown. Cancellation after the first
+  publication leaves pending state, never a successful or background completion.
+  FINALIZE uses parent SUE and child/descendant AX, waits older snapshots through
+  canonical virtual completion, and stages ordinary transactional teardown.
+  Explicit rollback/savepoint rollback therefore preserves committed pending state.
+  Between phases, saved refs—not old lexical names—select the original objects.
+  Legal pending-child rename/schema transfer survives reopen; an old name reused
+  by a replacement never redirects the operation. Pending ATPrepCmd alterations
+  (including OWNER and nested ATTACH/DETACH) are refused on that immediate target;
+  the separate rename/schema paths keep their ordinary authority checks.
 - Restore hooks (the root's `restore_*.go`): the partition replays
   `BeginPartitionCheckReplay`, `BeginPartitionUniqueReplay` and
   `BeginPartitionUsingIndexReplay` record on the private import operation
@@ -52,6 +66,10 @@ and the partition parts of the DML path are core's.
   Partitioned roots and partition members retain their named-owner constructor
   replay, not this ordinary-table pair. A missing transfer remains ordinary SQL
   and gives no private authority.
+  `ImportPendingDetaches` is the final isolated Restore hook: it validates all
+  logical records and executable qualifications before one native pending-edge
+  stage. Only the genuine validated bootstrap import with captured parent/child
+  owners may use it; no public concurrent SQL or transient admission proof is replayed.
 
 ## Testing
 

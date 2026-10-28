@@ -353,7 +353,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 						source = &exec.Source{Ref: leaf.Ref, View: pin, Inheritance: []exec.InheritanceQuerySegment{}}
 					}
 				} else {
-					source, err = partition.CaptureQueryPrefix(partition.CaptureCatalog(scope.Inquiry.CommentCatalog, scope.PartitionRelations), catalogView, leaf.Ref, leaf.Relation)
+					source, err = partition.CaptureQueryPrefix(partition.CaptureCatalog(scope.Inquiry.CommentCatalog, scope.PartitionRelations, scope.PendingDetachSnapshot()), catalogView, leaf.Ref, leaf.Relation)
 				}
 			case catalog.TableRelation:
 				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.Inquiry.CommentCatalog), catalogView, leaf, scope.Op.Session.SessionToken)
@@ -407,7 +407,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 			e.initializeTemporarySourceLocked(scope, source)
 		}
 		if program == nil && !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
-			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.Inquiry.CommentCatalog), scope.PartitionRelations), leaf.Relation, source, scope.Op.ConstraintExclusion)
+			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.Inquiry.CommentCatalog), scope.PartitionRelations, scope.PendingDetachSnapshot()), leaf.Relation, source, scope.Op.ConstraintExclusion)
 		}
 		source.RLS = program
 		plannerStore := e.Storage.Relations[leaf.Ref.Address]

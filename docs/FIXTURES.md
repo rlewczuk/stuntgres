@@ -133,6 +133,24 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   The seal is deterministic provenance, not cryptographic authentication.
   Malformed, incomplete, duplicate or unresolved metadata rejects the isolated
   restore without changing target data, modes or held prepared handles.
+- Pending partition detachments reconstruct their attached SQL graph and saved
+  executable bound CHECK, followed by one
+  `-- stuntgres-partition-detach-pending-v1 <base64>` line per immediate edge.
+  Standard padded base64 carries UTF-8 JSON with exactly five nonempty string
+  fields, in order: `parent_schema`, `parent_table`, `child_schema`,
+  `child_table`, `strategy` (`r`, `l`, or `h`). Export orders decoded name
+  components, not OIDs or flattened names; records precede the sealed FK footer.
+  Only genuine parser line comments are decoded. Reserved-prefix bad versions,
+  malformed base64/JSON, unknown/duplicate/missing fields, wrong types and
+  trailing tokens fail native Restore. Literal marker text remains ordinary data.
+  The last isolated restore hook validates imported owners, exact reciprocal
+  membership, strategy, absence of DEFAULT/other pending edges, and an existing
+  valid enforced bound-implying RANGE/LIST CHECK before one checked publication.
+  Stronger CHECKs qualify; HASH needs no replacement CHECK. No CHECK is created
+  by repair. Duplicate/unresolved/invalid records, cancellation and I/O failure
+  leave the destination and held handles untouched. PostgreSQL ignores the
+  comment and receives attached reconstruction. Transient snapshots, cohorts,
+  lock tickets and admission-proof pointers are never serialized.
 - User-mapping options are written as stored, including credentials.
 - Materialized view contents are carried in `-- stuntgres-matview-v1 <base64>`
   comments (JSON fields `schema`, `name`, `populated`, `rows`). Native Restore

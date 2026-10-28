@@ -71,7 +71,8 @@ type TransactionOwner struct {
 	CurrentSnapshot *sqltype.Snapshot
 	Frontier        ids.CommitSeq
 	Roots           map[ids.ObjectAddress]visibility.Root
-	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.
+	// Retained with the existing snapshot: sequence metadata and pending-edge
+	// eligibility only, never general name-resolution or permission authority.
 	SequenceCatalog     *catalog.State
 	Catalog             *Journal
 	Savepoints          []SavepointMark

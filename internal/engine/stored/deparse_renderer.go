@@ -403,6 +403,12 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		}
 		text := a + " " + op + " " + b
 		grouped := !r.Pretty
+		// PostgreSQL presents associative boolean chains as one BoolExpr,
+		// even though the retained executable tree is binary. Keep each
+		// operand's grouping, but not an inner group for the same connective.
+		if (op == "AND" || op == "OR") && enclosing.Operator == op && enclosing.Precedence == precedence {
+			grouped = false
+		}
 		if r.Pretty {
 			grouped = enclosing.Precedence > precedence
 			if precedence == 5 {

@@ -94,7 +94,11 @@ func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) 
 	case *parser.AlterTableAttachPartition:
 		return Target{Name: v.Name, Mode: lock.ShareUpdateExclusive, OwnerOnly: true, Rename: true, IfExists: v.IfExists}, true, nil
 	case *parser.AlterTableDetachPartition:
-		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: v.IfExists}, true, nil
+		mode := lock.AccessExclusive
+		if v.Mode != parser.DetachOrdinary {
+			mode = lock.ShareUpdateExclusive
+		}
+		return Target{Name: v.Name, Mode: mode, OwnerOnly: true, Rename: true, IfExists: v.IfExists}, true, nil
 	case *parser.AlterTableOf:
 		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true}, true, nil
 	case *parser.AlterTableDefault:

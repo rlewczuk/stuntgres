@@ -214,7 +214,7 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 // admitRestoreDetachPartition captures the teardown a later generated DROP
 // TABLE completes.
 func admitRestoreDetachPartition(r *restoreRun, op *session.Operation, s *parser.AlterTableDetachPartition) error {
-	if s.IfExists || s.Only || len(s.Name.Parts) != 2 || len(s.Partition.Parts) != 2 {
+	if s.Mode != parser.DetachOrdinary || s.IfExists || s.Only || len(s.Name.Parts) != 2 || len(s.Partition.Parts) != 2 {
 		return core.SQLError("0A000", "restore accepts only unconditional qualified partition detachments")
 	}
 	record, err := partitioncmds.CapturePartitionReplayTeardown(r.stage, op, s)

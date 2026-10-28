@@ -61,6 +61,9 @@ func StageDetach(stage ddl.Stage, base catalog.Read, parent, child *catalog.Rela
 	nextChild := *child
 	nextChild.Membership = nil
 	nextChild.ObjectRevision++
+	nextChild.History.DetachPredecessor = nil
+	nextChild.History.DetachPublication = 0
+	nextChild.History.DetachRoot = ids.ObjectAddress{}
 	if len(child.Constraints.NotNull) != 0 {
 		nextChild.Constraints.NotNull = slices.Clone(child.Constraints.NotNull)
 		for i := range nextChild.Constraints.NotNull {
@@ -94,6 +97,15 @@ func StageDetach(stage ddl.Stage, base catalog.Read, parent, child *catalog.Rela
 	}
 	for _, descriptor := range base.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
+		if ok && index.Address() != child.Address() && index.History.DetachRoot == child.Address() {
+			next := *index
+			next.History.DetachPredecessor = nil
+			next.History.DetachPublication = 0
+			next.History.DetachRoot = ids.ObjectAddress{}
+			if err := stage.Replace(&next); err != nil {
+				return err
+			}
+		}
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != child.Address() || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 			continue
 		}

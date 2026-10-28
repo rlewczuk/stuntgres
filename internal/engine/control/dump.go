@@ -122,14 +122,21 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 			return err
 		}
 	}
+	if err := emitDumpPendingDetaches(ctx, script, w); err != nil {
+		return err
+	}
 	if w.seal != nil {
 		seal := hex.EncodeToString(w.seal.Sum(nil))
 		w.seal = nil // The terminal native footer is excluded from the SQL seal.
 		for _, record := range script.foreignKeyModes {
 			record.Seal = seal
 			comment, err := record.Comment()
-			if err != nil { return err }
-			if err := w.emit(comment); err != nil { return err }
+			if err != nil {
+				return err
+			}
+			if err := w.emit(comment); err != nil {
+				return err
+			}
 		}
 	}
 	return ctx.Err()

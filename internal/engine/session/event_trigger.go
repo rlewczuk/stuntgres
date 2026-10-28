@@ -51,6 +51,10 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		// Incumbent CONCURRENTLY CREATE owns independent publication phases,
 		// not this transactional utility's one Finish boundary.
 		return "CREATE INDEX", s.Concurrent.Character == 0
+	case *parser.AlterTableDetachPartition:
+		// Concurrent detach, like concurrent index creation, owns independently
+		// committed phases rather than the lexical event utility's one journal.
+		return "ALTER TABLE", s.Mode != parser.DetachConcurrent
 	case *parser.CreateFunction:
 		if s.Procedure {
 			return "CREATE PROCEDURE", false
@@ -58,7 +62,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		return "CREATE FUNCTION", true
 	case *parser.CreateTable, *parser.DropTable,
 		*parser.AlterTable, *parser.AlterTableDefault, *parser.AlterTableOf,
-		*parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition,
+		*parser.AlterTableAttachPartition,
 		*parser.AlterTableRenameColumn, *parser.AlterTableRenameTable,
 		*parser.AlterTableSetSchema, *parser.AlterTableRenameConstraint, *parser.AlterTableAllInTablespace,
 		*parser.CreateView, *parser.AlterView, *parser.DropView, *parser.RefreshMaterializedView,

@@ -499,6 +499,9 @@ host methods.
   (`constraint_sql.go`) and `DeparseAttribute`. `ScalarRenderer`
   (`scalar_*.go`): stored scalar SQL for defaults, checks and dumps, recording
   the references it prints (`DefaultSQL`, `RenderColumnDefault`).
+  Public expression deparse presents adjacent AND/OR nodes with the same
+  connective as a flat PostgreSQL boolean chain, retaining operand grouping and
+  mixed-connective precedence without changing the binary executable tree.
   Scalar-array presentation exposes selected-operator input casts; homogeneous
   implicit IN-item conversions render around their common-type array, without
   changing the executable items or the scalar replay path.

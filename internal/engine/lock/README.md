@@ -98,7 +98,11 @@ engine.
   manager's half of `pg_locks`, as owned `Record` values) and the grant queries
   the engine uses to validate its own admission (`Holds`, `MissingRowGrant`,
   `ReplacementGrants`, `ValidSession`, `TransactionTicket`, `IndexWriters`,
-  `AppendRelationNameClaims`).
+  `RelationHolders`, `AppendRelationNameClaims`). `RelationHolders` freezes a
+  specified conflict-mode cohort without acquiring or queuing that mode.
+  `RetireDetachPhase` captures the AX-conflicting cohort and releases the
+  completed utility phase's SUE relation grants in one manager critical section;
+  the transaction ticket, completion resource and unrelated grants remain live.
   Namespace, procedure, text-search template/dictionary, access-method,
   family/class and shared role holds project as real object tags; shared roles
   have SQL database zero. Exact name and

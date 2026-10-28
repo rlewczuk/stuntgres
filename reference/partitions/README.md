@@ -29,6 +29,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared table rules in
   elision is read from `pg_stat_user_tables.seq_scan` on the same session after
   `pg_stat_force_next_flush()` and `pg_stat_clear_snapshot()`, calibrated against
   an ATTACH without proof (`partition_attach_proof_test.go`).
+- Concurrent-detach scenarios use the fixture's committed pending-edge and
+  virtual-completion observers, not ordinary DETACH's parent-AX fairness probe.
+  Held statements are prepared before admission; every cancellation is joined
+  before inspecting the retained graph. Native replacement/replay controls stay
+  explicit phases of the same shared SQL scenario.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

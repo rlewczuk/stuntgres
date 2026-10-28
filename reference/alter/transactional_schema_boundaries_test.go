@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -16,7 +15,6 @@ func TestReferenceTransactionalSchemaUtilityBoundaries(t *testing.T) {
 		// retained native admission contract is not a PostgreSQL prohibition.
 		nativeExcluded bool
 		prohibited     string
-		parserMessage  string
 		probe          string
 	}
 	cases := []boundaryCase{
@@ -29,7 +27,7 @@ func TestReferenceTransactionalSchemaUtilityBoundaries(t *testing.T) {
 		{name: "Database", query: "CREATE DATABASE tx_bound_database", tag: "CREATE DATABASE", prohibited: "CREATE DATABASE"},
 		{name: "Tablespace", query: "CREATE TABLESPACE tx_bound_space LOCATION '/tmp/tx_bound_absent'", tag: "CREATE TABLESPACE", prohibited: "CREATE TABLESPACE"},
 		{name: "ConcurrentIndex", query: "CREATE INDEX CONCURRENTLY tx_bound_new ON tx_bound(a)", tag: "CREATE INDEX", prohibited: "CREATE INDEX CONCURRENTLY"},
-		{name: "ConcurrentDetach", setup: []string{"CREATE TABLE tx_bound_parent(a INT) PARTITION BY RANGE(a)", "CREATE TABLE tx_bound_child PARTITION OF tx_bound_parent FOR VALUES FROM(0) TO(10)"}, query: "ALTER TABLE tx_bound_parent DETACH PARTITION tx_bound_child CONCURRENTLY", tag: "ALTER TABLE", prohibited: "ALTER TABLE ... DETACH CONCURRENTLY", parserMessage: "DETACH PARTITION CONCURRENTLY is unsupported"},
+		{name: "ConcurrentDetach", setup: []string{"CREATE TABLE tx_bound_parent(a INT) PARTITION BY RANGE(a)", "CREATE TABLE tx_bound_child PARTITION OF tx_bound_parent FOR VALUES FROM(0) TO(10)"}, query: "ALTER TABLE tx_bound_parent DETACH PARTITION tx_bound_child CONCURRENTLY", tag: "ALTER TABLE", prohibited: "ALTER TABLE ... DETACH CONCURRENTLY"},
 		// Parsed concurrent DROP is forbidden in a transaction even though its
 		// standalone executor retains the feature-owned unsupported boundary.
 		{name: "ConcurrentDropIndex", setup: []string{"CREATE INDEX tx_bound_index ON tx_bound(a)"}, query: "DROP INDEX CONCURRENTLY tx_bound_index", tag: "DROP INDEX", prohibited: "DROP INDEX CONCURRENTLY"},
@@ -70,7 +68,7 @@ func TestReferenceTransactionalSchemaUtilityBoundaries(t *testing.T) {
 							// Prepare outside BEGIN for excluded ordinary utilities, so
 							// this is genuine held Execute admission rather than Describe.
 							var prepared fixture.HeldStatement
-							if held && (b.PG || tc.parserMessage == "") {
+							if held {
 								stmt, err := c.PrepareContext(p.Ctx, tc.query)
 								if err != nil {
 									t.Fatal(err)
@@ -115,15 +113,6 @@ func TestReferenceTransactionalSchemaUtilityBoundaries(t *testing.T) {
 								failed = true
 								s = fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
 							}
-							if !b.PG && tc.parserMessage != "" {
-								s = fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "0A000", Message: tc.parserMessage, Position: fixture.Position(strings.Index(tc.query, "CONCURRENTLY") + 1)})
-								// Unsupported syntax cannot yield a held statement. Assert
-								// its actual prepare-stage boundary instead of faking one.
-								s.Prepared = held
-								if held {
-									s.ErrorStage = "prepare"
-								}
-							}
 							if failed && s.ErrorStage == "" {
 								s.ErrorStage = "execute"
 							}
@@ -143,27 +132,24 @@ func TestReferenceTransactionalSchemaUtilityBoundaries(t *testing.T) {
 								base(fixture.Select(tc.probe, []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 							}
 							// Independently retain read-only-first execution for admitted
-							// and excluded parsed utilities. Parser-only negatives above
-							// have no executable AST and keep their syntax boundary.
-							if tc.parserMessage == "" {
-								ro := fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "25006", Message: "cannot execute " + tc.tag + " in a read-only transaction"})
-								ro.ErrorStage = "execute"
-								var x fixture.Executor = c
-								if held {
-									stmt, err := c.PrepareContext(p.Ctx, tc.query)
-									if err != nil {
-										t.Fatal("read-only Prepare", err)
-									}
-									defer stmt.Close()
-									x = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: tc.query}
+							// and excluded parsed utilities.
+							ro := fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "25006", Message: "cannot execute " + tc.tag + " in a read-only transaction"})
+							ro.ErrorStage = "execute"
+							var x fixture.Executor = c
+							if held {
+								stmt, err := c.PrepareContext(p.Ctx, tc.query)
+								if err != nil {
+									t.Fatal("read-only Prepare", err)
 								}
-								base(fixture.Exec("BEGIN READ ONLY", 0))
-								defer c.ExecContext(p.Ctx, "ROLLBACK")
-								fixture.RunStep(t, p.Ctx, x, b.Recorder, ro)
-								base(fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
-								base(fixture.Exec("ROLLBACK", 0))
-								base(fixture.Select("SELECT a FROM tx_bound", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
+								defer stmt.Close()
+								x = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: tc.query}
 							}
+							base(fixture.Exec("BEGIN READ ONLY", 0))
+							defer c.ExecContext(p.Ctx, "ROLLBACK")
+							fixture.RunStep(t, p.Ctx, x, b.Recorder, ro)
+							base(fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
+							base(fixture.Exec("ROLLBACK", 0))
+							base(fixture.Select("SELECT a FROM tx_bound", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
 						})
 					}
 				})
