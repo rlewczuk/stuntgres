@@ -88,9 +88,11 @@ func TestReferencePGEventTriggerCatalogDefinitions(t *testing.T) {
 }
 
 func TestReferencePGEventTriggerCatalogLifecycle(t *testing.T) {
-	eventTriggerScenario(t, []string{"pget_catalog_life"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+	fixture.RoleReferenceCleanup(t, []string{"pget_catalog_life_owner"})
+	eventTriggerScenario(t, []string{"pget_catalog_life", "pget_catalog_life_new"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 		run(fixture.Exec("CREATE FUNCTION pget_catalog_life_fn() RETURNS event_trigger LANGUAGE plpgsql AS $$BEGIN END$$", 0))
+		run(fixture.Exec("CREATE ROLE pget_catalog_life_owner SUPERUSER", 0))
 		const q = "SELECT evtname,evtevent,evtenabled,evttags FROM pg_catalog.pg_event_trigger WHERE evtname='pget_catalog_life'"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -129,6 +131,36 @@ func TestReferencePGEventTriggerCatalogLifecycle(t *testing.T) {
 		run(fixture.Exec("ALTER EVENT TRIGGER pget_catalog_life DISABLE", 0))
 		check(held, "D")
 		run(fixture.Exec("ROLLBACK", 0))
+		check(held, "O")
+		d := eventDDLCase{t, p, b, c, eventDDLRoute{}}
+		original := d.identity("pget_catalog_life", "ddl_command_start", "O", `{"CREATE TABLE"}`)
+		live := d.held("SELECT oid,evtname,evtevent,evtowner,evtfoid,evtenabled,evttags FROM pg_event_trigger ORDER BY evtname")
+		defer live.Statement.Close()
+		run(fixture.Exec("BEGIN", 0))
+		run(fixture.Exec("ALTER EVENT TRIGGER pget_catalog_life ENABLE REPLICA", 0))
+		replica := original
+		replica.mode = "R"
+		d.catalog(live, replica)
+		d.catalog(peer, original)
+		run(fixture.Exec("COMMIT", 0))
+		d.catalog(live, replica)
+		d.catalog(peer, replica)
+		run(fixture.Exec("BEGIN", 0))
+		run(fixture.Exec("ALTER EVENT TRIGGER pget_catalog_life ENABLE ALWAYS", 0))
+		run(fixture.Exec("ALTER EVENT TRIGGER pget_catalog_life RENAME TO pget_catalog_life_new", 0))
+		run(fixture.Exec("ALTER EVENT TRIGGER pget_catalog_life_new OWNER TO pget_catalog_life_owner", 0))
+		changed := replica
+		changed.name, changed.mode, changed.owner = "pget_catalog_life_new", "A", d.role("pget_catalog_life_owner")
+		d.catalog(live, changed)
+		check(held, "")
+		d.catalog(peer, replica)
+		run(fixture.Exec("COMMIT", 0))
+		d.catalog(live, changed)
+		d.catalog(peer, changed)
+		run(fixture.Exec("ALTER EVENT TRIGGER pget_catalog_life_new OWNER TO CURRENT_USER", 0))
+		run(fixture.Exec("ALTER EVENT TRIGGER pget_catalog_life_new RENAME TO pget_catalog_life", 0))
+		run(fixture.Exec("ALTER EVENT TRIGGER pget_catalog_life ENABLE", 0))
+		d.catalog(live, original)
 		check(held, "O")
 		run(fixture.Exec("BEGIN", 0))
 		run(fixture.Exec("DROP EVENT TRIGGER pget_catalog_life", 0))

@@ -83,6 +83,9 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	}
 	if err == nil {
 		scope.Catalog = changes
+		if scope.CatalogAuthority == nil {
+			scope.CatalogAuthority = stage.FinishAuthority
+		}
 		for _, removal := range stage.Removals() {
 			if !removal.Internal {
 				scope.recordDroppedProvenance(removal.Dropped, stage.DropFlags)

@@ -11,11 +11,13 @@ and their shared catalog rules live in
 Public dual-mode event-trigger scenarios cover database-local declarations,
 function frames and identity, command-phase ordering, private DDL publication,
 actual object/subobject drops, semantic table rewrites, target-sensitive utility
-eligibility, ownership, disabled state, transaction recovery and held statements.
+eligibility, four firing modes, rename/owner identity, transaction recovery and
+held statements. Lifecycle routes separately initialize direct/prepared Exec
+and Query cases; mode selection uses origin/local/replica effective settings.
 Dedicated catalog scenarios check the full schema on actual empty sources,
 definition/owner/private-function identity, nonowner visibility and held-query
 freshness across transactional publication without executing referenced functions.
-Native-control phases exercise committed capture, final-section activation,
+Native-control phases exercise committed capture, terminal four-state activation,
 two replacement rounds, fresh-driver remapping, unchanged-stream PostgreSQL
 replay and failed replacement preservation.
 Demoted-owner portable Dump rejection preserves the live descriptor and writes
@@ -56,6 +58,10 @@ The trigger-depth event witness distinguishes event callback execution from a
 DML trigger frame, including eligible DDL reached through an ordinary helper.
 Real lock-admission observers establish pre-publication peer witnesses without
 sleeps or simulated callback barriers.
+DDL-specific helpers retain exact lifecycle identity/metadata and full diagnostic
+expectations without changing the shared audit helpers. Rename-order witnesses
+use a real counter rather than sorting labels; all old and new global names are
+registered for cleanup before declarations.
 
 `event_trigger_dropped_helpers_test.go` owns dropped-record audit setup and
 independent complete logical bags. Generated addresses and RI-trigger names are

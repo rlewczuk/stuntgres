@@ -29,9 +29,15 @@ func (s *StatementScope) BeginEventCommand(tag string) (*EventCommand, error) {
 	if previous == nil {
 		e := s.Engine()
 		e.Mu.Lock()
+		auth, err := s.RoutineAuthorizationLocked()
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		replica := auth.RuleReplica()
 		matched := false
-		for _, trigger := range e.PrivateCatalogLocked(s.PendingCatalog()).EventTriggers() {
-			if trigger.Matches(trigger.Event, tag) {
+		for _, trigger := range auth.Catalog.EventTriggers() {
+			if trigger.Matches(trigger.Event, tag, replica) {
 				matched = true
 				break
 			}
@@ -123,8 +129,9 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 		return err
 	}
 	var list []*catalog.EventTrigger
+	replica := auth.RuleReplica()
 	for _, d := range auth.Catalog.EventTriggers() {
-		if d.Matches(event, s.EventCommand.Tag) {
+		if d.Matches(event, s.EventCommand.Tag, replica) {
 			list = append(list, d)
 		}
 	}

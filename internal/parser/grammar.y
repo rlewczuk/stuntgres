@@ -1163,7 +1163,17 @@ event_tag_list: STRING {$$=[]string{$1.text}}
  | event_tag_list ',' STRING {$$=append($1,$3.text)} ;
 alter_event_trigger: ALTER EVENT TRIGGER name name {
  if $5.keyword==nil || ($5.text!="enable" && $5.text!="disable") {sqllex.(*lexer).syntax($5);return 1}
- $$=&AlterEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Enabled:$5.text=="enable",Pos:$1.pos}
+ mode:=byte('O');if $5.text=="disable" {mode='D'}
+ $$=&AlterEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Action:"state",FiringMode:mode,Pos:$1.pos}
+} | ALTER EVENT TRIGGER name name name {
+ if $5.keyword==nil || $5.text!="enable" {sqllex.(*lexer).syntax($6);return 1}
+ if $6.keyword==nil || ($6.text!="replica" && $6.text!="always") {sqllex.(*lexer).syntax($6);return 1}
+ mode:=byte('R');if $6.text=="always" {mode='A'}
+ $$=&AlterEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Action:"state",FiringMode:mode,Pos:$1.pos}
+} | ALTER EVENT TRIGGER name RENAME TO name {
+ $$=&AlterEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Action:"rename",Target:Identifier{Text:$7.text,Pos:$7.pos},Pos:$1.pos}
+} | ALTER EVENT TRIGGER name OWNER TO schema_owner {
+ $$=&AlterEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Action:"owner",Target:Identifier{Text:$7.text,Pos:$7.pos},OwnerIdentity:$7.keyword!=nil&&$7.keyword.category==Reserved,Pos:$1.pos}
 } ;
 drop_event_trigger: DROP EVENT TRIGGER name drop_mode {$$=&DropEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Mode:$5,Pos:$1.pos}}
  | DROP EVENT TRIGGER IF EXISTS name drop_mode {$$=&DropEventTrigger{Name:Identifier{Text:$6.text,Pos:$6.pos},IfExists:true,Mode:$7,Pos:$1.pos}} ;

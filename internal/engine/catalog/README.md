@@ -76,8 +76,11 @@ private frames, not catalog authority.
 - **Event triggers.** `EventTriggerProvider` validates immutable, globally named
   database-local class 3466 descriptors, actual principal ownership and a
   current zero-argument checked event-function reference. Four command phases,
-  O/D state and ordered uppercase TAG values (duplicates preserved; nil means
-  no filter) project through the real seven-column `pg_event_trigger` source.
+  explicit O/D/R/A `FiringMode` and ordered uppercase TAG values (duplicates
+  preserved; nil means no filter) project through the real seven-column
+  `pg_event_trigger` source. Invalid or zero event modes are rejected, not
+  normalized through ordinary-trigger defaults. Matching combines event, TAG
+  and operation-effective replication role.
   Released recognized/eligible TAG inventory is distinct from native execution
   coverage. Function dependencies use ordinary RESTRICT/CASCADE and `pg_depend`;
   ownership and replacement remapping preserve provenance, never numeric-only
@@ -85,6 +88,10 @@ private frames, not catalog authority.
   An immutable descriptor-derived class index follows the same canonical state
   setters, candidate overlays and reset/remap paths; dispatch and projection
   do not scan unrelated descriptors. It is neither a name registry nor a cache.
+  Empty-index iteration and descriptor-only drop admission allocate no lookup
+  scratch; callers own any iterator callbacks they supply.
+  Descriptor-only drop collection admits the O/R/A superset independently of
+  session settings; core applies the exact role/TAG gate before command capture.
   `DroppedObject` is immutable captured identity data, not lookup or publication
   authority. `Removal` retains it with successful effects; ORIGINAL and NORMAL
   reachability merge independently of operation-internal suppression.

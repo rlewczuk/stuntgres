@@ -116,10 +116,11 @@ Event-trigger collection retains validated immutable descriptors and real owner/
 function authority. `prepareEventTriggers` renders the complete final section
 before any writer I/O; an existing owner demoted from superuser is explicitly
 unrepresentable portable state and rejects Dump without an output prefix.
-Representable owners, qualified functions, ordered filters and O/D state replay
-unchanged. All ordinary DDL, data, defaults, attribute metadata and temporary
-raw-codec CAST cleanup precede this section. Each definition is created and
-disabled, then the saved enabled states are installed after every declaration.
+Representable owners, qualified functions, ordered filters and O/D/R/A state
+replay unchanged. All ordinary DDL, data, defaults, attribute metadata and
+temporary raw-codec CAST cleanup precede this section. Each definition is created
+and immediately disabled, then terminal ENABLE, ENABLE REPLICA and ENABLE ALWAYS
+restore O/R/A after every declaration; D remains disabled.
 No eligible replay DDL follows activation. Source callback frames and private
 transaction definitions are not captured; replacement remaps global object and
 function references once into the destination authority.

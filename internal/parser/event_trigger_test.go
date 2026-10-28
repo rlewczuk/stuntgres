@@ -17,9 +17,9 @@ func TestEventTriggerParser(t *testing.T) {
 	if !ok || create.Name.Text != "Event Name" || create.Event.Text != "ddl_command_start" || create.Pos.Character != 1 || len(create.Filters) != 1 || create.Filters[0].Name.Text != "tag" || !reflect.DeepEqual(create.Filters[0].Values, []string{"create table", "ALTER TABLE", "create table"}) || len(create.Function.Parts) != 2 || create.Function.Parts[0].Text != "public" || create.Function.Parts[1].Text != "event_callback" {
 		t.Fatal("lost positioned event declaration", create)
 	}
-	for i, want := range []bool{false, true} {
+	for i, want := range []byte{'D', 'O'} {
 		alter, ok := statements[i+1].(*AlterEventTrigger)
-		if !ok || alter.Name.Text != "Event Name" || alter.Enabled != want || alter.Pos.Character <= 1 {
+		if !ok || alter.Name.Text != "Event Name" || alter.Action != "state" || alter.FiringMode != want || alter.Pos.Character <= 1 {
 			t.Fatal("lost bounded state declaration", statements[i+1])
 		}
 	}
@@ -50,14 +50,43 @@ func TestEventTriggerParser(t *testing.T) {
 			t.Fatal("replacement did not use ordinary function AST", function)
 		}
 	}
+	for _, tc := range []struct {
+		sql, action, target string
+		mode                byte
+		identity            bool
+	}{
+		{`ALTER EVENT TRIGGER "Event Name" ENABLE ALWAYS`, "state", "", 'A', false},
+		{`ALTER EVENT TRIGGER "Event Name" ENABLE REPLICA`, "state", "", 'R', false},
+		{`ALTER EVENT TRIGGER "Event Name" RENAME TO "New Name"`, "rename", "New Name", 0, false},
+		{`ALTER EVENT TRIGGER "Event Name" OWNER TO CURRENT_ROLE`, "owner", "current_role", 0, true},
+		{`ALTER EVENT TRIGGER "Event Name" OWNER TO CURRENT_USER`, "owner", "current_user", 0, true},
+		{`ALTER EVENT TRIGGER "Event Name" OWNER TO SESSION_USER`, "owner", "session_user", 0, true},
+		{`ALTER EVENT TRIGGER "Event Name" OWNER TO "CURRENT_USER"`, "owner", "CURRENT_USER", 0, false},
+	} {
+		nodes, err := Parse(tc.sql)
+		if err != nil || len(nodes) != 1 {
+			t.Fatal(tc.sql, err)
+		}
+		a := nodes[0].(*AlterEventTrigger)
+		if a.Name.Text != "Event Name" || a.Action != tc.action || a.Target.Text != tc.target || a.FiringMode != tc.mode || a.OwnerIdentity != tc.identity || tc.target != "" && a.Target.Pos.Character <= a.Name.Pos.Character {
+			t.Fatal("lost lifecycle operand or position", a)
+		}
+	}
 	for _, query := range []string{
 		"CREATE OR REPLACE EVENT TRIGGER e ON ddl_command_start EXECUTE FUNCTION f()",
 		"CREATE EVENT TRIGGER s.e ON ddl_command_start EXECUTE FUNCTION f()",
 		"CREATE EVENT TRIGGER e ON ddl_command_start EXECUTE FUNCTION f(1)",
 		"CREATE EVENT TRIGGER e ON ddl_command_start WHEN TAG IN () EXECUTE FUNCTION f()",
 		"CREATE EVENT TRIGGER e ON ddl_command_start EXECUTE FUNCTION f() trailing",
-		"ALTER EVENT TRIGGER e ENABLE ALWAYS",
-		"ALTER EVENT TRIGGER e ENABLE REPLICA",
+		"ALTER EVENT TRIGGER e ENABLE ALWAYS trailing",
+		"ALTER EVENT TRIGGER e ENABLE REPLICA trailing",
+		"ALTER EVENT TRIGGER e DISABLE REPLICA",
+		"ALTER EVENT TRIGGER e DISABLE ALWAYS",
+		"ALTER EVENT TRIGGER e ENABLE ORIGIN",
+		"ALTER EVENT TRIGGER e ENABLE BOGUS",
+		"ALTER EVENT TRIGGER e RENAME TO",
+		"ALTER EVENT TRIGGER s.e ENABLE",
+		"ALTER EVENT TRIGGER e OWNER TO u trailing",
 	} {
 		_, err := Parse(query)
 		var diagnostic *sqlstate.Error

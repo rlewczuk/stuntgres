@@ -1,6 +1,6 @@
 package catalog
 
-// TriggerMode is the persistent pg_trigger.tgenabled value.
+// TriggerMode is the persistent pg_trigger.tgenabled/pg_event_trigger.evtenabled value.
 type TriggerMode byte
 
 const (

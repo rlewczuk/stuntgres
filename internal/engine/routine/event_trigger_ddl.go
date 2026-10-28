@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
@@ -13,7 +14,12 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func StageEventTrigger(h ddl.Host, auth ddl.Authority, statement parser.Statement) error {
+type EventTriggerHost interface {
+	ddl.Host
+	AddDomainBase(catalog.Descriptor)
+}
+
+func StageEventTrigger(h EventTriggerHost, auth ddl.Authority, statement parser.Statement) error {
 	v := h.AccessView(auth)
 	if s, ok := statement.(*parser.CreateEventTrigger); ok {
 		actor, err := v.Roles.Descriptor(v.State.CurrentUser)
@@ -84,13 +90,21 @@ func StageEventTrigger(h ddl.Host, auth ddl.Authority, statement parser.Statemen
 		if err != nil {
 			return err
 		}
-		d := &catalog.EventTrigger{ObjectAddress: ids.ObjectAddress{ClassID: ids.EventTriggerClassID, ObjectID: oid}, ObjectRevision: revision, ObjectName: s.Name.Text, Owner: v.State.CurrentUser, Function: v.Ref(function.Address()), Event: s.Event.Text, Enabled: true, Tags: tags}
+		d := &catalog.EventTrigger{ObjectAddress: ids.ObjectAddress{ClassID: ids.EventTriggerClassID, ObjectID: oid}, ObjectRevision: revision, ObjectName: s.Name.Text, Owner: v.State.CurrentUser, Function: v.Ref(function.Address()), Event: s.Event.Text, FiringMode: catalog.TriggerOrigin, Tags: tags}
 		return h.Stage().Create(d)
 	}
 	name, absent := "", false
+	var owner authorization.PrincipalRef
 	switch s := statement.(type) {
 	case *parser.AlterEventTrigger:
 		name = s.Name.Text
+		if s.Action == "owner" {
+			var err error
+			owner, err = access.SchemaOwner(v, s.Target.Text, s.OwnerIdentity)
+			if err != nil {
+				return err
+			}
+		}
 	case *parser.DropEventTrigger:
 		name, absent = s.Name.Text, s.IfExists
 	default:
@@ -104,12 +118,32 @@ func StageEventTrigger(h ddl.Host, auth ddl.Authority, statement parser.Statemen
 		h.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`event trigger "%s" does not exist, skipping`, name)})
 		return nil
 	}
-	if err := ddl.Check(h, auth, access.Requirement{Object: v.Ref(d.Address()), OwnerOnly: true}); err != nil {
+	h.AddDomainBase(d)
+	if s, ok := statement.(*parser.AlterEventTrigger); ok && s.Action == "owner" {
+		if d.Owner == owner {
+			return nil
+		}
+		if err := access.EventTriggerOwnershipEligibility(v, auth, d, owner); err != nil {
+			return err
+		}
+	} else if err := ddl.Check(h, auth, access.Requirement{Object: v.Ref(d.Address()), OwnerOnly: true}); err != nil {
 		return err
 	}
 	if s, ok := statement.(*parser.AlterEventTrigger); ok {
 		next := *d
-		next.Enabled = s.Enabled
+		switch s.Action {
+		case "state":
+			next.FiringMode = catalog.TriggerMode(s.FiringMode)
+		case "owner":
+			next.Owner = owner
+		case "rename":
+			if h.StageRead().NameAddress(ids.NameKey{ClassID: ids.EventTriggerClassID, Name: s.Target.Text}) != (ids.ObjectAddress{}) {
+				return sqlError("42710", fmt.Sprintf(`event trigger "%s" already exists`, s.Target.Text))
+			}
+			next.ObjectName = s.Target.Text
+		default:
+			return fmt.Errorf("stuntgres: invalid event trigger action")
+		}
 		var err error
 		next.ObjectRevision, err = h.Revision()
 		if err != nil {

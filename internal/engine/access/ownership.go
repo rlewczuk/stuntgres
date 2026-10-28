@@ -84,6 +84,22 @@ func SchemaOwner(auth View, name string, identity bool) (authorization.Principal
 	return role.Ref, nil
 }
 
+// EventTriggerOwnershipEligibility checks an actual transfer. Same-owner
+// bypass is caller-owned and precedes both ownership and target eligibility.
+func EventTriggerOwnershipEligibility(view View, env Environment, d *catalog.EventTrigger, target authorization.PrincipalRef) error {
+	if err := view.Check(env, Requirement{Object: view.Ref(d.Address()), OwnerOnly: true}); err != nil {
+		return err
+	}
+	successor, err := view.Roles.Descriptor(target)
+	if err != nil {
+		return err
+	}
+	if !successor.Superuser {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: fmt.Sprintf(`permission denied to change owner of event trigger "%s"`, d.Name()), Hint: "The owner of an event trigger must be a superuser."}
+	}
+	return nil
+}
+
 // OwnershipRoot reports whether d is a bulk ownership root for REASSIGN and
 // DROP OWNED. Root classification follows canonical reciprocal identities,
 // never object names. Protected catalog namespaces and immutable providers are

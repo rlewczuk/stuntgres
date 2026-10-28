@@ -52,11 +52,42 @@ func eventTriggerIndex(t *testing.T) {
 	enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_index DISABLE")
 	disabled := source.CatalogRead()
 	current := disabled.Get(address).(*catalog.EventTrigger)
-	if !original.Enabled || current.Enabled || current == original {
+	if original.FiringMode != catalog.TriggerOrigin || current.FiringMode != catalog.TriggerDisabled || current == original {
 		t.Fatal("derived index lost immutable replacement")
 	}
 	expectEventIndex(t, disabled, 1)
 	expectEventIndex(t, enabled, 1)
+	for _, tc := range []struct {
+		action string
+		mode   catalog.TriggerMode
+	}{
+		{"ENABLE REPLICA", catalog.TriggerReplica}, {"ENABLE ALWAYS", catalog.TriggerAlways}, {"ENABLE", catalog.TriggerOrigin}, {"DISABLE", catalog.TriggerDisabled},
+	} {
+		predecessor := source.CatalogRead()
+		old := predecessor.Get(address).(*catalog.EventTrigger)
+		enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_index "+tc.action)
+		live := source.CatalogRead()
+		next := live.Get(address).(*catalog.EventTrigger)
+		if next == old || next.FiringMode != tc.mode || predecessor.Get(address) != old || original.FiringMode != catalog.TriggerOrigin || current.FiringMode != catalog.TriggerDisabled {
+			t.Fatal("mode replacement changed retained index authority")
+		}
+		expectEventIndex(t, live, 1)
+	}
+	enginetest.SessionSQL(t, actor, "CREATE ROLE et_index_owner SUPERUSER")
+	enginetest.SessionSQL(t, actor, "BEGIN")
+	enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_index RENAME TO et_index_private")
+	enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_index_private OWNER TO et_index_owner")
+	private := source.PrivateCatalogLocked(actor.Transactions.Catalog)
+	successor := private.Get(address).(*catalog.EventTrigger)
+	if successor.Name() != "et_index_private" || successor.Owner == original.Owner || successor.Function != original.Function || successor.FiringMode != catalog.TriggerDisabled || private.NameAddress(ids.NameKey{ClassID: ids.EventTriggerClassID, Name: "et_index"}) != (ids.ObjectAddress{}) {
+		t.Fatal("private rename/owner lost descriptor identity")
+	}
+	expectEventIndex(t, private, 1)
+	expectEventIndex(t, enabled, 1)
+	enginetest.SessionSQL(t, actor, "ROLLBACK")
+	if source.CatalogRead().Get(address).Name() != "et_index" || source.CatalogRead().Get(address).(*catalog.EventTrigger).Owner != original.Owner {
+		t.Fatal("rollback retained private identity")
+	}
 	enginetest.SessionSQL(t, actor, "BEGIN")
 	enginetest.SessionSQL(t, actor, "DROP EVENT TRIGGER et_index")
 	expectEventIndex(t, source.PrivateCatalogLocked(actor.Transactions.Catalog), 0)
@@ -66,7 +97,7 @@ func eventTriggerIndex(t *testing.T) {
 	copy := catalog.CloneState(disabled.State())
 	next := *current
 	next.ObjectRevision++
-	next.Enabled = true
+	next.FiringMode = catalog.TriggerOrigin
 	copy.SetDescriptor(address, &next)
 	if copy.Get(address) != &next {
 		t.Fatal("setter did not publish its actual descriptor")
@@ -98,6 +129,38 @@ func eventTriggerIndex(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_index RENAME TO et_index_replay")
+	enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_index_replay OWNER TO et_index_owner")
+	enginetest.SessionSQL(t, receiver, "CREATE ROLE et_index_owner SUPERUSER")
+	for _, tc := range []struct {
+		action string
+		mode   catalog.TriggerMode
+	}{
+		{"ENABLE", catalog.TriggerOrigin}, {"ENABLE REPLICA", catalog.TriggerReplica}, {"ENABLE ALWAYS", catalog.TriggerAlways}, {"DISABLE", catalog.TriggerDisabled},
+	} {
+		enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_index_replay "+tc.action)
+		sourceRead := source.CatalogRead()
+		sourceDescriptor := sourceRead.Get(address).(*catalog.EventTrigger)
+		retained := destination.CatalogRead()
+		if _, err := destination.ReplaceCatalog(context.Background(), source, sourceRead); err != nil {
+			t.Fatal(err)
+		}
+		remapped := destination.CatalogRead()
+		expectEventIndex(t, remapped, 1)
+		expectEventIndex(t, retained, 1)
+		for _, d := range remapped.EventTriggers() {
+			if d == sourceDescriptor || d.Name() != "et_index_replay" || d.FiringMode != tc.mode || d.Owner != remapped.Owner().Principals.Principal(d.Owner.ID()) || d.Function.Domain() != remapped.Domain() || d.Function.Epoch != remapped.Epoch() || len(d.Tags) != 1 || d.Tags[0] != "CREATE TABLE" {
+				t.Fatal("four-state replacement lost remapped definition")
+			}
+			if err := (catalog.EventTriggerProvider{}).Validate(remapped, d); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if sourceRead.Get(address) != sourceDescriptor || sourceDescriptor.FiringMode != tc.mode || original.FiringMode != catalog.TriggerOrigin {
+			t.Fatal("remap mutated source or retained mode")
+		}
+	}
+	enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_index_replay RENAME TO et_index")
 	enginetest.SessionSQL(t, actor, "DROP EVENT TRIGGER et_index")
 	expectEventIndex(t, source.CatalogRead(), 0)
 	expectEventIndex(t, enabled, 1)

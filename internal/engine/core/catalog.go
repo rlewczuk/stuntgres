@@ -94,6 +94,9 @@ type CatalogStage struct {
 	statement       *StatementScope
 	AuthRevision    uint64
 	RoleRevision    uint64
+	// Selected lifecycle stages retain their original admission only until the
+	// owning statement finishes, never in the completed transaction journal.
+	FinishAuthority *session.CatalogAuthority
 	DropRoles       authorization.Read // Immutable identity input, never publication authority.
 	// A declaration callback has external effects and cannot be replayed by
 	// definition-lock admission if its captured authority becomes stale.
@@ -496,6 +499,12 @@ func (s *StatementScope) releaseCatalogReservation() {
 	}
 }
 
+// UsesCatalogOverlay reports whether catalog publication belongs to this
+// statement's pending journal, including the first write in a routine body.
+func (s *StatementScope) UsesCatalogOverlay() bool {
+	return s != nil && (s.Owner.State == session.TxActive || s.EventCommand != nil || s.Catalog != nil || s.activeSQLRoutineDepth != 0)
+}
+
 func (e *Engine) PublishCatalogOperation(op *session.Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if p == nil || p.stage == nil || p.stage.Owner != e || p.stage.Lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
@@ -514,7 +523,7 @@ func (e *Engine) PublishCatalogOperation(op *session.Operation, scope *Statement
 	if op != nil && op.Session.Transactions.RetainsTransaction() && (scope == nil || scope.EventCommand == nil && scope.Catalog == nil && scope.activeSQLRoutineDepth == 0) {
 		return e.stageMessageCatalog(op, p, token)
 	}
-	if scope != nil && (scope.Owner.State == session.TxActive || scope.EventCommand != nil || scope.Catalog != nil || scope.activeSQLRoutineDepth != 0) {
+	if scope.UsesCatalogOverlay() {
 		defer scope.releaseCatalogReservation()
 		if scope.Op == nil || scope.Op != op || p == nil || p.stage == nil || p.stage.Owner != e || p.stage.Lifecycle != catalogValidated {
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
@@ -964,9 +973,13 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 				return fmt.Errorf("stuntgres: relation storage is missing")
 			}
 			relation, ok := owner.Catalog.Current().Relation(a)
-			if !ok { return ids.ErrCatalogReplaced }
+			if !ok {
+				return ids.ErrCatalogReplaced
+			}
 			heap, err := visibility.ResolveHeapAccess(owner.Catalog.Current(), relation.TableMethod)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			selected, err := exec.SelectQuerySource(ctx, &exec.Source{Committed: source[a].Versions}, frontier, source[a].Ends, nil, heap)
 			if err != nil {
 				return err

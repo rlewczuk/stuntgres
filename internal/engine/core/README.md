@@ -388,6 +388,11 @@ fields, shared by every database target:
 Event-trigger definition DDL also goes through `Statements.Execute` to the
 schema family. Its successful completion uses `CompleteUtility`, preserving any
 pending statement journal; core owns callback execution, not schema execution.
+Admitted event-trigger lifecycle mutations on the canonical catalog-overlay route
+retain their original session revision and published role authority through
+statement Finish, including the first mutation in a SQL routine with no journal yet.
+Transfer preserves any enclosing statement authority; a completed statement does
+not carry this execution fence into its outer transaction's Commit.
 
 Standalone CALL follows analyzed command admission, fold publication and the
 shared SQL/PL invocation owner, not synthetic SELECT or a second connection.
@@ -591,11 +596,16 @@ rewrites and `ddl_command_end` retain it through ordinary `Finish`. Nested SQL
 shares that journal and the write stage, but owns fresh lexical command scratch.
 `CompleteUtility` never marks a pending journal as already published.
 
-Each phase captures matching enabled definitions in name order under `Engine.Mu`
-and invokes checked current functions unlocked. Prepared handles retain neither
-callback lists nor function bodies. Exception checkpoints restore command-local
-drop facts alongside the catalog, row and effect roots. Internal replacement
-effects do not become user-visible drops.
+Each selection captures operation-effective replication role under `Engine.Mu`
+(then the settings mutex), filtering immutable O/D/R/A definitions by event and
+TAG. No match leaves ordinary Completed utility ownership untouched, without
+command scratch or a callback journal. Each matching phase recaptures current
+authority and invokes checked functions in name order unlocked. Prepared handles
+retain neither callback lists nor function bodies nor a cached replica bit.
+Exact command drop capture uses the same effective role/TAG gate; catalog-only
+capture remains a conservative session-independent O/R/A superset. Exception
+checkpoints restore command-local drop facts alongside catalog, row and effect
+roots. Internal replacement effects do not become user-visible drops.
 
 `PublishAlterMetadata` consumes structurally validated metadata before heap work.
 Sequence replacements marked for persistence omit eager session-tail discard;

@@ -40,11 +40,7 @@ func capturePGEventTrigger(in Input) ([][]sqltype.Value, error) {
 		}
 		row[1] = sqltype.String(in.Source.Columns[1].Usage.Type, d.Name())
 		row[2] = sqltype.String(in.Source.Columns[2].Usage.Type, d.Event)
-		state := "D"
-		if d.Enabled {
-			state = "O"
-		}
-		row[5] = sqltype.String(in.Source.Columns[5].Usage.Type, state)
+		row[5] = sqltype.String(in.Source.Columns[5].Usage.Type, d.FiringMode.String())
 		array := in.Source.Columns[6].Usage.Type
 		row[6] = sqltype.Null(array)
 		if d.Tags != nil {

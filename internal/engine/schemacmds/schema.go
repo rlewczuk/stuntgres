@@ -426,6 +426,11 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 		if err = routine.StageEventTrigger(host, auth, stmt); err != nil {
 			return nil, err
 		}
+		if _, create := stmt.(*parser.CreateEventTrigger); !create && len(stage.DomainBases) != 0 {
+			if scope := core.ActiveScopeOfLease(op.Lease); scope.UsesCatalogOverlay() {
+				stage.FinishAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
+			}
+		}
 	case *parser.CreateTemplate:
 		if err = extension.StageCreateTemplate(schemaHost, auth, s); err != nil {
 			return nil, err

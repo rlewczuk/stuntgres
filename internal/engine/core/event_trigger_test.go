@@ -243,6 +243,8 @@ func TestEventTriggerFrame(t *testing.T) {
 		},
 		"foreign_owner":     func(d *catalog.EventTrigger) { d.Owner = foreign.Owner().Principals.Principal(d.Owner.ID()) },
 		"invalid_event":     func(d *catalog.EventTrigger) { d.Event = "login" },
+		"invalid_mode":      func(d *catalog.EventTrigger) { d.FiringMode = 'X' },
+		"zero_mode":         func(d *catalog.EventTrigger) { d.FiringMode = 0 },
 		"ineligible_tag":    func(d *catalog.EventTrigger) { d.Tags = []string{"CREATE ROLE"} },
 		"unknown_tag":       func(d *catalog.EventTrigger) { d.Tags = []string{"MAKE TABLE"} },
 		"wrong_rewrite_tag": func(d *catalog.EventTrigger) { d.Event = "table_rewrite"; d.Tags = []string{"CREATE TABLE"} },
@@ -261,7 +263,7 @@ func TestEventTriggerFrame(t *testing.T) {
 	}
 	enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_frame DISABLE")
 	current := e.CatalogRead().Get(address).(*catalog.EventTrigger)
-	if !original.Enabled || current.Enabled || current == original || !reflect.DeepEqual(current.Tags, original.Tags) {
+	if original.FiringMode != catalog.TriggerOrigin || current.FiringMode != catalog.TriggerDisabled || current == original || !reflect.DeepEqual(current.Tags, original.Tags) {
 		t.Fatal("bounded state mutation violated immutable predecessor")
 	}
 	oldFunction := d
@@ -338,10 +340,15 @@ func TestEventTriggerNoMatchingBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		name, declaration string
 		disabled          bool
+		mode, role        string
 	}{
-		{"empty", "", false},
-		{"disabled", "CREATE TABLE", true},
-		{"other_tag", "CREATE VIEW", false},
+		{"empty", "", false, "", ""},
+		{"disabled", "CREATE TABLE", true, "", ""},
+		{"other_tag", "CREATE VIEW", false, "", ""},
+		{"replica_in_origin", "CREATE TABLE", false, "ENABLE REPLICA", "origin"},
+		{"origin_in_replica", "CREATE TABLE", false, "ENABLE", "replica"},
+		{"replica_in_local", "CREATE TABLE", false, "ENABLE REPLICA", "local"},
+		{"disabled_in_replica", "CREATE TABLE", true, "", "replica"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
@@ -352,6 +359,12 @@ func TestEventTriggerNoMatchingBoundary(t *testing.T) {
 				if tc.disabled {
 					enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_unmatched DISABLE")
 				}
+			}
+			if tc.mode != "" {
+				enginetest.SessionSQL(t, actor, "ALTER EVENT TRIGGER et_unmatched "+tc.mode)
+			}
+			if tc.role != "" {
+				enginetest.SessionSQL(t, actor, "SET session_replication_role="+tc.role)
 			}
 			op, err := actor.Acquire(context.Background())
 			if err != nil {
@@ -366,7 +379,7 @@ func TestEventTriggerNoMatchingBoundary(t *testing.T) {
 			if _, err := scope.Execute(enginetest.Statement(t, "CREATE TABLE et_unmatched_table(v integer)"), 0, nil); err != nil {
 				t.Fatal(err)
 			}
-			if scope.Catalog != nil || scope.EventCommand != nil || !scope.Completed {
+			if scope.Catalog != nil || scope.EventCommand != nil || !scope.Completed || len(scope.Stage.Rows) != 0 {
 				t.Fatal("empty/nonmatching index changed ordinary utility ownership")
 			}
 			if err := scope.Finish(nil); err != nil {

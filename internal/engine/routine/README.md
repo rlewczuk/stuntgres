@@ -80,9 +80,14 @@ OUT, without excluding determinable result-only or SQL-family specializations.
 
 PL/pgSQL event functions separately admit zero-formal `RETURNS event_trigger`,
 inject only TEXT `TG_EVENT`/`TG_TAG`, and cannot be invoked as scalar functions.
-`event_trigger_ddl.go` owns database-global CREATE and bounded ENABLE/DISABLE/DROP
-decisions; creation checks actual superuser authority before event/filter/function
-resolution, while state/drop use normal owner-role authority after lookup.
+`event_trigger_ddl.go` owns database-global CREATE, four-mode ALTER, OWNER,
+RENAME and DROP decisions. Creation checks actual superuser authority before
+event/filter/function resolution. Mutations retain the original descriptor for
+definition admission, including same-owner no-ops. OWNER resolves its role first
+and bypasses checks for the same owner; actual transfers share access-level
+owner/target-superuser eligibility with REASSIGN OWNED. State, rename and drop
+use normal owner authority. Rename replaces the immutable descriptor under the
+same address, preserving function, owner, event, filters and mode.
 The engine owns phase scheduling, genuine private utility publication and
 unlocked implicit invocation; no replication modes or helper SRFs are fabricated.
 

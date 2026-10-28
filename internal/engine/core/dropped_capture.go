@@ -20,8 +20,14 @@ func collectCommandDrops(view catalog.Read, scope *StatementScope) bool {
 	if scope.EventCommand == nil {
 		return false
 	}
+	// Callers hold Engine.Mu; effective settings follow the authority lock order.
+	auth, err := scope.RoutineAuthorizationLocked()
+	if err != nil {
+		return false
+	}
+	replica := auth.RuleReplica()
 	for _, trigger := range view.EventTriggers() {
-		if trigger.Matches("sql_drop", scope.EventCommand.Tag) {
+		if trigger.Matches("sql_drop", scope.EventCommand.Tag, replica) {
 			return true
 		}
 	}

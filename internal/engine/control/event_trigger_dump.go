@@ -13,7 +13,7 @@ import (
 
 type eventTriggerReplay struct {
 	owner, name, create string
-	enabled             bool
+	mode                catalog.TriggerMode
 }
 
 // Render and validate against the captured authorities before any output byte.
@@ -58,7 +58,7 @@ func (s *dumpScript) prepareEventTriggers(ctx context.Context) error {
 			sql.WriteString(")")
 		}
 		sql.WriteString(" EXECUTE FUNCTION " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(function.Name()) + "();\n")
-		s.eventTriggerReplay = append(s.eventTriggerReplay, eventTriggerReplay{owner: owner.Name, name: name, create: sql.String(), enabled: d.Enabled})
+		s.eventTriggerReplay = append(s.eventTriggerReplay, eventTriggerReplay{owner: owner.Name, name: name, create: sql.String(), mode: d.FiringMode})
 	}
 	slices.SortFunc(s.eventTriggerReplay, func(a, b eventTriggerReplay) int { return strings.Compare(a.name, b.name) })
 	return nil
@@ -80,13 +80,20 @@ func emitDumpEventTriggers(ctx context.Context, s *dumpScript, w *dumpWriter) er
 		}
 	}
 	for _, replay := range s.eventTriggerReplay {
-		if !replay.enabled {
+		if replay.mode == catalog.TriggerDisabled {
 			continue
+		}
+		action := "ENABLE"
+		switch replay.mode {
+		case catalog.TriggerReplica:
+			action += " REPLICA"
+		case catalog.TriggerAlways:
+			action += " ALWAYS"
 		}
 		if err := w.setOwner(replay.owner); err != nil {
 			return err
 		}
-		if err := w.emit("ALTER EVENT TRIGGER " + replay.name + " ENABLE;\n"); err != nil {
+		if err := w.emit("ALTER EVENT TRIGGER " + replay.name + " " + action + ";\n"); err != nil {
 			return err
 		}
 	}

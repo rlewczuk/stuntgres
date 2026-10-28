@@ -17,9 +17,12 @@ func (*CreateEventTrigger) statement()                 {}
 func (s *CreateEventTrigger) SourcePosition() Position { return s.Pos }
 
 type AlterEventTrigger struct {
-	Name    Identifier
-	Enabled bool
-	Pos     Position
+	Name          Identifier
+	Action        string
+	FiringMode    byte
+	Target        Identifier
+	OwnerIdentity bool
+	Pos           Position
 }
 
 func (*AlterEventTrigger) statement()                 {}

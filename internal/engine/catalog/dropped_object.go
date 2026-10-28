@@ -17,13 +17,19 @@ type DroppedObject struct {
 // DropProvenance retains independent incoming deletion-path flags.
 type DropProvenance struct{ Original, Normal bool }
 
-// CollectDroppedObjects is the indexed, allocation-free collection admission.
+// CollectDroppedObjects is the allocation-free session-independent superset:
+// origin, replica and always may fire; command scope applies the effective role.
 func CollectDroppedObjects(view Read) bool {
-	if view.State() == nil {
+	if view.state == nil || view.state.eventTriggers.Len() == 0 {
 		return false
 	}
+	return collectIndexedDroppedObjects(view)
+}
+
+// Keep iterator callback escape state off the absent-index path.
+func collectIndexedDroppedObjects(view Read) bool {
 	for _, trigger := range view.EventTriggers() {
-		if trigger.Enabled && trigger.Event == "sql_drop" {
+		if trigger.FiringMode.Valid() && trigger.FiringMode != TriggerDisabled && trigger.Event == "sql_drop" {
 			return true
 		}
 	}

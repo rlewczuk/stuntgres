@@ -16,7 +16,7 @@ type EventTrigger struct {
 	Owner          authorization.PrincipalRef
 	Function       ids.ObjectRef
 	Event          string
-	Enabled        bool
+	FiringMode     TriggerMode
 	Tags           []string
 }
 
@@ -25,8 +25,8 @@ func (d *EventTrigger) Revision() ids.DefinitionRevision { return d.ObjectRevisi
 func (*EventTrigger) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
 func (d *EventTrigger) Name() string                     { return d.ObjectName }
 func (*EventTrigger) Kind() ids.ObjectKind               { return ids.EventTriggerObject }
-func (d *EventTrigger) Matches(event, tag string) bool {
-	if !d.Enabled || d.Event != event {
+func (d *EventTrigger) Matches(event, tag string, replica bool) bool {
+	if !d.FiringMode.Valid() || !d.FiringMode.Fires(replica) || d.Event != event {
 		return false
 	}
 	if d.Tags == nil {
@@ -46,7 +46,7 @@ func (EventTriggerProvider) ClassID() ids.OID { return ids.EventTriggerClassID }
 func (EventTriggerProvider) Validate(v Read, descriptor Descriptor) error {
 	d, ok := descriptor.(*EventTrigger)
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid event trigger descriptor authority") }
-	if !ok || d == nil || v.Owner() == nil || v.State() == nil || v.Get(d.Address()) != d || d.Address().ClassID != ids.EventTriggerClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || d.Name() == "" || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
+	if !ok || d == nil || !d.FiringMode.Valid() || v.Owner() == nil || v.State() == nil || v.Get(d.Address()) != d || d.Address().ClassID != ids.EventTriggerClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || d.Name() == "" || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
 		return invalid()
 	}
 	if v.Owner().Principals == nil || d.Owner.ID() == 0 || d.Owner != v.Owner().Principals.Principal(d.Owner.ID()) || d.Function != v.Owner().Domain.Ref(v.Epoch(), d.Function.Address) || d.Function.Address.ClassID != ids.ProcedureClassID || d.Function.Address.SubID != 0 {
@@ -76,7 +76,7 @@ func (EventTriggerProvider) Validate(v Read, descriptor Descriptor) error {
 // EventTriggers iterates the descriptor-derived class index, not a separate
 // name or execution registry. A retained read retains the same immutable root.
 func (r Read) EventTriggers() iter.Seq2[ids.ObjectAddress, *EventTrigger] {
-	if r.state == nil {
+	if r.state == nil || r.state.eventTriggers.Len() == 0 {
 		return func(func(ids.ObjectAddress, *EventTrigger) bool) {}
 	}
 	return r.state.eventTriggers.All()

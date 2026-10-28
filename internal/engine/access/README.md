@@ -98,6 +98,10 @@ No parallel language-permission table or cached grant decision exists.
   DROP OWNED, and `ForeignOwnershipEligibility`, the owner change rule of
   foreign-data wrappers and servers that ALTER SERVER (`fdw`) and REASSIGN
   OWNED (`role`) share.
+  `EventTriggerOwnershipEligibility` shares owner-first, target-superuser
+  validation and its complete diagnostic between ALTER EVENT TRIGGER and
+  REASSIGN OWNED. Callers own same-owner bypass; this rule does not impose
+  generic SET ROLE or namespace CREATE checks.
 - **Owned objects** (`owned.go`): `OwnedRoots`, `OwnershipRelationLocks`,
   `OwnedPolicies` and `OwnedMembershipCandidate`, the pure parts of
   REASSIGN and DROP OWNED. `OwnershipRoot` and `OwnedRoots` take the
