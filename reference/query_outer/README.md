@@ -46,6 +46,8 @@ including tmpdir's explicit cost 10 and row estimate 20.
 The nine database/relation size overloads retain their released strict volatile
 metadata; the one-argument SQL wrapper has a declaration body and retained
 released cost 1, as do the internal implementations.
+The four zero-input session-activity declarations retain their exact released
+identities, result types, strictness, volatility and parallel-safety metadata.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 
 Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and

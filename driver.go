@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"math"
 	"runtime"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
@@ -120,7 +121,7 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 	c.owner.mu.Lock()
-	if c.owner.lastSession == ^ids.SessionID(0) {
+	if c.owner.lastSession >= math.MaxInt32 {
 		c.owner.mu.Unlock()
 		return nil, errors.New("stuntgres: session identity exhausted")
 	}

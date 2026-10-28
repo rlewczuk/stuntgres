@@ -28,6 +28,12 @@ non-strict, evaluate their optional child once and validate exact format names
 before returning collector absence. Ordinary live routine EXECUTE admission owns
 authorization, including NULL operands and inherited `pg_monitor` grants.
 
+`SessionActivity` is a zero-child typed recipe with ordinary routine provenance.
+Query text is volatile; physical identity and cluster event clocks are stable.
+All four remain unfolded in planning and preflight. `SessionActivityRuntime`
+borrows the executing command through the live host, including FETCH; no source,
+session, clock result or authority is retained in the immutable leaf.
+
 `TypeInquiry` binds `format_type`, `pg_basetype` and `pg_typeof` through ordinary
 selected routine admission. Stable calls never retain evaluated results;
 preflight preserves demanded child work. Logical type identity is separate from
@@ -686,6 +692,8 @@ publication and lock-manager tickets stay in the engine.
   logical replay.
 
 ## Testing
+
+Session activity leaf and composed authority units use `RUN='^TestSessionActivity'`.
 
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.

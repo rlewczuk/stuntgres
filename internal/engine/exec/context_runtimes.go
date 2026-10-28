@@ -15,6 +15,15 @@ import (
 	"time"
 )
 
+var _ functions.SessionActivityRuntime = (*Context)(nil)
+
+func (c *Context) SessionActivityValue(kind functions.SessionActivityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil { return sqltype.Value{}, err }
+	host := c.LiveHost()
+	if host == nil { return sqltype.Value{}, fmt.Errorf("stuntgres: session activity lacks statement authority") }
+	return host.SessionActivityValue(kind, result)
+}
+
 // The ACL SQL functions borrow the executing statement's authority through
 // this capability. Each inquiry holds e.mu only for its own catalog and role
 // reads and caches nothing on the expression or statement.

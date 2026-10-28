@@ -17,6 +17,10 @@ import (
 // targets is immutable after each publication; runtimes retain independent
 // storage, object domains, visibility and session registries.
 type DatabaseCluster struct {
+	// Real initialization events in PostgreSQL timestamp microseconds, immutable
+	// after construction and never replaced with catalogs.
+	StartedAt int64
+	ConfigLoadedAt int64
 	Mu            sync.Mutex
 	Roles         access.RoleStore
 	Locks         *lock.Manager

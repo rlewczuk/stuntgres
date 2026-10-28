@@ -170,7 +170,7 @@ func pgrowOwner(t *testing.T, p *fixture.Pair, a *sql.Conn, mode string) pgrowMe
 }
 
 // Read identity from the independently assigned transaction's real lock, not
-// from the pgrowlocks result under test or the unsupported pg_backend_pid().
+// from either the pgrowlocks result under test or the SQL backend inquiry.
 func pgrowTransactionPID(t *testing.T, p *fixture.Pair, conn *sql.Conn, xid string) int {
 	t.Helper()
 	rows, err := conn.QueryContext(p.Ctx, "SELECT pid FROM pg_locks WHERE locktype='transactionid' AND transactionid=$1::xid AND mode='ExclusiveLock' AND granted", xid)

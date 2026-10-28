@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"math"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"testing"
@@ -173,6 +174,28 @@ func TestSessionAdapterMechanics(t *testing.T) {
 	if allocated != ^ids.SessionID(0) {
 		t.Fatal("exhausted allocation changed counter")
 	}
+}
+
+func TestSessionActivityIdentityCapacity(t *testing.T) {
+	d := NewDriver()
+	connector, err := d.OpenConnector("activity-capacity")
+	if err != nil { t.Fatal(err) }
+	d.lastSession = math.MaxInt32 - 1
+	raw, err := connector.Connect(context.Background())
+	if err != nil { t.Fatal(err) }
+	c := raw.(*conn)
+	if c.session.Token().ID() != math.MaxInt32 { t.Fatal("last int4 identity", c.session.Token().ID()) }
+	c.Close()
+	for _, exhausted := range []ids.SessionID{math.MaxInt32, math.MaxInt32 + 1, ^ids.SessionID(0)} {
+		d.lastSession = exhausted
+		raw, err := connector.Connect(context.Background())
+		if raw != nil || err == nil || err.Error() != "stuntgres: session identity exhausted" || d.lastSession != exhausted { t.Fatal("exhausted allocator mutated", raw, err, d.lastSession) }
+		var diagnostic interface{ SQLState() string }
+		if errors.As(err, &diagnostic) { t.Fatal("allocator fabricated SQLSTATE", err) }
+	}
+	canceled, cancel := context.WithCancel(context.Background()); cancel()
+	d.lastSession = math.MaxInt32 - 1
+	if raw, err := connector.Connect(canceled); raw != nil || !errors.Is(err, context.Canceled) || d.lastSession != math.MaxInt32 - 1 { t.Fatal("pre-canceled allocation", raw, err, d.lastSession) }
 }
 
 func TestSessionFatalNoReplayMechanics(t *testing.T) {

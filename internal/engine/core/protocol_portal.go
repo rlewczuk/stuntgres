@@ -99,6 +99,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 		return out, missingSQLPrepared(statement)
 	}
 	out.Source = entry.Source
+	s.Op.OriginalSQL, s.Op.SQLAvailable = entry.Source, true
 	formats, err := session.ProtocolFormats(input)
 	if err != nil {
 		return out, err
@@ -334,6 +335,9 @@ func (s *StatementScope) ExecuteProtocolPortal(name string, maxRows uint32, sink
 }
 
 func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, maxRows uint32, sink func([]session.ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks, extended bool) (out ProtocolExecution, err error) {
+	if extended {
+		s.Op.OriginalSQL, s.Op.SQLAvailable = p.Entry.Source, true
+	}
 	if p.Entry.Body == nil {
 		out.Empty = true
 		return out, nil

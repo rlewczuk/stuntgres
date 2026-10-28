@@ -480,3 +480,7 @@
 3801	pg_current_logfile	11	12	1	0	0	0	f	false	false	false	false	v	s	1	0	25	25	\N	\N	\N	false	\N	pg_current_logfile_1arg	\N	false	\N
 4099	pg_numa_available	11	12	1	0	0	0	f	false	false	true	false	s	s	0	0	16		\N	\N	\N	false	\N	pg_numa_available	\N	false	\N
 6353	pg_get_loaded_modules	11	12	1	10	0	0	f	false	false	true	true	v	r	0	0	2249		{25,25,25}	{o,o,o}	{module_name,version,file_name}	false	\N	pg_get_loaded_modules	\N	false	\N
+817	current_query	11	12	1	0	0	0	f	false	false	false	false	v	r	0	0	25		\N	\N	\N	false	\N	current_query	\N	false	\N
+2026	pg_backend_pid	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	23		\N	\N	\N	false	\N	pg_backend_pid	\N	false	\N
+2034	pg_conf_load_time	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	1184		\N	\N	\N	false	\N	pg_conf_load_time	\N	false	\N
+2560	pg_postmaster_start_time	11	12	1	0	0	0	f	false	false	true	false	s	s	0	0	1184		\N	\N	\N	false	\N	pg_postmaster_start_time	\N	false	\N

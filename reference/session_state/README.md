@@ -13,6 +13,9 @@ characteristics (SET TRANSACTION, isolation defaults) in
 
 Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rules.
 
+Current-source, physical identity, event clocks and native-control scenarios use
+`RUN='^TestReferenceSessionActivity'` in both fixture modes.
+
 - `TestMain` is `fixture.Main(m)`.
 - Helpers: `driver_batch_helpers_test.go`, `driver_batch_refresh_helpers_test.go`,
   `driver_batch_role_retirement_helpers_test.go`, `settings_adapter_helpers_test.go`,

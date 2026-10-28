@@ -100,6 +100,8 @@ type Host interface {
 	OtherTempNamespace(oid uint32) (bool, error)
 	ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error)
 	NotificationQueueUsage() (float64, error)
+	// functions.SessionActivityRuntime
+	SessionActivityValue(functions.SessionActivityKind, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.TransactionInquiryRuntime
 	CommitTimestamp(xid uint32) (time.Time, uint32, bool, error)
 	CurrentTransactionID(assign bool) (uint64, error)

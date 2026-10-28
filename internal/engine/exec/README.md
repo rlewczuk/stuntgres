@@ -164,6 +164,9 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Snapshot inquiry forwards to the admitted host's immutable public value,
   selected together with the tuple frontier, never sampled during Eval.
   Immutable expression nodes and prepared descriptors retain no runtime owner.
+  Session activity forwards through `LiveHost`: FETCH borrows its current client
+  source without replacing or depending on the cursor's clock snapshots.
+  Neither source nor live session authority enters `CursorExpressionData`.
   Dropped-object inspection forwards per opening to the live statement's lexical
   event command; no host or inactive `sql_drop` yields the protocol diagnostic.
   The context retains neither records nor a phase guard between invocations.

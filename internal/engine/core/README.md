@@ -1363,6 +1363,13 @@ Producers, the OID registry and descriptor specs live in
 runtime bodies (`*_runtime.go`) keep the authority. No prepared node caches an
 owner.
 
+`session_activity_runtime.go` reads the current operation's original frontend SQL
+and physical session token. `DatabaseCluster` owns immutable microsecond startup
+and configuration-load stamps, captured at cluster construction and actual initial
+settings-registry load. Logical database adoption shares them; native catalog
+replacement never imports staging clocks or changes destination runtime identity.
+These runtime reads allocate no per-cell strings, snapshots or catalog captures.
+
 Generic file runtimes borrow live expression-principal roles and logical path
 settings in Engine -> Settings -> Session lock order. Shared lexical validation
 performs no host I/O. Read length checks surround path authorization in released
@@ -1532,6 +1539,8 @@ session, transaction, prepared-analysis and typed-frame authorities.
   `StatementScope.Finish`'s disposal; no timer callback mutates the transaction.
 
 ## Testing
+
+Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 
 Trigger-mode candidate, staged cancellation, prepared publication, clone/FK and
 replay ownership units share `RUN='^TestTriggerMode'`, also with `RACE=1`.

@@ -131,6 +131,10 @@ type Operation struct {
 	StatementDeadline        time.Time
 	CommandStart             time.Time
 	SourceContext            context.Context
+	// OriginalSQL is command-owned frontend text, shared unchanged by a batch.
+	// Internal operations leave SQLAvailable false; an available empty source is text.
+	OriginalSQL              string
+	SQLAvailable             bool
 	CommandAdmission         bool
 	OriginTransaction        ids.TxRef // Immutable acquisition evidence, never transaction authority.
 	sqlActivity              bool

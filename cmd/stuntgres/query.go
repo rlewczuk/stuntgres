@@ -22,6 +22,7 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 		return c.readyBoundary()
 	}
 	defer op.Done()
+	op.OriginalSQL, op.SQLAvailable = source, true
 	scope, err := c.db.engine.StartStatement(op)
 	if err != nil {
 		if e := c.writeSQLError(ctx, source, op.CommandError(err)); e != nil {

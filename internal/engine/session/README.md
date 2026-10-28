@@ -49,6 +49,12 @@ nontransactional.
   analysis slots; `Session.AcquireCommand` admits commands. Notice levels,
   emission and the relation skip notices (`ExistingRelation`,
   `MissingRelation`) are in `notices.go`.
+  `Operation.OriginalSQL` and `SQLAvailable` retain the command-admitted immutable
+  frontend text, not a statement substring or mutable session setting. A simple
+  batch shares it through every statement; prepared execution installs its
+  original source. Nested execution keeps the outer command, while source-less
+  internal operations remain explicitly unavailable. Source lives until Done and
+  is never copied into a retained cursor or prepared expression.
   Command admission captures typed CPU/parallel planner costs, statistics target,
   constraint-exclusion mode, cursor fraction and recursive-worktable factor under
   the existing settings mutex alongside the worker ceiling. Consumers receive

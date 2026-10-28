@@ -65,7 +65,7 @@ func truncateRestartError(t *testing.T, f fixture.ControlsReferenceFixture, x fi
 }
 
 // Reuse the native public physical-session witness used by the live-lock and
-// blocking-PID scenarios. Native does not implement pg_backend_pid().
+// blocking-PID scenarios, independently of the SQL backend inquiry.
 func truncateRestartPID(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) int {
 	t.Helper()
 	if b.PG {

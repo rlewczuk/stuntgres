@@ -62,6 +62,9 @@ and conditional PL row replacement and suppression.
   release and join the blocked reader so COPY can drain. Release a complete
   record (for CSV, the closing quote) so malformed input cannot outrank the
   interrupt. Canceling the client context while sending EOF races autocommit.
+  Native lifecycle phases assert the ordinary positive signed-int4 backend
+  identity independently; physical server observation/cancel functions remain
+  excluded there, while real native Operation units cover interruption.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

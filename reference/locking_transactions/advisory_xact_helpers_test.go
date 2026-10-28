@@ -37,7 +37,7 @@ func advisoryXactConn(t *testing.T, p *fixture.Pair, b fixture.Backend) *sql.Con
 
 // Initialize native identity outside every transaction that might be prepared.
 // As in the existing blocking-PID fixtures, the TEMP namespace suffix is the
-// public native physical-session identity; pg_backend_pid is not implemented.
+// public native physical-session identity, independently of the SQL backend inquiry.
 func advisoryXactPID(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) int {
 	t.Helper()
 	if b.PG {

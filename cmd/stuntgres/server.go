@@ -96,7 +96,7 @@ func (s *server) newClient(socket net.Conn) (*client, error) {
 	if s.ctx.Err() != nil {
 		return nil, s.ctx.Err()
 	}
-	if s.nextID == math.MaxUint32 {
+	if s.nextID >= math.MaxInt32 {
 		return nil, errors.New("backend identity exhausted")
 	}
 	s.nextID++

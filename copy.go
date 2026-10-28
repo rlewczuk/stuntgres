@@ -86,6 +86,7 @@ func (c *conn) copyRequest(ctx context.Context, statement string, source io.Read
 		return 0, c.terminalError(err)
 	}
 	defer op.Done()
+	op.OriginalSQL, op.SQLAvailable = statement, true
 	scope, err := c.engine.StartStatement(op)
 	if err != nil {
 		return 0, c.terminalError(op.CommandError(err))

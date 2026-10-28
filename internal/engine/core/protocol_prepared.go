@@ -27,6 +27,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 	if err := s.Active(); err != nil {
 		return ProtocolStatement{}, err
 	}
+	s.Op.OriginalSQL, s.Op.SQLAvailable = source, true
 	r := PayloadOf(s.Op.Session).PreparedSQL
 	if name == "" {
 		r.Remove("")

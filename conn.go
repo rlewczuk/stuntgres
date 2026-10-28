@@ -162,6 +162,7 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 		return
 	}
 	defer op.Done()
+	op.OriginalSQL, op.SQLAvailable = query, true
 	scope, err := c.engine.StartStatement(op)
 	if err != nil {
 		err = c.terminalError(op.CommandError(err))
@@ -252,8 +253,8 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	r.RowSets = nil
 	return
 }
-func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue, expected *core.Description) (core.Result, error) {
-	r, _, _, err := c.request(ctx, "", ast, args, false, false, expected)
+func (c *conn) execute(ctx context.Context, source string, ast parser.Statement, args []driver.NamedValue, expected *core.Description) (core.Result, error) {
+	r, _, _, err := c.request(ctx, source, ast, args, false, false, expected)
 	for _, rows := range r.sets {
 		if closeErr := rows.Close(); err == nil {
 			err = closeErr

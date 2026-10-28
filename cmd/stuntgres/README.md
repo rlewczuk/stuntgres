@@ -115,7 +115,9 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
 - COPY streams synchronously through unlocked engine callbacks, with no extra
   worker or queue; input publication waits for the terminal protocol outcome.
 - Notifications use a nonblocking engine poll/wake and drain only at TxIdle.
-- Session ID 1 is reserved for bootstrap; network session IDs equal wire PIDs (2+).
+- Session ID 1 is reserved for bootstrap; network session IDs equal wire PIDs
+  and SQL `pg_backend_pid()` (2 through signed-int4 capacity). Exhaustion rejects
+  admission without wrapping or registering a replacement identity.
 - The registered user-cancel cause is an immutable SQL diagnostic; COPY enriches
   an owned clone.
 - Normal-protocol C-string fields (including case-sensitive statement/portal
@@ -131,12 +133,18 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
   response is never attributed to a later cycle.
 - Prepared SQL errors keep the immutable original source and typed,
   format-aware parameter context for logging.
+- Simple commands attach their complete frontend SQL to the admitted operation.
+  Extended Bind and every Execute/resume attach the original prepared source;
+  nested SQL EXECUTE and FETCH keep the outer frontend command's source.
 
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). Public SQL, wire-client and
 server-lifecycle scenarios live in [reference/sessions](../../reference/sessions/README.md);
 this package keeps command, filesystem, process, framing and log mechanics.
+
+Session activity source transport and identity-capacity mechanics use
+`RUN='^TestSessionActivity'`.
 
 - `process_socket_test.go` (`linux && !noservertests`) holds the real TCP
   lifecycle (`TestServerPIDSocketLifecycle`) and its subprocess entry

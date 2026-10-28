@@ -24,6 +24,13 @@ Type inquiries use the same direct, prepared and stored expression paths:
 nested domains without replacing nominal `pg_typeof` identity. Native fixture
 controls preserve the underlying type graph and stored expressions.
 
+Session inquiries use ordinary typed SQL: `current_query()` returns the complete
+submitted SQL, including comments, batches and prepared placeholders.
+`pg_backend_pid()` identifies the embedded physical session, not an OS process.
+`pg_postmaster_start_time()` and `pg_conf_load_time()` report cluster startup and
+the actual initial settings load as timestamp-with-time-zone values. Session
+identity and these cluster event clocks survive native Reset and Restore.
+
 `CREATE EXTENSION tablefunc` provides `normal_rand` and the four documented
 `connectby` hierarchy-source overloads. A connectby call in `FROM` supplies its
 anonymous record columns: key, parent, integer depth, optional text branch,

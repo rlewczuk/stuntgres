@@ -69,11 +69,14 @@ func TestReferenceCopyBinaryLifecycle(t *testing.T) {
 	for _, phase := range []string{"payload_cancel", "trailer_cancel", "payload_timeout", "trailer_timeout"} {
 		t.Run(phase, func(t *testing.T) {
 			copyTextScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c copyTextConnection) {
-				// SQL server observation/cancellation functions are a PG-owned
-				// surface. Native binary interruption uses real Operation units.
+				// Physical server observation/cancellation remains PG-owned.
+				// Native binary interruption uses real Operation units; its SQL
+				// backend identity is nevertheless a positive signed-int4 session ID.
 				if !b.PG {
-					_, err := c.conn.ExecContext(c.ctx, "SELECT pg_backend_pid()")
-					fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "functions are unsupported", Position: "8"})
+					var pid int64
+					if err := c.conn.QueryRowContext(c.ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil || pid <= 0 || pid > 2147483647 {
+						t.Fatalf("native backend identity %d: %v", pid, err)
+					}
 					return
 				}
 				c.exec(t, "CREATE TABLE copy_binary_lifecycle(v int4)")

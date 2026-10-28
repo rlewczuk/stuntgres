@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"time"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
@@ -86,7 +87,7 @@ type Result struct {
 // registers no statement dispatch or factory; the composition does.
 func NewEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	cluster := &DatabaseCluster{}
+	cluster := &DatabaseCluster{StartedAt: time.Now().UnixMicro() - activityEpochUnixMicros}
 	e := &Engine{Mu: &cluster.Mu, RoleStore: &cluster.Roles, Cluster: cluster, Catalog: catalog.NewStore(catalog.Owner{Providers: map[ids.OID]catalog.Provider{}}, 16384, 2)}
 	e.Analysis = BindingHost{Engine: e}
 	e.Authority = AuthorityInputs{Domain: e.Catalog.Domain, Settings: &e.Settings, Storage: &e.Storage}
@@ -106,6 +107,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.Mu.Unlock()
 	e.RoleStore.Initialize()
 	e.Settings = settings.NewRegistry(definitions, e.Visibility.TracksCommitTimestamps())
+	cluster.ConfigLoadedAt = time.Now().UnixMicro() - activityEpochUnixMicros
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
