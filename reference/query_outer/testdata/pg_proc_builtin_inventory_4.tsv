@@ -484,3 +484,7 @@
 2026	pg_backend_pid	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	23		\N	\N	\N	false	\N	pg_backend_pid	\N	false	\N
 2034	pg_conf_load_time	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	1184		\N	\N	\N	false	\N	pg_conf_load_time	\N	false	\N
 2560	pg_postmaster_start_time	11	12	1	0	0	0	f	false	false	true	false	s	s	0	0	1184		\N	\N	\N	false	\N	pg_postmaster_start_time	\N	false	\N
+2196	inet_client_addr	11	12	1	0	0	0	f	false	false	false	false	s	r	0	0	869		\N	\N	\N	false	\N	inet_client_addr	\N	false	\N
+2197	inet_client_port	11	12	1	0	0	0	f	false	false	false	false	s	r	0	0	23		\N	\N	\N	false	\N	inet_client_port	\N	false	\N
+2198	inet_server_addr	11	12	1	0	0	0	f	false	false	false	false	s	r	0	0	869		\N	\N	\N	false	\N	inet_server_addr	\N	false	\N
+2199	inet_server_port	11	12	1	0	0	0	f	false	false	false	false	s	r	0	0	23		\N	\N	\N	false	\N	inet_server_port	\N	false	\N

@@ -47,6 +47,7 @@ type Definition struct {
 // overlap any family that is still dispatched by the engine's name chain.
 var definitions = [...]Definition{
 	{Names: sessionActivityNames[:], ExactSpelling: true, SharedGates: true, Bind: bindSessionActivity},
+	{Names: sessionEndpointNames[:], ExactSpelling: true, SharedGates: true, Bind: bindSessionEndpoint},
 	{Names: statisticsIONames, ExactSpelling: true, SharedGates: true, Bind: bindStatisticsIO},
 	{Names: []string{"ordered_set_transition_multi", "rank_final", "dense_rank_final", "percent_rank_final", "cume_dist_final"}, ExactSpelling: true, SharedGates: true, Bind: bindAggregateContextSupport},
 	{Names: []string{"int4larger"}, ExactSpelling: true, SharedGates: true, Bind: bindInt4Larger},

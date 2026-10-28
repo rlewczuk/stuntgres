@@ -311,6 +311,12 @@ NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-n
 empty `[]byte` is an empty value. `bytea` string and `[]byte` arguments are raw
 octets. Time zone and Unicode data are embedded; no host locale is consulted.
 
+Connection endpoint inquiries on in-process connections return SQL NULL. Address
+columns retain `INET` with string scan types and port columns `INT4` with int64
+scan types, including empty results; raw values are actual `nil` interfaces.
+Direct, prepared and stored-view calls use the same typed result path. Native
+Dump/Reset/Restore preserves stored calls symbolically, not as endpoint values.
+
 Vector columns report `INT2VECTOR`/`OIDVECTOR` and string scan types. Text or
 non-nil byte arguments may carry empty vectors, distinct from SQL NULL; typed-nil
 byte arguments are NULL. Their canonical values and declared types survive native

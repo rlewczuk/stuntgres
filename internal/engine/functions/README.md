@@ -34,6 +34,13 @@ All four remain unfolded in planning and preflight. `SessionActivityRuntime`
 borrows the executing command through the live host, including FETCH; no source,
 session, clock result or authority is retained in the immutable leaf.
 
+`SessionEndpoint` retains a zero-child stable typed recipe and ordinary routine
+provenance, never socket state or authority. In-process sessions have no transport
+endpoints: address leaves return typed INET NULL and port leaves typed INT4 NULL.
+Planning and preflight preserve the call for live EXECUTE admission. Scalar source
+opening produces one typed NULL row. Stored calls use ordinary symbolic capture,
+reconstruction and native dump/replay; there is no endpoint serialization.
+
 `TypeInquiry` binds `format_type`, `pg_basetype` and `pg_typeof` through ordinary
 selected routine admission. Stable calls never retain evaluated results;
 preflight preserves demanded child work. Logical type identity is separate from
@@ -694,6 +701,7 @@ publication and lock-manager tickets stay in the engine.
 ## Testing
 
 Session activity leaf and composed authority units use `RUN='^TestSessionActivity'`.
+Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.
 
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.

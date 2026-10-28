@@ -16,6 +16,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rule
 Current-source, physical identity, event clocks and native-control scenarios use
 `RUN='^TestReferenceSessionActivity'` in both fixture modes.
 
+Connection endpoint values, typed metadata, diagnostics, EXECUTE authority and
+stored-view native controls/replay use `RUN='^TestReferenceSessionEndpoints'`
+in both fixture modes. Native calls yield typed NULLs; the TCP oracle checks
+actual valid endpoints and stability on a held physical connection.
+
 - `TestMain` is `fixture.Main(m)`.
 - Helpers: `driver_batch_helpers_test.go`, `driver_batch_refresh_helpers_test.go`,
   `driver_batch_role_retirement_helpers_test.go`, `settings_adapter_helpers_test.go`,
