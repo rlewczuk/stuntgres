@@ -92,6 +92,7 @@ var producers = [...]Registration{
 	{ShmemAllocationsOID, capturePGShmemAllocations},
 	{ShmemAllocationsNUMAOID, capturePGShmemAllocations},
 	{ProgressCopyOID, captureCopyProgress},
+	{ProgressCreateIndexOID, captureCreateIndexProgress},
 	{WaitEventsOID, capturePGWaitEvents},
 	{16200, captureTablePrivileges},
 	{16201, captureDataTypePrivileges},

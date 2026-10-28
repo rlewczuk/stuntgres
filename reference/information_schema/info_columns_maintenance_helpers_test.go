@@ -10,4 +10,5 @@ func icMaintenanceInventory(inventory map[string][]string) {
 	inventory["pg_stat_progress_vacuum"] = strings.Fields("pid datid datname relid phase heap_blks_total heap_blks_scanned heap_blks_vacuumed index_vacuum_count max_dead_tuple_bytes dead_tuple_bytes num_dead_item_ids indexes_total indexes_processed delay_time")
 	inventory["pg_stat_progress_basebackup"] = strings.Fields("pid phase backup_total backup_streamed tablespaces_total tablespaces_streamed")
 	inventory["pg_stat_progress_copy"] = strings.Fields("pid datid datname relid command type bytes_processed bytes_total tuples_processed tuples_excluded tuples_skipped")
+	inventory["pg_stat_progress_create_index"] = strings.Fields("pid datid datname relid index_relid command phase lockers_total lockers_done current_locker_pid blocks_total blocks_done tuples_total tuples_done partitions_total partitions_done")
 }

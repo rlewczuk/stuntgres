@@ -27,12 +27,12 @@ func EnginePrepareForeignIndexStorage(x *Engine, ctx context.Context, next *cata
 
 // EnginePrepareIndexCatalog calls x.prepareIndexCatalog.
 func EnginePrepareIndexCatalog(x *Engine, evaluation *exec.Context, current *catalog.State, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]index.RootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
-	return x.prepareIndexCatalog(evaluation, current, next, relations, roots, rebuildParents, rebuildIndexes, output, auth, runtimeOwners, candidates)
+	return x.prepareIndexCatalog(evaluation, current, next, relations, roots, rebuildParents, rebuildIndexes, output, auth, runtimeOwners, candidates, index.ProgressBinding{})
 }
 
 // EnginePrepareIndexRoots calls x.prepareIndexRoots.
 func EnginePrepareIndexRoots(x *Engine, evaluation *exec.Context, current *catalog.State, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []index.RowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]index.RootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
-	return x.prepareIndexRoots(evaluation, current, next, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, auth, runtimeOwners, candidates)
+	return x.prepareIndexRoots(evaluation, current, next, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, auth, runtimeOwners, candidates, index.ProgressBinding{})
 }
 
 // EngineCapturePartialMaskLocked calls x.capturePartialMaskLocked.

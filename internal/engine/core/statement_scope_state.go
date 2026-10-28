@@ -63,6 +63,7 @@ type StatementScope struct {
 	View                        *visibility.View
 	Finished                    bool
 	copyProgress                *copyProgress // Finish-owned COPY lifetime, before transaction publication.
+	indexProgress               *indexProgress
 	message                     bool
 	messageEnded                bool
 	messageResult               error

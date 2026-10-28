@@ -76,6 +76,17 @@ func ExecuteIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 		e.DiscardCatalogStage(stage)
 		return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, err)
 	}
+	if reindex {
+		for _, ref := range g.Indexes {
+			idx := g.Descriptors[ref.Address]
+			if stage.Indexes().Progress.Observer == nil {
+				stage.Indexes().Progress = scope.BeginCreateIndexProgressLocked(idx.SQLIndex.Parent, idx.Address())
+				scope.IndexProgressCommand("REINDEX", idx.Address().ObjectID)
+				stage.Indexes().Progress.Targets = make(map[ids.ObjectAddress]ids.ObjectAddress, len(g.Indexes))
+			}
+			stage.Indexes().Progress.Targets[idx.Address()] = idx.SQLIndex.Parent
+		}
+	}
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if drop, ok := stmt.(*parser.DropIndex); ok {

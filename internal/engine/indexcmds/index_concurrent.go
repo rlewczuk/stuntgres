@@ -11,12 +11,14 @@ import (
 )
 
 func executeConcurrentIndex(e *core.Engine, scope *core.StatementScope, syntax *parser.CreateIndex, initial *catalog.Relation) (core.Result, error) {
+	scope.IndexProgressPhase("waiting for writers before build")
 	if err := waitIndexWriters(scope, initial.Address()); err != nil {
 		return core.Result{}, err
 	}
 	if _, err := publishConcurrentIndexRoot(e, scope, syntax, initial.Address(), true); err != nil {
 		return core.Result{}, err
 	}
+	scope.IndexProgressPhase("waiting for writers before validation")
 	if err := waitIndexWriters(scope, initial.Address()); err != nil {
 		return core.Result{}, err
 	}
@@ -24,6 +26,7 @@ func executeConcurrentIndex(e *core.Engine, scope *core.StatementScope, syntax *
 	if err != nil {
 		return core.Result{}, err
 	}
+	scope.IndexProgressPhase("waiting for old snapshots")
 	if err := waitOlderIndexSnapshots(scope, xmin, initial.Address()); err != nil {
 		return core.Result{}, err
 	}
@@ -104,11 +107,12 @@ func publishConcurrentIndexRoot(e *core.Engine, scope *core.StatementScope, synt
 		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.AuthorizeLocked(auth, scope.Op.Session)
 		stage.Indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+		stage.Indexes().Progress = scope.BeginCreateIndexProgressLocked(parent.Address(), address)
 		namespace := auth.Catalog.Get(parent.Namespace()).Name()
 		e.Mu.Unlock()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.RoutineAuthority = &auth
-		root, err := index.BuildRelationIndexRoot(&evaluation, parent, &next, &snapshot, nil)
+		root, err := index.BuildRelationIndexRoot(&evaluation, parent, &next, &snapshot, stage.Indexes().Progress.Capture(address))
 		if err == nil {
 			err = index.ValidateUniqueRoot(scope.Op.Context(), parent, &next, root, namespace, scope.Output, &auth.View, core.DisclosureEnv(&auth), first)
 		}

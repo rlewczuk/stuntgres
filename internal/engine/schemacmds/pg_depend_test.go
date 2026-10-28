@@ -79,21 +79,31 @@ func TestPGDependShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The released COPY view owns its metadata-only _RETURN rule internally;
+	// Each released progress view owns its metadata-only _RETURN rule;
 	// bootstrap-pinned backing references still produce no dependency rows.
-	want := make([]sqltype.Value, 7)
-	for i, n := range []int64{2618, int64(pgcatalog.ProgressCopyRuleOID), 0, 1259, int64(pgcatalog.ProgressCopyOID), 0} {
-		if i == 2 || i == 5 {
-			want[i], err = sqltype.Integer(source.Columns[i].Usage.Type, n)
-		} else {
-			want[i], err = sqltype.OIDValue(source.Columns[i].Usage.Type, uint32(n))
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
+	owners := [][2]ids.OID{
+		{pgcatalog.ProgressCopyRuleOID, pgcatalog.ProgressCopyOID},
+		{pgcatalog.ProgressCreateIndexRuleOID, pgcatalog.ProgressCreateIndexOID},
 	}
-	want[6] = sqltype.String(source.Columns[6].Usage.Type, "i")
-	if !reflect.DeepEqual(rows.Anonymous, [][]sqltype.Value{want}) {
+	want := make([][]sqltype.Value, len(owners))
+	for owner, pair := range owners {
+		row := make([]sqltype.Value, 7)
+		for i, n := range []int64{2618, int64(pair[0]), 0, 1259, int64(pair[1]), 0} {
+			if i == 2 || i == 5 {
+				row[i], err = sqltype.Integer(source.Columns[i].Usage.Type, n)
+			} else {
+				row[i], err = sqltype.OIDValue(source.Columns[i].Usage.Type, uint32(n))
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		row[6] = sqltype.String(source.Columns[6].Usage.Type, "i")
+		want[owner] = row
+	}
+	if len(rows.Anonymous) != 2 ||
+		!(reflect.DeepEqual(rows.Anonymous[0], want[0]) && reflect.DeepEqual(rows.Anonymous[1], want[1]) ||
+			reflect.DeepEqual(rows.Anonymous[0], want[1]) && reflect.DeepEqual(rows.Anonymous[1], want[0])) {
 		t.Fatal("released bootstrap ownership graph", rows.Anonymous, want)
 	}
 }
@@ -124,6 +134,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	}
 	want := []pgcatalog.DependEdge{
 		pgDependUnitEdge(2618, pgcatalog.ProgressCopyRuleOID, 0, 1259, pgcatalog.ProgressCopyOID, 0, 'i'),
+		pgDependUnitEdge(2618, pgcatalog.ProgressCreateIndexRuleOID, 0, 1259, pgcatalog.ProgressCreateIndexOID, 0, 'i'),
 		pgDependUnitEdge(1259, 41001, 0, 2615, 2200, 0, 'n'),
 		pgDependUnitEdge(2606, 42001, 0, 1259, 41001, 3, 'a'),
 		pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'n'),
@@ -216,6 +227,7 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 	}
 	pgDependUnitBag(t, got, []pgcatalog.DependEdge{
 		pgDependUnitEdge(2618, pgcatalog.ProgressCopyRuleOID, 0, 1259, pgcatalog.ProgressCopyOID, 0, 'i'),
+		pgDependUnitEdge(2618, pgcatalog.ProgressCreateIndexRuleOID, 0, 1259, pgcatalog.ProgressCreateIndexOID, 0, 'i'),
 		pgDependUnitEdge(1247, 47001, 0, 2615, 47000, 0, 'n'),
 		pgDependUnitEdge(1247, 47002, 0, 2615, 47000, 0, 'n'),
 		pgDependUnitEdge(1247, 47002, 0, 1247, 47001, 0, 'n'),

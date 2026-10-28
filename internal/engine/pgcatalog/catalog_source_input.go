@@ -133,6 +133,7 @@ type Runtime interface {
 	DatabaseFrozenXID() uint64
 	VisitVacuumProgress(context.Context, func(VacuumProgressFact) error) error
 	VisitCopyProgress(context.Context, func(CopyProgressFact) error) error
+	VisitCreateIndexProgress(context.Context, func(CreateIndexProgressFact) error) error
 	TimezoneInput() sqltype.InputEnvironment
 	DatabaseName() string
 	TemporaryOwner() ids.SessionToken

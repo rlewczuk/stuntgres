@@ -80,12 +80,21 @@ func ExecuteCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.Cr
 			return core.Result{}, nil
 		}
 		d := created.Relation
+		if !core.OperationReplayOrZero(scope.Op).StagingEffects && !core.OperationReplayOrZero(scope.Op).TableDestination {
+			stage.Indexes().Progress = scope.BeginCreateIndexProgressLocked(parent.Address(), d.Address())
+		}
+		if s.Concurrent.Character != 0 {
+			scope.IndexProgressCommand("CREATE INDEX CONCURRENTLY", 0)
+		}
 		if s.Concurrent.Character != 0 {
 			if err := e.VisibilityWriteLocked(scope.TxRef); err != nil {
 				return failStage(err)
 			}
 		}
 		err = index.StageCreate(h, parent, d, s.Only)
+		if err == nil && parent.Partition != nil {
+			stage.Indexes().Progress.PartitionTree(h.StageRead(), h.StageBase(), d.Address())
+		}
 		e.Mu.Unlock()
 		if err != nil {
 			e.DiscardCatalogStage(stage)
@@ -142,6 +151,7 @@ func ExecuteCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.Cr
 			return core.Result{}, core.SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 		if err == nil && s.Concurrent.Character != 0 {
+			scope.IndexProgressCommand("CREATE INDEX CONCURRENTLY", d.Address().ObjectID)
 			e.Mu.Lock()
 			e.Visibility.ResetPhaseLocked(scope.TxRef)
 			e.Mu.Unlock()

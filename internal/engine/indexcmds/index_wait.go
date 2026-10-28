@@ -35,16 +35,24 @@ func waitIndexWriters(s *core.StatementScope, idx ids.ObjectAddress) error {
 	}
 	// The complete granted cohort is frozen before admission is observable.
 	e.Mu.Lock()
+	s.IndexProgressWait(len(owners), 0, 0)
 	err = admitIndexBuildWaitLocked(e, idx, s.TxRef, index.WaitWriters)
 	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
 	defer clearIndexBuildWait(e, idx, s.TxRef, index.WaitWriters)
-	for _, owner := range owners {
+	defer s.IndexProgressWait(0, 0, 0)
+	for i, owner := range owners {
+		pid, err := e.Locks.ProgressPID(owner)
+		if err != nil {
+			return err
+		}
+		s.IndexProgressWait(len(owners), i, pid)
 		if err := s.WriteHost().WaitTransaction(owner, lock.CompletionVirtual); err != nil {
 			return err
 		}
+		s.IndexProgressWait(len(owners), i+1, pid)
 	}
 	return nil
 }

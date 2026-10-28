@@ -331,6 +331,13 @@ func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *ca
 		return nil, fmt.Errorf("stuntgres: index parent storage is missing")
 	}
 	entries := make([]storage.IndexEntry, 0, len(store.Versions))
+	var progress BuildProgress
+	if capture != nil {
+		progress = capture.Progress
+	}
+	if progress != nil {
+		progress.ScanStart(len(store.Versions), d.Method)
+	}
 	var preparation ExecutionPreparation
 	for position, row := range store.Versions {
 		if err := ctx.Err(); err != nil {
@@ -341,10 +348,13 @@ func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *ca
 			if err != nil {
 				return nil, err
 			}
-			if capture != nil {
+			if capture != nil && capture.Outputs != nil {
 				capture.Outputs[position] = storage.IndexOutput{Index: capture.Index, Member: matches}
 			}
 			if !matches {
+				if progress != nil {
+					progress.ScanDone(position + 1)
+				}
 				continue
 			}
 			if err := preparation.PrepareKeys(evaluation, parent, d, &o, nil); err != nil {
@@ -355,11 +365,17 @@ func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *ca
 				return nil, err
 			}
 			entry.Position = position
-			if capture != nil {
+			if capture != nil && capture.Outputs != nil {
 				capture.Outputs[position].Keys = entry.Keys
 			}
 			entries = append(entries, entry)
 		}
+		if progress != nil {
+			progress.ScanDone(position + 1)
+		}
+	}
+	if progress != nil {
+		progress.ScanFinish(len(entries), d.Method)
 	}
 	if d.Method == catalog.BtreeMethod {
 		if err := o.Sort(ctx, entries); err != nil {

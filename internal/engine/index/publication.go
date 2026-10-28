@@ -176,7 +176,9 @@ func evolveIndexRevision(view catalog.Read, index, oldParent, parent *catalog.Re
 	}
 	if reconstruct {
 		clone.ColumnMeta.Storage = nil
-		if err := CopyColumnStorage(view, parent, &clone); err != nil { return nil, err }
+		if err := CopyColumnStorage(view, parent, &clone); err != nil {
+			return nil, err
+		}
 	}
 	clone.ObjectRevision++
 	if clone.Revision() == 0 {
@@ -357,7 +359,7 @@ func StoresUnchanged(relations, captured map[ids.ObjectAddress]*storage.Relation
 // to disclosure, a view of env recaptured over view; a nil env is trusted
 // publication, which has no SQL principal. Runtime owners replace the current
 // user of their tables' indexes.
-func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.State, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []RowPublication, materialize bool, output sqltype.OutputEnvironment, disclosure access.View, env DisclosureEnv, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]RootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.State, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []RowPublication, materialize bool, output sqltype.OutputEnvironment, disclosure access.View, env DisclosureEnv, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]RootCandidate, progress ProgressBinding) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	var result map[ids.ObjectAddress]*storage.IndexRoot
 	evaluation.Catalog, evaluation.Output = view, output
@@ -466,7 +468,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 				if err := ValidateIndexDefinition(view, index); err != nil {
 					return nil, err
 				}
-				root, err = BuildBrinIndexRoot(evaluation, parent, index, relations[parent.Address()], materialize, nil)
+				root, err = BuildBrinIndexRoot(evaluation, parent, index, relations[parent.Address()], materialize, progress.Capture(a))
 				if err != nil {
 					return nil, err
 				}
@@ -482,6 +484,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 				}
 				break
 			}
+			progress.Complete(a)
 			if materialize {
 				result[a] = root
 			}
@@ -493,7 +496,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 				if err := ValidateIndexDefinition(view, index); err != nil {
 					return nil, err
 				}
-				root, err = BuildHashIndexRoot(evaluation, parent, index.SQLIndex, relations[parent.Address()], materialize || index.SQLIndex.IsExclusion(), nil)
+				root, err = BuildHashIndexRoot(evaluation, parent, index.SQLIndex, relations[parent.Address()], materialize || index.SQLIndex.IsExclusion(), progress.Capture(a))
 				if err != nil {
 					return nil, err
 				}
@@ -515,6 +518,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 					return nil, err
 				}
 			}
+			progress.Complete(a)
 			if materialize {
 				result[a] = root
 			}
@@ -527,7 +531,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 			// Required ordering/uniqueness scratch is not an installation
 			// root. PREPARE returns neither a root wrapper nor a root map.
 			var err error
-			entries, err = BuildIndexEntries(evaluation, parent, index.SQLIndex, relations[parent.Address()], nil)
+			entries, err = BuildIndexEntries(evaluation, parent, index.SQLIndex, relations[parent.Address()], progress.Capture(a))
 			if err != nil {
 				return nil, err
 			}
@@ -564,6 +568,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 			}
 			break
 		}
+		progress.Complete(a)
 		if materialize {
 			if root == nil {
 				root = NewLogicalIndexRoot(index.SQLIndex, entries)

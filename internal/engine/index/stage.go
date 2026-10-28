@@ -12,6 +12,7 @@ import (
 // the output environment for index expressions. Index DDL and the features
 // that build indexes write it.
 type Stage struct {
+	Progress   ProgressBinding
 	Rebuilds   map[ids.ObjectAddress]*catalog.Relation
 	Candidates map[ids.ObjectAddress]RootCandidate
 	Layouts    map[ids.ObjectAddress]LayoutLineage

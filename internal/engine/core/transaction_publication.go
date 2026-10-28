@@ -348,7 +348,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					}
 				}
 			}
-			indexRoots, indexErr = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates)
+			indexRoots, indexErr = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates, index.ProgressBinding{})
 			if indexErr != nil {
 				return indexErr
 			}

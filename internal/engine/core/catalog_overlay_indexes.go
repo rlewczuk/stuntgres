@@ -71,6 +71,13 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		if outputs != nil {
 			outputs.Outputs = make([]storage.IndexOutput, len(visible.Versions))
 		}
+		if observer := stage.IndexesOrZero().Progress.ObserverFor(idx.Address()); observer != nil {
+			if outputs == nil {
+				outputs = &index.BuildCapture{Progress: observer}
+			} else {
+				outputs.Progress = observer
+			}
+		}
 		full, err := index.BuildRelationIndexRoot(&evaluation, parent, idx, visible, outputs)
 		if err != nil {
 			return err
@@ -79,6 +86,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		if err := index.ValidateUniqueRoot(scope.Op.Context(), parent, idx, full, schema, scope.Output, &indexAuth.View, DisclosureEnv(&indexAuth), building); err != nil {
 			return err
 		}
+		stage.IndexesOrZero().Progress.Complete(idx.Address())
 		build := &index.AlterIndexBuild{Index: idx, Root: full, Store: visible}
 		if outputs != nil {
 			build.Outputs = outputs.Outputs

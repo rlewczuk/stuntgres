@@ -106,21 +106,35 @@ func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 		root = &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Prefix: len(store.Versions), Ends: store.Ends}
 	}
 	var preparation ExecutionPreparation
+	var progress BuildProgress
+	if capture != nil {
+		progress = capture.Progress
+	}
+	if progress != nil {
+		progress.ScanStart(len(store.Versions), d.Method)
+	}
+	tuples := 0
 	for position, row := range store.Versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
+			if progress != nil {
+				progress.ScanDone(position + 1)
+			}
 			continue
 		}
 		matches, err := preparation.PredicateMatches(evaluation, parent, d, row.Values, nil, &binding)
 		if err != nil {
 			return nil, err
 		}
-		if capture != nil {
+		if capture != nil && capture.Outputs != nil {
 			capture.Outputs[position] = storage.IndexOutput{Index: capture.Index, Member: matches}
 		}
 		if !matches {
+			if progress != nil {
+				progress.ScanDone(position + 1)
+			}
 			continue
 		}
 		if err := preparation.PrepareKeys(evaluation, parent, d, nil, &binding); err != nil {
@@ -130,10 +144,13 @@ func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 		if err != nil {
 			return nil, err
 		}
-		if capture != nil {
+		if capture != nil && capture.Outputs != nil {
 			capture.Outputs[position].Key = key
 		}
 		if key.IsNull() {
+			if progress != nil {
+				progress.ScanDone(position + 1)
+			}
 			continue
 		}
 		h, err := binding.Provider.Hash(ctx, key)
@@ -143,6 +160,13 @@ func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 		if materialize {
 			root.Buckets[h] = append(root.Buckets[h], storage.HashEntry{Key: key, Row: row.Row, Version: row.Version, Position: position})
 		}
+		if progress != nil {
+			tuples++
+			progress.ScanDone(position + 1)
+		}
+	}
+	if progress != nil {
+		progress.ScanFinish(tuples, d.Method)
 	}
 	if !materialize {
 		return nil, ctx.Err()

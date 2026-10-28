@@ -32,7 +32,8 @@ type DatabaseCluster struct {
 	// Immutable queue head root; all runtimes use this cluster's mu.
 	notificationHead *session.NotificationQueuePosition
 	// Active commands across every target, guarded by the shared engine mutex.
-	copyProgress map[ids.SessionID]*copyProgress
+	copyProgress  map[ids.SessionID]*copyProgress
+	indexProgress map[ids.SessionID]*indexProgress
 	// Seed initialization never holds mu and never invokes host callbacks.
 	SeedOnce  sync.Once
 	SeedError error

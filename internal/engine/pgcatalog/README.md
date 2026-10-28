@@ -639,7 +639,7 @@ Policy producer authority and immutable structural ownership use
 | `ValidateACL`, `ObjectACL` | ACL validation and raw object ACLs (`access` is not imported here) |
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
-| `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitCopyProgress` | immutable logical maintenance facts and authenticated active-work redaction |
+| `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance facts and authenticated active-work redaction |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |
@@ -657,6 +657,25 @@ to the worker's authenticated principal. PID/database identity remains visible
 when relation, command, endpoint and all five counters are masked to SQL NULL.
 Authorized PIPE totals are zero. A genuinely missing database lookup yields NULL
 datname; normal active workers retain their own database identity across observers.
+
+`VisitCreateIndexProgress` supplies actual admitted CREATE INDEX and supported
+REINDEX command facts, including concurrent waits and recursive partition work.
+The sixteen-column `pg_stat_progress_create_index` producer retains only
+pid/datid/datname for restricted observers; all thirteen remaining cells are
+typed NULL. Authorized unknown/inapplicable counters are zero, not NULL.
+Ordinary CREATE reports index OID zero; concurrent CREATE reports its published
+index, and REINDEX its current existing target. Idle, finished, failed and
+canceled commands have no progress row. Concurrent cancellation can retain the
+ordinary PostgreSQL invalid-index artifact without retaining progress.
+
+Build callbacks describe actual scan/sort work; frozen transaction cohorts
+describe actual writer/snapshot waits. Native B-tree vector wrapping is not a
+physical tree-loading phase. Only block counters approximate physical work:
+one logical block is up to 128 captured storage row versions, completed only
+after successful processing. Counters reset at real phase/target boundaries;
+they are not globally monotonic. See the
+[index-progress design](../../../docs/design/PG18-VIEW-PG-STAT-PROGRESS-CREATE-INDEX.md)
+for formulas, supported command paths and independent public witnesses.
 
 ## Exported helpers
 
@@ -714,7 +733,9 @@ catalog writes or bypass a provider's independent backing-source checks.
   partial canceled rows; empty captures retain the same 17-column carrier.
 - Table-statistics and progress views: committed logical DML and manual VACUUM
   facts and real active phases with authenticated-owner visibility, captured
-  under the engine capture lock; unknown metrics stay typed NULL.
+  under the engine capture lock. NULL/zero semantics are view-specific:
+  unavailable CREATE INDEX totals are zero for authorized observers; restricted
+  work details are typed NULL.
 - `information_schema.user_mappings`: real mapping identities; server owner or
   effective USAGE exposes all mappings. It never copies options or reuses
   `ForeignServerVisible`, which governs `pg_user_mappings` option redaction.

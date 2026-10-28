@@ -131,6 +131,17 @@ fabricates a progress row, even during blocked output. Ordinary SQL
 `BASE_BACKUP` is unsupported. See [physical base-backup progress](docs/DRIVER.md#physical-base-backup-progress)
 for the exact schema, read-only diagnostics and upstream visibility/NULL rules.
 
+The sixteen-column read-only `pg_stat_progress_create_index` view reports actual
+admitted index work: existing CREATE INDEX variants, supported CONCURRENTLY
+writer/snapshot waits, partition builds and ordinary REINDEX. Rows disappear
+after success, failure or cancellation; an ordinary initial table-lock wait
+does not fabricate a row. Current observer privileges determine whether the
+thirteen work-detail columns are visible or NULL. Authorized unknown totals are
+zero. Only block counters approximate physical work, using completed logical
+128-row-version scan units; native scans/sorts do not pretend to load physical
+B-tree pages. See the [index-progress design](docs/design/PG18-VIEW-PG-STAT-PROGRESS-CREATE-INDEX.md)
+for phase-local counters, lifetime and deterministic public smoke.
+
 `CREATE STATISTICS` supports single expressions and multivariate combinations
 of columns and expressions. Expressions are bound once to the target relation;
 stable and volatile functions are permitted, without evaluating them at CREATE.

@@ -118,6 +118,13 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 	}
 	o := brinKeyProgram(bindings, index.SQLIndex)
 	var preparation ExecutionPreparation
+	var progress BuildProgress
+	if capture != nil {
+		progress = capture.Progress
+	}
+	if progress != nil {
+		progress.ScanStart(len(store.Versions), index.SQLIndex.Method)
+	}
 	for position, row := range store.Versions {
 		if err := evaluation.Context.Err(); err != nil {
 			return nil, err
@@ -127,23 +134,29 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			root.Ranges[ordinal] = storage.BrinRange{Summarized: true, Keys: make([]storage.BrinSummary, len(bindings))}
 		}
 		if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
+			if progress != nil {
+				progress.ScanDone(position + 1)
+			}
 			continue
 		}
 		matches, err := preparation.PredicateMatches(evaluation, parent, index.SQLIndex, row.Values, &o, nil)
 		if err != nil {
 			return nil, err
 		}
-		if capture != nil {
+		if capture != nil && capture.Outputs != nil {
 			capture.Outputs[position] = storage.IndexOutput{Index: capture.Index, Member: matches}
 		}
 		if !matches {
+			if progress != nil {
+				progress.ScanDone(position + 1)
+			}
 			continue
 		}
 		if err := preparation.PrepareKeys(evaluation, parent, index.SQLIndex, &o, nil); err != nil {
 			return nil, err
 		}
 		var keys []sqltype.Value
-		if capture != nil {
+		if capture != nil && capture.Outputs != nil {
 			keys = make([]sqltype.Value, len(bindings))
 			capture.Outputs[position].Keys = keys
 		}
@@ -156,7 +169,7 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			if err != nil {
 				return nil, err
 			}
-			if capture != nil {
+			if capture != nil && capture.Outputs != nil {
 				keys[i] = value
 			}
 			if materialize {
@@ -164,6 +177,9 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 					return nil, err
 				}
 			}
+		}
+		if progress != nil {
+			progress.ScanDone(position + 1)
 		}
 	}
 	if !materialize {

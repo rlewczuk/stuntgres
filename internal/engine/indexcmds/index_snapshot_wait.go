@@ -17,6 +17,7 @@ func waitOlderIndexSnapshots(s *core.StatementScope, xmin uint64, idx ids.Object
 	// Drop every advertised builder phase before collecting the real wait cohort.
 	e.Visibility.ResetPhaseLocked(s.TxRef)
 	refs := e.Visibility.OlderSnapshotsLocked(s.TxRef, xmin)
+	s.IndexProgressWait(len(refs), 0, 0)
 	// Publish only after dropping validation ownership and freezing the cohort,
 	// under the same critical section used by the sole coordinator observation.
 	if err := admitIndexBuildWaitLocked(e, idx, s.TxRef, index.WaitOlderSnapshots); err != nil {
@@ -25,18 +26,36 @@ func waitOlderIndexSnapshots(s *core.StatementScope, xmin uint64, idx ids.Object
 	}
 	e.Mu.Unlock()
 	defer clearIndexBuildWait(e, idx, s.TxRef, index.WaitOlderSnapshots)
-	for _, ref := range refs {
-		e.Mu.Lock()
-		eligible := e.Visibility.SnapshotOlderLocked(ref, xmin)
-		e.Mu.Unlock()
-		if !eligible {
-			continue
+	for i := range refs {
+		if refs[i] == (ids.TxRef{}) {
+			continue // Invalidated by an earlier remaining-cohort recheck.
 		}
-		if owner := e.Locks.TransactionTicket(ref); owner != nil {
-			if err := s.WriteHost().WaitTransaction(owner, lock.CompletionVirtual); err != nil {
-				return err
+		if i > 0 {
+			// Preserve the original ordinals, but forget every remaining
+			// member that has ceased to advertise an endangered snapshot.
+			// An entry invalidated in this iteration still settles i+1;
+			// later iterations skip entries already invalidated here.
+			e.Mu.Lock()
+			for j := i; j < len(refs); j++ {
+				if refs[j] != (ids.TxRef{}) && !e.Visibility.SnapshotOlderLocked(refs[j], xmin) {
+					refs[j] = ids.TxRef{}
+				}
+			}
+			e.Mu.Unlock()
+		}
+		if refs[i] != (ids.TxRef{}) {
+			if owner := e.Locks.TransactionTicket(refs[i]); owner != nil {
+				pid, err := e.Locks.ProgressPID(owner)
+				if err != nil {
+					return err
+				}
+				s.IndexProgressWaitPID(pid)
+				if err := s.WriteHost().WaitTransaction(owner, lock.CompletionVirtual); err != nil {
+					return err
+				}
 			}
 		}
+		s.IndexProgressWaitDone(i + 1)
 	}
 	return nil
 }

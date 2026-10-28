@@ -18,8 +18,9 @@ import (
 // Capture accompanies one genuine DDL build. It includes evaluated exclusions
 // and NULL hash keys that intentionally have no physical index entry.
 type BuildCapture struct {
-	Index   *catalog.Relation
-	Outputs []storage.IndexOutput
+	Progress BuildProgress
+	Index    *catalog.Relation
+	Outputs  []storage.IndexOutput
 }
 
 type AlterIndexBuild struct {
