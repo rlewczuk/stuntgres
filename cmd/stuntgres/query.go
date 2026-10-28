@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // Simple batches retain the existing engine message clock/transaction owner.
@@ -53,7 +52,6 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 		batch = err == nil
 	}
 	var buffer []byte
-	var values []sqltype.Value
 	stream := &c.copyStream
 	stream.ctx = op.Context()
 	defer stream.closeCommand()
@@ -70,16 +68,15 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 			scope = next
 		}
 		var result core.Result
-		described := false
 		describe := func(columns []catalog.Column) error {
 			if e := op.Context().Err(); e != nil {
 				return e
 			}
-			for _, notice := range op.DetachNotices() {
-				if e := c.wire.notice(notice); e != nil {
-					transportErr = e
-					return e
-				}
+			if logical, socketErr := c.writeNotices(op); logical != nil {
+				return logical
+			} else if socketErr != nil {
+				transportErr = socketErr
+				return socketErr
 			}
 			e := c.writeDescription(columns, nil)
 			if e != nil {
@@ -87,9 +84,6 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 				if !errors.As(e, &logical) {
 					transportErr = e
 				}
-			}
-			if e == nil {
-				described = true
 			}
 			return e
 		}
@@ -108,37 +102,31 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 		}
 		result, err = scope.ExecuteProtocolSimple(statement, describe, row, stream, stream, c.copyHooks)
 		stream.release()
+		if logical, socketErr := c.writeActiveNotices(scope); socketErr != nil {
+			transportErr = socketErr
+			if err == nil {
+				err = socketErr
+			}
+		} else if err == nil {
+			err = logical
+		}
+		c.refreshEncoding()
 		err = op.CommandError(scope.Finish(err))
 		if !batch {
 			finished = true
 		}
 		if stream.transportErr != nil {
-			if result.Rows != nil {
-				_ = result.Rows.Close()
-			}
 			return stream.transportErr
 		}
 		if transportErr != nil {
-			if result.Rows != nil {
-				_ = result.Rows.Close()
-			}
 			return transportErr
 		}
 		if c.ctx.Err() != nil {
-			if result.Rows != nil {
-				_ = result.Rows.Close()
-			}
 			return nil
 		}
 		notices := op.DetachNotices()
 		outputFailed := false
 		output := func() error {
-			defer func() {
-				if result.Rows != nil {
-					err = errors.Join(err, result.Rows.Close())
-					result.Rows = nil
-				}
-			}()
 			for _, notice := range notices {
 				if e := c.wire.notice(notice); e != nil {
 					return e
@@ -146,30 +134,6 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 			}
 			if err != nil {
 				return nil
-			}
-			if result.Rows != nil {
-				if !described {
-					if e := c.writeDescription(result.Rows.Schema(), nil); e != nil {
-						var logical *sqlstate.Error
-						if errors.As(e, &logical) {
-							err = e
-							outputFailed = true
-							return nil
-						}
-						return e
-					}
-				}
-				logical, socketErr := c.writeRows(op.Context(), result.Rows, &buffer, &values)
-				closeErr := result.Rows.Close()
-				result.Rows = nil
-				if socketErr != nil {
-					return errors.Join(socketErr, closeErr)
-				}
-				if logical != nil || closeErr != nil {
-					err = errors.Join(logical, closeErr)
-					outputFailed = true
-					return nil
-				}
 			}
 			if e := op.Context().Err(); e != nil {
 				err = e
@@ -179,15 +143,15 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 			if e := stream.complete(); e != nil {
 				return e
 			}
-			return c.wire.send('C', appendString(buffer[:0], result.CommandTag))
+			body, encodeErr := c.wire.appendText(ctx, buffer[:0], result.CommandTag)
+			if encodeErr != nil {
+				return encodeErr
+			}
+			return c.wire.send('C', body)
 		}
 		if batch {
 			var callbackErr error
 			hookErr := scope.ProtocolOutput(func() error { callbackErr = output(); return callbackErr })
-			if result.Rows != nil {
-				err = errors.Join(err, result.Rows.Close())
-				result.Rows = nil
-			}
 			if callbackErr != nil {
 				return callbackErr
 			}

@@ -23,6 +23,18 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   Server Bind, row output, FunctionCall and COPY reuse these methods; there is
   no conversion registry and no second integer parser (`ParseInt8` serves COPY
   options).
+- `ClientEncodingPolicy` owns a copied immutable inbound/outbound conversion
+  pair, with scalar identity only. Core supplies actual default providers;
+  missing providers never fall back to a built-in kernel lookup. Conversion
+  validates, counts and emits with bounded context polls and publishes no
+  partial string. Append uses caller-owned capacity and restores its original
+  length on error. UTF8/SQL_ASCII identity paths avoid conversion allocation.
+  `EncodingReader` incrementally converts byte streams using owned fixed
+  buffers, retaining incomplete characters and combined-map lookahead.
+  Input/output environments enable this boundary only for byte transport;
+  native Unicode APIs and immutable stored datums are not reinterpreted.
+  Binary containers recurse through the same environment for textual leaves,
+  keeping framing words, numeric fields, bytea and internal CHAR opaque.
 - `Builtins()` returns a new builtin generation on every call: a copy of a
   template built once (`builtin_template.go`) whose descriptor pointers are
   moved into the copy. A new descriptor-pointer field must be listed in

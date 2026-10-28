@@ -13,6 +13,8 @@ func (s *SettingsStore) Presentation() (input sqltype.InputEnvironment, output s
 	}
 	output.QuoteAllIdentifiers = s.Value("quote_all_identifiers") == "on"
 	_, output.ClientEncoding = sqltype.ClientEncodingName(s.Value("client_encoding"))
+	input.Transport = s.clientEncodingLocked()
+	output.Transport = input.Transport
 	zone, ok := s.Typed["timezone"]
 	if !ok {
 		zone = s.DefaultTyped["timezone"]

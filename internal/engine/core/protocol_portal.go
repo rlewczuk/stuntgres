@@ -180,7 +180,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 				context := fmt.Sprintf("%s parameter $%d", label, slot)
 				if slot <= len(p.context.Parameters) {
 					parameter := p.context.Parameters[slot-1]
-					if parameter.Format == 0 && !parameter.Null && copy.Code != "22021" {
+					if parameter.Format == 0 && parameter.TextInput && !parameter.Null && copy.Code != "22021" {
 						if len(parameter.Bytes) == 0 {
 							context += " = ''"
 						} else {
@@ -462,6 +462,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		if err = s.captureProtocolOutput(p.outputRows, values, catalog); err != nil {
 			return out, err
 		}
+		p.outputRows.Output.Transport = s.Op.EffectiveSettings().ClientEncoding()
 		fields, scratch, err = session.EncodeProtocolRow(s.Op.Context(), values, p.formats, p.outputRows.Output, fields, scratch)
 		if err != nil {
 			return out, err

@@ -24,10 +24,7 @@ func normalizeClientEncoding(input string) (string, *sqlstate.Error, error) {
 	if encoding == "" {
 		return "", nil, (Definition{Name: "client_encoding"}).invalid(candidate, "")
 	}
-	if encoding == "MULE_INTERNAL" {
-		return "", nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`invalid value for parameter "client_encoding": "%s"`, candidate), Detail: "Conversion between MULE_INTERNAL and UTF8 is not supported."}
-	}
-	return "", nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`client encoding "%s" is not supported by stuntgres`, encoding), Detail: "Only UTF8 client encoding is supported."}
+	return encoding, nil, nil
 }
 
 // IsLocaleSetting reports whether name is one of the lc_* locale settings.

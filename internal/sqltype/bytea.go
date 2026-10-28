@@ -50,6 +50,9 @@ type OutputEnvironment struct {
 	ACLItem             ACLItemFormatter
 	QuoteAllIdentifiers bool
 	ClientEncoding      string
+	// ByteTransport is enabled only by wire/COPY, never native Unicode APIs.
+	ByteTransport bool
+	Transport     ClientEncodingPolicy
 	// An unspecified precision retains canonical shortest serialization.
 	ExtraFloatDigits                          int32
 	FloatPrecisionSet                         bool

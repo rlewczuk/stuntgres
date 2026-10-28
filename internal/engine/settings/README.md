@@ -71,6 +71,11 @@ import this package directly.
   `NormalizeCatalogName` supplies case-preserving, UTF8-safe 63-byte GUC name
   clipping for catalog hooks and special role validation/startup; callers emit
   its returned NOTICE before lookup diagnostics.
+  `StartupApplicationName` applies the UTF8 database's release mblen clipping to
+  original pre-converter bytes before bytehex sanitization. Its admitted typed
+  value is captured through the internal `SessionDefaultValueProvider` extension,
+  not parsed as an expanded NAME a second time. Ordinary Unicode/NUL validation
+  remains in the string-setting parser.
 - **Search path** (`search_path.go`): the pure list parser. Namespace and ACL
   resolution are in `analyze` (`search_path.go`).
 - **Registry** (`registry.go`): `NewRegistry(registered,
@@ -322,8 +327,13 @@ The PostgreSQL 18 client family shares this registry and the existing typed
 SET/SHOW/current_setting/set_config/pg_settings path. Bytea, encoding, message
 filtering, date/interval/time-zone presentation, C/POSIX locale environments,
 float formatting, search_path, row security, transaction characteristics and
-timeouts retain their real native consumers. Encoding remains UTF8-only;
-recognized unsupported encodings report the existing capability error.
+timeouts retain their real native consumers. `client_encoding` normalization
+recognizes released encoding names; core separately admits the actual visible
+bidirectional default providers before installing an explicit SET or startup
+value, including same-value assignments. MULE_INTERNAL therefore normalizes
+successfully but fails transport admission without the required defaults.
+The typed setting stores the encoding ID, so rollback and reset restore the
+ID without repeating catalog lookup or calling a session-default provider.
 
 The following are **setting-only simulations**, not operational switches:
 `check_function_bodies`, `createrole_self_grant`, `default_table_access_method`,

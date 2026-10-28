@@ -29,7 +29,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 		}
 	}
 	defer release()
-	input := protocolInput{body: message.body}
+	input := protocolInput{body: message.body, encoding: c.wire.encoding, ctx: ctx}
 	op, _, err := c.session.AcquireCommand(ctx)
 	if err != nil {
 		c.protocolState = protocolRecovery
@@ -107,6 +107,10 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 				} else {
 					var statement core.ProtocolStatement
 					statement, err = scope.DescribeProtocolStatement(name)
+					var description []byte
+					if err == nil && statement.HasRows {
+						description, err = c.descriptionBody(statement.Description.Results, nil)
+					}
 					if err == nil {
 						response = func() error {
 							body := appendInt16(nil, int16(len(statement.ParameterOIDs)))
@@ -119,7 +123,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 							if !statement.HasRows {
 								return c.wire.send('n', nil)
 							}
-							return c.writeDescription(statement.Description.Results, nil)
+							return c.wire.send('T', description)
 						}
 					}
 				}
@@ -130,12 +134,16 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 				} else {
 					var portal core.ProtocolPortalDescription
 					portal, err = scope.DescribeProtocolPortal(name)
+					var description []byte
+					if err == nil && portal.HasRows {
+						description, err = c.descriptionBody(portal.Columns, portal.Formats)
+					}
 					if err == nil {
 						response = func() error {
 							if !portal.HasRows {
 								return c.wire.send('n', nil)
 							}
-							return c.writeDescription(portal.Columns, portal.Formats)
+							return c.wire.send('T', description)
 						}
 					}
 				}
@@ -193,11 +201,24 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 				if execution.Suspended {
 					return c.wire.send('s', nil)
 				}
-				return c.wire.send('C', appendString(nil, execution.CommandTag))
+				body, err := c.wire.appendText(ctx, nil, execution.CommandTag)
+				if err != nil {
+					return err
+				}
+				return c.wire.send('C', body)
 			}
 		}
 	}
 	c.capture.detail(message.tag, stepTarget, stepName, provenance)
+	if logical, socketErr := c.writeActiveNotices(scope); socketErr != nil {
+		transportErr = socketErr
+		if err == nil {
+			err = socketErr
+		}
+	} else if err == nil {
+		err = logical
+	}
+	c.refreshEncoding()
 	err = op.CommandError(scope.Finish(err))
 	if stream != nil && stream.transportErr != nil {
 		return stream.transportErr
@@ -237,11 +258,24 @@ func (c *client) functionCommand(ctx context.Context, input *protocolInput) erro
 	defer op.Done()
 	scope, err := c.db.engine.StartStatement(op)
 	var field session.ProtocolField
+	var transportErr error
 	if err == nil {
 		field, err = scope.CallProtocolFunction(input)
+		if logical, socketErr := c.writeActiveNotices(scope); socketErr != nil {
+			transportErr = socketErr
+			if err == nil {
+				err = socketErr
+			}
+		} else if err == nil {
+			err = logical
+		}
+		c.refreshEncoding()
 		err = scope.Finish(err)
 	}
 	err = op.CommandError(err)
+	if transportErr != nil {
+		return transportErr
+	}
 	for _, notice := range op.DetachNotices() {
 		if e := c.wire.notice(notice); e != nil {
 			return e

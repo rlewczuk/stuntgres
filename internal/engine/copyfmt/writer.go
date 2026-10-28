@@ -30,15 +30,29 @@ func WriteRows(ctx context.Context, w io.Writer, rows RowSource, schema []catalo
 func writeText(ctx context.Context, w io.Writer, rows RowSource, schema []catalog.Column, o Options) (count int64, err error) {
 	values := make([]sqltype.Value, len(schema))
 	buffer := make([]byte, 0, 4096)
+	var encoded []byte
+	nullText := o.Null
+	if o.Transport {
+		nullText, err = o.Conversion.Convert(ctx, o.Null)
+		if err != nil {
+			return 0, err
+		}
+	}
 	if o.Header != 0 {
 		for i, column := range schema {
 			if i != 0 {
 				buffer = append(buffer, o.Delimiter)
 			}
+			quoteNull := column.Name == o.Null
+			text, next, encodeErr := o.encodedField(ctx, column.Name, encoded)
+			encoded = next
+			if encodeErr != nil {
+				return 0, encodeErr
+			}
 			if o.Format == CSV {
-				buffer = AppendCSV(buffer, column.Name, o, false, len(schema) == 1)
+				buffer = appendCSVEncoding(buffer, text, o, false, len(schema) == 1, quoteNull)
 			} else {
-				buffer = AppendText(buffer, column.Name, o.Delimiter)
+				buffer = appendTextEncoding(buffer, text, o)
 			}
 		}
 		buffer = append(buffer, '\n')
@@ -61,17 +75,22 @@ func writeText(ctx context.Context, w io.Writer, rows RowSource, schema []catalo
 				buffer = append(buffer, o.Delimiter)
 			}
 			if value.IsNull() {
-				buffer = append(buffer, o.Null...)
+				buffer = append(buffer, nullText...)
 				continue
 			}
 			text, outputErr := value.Type().OutputWithEnvironment(ctx, value, output)
 			if outputErr != nil {
 				return 0, outputErr
 			}
+			quoteNull := text == o.Null
+			text, encoded, err = o.encodedField(ctx, text, encoded)
+			if err != nil {
+				return 0, err
+			}
 			if o.Format == CSV {
-				buffer = AppendCSV(buffer, text, o, Forced(o.QuoteFields, i), len(schema) == 1)
+				buffer = appendCSVEncoding(buffer, text, o, Forced(o.QuoteFields, i), len(schema) == 1, quoteNull)
 			} else {
-				buffer = AppendText(buffer, text, o.Delimiter)
+				buffer = appendTextEncoding(buffer, text, o)
 			}
 		}
 		buffer = append(buffer, '\n')

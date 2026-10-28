@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) StartSession(ctx context.Context, start session.SessionStart) (*session.Session, error) {
@@ -155,6 +156,18 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		if err == nil && !private {
 			view := e.Catalog.Current()
 			err = access.CheckDatabaseConnect(ctx, view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), authenticated)
+		}
+	}
+	if err == nil {
+		owner.Mu.Lock()
+		id := owner.TypedValue("client_encoding").ClientEncoding
+		owner.Mu.Unlock()
+		var policy sqltype.ClientEncodingPolicy
+		policy, err = e.prepareClientEncodingLocked(op, id)
+		if err == nil {
+			owner.Mu.Lock()
+			owner.AcceptClientEncodingLocked(policy)
+			owner.Mu.Unlock()
 		}
 	}
 	s.Mu.Lock()

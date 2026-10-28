@@ -26,11 +26,15 @@ func TestClientSettingsBootAndStartup(t *testing.T) {
 			t.Fatalf("%s: %+v %v", tc.name, d, err)
 		}
 	}
-	for _, tc := range []struct{ name, input string }{{"client_encoding", "SQL_ASCII"}, {"lc_messages", ""}} {
+	for _, tc := range []struct{ name, input string }{{"lc_messages", ""}} {
 		d, _ := r.Lookup(tc.name)
 		if _, err := d.Parse(tc.input); err == nil {
 			t.Fatalf("boot-only metadata admitted by live parser: %s", tc.name)
 		}
+	}
+	d, _ := r.Lookup("client_encoding")
+	if value, err := d.Parse("SQL_ASCII"); err != nil || value.Text != "SQL_ASCII" || value.ClientEncoding != 0 {
+		t.Fatalf("live SQL_ASCII parse %+v %v", value, err)
 	}
 	for _, name := range []string{"default_transaction_isolation", "transaction_isolation"} {
 		d, _ := r.Lookup(name)

@@ -328,29 +328,5 @@ func ContextValue(text string) string {
 
 // AppendText appends text in COPY text format, escaping the delimiter.
 func AppendText(dst []byte, text string, delimiter byte) []byte {
-	for i := range len(text) {
-		b := text[i]
-		switch b {
-		case '\\':
-			dst = append(dst, '\\', '\\')
-		case '\b':
-			dst = append(dst, '\\', 'b')
-		case '\f':
-			dst = append(dst, '\\', 'f')
-		case '\n':
-			dst = append(dst, '\\', 'n')
-		case '\r':
-			dst = append(dst, '\\', 'r')
-		case '\t':
-			dst = append(dst, '\\', 't')
-		case '\v':
-			dst = append(dst, '\\', 'v')
-		default:
-			if b == delimiter {
-				dst = append(dst, '\\')
-			}
-			dst = append(dst, b)
-		}
-	}
-	return dst
+	return appendTextEncoding(dst, text, Options{Delimiter: delimiter})
 }

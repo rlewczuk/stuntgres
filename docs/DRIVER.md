@@ -310,6 +310,10 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
 empty `[]byte` is an empty value. `bytea` string and `[]byte` arguments are raw
 octets. Time zone and Unicode data are embedded; no host locale is consulted.
+Native SQL source, identifiers, Go string/typed parameters and returned text
+remain Unicode regardless of `client_encoding`, including characters that the
+selected network encoding cannot represent. This setting governs the server
+wire boundary and byte-stream COPY, not a reinterpretation of native Go values.
 
 Connection endpoint inquiries on in-process connections return SQL NULL. Address
 columns retain `INET` with string scan types and port columns `INT4` with int64
@@ -459,6 +463,13 @@ closed. `COPY FROM` publishes nothing on failure; `COPY TO` may have written a p
 but reports no result. Read/Write callbacks must not use the same `*sql.Conn`.
 Ordinary `Exec`/`Query` of COPY fails with 0A000, and file/program endpoints are
 not available.
+
+Text/CSV reader and writer bytes use `client_encoding` unless an explicit
+`ENCODING` selects a separate file encoding; the SQL statement itself remains
+Unicode. Input converts incrementally before line framing and escape handling.
+Output converts attributes before escaping, including multibyte trail bytes.
+Binary COPY preserves its framing and raw numeric/bytea payloads; type-defined
+textual leaves use the session client encoding even with a file override.
 
 ## Custom settings
 

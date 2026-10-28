@@ -38,6 +38,8 @@ type InputEnvironment struct {
 	ACLItem                                   ACLItemResolver
 	FTS                                       FTSInputNotices
 	NumericLocale, MonetaryLocale, TimeLocale Locale
+	ByteTransport                             bool
+	Transport                                 ClientEncodingPolicy
 	// TypeDiagnosticName captures coherent catalog visibility for child input
 	// errors. A nil callback or empty spelling uses immutable descriptor naming.
 	TypeDiagnosticName func(ID) string

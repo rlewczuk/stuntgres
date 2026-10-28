@@ -22,6 +22,8 @@ file.
   `OnError` defaults to STOP, `LogVerbosity` to default, and zero
   `RejectLimit` means unlimited. Only positive bigint limits with IGNORE are
   admitted; binary accepts STOP only. These are plain values, never callbacks.
+  `ENCODING` is a recognized name/ID; core supplies a plain immutable directional
+  capability, reusing the active outgoing pair for same-encoding COPY TO.
 - **FORCE binding** (`force.go`): `Options.BindForces` turns
   FORCE_QUOTE/FORCE_NULL/FORCE_NOT_NULL into per-field flags, read with
   `Forced`. Relation COPY resolves names through `ResolveColumns`, the same
@@ -49,6 +51,11 @@ file.
   line first and use `AppendText`/`AppendCSV`; binary writes the file
   header, the tuples and the `-1` trailer, and with `checkSend` resolves
   the send providers before the signature.
+  Text/CSV converts each attribute before escaping and skips complete
+  multibyte characters when looking for delimiter, quote or backslash bytes.
+  NULL equality is decided on the original server text. A nonempty NULL
+  marker converts at writer startup, before headers/rows, including zero rows;
+  errors preserve earlier complete writes, never publish a partial row.
 
 ## What stays outside
 
@@ -59,6 +66,14 @@ file.
   and cancellation. Wire-input checks (`CopyInput`,
   `PendingProtocolUserCancel`, `PendingCopyInputError`) stay in the
   cursors' `Next`, never in the codec.
+  Core wraps text/CSV input in the incremental conversion reader before
+  `LineReader`, preserving character tails and combined-map lookahead across
+  arbitrary reads. A FROM default must exist before CopyInResponse (including
+  binary mode). TO reuses admitted outgoing authority when the file encoding
+  equals the active encoding; a different TO encoding may fail after
+  CopyOutResponse when the NULL marker, header or actual nonempty field first
+  requires it. Binary framing ignores file conversion, while textual binary
+  leaves use the session pair.
 - **Execution**: binding the target and producing the output rows in the
   root (`copy.go`; `copy_text.go`'s `copyOutput` passes them to `WriteRows`
   through `copyWriter` and re-checks the statement after the last row);

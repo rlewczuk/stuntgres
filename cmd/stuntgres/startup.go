@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
@@ -140,7 +139,7 @@ func (c *client) startup() (bool, error) {
 	}
 	verified := verifyPassword(verifier, password)
 	if !exists || !verified {
-		authErr := startupError("28P01", fmt.Sprintf("password authentication failed for user %q", c.user))
+		authErr := startupError("28P01", fmt.Sprintf("password authentication failed for user \"%s\"", c.user))
 		if c.server.logs != nil {
 			if err := c.server.logs.operational(c.ctx, slog.LevelError, "authentication failure", "connection_id", c.id, "user", c.user, "database", c.database); err != nil {
 				return false, errors.Join(authErr, err)
@@ -150,7 +149,7 @@ func (c *client) startup() (bool, error) {
 	}
 	db, exists := c.server.databases[c.database]
 	if !exists {
-		return false, startupError("3D000", fmt.Sprintf("database %q does not exist", c.database))
+		return false, startupError("3D000", fmt.Sprintf("database \"%s\" does not exist", c.database))
 	}
 	if !allowed(a, c.database) {
 		return false, startupError("42501", fmt.Sprintf("permission denied for database %q", c.database))
@@ -170,10 +169,17 @@ func (c *client) startup() (bool, error) {
 		defaults[startupSettingName(name)] = value
 	}
 	c.db = db
-	c.session, err = db.startSession(c.ctx, c.id, c.user, defaults)
+	var applicationNotice *sqlstate.Error
+	c.session, applicationNotice, err = db.startSession(c.ctx, c.id, c.user, defaults)
+	if applicationNotice != nil {
+		if writeErr := c.wire.notice(*applicationNotice); writeErr != nil {
+			return false, writeErr
+		}
+	}
 	if err != nil {
 		return false, err
 	}
+	c.refreshEncoding()
 	if db.reference != nil {
 		c.startReference(db.reference, pairs, negotiated)
 	}
@@ -229,8 +235,8 @@ func parseStartupParameters(body []byte) (map[string]string, []string, error) {
 		if err != nil {
 			return nil, nil, startupError("08P01", "invalid startup packet layout: expected terminator as last byte")
 		}
-		if !utf8.ValidString(name) || !utf8.ValidString(value) {
-			return nil, nil, startupError("08P01", "invalid UTF-8 in startup packet")
+		if (name == "user" || name == "database") && len(value) > 63 {
+			value = value[:63]
 		}
 		// PostgreSQL accepts repeated startup fields. Reserved fields are exact
 		// names; ordinary GUC names are case-insensitive and the last wins.
@@ -389,8 +395,13 @@ func (c *client) sendSettings(values []parameterValue) error {
 		if previous, exists := c.lastSettings[value.name]; exists && previous == value.value {
 			continue
 		}
-		body := appendString(nil, value.name)
-		body = appendString(body, value.value)
+		body, err := c.wire.appendText(c.ctx, nil, value.name)
+		if err == nil {
+			body, err = c.wire.appendText(c.ctx, body, value.value)
+		}
+		if err != nil {
+			return err
+		}
 		if err := c.wire.send('S', body); err != nil {
 			return err
 		}

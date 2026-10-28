@@ -56,6 +56,9 @@ func (s *SettingsStore) ParseValue(d settings.Definition, input string) (setting
 	} else {
 		v, err = d.Parse(input)
 	}
+	if err == nil && d.Name == "client_encoding" {
+		v.ClientEncoding = sqltype.EncodingID(v.Text)
+	}
 	if err == nil && settings.IsLocaleSetting(d.Name) {
 		v.Locale, _ = sqltype.ParseCLocale(v.Text)
 	}

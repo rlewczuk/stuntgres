@@ -116,7 +116,7 @@ func TestReferenceCopyBinaryOptions(t *testing.T) {
 						query += "OUT WITH(" + tc.sql + ")"
 						result, err = c.to(query, &output)
 					}
-					copyBinaryOptionOutcome(t, c, tc.name, direction, query, result, err, output.Bytes())
+					copyBinaryOptionOutcome(t, tc.name, direction, query, result, err, output.Bytes())
 					if direction == "FROM" && err != nil {
 						copyBinaryCount(t, c, 0)
 					}

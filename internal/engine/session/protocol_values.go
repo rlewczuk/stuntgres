@@ -15,12 +15,13 @@ type ProtocolInput interface {
 	End() error
 }
 type ProtocolLogParameter struct {
-	OID     uint32
-	Type    string
-	Format  int16
-	Null    bool
-	Decoded bool
-	Bytes   []byte
+	OID       uint32
+	Type      string
+	Format    int16
+	Null      bool
+	Decoded   bool
+	TextInput bool // Client decoding succeeded and canonical text input began.
+	Bytes     []byte
 }
 type ProtocolContext struct {
 	Source     string
@@ -88,6 +89,7 @@ const (
 // ImportProtocolParameters decodes count parameters of the given types into
 // frame and records each in log. It reads only its inputs and takes no lock.
 func ImportProtocolParameters(ctx context.Context, output sqltype.OutputEnvironment, input ProtocolInput, formats []int16, count int, types []sqltype.Usage, frame []sqltype.Value, env sqltype.InputEnvironment, log *ProtocolContext, kind ProtocolReceiveKind) error {
+	env.ByteTransport = true
 	for i := range count {
 		n, err := input.Int32()
 		if err != nil {
@@ -117,7 +119,12 @@ func ImportProtocolParameters(ctx context.Context, output sqltype.OutputEnvironm
 				value = sqltype.Null(types[i].Type)
 				err = types[i].Type.CheckDomainInput(ctx, value, parameterInput)
 			} else {
-				value, err = types[i].Type.InputWithEnvironment(ctx, string(raw), -1, parameterInput)
+				var text string
+				text, err = env.Transport.Decode(ctx, string(raw))
+				if err == nil {
+					log.Parameters[i].TextInput = true
+					value, err = types[i].Type.InputWithEnvironment(ctx, text, -1, parameterInput)
+				}
 			}
 		case 1:
 			if parameter.Null {
@@ -157,6 +164,7 @@ func ImportProtocolParameters(ctx context.Context, output sqltype.OutputEnvironm
 // EncodeProtocolRow encodes one result row into fields, reusing fields and
 // scratch. It runs once per row.
 func EncodeProtocolRow(ctx context.Context, values []sqltype.Value, formats []int16, env sqltype.OutputEnvironment, fields []ProtocolField, scratch []byte) ([]ProtocolField, []byte, error) {
+	env.ByteTransport = true
 	if cap(fields) < len(values) {
 		fields = make([]ProtocolField, len(values))
 	} else {
@@ -177,7 +185,9 @@ func EncodeProtocolRow(ctx context.Context, values []sqltype.Value, formats []in
 		} else {
 			var text string
 			text, err = v.Type().OutputWithEnvironment(ctx, v, env)
-			scratch = append(scratch, text...)
+			if err == nil {
+				scratch, err = env.AppendTransport(ctx, scratch, text)
+			}
 		}
 		if err != nil {
 			return fields, scratch, err

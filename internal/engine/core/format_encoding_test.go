@@ -45,12 +45,29 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 	if store.Value("lc_numeric") != "POSIX" || store.TypedValue("extra_float_digits").Number != -1 {
 		t.Fatal("live provider leaked into captured defaults")
 	}
-	for _, bad := range []struct{ name, value string }{{"lc_numeric", "C.UTF-8"}, {"lc_messages", ""}, {"client_encoding", "LATIN1"}, {"icu_validation_level", "bogus"}, {"extra_float_digits", "4"}} {
+	for _, bad := range []struct{ name, value string }{{"lc_numeric", "C.UTF-8"}, {"lc_messages", ""}, {"client_encoding", "not-an-encoding"}, {"icu_validation_level", "bogus"}, {"extra_float_digits", "4"}} {
 		owner := session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
 		p := &settingsDefaultProviderForTest{values: map[string]string{bad.name: bad.value}, calls: map[string]int{}}
 		if err := owner.Initialize(ctx, e.Settings.Definitions(), e.Settings.Order(), p); err == nil {
 			t.Fatal("invalid physical default accepted", bad)
 		}
+	}
+	encodingProvider := &settingsDefaultProviderForTest{values: map[string]string{"client_encoding": "LATIN1"}, calls: map[string]int{}}
+	physical := enginetest.StartSession(t, e, encodingProvider)
+	policy := physical.Settings.ClientEncoding()
+	identity := policy.DefaultIdentity()
+	if physical.Settings.Value("client_encoding") != "LATIN1" || physical.Settings.DefaultTyped["client_encoding"].ClientEncoding != 8 || policy.ID() != 8 || identity[0] == 0 || identity[1] == 0 || encodingProvider.calls["client_encoding"] != 1 {
+		t.Fatal("physical encoding default did not capture actual admitted providers", identity, encodingProvider.calls)
+	}
+	if got, err := policy.Encode(ctx, "é"); err != nil || got != "\xe9" {
+		t.Fatal("admitted physical output conversion", got, err)
+	}
+	if got, err := policy.Decode(ctx, "\xe9"); err != nil || got != "é" {
+		t.Fatal("admitted physical input conversion", got, err)
+	}
+	encodingProvider.values["client_encoding"] = "SJIS"
+	if physical.Settings.Value("client_encoding") != "LATIN1" || physical.Settings.DefaultTyped["client_encoding"].ClientEncoding != 8 || physical.Settings.ClientEncoding().DefaultIdentity() != identity || encodingProvider.calls["client_encoding"] != 1 {
+		t.Fatal("live provider changed captured encoding defaults or authority")
 	}
 	float, err := e.Settings.Lookup("extra_float_digits")
 	if err != nil {

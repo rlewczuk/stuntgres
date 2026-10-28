@@ -10,7 +10,7 @@ import (
 )
 
 func TestEncodingLocaleAndLevelNormalizers(t *testing.T) {
-	for _, tc := range []struct{ input, want string }{{"utf-8", "UTF8"}, {"u.t_f-8", "UTF8"}, {"UNICODE", "UNICODE"}, {"unicode", "UTF8"}} {
+	for _, tc := range []struct{ input, want string }{{"utf-8", "UTF8"}, {"u.t_f-8", "UTF8"}, {"UNICODE", "UNICODE"}, {"unicode", "UTF8"}, {"latin1", "LATIN1"}, {"SQL_ASCII", "SQL_ASCII"}, {"MULE_INTERNAL", "MULE_INTERNAL"}} {
 		got, notice, err := normalizeClientEncoding(tc.input)
 		if err != nil || notice != nil || got != tc.want {
 			t.Fatal(tc, got, notice, err)
@@ -19,9 +19,6 @@ func TestEncodingLocaleAndLevelNormalizers(t *testing.T) {
 	for _, tc := range []struct{ input, code, message, detail string }{
 		{"not_an_encoding", "22023", `invalid value for parameter "client_encoding": "not_an_encoding"`, ""},
 		{strings.Repeat("-", 80) + "UTF8", "22023", `invalid value for parameter "client_encoding": "` + strings.Repeat("-", 63) + `"`, ""},
-		{"MULE_INTERNAL", "0A000", `invalid value for parameter "client_encoding": "MULE_INTERNAL"`, "Conversion between MULE_INTERNAL and UTF8 is not supported."},
-		{"latin1", "0A000", `client encoding "LATIN1" is not supported by stuntgres`, "Only UTF8 client encoding is supported."},
-		{"SQL_ASCII", "0A000", `client encoding "SQL_ASCII" is not supported by stuntgres`, "Only UTF8 client encoding is supported."},
 	} {
 		_, notice, err := normalizeClientEncoding(tc.input)
 		var d *sqlstate.Error

@@ -100,6 +100,19 @@ func (e *Engine) ValidatePersistedSetting(op *session.Operation, name string, in
 	if err = checkClientSetting(op, d, &value); err != nil {
 		return "", "", err
 	}
+	// Check-only admission uses the live resolver, but never installs the
+	// prepared pair in the issuer's active policy, reset image or cache.
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if d.Name == "client_encoding" {
+		if _, err = e.prepareClientEncodingLocked(op, value.ClientEncoding); err != nil {
+			var diagnostic *sqlstate.Error
+			if errors.As(err, &diagnostic) && diagnostic.Code == "0A000" {
+				err = clientEncodingSettingError(value.ClientEncoding)
+			}
+			return "", "", err
+		}
+	}
 	owner := op.EffectiveSettings()
 	owner.Mu.Lock()
 	err = owner.ValidateValueLocked(d, &value)

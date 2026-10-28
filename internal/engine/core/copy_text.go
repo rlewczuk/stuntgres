@@ -37,7 +37,7 @@ func (s *StatementScope) copyCommandError(err error) error {
 // re-checks the statement after the last row.
 func (s *StatementScope) copyOutput(rows exec.RowResult, o copyfmt.Options, w io.Writer) (int64, error) {
 	protocol := s.protocolOrZero()
-	count, err := copyfmt.WriteRows(s.Op.Context(), copyWriter{s, w}, rows, rows.Schema(), o, protocol.command || protocol.simple)
+	count, err := copyfmt.WriteRows(s.Op.Context(), copyWriter{s, w}, copyTransportRows{rows, s.Op.EffectiveSettings()}, rows.Schema(), o, protocol.command || protocol.simple)
 	if err != nil {
 		return 0, err
 	}

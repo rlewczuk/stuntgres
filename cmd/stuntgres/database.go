@@ -31,6 +31,19 @@ func (d startupDefaults) SessionDefault(_ context.Context, definition settings.D
 	return v, ok, nil
 }
 
+type startupDefaultValues struct {
+	startupDefaults
+	applicationName settings.Value
+	applicationSet  bool
+}
+
+func (d startupDefaultValues) SessionDefaultValue(_ context.Context, definition settings.Definition) (settings.Value, bool, error) {
+	if definition.Name == "application_name" {
+		return d.applicationName, d.applicationSet, nil
+	}
+	return settings.Value{}, false, nil
+}
+
 type settingNames map[string]struct{}
 
 func (n settingNames) SessionDefault(_ context.Context, d settings.Definition) (string, bool, error) {
@@ -135,17 +148,27 @@ func bootstrapExecute(ctx context.Context, e *core.Engine, sess *session.Session
 	}
 	return err
 }
-func (d *database) startSession(ctx context.Context, id uint32, user string, defaults startupDefaults) (*session.Session, error) {
+func (d *database) startSession(ctx context.Context, id uint32, user string, defaults startupDefaults) (*session.Session, *sqlstate.Error, error) {
 	for name := range defaults {
 		if _, ok := d.settings[name]; !ok {
-			return nil, &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "42704", Message: fmt.Sprintf(`unrecognized configuration parameter "%s"`, name)}
+			return nil, nil, &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "42704", Message: fmt.Sprintf(`unrecognized configuration parameter "%s"`, name)}
 		}
 	}
 	principal, err := d.engine.ResolveLogin(user)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return d.engine.StartSession(ctx, session.SessionStart{ID: ids.SessionID(id), Authenticated: principal, Defaults: defaults})
+	values := startupDefaultValues{startupDefaults: defaults}
+	var notice *sqlstate.Error
+	if raw, present := defaults["application_name"]; present {
+		values.applicationName, notice, err = settings.StartupApplicationName(raw)
+		if err != nil {
+			return nil, notice, err
+		}
+		values.applicationSet = true
+	}
+	s, err := d.engine.StartSession(ctx, session.SessionStart{ID: ids.SessionID(id), Authenticated: principal, Defaults: values})
+	return s, notice, err
 }
 
 // attachReferences enables dual-backend mode for each configured database.

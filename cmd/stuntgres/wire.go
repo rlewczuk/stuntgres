@@ -10,6 +10,7 @@ import (
 	"net"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 const (
@@ -32,6 +33,8 @@ type wireCodec struct {
 	authenticated bool
 	capture       *queryCapture // nil unless query.log is enabled
 	readScratch   [8192]byte    // Sole reader's fulfilled-byte growth scratch.
+	encoding      sqltype.ClientEncodingPolicy
+	encodingReady bool
 }
 
 func newWire(conn net.Conn) *wireCodec {
@@ -144,30 +147,61 @@ func (w *wireCodec) errorResponse(err error, fatal bool) error {
 		copy.Severity = "FATAL"
 		copy.SeverityUnlocalized = "FATAL"
 	}
-	return w.send('E', diagnosticBody(copy, "ERROR"))
+	body, conversionErr := w.encodedDiagnostic(copy, "ERROR")
+	if conversionErr == nil {
+		return w.send('E', body)
+	}
+	// Discard the unsent original and report its conversion failure. This is
+	// SQL diagnostic replacement, not a lossy serialization retry loop.
+	replacement := replacementDiagnostic(conversionErr, copy)
+	body, recursiveErr := w.encodedDiagnostic(replacement, "ERROR")
+	if recursiveErr == nil {
+		return w.send('E', body)
+	}
+	// A second failure while reporting a failure is actual depth-three error
+	// recursion trouble. Only that mode may use per-high-byte ASCII fallback.
+	return w.send('E', asciiDiagnostic(replacementDiagnostic(recursiveErr, replacement), "ERROR"))
+}
+
+func replacementDiagnostic(err error, previous sqlstate.Error) sqlstate.Error {
+	next := *diagnostic(err)
+	if previous.Severity == "FATAL" || previous.Severity == "PANIC" {
+		next.Severity, next.SeverityUnlocalized = previous.Severity, previous.SeverityUnlocalized
+	}
+	return next
 }
 
 func (w *wireCodec) notice(d sqlstate.Error) error {
-	return w.send('N', diagnosticBody(d, "NOTICE"))
+	body, err := w.encodedDiagnostic(d, "NOTICE")
+	if err != nil {
+		return err
+	}
+	return w.send('N', body)
 }
 
-func diagnosticBody(d sqlstate.Error, defaultSeverity string) []byte {
+type diagnosticField struct {
+	tag   byte
+	value string
+}
+
+func diagnosticFields(d sqlstate.Error, defaultSeverity string) [18]diagnosticField {
 	if d.Severity == "" {
 		d.Severity = defaultSeverity
 	}
 	if d.SeverityUnlocalized == "" {
 		d.SeverityUnlocalized = d.Severity
 	}
-	fields := [...]struct {
-		tag   byte
-		value string
-	}{
+	return [...]diagnosticField{
 		{'S', d.Severity}, {'V', d.SeverityUnlocalized}, {'C', d.Code}, {'M', d.Message},
 		{'D', d.Detail}, {'H', d.Hint}, {'P', d.Position}, {'p', d.InternalPosition},
 		{'q', d.InternalQuery}, {'W', d.Context}, {'s', d.Schema}, {'t', d.Table},
 		{'c', d.Column}, {'d', d.DataType}, {'n', d.Constraint}, {'F', d.File},
 		{'L', d.Line}, {'R', d.Routine},
 	}
+}
+
+func diagnosticBody(d sqlstate.Error, defaultSeverity string) []byte {
+	fields := diagnosticFields(d, defaultSeverity)
 	size := 1
 	for _, field := range fields {
 		if field.value != "" {

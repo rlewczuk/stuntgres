@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/sqlstate"
@@ -36,10 +37,24 @@ func TestServerStartupParameters(t *testing.T) {
 			t.Fatalf("protocol option order: %#v", unsupported)
 		}
 	})
+	t.Run("RawPreinitializationPairs", func(t *testing.T) {
+		body := []byte("user\x00\xff\x00database\x00\xfe\x00application_name\x00\xe9\x00_pq_.\xff\x00\xfe\x00\x00")
+		pairs, unsupported, err := parseStartupParameters(body)
+		want := map[string]string{"user": "\xff", "database": "\xfe", "application_name": "\xe9", "_pq_.\xff": "\xfe"}
+		if err != nil || !reflect.DeepEqual(pairs, want) || !reflect.DeepEqual(unsupported, []string{"_pq_.\xff"}) {
+			t.Fatalf("raw startup pairs: %#v unsupported=%q err=%v", pairs, unsupported, err)
+		}
+		// Startup identity clipping counts raw bytes, even at a UTF8 boundary.
+		name := strings.Repeat("a", 62) + "é"
+		pairs, _, err = parseStartupParameters([]byte("user\x00" + name + "\x00database\x00" + name + "\x00\x00"))
+		if err != nil || pairs["user"] != name[:63] || pairs["database"] != name[:63] {
+			t.Fatalf("raw identity clipping: %#v err=%v", pairs, err)
+		}
+	})
 	t.Run("MalformedPairs", func(t *testing.T) {
 		for _, body := range []string{
 			"", "user", "user\x00", "user\x00Alice", "user\x00Alice\x00",
-			"user\x00Alice\x00\x00extra", "user\x00\xff\x00\x00",
+			"user\x00Alice\x00\x00extra",
 		} {
 			_, _, err := parseStartupParameters([]byte(body))
 			var diagnostic *sqlstate.Error

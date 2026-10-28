@@ -42,11 +42,11 @@ func serverStartupContracts(t *testing.T, f *fixture.ServerFixture, b fixture.Ba
 		version uint32
 		extra   []string
 		code    string
-	}{{"wrong_major", 262144, nil, "0A000"}, {"unknown_setting", 196608, []string{"server_unknown_setting", "x"}, "42704"}, {"replication", 196608, []string{"replication", "database"}, "0A000"}, {"client_encoding", 196608, []string{"client_encoding", "LATIN1"}, "0A000"}} {
+	}{{"wrong_major", 262144, nil, "0A000"}, {"unknown_setting", 196608, []string{"server_unknown_setting", "x"}, "42704"}, {"replication", 196608, []string{"replication", "database"}, "0A000"}, {"client_encoding", 196608, []string{"client_encoding", "LATIN1"}, ""}} {
 		t.Run(c.name, func(t *testing.T) {
 			w := serverDial(t, dsn)
 			frames := w.login(t, dsn, c.version, c.extra...)
-			if b.PG && c.name == "client_encoding" {
+			if c.name == "client_encoding" {
 				serverWantCode(t, frames, "")
 				if w.statuses["client_encoding"] != "LATIN1" {
 					t.Fatal(w.statuses)

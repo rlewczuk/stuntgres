@@ -131,7 +131,7 @@ func (p *protocolCopy) Read(dst []byte) (int, error) {
 			p.release()
 			return 0, io.EOF
 		case 'f':
-			input := protocolInput{body: m.body}
+			input := protocolInput{body: m.body, encoding: p.client.session.Settings.ClientEncoding(), ctx: p.ctx}
 			message, err := input.String()
 			if err == nil {
 				err = input.End()

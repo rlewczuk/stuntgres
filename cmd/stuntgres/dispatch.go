@@ -129,9 +129,10 @@ func (c *client) run() {
 			continue
 		}
 		ctx, done := c.beginCommand()
+		c.refreshEncoding()
 		switch m.tag {
 		case 'Q':
-			input := protocolInput{body: m.body}
+			input := protocolInput{body: m.body, encoding: c.wire.encoding, ctx: ctx}
 			source, e := input.String()
 			if e == nil {
 				e = input.End()
@@ -190,7 +191,7 @@ func (c *client) run() {
 				err = c.wire.flush()
 			}
 		case 'F':
-			err = c.functionCommand(ctx, &protocolInput{body: m.body})
+			err = c.functionCommand(ctx, &protocolInput{body: m.body, encoding: c.wire.encoding, ctx: ctx})
 			c.releaseMessage(m)
 		case 'd', 'c', 'f':
 			c.releaseMessage(m)
@@ -248,14 +249,15 @@ func (c *client) readyBoundary() error {
 	if c.reference != nil {
 		c.reference.await(c.ctx)
 	}
+	c.refreshEncoding()
+	if _, err := c.drainNotifications(); err != nil {
+		return err
+	}
 	values, err := c.settingsSnapshot()
 	if err != nil {
 		return err
 	}
 	if err := c.sendSettings(values); err != nil {
-		return err
-	}
-	if _, err := c.drainNotifications(); err != nil {
 		return err
 	}
 	if err := c.sendReady(); err != nil {
@@ -276,8 +278,18 @@ func (c *client) drainNotifications() (<-chan struct{}, error) {
 			return wake, nil
 		}
 		body := appendInt32(nil, uint32(event.PID))
-		body = appendString(body, event.Channel)
-		body = appendString(body, event.Payload)
+		c.refreshEncoding()
+		var conversionErr error
+		body, conversionErr = c.wire.appendText(c.ctx, body, event.Channel)
+		if conversionErr == nil {
+			body, conversionErr = c.wire.appendText(c.ctx, body, event.Payload)
+		}
+		if conversionErr != nil {
+			c.fatal(conversionErr)
+			fatal := *diagnostic(conversionErr)
+			fatal.Severity, fatal.SeverityUnlocalized = "FATAL", "FATAL"
+			return nil, &fatal
+		}
 		if err := c.wire.send('A', body); err != nil {
 			return nil, err
 		}

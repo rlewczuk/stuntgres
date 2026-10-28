@@ -60,6 +60,15 @@ nontransactional.
   the existing settings mutex alongside the worker ceiling. Consumers receive
   detached scalars, not a settings provider. Changes affect the next command,
   not the running collection/proof or a retained cursor-source decision.
+- **Client encoding** (`client_encoding.go`): one lazily allocated fixed-ID
+  cache per physical session retains only the newest successfully accepted
+  immutable pair for each released encoding. Effective state and journal,
+  SAVE, default and invocation images retain the typed encoding ID, not a
+  frozen pair. Detached invocation stores share the physical cache authority.
+  Restoring an ID selects its newest accepted pair even after catalog
+  retirement; a new explicit assignment must still pass fresh core admission.
+  Presentation environments copy capabilities, never a settings callback or
+  catalog graph. Native environments leave byte transport disabled.
 - **Transaction owner** (`owner.go`, `savepoint_marks.go`, `protocol_cycle.go`):
   `TransactionOwner` with its state, characteristics, admission and journal;
   `TxState`, `Isolation`, `TxOptions`, `SavepointMark`, `ProtocolCycle`.
@@ -139,6 +148,11 @@ nontransactional.
   AM/tablespace/FTS catalog checks apply to explicit SQL candidates, not provider
   initialization or restoring captured defaults. A captured simulated name is
   not proof of a catalog object. No provider callback runs on RESET/DEFAULT.
+  Internal transport providers may supply an already admitted immutable typed
+  default through `SessionDefaultValueProvider`. Capture retains that value and
+  provider provenance without reparsing display text; ordinary/native string
+  providers still pass through the definition parser. All callbacks remain
+  outside runtime locks.
   The settings cores (`Presentation`, `LookupDefinition`, `ParseValue`, `SetInput`,
   `SettingAccess`, `ValidateValueLocked`) parse and check without installing. The
   engine's persisted test path reuses them without changing the issuer. Under the root's

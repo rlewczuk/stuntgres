@@ -13,6 +13,12 @@ Native [Reset, Dump and Restore](docs/FIXTURES.md) give explicit logical snapsho
 for fixtures; they are not `pg_dump` archives. The optional `cmd/stuntgres`
 executable serves the same engine over the PostgreSQL wire protocol.
 
+Storage and native Go text remain UTF8/Unicode. The optional server supports
+bidirectional `client_encoding` through actual registered PostgreSQL conversion
+defaults, plus SQL_ASCII. Native byte-stream COPY uses the same encoding
+boundary, with a separate explicit `ENCODING` file option; native SQL strings
+and typed parameters are not reinterpreted. See [COPY](docs/DRIVER.md#copy).
+
 SQL and PL/pgSQL procedures use standalone `CALL`, including named, default and
 variadic arguments and declared OUT/INOUT result columns. Calls share the
 executing statement's atomic effects and cancellation. Native fixture controls

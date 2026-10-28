@@ -5,27 +5,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"stuntgres/reference/fixture"
 )
 
-func copyBinaryOptionOutcome(t *testing.T, c copyTextConnection, name, direction, query string, result copyTextResult, err error, output []byte) {
+func copyBinaryOptionOutcome(t *testing.T, name, direction, query string, result copyTextResult, err error, output []byte) {
 	t.Helper()
-	// Transcoding remains an independent native capability boundary.
-	if !c.pg {
-		option := ""
-		switch name {
-		case "encoding":
-			option = "ENCODING"
-		}
-		if option != "" {
-			copyTextDiagnostic(t, result, err, fixture.Diagnostic{Code: "0A000", Message: "COPY " + option + " is unsupported"})
-			if len(output) != 0 {
-				t.Errorf("rejected option wrote bytes=%x", output)
-			}
-			return
-		}
-	}
 	want, ok := copyBinaryOutcomeRecords["Options/"+name+"_"+direction]
 	if !ok {
 		t.Fatalf("unobserved option case %s/%s; pinned discovery required", name, direction)

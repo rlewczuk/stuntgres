@@ -5,19 +5,22 @@ import (
 	"errors"
 	"math"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
-func (c *client) writeDescription(schema []catalog.Column, formats []int16) error {
+func (c *client) descriptionBody(schema []catalog.Column, formats []int16) ([]byte, error) {
+	c.refreshEncoding()
 	if len(schema) > math.MaxInt16 {
-		return &sqlstate.Error{Code: "54000", Message: "too many result columns"}
+		return nil, &sqlstate.Error{Code: "54000", Message: "too many result columns"}
 	}
 	body := appendInt16(nil, int16(len(schema)))
 	for i, column := range schema {
-		body = appendString(body, column.Name)
+		var err error
+		body, err = c.wire.appendText(c.ctx, body, column.Name)
+		if err != nil {
+			return nil, err
+		}
 		body = appendInt32(body, column.OriginTable)
 		body = appendInt16(body, column.OriginAttribute)
 		usage := column.Usage.BaseUsage()
@@ -31,6 +34,14 @@ func (c *client) writeDescription(schema []catalog.Column, formats []int16) erro
 			format = formats[i]
 		}
 		body = appendInt16(body, format)
+	}
+	return body, nil
+}
+
+func (c *client) writeDescription(schema []catalog.Column, formats []int16) error {
+	body, err := c.descriptionBody(schema, formats)
+	if err != nil {
+		return err
 	}
 	return c.wire.send('T', body)
 }
@@ -57,51 +68,6 @@ func (c *client) writeFields(fields []session.ProtocolField, buffer *[]byte) (lo
 	return nil, c.wire.send('D', body)
 }
 
-// writeRows writes only retained data; its caller owns the result descriptor's
-// execution-stage timing and must send it exactly once before data.
-func (c *client) writeRows(ctx context.Context, rows exec.RowResult, buffer *[]byte, scratch *[]sqltype.Value) (logicalErr, transportErr error) {
-	schema := rows.Schema()
-	if cap(*scratch) < len(schema) {
-		*scratch = make([]sqltype.Value, len(schema))
-	} else {
-		*scratch = (*scratch)[:len(schema)]
-	}
-	values := *scratch
-	environment := rows.OutputEnvironment()
-	body := (*buffer)[:0]
-	defer func() { *buffer = body }()
-	for {
-		if err := ctx.Err(); err != nil {
-			return err, nil
-		}
-		next, err := rows.Next(ctx, values)
-		if err != nil {
-			return err, nil
-		}
-		if !next {
-			return nil, nil
-		}
-		body = appendInt16(body[:0], int16(len(schema)))
-		for _, value := range values {
-			if value.IsNull() {
-				body = appendInt32(body, math.MaxUint32)
-				continue
-			}
-			text, err := value.Type().OutputWithEnvironment(ctx, value, environment)
-			if err != nil {
-				return err, nil
-			}
-			if len(text) > maxMessageLength-8-len(body) {
-				return &sqlstate.Error{Code: "54000", Message: "data row exceeds maximum allowed length"}, nil
-			}
-			body = appendInt32(body, uint32(len(text)))
-			body = append(body, text...)
-		}
-		if err := c.wire.send('D', body); err != nil {
-			return nil, err
-		}
-	}
-}
 func (c *client) writeSQLError(ctx context.Context, source string, err error) error {
 	return c.writeContextError(ctx, session.ProtocolContext{Source: source}, err)
 }

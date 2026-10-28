@@ -8,6 +8,8 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"stuntgres/internal/sqltype/pgencoding18"
 )
 
 var applicationName = Definition{
@@ -131,36 +133,33 @@ func normalizeApplicationName(value string) (string, *sqlstate.Error, error) {
 	if !utf8.ValidString(value) {
 		return "", nil, errors.New("stuntgres: invalid UTF-8 setting")
 	}
+	return applicationNameValue(value)
+}
+
+// StartupApplicationName admits the original pre-converter bytes. The database
+// is UTF8 already: NAME clipping uses its mblen rule, not validation or decoding
+// with the requested client encoding. The returned value must not be reparsed.
+func StartupApplicationName(value string) (Value, *sqlstate.Error, error) {
+	if strings.IndexByte(value, 0) >= 0 {
+		return Value{}, nil, errors.New("stuntgres: NUL startup application name")
+	}
+	text, notice, err := applicationNameValue(value)
+	return Value{Text: text}, notice, err
+}
+
+func applicationNameValue(value string) (string, *sqlstate.Error, error) {
 	var notice *sqlstate.Error
 	if len(value) > 63 {
-		n := 63
-		for !utf8.RuneStart(value[n]) {
-			n--
+		n := 0
+		for n < len(value) {
+			width := pgencoding18.Length(6, value[n:])
+			if n+width > 63 {
+				break
+			}
+			n += width
 		}
 		notice = &sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: fmt.Sprintf(`identifier "%s" will be truncated to "%s"`, value, value[:n])}
 		value = value[:n]
 	}
-	printable := true
-	for i := range len(value) {
-		if value[i] < 32 || value[i] > 126 {
-			printable = false
-			break
-		}
-	}
-	if printable {
-		return value, notice, nil
-	}
-	const hex = "0123456789abcdef"
-	var b strings.Builder
-	for i := range len(value) {
-		c := value[i]
-		if c >= 32 && c <= 126 {
-			b.WriteByte(c)
-		} else {
-			b.WriteString(`\x`)
-			b.WriteByte(hex[c>>4])
-			b.WriteByte(hex[c&15])
-		}
-	}
-	return b.String(), notice, nil
+	return sqltype.CleanApplicationName(value), notice, nil
 }

@@ -76,6 +76,9 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err = options.BindForces(nil, nil, rows.Schema()); err != nil {
 			return 0, err
 		}
+		if err = s.prepareCopyEncoding(&options, false); err != nil {
+			return 0, err
+		}
 		if err = s.reserveCopy(); err != nil {
 			return 0, err
 		}
@@ -114,6 +117,9 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		return 0, err
 	}
 	if err = options.BindForces(b.Relation, b.Targets, nil); err != nil {
+		return 0, err
+	}
+	if err = s.prepareCopyEncoding(&options, syntax.From); err != nil {
 		return 0, err
 	}
 	if !syntax.From {
@@ -280,7 +286,8 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	if options.Format == copyfmt.Binary {
 		cursor = dml.NewCopyBinaryCursor(h, b, copyfmt.NewBinaryReader(bufio.NewReader(copyReader{s, source})))
 	} else {
-		cursor = dml.NewCopyCursor(h, b, copyfmt.NewLineReader(options, bufio.NewReader(copyReader{s, source}), dml.CopyLineTargets(b)), state)
+		converted := sqltype.NewEncodingReader(copyReader{s, source}, options.Conversion, s.Op.Context)
+		cursor = dml.NewCopyCursor(h, b, copyfmt.NewLineReader(options, bufio.NewReader(converted), dml.CopyLineTargets(b)), state)
 	}
 	rows, err := func() (index.WriteBatch, error) {
 		if s.protocolOrZero().command || s.protocolOrZero().simple {

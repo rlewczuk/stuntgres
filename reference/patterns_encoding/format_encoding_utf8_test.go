@@ -76,17 +76,11 @@ func TestReferenceFormatEncodingUTF8(t *testing.T) {
 			})
 		}
 		for _, value := range []string{"LATIN1", "SQL_ASCII"} {
-			t.Run("transport-exclusion/"+value, func(t *testing.T) {
-				// set_config avoids preparing SET with a lib/pq Bind encoding change;
-				// only ASCII crosses the transport until UTF8 is restored.
-				if b.PG {
-					fixture.RunStep(t, p.Ctx, c, b.Recorder, formatEncodingText("SELECT set_config('client_encoding',$1,false)", "set_config", value, value))
-					fixture.RunStep(t, p.Ctx, c, b.Recorder, formatEncodingText("SHOW client_encoding", "client_encoding", value))
-				} else {
-					want := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "client encoding \"" + value + "\" is not supported by stuntgres", Detail: "Only UTF8 client encoding is supported."}
-					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ImplicitError("SELECT set_config('client_encoding',$1,false)", want, value))
-					fixture.RunStep(t, p.Ctx, c, b.Recorder, formatEncodingText("SHOW client_encoding", "client_encoding", "UTF8"))
-				}
+			t.Run("transport-admission/"+value, func(t *testing.T) {
+				// Only ASCII crosses pq's transport until UTF8 is restored;
+				// native Unicode controls are exercised by the shared encoding family.
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, formatEncodingText("SELECT set_config('client_encoding',$1,false)", "set_config", value, value))
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, formatEncodingText("SHOW client_encoding", "client_encoding", value))
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET client_encoding TO UTF8", 0))
 			})
 		}

@@ -78,6 +78,17 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
+	var clientPolicy sqltype.ClientEncodingPolicy
+	if d.Name == "client_encoding" && value != nil {
+		clientPolicy, err = e.prepareClientEncodingLocked(op, value.ClientEncoding)
+		if err != nil {
+			var diagnostic *sqlstate.Error
+			if errors.As(err, &diagnostic) && diagnostic.Code == "0A000" {
+				return "", clientEncodingSettingError(value.ClientEncoding)
+			}
+			return "", err
+		}
+	}
 	// set_config returns an examined value. PostgreSQL checks that after SET,
 	// rolling the statement back on denial. Preflight it after validation but
 	// before installation so the same error cannot leave an override behind.
@@ -100,6 +111,9 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 	defer op.Session.Mu.Unlock()
 	result, err := owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, action)
 	if err == nil {
+		if d.Name == "client_encoding" && value != nil {
+			owner.AcceptClientEncodingLocked(clientPolicy)
+		}
 		if op.Restricted != nil && d.Name == "search_path" {
 			op.Restricted.SafePath = false
 		}

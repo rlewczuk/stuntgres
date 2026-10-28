@@ -23,6 +23,7 @@ type Value struct {
 	DateStyle             sqltype.DateStyle
 	TimezoneAbbreviations sqltype.TimezoneAbbreviations
 	Locale                sqltype.Locale
+	ClientEncoding        int
 }
 
 func parameterError(message, hint string) error {
@@ -84,6 +85,9 @@ func (d Definition) Parse(input string) (Value, error) {
 		if d.Normalize != nil {
 			var err error
 			v.Text, _, err = d.Normalize(input)
+			if err == nil && d.Name == "client_encoding" {
+				v.ClientEncoding = sqltype.EncodingID(v.Text)
+			}
 			if err == nil && IsLocaleSetting(d.Name) {
 				v.Locale, _ = sqltype.ParseCLocale(v.Text)
 			}

@@ -42,6 +42,8 @@ func (c *CopyBinaryCursor) Schema() []catalog.Column { return nil }
 func (c *CopyBinaryCursor) Close() error             { return nil }
 func (c *CopyBinaryCursor) input() sqltype.InputEnvironment {
 	input, _ := c.host.Environments()
+	input.ByteTransport = true
+	input.Transport = c.op.EffectiveSettings().ClientEncoding()
 	return input
 }
 func (c *CopyBinaryCursor) rowDefaults() []bool { return c.defaults }

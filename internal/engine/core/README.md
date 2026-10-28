@@ -1531,8 +1531,26 @@ session, transaction, prepared-analysis and typed-frame authorities.
 - `ExecuteProtocolSimple` streams plain SELECT from the live producer; other
   row-returning commands fill a row store first, so an inner failure emits no
   partial rows. Stored typed rows are never rewritten or replayed.
+  Retained rows are encoded and delivered before `Finish`, so output conversion
+  failure rolls back commands such as INSERT RETURNING rather than committing
+  before the wire error. The wire captures the failing active pair before
+  unwind and reports restored settings afterward.
+- `client_encoding.go` resolves both actual default conversions using the
+  ordinary conversion search path, lowest-OID tie-break and immutable handler
+  signature validation. Explicit SET/startup candidates publish cache authority
+  only after ordinary setting/lifecycle admission; restoration performs no
+  lookup. Persisted and routine declaration candidates use the same bidirectional
+  resolver without installing live/reset/cache state; removing either configuration
+  value needs no pair.
+  `copy_encoding.go` reuses admitted outgoing authority for COPY TO selecting
+  the active encoding, including explicit ENCODING. Other output encodings and
+  every COPY FROM resolve their directional file capability afresh.
 - `CopyProtocolHooks` run outside engine/publication locks and admission; wire
   COPY FROM holds a cancellation owner through decoding, released on every exit.
+  `ProtocolNotices` uses the same active owner reservation before Finish:
+  fallible conversion and unlocked socket delivery precede publication, followed
+  by exact owner/lifecycle/catalog readmission. Idle control warnings borrow the
+  idle owner without starting a transaction.
 - Session checks observe due transaction/idle budgets under `Session.Mu` before
   publishing a lease, with one timestamp for both slots. A statement timeout
   before `StartStatement` fails its explicit block synchronously through

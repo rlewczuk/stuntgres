@@ -53,6 +53,10 @@ type Options struct {
 	OnError                                ErrorAction
 	LogVerbosity                           LogVerbosity
 	RejectLimit                            int64 // Zero means unlimited.
+	Encoding                               int
+	EncodingSet                            bool
+	Transport                              bool
+	Conversion                             sqltype.EncodingConversion
 }
 
 // ParseOptions validates the options of a COPY statement in PostgreSQL's
@@ -68,7 +72,7 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 			}
 		}
 		switch name {
-		case "format", "delimiter", "null", "default", "on_error", "log_verbosity":
+		case "format", "delimiter", "null", "default", "on_error", "log_verbosity", "encoding":
 			if !v.HasValue {
 				return o, sqlError("42601", name+" requires a parameter")
 			}
@@ -187,7 +191,13 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 				return o, sqlError("22023", fmt.Sprintf("REJECT_LIMIT (%d) must be greater than zero", limit))
 			}
 			o.RejectLimit = limit
-		case "freeze", "encoding":
+		case "encoding":
+			o.Encoding = sqltype.EncodingID(v.Value)
+			if o.Encoding < 0 {
+				return o, insertError("22023", `argument to option "encoding" must be a valid encoding name`, v.Pos)
+			}
+			o.EncodingSet = true
+		case "freeze":
 			return o, sqlError("0A000", "COPY "+strings.ToUpper(name)+" is unsupported")
 		default:
 			return o, insertError("42601", fmt.Sprintf("option \"%s\" not recognized", name), v.Pos)

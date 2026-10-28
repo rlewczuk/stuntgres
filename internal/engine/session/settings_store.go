@@ -34,6 +34,8 @@ type SettingsStore struct {
 	// publication locks.
 	temporaryBuffers     int64
 	temporaryBufferOwner *SettingsStore
+	clientEncoding       clientEncodingState
+	clientEncodingOwner  *SettingsStore
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	CurrentIsolation  string
@@ -284,7 +286,19 @@ func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]s
 				startup := *d.NativeStartup
 				copy.NativeStartup = &startup
 			}
-			input, present, err := provider.SessionDefault(ctx, copy)
+			var input string
+			var present, typed bool
+			var err error
+			if values, ok := provider.(settings.SessionDefaultValueProvider); ok {
+				var captured settings.Value
+				captured, present, err = values.SessionDefaultValue(ctx, copy)
+				if present {
+					v, typed = captured, true
+				}
+			}
+			if err == nil && !present {
+				input, present, err = provider.SessionDefault(ctx, copy)
+			}
 			if err != nil {
 				return err
 			}
@@ -297,9 +311,11 @@ func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]s
 					s.DefaultSources = make(map[string]DefaultSource)
 				}
 				s.DefaultSources[name] = DefaultSourceClient
-				v, err = d.Parse(input)
-				if err != nil {
-					return err
+				if !typed {
+					v, err = d.Parse(input)
+					if err != nil {
+						return err
+					}
 				}
 				normalized = d.Format(v)
 			}
@@ -331,6 +347,9 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.RoleAction = roleSettingAction{}
 	s.NestLevel = 0
 	atomic.StoreInt64(&s.temporaryBuffers, 0)
+	s.clientEncoding.mu.Lock()
+	s.clientEncoding.cache = nil
+	s.clientEncoding.mu.Unlock()
 	return nil
 }
 func (s *SettingsStore) Value(name string) string {

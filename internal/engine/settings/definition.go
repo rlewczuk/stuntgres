@@ -110,6 +110,14 @@ type SessionDefaultProvider interface {
 	SessionDefault(context.Context, Definition) (string, bool, error)
 }
 
+// SessionDefaultValueProvider is an internal transport capture extension.
+// Present values have already passed their owning admission path and are
+// immutable; Initialize must not normalize their formatted text again.
+// Public/native string providers do not implement this interface.
+type SessionDefaultValueProvider interface {
+	SessionDefaultValue(context.Context, Definition) (Value, bool, error)
+}
+
 // registrationError uses the engine RegistrationError message prefix.
 func registrationError(message string) error { return errors.New("stuntgres: " + message) }
 

@@ -3,7 +3,6 @@ package copyfmt
 import (
 	"fmt"
 	"io"
-	"strings"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -145,17 +144,5 @@ func (r *LineReader) splitCSV(defaultMarkers bool) error {
 // equals the NULL string, when it is a lone \. (single-column output) or
 // when it contains the delimiter, quote or a line break.
 func AppendCSV(dst []byte, text string, o Options, force, single bool) []byte {
-	quote := force || text == o.Null || single && text == `\.` || strings.IndexByte(text, o.Delimiter) >= 0 || strings.IndexByte(text, o.Quote) >= 0 || strings.ContainsAny(text, "\r\n")
-	if !quote {
-		return append(dst, text...)
-	}
-	dst = append(dst, o.Quote)
-	for i := range len(text) {
-		b := text[i]
-		if b == o.Quote || b == o.Escape {
-			dst = append(dst, o.Escape)
-		}
-		dst = append(dst, b)
-	}
-	return append(dst, o.Quote)
+	return appendCSVEncoding(dst, text, o, force, single, text == o.Null)
 }

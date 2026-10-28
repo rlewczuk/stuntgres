@@ -36,8 +36,8 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
   serving user, SYSTEM and local Administrators. Each permitted account is a
   database-local `SUPERUSER LOGIN`; the userfile is the cross-database gate.
   SQL-created roles do not become network accounts.
-- **Security.** Only cleartext password authentication and UTF8 client encoding
-  are implemented; SSL/GSS requests are refused. Listen defaults to
+- **Security.** Only cleartext password authentication is implemented;
+  SSL/GSS requests are refused. Listen defaults to
   `127.0.0.1:5434`, a bare port binds loopback, and non-loopback binding logs a
   warning. Keep passwords in a 0600 PGPASSFILE, not argv.
 - **Lifecycle.** `serve` runs in the foreground; `start` (or `serve -b`)
@@ -121,9 +121,34 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
 - The registered user-cancel cause is an immutable SQL diagnostic; COPY enriches
   an owned clone.
 - Normal-protocol C-string fields (including case-sensitive statement/portal
-  names) are validated by the shared UTF8 input owner at each field read, before
-  later framing, lookup or mutation; invalid text raises recoverable 22021.
-  Binary values, COPY payloads and cancel keys stay opaque.
+  names) decode through the admitted `client_encoding` pair before later
+  framing, lookup or mutation. Invalid input raises recoverable 22021.
+  Textual output fields convert before message lengths are published.
+  Bind diagnostics add a text-value suffix only after client decoding has
+  succeeded and canonical type input begins; conversion failures retain the
+  parameter location without pretending that type input received a value.
+  Startup/authentication diagnostics remain raw until session admission;
+  startup application names undergo original NAME clipping with the UTF8 database
+  length rule, then sanitize each non-ASCII/control byte as `\xNN`. Their typed
+  captured defaults are never clipped again after ASCII expansion.
+- Client encodings use actual visible bidirectional default conversion
+  providers, not a transport-only whitelist. UTF8 and SQL_ASCII need no
+  provider; MULE_INTERNAL remains an unsupported SET/startup conversion.
+  Native Go APIs remain Unicode. Binary framing, numeric/bytea/internal-CHAR
+  payloads and cancel keys stay opaque; textual binary leaves convert.
+- COPY text/CSV decodes incrementally before record framing and encodes each
+  output attribute before multibyte-aware escaping. Explicit `ENCODING`
+  selects the file encoding independently of the session; COPY TO selecting the
+  active encoding reuses its admitted outgoing capability, while COPY FROM and
+  different output encodings resolve current directional defaults.
+  Binary COPY keeps its framing and uses the session for textual leaves.
+  Failed notifications produce a fatal diagnostic rather than a partial A
+  frame. Idle delivery precedes ParameterStatus and ReadyForQuery.
+  End-of-command notices remain fallible before statement Finish; actual writes
+  use the active unlocked owner reservation, retaining conversion rollback and
+  terminal transport-failure cleanup for simple, extended and FunctionCall
+  commands. Diagnostics retain the failing command's encoding before unwind;
+  FunctionCall reports recoverable errors at its own ReadyForQuery boundary.
 - Dual-backend forwarding (`reference_forward.go`): the dispatcher owns the
   reference write side, waiting and record assembly, and forwards each
   message where the capture records it; one reader goroutine per connection

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // ValidateRoutineSetting enters and returns with Engine.Mu held. Declaration
@@ -147,6 +149,17 @@ func (h DDLHost) ValidateRoutineSetting(actor ddl.Authority, clause *parser.Set)
 	}
 	if err := checkClientSettingAuthority(auth, d, &parsed); err != nil {
 		return "", "", false, err
+	}
+	if d.Name == "client_encoding" {
+		// Declaration checks resolve the actual pair without installing it in
+		// the issuer's active policy, reset image or accepted-generation cache.
+		if _, err := h.E.prepareClientEncodingLocked(h.Op, parsed.ClientEncoding); err != nil {
+			var diagnostic *sqlstate.Error
+			if errors.As(err, &diagnostic) && diagnostic.Code == "0A000" {
+				err = clientEncodingSettingError(parsed.ClientEncoding)
+			}
+			return "", "", false, err
+		}
 	}
 	if isCurrentTransactionSetting(d.Name) {
 		// GUCArrayAdd tests with PGC_S_TEST/ACTION_SET and changeVal=false:

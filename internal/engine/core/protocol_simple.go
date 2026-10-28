@@ -1,18 +1,22 @@
 package core
 
 import (
+	"errors"
 	"io"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // ExecuteProtocolSimple uses the canonical Execute unwrapping/binder. A plain
 // SELECT transfers its initialized executor to the same live producer used by
 // wire portals. Released RETURNING/modifying-CTE/utility store strategies keep
 // their existing finalized rows and emit metadata when those rows are fetched.
-// The caller still owns Finish, notices and CommandComplete.
+// It consumes/closes all result rows before returning; the caller owns Finish,
+// notices and CommandComplete, never a post-Finish presentation owner.
 func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe func([]catalog.Column) error, row func([]session.ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (result Result, err error) {
 	s.protocol().simple = true
 	s.protocol().simpleStreaming = true
@@ -30,8 +34,49 @@ func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe f
 	result, err = s.execute(stmt, 0, nil, &stream)
 	s.protocol().bind = nil
 	p := s.protocolOrZero().simplePortal
-	if err != nil || p == nil {
+	if err != nil {
+		if result.Rows != nil {
+			rows := result.Rows
+			result.Rows = nil
+			_ = s.protocolTerminalIO(rows.Close)
+		}
 		return result, err
+	}
+	if p == nil {
+		if result.Rows == nil {
+			return result, nil
+		}
+		rows := result.Rows
+		result.Rows = nil
+		defer func() {
+			if closeErr := s.protocolTerminalIO(rows.Close); err == nil {
+				err = closeErr
+			}
+		}()
+		if err = s.protocolSimpleIO(func() error { return describe(rows.Schema()) }); err != nil {
+			return result, err
+		}
+		values := make([]sqltype.Value, len(rows.Schema()))
+		var fields []session.ProtocolField
+		var scratch []byte
+		for {
+			present, nextErr := rows.Next(s.Op.Context(), values)
+			if nextErr != nil {
+				return result, nextErr
+			}
+			if !present {
+				return result, nil
+			}
+			env := rows.OutputEnvironment()
+			env.Transport = s.Op.EffectiveSettings().ClientEncoding()
+			fields, scratch, err = session.EncodeProtocolRow(s.Op.Context(), values, nil, env, fields, scratch)
+			if err != nil {
+				return result, err
+			}
+			if err = s.protocolSimpleIO(func() error { return row(fields) }); err != nil {
+				return result, err
+			}
+		}
 	}
 	// Planning/ExecutorStart succeeded and produced this actual schema. No
 	// additional Describe, execution replay or synthetic error descriptor exists.
@@ -73,4 +118,48 @@ func (s *StatementScope) protocolSimpleIO(call func() error) error {
 	defer s.releaseCopyReservation()
 	_, err := s.copyIO(func() (int, error) { return 0, call() })
 	return err
+}
+
+// ProtocolNotices submits fallible active-command notices before Finish. The
+// existing reservation releases admission and replacement fences during I/O,
+// then revalidates the exact owner before statement publication can proceed.
+func (s *StatementScope) ProtocolNotices(write func() error) error {
+	s.Owner.Mu.Lock()
+	s.attachTransactionLocked()
+	s.Owner.Mu.Unlock()
+	if s.TxRef != (ids.TxRef{}) {
+		if s.Owner.CopyLease == &s.lease {
+			// COPY retains its reservation through Finish; notices borrow
+			// that exact active owner rather than reserving it twice.
+			_, err := s.copyIO(func() (int, error) { return 0, write() })
+			return err
+		}
+		return s.protocolSimpleIO(write)
+	}
+	// An idle transaction-control warning has no transaction incarnation.
+	// Reserve its actual idle owner without manufacturing a transaction or
+	// relaxing COPY's transaction-epoch resume check.
+	if err := s.reserveCopy(); err != nil {
+		return err
+	}
+	defer s.releaseCopyReservation()
+	e := s.Engine()
+	epoch := e.CatalogRead().Epoch()
+	if err := s.protocolTerminalIO(write); err != nil {
+		return err
+	}
+	if err := s.Active(); err != nil {
+		return err
+	}
+	s.Owner.Mu.Lock()
+	defer s.Owner.Mu.Unlock()
+	if s.Owner.Ref != s.TxRef || s.Owner.Command != s.CommandID {
+		return errors.New("stuntgres: stale notice owner")
+	}
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if epoch != e.Catalog.State.Epoch() {
+		return ids.ErrCatalogReplaced
+	}
+	return nil
 }

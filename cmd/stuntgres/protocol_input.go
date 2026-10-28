@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -8,7 +9,11 @@ import (
 
 // protocolInput only consumes bounded intact frame storage. Semantic ordering
 // belongs to the engine, particularly Bind and fastpath receive/conversion.
-type protocolInput struct{ body []byte }
+type protocolInput struct {
+	body     []byte
+	encoding sqltype.ClientEncodingPolicy
+	ctx      context.Context
+}
 
 func protocolError(message string) error { return &sqlstate.Error{Code: "08P01", Message: message} }
 func (p *protocolInput) Uint16() (uint16, error) {
@@ -44,7 +49,11 @@ func (p *protocolInput) Byte() (byte, error) {
 func (p *protocolInput) String() (string, error) {
 	value, err := consumeString(&p.body)
 	if err == nil {
-		err = sqltype.ValidateTextInput(value)
+		ctx := p.ctx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		value, err = p.encoding.Decode(ctx, value)
 	}
 	return value, err
 }

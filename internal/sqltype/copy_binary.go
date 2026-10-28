@@ -54,8 +54,8 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		return d.binaryMultirange(ctx, p, env)
 	}
 	if d.IsEnum() {
-		text := string(p)
-		if err = ValidateTextInput(text); err != nil {
+		text, decodeErr := env.DecodeTransport(ctx, string(p))
+		if err = decodeErr; err != nil {
 			return
 		}
 		v, err = d.enumInput(text, env)
@@ -178,8 +178,8 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 			}
 			data = p[1:]
 		}
-		text := string(data)
-		if err = ValidateTextInput(text); err != nil {
+		text, decodeErr := env.DecodeTransport(ctx, string(data))
+		if err = decodeErr; err != nil {
 			return
 		}
 		switch d.id {
@@ -247,7 +247,10 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 	}
 	if d.IsEnum() {
 		text, err := d.enumOutput(v)
-		return append(dst, text...), err
+		if err != nil {
+			return dst, err
+		}
+		return env.AppendTransport(ctx, dst, text)
 	}
 	switch d.id {
 	case Bool:
@@ -297,12 +300,21 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		return binary64(dst, math.Float64bits(v.circle.radius)), nil
 	case UUID:
 		return append(dst, v.uuid[:]...), nil
-	case Refcursor, Text, VarChar, BPChar, Name, Bytea, JSON:
+	case Refcursor, Text, VarChar, BPChar, Name, JSON:
+		return env.AppendTransport(ctx, dst, v.text)
+	case Bytea:
 		return append(dst, v.text...), nil
 	case JSONB, JSONPath:
+		start := len(dst)
 		dst = append(dst, 1)
 		text, err := d.OutputWithEnvironment(ctx, v, env)
-		return append(dst, text...), err
+		if err == nil {
+			dst, err = env.AppendTransport(ctx, dst, text)
+		}
+		if err != nil {
+			return dst[:start], err
+		}
+		return dst, nil
 	case Numeric:
 		return appendBinaryNumeric(dst, v), nil
 	case Bit, VarBit:
@@ -316,7 +328,10 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		return append(dst, v.statistics.binary...), nil
 	case PgNodeTree:
 		text, err := d.OutputWithEnvironment(ctx, v, env)
-		return append(dst, text...), err
+		if err != nil {
+			return dst, err
+		}
+		return env.AppendTransport(ctx, dst, text)
 	case Void:
 		return dst, nil
 	}

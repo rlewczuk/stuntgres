@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 )
 
 // Namespace order wins first, then the released default-index OID order within
@@ -12,32 +13,45 @@ type conversionDefault struct {
 	procedure  *catalog.Procedure
 }
 
-// A statement lazily projects its immutable snapshot exactly once, only for
-// nonempty nonidentity conversion. Rows do no catalog scanning or path allocation.
+// A statement lazily resolves each demanded pair from its immutable snapshot.
+// Later rows reuse the result (including absence) without catalog/path work.
 func (s *StatementScope) conversionProcedure(source, destination int) (*catalog.Procedure, error) {
 	if s == nil || s.Inquiry.visibilityCatalog.State() == nil {
 		return nil, fmt.Errorf("stuntgres: missing conversion execution snapshot")
 	}
+	key := [2]int{source, destination}
+	if selected, ok := s.presentationOrZero().conversionDefaults[key]; ok {
+		return selected.procedure, nil
+	}
+	selected, err := resolveConversionDefault(s.Inquiry.visibilityCatalog, s.Inquiry.visibilityOtherPath, source, destination)
+	if err != nil {
+		return nil, err
+	}
 	if s.presentationOrZero().conversionDefaults == nil {
-		defaults := make(map[[2]int]conversionDefault)
-		for _, namespace := range s.Inquiry.visibilityOtherPath {
-			for _, descriptor := range s.Inquiry.visibilityCatalog.Descriptors() {
-				d, ok := descriptor.(*catalog.Conversion)
-				if !ok || !d.DefaultConversion || d.Namespace() != namespace {
-					continue
-				}
-				key := [2]int{d.Source, d.Destination}
-				old := defaults[key].conversion
-				if old == nil || old.Namespace() == namespace && d.OID < old.OID {
-					procedure, ok := s.Inquiry.visibilityCatalog.Procedure(d.Handler)
-					if !ok || procedure.Conversion.Name() == "" || procedure.Signature != catalog.ConversionSignature || procedure.Result != 23 {
-						return nil, fmt.Errorf("stuntgres: invalid conversion execution capability")
-					}
-					defaults[key] = conversionDefault{d, procedure}
-				}
+		s.presentation().conversionDefaults = make(map[[2]int]conversionDefault)
+	}
+	s.presentation().conversionDefaults[key] = selected
+	return selected.procedure, nil
+}
+
+// Namespace priority, then the lowest conversion OID in that namespace, is the
+// single default authority for both SQL conversion and client/COPY admission.
+func resolveConversionDefault(view catalog.Read, path []ids.ObjectAddress, source, destination int) (conversionDefault, error) {
+	for _, namespace := range path {
+		var selected *catalog.Conversion
+		for _, descriptor := range view.Descriptors() {
+			d, ok := descriptor.(*catalog.Conversion)
+			if ok && d.DefaultConversion && d.Namespace() == namespace && d.Source == source && d.Destination == destination && (selected == nil || d.OID < selected.OID) {
+				selected = d
 			}
 		}
-		s.presentation().conversionDefaults = defaults
+		if selected != nil {
+			procedure, ok := view.Procedure(selected.Handler)
+			if !ok || procedure.Conversion.Name() == "" || procedure.Signature != catalog.ConversionSignature || procedure.Result != 23 {
+				return conversionDefault{}, fmt.Errorf("stuntgres: invalid conversion execution capability")
+			}
+			return conversionDefault{selected, procedure}, nil
+		}
 	}
-	return s.presentationOrZero().conversionDefaults[[2]int{source, destination}].procedure, nil
+	return conversionDefault{}, nil
 }

@@ -37,6 +37,9 @@ and conditional PL row replacement and suppression.
 - COPY input and expected output bytes (binary frames, CSV/text payloads) are
   written by hand, never captured from native output. Query user type OIDs from
   the catalog (`regtype::bigint`) instead of hard-coding them.
+  Binary `ENCODING` is admitted for both FROM and TO; it does not transcode
+  binary framing or numeric/bytea payloads. Textual binary leaves use the
+  session client encoding rather than the file-option override.
 - Other scenario helpers: `mergeInsertScenario` (`merge_insert_matching_test.go`,
   shared by the MERGE families), `truncateScenario`
   (`truncate_helpers_test.go`), `truncateRestartScenario`
