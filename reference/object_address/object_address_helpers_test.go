@@ -9,7 +9,7 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// Shared contracts are grounded in the pinned PostgreSQL 18.0 oracle.
+// Shared contracts are grounded in the pinned PostgreSQL 18.6 oracle.
 func objectAddressScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn)) {
 	t.Helper()
 	p := fixture.NewScenario(t)

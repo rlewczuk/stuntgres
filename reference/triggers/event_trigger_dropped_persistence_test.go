@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
+	"io"
+	"strings"
 	"testing"
 
 	"stuntgres"
@@ -28,14 +31,40 @@ func TestReferenceEventTriggerDroppedObjectsPersistence(t *testing.T) {
 		d.run(fixture.Exec("INSERT INTO public.et_do_child VALUES(11)", 1))
 		d.run(fixture.Exec("INSERT INTO et_do_saved.t VALUES(19)", 1))
 		d.absenceCallback()
-		d.install("'DROP TABLE','DROP SCHEMA'")
+		d.install("'DROP TABLE','DROP SCHEMA','DROP FUNCTION','DROP PROCEDURE'")
 		eventTriggerCreate(t, d.p, d.b, d.c, "et_do_disabled", "sql_drop", "", "public.et_do_disabled_fn")
 		d.exec("ALTER EVENT TRIGGER et_do_disabled DISABLE")
+		// Persist actual routine recipes separately, so the historical table's
+		// complete bags and phase-count assertions remain unchanged.
+		d.exec("CREATE TABLE public.et_addr_saved AS SELECT * FROM public.et_do_audit WHERE false")
+		var savedRecipes []droppedRecord
+		for _, kind := range []string{"function", "procedure"} {
+			name := "et_addr_saved_f"
+			ddl := "CREATE FUNCTION public.et_addr_saved_f(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$"
+			if kind == "procedure" {
+				name = "et_addr_saved_p"
+				ddl = "CREATE PROCEDURE public.et_addr_saved_p(integer) LANGUAGE SQL AS $$SELECT $1$$"
+			}
+			d.exec(ddl)
+			records := d.capture([]droppedRecord{droppedRoutine("public", name, kind, []string{"integer"})})
+			d.drop("DROP "+strings.ToUpper(kind)+" public."+name+"(integer)", false)
+			d.bag(1, records)
+			d.bag(2, records)
+			d.phases(1)
+			d.run(fixture.Exec("INSERT INTO public.et_addr_saved SELECT * FROM public.et_do_audit WHERE pass=1 AND original", 1))
+			savedRecipes = append(savedRecipes, records[0])
+			d.exec(ddl)
+			d.clear()
+		}
 		historic := d.capture(droppedTable("public", "et_do_history", true))
 		d.drop("DROP TABLE public.et_do_history", false)
 		d.bag(1, historic)
 		d.bag(2, historic)
 		d.phases(7)
+		d.run(fixture.Exec("INSERT INTO public.et_addr_saved SELECT * FROM public.et_do_audit WHERE pass=1 AND original", 1))
+		savedRecipes = append(savedRecipes, historic[0])
+		d.exec("CREATE TABLE public.et_do_history(f1 integer PRIMARY KEY,f2 integer DEFAULT 42)")
+		d.run(fixture.Exec("INSERT INTO public.et_do_history(f1) VALUES(23)", 1))
 
 		check := func(c *sql.Conn, b fixture.Backend) {
 			defer c.ExecContext(context.Background(), "ROLLBACK")
@@ -43,6 +72,16 @@ func TestReferenceEventTriggerDroppedObjectsPersistence(t *testing.T) {
 			x.bag(1, historic)
 			x.bag(2, historic)
 			x.phases(7)
+			droppedReconstructionCheck(x, "public.et_addr_saved", savedRecipes)
+			var savedRows [][]any
+			for _, r := range savedRecipes {
+				savedRows = append(savedRows, r.row(b.PG))
+			}
+			savedBag := fixture.Select("SELECT "+strings.Join(droppedColumns, ",")+" FROM public.et_addr_saved", droppedColumns, droppedTypes, savedRows)
+			savedBag.Bag = true
+			x.run(savedBag)
+			x.run(fixture.Prepared(savedBag))
+			x.run(fixture.Select("SELECT f1,f2 FROM public.et_do_history", []string{"f1", "f2"}, []string{"INT4", "INT4"}, [][]any{{int64(23), int64(42)}}))
 			x.run(fixture.Select("SELECT f1,f2 FROM public.et_do_keep", []string{"f1", "f2"}, []string{"INT4", "INT4"}, [][]any{{int64(11), int64(42)}}))
 			x.run(fixture.Select("SELECT i FROM public.et_do_child", []string{"i"}, []string{"INT4"}, [][]any{{int64(11)}}))
 			x.run(eventTriggerCount("SELECT count(*) AS n FROM pg_trigger WHERE tgconstraint=(SELECT oid FROM pg_constraint WHERE conname='et_do_fk') AND tgisinternal", 4))
@@ -121,6 +160,27 @@ func TestReferenceEventTriggerDroppedObjectsPersistence(t *testing.T) {
 				}()
 			}
 		}
+		// Failed staged replacement and interrupted controls must retain both
+		// live identities and the unchanged historical user-data recipes.
+		err := stuntgres.Restore(d.p.Ctx, d.p.Native, strings.NewReader("CREATE TABLE public.et_addr_staged(i integer); SELECT * FROM pg_get_object_address('function','{public,et_addr_missing}','{integer}');"))
+		want := fixture.ControlsReferenceDiagnostic("0A000", "restore accepts only generated sequence or large object state")
+		fixture.AssertDiagnostic(d.t, err, &want)
+		check(d.c, d.b)
+		d.run(eventTriggerCount("SELECT count(*) AS n FROM pg_class WHERE relname='et_addr_staged' AND relnamespace='public'::regnamespace", 0))
+		if err := stuntgres.Restore(d.p.Ctx, d.p.Native, io.MultiReader(bytes.NewReader(saved), fixture.CatalogControlFailingReader{Err: io.ErrUnexpectedEOF})); !errors.Is(err, io.ErrUnexpectedEOF) {
+			t.Fatal("saved-recipe Restore reader failure", err)
+		}
+		check(d.c, d.b)
+		canceled, cancel := context.WithCancel(d.p.Ctx)
+		cancel()
+		if err := stuntgres.Restore(canceled, d.p.Native, bytes.NewReader(saved)); !errors.Is(err, context.Canceled) {
+			t.Fatal("saved-recipe Restore cancellation", err)
+		}
+		var interrupted bytes.Buffer
+		if err := stuntgres.Dump(canceled, d.p.Native, &interrupted); !errors.Is(err, context.Canceled) {
+			t.Fatal("saved-recipe Dump cancellation", err)
+		}
+		check(d.c, d.b)
 		connector, err := stuntgres.NewDriver().OpenConnector("event-trigger-dropped-fresh/" + t.Name())
 		if err != nil {
 			t.Fatal(err)

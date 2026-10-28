@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -156,6 +155,13 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 			return ids.ObjectAddress{}, ObjectListLength("name", 1, true)
 		}
 	}
+	if class == ids.ProcedureClassID && len(parsedArgs) > 100 {
+		noun := "functions"
+		if kind == "procedure" {
+			noun = "procedures"
+		}
+		return ids.ObjectAddress{}, sqlError("54023", noun+" cannot have more than 100 arguments")
+	}
 	if typeName {
 		typeID, err = types.resolveParsed(ctx, parsedName, notices)
 		if err != nil {
@@ -231,19 +237,15 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 			human[i] = TypeSpelling(view, q.Capture.Path, id)
 		}
 		p, count := SelectExactRoutine(view, path, names[len(names)-1], catalog.ProcedureSignature(signature.String()))
-		spelling := make([]string, len(names))
-		for i, name := range names {
-			spelling[i] = catalog.Identifier(name)
-		}
-		sig := strings.Join(spelling, ".") + "(" + strings.Join(human, ", ") + ")"
+		sig := strings.Join(names, ".") + "(" + strings.Join(human, ", ") + ")"
 		if count == 0 {
-			noun := "function"
-			if kind == "procedure" {
-				noun = "procedure"
+			noun := kind
+			if kind == "aggregate" && len(argIDs) == 0 {
+				sig = strings.Join(names, ".") + "(*)"
 			}
 			return missing("42883", noun+" "+sig+" does not exist")
 		}
-		actual := routine.ObjectRoutineKind(p.ID)
+		actual := objectRoutineKind(view, p.ID)
 		if kind == "aggregate" && actual != "aggregate" {
 			return missing("42809", "function "+sig+" is not an aggregate")
 		}

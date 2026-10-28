@@ -55,6 +55,20 @@ output. The dropped-record scenarios retain both reads, phase/catalog-absence
 witnesses, live-helper metadata, full protocol diagnostics and native-control
 roundtrips with unchanged-stream PostgreSQL replay.
 
+`TestReferenceEventTriggerObjectAddressReconstruction` consumes actual saved
+`object_type,address_names,address_args` table/function/procedure roots unchanged
+after recreation outside `sql_drop`, through direct/fresh/held execution.
+Complete independent dropped bags retain quoted identities, raw name components,
+canonical domain/array arguments and both callback passes. Missing-before-recreate
+diagnostics, current qualified catalog IDs, overload survivors, result metadata,
+failing-consumer rollback/savepoint recovery and native cancellation are checked.
+`TestReferenceEventTriggerDroppedObjectsPersistence` carries saved roots and live
+counterparts through both replacement rounds, fresh-driver Restore and unchanged
+native dump replay into PostgreSQL. Stored historic numeric OIDs remain ordinary
+audit data; reconstruction compares the current catalog, not historic IDs.
+Native controls do not emulate PostgreSQL physical storage, WAL durability,
+network/process or native ABI mechanisms.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` delegates directly to
@@ -65,3 +79,12 @@ Event-trigger family selector: `RUN='^TestReference(EventTrigger|PGEventTriggerC
 `REFERENCE=1` for the pinned PostgreSQL oracle. Direct, fresh-prepared and held
 utility handles share the same SQL definitions and independent expected rows,
 metadata, diagnostics and atomicity assertions.
+
+Bounded recipe selectors (run each natively and with `REFERENCE=1`; add `RACE=1`
+for selected race coverage):
+
+```sh
+make check RUN='^TestReferenceEventTriggerObjectAddressReconstruction$'
+make check RUN='^TestReferenceEventTriggerDroppedObjectsPersistence$'
+make check RUN='^TestReferenceEventTriggerDroppedObjects'
+```

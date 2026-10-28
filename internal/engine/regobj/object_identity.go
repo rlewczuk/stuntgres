@@ -151,6 +151,22 @@ func objectQualifiedType(view catalog.Read, id ids.OID) string {
 	return regtypeSpellingMode(view, nil, id, true)
 }
 
+// Represented declarations own their kind, including released OIDs. A helper's
+// aggregate owner owns dependencies, not the helper's routine kind.
+func objectRoutineKind(view catalog.Read, id ids.OID) string {
+	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
+		switch p.RoutineKind {
+		case catalog.AggregateRoutine:
+			return "aggregate"
+		case catalog.ProcedureRoutine:
+			return "procedure"
+		default:
+			return "function"
+		}
+	}
+	return routine.ObjectRoutineKind(id)
+}
+
 func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress) (ObjectIdentity, error) {
 	return identifyAddress(view, roles, path, a, nil)
 }
@@ -170,7 +186,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 			return r, nil
 		}
 		r.Found = true
-		r.Kind = routine.ObjectRoutineKind(p.ID)
+		r.Kind = objectRoutineKind(view, p.ID)
 		ns, canonical := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace})
 		if dropped != nil {
 			droppedNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace}, dropped)

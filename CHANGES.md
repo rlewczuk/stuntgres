@@ -506,6 +506,16 @@ Persistent callback/audit state survives native Dump/Restore; inspection scratch
 is never serialized. Physical PostgreSQL TOAST storage records have no native
 storage counterpart.
 
+`pg_get_object_address` reconstructs supported table, function and procedure
+identities from actual saved dropped-object name/type arrays after recreation,
+outside event context and through native Dump/Reset/Restore. Forward and inverse
+routine identity use the represented declaration's procedure/aggregate kind;
+lookup-only helpers keep their own function kind. Exact signatures retain
+PostgreSQL missing/wrong-kind diagnostics, raw dotted diagnostic names, canonical
+argument type spellings, aggregate `(*)` and the 100-input lookup boundary.
+Native controls are in-process APIs, not PostgreSQL SQL APIs; this does not add
+universal object reconstruction, physical storage/WAL durability or a wire server.
+
 `pg_lsn` columns, literals and parameters preserve the full unsigned 64-bit WAL
 position range with canonical slash-hex results and metadata. Comparisons and
 ordering use unsigned magnitude; differences and numeric byte offsets are exact,

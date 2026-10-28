@@ -47,6 +47,20 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 - Long inventories run as serial half-open subtests, each with its own
   `objectAddressScenario` (`inventory_<start>_<end>`, 512 routine facts per
   group). Never renew or extend a live scenario's context to fit more rows.
+- Routine resolution covers descriptor-owned procedure/aggregate kind, function
+  acceptance of aggregates, exact zero-input overloads and path masking. Name
+  array cells are raw components (even dots/spaces); argument cells are SQL type
+  syntax, including qualified domains/arrays. Missing diagnostics join raw names
+  but retain canonical type quoting. Syntax/NULL checks precede the 100-input cap,
+  then semantic type/schema lookup. Full direct/fresh/held diagnostics and held
+  recovery retain all fields, not just SQLSTATE.
+- Actual dropped table/function/procedure recipes are covered in
+  [reference/triggers](../triggers/README.md): unchanged saved columns resolve
+  outside callbacks against current catalogs, including native replacement.
+  Address metadata remains scalar RECORD or expanded OID/OID/INT4 on populated
+  and empty direct/prepared results. Native controls are in-process only; no
+  physical storage/WAL durability, wire server or universal reconstruction is
+  implied.
 - TEXT columns report `Length() = (math.MaxInt64, true)` on both adapters.
 - Transactional definition scenarios share `definitionScenario` and
   `definitionRoutes`: fresh serial autocommit/SQL/Go transactions, direct or
@@ -78,6 +92,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `RUN='^TestReferenceObjectAddress(Signatures|RoundTrips|Nulls|Metadata|Arrays|MissingNames|QuotingVisibility|Stale|TypeArgumentOrder)$'`
 - Held execution and lifecycle:
   `RUN='^TestReferenceObjectAddress(HeldExecution|Transactions|Lifecycle|Cancellation|FeatureSmoke)$'`
+- Routine kind, signatures and diagnostics:
+  `RUN='^TestReferenceObjectAddressRoutine(Resolution|Diagnostics)$'`.
+  Run both native and `REFERENCE=1`, and add `RACE=1` for selected race proof.
 - Engine units for the address providers: `make check RUN='^TestObjectAddress'`.
 - Transactional method, family and class definitions:
   `RUN='^TestReferenceTransactional(AccessMethodDefinitions|OperatorFamilyDefinitions|OperatorClassDefinitions|Definition)'`.

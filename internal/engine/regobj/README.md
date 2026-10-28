@@ -150,6 +150,10 @@ import it.
   spellings; namespace ownership supplies temporary status and `pg_temp`.
   Temporary routine identity text retains its physical namespace name while
   address-name components use canonical `pg_temp`.
+  Forward and inverse routine kinds read the exact represented `Procedure`
+  descriptor first (aggregate/procedure, otherwise function). Only unrepresented
+  identities use released kind facts; an aggregate helper's dependency owner
+  never supplies the helper's kind.
   Rules retain NULL schema/name and false temporary status even when their
   rendered identity names a temporary owner. Deletion provenance remains the
   caller's responsibility.
@@ -164,6 +168,11 @@ import it.
   Access-method lookup/identity and family/class descriptions use the captured
   global descriptor authority, including quoted custom method names. Handler
   identity metadata is separate from executable native capability.
+  Routine input arrays mean exact input signatures, including zero inputs, not
+  bare-name overload selection. Raw name cells remain raw dotted diagnostic
+  names; argument cells are parsed SQL types rendered canonically. Sequential
+  syntax/NULL validation precedes the 100-input routine cap, which precedes
+  semantic type and namespace lookup. Missing zero-input aggregates use `(*)`.
 - **Comment inquiries** (`comment_inquiry.go`): `CommentText` answers
   `obj_description`, `col_description` and `shobj_description` over the
   comment catalog and roles; an empty text is NULL.
@@ -246,6 +255,8 @@ live in `reference/domain_types`.
 
 ```sh
 make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|DroppedIdentity|VisibilityInquiryCollation|GeometryConversionCBox|GeometryRelationLiteral)'
+make check RUN='^TestAddressLookupRoutine(KindsAndRetainedAuthority|ReleasedAndHelperFallback|ArgumentCapPrecedence|SyntaxNullBeforeCap)$'
+make check RACE=1 RUN='^Test(AddressLookup|DroppedIdentity|ObjectAddress)'
 make check RUN='^TestGeometryMeasurePathLiteralTransport$'
 make check RUN='^TestAnalysis(ConfigProjection|ConfigEnvironmentRetirement|PathsOnDemand)$'
 make check RUN='^TestReferenceReg(class|type|role|Proc|Operator|TS|Collation|Namespace|Object)'
