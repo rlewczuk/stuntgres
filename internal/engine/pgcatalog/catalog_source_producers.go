@@ -83,6 +83,7 @@ var producers = [...]Registration{
 	{ProgressVacuumOID, captureVacuumProgress},
 	{ShadowOID, capturePGShadow},
 	{12014, capturePGUser},
+	{ProgressBasebackupOID, captureBasebackupProgress},
 	{RulesOID, capturePGRules},
 	{12077, capturePGCursors},
 	{12081, captureAvailableExtensions},

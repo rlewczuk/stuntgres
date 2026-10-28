@@ -273,6 +273,27 @@ var pgBuiltinViews = [...]builtinView{
 		viewText("   FROM ("), viewRoutine("pg_stat_get_progress_info", "25"), viewText("('VACUUM'::"), viewType("text"), viewText(") "), viewIdentifier("s"), viewText("("), viewIdentifier("pid"), viewText(", "), viewIdentifier("datid"), viewText(", "), viewIdentifier("relid"), viewText(", "), viewIdentifier("param1"), viewText(", "), viewIdentifier("param2"), viewText(", "), viewIdentifier("param3"), viewText(", "), viewIdentifier("param4"), viewText(", "), viewIdentifier("param5"), viewText(", "), viewIdentifier("param6"), viewText(", "), viewIdentifier("param7"), viewText(", "), viewIdentifier("param8"), viewText(", "), viewIdentifier("param9"), viewText(", "), viewIdentifier("param10"), viewText(", "), viewIdentifier("param11"), viewText(", "), viewIdentifier("param12"), viewText(", "), viewIdentifier("param13"), viewText(", "), viewIdentifier("param14"), viewText(", "), viewIdentifier("param15"), viewText(", "), viewIdentifier("param16"), viewText(", "), viewIdentifier("param17"), viewText(", "), viewIdentifier("param18"), viewText(", "), viewIdentifier("param19"), viewText(", "), viewIdentifier("param20"), viewText(")\n"),
 		viewText("     LEFT JOIN "), viewClass("pg_database"), viewText(" "), viewIdentifier("d"), viewText(" ON (("), viewIdentifier("s"), viewText("."), viewIdentifier("datid"), viewText(" = "), viewIdentifier("d"), viewText("."), viewIdentifier("oid"), viewText(")));"),
 	}},
+	// pg_catalog.pg_stat_progress_basebackup — REL_18_6 system_views.sql.
+	{oid: ProgressBasebackupOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("pid"), viewText(",\n"),
+		viewText("        CASE "), viewIdentifier("param1"), viewText("\n"),
+		viewText("            WHEN 0 THEN 'initializing'::"), viewType("text"), viewText("\n"),
+		viewText("            WHEN 1 THEN 'waiting for checkpoint to finish'::"), viewType("text"), viewText("\n"),
+		viewText("            WHEN 2 THEN 'estimating backup size'::"), viewType("text"), viewText("\n"),
+		viewText("            WHEN 3 THEN 'streaming database files'::"), viewType("text"), viewText("\n"),
+		viewText("            WHEN 4 THEN 'waiting for wal archiving to finish'::"), viewType("text"), viewText("\n"),
+		viewText("            WHEN 5 THEN 'transferring wal files'::"), viewType("text"), viewText("\n"),
+		viewText("            ELSE NULL::"), viewType("text"), viewText("\n"),
+		viewText("        END AS "), viewIdentifier("phase"), viewText(",\n"),
+		viewText("        CASE "), viewIdentifier("param2"), viewText("\n"),
+		viewText("            WHEN '-1'::integer THEN NULL::bigint\n"),
+		viewText("            ELSE "), viewIdentifier("param2"), viewText("\n"),
+		viewText("        END AS "), viewIdentifier("backup_total"), viewText(",\n"),
+		viewText("    "), viewIdentifier("param3"), viewText(" AS "), viewIdentifier("backup_streamed"), viewText(",\n"),
+		viewText("    "), viewIdentifier("param4"), viewText(" AS "), viewIdentifier("tablespaces_total"), viewText(",\n"),
+		viewText("    "), viewIdentifier("param5"), viewText(" AS "), viewIdentifier("tablespaces_streamed"), viewText("\n"),
+		viewText("   FROM "), viewRoutine("pg_stat_get_progress_info", "25"), viewText("('BASEBACKUP'::"), viewType("text"), viewText(") "), viewIdentifier("s"), viewText("("), viewIdentifier("pid"), viewText(", "), viewIdentifier("datid"), viewText(", "), viewIdentifier("relid"), viewText(", "), viewIdentifier("param1"), viewText(", "), viewIdentifier("param2"), viewText(", "), viewIdentifier("param3"), viewText(", "), viewIdentifier("param4"), viewText(", "), viewIdentifier("param5"), viewText(", "), viewIdentifier("param6"), viewText(", "), viewIdentifier("param7"), viewText(", "), viewIdentifier("param8"), viewText(", "), viewIdentifier("param9"), viewText(", "), viewIdentifier("param10"), viewText(", "), viewIdentifier("param11"), viewText(", "), viewIdentifier("param12"), viewText(", "), viewIdentifier("param13"), viewText(", "), viewIdentifier("param14"), viewText(", "), viewIdentifier("param15"), viewText(", "), viewIdentifier("param16"), viewText(", "), viewIdentifier("param17"), viewText(", "), viewIdentifier("param18"), viewText(", "), viewIdentifier("param19"), viewText(", "), viewIdentifier("param20"), viewText(");"),
+	}},
 	// pg_catalog.pg_shadow — REL_18_0 system_views.sql.
 	{oid: ShadowOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("pg_authid"), viewText("."), viewIdentifier("rolname"), viewText(" AS "), viewIdentifier("usename"), viewText(",\n"),

@@ -1,5 +1,11 @@
 # Changes
 
+- Add the PostgreSQL 18 six-column read-only `pg_stat_progress_basebackup`
+  catalog view and released definition display. Its validated producer is
+  genuinely empty: no physical backup workers or native logical Dump progress
+  are fabricated. Add direct/prepared schema, full-diagnostic rejection,
+  ownership/cancellation and deterministic in-flight native Dump witnesses.
+
 - Add CREATE UNLOGGED TABLE and transactional ALTER TABLE SET LOGGED/UNLOGGED,
   preserving relation metadata, original-state FK admission, owned sequence
   generations with lazy cache adoption, prepared invalidation and logical

@@ -580,6 +580,38 @@ termination, restart or plugin-loading effects. Logical data and constraints
 remain active. `DriverConfig.TrackCommitTimestamp` and its genuine native
 commit-timestamp tracking remain unchanged.
 
+## Physical base-backup progress
+
+`pg_catalog.pg_stat_progress_basebackup` (also available unqualified on the
+default path) is a read-only view with these nullable columns, in order:
+`pid integer`, `phase text`, `backup_total bigint`, `backup_streamed bigint`,
+`tablespaces_total bigint`, `tablespaces_streamed bigint`. It has PUBLIC SELECT
+and genuinely returns zero rows: this engine has no physical `BASE_BACKUP`
+WAL-sender workers. There is no all-NULL/zero placeholder and no row-order
+promise. Ordinary SQL `BASE_BACKUP` rejects with syntax error 42601; it is a
+replication-protocol command, not a logical SQL backup command. INSERT, UPDATE
+and DELETE reject with 55000; TRUNCATE rejects with 42809.
+
+Native logical `Dump` never publishes progress here, including while its output
+writer is blocked, after completion, or after cancellation/failure. This view
+adds no physical streaming, worker registry, estimates or approximated counters.
+Its displayed PostgreSQL 18 definition describes the released physical view,
+not an executable native backup worker or backing progress function.
+
+For an actual PostgreSQL worker, superusers and roles with the privileges of
+`pg_read_all_stats` or the worker's authenticated role can read its details.
+Other observers retain its `pid`; the other five fields are NULL, not zero,
+and the row is not removed. Native observers of every role see no rows because
+there is no worker. Upstream phases are `initializing`, `waiting for checkpoint
+to finish`, `estimating backup size`, `streaming database files`, `waiting for wal
+archiving to finish`, and `transferring wal files`. Unknown `backup_total`, before
+estimation or with `--no-estimate-size`, is NULL (the internal -1 is not exposed).
+An estimate becomes available when file streaming starts and follows streamed
+bytes if exceeded. `backup_streamed` counts file/WAL-transfer bytes and
+`tablespaces_streamed` counts streamed tablespaces; zero is a real counter,
+never an unknown/redacted sentinel. No native physical-work formula is used.
+
+
 ## Resource settings
 
 The [44 resource settings](../internal/engine/settings/README.md#resource-settings)

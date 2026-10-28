@@ -120,6 +120,12 @@ coverage; existing `pg_class` and table-statistics views publish real maintenanc
 facts. Logical Dump/Restore transports data and checked extended statistics
 state; it does not import ordinary single-column planner distributions.
 
+The six-column read-only `pg_stat_progress_basebackup` view is genuinely empty:
+there are no physical base-backup workers, and native logical Dump never
+fabricates a progress row, even during blocked output. Ordinary SQL
+`BASE_BACKUP` is unsupported. See [physical base-backup progress](docs/DRIVER.md#physical-base-backup-progress)
+for the exact schema, read-only diagnostics and upstream visibility/NULL rules.
+
 `CREATE STATISTICS` supports single expressions and multivariate combinations
 of columns and expressions. Expressions are bound once to the target relation;
 stable and volatile functions are permitted, without evaluating them at CREATE.

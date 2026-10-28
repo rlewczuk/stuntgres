@@ -156,7 +156,7 @@ func icProviderInventory(c *icCase) {
 			child.run(child.conn, s)
 			child.run(child.conn, fixture.Prepared(s))
 			kind := "r"
-			views := strings.Fields("pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_wait_events pg_rules pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings")
+			views := strings.Fields("pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_wait_events pg_rules pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings")
 			for _, view := range views {
 				if view == table {
 					kind = "v"
@@ -191,6 +191,26 @@ func icProviderInventory(c *icCase) {
 					rows = append(rows, icRow(c.database, schema, table, field, i+1, dataTypes[i], "pg_catalog", udts[i], facts))
 				}
 				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_authid'", rows)
+				child.run(child.conn, s)
+				child.run(child.conn, fixture.Prepared(s))
+				child.run(child.hold(s.Query), s)
+			}
+			if table == "pg_stat_progress_basebackup" {
+				var rows [][]any
+				for i, field := range inventory[table] {
+					dataType, udt := "bigint", "int8"
+					facts := map[string]any{"is_updatable": "NO", "numeric_precision": int64(64), "numeric_precision_radix": int64(2), "numeric_scale": int64(0)}
+					if i == 0 {
+						dataType, udt = "integer", "int4"
+						facts["numeric_precision"] = int64(32)
+					}
+					if i == 1 {
+						dataType, udt = "text", "text"
+						facts = map[string]any{"is_updatable": "NO", "character_octet_length": int64(1073741824)}
+					}
+					rows = append(rows, icRow(c.database, schema, table, field, i+1, dataType, "pg_catalog", udt, facts))
+				}
+				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_stat_progress_basebackup'", rows)
 				child.run(child.conn, s)
 				child.run(child.conn, fixture.Prepared(s))
 				child.run(child.hold(s.Query), s)

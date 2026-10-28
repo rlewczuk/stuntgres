@@ -17,6 +17,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"pg_catalog", "pg_matviews"}, {"pg_catalog", "pg_roles"}, {"pg_catalog", "pg_group"},
 	{"pg_catalog", "pg_stat_all_tables"}, {"pg_catalog", "pg_stat_sys_tables"}, {"pg_catalog", "pg_stat_user_tables"},
 	{"pg_catalog", "pg_stat_progress_vacuum"}, {"pg_catalog", "pg_user"}, {"pg_catalog", "pg_sequences"},
+	{"pg_catalog", "pg_stat_progress_basebackup"},
 	{"pg_catalog", "pg_shadow"},
 	{"pg_catalog", "pg_locks"}, {"pg_catalog", "pg_cursors"}, {"pg_catalog", "pg_available_extensions"},
 	{"pg_catalog", "pg_available_extension_versions"}, {"pg_catalog", "pg_user_mappings"}, {"pg_catalog", "pg_settings"},
