@@ -24,6 +24,11 @@ var ltreeArrayCases = []ltreeArrayCase{
  {"_ltxtq_rexec","@","ltxtquery","ltree[]","Top & Europe","{Europe.Top}","Top & Europe","{Top,Europe}",true},
  {"_ltree_extract_isparent","?@>","ltree[]","ltree","[7:8]={Top.Science,Top}","Top.Science.Astro","{}","Top","Top.Science"},
  {"_ltree_extract_risparent","?<@","ltree[]","ltree","[0:1]={Top.Z,Top.A}","Top","{}","Top","Top.Z"},
+ {"_ltq_extract_regex","?~","ltree[]","lquery","[7:9]={Other,Top.Z,Top.A}","Top.*","{Other}","Top.*","Top.Z"},
+ {"_ltxtq_extract_exec","?@","ltree[]","ltxtquery","[7:9]={Other,Top.Z,Top.A}","Top","{Other}","Top","Top.Z"},
+}
+func (tc ltreeArrayCase) family() string {
+ switch tc.op { case "?@>", "?<@", "?~", "?@": return "LTREE"; default: return "BOOL" }
 }
 func ltreeArrayLiteral(text, typ string) string { return "'"+strings.ReplaceAll(text,"'","''")+"'::"+typ }
 func (tc ltreeArrayCase) expression(left, right string, direct bool) string {
@@ -45,7 +50,8 @@ func ltreeArraySelect(b fixture.Backend, query string, columns, families []strin
  return s
 }
 func ltreeArrayResult(b fixture.Backend, query string, value any, args ...any) fixture.Step {
- family := "BOOL"; if _, ok := value.(string); ok { family = "LTREE" }
+ // This helper is only for Boolean predicates; extraction callers specify LTREE.
+ family := "BOOL"
  return ltreeArraySelect(b,query,[]string{"v"},[]string{family},[][]any{{value}},args...)
 }
 func ltreeArrayMetadata(t *testing.T, b fixture.Backend, rows *sql.Rows, families []string, nullable []bool) []*sql.ColumnType {

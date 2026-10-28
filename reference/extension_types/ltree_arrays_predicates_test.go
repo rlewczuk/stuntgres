@@ -8,12 +8,12 @@ import (
 )
 
 func TestReferenceLtreeArrayPredicates(t *testing.T) {
- for index, tc := range ltreeArrayCases {
+ for _, tc := range ltreeArrayCases {
   t.Run(tc.name,func(t *testing.T) {
    ltreeScenario(t,func(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn) {
     ltreeInstall(t,p,b,c)
-    family := "BOOL"; var miss any = false
-    if index >= 12 { family,miss = "LTREE",nil }
+    family := tc.family(); var miss any = false
+    if family == "LTREE" { miss = nil }
     for _, direct := range []bool{false,true} {
      left,right := ltreeArrayLiteral(tc.left,tc.leftType),ltreeArrayLiteral(tc.right,tc.rightType)
      for _, witness := range []struct{ left,right string; want any }{

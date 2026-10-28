@@ -11,15 +11,19 @@ import (
 )
 
 func ltreeArraysProjection() (string,[]string,[]string,[]any) {
- columns,families,want:=make([]string,14),make([]string,14),make([]any,14)
- expressions:=make([]string,14)
+ columns,families,want:=make([]string,len(ltreeArrayCases)),make([]string,len(ltreeArrayCases)),make([]any,len(ltreeArrayCases))
+ expressions:=make([]string,len(ltreeArrayCases))
  operand:=func(typ string) string {switch typ {case "ltree[]":return "paths";case "lquery[]":return "queries";case "ltree":return "target";case "lquery":return "q";default:return "x"}}
  for i,tc:=range ltreeArrayCases {
-  columns[i]="v"+string(rune('a'+i));families[i]="BOOL";want[i]=true
-  if i>=12 {families[i]="LTREE";want[i]=[]string{"Top","Top.Science"}[i-12]}
-  expressions[i]=tc.expression(operand(tc.leftType),operand(tc.rightType),i%2==0)+" AS "+columns[i]
+  columns[i]="v"+string(rune('a'+i));families[i]=tc.family();want[i]=true
+  switch tc.op {case "?@>","?~":want[i]="Top";case "?<@","?@":want[i]="Top.Science"}
+  direct:=i%2==0;if tc.op=="?~" || tc.op=="?@"{direct=false}
+  expressions[i]=tc.expression(operand(tc.leftType),operand(tc.rightType),direct)+" AS "+columns[i]
  }
  return strings.Join(expressions,","),columns,families,want
+}
+func ltreeArraysNullable() []bool {
+ nullable:=make([]bool,len(ltreeArrayCases));for i:=range nullable{nullable[i]=true};return nullable
 }
 func ltreeArraysControlSetup(t *testing.T,p *fixture.Pair,b fixture.Backend,c fixture.Executor) {
  t.Helper();run:=func(s fixture.Step){fixture.RunStep(t,p.Ctx,c,b.Recorder,s)}
@@ -58,9 +62,9 @@ func TestReferenceLtreeArrayControls(t *testing.T) {
   for _,tc:=range []struct{query string;families []string;nullable []bool;want []any}{
    {"SELECT paths,queries FROM la_control WHERE id=1",[]string{"_LTREE","_LQUERY"},[]bool{true,true},[]any{"[0:2]={Top,Top.Science,Top.Science.Astro}","{Top.*}"}},
    {"SELECT paths,queries FROM la_notnull",[]string{"_LTREE","_LQUERY"},[]bool{false,false},[]any{"{a}","{a.*}"}},
-   {"SELECT "+strings.Join(columns,",")+" FROM la_view",families,[]bool{true,true,true,true,true,true,true,true,true,true,true,true,true,true},want},
+   {"SELECT "+strings.Join(columns,",")+" FROM la_view",families,ltreeArraysNullable(),want},
    {"SELECT "+projection+" FROM la_control WHERE id=1",families,nil,want},
-   {"SELECT NULL::ltree[] @> 'a'::ltree AS matched,NULL::ltree[] ?@> 'a'::ltree AS first FROM la_notnull",[]string{"BOOL","LTREE"},nil,[]any{nil,nil}},
+   {"SELECT NULL::ltree[] @> 'a'::ltree AS matched,NULL::ltree[] ?@> 'a'::ltree AS first,NULL::ltree[] ?~ 'a'::lquery AS first_q,NULL::ltree[] ?@ 'a'::ltxtquery AS first_x FROM la_notnull",[]string{"BOOL","LTREE","LTREE","LTREE"},nil,[]any{nil,nil,nil,nil}},
   } {
    for _,empty:=range []bool{false,true} {
     query:=tc.query;if empty {if strings.Contains(query," WHERE "){query+=" AND false"}else{query+=" WHERE false"}}
@@ -90,10 +94,10 @@ func TestReferenceLtreeArrayControls(t *testing.T) {
   if err:=stuntgres.Restore(target.Ctx,target.Native,bytes.NewReader(dump.Bytes()));err!=nil{t.Fatal(err)}
   destination:=fixture.Backend{DB:target.Memory,Recorder:target.MemoryRecord}
   ltreeArraysControlVerify(t,target,destination,target.Memory)
-  for _,suffix:=range []string{"CREATE TABLE la_broken(v boolean); INSERT INTO la_broken VALUES ('{a,NULL}'::ltree[] @> 'a'::ltree);","CREATE TABLE la_broken(v ltree[]); INSERT INTO la_broken VALUES ('{a..b}');"} {
+  for _,suffix:=range []string{"CREATE TABLE la_broken(v boolean); INSERT INTO la_broken VALUES ('{a,NULL}'::ltree[] @> 'a'::ltree);","CREATE TABLE la_broken(v ltree[]); INSERT INTO la_broken VALUES ('{a..b}');","CREATE TABLE la_broken(v ltree); INSERT INTO la_broken VALUES ('{a,NULL}'::ltree[] ?~ 'a'::lquery);","CREATE TABLE la_broken(v ltree); INSERT INTO la_broken VALUES ('{a,NULL}'::ltree[] ?@ 'a'::ltxtquery);"} {
    bad:=dump.String()+"\n"+suffix
    err:=stuntgres.Restore(target.Ctx,target.Native,strings.NewReader(bad))
-   if strings.Contains(suffix,"boolean") {want:=fixture.ControlsReferenceDiagnostic("22004","array must not contain nulls");fixture.AssertDiagnostic(t,err,&want)} else {want:=fixture.ControlsReferenceDiagnostic("42601","ltree syntax error at character 3");want.Position=ltreeSQLPosition(bad,"'{a..b}'");fixture.AssertDiagnostic(t,err,&want)}
+   if !strings.Contains(suffix,"a..b") {want:=fixture.ControlsReferenceDiagnostic("22004","array must not contain nulls");fixture.AssertDiagnostic(t,err,&want)} else {want:=fixture.ControlsReferenceDiagnostic("42601","ltree syntax error at character 3");want.Position=ltreeSQLPosition(bad,"'{a..b}'");fixture.AssertDiagnostic(t,err,&want)}
    ltreeArraysControlVerify(t,target,destination,target.Memory)
   }
   var again bytes.Buffer;if err:=stuntgres.Dump(target.Ctx,target.Native,&again);err!=nil{t.Fatal(err)};if !bytes.Equal(again.Bytes(),dump.Bytes()){t.Fatal("restore round trip changed dump")}

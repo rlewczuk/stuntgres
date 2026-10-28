@@ -246,7 +246,9 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   Query arrays validate first and an empty query array does not visit paths.
   Whole-path matching uses bounded iterative dynamic programming, terminating
   immediately when a transition leaves no reachable positions. Boolean queries
-  are evaluated within each path. Scratch is invocation-owned, never cached.
+  are evaluated within each path. Ancestor, descendant, whole-path and Boolean
+  query extractors return the first physical entry's exact ltree carrier, or
+  typed NULL when absent. Scratch is invocation-owned, never cached.
   These kernels grant no scalar SQL comparison, grouping, indexing or binary codec.
 - Text-array input checks declared dimensions early, but child conversion and
   domain CHECK errors precede an extent mismatch, and storage grows only with

@@ -23,6 +23,8 @@ const (
  LtreeArrayTextQueryReverse
  LtreeArrayFirstAncestor
  LtreeArrayFirstDescendant
+ LtreeArrayFirstQuery
+ LtreeArrayFirstTextQuery
  LtreeArrayOperationCount
 )
 
@@ -35,12 +37,12 @@ func (op LtreeArrayOperation) Validate(left, right, result *Descriptor) error {
  switch op {
  case LtreeArrayAncestor, LtreeArrayAncestorReverse, LtreeArrayDescendant, LtreeArrayDescendantReverse, LtreeArrayFirstAncestor, LtreeArrayFirstDescendant:
   valid = array(a, false) && b.IsLtree() && a.Element() == b
- case LtreeArrayQuery, LtreeArrayQueryReverse: valid = array(a, false) && b.IsLquery()
+ case LtreeArrayQuery, LtreeArrayQueryReverse, LtreeArrayFirstQuery: valid = array(a, false) && b.IsLquery()
  case LtreeQueryArray, LtreeQueryArrayReverse: valid = a.IsLtree() && array(b, true)
  case LtreeArraysQuery, LtreeArraysQueryReverse: valid = array(a, false) && array(b, true)
- case LtreeArrayTextQuery, LtreeArrayTextQueryReverse: valid = array(a, false) && b.IsLtxtquery()
+ case LtreeArrayTextQuery, LtreeArrayTextQueryReverse, LtreeArrayFirstTextQuery: valid = array(a, false) && b.IsLtxtquery()
  }
- if op >= LtreeArrayFirstAncestor { valid = valid && result == b } else { valid = valid && result.ID() == Bool }
+ if op >= LtreeArrayFirstAncestor { valid = valid && result == a.Element() } else { valid = valid && result.ID() == Bool }
  if !valid { return fmt.Errorf("invalid ltree array formal signature") }; return nil
 }
 
@@ -90,8 +92,8 @@ func (op LtreeArrayOperation) Eval(ctx context.Context, left, right Value, leftT
   switch op {
   case LtreeArrayAncestor, LtreeArrayAncestorReverse, LtreeArrayFirstAncestor: matched = ltreeAncestor(path.ltree, b.ltree)
   case LtreeArrayDescendant, LtreeArrayDescendantReverse, LtreeArrayFirstDescendant: matched = ltreeAncestor(b.ltree, path.ltree)
-  case LtreeArrayQuery, LtreeArrayQueryReverse: matched, err = scratch.query(ctx, path.ltree, b.lquery)
-  case LtreeArrayTextQuery, LtreeArrayTextQueryReverse: matched, err = scratch.textQuery(ctx, path.ltree, b.ltxtquery)
+  case LtreeArrayQuery, LtreeArrayQueryReverse, LtreeArrayFirstQuery: matched, err = scratch.query(ctx, path.ltree, b.lquery)
+  case LtreeArrayTextQuery, LtreeArrayTextQueryReverse, LtreeArrayFirstTextQuery: matched, err = scratch.textQuery(ctx, path.ltree, b.ltxtquery)
   }
   if err != nil { return Value{}, err }
   if matched { if op >= LtreeArrayFirstAncestor { return path, nil }; return Boolean(result, true), nil }

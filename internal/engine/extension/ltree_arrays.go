@@ -28,6 +28,8 @@ var ltreeArrayRecipes = [...]ltreeArrayRecipe{
  {"_ltxtq_rexec", "@", "ltxtquery", "ltree[]", "16"},
  {"_ltree_extract_isparent", "?@>", "ltree[]", "ltree", "ltree"},
  {"_ltree_extract_risparent", "?<@", "ltree[]", "ltree", "ltree"},
+ {"_ltq_extract_regex", "?~", "ltree[]", "lquery", "ltree"},
+ {"_ltxtq_extract_exec", "?@", "ltree[]", "ltxtquery", "ltree"},
 }
 
 func LtreeArrayProcedureSymbol(operation sqltype.LtreeArrayOperation) string {

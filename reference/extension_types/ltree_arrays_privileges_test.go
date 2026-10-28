@@ -18,7 +18,7 @@ func TestReferenceLtreeArrayPrivileges(t *testing.T) {
     query:="SELECT "+tc.expression("a","b",false)+" AS v FROM la_acl WHERE id=1"
     statement,err:=c.PrepareContext(p.Ctx,query); if err!=nil {t.Fatal(err)}; defer statement.Close()
     held:=fixture.HeldStatement{Executor:c,Statement:statement,SQL:query}
-    family:="BOOL"; if index>=12 {family="LTREE"}
+    family:=tc.family()
     success:=ltreeArraySelect(b,query,[]string{"v"},[]string{family},[][]any{{tc.want}})
     run(fixture.Exec("SET ROLE la_actor",0)); fixture.RunStep(t,p.Ctx,held,b.Recorder,success); run(fixture.Exec("RESET ROLE",0))
     signature:=tc.name+"("+tc.leftType+","+tc.rightType+")"

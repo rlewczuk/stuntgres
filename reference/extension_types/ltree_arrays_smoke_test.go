@@ -15,8 +15,8 @@ func TestReferenceLtreeArrayFeatureSmoke(t *testing.T) {
   projection,columns,families,match:=ltreeArraysProjection()
   names:=append([]string{"id"},columns...);types:=append([]string{"INT4"},families...)
   matching:=append([]any{int64(1)},match...)
-  missed,wholeNull:=make([]any,15),make([]any,15);missed[0],wholeNull[0]=int64(2),int64(3)
-  for i:=1;i<=12;i++{missed[i]=false}
+  missed,wholeNull:=make([]any,len(names)),make([]any,len(names));missed[0],wholeNull[0]=int64(2),int64(3)
+  for i,family:=range families{if family=="BOOL"{missed[i+1]=false}}
   query:="SELECT id,"+projection+" FROM la_control ORDER BY id"
   step:=ltreeArraySelect(b,query,names,types,[][]any{matching,missed,wholeNull})
   fixture.RunStep(t,p.Ctx,c,b.Recorder,step)
@@ -29,6 +29,7 @@ func TestReferenceLtreeArrayFeatureSmoke(t *testing.T) {
   held:=fixture.HeldStatement{Executor:c,Statement:statement,SQL:heldSQL}
   fixture.RunStep(t,p.Ctx,held,b.Recorder,ltreeArrayResult(b,heldSQL,true,"{Top.*}","{Top.Science}"))
   fixture.RunStep(t,p.Ctx,held,b.Recorder,ltreeArrayResult(b,heldSQL,nil,nil,"{Top.Science}"))
+  ltreeArraysFirstWitnesses(t,p,b,c)
   if !b.PG {
    var dump bytes.Buffer;if err:=stuntgres.Dump(p.Ctx,p.Native,&dump);err!=nil{t.Fatal(err)}
    if err:=stuntgres.Reset(p.Ctx,p.Native);err!=nil{t.Fatal(err)}

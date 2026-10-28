@@ -9,15 +9,20 @@ import (
  "stuntgres/internal/engine/enginetest"
  "stuntgres/internal/engine/exec"
  "stuntgres/internal/engine/ids"
+ "stuntgres/internal/engine/extension"
  "stuntgres/internal/engine/plan"
  "stuntgres/internal/sqltype"
 )
 
 func ltreeArrayAcceptedOwnership(t *testing.T){
  for _,tc:=range []struct{name,expression string;member,operator int}{
-  {"predicate","'{a.b}'::ltree[] ~ 'a.*'::lquery",13,27},
-  {"extractor","'[7:8]={a,a.b}'::ltree[] ?@> 'a.b.c'::ltree",21,35},
+  {"predicate","'{a.b}'::ltree[] ~ 'a.*'::lquery",13,extension.LtreeArrayOperatorStart+int(sqltype.LtreeArrayQuery)},
+  {"extractor","'[7:8]={a,a.b}'::ltree[] ?@> 'a.b.c'::ltree",21,extension.LtreeArrayOperatorStart+int(sqltype.LtreeArrayFirstAncestor)},
   {"function","_ltree_extract_risparent('[0:1]={a.z,a.b}'::ltree[],'a'::ltree)",22,0},
+  {"first_query","'[7:9]={Other,Top.Z,Top.A}'::ltree[] ?~ 'Top.*'::lquery",extension.LtreeArrayProcedureStart+int(sqltype.LtreeArrayFirstQuery),extension.LtreeArrayOperatorStart+int(sqltype.LtreeArrayFirstQuery)},
+  {"first_text_query","'[7:9]={Other,Top.Z,Top.A}'::ltree[] ?@ 'Top'::ltxtquery",extension.LtreeArrayProcedureStart+int(sqltype.LtreeArrayFirstTextQuery),extension.LtreeArrayOperatorStart+int(sqltype.LtreeArrayFirstTextQuery)},
+  {"first_query_function","_ltq_extract_regex('[7:9]={Other,Top.Z,Top.A}'::ltree[],'Top.*'::lquery)",extension.LtreeArrayProcedureStart+int(sqltype.LtreeArrayFirstQuery),0},
+  {"first_text_query_function","_ltxtq_extract_exec('[7:9]={Other,Top.Z,Top.A}'::ltree[],'Top'::ltxtquery)",extension.LtreeArrayProcedureStart+int(sqltype.LtreeArrayFirstTextQuery),0},
  }{t.Run(tc.name,func(t *testing.T){
   e:=engine.New();s:=enginetest.StartSession(t,e,nil);enginetest.SessionSQL(t,s,"CREATE EXTENSION ltree")
   view:=e.CatalogRead();installation:=view.MustExtension(view.NameAddress(ids.NameKey{ClassID:ids.ExtensionClassID,Name:"ltree"}));procedure:=view.MustProcedure(installation.Members[tc.member])
@@ -42,6 +47,11 @@ func ltreeArrayAcceptedOwnership(t *testing.T){
   bind("la_second");second:=registry.Binding("la_second");current:=owner.Current()
   if second==nil || second==first || second.Resource.Root==firstRoot || second.Entry.Description.Folds!=owner || second.Folds.Generation!=accepted.Generation || current.Generation!=accepted.Generation || &second.Folds.Entries[0]!=&accepted.Entries[0] || &current.Entries[0]!=&accepted.Entries[0] || !samePublishedFold(retained,current.Entries[index]){t.Fatal("Bind replaced immutable backing or provenance")};assertGraph(second)
   secondRoot:=second.Resource.Root
+  firstProducer:=core.PortalProducer(core.ProtocolPortalOf(first));secondProducer:=core.PortalProducer(core.ProtocolPortalOf(second))
+  if firstProducer==nil || secondProducer==nil || firstProducer==secondProducer{t.Fatal("accepted portals share live producer")}
+  firstState,secondState:=core.CursorState(firstProducer),core.CursorState(secondProducer)
+  firstContext:=firstState.Evaluation(context.Background());secondContext:=secondState.Evaluation(context.Background())
+  if firstContext.Query==nil || secondContext.Query==nil || firstContext.Query==secondContext.Query || firstContext.Query.Source==secondContext.Query.Source{t.Fatal("accepted invocations share mutable evaluation frame")}
   for _,cause:=range []string{"cancellation","retirement","generation"}{t.Run(cause,func(t *testing.T){
    ctx,cancel:=context.WithCancel(context.Background());defer cancel();op,err:=s.Acquire(ctx);if err!=nil{t.Fatal(err)};defer op.Done()
    scope,err:=e.StartStatement(op);if err!=nil{t.Fatal(err)};local:=cloneFoldDescription(t,definition.Description);before:=snapshotFoldDescription(local);scope.Expected=&local

@@ -8,12 +8,12 @@ import (
 
 func TestReferenceLtreeArrayPrepared(t *testing.T) {
  t.Run("where_repeated_formal",ltreeArraysPreparedWhere)
- for index,tc:=range ltreeArrayCases {
+ for _,tc:=range ltreeArrayCases {
   t.Run(tc.name,func(t *testing.T) {
    ltreeScenario(t,func(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn) {
     ltreeInstall(t,p,b,c)
     query:="SELECT "+tc.expression("$1::"+tc.leftType,"$2::"+tc.rightType,false)+" AS v"
-    family:="BOOL"; if index>=12 { family="LTREE" }
+    family:=tc.family()
     statement,err:=c.PrepareContext(p.Ctx,query); if err!=nil {t.Fatal(err)}; defer statement.Close()
     held:=fixture.HeldStatement{Executor:c,Statement:statement,SQL:query}
     for _,args:=range [][]any{{tc.left,tc.right},{nil,tc.right},{[]byte(tc.left),[]byte(tc.right)},{tc.left,nil},{tc.left,tc.right}} {

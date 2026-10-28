@@ -357,8 +357,9 @@ and stored column nullability even for empty results. Native Dump/Reset/Restore
 preserves values and typed NULLs with destination-owned scalar and codec identities.
 Ltree and lquery companion arrays use the shared rectangular array input/output,
 bound-value and stored-value contracts. Installed array predicates return BOOL;
-first-ancestor/descendant extraction returns LTREE or NULL in physical entry
-order. Whole NULL operands are distinct from empty arrays and NULL elements:
+first-ancestor/descendant and first-lquery/ltxtquery-match (`?~`/`?@`) extraction
+returns LTREE or NULL in physical entry order, independent of array lower bounds.
+Whole NULL operands are distinct from empty arrays and NULL elements:
 visited arrays reject multidimensional or NULL-containing values at invocation,
 not at storage. Native controls preserve arrays, lower bounds and restored
 selected expressions with destination-owned generations.

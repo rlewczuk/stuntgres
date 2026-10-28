@@ -11,7 +11,7 @@ func TestReferenceLtreeArrayMetadata(t *testing.T) {
   ltreeInstall(t,p,b,c)
   run:=func(s fixture.Step){fixture.RunStep(t,p.Ctx,c,b.Recorder,s)}
   for index,tc:=range ltreeArrayCases {
-   result:="16"; if index>=12 {result="'ltree'::regtype"}
+   result:="16"; if tc.family()=="LTREE" {result="'ltree'::regtype"}
    function:=ltreeArrayLiteral(tc.name+"("+tc.leftType+","+tc.rightType+")","regprocedure")+"::oid"
    operator:=ltreeArrayLiteral(tc.op+"("+tc.leftType+","+tc.rightType+")","regoperator")+"::oid"
    run(fixture.Select("SELECT proargtypes[0]='"+tc.leftType+"'::regtype AS a,proargtypes[1]='"+tc.rightType+"'::regtype AS b,prorettype="+result+" AS r,proisstrict,provolatile,proparallel,proretset,prosrc,probin FROM pg_proc WHERE oid="+function,[]string{"a","b","r","proisstrict","provolatile","proparallel","proretset","prosrc","probin"},[]string{"BOOL","BOOL","BOOL","BOOL","CHAR","CHAR","BOOL","TEXT","TEXT"},[][]any{{true,true,true,true,"i","s",false,tc.name,"$libdir/ltree"}}))
@@ -37,6 +37,17 @@ func TestReferenceLtreeArrayMetadata(t *testing.T) {
    step.CheckMetadata=func(t *testing.T,rows *sql.Rows){retained=ltreeArrayMetadata(t,b,rows,[]string{"BOOL","LTREE","_LTREE","_LQUERY"},nil)}
    run(step);ltreeArrayColumnMetadata(t,b,retained,[]string{"BOOL","LTREE","_LTREE","_LQUERY"},nil)
    run(fixture.Prepared(step));ltreeArrayColumnMetadata(t,b,retained,[]string{"BOOL","LTREE","_LTREE","_LQUERY"},nil)
+  }
+  for _,tc:=range ltreeArraysFirstCases(){
+   for _,predicate:=range []string{"true","false"}{
+    query:="SELECT "+tc.expression("'{}'::ltree[]",ltreeArrayLiteral(tc.right,tc.rightType),false)+" AS v WHERE "+predicate
+    want:=[][]any{};if predicate=="true"{want=[][]any{{nil}}}
+    step:=ltreeArraySelect(b,query,[]string{"v"},[]string{"LTREE"},want)
+    var retained []*sql.ColumnType
+    step.CheckMetadata=func(t *testing.T,rows *sql.Rows){retained=ltreeArrayMetadata(t,b,rows,[]string{"LTREE"},nil)}
+    run(step);ltreeArrayColumnMetadata(t,b,retained,[]string{"LTREE"},nil)
+    run(fixture.Prepared(step));ltreeArrayColumnMetadata(t,b,retained,[]string{"LTREE"},nil)
+   }
   }
   step:=ltreeArraySelect(b,"SELECT NULL::ltree[] @> 'a'::ltree AS matched,NULL::ltree[] ?@> 'a'::ltree AS first",[]string{"matched","first"},[]string{"BOOL","LTREE"},[][]any{{nil,nil}})
   step.CheckMetadata=func(t *testing.T,rows *sql.Rows){ltreeArrayMetadata(t,b,rows,[]string{"BOOL","LTREE"},nil)}; run(step)

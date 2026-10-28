@@ -25,14 +25,14 @@ import (
 
 func ltreeArrayOwnershipBinding(t *testing.T,e *core.Engine,s *session.Session,direct bool) *plan.ProjectNode {
  t.Helper()
- query:="SELECT paths @> target,target <@ paths,paths <@ target,target @> paths,paths ~ q,q ~ paths,target ? queries,queries ? target,paths ? queries,queries ? paths,paths @ x,x @ paths,paths ?@> target,paths ?<@ target FROM la_owner"
- if direct {query="SELECT public._ltree_isparent(paths,target),public._ltree_r_isparent(target,paths),public._ltree_risparent(paths,target),public._ltree_r_risparent(target,paths),public._ltq_regex(paths,q),public._ltq_rregex(q,paths),public.lt_q_regex(target,queries),public.lt_q_rregex(queries,target),public._lt_q_regex(paths,queries),public._lt_q_rregex(queries,paths),public._ltxtq_exec(paths,x),public._ltxtq_rexec(x,paths),public._ltree_extract_isparent(paths,target),public._ltree_extract_risparent(paths,target) FROM la_owner"}
+ query:="SELECT paths @> target,target <@ paths,paths <@ target,target @> paths,paths ~ q,q ~ paths,target ? queries,queries ? target,paths ? queries,queries ? paths,paths @ x,x @ paths,paths ?@> target,paths ?<@ target,paths ?~ q,paths ?@ x FROM la_owner"
+ if direct {query="SELECT public._ltree_isparent(paths,target),public._ltree_r_isparent(target,paths),public._ltree_risparent(paths,target),public._ltree_r_risparent(target,paths),public._ltq_regex(paths,q),public._ltq_rregex(q,paths),public.lt_q_regex(target,queries),public.lt_q_rregex(queries,target),public._lt_q_regex(paths,queries),public._lt_q_rregex(queries,paths),public._ltxtq_exec(paths,x),public._ltxtq_rexec(x,paths),public._ltree_extract_isparent(paths,target),public._ltree_extract_risparent(paths,target),public._ltq_extract_regex(paths,q),public._ltxtq_extract_exec(paths,x) FROM la_owner"}
  ast:=enginetest.Statement(t,query)
  op,err:=s.Acquire(context.Background());if err!=nil{t.Fatal(err)};defer op.Done()
  e.Mu.Lock();auth,err:=e.AuthorizationLocked(op);if err!=nil{e.Mu.Unlock();t.Fatal(err)}
  binding,err:=analyze.Describe(op.Context(),e.AnalysisHost(op),ast,core.AuthorityOf(auth),ids.ObjectRef{},sqltype.InputEnvironment{},analyze.Expected{},nil,nil,false);e.Mu.Unlock()
  if err!=nil{t.Fatal(err)}
- project,ok:=binding.Query.Root.(*plan.ProjectNode);if !ok || len(project.Expressions)!=14{t.Fatal("selected projection absent")};return project
+ project,ok:=binding.Query.Root.(*plan.ProjectNode);if !ok || len(project.Expressions)!=int(sqltype.LtreeArrayOperationCount){t.Fatal("selected projection absent")};return project
 }
 func ltreeArrayOwnershipCall(t *testing.T,node expr.Expr) functions.LtreeArray {
  t.Helper();if selected,ok:=node.(plan.SelectedOperatorExpr);ok{if selected.RoutineReference!=nil || selected.Operator==nil || selected.Ref.Address!=selected.Operator.Address(){t.Fatal("duplicate operator authority")};node=selected.Provider}
@@ -49,6 +49,7 @@ func TestLtreeArrayExpression(t *testing.T) {
  for i,node:=range project.Expressions {
   call:=ltreeArrayOwnershipCall(t,node)
   if call.Operation!=sqltype.LtreeArrayOperation(i) || call.Member!=uint8(9+i) || call.Info.Occurrence==0 || call.Ref.Domain()!=view.Owner().Domain{t.Fatal("selected occurrence/role lost")}
+  if call.Operation>=sqltype.LtreeArrayFirstAncestor && call.Usage.Type!=call.Formals[0].Element(){t.Fatal("extractor result is not exact array element")}
   for _,rebuild:=range []func(expr.Info,[]expr.Expr)(expr.Expr,error){call.Rebuild,call.Substitute} {
    next,err:=rebuild(call.Info,call.Children());if err!=nil || !reflect.DeepEqual(next,call){t.Fatal("rebuild changed immutable occurrence",err)}
   }
@@ -61,13 +62,14 @@ func TestLtreeArrayExpression(t *testing.T) {
    func(n *functions.LtreeArray){n.Member++},func(n *functions.LtreeArray){n.Operation^=1},
    func(n *functions.LtreeArray){foreign:=*n.Formals[0];n.Formals[0]=&foreign},
    func(n *functions.LtreeArray){foreign:=*n.Usage.Type;n.Usage.Type=&foreign},
+   func(n *functions.LtreeArray){if n.Operation>=sqltype.LtreeArrayFirstQuery{n.Usage.Type=n.Formals[1]}else{n.Usage.Type=n.Formals[0]}},
    func(n *functions.LtreeArray){foreign:=*n.RoutineReference.(*catalog.Procedure);foreign.Display.Source="ltree_out";n.RoutineReference=&foreign},
    func(n *functions.LtreeArray){n.Ref.Epoch++},
   } {
    bad:=call;corrupt(&bad);if _,_,err:=stored.RetagTypes(view,bad,identity);err==nil{t.Fatal("forged captured provider admitted")}
    if !reflect.DeepEqual(ltreeArrayOwnershipCall(t,node),call){t.Fatal("failed admission mutated captured source")}
   }
-  other:=ltreeArrayOwnershipCall(t,project.Expressions[(i+1)%14]);if call.SameGroup(other,func(a,b expr.Expr)bool{return true},false){t.Fatal("different role grouped")}
+  other:=ltreeArrayOwnershipCall(t,project.Expressions[(i+1)%len(project.Expressions)]);if call.SameGroup(other,func(a,b expr.Expr)bool{return true},false){t.Fatal("different role grouped")}
  }
  }
 }

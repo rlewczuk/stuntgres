@@ -28,7 +28,7 @@ func TestReferenceLtreeArrayDiagnostics(t *testing.T) {
       fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Prepared(step))
       // Whole-argument strictness precedes visited-array validation.
       if operand==0 { right="NULL::"+tc.rightType } else { left="NULL::"+tc.leftType }
-      family:="BOOL"; if tc.op=="?@>" || tc.op=="?<@" { family="LTREE" }
+      family:=tc.family()
       fixture.RunStep(t,p.Ctx,c,b.Recorder,ltreeArraySelect(b,"SELECT "+tc.expression(left,right,false)+" AS v",[]string{"v"},[]string{family},[][]any{{nil}},invalid.input))
      }
     }

@@ -76,13 +76,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   authority; mutable labels never grant codec execution.
 - **Ltree members** (`ltree_provider.go`, `ltree_stage.go`, `ltree_arrays.go`):
   the current 1.3 manifest preserves lquery, ltree and ltxtquery type/input/output
-  triples at slots 0–8. Fourteen strict immutable C array routines at 9–22 and
-  their operators at 23–36 are staged and validated atomically. Staging resolves
+  triples at slots 0–8. Sixteen strict immutable C array routines at 9–24 and
+  their operators at 25–40 are staged and validated atomically. Staging resolves
   signatures against the privately constructed scalar/companion descriptors;
   the stage's read view still describes the pre-install catalog. The twelve
   predicates have reciprocal commutators and `matchingsel`/`matchingjoinsel`
-  metadata, as set by the upstream 1.1-to-1.2 upgrade and retained in 1.3. The two
-  extractors return installation-owned ltree or NULL. Ltree/lquery companions are
+  metadata, as set by the upstream 1.1-to-1.2 upgrade and retained in 1.3. The four
+  extractors return the first ancestor, descendant, lquery or ltxtquery match as
+  installation-owned ltree or NULL. Ltree/lquery companions are
   concrete and internally dependent, not direct extension members; ltxtquery's
   companion stays lookup-only. Routine-name discovery is only a selector hint:
   current catalog declarations, symbolic scalar/array roles and exact signatures,
