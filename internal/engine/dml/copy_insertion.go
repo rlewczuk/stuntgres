@@ -58,6 +58,9 @@ func flushCopyInsertion(state *CopyInsertionState, h Host, b analyze.Binding, ro
 				return err
 			}
 		}
+		if command.CopyFrom != nil {
+			command.CopyFrom.completed(int64(len(state.Lines)))
+		}
 	} else {
 		// REL18 flushes relation buffers in first-use order; each buffer owns
 		// row-outer, ObjectID-ordered index insertion, not a global row sort.
@@ -67,6 +70,9 @@ func flushCopyInsertion(state *CopyInsertionState, h Host, b analyze.Binding, ro
 				if err := insert(position, buffer.Group); err != nil {
 					return err
 				}
+			}
+			if command.CopyFrom != nil {
+				command.CopyFrom.completed(int64(len(buffer.Positions)))
 			}
 			buffer.Positions = buffer.Positions[:0]
 		}

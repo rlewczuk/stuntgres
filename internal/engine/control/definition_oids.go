@@ -51,8 +51,8 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 		}
 	}
 	for _, d := range relations {
-		if d.View != nil {
-			claimed[d.View.RuleOID()] = true
+		if rule := d.ReturnRuleOID(); rule != 0 {
+			claimed[rule] = true
 		}
 		if ns, ok := next.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			for _, r := range stored.RulesOf(d) {

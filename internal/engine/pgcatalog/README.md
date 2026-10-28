@@ -632,7 +632,7 @@ Policy producer authority and immutable structural ownership use
 | `ValidateACL`, `ObjectACL` | ACL validation and raw object ACLs (`access` is not imported here) |
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
-| `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress` | immutable logical maintenance facts and authenticated active-work redaction |
+| `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitCopyProgress` | immutable logical maintenance facts and authenticated active-work redaction |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |
@@ -642,13 +642,22 @@ Policy producer authority and immutable structural ownership use
 | `Pinned`, `OperatorSeeded`, `OperatorDependencies`, `TypeProviderProcedure` | pin decisions, the builtin operator inventory and operator dependencies owned by `routine`, extension type providers |
 | `VisitSequenceDefinitions` | sequence definitions with the statement's journal overlay (`pg_sequence`) |
 
+`VisitCopyProgress` supplies cluster-wide, command-lifetime facts captured under
+the shared engine mutex. The COPY producer constructs owned typed rows, returning
+a nonnil empty result when idle; retained rows never borrow live counters.
+The shared progress viewer applies the observer's current inherited role closure
+to the worker's authenticated principal. PID/database identity remains visible
+when relation, command, endpoint and all five counters are masked to SQL NULL.
+Authorized PIPE totals are zero. A genuinely missing database lookup yields NULL
+datname; normal active workers retain their own database identity across observers.
+
 ## Exported helpers
 
 The engine calls `ClassKind`, `ClassACL`, `AttributeMetadata`,
 `HasSystemAttributes`, `AttributeNumber`, `InitializeAttributes`, `RegisteredSource`,
 `CollationActualVersion`, `DatabaseCollationActualVersion`,
 `DescriptorComment`, `ForeignDependencies`, `VirtualViewWriteError`,
-`LockRows`, `CapturePGSequences`, `NewVacuumProgressViewer` (which progress
+`LockRows`, `CapturePGSequences`, `NewProgressViewer` (which progress
 rows the current user reads in full: superuser, the worker's authenticated
 role or `pg_read_all_stats`) and the OID constants (`LocksOID`,
 `CursorsOID`, `SettingsOID`, `TypeOID`, ...). Engine unit tests also call row
@@ -915,10 +924,17 @@ column and relation aliases remain identifier-only annotations. Its structural
 update and insert flags are NO; this does not change rule visitation or DDL.
 `SummaryViewDefinition` supplies canonical default metadata;
 `BuiltinViewDefinition` selects explicit default or pretty fragments and formats
-their occurrences using captured naming and identifier formatters. UDT inquiry
-owns both released forms; absent pretty fragments never become a synthesized
+their occurrences using captured naming and identifier formatters. UDT and COPY
+progress inquiries own both released forms; absent pretty fragments never become a synthesized
 definition. The same runtime authority renders `pg_views` and `views` in default
 format and serves the boolean `pg_get_viewdef` presentation selector.
+COPY progress's builtin entry also declares a native `_RETURN` identity, stamped
+into its immutable relation descriptor during bootstrap. Rewrite projection,
+object-name/address lookup and dependency ownership use `ReturnRuleOID`; the
+rule has an internal edge to its view. Released backing catalog/routine references
+are bootstrap-pinned, not fabricated dependency objects or executable payloads.
+Return-rule ownership is collected before ordinary catalog-row dependency
+suppression; the existing pinned-object policy still filters backing references.
 Routine occurrences capture their original OID from the existing released
 identity registry. Represented targets use the current name, namespace and
 signature from that same captured catalog before exact-signature qualification;

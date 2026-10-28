@@ -12,7 +12,7 @@ import (
 
 // writeBinary writes the binary file header, one tuple per row and the -1
 // trailer.
-func writeBinary(ctx context.Context, w io.Writer, rows RowSource, schema []catalog.Column, checkSend bool) (int64, error) {
+func writeBinary(ctx context.Context, w io.Writer, rows RowSource, schema []catalog.Column, checkSend bool, completed func()) (int64, error) {
 	if len(schema) > math.MaxInt16 {
 		return 0, sqlError("54000", "too many binary COPY columns")
 	}
@@ -66,6 +66,9 @@ func writeBinary(ctx context.Context, w io.Writer, rows RowSource, schema []cata
 			return 0, err
 		}
 		count++
+		if completed != nil {
+			completed()
+		}
 	}
 	buffer = buffer[:0]
 	buffer = binary.BigEndian.AppendUint16(buffer, math.MaxUint16)

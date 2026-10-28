@@ -136,6 +136,11 @@ private frames, not catalog authority.
   absent storage is a real type-default contribution, independently of compression.
   Scalar dropped history retains effective storage and compression without a
   surviving type dependency.
+  `CatalogReturnRule` retains an explicitly registered bootstrap view's
+  metadata-only `_RETURN` identity. `ReturnRuleOID` is the shared metadata
+  accessor, preferring a genuine stored `View` payload when present. Reservation,
+  validation and owned-drop enumeration include this identity; descriptor COW
+  preserves it by value. It never creates stored SQL or execution authority.
 - **Payload interfaces.** Engine-defined payloads stay behind `ViewPayload`,
   `RulesPayload`, `TriggersPayload`, `PolicyPayload` and `ExtensionImplementation`, which expose only
   what `analyze`, `pgcatalog` and object-identity code read. Visitors stop at the

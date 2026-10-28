@@ -96,7 +96,21 @@ func (c *conn) copyRequest(ctx context.Context, statement string, source io.Read
 		if interrupted != nil {
 			err = errCopyCallbackPanic
 		}
-		err = scope.Finish(err)
+		func() {
+			defer func() {
+				if terminalPanic := recover(); terminalPanic != nil {
+					if interrupted == nil {
+						interrupted = terminalPanic
+					}
+					// EndForeignInsert runs inside Finish, before publication.
+					// Its modification is already ended on callback entry. Resume
+					// failed Finish to dispose the transaction and COPY reservation,
+					// without replaying AFTER effects or the terminal callback.
+					err = scope.Finish(errCopyCallbackPanic)
+				}
+			}()
+			err = scope.Finish(err)
+		}()
 		err = c.terminalError(op.CommandError(err))
 		if err != nil {
 			count = 0

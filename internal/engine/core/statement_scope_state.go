@@ -62,6 +62,7 @@ type StatementScope struct {
 	notificationEvents          []session.Notification
 	View                        *visibility.View
 	Finished                    bool
+	copyProgress                *copyProgress // Finish-owned COPY lifetime, before transaction publication.
 	message                     bool
 	messageEnded                bool
 	messageResult               error
@@ -105,8 +106,8 @@ type StatementScope struct {
 	FoldCaptures                *exec.FoldCaptureCandidate // sealed before executor/source publication
 	Catalog                     *session.Journal
 	foreignConstructions        map[ids.ObjectAddress]*ForeignConstruction // Statement-owned, never lexical routine scratch.
-	EventCommand                *EventCommand // Borrowed lexical boundary; never publication authority.
-	largeObjectRead             catalog.Read  // Immutable active-query READ view, saved/restored by SQL body activation.
+	EventCommand                *EventCommand                              // Borrowed lexical boundary; never publication authority.
+	largeObjectRead             catalog.Read                               // Immutable active-query READ view, saved/restored by SQL body activation.
 	CatalogAuthority            *session.CatalogAuthority
 	ProjectedRoots              bool // Stage owns complete private roots, not append-only suffixes.
 	ForeignActionAuth           *AuthorizationView

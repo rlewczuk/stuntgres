@@ -23,6 +23,11 @@ func RemapViewRuleOIDs(view catalog.Read, allocate func() (ids.OID, error)) erro
 	var views []*catalog.Relation
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] |= descriptorOID
+		// Bootstrap metadata rules are fixed owned identities, not imported
+		// executable definitions eligible for remapping.
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.View == nil && relation.ReturnRuleOID() != 0 {
+			reserved[relation.ReturnRuleOID()] |= descriptorOID
+		}
 		if view, ok := descriptor.(*catalog.Relation); ok && view.View != nil {
 			if stored.ViewOf(view).RuleOID() == 0 {
 				return fmt.Errorf("stuntgres: invalid imported view rule identity")

@@ -33,3 +33,19 @@ type ViewPayload interface {
 	// with the payload; callers must not modify the slice.
 	Options() []string
 }
+
+// ReturnRuleOID is the captured metadata identity of a relation's _RETURN rule.
+// A genuine stored definition takes precedence over bootstrap display metadata;
+// a catalog identity never authorizes execution as a stored SQL view.
+func (d *Relation) ReturnRuleOID() ids.OID {
+	if d == nil {
+		return 0
+	}
+	if d.View != nil {
+		return d.View.RuleOID()
+	}
+	if d.RelationKind == CatalogRelation && d.CatalogView {
+		return d.CatalogReturnRule
+	}
+	return 0
+}

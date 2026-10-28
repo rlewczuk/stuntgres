@@ -2,6 +2,7 @@ package dml
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/exec"
@@ -21,18 +22,37 @@ type CopyFromState struct {
 	InputChecks sqltype.DomainCheckEvaluator
 	Rejected    int64
 	pending     bool
+	Progress    *CopyProgress
 }
 
+// CopyProgress belongs to the actual COPY command, not its transaction.
+// Atomic counters allow observers without reacquiring an engine lock from DML.
+type CopyProgress struct {
+	Processed, Excluded, Skipped atomic.Int64
+}
+
+func (s *CopyFromState) completed(n int64) {
+	if s.Progress != nil {
+		s.Progress.Processed.Add(n)
+	}
+}
 func (s *CopyFromState) admit(evaluation *exec.Context) (bool, error) {
 	if s.pending {
 		s.pending = false
 		s.Rejected++
+		if s.Progress != nil {
+			s.Progress.Skipped.Add(1)
+		}
 		if s.Options.RejectLimit > 0 && s.Rejected > s.Options.RejectLimit {
 			return false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: fmt.Sprintf("skipped more than REJECT_LIMIT (%d) rows due to data type incompatibility", s.Options.RejectLimit)}
 		}
 		return false, nil
 	}
-	return exec.UpdateMatches(evaluation, s.Predicate)
+	accepted, err := exec.UpdateMatches(evaluation, s.Predicate)
+	if err == nil && !accepted && s.Progress != nil {
+		s.Progress.Excluded.Add(1)
+	}
+	return accepted, err
 }
 
 // Success is called only by the statement's final success owner, after every

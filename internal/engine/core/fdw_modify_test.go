@@ -37,10 +37,14 @@ type fdwUnitInsert struct {
 	present bool
 	calls   int
 	err     error
+	echo    bool
 }
 
-func (p *fdwUnitInsert) ExecForeignInsert(context.Context, catalog.ForeignModifyRequest, any, catalog.ForeignRow) (catalog.ForeignRow, bool, error) {
+func (p *fdwUnitInsert) ExecForeignInsert(_ context.Context, _ catalog.ForeignModifyRequest, _ any, row catalog.ForeignRow) (catalog.ForeignRow, bool, error) {
 	p.calls++
+	if p.echo {
+		return row, p.present, p.err
+	}
 	return catalog.ForeignRow{}, p.present, p.err
 }
 
@@ -149,6 +153,11 @@ type fdwUnitLifecycle struct {
 	check                func()
 }
 
+var (
+	_ catalog.ForeignInsertBeginner = (*fdwUnitLifecycle)(nil)
+	_ catalog.ForeignInsertEnder    = (*fdwUnitLifecycle)(nil)
+)
+
 func (p *fdwUnitLifecycle) ForeignTransactionCapabilities(context.Context, catalog.ForeignRequest) (catalog.ForeignTransactionCapabilities, error) {
 	if p.check != nil {
 		p.check()
@@ -175,6 +184,15 @@ func (p *fdwUnitLifecycle) EndForeignModify(ctx context.Context, _ catalog.Forei
 	}
 	return p.endError
 }
+
+func (p *fdwUnitLifecycle) BeginForeignInsert(ctx context.Context, request catalog.ForeignInsertRequest) (any, error) {
+	return p.BeginForeignModify(ctx, catalog.ForeignModifyRequest{ForeignRequest: request.ForeignRequest, Operation: catalog.ForeignInsert})
+}
+
+func (p *fdwUnitLifecycle) EndForeignInsert(ctx context.Context, request catalog.ForeignInsertRequest, state any) error {
+	return p.EndForeignModify(ctx, catalog.ForeignModifyRequest{ForeignRequest: request.ForeignRequest, Operation: catalog.ForeignInsert}, state)
+}
+
 func TestFDWModifyLifecycle(t *testing.T) {
 	t.Run("CopyInputVeto", fdwUnitCopyVeto)
 	for _, partial := range []bool{false, true} {

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -186,8 +187,10 @@ func TestViewRuleOIDUniquenessAfterRestore(t *testing.T) {
 			}
 			classes := readOids("SELECT oid FROM pg_catalog.pg_class")
 			rules := readOids("SELECT oid FROM pg_catalog.pg_rewrite")
-			if len(rules) != 1 {
-				t.Fatal("missing restored rule", rules)
+			userRules := readOids("SELECT oid FROM pg_catalog.pg_rewrite WHERE ev_class='public.v'::regclass AND rulename='_RETURN'")
+			bootstrapRules := readOids("SELECT oid FROM pg_catalog.pg_rewrite WHERE ev_class='pg_catalog.pg_stat_progress_copy'::regclass AND rulename='_RETURN'")
+			if len(userRules) != 1 || len(bootstrapRules) != 1 || bootstrapRules[0] != uint32(pgcatalog.ProgressCopyRuleOID) || len(rules) != 2 {
+				t.Fatal("restored and bootstrap rule inventory", rules, userRules, bootstrapRules)
 			}
 			seen := make(map[uint32]bool, len(classes))
 			for _, oid := range classes {

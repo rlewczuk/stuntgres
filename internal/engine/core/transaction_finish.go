@@ -20,6 +20,13 @@ func (s *StatementScope) Finish(err error) error {
 	if s.Finished {
 		return s.result
 	}
+	// COPY includes queued AFTER work and terminal foreign modification hooks.
+	// Finish alone owns its exact-entry cleanup; the defer covers early exits
+	// and panic, while the normal boundary below precedes transaction publication.
+	progress := s.copyProgress
+	if progress != nil {
+		defer func() { s.endCopyProgress(progress) }()
+	}
 	if err == nil && len(s.foreignConstructions) != 0 {
 		err = errors.New("stuntgres: incomplete foreign construction")
 	}
@@ -125,6 +132,10 @@ func (s *StatementScope) Finish(err error) error {
 	err = s.finishForeignModifications(err)
 	for _, program := range s.rlsPrograms {
 		err = program.FinishSources(err)
+	}
+	if progress != nil {
+		s.endCopyProgress(progress)
+		progress = nil
 	}
 	t.Mu.Lock()
 	if err == nil && s.worked {

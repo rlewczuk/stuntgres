@@ -18,16 +18,17 @@ type RowSource interface {
 // WriteRows encodes every row of rows in o's format to w, one Write per line
 // or tuple, and returns the row count. schema describes the row values. For
 // binary output, checkSend resolves each column's send provider before the
-// signature is written. On error the count is 0.
-func WriteRows(ctx context.Context, w io.Writer, rows RowSource, schema []catalog.Column, o Options, checkSend bool) (int64, error) {
+// signature is written. completed, when nonnil, runs after each whole data-row
+// write, never for framing or a failed/short write. On error the count is 0.
+func WriteRows(ctx context.Context, w io.Writer, rows RowSource, schema []catalog.Column, o Options, checkSend bool, completed func()) (int64, error) {
 	if o.Format == Binary {
-		return writeBinary(ctx, w, rows, schema, checkSend)
+		return writeBinary(ctx, w, rows, schema, checkSend, completed)
 	}
-	return writeText(ctx, w, rows, schema, o)
+	return writeText(ctx, w, rows, schema, o, completed)
 }
 
 // writeText writes text or CSV output, with the HEADER line first when set.
-func writeText(ctx context.Context, w io.Writer, rows RowSource, schema []catalog.Column, o Options) (count int64, err error) {
+func writeText(ctx context.Context, w io.Writer, rows RowSource, schema []catalog.Column, o Options, completed func()) (count int64, err error) {
 	values := make([]sqltype.Value, len(schema))
 	buffer := make([]byte, 0, 4096)
 	var encoded []byte
@@ -98,6 +99,9 @@ func writeText(ctx context.Context, w io.Writer, rows RowSource, schema []catalo
 			return 0, err
 		}
 		count++
+		if completed != nil {
+			completed()
+		}
 	}
 	return count, nil
 }

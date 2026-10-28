@@ -24,6 +24,7 @@ type builtinViewPart struct {
 }
 type builtinView struct {
 	oid         ids.OID
+	returnRule  ids.OID // Explicit native metadata identity; not an executable rule.
 	parts       []builtinViewPart
 	prettyParts []builtinViewPart
 	canonical   string

@@ -79,8 +79,22 @@ func TestPGDependShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows.Anonymous) != 0 {
-		t.Fatal("synthetic bootstrap graph", rows.Anonymous)
+	// The released COPY view owns its metadata-only _RETURN rule internally;
+	// bootstrap-pinned backing references still produce no dependency rows.
+	want := make([]sqltype.Value, 7)
+	for i, n := range []int64{2618, int64(pgcatalog.ProgressCopyRuleOID), 0, 1259, int64(pgcatalog.ProgressCopyOID), 0} {
+		if i == 2 || i == 5 {
+			want[i], err = sqltype.Integer(source.Columns[i].Usage.Type, n)
+		} else {
+			want[i], err = sqltype.OIDValue(source.Columns[i].Usage.Type, uint32(n))
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	want[6] = sqltype.String(source.Columns[6].Usage.Type, "i")
+	if !reflect.DeepEqual(rows.Anonymous, [][]sqltype.Value{want}) {
+		t.Fatal("released bootstrap ownership graph", rows.Anonymous, want)
 	}
 }
 func TestPGDependConstructionBags(t *testing.T) {
@@ -109,6 +123,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []pgcatalog.DependEdge{
+		pgDependUnitEdge(2618, pgcatalog.ProgressCopyRuleOID, 0, 1259, pgcatalog.ProgressCopyOID, 0, 'i'),
 		pgDependUnitEdge(1259, 41001, 0, 2615, 2200, 0, 'n'),
 		pgDependUnitEdge(2606, 42001, 0, 1259, 41001, 3, 'a'),
 		pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'n'),
@@ -199,7 +214,14 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pgDependUnitBag(t, got, []pgcatalog.DependEdge{pgDependUnitEdge(1247, 47001, 0, 2615, 47000, 0, 'n'), pgDependUnitEdge(1247, 47002, 0, 2615, 47000, 0, 'n'), pgDependUnitEdge(1247, 47002, 0, 1247, 47001, 0, 'n'), pgDependUnitEdge(1247, 47003, 0, 1247, 47001, 0, 'i'), pgDependUnitEdge(1247, 47004, 0, 2615, 47000, 0, 'n')})
+	pgDependUnitBag(t, got, []pgcatalog.DependEdge{
+		pgDependUnitEdge(2618, pgcatalog.ProgressCopyRuleOID, 0, 1259, pgcatalog.ProgressCopyOID, 0, 'i'),
+		pgDependUnitEdge(1247, 47001, 0, 2615, 47000, 0, 'n'),
+		pgDependUnitEdge(1247, 47002, 0, 2615, 47000, 0, 'n'),
+		pgDependUnitEdge(1247, 47002, 0, 1247, 47001, 0, 'n'),
+		pgDependUnitEdge(1247, 47003, 0, 1247, 47001, 0, 'i'),
+		pgDependUnitEdge(1247, 47004, 0, 2615, 47000, 0, 'n'),
+	})
 }
 func TestPGDependDomainCheckDependencies(t *testing.T) {
 	e, op, ext, procedure := extensionDropUnitProvider(t, "domain_check")

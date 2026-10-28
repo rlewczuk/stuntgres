@@ -35,6 +35,65 @@ func CopyFrom(ctx context.Context, conn *sql.Conn, postgres bool, query string, 
 	return result, err
 }
 
+// CopyTo uses the same genuine transports as CopyFrom.
+func CopyTo(ctx context.Context, conn *sql.Conn, postgres bool, query string, output io.Writer) (stuntgres.CopyResult, error) {
+	if !postgres {
+		return stuntgres.CopyTo(ctx, conn, query, output)
+	}
+	var result stuntgres.CopyResult
+	err := conn.Raw(func(raw any) error {
+		c, ok := raw.(*stdlib.Conn)
+		if !ok {
+			return fmt.Errorf("unexpected oracle COPY connection %T", raw)
+		}
+		tag, err := c.Conn().PgConn().CopyTo(ctx, output, query)
+		if err == nil {
+			result = stuntgres.CopyResult{Count: tag.RowsAffected(), CommandTag: tag.String()}
+		}
+		return err
+	})
+	return result, err
+}
+
+// CopyScenarioPool selects decoded database and authenticated role settings
+// without wrapping pgx's COPY transport. Empty settings retain the scenario defaults.
+func CopyScenarioPool(t *testing.T, p *Pair, postgres bool, database, role string) *sql.DB {
+	t.Helper()
+	var db *sql.DB
+	if postgres {
+		config, err := pgx.ParseConfig(DSN)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if database != "" {
+			config.Database = database
+		}
+		if role != "" {
+			config.User, config.Password = role, "role-core-fixture"
+		}
+		db = sql.OpenDB(stdlib.GetConnector(*config))
+	} else {
+		base := p.NativeConnector
+		if role != "" {
+			c, err := base.Driver().(*stuntgres.Driver).OpenConnectorAs(p.NativeDSN, role)
+			if err != nil {
+				t.Fatal(err)
+			}
+			base = c.(*stuntgres.Connector)
+		}
+		if database != "" {
+			base = base.WithDatabase(database)
+		}
+		db = sql.OpenDB(base)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return db
+}
+
 // CopyNoticeConnection borrows a genuine stream connection with a case-owned
 // notice handler. It shares the pair's native engine or pinned oracle and leaves
 // ordinary wrapped SQL consumers on their existing middleware-owned pools.

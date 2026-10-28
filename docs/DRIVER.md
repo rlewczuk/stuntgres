@@ -572,12 +572,43 @@ but reports no result. Read/Write callbacks must not use the same `*sql.Conn`.
 Ordinary `Exec`/`Query` of COPY fails with 0A000, and file/program endpoints are
 not available.
 
+Callback panics preserve their original value, including an `EndForeignInsert`
+panic raised during terminal completion rather than stream execution. The native
+COPY boundary completes the original scope's failed cleanup before rethrowing:
+no success result or publication, no replay of the ended terminal callback,
+and no retained COPY reservation or implicit transaction. The borrowed physical
+connection remains reusable unless its session independently ended.
+
 Text/CSV reader and writer bytes use `client_encoding` unless an explicit
 `ENCODING` selects a separate file encoding; the SQL statement itself remains
 Unicode. Input converts incrementally before line framing and escape handling.
 Output converts attributes before escaping, including multibyte trail bytes.
 Binary COPY preserves its framing and raw numeric/bytea payloads; type-defined
 textual leaves use the session client encoding even with a file override.
+
+`pg_catalog.pg_stat_progress_copy` exposes real admitted COPY commands to an
+independent connection, including workers in other databases of the same cluster.
+Both reader and writer callbacks must use a separate connection for observation;
+neither can reenter the pinned worker. Rows end with the command, even inside an
+open transaction, and disappear after success, cancellation, failure or panic.
+The active row includes genuinely queued AFTER-trigger execution and terminal
+foreign insertion callbacks. Terminal provider cleanup uses a detached context:
+canceling COPY does not interrupt an already-entered callback. Progress remains
+while it is held; cancellation still requires failed command completion afterward.
+`relid` is the table OID, or zero for query output; supported endpoints are `PIPE`
+and their unknown `bytes_total` is zero, not NULL or an inferred reader length.
+
+Counters describe completed work, not committed rows. `bytes_processed` sums raw
+bytes obtained from input before conversion, or encoded payload bytes accepted
+by output writes, including headers and framing but excluding wire envelopes.
+Tuple counts follow validated row admission, genuine buffered insertion flushes
+and accepted foreign results; HEADER and binary framing are not tuples.
+WHERE false/NULL rows are excluded; IGNORE conversion discards are skipped.
+No physical byte estimate or cross-backend read-ahead equality is implied.
+Superusers, inherited members of the worker's authenticated role and
+`pg_read_all_stats` (including `pg_monitor`) see the full row. Other observers see
+only `pid`, `datid`, `datname`; the remaining eight fields are SQL NULL.
+Observer effective-role changes apply to each fresh read. Row order is unspecified.
 
 ## Custom settings
 

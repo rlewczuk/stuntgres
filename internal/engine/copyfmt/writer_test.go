@@ -61,11 +61,11 @@ func TestCopyWriteRows(t *testing.T) {
 		{"binary", Options{Format: Binary}, string(binaryWant)},
 	} {
 		var out bytes.Buffer
-		count, err := WriteRows(context.Background(), &out, source(), schema, tc.o, true)
+		count, err := WriteRows(context.Background(), &out, source(), schema, tc.o, true, nil)
 		if err != nil || count != 2 || out.String() != tc.want {
 			t.Fatalf("%s: count=%d err=%v\n got %q\nwant %q", tc.name, count, err, out.String(), tc.want)
 		}
-		count, err = WriteRows(context.Background(), shortWriter{}, source(), schema, tc.o, false)
+		count, err = WriteRows(context.Background(), shortWriter{}, source(), schema, tc.o, false, nil)
 		if count != 0 || !errors.Is(err, io.ErrShortWrite) {
 			t.Fatalf("%s short write: count=%d err=%v", tc.name, count, err)
 		}

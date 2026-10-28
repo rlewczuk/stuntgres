@@ -21,6 +21,9 @@ func RegisteredSource(view catalog.Read, source *catalog.Relation) bool {
 		if source.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: spec.Namespace}) || source.Name() != spec.Name || source.VirtualView != spec.Virtual || source.CatalogView != (spec.Virtual || SummaryViewDefinition(spec.OID) != "") || len(source.Columns) != len(spec.Columns) || len(source.Attributes) != len(spec.Columns) || len(source.Index) != len(spec.Columns) {
 			return false
 		}
+		if source.CatalogReturnRule != builtinViews[spec.OID].returnRule {
+			return false
+		}
 		for j, column := range spec.Columns {
 			typ, ok := view.LookupType(column.Type)
 			attribute := AttributeNumber(spec.OID, column.Name, int32(j+1))

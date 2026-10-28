@@ -91,6 +91,7 @@ var producers = [...]Registration{
 	{12095, captureForeignCatalog},
 	{ShmemAllocationsOID, capturePGShmemAllocations},
 	{ShmemAllocationsNUMAOID, capturePGShmemAllocations},
+	{ProgressCopyOID, captureCopyProgress},
 	{WaitEventsOID, capturePGWaitEvents},
 	{16200, captureTablePrivileges},
 	{16201, captureDataTypePrivileges},

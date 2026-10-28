@@ -132,6 +132,7 @@ type Runtime interface {
 	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
 	DatabaseFrozenXID() uint64
 	VisitVacuumProgress(context.Context, func(VacuumProgressFact) error) error
+	VisitCopyProgress(context.Context, func(CopyProgressFact) error) error
 	TimezoneInput() sqltype.InputEnvironment
 	DatabaseName() string
 	TemporaryOwner() ids.SessionToken

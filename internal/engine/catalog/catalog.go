@@ -50,7 +50,7 @@ type Relation struct {
 	ObjectName                     string
 	ObjectRevision                 ids.DefinitionRevision
 	RelationKind                   RelationKind
-	Persistence                    string // Empty is logged; TEMP provenance remains namespace-owned.
+	Persistence                    string  // Empty is logged; TEMP provenance remains namespace-owned.
 	TableMethod                    ids.OID // Exact table AM; partition roots alone may have no explicit default (zero).
 	Owner                          authorization.PrincipalRef
 	Comment                        string
@@ -77,8 +77,9 @@ type Relation struct {
 	SequencePlanStamp ids.DefinitionRevision
 	View              ViewPayload
 	VirtualView       bool
-	CatalogView       bool // Catalog relation SQL kind, independent of execution dispatch.
-	Populated         bool // Independent of stored row count, including populated-empty MVs.
+	CatalogView       bool    // Catalog relation SQL kind, independent of execution dispatch.
+	CatalogReturnRule ids.OID // Metadata-only bootstrap _RETURN; never stored SQL authority.
+	Populated         bool    // Independent of stored row count, including populated-empty MVs.
 	Rules             RulesPayload
 	Triggers          TriggersPayload
 	Foreign           *ForeignTableDefinition

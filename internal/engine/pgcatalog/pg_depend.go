@@ -239,6 +239,11 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				}
 			}
 		case *catalog.Relation:
+			// Explicit return-rule ownership also belongs to virtual catalog
+			// views; ordinary catalog-row dependency suppression follows it.
+			if rule := d.ReturnRuleOID(); rule != 0 {
+				add(ids.ObjectAddress{ClassID: 2618, ObjectID: rule}, d.Address(), 'i')
+			}
 			if d.Foreign != nil {
 				add(d.Address(), d.Foreign.Server, 'n')
 			}
@@ -506,8 +511,7 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				return nil, err
 			}
 			if d.View != nil {
-				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.View.RuleOID()}
-				add(owner, d.Address(), 'i')
+				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.ReturnRuleOID()}
 				refs, err := runtime.ViewReferences(ctx, view, d)
 				if err != nil {
 					return nil, err

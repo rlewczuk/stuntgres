@@ -53,7 +53,7 @@ func (r EngineCatalogRuntime) VisitVacuumProgress(ctx context.Context, visit fun
 	if len(r.engine.VacuumProgress) == 0 {
 		return nil
 	}
-	viewer, err := pgcatalog.NewVacuumProgressViewer(ctx, r.Auth.Roles, r.Auth.State.CurrentUser)
+	viewer, err := pgcatalog.NewProgressViewer(ctx, r.Auth.Roles, r.Auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}

@@ -82,6 +82,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err = s.reserveCopy(); err != nil {
 			return 0, err
 		}
+		s.beginCopyProgress(0, false)
 		if err = s.startProtocolCopy(hooks, false, options, len(rows.Schema())); err != nil {
 			return 0, err
 		}
@@ -136,6 +137,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err = s.reserveCopy(); err != nil {
 			return 0, err
 		}
+		s.beginCopyProgress(b.Ref.Address.ObjectID, false)
 		if err = s.startProtocolCopy(hooks, false, options, len(rows.Schema())); err != nil {
 			return 0, err
 		}
@@ -256,6 +258,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err = s.reserveCopy(); err != nil {
 		return
 	}
+	s.beginCopyProgress(b.Ref.Address.ObjectID, true)
 	h := s.WriteHost()
 	if err = dml.RegisterAfterStatement(h, b, stored.TriggerInsert); err != nil {
 		return 0, err
@@ -274,7 +277,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 			defer s.InsertReturning.Rows.Close()
 		}
 	}
-	state := &dml.CopyFromState{Options: options, Predicate: b.Predicate}
+	state := &dml.CopyFromState{Options: options, Predicate: b.Predicate, Progress: &s.copyProgress.tuples}
 	if options.OnError == copyfmt.Ignore {
 		state.InputChecks = exec.InputDomainChecks(s.Input.DomainChecks, s.Domains.InputCatalog)
 	}
@@ -323,13 +326,15 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err := foreign.Begin(s.Op.Context(), s.foreignWrites()); err != nil {
 			return 0, err
 		}
-		var accept func([]sqltype.Value) error
-		if dml.HasRowTriggers(b.Relation, stored.TriggerInsert, stored.TriggerAfter) {
-			accept = func(actual []sqltype.Value) error {
+		rowByRow := dml.HasRowTriggers(b.Relation, stored.TriggerInsert, stored.TriggerAfter)
+		accept := func(actual []sqltype.Value) error {
+			s.copyProgress.tuples.Processed.Add(1)
+			if rowByRow {
 				return h.AfterRow(dml.BeforeRow{Relation: b.Ref, Event: dml.BeforeInsert, New: actual})
 			}
+			return nil
 		}
-		n, err := foreign.InsertRows(s.Op.Context(), s.foreignWrites(), rows.Values, accept != nil, accept)
+		n, err := foreign.InsertRows(s.Op.Context(), s.foreignWrites(), rows.Values, rowByRow, accept)
 		if err != nil {
 			return 0, cursor.Diagnostic(err)
 		}

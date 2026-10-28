@@ -40,7 +40,7 @@ func (s *StatementScope) copyCommandError(err error) error {
 func (s *StatementScope) copyOutput(rows exec.RowResult, o copyfmt.Options, w io.Writer) (int64, error) {
 	protocol := s.protocolOrZero()
 	source := copyOutputRows{RowResult: rows, notice: func(d sqlstate.Error) { s.Op.EmitNotice(session.LevelWarning, d) }}
-	count, err := copyfmt.WriteRows(s.Op.Context(), copyWriter{s, w}, copyTransportRows{source, s.Op.EffectiveSettings()}, rows.Schema(), o, protocol.command || protocol.simple)
+	count, err := copyfmt.WriteRows(s.Op.Context(), copyWriter{s, w}, copyTransportRows{source, s.Op.EffectiveSettings()}, rows.Schema(), o, protocol.command || protocol.simple, s.copyProgress.completeRow)
 	if err != nil {
 		return 0, err
 	}

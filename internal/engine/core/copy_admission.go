@@ -80,7 +80,13 @@ type copyReader struct {
 }
 
 func (r copyReader) Read(p []byte) (int, error) {
-	return r.scope.copyIO(func() (int, error) { return r.source.Read(p) })
+	return r.scope.copyIO(func() (int, error) {
+		n, err := r.source.Read(p)
+		if n > 0 {
+			r.scope.copyProgress.bytes.Add(int64(n))
+		}
+		return n, err
+	})
 }
 
 type copyWriter struct {
@@ -89,5 +95,11 @@ type copyWriter struct {
 }
 
 func (w copyWriter) Write(p []byte) (int, error) {
-	return w.scope.copyIO(func() (int, error) { return w.destination.Write(p) })
+	return w.scope.copyIO(func() (int, error) {
+		n, err := w.destination.Write(p)
+		if n > 0 {
+			w.scope.copyProgress.bytes.Add(int64(n))
+		}
+		return n, err
+	})
 }

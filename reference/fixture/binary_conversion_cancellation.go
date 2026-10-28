@@ -235,29 +235,29 @@ func nativeOperationStack(stacks []byte, symbols ...[]byte) (bool, []byte) {
 // names this parked frame relationRequest.wait, including row resources.
 func NativeUpdateRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
 	t.Helper()
-	nativeMutationRowWait(t, ctx, completed, "(*StatementScope).acquireUpdateRowMode")
+	nativeOperationRowWait(t, ctx, completed, "(*StatementScope).acquireUpdateRowMode", "fixture.LockOperation.func")
 }
 
 // NativeDeleteRowWait observes the actual LockOperation delete worker parked on
 // a row request before its holder releases the conflicting transaction.
 func NativeDeleteRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
 	t.Helper()
-	nativeMutationRowWait(t, ctx, completed, "(*StatementScope).acquireRow")
+	nativeOperationRowWait(t, ctx, completed, "(*StatementScope).acquireRow", "fixture.LockOperation.func")
 }
 
 // NativeUniqueKeyWait observes the LockOperation worker itself parked in the
 // unique-key claim, not another request or a previously completed timeout probe.
 func NativeUniqueKeyWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
 	t.Helper()
-	nativeMutationRowWait(t, ctx, completed, "(*statementHost).ClaimUniqueKey")
+	nativeOperationRowWait(t, ctx, completed, "(*statementHost).ClaimUniqueKey", "fixture.LockOperation.func")
 }
 
-func nativeMutationRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}, owner string) {
+func nativeOperationRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}, owner, worker string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	stacks := make([]byte, 64<<10)
-	symbols := [][]byte{[]byte("(*relationRequest).wait"), []byte(owner), []byte("fixture.LockOperation.func")}
+	symbols := [][]byte{[]byte("(*relationRequest).wait"), []byte(owner), []byte(worker)}
 	var poll *time.Timer
 	defer func() {
 		if poll != nil {

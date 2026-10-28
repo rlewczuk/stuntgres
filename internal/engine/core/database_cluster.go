@@ -19,18 +19,20 @@ import (
 type DatabaseCluster struct {
 	// Real initialization events in PostgreSQL timestamp microseconds, immutable
 	// after construction and never replaced with catalogs.
-	StartedAt int64
+	StartedAt      int64
 	ConfigLoadedAt int64
-	Mu            sync.Mutex
-	Roles         access.RoleStore
-	Locks         *lock.Manager
-	RoleDomain    ids.Domain
-	DefaultTarget *Engine
-	Targets       map[string]*Engine
-	NextOID       ids.OID
-	Seed          *Engine
+	Mu             sync.Mutex
+	Roles          access.RoleStore
+	Locks          *lock.Manager
+	RoleDomain     ids.Domain
+	DefaultTarget  *Engine
+	Targets        map[string]*Engine
+	NextOID        ids.OID
+	Seed           *Engine
 	// Immutable queue head root; all runtimes use this cluster's mu.
 	notificationHead *session.NotificationQueuePosition
+	// Active commands across every target, guarded by the shared engine mutex.
+	copyProgress map[ids.SessionID]*copyProgress
 	// Seed initialization never holds mu and never invokes host callbacks.
 	SeedOnce  sync.Once
 	SeedError error

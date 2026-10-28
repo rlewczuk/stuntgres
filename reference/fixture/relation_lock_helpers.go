@@ -153,5 +153,19 @@ func RelationLockPending(t *testing.T, p *Pair, b Backend, waiter, holder int, r
 // admission, rather than inferring a wait from worker launch or elapsed time.
 func NativeRelationLockWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
 	t.Helper()
-	nativeMutationRowWait(t, ctx, completed, "(*StatementScope).acquireRelationTarget")
+	nativeOperationRowWait(t, ctx, completed, "(*StatementScope).acquireRelationTarget", "fixture.LockOperation.func")
+}
+
+// NativeCopyRelationLockWait observes the real public COPY helper parked in
+// initial relation admission. COPY does not run inside fixture.LockOperation.
+func NativeCopyRelationLockWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
+	t.Helper()
+	nativeOperationRowWait(t, ctx, completed, "(*StatementScope).acquireRelationTarget", "(*conn).copyRequest")
+}
+
+// NativeCopyUpdateRowWait observes the public COPY worker blocked on an actual
+// UPDATE row lock, including an UPDATE executed by its queued AFTER triggers.
+func NativeCopyUpdateRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
+	t.Helper()
+	nativeOperationRowWait(t, ctx, completed, "(*StatementScope).acquireUpdateRowMode", "(*conn).copyRequest")
 }

@@ -160,5 +160,9 @@ func AdmitInsertProducer(h Host, b analyze.Binding, candidate *index.WriteCandid
 	if err != nil || !accepted {
 		return false, err
 	}
-	return false, projectInsertReturning(h, row, nil, c)
+	err = projectInsertReturning(h, row, nil, c)
+	if err == nil && command.CopyFrom != nil {
+		command.CopyFrom.completed(1)
+	}
+	return false, err
 }

@@ -178,6 +178,9 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				return index.WriteBatch{}, err
 			}
 			rows.Append(candidate)
+			if command.CopyFrom != nil {
+				command.CopyFrom.completed(1)
+			}
 			continue
 		}
 		if h != nil {
@@ -259,6 +262,11 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			recordCopyInsertion(copyInsert, h, b, &candidate, len(rows.Values))
 		}
 		rows.Append(candidate)
+		// Buffered COPY owns completion at its genuine flush. Unbuffered
+		// no-index rows have completed validation/admission into this batch.
+		if copyInsert == nil && command != nil && command.CopyFrom != nil {
+			command.CopyFrom.completed(1)
+		}
 		if copyInsert != nil && copyInsert.Full() {
 			if err := flushCopyInsertion(copyInsert, h, b, &rows, &evaluation); err != nil {
 				return index.WriteBatch{}, err

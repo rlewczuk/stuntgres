@@ -260,6 +260,12 @@ production dependency is involved.
   `OnNotice`, and owns its cleanup. Never pass wrapped pq connections to pgx Raw,
   and never re-enter the Raw-owning `*sql.Conn` from the handler. Inspect records
   after the command; notice timing may differ by backend.
+  `NativeCopyRelationLockWait` witnesses initial COPY admission;
+  `NativeCopyUpdateRowWait` witnesses the same real COPY worker parked on an
+  UPDATE row lock, including queued AFTER execution. Both require the live native
+  scheduler stack and actual worker completion signal, not elapsed time.
+  The corresponding PostgreSQL guard-row gate uses `TransactionLockPending`
+  with the exact worker and holder PIDs.
 - **MERGE.** `MergeRun(t, p, backend, prepared)` runs MERGE steps with the
   backend's affected count (lib/pq reports 0; native reports real counts), so
   persisted rows must prove the effects.

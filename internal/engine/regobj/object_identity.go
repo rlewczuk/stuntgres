@@ -503,7 +503,7 @@ func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) 
 			}
 		}
 	case 2618:
-		if d.View != nil && d.View.RuleOID() == a.ObjectID {
+		if rule := d.ReturnRuleOID(); rule != 0 && rule == a.ObjectID {
 			return "_RETURN", 0
 		}
 		name, found := "", false
@@ -702,8 +702,10 @@ func OwnedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID
 			}
 		}
 	case 2618:
-		if name == "_RETURN" && d.View != nil {
-			return d.View.RuleOID()
+		if name == "_RETURN" {
+			if rule := d.ReturnRuleOID(); rule != 0 {
+				return rule
+			}
 		}
 		var oid ids.OID
 		found := false

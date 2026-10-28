@@ -38,8 +38,8 @@ func VisitDefinitionOIDs(descriptor Descriptor, visit func(ids.OID) error) error
 		}
 		return nil
 	}
-	if d.View != nil {
-		if err := visit(d.View.RuleOID()); err != nil {
+	if d.View != nil || d.CatalogReturnRule != 0 {
+		if err := visit(d.ReturnRuleOID()); err != nil {
 			return err
 		}
 	}

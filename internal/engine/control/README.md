@@ -92,6 +92,11 @@ trigger identities. Replacement remaps the constraint OID and leaves those
 absent trigger slots zero; it neither imports zero as an object identity nor
 creates placeholder triggers.
 
+Explicit bootstrap view return-rule identities are reconstructed from the
+destination seed, not serialized as executable views. Replacement reserves their
+captured `ReturnRuleOID` identities before remapping imported definitions, so a
+colliding imported view rule moves without changing native metadata ownership.
+
 Event-trigger collection retains validated immutable descriptors and real owner/
 function authority. `prepareEventTriggers` renders the complete final section
 before any writer I/O; an existing owner demoted from superuser is explicitly

@@ -29,9 +29,7 @@ func RelationPayloadAddresses(d *Relation) []ids.ObjectAddress {
 	for _, x := range d.Constraints.Exclusion {
 		add(2606, x.OID)
 	}
-	if d.View != nil {
-		add(2618, d.View.RuleOID())
-	}
+	add(2618, d.ReturnRuleOID())
 	for _, x := range d.Constraints.ForeignKeys {
 		add(2606, x.OID)
 		for _, trigger := range x.TriggerOIDs {

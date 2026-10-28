@@ -1707,6 +1707,36 @@ session, transaction, prepared-analysis and typed-frame authorities.
   fallible conversion and unlocked socket delivery precede publication, followed
   by exact owner/lifecycle/catalog readmission. Idle control warnings borrow the
   idle owner without starting a transaction.
+- `copy_progress.go` registers a real admitted COPY only after relation/query
+  preflight and reservation, before external stream hooks. The cluster owns one
+  entry per backend under the shared `Engine.Mu`; database reset/replacement does
+  not clear another database's active work. `StatementScope.Finish` alone owns
+  exact-entry cleanup after row-close, queued AFTER work and terminal foreign
+  modification callbacks, before transaction publication. Its defer covers early
+  exits, cancellation and panic; stale cleanup cannot remove a newer entry.
+  Map cleanup alone is not failed-command disposal. If a public COPY's terminal
+  `EndForeignInsert` callback panics inside Finish, its request boundary preserves
+  the original panic and resumes the same scope's failed Finish before rethrow.
+  The modification marks itself ended before provider entry; admission programs
+  and queued AFTER authority were cleared by the first unwind. Failure completion
+  skips command effects/publication and uses existing foreign rollback, owner,
+  view/stage/lock, reservation and admission disposal, without callback replay or
+  a second teardown authority. `Operation.Done` then releases its lease normally.
+  Open transactions do not retain rows. Initial relation waits publish no entry.
+  Command-owned atomic counters permit updates from already-locked DML and
+  unlocked I/O without recursively acquiring `Engine.Mu`. Capture under that
+  mutex loads detached facts and fresh effective-observer role closure against
+  the worker's immutable authenticated principal; no entry/counter pointer escapes.
+  Reader bytes are raw pre-conversion `n>0`, including n+EOF/error; writer bytes
+  are accepted encoded payload `n>0`, including partial failure, never envelopes.
+  Successful whole-row writes own output tuple completion, not headers/trailers.
+  Plain/no-index validated batch adoption and actual trigger producer admission
+  count individually; unique/routed COPY waits for genuine existing buffer flush
+  admissions. Later application/publication never counts again. Soft conversion
+  skips precede reject-limit checking; WHERE false/NULL alone is exclusion.
+  Foreign mutation still waits for EOF/FinishInput; accepted returned results
+  count during real provider work without changing trigger-derived batch policy.
+  Counts are monotonic completed work, not committed rows or a forced final result.
 - Session checks observe due transaction/idle budgets under `Session.Mu` before
   publishing a lease, with one timestamp for both slots. A statement timeout
   before `StartStatement` fails its explicit block synchronously through
