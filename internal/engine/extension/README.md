@@ -95,7 +95,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   those classes, returning strict BOOL with inclusive equality and the genuine
   `matchingsel`/`matchingjoinsel` catalog identities.
   Nineteen path procedures and three typed concatenation operators append after
-  the explicitly bounded hierarchy tail, producing eighty-six direct members.
+  the explicitly bounded hierarchy tail, preserving slots 64–85.
   One declaration table supplies exact overloads, C symbols, symbolic ownership
   signatures and operator backers. Scalar LCA has separate arities two through
   eight; array LCA uses the concrete installed companion. Builtin integer/text
@@ -104,6 +104,9 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `LtreePathRelocatableOperator`, which authenticates their current manifest,
   header, exact signature and backing declaration before placement admission.
   Comparison and hierarchy roles keep their existing placement requirements.
+  Scalar lquery backers occupy slots 86–87 and reciprocal `~` operators occupy
+  88–89, producing ninety direct members. These strict immutable C BOOL roles
+  retain `contsel`/`contjoinsel`, with no negator, hash or merge support.
   Required strategy/support members have exact INTERNAL class ownership;
   optional hash support2 has AUTO family/routine dependencies. Symbolic owner
   signatures include exact B-tree/hash class and family method roles; encoding,

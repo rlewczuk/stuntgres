@@ -149,6 +149,19 @@ these are shared across families:
    diagnostics distinguish empty paths from SQL NULL and operation failures from
    input conversion. Stored nonconstant consumers and repeated LCA arguments survive
    relocated/renamed providers, native replacement and actual emitted-SQL replay.
+- Scalar positional-match fixtures reuse array BOOL metadata helpers and independently
+  specify ordered matching, query alternatives, diagnostics and stored-consumer
+  replacement. Controls install the provider directly in its schema and rename
+  that namespace after storing view, CHECK and DEFAULT expressions; direct and
+  prepared reads assert the stored results before renaming it back for native
+  replacement and emitted-SQL replay.
+  Mutation witnesses retain an UPDATE with TEXT parameters and cast only after a
+  row-dependent CASE. Swapped malformed branches exercise either row traversal
+  order; successful candidates change their original values. Each runtime-cast
+  failure asserts the complete diagnostic with empty Context and unchanged rows,
+  then the same held UPDATE recovers with exactly two independently expected
+  changes. Typed-parameter rejection remains a separate input-boundary assertion.
+  Their reusable selector is `RUN='^TestReferenceLtreeLquery'`.
 
 Client quirks:
 

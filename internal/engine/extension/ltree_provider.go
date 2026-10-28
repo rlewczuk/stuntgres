@@ -67,7 +67,8 @@ func (p *LtreeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension
 	base,ok:=v.Type(ext.Members[3]);if !ok{return invalid()}
 	if err := validateLtreeComparisons(v, ext, base); err != nil { return err }
  if err := validateLtreeHierarchy(v, ext, base); err != nil { return err }
- return validateLtreePaths(v, ext)
+ if err := validateLtreePaths(v, ext); err != nil { return err }
+ return validateLtreeLquery(v, ext)
 }
 
 func (p *LtreeProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {

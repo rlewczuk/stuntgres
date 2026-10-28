@@ -114,7 +114,13 @@ func TestLqueryProviderIdentity(t *testing.T) {
 			case member.Slot>=extension.LtreeHierarchyProcedureStart&&member.Slot<extension.LtreeHierarchyOperatorStart:
 				name:=[]string{"ltree_isparent","ltree_risparent"}[member.Slot-extension.LtreeHierarchyProcedureStart]
 				if member.Kind!="procedure"||member.Name!=name||member.Signature!="ltree,ltree"{t.Fatal("hierarchy procedure owner role",member)}
-   case member.Slot>=extension.LtreeHierarchyOperatorStart&&member.Slot<extension.LtreeHierarchyMemberEnd:
+			case member.Slot>=extension.LtreeLqueryProcedureStart&&member.Slot<extension.LtreeLqueryOperatorStart:
+				i:=member.Slot-extension.LtreeLqueryProcedureStart
+				if member.Kind!="procedure"||member.Name!=[]string{"ltq_regex","ltq_rregex"}[i]||member.Signature!=[]string{"ltree,lquery","lquery,ltree"}[i]{t.Fatal("scalar query procedure owner role",member)}
+			case member.Slot>=extension.LtreeLqueryOperatorStart&&member.Slot<extension.LtreeMemberCount:
+				i:=member.Slot-extension.LtreeLqueryOperatorStart
+				if member.Kind!="operator"||member.Name!="~"||member.Signature!=[]string{"ltree,lquery","lquery,ltree"}[i]{t.Fatal("scalar query operator owner role",member)}
+			case member.Slot>=extension.LtreeHierarchyOperatorStart&&member.Slot<extension.LtreeHierarchyMemberEnd:
 				name:=[]string{"@>","<@"}[member.Slot-extension.LtreeHierarchyOperatorStart]
 				if member.Kind!="operator"||member.Name!=name||member.Signature!="ltree,ltree"{t.Fatal("hierarchy operator owner role",member)}
    case member.Slot>=extension.LtreePathProcedureStart&&member.Slot<extension.LtreePathOperatorStart:
@@ -128,7 +134,7 @@ func TestLqueryProviderIdentity(t *testing.T) {
      "ltree,ltree,ltree,ltree,ltree,ltree,ltree,ltree","ltree,ltree","ltree,25","25,ltree",
     }[index]
     if member.Kind!="procedure"||member.Name!=name||member.Signature!=signature{t.Fatal("path procedure owner role",member)}
-   case member.Slot>=extension.LtreePathOperatorStart&&member.Slot<extension.LtreeMemberCount:
+   case member.Slot>=extension.LtreePathOperatorStart&&member.Slot<extension.LtreePathMemberEnd:
     signature:=[]string{"ltree,ltree","ltree,25","25,ltree"}[member.Slot-extension.LtreePathOperatorStart]
     if member.Kind!="operator"||member.Name!="||"||member.Signature!=signature{t.Fatal("path operator owner role",member)}
 			case member.Slot>=extension.LtreeComparisonProcedureStart&&member.Slot<extension.LtreeComparisonOperatorStart:

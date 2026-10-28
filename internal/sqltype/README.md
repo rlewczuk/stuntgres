@@ -274,6 +274,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   NULL elements and keeps SQL NULL distinct from a present empty path. Kernels
   validate active formal/operand generations before strictness and check cancellation
   within bounded scans; text parsing uses the existing installed input codec.
+  `LtreeLqueryOperation` authenticates exact scalar ltree/lquery formals and
+  BOOL results in either orientation before NULL propagation. It shares the
+  indexed whole-path matcher with arrays, with invocation-local scratch,
+  periodic cancellation and no text conversion or array wrapping.
 - Ltree and lquery use ordinary concrete companion arrays, including supported
   domain elements. `LtreeArrayOperation` checks exact formal generations and
   implements the selected installed predicates/extractors. Whole NULL arguments

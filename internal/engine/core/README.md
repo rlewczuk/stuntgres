@@ -1020,6 +1020,15 @@ with row effects; standalone utilities retain their ordinary publication boundar
   original type address is absent is omitted only from the attempt candidate.
   Normal binding reads the original SQL literal under the new genuine usage;
   neither a reused label nor a numeric OID authorizes importing retired data.
+  Direct ltree/lquery literal retirement also permits changed namespace/path
+  resolution, including sticky cast invalidation from a failed attempt, but
+  retains exact catalog domain/epoch, session, private journal and
+  discard-generation fences, original declaration pointer, capture TypeID and
+  dependency provenance. Only an absent original
+  address permits this candidate-only omission. The ordinary binder must resolve
+  the original SQL and check current namespace/provider authority; this route
+  grants neither datum import nor reuse of the old analysis. Failed reanalysis
+  leaves accepted literal captures intact and can retry under fresh authority.
   Direct concrete ltree/lquery companions extend this candidate path only with
   separately captured scalar and array declarations/dependencies. Exact source
   association and the current validated installation authorize recursive element
@@ -1613,10 +1622,10 @@ session, transaction, prepared-analysis and typed-frame authorities.
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.
 
-Scalar hierarchy accepted definition/fold backing and rejected-publication fences
-use `RUN='^TestLtreeHierarchyPrepared'`.
- Path accepted-definition ownership uses `RUN='^TestLtreePathPrepared'`, retaining
- every scalar-LCA occurrence and exact installed fold backing through rejection.
+Scalar hierarchy and positional-match accepted definition/fold backing and
+rejected-publication fences use `RUN='^TestLtree(Hierarchy|Lquery)Prepared'`.
+Path accepted-definition ownership uses `RUN='^TestLtreePathPrepared'`, retaining
+every scalar-LCA occurrence and exact installed fold backing through rejection.
 
 Trigger-mode candidate, staged cancellation, prepared publication, clone/FK and
 replay ownership units share `RUN='^TestTriggerMode'`, also with `RACE=1`.

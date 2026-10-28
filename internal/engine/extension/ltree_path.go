@@ -14,7 +14,7 @@ import (
 const (
  LtreePathProcedureStart = LtreeHierarchyMemberEnd
  LtreePathOperatorStart = LtreePathProcedureStart + int(sqltype.LtreePathOperationCount)
- LtreeMemberCount = LtreePathOperatorStart + 3
+ LtreePathMemberEnd = LtreePathOperatorStart + 3
 )
 
 type ltreePathRecipe struct { name, symbol, signature, result string }

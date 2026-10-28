@@ -48,7 +48,7 @@ func LtreeArrayProcedureName(name string) bool {
 }
 
 func ltreeMemberClass(slot int) ids.OID {
- if slot >= LtreeHierarchyOperatorStart && slot < LtreeHierarchyMemberEnd || slot >= LtreePathOperatorStart && slot < LtreeMemberCount { return ids.OperatorClassID }
+ if slot >= LtreeHierarchyOperatorStart && slot < LtreeHierarchyMemberEnd || slot >= LtreePathOperatorStart && slot < LtreePathMemberEnd || slot >= LtreeLqueryOperatorStart && slot < LtreeMemberCount { return ids.OperatorClassID }
  if slot < LtreeArrayProcedureStart && slot%3 == 0 { return ids.TypeClassID }
  if slot >= LtreeArrayOperatorStart && slot < LtreeComparisonProcedureStart || slot >= LtreeComparisonOperatorStart && slot < LtreeBtreeFamilySlot { return ids.OperatorClassID }
  if slot == LtreeBtreeFamilySlot || slot == LtreeHashFamilySlot { return ids.OperatorFamilyClassID }

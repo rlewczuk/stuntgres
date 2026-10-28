@@ -42,13 +42,17 @@ func OperatorError(err error, left, right *sqltype.Descriptor, raw parser.Operat
 	return &copy
 }
 
-// ComparisonError is OperatorError with PostgreSQL's diagnostic type names in
-// a 42883 message, including the qualified names of user-defined types.
+// ComparisonError is OperatorError with PostgreSQL's visibility-aware type
+// names in both missing-operator and ambiguous-operator diagnostics.
 func ComparisonError(b Binder, err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
 	diagnostic := OperatorError(err, left, right, raw)
-	if record, ok := diagnostic.(*sqlstate.Error); ok && record.Code == "42883" {
+	if record, ok := diagnostic.(*sqlstate.Error); ok && (record.Code == "42883" || record.Code == "42725") {
 		copy := *record
-		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", b.DiagnosticTypeName(left), qualifiedName(raw.Name), b.DiagnosticTypeName(right))
+		problem := "operator does not exist"
+		if record.Code == "42725" {
+			problem = "operator is not unique"
+		}
+		copy.Message = fmt.Sprintf("%s: %s %s %s", problem, b.DiagnosticTypeName(left), qualifiedName(raw.Name), b.DiagnosticTypeName(right))
 		return &copy
 	}
 	return diagnostic

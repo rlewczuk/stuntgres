@@ -168,19 +168,28 @@ func (e *Engine) preparedInstalledScalarLiteralTemporalsLocked(auth Authorizatio
 // candidate. An absent original type cannot authorize a datum import. Retire
 // only its authentic statement-owned capture, so ordinary binding can parse
 // the original SQL literal for its new usage. Identity-only changes never
-// enter this path while their original type address still exists.
+// enter this path while their original type address still exists. Namespace/path
+// evolution and sticky cast invalidation may require fresh literal analysis;
+// they cannot authorize importing the retired datum or reusing its analysis.
 func (e *Engine) retirePreparedInstalledScalarLiteralTemporalsLocked(auth AuthorizationView, expected *Description, path sequence.Environment, captures []analyze.TemporalConstant) []analyze.TemporalConstant {
-	if expected == nil || expected.PlanGeneration != auth.Session.DiscardPlansGeneration || !expected.Analysis.EnvironmentValid(e.preparedEnvironmentAtPathLocked(auth, path, false)) {
+	if expected == nil || expected.Analysis == nil || expected.PlanGeneration != auth.Session.DiscardPlansGeneration {
+		return captures
+	}
+	analysis := expected.Analysis
+	environment := e.preparedEnvironmentAtPathLocked(auth, path, false)
+	sameEnvironment := analysis.EnvironmentValid(environment)
+	selectedRetirement := analysis.Domain == environment.Domain && analysis.Epoch == environment.Epoch && analysis.Session == environment.Session && analysis.Private == environment.Private && (analysis.Namespace != environment.Namespace || !sequence.SameEnvironment(analysis.Path, environment.Path))
+	if !sameEnvironment && !selectedRetirement {
 		return captures
 	}
 	var candidate []analyze.TemporalConstant
 	for i, capture := range captures {
 		retired := false
 		source := capture.Value.Type()
-		if preparedLtreeArrayShape(source) && source.ID() == capture.TypeID {
+		if sameEnvironment && preparedLtreeArrayShape(source) && source.ID() == capture.TypeID {
 			array, _, ok := expected.Analysis.capturedLtreeArray(auth.Catalog, source)
 			retired = ok && auth.Catalog.Get(array.Address()) == nil
-		} else if (source.IsHstore() || (source.IsLquery() || source.IsLtree() || source.IsLtxtquery())) && source.ID() == capture.TypeID {
+		} else if source != nil && (source.IsLquery() || source.IsLtree() || sameEnvironment && (source.IsHstore() || source.IsLtxtquery())) && source.ID() == capture.TypeID {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(capture.TypeID)}
 			old := expected.Analysis.Types[address]
 			if old != nil && old.SQLType == source && old.Address() == address && auth.Catalog.Get(address) == nil {

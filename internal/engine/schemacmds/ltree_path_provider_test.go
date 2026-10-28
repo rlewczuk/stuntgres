@@ -11,7 +11,7 @@ import (
 
 func TestLtreePathProviderIdentity(t *testing.T) {
  e,ext,_ := ltreeUnitInstalled(t); view := e.CatalogRead()
- if extension.LtreePathProcedureStart != 64 || extension.LtreePathOperatorStart != 83 || len(ext.Members) != 86 { t.Fatal("appended inventory moved incumbent roles") }
+ if extension.LtreePathProcedureStart != 64 || extension.LtreePathOperatorStart != 83 || extension.LtreePathMemberEnd != 86 || len(ext.Members) != extension.LtreeMemberCount { t.Fatal("appended inventory moved incumbent roles") }
  if err := extension.StockLtree.ValidateExtension(view,ext); err != nil { t.Fatal(err) }
  names := []string{"subltree","subpath","subpath","index","index","nlevel","ltree2text","text2ltree","lca","lca","lca","lca","lca","lca","lca","lca","ltree_addltree","ltree_addtext","ltree_textadd"}
  for i,name := range names {

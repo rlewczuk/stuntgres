@@ -218,6 +218,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
    if err != nil { return invalid() }
    name = ltreePathRecipes[slot-LtreePathProcedureStart].symbol
    sqlName = ltreePathRecipes[slot-LtreePathProcedureStart].name
+  } else if slot >= LtreeLqueryProcedureStart && slot < LtreeLqueryOperatorStart {
+   index := slot-LtreeLqueryProcedureStart
+   left, right, err := ltreeLqueryTypes(v, ext, index); if err != nil { return invalid() }
+   name = LtreeLqueryProcedureSymbol(sqltype.LtreeLqueryOperation(index))
+   signature = catalog.ProcedureSignature(fmt.Sprintf("%d,%d", left.ID(), right.ID()))
+   result = 16
   } else if slot >= LtreeHierarchyProcedureStart && slot < LtreeHierarchyOperatorStart {
 			base, ok := v.Type(ext.Members[3]); if !ok || !base.SQLType.IsLtree() || base.Extension != ext.Address() { return invalid() }
 			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }

@@ -300,6 +300,10 @@ by syntax or by the operator binder (SQL value functions, OVERLAPS, SIMILAR,
 enter through exported `Bind*`, `Finish*` and `Select*` functions and bypass the
 registry. Shared diagnostics: `call_syntax.go` (`ValidateCallSyntax`),
 `resolution_error.go` and `operator_error.go`.
+`ComparisonError` uses `Binder.DiagnosticTypeName` for both missing and ambiguous
+binary operators: visible types are unqualified, while hidden or shadowed types
+retain their schema qualification. The shared operator diagnostic owns the hint
+and source position independently of type presentation.
 
 Setting calls share fixed-formal typed binding across ordinary queries and routine
 bodies. `Setting` retains only its builtin recipe and typed children;
@@ -327,6 +331,8 @@ strict-null preflight and current routine admission apply normally. Immutable
 matching indexes belong to typed values; all execution scratch is call-local.
 `LtreeHierarchy` applies the same capture and admission contract to scalar
 inclusive ancestor/descendant BOOL calls, without retaining execution authority.
+`LtreeLquery` applies that contract to both scalar positional-match orientations,
+retaining exact ltree/lquery formals and the original selected declaration.
 Reconstruction, capture, grouping and qualified replay preserve the selected
 member and original declaration rather than dispatching by operator spelling.
 Shared strict NULL preflight and routine admission use current caller authority;

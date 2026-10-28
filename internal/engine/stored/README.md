@@ -104,6 +104,13 @@ cross-generation import preserves source revisions independently.
  complete destination path manifests authenticate independently before remap,
  retag or current-name rendering. Qualified replay casts each active operand to its
  genuine destination formal; no caller scratch, array cursor or authority is stored.
+`LtreeLquery` authenticates scalar positional-match captures with the same
+source/current/destination fences, preserving both distinct formal generations,
+orientation, member ordinal and source-ordered operand occurrences.
+Frozen lquery literals own their qualified typed annotation, like ltree and array
+datums. Query replay elides only a source leaf cast with the exact captured Usage;
+outer casts, domains and conversions remain intact. Formal operand annotations
+and source capture provenance are retained independently of this presentation.
   Ltree comparisons use the existing scalar/row, distinctness, membership,
   NULLIF and simple-CASE carriers. They retain both operand generations, selected
   immutable routine, operation and catalog-domain/epoch reference. Transport
@@ -865,10 +872,10 @@ redump/replacement, renamed providers/attributes and retained payload ownership.
 
 Type inquiry immutable recipe ownership and frozen view/policy cast-occurrence
 authority use `RUN='^TestTypeDescribe(StoredOwnership|ComposedStoredOwnership|FrozenCastOccurrence)$'`.
-Scalar hierarchy source/destination authority and immutable graph ownership use
-`RUN='^TestLtreeHierarchyStored'`.
- Bounded path expression/capture and source/destination ownership use
- `RUN='^TestLtreePath'`, including repeated operands and rejected remap publication.
+Scalar hierarchy and positional-match source/destination authority and immutable
+graph ownership use `RUN='^TestLtree(Hierarchy|Lquery)Stored'`.
+Bounded path expression/capture and source/destination ownership use
+`RUN='^TestLtreePath'`, including repeated operands and rejected remap publication.
 
 Package units cover the payload API, rule presentation, routine recipes and aggregate recipes.
 `TestViewPartsRoundTrip` and `TestRulePartsRoundTrip` require every `View`,
