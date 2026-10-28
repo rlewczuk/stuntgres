@@ -62,6 +62,12 @@ rather than inventing stock PostgreSQL file rows or never-ran progress. Recipes
 store no physical authority or state and use ordinary capture and control replay,
 preserving named operands and their formal destinations in stored view SQL.
 
+`ControlData` is an immutable, zero-child, volatile and unfolded scalar RECORD
+recipe for the four control-file inquiries. Exact PostgreSQL 18 OUT metadata,
+routine provenance, reconstruction and capture use the existing typed owners.
+Ordinary live EXECUTE admission precedes the explicit unavailable-control-file
+error; the recipe retains neither invocation authority nor physical values.
+
 `RuntimeCapability`, `LoadedModules` and `CurrentLogfile` retain immutable typed
 recipes, not physical facility state or invocation authority. Without native
 JIT, NUMA, a library loader or a collector, they report BOOL false, a typed empty
@@ -826,6 +832,8 @@ Recovery inquiry carriers, fixed OUT validation and physical source admission us
 `RUN='^TestRecoveryInfo'`; public witnesses use `^TestReferenceRecoveryInfo`.
 WAL summary declarations, typed shapes, evaluation and owned reconstruction use
 `RUN='^TestWALSummary'`; public scenarios live in sessions and roles.
+Control-file declaration, shape, cancellation and immutable protocol units use
+`RUN='^TestControlData'`; public scenarios live in sessions and roles.
 Runtime inquiry binding, immutable protocols and typed source ownership use
 `RUN='^TestRuntimeInfo'`; public scenarios live in `reference/extensions`.
 Logical-decoding declaration, reconstruction, option and runtime ownership units

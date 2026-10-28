@@ -61,6 +61,9 @@ unnamed versus fixed input/OUT formal metadata, and the option row estimate 3.
 The eight legacy transaction inquiries retain distinct bigint/txid_snapshot
 signatures, their modern implementation symbols, strictness, volatility and
 parallel-safety declarations; snapshot member expansion has row estimate 50.
+The four zero-input control-data functions retain scalar RECORD results and
+their exact ordered OUT types/names (18/4/5/12 members for
+checkpoint/system/recovery/init), without inventing input or set-returning slots.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 
 Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and

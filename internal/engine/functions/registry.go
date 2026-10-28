@@ -88,6 +88,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_listening_channels", "pg_notification_queue_usage"}, Bind: bindNotificationInfo},
 	{Names: recoveryInfoNames[:], ExactSpelling: true, Bind: bindRecoveryInfo},
 	{Names: walSummaryNames[:], ExactSpelling: true, Bind: bindWALSummary, NamedCall: namedWALSummary},
+	{Names: controlDataNames[:], ExactSpelling: true, Bind: bindControlData},
 	{Names: runtimeInfoNames[:], ExactSpelling: true, Bind: bindRuntimeInfo},
 	{Names: []string{"pg_event_trigger_dropped_objects"}, ExactSpelling: true, Bind: bindEventTriggerDroppedObjects},
 	{Names: []string{"pg_partition_tree", "pg_partition_ancestors", "pg_partition_root"}, Bind: bindPartitionInfo, NamedCall: namedPartitionInfo},

@@ -60,6 +60,8 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
 The file-list family uses `make check RUN='^TestReferenceGenericFileLists'`.
 WAL summary ACL and control scenarios use `RUN='^TestReferenceWALSummary'`.
+Control-file live EXECUTE and stored-view/native-control scenarios use
+`RUN='^TestReferenceControlData'`, preserving original oracle builtin ACLs.
 File-list scenarios restore the original PostgreSQL builtin ACLs on every exit,
 after removing actor-owned grant dependencies and before cluster role teardown.
 Restricted actors never read protected log settings for helper expectations;

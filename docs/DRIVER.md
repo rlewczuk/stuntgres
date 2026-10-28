@@ -915,6 +915,31 @@ returns actual file metadata. On-disk encoding validation is unreachable
 natively; ordinary typed text/argument validation remains enforced. No host
 files, timestamps, directory entries or physical state enter Dump/Restore.
 
+## Control-file information boundary
+
+`pg_control_checkpoint()`, `pg_control_system()`, `pg_control_init()` and
+`pg_control_recovery()` are zero-input scalar RECORD functions. Their PostgreSQL
+18 OUT shapes flow through ordinary typed scalar, field, expansion and FROM
+paths; `LIMIT 0` exposes metadata without reading physical state.
+Computed members have unknown nullability. Unconstrained TEXT members report
+`ColumnType.Length()` as `(1<<63-1, true)`; the other control-file output types
+report `(0, false)`. None of these output types reports decimal precision/scale.
+Native `ColumnType.ScanType()` follows the existing type codecs: XID is `[]byte`,
+OID/INT4/INT8 are `int64`, TEXT/PG_LSN/RECORD are `string`, BOOL is `bool`, and
+TIMESTAMPTZ is `time.Time`. These Go carriers do not change the SQL output types.
+
+All four start with ordinary PUBLIC EXECUTE. Mutable routine ACLs are checked
+live, including held prepared statements: revoked execution fails `42501`,
+before an authorized physical demand fails `0A000` with
+`<function_name> physical control-file access is unsupported in embedded mode`.
+No cluster control file exists in the embedded engine, so no system identifier,
+checkpoint LSN, recovery endpoint, initialization value or timestamp is invented.
+Stock PostgreSQL instead reads its real cluster control file and returns a row.
+Native Dump/Restore preserves stored view definitions and procedure ACL edits
+through the existing logical catalog; stateless builtins need no separate
+serialization, and no physical control-file state is dumped.
+
+
 
 ## Foreign data wrappers
 

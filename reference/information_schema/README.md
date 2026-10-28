@@ -59,6 +59,8 @@ declared formal order/names/modes, type identity, owner-visible expression
 presentation and EXECUTE-only redaction. SQL PREPARE does not participate.
 Direct, fresh-prepared and held consumers cover role/catalog publication,
 typed empty results, complete diagnostics and native control round trips.
+The builtin name inventory includes every ordered OUT name of the four zero-input
+control-data records; those names do not become invocation arguments.
 
 CHECK routine-usage scenarios assert complete six-column identity bags and
 source-owned identifier domains over actual table/domain CHECK semantic edges.
@@ -281,6 +283,8 @@ See [producer ownership](../../internal/engine/pgcatalog/README.md#information-s
   facts, queried in serial batches under the ordinary scenario deadline. Extension
   witnesses include citext's INTERNAL I/O and C comparison declarations with
   independently specified source symbols.
+  Control-data declarations retain their released INTERNAL source names and
+  INVOKER security in the same inventory.
   `RUN='^TestReferenceInfoRoutinesCastInventory$'` selects the added 99 real
   cast/multirange declarations plus three installed citext conversions. It
   checks exact released display facts and SQL-NULL argument names using fixed

@@ -44,6 +44,10 @@ func resultsBuiltinFormalFacts() []resultsFormalFact {
 		{3839, "pg_identify_object", "26 26 23", "{26,26,23,25,25,25,25}", "{i,i,i,o,o,o,o}", 0, "f"},
 		{3382, "pg_identify_object_as_address", "26 26 23", "{26,26,23,25,1009,1009}", "{i,i,i,o,o,o}", 0, "f"},
 		{3954, "pg_get_object_address", "25 1009 1009", "{25,1009,1009,26,26,23}", "{i,i,i,o,o,o}", 0, "f"},
+		{3441, "pg_control_system", "", "{23,23,20,1184}", "{o,o,o,o}", 0, "f"},
+		{3442, "pg_control_checkpoint", "", "{3220,3220,25,23,23,16,25,26,28,28,28,26,28,28,26,28,28,1184}", "{o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o}", 0, "f"},
+		{3443, "pg_control_recovery", "", "{3220,23,3220,3220,16}", "{o,o,o,o,o}", 0, "f"},
+		{3444, "pg_control_init", "", "{23,23,23,23,23,23,23,23,23,16,23,16}", "{o,o,o,o,o,o,o,o,o,o,o,o}", 0, "f"},
 		{3782, "pg_logical_slot_get_changes", "19 3220 23 1009", "{19,3220,23,1009,3220,28,25}", "{i,i,i,v,o,o,o}", 25, "f"},
 		{3783, "pg_logical_slot_get_binary_changes", "19 3220 23 1009", "{19,3220,23,1009,3220,28,17}", "{i,i,i,v,o,o,o}", 25, "f"},
 		{3784, "pg_logical_slot_peek_changes", "19 3220 23 1009", "{19,3220,23,1009,3220,28,25}", "{i,i,i,v,o,o,o}", 25, "f"},
@@ -76,7 +80,7 @@ func resultsBuiltinFormalFacts() []resultsFormalFact {
 func TestReferenceRoutineResultsFormalBuiltins(t *testing.T) {
 	resultsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		facts := resultsBuiltinFormalFacts()
-		if len(facts) != 49 {
+		if len(facts) != 53 {
 			t.Fatal("incomplete released affected roster", len(facts))
 		}
 		sort.Slice(facts, func(i, j int) bool { return facts[i].oid < facts[j].oid })

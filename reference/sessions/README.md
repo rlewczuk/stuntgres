@@ -127,6 +127,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Notification state inquiries: `RUN='^TestReferenceNotificationInfo'`
 - Recovery inquiries and physical registry admission: `RUN='^TestReferenceRecoveryInfo'`
 - WAL summary signatures, metadata and physical demand: `RUN='^TestReferenceWALSummary'`
+- Control-file signatures, metadata, diagnostics and physical demand: `RUN='^TestReferenceControlData'`
 - `pg_locks`: `RUN='^TestReferenceViewLocks'`
 - `pg_blocking_pids`: `RUN='^TestReferenceBlockingPids'`
 - Transaction status and commit timestamps, tracking off: `RUN='^TestReference(TransactionIdentityStatusDefaultTracking|CommitTime(Disabled|SpecialIDs|Resolution))'`
