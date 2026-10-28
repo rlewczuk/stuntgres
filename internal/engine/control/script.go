@@ -34,8 +34,9 @@ type dumpScript struct {
 
 	policyGroups, ruleGroups, securityGroups  []dump.Group
 	triggerGroups                             []dump.Group
-	foreignKeyModes []stored.ForeignKeyModeReplay
+	foreignKeyModes                           []stored.ForeignKeyModeReplay
 	eventTriggerReplay                        []eventTriggerReplay
+	subscriptionReplay                        []subscriptionReplay
 	domainNodes                               map[ids.OID]*catalog.Type
 	collationStatements, conversionStatements []dump.Statement
 	seedStatements, conversionSeeds           []string
@@ -118,6 +119,9 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if err := s.prepareEventTriggers(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.prepareSubscriptions(ctx); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -412,7 +416,9 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 	}
 	for _, template := range s.Templates {
 		declaration, err := extension.TemplateDumpStatement(s.CatalogView, template)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		s.declarations[template.Address().ObjectID] = declaration
 	}
 	for _, dictionary := range s.Dictionaries {

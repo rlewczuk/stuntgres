@@ -49,3 +49,29 @@ func ObjectLockPending(t *testing.T, p *Pair, b Backend, waiter, holder int, cla
 		runtime.Gosched()
 	}
 }
+
+// TransactionLockPending observes catalog tuple-update arbitration on PostgreSQL.
+// The waiter must be blocked on the exact holder's transaction, not merely
+// running or waiting on an unrelated object/name. The caller owns release/join.
+func TransactionLockPending(t *testing.T, p *Pair, waiter, holder int, finished <-chan struct{}) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	defer cancel()
+	for {
+		select {
+		case <-finished:
+			t.Fatal("operation completed before required transaction lock wait")
+		case <-ctx.Done():
+			t.Fatal("transaction lock admission", ctx.Err())
+		default:
+		}
+		var pending bool
+		if err := Admin.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks w JOIN pg_locks h ON h.locktype=w.locktype AND h.transactionid=w.transactionid WHERE w.pid=$1 AND w.locktype='transactionid' AND w.mode='ShareLock' AND NOT w.granted AND h.pid=$2 AND h.mode='ExclusiveLock' AND h.granted) AND $2=ANY(pg_blocking_pids($1))`, waiter, holder).Scan(&pending); err != nil {
+			t.Fatal(err)
+		}
+		if pending {
+			return
+		}
+		runtime.Gosched()
+	}
+}

@@ -26,6 +26,14 @@ catalog/effect checkpoint: suffix tokens become inactive, while preexisting
 tokens recover their exact identity, predecessor descriptor and column progress,
 even if they completed inside the failed suffix. Successful marks never rewind.
 
+Subscription DDL uses ordinary definition/name admission, role dependency locks
+and catalog journals. Shared catalog projections prepare replacement roots for
+every database under the cluster mutex before the installation fence; no
+callbacks, connection attempts or external I/O occur there. Definition ownership
+is database-local, visibility is shared, and ENABLE is desired metadata only.
+Reset/Restore remint the selected database's subscriptions and retain committed
+peer definitions. Detached catalog reads keep the original immutable backing.
+
 Statistics expressions share the single-relation binder setup with indexes but
 use a distinct `StatisticsConsumer`: no parameters, subqueries, aggregates,
 grouping, windows or SRFs, and no index-specific IMMUTABLE restriction.

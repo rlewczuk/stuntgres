@@ -28,6 +28,12 @@ Capture and owner-only COW replacement revalidate under one catalog lock;
 the root replay driver consumes the pair at the next statement. Ordinary
 ownership execution gains no statistics ALTER capability.
 
+Subscription utilities use `subscription.Stage` on the ordinary schema command
+host. Definition/name locks, post-wait authority recapture, role fences and
+journal publication are the same path as other catalog objects. The host's
+cluster-wide OID reservation is separate from connection/option validation;
+Describe never stages metadata or attempts an external mechanism.
+
 ## Layering
 
 It imports [`core`](../core/README.md),

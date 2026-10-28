@@ -66,7 +66,7 @@ func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 		if err := (catalog.StatisticsProvider{}).Validate(base, d); err != nil {
 			return err
 		}
-	case *catalog.EventTrigger, *catalog.Cast, *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary, *catalog.TSConfiguration:
+	case *catalog.Subscription, *catalog.EventTrigger, *catalog.Cast, *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary, *catalog.TSConfiguration:
 		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Seeded() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
@@ -102,7 +102,7 @@ func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 // closure reaches becomes a drop target itself.
 func ClosureTargetClass(class ids.OID) bool {
 	switch class {
-	case ids.StatisticExtClassID:
+	case ids.SubscriptionClassID, ids.StatisticExtClassID:
 		return true
 	case ids.EventTriggerClassID, ids.AccessMethodClassID, ids.CastClassID, ids.OperatorClassCatalogID, ids.OperatorClassID, ids.OperatorFamilyClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TypeClassID, ids.ExtensionClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID, ids.TSConfigurationClassID:
 		return true

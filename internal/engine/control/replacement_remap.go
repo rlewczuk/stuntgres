@@ -81,6 +81,14 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 // The caller delegates extension/catalog-owned descriptors to extension.RemapDescriptor.
 func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, a, target ids.ObjectAddress, d catalog.Descriptor) (catalog.Descriptor, error) {
 	switch r := d.(type) {
+	case *catalog.Subscription:
+		if r == current.Get(a) && r.Database != current.Owner().DatabaseAddress() {
+			break
+		}
+		n := *r
+		n.ObjectAddress = target
+		n.Database = current.Owner().DatabaseAddress()
+		d = &n
 	case *catalog.ForeignObject:
 		n := *r
 		n.ObjectAddress = target

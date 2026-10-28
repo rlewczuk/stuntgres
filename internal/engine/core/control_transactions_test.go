@@ -115,6 +115,8 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			source, target := engine.New(), engine.New()
 			enginetest.Run(t, source, "CREATE TABLE t(v INT NOT NULL)")
 			enginetest.Run(t, source, "INSERT INTO t VALUES(99)")
+			enginetest.Run(t, source, "CREATE SUBSCRIPTION boundary_import CONNECTION 'password=import_secret' PUBLICATION remote_import WITH (connect=false,slot_name=NONE,binary=true,two_phase=true)")
+			enginetest.Run(t, target, "CREATE SUBSCRIPTION boundary_retained CONNECTION 'password=retained_secret' PUBLICATION remote_retained WITH (connect=false,slot_name=NONE)")
 			a, b := sessionStart(t, target, nil), sessionStart(t, target, nil)
 			sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
 			sessionSQL(t, b, "INSERT INTO t VALUES(77)")
@@ -194,6 +196,16 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if err != nil || target.CatalogRead().Epoch() != before.Epoch()+1 || target.Visibility.CommitSeq() != frontier+1 {
 					t.Fatal("late cancellation retracted install", err)
 				}
+				imports := 0
+				for _, sub := range target.CatalogRead().Subscriptions() {
+					imports++
+					if sub.Name() != "boundary_import" || sub.Connection != "password=import_secret" || !sub.Binary || sub.TwoPhase != 'p' || sub.Database != target.Catalog.DatabaseAddress() {
+						t.Fatal("successful install lost imported subscription", sub)
+					}
+				}
+				if imports != 1 {
+					t.Fatal("successful install subscription count", imports)
+				}
 				transactionRows(t, b, "SELECT v FROM t", 99)
 				if !errors.Is(enginetest.ValidateObjectRef(target, target.CatalogRead(), ref), ids.ErrCatalogReplaced) {
 					t.Fatal("old ref eligible")
@@ -220,6 +232,16 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				}
 				if target.CatalogRead().State() != before.State() || target.Storage.Relations[ref.Address] != stored || target.Visibility.CommitSeq() != frontier {
 					t.Fatal("failed replacement changed state/storage/frontier")
+				}
+				retainedSubscriptions := 0
+				for _, sub := range target.CatalogRead().Subscriptions() {
+					retainedSubscriptions++
+					if sub.Name() != "boundary_retained" || sub.Connection != "password=retained_secret" || sub.Binary || sub.TwoPhase != 'd' {
+						t.Fatal("canceled final install changed subscription", sub)
+					}
+				}
+				if retainedSubscriptions != 1 {
+					t.Fatal("canceled install subscription count", retainedSubscriptions)
 				}
 				if err = enginetest.ValidateObjectRef(target, before, ref); err != nil {
 					t.Fatal(err)

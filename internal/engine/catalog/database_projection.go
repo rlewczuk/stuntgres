@@ -43,12 +43,21 @@ type DatabaseProjection map[*Store]*State
 // s's root. Descriptor publications are shared.
 func (s *Store) ProjectDatabasesLocked(next *State, stores iter.Seq[*Store]) DatabaseProjection {
 	var changed []Descriptor
+	var removed []Descriptor
+	shared := func(address ids.ObjectAddress) bool {
+		return address.ClassID == ids.DatabaseClassID || address.ClassID == ids.SubscriptionClassID
+	}
 	for address, descriptor := range next.Descriptors() {
-		if address.ClassID == ids.DatabaseClassID && s.State.Get(address) != descriptor {
+		if shared(address) && s.State.Get(address) != descriptor {
 			changed = append(changed, descriptor)
 		}
 	}
-	if len(changed) == 0 {
+	for address, descriptor := range s.State.Descriptors() {
+		if shared(address) && next.Get(address) == nil {
+			removed = append(removed, descriptor)
+		}
+	}
+	if len(changed) == 0 && len(removed) == 0 {
 		return nil
 	}
 	var roots DatabaseProjection
@@ -56,6 +65,10 @@ func (s *Store) ProjectDatabasesLocked(next *State, stores iter.Seq[*Store]) Dat
 		root := next
 		if target != s {
 			root = CloneState(target.State)
+		}
+		for _, descriptor := range removed {
+			root.UnbindName(DescriptorNameKey(descriptor))
+			root.RemoveDescriptor(descriptor.Address())
 		}
 		for _, descriptor := range changed {
 			if old := root.Get(descriptor.Address()); old != nil {

@@ -138,8 +138,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Explicit column/table grants and inherited privileges remain authoritative;
   held statements immediately observe revocation. The authenticated producer
   validates exact catalog/role roots, engine ownership and type generations
-  even for its nonnil empty result. Reads neither populate subscription
-  definitions nor perform publisher connections, slot creation or replication.
+  and projects the immutable shared subscription descriptor index, including
+  private read-your-writes. Empty catalogs return a nonnil empty result.
+  Reads neither populate definitions nor perform publisher connections, slot
+  creation, worker activation or synchronization.
   Shared and index-presence facts describe catalog identity, not fabricated
   native physical indexes.
 - `pg_subscription_rel` (6102, row10114/array10113) is a real database-local

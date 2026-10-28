@@ -173,6 +173,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.EventTriggerProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(catalog.SubscriptionProvider{}); err != nil {
+		return nil, err
+	}
 	if err := e.RegisterCatalogProvider(catalog.TSConfigurationProvider{}); err != nil {
 		return nil, err
 	}
@@ -298,6 +301,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.AlterOwner, *parser.ReassignOwned, *parser.DropOwned:
 		return Description{}, nil
 	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
+		return Description{}, nil
+	case *parser.Subscription:
 		return Description{}, nil
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 		return Description{}, nil

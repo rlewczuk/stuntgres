@@ -90,6 +90,8 @@ func SchemaOwner(auth View, name string, identity bool) (authorization.Principal
 // not bulk roots. operatorSeeded reports the seeded builtin operators.
 func OwnershipRoot(view catalog.Read, d catalog.Descriptor, operatorSeeded func(*catalog.Operator) bool) bool {
 	switch t := d.(type) {
+	case *catalog.Subscription:
+		return true
 	case *catalog.ForeignObject:
 		return t.Address().ClassID != ids.ForeignMappingClassID || t.MappedRole != (authorization.PrincipalRef{})
 	case *catalog.Namespace:

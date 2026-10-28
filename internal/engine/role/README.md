@@ -88,6 +88,11 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   OWNED's eligibility checks, owners and provider expressions, or DROP
   OWNED's removals, over `StageHost`; `OwnedDependentsError` rewords DROP
   OWNED's 2BP01.
+  Shared subscriptions contribute one concrete owner dependency regardless of
+  the observer's database. REASSIGN OWNED rewrites them across databases using
+  ordinary ownership eligibility and shared object locks; DROP OWNED retains
+  them, as it retains other shared objects. Remote publication and connection
+  names are not local role dependencies.
 - **Parameter grant catalog** (`parameters.go`): `ParameterProvider`
   validates parameter ACL identities against the borrowed setting registry;
   `CanonicalGrantParameter` accepts registered and custom dotted names

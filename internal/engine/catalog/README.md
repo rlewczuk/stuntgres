@@ -191,13 +191,18 @@ private frames, not catalog authority.
   `ValidateCatalogViewLocked` check provenance and epoch. The engine holds the
   store by value and never copies it, because every `Read` points at its
   `Owner`.
-- **Database projection** (`database_projection.go`). Every store of a cluster
-  carries the same database descriptors. `RetainDatabasesLocked` keeps the
-  store's own in a replacement state, `ProjectDatabasesLocked` prepares one
-  root per store for a database change as a `DatabaseProjection` that
-  `InstallLocked` publishes, and `DatabaseOIDLocked` reserves a database OID
-  past every store's frontier and roots. The stores come as an iterator, so a
-  publication without a database change allocates nothing.
+- **Shared projection** (`database_projection.go`, `subscription_projection.go`).
+  Every cluster store carries the committed database and subscription descriptors.
+  Subscription names use a database discriminator, never a schema dependency;
+  their publication arrays are descriptor-owned immutable backing. Publication
+  prepares all affected roots, including deletions, before installing any under
+  the shared cluster mutex. Ordinary journals merge only their changes into the
+  latest roots. Replacement retains other databases' subscriptions; attachment
+  inherits current shared definitions. Subscription allocation reserves beyond
+  all cluster frontiers, including transaction-private allocations.
+  State clones retain the persistent subscription read index as well as its
+  descriptors, so unrelated ACL/owned cleanup and peer projections preserve
+  unchanged shared rows; explicit subscription replacement/removal updates both.
 - **Builtin seed** (`seed.go`, `seed_share.go`). `Store.BeginSeedLocked` starts
   the bulk load and `FinishSeedLocked` ends it. In between, OID allocation
   skips the definition-OID walk: compiled builtins use OIDs below the first

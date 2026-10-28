@@ -2,6 +2,8 @@ package rolecmds
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
@@ -47,7 +49,7 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 		}
 	}
 	e.Mu.Unlock()
-	defer e.DiscardCatalogStage(stage)
+	defer func() { e.DiscardCatalogStage(stage) }()
 	// Pin roots/associations and actual policy-deletion survivors in one
 	// canonical order before producing private candidates.
 	var policySources = sources
@@ -63,7 +65,44 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 			return core.Result{}, err
 		}
 	}
+	subscriptionLocked := false
+	for _, address := range roots {
+		if address.ClassID != ids.SubscriptionClassID {
+			continue
+		}
+		ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), address)
+		if err = scope.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+			return core.Result{}, err
+		}
+		subscriptionLocked = true
+	}
 	e.Mu.Lock()
+	if subscriptionLocked {
+		// Object admission may have waited for a peer database's ALTER.
+		// Select current authority before deriving any ownership candidate;
+		// retain the admitted identities rather than retrying the command.
+		fresh, failure := e.AuthorizationLocked(scope.Op)
+		if failure != nil {
+			return fail(failure)
+		}
+		if fresh.Catalog.Epoch() != stage.Base.Epoch() {
+			return fail(ids.ErrCatalogReplaced)
+		}
+		current, failure := role.PlanOwned(fresh.View, stmt, func(address ids.ObjectAddress) string {
+			path, _ := fresh.ReferencePath()
+			return stored.DependencyObject(fresh.Catalog, address, path)
+		})
+		if failure != nil {
+			return fail(failure)
+		}
+		if current.Target != plan.Target || !maps.Equal(current.Sources, sources) || !slices.Equal(current.Roots, roots) {
+			return fail(catalog.Conflict{})
+		}
+		e.DiscardCatalogStage(stage)
+		auth, plan = fresh, current
+		stage = core.OwnershipStage(e, auth, scope.Op)
+		stage.DependencyPath, _ = core.ReferencePath(auth)
+	}
 	err = role.StageOwned(RoleHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, plan)
 	e.Mu.Unlock()
 	if err != nil {

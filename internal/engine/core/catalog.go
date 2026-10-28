@@ -1149,12 +1149,22 @@ func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevis
 // reserved OID, row, version, commit and serializable frontiers publish together.
 // The caller holds replacementMu and mu.
 func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, metadata map[ids.ObjectAddress]*storage.RelationMetadata, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision, nextOID ids.OID) {
+	sharedRoots := e.Catalog.ProjectDatabasesLocked(next, e.Cluster.Catalogs)
 	e.Storage.SetFrontierLocked(nextRow, nextVersion)
 	e.Storage.ReplaceIndexRootsLocked(roots)
 	e.Visibility.AdvanceCommitSeqLocked()
 	next.SetEpoch(e.Catalog.State.Epoch() + 1)
 	e.Catalog.PublishLocked(next)
+	sharedRoots.InstallLocked()
 	e.Catalog.InstallOIDFrontierLocked(nextOID)
+	for _, sub := range e.Catalog.Current().Subscriptions() {
+		if sub.Database == e.Catalog.DatabaseAddress() {
+			for store := range e.Cluster.Catalogs {
+				store.InstallOIDFrontierLocked(max(store.NextOID(), nextOID))
+			}
+			break
+		}
+	}
 	e.Storage.ReplaceRelationsLocked(relations)
 	e.Storage.RelationMetadata = metadata
 	e.DatabaseFrozenXID = 0

@@ -85,6 +85,20 @@ No eligible replay DDL follows activation. Source callback frames and private
 transaction definitions are not captured; replacement remaps global object and
 function references once into the destination authority.
 
+Subscription collection selects only the captured logical database. Complete
+definitions and owner authority are preflighted before writer I/O. Replay sorts
+by final subscription name and reserves all final and slot-origin names before
+allocating deterministic unused staging names. Each non-NULL slot is recreated
+implicitly by disconnected CREATE under its exact spelling, then immediately
+renamed to its staging name; NULL slots are created directly under staging names
+with `slot_name=NONE`. After all creations, a second pass installs final names,
+declared SKIP and desired ENABLE state, then ordinary owner transfer under the
+bootstrap owner group. Repeated origins and cycles between creation/final names
+cannot collide. This preserves uppercase, UTF8 and literal `none` slots without
+explicit slot-option conversion or a restore-only bypass. Replay never reconnects,
+refreshes tables or alters a remote slot. Replacement remints imported object and
+database identity while retaining other databases' committed subscriptions.
+
 - **Collect tables** (`collect*.go`): `dumpCollectors` is an ordered list of
   `{name, matches, collect}`. Temporary-namespace objects are skipped, the first
   matching entry collects a descriptor and an unmatched one fails with

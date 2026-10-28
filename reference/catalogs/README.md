@@ -32,6 +32,18 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Subscription lifecycle scenarios exercise disconnected definitions, options and
+connection syntax, ordered remote publications, metadata-only desired enabled
+state, role dependencies, transactions, real blocked cancellation, shared
+cross-database visibility and native replacement. Renamed implicit-slot control
+scenarios retain uppercase, UTF8 and literal `none` spelling through repeated
+origins, final-name cycles and staging-name collisions, checking every stored
+field and owner/database linkage across canonical rounds and failed replay.
+Select the family with
+`make check RUN='^TestReferenceSubscription'` (add `REFERENCE=1` for PostgreSQL).
+Publisher connections, remote slot changes/removal, workers and synchronization
+are separate external mechanisms, never inferred from stored enabled metadata.
+
 Trigger catalog witnesses use actual relation-owned executable definitions and
 independent direct/prepared metadata, identity, visibility, consumer diagnostics
 and native-control expectations. Native structural trees are opaque across
@@ -148,6 +160,28 @@ PUBLIC column grants, current delegated/inherited authority and complete
 diagnostics on direct, fresh and held prepared routes. Native controls retain
 captured metadata and restore a real sentinel without populating subscriptions. Select the family with
 `make check RUN='^TestReferencePGSubscription'` (add `REFERENCE=1`).
+
+The populated `TestReferenceSubscription` family additionally checks secret-bearing
+conninfo under owner access, explicit column grants and inherited grants, reusing
+the same prepared query across revoke and native Reset/Restore. Ownership commands
+are retained across owner and membership changes; prepared execution also covers
+pre-canceled and pre-expired contexts. Shared-catalog scenarios admit real
+same-name CREATE and cross-database REASSIGN-versus-local-ALTER waits before
+releasing holders, with bounded joins. Native REASSIGN recaptures the definition
+after object-lock admission and preserves the committed ALTER plus new owner.
+PostgreSQL 18.6's owner handler instead waits on the catalog tuple's transaction
+and reports `XX000: tuple concurrently updated`; the scenario checks that full
+diagnostic, committed ALTER and retained original ownership/dependency without
+retrying REASSIGN. This difference follows the released
+[`AlterSubscriptionOwner_internal`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/commands/subscriptioncmds.c)
+and [`simple_heap_update`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/access/heap/heapam.c)
+paths, not an object-lock parity claim. Native-only control phases replace the
+selected database while retaining a live peer subscription, advance that peer
+behind a gated Restore reader, and check all stored fields, reminted local
+identity, retained peer identities and both owner dependencies. Gated owner
+rename/recreation and cancellation reject publication without changing the
+sentinel. Core units separately target the actual prepared-generation final
+cancellation and stale-catalog fences with populated subscriptions.
 Subscription-relation scenarios check the four-column empty schema, database-local
 identity, reciprocal row/array ownership, exact stored owner/PUBLIC privileges
 and current held-statement admission through revoke/grant transitions. Native

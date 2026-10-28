@@ -173,6 +173,7 @@ type State struct {
 	castPairs           map[CastPair]*Cast
 	defaultClasses      util.PersistentMap[defaultClassPair, []ids.OID]
 	eventTriggers       util.PersistentMap[ids.ObjectAddress, *EventTrigger]
+	subscriptions       util.PersistentMap[ids.ObjectAddress, *Subscription]
 	helperOwners        util.PersistentMap[ids.ObjectAddress, *Procedure]
 	temporaryNamespaces util.PersistentMap[ids.ObjectAddress, *Namespace]
 	oidCeiling          ids.OID                                           // See oid_ceiling.go.
@@ -271,6 +272,7 @@ func CloneState(s *State) *State {
 	n.castPairs = s.castPairs
 	n.defaultClasses = s.defaultClasses
 	n.eventTriggers = s.eventTriggers
+	n.subscriptions = s.subscriptions
 	n.helperOwners = s.helperOwners
 	n.temporaryNamespaces = s.temporaryNamespaces
 	n.oidCeiling = s.oidCeiling

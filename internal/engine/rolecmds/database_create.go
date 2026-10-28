@@ -125,6 +125,7 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 		next := catalog.CloneState(runtime.Catalog.State)
 		if runtime == target {
 			e.Catalog.RetainDatabasesLocked(next)
+			e.Catalog.InheritSubscriptionsLocked(next)
 		}
 		next.SetDescriptor(address, database)
 		next.BindName(catalog.DescriptorNameKey(database), address)

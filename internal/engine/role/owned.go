@@ -127,7 +127,7 @@ func PlanOwned(view access.View, stmt parser.Statement, describe func(ids.Object
 	if !reassign {
 		local := roots[:0]
 		for _, a := range roots {
-			if a.ClassID != ids.DatabaseClassID {
+			if a.ClassID != ids.DatabaseClassID && a.ClassID != ids.SubscriptionClassID {
 				local = append(local, a)
 			}
 		}

@@ -52,8 +52,15 @@ func StageOwned(h StageHost, auth ddl.Authority, plan OwnedPlan) error {
 			if err == nil && foreign.Address().ClassID == ids.ForeignServerClassID {
 				h.AddDomainBase(view.Catalog.Get(foreign.Wrapper))
 			}
-		case *catalog.Namespace:
+		case *catalog.Namespace, *catalog.Subscription:
 			err = view.Check(auth, access.Requirement{Object: stage.BaseRef(a), OwnerOnly: true})
+			if sub, ok := d.(*catalog.Subscription); err == nil && ok && !sub.PasswordRequired {
+				actor, failure := view.Roles.Descriptor(view.State.CurrentUser)
+				err = failure
+				if err == nil && !actor.Superuser {
+					err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "password_required=false is superuser-only", Hint: "Subscriptions with the password_required option set to false may only be created or modified by the superuser."}
+				}
+			}
 			if err == nil {
 				err = access.OwnershipSuccessor(view, target)
 			}

@@ -370,6 +370,7 @@ package parser
 %token <tok> FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT
 %token <tok> LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE
 %token <tok> TS_CONFIGURATION TS_TEMPLATE
+%token <tok> SUBSCRIPTION PUBLICATION
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R ANALYZE UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -475,6 +476,9 @@ package parser
 %type <stmt> create_rule alter_rule drop_rule rule_action
 %type <stmt> create_trigger alter_trigger drop_trigger
 %type <stmt> create_event_trigger alter_event_trigger drop_event_trigger
+%type <stmt> subscription
+%type <dictionaryOptions> subscription_options
+%type <identifiers> subscription_publications
 %type <eventFilters> event_filters event_filter_clauses
 %type <eventFilter> event_filter
 %type <names> event_tag_list
@@ -1037,6 +1041,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | create_rule | alter_rule | drop_rule
  | create_trigger | alter_trigger | drop_trigger
  | create_event_trigger | alter_event_trigger | drop_event_trigger
+ | subscription
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
  | notify | listen | unlisten | load
@@ -1156,6 +1161,23 @@ alter_event_trigger: ALTER EVENT TRIGGER name name {
 } ;
 drop_event_trigger: DROP EVENT TRIGGER name drop_mode {$$=&DropEventTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Mode:$5,Pos:$1.pos}}
  | DROP EVENT TRIGGER IF EXISTS name drop_mode {$$=&DropEventTrigger{Name:Identifier{Text:$6.text,Pos:$6.pos},IfExists:true,Mode:$7,Pos:$1.pos}} ;
+subscription_options: /* empty */ {$$=nil}
+ | WITH '(' dictionary_options ')' {$$=$3} ;
+subscription_publications: name {$$=[]Identifier{{Text:$1.text,Pos:$1.pos}}}
+ | subscription_publications ',' name {$$=append($1,Identifier{Text:$3.text,Pos:$3.pos})} ;
+subscription: CREATE SUBSCRIPTION name ROLE_CONNECTION STRING PUBLICATION subscription_publications subscription_options {$$=&Subscription{Action:"create",Name:Identifier{Text:$3.text,Pos:$3.pos},Connection:$5.text,Publications:$7,Options:$8,Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name ROLE_CONNECTION STRING {$$=&Subscription{Action:"connection",Name:Identifier{Text:$3.text,Pos:$3.pos},Connection:$5.text,Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name SET '(' dictionary_options ')' {$$=&Subscription{Action:"options",Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$6,Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name SET PUBLICATION subscription_publications subscription_options {$$=&Subscription{Action:"set",Name:Identifier{Text:$3.text,Pos:$3.pos},Publications:$6,Options:$7,Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name ADD PUBLICATION subscription_publications subscription_options {$$=&Subscription{Action:"add",Name:Identifier{Text:$3.text,Pos:$3.pos},Publications:$6,Options:$7,Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name DROP PUBLICATION subscription_publications subscription_options {$$=&Subscription{Action:"remove",Name:Identifier{Text:$3.text,Pos:$3.pos},Publications:$6,Options:$7,Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name REFRESH PUBLICATION subscription_options {$$=&Subscription{Action:"refresh",Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$6,Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name SKIP '(' dictionary_options ')' {$$=&Subscription{Action:"skip",Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$6,Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name name {if $4.keyword==nil || ($4.text!="enable" && $4.text!="disable") {sqllex.(*lexer).syntax($4);return 1};$$=&Subscription{Action:$4.text,Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name RENAME TO name {$$=&Subscription{Action:"rename",Name:Identifier{Text:$3.text,Pos:$3.pos},Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER SUBSCRIPTION name OWNER TO schema_owner {$$=&Subscription{Action:"owner",Name:Identifier{Text:$3.text,Pos:$3.pos},Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}}
+ | DROP SUBSCRIPTION name drop_mode {$$=&Subscription{Action:"drop",Name:Identifier{Text:$3.text,Pos:$3.pos},Mode:$4,Pos:$1.pos}}
+ | DROP SUBSCRIPTION IF EXISTS name drop_mode {$$=&Subscription{Action:"drop",Name:Identifier{Text:$5.text,Pos:$5.pos},IfExists:true,Mode:$6,Pos:$1.pos}} ;
 rule_head: CREATE RULE name AS ON rule_event TO relation_name {
  sqllex.(*lexer).ruleDefinition=true
  $$=&CreateRule{Name:Identifier{Text:$3.text,Pos:$3.pos},Event:$6.text,Table:$8,Pos:$1.pos}
@@ -3611,6 +3633,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION | TS_TEMPLATE
+ | SUBSCRIPTION | PUBLICATION
  | CONVERSION | STATISTICS
  | RECURSIVE | XML
  | string_word

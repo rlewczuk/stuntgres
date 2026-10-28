@@ -102,6 +102,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"tablespace", isDumpTablespace, collectTablespaceDump},
 	{"language", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Language); return ok }, collectLanguageDump},
 	{"event trigger", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.EventTrigger); return ok }, collectEventTriggerDump},
+	{"subscription", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Subscription); return ok }, collectSubscriptionDump},
 	{"large object", isDumpLargeObject, collectLargeObjectDump},
 	{"access method", isDumpAccessMethod, collectAccessMethodDump},
 	{"operator family", isDumpOperatorFamily, collectOperatorFamilyDump},
@@ -320,16 +321,24 @@ func collectTextSearchDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 	}
 	switch d := d.(type) {
 	case *catalog.TSTemplate:
-		if d.Seeded() { return nil }
+		if d.Seeded() {
+			return nil
+		}
 		c.Templates = append(c.Templates, d)
-		event := dump.Event{OID:d.Address().ObjectID}
+		event := dump.Event{OID: d.Address().ObjectID}
 		c.Graph[event] = nil
 		for _, address := range [3]ids.ObjectAddress{d.Namespace(), d.Init, d.Lexize} {
-			if address == (ids.ObjectAddress{}) { continue }
+			if address == (ids.ObjectAddress{}) {
+				continue
+			}
 			oid, err := predecessor(c.CatalogView, address, d.Address())
-			if err != nil { return err }
-			dependency := dump.Event{OID:oid}
-			if oid != 0 && oid != event.OID && !slices.Contains(c.Graph[event], dependency) { c.Graph[event] = append(c.Graph[event], dependency) }
+			if err != nil {
+				return err
+			}
+			dependency := dump.Event{OID: oid}
+			if oid != 0 && oid != event.OID && !slices.Contains(c.Graph[event], dependency) {
+				c.Graph[event] = append(c.Graph[event], dependency)
+			}
 		}
 	case *catalog.TSDictionary:
 		if d.Seeded() {
@@ -339,8 +348,12 @@ func collectTextSearchDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 		event := dump.Event{OID: d.Address().ObjectID}
 		c.Graph[event] = nil
 		oid, err := predecessor(c.CatalogView, d.Template, d.Address())
-		if err != nil { return err }
-		if oid != 0 { c.Graph[event] = []dump.Event{{OID:oid}} }
+		if err != nil {
+			return err
+		}
+		if oid != 0 {
+			c.Graph[event] = []dump.Event{{OID: oid}}
+		}
 	}
 	return nil
 }

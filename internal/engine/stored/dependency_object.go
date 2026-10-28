@@ -17,6 +17,9 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 	base := target
 	base.SubID = 0
 	if d, ok := read.Find(base); ok {
+		if sub, ok := d.(*catalog.Subscription); ok {
+			return "subscription " + catalog.DependencyIdentifier(sub.Name())
+		}
 		if event, ok := d.(*catalog.EventTrigger); ok {
 			return "event trigger " + catalog.DependencyIdentifier(event.Name())
 		}

@@ -53,6 +53,11 @@ engine.
   retirement protection precedes this writer; grants live on the same transaction
   ticket and restore through ordinary checkpoints. These internal claims project
   blocker XIDs, never fabricated physical object tags.
+  Subscription object and database-discriminated name claims use the same
+  stable cluster domain, so cross-database REASSIGN and local ALTER arbitrate
+  on the actual shared object identity. The core adapter retains its original
+  local reference for post-wait catalog/epoch validation; object lock records
+  expose the shared database-zero tag.
 - **Queues and waits.** `StartAcquire` grants at once or returns the queued
   `Request`, which the caller waits on (`Wait`) after releasing its own
   locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,

@@ -41,6 +41,13 @@ single-statement limit of driver calls) belong to callers.
   never a partial parse.
   Ordinary UNLOGGED table declarations remain distinct from query-derived
   creation; recognizing persistence does not grant query-table capability.
+- Subscription utilities retain every release-18 action in one positioned node,
+  including ordered duplicate options and remote publication declarations.
+  Option interpretation, connection validation, ownership and external effects
+  belong to execution. Quoted keywords remain identifiers.
+  `TestPredefinedUnavailableSyntax` deliberately accepts the subscription role
+  consumer as a structured AST; only remaining unavailable utilities retain
+  generic syntax exclusions.
 - Text-search template utilities retain qualified names and ordered positioned
   callback options, including repeated and bare values. CREATE, identity ALTER
   and list DROP have distinct nodes; callback signatures and privileges belong

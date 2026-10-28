@@ -59,6 +59,7 @@ type Capture struct {
 	OperatorFamilies    []catalog.Descriptor
 	OwnedRoutines       []*catalog.Procedure
 	EventTriggers       []*catalog.EventTrigger
+	Subscriptions       []*catalog.Subscription
 	Dictionaries        []*catalog.TSDictionary
 	Templates           []*catalog.TSTemplate
 	Configurations      []*catalog.TSConfiguration

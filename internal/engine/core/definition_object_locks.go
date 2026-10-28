@@ -10,7 +10,7 @@ import (
 )
 
 func DefinitionObjectClass(class ids.OID) bool {
-	return class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID
+	return class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID
 }
 
 func CompareDefinitionAddress(a, b ids.ObjectAddress) int {

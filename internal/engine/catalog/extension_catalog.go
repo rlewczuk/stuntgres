@@ -159,6 +159,9 @@ func (d *TSDictionary) Name() string { return d.ObjectName }
 func (*TSDictionary) Kind() ids.ObjectKind { return ids.TSDictionaryObject }
 
 func DescriptorNameKey(d Descriptor) ids.NameKey {
+	if sub, ok := d.(*Subscription); ok {
+		return SubscriptionNameKey(sub.Database, sub.Name())
+	}
 	if class, ok := d.(*OperatorClass); ok {
 		return ClassNameKey(class.Namespace(), class.Method, class.Name())
 	}

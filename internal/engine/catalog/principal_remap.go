@@ -47,6 +47,14 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 	remap, seedOwner := m.Principal, m.SeededOwner
 	for addr, d := range state.Descriptors() {
 		switch d := d.(type) {
+		case *Subscription:
+			n := *d
+			var err error
+			n.Owner, err = remap(d.Owner)
+			if err != nil {
+				return err
+			}
+			state.SetDescriptor(addr, &n)
 		case *Database, *AccessMethod, *TSTemplate, *OperatorFamilyOperator, *OperatorFamilySupport, *Cast:
 			// Attachment authority is local. Global access methods, templates,
 			// family members and casts have no principals. Object references

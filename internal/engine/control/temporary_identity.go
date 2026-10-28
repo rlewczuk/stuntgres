@@ -143,7 +143,7 @@ func movableImportedIdentity(next *catalog.State, d catalog.Descriptor) bool {
 		return !catalog.OperatorClassSeeded(t)
 	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		return !catalog.OperatorFamilySeeded(t)
-	case *catalog.EventTrigger, *catalog.Cast, *catalog.Extension, *catalog.ForeignObject:
+	case *catalog.Subscription, *catalog.EventTrigger, *catalog.Cast, *catalog.Extension, *catalog.ForeignObject:
 		return true
 	default:
 		return d.Namespace() != (ids.ObjectAddress{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID

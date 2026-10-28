@@ -293,6 +293,8 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		display = r.Name
 	}
 	switch d := d.(type) {
+	case *catalog.Subscription:
+		display = d.Name()
 	case *catalog.OperatorClass:
 		method, ok := view.AccessMethod(d.Method)
 		if !ok {

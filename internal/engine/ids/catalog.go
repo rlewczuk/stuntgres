@@ -38,6 +38,7 @@ const (
 	PolicyClassID                OID = 3256
 	TriggerClassID               OID = 2620
 	EventTriggerClassID          OID = 3466
+	SubscriptionClassID          OID = 6100
 	ParameterClassID             OID = 6243
 	TablespaceClassID            OID = 1213
 	LanguageClassID              OID = 2612
@@ -100,4 +101,5 @@ const (
 	LanguageObject
 	TSConfigurationObject
 	StatisticsObject
+	SubscriptionObject
 )

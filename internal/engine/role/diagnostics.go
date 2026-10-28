@@ -62,6 +62,9 @@ func DependencyDescription(v access.View, path []ids.ObjectAddress, dep access.R
 	}
 	kind := "schema "
 	switch d.(type) {
+	case *catalog.Subscription:
+		kind = "subscription "
+		name = d.Name()
 	case *catalog.Database:
 		kind = "database "
 	case *catalog.Parameter:

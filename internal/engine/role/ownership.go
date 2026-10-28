@@ -30,6 +30,10 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 		return err
 	}
 	switch old := d.(type) {
+	case *catalog.Subscription:
+		next := *old
+		next.Owner, next.ObjectRevision = target, revision
+		return stage.Replace(&next)
 	case *catalog.Database:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision

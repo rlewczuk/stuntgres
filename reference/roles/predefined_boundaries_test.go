@@ -7,6 +7,8 @@ import (
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 func predefinedMissingFunction(s *fixture.RoleMembershipScenario, q, signature string) {
@@ -27,7 +29,6 @@ func predefinedNativeBoundaries(s *fixture.RoleMembershipScenario) {
 		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "COPY server files are unsupported"}, false, "prepare")
 	}
 	predefinedFailure(s, "COPY t TO PROGRAM 'false'", fixture.Diagnostic{Code: "0A000", Message: "COPY PROGRAM is unsupported"}, false, "prepare")
-	predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"}, false, "prepare")
 	for _, tc := range []struct{ q, signature string }{
 		{"SELECT pg_cancel_backend(2147483647)", "pg_cancel_backend(integer)"},
 		{"SELECT pg_terminate_backend(2147483647)", "pg_terminate_backend(integer)"},
@@ -53,11 +54,12 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		s.Notice("WARNING", "01000", `permission denied to analyze "t", skipping it`)
 		s.ClearNotices()
 		predefinedSelect(s, "SELECT reltuples FROM pg_class WHERE oid='t'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(-1)}})
+		predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "42501", Message: "permission denied to create subscription", Detail: `Only roles with privileges of the "pg_create_subscription" role may create subscriptions.`}, false, "execute")
+		predefinedSubscriptionAbsent(s)
 		if !s.Backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {
 			predefinedFailure(s, "CHECKPOINT", fixture.Diagnostic{Code: "42501", Message: "permission denied to execute CHECKPOINT command", Detail: `Only roles with privileges of the "pg_checkpoint" role may execute this command.`}, false, "execute")
-			predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "42501", Message: "permission denied to create subscription", Detail: `Only roles with privileges of the "pg_create_subscription" role may create subscriptions.`}, false, "execute")
 			for _, tc := range []struct{ q, message, detail string }{
 				{"COPY t FROM '/nonexistent'", "permission denied to COPY from a file", `Only roles with privileges of the "pg_read_server_files" role may COPY from a file.`},
 				{"COPY t TO '/nonexistent'", "permission denied to COPY to a file", `Only roles with privileges of the "pg_write_server_files" role may COPY to a file.`},
@@ -78,9 +80,6 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		for _, role := range []string{"pg_checkpoint", "pg_create_subscription", "pg_read_server_files", "pg_write_server_files", "pg_execute_server_program", "pg_signal_autovacuum_worker", "pg_signal_backend", "pg_use_reserved_connections", "pg_maintain", "pg_monitor"} {
 			s.Exec("GRANT " + role + " TO pdef_actor")
 		}
-		if s.Backend.PG {
-			s.Exec("GRANT CREATE ON DATABASE stuntgres_reference TO pdef_actor")
-		}
 		s.Actor("pdef_actor")
 		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
 		predefinedFailure(s, "SELECT pg_write_file('/nonexistent','x',false)", fixture.Diagnostic{Code: "42883", Message: "function pg_write_file(unknown, unknown, boolean) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
@@ -92,19 +91,12 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 			s.T.Fatalf("pg_maintain ANALYZE notices %#v", *s.Notices)
 		}
 		predefinedSelect(s, "SELECT reltuples FROM pg_class WHERE oid='t'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(1)}})
+		predefinedSubscriptionCapability(s)
 		if !s.Backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {
 			// Safe PG-only local capability consumers, not native WAL/network proof.
 			s.Exec("CHECKPOINT")
-			s.ClearNotices()
-			s.Exec("CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid password=unused' PUBLICATION pub WITH(connect=false,slot_name=NONE)")
-			wantNotice := fixture.Diagnostic{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "subscription was created, but is not connected", Hint: "To initiate replication, you must manually create the replication slot, enable the subscription, and refresh the subscription."}
-			if len(*s.Notices) != 1 || (*s.Notices)[0] != wantNotice {
-				s.T.Fatalf("disabled subscription notices %#v want %#v", *s.Notices, wantNotice)
-			}
-			s.ClearNotices()
-			s.Exec("DROP SUBSCRIPTION pdef_sub")
 			for _, function := range []string{"pg_cancel_backend", "pg_terminate_backend"} {
 				s.ClearNotices()
 				predefinedSelect(s, "SELECT "+function+"(2147483647)", []string{function}, []string{"BOOL"}, [][]any{{false}})
@@ -141,9 +133,57 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 	}, predefinedSubscriptionCleanup)
 }
 
+func predefinedSubscriptionAbsent(s *fixture.RoleMembershipScenario) {
+	s.T.Helper()
+	predefinedSelect(s, "SELECT count(*) FROM pg_subscription WHERE subname='pdef_sub'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
+}
+
+// Role membership authorizes local metadata, but does not grant database CREATE
+// or provide a publisher transport. Reused by the role-purpose and smoke cases.
+func predefinedSubscriptionCapability(s *fixture.RoleMembershipScenario) {
+	s.T.Helper()
+	var database string
+	if err := s.C.QueryRowContext(s.P.Ctx, "SELECT current_database()").Scan(&database); err != nil {
+		s.T.Fatal(err)
+	}
+	create := "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid password=unused' PUBLICATION pub WITH(connect=false,slot_name=NONE)"
+	description := database
+	if !s.Backend.PG {
+		description = pq.QuoteIdentifier(database)
+	}
+	predefinedFailure(s, create, fixture.Diagnostic{Code: "42501", Message: "permission denied for database " + description}, false, "execute")
+	predefinedSubscriptionAbsent(s)
+	s.Actor("")
+	s.Exec("GRANT CREATE ON DATABASE " + pq.QuoteIdentifier(database) + " TO pdef_actor")
+	s.Actor("pdef_actor")
+	if !s.Backend.PG {
+		// Native capability failure is deliberately not a fabricated PG socket
+		// diagnostic. No subscription or sentinel mutation may survive it.
+		predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid password=unused' PUBLICATION pub", fixture.Diagnostic{Code: "0A000", Message: "subscription publisher connections are not available"}, false, "execute")
+		predefinedSubscriptionAbsent(s)
+	}
+	s.ClearNotices()
+	s.Exec(create)
+	wantNotice := fixture.Diagnostic{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "subscription was created, but is not connected", Hint: "To initiate replication, you must manually create the replication slot, enable the subscription, and refresh the subscription."}
+	if len(*s.Notices) != 1 || (*s.Notices)[0] != wantNotice {
+		s.T.Fatalf("disabled subscription notices %#v want %#v", *s.Notices, wantNotice)
+	}
+	metadata := fixture.Select("SELECT subname,subenabled,subslotname,subpublications,r.rolname FROM pg_subscription s JOIN pg_roles r ON r.oid=s.subowner WHERE subname='pdef_sub'", []string{"subname", "subenabled", "subslotname", "subpublications", "rolname"}, []string{"NAME", "BOOL", "NAME", "_TEXT", "NAME"}, [][]any{{"pdef_sub", false, nil, "{pub}", "pdef_actor"}})
+	s.Run(metadata)
+	predefinedFailure(s, create, fixture.Diagnostic{Code: "42710", Message: `subscription "pdef_sub" already exists`}, false, "execute")
+	s.Run(metadata)
+	s.ClearNotices()
+	s.Exec("DROP SUBSCRIPTION pdef_sub")
+	predefinedSubscriptionAbsent(s)
+	s.Actor("")
+	predefinedSelect(s, "SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
+	s.Exec("REVOKE CREATE ON DATABASE " + pq.QuoteIdentifier(database) + " FROM pdef_actor")
+	s.Actor("pdef_actor")
+}
+
 // Register before NewScenario so failure cleanup runs after physical borrowers
-// and schema reset, but before role cleanup. Only this case introduces database
-// CREATE; its disabled, slot-less subscription never has a remote slot to drop.
+// and schema reset, but before role cleanup. Both callers introduce database
+// CREATE; their disabled, slot-less subscription never has a remote slot to drop.
 func predefinedSubscriptionCleanup(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
@@ -219,12 +259,12 @@ func TestReferencePredefinedBoundaryFeatureSmoke(t *testing.T) {
 		} else {
 			predefinedFailure(s, "CHECKPOINT", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
 			predefinedFailure(s, "COPY t TO PROGRAM 'false'", fixture.Diagnostic{Code: "0A000", Message: "COPY PROGRAM is unsupported"}, false, "prepare")
-			predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"}, false, "prepare")
 		}
+		predefinedSubscriptionCapability(s)
 		s.Actor("")
 		s.Exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
 		predefinedSelect(s, "SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
-	})
+	}, predefinedSubscriptionCleanup)
 }
 
 func predefinedCopyDriverBoundary(s *fixture.RoleMembershipScenario, q string) {

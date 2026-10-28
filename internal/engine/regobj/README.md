@@ -144,6 +144,8 @@ import it.
   metadata only as a fallback; qualified endpoint identities and path-sensitive
   descriptions share the canonical type renderer. Casts remain ownerless, with
   no schema/simple name or temporary status.
+  Subscription descriptions use the raw stored name, independently of quoted SQL
+  identity/name fields; address components retain the decoded database-local name.
   `DroppedAddress` (`dropped_identity.go`) shares that renderer and owner lookup,
   capturing a plain immutable `catalog.DroppedObject` before deletion. Its
   nullable schema/simple names are raw identifiers, separate from inquiry

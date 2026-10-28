@@ -42,6 +42,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "CREATE TABLE", Admit: restoreAdmitChecked(admitRestoreCreateTable)},
 	{Name: "ALTER DOMAIN", Admit: control.AdmitStatement[*restoreRun](control.CheckAlterDomain)},
 	{Name: "schema object DDL", Admit: control.AdmitSchemaObject[*restoreRun]},
+	{Name: "subscription metadata", Admit: control.AdmitKind[*restoreRun, *parser.Subscription]},
 	{Name: "operator DDL", Admit: control.AdmitOperator[*restoreRun]},
 	{Name: "CREATE FUNCTION", Admit: control.AdmitKind[*restoreRun, *parser.CreateFunction]},
 	{Name: "CREATE AGGREGATE", Admit: control.AdmitKind[*restoreRun, *parser.CreateAggregate]},

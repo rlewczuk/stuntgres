@@ -114,6 +114,10 @@ production dependency is involved.
   cleanup function. Invoke that function after `NewScenario` starts the oracle
   and before scenario SQL; registered cleanup runs after borrowers close.
   Schema reset alone cannot retire methods.
+- **Subscription cleanup.** Register `SubscriptionReferenceCleanup` before the
+  scenario, then call its returned function for initial cleanup. It disables,
+  disassociates and drops declarations under a separate bounded context after
+  scenario borrowers close, so no remote slot cleanup or worker is left behind.
 - **Lock observation.** `LockWaitBehind(t, ctx, waiter, holder, relation, mode,
   completed...)` requires the exact waiter/holder/relation/mode queue witness. The
   optional completion channel is only for self-timing SQL (return then means
@@ -144,6 +148,11 @@ production dependency is involved.
   Native admission additionally requires the parked manager/worker stack and
   the exact real object row with its granted blocker. Completion before the
   required witness fails; callers still own worker cancellation and joining.
+  `TransactionLockPending` observes PostgreSQL catalog tuple arbitration using
+  an ungranted transactionid ShareLock joined to the exact holder's granted
+  ExclusiveLock and blocker PID. It rejects premature completion and leaves
+  release/cancellation/join ownership with the caller; it does not assume that
+  a catalog owner update acquires a shared-object or name lock.
 - **Active cancellation.** `BinaryConversionActiveCancel` and `SleepActiveCancel`
   cancel only after real admission: natively, the exact provider and fixture worker
   frames in one complete live goroutine stack (creation metadata does not count);

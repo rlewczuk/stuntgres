@@ -89,6 +89,8 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		*parser.AlterDefaultPrivileges, *parser.DropOwned, *parser.AlterIndex, *parser.DropIndex, *parser.Reindex:
 		tag, _, _, _ = ClassifyCommandTag(stmt, TxIdle)
 		return tag, true
+	case *parser.Subscription:
+		return "", false
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger,
 		*parser.CreateLanguage, *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.CreateRole, *parser.AlterRole, *parser.DropRole,
 		*parser.RenameRole, *parser.AlterRoleSettings,

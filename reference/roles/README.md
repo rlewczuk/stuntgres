@@ -115,9 +115,15 @@ authority.
 - A PostgreSQL held statement denied at planning can stay denied after
   BYPASSRLS or inherited-owner grants; native held execution always checks
   current authority. Specify each backend's held outcome independently.
-- The subscription witness uses `connect=false`, `slot_name=NONE` and a harmless
-  conninfo password; its cleanup, registered before the scenario, drops the
-  subscription and revokes database CREATE before role teardown.
+- The subscription role-purpose and boundary smoke witnesses run direct and
+  prepared routes on both backends: missing `pg_create_subscription` and missing
+  database CREATE produce exact execution-time denials without a leaked row.
+  With both privileges, disconnected, slot-less CREATE stores the actor owner,
+  declared publications and disabled state and emits the exact warning; duplicate
+  CREATE leaves that metadata intact. Native connected CREATE instead reports
+  the explicit publisher-connection boundary, never a fabricated socket error.
+  Sentinel rows survive failures. Cleanup registered before each scenario drops
+  the subscription and revokes database CREATE before role teardown.
 - lib/pq reports COPY denial on the outside-transaction prepared route as an
   ordinary driver error, not a SQLSTATE.
 - `ALTER POLICY IF EXISTS ... RENAME` is accepted but does not skip: a missing
@@ -173,6 +179,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Migrated ANALYZE predefined-role consumers:
   `RUN='^TestReferencePredefined(UnavailableCapabilities|Maintain|MaintainFeatureSmoke)$'`
   requires both native mode and `REFERENCE=1`.
+- Migrated subscription predefined-role consumers:
+  `RUN='^TestReferencePredefined(UnavailableCapabilities|BoundaryFeatureSmoke)$'`
+  requires both native mode and `REFERENCE=1`; comprehensive subscription metadata,
+  options, transitions and controls remain owned by `reference/catalogs`.
 - `pg_has_role`, `row_security_active`: `RUN='^TestReferenceAccessRole'`
 - `row_security` setting: `RUN='^TestReferenceRowSecurity'`
 - Policy DDL: `RUN='^TestReferenceRLSPolicy'`

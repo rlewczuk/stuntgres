@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/subscription"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -401,6 +402,10 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 		}
 	case *parser.DropConfiguration:
 		if err = ddl.StageDropConfiguration(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.Subscription:
+		if err = subscription.Stage(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:

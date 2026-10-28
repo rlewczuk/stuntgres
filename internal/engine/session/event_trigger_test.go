@@ -125,6 +125,10 @@ func TestEventTriggerClassification(t *testing.T) {
 	} {
 		check(stmt, "", false)
 	}
+	// Subscriptions are shared objects, excluded from event triggers for every action.
+	for _, action := range []string{"create", "connection", "options", "set", "add", "remove", "refresh", "enable", "disable", "skip", "owner", "rename", "drop"} {
+		check(&parser.Subscription{Action: action}, "", false)
+	}
 	check(&parser.CreateQueryTable{Form: parser.SelectInto}, "SELECT INTO", true)
 	check(&parser.CreateQueryTable{Form: parser.CreateMaterializedView}, "CREATE MATERIALIZED VIEW", true)
 	check(&parser.AlterView{Materialized: true}, "ALTER MATERIALIZED VIEW", true)

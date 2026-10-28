@@ -184,6 +184,12 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		return ids.ObjectAddress{}, sqlError(code, message)
 	}
 	switch class {
+	case ids.SubscriptionClassID:
+		address := view.NameAddress(catalog.SubscriptionNameKey(view.Owner().DatabaseAddress(), names[0]))
+		if address != (ids.ObjectAddress{}) {
+			return address, nil
+		}
+		return missing("42704", fmt.Sprintf(`subscription "%s" does not exist`, names[0]))
 	case ids.AccessMethodClassID:
 		if m, ok := view.LookupAccessMethod(names[0]); ok {
 			return m.Address(), nil
