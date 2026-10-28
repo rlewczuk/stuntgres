@@ -23,6 +23,7 @@ type attributeHistory struct {
 	names   map[attributeSlot]string
 	origins map[attributeSlot]attributeSlot
 	shared  map[attributeSlot][]attributeSlot
+	policyTypes map[string]bool
 }
 
 func (s *dumpScript) prepareAttributeHistory() error {
@@ -166,6 +167,7 @@ func (s *dumpScript) emitLocalAttributeRetirements(w *dumpWriter, r *catalog.Rel
 			continue
 		}
 		qualified := catalog.QuoteIdentifier(s.OriginalCatalog.Get(r.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Name())
+		if err := s.emitRetiredStorage(w, r, number); err != nil { return err }
 		if err := w.emit("ALTER TABLE ONLY " + qualified + " DROP COLUMN " + catalog.QuoteIdentifier(name) + ";\n"); err != nil {
 			return err
 		}
@@ -180,6 +182,9 @@ func emitDumpAttributeRetirement(ctx context.Context, s *dumpScript, w *dumpWrit
 		op := schedule.events[event]
 		model := schedule.models[op.Relation]
 		qualified = catalog.QuoteIdentifier(s.OriginalCatalog.Get(model.Namespace()).Name()) + "." + catalog.QuoteIdentifier(model.Name())
+		for _, participant := range op.Participants {
+			if err := s.emitRetiredStorage(w, schedule.models[participant.Relation], participant.Number); err != nil { return err }
+		}
 		only := "ONLY "
 		if len(op.Participants) > 1 {
 			only = ""
@@ -193,6 +198,10 @@ func emitDumpAttributeRetirement(ctx context.Context, s *dumpScript, w *dumpWrit
 		slot := attributeSlot{r.Address(), number}
 		if len(s.attributeHistory.shared[slot]) == 0 {
 			continue
+		}
+		if err := s.emitRetiredStorage(w, r, number); err != nil { return err }
+		for _, participant := range s.attributeHistory.shared[slot] {
+			if err := s.emitRetiredStorage(w, s.OriginalCatalog.MustRelation(participant.Relation), participant.Number); err != nil { return err }
 		}
 		if err := w.emit("ALTER TABLE " + qualified + " DROP COLUMN " + catalog.QuoteIdentifier(s.attributeHistory.names[slot]) + ";\n"); err != nil {
 			return err

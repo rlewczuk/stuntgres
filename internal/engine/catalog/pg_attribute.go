@@ -17,4 +17,5 @@ type AttributeMetadata struct {
 	NotNull, HasDefault, Dropped, Local bool
 	Inheritance                         int64
 	Identity, Generated                 string
+	Compression                         string
 }

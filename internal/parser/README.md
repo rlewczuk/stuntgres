@@ -128,6 +128,12 @@ single-statement limit of driver calls) belong to callers.
   action lists; execution owns current constraint lookup and authority.
   Rule-mode actions retain a distinct action kind and positioned rule name;
   relation-only IF EXISTS does not add a per-rule existence modifier or wildcard.
+  Column STORAGE/COMPRESSION actions retain a positioned identifier property,
+  including in relation-level IF EXISTS action lists and ONLY targets.
+  DEFAULT is decoded as `default`. Unknown names reach semantic validation,
+  while string literals and trailing input remain syntax errors at the offending
+  token. SET's unreserved action word shifts its continuation before validation,
+  so generation-expression syntax cannot steal malformed property diagnostics.
 - CHECK/FK declarations retain independent negative enforcement/validity flags
   and positioned explicit properties. Column properties retain repetition and
   unattached syntax-only entries for execution-time attachment diagnostics;

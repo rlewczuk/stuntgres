@@ -17,6 +17,8 @@ func AttributeMetadata(relation *catalog.Relation, slot int) catalog.AttributeMe
 	column := relation.Columns[slot]
 	attribute := relation.Attributes[slot]
 	metadata := catalog.AttributeMetadata{Name: column.Name, TypeID: uint32(column.Usage.Type.ID()), Number: attribute, Facts: column.Usage.Type.AttributeFacts(), Typmod: column.Usage.Typmod, Dimensions: column.DeclaredDimensions, Collation: column.Usage.Collation.ID, NotNull: !column.Nullable, Local: true}
+	properties := relation.ColumnStorage(slot)
+	metadata.Facts.Storage, metadata.Compression = properties.Storage, properties.Compression
 	_, metadata.HasDefault = relation.ColumnMeta.Defaults[attribute]
 	if definition, ok := relation.ColumnMeta.Generations[attribute]; ok {
 		metadata.HasDefault = true
@@ -133,6 +135,7 @@ func capturePGAttribute(in Input) ([][]sqltype.Value, error) {
 					}
 					metadata.TypeID, metadata.Facts, metadata.Typmod = storage, typ.AttributeFacts(), -1
 					metadata.Dimensions = 0
+					metadata.Facts.Storage = relation.ColumnStorage(slot).Storage
 				}
 			}
 			if err := appendRow(metadata); err != nil {
@@ -185,7 +188,7 @@ func AttributeRow(owner *catalog.Owner, roles authorization.Read, source, relati
 		}
 	}
 	row := []sqltype.Value{
-		oid(0, uint32(relation.Address().ObjectID)), text(1, metadata.Name), oid(2, metadata.TypeID), integer(3, int64(metadata.Facts.Length)), integer(4, int64(metadata.Number)), integer(5, int64(metadata.Typmod)), integer(6, int64(metadata.Dimensions)), boolean(7, metadata.Facts.ByValue), text(8, metadata.Facts.Alignment), text(9, metadata.Facts.Storage), text(10, ""), boolean(11, metadata.NotNull), boolean(12, metadata.HasDefault), boolean(13, false), text(14, metadata.Identity), text(15, metadata.Generated), boolean(16, metadata.Dropped), boolean(17, metadata.Local), integer(18, metadata.Inheritance), oid(19, metadata.Collation), null(20), acl, null(22), null(23), sqltype.CatalogResultNull(source.Columns[24].Usage),
+		oid(0, uint32(relation.Address().ObjectID)), text(1, metadata.Name), oid(2, metadata.TypeID), integer(3, int64(metadata.Facts.Length)), integer(4, int64(metadata.Number)), integer(5, int64(metadata.Typmod)), integer(6, int64(metadata.Dimensions)), boolean(7, metadata.Facts.ByValue), text(8, metadata.Facts.Alignment), text(9, metadata.Facts.Storage), text(10, metadata.Compression), boolean(11, metadata.NotNull), boolean(12, metadata.HasDefault), boolean(13, false), text(14, metadata.Identity), text(15, metadata.Generated), boolean(16, metadata.Dropped), boolean(17, metadata.Local), integer(18, metadata.Inheritance), oid(19, metadata.Collation), null(20), acl, null(22), null(23), sqltype.CatalogResultNull(source.Columns[24].Usage),
 	}
 	if definition := relation.SQLIndex; definition != nil && metadata.Number > 0 && !metadata.Dropped && int(metadata.Number) <= len(definition.Keys) {
 		if options := definition.Keys[metadata.Number-1].ClassOptions; options.Explicit {

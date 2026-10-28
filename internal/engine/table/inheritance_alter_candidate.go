@@ -21,6 +21,8 @@ func InheritedAlterActions(plan *InheritanceAlterPlan, view, retired catalog.Rea
 	droppedColumns := make(map[string]bool)
 	for _, a := range InheritanceParentActions(state, old) {
 		switch a.Action {
+		case parser.SetStorage:
+			if !state.Only { actions = append(actions, a) }
 		case parser.ValidateConstraint:
 			// NN names resolve at misc, after this child's own ADD phases.
 			actions = append(actions, a)

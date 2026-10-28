@@ -7,6 +7,8 @@ import (
 // Both preparation and consumption use the incumbent physical phase ordering.
 func AlterActionPhase(action parser.AlterTableActionKind) int {
 	switch action {
+	case parser.SetStorage, parser.SetCompression:
+		return 10
 	case parser.SetTablespace:
 		// Root destination preparation consumes unchanged placement before phases.
 		return -1
@@ -41,6 +43,8 @@ func AlterActionPhase(action parser.AlterTableActionKind) int {
 
 func inheritanceActionPass(action parser.AlterTableActionKind) int {
 	switch action {
+	case parser.SetStorage, parser.SetCompression:
+		return 10
 	case parser.DropIdentity, parser.DropNotNull, parser.DropConstraint, parser.DropColumn, parser.DropExpression:
 		return 0
 	case parser.AlterColumnType:

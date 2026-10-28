@@ -109,6 +109,13 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid dropped attribute metadata")
 		}
 	}
+	for number, properties := range r.ColumnMeta.Storage {
+		if r.IndexForAttribute(number) < 0 || properties == (catalog.ColumnStorage{}) ||
+			properties.Storage != "" && properties.Storage != "p" && properties.Storage != "e" && properties.Storage != "x" && properties.Storage != "m" ||
+			properties.Compression != "" && properties.Compression != "p" && properties.Compression != "l" {
+			return fmt.Errorf("stuntgres: invalid column storage metadata")
+		}
+	}
 	for i, c := range r.Columns {
 		offset, exists := r.Index[c.Name]
 		ordered := i == 0 || r.Attributes[i] > r.Attributes[i-1]

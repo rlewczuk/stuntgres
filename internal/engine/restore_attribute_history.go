@@ -89,7 +89,13 @@ func (r *restoreRun) admitAttributeRetirement(op *session.Operation, s *parser.A
 		}
 		column := d.Columns[slot]
 		number := d.Attributes[slot]
-		if column.Usage.Type == nil || column.Usage.Type.ID() != sqltype.Int4 || !column.Nullable || column.Usage != column.Usage.Type.Usage() {
+		// Policy-bearing tombstones use an inert text constructor so ordinary
+		// storage/compression completions can run before retirement. Pairing
+		// still requires the exact fresh qualified placeholder and closure.
+		if column.Usage.Type == nil || !column.Nullable || column.Usage != column.Usage.Type.Usage() {
+			return attributeRestoreBoundary()
+		}
+		if typ := column.Usage.Type.ID(); typ != sqltype.Int4 && typ != sqltype.Text {
 			return attributeRestoreBoundary()
 		}
 		if _, exists := d.ColumnMeta.Defaults[number]; exists {

@@ -74,7 +74,9 @@ func (s *dumpScript) attributeModels(component []*catalog.Relation) ([]*catalog.
 		helper.TableMethod = 2
 		for j, number := range orphaned {
 			n := int32(j + 1)
-			helper.ColumnMeta.Dropped[n] = catalog.AttributeMetadata{Number: n, Dropped: true, Local: true}
+			fact := source.ColumnMeta.Dropped[number]
+			fact.Number, fact.Local, fact.Inheritance = n, true, 0
+			helper.ColumnMeta.Dropped[n] = fact
 			s.attributeHistory.names[attributeSlot{address, n}] = s.attributeHistory.names[attributeSlot{source.Address(), number}]
 		}
 		copySource := *source
@@ -109,7 +111,7 @@ func (s *dumpScript) emitHelperOperation(ctx context.Context, w *dumpWriter, pla
 	case 'x':
 		return w.emit("DROP TABLE " + qualified + ";\n")
 	case 'a':
-		return s.emitBound(w, castConsumer{Event: event}, "ALTER TABLE "+qualified+" ADD COLUMN "+catalog.QuoteIdentifier(s.attributeHistory.names[attributeSlot{op.Relation, op.Number}])+" pg_catalog.int4;\n")
+		return s.emitBound(w, castConsumer{Event: event}, "ALTER TABLE "+qualified+" ADD COLUMN "+catalog.QuoteIdentifier(s.attributeHistory.names[attributeSlot{op.Relation, op.Number}])+" "+s.retiredAttributeType(model, op.Number)+";\n")
 	}
 	return fmt.Errorf("stuntgres: invalid attribute helper operation")
 }

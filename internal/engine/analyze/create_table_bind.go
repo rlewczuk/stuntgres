@@ -135,7 +135,8 @@ func bindCreateTable(host Host, auth Authority, s *parser.CreateTable, b *Bindin
 				return err
 			}
 			offset := len(columns)
-			b.Create.Likes = append(b.Create.Likes, LikeInput{Ref: ref, Source: source, SourceType: sourceType, Offset: offset, Options: TableLikeOptions(like.Options)})
+			options := TableLikeOptions(like.Options)
+			b.Create.Likes = append(b.Create.Likes, LikeInput{Ref: ref, Source: source, SourceType: sourceType, Offset: offset, Options: options})
 			start := len(inherited)
 			for _, constraint := range source.Constraints.NotNull {
 				for i, attribute := range source.Attributes {
@@ -149,9 +150,19 @@ func bindCreateTable(host Host, auth Authority, s *parser.CreateTable, b *Bindin
 			slices.SortFunc(inherited[start:], func(a, b LikeConstraint) int {
 				return strings.Compare(a.Name, b.Name)
 			})
-			for _, c := range source.Columns {
+			for slot, c := range source.Columns {
 				columns = append(columns, catalog.Column{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
-				declarations = append(declarations, ColumnDeclaration{})
+				declaration := ColumnDeclaration{}
+				if options&(LikeStorage|LikeCompression) != 0 {
+					properties := source.ColumnStorage(slot)
+					if options&LikeStorage != 0 {
+						declaration.Storage = properties.Storage
+					}
+					if options&LikeCompression != 0 {
+						declaration.Compression = properties.Compression
+					}
+				}
+				declarations = append(declarations, declaration)
 			}
 		}
 	}

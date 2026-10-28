@@ -128,6 +128,14 @@ private frames, not catalog authority.
   canonical SQL relation kind separately from execution `VirtualView`; bootstrap
   stamps it from the existing catalog-view inventory. Supported subobjects
   retain the same domain, epoch, existence and class validation as whole refs.
+  `ColumnMeta.Storage` is sparse immutable metadata keyed by stable positive
+  attribute number. Empty storage selects the immutable type default; empty
+  compression is the default method. `ColumnStorage` composes effective facts,
+  and `WithColumnStorage` detaches only the descriptor and touched map.
+  Inheritance must compare these effective facts, not sparse entry presence;
+  absent storage is a real type-default contribution, independently of compression.
+  Scalar dropped history retains effective storage and compression without a
+  surviving type dependency.
 - **Payload interfaces.** Engine-defined payloads stay behind `ViewPayload`,
   `RulesPayload`, `TriggersPayload`, `PolicyPayload` and `ExtensionImplementation`, which expose only
   what `analyze`, `pgcatalog` and object-identity code read. Visitors stop at the

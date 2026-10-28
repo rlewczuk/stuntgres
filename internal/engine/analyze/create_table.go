@@ -21,6 +21,10 @@ type ColumnDeclaration struct {
 	Generation       *parser.GenerationDefinition
 	CopiedGeneration bool
 	Serial           bool
+	// Empty means unspecified; selected LIKE storage includes type defaults,
+	// whereas selected default compression remains unspecified.
+	Storage          string
+	Compression      string
 }
 
 type InheritanceInput struct {

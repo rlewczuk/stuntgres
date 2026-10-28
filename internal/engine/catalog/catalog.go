@@ -95,6 +95,7 @@ type ColumnMetadata struct {
 	Defaults          map[int32]ColumnDefault
 	Generations       map[int32]ColumnGeneration
 	Identities        map[int32]ColumnIdentity
+	Storage           map[int32]ColumnStorage
 }
 
 // RelationConstraints holds a relation's table constraints. PhysicalNotNull

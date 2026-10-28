@@ -50,6 +50,8 @@ var dumpSections = [...]dumpSection{
 	{"triggers", emitDumpTriggers},
 	{"foreign defaults", emitDumpForeignDefaults},
 	{"attribute ranks", emitDumpAttributeRanks},
+	{"inherited column storage", emitDumpDeferredColumnStorage},
+	{"index storage", emitDumpIndexStorage},
 	{"object ACLs", emitDumpObjectACLs},
 	{"raw codec completion", emitDumpRawCodecCompletion},
 	{"subscriptions", emitDumpSubscriptions},

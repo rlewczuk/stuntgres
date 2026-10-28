@@ -159,6 +159,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 		return DefaultClassDiagnostic(h, auth, err)
 	}
 	backing := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}, StorageOptions: options}
+	if err := CopyColumnStorage(h.StageRead(), parent, backing); err != nil { return err }
 	for i := range columns {
 		backing.Columns[i].Nullable = true
 		backing.Columns[i].NullabilityKnown = true

@@ -121,6 +121,13 @@ func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *par
 			a := *action.Ordinary
 			var candidate *catalog.Relation
 			switch a.Action {
+			case parser.SetStorage, parser.SetCompression:
+				err = table.AlterTableActionKind(&next, a.Action)
+				if err == nil {
+					e.Mu.Lock()
+					candidate, _, err = table.ColumnStorageCandidate(stage.StageRead(), auth, &next, a)
+					e.Mu.Unlock()
+				}
 			case parser.SetNotNull, parser.DropNotNull, parser.AddNotNull, parser.DropConstraint:
 				candidate, err = table.NotNullCandidate(scope.Op, auth.Catalog, &next, a, table.NotNullDirect)
 			case parser.AddCheck:

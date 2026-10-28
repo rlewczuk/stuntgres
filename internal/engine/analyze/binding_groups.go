@@ -47,6 +47,8 @@ type CreateTableBinding struct {
 	OfType       *catalog.Type
 	Inheritance  []InheritanceInput
 	LocalColumns map[string]bool
+	// InheritedStorage holds final checked parent/local policies by destination name.
+	InheritedStorage map[string]catalog.ColumnStorage
 }
 
 // ViewCapture holds the expression binder's rendering captures, keyed by

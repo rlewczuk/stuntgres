@@ -180,6 +180,10 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 	d.Security.ACL = h.CreationACL(d.Owner, namespace, authorization.DefaultTables)
 	for i := range d.Columns {
 		d.Columns[i].DeclaredDimensions = 0
+		if properties := parent.ColumnMeta.Storage[parent.Attributes[i]]; properties != (catalog.ColumnStorage{}) {
+			if d.ColumnMeta.Storage == nil { d.ColumnMeta.Storage = make(map[int32]catalog.ColumnStorage) }
+			d.ColumnMeta.Storage[d.Attributes[i]] = properties
+		}
 	}
 	if err = h.StageRowType(d); err != nil {
 		return nil, err

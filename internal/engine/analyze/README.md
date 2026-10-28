@@ -15,6 +15,17 @@ Cancellation, deadline, cause, unrelated values and the inert request policy are
 unchanged; only a later known-unlocked runtime owner may activate that policy.
 Pure unlocked execution preflight is not blanket-disabled by package location.
 
+CREATE INHERITS merges effective column policies in declared parent order after
+type/typmod/collation validation. The first actual parent initializes the pair,
+including default-backed sparse storage. Storage must agree; default compression
+does not erase an explicit method, and differing explicit methods conflict.
+LIKE-expanded `ColumnDeclaration` fields retain specified effective STORAGE,
+including type defaults, and only explicit COMPRESSION. Plain declarations and
+excluded fields remain unspecified. These contributions follow slot remaps and
+merge after type/typmod/collation checks, with local-column diagnostics and
+inherited-before-local details. The private Create binding retains the final
+checked pairs; unspecified local fields never reset inherited policies.
+
 `StatisticsConsumer` is a distinct retained-expression context. Prohibited
 subquery/aggregate/grouping/window/set-returning nodes use statistics-specific
 diagnostics through normal recursive binding, including selected-call routes.

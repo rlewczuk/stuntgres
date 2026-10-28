@@ -175,11 +175,14 @@ func StageLikeIndexes(h Host, auth ddl.Authority, destination *catalog.Relation,
 				columns[i].OriginAttribute = int16(i + 1)
 				lookup[columns[i].Name] = i
 			}
-			index := &catalog.Relation{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: source.ColumnMeta.HighWater}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: &definition, StorageOptions: source.StorageOptions}
-			if in.Options&analyze.LikeComments != 0 {
-				index.Comment = source.Comment
+			cloned := &catalog.Relation{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: source.ColumnMeta.HighWater}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: &definition, StorageOptions: source.StorageOptions}
+			if err := index.CopyColumnStorage(h.StageRead(), destination, cloned); err != nil {
+				return err
 			}
-			if err := h.Stage().Create(index); err != nil {
+			if in.Options&analyze.LikeComments != 0 {
+				cloned.Comment = source.Comment
+			}
+			if err := h.Stage().Create(cloned); err != nil {
 				return err
 			}
 		}

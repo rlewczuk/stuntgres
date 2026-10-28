@@ -656,6 +656,7 @@ package parser
 %type <createClass> operator_class_head
 %type <alterClass> operator_class_alter_head
 %type <tok> class_word storage_word
+%type <tok> column_property_value
 %type <familyItem> class_item
 %type <familyItems> class_items
 %type <createCollation> collation_create_head
@@ -2548,7 +2549,7 @@ relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relat
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 /* All ALTER TABLE actions share one target prefix. Reducing alter_target on
  * some paths and rename_target on others steals action lookahead from peers. */
-alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetLogged && a.Action!=SetUnlogged && a.Action!=SetAccessMethod && a.Action!=ClusterOn && a.Action!=SetWithoutCluster && a.Action!=SetWithoutOIDs && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && a.Action!=AlterConstraintEnforcement && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
+alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetLogged && a.Action!=SetUnlogged && a.Action!=SetAccessMethod && a.Action!=ClusterOn && a.Action!=SetWithoutCluster && a.Action!=SetWithoutOIDs && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && a.Action!=AlterConstraintEnforcement && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) && a.Action!=SetStorage && a.Action!=SetCompression {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
  | ALTER TABLE ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$6.text,Pos:$6.pos},Destination:Identifier{Text:$10.text,Pos:$10.pos},Owners:$7,Nowait:$11,Pos:$1.pos} }
  | alter_default_single { $$=$1 }
  | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
@@ -2607,7 +2608,8 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | NO INHERIT relation_name { $$=&AlterTableAction{Action:NoInheritTable,Parent:$3,Pos:$1.pos} }
  | ALTER optional_column name SET NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetNotNull,Pos:$1.pos} }
  | ALTER optional_column name DROP NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropNotNull,Pos:$1.pos} }
- | ALTER optional_column name SET generation_expression_word AS '(' scalar_projection ')' { expression:=$8;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetExpression,Generation:&GenerationDefinition{Expression:expression,Pos:$5.pos},Pos:$1.pos} }
+ | ALTER optional_column name SET KW_U column_property_value {kind:=SetStorage;switch $5.text {case "storage":case "compression":kind=SetCompression;case "expression":sqllex.(*lexer).syntax($6);return 1;default:sqllex.(*lexer).syntax($5);return 1};$$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:kind,Property:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER optional_column name SET KW_U AS '(' scalar_projection ')' { if $5.text!="expression" {sqllex.(*lexer).syntax($5);return 1};expression:=$8;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetExpression,Generation:&GenerationDefinition{Expression:expression,Pos:$5.pos},Pos:$1.pos} }
  | ALTER optional_column name DROP generation_expression_word { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropExpression,Pos:$1.pos} }
  | ALTER optional_column name DROP generation_expression_word IF EXISTS { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropExpression,IfExists:true,Pos:$1.pos} }
  | alter_constraint {$$=$1}
@@ -2646,6 +2648,7 @@ alter_constraint: ADD table_not_null {$$=&AlterTableAction{Column:$2.Column,Cons
  | alter_constraint NO nn_inherit {if !sqllex.(*lexer).alterConstraintNoInherit($1,$2){return 1};$$=$1} ;
 alter_type_keyword: TYPE { $$=$1 }
  | SET DATA TYPE { $$=$1 } ;
+column_property_value: name {$$=$1} | DEFAULT {$$=$1} ;
 column_collation: /* empty */ {$$=nil}
  | COLLATE relation_name {name:=$2;name.Parts[0].Pos=$1.pos;$$=&name} ;
 alter_using: /* empty */ {$$=nil} | USING scalar_projection {$$=$2} ;

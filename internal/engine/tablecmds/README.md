@@ -91,6 +91,13 @@ TEMP preservation, relation admission and publication.
   Successful explicit payload deletions pass their admitted pre-step authority
   and old descriptor to core's event capture, including inherited defaults.
   Query inquiry initialization is not part of ALTER ownership or capture.
+  Column policy actions share the post-FK misc stage, descendant owner checks
+  and final publication fences. Each action changes the first matching simple
+  attribute of every affected index in that same stage, even when the table
+  policy was already equal. Metadata-only changes retain heap and index roots.
+  Restore-only index attribute name/policy repairs use authenticated private
+  catalog publication, preserving immutable column/name lookups and executable
+  index definitions, never general writable system catalogs.
   These are logical row/catalog/transaction guarantees. External server trigger,
   transport and physical-page/WAL/crash-recovery mechanisms remain outside this
   executor; native persistence uses the incumbent logical Dump/Restore controls.

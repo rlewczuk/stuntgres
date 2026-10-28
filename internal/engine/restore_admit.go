@@ -198,6 +198,9 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 	if table.RestoreRuleMode(s) || table.RestoreTriggerMode(s) {
 		return nil // Canonical rule post-data ALTER; normal ownership/staging applies.
 	}
+	if table.ColumnStorageOnly(s.Actions) && len(s.Actions) == 1 && s.Only && !s.IfExists && len(s.Name.Parts) == 2 {
+		return nil
+	}
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.DropColumn {
 		return r.admitAttributeRetirement(op, s)
 	}
@@ -284,6 +287,13 @@ func admitRestoreSessionAuthorization(r *restoreRun, _ *session.Operation, s *pa
 // attribute rank.
 func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.Update) error {
 	var err error
+	if table.RestoreCatalogName(s.Name, "pg_attribute") {
+		for _, assignment := range s.Assignments {
+			if assignment.Target.Text == "attstorage" || assignment.Target.Text == "attcompression" || assignment.Target.Text == "attname" {
+				return tablecmds.RestoreIndexStorage(r.stage, op, s)
+			}
+		}
+	}
 	if _, _, _, ok := largeobject.ACLRepair(s); ok {
 		return restoreLargeObjectACL(r.stage, op, s)
 	}

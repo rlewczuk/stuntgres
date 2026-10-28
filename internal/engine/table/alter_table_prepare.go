@@ -136,6 +136,12 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 			return persistenceCompositeError(original)
 		}
 		return analyze.TableKindError(original, label)
+	case parser.SetStorage, parser.SetCompression:
+		if original.RelationKind == catalog.TableRelation || original.RelationKind == catalog.PartitionedRelation || original.RelationKind == catalog.MaterializedViewRelation || action == parser.SetStorage && original.RelationKind == catalog.ForeignRelation {
+			return nil
+		}
+		label = "ALTER COLUMN ... SET STORAGE"
+		if action == parser.SetCompression { label = "ALTER COLUMN ... SET COMPRESSION" }
 	case parser.InheritTable:
 		return RelationshipChildKind(original, action)
 	case parser.NoInheritTable:

@@ -193,14 +193,22 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   serialized or changed by Restore/Reset; provision destination authority
   independently.
 - Relation replay preserves physical attribute numbers, dropped gaps and the
-  next-column highwater. Inert generated INT4 declarations are paired with
-  ordinary drops; inheritance layouts can use staged CREATE/ADD/DROP statements
+  next-column highwater. Inert generated INT4 or policy-bearing TEXT declarations
+  are paired with ordinary drops; inheritance layouts can use staged CREATE/ADD/DROP statements
   without renumbering surviving columns. Erased inheritance provenance uses
   ordinary generated helper tables that are detached and removed before rows.
   Restore admits only complete fresh-constructor/retirement/teardown pairs and
   publishes no helper objects. Column ACL locators remain exact live names.
   Typed tables and partitions retain ordinary pre-attachment attribute gaps
   through their existing attachment paths, with captured keys, bounds and routing.
+- Column storage/compression policies replay through qualified `ALTER TABLE ONLY`
+  completions. Differing duplicate index attributes and pre-rename index labels
+  use late authenticated `pg_attribute` repairs with the storage/compression
+  literal pair, optionally followed by a literal name, or a single literal name.
+  Each repair selects one live index attribute by qualified regclass/positive
+  attribute number; temporary labels avoid name collisions during SQL replay.
+  These preserve logical metadata, not physical TOAST representation, and grant
+  no ordinary catalog UPDATE access.
 - Custom range declarations include their selected subtype class, collation,
   optional diff and generated multirange name. Restore rebuilds destination-owned
   family descriptors and endpoint values rather than retaining source captures.

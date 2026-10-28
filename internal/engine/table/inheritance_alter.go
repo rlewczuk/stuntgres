@@ -94,6 +94,10 @@ func InheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableActio
 	switch a.Action {
 	case parser.AlterConstraintEnforcement:
 		return false // Ordinary inheritance never propagates foreign keys.
+	case parser.SetStorage:
+		return !only
+	case parser.SetCompression:
+		return false
 	case parser.ValidateConstraint:
 		selected, err := SelectAlterConstraintValidation(root, a.Constraint.Text)
 		return err == nil && selected.Recursive()

@@ -1075,6 +1075,8 @@ const (
 	ClusterOn
 	SetWithoutCluster
 	SetWithoutOIDs
+	SetStorage
+	SetCompression
 )
 
 type TriggerSelector uint8
@@ -1092,6 +1094,7 @@ type AlterTableAction struct {
 	Trigger         Identifier
 	TriggerSelector TriggerSelector
 	Tablespace      Identifier
+	Property        Identifier
 	Method          Identifier
 	ClusterIndex    Identifier
 	MethodDefault   bool

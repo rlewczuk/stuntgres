@@ -104,7 +104,9 @@ func TestProviderReplayUnchangedAndOwnerOnly(t *testing.T) {
 func TestProviderReplayEmissionPrerequisites(t *testing.T) {
 	var out bytes.Buffer
 	ctx := context.Background()
+	source, _, _, _ := fdwUnitSource()
 	s := &dumpScript{Capture: &Capture{
+		CatalogView: source.CatalogView, OriginalCatalog: source.OriginalCatalog,
 		Views:       []OwnedStatement{{"postgres", "CREATE EXTENSION dependency;\n"}, {"postgres", "CREATE EXTENSION dependent;\n"}},
 		ViewIndices: map[ids.OID]int{10: 0, 20: 1},
 	}, eventOrder: []dump.Event{{OID: 10}, {OID: 20}, {OID: 30}},
@@ -152,8 +154,9 @@ func TestProviderReplayInstalledTypeOrdering(t *testing.T) {
 			ctx := context.Background()
 			var out bytes.Buffer
 			alter := "ALTER FUNCTION isbn_src.isn_out(" + argument + ") RENAME TO moved_output;\n"
+			source, _, _, _ := fdwUnitSource()
 			s := &dumpScript{Capture: &Capture{
-				CatalogView: catalog.NewRead(nil, catalog.NewState(1)),
+				CatalogView: source.CatalogView, OriginalCatalog: source.OriginalCatalog,
 				Views:       []OwnedStatement{{"postgres", "CREATE EXTENSION isn SCHEMA isbn_src;\n"}},
 				ViewIndices: map[ids.OID]int{10: 0},
 			}, eventOrder: []dump.Event{{OID: 10}},
@@ -436,7 +439,7 @@ func TestProviderReplayConstructorDeclarationBoundary(t *testing.T) {
 	source, _, _, _ := fdwUnitSource()
 	p := replayProvider("public", "custom_range", "public", "custom_range")
 	p.cost, p.parallel, p.readyAfter = 9, 'r', 99000
-	s := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles, Providers: []providerReplay{p}},
+	s := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, OriginalCatalog: source.OriginalCatalog, DomainRoles: source.DomainRoles, Providers: []providerReplay{p}},
 		declarations: map[ids.OID]dump.Statement{99000: {Owner: "postgres", SQL: "CREATE TYPE public.custom_range AS RANGE (subtype=integer);\n"}},
 		eventOrder:   []dump.Event{{OID: 99000}},
 	}

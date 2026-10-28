@@ -91,6 +91,7 @@ func (s *dumpScript) sourceAttributeShape(r *catalog.Relation) bool {
 
 func (s *dumpScript) prepareAttributeSchedules(ctx context.Context) error {
 	s.attributeSchedules = make(map[ids.ObjectAddress]*attributeSchedule)
+	s.deferredColumnStorage = make(map[ids.ObjectAddress]bool)
 	byAddress := make(map[ids.ObjectAddress]*catalog.Relation, len(s.Tables))
 	var ordered []*catalog.Relation
 	for i := range s.Tables {
@@ -126,6 +127,13 @@ func (s *dumpScript) prepareAttributeSchedules(ctx context.Context) error {
 			}
 			for _, child := range catalog.InheritanceChildren(s.OriginalCatalog, address) {
 				queue = append(queue, child.Address())
+			}
+		}
+		// Even source-shaped ordinary hierarchies need neutral constructor
+		// policies: final ONLY changes may have made their parents incompatible.
+		if len(component) > 1 {
+			for _, r := range component {
+				s.deferredColumnStorage[r.Address()] = true
 			}
 		}
 		staged := false
@@ -281,7 +289,7 @@ func (s *dumpScript) stagedTableCreateSQL(ctx context.Context, t *table.DumpRela
 				return "", err
 			}
 		} else {
-			line.WriteString(catalog.QuoteIdentifier(s.attributeHistory.names[attributeSlot{t.Descriptor.Address(), number}]) + " pg_catalog.int4")
+			line.WriteString(catalog.QuoteIdentifier(s.attributeHistory.names[attributeSlot{t.Descriptor.Address(), number}]) + " " + s.retiredAttributeType(t.Descriptor, number))
 		}
 	}
 	line.WriteString(")")
@@ -317,7 +325,7 @@ func emitDumpAttributeConstruction(ctx context.Context, s *dumpScript, w *dumpWr
 			return err
 		}
 	} else {
-		line.WriteString(catalog.QuoteIdentifier(s.attributeHistory.names[attributeSlot{op.Relation, op.Number}]) + " pg_catalog.int4")
+		line.WriteString(catalog.QuoteIdentifier(s.attributeHistory.names[attributeSlot{op.Relation, op.Number}]) + " " + s.retiredAttributeType(t.Descriptor, op.Number))
 	}
 	line.WriteString(";\n")
 	return s.emitBound(w, castConsumer{Event: event}, line.String())

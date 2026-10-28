@@ -103,6 +103,33 @@ disabled, then the saved enabled states are installed after every declaration.
 No eligible replay DDL follows activation. Source callback frames and private
 transaction definitions are not captured; replacement remaps global object and
 function references once into the destination authority.
+Column policies replay as qualified `ALTER TABLE ONLY` completions. Ordinary
+inheritance components retain type-default storage/default compression throughout
+the constructor stream, even for source-shaped layouts that need no shape
+schedule. Their live saved pairs complete under authenticated DEFAULT authority
+after all constructor/retirement events and before late index repairs and event
+trigger activation. Retired policies instead remain after their last constructor
+consumer and before their own DROP. Other relation completions are unchanged.
+For deferred components, late index repairs restore every saved attribute pair,
+including defaults: final table ONLY actions can themselves change first simple
+index attributes. Other indexes compare saved pairs with
+`index.ConstructorColumnStorage`, including substituted key types, expression
+defaults and INCLUDE copies, rather than with heap policies. Divergent duplicate
+attributes and retained pre-rename labels use deterministic late `pg_attribute`
+repairs under authenticated DEFAULT authority. Restore admits only
+the literal storage/compression pair with optional trailing literal name, or a
+single literal name, using a qualified regclass/positive attnum locator on a live
+index attribute. Collision-excluded temporary labels precede final names so SQL
+replay also handles name swaps. Ordinary catalog UPDATE stays read-only.
+Late index repairs exclude temporary-namespace objects using the collection
+eligibility rule. Qualified property completions retain ordinary relation
+ownership checks while using the isolated importer's definition-lookup authority.
+Retired policy-bearing attributes use paired inert `pg_catalog.text` placeholders
+with ordinary storage/compression completions before retirement; other inert
+placeholders use `pg_catalog.int4`. Both retain exact fresh-constructor identity,
+physical-slot/inheritance checks and owner authorization, and cannot retire after
+data or final ACL consumption.
+
 
 Subscription collection selects only the captured logical database. Complete
 definitions and owner authority are preflighted before writer I/O. Replay sorts

@@ -123,6 +123,21 @@ call live here.
   Structural mode composition uses matching positions directly and builds
   invocation-local identity positions only when surviving entries have shifted;
   it does not repeatedly search entire source lists.
+  Column storage/compression candidates resolve the completed shape in misc,
+  using type-default storage for toastability, never width or current policy.
+  Type rejection uses the catalog's canonical diagnostic naming with the
+  statement reference path, including visible or schema-qualified domain names.
+  STORAGE recurses unless ONLY; COMPRESSION stays root-only. TYPE clears both;
+  inheritance consumes analysis's checked parent/local policy merge, while
+  partition constructors copy effective values. Selected LIKE storage is
+  specified even at its type default; default compression is unspecified and
+  preserves inherited explicit methods. CREATE materializes the checked pair
+  once onto its private relation's normalized stable-attribute map, before row
+  types or index constructors. StageInheritance and StageLikeColumns retain
+  provenance and other recipes, not competing policy writers. LIKE indexes use
+  the common constructor against final destination columns and staged providers,
+  never source index overrides.
+  These are logical catalog policies, not tuple rewrites.
 - **NOT NULL, CHECK, DEFAULT and generated columns** (`not_null_*.go`,
   `physical_not_null*.go`, `check*.go`, `default*.go`, `generated*.go`,
   `row_constraints.go`): `NotNullCandidate`, the physical NOT NULL transitions,

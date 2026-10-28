@@ -59,6 +59,7 @@ type dumpScript struct {
 	typeACLStatements                         map[ids.OID][]string
 	attributeHistory                          *attributeHistory
 	attributeSchedules                        map[ids.ObjectAddress]*attributeSchedule
+	deferredColumnStorage                     map[ids.ObjectAddress]bool
 }
 
 // buildDumpScript renders the captured groups and statements and orders

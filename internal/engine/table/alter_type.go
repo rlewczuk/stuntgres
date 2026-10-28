@@ -2,6 +2,7 @@ package table
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"stuntgres/internal/engine/analyze"
@@ -218,6 +219,13 @@ func AlterTypeCandidate(h AlterHost, auth ddl.Authority, original, next *catalog
 	attribute := original.Attributes[source]
 	transformation := prepared.Transformation
 	dimensions := prepared.DeclaredDimensions
+	// TYPE resets both independent policy fields even for an unchanged codec.
+	if _, exists := next.ColumnMeta.Storage[attribute]; exists {
+		copy := *next
+		copy.ColumnMeta.Storage = maps.Clone(next.ColumnMeta.Storage)
+		delete(copy.ColumnMeta.Storage, attribute)
+		next = &copy
+	}
 	if usage == current && next.Columns[slot].DeclaredDimensions == dimensions {
 		return next, transformation, nil
 	}

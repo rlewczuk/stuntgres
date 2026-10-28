@@ -39,7 +39,11 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 		}
 	}
 	if declaration, exists := s.declarations[oid]; exists {
-		return emitDumpStatement(s, w, oid, declaration)
+		if err := emitDumpStatement(s, w, oid, declaration); err != nil { return err }
+		if r, ok := s.OriginalCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); ok && r.RelationKind == catalog.ForeignRelation {
+			return emitRelationColumnStorage(s, w, r)
+		}
+		return nil
 	}
 	if position, isIndex := s.IndexIndices[oid]; isIndex {
 		return emitDumpIndex(s, w, oid, s.Indexes[position])
@@ -59,6 +63,9 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 		}
 		if scopedMethod {
 			if err := w.emit("SET default_table_access_method = 'heap';\n"); err != nil { return err }
+		}
+		if r, ok := s.OriginalCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); ok && r.RelationKind == catalog.MaterializedViewRelation {
+			if err := emitRelationColumnStorage(s, w, r); err != nil { return err }
 		}
 		if oid == s.extensionTypeAfter && s.extensionTypeSQL != "" {
 			if err := w.setOwner("postgres"); err != nil {
@@ -236,6 +243,7 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 
 func emitTableCompletion(ctx context.Context, s *dumpScript, w *dumpWriter, t table.DumpRelation, attachAfterCreate bool) error {
 	qualified := catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name)
+	if err := emitRelationColumnStorage(s, w, t.Descriptor); err != nil { return err }
 	if err := w.emit(dumpRelationOptionsSQL(qualified, t.Descriptor.StorageOptions)); err != nil {
 		return err
 	}
@@ -390,7 +398,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelatio
 					line.WriteString(", ")
 				}
 				localElements++
-				line.WriteString(catalog.QuoteIdentifier(name) + " pg_catalog.int4")
+				line.WriteString(catalog.QuoteIdentifier(name) + " " + s.retiredAttributeType(t.Descriptor, nextAttribute))
 			}
 		}
 		for i := range t.Columns {

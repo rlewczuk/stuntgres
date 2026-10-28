@@ -24,6 +24,7 @@ func describeInheritance(host Host, auth Authority, syntax *parser.CreateTable, 
 	}
 	var merged []catalog.Column
 	b.Create.LocalColumns = localNames
+	b.Create.InheritedStorage = make(map[string]catalog.ColumnStorage)
 	index := make(map[string]int)
 	seen := make(map[ids.ObjectAddress]bool)
 	generated := make(map[string]bool)
@@ -75,6 +76,11 @@ func describeInheritance(host Host, auth Authority, syntax *parser.CreateTable, 
 				if err := InheritanceColumnConflict(auth.ReadCatalog(), merged[slot], c, false); err != nil {
 					return nil, nil, nil, err
 				}
+				properties, err := MergeInheritedColumnStorage(c.Name, b.Create.InheritedStorage[c.Name], source.ColumnStorage(sourceSlot))
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				b.Create.InheritedStorage[c.Name] = properties
 				if generated[c.Name] != isGenerated {
 					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`inherited column "%s" has a generation conflict`, c.Name))
 				}
@@ -83,6 +89,7 @@ func describeInheritance(host Host, auth Authority, syntax *parser.CreateTable, 
 				}
 			} else {
 				index[c.Name] = len(merged)
+				b.Create.InheritedStorage[c.Name] = source.ColumnStorage(sourceSlot)
 				generated[c.Name] = isGenerated
 				kinds[c.Name] = definition.Kind
 				c.Nullable = true
@@ -108,6 +115,12 @@ func describeInheritance(host Host, auth Authority, syntax *parser.CreateTable, 
 			if err := InheritanceColumnConflict(auth.ReadCatalog(), merged[slot], c, true); err != nil {
 				return nil, nil, nil, err
 			}
+			local := catalog.ColumnStorage{Storage: declarations[i].Storage, Compression: declarations[i].Compression}
+			properties, err := MergeLocalColumnStorage(c.Name, b.Create.InheritedStorage[c.Name], local)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			b.Create.InheritedStorage[c.Name] = properties
 		} else {
 			slot = len(merged)
 			index[c.Name] = slot

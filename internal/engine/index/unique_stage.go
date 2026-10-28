@@ -178,6 +178,7 @@ func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.
 				idx.Attributes[j] = int32(j + 1)
 			}
 		}
+		if err := CopyColumnStorage(h.StageRead(), d, idx); err != nil { return err }
 		idx.Index = make(map[string]int, len(idx.Columns))
 		for j := range idx.Columns {
 			column := &idx.Columns[j]

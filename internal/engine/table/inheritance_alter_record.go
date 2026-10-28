@@ -16,6 +16,10 @@ func (plan *InheritanceAlterPlan) RecordAction(before, after *catalog.Relation, 
 	}
 	events := state.Events[before.Address()]
 	switch a.Action {
+	case parser.SetStorage:
+		if !state.Only {
+			events = append(events, InheritanceAlterEvent{Action: a, Attribute: after.Attributes[after.Index[a.Column.Text]]})
+		}
 	case parser.ValidateConstraint:
 		selected, err := SelectAlterConstraintValidation(before, a.Constraint.Text)
 		if err == nil && !state.Only && (selected.Recursive() || state.Descendant) {

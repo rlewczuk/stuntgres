@@ -95,6 +95,9 @@ func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.
 		if table.RelationshipOnly(s.Actions) {
 			return nil // Detach rejects actual partitions at its misc action.
 		}
+		if table.ColumnStorageOnly(s.Actions) {
+			return nil
+		}
 		if access.RowSecurityActions(s.Actions) || table.TablespaceOnlyActions(s.Actions) || table.RelationOptionsOnly(s.Actions) {
 			return nil
 		}

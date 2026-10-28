@@ -84,7 +84,7 @@ func inertAttributePlaceholder(column *parser.Column) bool {
 		return false
 	}
 	t := column.TypeName
-	return t.Name == "int4" && t.Schema != nil && t.Schema.Text == "pg_catalog" && len(t.Modifiers) == 0 && len(t.ArrayBounds) == 0 && !t.Setof
+	return (t.Name == "int4" || t.Name == "text") && t.Schema != nil && t.Schema.Text == "pg_catalog" && len(t.Modifiers) == 0 && len(t.ArrayBounds) == 0 && !t.Setof
 }
 func generatedAttributeDrop(s *parser.AlterTable) bool {
 	if s == nil || s.IfExists || len(s.Name.Parts) != 2 || len(s.Actions) != 1 {

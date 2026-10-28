@@ -174,6 +174,10 @@ func evolveIndexRevision(view catalog.Read, index, oldParent, parent *catalog.Re
 		slot := slices.Index(parent.Attributes, attribute)
 		clone.Columns[len(definition.Keys)+i].Usage = parent.Columns[slot].Usage
 	}
+	if reconstruct {
+		clone.ColumnMeta.Storage = nil
+		if err := CopyColumnStorage(view, parent, &clone); err != nil { return nil, err }
+	}
 	clone.ObjectRevision++
 	if clone.Revision() == 0 {
 		if !terminal {

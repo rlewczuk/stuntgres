@@ -96,6 +96,14 @@
   Collection is deterministic logical-population technical statistics, not
   PostgreSQL physical sampling/TOAST-width emulation or planner consumption.
 
+- Implement transactional column STORAGE and COMPRESSION metadata, type-based
+  validation, recursive storage and root-only compression. Preserve stable
+  attribute history, simple-index policies and native logical replay. Merge
+  selected local LIKE storage/compression with inherited policies before
+  construction, preserving explicit compression across unspecified defaults
+  and rejecting conflicting declarations, without claiming physical TOAST or
+  compression work.
+
 - Register the eight other planner options with exact typed session semantics.
   Apply admitted targets to ANALYZE, constraint eligibility to branch refutation,
   cursor fractions to eligible startup/total scan choices and recursive factors

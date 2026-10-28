@@ -88,6 +88,14 @@ builds a binder.
   Key reconstruction resolves the destination type's default within the declared
   method and rejects an absent default before replacing the captured class;
   it never publishes a zero class for a later provider to interpret.
+  Constructors (including LIKE) and TYPE reconstruction use the allocation-free
+  `ConstructorColumnStorage` leaf, also used by Dump to predict recreation.
+  Every simple key/INCLUDE occurrence copies both destination column policies;
+  expressions start with result-type defaults. Only an actual different opclass
+  key type resets both policies to that type's default storage and empty compression;
+  an explicit same-type key preserves the copied pair.
+  Later ALTER policy changes intentionally update only the first simple match,
+  without rebuilding executable roots.
 - **Catalog publication captures** (`publication_stores.go`,
   `overlay_capture.go`): `CandidatesMatch` (the concurrent root-candidate
   fence of catalog publication and of overlay capture; the caller picks each

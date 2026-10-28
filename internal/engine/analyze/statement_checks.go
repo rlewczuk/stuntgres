@@ -157,6 +157,7 @@ func InheritanceColumnConflict(view catalog.Read, old, next catalog.Column, loca
 }
 
 func TableKindError(d *catalog.Relation, operation string) error {
+	columnPolicy := operation == "ALTER COLUMN ... SET STORAGE" || operation == "ALTER COLUMN ... SET COMPRESSION"
 	if d.RelationKind == catalog.TableRelation || d.RelationKind == catalog.PartitionedRelation {
 		return nil
 	}
@@ -165,12 +166,15 @@ func TableKindError(d *catalog.Relation, operation string) error {
 		return nil
 	}
 	if d.RelationKind == catalog.CompositeRelation && !triggerMode {
+		if columnPolicy {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for composite types."}
+		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for composite types."}
 	}
 	if d.RelationKind == catalog.MaterializedViewRelation && operation == "change" {
 		return sqlError("42809", fmt.Sprintf(`cannot change materialized view "%s"`, d.Name()))
 	}
-	if operation == "ADD COLUMN" || operation == "ENABLE RULE" || operation == "DISABLE RULE" || operation == "ENABLE REPLICA RULE" || operation == "ENABLE ALWAYS RULE" || triggerMode {
+	if columnPolicy || operation == "ADD COLUMN" || operation == "ENABLE RULE" || operation == "DISABLE RULE" || operation == "ENABLE REPLICA RULE" || operation == "ENABLE ALWAYS RULE" || triggerMode {
 		kind := ""
 		switch d.RelationKind {
 		case catalog.ViewRelation:
@@ -183,6 +187,10 @@ func TableKindError(d *catalog.Relation, operation string) error {
 			kind = "sequences"
 		case catalog.CompositeRelation:
 			kind = "composite types"
+		case catalog.ForeignRelation:
+			if columnPolicy {
+				kind = "foreign tables"
+			}
 		}
 		if kind != "" {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for " + kind + "."}
