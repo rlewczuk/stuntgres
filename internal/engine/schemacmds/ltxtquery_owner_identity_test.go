@@ -18,7 +18,7 @@ func ltxtqueryRenamedOwner(t *testing.T) {
  metadata,err:=extension.OwnerMetadata(view,e.RoleStore.PublishedRead(&e.Catalog.Owner,view),ext);if err!=nil {t.Fatal(err)}
  record,found,err:=extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata,"-- ")))
  if err!=nil || !found || len(record.Members)!=extension.LtreeMemberCount {t.Fatal("renamed owner recipe",err)}
- if extension.LtreeHierarchyMemberEnd!=64 || extension.LtreeComparisonProcedureStart!=41 || extension.LtreeHierarchyProcedureStart!=60 || extension.LtreePathProcedureStart!=extension.LtreeHierarchyMemberEnd || extension.LtreePathMemberEnd!=extension.LtreePathOperatorStart+3 || extension.LtreeLqueryProcedureStart!=extension.LtreePathMemberEnd || extension.LtreeLqueryOperatorStart!=extension.LtreeLqueryProcedureStart+2 || extension.LtreeMemberCount!=extension.LtreeLqueryOperatorStart+2 {
+ if extension.LtreeHierarchyMemberEnd!=64 || extension.LtreeComparisonProcedureStart!=41 || extension.LtreeHierarchyProcedureStart!=60 || extension.LtreePathProcedureStart!=extension.LtreeHierarchyMemberEnd || extension.LtreePathMemberEnd!=extension.LtreePathOperatorStart+3 || extension.LtreeLqueryProcedureStart!=extension.LtreePathMemberEnd || extension.LtreeLqueryOperatorStart!=extension.LtreeLqueryProcedureStart+2 || extension.LtreeLqueryMemberEnd!=90 || extension.LtreeLtxtqueryProcedureStart!=extension.LtreeLqueryMemberEnd || extension.LtreeLtxtqueryOperatorStart!=92 || extension.LtreeMemberCount!=94 {
   t.Fatal("ltree provider member bounds",extension.LtreeMemberCount,extension.LtreeHierarchyMemberEnd,extension.LtreeComparisonProcedureStart)
  }
  if record.Members[8].Signature!="ltxtquery" {t.Fatal("output signature lost canonical role",record.Members[8])}

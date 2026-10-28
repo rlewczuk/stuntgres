@@ -115,10 +115,11 @@ func (p *LtreeProvider) Stage(stage Stage, ext *catalog.Extension, owner authori
 		}
 		if err := stage.Create(op); err != nil { return err }
 	}
-	if err := p.stageComparisons(stage, ext, owner, types[1][0]); err != nil { return err }
+ if err := p.stageComparisons(stage, ext, owner, types[1][0]); err != nil { return err }
  if err := p.stageHierarchy(stage, ext, owner, types[1][0]); err != nil { return err }
  if err := p.stagePaths(stage, ext, owner, resolve); err != nil { return err }
- return p.stageLquery(stage, ext, owner, types[1][0], types[0][0])
+ if err := p.stageLquery(stage, ext, owner, types[1][0], types[0][0]); err != nil { return err }
+ return p.stageLtxtquery(stage, ext, owner, types[1][0], types[2][0])
 }
 
 func ltreeTypeContext(name string) string {

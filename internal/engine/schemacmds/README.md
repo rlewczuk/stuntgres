@@ -181,6 +181,8 @@ Scalar hierarchy and positional-match manifest authority and atomic member
 conflicts use `RUN='^TestLtree(Hierarchy|Lquery)Provider'`.
 Path manifest, original SQL-name/C-symbol identity and atomic staged conflicts
 use `RUN='^TestLtreePathProvider'`.
+Mixed scalar label-query manifest/owner authority and late conflicts use
+`RUN='^TestLtreeLtxtqueryProvider'`.
 
 Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing),

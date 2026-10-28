@@ -26,6 +26,10 @@
   immutable operands through prepared execution, stored expressions and native controls,
   including authenticated individual concatenation-operator relocation and replay.
 
+- Add scalar ltree `@` label-query matching in both operand orders and the
+  `ltxtq_exec`/`ltxtq_rexec` backers, retaining selected mixed-type identities
+  through prepared execution, stored expressions and native replacement.
+
 - Add installed ltree standard comparisons with typed label ordering, grouping
   and B-tree/hash keys, preserving captured comparison identities and immutable
   operands through prepared execution and native catalog replacement. Stored

@@ -335,6 +335,10 @@ inclusive ancestor/descendant BOOL calls, without retaining execution authority.
 retaining exact ltree/lquery formals and the original selected declaration.
 Reconstruction, capture, grouping and qualified replay preserve the selected
 member and original declaration rather than dispatching by operator spelling.
+`LtreeLtxtquery` retains independently selected mixed ltree/ltxtquery formals
+in source order, with the same strict preflight and declaration admission.
+Capture, retagging and qualified replay preserve each formal's exact generation
+and transport cast; matching scratch remains invocation-local in sqltype.
 Shared strict NULL preflight and routine admission use current caller authority;
 these nodes do not cache ACLs. Typed evaluation belongs to sqltype, not function spelling.
  `LtreePath` applies that contract to the selected path utilities. Inline eight-slot

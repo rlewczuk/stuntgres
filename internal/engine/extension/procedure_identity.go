@@ -224,6 +224,14 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
    name = LtreeLqueryProcedureSymbol(sqltype.LtreeLqueryOperation(index))
    signature = catalog.ProcedureSignature(fmt.Sprintf("%d,%d", left.ID(), right.ID()))
    result = 16
+  } else if slot >= LtreeLtxtqueryProcedureStart && slot < LtreeLtxtqueryOperatorStart {
+   base, ok := v.Type(ext.Members[3]); if !ok || !base.SQLType.IsLtree() || base.Extension != ext.Address() { return invalid() }
+   query, ok := v.Type(ext.Members[6]); if !ok || !query.SQLType.IsLtxtquery() || query.Extension != ext.Address() { return invalid() }
+   if ValidateProviderHeader(v, base, ids.TypeClassID) != nil || ValidateProviderHeader(v, query, ids.TypeClassID) != nil { return invalid() }
+   index := slot-LtreeLtxtqueryProcedureStart
+   left, right := base.SQLType, query.SQLType; if index == 1 { left, right = right, left }
+   name = LtreeLtxtqueryProcedureSymbol(sqltype.LtreeLtxtqueryOperation(index))
+   signature, result = catalog.ProcedureSignature(fmt.Sprintf("%d,%d", left.ID(), right.ID())), 16
   } else if slot >= LtreeHierarchyProcedureStart && slot < LtreeHierarchyOperatorStart {
 			base, ok := v.Type(ext.Members[3]); if !ok || !base.SQLType.IsLtree() || base.Extension != ext.Address() { return invalid() }
 			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }

@@ -1652,6 +1652,8 @@ Scalar hierarchy and positional-match accepted definition/fold backing and
 rejected-publication fences use `RUN='^TestLtree(Hierarchy|Lquery)Prepared'`.
 Path accepted-definition ownership uses `RUN='^TestLtreePathPrepared'`, retaining
 every scalar-LCA occurrence and exact installed fold backing through rejection.
+Mixed scalar label-query definition/fold ownership uses
+`RUN='^TestLtreeLtxtqueryPrepared'`.
 
 Trigger-mode candidate, staged cancellation, prepared publication, clone/FK and
 replay ownership units share `RUN='^TestTriggerMode'`, also with `RACE=1`.

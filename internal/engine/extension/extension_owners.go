@@ -486,6 +486,7 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
    if slot == LtreeLqueryProcedureStart { return "ltree,lquery", true }
    return "lquery,ltree", true
   }
+  if slot >= LtreeLtxtqueryProcedureStart && slot < LtreeLtxtqueryOperatorStart { recipe := ltreeLtxtqueryRecipes[slot-LtreeLtxtqueryProcedureStart]; return recipe.left+","+recipe.right, true }
 		if slot >= LtreeHierarchyProcedureStart && slot < LtreeHierarchyOperatorStart { return "ltree,ltree", true }
 		if slot >= LtreeComparisonProcedureStart && slot < LtreeComparisonOperatorStart {
 			switch slot-LtreeComparisonProcedureStart {
@@ -564,10 +565,11 @@ func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 	case "ltree":
   if slot >= LtreeHierarchyOperatorStart && slot < LtreeHierarchyMemberEnd { return ltreeHierarchyOperators[slot-LtreeHierarchyOperatorStart], "ltree,ltree", true }
   if slot >= LtreePathOperatorStart && slot < LtreePathMemberEnd { return "||", ltreePathRecipes[int(sqltype.LtreeConcat)+slot-LtreePathOperatorStart].signature, true }
-  if slot >= LtreeLqueryOperatorStart && slot < LtreeMemberCount {
+  if slot >= LtreeLqueryOperatorStart && slot < LtreeLqueryMemberEnd {
    if slot == LtreeLqueryOperatorStart { return "~", "ltree,lquery", true }
    return "~", "lquery,ltree", true
   }
+  if slot >= LtreeLtxtqueryOperatorStart && slot < LtreeMemberCount { recipe := ltreeLtxtqueryRecipes[slot-LtreeLtxtqueryOperatorStart]; return recipe.operator, recipe.left+","+recipe.right, true }
 		if slot >= LtreeComparisonOperatorStart && slot < LtreeBtreeFamilySlot { return ltreeComparisonOperators[slot-LtreeComparisonOperatorStart],"ltree,ltree",true }
 		if slot >= LtreeArrayOperatorStart && slot < LtreeComparisonProcedureStart {
 			recipe := ltreeArrayRecipes[slot-LtreeArrayOperatorStart]

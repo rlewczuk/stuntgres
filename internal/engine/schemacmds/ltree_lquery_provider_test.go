@@ -10,7 +10,7 @@ import (
 func TestLtreeLqueryProvider(t *testing.T){
  e,ext,_:=ltreeUnitInstalled(t)
  view:=e.CatalogRead()
- if len(ext.Members)!=90||extension.LtreeLqueryProcedureStart!=86||extension.LtreeLqueryOperatorStart!=88||extension.LtreePathMemberEnd!=86||extension.LtreeHierarchyMemberEnd!=64{t.Fatal("appended roles moved earlier members")}
+ if len(ext.Members)!=94||extension.LtreeLqueryProcedureStart!=86||extension.LtreeLqueryOperatorStart!=88||extension.LtreeLqueryMemberEnd!=90||extension.LtreePathMemberEnd!=86||extension.LtreeHierarchyMemberEnd!=64{t.Fatal("appended roles moved earlier members")}
  if err:=extension.StockLtree.ValidateExtension(view,ext);err!=nil{t.Fatal(err)}
  for i,name:=range []string{"ltq_regex","ltq_rregex"}{
   proc:=view.MustProcedure(ext.Members[extension.LtreeLqueryProcedureStart+i])

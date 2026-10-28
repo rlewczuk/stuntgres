@@ -13,7 +13,7 @@ import (
 const (
  LtreeLqueryProcedureStart = LtreePathMemberEnd
  LtreeLqueryOperatorStart = LtreeLqueryProcedureStart + int(sqltype.LtreeLqueryOperationCount)
- LtreeMemberCount = LtreeLqueryOperatorStart + int(sqltype.LtreeLqueryOperationCount)
+ LtreeLqueryMemberEnd = LtreeLqueryOperatorStart + int(sqltype.LtreeLqueryOperationCount)
 )
 
 var ltreeLqueryNames = [...]string{"ltq_regex", "ltq_rregex"}

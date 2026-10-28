@@ -162,6 +162,14 @@ these are shared across families:
   then the same held UPDATE recovers with exactly two independently expected
   changes. Typed-parameter rejection remains a separate input-boundary assertion.
   Their reusable selector is `RUN='^TestReferenceLtreeLquery'`.
+- Scalar label-query fixtures retain mixed formal roles through Boolean matching,
+  diagnostics, prepared reuse, presentation changes and native replacement.
+  Presentation witnesses check public view definitions and independently expected
+  first-dump cast chains before and after two native replacement cycles, then
+  replay the actual emitted SQL on PostgreSQL. Row-dependent TEXT conversion
+  failures and domain NOT NULL diagnostics distinguish retained conversions and
+  domain checks from result-only equality; successful reuse restores the seed.
+  The reusable selector is `RUN='^TestReferenceLtreeLtxtquery'`.
 
 Client quirks:
 

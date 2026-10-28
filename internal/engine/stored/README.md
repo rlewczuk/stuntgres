@@ -92,10 +92,11 @@ Captured-source validation precedes authorized remapping; current destination
 manifest/signature/array associations are checked before retagging or rendering.
 Replay casts both operands to genuine destination formals. No matching scratch or
 caller authority is retained.
-Scalar hierarchy calls use `LtreeHierarchy` with the same original/current
-declaration authentication, exact operand generations and destination-owned BOOL
-result. Both qualified operators and genuine backing calls survive authorized
-transport; mutable names and equal numeric OIDs never authorize remapping.
+Scalar hierarchy calls (`LtreeHierarchy`) and mixed scalar label-query calls
+(`LtreeLtxtquery`) use the same original/current declaration authentication,
+independently exact operand generations and destination-owned BOOL result.
+Both qualified operators and genuine backing calls survive authorized transport;
+mutable names and equal numeric OIDs never authorize remapping.
 Unchanged-generation retagging rejects captures newer than the current routine
 revision, while historical presentation/ACL revisions remain valid. Authorized
 cross-generation import preserves source revisions independently.
@@ -111,6 +112,9 @@ Frozen lquery literals own their qualified typed annotation, like ltree and arra
 datums. Query replay elides only a source leaf cast with the exact captured Usage;
 outer casts, domains and conversions remain intact. Formal operand annotations
 and source capture provenance are retained independently of this presentation.
+Captured non-domain ltxtquery literals own their typed leaf annotation during
+replay. Reuse only an exact matching leaf usage; preserve outer casts, domain
+checks, typmods and real conversions so repeated transport remains deterministic.
   Ltree comparisons use the existing scalar/row, distinctness, membership,
   NULLIF and simple-CASE carriers. They retain both operand generations, selected
   immutable routine, operation and catalog-domain/epoch reference. Transport
@@ -879,6 +883,7 @@ Scalar hierarchy and positional-match source/destination authority and immutable
 graph ownership use `RUN='^TestLtree(Hierarchy|Lquery)Stored'`.
 Bounded path expression/capture and source/destination ownership use
 `RUN='^TestLtreePath'`, including repeated operands and rejected remap publication.
+Mixed scalar label-query ownership uses `RUN='^TestLtreeLtxtqueryStored'`.
 
 Package units cover the payload API, rule presentation, routine recipes and aggregate recipes.
 `TestViewPartsRoundTrip` and `TestRulePartsRoundTrip` require every `View`,

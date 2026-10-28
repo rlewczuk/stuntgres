@@ -278,6 +278,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   BOOL results in either orientation before NULL propagation. It shares the
   indexed whole-path matcher with arrays, with invocation-local scratch,
   periodic cancellation and no text conversion or array wrapping.
+  `LtreeLtxtqueryOperation` pairs exact mixed ltree/ltxtquery formals in either
+  orientation and validates non-NULL carriers before typed BOOL NULL propagation.
+  It reuses the immutable postfix payload and invocation-local Boolean matcher,
+  without reparsing, copying labels or retaining execution scratch.
 - Ltree and lquery use ordinary concrete companion arrays, including supported
   domain elements. `LtreeArrayOperation` checks exact formal generations and
   implements the selected installed predicates/extractors. Whole NULL arguments

@@ -105,8 +105,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   header, exact signature and backing declaration before placement admission.
   Comparison and hierarchy roles keep their existing placement requirements.
   Scalar lquery backers occupy slots 86–87 and reciprocal `~` operators occupy
-  88–89, producing ninety direct members. These strict immutable C BOOL roles
+  88–89, preserving the ninety-member prefix. These strict immutable C BOOL roles
   retain `contsel`/`contjoinsel`, with no negator, hash or merge support.
+  Mixed scalar `ltxtq_exec` and `ltxtq_rexec` append at 90–91, with reciprocal
+  `@` operators at 92–93; their symbolic signatures are `ltree,ltxtquery` and
+  `ltxtquery,ltree`. They use the genuine `matchingsel`/`matchingjoinsel` identities.
+  Staging, validation and owner import require the complete 94-member graph,
+  preserving all prior roles and both installed scalar descriptor authorities.
   Required strategy/support members have exact INTERNAL class ownership;
   optional hash support2 has AUTO family/routine dependencies. Symbolic owner
   signatures include exact B-tree/hash class and family method roles; encoding,

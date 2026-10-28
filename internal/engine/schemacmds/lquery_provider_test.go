@@ -111,13 +111,19 @@ func TestLqueryProviderIdentity(t *testing.T) {
 			if member.Kind!="operator_class"||member.Name!="hash_ltree_ops"||member.Signature!="hash"{t.Fatal("hash class owner role",member)}
 		default:
 			switch{
+   case member.Slot>=extension.LtreeLtxtqueryProcedureStart&&member.Slot<extension.LtreeLtxtqueryOperatorStart:
+    index:=member.Slot-extension.LtreeLtxtqueryProcedureStart
+    if member.Kind!="procedure"||member.Name!=[]string{"ltxtq_exec","ltxtq_rexec"}[index]||member.Signature!=[]string{"ltree,ltxtquery","ltxtquery,ltree"}[index]{t.Fatal("mixed procedure owner role",member)}
+   case member.Slot>=extension.LtreeLtxtqueryOperatorStart&&member.Slot<extension.LtreeMemberCount:
+    index:=member.Slot-extension.LtreeLtxtqueryOperatorStart
+    if member.Kind!="operator"||member.Name!="@"||member.Signature!=[]string{"ltree,ltxtquery","ltxtquery,ltree"}[index]{t.Fatal("mixed operator owner role",member)}
 			case member.Slot>=extension.LtreeHierarchyProcedureStart&&member.Slot<extension.LtreeHierarchyOperatorStart:
 				name:=[]string{"ltree_isparent","ltree_risparent"}[member.Slot-extension.LtreeHierarchyProcedureStart]
 				if member.Kind!="procedure"||member.Name!=name||member.Signature!="ltree,ltree"{t.Fatal("hierarchy procedure owner role",member)}
 			case member.Slot>=extension.LtreeLqueryProcedureStart&&member.Slot<extension.LtreeLqueryOperatorStart:
 				i:=member.Slot-extension.LtreeLqueryProcedureStart
 				if member.Kind!="procedure"||member.Name!=[]string{"ltq_regex","ltq_rregex"}[i]||member.Signature!=[]string{"ltree,lquery","lquery,ltree"}[i]{t.Fatal("scalar query procedure owner role",member)}
-			case member.Slot>=extension.LtreeLqueryOperatorStart&&member.Slot<extension.LtreeMemberCount:
+			case member.Slot>=extension.LtreeLqueryOperatorStart&&member.Slot<extension.LtreeLqueryMemberEnd:
 				i:=member.Slot-extension.LtreeLqueryOperatorStart
 				if member.Kind!="operator"||member.Name!="~"||member.Signature!=[]string{"ltree,lquery","lquery,ltree"}[i]{t.Fatal("scalar query operator owner role",member)}
 			case member.Slot>=extension.LtreeHierarchyOperatorStart&&member.Slot<extension.LtreeHierarchyMemberEnd:

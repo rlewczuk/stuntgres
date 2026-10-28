@@ -10,7 +10,7 @@ import (
 func TestLtreeHierarchyProvider(t *testing.T){
  e,ext,_:=ltreeUnitInstalled(t)
  view:=e.CatalogRead()
- if len(ext.Members)!=extension.LtreeMemberCount||extension.LtreeHierarchyProcedureStart!=60||extension.LtreeHierarchyOperatorStart!=62||extension.LtreeHierarchyMemberEnd!=64{t.Fatal("appended roles moved earlier members")}
+ if len(ext.Members)!=94||extension.LtreeHierarchyProcedureStart!=60||extension.LtreeHierarchyOperatorStart!=62||extension.LtreeHierarchyMemberEnd!=64{t.Fatal("appended roles moved earlier members")}
  if err:=extension.StockLtree.ValidateExtension(view,ext);err!=nil{t.Fatal(err)}
  for i,name:=range []string{"ltree_isparent","ltree_risparent"}{
   proc:=view.MustProcedure(ext.Members[extension.LtreeHierarchyProcedureStart+i])

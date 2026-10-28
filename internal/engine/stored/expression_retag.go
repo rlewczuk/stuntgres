@@ -152,6 +152,9 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			if call, isLtree := node.(functions.LtreeArray); isLtree {
 				if failure := remapLtreeArrayRoutine(view, reader, captured, current, call, retainedType); failure != nil { return nil, false, failure }
 			}
+   if call, isLtree := node.(functions.LtreeLtxtquery); isLtree {
+    if failure := remapLtreeLtxtqueryRoutine(view, reader, captured, current, call, retainedType); failure != nil { return nil, false, failure }
+   }
 			if call, isLtree := node.(functions.LtreeHierarchy); isLtree {
 				if failure := remapLtreeHierarchyRoutine(view, reader, captured, current, call, retainedType); failure != nil { return nil, false, failure }
 			}
