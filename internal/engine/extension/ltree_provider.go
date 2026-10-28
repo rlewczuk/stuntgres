@@ -18,7 +18,6 @@ func (p *LtreeProvider) Versions() catalog.ExtensionVersions {
 
 var StockLtree = &LtreeProvider{control: catalog.ExtensionControl{Version: "1.3", Trusted: true, Superuser: true, Relocatable: true, Comment: new("data type for hierarchical tree-like structures")}}
 
-const LtreeMemberCount = 9
 
 // Each scalar owns a fixed type/input/output triple. Keep the existing slots stable.
 var ltreeRecipes = [...]struct {
@@ -50,13 +49,20 @@ func (p *LtreeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension
 		if !ok || !recipe.accept(base.SQLType) || base.Address() != ext.Members[slot] || base.Extension != ext.Address() || base.ObjectRevision == 0 || base.Array == 0 { return invalid() }
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return err }
 		array, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
-		if !ok || array.SQLType == nil || !array.SQLType.IsArray() || array.SQLType.Concrete() || array.SQLType.Element() != base.SQLType || array.Namespace() != base.Namespace() || array.Owner != base.Owner || array.Extension != (ids.ObjectAddress{}) { return invalid() }
+		if !ok || array.SQLType == nil || !array.SQLType.IsArray() || array.SQLType.Concrete() != (slot != 6) || array.SQLType.Element() != base.SQLType || array.Namespace() != base.Namespace() || array.Owner != base.Owner || array.Extension != (ids.ObjectAddress{}) { return invalid() }
 		if err := validateRegisteredType(v, array); err != nil { return err }
 		for _, address := range ext.Members[slot+1:slot+3] {
 			proc, ok := v.Procedure(address)
 			if !ok { return invalid() }
 			if _, err := ProcedureSymbol(v, proc); err != nil { return err }
 		}
+	}
+	for index := range ltreeArrayRecipes {
+		if ext.Members[LtreeArrayProcedureStart+index].ClassID != ids.ProcedureClassID || ext.Members[LtreeArrayOperatorStart+index].ClassID != ids.OperatorClassID { return invalid() }
+		proc, ok := v.Procedure(ext.Members[LtreeArrayProcedureStart+index])
+		if !ok { return invalid() }
+		if _, err := ProcedureSymbol(v, proc); err != nil { return err }
+		if err := validateLtreeArrayOperator(v, ext, index); err != nil { return err }
 	}
 	return nil
 }

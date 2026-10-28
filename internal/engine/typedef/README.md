@@ -20,8 +20,9 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
 
 - **Array storage admission** (`types.go`): `StoredArrayElement` validates concrete
   containers and storage-specific exclusions, then reuses sqltype's scalar array
-  element policy. Internal CHAR and TID scalars and arrays share ordinary
-  declaration, storage and replay paths.
+  element policy, including the concrete dynamic ltree/lquery families and their
+  supported domain elements. Internal CHAR and TID scalars and arrays share
+  ordinary declaration, storage and replay paths.
 
 - **Stage handlers** (`collation_ddl.go`, `conversion_ddl.go`, `domain*.go`,
   `enum.go`, `range*.go`, `composite.go`, `typed_type_drop.go`): CREATE/ALTER/DROP COLLATION

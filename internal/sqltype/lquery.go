@@ -19,7 +19,11 @@ func Lquery(id ID, name, declaration string) (*Descriptor, error) {
 
 func (d *Descriptor) IsLquery() bool { return d != nil && d.lquery }
 
-type lqueryPayload struct { text string }
+type lqueryPayload struct {
+	text string
+	levels []lqueryLevel
+	alternatives []labelPattern
+}
 
 func lqueryError(code, message, detail string) error {
 	return sqlstate.SoftInputError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail})
@@ -117,14 +121,19 @@ func (d *Descriptor) lqueryInput(ctx context.Context, text string) (Value, error
 	if len(text) == 0 { return Value{}, lqueryEnd() }
 	var out strings.Builder
 	oversized := false
+	index := make([]lqueryLevel, 0, levels)
+	alternatives := make([]labelPattern, 0, levels)
 	for pos := 0; pos < len(text); {
 		if err := ctx.Err(); err != nil { return Value{}, err }
 		if pos != 0 { out.WriteByte('.') }
 		wildcard := text[pos] == '*'
+		level := lqueryLevel{low: 1, high: 1, first: len(alternatives), wildcard: wildcard}
+		if wildcard { level.low, level.high = 0, 65535 }
 		if wildcard {
 			out.WriteByte('*'); pos++
 		} else {
 			negated := text[pos] == '!'
+			level.negated = negated
 			if negated { out.WriteByte('!'); pos++ }
 			variants, size := 0, 16
 			for {
@@ -160,6 +169,8 @@ func (d *Descriptor) lqueryInput(ctx context.Context, text string) (Value, error
 					return Value{}, lqueryError("42622", "label string is too long", fmt.Sprintf("Label length is %d, must be at most 1000, at character %d.", end-start, end+1))
 				}
 				size += (8 + end-start + 7) &^ 7
+				offset := out.Len()
+				alternatives = append(alternatives, labelPattern{start: offset, end: offset + end-start, flags: flags})
 				out.WriteString(text[start:end])
 				if flags&1 != 0 { out.WriteByte('%') }
 				if flags&2 != 0 { out.WriteByte('@') }
@@ -173,17 +184,20 @@ func (d *Descriptor) lqueryInput(ctx context.Context, text string) (Value, error
 			low, high, err := lqueryQuantifier(ctx, text, &pos)
 			if err != nil { return Value{}, err }
 			lqueryWriteCount(&out, low, high, wildcard)
+			level.low, level.high = int(low), int(high)
 		}
+		level.end = len(alternatives)
+		index = append(index, level)
 		if pos == len(text) { break }
 		if text[pos] != '.' { return Value{}, lquerySyntax(pos+1) }
 		pos++
 		if pos == len(text) { return Value{}, lqueryEnd() }
 	}
 	if oversized { return Value{}, lqueryError("54000", "lquery level is too large", "Total size of level exceeds the maximum allowed (65535 bytes).") }
-	return Value{typ: d, lquery: &lqueryPayload{text: out.String()}}, nil
+	return Value{typ: d, lquery: &lqueryPayload{text: out.String(), levels: index, alternatives: alternatives}}, nil
 }
 
-func (v Value) validLquery() bool { return v.lquery != nil && v.lquery.text != "" }
+func (v Value) validLquery() bool { return v.lquery != nil && v.lquery.text != "" && len(v.lquery.levels) != 0 }
 
 func (d *Descriptor) lqueryOutput(ctx context.Context, v Value) (string, error) {
 	if err := ctx.Err(); err != nil { return "", err }

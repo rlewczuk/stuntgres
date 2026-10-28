@@ -119,7 +119,7 @@ func StageCreateDomainLocked(h StageHost, auth ddl.Authority, s *parser.CreateDo
 	}
 	arrayName := h.AssociatedArrayName(ns.Address, name)
 	var array *sqltype.Descriptor
-	if !typ.Concrete() || typ.BaseType().IsHstore() || typ.BaseType().IsEan13() || typ.BaseType().IsIsbn() || typ.BaseType().IsIsbn13() || typ.BaseType().IsIsmn() || typ.BaseType().IsIsmn13() || typ.BaseType().IsIssn() || typ.BaseType().IsIssn13() || typ.BaseType().IsUpc() || typ.BaseType().IsCube() || typ.BaseType().IsSeg() || typ.BaseType().IsQueryInt() || (typ.BaseType().IsLquery() || typ.BaseType().IsLtree() || typ.BaseType().IsLtxtquery()) || typ.BaseType().IsCitext() || sqltype.IsNetwork(typ.BaseType().ID()) || sqltype.IsOperatorAlias(typ.BaseType().ID()) {
+	if !typ.Concrete() || typ.BaseType().IsHstore() || typ.BaseType().IsEan13() || typ.BaseType().IsIsbn() || typ.BaseType().IsIsbn13() || typ.BaseType().IsIsmn() || typ.BaseType().IsIsmn13() || typ.BaseType().IsIssn() || typ.BaseType().IsIssn13() || typ.BaseType().IsUpc() || typ.BaseType().IsCube() || typ.BaseType().IsSeg() || typ.BaseType().IsQueryInt() || typ.BaseType().IsLtxtquery() || typ.BaseType().IsCitext() || sqltype.IsNetwork(typ.BaseType().ID()) || sqltype.IsOperatorAlias(typ.BaseType().ID()) {
 		array = sqltype.LookupArray(sqltype.ID(arrayOID), arrayName, typ)
 	} else {
 		array, err = sqltype.Array(sqltype.ID(arrayOID), arrayName, typ)

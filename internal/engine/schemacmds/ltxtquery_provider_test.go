@@ -25,7 +25,7 @@ func TestLtxtqueryProviderIdentity(t *testing.T) {
 	e,_,ext,_:=lqueryProviderInstalled(t,false)
 	view:=e.CatalogRead()
 	base:=view.MustType(ext.Members[6])
-	if len(ext.Members)!=9 || !base.SQLType.IsLtxtquery() || base.Owner!=ext.Owner { t.Fatal("ltxtquery manifest") }
+	if len(ext.Members)!=extension.LtreeMemberCount || !base.SQLType.IsLtxtquery() || base.Owner!=ext.Owner { t.Fatal("ltxtquery manifest") }
 	if err:=(stored.TypeProvider{}).Validate(view,base); err!=nil { t.Fatal(err) }
 	array,ok:=view.LookupArray(base.SQLType)
 	if !ok || array.Concrete() || array.Element()!=base.SQLType || array.ID()!=base.Array { t.Fatal("companion array") }

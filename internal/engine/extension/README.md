@@ -74,15 +74,21 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   roles. Its reciprocal array is lookup-only, not an extension member. Staging,
   validation, symbolic owner signatures and import use the shared installation
   authority; mutable labels never grant codec execution.
-- **Ltree members** (`ltree_provider.go`, `ltree_stage.go`): the current 1.3
-  manifest owns lquery, ltree and ltxtquery, each with a strict immutable C text input/output
-  pair. Fixed type/input/output triples preserve existing slots; all are staged
-  and validated before publication. Ltxtquery uses the released ltxtq_in/ltxtq_out symbols. Each reciprocal associated array is internally
-  dependent and lookup-only. Symbolic roles and owner signatures, not mutable names,
-  authorize import remapping; scalar storage metadata uses extended storage.
-  Lquery retains slots 0/1/2 and ltree 3/4/5; ltxtquery appends 6/7/8.
-  The nine represented members are scalar/I/O roles, not an inventory of every
-  object in the PostgreSQL extension.
+- **Ltree members** (`ltree_provider.go`, `ltree_stage.go`, `ltree_arrays.go`):
+  the current 1.3 manifest preserves lquery, ltree and ltxtquery type/input/output
+  triples at slots 0–8. Fourteen strict immutable C array routines at 9–22 and
+  their operators at 23–36 are staged and validated atomically. Staging resolves
+  signatures against the privately constructed scalar/companion descriptors;
+  the stage's read view still describes the pre-install catalog. The twelve
+  predicates have reciprocal commutators and `matchingsel`/`matchingjoinsel`
+  metadata, as set by the upstream 1.1-to-1.2 upgrade and retained in 1.3. The two
+  extractors return installation-owned ltree or NULL. Ltree/lquery companions are
+  concrete and internally dependent, not direct extension members; ltxtquery's
+  companion stays lookup-only. Routine-name discovery is only a selector hint:
+  current catalog declarations, symbolic scalar/array roles and exact signatures,
+  never mutable labels or equal OIDs, authorize invocation and owner import.
+  Scalar storage metadata uses extended storage. This bounded manifest is not an
+  inventory of every object in the upstream extension.
 - **Dictionary definitions** (`dictionary_*.go`): ordinary schema-CREATE and
   owner authority, independent of extension installation privileges. Preparation
   captures template/options and compilation runs outside the catalog mutex;

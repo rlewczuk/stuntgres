@@ -124,10 +124,7 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if SegProviderOf(selected) != nil && symbol == "seg_out" {
 					signature = "seg"
 				}
-				if LtreeProviderOf(selected) != nil && member.Slot%3 == 2 {
-					signature = ltreeRecipes[member.Slot/3].name
-				}
-				if HstoreProviderOf(selected) != nil || CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil || IsnProviderOf(selected) != nil {
+				if LtreeProviderOf(selected) != nil || HstoreProviderOf(selected) != nil || CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil || IsnProviderOf(selected) != nil {
 					var valid bool
 					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
 					if !valid {
@@ -135,6 +132,13 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 					}
 				}
 			case *catalog.Operator:
+				if record.Name == "ltree" {
+					if err := StockLtree.ValidateExtension(candidateView, ext); err != nil { return false, err }
+					_, portable, valid := ownerOperatorIdentity(record.Name, member.Slot)
+					if !valid { return false, fmt.Errorf("stuntgres: invalid ltree ownership slot") }
+					kind, signature = "operator", portable
+					break
+				}
 				if record.Name == "hstore" {
 					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
 					_, portable, valid := ownerOperatorIdentity(record.Name, member.Slot)

@@ -99,6 +99,9 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			if err := StockCitext.ValidateProcedure(v, proc); err != nil {
 				return err
 			}
+		case LtreeProviderOf(proc) == StockLtree:
+			if v.Get(d.Address()) != d { return invalid() }
+			if err := StockLtree.ValidateProcedure(v, proc); err != nil { return err }
 		case CubeProviderOf(proc) == StockCube:
 			if err := StockCube.ValidateProcedure(v, proc); err != nil {
 				return err

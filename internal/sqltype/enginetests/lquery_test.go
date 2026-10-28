@@ -106,7 +106,14 @@ func TestLqueryIdentity(t *testing.T) {
 	if sqltype.SameDatum(v,other) { t.Fatal("distinct canonical bytes compare equal") }
 	if same, err := v.SamePayload(ctx,other); err != nil || same { t.Fatal("distinct payload",same,err) }
 	if equal, order := sqltype.ComparisonCapabilities(d); equal || order { t.Fatal("storage granted SQL comparison") }
-	if _, err := sqltype.Array(65002,"_lquery",d); err == nil { t.Fatal("storage granted executable array") }
+	array, err := sqltype.Array(65002,"_lquery",d)
+	if err != nil || !array.Concrete() || array.Element() != d { t.Fatal("concrete exact companion",err) }
+	value, err := array.Input(ctx,`{foo*@%,NULL,*}`,-1)
+	if err != nil || value.ArrayLen() != 3 || !value.ArrayElement(1).IsNull() { t.Fatal("array codec",err) }
+	for i := range value.ArrayLen() {
+		if value.ArrayElement(i).Type() != d { t.Fatal("array lost scalar generation") }
+	}
+	if _, err := sqltype.ArrayValue(array,[]sqltype.ArrayDimension{{Lower:1,Length:1}},[]sqltype.Value{sqltype.Null(foreign)}); err == nil { t.Fatal("foreign null array element admitted") }
 	implicit, err := d.Input(ctx,"foo",-1)
 	if err != nil { t.Fatal(err) }
 	explicit, err := d.Input(ctx,"foo{1}",-1)

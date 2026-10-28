@@ -15,7 +15,10 @@ func Ltxtquery(id ID, name, declaration string) (*Descriptor, error) {
 }
 
 func (d *Descriptor) IsLtxtquery() bool { return d != nil && d.ltxtquery }
-type ltxtqueryPayload struct { text string }
+type ltxtqueryPayload struct {
+	text string
+	nodes []ltxtqueryNode
+}
 
 func ltxtqueryError(code, message string) error {
 	err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
@@ -23,7 +26,7 @@ func ltxtqueryError(code, message string) error {
 	return sqlstate.SoftInputError(err)
 }
 
-// Nodes are temporary postfix items. Only the canonical text survives input.
+// Postfix nodes own offsets into the final immutable canonical text.
 type ltxtqueryNode struct {
 	op byte
 	flags byte
@@ -145,7 +148,9 @@ func (d *Descriptor) ltxtqueryInput(ctx context.Context, text string) (Value, er
 		if e.text != "" { out.WriteString(e.text); continue }
 		n := nodes[e.node]
 		if n.op == 0 {
+			start := out.Len()
 			out.WriteString(text[n.start:n.end])
+			nodes[e.node].start, nodes[e.node].end = start, out.Len()
 			if n.flags&1 != 0 { out.WriteByte('%') }; if n.flags&2 != 0 { out.WriteByte('@') }; if n.flags&4 != 0 { out.WriteByte('*') }
 		} else if n.op == '!' {
 			out.WriteByte('!')
@@ -158,10 +163,10 @@ func (d *Descriptor) ltxtqueryInput(ctx context.Context, text string) (Value, er
 			events = append(events, event{node: n.right}, event{text: operator}, event{node: n.left})
 		}
 	}
-	return Value{typ: d, ltxtquery: &ltxtqueryPayload{text: out.String()}}, nil
+	return Value{typ: d, ltxtquery: &ltxtqueryPayload{text: out.String(), nodes: nodes}}, nil
 }
 
-func (v Value) validLtxtquery() bool { return v.ltxtquery != nil && v.ltxtquery.text != "" }
+func (v Value) validLtxtquery() bool { return v.ltxtquery != nil && v.ltxtquery.text != "" && len(v.ltxtquery.nodes) != 0 }
 func (d *Descriptor) ltxtqueryOutput(ctx context.Context, v Value) (string, error) {
 	if err := ctx.Err(); err != nil { return "", err }
 	if v.typ != d || v.null || !v.validLtxtquery() { return "", fmt.Errorf("invalid ltxtquery payload") }

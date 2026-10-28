@@ -94,6 +94,12 @@ func (analysis *Analysis) DefinitionsValid(read catalog.Read, env PreparedEnviro
 			if !ok {
 				return false
 			}
+			if installedScalarAuthorityRebind && preparedLtreeArrayShape(current.SQLType) {
+				old := analysis.Types[dep.Ref.Address]
+				if old == nil { return false }
+				if _, _, ok := analysis.currentLtreeArray(read, old.SQLType); !ok { return false }
+				continue
+			}
 			if installedScalarAuthorityRebind && !current.SQLType.IsHstore() && !current.SQLType.IsLquery() && (!current.SQLType.IsLtree() && !current.SQLType.IsLtxtquery()) && !current.SQLType.IsEan13() && !current.SQLType.IsIsbn() && !current.SQLType.IsIsbn13() && !current.SQLType.IsIsmn() && !current.SQLType.IsIsmn13() && !current.SQLType.IsIssn() && !current.SQLType.IsIssn13() && !current.SQLType.IsUpc() {
 				return false
 			}

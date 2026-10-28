@@ -270,8 +270,14 @@ typename shortcut. No procedure becomes callable from type-catalog presence alon
 installed conversion declaration and one owned typed operand. Reconstruction,
 retagging, grouping and qualified replay preserve formal/result generations,
 mode and exact member identity.
-Shared strict NULL preflight and routine admission use current caller authority; neither
-node caches ACLs. Typed evaluation belongs to sqltype, not function spelling.
+`LtreeArray` retains two operands in source order, exact formals/results and the
+selected installed array-operation role. Shared routine/operator binding,
+strict-null preflight and current routine admission apply normally. Immutable
+matching indexes belong to typed values; all execution scratch is call-local.
+Reconstruction, capture, grouping and qualified replay preserve the selected
+member and original declaration rather than dispatching by operator spelling.
+Shared strict NULL preflight and routine admission use current caller authority;
+these nodes do not cache ACLs. Typed evaluation belongs to sqltype, not function spelling.
 `HstoreRows` retains the selected set-returning declaration and a checked typed
 pair projection plan. Shared source admission/lifting owns placement and row
 combination; each open evaluates its operand once and owns a separate cursor.

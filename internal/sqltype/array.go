@@ -61,7 +61,7 @@ func Array(id ID, name string, element *Descriptor) (*Descriptor, error) {
 	if element != nil && (element.BaseType().ID() == PgSnapshot || element.BaseType().ID() == PgLSN) {
 		return nil, fmt.Errorf("invalid array descriptor")
 	}
-	if id == 0 || id == Unknown || name == "" || !element.Concrete() || element.BaseType().ID() == Macaddr || element.BaseType().ID() == Macaddr8 || IsOperatorAlias(element.BaseType().ID()) || IsNetwork(element.BaseType().ID()) || IsTransactionIdentifier(element.BaseType().ID()) && element.ID() != Xid || !element.IsDomain() && !element.IsEnum() && !element.IsComposite() && !element.IsRange() && !element.IsMultirange() && !ArrayElementAdmitted(element.ID()) {
+	if id == 0 || id == Unknown || name == "" || !element.Concrete() || element.BaseType().ID() == Macaddr || element.BaseType().ID() == Macaddr8 || IsOperatorAlias(element.BaseType().ID()) || IsNetwork(element.BaseType().ID()) || IsTransactionIdentifier(element.BaseType().ID()) && element.ID() != Xid || !element.IsDomain() && !element.IsEnum() && !element.IsComposite() && !element.IsRange() && !element.IsMultirange() && !element.IsLtree() && !element.IsLquery() && !ArrayElementAdmitted(element.ID()) {
 		return nil, fmt.Errorf("invalid array descriptor")
 	}
 	return &Descriptor{id: id, name: name, sql: element.SQLName() + "[]", database: strings.ToUpper(name), element: element}, nil

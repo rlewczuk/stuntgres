@@ -92,7 +92,7 @@ func (e *Engine) preparedInstalledScalarLiteralTemporalsLocked(auth Authorizatio
 	checked := false
 	for i, capture := range original {
 		source := capture.Value.Type()
-		if source == nil || !source.IsHstore() && (!source.IsLquery() && !source.IsLtree() && !source.IsLtxtquery()) && !source.IsEan13() && !source.IsIsbn() && !source.IsIsbn13() && !source.IsIsmn() && !source.IsIsmn13() && !source.IsIssn() && !source.IsIssn13() && !source.IsUpc() {
+		if source == nil || !preparedLtreeArrayShape(source) && !source.IsHstore() && (!source.IsLquery() && !source.IsLtree() && !source.IsLtxtquery()) && !source.IsEan13() && !source.IsIsbn() && !source.IsIsbn13() && !source.IsIsmn() && !source.IsIsmn13() && !source.IsIssn() && !source.IsIssn13() && !source.IsUpc() {
 			continue
 		}
 		if !checked {
@@ -100,6 +100,19 @@ func (e *Engine) preparedInstalledScalarLiteralTemporalsLocked(auth Authorizatio
 				return original
 			}
 			checked = true
+		}
+		if preparedLtreeArrayShape(source) {
+			if capture.TypeID != source.ID() { return original }
+			array, scalar, ok := expected.Analysis.currentLtreeArray(auth.Catalog, source)
+			if !ok { return original }
+			if source == array.SQLType { continue }
+			if imports == nil { imports = make(map[*sqltype.Descriptor]*sqltype.Descriptor) }
+			imports[source.Element()] = scalar.SQLType
+			value, err := typedef.ReownDomainDatum(capture.Value, array.SQLType, nil, imports, nil)
+			if err != nil { return original }
+			if candidate == nil { candidate = append([]analyze.TemporalConstant(nil), original...) }
+			candidate[i].Value = value
+			continue
 		}
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(capture.TypeID)}
 		old := expected.Analysis.Types[address]
@@ -164,7 +177,10 @@ func (e *Engine) retirePreparedInstalledScalarLiteralTemporalsLocked(auth Author
 	for i, capture := range captures {
 		retired := false
 		source := capture.Value.Type()
-		if (source.IsHstore() || (source.IsLquery() || source.IsLtree() || source.IsLtxtquery())) && source.ID() == capture.TypeID {
+		if preparedLtreeArrayShape(source) && source.ID() == capture.TypeID {
+			array, _, ok := expected.Analysis.capturedLtreeArray(auth.Catalog, source)
+			retired = ok && auth.Catalog.Get(array.Address()) == nil
+		} else if (source.IsHstore() || (source.IsLquery() || source.IsLtree() || source.IsLtxtquery())) && source.ID() == capture.TypeID {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(capture.TypeID)}
 			old := expected.Analysis.Types[address]
 			if old != nil && old.SQLType == source && old.Address() == address && auth.Catalog.Get(address) == nil {

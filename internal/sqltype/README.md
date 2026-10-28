@@ -130,10 +130,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   foreign hstore/lquery/ltree/ltxtquery/citext/ISN generations and enum members even for equal OIDs; only
   source-authorized catalog reownership/import remaps explicitly (`RemapHstore`, `RemapLquery`, `RemapLtree`, `RemapLtxtquery`,
   `RemapCitext`, `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`, `RemapIssn`, `RemapIssn13`, `RemapUpc`).
-- Installed `Ltxtquery` retains immutable canonical text, with a dedicated iterative
-  lexer, operator frames and printer. Operand byte/storage offsets, pending operators
-  and subtree offsets follow the released representation. Input/output honor context
-  cancellation; storage grants neither matching operators nor executable arrays.
+- Installed `Ltxtquery` retains immutable canonical text and postfix Boolean
+  nodes indexed into that owned text, with iterative lexer, operator frames and
+  printer. Input/output and matching honor context cancellation; its associated
+  array remains lookup-only.
 - Capabilities (comparison, ordering, grouping, hashing, index, binary
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
@@ -232,15 +232,22 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
 - Lquery owns immutable canonical text validated by the C-locale label grammar,
   item/variant/label limits and aligned level-size checks. Input preserves label
   spelling, alternative order/multiplicity and explicit non-star quantifiers;
-  it normalizes modifier flags and decimal ranges once. Output and authorized
-  generation remapping share the validated payload without reparsing. Storage
-  and representation comparison grant no matching, SQL comparison, grouping,
-  indexing, executable companion-array or binary-codec capability.
-- Ltree owns immutable exact path text validated once under UTF8/C label grammar,
-  with count-first path bounds and deferred label-length checks. A present carrier
-  represents the empty nonnull path; NULL has separate framing. Output and authorized
-  import share the carrier without reparsing or granting SQL comparison, matching,
-  grouping, indexing, executable arrays or binary codecs.
+  it normalizes modifier flags and decimal ranges once. The immutable payload
+  retains flat executable levels and alternatives into canonical text. Output
+  and authorized generation remapping share that backing without reparsing.
+- Ltree owns immutable exact path text and label boundaries validated once under
+  UTF8/C grammar, with count-first path bounds and deferred label-length checks.
+  A present carrier represents the empty nonnull path; NULL has separate framing.
+  Source-authorized import shares compiled backing without text conversion.
+- Ltree and lquery use ordinary concrete companion arrays, including supported
+  domain elements. `LtreeArrayOperation` checks exact formal generations and
+  implements the selected installed predicates/extractors. Whole NULL arguments
+  are strict; visited arrays reject rank before NULL elements, before matching.
+  Query arrays validate first and an empty query array does not visit paths.
+  Whole-path matching uses bounded iterative dynamic programming, terminating
+  immediately when a transition leaves no reachable positions. Boolean queries
+  are evaluated within each path. Scratch is invocation-owned, never cached.
+  These kernels grant no scalar SQL comparison, grouping, indexing or binary codec.
 - Text-array input checks declared dimensions early, but child conversion and
   domain CHECK errors precede an extent mismatch, and storage grows only with
   parsed children (shared `ownedArray` guards).

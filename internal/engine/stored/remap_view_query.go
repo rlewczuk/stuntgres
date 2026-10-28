@@ -41,10 +41,14 @@ func remapViewQueryMapped(view catalog.Read, node plan.Node, ref func(ids.Object
 	return mapper.Query(node)
 }
 
+// ViewQueryRemapper owns one logical remapping operation, which may traverse
+// several query and mutation roots. Keep its policy and source graph fixed for
+// that operation; use Fresh before changing any policy or catalog snapshot.
 type ViewQueryRemapper struct {
 	Ref            func(ids.ObjectRef) ids.ObjectRef
 	Type           func(*sqltype.Descriptor) *sqltype.Descriptor
 	queries        map[*plan.ProjectNode]plan.Node
+	queryDepth     int // Only the outermost failure discards the operation memo.
 	Collation      typedef.CollationRemapper
 	Catalog        catalog.Read
 	Procedure      catalog.ProcedureRemapper
@@ -55,7 +59,24 @@ type ViewQueryRemapper struct {
 	addressMapper  func(ids.ObjectAddress) ids.ObjectAddress
 }
 
-func (m *ViewQueryRemapper) Nested(node plan.Node) (plan.Node, error) {
+// Fresh copies the mapping policy into a new operation without accepted roots.
+// In particular, a changed destination must pass the ordinary source/current
+// provider checks rather than inherit another operation's accepted graph.
+func (m *ViewQueryRemapper) Fresh() ViewQueryRemapper {
+	next := *m
+	next.queries, next.ctes, next.queryDepth = nil, nil, 0
+	return next
+}
+
+func (m *ViewQueryRemapper) Nested(node plan.Node) (result plan.Node, err error) {
+	m.queryDepth++
+	defer func() {
+		m.queryDepth--
+		if m.queryDepth == 0 && err != nil {
+			m.queries = nil
+			m.ctes = nil
+		}
+	}()
 	project, ok := node.(*plan.ProjectNode)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing remapped query frame")
@@ -79,7 +100,15 @@ func (m *ViewQueryRemapper) Nested(node plan.Node) (plan.Node, error) {
 	return &copy, nil
 }
 
-func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
+func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) {
+	m.queryDepth++
+	defer func() {
+		m.queryDepth--
+		if m.queryDepth == 0 && err != nil {
+			m.queries = nil
+			m.ctes = nil
+		}
+	}()
 	ref, typ := m.Ref, m.Type
 	schema := append(plan.QuerySchema(nil), node.Schema()...)
 	for i := range schema {
@@ -96,7 +125,6 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 			schema[i].OriginTable = uint32(origin.ObjectID)
 		}
 	}
-	var err error
 	child := func(old plan.Node) plan.Node {
 		if err != nil {
 			return old

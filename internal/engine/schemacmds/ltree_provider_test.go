@@ -23,10 +23,10 @@ func TestLtreeProviderIdentity(t *testing.T) {
 	e,_,ext,_:=lqueryProviderInstalled(t,false)
 	view:=e.CatalogRead()
 	base:=view.MustType(ext.Members[3])
-	if len(ext.Members)!=9 || !base.SQLType.IsLtree() || base.Owner!=ext.Owner { t.Fatal("ltree manifest") }
+	if len(ext.Members)!=extension.LtreeMemberCount || !base.SQLType.IsLtree() || base.Owner!=ext.Owner { t.Fatal("ltree manifest") }
 	if err:=(stored.TypeProvider{}).Validate(view,base); err!=nil { t.Fatal(err) }
 	array,ok:=view.LookupArray(base.SQLType)
-	if !ok || array.Concrete() || array.Element()!=base.SQLType || array.ID()!=base.Array { t.Fatal("companion array") }
+	if !ok || !array.Concrete() || array.Element()!=base.SQLType || array.ID()!=base.Array { t.Fatal("companion array") }
 	for i,name:=range []string{"ltree_in","ltree_out"} {
 		proc:=view.MustProcedure(ext.Members[4+i])
 		symbol,err:=extension.ProcedureSymbol(view,proc)

@@ -37,6 +37,11 @@ and coercion. Binding retains genuine routine dependency/revision, result
 generation and frozen provider syntax; relabelled calls dispatch by checked
 provider identity rather than their original spelling.
 
+Installed ltree array routines enter the same catalog callable discovery and
+selection as their backing operators. Recipe spellings are discovery hints only;
+the selected declaration's genuine provider role, exact concrete companion
+formals, current dependencies and privileges authorize binding.
+
 Installed hstore comparisons and hashes use the same selected-call gateway,
 strict immutable property composition and frozen syntax. Actual operators lower
 through their authenticated backing routines; implicit equality consumers retain

@@ -54,9 +54,9 @@ func TestLqueryProviderIdentity(t *testing.T) {
 	e,_,ext,base := lqueryProviderInstalled(t,false)
 	view := e.CatalogRead()
 	if err := extension.StockLtree.ValidateExtension(view,ext); err != nil { t.Fatal(err) }
-	if ext.Version != "1.3" || len(ext.Members) != 9 || !base.SQLType.IsLquery() || base.Owner != ext.Owner { t.Fatal("installed scalar manifest") }
+	if ext.Version != "1.3" || len(ext.Members) != extension.LtreeMemberCount || !base.SQLType.IsLquery() || base.Owner != ext.Owner { t.Fatal("installed scalar manifest") }
 	array, ok := view.LookupArray(base.SQLType)
-	if !ok || array.Concrete() || array.Element() != base.SQLType || array.ID() != base.Array { t.Fatal("lookup-only companion") }
+	if !ok || !array.Concrete() || array.Element() != base.SQLType || array.ID() != base.Array { t.Fatal("concrete companion") }
 	if err := (stored.TypeProvider{}).Validate(view,base); err != nil { t.Fatal(err) }
 	for i, name := range []string{"lquery_in","lquery_out"} {
 		proc := view.MustProcedure(ext.Members[i+1])
@@ -79,7 +79,7 @@ func TestLqueryProviderIdentity(t *testing.T) {
 	})
 	if err != nil || len(records) != 1 { t.Fatal("owner metadata decoding",records,err) }
 	record := records[0]
-	if record.Name != "ltree" || record.Version != "1.3" || record.Schema != "public" || record.Owner != "postgres" || len(record.Members) != 9 { t.Fatal("owner recipe",record) }
+	if record.Name != "ltree" || record.Version != "1.3" || record.Schema != "public" || record.Owner != "postgres" || len(record.Members) != extension.LtreeMemberCount { t.Fatal("owner recipe",record) }
 	for _, member := range record.Members {
 		if member.Owner != "postgres" { t.Fatal("member owner",member) }
 		switch member.Slot {
@@ -102,7 +102,7 @@ func TestLqueryProviderIdentity(t *testing.T) {
 		case 8:
 			if member.Kind != "procedure" || member.Name != "ltxtq_out" || member.Signature != "ltxtquery" { t.Fatal("output owner role",member) }
 		default:
-			t.Fatal("unrecognized owner slot",member)
+			if member.Slot < extension.LtreeArrayProcedureStart || member.Slot >= extension.LtreeMemberCount || member.Kind != "procedure" && member.Kind != "operator" { t.Fatal("unrecognized owner slot",member) }
 		}
 	}
 	original := slices.Clone(ext.Members)
@@ -175,7 +175,7 @@ func TestLqueryProviderRemap(t *testing.T) {
 	mapped := extension.RemapDescriptor(ext,mapping).(*catalog.Extension)
 	if !slices.Equal(mapped.Members,destination.Members) || !slices.Equal(ext.Members,originalMembers) { t.Fatal("manifest remap") }
 	for i := 1; i < len(ext.Members); i++ {
-		if i%3 == 0 { continue }
+		if ext.Members[i].ClassID != ids.ProcedureClassID { continue }
 		old := source.CatalogRead().MustProcedure(ext.Members[i])
 		next := extension.RemapDescriptor(old,mapping).(*catalog.Procedure)
 		want := target.CatalogRead().MustProcedure(destination.Members[i])
@@ -188,7 +188,7 @@ func TestLqueryProviderRemap(t *testing.T) {
 	imported := candidate.MustType(base.Address())
 	if !imported.SQLType.IsLquery() || imported.SQLType == base.SQLType || imported.SQLType.ID() != destBase.SQLType.ID() || imported.Array != destBase.Array { t.Fatal("fresh imported scalar",imported) }
 	array := candidate.MustType(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(base.Array)})
-	if array.SQLType.Element() != imported.SQLType || array.SQLType.Concrete() || array.SQLType.ID() != destBase.Array { t.Fatal("imported companion graph") }
+	if array.SQLType.Element() != imported.SQLType || !array.SQLType.Concrete() || array.SQLType.ID() != destBase.Array { t.Fatal("imported companion graph") }
 	// Use the source-keyed import authority at its final target. No conversion or
 	// text re-input is permitted during stored datum reownership.
 	imports := candidate.ScalarImports()

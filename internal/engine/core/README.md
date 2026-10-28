@@ -943,6 +943,12 @@ with row effects; standalone utilities retain their ordinary publication boundar
   original type address is absent is omitted only from the attempt candidate.
   Normal binding reads the original SQL literal under the new genuine usage;
   neither a reused label nor a numeric OID authorizes importing retired data.
+  Direct concrete ltree/lquery companions extend this candidate path only with
+  separately captured scalar and array declarations/dependencies. Exact source
+  association and the current validated installation authorize recursive element
+  reminting, including typed NULLs, while sharing compiled backing. Shape-only
+  cast eligibility grants no authority; absent-address retirement does not import
+  old payloads into a recreated installation.
 - Full invalidation publishes atomically, after analysis, signature and
   provenance succeed: genuine temporal scalar/array candidates, sequence/regtype
   candidates and identity stamps. It preserves native logical enum, domain and
@@ -1295,7 +1301,8 @@ Producers, the OID registry and descriptor specs live in
 - Staged type identity changes (`type_generation.go`) authorize generation
   reownership only from the exact published source descriptor to the changed
   catalog-owned scalar, with unchanged extension and companion identity.
-  Ltxtquery uses this transient import authority for stored values and expressions;
+  Lquery, ltree and ltxtquery use this transient import authority for stored
+  values and expressions, recursively reminting concrete companion elements;
   ordinary same-OID `Retag`, including typed NULL, remains unauthorized.
   `ValidateCatalogStage` runs this whole-catalog pass only when a staged type
   replaces an existing descriptor with a new SQL type; a stage that only adds

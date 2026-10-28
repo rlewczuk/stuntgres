@@ -10,7 +10,15 @@ plans. Callers supply bound column/stage/subquery presentation through its
 existing callbacks; no callback evaluates an expression. Query remapping retains
 immutable range/column aliases for source, derived, function and aliased VALUES
 occurrences, sharing their alias slices while replacing executable identities,
-schemas and expressions. Distinct self-join occurrences remain distinct.
+schemas and expressions. One `ViewQueryRemapper` owns one logical operation,
+including all query, CTE and mutation roots reached by that operation. Its accepted
+roots retain canonical graph identity across those traversals; distinct self-join
+occurrences remain distinct. Keep the source graph and mapping policy fixed.
+Before changing the destination catalog or any mapping callback, use `Fresh()`
+to copy the configuration without accepted query/CTE roots. The fresh operation
+runs the ordinary source/current provider validation, including exact destination
+generations and reference authority, rather than trusting an earlier accepted
+root. An outermost failure discards partial operation memo state.
 
 Statistics recipes use these same expression remap/retag and stable-attribute
 deparse owners. Replacement remaps relation/input/provider references and both
@@ -69,6 +77,13 @@ result generation, or their completed anonymous record definition. Reference,
 remap, retag and rendering walkers preserve those captures and resolve current
 presentation independently of mutable function/type labels. Dynamic inner SQL
 remains text, not a frozen dependency on the relations it may later resolve.
+
+Installed ltree array calls retain both exact formal generations, operation and
+orientation, original procedure declaration and catalog-domain reference.
+Captured-source validation precedes authorized remapping; current destination
+manifest/signature/array associations are checked before retagging or rendering.
+Replay casts both operands to genuine destination formals. No matching scratch or
+caller authority is retained.
 
 Installed hstore array, JSON and JSONB calls retain exact formal/result generations,
 conversion mode and selected procedure/member references. Comparison and hash

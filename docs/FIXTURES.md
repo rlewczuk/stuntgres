@@ -239,6 +239,10 @@ target's contents; it never merges. Empty input clears all user relations.
   insertion marker outside the isolated stage grants no lookup authority.
 - Any read, parse, execution or cancellation error leaves the target unchanged.
 - Stored expressions and routines execute through the ordinary staged engine.
+  Installed ltree array expressions remap their selected routine/operator roles
+  and exact scalar/companion generations recursively, including typed NULL array
+  elements. Stored rank and NULL-element values remain legal data; invocation
+  validation failures during staged execution abort replacement normally.
   Foreign scans, writes and schema imports are rejected before capability
   invocation with SQLSTATE `0A000`,
   `restore cannot stage non-retractable effects` (existing more-specific

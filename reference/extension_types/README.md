@@ -128,6 +128,11 @@ these are shared across families:
   count/length diagnostic precedence, held binds, statement atomicity and native
   replacement with retained readers. All three scalar roles are consumers of the same
   extension during lifecycle tests. The reusable selector is `RUN='^TestReferenceLtree'`.
+- `ltree_arrays_helpers_test.go` owns mixed BOOL/installed-text array result
+  contracts, including both nullability values for computed and declared stored
+  columns. Retained descriptors are checked after consumption/close and native
+  replacement, including empty readers. Array overloads, matching, diagnostics,
+  prepared authority and actual emitted-SQL replay share `RUN='^TestReferenceLtreeArray'`.
 
 Client quirks:
 

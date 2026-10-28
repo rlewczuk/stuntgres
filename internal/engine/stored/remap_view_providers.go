@@ -336,7 +336,15 @@ func ExpressionDescriptorsChanged(view catalog.Read, d *catalog.Relation, typ fu
 	}
 	return changed
 }
-func (m *ViewQueryRemapper) CTE(old *plan.CTEDefinition) (*plan.CTEDefinition, error) {
+func (m *ViewQueryRemapper) CTE(old *plan.CTEDefinition) (result *plan.CTEDefinition, err error) {
+	m.queryDepth++
+	defer func() {
+		m.queryDepth--
+		if m.queryDepth == 0 && err != nil {
+			m.queries = nil
+			m.ctes = nil
+		}
+	}()
 	if mapped := m.ctes[old]; mapped != nil {
 		return mapped, nil
 	}

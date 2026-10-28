@@ -209,20 +209,22 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 		}
 	case StockLtree:
 		count = LtreeMemberCount
-		if len(ext.Members) != count || slot < 0 || slot >= count || slot%3 == 0 {
+		if len(ext.Members) != count || slot < 0 || slot >= LtreeArrayOperatorStart || ltreeMemberClass(slot) != ids.ProcedureClassID {
 			return invalid()
 		}
-		recipe := ltreeRecipes[slot/3]
-		base, ok := v.Type(ext.Members[recipe.slot])
-		if !ok || !recipe.accept(base.SQLType) || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 {
-			return invalid()
-		}
-		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
-			return invalid()
-		}
-		name, signature, result = recipe.input, "2275", ids.OID(base.SQLType.ID())
-		if slot%3 == 2 {
-			name, signature, result = recipe.output, LquerySignature(base.SQLType.ID()), 2275
+		if slot >= LtreeArrayProcedureStart {
+			index := slot-LtreeArrayProcedureStart
+			var err error
+			signature, result, err = ltreeArraySignature(v, ext, index)
+			if err != nil { return invalid() }
+			name = ltreeArrayRecipes[index].name
+		} else {
+			recipe := ltreeRecipes[slot/3]
+			base, ok := v.Type(ext.Members[recipe.slot])
+			if !ok || !recipe.accept(base.SQLType) || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 { return invalid() }
+			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }
+			name, signature, result = recipe.input, "2275", ids.OID(base.SQLType.ID())
+			if slot%3 == 2 { name, signature, result = recipe.output, LquerySignature(base.SQLType.ID()), 2275 }
 		}
 		if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/ltree", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()

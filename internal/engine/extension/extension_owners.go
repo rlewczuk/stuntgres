@@ -74,10 +74,7 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if SegProviderOf(d) != nil && symbol == "seg_out" {
 				member.Signature = "seg"
 			}
-			if LtreeProviderOf(d) != nil && slot%3 == 2 {
-				member.Signature = ltreeRecipes[slot/3].name
-			}
-			if HstoreProviderOf(d) != nil || CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil || IsnProviderOf(d) != nil {
+			if LtreeProviderOf(d) != nil || HstoreProviderOf(d) != nil || CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil || IsnProviderOf(d) != nil {
 				var valid bool
 				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
 				if !valid {
@@ -479,6 +476,10 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			}
 		}
 	case "ltree":
+		if slot >= LtreeArrayProcedureStart && slot < LtreeArrayOperatorStart {
+			recipe := ltreeArrayRecipes[slot-LtreeArrayProcedureStart]
+			return recipe.left+","+recipe.right, true
+		}
 		for _, recipe := range ltreeRecipes {
 			if slot == recipe.slot+1 {
 				return "2275", true
@@ -542,6 +543,11 @@ func cubeOwnerOperatorIdentity(slot int) (string, string, bool) {
 
 func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 	switch extension {
+	case "ltree":
+		if slot >= LtreeArrayOperatorStart && slot < LtreeMemberCount {
+			recipe := ltreeArrayRecipes[slot-LtreeArrayOperatorStart]
+			return recipe.operator, recipe.left+","+recipe.right, true
+		}
 	case "hstore":
 		if slot >= HstoreComparisonOperatorStart && slot < HstoreBtreeFamilySlot {
 			return hstoreComparisonOperators[slot-HstoreComparisonOperatorStart], "hstore,hstore", true
