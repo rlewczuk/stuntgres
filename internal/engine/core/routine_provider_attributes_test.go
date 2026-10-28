@@ -260,7 +260,7 @@ func TestRoutineProviderRowProjection(t *testing.T) {
 	}
 	retained := capture(base)
 	// Independently expected released exceptions plus ordinary/default controls.
-	for oid, want := range map[ids.OID]float64{1067: 1000, 2763: 1, 2764: 10, 5064: 50, 2331: 100, 6159: 250, 1397: 0} {
+	for oid, want := range map[ids.OID]float64{1067: 1000, 2763: 1, 2764: 10, 2947: 50, 5064: 50, 2331: 100, 6159: 250, 1397: 0} {
 		row := retained[oid]
 		if row == nil {
 			t.Fatal("missing released estimate control", oid)

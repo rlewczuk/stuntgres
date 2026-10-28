@@ -700,7 +700,7 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 			d.delimiter = d.element.Delimiter()
 			d.sql = d.element.SQLName() + "[]"
 			d.lookupOnly = d.element.ID() == Macaddr || d.element.ID() == Macaddr8 || IsOperatorAlias(d.element.ID()) || d.element.ID() == Money || IsNetwork(d.element.ID()) || IsTransactionIdentifier(d.element.BaseType().ID()) && d.element.ID() != Xid || !d.element.Concrete() || d.element.IsDomain() && d.element.IsBuiltin() || !d.element.IsDomain() && !ArrayElementAdmitted(d.element.ID())
-			if d.element.BaseType().ID() == PgSnapshot {
+			if IsSnapshot(d.element.BaseType().ID()) {
 				d.lookupOnly = true
 			}
 			if d.element.ID() == Refcursor || IsFTS(d.element.ID()) || d.element.ID() == Box || d.element.ID() == Point || d.element.ID() == Lseg || d.element.ID() == Circle || d.element.ID() == Line || d.element.ID() == Path || d.element.ID() == Polygon {

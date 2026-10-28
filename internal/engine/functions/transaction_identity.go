@@ -37,12 +37,28 @@ func (k transactionIdentityKind) name() string {
 
 type transactionIdentityExpression struct {
 	expr.Info
-	kind transactionIdentityKind
-	arg  expr.Expr
+	kind   transactionIdentityKind
+	legacy bool
+	arg    expr.Expr
+}
+
+func (n transactionIdentityExpression) name() string {
+	if n.legacy {
+		switch n.kind {
+		case identityCurrent:
+			return "txid_current"
+		case identityAssigned:
+			return "txid_current_if_assigned"
+		case identityStatus:
+			return "txid_status"
+		}
+		return ""
+	}
+	return n.kind.name()
 }
 
 func (n transactionIdentityExpression) validate() error {
-	if n.kind > identityMembers || !n.Usage.Valid() {
+	if n.kind > identityMembers || n.name() == "" || !n.Usage.Valid() {
 		return fmt.Errorf("stuntgres: invalid stored transaction identity provider")
 	}
 	count := n.kind != identityCurrent && n.kind != identityAssigned
@@ -51,7 +67,7 @@ func (n transactionIdentityExpression) validate() error {
 	}
 	formal := sqltype.Xid
 	if n.kind == identityStatus {
-		formal = sqltype.Xid8
+		formal, _ = snapshotTypes(n.legacy)
 	}
 	if n.arg != nil && n.arg.ResultUsage().Type.BaseType().ID() != formal {
 		return fmt.Errorf("stuntgres: invalid transaction identity argument")
@@ -59,7 +75,7 @@ func (n transactionIdentityExpression) validate() error {
 	result := sqltype.Int4
 	switch n.kind {
 	case identityCurrent, identityAssigned:
-		result = sqltype.Xid8
+		result, _ = snapshotTypes(n.legacy)
 	case identityStatus:
 		result = sqltype.Text
 	case identityMembers:
@@ -93,7 +109,7 @@ func (n transactionIdentityExpression) Eval(ctx expr.Context) (sqltype.Value, er
 			return sqltype.Null(n.Usage.Type), nil
 		}
 		if n.kind == identityStatus {
-			full, err = value.XID8()
+			full, err = snapshotID(value)
 		} else {
 			xid, err = value.XID()
 		}
@@ -121,7 +137,7 @@ func (n transactionIdentityExpression) Eval(ctx expr.Context) (sqltype.Value, er
 		if full == 0 {
 			return sqltype.Null(n.Usage.Type), nil
 		}
-		return sqltype.XID8Value(n.Usage.Type, full)
+		return snapshotIDValue(n.Usage.Type, full)
 	case identityStatus:
 		status, present, err := runtime.TransactionStatus(full)
 		if err != nil {

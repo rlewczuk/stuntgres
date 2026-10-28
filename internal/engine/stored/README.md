@@ -61,6 +61,10 @@ Identity retag/remap preserves accepted backing and rejected publication cannot
 mutate it. These captures grant no executable pseudo usage or unbacked
 presentation authority.
 Stable inquiry outputs are not serialized or retained as planning constants.
+Snapshot literals retain their nominal `pg_snapshot` or `txid_snapshot` cast;
+transparent relabels do not add another cast during replay. Live current-snapshot
+and transaction-identity calls stay symbolic with their selected modern or legacy
+routine identity through native catalog replacement.
 Procedure result policy remains declaration-owned through validation and remap:
 every OUT/INOUT tuple is RECORD even with one member, while no-output is VOID.
 The shared original-occurrence memo maps output shape, formals and child

@@ -513,7 +513,7 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func ordinaryCastFunction(callee lexeme) bool {
 	switch callee.text {
-	case "pg_snapshot":
+	case "pg_snapshot", "txid_snapshot":
 		return true
 	case "int_array_aggregate":
 		return true

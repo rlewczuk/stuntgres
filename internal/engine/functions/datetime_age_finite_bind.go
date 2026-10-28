@@ -69,7 +69,7 @@ func BindDatetimeAgeFinite(b Binder, raw parser.FunctionExpr, visible bool) (exp
 		if err != nil {
 			return nil, err
 		}
-		return identityExpression(b, raw, identityAge, arg)
+		return identityExpression(b, raw, identityAge, false, arg)
 	}
 	e := DatetimeAgeFinite{Count: len(operands)}
 	properties := expr.Properties{Volatility: expr.Immutable}

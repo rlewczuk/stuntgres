@@ -294,6 +294,7 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | finite `timestamp`, `timestamptz` | `time.Time` |
 | `±infinity` timestamps, `bytea` | `[]byte` (owned copy) |
 | `xid`, `cid`, `xid8` | `[]byte` (decimal text) |
+| `pg_snapshot`, `txid_snapshot` | `[]byte` (owned canonical snapshot text; byte-slice scan type) |
 | `pg_lsn` | canonical uppercase slash-hex `string` (string scan type) |
 | `json` | `string` (exact input text) |
 | `jsonb`, `uuid`, network, geometric, bit strings, text search | canonical `string` |

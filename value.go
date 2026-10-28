@@ -105,7 +105,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if sqltype.IsStatisticsType(target.Type.BaseType().ID()) {
 			return sqltype.Null(target.Type), nil
 		}
-		if target.Type.BaseType().ID() == sqltype.PgSnapshot || target.Type.BaseType().ID() == sqltype.PgLSN {
+		if sqltype.IsSnapshot(target.Type.BaseType().ID()) || target.Type.BaseType().ID() == sqltype.PgLSN {
 			return sqltype.Null(target.Type), nil
 		}
 		if target.Type.IsHstore() || target.Type.IsEan13() || target.Type.IsIsbn() || target.Type.IsIsbn13() || target.Type.IsIsmn() || target.Type.IsIsmn13() || target.Type.IsIssn() || target.Type.IsIssn13() || target.Type.IsUpc() || target.Type.IsCitext() || target.Type.IsCube() || target.Type.IsSeg() || target.Type.IsQueryInt() || (target.Type.IsLquery() || target.Type.IsLtree() || target.Type.IsLtxtquery()) || sqltype.IsTransactionIdentifier(target.Type.ID()) || sqltype.IsOperatorAlias(target.Type.ID()) || sqltype.IsRegObjectAlias(target.Type.ID()) || sqltype.IsRegTS(target.Type.ID()) {
@@ -247,7 +247,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Regtype, sqltype.Regproc, sqltype.Regprocedure, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
-	case sqltype.Xid, sqltype.Cid, sqltype.Xid8, sqltype.PgSnapshot:
+	case sqltype.Xid, sqltype.Cid, sqltype.Xid8, sqltype.PgSnapshot, sqltype.TxidSnapshot:
 		text, err := v.Type().Output(ctx, v)
 		return []byte(text), err
 	case sqltype.Oid:
@@ -314,7 +314,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	case sqltype.Circle, sqltype.Polygon, sqltype.Tid, sqltype.Macaddr, sqltype.Macaddr8, sqltype.Inet, sqltype.Cidr, sqltype.PgLSN:
 		return reflect.TypeFor[string]()
-	case sqltype.Bytea, sqltype.Xid, sqltype.Cid, sqltype.Xid8, sqltype.PgSnapshot:
+	case sqltype.Bytea, sqltype.Xid, sqltype.Cid, sqltype.Xid8, sqltype.PgSnapshot, sqltype.TxidSnapshot:
 		return reflect.TypeFor[[]byte]()
 	case sqltype.Timestamp, sqltype.Timestamptz:
 		return reflect.TypeFor[time.Time]()

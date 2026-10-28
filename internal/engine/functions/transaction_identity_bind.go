@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func identityExpression(b Binder, raw parser.FunctionExpr, kind transactionIdentityKind, arg expr.Expr) (expr.Expr, error) {
+func identityExpression(b Binder, raw parser.FunctionExpr, kind transactionIdentityKind, legacy bool, arg expr.Expr) (expr.Expr, error) {
 	usage := b.Type(sqltype.Int4).Usage()
 	properties := expr.Properties{Volatility: expr.Stable}
 	if arg != nil {
@@ -14,7 +14,8 @@ func identityExpression(b Binder, raw parser.FunctionExpr, kind transactionIdent
 	}
 	switch kind {
 	case identityCurrent, identityAssigned:
-		usage = b.Type(sqltype.Xid8).Usage()
+		id, _ := snapshotTypes(legacy)
+		usage = b.Type(id).Usage()
 	case identityStatus:
 		usage = b.Type(sqltype.Text).Usage()
 		properties.Volatility = expr.Volatile
@@ -29,7 +30,7 @@ func identityExpression(b Binder, raw parser.FunctionExpr, kind transactionIdent
 	formal := [1]sqltype.ID{sqltype.Xid}
 	count := 1
 	if kind == identityStatus {
-		formal[0] = sqltype.Xid8
+		formal[0], _ = snapshotTypes(legacy)
 	}
 	if arg == nil {
 		count = 0
@@ -38,18 +39,27 @@ func identityExpression(b Binder, raw parser.FunctionExpr, kind transactionIdent
 	if kind == identityAge {
 		provider = DatetimeRoutineProvider
 	}
-	info, err := b.BuiltinRoutineInfo(b.Info(usage, raw.Pos, properties), provider, kind.name(), formal[:count]...)
+	n := transactionIdentityExpression{kind: kind, legacy: legacy, arg: arg}
+	info, err := b.BuiltinRoutineInfo(b.Info(usage, raw.Pos, properties), provider, n.name(), formal[:count]...)
 	if err != nil {
 		return nil, err
 	}
-	return transactionIdentityExpression{info, kind, arg}, nil
+	n.Info = info
+	return n, nil
 }
 func bindTransactionIdentity(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind := identityMultiAge
+	legacy := false
 	for candidate := identityMultiAge; candidate <= identityMembers; candidate++ {
 		if candidate.name() == name {
 			kind = candidate
+			break
+		}
+	}
+	for _, candidate := range [...]transactionIdentityKind{identityCurrent, identityAssigned, identityStatus} {
+		if (transactionIdentityExpression{kind: candidate, legacy: true}).name() == name {
+			kind, legacy = candidate, true
 			break
 		}
 	}
@@ -82,14 +92,19 @@ func bindTransactionIdentity(b Binder, raw parser.FunctionExpr) (expr.Expr, erro
 	}
 	formal := sqltype.Xid
 	if kind == identityStatus {
-		formal = sqltype.Xid8
+		formal, _ = snapshotTypes(legacy)
 	}
-	valid := visible && name == kind.name() && !raw.ResolutionOnly && !raw.Variadic && len(raw.Args) == count
+	valid := visible && name == (transactionIdentityExpression{kind: kind, legacy: legacy}).name() && !raw.ResolutionOnly && !raw.Variadic && len(raw.Args) == count
 	if len(raw.ArgNames) != 0 {
 		valid = valid && kind == identityMembers && transactionMembersNamed(raw)
 	}
 	if count == 1 && operand.Usage.Type != nil {
-		valid = valid && operand.Usage.Type.BaseType() == b.Type(formal)
+		if legacy {
+			_, coercionErr := sqltype.PlanCoercion(operand.Usage, b.Type(formal).Usage(), sqltype.Implicit)
+			valid = valid && coercionErr == nil
+		} else {
+			valid = valid && operand.Usage.Type.BaseType() == b.Type(formal)
+		}
 	}
 	if !valid {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
@@ -107,7 +122,7 @@ func bindTransactionIdentity(b Binder, raw parser.FunctionExpr) (expr.Expr, erro
 			return nil, err
 		}
 	}
-	return identityExpression(b, raw, kind, arg)
+	return identityExpression(b, raw, kind, legacy, arg)
 }
 
 func transactionMembersNamed(raw parser.FunctionExpr) bool {

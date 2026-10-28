@@ -30,7 +30,7 @@ func castUnitUniverse(t *testing.T) []castUnitFact {
 	for category, list := range map[string]string{
 		"B": "bool:16", "Z": "char:18 pg_node_tree:194", "S": "name:19 text:25 varchar:1043 bpchar:1042",
 		"N": "int2:21 int4:23 int8:20 float4:700 float8:701 numeric:1700 money:790 oid:26 regclass:2205 regtype:2206 regproc:24 regprocedure:2202 regrole:4096 regoper:2203 regoperator:2204 regcollation:4191 regnamespace:4089 regconfig:3734 regdictionary:3769",
-		"U": "bytea:17 uuid:2950 refcursor:1790 tid:27 xid:28 cid:29 xid8:5069 pg_lsn:3220 pg_snapshot:5038 inet:869 cidr:650 macaddr:829 macaddr8:774 aclitem:1033 json:114 jsonb:3802 jsonpath:4072 tsvector:3614 tsquery:3615",
+		"U": "bytea:17 uuid:2950 refcursor:1790 tid:27 xid:28 cid:29 xid8:5069 pg_lsn:3220 pg_snapshot:5038 txid_snapshot:2970 inet:869 cidr:650 macaddr:829 macaddr8:774 aclitem:1033 json:114 jsonb:3802 jsonpath:4072 tsvector:3614 tsquery:3615",
 		"D": "date:1082 time:1083 timetz:1266 timestamp:1114 timestamptz:1184", "T": "interval:1186", "V": "bit:1560 varbit:1562", "G": "point:600 lseg:601 path:602 box:603 polygon:604 line:628 circle:718", "P": "cstring:2275 void:2278",
 	} {
 		for _, item := range strings.Fields(list) {

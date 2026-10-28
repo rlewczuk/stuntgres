@@ -1,5 +1,10 @@
 # Changes
 
+- Add the eight legacy bigint transaction inquiries with distinct
+  `txid_snapshot` metadata and storage, sharing the existing transaction and
+  immutable snapshot runtime. Preserve unsigned snapshot text, signed bigint
+  bit transport, nominal replay and PostgreSQL snapshot-bound diagnostics.
+
 - Add installed ltree standard comparisons with typed label ordering, grouping
   and B-tree/hash keys, preserving captured comparison identities and immutable
   operands through prepared execution and native catalog replacement. Stored

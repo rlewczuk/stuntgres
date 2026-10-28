@@ -1072,7 +1072,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 				}
 				return text, nil
 			}
-			if literal, ok := v.literals[literalPath]; ok && literal.ResultUsage().Type.ID() == sqltype.PgSnapshot {
+			if literal, ok := v.literals[literalPath]; ok && sqltype.IsSnapshot(literal.ResultUsage().Type.ID()) {
 				return text, nil
 			}
 			if literal, ok := v.literals[literalPath]; ok && (sqltype.IsOperatorAlias(literal.ResultUsage().Type.ID()) || sqltype.IsRegTS(literal.ResultUsage().Type.ID()) || sqltype.IsTransactionIdentifier(literal.ResultUsage().Type.ID()) || literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money || (literal.ResultUsage().Type.ID() == sqltype.Regtype || sqltype.IsRegObjectAlias(literal.ResultUsage().Type.ID())) && rawLiteral.Value.Kind == parser.StringValue) {

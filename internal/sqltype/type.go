@@ -35,6 +35,7 @@ const (
 	Xid8             ID = 5069
 	PgLSN            ID = 3220
 	PgSnapshot       ID = 5038
+	TxidSnapshot     ID = 2970
 	JSON             ID = 114
 	PgNodeTree       ID = 194
 	PgNDistinct      ID = 3361
@@ -324,6 +325,7 @@ func buildBuiltins() []*Descriptor {
 		{id: Xid8, name: "xid8", sql: "XID8", database: "XID8"},
 		{id: PgLSN, name: "pg_lsn", sql: "PG_LSN", database: "PG_LSN", associatedArray: 3221},
 		{id: PgSnapshot, name: "pg_snapshot", sql: "PG_SNAPSHOT", database: "PG_SNAPSHOT"},
+		{id: TxidSnapshot, name: "txid_snapshot", sql: "TXID_SNAPSHOT", database: "TXID_SNAPSHOT"},
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
 		{id: JSONB, name: "jsonb", sql: "JSONB", database: "JSONB", associatedArray: 3807},
 		{id: JSONPath, name: "jsonpath", sql: "JSONPATH", database: "JSONPATH", associatedArray: 4073},
@@ -991,7 +993,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.jsonpathInput(ctx, text)
 	case Void:
 		return VoidValue(d), nil
-	case PgSnapshot:
+	case PgSnapshot, TxidSnapshot:
 		return d.snapshotInput(text)
 	case PgLSN:
 		return d.pgLSNInput(text)
@@ -1350,7 +1352,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return "", nil
 	case Oid, Xid, Cid:
 		return strconv.FormatUint(uint64(v.oid), 10), nil
-	case PgSnapshot:
+	case PgSnapshot, TxidSnapshot:
 		s, err := v.Snapshot()
 		if err != nil {
 			return "", err
@@ -1483,8 +1485,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "", fmt.Errorf("invalid literal value")
 	}
 	if v.null {
-		if d.BaseType().id == PgSnapshot {
-			return "NULL::pg_snapshot", nil
+		if IsSnapshot(d.BaseType().id) {
+			return "NULL::" + d.BaseType().name, nil
 		}
 		if d.BaseType().id == PgLSN {
 			return "NULL::pg_lsn", nil
@@ -1772,12 +1774,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	case PgLSN:
 		return "'" + pgLSNOutput(uint64(v.integer)) + "'::pg_lsn", nil
-	case PgSnapshot:
+	case PgSnapshot, TxidSnapshot:
 		s, err := v.Snapshot()
 		if err != nil {
 			return "", err
 		}
-		return "'" + s.String() + "'::pg_snapshot", nil
+		return "'" + s.String() + "'::" + d.BaseType().name, nil
 	case Oid, Xid, Cid, Xid8, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
 		if err != nil {
@@ -2106,7 +2108,7 @@ func StoredScalarCastType(id ID) bool {
 		return true
 	case PgNDistinct, PgDependencies, PgMCVList:
 		return true
-	case PgSnapshot, PgLSN:
+	case PgSnapshot, TxidSnapshot, PgLSN:
 		return true
 	case Bool, Int2, Int2Vector, OidVector, Int4, Int8, Oid, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
@@ -2419,8 +2421,8 @@ func (p Comparison) OrderingBound() bool { return p.orderingBound }
 // OrderingFor checks exact operand-generation and collation ownership before
 // transporting a captured ordering; a type capability alone is insufficient.
 func (p Comparison) OrderingFor(u Usage) bool {
-	return u.Type!=nil && u.Type.Concrete() && u.validCollation() &&
-		p.left==u.Type && p.right==u.Type && p.inputCollation==u.Collation &&
+	return u.Type != nil && u.Type.Concrete() && u.validCollation() &&
+		p.left == u.Type && p.right == u.Type && p.inputCollation == u.Collation &&
 		p.orderingBound && !p.missingOrdering && !p.collationIndeterminate
 }
 
@@ -2610,8 +2612,10 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	a.typ, b.typ = p.left.BaseType(), p.right.BaseType()
 	p.left, p.right = a.typ, b.typ
 	if p.left.IsLtree() {
-		if !a.validLtree() || !b.validLtree() { return 0, fmt.Errorf("invalid ltree comparison payload") }
-		return compareLtree(ctx,a.ltree,b.ltree)
+		if !a.validLtree() || !b.validLtree() {
+			return 0, fmt.Errorf("invalid ltree comparison payload")
+		}
+		return compareLtree(ctx, a.ltree, b.ltree)
 	}
 	if p.left.IsHstore() {
 		if !a.validHstore() || !b.validHstore() {

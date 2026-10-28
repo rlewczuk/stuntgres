@@ -12,7 +12,7 @@ func StoredArrayElement(typ *sqltype.Descriptor) bool {
 		return false
 	}
 	physical := typ.BaseType()
-	if physical.ID() == sqltype.PgSnapshot {
+	if sqltype.IsSnapshot(physical.ID()) {
 		return false
 	}
 	if r := physical.RangeType(); r != nil {

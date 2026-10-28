@@ -15,7 +15,7 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 		return 16
 	case 3353, 3354, 5029, 5030, 5031, 6270, 6271, 6272, 6400: // physical directory record listings
 		return 20
-	case 4100, 5052, 5064, 6224: // shared-memory allocations, snapshot XIPs, WAL resource managers
+	case 2947, 4100, 5052, 5064, 6224: // legacy/modern snapshot XIPs, shared-memory allocations, WAL resource managers
 		return 50
 	case 1293, 2331, // multirange and array unnest
 		3084,                                           // extension update paths

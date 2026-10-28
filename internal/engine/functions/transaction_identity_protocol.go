@@ -15,7 +15,7 @@ func (n transactionIdentityExpression) ValidateStoredProvider() error { return n
 
 func (n transactionIdentityExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
 	o, ok := other.(transactionIdentityExpression)
-	return ok && n.kind == o.kind && ((n.arg == nil && o.arg == nil) ||
+	return ok && n.legacy == o.legacy && n.kind == o.kind && ((n.arg == nil && o.arg == nil) ||
 		(n.arg != nil && o.arg != nil && same(n.arg, o.arg)))
 }
 
@@ -30,8 +30,8 @@ func (n transactionIdentityExpression) Render() (expr.Rendering, error) {
 		args = []expr.RenderArg{{Expr: n.arg}}
 	}
 	return expr.Rendering{
-		Tree: "TransactionIdentity " + n.kind.name(), Inputs: n.Children(),
-		Form: expr.FormCall, Name: n.kind.name(), Quote: expr.QuoteOnRequest,
+		Tree: "TransactionIdentity " + n.name(), Inputs: n.Children(),
+		Form: expr.FormCall, Name: n.name(), Quote: expr.QuoteOnRequest,
 		Args: args, Replay: expr.Replay{Validate: n.validate},
 	}, nil
 }

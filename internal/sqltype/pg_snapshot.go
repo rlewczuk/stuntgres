@@ -16,8 +16,11 @@ type Snapshot struct {
 	members    []uint64
 }
 
+// IsSnapshot identifies scalar snapshot payloads, not coercion compatibility.
+func IsSnapshot(id ID) bool { return id == PgSnapshot || id == TxidSnapshot }
+
 func NewSnapshot(xmin, xmax uint64, members []uint64) (*Snapshot, error) {
-	if xmin == 0 || xmax < xmin {
+	if uint32(xmin) == 0 || uint32(xmax) == 0 || xmax < xmin {
 		return nil, fmt.Errorf("invalid snapshot bounds")
 	}
 	for i, id := range members {
@@ -57,13 +60,13 @@ func (s *Snapshot) String() string {
 	return b.String()
 }
 func SnapshotValue(d *Descriptor, s *Snapshot) (Value, error) {
-	if d == nil || d.id != PgSnapshot || !d.Concrete() || s == nil || s.xmin == 0 || s.xmax < s.xmin {
+	if d == nil || !IsSnapshot(d.id) || !d.Concrete() || s == nil || uint32(s.xmin) == 0 || uint32(s.xmax) == 0 || s.xmax < s.xmin {
 		return Value{}, fmt.Errorf("invalid snapshot value")
 	}
 	return Value{typ: d, snapshot: s}, nil
 }
 func (v Value) Snapshot() (*Snapshot, error) {
-	if v.typ == nil || v.typ.BaseType().id != PgSnapshot || v.null || v.snapshot == nil {
+	if v.typ == nil || !IsSnapshot(v.typ.BaseType().id) || v.null || v.snapshot == nil {
 		return nil, fmt.Errorf("invalid snapshot value")
 	}
 	return v.snapshot, nil
@@ -115,7 +118,7 @@ func (d *Descriptor) snapshotInput(text string) (Value, error) {
 	}
 	pos++
 	xmax, ok := scanSnapshotUint(text, &pos)
-	if !ok || xmin == 0 || xmax < xmin || pos == len(text) || text[pos] != ':' {
+	if !ok || uint32(xmin) == 0 || uint32(xmax) == 0 || xmax < xmin || pos == len(text) || text[pos] != ':' {
 		return bad()
 	}
 	pos++

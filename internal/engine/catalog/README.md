@@ -39,6 +39,8 @@ private frames, not catalog authority.
   declarations, retaining released/provider defaults when no override exists.
   Physical directory record listings, including both `pg_ls_tmpdir` overloads,
   retain the released twenty-row estimate rather than the default thousand.
+  Both legacy and modern snapshot member sources retain the released fifty-row
+  estimate by their distinct declaration identities.
   Scalar estimates remain zero independently of mutable estimate fields.
   `InstalledRoutineDeclaration` retains immutable parallel/set/row-estimate and
   trailing-default counts by value. Its comparable `Outputs` pointer and the

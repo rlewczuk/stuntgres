@@ -299,7 +299,11 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   an ordinary rank-zero empty array (NULL dimensional inquiries, cardinality
   zero). Same-element/binary relabeling and immutable generation reownership
   preserve the rank-one empty header; `MapArray` itself does not normalize it.
-- `pg_snapshot` owns an immutable full-XID bounds/member payload. Text input
+- `pg_snapshot` and nominally distinct `txid_snapshot` share an immutable
+  unsigned full-XID bounds/member payload. Both bounds require nonzero low32.
+  The legacy interface interprets extracted bigint bits as signed, without
+  changing canonical unsigned snapshot text or permitting cross-type retagging.
+  Text input
   validates nondecreasing membership and canonicalizes duplicates; constructors
   copy caller-owned members and indexed access never exposes mutable backing.
   Visibility is arithmetic plus membership for top-level IDs, not subxid status.
@@ -708,3 +712,4 @@ match engine tests of the same mechanism):
   `RUN='^TestStatisticExpressionValue'`.
 - Internal statistics payloads, native layouts and immutable producer authority:
   `RUN='^TestStatistics(Type|MCVNative)'`.
+- Snapshot codecs, nominal reminting and payload ownership: `RUN='^Test(PGSnapshot|TxidSnapshot)'`.

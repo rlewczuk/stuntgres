@@ -389,7 +389,7 @@ func (d *Descriptor) unavailableBinaryProvider(output bool) error {
 	if d.id == ACLItem || d.IsHstore() || d.IsSeg() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree() || d.IsLtxtquery()) || d.IsCube() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() {
 		return failure("42883", fmt.Sprintf("no binary %s function available for type %s", direction, d.name))
 	}
-	if d.IsCatalogVector() || d.id == PgSnapshot || d.id == Tid || d.id == Macaddr || d.id == Macaddr8 || d.id == Lseg {
+	if d.IsCatalogVector() || IsSnapshot(d.id) || d.id == Tid || d.id == Macaddr || d.id == Macaddr8 || d.id == Lseg {
 		return d.unsupportedBinaryProvider(output)
 	}
 	return nil

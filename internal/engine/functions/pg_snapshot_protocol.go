@@ -10,7 +10,7 @@ func (n snapshotExpression) validate() error {
 	if n.kind < snapshotCurrent || n.kind > snapshotVisible || !n.Usage.Valid() {
 		return fmt.Errorf("stuntgres: invalid snapshot provider")
 	}
-	formals := snapshotFormals(n.kind)
+	formals := snapshotFormals(n.kind, n.legacy)
 	if len(n.args) != len(formals) {
 		return fmt.Errorf("stuntgres: invalid snapshot arity")
 	}
@@ -19,9 +19,9 @@ func (n snapshotExpression) validate() error {
 			return fmt.Errorf("stuntgres: invalid snapshot argument")
 		}
 	}
-	result := sqltype.Xid8
+	result, snapshot := snapshotTypes(n.legacy)
 	if n.kind == snapshotCurrent {
-		result = sqltype.PgSnapshot
+		result = snapshot
 	} else if n.kind == snapshotVisible {
 		result = sqltype.Bool
 	}
@@ -69,14 +69,14 @@ func (n snapshotExpression) PlanningFold() expr.Fold {
 }
 func (n snapshotExpression) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(snapshotExpression)
-	return ok && n.kind == snapshotXip && o.kind == snapshotXip && n.ResultUsage() == o.ResultUsage()
+	return ok && n.legacy == o.legacy && n.kind == snapshotXip && o.kind == snapshotXip && n.ResultUsage() == o.ResultUsage()
 }
 func (n snapshotExpression) PreflightFold() expr.Preflight { return expr.PreflightChildren }
 func (n snapshotExpression) LooksLikeFunction() bool       { return true }
 func (n snapshotExpression) ValidateStoredProvider() error { return n.validate() }
 func (n snapshotExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
 	o, ok := other.(snapshotExpression)
-	if !ok || n.kind != o.kind || len(n.args) != len(o.args) {
+	if !ok || n.legacy != o.legacy || n.kind != o.kind || len(n.args) != len(o.args) {
 		return false
 	}
 	for i, arg := range n.args {
@@ -102,7 +102,7 @@ func (n snapshotExpression) Render() (expr.Rendering, error) {
 	for i, arg := range n.args {
 		args[i] = expr.RenderArg{Expr: arg}
 	}
-	return expr.Rendering{Tree: "Snapshot " + snapshotNames[n.kind], Inputs: n.Children(), Form: expr.FormCall, Name: snapshotNames[n.kind], Quote: expr.QuoteOnRequest, Args: args, Replay: expr.Replay{Validate: n.validate}}, nil
+	return expr.Rendering{Tree: "Snapshot " + n.name(), Inputs: n.Children(), Form: expr.FormCall, Name: n.name(), Quote: expr.QuoteOnRequest, Args: args, Replay: expr.Replay{Validate: n.validate}}, nil
 }
 func (n snapshotExpression) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
 	if kind != expr.CaptureFunction {

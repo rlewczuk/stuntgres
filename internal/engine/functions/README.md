@@ -236,6 +236,12 @@ binding or execution authority; the selected descriptor and manifest are require
   occurrence identity across rewrites, and keeps only its immutable value and
   invocation-private index. NULL and empty member lists exhaust that invocation
   without producing a row.
+  Modern and legacy calls retain explicit flavor in the same providers:
+  `pg_snapshot`/XID8 versus `txid_snapshot`/INT8. Bigint arguments use ordinary
+  implicit widening; raw full-XID bits convert at the typed value boundary.
+  Current/assigned/status reuse `TransactionInquiryRuntime` and never retain
+  allocator or visibility authority. Reconstruction and semantic identity keep
+  the selected nominal signature and SQL name.
 
 `ts_parse` and `ts_token_type` share one fixed-OUT source provider. Their text
 and OID formals select ordinary routine authority; text-name resolution borrows
@@ -753,6 +759,8 @@ Runtime inquiry binding, immutable protocols and typed source ownership use
 Logical-decoding declaration, reconstruction, option and runtime ownership units
 live in `core` and use `RUN='^TestLogicalDecoding'`; public shared scenarios live
 in `reference/roles`.
+Legacy snapshot and transaction-identity protocols, binding and source ownership
+use `RUN='^TestLegacy(Snapshot|TransactionIdentity)'`.
 
 Native ordered support state, tuple ownership and cancellation units use
 `RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in

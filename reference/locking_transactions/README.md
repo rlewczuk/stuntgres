@@ -73,6 +73,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Transaction settings: `RUN='^TestReferenceTransactionSettings'`
 - Transaction identity functions: `RUN='^TestReferenceTransactionIdentity'`
 - Snapshot values, visibility and capture lifetimes: `RUN='^TestReferenceSnapshot'`
+- Legacy bigint snapshot values, identities and consumers: `RUN='^TestReferenceLegacySnapshot'`
 - Commit timestamps: `RUN='^TestReferenceCommitTime'`
 - Savepoints: `RUN='^TestReferenceSavepoints'`
 - Serializable isolation: `RUN='^TestReferenceSerializable'`

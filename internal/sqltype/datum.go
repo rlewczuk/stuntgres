@@ -182,7 +182,7 @@ func SameDatum(a, b Value) bool {
 		return a.integer == b.integer
 	case Inet, Cidr:
 		return a.network.valid(a.typ.BaseType().id == Cidr) && b.network.valid(b.typ.BaseType().id == Cidr) && a.network == b.network
-	case PgSnapshot:
+	case PgSnapshot, TxidSnapshot:
 		if a.snapshot == nil || b.snapshot == nil {
 			return false
 		}

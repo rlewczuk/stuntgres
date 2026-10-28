@@ -52,6 +52,9 @@ The zero-input trigger-depth declaration retains OID3163, INT4 result and its
 released strict, STABLE, parallel-restricted internal-function metadata.
 Settings flags and option expansion retain released STABLE/strict declarations,
 unnamed versus fixed input/OUT formal metadata, and the option row estimate 3.
+The eight legacy transaction inquiries retain distinct bigint/txid_snapshot
+signatures, their modern implementation symbols, strictness, volatility and
+parallel-safety declarations; snapshot member expansion has row estimate 50.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 
 Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and

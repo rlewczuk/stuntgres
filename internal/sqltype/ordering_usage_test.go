@@ -25,7 +25,7 @@ func TestOrderingUsage(t *testing.T) {
 				}
 				return
 			}
-			if d.ID() == PgSnapshot {
+			if IsSnapshot(d.ID()) {
 				if err == nil {
 					t.Fatal("pg_snapshot ordering admitted")
 				}

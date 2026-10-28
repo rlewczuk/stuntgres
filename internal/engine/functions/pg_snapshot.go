@@ -9,6 +9,7 @@ import (
 )
 
 var snapshotNames = [...]string{"pg_current_snapshot", "pg_snapshot_xmin", "pg_snapshot_xmax", "pg_snapshot_xip", "pg_visible_in_snapshot"}
+var legacySnapshotNames = [...]string{"txid_current_snapshot", "txid_snapshot_xmin", "txid_snapshot_xmax", "txid_snapshot_xip", "txid_visible_in_snapshot"}
 
 const (
 	snapshotCurrent = iota
@@ -20,26 +21,49 @@ const (
 
 type snapshotExpression struct {
 	expr.Info
-	kind int
-	args []expr.Expr
+	kind   int
+	legacy bool
+	args   []expr.Expr
 }
 
-func snapshotFormals(kind int) []sqltype.ID {
+func snapshotTypes(legacy bool) (sqltype.ID, sqltype.ID) {
+	if legacy {
+		return sqltype.Int8, sqltype.TxidSnapshot
+	}
+	return sqltype.Xid8, sqltype.PgSnapshot
+}
+func snapshotFormals(kind int, legacy bool) []sqltype.ID {
+	id, snapshot := snapshotTypes(legacy)
 	switch kind {
 	case snapshotCurrent:
 		return nil
 	case snapshotVisible:
-		return []sqltype.ID{sqltype.Xid8, sqltype.PgSnapshot}
+		return []sqltype.ID{id, snapshot}
 	}
-	return []sqltype.ID{sqltype.PgSnapshot}
+	return []sqltype.ID{snapshot}
+}
+func (n snapshotExpression) name() string {
+	if n.legacy {
+		return legacySnapshotNames[n.kind]
+	}
+	return snapshotNames[n.kind]
 }
 func bindSnapshot(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind := -1
+	legacy := false
 	for i, n := range snapshotNames {
 		if n == name {
 			kind = i
 			break
+		}
+	}
+	if kind < 0 {
+		for i, n := range legacySnapshotNames {
+			if n == name {
+				kind, legacy = i, true
+				break
+			}
 		}
 	}
 	operands := make([]Argument, len(raw.Args))
@@ -66,12 +90,18 @@ func bindSnapshot(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if kind < 0 || !visible || raw.ResolutionOnly || raw.Variadic || len(raw.ArgNames) != 0 {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	formals := snapshotFormals(kind)
+	formals := snapshotFormals(kind, legacy)
 	valid := len(operands) == len(formals)
 	if valid {
 		for i, arg := range operands {
-			if arg.Usage.Type != nil && arg.Usage.Type.BaseType() != b.Type(formals[i]) {
-				valid = false
+			if arg.Usage.Type != nil {
+				if legacy && formals[i] == sqltype.Int8 {
+					if _, err := sqltype.PlanCoercion(arg.Usage, b.Type(sqltype.Int8).Usage(), sqltype.Implicit); err != nil {
+						valid = false
+					}
+				} else if arg.Usage.Type.BaseType() != b.Type(formals[i]) {
+					valid = false
+				}
 			}
 		}
 	}
@@ -99,9 +129,9 @@ func bindSnapshot(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		}
 		properties.StageDependent = true
 	}
-	result := sqltype.Xid8
+	result, snapshot := snapshotTypes(legacy)
 	if kind == snapshotCurrent {
-		result = sqltype.PgSnapshot
+		result = snapshot
 	} else if kind == snapshotVisible {
 		result = sqltype.Bool
 	}
@@ -109,7 +139,7 @@ func bindSnapshot(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return snapshotExpression{info, kind, args}, nil
+	return snapshotExpression{Info: info, kind: kind, legacy: legacy, args: args}, nil
 }
 func (n snapshotExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if n.kind == snapshotCurrent {
@@ -149,11 +179,11 @@ func (n snapshotExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	switch n.kind {
 	case snapshotMin:
-		return sqltype.XID8Value(n.Usage.Type, snapshot.Xmin())
+		return snapshotIDValue(n.Usage.Type, snapshot.Xmin())
 	case snapshotMax:
-		return sqltype.XID8Value(n.Usage.Type, snapshot.Xmax())
+		return snapshotIDValue(n.Usage.Type, snapshot.Xmax())
 	case snapshotVisible:
-		id, err := values[0].XID8()
+		id, err := snapshotID(values[0])
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -187,7 +217,21 @@ func nextSnapshotMember(_ context.Context, cursor *expr.SourceCursor) (sqltype.V
 	if cursor.Position == snapshot.Len() {
 		return sqltype.Value{}, false, nil
 	}
-	value, err := sqltype.XID8Value(cursor.Type, snapshot.Member(cursor.Position))
+	value, err := snapshotIDValue(cursor.Type, snapshot.Member(cursor.Position))
 	cursor.Position++
 	return value, true, err
+}
+
+func snapshotIDValue(d *sqltype.Descriptor, id uint64) (sqltype.Value, error) {
+	if d.ID() == sqltype.Int8 {
+		return sqltype.Integer(d, int64(id))
+	}
+	return sqltype.XID8Value(d, id)
+}
+func snapshotID(value sqltype.Value) (uint64, error) {
+	if value.Type().BaseType().ID() == sqltype.Int8 {
+		id, err := value.Integer()
+		return uint64(id), err
+	}
+	return value.XID8()
 }

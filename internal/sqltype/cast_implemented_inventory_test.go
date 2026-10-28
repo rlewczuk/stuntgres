@@ -15,7 +15,7 @@ func TestCastImplementedInventory(t *testing.T) {
 		22: "int2vector", 30: "oidvector",
 		3220: "pg_lsn",
 		3361: "pg_ndistinct", 3402: "pg_dependencies", 5017: "pg_mcv_list",
-		26: "oid", 27: "tid", 28: "xid", 29: "cid", 5069: "xid8", 5038: "pg_snapshot", 24: "regproc", 2202: "regprocedure", 2203: "regoper", 2204: "regoperator", 2205: "regclass", 2206: "regtype", 4096: "regrole", 4191: "regcollation", 4089: "regnamespace", 3734: "regconfig", 3769: "regdictionary",
+		26: "oid", 27: "tid", 28: "xid", 29: "cid", 5069: "xid8", 5038: "pg_snapshot", 2970: "txid_snapshot", 24: "regproc", 2202: "regprocedure", 2203: "regoper", 2204: "regoperator", 2205: "regclass", 2206: "regtype", 4096: "regrole", 4191: "regcollation", 4089: "regnamespace", 3734: "regconfig", 3769: "regdictionary",
 		1042: "bpchar", 1043: "varchar", 700: "float4", 701: "float8", 1700: "numeric", 790: "money", 1560: "bit", 1562: "varbit", 2950: "uuid",
 		1082: "date", 1083: "time", 1266: "timetz", 1114: "timestamp", 1184: "timestamptz", 1186: "interval",
 		869: "inet", 650: "cidr", 829: "macaddr", 774: "macaddr8", 1033: "aclitem", 114: "json", 3802: "jsonb", 4072: "jsonpath", 3614: "tsvector", 3615: "tsquery",
@@ -89,7 +89,7 @@ func TestCastImplementedInventory(t *testing.T) {
 		}
 	}
 	// These are explicit lookup-only boundaries, not inferred from a companion ID.
-	forbidden := "_cstring _pg_lsn _money _macaddr _macaddr8 _inet _cidr _refcursor _tsvector _tsquery _point _lseg _path _box _polygon _line _circle _pg_snapshot _xid8 _cid _regoper _regoperator datemultirange tsmultirange tstzmultirange"
+	forbidden := "_cstring _pg_lsn _money _macaddr _macaddr8 _inet _cidr _refcursor _tsvector _tsquery _point _lseg _path _box _polygon _line _circle _pg_snapshot _txid_snapshot _xid8 _cid _regoper _regoperator datemultirange tsmultirange tstzmultirange"
 	boundaries := map[string]bool{}
 	for _, name := range strings.Fields(forbidden) {
 		boundaries[name] = false
