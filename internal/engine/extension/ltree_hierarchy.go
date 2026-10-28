@@ -13,7 +13,7 @@ import (
 const (
  LtreeHierarchyProcedureStart = LtreeHashClassSlot + 1
  LtreeHierarchyOperatorStart = LtreeHierarchyProcedureStart + int(sqltype.LtreeHierarchyOperationCount)
- LtreeMemberCount = LtreeHierarchyOperatorStart + int(sqltype.LtreeHierarchyOperationCount)
+ LtreeHierarchyMemberEnd = LtreeHierarchyOperatorStart + int(sqltype.LtreeHierarchyOperationCount)
 )
 
 var ltreeHierarchyNames = [...]string{"ltree_isparent", "ltree_risparent"}

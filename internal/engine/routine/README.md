@@ -7,10 +7,10 @@ definitions and invocation frames are in [`proc`](../proc/README.md); call
 resolution and SQL body binding stay in the engine.
 
 `OperatorProvider` validates reciprocal extension membership before ordinary
-operand, result and backer checks. Only manifest-authenticated hstore recipe
-operators may live outside the installation schema, through
-`extension.HstoreRelocatableOperator`; full operator and extension validation
-still follows. Comparison families and other providers keep their placement gates.
+operand, result and backer checks. Manifest-authenticated hstore recipe and
+ltree path concatenation operators may live outside the installation schema,
+through their bounded relocation predicates; full operator and extension
+validation still follows. Comparison families and other roles keep their placement gates.
   Installed ltree B-tree/hash keys authenticate the complete stock graph and
   selected support slots before binding typed kernels. Required members retain
   exact INTERNAL class ownership; optional hash support2 retains AUTO family

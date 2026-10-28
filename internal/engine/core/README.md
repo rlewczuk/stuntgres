@@ -1605,6 +1605,8 @@ Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDept
 
 Scalar hierarchy accepted definition/fold backing and rejected-publication fences
 use `RUN='^TestLtreeHierarchyPrepared'`.
+ Path accepted-definition ownership uses `RUN='^TestLtreePathPrepared'`, retaining
+ every scalar-LCA occurrence and exact installed fold backing through rejection.
 
 Trigger-mode candidate, staged cancellation, prepared publication, clone/FK and
 replay ownership units share `RUN='^TestTriggerMode'`, also with `RACE=1`.

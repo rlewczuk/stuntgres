@@ -48,7 +48,7 @@ func LtreeArrayProcedureName(name string) bool {
 }
 
 func ltreeMemberClass(slot int) ids.OID {
- if slot >= LtreeHierarchyOperatorStart && slot < LtreeMemberCount { return ids.OperatorClassID }
+ if slot >= LtreeHierarchyOperatorStart && slot < LtreeHierarchyMemberEnd || slot >= LtreePathOperatorStart && slot < LtreeMemberCount { return ids.OperatorClassID }
  if slot < LtreeArrayProcedureStart && slot%3 == 0 { return ids.TypeClassID }
  if slot >= LtreeArrayOperatorStart && slot < LtreeComparisonProcedureStart || slot >= LtreeComparisonOperatorStart && slot < LtreeBtreeFamilySlot { return ids.OperatorClassID }
  if slot == LtreeBtreeFamilySlot || slot == LtreeHashFamilySlot { return ids.OperatorFamilyClassID }
@@ -58,6 +58,7 @@ func ltreeMemberClass(slot int) ids.OID {
 
 func ltreeRoleType(v catalog.Read, ext *catalog.Extension, role string) (*sqltype.Descriptor, error) {
  if role == "16" { typ, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}); if ok { return typ.SQLType, nil }; return nil, fmt.Errorf("missing bool type") }
+ if role == "23" || role == "25" { oid := ids.OID(23); if role == "25" { oid = 25 }; typ,ok := v.Type(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:oid}); if ok { return typ.SQLType,nil }; return nil,fmt.Errorf("missing ltree path builtin type") }
  scalar := strings.TrimSuffix(role, "[]")
  for _, recipe := range ltreeRecipes {
   if recipe.name != scalar { continue }

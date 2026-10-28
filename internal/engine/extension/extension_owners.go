@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/sqltype"
 	"unicode/utf8"
 )
 
@@ -480,6 +481,7 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			}
 		}
 	case "ltree":
+  if slot >= LtreePathProcedureStart && slot < LtreePathOperatorStart { return ltreePathRecipes[slot-LtreePathProcedureStart].signature, true }
 		if slot >= LtreeHierarchyProcedureStart && slot < LtreeHierarchyOperatorStart { return "ltree,ltree", true }
 		if slot >= LtreeComparisonProcedureStart && slot < LtreeComparisonOperatorStart {
 			switch slot-LtreeComparisonProcedureStart {
@@ -556,7 +558,8 @@ func cubeOwnerOperatorIdentity(slot int) (string, string, bool) {
 func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 	switch extension {
 	case "ltree":
-		if slot >= LtreeHierarchyOperatorStart && slot < LtreeMemberCount { return ltreeHierarchyOperators[slot-LtreeHierarchyOperatorStart], "ltree,ltree", true }
+  if slot >= LtreeHierarchyOperatorStart && slot < LtreeHierarchyMemberEnd { return ltreeHierarchyOperators[slot-LtreeHierarchyOperatorStart], "ltree,ltree", true }
+  if slot >= LtreePathOperatorStart && slot < LtreeMemberCount { return "||", ltreePathRecipes[int(sqltype.LtreeConcat)+slot-LtreePathOperatorStart].signature, true }
 		if slot >= LtreeComparisonOperatorStart && slot < LtreeBtreeFamilySlot { return ltreeComparisonOperators[slot-LtreeComparisonOperatorStart],"ltree,ltree",true }
 		if slot >= LtreeArrayOperatorStart && slot < LtreeComparisonProcedureStart {
 			recipe := ltreeArrayRecipes[slot-LtreeArrayOperatorStart]

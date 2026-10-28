@@ -95,6 +95,11 @@ transport; mutable names and equal numeric OIDs never authorize remapping.
 Unchanged-generation retagging rejects captures newer than the current routine
 revision, while historical presentation/ACL revisions remain valid. Authorized
 cross-generation import preserves source revisions independently.
+ `LtreePath` retains an active count and inline ordered formal/operand generations,
+ including every repeated scalar-LCA occurrence. Original source declarations and
+ complete destination path manifests authenticate independently before remap,
+ retag or current-name rendering. Qualified replay casts each active operand to its
+ genuine destination formal; no caller scratch, array cursor or authority is stored.
   Ltree comparisons use the existing scalar/row, distinctness, membership,
   NULLIF and simple-CASE carriers. They retain both operand generations, selected
   immutable routine, operation and catalog-domain/epoch reference. Transport
@@ -858,6 +863,8 @@ Type inquiry immutable recipe ownership and frozen view/policy cast-occurrence
 authority use `RUN='^TestTypeDescribe(StoredOwnership|ComposedStoredOwnership|FrozenCastOccurrence)$'`.
 Scalar hierarchy source/destination authority and immutable graph ownership use
 `RUN='^TestLtreeHierarchyStored'`.
+ Bounded path expression/capture and source/destination ownership use
+ `RUN='^TestLtreePath'`, including repeated operands and rejected remap publication.
 
 Package units cover the payload API, rule presentation, routine recipes and aggregate recipes.
 `TestViewPartsRoundTrip` and `TestRulePartsRoundTrip` require every `View`,

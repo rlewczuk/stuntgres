@@ -143,6 +143,12 @@ these are shared across families:
 - Scalar hierarchy fixtures independently specify inclusive path relationships,
   Boolean metadata, overload/privilege diagnostics and restored stored consumers.
   The reusable selector is `RUN='^TestReferenceLtreeHierarchy'`.
+ - Path utilities share `RUN='^TestReferenceLtreePath'`: independently specified
+   slices, whole-label index, conversion, proper-ancestor scalar/array LCA and the
+   three typed concatenations use direct, fresh and held routes. Metadata and full
+   diagnostics distinguish empty paths from SQL NULL and operation failures from
+   input conversion. Stored nonconstant consumers and repeated LCA arguments survive
+   relocated/renamed providers, native replacement and actual emitted-SQL replay.
 
 Client quirks:
 

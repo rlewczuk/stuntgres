@@ -266,6 +266,14 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   `LtreeHierarchyOperation` reuses complete-label prefix matching in either
   orientation without reparsing or allocating. Exact installed operand generations
   are checked before typed NULL propagation; equality and empty ancestors are inclusive.
+  `LtreePathOperation` owns exact bounded overload signatures for slicing, index,
+  depth, conversion, proper-ancestor LCA and typed concatenation. Validated label
+  spans are reused without reparsing; new paths own rebased spans and exact text,
+  while exact whole-path and empty-concat identities share immutable backing.
+  Scalar LCA preserves all operand occurrences; array LCA validates rank before
+  NULL elements and keeps SQL NULL distinct from a present empty path. Kernels
+  validate active formal/operand generations before strictness and check cancellation
+  within bounded scans; text parsing uses the existing installed input codec.
 - Ltree and lquery use ordinary concrete companion arrays, including supported
   domain elements. `LtreeArrayOperation` checks exact formal generations and
   implements the selected installed predicates/extractors. Whole NULL arguments

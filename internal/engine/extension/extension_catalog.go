@@ -68,7 +68,7 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 				// Their public namespace may change independently of the
 				// installation. Provider manifests retain identity authority.
 			default:
-				if member.Namespace() != d.TargetNamespace && !HstoreRelocatableOperator(v, d, a) {
+    if member.Namespace() != d.TargetNamespace && !HstoreRelocatableOperator(v, d, a) && !LtreePathRelocatableOperator(v, d, a) {
 					return invalid()
 				}
 			}
@@ -131,7 +131,7 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	}
 	if ext != (ids.ObjectAddress{}) {
 		parent, ok := v.Extension(ext)
-		if !ok || d.Address().ClassID != ids.ProcedureClassID && d.Address().ClassID != ids.TSDictionaryClassID && d.Address().ClassID != ids.TSTemplateClassID && parent.TargetNamespace != namespace && !HstoreRelocatableOperator(v, parent, a) {
+  if !ok || d.Address().ClassID != ids.ProcedureClassID && d.Address().ClassID != ids.TSDictionaryClassID && d.Address().ClassID != ids.TSTemplateClassID && parent.TargetNamespace != namespace && !HstoreRelocatableOperator(v, parent, a) && !LtreePathRelocatableOperator(v, parent, a) {
 			return invalid()
 		}
 		found := false

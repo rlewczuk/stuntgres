@@ -33,7 +33,7 @@ func (OperatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) 
 	}
 	if d.Extension != (ids.ObjectAddress{}) {
 		installation, _ := v.Extension(d.Extension)
-		if !extension.HstoreRelocatableOperator(v, installation, d.Address()) {
+  if !extension.HstoreRelocatableOperator(v, installation, d.Address()) && !extension.LtreePathRelocatableOperator(v, installation, d.Address()) {
 			if err := catalog.ValidateExtensionMembership(v, d); err != nil {
 				return err
 			}

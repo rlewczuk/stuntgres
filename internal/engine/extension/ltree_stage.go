@@ -85,7 +85,7 @@ func (p *LtreeProvider) Stage(stage Stage, ext *catalog.Extension, owner authori
 		}
 	}
 	resolve := func(role string) (*sqltype.Descriptor, error) {
-		if role == "16" { return ltreeRoleType(stage.Read(), ext, role) }
+  if role == "16" || role == "23" || role == "25" { return ltreeRoleType(stage.Read(), ext, role) }
 		for family, recipe := range ltreeRecipes {
 			if role == recipe.name { return types[family][0], nil }
 			if role == recipe.name+"[]" { return types[family][1], nil }
@@ -116,7 +116,8 @@ func (p *LtreeProvider) Stage(stage Stage, ext *catalog.Extension, owner authori
 		if err := stage.Create(op); err != nil { return err }
 	}
 	if err := p.stageComparisons(stage, ext, owner, types[1][0]); err != nil { return err }
-	return p.stageHierarchy(stage, ext, owner, types[1][0])
+ if err := p.stageHierarchy(stage, ext, owner, types[1][0]); err != nil { return err }
+ return p.stagePaths(stage, ext, owner, resolve)
 }
 
 func ltreeTypeContext(name string) string {

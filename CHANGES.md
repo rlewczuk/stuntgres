@@ -21,6 +21,11 @@
   Reached routine utilities use their own zero-argument command signature while
   later bound commands retain the original invocation's formal values.
 
+- Add installed ltree path slicing, index, depth, text conversion, proper-ancestor
+  scalar/array LCA and typed concatenation, preserving exact overload identity and
+  immutable operands through prepared execution, stored expressions and native controls,
+  including authenticated individual concatenation-operator relocation and replay.
+
 - Add installed ltree standard comparisons with typed label ordering, grouping
   and B-tree/hash keys, preserving captured comparison identities and immutable
   operands through prepared execution and native catalog replacement. Stored

@@ -176,6 +176,8 @@ extension constructors for declaration completeness, independent source
 bags, redaction, empty/canceled results and generation fences.
 Scalar hierarchy manifest authority and atomic member conflicts use
 `RUN='^TestLtreeHierarchyProvider'`.
+ Path manifest, original SQL-name/C-symbol identity and atomic staged conflicts
+ use `RUN='^TestLtreePathProvider'`.
 
 Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing),

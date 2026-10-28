@@ -90,7 +90,7 @@ function references once into the destination authority.
   Feature packages own each entry's decision (`routine.OperatorDumped`,
   `stored.ProcedureProvider`, `stored.TypeProvider`).
 - **Installed operators** (`operator_provider_replay.go`): authenticated moved
-  hstore recipe operators replay with genuine ALTER OPERATOR SET SCHEMA, in
+  hstore recipe and ltree path concatenation operators replay with genuine ALTER OPERATOR SET SCHEMA, in
   extension-event and manifest-slot order. The existing provider phase runs
   after extension/type identities exist and before owner metadata and stored
   consumers. Unchanged installed operators emit no statement; none is recreated.

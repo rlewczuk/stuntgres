@@ -319,6 +319,14 @@ Reconstruction, capture, grouping and qualified replay preserve the selected
 member and original declaration rather than dispatching by operator spelling.
 Shared strict NULL preflight and routine admission use current caller authority;
 these nodes do not cache ACLs. Typed evaluation belongs to sqltype, not function spelling.
+ `LtreePath` applies that contract to the selected path utilities. Inline eight-slot
+ operand/formal storage and an active count retain every written occurrence,
+ including repeated LCA arguments, without borrowing producer scratch. Rebuild,
+ capture, grouping, qualified transport casts and typed retagging preserve the
+ genuine installed overload. Invocation values and scan scratch stay call-local.
+ Scalar FROM calls use explicit source admission and the shared scalar-once cursor:
+ every open evaluates the selected call once and emits one typed row, including
+ SQL NULL. No cursor or evaluation context is retained on the immutable node.
 `HstoreRows` retains the selected set-returning declaration and a checked typed
 pair projection plan. Shared source admission/lifting owns placement and row
 combination; each open evaluates its operand once and owns a separate cursor.

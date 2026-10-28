@@ -26,7 +26,7 @@ func (s *dumpScript) operatorProviderReplayStatements() ([]string, error) {
 			if !ok || op.Namespace() == ext.TargetNamespace {
 				continue
 			}
-			if !extension.HstoreRelocatableOperator(s.CatalogView, ext, address) {
+   if !extension.HstoreRelocatableOperator(s.CatalogView, ext, address) && !extension.LtreePathRelocatableOperator(s.CatalogView, ext, address) {
 				return nil, extension.InvalidProviderDescriptor()
 			}
 			original, ok := s.CatalogView.Namespace(ext.TargetNamespace)

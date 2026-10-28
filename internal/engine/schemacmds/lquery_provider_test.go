@@ -114,9 +114,23 @@ func TestLqueryProviderIdentity(t *testing.T) {
 			case member.Slot>=extension.LtreeHierarchyProcedureStart&&member.Slot<extension.LtreeHierarchyOperatorStart:
 				name:=[]string{"ltree_isparent","ltree_risparent"}[member.Slot-extension.LtreeHierarchyProcedureStart]
 				if member.Kind!="procedure"||member.Name!=name||member.Signature!="ltree,ltree"{t.Fatal("hierarchy procedure owner role",member)}
-			case member.Slot>=extension.LtreeHierarchyOperatorStart&&member.Slot<extension.LtreeMemberCount:
+   case member.Slot>=extension.LtreeHierarchyOperatorStart&&member.Slot<extension.LtreeHierarchyMemberEnd:
 				name:=[]string{"@>","<@"}[member.Slot-extension.LtreeHierarchyOperatorStart]
 				if member.Kind!="operator"||member.Name!=name||member.Signature!="ltree,ltree"{t.Fatal("hierarchy operator owner role",member)}
+   case member.Slot>=extension.LtreePathProcedureStart&&member.Slot<extension.LtreePathOperatorStart:
+    index:=member.Slot-extension.LtreePathProcedureStart
+    name:=[]string{"subltree","subpath","subpath","index","index","nlevel","ltree2text","text2ltree","lca","lca","lca","lca","lca","lca","lca","lca","ltree_addltree","ltree_addtext","ltree_textadd"}[index]
+    signature:=[]string{
+     "ltree,23,23","ltree,23,23","ltree,23","ltree,ltree","ltree,ltree,23",
+     "ltree","ltree","25","ltree[]","ltree,ltree","ltree,ltree,ltree",
+     "ltree,ltree,ltree,ltree","ltree,ltree,ltree,ltree,ltree",
+     "ltree,ltree,ltree,ltree,ltree,ltree","ltree,ltree,ltree,ltree,ltree,ltree,ltree",
+     "ltree,ltree,ltree,ltree,ltree,ltree,ltree,ltree","ltree,ltree","ltree,25","25,ltree",
+    }[index]
+    if member.Kind!="procedure"||member.Name!=name||member.Signature!=signature{t.Fatal("path procedure owner role",member)}
+   case member.Slot>=extension.LtreePathOperatorStart&&member.Slot<extension.LtreeMemberCount:
+    signature:=[]string{"ltree,ltree","ltree,25","25,ltree"}[member.Slot-extension.LtreePathOperatorStart]
+    if member.Kind!="operator"||member.Name!="||"||member.Signature!=signature{t.Fatal("path operator owner role",member)}
 			case member.Slot>=extension.LtreeComparisonProcedureStart&&member.Slot<extension.LtreeComparisonOperatorStart:
 				index:=member.Slot-extension.LtreeComparisonProcedureStart
 				name:=[]string{"ltree_eq","ltree_ne","ltree_lt","ltree_le","ltree_gt","ltree_ge","ltree_cmp","hash_ltree","hash_ltree_extended"}[index]

@@ -44,6 +44,11 @@ formals, current dependencies and privileges authorize binding.
 Scalar hierarchy backers follow the same selection path with exact ltree/ltree
 formals and BOOL results; shared coercion handles unknown literals and domains,
 without granting implicit TEXT conversion or spelling-based execution authority.
+ Path utilities and the three installed concatenation signatures use that same
+ selected-call gateway, exact integer/text/installed formals and ordinary argument
+ coercion. Bounded scalar LCA arities remain separate declarations. Genuine
+ operator backers, not the `||` spelling or current routine label, authorize
+ lowering; builtin TEXT concatenation keeps its existing provider.
   The six installed scalar ltree comparisons lower through the shared comparison
   carrier with authentic operator/backer dependencies. Ordering resolves the
   current installed default B-tree class and support even for empty input.

@@ -107,6 +107,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore" || name == "fetchval" || name == "slice_array" || name == "exist" || name == "defined" || name == "exists_all" || name == "exists_any" || name == "hs_contains" || name == "hs_contained" || name == "akeys" || name == "avals" || name == "skeys" || name == "svals" || name == "each" || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
+ if extension.LtreePathProcedureName(name) { providerOverride = true }
 	if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !extension.LtreeHierarchyProcedureName(name) && !extension.LtreeArrayProcedureName(name) && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
@@ -781,6 +782,18 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	}
 	if d != nil && extension.LtreeProviderOf(d) == extension.StockLtree {
 		if err := extension.StockLtree.ValidateProcedure(selected.auth.ReadCatalog(), d); err != nil { return nil, err }
+		if operation, ok := extension.LtreePathProcedure(selected.auth.ReadCatalog(), d); ok {
+			node, err := b.bindSelectedLtreePath(raw, selected, operation)
+			if err == nil && freezeSyntax {
+				symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+				if failure != nil { return nil, failure }
+				frozen := raw
+				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+				if b.Stored.Syntax == nil { b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr) }
+				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+			}
+			return node, err
+		}
 		if operation, ok := extension.LtreeHierarchyProcedure(selected.auth.ReadCatalog(), d); ok {
 			node, err := b.bindSelectedLtreeHierarchy(raw, selected, operation)
 			if err == nil && freezeSyntax {
