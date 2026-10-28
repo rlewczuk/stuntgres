@@ -50,6 +50,11 @@ staging capture preserves these values without replacing destination shared
 authority; Dump never serializes membership identities or GRANT commands.
 Persisted defaults remain destination cluster authority during Restore; private
 replay does not apply or import them.
+Parameter ACL authority is cluster-shared: Reset clears it in every attached
+database, including future attachments. Local data in other databases survives.
+Pending parameter writes cannot cross replacement, including a first grant
+whose parameter was absent before and after replacement. Unrelated peer-local
+work retains its ordinary transaction lifecycle.
 
 ## Dump
 
@@ -109,8 +114,16 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   Fresh native destinations require matching genuine foreign registrations;
   replay does not fabricate native callbacks or serialize execution authority.
 - Parameter ACLs roundtrip by canonical name through strict typed catalog repairs,
-  preserving explicit empty arrays, ordered grantors and grant options. Destination
-  parameter identities are allocated locally; session setting values are not dumped.
+  preserving explicit empty arrays, ordered grantors and grant options. Restore
+  replaces shared parameter authority across all destination database attachments,
+  allocating identities beyond destination cluster frontiers without importing
+  source OIDs. Dump excludes private grants and session setting values. Destination
+  database identity/owner/ACLs, roles and peer-local data survive replacement.
+  Invalid/cancelled input or a Parameter-authority change racing the retained
+  input predecessor changes no shared roots or replacement-reserved frontier.
+  Unrelated subscription/statistics/local-object edits during reader I/O retain
+  the ordinary replacement behavior; existing principal and live-TEMP validation
+  errors keep their precedence.
 - Event triggers replay in the final DDL section, after saved data/defaults and
   attribute metadata, initially disabled and activated only after all definitions.
   Owner, function references, ordered TAG filters and O/D states survive logical

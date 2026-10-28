@@ -28,6 +28,9 @@ func (c *Journal) PrivateRead(owner *catalog.Owner, base *catalog.State) catalog
 		return c.Cached
 	}
 	n := catalog.CloneState(base)
+	if c.ParameterWritten {
+		n.SetParameterIncarnation(c.ParameterIncarnation)
+	}
 	n.OverlayDefaultACLs(base, c.DefaultACLs)
 	operators := catalog.OperatorIndexEdit{Index: base.OperatorNames()}
 	procedures := catalog.ProcedureIndexEdit{Index: base.ProcedureNames()}
@@ -59,6 +62,10 @@ func (c *Journal) PrivateRead(owner *catalog.Owner, base *catalog.State) catalog
 // a, first remembering base's descriptor of a and the base bindings of the
 // old and new names. A removal forgets a's private index state.
 func (c *Journal) RecordDescriptor(base *catalog.State, a ids.ObjectAddress, d catalog.Descriptor) {
+	if a.ClassID == ids.ParameterClassID && !c.ParameterWritten {
+		c.ParameterWritten = true
+		c.ParameterIncarnation = base.ParameterIncarnation()
+	}
 	if _, ok := c.Originals[a]; !ok {
 		c.Originals[a] = base.Get(a)
 	}

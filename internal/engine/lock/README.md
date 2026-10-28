@@ -58,6 +58,12 @@ engine.
   on the actual shared object identity. The core adapter retains its original
   local reference for post-wait catalog/epoch validation; object lock records
   expose the shared database-zero tag.
+  Parameter canonical-name writers (including absent first grants) and retained
+  parameter ACL-address claims also use the stable cluster domain. Parameter
+  names have zero namespace and no signature. The adapter retains original local
+  epoch and immutable parameter predecessor/incarnation fences across waits.
+  These internal claims expose real blocker XIDs through existing inquiry,
+  never synthetic physical tuple or index records.
 - **Queues and waits.** `StartAcquire` grants at once or returns the queued
   `Request`, which the caller waits on (`Wait`) after releasing its own
   locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,

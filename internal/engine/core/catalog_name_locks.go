@@ -41,7 +41,7 @@ func (s *StatementScope) acquireTransactionResource(resource lock.Resource, mode
 func (s *StatementScope) AcquireCatalogResource(resource lock.Resource, mode lock.Mode) error {
 	// These unique-index claims project a real blocker transaction, including
 	// the interval before an implicit statement reaches catalog publication.
-	if resource.Name.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.StatisticExtClassID || resource.Name.ClassID == ids.CollationClassID || resource.Name.ClassID == ids.ConversionClassID || resource.Name.ClassID == ids.CastClassID {
+	if resource.Name.ClassID == ids.ParameterClassID || resource.Name.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.StatisticExtClassID || resource.Name.ClassID == ids.CollationClassID || resource.Name.ClassID == ids.ConversionClassID || resource.Name.ClassID == ids.CastClassID {
 		e := s.Engine()
 		e.Mu.Lock()
 		err := e.AssignTransactionXIDLocked(s.TxRef)
@@ -51,7 +51,7 @@ func (s *StatementScope) AcquireCatalogResource(resource lock.Resource, mode loc
 		}
 	}
 	claim := resource
-	if resource.Address.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.SubscriptionClassID {
+	if resource.Address.ClassID == ids.ParameterClassID || resource.Name.ClassID == ids.ParameterClassID || resource.Address.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.SubscriptionClassID {
 		claim.ObjectRef = s.Engine().Cluster.RoleDomain.Ref(1, resource.Address)
 	}
 	if err := s.acquireTransactionResource(claim, mode); err != nil {

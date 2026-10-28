@@ -29,6 +29,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
 
+- Shared parameter authority: `RUN='^TestReferenceParameterACLShared'`.
+  `parameterSharedScenario` registers role/database teardown before selecting
+  peers with `fixture.DatabaseScenarioPool`; held statements keep their physical
+  borrower across peer grants. Contention uses the fixture's exact transaction
+  lock observer, never worker-start or elapsed-time inference.
+
 - `objectGrantScenario(t, schemas, body)` (`object_grant_schemas_types_test.go`)
   runs `direct`/`prepared` × backend subtests, registers role and schema cleanup
   before the scenario, and creates the roles `og_object_reader` and

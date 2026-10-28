@@ -167,6 +167,7 @@ type NotNullConstraint struct {
 type State struct {
 	epoch               ids.CatalogEpoch
 	namespaceGeneration uint64
+	parameterIncarnation uint64
 	descriptors         util.PersistentMap[ids.ObjectAddress, Descriptor]
 	names               util.PersistentMap[ids.NameKey, ids.ObjectAddress]
 	relations           util.PersistentMap[ids.ObjectAddress, *Relation]
@@ -269,6 +270,7 @@ func (Conflict) Error() string { return "stuntgres: catalog publication conflict
 func CloneState(s *State) *State {
 	s.mustNotBulkLoad()
 	n := &State{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: s.descriptors, names: s.names, relations: s.relations}
+	n.parameterIncarnation = s.parameterIncarnation
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
 	n.procedureNames = s.procedureNames

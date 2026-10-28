@@ -785,9 +785,9 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		if err == nil && s.RoleCandidateRecord != nil {
 			roleRevision, err = e.RoleStore.RevisionCandidateLocked()
 		}
-		var databaseRoots catalog.DatabaseProjection
+		var sharedRoots catalog.SharedProjection
 		if err == nil {
-			databaseRoots = e.Catalog.ProjectDatabasesLocked(next, e.Cluster.Catalogs)
+			sharedRoots = e.Catalog.ProjectSharedLocked(next, e.Cluster.Catalogs)
 		}
 		if err == nil {
 			relationMetadata := e.prepareRelationMetadataLocked(next, nil)
@@ -832,7 +832,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 				e.Visibility.SerializableCommittedLocked(s.InitialTx, e.Visibility.CommitSeq())
 			}
 			e.Catalog.PublishLocked(next)
-			databaseRoots.InstallLocked()
+			sharedRoots.InstallLocked()
 			e.Storage.ReplaceRelationsLocked(relations)
 			e.Storage.RelationMetadata = relationMetadata
 			index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.Storage.IndexRoots)
@@ -912,6 +912,12 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	}
 	if err := ctx.Err(); err != nil {
 		return ChangeSet{}, err
+	}
+	e.Mu.Lock()
+	parameterPredecessor := e.Catalog.State
+	e.Mu.Unlock()
+	if source.ImportParameterPredecessor != nil {
+		parameterPredecessor = source.ImportParameterPredecessor
 	}
 	var err error
 	replacement, err = control.PersistentReplacementCatalog(replacement)
@@ -1034,7 +1040,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
-		if e.Catalog.NextOID() != oids.Base {
+		if !e.Catalog.State.ParametersUnchanged(parameterPredecessor) || e.Catalog.NextOID() != oids.Base || !e.sharedOIDReservationCurrentLocked(oids) {
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
 		e.installReplacementLocked(next, relations, sequences, metadata, roots, nextRow, nextVersion, nextRevision, oids.Next)
@@ -1095,6 +1101,9 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	if err != nil {
 		return ChangeSet{}, err
 	}
+	if !e.Catalog.State.ParametersUnchanged(parameterPredecessor) {
+		return ChangeSet{}, ids.ErrCatalogReplaced
+	}
 	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, extendedStatistics); err != nil {
 		return ChangeSet{}, err
 	}
@@ -1109,7 +1118,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
 func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation, extendedStatistics []storage.ExtendedStatisticsSnapshot) error {
-	if prepared.Catalog != next || prepared.BaseCatalog != e.Catalog.State || prepared.BaseRow != e.Storage.RowFrontier() || prepared.BaseVersion != e.Storage.VersionFrontier() || prepared.Frontier != e.Visibility.CommitSeq() || e.Catalog.NextOID() != oids.Base {
+	if prepared.Catalog != next || prepared.BaseCatalog != e.Catalog.State || prepared.BaseRow != e.Storage.RowFrontier() || prepared.BaseVersion != e.Storage.VersionFrontier() || prepared.Frontier != e.Visibility.CommitSeq() || e.Catalog.NextOID() != oids.Base || !e.sharedOIDReservationCurrentLocked(oids) {
 		return ids.ErrCatalogReplaced
 	}
 	metadata, err := e.prepareRetainedRelationMetadataLocked(ctx, next, relations)
@@ -1132,6 +1141,9 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if prepared.BaseCatalog != e.Catalog.State || e.Catalog.NextOID() != oids.Base || !e.sharedOIDReservationCurrentLocked(oids) {
+		return ids.ErrCatalogReplaced
+	}
 	e.installReplacementLocked(next, relations, sequences, metadata, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision, oids.Next)
 	return nil
 }
@@ -1150,7 +1162,7 @@ func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevis
 // reserved OID, row, version, commit and serializable frontiers publish together.
 // The caller holds replacementMu and mu.
 func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, metadata map[ids.ObjectAddress]*storage.RelationMetadata, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision, nextOID ids.OID) {
-	sharedRoots := e.Catalog.ProjectDatabasesLocked(next, e.Cluster.Catalogs)
+	sharedRoots := e.Catalog.ProjectSharedLocked(next, e.Cluster.Catalogs)
 	e.Storage.SetFrontierLocked(nextRow, nextVersion)
 	e.Storage.ReplaceIndexRootsLocked(roots)
 	e.Visibility.AdvanceCommitSeqLocked()
@@ -1158,13 +1170,8 @@ func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids
 	e.Catalog.PublishLocked(next)
 	sharedRoots.InstallLocked()
 	e.Catalog.InstallOIDFrontierLocked(nextOID)
-	for _, sub := range e.Catalog.Current().Subscriptions() {
-		if sub.Database == e.Catalog.DatabaseAddress() {
-			for store := range e.Cluster.Catalogs {
-				store.InstallOIDFrontierLocked(max(store.NextOID(), nextOID))
-			}
-			break
-		}
+	for store := range e.Cluster.Catalogs {
+		store.InstallOIDFrontierLocked(max(store.NextOID(), nextOID))
 	}
 	e.Storage.ReplaceRelationsLocked(relations)
 	e.Storage.RelationMetadata = metadata

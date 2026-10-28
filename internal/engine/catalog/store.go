@@ -142,7 +142,12 @@ func (s *Store) AllocateOIDLocked() (ids.OID, error) {
 // catalogOIDReservation belongs to one unpublished replacement. Its frontier
 // becomes live only at the catalog installation boundary; Base fences ordinary
 // allocations made while candidate providers run outside the target lock.
-type OIDReservation struct{ Base, Next ids.OID }
+type OIDReservation struct {
+	Base, Next ids.OID
+	// Replacement-private shared identity preconditions, captured only when
+	// parameter reminting needs them. Never installed as catalog authority.
+	PeerFrontiers map[*Store]ids.OID
+}
 
 func (s *Store) OIDReservationLocked() OIDReservation {
 	return OIDReservation{Base: s.nextOID, Next: s.nextOID}

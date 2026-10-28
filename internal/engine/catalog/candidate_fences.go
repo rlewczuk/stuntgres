@@ -134,6 +134,9 @@ func (c *Candidate) AccessMethodsCurrent(current Read) bool {
 // candidate read is unchanged in current and every current record of a
 // schema it removes was observed. The root calls it under Engine.mu.
 func (c *Candidate) DefaultPreflight(current *State) error {
+	if err := c.ParameterPreflight(current); err != nil {
+		return err
+	}
 	if !c.DefaultRecordsUnchanged(current) {
 		return Conflict{}
 	}

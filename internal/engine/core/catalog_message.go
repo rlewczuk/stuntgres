@@ -71,6 +71,13 @@ func (f catalogRoleReadFence) CurrentLocked(e *Engine, _ *session.Journal) error
 // Capture committed predecessor fences while checking the exact private roots
 // used by the ordinary stage. Pending writes are not committed observations.
 func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, current *catalog.State, authority *session.CatalogAuthority) error {
+	if err := s.ParameterPreflight(e.Catalog.State); err != nil {
+		return err
+	}
+	if s.WritesParameters() && !c.ParameterWritten {
+		c.ParameterWritten = true
+		c.ParameterIncarnation = s.Base.State().ParameterIncarnation()
+	}
 	// Cleanup candidates derive from the operation's exact private predecessor,
 	// while the journal keeps the original committed root as its commit fence.
 	if err := s.validateRoleCandidate(e.sessionRolesLocked(s.AuthSession)); err != nil {

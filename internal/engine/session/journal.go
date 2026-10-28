@@ -19,6 +19,8 @@ import (
 // writes a Clone and installs it, and savepoint marks keep older journals.
 // The root engine validates and publishes it under Engine.mu.
 type Journal struct {
+	ParameterWritten bool
+	ParameterIncarnation uint64
 	Originals        map[ids.ObjectAddress]catalog.Descriptor
 	Descriptors      map[ids.ObjectAddress]catalog.Descriptor
 	Names            map[ids.NameKey]ids.ObjectAddress
@@ -99,6 +101,7 @@ func (c *Journal) Clone() *Journal {
 	if c == nil {
 		return n
 	}
+	n.ParameterWritten, n.ParameterIncarnation = c.ParameterWritten, c.ParameterIncarnation
 	cloneDefaults(c, n)
 	if c.Enum != nil {
 		n.Enum = c.Enum.Clone()

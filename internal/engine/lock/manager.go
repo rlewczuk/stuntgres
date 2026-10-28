@@ -616,8 +616,9 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		}
 		roleName := key.ClassID == ids.RoleClassID && key.Namespace == (ids.ObjectAddress{}) && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
 		subscriptionName := key.ClassID == ids.SubscriptionClassID && key.Namespace.ClassID == ids.DatabaseClassID && key.Namespace.ObjectID != 0 && key.Namespace.SubID == 0 && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
+		parameterName := key.ClassID == ids.ParameterClassID && key.Namespace == (ids.ObjectAddress{}) && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
 		localName := validClass && ref.Domain() == t.ref.Domain() && ref.Epoch == t.ref.Epoch()
-		if (!localName && !roleName && !subscriptionName) || key.Name == "" || !validSignature ||
+		if (!localName && !roleName && !subscriptionName && !parameterName) || key.Name == "" || !validSignature ||
 			ref.Address != key.Namespace || ref.RoleTuple || ref.Row != 0 || ref.key != nil || ref.completion != nil || mode != AccessExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid catalog name lock request")

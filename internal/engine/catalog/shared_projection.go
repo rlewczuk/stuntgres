@@ -7,11 +7,10 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// Database descriptors are cluster objects: every store of a cluster carries
-// the same ones, each rooted in its own domain. The helpers below keep them in
-// step. They take the stores of the cluster as an iterator, so the common
-// publication without a database change allocates nothing. The engine's mutex
-// is held throughout.
+// Database, subscription and parameter descriptors are immutable cluster
+// objects projected into each database's own domain. Preparation uses each
+// peer's current root; a publication without shared changes allocates nothing.
+// The cluster mutex is held throughout.
 
 var errDatabaseIdentityExhausted = errors.New("stuntgres: database identity exhausted")
 
@@ -33,39 +32,51 @@ func (s *Store) RetainDatabasesLocked(next *State) {
 	}
 }
 
-// DatabaseProjection is the prepared roots of one database descriptor change,
-// one per store. A nil projection installs nothing.
-type DatabaseProjection map[*Store]*State
+// SharedProjection contains prepared roots, one per affected store.
+// A nil projection installs nothing.
+type SharedProjection map[*Store]*State
 
-// ProjectDatabasesLocked prepares the roots of every store before any is
-// installed, when next, the store's own unpublished state, changes a database
-// descriptor. stores yields every store of the cluster, s included; next is
-// s's root. Descriptor publications are shared.
-func (s *Store) ProjectDatabasesLocked(next *State, stores iter.Seq[*Store]) DatabaseProjection {
+// ProjectSharedLocked prepares all roots before any installation. stores yields
+// every attached store, including s; next is s's unpublished root.
+func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) SharedProjection {
+	next.mustNotBulkLoad()
+	s.State.mustNotBulkLoad()
+	if next.descriptors == s.State.descriptors && next.ParameterIncarnation() == s.State.ParameterIncarnation() {
+		return nil
+	}
+	shared := func(address ids.ObjectAddress) bool {
+		return address.ClassID == ids.DatabaseClassID || address.ClassID == ids.SubscriptionClassID || address.ClassID == ids.ParameterClassID
+	}
+	// A pure direct traversal avoids heap-owned range-over-function adapters
+	// on the common local-only publication path, including race builds.
+	if next.ParameterIncarnation() == s.State.ParameterIncarnation() &&
+		next.descriptors.Every(func(address ids.ObjectAddress, descriptor Descriptor) bool {
+			return !shared(address) || s.State.Get(address) == descriptor
+		}) &&
+		s.State.descriptors.Every(func(address ids.ObjectAddress, _ Descriptor) bool {
+			return !shared(address) || next.Get(address) != nil
+		}) {
+		return nil
+	}
 	var changed []Descriptor
 	var removed []Descriptor
-	shared := func(address ids.ObjectAddress) bool {
-		return address.ClassID == ids.DatabaseClassID || address.ClassID == ids.SubscriptionClassID
-	}
-	for address, descriptor := range next.Descriptors() {
+	for address, descriptor := range next.descriptors.All() {
 		if shared(address) && s.State.Get(address) != descriptor {
 			changed = append(changed, descriptor)
 		}
 	}
-	for address, descriptor := range s.State.Descriptors() {
+	for address, descriptor := range s.State.descriptors.All() {
 		if shared(address) && next.Get(address) == nil {
 			removed = append(removed, descriptor)
 		}
 	}
-	if len(changed) == 0 && len(removed) == 0 {
-		return nil
-	}
-	var roots DatabaseProjection
+	var roots SharedProjection
 	for target := range stores {
 		root := next
 		if target != s {
 			root = CloneState(target.State)
 		}
+		root.SetParameterIncarnation(next.ParameterIncarnation())
 		for _, descriptor := range removed {
 			root.UnbindName(DescriptorNameKey(descriptor))
 			root.RemoveDescriptor(descriptor.Address())
@@ -78,7 +89,7 @@ func (s *Store) ProjectDatabasesLocked(next *State, stores iter.Seq[*Store]) Dat
 			root.BindName(DescriptorNameKey(descriptor), descriptor.Address())
 		}
 		if roots == nil {
-			roots = DatabaseProjection{}
+			roots = SharedProjection{}
 		}
 		roots[target] = root
 	}
@@ -86,7 +97,7 @@ func (s *Store) ProjectDatabasesLocked(next *State, stores iter.Seq[*Store]) Dat
 }
 
 // InstallLocked publishes every prepared root.
-func (p DatabaseProjection) InstallLocked() {
+func (p SharedProjection) InstallLocked() {
 	for target, root := range p {
 		target.PublishLocked(root)
 	}

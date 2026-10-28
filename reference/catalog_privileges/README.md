@@ -20,6 +20,10 @@ package.
 - Helpers: family scenario and assertion helpers live in the family's
   `*_fixture_test.go` or `*_helpers_test.go` files (for example
   `vacuumScenario`, `objectACLScenario`, `tablespaceContainer`).
+- `pgParameterACLSharedScenario` composes `DatabaseScenarioPool` with the existing
+  parameter metadata/raw-carrier assertions. Shared identity and native replacement
+  scenarios use `RUN='^TestReferencePGParameterACLShared'`; controls retain actual
+  Rows across peer replacement and use gated readers with joined workers.
 - PostgreSQL cumulative statistics: flush the writer's pending statistics with
   `pg_stat_force_next_flush()` before taking a baseline, then read with bounded
   fresh-read polling and exact equality (`vacuumStatistic`). PostgreSQL VERBOSE

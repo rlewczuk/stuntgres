@@ -128,6 +128,62 @@ func TestPersistentMapAllStopsEarly(t *testing.T) {
 	}
 }
 
+func TestPersistentMapEvery(t *testing.T) {
+	var empty PersistentMap[int, int]
+	if !empty.Every(func(int, int) bool {
+		t.Fatal("empty traversal called predicate")
+		return false
+	}) {
+		t.Fatal("empty traversal was not vacuously true")
+	}
+	m := empty
+	for key := range 100 {
+		m = m.Set(key, key*3)
+	}
+	retained := m
+	seen := make(map[int]int, m.Len())
+	if !m.Every(func(key, value int) bool {
+		seen[key]++
+		return value == key*3
+	}) || len(seen) != m.Len() {
+		t.Fatal("complete predicate traversal lost entries", seen)
+	}
+	for key := range 100 {
+		if seen[key] != 1 {
+			t.Fatal("predicate did not visit each original entry once", key, seen[key])
+		}
+	}
+	visited := 0
+	if m.Every(func(int, int) bool {
+		visited++
+		return false
+	}) || visited != 1 {
+		t.Fatal("false predicate did not stop immediately", visited)
+	}
+	if allocations := testing.AllocsPerRun(10, func() {
+		if !m.Every(func(key, value int) bool { return value == key*3 }) {
+			t.Fatal("unchanged predicate result")
+		}
+	}); allocations != 0 {
+		t.Fatal("direct predicate traversal allocated", allocations)
+	}
+	// Rebinding the caller's map during traversal cannot mutate the receiver
+	// version or omit any of its original entries.
+	visited = 0
+	if !m.Every(func(key, value int) bool {
+		visited++
+		m = m.Delete(key)
+		return value == key*3
+	}) || visited != 100 || m.Len() != 0 || retained.Len() != 100 {
+		t.Fatal("predicate traversal did not retain its immutable version")
+	}
+	for key := range 100 {
+		if value, found := retained.Get(key); !found || value != key*3 {
+			t.Fatal("predicate traversal mutated retained backing", key, value, found)
+		}
+	}
+}
+
 // TestPersistentMapWriteDuringIteration rewrites, deletes and adds keys of the
 // variable being iterated. The iteration walks the version it started from:
 // every original key once, with its original value.

@@ -5,10 +5,10 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// Subscription identities share every database's allocation frontier. The
-// cluster mutex is already held by DDL staging; private reservations advance
-// the same frontier as other ordinary catalog allocations.
-func (h DDLHost) AllocateSubscriptionOID() (ids.OID, error) {
+// Cluster-shared identities reserve beyond every database's frontier. The
+// cluster mutex is already held by staging; ordinary private reservations
+// advance the same frontier as other catalog allocations.
+func (h DDLHost) AllocateSharedOID() (ids.OID, error) {
 	oid, err := catalog.DatabaseOIDLocked(h.E.Catalog.NextOID(), &h.E.Catalog, h.E.Cluster.Catalogs)
 	if err != nil {
 		return 0, err

@@ -23,6 +23,13 @@ import (
 // replacement. Imported identity collisions are remapped, never temp identities.
 func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, restoreOp *session.Operation, indexes *index.Snapshot, principal catalog.ProcedureRemapper, oids *catalog.OIDReservation) error {
 	e.Catalog.RetainDatabasesLocked(next)
+	if e.Catalog.State.ParameterIncarnation() == ^uint64(0) {
+		return ids.ErrCatalogReplaced
+	}
+	next.SetParameterIncarnation(e.Catalog.State.ParameterIncarnation() + 1)
+	if err := e.remintParametersLocked(next, oids); err != nil {
+		return err
+	}
 	if err := e.remintSubscriptionsLocked(next, oids); err != nil {
 		return err
 	}

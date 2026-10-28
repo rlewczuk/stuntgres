@@ -39,7 +39,7 @@ func (h RoleHost) CanonicalParameter(name string) (string, error) {
 }
 
 func (h RoleHost) GrantParameter(a ddl.Authority, key string) (*catalog.Parameter, error) {
-	return role.GrantParameterDescriptorLocked(h.E.Settings, core.DDLAuthorityOf(a).Catalog, key, &h.E.RoleStore.Domain, h.E.Catalog.AllocateOIDLocked, h.E.Catalog.RevisionLocked)
+	return role.GrantParameterDescriptorLocked(h.E.Settings, core.DDLAuthorityOf(a).Catalog, key, &h.E.RoleStore.Domain, h.AllocateSharedOID, h.E.Catalog.RevisionLocked)
 }
 
 func (h RoleHost) DescribeRoleDependency(a ddl.Authority, dep access.RoleDependency) string {

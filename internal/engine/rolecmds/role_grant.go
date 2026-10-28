@@ -21,6 +21,8 @@ func ExecuteObjectGrant(e *core.Engine, scope *core.StatementScope, statement *p
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
+	var parameterScratch [8]privilegeClaim
+	parameters := parameterScratch[:0]
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(scope.Op)
 	publishedRoles := e.RoleStore.Published
@@ -28,11 +30,22 @@ func ExecuteObjectGrant(e *core.Engine, scope *core.StatementScope, statement *p
 	if err == nil {
 		request, err = role.ObjectGrantRequest(RoleHost{core.DDLHost{E: e, Op: scope.Op}}, auth, statement)
 	}
+	if err == nil {
+		for _, descriptor := range request.Targets() {
+			if descriptor.Address().ClassID != ids.ParameterClassID {
+				continue
+			}
+			name := catalog.DescriptorNameKey(descriptor)
+			binding := e.Catalog.State.NameAddress(name)
+			parameters = append(parameters, privilegeClaim{name: name, binding: binding,
+				original: e.Catalog.State.Get(binding), incarnation: auth.Catalog.State().ParameterIncarnation()})
+		}
+	}
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err
 	}
-	if err = admitObjectGrant(scope, request, statement); err != nil {
+	if err = admitObjectGrant(scope, request, statement, parameters); err != nil {
 		return core.Result{}, err
 	}
 	e.Mu.Lock()
@@ -40,6 +53,11 @@ func ExecuteObjectGrant(e *core.Engine, scope *core.StatementScope, statement *p
 	fresh, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return core.Result{}, err
+	}
+	for _, claim := range parameters {
+		if fresh.Catalog.State().ParameterIncarnation() != claim.incarnation {
+			return core.Result{}, ids.ErrCatalogReplaced
+		}
 	}
 	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.RoleStore.Published.SameAuthority(publishedRoles) {
 		return core.Result{}, catalog.Conflict{}

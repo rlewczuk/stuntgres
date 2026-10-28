@@ -40,7 +40,7 @@ Manual `/docs/18/` identifies **18.6**; preserve reference **18.0**, UTF8/C, `se
 - `PrincipalRef` is an opaque, nonzero engine-owned handle into the DSN Engine's cluster role authority. Names and raw numeric IDs are not capabilities. Database-local owners refer to this shared authority, never per-database role copies.
 - Reuse `RoleState{Authenticated,SessionUser,CurrentUser,ResetRole}`. Authenticated is immutable initial identity; SessionUser controls SET ROLE eligibility; CurrentUser is the ordinary effective principal. ResetRole is the connection-time configured role, with zero meaning SessionUser. Attachment initialization/updates validate every reference; callers cannot inject arbitrary RoleState.
 - Owner is a `PrincipalRef` in the authoritative class descriptor, not the object's identity and not an ACL bit. `ObjectRef{Epoch,Address}` remains selected-database scoped. Rename/move preserve it; drop/recreate does not. Stable positive `Address.SubID` identifies a column independently of projection offsets and names.
-- Cluster roles/membership remain SESSION's cluster authority; object/column ACLs, creator templates and policies are feature payloads in selected-database catalog authority. Catalog shared-owner hooks supply role dependencies. Role drop cannot leave dangling owners, grantors, grantees or policy-role references; REASSIGN/DROP OWNED and dependency checks belong to their command/catalog owners.
+- Cluster roles/membership remain SESSION's cluster authority. Database and configuration-parameter identities/immutable ACLs are cluster-shared descriptors projected into retained selected-database views; ordinary object/column ACLs, creator templates and policies remain database-local. ObjectRef validation still uses the selected database's domain and epoch. Shared-owner hooks supply role dependencies; role drop cannot leave dangling owners, grantors, grantees or policy-role references. DROP OWNED cleans shared parameter privileges from any database, without treating peer projections as extra local dependencies.
 - Ownership alteration/destruction rights and implicit grant options cannot be revoked as ordinary privileges. Ordinary owner use rights **can** be revoked. Inherited owning-role authority and actual effective-principal superuser authority are distinct evaluation inputs.
 
 ### Proposed vocabulary
@@ -230,9 +230,16 @@ Preparation of these utilities is syntax-only and effect-free; Execute owns
 read-only/aborted-state precedence and current authority. These directives do not
 widen existing role lifecycle/membership or ownership policies, enable ALTER
 SYSTEM or language execution/ABI capabilities, or admit SQL PREPARE of these
-utilities. Catalog/default writer claims remain database-local; shared principal
-dependency/retirement claims use the cluster's stable role domain. Dependency
-admission releases Engine.mu for waits and revalidates before retaining results.
+utilities. Ordinary catalog/default writer claims remain database-local. Parameter
+writers claim canonical names in the cluster's stable role domain, as do shared
+principal dependency/retirement claims. Admission retains the original binding
+and descriptor across unlocked waits: conflicting existing updates fail with
+`XX000 tuple concurrently updated`, conflicting first insertions with `23505`
+on `pg_parameter_acl_parname_index`, without retry or retargeting.
+Immutable projections prepare every peer root before installation, merging only
+the changed descriptors into each current root. Native parameter replacement
+advances a narrow incarnation fence, including empty-to-empty replacement; stale
+parameter stages/journals fail without fencing unrelated database-local work.
 
 ## 5. Checkpoints and diagnostic ownership
 

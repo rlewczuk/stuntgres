@@ -302,7 +302,7 @@ func setObjectACL(e *core.Engine, ctx context.Context, ref ids.ObjectRef, acl au
 		state.SetDescriptor(addr, next)
 	}
 	roles := e.RoleStore.Published.Advance()
-	databaseRoots := e.Catalog.ProjectDatabasesLocked(state, e.Cluster.Catalogs)
+	sharedRoots := e.Catalog.ProjectSharedLocked(state, e.Cluster.Catalogs)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func setObjectACL(e *core.Engine, ctx context.Context, ref ids.ObjectRef, acl au
 		}
 	}
 	e.Catalog.PublishLocked(state)
-	databaseRoots.InstallLocked()
+	sharedRoots.InstallLocked()
 	e.RoleStore.PublishLocked(roles)
 	return nil
 }

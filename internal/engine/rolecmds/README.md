@@ -94,6 +94,10 @@ are not supplied by this create path.
 
 ## Testing
 
+Shared parameter final-registration ownership uses
+`make check RUN='^TestParameterACLShared'` (also with `RACE=1`), including the
+genuine detached template runtime and an intervening committed grant.
+
 Tests are external (`package rolecmds_test`) and run on a composed engine:
 the root's `engine.New`, `Reset`, `Dump` and `Restore` and the
 [`enginetest`](../enginetest/README.md) helpers. `export_test.go` exports the

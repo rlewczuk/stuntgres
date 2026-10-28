@@ -62,6 +62,7 @@ type Engine struct {
 	RoleStore         *access.RoleStore
 	Cluster           *DatabaseCluster
 	ImportTargets     map[authorization.PrincipalRef]authorization.PrincipalRef
+	ImportParameterPredecessor *catalog.State // Parameter authority captured before Restore input.
 	Foreign           fdw.Registry
 	DatabaseFrozenXID uint64
 	VacuumProgress    map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.

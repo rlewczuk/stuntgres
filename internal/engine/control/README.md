@@ -68,6 +68,21 @@ object-ACL section. Isolated Restore accepts only the generated single-assignmen
 destination identities without publishing temporary grants. Sparse baseline
 normalization, explicit-empty arrays, grantor order and role mapping are preserved;
 setting values and source parameter OIDs are not serialized.
+Parameter identity and immutable ACL authority are cluster-shared. Dump captures
+committed authority; successful Reset/Restore replaces it coherently in every
+attached database, while local storage replacement remains target-scoped.
+Imported identities are reminted beyond destination cluster frontiers using a
+private reservation, installed only on success. The pre-input Parameter
+predecessor fences only that authority's incarnation, exact descriptors and
+canonical name bindings, not unrelated catalog edits during input. Existing
+principal remap, TEMP compatibility and provider validation keep their error
+precedence before the narrow parameter fence. Replacement advances the parameter
+incarnation even when both authorities are empty. Database identities,
+owners/ACLs, shared roles and peer data are retained. Invalid input, cancellation
+or stale authority installs no peer roots or replacement-reserved identities.
+Shared parameter reservations also fence the captured peer-store set and each
+peer allocation frontier after unlocked preparation; peer-local issuance cannot
+silently consume an imported parameter's reserved destination identity.
 
 Restricted builtin routine ACLs use the same object-ACL repair owner. Exact seed
 authority needs no emitted SQL; raw absence is emitted as

@@ -15,7 +15,11 @@ func (r Resource) DefaultCreator() uint64 { return uint64(r.High)<<32 | uint64(r
 // The engine validates principal provenance and default-class meaning before
 // constructing a claim; the manager validates its complete structural identity.
 func (m *Manager) validACLResource(t *Ticket, ref Resource, mode Mode) bool {
-	if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Database != nil || ref.RoleTuple ||
+	validDomain := ref.Domain() == t.ref.Domain() && ref.Epoch == t.ref.Epoch()
+	if ref.Kind == CatalogACLResource && ref.Address.ClassID == ids.ParameterClassID {
+		validDomain = ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
+	}
+	if !validDomain || ref.Address.SubID != 0 || ref.Database != nil || ref.RoleTuple ||
 		ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil ||
 		mode != AccessExclusive {
 		return false

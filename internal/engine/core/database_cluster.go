@@ -74,7 +74,7 @@ func (e *Engine) publishDatabaseFrozenXIDLocked() {
 	database.FrozenXID = e.DatabaseFrozenXID
 	next := catalog.CloneState(e.Catalog.State)
 	next.SetDescriptor(database.Address(), &database)
-	roots := e.Catalog.ProjectDatabasesLocked(next, e.Cluster.Catalogs)
+	roots := e.Catalog.ProjectSharedLocked(next, e.Cluster.Catalogs)
 	e.Catalog.PublishLocked(next)
 	roots.InstallLocked()
 }

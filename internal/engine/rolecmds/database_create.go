@@ -116,7 +116,7 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 	address := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: oid}
 	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.DatabaseFrozenXID}
 	targets := make(map[string]*core.Engine, len(e.Cluster.Targets)+1)
-	roots := make(catalog.DatabaseProjection, len(e.Cluster.Targets)+1)
+	roots := make(catalog.SharedProjection, len(e.Cluster.Targets)+1)
 	for key, runtime := range e.Cluster.Targets {
 		targets[key] = runtime
 	}
@@ -126,6 +126,7 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 		if runtime == target {
 			e.Catalog.RetainDatabasesLocked(next)
 			e.Catalog.InheritSubscriptionsLocked(next)
+			e.Catalog.InheritParametersLocked(next)
 		}
 		next.SetDescriptor(address, database)
 		next.BindName(catalog.DescriptorNameKey(database), address)

@@ -15,7 +15,7 @@ import (
 
 type Host interface {
 	ddl.Host
-	AllocateSubscriptionOID() (ids.OID, error)
+	AllocateSharedOID() (ids.OID, error)
 	SubscriptionInBlock() bool
 	ValidateSubscriptionSync(string) error
 	ParseSubscriptionLSN(string) (uint64, error)
@@ -127,7 +127,7 @@ func Stage(h Host, auth ddl.Authority, s *parser.Subscription) error {
 		if o.connect {
 			return failure("0A000", "subscription publisher connections are not available")
 		}
-		oid, err := h.AllocateSubscriptionOID()
+		oid, err := h.AllocateSharedOID()
 		if err != nil {
 			return err
 		}

@@ -17,6 +17,9 @@ import (
 type privilegeClaim struct {
 	address  ids.ObjectAddress
 	original catalog.Descriptor
+	name ids.NameKey
+	binding ids.ObjectAddress
+	incarnation uint64
 }
 
 // Named relation binding is an admission operation. Re-resolution after an AS
@@ -50,9 +53,38 @@ func admitGrantRelation(s *core.StatementScope, name parser.ObjectName, initial 
 	}
 }
 
-func admitObjectGrant(s *core.StatementScope, req role.GrantRequest, statement *parser.ObjectGrant) error {
+func admitObjectGrant(s *core.StatementScope, req role.GrantRequest, statement *parser.ObjectGrant, parameters []privilegeClaim) error {
 	e := s.Engine()
 	targets := req.Targets()
+	// Canonical name claims also serialize first grants with independently
+	// reserved OIDs. Their predecessors were captured with initial resolution.
+	slices.SortFunc(parameters, func(a, b privilegeClaim) int { return cmp.Compare(a.name.Name, b.name.Name) })
+	for i, claim := range parameters {
+		if i != 0 && parameters[i-1].name == claim.name {
+			continue
+		}
+		resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(s.TxRef.Epoch(), ids.ObjectAddress{}), Name: claim.name}
+		if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {
+			return err
+		}
+		e.Mu.Lock()
+		current := e.Catalog.State
+		replaced := current.ParameterIncarnation() != claim.incarnation
+		changed := current.NameAddress(claim.name) != claim.binding || current.Get(claim.binding) != claim.original
+		e.Mu.Unlock()
+		if replaced {
+			return ids.ErrCatalogReplaced
+		}
+		if changed {
+			if claim.original != nil {
+				return core.SQLError("XX000", "tuple concurrently updated")
+			}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505",
+				Message: `duplicate key value violates unique constraint "pg_parameter_acl_parname_index"`,
+				Detail: fmt.Sprintf("Key (parname)=(%s) already exists.", claim.name.Name),
+				Schema: "pg_catalog", Table: "pg_parameter_acl", Constraint: "pg_parameter_acl_parname_index"}
+		}
+	}
 	if statement.Kind == "" || statement.Kind == "sequence" {
 		for i, name := range statement.Relations {
 			descriptor, err := admitGrantRelation(s, name, targets[i])
@@ -79,16 +111,15 @@ func admitObjectGrant(s *core.StatementScope, req role.GrantRequest, statement *
 	current := e.PrivateCatalogLocked(s.PendingCatalog())
 	for i, descriptor := range targets {
 		address := descriptor.Address()
+		if address.ClassID == ids.ParameterClassID {
+			continue
+		}
 		fresh := current.Get(address)
-		// Sparse parameter baselines have a reserved real identity but no
-		// installed descriptor until their first nonbaseline ACL is staged.
-		if fresh == nil && address.ClassID != ids.ParameterClassID {
+		if fresh == nil {
 			e.Mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		if fresh != nil {
-			targets[i] = fresh
-		}
+		targets[i] = fresh
 		claims = append(claims, privilegeClaim{address: address, original: e.Catalog.State.Get(address)})
 	}
 	e.Mu.Unlock()

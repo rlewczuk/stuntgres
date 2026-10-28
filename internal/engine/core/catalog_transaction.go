@@ -79,6 +79,9 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 	return view.State(), ctx.Err()
 }
 func (e *Engine) CatalogPreflightLocked(c *session.Journal) error {
+	if c.ParameterWritten && c.ParameterIncarnation != e.Catalog.State.ParameterIncarnation() {
+		return ids.ErrCatalogReplaced
+	}
 	if c.Roles != nil && c.RolesBase != nil && c.Roles.SameAuthority(c.RolesBase) {
 		if _, err := e.journalRolePublicationLocked(c, false); err != nil {
 			return err

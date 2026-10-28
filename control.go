@@ -97,6 +97,10 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // and survive Reset/Restore; they are not imported from a portable snapshot.
 // Live temporary typed tables attached to persistent standalone types likewise
 // prevent replacement rather than retargeting their source by name or numeric OID.
+// Parameter ACL authority is cluster-shared: Reset clears it in every attached
+// database while other databases' local objects/data remain unchanged. Restore
+// replaces that shared authority with destination-allocated canonical identities.
+// Stale parameter work is fenced even across empty-to-empty replacement.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withDatabaseTarget(ctx, db, func(e *core.Engine) error { return engine.Reset(ctx, e) })
 }

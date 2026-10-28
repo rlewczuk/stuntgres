@@ -34,6 +34,22 @@ is database-local, visibility is shared, and ENABLE is desired metadata only.
 Reset/Restore remint the selected database's subscriptions and retain committed
 peer definitions. Detached catalog reads keep the original immutable backing.
 
+Parameter ACLs use the same immutable shared projection, canonical-name writer
+admission and cluster allocation frontier. SET, inquiry and catalog producers
+consume coherent retained catalog/role views, not a second permission store.
+Name claims retain their original committed binding through waits and expose
+the ordinary transaction blocker; conflicting updates/first insertions fail
+without retry. A parameter-replacement incarnation follows stages and journals
+through private refresh and savepoints, including absent-to-absent Reset/Restore.
+Replacement remints imported identities privately and prepares all peer roots
+before installation; local data, destination database authority and roles remain
+independent. Reader/writer I/O and lock waits stay outside the cluster mutex.
+The pre-input replacement predecessor fences only Parameter incarnation,
+descriptors and canonical name bindings. It does not fence unrelated catalog
+edits during reader I/O or override existing principal remap, TEMP compatibility
+and provider-validation diagnostics. Prepared-generation and allocation
+preconditions still guard the final installation boundary.
+
 Statistics expressions share the single-relation binder setup with indexes but
 use a distinct `StatisticsConsumer`: no parameters, subqueries, aggregates,
 grouping, windows or SRFs, and no index-specific IMMUTABLE restriction.
@@ -1743,6 +1759,11 @@ session, transaction, prepared-analysis and typed-frame authorities.
   `StatementScope.Finish`'s disposal; no timer callback mutates the transaction.
 
 ## Testing
+
+Shared parameter authority backing, admission, publication and replacement
+units use `make check RUN='^TestParameterACLShared'`; add `RACE=1` for the same
+deterministic ownership/concurrency witnesses. SQL acceptance remains in the
+owning dual-mode reference packages.
 
 Text-search parser descriptor, staging, native capability and dependency owner
 units share `RUN='^TestTSParser'`.

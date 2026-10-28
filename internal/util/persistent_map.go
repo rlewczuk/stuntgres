@@ -58,6 +58,14 @@ func (m PersistentMap[K, V]) All() iter.Seq2[K, V] {
 	}
 }
 
+// Every reports whether predicate holds for every entry of this version,
+// stopping at the first false result. An empty map returns true without calling
+// predicate. Like All, traversal retains this immutable version and has no
+// ordering guarantee. The predicate is called synchronously and never retained.
+func (m PersistentMap[K, V]) Every(predicate func(K, V) bool) bool {
+	return m.root == nil || m.root.each(predicate)
+}
+
 // SetAll returns a version with every entry of entries stored, later entries
 // for the same key winning. Each node shared with m is copied at most once.
 func (m PersistentMap[K, V]) SetAll(entries iter.Seq2[K, V]) PersistentMap[K, V] {

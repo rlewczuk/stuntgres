@@ -26,6 +26,9 @@ hash map: a CHAMP-style hash array mapped trie with 32-way bitmap nodes.
   start. Iteration order is unspecified. It is stable for one version within a
   process, and the hash seed is chosen per process, so no order can be relied
   on across runs.
+  `Every(predicate)` walks the same retained version directly, without an
+  iterator adapter. It calls the predicate synchronously, stops on the first
+  false result, and returns true for an empty map without calling it.
 - **Keys.** Keys are compared with `==` and hashed with
   `hash/maphash.Comparable`, the runtime's map hasher. Hashing allocates nothing
   for keys made of numbers, strings, and arrays or structs of them. A key that

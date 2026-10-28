@@ -36,9 +36,12 @@ later catalog replacement. Typed NULL operands still carry logical identity.
 
 ### Selecting a logical database
 
-SQL `CREATE DATABASE` registers a database in the selected cluster. Roles and
-database owner/ACL metadata are shared; objects, data and physical-session
-resources belong to the selected database. Default connectors retain the original
+SQL `CREATE DATABASE` registers a database in the selected cluster. Roles,
+database owner/ACL metadata and configuration-parameter identities/ACLs are
+shared; ordinary objects, data and physical-session setting values belong to
+their database/session. Existing and future attachments consume the same
+committed parameter authority; transaction-private grants remain private until
+commit. Default connectors retain the original
 attachment and its UTF8-validated, DSN-derived NAME (at most 63 complete UTF8
 bytes); clipped display-name collisions never merge distinct opaque keys.
 
@@ -65,9 +68,12 @@ never created by connecting. CONNECT revocation does not disconnect admitted
 sessions; SET ROLE does not re-admit them.
 
 Reset/Dump/Restore and InspectIndex capture the selected database before releasing
-the borrower. Controls require an unwrapped native pool and affect only that
-database, preserving registrations, owners/ACLs, shared roles and other targets.
-Dump excludes cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
+the borrower. Controls require an unwrapped native pool. Local data replacement
+affects only that database, preserving registrations, owners/ACLs, shared roles
+and other targets. Parameter ACL authority is the shared exception: Reset clears
+it cluster-wide and Restore replaces it cluster-wide with valid destination
+identities. Session setting values are not shared or imported. Dump excludes
+cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
 Installed amcheck members share one portable installation: `verify_heapam` and
 the seven scalar B-tree overloads retain distinct result shapes. Native controls
 preserve current installed routine ACLs, including PUBLIC entries, grant options

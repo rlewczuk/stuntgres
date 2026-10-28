@@ -210,18 +210,26 @@ private frames, not catalog authority.
   `ValidateCatalogViewLocked` check provenance and epoch. The engine holds the
   store by value and never copies it, because every `Read` points at its
   `Owner`.
-- **Shared projection** (`database_projection.go`, `subscription_projection.go`).
-  Every cluster store carries the committed database and subscription descriptors.
-  Subscription names use a database discriminator, never a schema dependency;
-  their publication arrays are descriptor-owned immutable backing. Publication
-  prepares all affected roots, including deletions, before installing any under
-  the shared cluster mutex. Ordinary journals merge only their changes into the
-  latest roots. Replacement retains other databases' subscriptions; attachment
-  inherits current shared definitions. Subscription allocation reserves beyond
-  all cluster frontiers, including transaction-private allocations.
-  State clones retain the persistent subscription read index as well as its
-  descriptors, so unrelated ACL/owned cleanup and peer projections preserve
-  unchanged shared rows; explicit subscription replacement/removal updates both.
+- **Shared projection** (`shared_projection.go`, `subscription_projection.go`,
+  `parameter_projection.go`). Every cluster store carries the same committed
+  database, subscription and parameter descriptor pointers. Publication prepares
+  all affected roots, including name deletion, from each peer's current root
+  before installing any under the cluster mutex. An unchanged projection allocates
+  nothing. Reads retain their matching catalog/role roots, never consult live
+  authority to format historical results. Final database registration inherits
+  current shared authority, not an older template's ACLs.
+  Subscription names retain their database discriminator; parameter names are
+  canonical cluster names. Allocation reserves beyond every cluster frontier,
+  including private allocations and imported definition OIDs. Native replacement
+  remints imported parameters privately and replaces their shared authority;
+  destination databases/roles and peer-local objects survive. Its monotonic
+  parameter incarnation fences even absent-to-absent replacement, and is retained
+  by state clones, private journals and peer roots. Failed replacement publishes
+  neither roots nor reserved frontiers. Subscription replacement retains other
+  databases' subscriptions and their immutable descriptor-derived read index.
+  Parameter remint reservations retain the registered peer-store set and allocation
+  frontiers as transient preconditions. Final installation rejects a peer-local
+  allocation or attachment racing unlocked provider preparation, without retry.
 - **Builtin seed** (`seed.go`, `seed_share.go`). `Store.BeginSeedLocked` starts
   the bulk load and `FinishSeedLocked` ends it. In between, OID allocation
   skips the definition-OID walk: compiled builtins use OIDs below the first
