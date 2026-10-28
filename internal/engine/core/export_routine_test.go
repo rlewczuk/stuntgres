@@ -122,7 +122,7 @@ func ScopeInstallSQLRoutineScratch(x *StatementScope, c sqlRoutineScratch) {
 
 // ScopeInvokeSQLRoutine calls x.invokeSQLRoutine.
 func ScopeInvokeSQLRoutine(x *StatementScope, d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool) (sqltype.Value, error) {
-	return x.invokeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning, nil)
+	return x.invokeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning, false, nil)
 }
 
 // ScopeSQLRoutineScratch calls x.sqlRoutineScratch.

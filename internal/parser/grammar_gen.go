@@ -19484,32 +19484,36 @@ sqldefault:
 	case 218:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.triggerEvents = append(sqlDollar[1].triggerEvents, sqlDollar[3].triggerEvent)
+			events, ok := appendTriggerEvent(sqllex.(*lexer), sqlDollar[1].triggerEvents, sqlDollar[3].triggerEvent)
+			if !ok {
+				return 1
+			}
+			sqlVAL.triggerEvents = events
 		}
 	case 219:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.triggerEvent = TriggerEvent{Name: "insert"}
+			sqlVAL.triggerEvent = TriggerEvent{Name: "insert", token: sqlDollar[1].tok}
 		}
 	case 220:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.triggerEvent = TriggerEvent{Name: "update"}
+			sqlVAL.triggerEvent = TriggerEvent{Name: "update", token: sqlDollar[1].tok}
 		}
 	case 221:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.triggerEvent = TriggerEvent{Name: "update", Columns: sqlDollar[3].identifiers}
+			sqlVAL.triggerEvent = TriggerEvent{Name: "update", Columns: sqlDollar[3].identifiers, token: sqlDollar[1].tok}
 		}
 	case 222:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.triggerEvent = TriggerEvent{Name: "delete"}
+			sqlVAL.triggerEvent = TriggerEvent{Name: "delete", token: sqlDollar[1].tok}
 		}
 	case 223:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.triggerEvent = TriggerEvent{Name: "truncate"}
+			sqlVAL.triggerEvent = TriggerEvent{Name: "truncate", token: sqlDollar[1].tok}
 		}
 	case 224:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]

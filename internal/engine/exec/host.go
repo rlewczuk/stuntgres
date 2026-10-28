@@ -139,8 +139,8 @@ type Host interface {
 	FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error)
 	FunctionRegexExecution() *sqltype.PGRegexExecution
 	// plan.Runtime
-	InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) (sqltype.Value, error)
-	InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) ([]sqltype.Value, error)
+	InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) (sqltype.Value, error)
+	InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) ([]sqltype.Value, error)
 	RewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
 	LexizeDictionary(dictionary sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
 	ConvertTSVector(ctx context.Context, configuration sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)

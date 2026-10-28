@@ -175,6 +175,11 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 		if err != nil {
 			return nil, err
 		}
+		// A logical INSTEAD endpoint has no physical snapshotTarget. Its
+		// synchronous bodies still borrow this command's initial lazy roots.
+		if !in.RetainDynamic && s.ViewWrite != nil && s.ViewWrite.Instead {
+			in.RetainDynamic = true
+		}
 		// Installed trigger bodies are reached through mutation targets, not
 		// the outer expression dependency manifest. Their lazy reads need the
 		// same retained command roots as ordinary SQL/PL routine calls.

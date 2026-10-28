@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -72,8 +73,56 @@ func TestRoutineVolatilitySnapshotOwnership(t *testing.T) {
 				// refreshing the live actor/settings must not resample the caller.
 				callingCatalog := e.CatalogRead()
 				scope.Inquiry.CommentCatalog = callingCatalog
-				leave := core.ActivateRoutineCommandPolicy(scope, &catalog.Procedure{Volatility: volatility})
+				leave := core.ActivateRoutineCommandPolicy(scope, &catalog.Procedure{Volatility: volatility}, false)
 				restore := scope.ActivateSQLRoutine(nil, e.CatalogRead())
+				// Immutable evaluation during command preflight runs before this
+				// command has installed a View. Borrow the active caller's exact
+				// roots, not pending executor scratch containing staged writes.
+				leaveFold := core.ActivateRoutineCommandPolicy(scope, &catalog.Procedure{Volatility: expr.Immutable}, true)
+				restoreFold := scope.ActivateSQLRoutine(nil, e.CatalogRead())
+				scope.Owner.Mu.Lock()
+				e.Mu.Lock()
+				foldView, err := scope.AcquireDataViewsLocked(e, []ids.ObjectRef{ref})
+				e.Mu.Unlock()
+				scope.Owner.Mu.Unlock()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if foldView == outer || foldView.Load().Committed[relation.Address()][0].Version != versions[0].Version || len(foldView.Load().Own[relation.Address()]) != 0 {
+					t.Fatal("planning call resampled roots or borrowed pending command writes")
+				}
+				if err := restoreFold(nil); err != nil {
+					t.Fatal(err)
+				}
+				leaveFold()
+				if scope.View != nil || foldView.Load() != nil || outer.Load() != base {
+					t.Fatal("planning call leaked its view or changed caller backing")
+				}
+				// A source-free runtime SELECT likewise has no View yet. Its
+				// readonly callees must keep this reached command's writes,
+				// unlike the actual planning call above.
+				for _, callee := range []expr.Volatility{expr.Stable, expr.Immutable} {
+					leaveRuntime := core.ActivateRoutineCommandPolicy(scope, &catalog.Procedure{Volatility: callee}, false)
+					restoreRuntime := scope.ActivateSQLRoutine(nil, e.CatalogRead())
+					scope.Owner.Mu.Lock()
+					e.Mu.Lock()
+					runtimeView, err := scope.AcquireDataViewsLocked(e, []ids.ObjectRef{ref})
+					e.Mu.Unlock()
+					scope.Owner.Mu.Unlock()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := len(runtimeView.Load().Own[relation.Address()]); (got != 0) != (volatility == expr.Volatile) {
+						t.Fatal("runtime readonly call borrowed planning rather than command writes", callee, got)
+					}
+					if err := restoreRuntime(nil); err != nil {
+						t.Fatal(err)
+					}
+					leaveRuntime()
+					if scope.View != nil || runtimeView.Load() != nil || outer.Load() != base {
+						t.Fatal("source-free runtime call leaked its view or changed caller backing")
+					}
+				}
 				scope.Owner.Mu.Lock()
 				e.Mu.Lock()
 				local, err := scope.AcquireDataViewsLocked(e, []ids.ObjectRef{ref})
@@ -96,7 +145,7 @@ func TestRoutineVolatilitySnapshotOwnership(t *testing.T) {
 				// A volatile callee is legal inside a readonly caller and owns
 				// a distinct command frontier. Its stable callee must then keep
 				// that calling command's already-visible private writes.
-				leaveVolatile := core.ActivateRoutineCommandPolicy(scope, &catalog.Procedure{Volatility: expr.Volatile})
+				leaveVolatile := core.ActivateRoutineCommandPolicy(scope, &catalog.Procedure{Volatility: expr.Volatile}, false)
 				restoreVolatile := scope.ActivateSQLRoutine(nil, e.CatalogRead())
 				scope.RoutineDependencies = binder.Dependencies
 				scope.Owner.Mu.Lock()
@@ -110,7 +159,7 @@ func TestRoutineVolatilitySnapshotOwnership(t *testing.T) {
 				if len(nested.Load().Own[relation.Address()]) != 1 {
 					t.Fatal("nested volatile call hid reached writes")
 				}
-				leaveStable := core.ActivateRoutineCommandPolicy(scope, &catalog.Procedure{Volatility: expr.Stable})
+				leaveStable := core.ActivateRoutineCommandPolicy(scope, &catalog.Procedure{Volatility: expr.Stable}, false)
 				restoreStable := scope.ActivateSQLRoutine(nil, e.CatalogRead())
 				scope.Owner.Mu.Lock()
 				e.Mu.Lock()
@@ -181,8 +230,39 @@ func TestRoutineProjectedPrivateFrontier(t *testing.T) {
 	if scope.OwnWrites[other][0].Row != 2 {
 		t.Fatal("nested read frontier aliases mutable complete-stage map")
 	}
-	if err := restore(nil); err != nil { t.Fatal(err) }
+	if err := restore(nil); err != nil {
+		t.Fatal(err)
+	}
 	if scope.OwnWrites[target][0].Row != 1 || scope.OwnWrites[other][0].Row != 2 || scope.OwnDeletes[target] == nil {
 		t.Fatal("nested cleanup did not restore exact caller frontier")
+	}
+}
+
+func TestRoutineConstantPlanningPhase(t *testing.T) {
+	e, _, relation := typedUnitCatalog(t, false)
+	usage := relation.Columns[0].Usage
+	value := sqltype.Null(usage.Type)
+	primary := errors.New("planning failure")
+	for _, previous := range []bool{false, true} {
+		for _, cause := range []error{nil, primary} {
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.CatalogRead(), ConstantPlanning: previous}}
+			planning := true
+			probe := queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+				if c.ConstantPlanning != planning {
+					t.Fatal("evaluation lost its actual constant-planning phase")
+				}
+				return value, cause
+			})
+			if _, err := exec.FoldPlanningExpression(&evaluation, probe); err != cause {
+				t.Fatal("planning changed primary result", err)
+			}
+			if evaluation.ConstantPlanning != previous {
+				t.Fatal("planning phase leaked into caller after success/error")
+			}
+			planning = previous
+			if _, err := probe.Eval(&evaluation); err != cause {
+				t.Fatal("runtime evaluation changed primary result", err)
+			}
+		}
 	}
 }

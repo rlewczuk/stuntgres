@@ -18,6 +18,17 @@ type CreateTrigger struct {
 type TriggerEvent struct {
 	Name    string
 	Columns []Identifier
+	token   lexeme
+}
+
+func appendTriggerEvent(l *lexer, events []TriggerEvent, event TriggerEvent) ([]TriggerEvent, bool) {
+	for _, previous := range events {
+		if previous.Name == event.Name {
+			l.failAt("42601", "duplicate trigger events specified at or near \""+event.token.raw+"\"", event.token.pos.Offset)
+			return nil, false
+		}
+	}
+	return append(events, event), true
 }
 
 func (*CreateTrigger) statement()                 {}

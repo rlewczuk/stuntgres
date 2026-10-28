@@ -56,8 +56,8 @@ shape, while generic RECORD NULL remains indeterminate.
 ordinary routines, DML triggers and event triggers; none is inferred from a
 single trigger boolean. PL DML-trigger definitions have zero formals.
 Their fixed OLD/NEW and TG lexical slots are separate from SQL parameters;
-invocations supply explicit timing/level, fresh physical row shapes, typed absent
-records and owned zero-based text-array arguments. Row-trigger returns retain
+invocations supply explicit timing/level, admitted table or logical-view row shapes,
+typed absent records and owned zero-based text-array arguments. Row-trigger returns retain
 strict table-row validation even when their AFTER result is ignored. Statement
 returns still evaluate the expression and require RETURN, but skip table-row
 shape conversion; neither kind ignores execution errors.

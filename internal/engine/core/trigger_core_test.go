@@ -345,7 +345,7 @@ func TestRoutineTriggerLiveAttributeCapture(t *testing.T) {
 	if err := core.ScopeSnapshotDataPhase(s); err != nil {
 		t.Fatal(err)
 	}
-	leavePolicy := core.ActivateRoutineCommandPolicy(s, &catalog.Procedure{Volatility: expr.Stable})
+	leavePolicy := core.ActivateRoutineCommandPolicy(s, &catalog.Procedure{Volatility: expr.Stable}, false)
 	defer leavePolicy()
 	callerDemand := core.ScopeSQLRoutine(s)
 	integer, _ := read.LookupType(sqltype.Int4)

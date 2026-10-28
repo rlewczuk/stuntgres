@@ -185,7 +185,12 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 	}
 	binder.Query.Sources = b.QuerySources
 	if b.ViewWrite != nil {
-		if err := binder.CaptureRetainedWriteInput(b.Insert.Defaults, b.ViewWrite.Base().ColumnMeta.Generations, b.ViewWrite.Base().Constraints.Check); err != nil {
+		destination := b.ViewWrite.Base()
+		generations, checks := destination.ColumnMeta.Generations, destination.Constraints.Check
+		if b.ViewWrite.LogicalTrigger() {
+			generations, checks = nil, nil
+		}
+		if err := binder.CaptureRetainedWriteInput(b.Insert.Defaults, generations, checks); err != nil {
 			return b, err
 		}
 	}

@@ -60,7 +60,7 @@ func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) 
 		}
 		return Target{Name: v.Table, Mode: mode, Rename: true}, true, nil
 	case *parser.DropTrigger:
-		return Target{Name: v.Table, Mode: lock.AccessShare, Rename: true, IfExists: v.IfExists}, true, nil
+		return Target{Name: v.Table, Mode: lock.AccessExclusive, Rename: true, IfExists: v.IfExists}, true, nil
 	case *parser.CreateTable:
 		if v.PartitionOf == nil {
 			return Target{}, false, nil

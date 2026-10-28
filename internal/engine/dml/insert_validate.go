@@ -13,7 +13,8 @@ import (
 )
 
 // CheckViewRow checks the view CHECK OPTIONs of b's view write against row.
-// Called only for admitted, finalized rows, after base constraints/uniqueness.
+// Called only for admitted, finalized rows, after physical validation or the
+// logical INSTEAD chain; NULL-suppressed occurrences never reach this boundary.
 // A stack copy separates NEW from UPDATE FROM's OLD/source/RETURNING frame.
 func CheckViewRow(h Host, b *analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
 	if b.ViewWrite == nil || len(view.ViewWriteOf(b.ViewWrite).Checks) == 0 {

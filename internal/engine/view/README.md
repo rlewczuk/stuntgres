@@ -42,6 +42,8 @@ imports `view`.
   REPLACE replaces. Creation checks table TRIGGER and function EXECUTE grants;
   lifecycle ownership requires table authority, which a rename checks before
   the trigger's existence. `FreezeDefinition` freezes view queries.
+  View INSTEAD OF definitions are checked ROW INSERT/UPDATE/DELETE only, without
+  WHEN or column lists; applicable view AFTER STATEMENT definitions stay local.
 - **Trigger partition synchronization** (`trigger_sync.go`):
   `SynchronizeTriggersLocked` keeps row-level partition trigger clones in step
   with their parents at every catalog publication (CREATE, ATTACH, DETACH and
@@ -91,6 +93,9 @@ imports `view`.
   retain the original routine invoker. A NEW graft loans only the containing
   DEFAULT's certified original callable references and effective revisions;
   source recipes, stored actions and their dependency slices remain immutable.
+  Event producers union the caller's column demand with typed OLD/NEW references
+  introduced by rule qualifications and actions before opening view sources.
+  Assigned NEW fields retain RHS demand rather than demanding their old value.
   Runtime selection uses the operation-effective replication role before any
   expansion, recursion, residual predicate, RETURNING or view/CTE routing.
   Rule-owner authority never changes that session setting. UPDATE-rule presence
@@ -105,6 +110,13 @@ imports `view`.
   frozen-occurrence graft: it translates frozen read attributes to live uses once
   per occurrence, keeps required view keys demanded after renames, and still
   prunes unrequested projections.
+  `Write.Instead` / `ViewWriteSlot.LogicalTrigger` identify a logical view
+  endpoint, including one reached through automatic outer layers. Matching
+  rules retain precedence; matching row triggers stop structural lowering before
+  computed-column rejection. Unrelated events keep automatic behavior. A trigger
+  endpoint's own check option is not collected, even under CASCADED; checks
+  imposed by automatic outer layers and outer selection predicates survive.
+  The endpoint descriptor and logical namespace are recipes, not storage grants.
   Frozen standard-routine actions use the same source-layout bridge as rules
   and view writes, including MERGE source openings with unchanged targets.
   Raw prefixes are selected before wrapping; executors close the returned bundle

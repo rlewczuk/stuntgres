@@ -21,6 +21,7 @@ type BeforeRow struct {
 	Event    BeforeEvent
 	Old, New []sqltype.Value
 	Targets  []int32
+	Instead  bool
 }
 
 type BeforeResult struct {
@@ -31,10 +32,11 @@ type BeforeResult struct {
 type BeforeKey struct {
 	Relation ids.ObjectRef
 	Event    BeforeEvent
+	Instead  bool
 }
 
 // BeforeCapture belongs to one command activation, never a prepared statement.
-// Its immutable list is captured once for a physical relation/event.
+// Its immutable list is captured once for an admitted relation/event/timing.
 type BeforeCapture struct {
 	Relation    *catalog.Relation
 	Catalog     catalog.Read

@@ -9,17 +9,38 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-// Demand is derived from typed NEW references before substitution. The ordinary
-// stored projection planner also retains volatile outputs and clause caches.
-func ruleProducerOutputUses(original analyze.Binding, rule stored.Rule, action analyze.Binding) []int {
+// Demand is derived from typed OLD/NEW references before substitution. INSERT
+// uses input projection ordinals; UPDATE/DELETE use event-relation columns.
+// The stored projection planner also retains volatile outputs and clause caches.
+func ruleProducerOutputUses(original analyze.Binding, event string, rule stored.Rule, action analyze.Binding) []int {
 	uses := []int{}
+	if event != "INSERT" {
+		uses = append(uses, original.UsedColumns...)
+	}
 	inspect := func(bound expr.Expr) {
 		plan.WalkExpression(bound, func(node expr.Expr) {
 			column, ok := node.(plan.ColumnExpr)
-			if !ok || column.Scope != analyze.RulePseudoScope || column.Frame != 2 {
+			if !ok || column.Scope != analyze.RulePseudoScope || column.Frame != 1 && column.Frame != 2 {
 				return
 			}
 			target := slices.Index(original.Relation.Attributes, column.Origin.Address.SubID)
+			if target < 0 {
+				return
+			}
+			if event != "INSERT" {
+				// Assigned NEW fields use their RHS, whose original source
+				// demand is already in UsedColumns, not the old field value.
+				if column.Frame == 2 && (event == "DELETE" || slices.Contains(original.Targets, target)) {
+					return
+				}
+				if !slices.Contains(uses, target) {
+					uses = append(uses, target)
+				}
+				return
+			}
+			if column.Frame != 2 {
+				return
+			}
 			for output, slot := range original.Targets {
 				if slot == target && !slices.Contains(uses, output) {
 					uses = append(uses, output)

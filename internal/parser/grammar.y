@@ -1120,12 +1120,12 @@ trigger_timing: name {
  if $1.keyword==nil || ($1.text!="before" && $1.text!="after") {sqllex.(*lexer).syntax($1);return 1};$$=$1
 } | INSTEAD OF {$$=$1} ;
 trigger_events: trigger_event {$$=[]TriggerEvent{$1}}
- | trigger_events OR trigger_event {$$=append($1,$3)} ;
-trigger_event: INSERT {$$=TriggerEvent{Name:"insert"}}
- | UPDATE {$$=TriggerEvent{Name:"update"}}
- | UPDATE OF view_names {$$=TriggerEvent{Name:"update",Columns:$3}}
- | DELETE {$$=TriggerEvent{Name:"delete"}}
- | TRUNCATE {$$=TriggerEvent{Name:"truncate"}} ;
+ | trigger_events OR trigger_event {events,ok:=appendTriggerEvent(sqllex.(*lexer),$1,$3);if !ok{return 1};$$=events} ;
+trigger_event: INSERT {$$=TriggerEvent{Name:"insert",token:$1}}
+ | UPDATE {$$=TriggerEvent{Name:"update",token:$1}}
+ | UPDATE OF view_names {$$=TriggerEvent{Name:"update",Columns:$3,token:$1}}
+ | DELETE {$$=TriggerEvent{Name:"delete",token:$1}}
+ | TRUNCATE {$$=TriggerEvent{Name:"truncate",token:$1}} ;
 trigger_row: /* empty */ {$$=false}
  | FOR ROW {$$=true}
  | FOR trigger_each ROW {$$=true}

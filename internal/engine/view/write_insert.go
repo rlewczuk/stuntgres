@@ -94,9 +94,9 @@ func lowerViewInsert(owner *catalog.Owner, view catalog.Read, b *analyze.Binding
 	return nil
 }
 
-// PhysicalBinding is used only after logical and per-layer permission checks.
-// RETURNING keeps its analyzed logical schema, even when the target is hidden
-// from the view after an UPDATE or was never visible after an INSERT.
+// PhysicalBinding selects the execution endpoint after logical and per-layer
+// permission checks. An INSTEAD endpoint remains a storageless view. RETURNING
+// keeps its analyzed logical schema even when a replacement leaves the view.
 func PhysicalBinding(b analyze.Binding) analyze.Binding {
 	if b.ViewWrite == nil {
 		return b

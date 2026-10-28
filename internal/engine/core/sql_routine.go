@@ -37,13 +37,13 @@ type sqlRoutineAnalysis struct {
 }
 
 // InvokeSQLRoutine runs a SQL-language routine body inside the statement.
-func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) (sqltype.Value, error) {
-	return h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, inputCollation, assignmentPlanning, nil)
+func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) (sqltype.Value, error) {
+	return h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, inputCollation, assignmentPlanning, constantPlanning, nil)
 }
 
-func (h *statementHost) InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, collation sqltype.CollationRef, assignmentPlanning bool) ([]sqltype.Value, error) {
+func (h *statementHost) InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, collation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) ([]sqltype.Value, error) {
 	var values []sqltype.Value
-	_, err := h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, collation, assignmentPlanning, &values)
+	_, err := h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, collation, assignmentPlanning, constantPlanning, &values)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (h *statementHost) InvokeAggregateSQLRoutine(ctx context.Context, d *catalo
 		s.invocationContext = context.WithValue(workadmission.Suspend(ctx), aggregateInvocationKey{}, s)
 		defer func() { s.invocationContext = saved }()
 	}
-	return s.invokeSQLRoutine(d, frame, resultUsage, owner, collation, false, nil)
+	return s.invokeSQLRoutine(d, frame, resultUsage, owner, collation, false, false, nil)
 }
 
 type aggregateInvocationKey struct{}
@@ -83,13 +83,13 @@ const (
 
 // invokeSQLRoutine borrows the admitted operation/transaction. It never acquires
 // a driver connection, starts a root command, calls Finish or ends the operation.
-func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
-	return parent.executeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning, values, explicitSQLRoutineAdmission)
+func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
+	return parent.executeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning, constantPlanning, values, explicitSQLRoutineAdmission)
 }
 
 // executeSQLRoutine shares descriptor validation, body authority and unwind.
 // Catalog-selected FDW invocation omits only the explicit-call EXECUTE check.
-func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value, admission sqlRoutineAdmission) (value sqltype.Value, err error) {
+func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, values *[]sqltype.Value, admission sqlRoutineAdmission) (value sqltype.Value, err error) {
 	if err = parent.enterSQLRoutine(); err != nil {
 		return value, err
 	}
@@ -149,7 +149,7 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 		return value, err
 	}
 	defer func() { err = leaveEnvironment(err) }()
-	leavePolicy := parent.activateRoutineCommandPolicy(d)
+	leavePolicy := parent.activateRoutineCommandPolicy(d, constantPlanning)
 	defer leavePolicy()
 	if d.SQL.Kind == proc.PLpgSQLBody {
 		return parent.invokePLRoutineSpecialized(d, frame, read, inputCollation, resultUsage, values)

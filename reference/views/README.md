@@ -16,9 +16,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 `TestReferenceMaterializedViewKeywordTypes` uses genuine enum DROP TYPE in both
 backends, preserving direct/prepared unreserved-name and namespace legality.
 WITH CHECK OPTION evaluates the final base-table BEFORE replacement. Shared
-cases cover INSERT/UPDATE and held statements; the separate INSTEAD OF boundary
-asserts native capability rejection and preserved check enforcement, without
-depending on diagnostic wording or the phase in which rejection occurs.
+cases cover INSERT/UPDATE and held statements; the INSTEAD OF boundary exercises
+trigger-mediated writes through automatic outer views, local/cascaded checks,
+and the restored base-table check boundary after trigger removal on both backends.
 
 View definitions and materialized-view definitions support ordinary autocommit,
 SQL BEGIN and Go BeginTx through direct and held prepared handles. Earlier own

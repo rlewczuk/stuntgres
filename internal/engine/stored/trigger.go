@@ -29,7 +29,21 @@ type TriggerTiming uint8
 const (
 	TriggerBefore TriggerTiming = iota + 1
 	TriggerAfter
+	TriggerInstead
 )
+
+func triggerTimingSQL(timing TriggerTiming) (string, error) {
+	switch timing {
+	case TriggerBefore:
+		return "BEFORE", nil
+	case TriggerAfter:
+		return "AFTER", nil
+	case TriggerInstead:
+		return "INSTEAD OF", nil
+	default:
+		return "", fmt.Errorf("stuntgres: invalid trigger timing")
+	}
+}
 
 type TriggerLevel uint8
 
@@ -67,8 +81,11 @@ func validateTriggerParts(p TriggerParts) error {
 	if p.OID == 0 || p.Name == "" || p.Relation.Address.ClassID != ids.RelationClassID || p.Relation.Address.ObjectID == 0 || p.Procedure.Address.ClassID != ids.ProcedureClassID || p.Procedure.Address.ObjectID == 0 || p.Events == 0 || p.Events&^(TriggerInsert|TriggerUpdate|TriggerDelete|TriggerTruncate) != 0 || (p.When == nil) != (p.Presentation == nil) || (p.When == nil) != (p.Binding == nil) {
 		return fmt.Errorf("stuntgres: invalid trigger definition")
 	}
-	if (p.Timing != TriggerBefore && p.Timing != TriggerAfter) || (p.Level != TriggerRow && p.Level != TriggerStatement) || p.Timing == TriggerBefore && p.Level != TriggerRow || p.Events&TriggerTruncate != 0 && p.Level != TriggerStatement || p.Parent.ObjectID != 0 && p.Level != TriggerRow {
+	if (p.Timing != TriggerBefore && p.Timing != TriggerAfter && p.Timing != TriggerInstead) || (p.Level != TriggerRow && p.Level != TriggerStatement) || p.Timing == TriggerBefore && p.Level != TriggerRow || p.Events&TriggerTruncate != 0 && p.Level != TriggerStatement || p.Parent.ObjectID != 0 && p.Level != TriggerRow {
 		return fmt.Errorf("stuntgres: invalid trigger timing or level")
+	}
+	if p.Timing == TriggerInstead && (p.Level != TriggerRow || p.Events&TriggerTruncate != 0 || p.When != nil || p.Presentation != nil || p.Binding != nil || len(p.UpdateColumns) != 0 || p.Parent != (ids.ObjectAddress{}) || p.ParentRevision != 0) {
+		return fmt.Errorf("stuntgres: invalid INSTEAD OF trigger definition")
 	}
 	if p.When != nil && (p.When.ResultUsage().Type == nil || p.When.ResultUsage().Type.ID() != sqltype.Bool) {
 		return fmt.Errorf("stuntgres: nonboolean trigger condition")
@@ -150,7 +167,7 @@ func (t TriggerList) Visit(visit func(catalog.TriggerFact) error) error {
 	return nil
 }
 func (t TriggerList) Validate(read catalog.Read, owner *catalog.Relation) error {
-	if len(t) != 0 && owner.RelationKind != catalog.TableRelation && owner.RelationKind != catalog.PartitionedRelation && owner.RelationKind != catalog.ForeignRelation {
+	if len(t) != 0 && owner.RelationKind != catalog.TableRelation && owner.RelationKind != catalog.PartitionedRelation && owner.RelationKind != catalog.ForeignRelation && owner.RelationKind != catalog.ViewRelation {
 		return fmt.Errorf("stuntgres: trigger payload on invalid relation kind")
 	}
 	previous := ""
@@ -158,6 +175,13 @@ func (t TriggerList) Validate(read catalog.Read, owner *catalog.Relation) error 
 		p := definition.parts
 		if err := validateTriggerParts(p); err != nil {
 			return err
+		}
+		if owner.RelationKind == catalog.ViewRelation {
+			if p.Events&TriggerTruncate != 0 || p.Timing != TriggerInstead && (p.Timing != TriggerAfter || p.Level != TriggerStatement) {
+				return fmt.Errorf("stuntgres: invalid view trigger definition")
+			}
+		} else if p.Timing == TriggerInstead {
+			return fmt.Errorf("stuntgres: INSTEAD OF trigger on non-view relation")
 		}
 		if i > 0 && strings.Compare(previous, p.Name) >= 0 {
 			return fmt.Errorf("stuntgres: unordered trigger payload")

@@ -21,6 +21,13 @@ diagnostics through normal recursive binding, including selected-call routes.
 Structural duplicate detection uses definition equality rather than SQL output
 or occurrence/pointer identity; volatility is not an admission restriction.
 
+The view-write slot separates the original SQL namespace from its endpoint.
+`Base` supplies the endpoint descriptor and `LogicalTrigger` distinguishes a
+storageless view trigger boundary from physical lowering. Main and writable-CTE
+bindings retain typed defaults and complete original target/source frames, never
+candidate rows, trigger frames or command authority. Logical endpoints capture
+input recipes without borrowing physical generation or constraint machinery.
+
 Reached PL expressions use the ordinary binder with private lexical slots and
 current RECORD shapes. PL `$n` resolves the current lexical name first, including
 an integer-FOR private counter; outside that scope it identifies all formals.

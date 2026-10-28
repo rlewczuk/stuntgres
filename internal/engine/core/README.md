@@ -193,6 +193,11 @@ opening producers, including writable CTEs and stored-source row marks.
 Stable/immutable bodies borrow the calling query's coherent roots and private
 write frontier; volatile commands merge reached staged changes and acquire a
 fresh read-committed frontier. Transaction-stable isolation retains its roots.
+Actual constant evaluation forwards its borrowed planning phase and uses the
+active caller's roots before the reached command installs an executor view.
+Runtime readonly calls borrow that command's installed view or its merged
+private frontier when source-free execution has not installed a view; absence
+of a view alone never selects planning visibility.
 Each command owns and releases its local visibility view without completing
 the root operation or mutating the caller's retained backing.
 
@@ -216,6 +221,21 @@ the calling command's initial data-view capture: lazy trigger-body reads are
 not outer expression dependencies. STABLE/IMMUTABLE trigger commands borrow
 those fixed roots and frontier without recapturing after firing. Trigger-free
 DML does not retain an additional dynamic-root map.
+
+View INSTEAD OF mutations admit an exact logical endpoint with its lifecycle
+RowExclusive lock and no storage or leaf replacement grant. The shared immediate
+chain keys immutable command captures by relation, event and timing, readmitting
+the live executable unlocked for each firing. Logical UPDATE/DELETE freeze the
+complete view SELECT and matched source occurrences before any body runs; equal
+rows are not physical identities. INSERT uses the ordinary typed input/default
+recipes. Only nested body SQL stages physical effects. Non-NULL handling counts
+one logical occurrence, I/U replacements feed later NEW and RETURNING, and DELETE
+keeps original OLD. NULL stops the chain without undoing earlier body effects.
+View statement AFTER completion, nested command frames, savepoints and the sole
+publication journal retain the ordinary ownership boundaries.
+Logical OLD and FROM/USING metadata join the existing command-source admission
+before its RLS fence captures the full physical ref union. Their prepared source
+recipes belong only to that activation; materialization consumes each once.
 `enterRoutineEnvironment` pushes a distinct
 operation-local definer actor and installs ordered configuration through the
 session's SET/LOCAL/SAVE journal. Invokers inherit the enclosing actor;
@@ -1699,6 +1719,10 @@ Runtime work-policy handoff and terminal-owner mechanics use
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.
+Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead)'`.
+Logical admission witnesses use distinct stored leaves: return-only invocation
+retains view RX without leaf replacement/row-write grants, while nested DML
+observes its own storage and grants inside the physical validation phase.
 
 Scalar hierarchy and positional-match accepted definition/fold backing and
 rejected-publication fences use `RUN='^TestLtree(Hierarchy|Lquery)Prepared'`.

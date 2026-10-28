@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
@@ -22,10 +23,30 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 	if err := s.Active(); err != nil {
 		return result, err
 	}
-	if target, _ := e.Locks.ReplacementGrants(s.LockTicket, request.Relation, nil); !target {
+	timing, timingName := stored.TriggerBefore, "BEFORE"
+	if request.Instead {
+		w := s.ViewWrite
+		if w == nil || !w.Instead || w.TriggerEvent != stored.TriggerEvent(request.Event) || w.Ref != request.Relation || s.LockedRef != w.Ref || s.LockedDescriptor != w.BaseRelation || s.LockedStorage != nil {
+			return result, fmt.Errorf("stuntgres: trigger invocation requires the admitted logical view target")
+		}
+		if !e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: request.Relation}, lock.RowExclusive) {
+			return result, fmt.Errorf("stuntgres: logical trigger target lost its lifecycle grant")
+		}
+		timing, timingName = stored.TriggerInstead, "INSTEAD OF"
+	} else if target, _ := e.Locks.ReplacementGrants(s.LockTicket, request.Relation, nil); !target {
 		return result, fmt.Errorf("stuntgres: trigger invocation requires the admitted physical write target")
 	}
-	key := dml.BeforeKey{Relation: request.Relation, Event: request.Event}
+	return h.invokeImmediateRow(request, timing, timingName)
+}
+
+// The guards above distinguish physical replacement authority from a logical
+// lifecycle grant. Both paths share immutable command capture and live,
+// unlocked executable admission, never a second trigger registry or queue.
+func (h *statementHost) invokeImmediateRow(request dml.BeforeRow, timing stored.TriggerTiming, timingName string) (dml.BeforeResult, error) {
+	s := h.scope()
+	e := s.Engine()
+	result := dml.BeforeResult{Row: request.New, Proceed: true}
+	key := dml.BeforeKey{Relation: request.Relation, Event: request.Event, Instead: request.Instead}
 	command := h.Command()
 	captured, found := command.BeforeCaptures[key]
 	if !found {
@@ -41,6 +62,10 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 			return result, fmt.Errorf("stuntgres: stale trigger target")
 		}
 		captured = dml.BeforeCapture{Relation: relation, Catalog: auth.Catalog, Definitions: stored.TriggersOf(relation)}
+		if !request.Instead && (relation.RelationKind == catalog.ViewRelation || relation.RelationKind == catalog.TableRelation && e.PrivateStorageLocked(s.PendingCatalog(), request.Relation.Address) == nil) {
+			e.Mu.Unlock()
+			return result, fmt.Errorf("stuntgres: BEFORE invocation requires a physical relation")
+		}
 		e.Mu.Unlock()
 		if command.BeforeCaptures == nil {
 			command.BeforeCaptures = make(map[dml.BeforeKey]dml.BeforeCapture)
@@ -53,7 +78,7 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 	}
 	event := stored.TriggerEvent(request.Event)
 	for _, definition := range list {
-		if p := definition.Parts(); p.Timing != stored.TriggerBefore || p.Level != stored.TriggerRow {
+		if p := definition.Parts(); p.Timing != timing || p.Level != stored.TriggerRow {
 			continue
 		}
 		if err := s.Op.Context().Err(); err != nil {
@@ -123,7 +148,7 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 		if err != nil {
 			return result, err
 		}
-		frame, err := proc.NewPLTriggerFrame(d.SQL, rel, p.Name, name, "BEFORE", "ROW", p.Arguments, request.Old, result.Row)
+		frame, err := proc.NewPLTriggerFrame(d.SQL, rel, p.Name, name, timingName, "ROW", p.Arguments, request.Old, result.Row)
 		if err != nil {
 			return result, err
 		}

@@ -129,8 +129,9 @@ type RuleBinding struct {
 type RuleCTEsSlot interface{ RuleCTEsSlot() }
 
 // ViewWriteSlot holds the lowering of a write through an updatable view.
-// Base is the base relation the write lands on.
+// Base is the endpoint descriptor; LogicalTrigger distinguishes a view from storage.
 type ViewWriteSlot interface {
 	ViewWriteSlot()
 	Base() *catalog.Relation
+	LogicalTrigger() bool
 }

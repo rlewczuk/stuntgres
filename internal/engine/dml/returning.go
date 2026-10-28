@@ -51,7 +51,7 @@ func (o *MergeReturningOutput) Project(b analyze.Binding, c *exec.Context, actio
 	return nil
 }
 
-func ProjectForeignReturning(h Host, b analyze.Binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
+func ProjectReturning(h Host, b analyze.Binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
 	if output == nil {
 		return nil
 	}
@@ -70,12 +70,28 @@ func ProjectForeignReturning(h Host, b analyze.Binding, output *exec.FinalRows, 
 			return err
 		}
 		if value.Type() == nil || value.Type() != output.Columns[i].Usage.Type {
-			return errors.New("stuntgres: invalid foreign RETURNING value")
+			return errors.New("stuntgres: invalid finalized RETURNING value")
 		}
 		output.Values = append(output.Values, value)
 	}
 	output.Count++
 	return h.Command().CapturedRow()
+}
+
+func finishMutationResult(h Host, b analyze.Binding, output *exec.FinalRows, count int64) (Outcome, error) {
+	if output != nil && b.Returning.RegclassOutput && count != 0 {
+		if err := h.CaptureRegclassOutput(output); err != nil {
+			output.Close()
+			return Outcome{}, err
+		}
+	}
+	if err := h.Context().Err(); err != nil {
+		if output != nil {
+			output.Close()
+		}
+		return Outcome{}, err
+	}
+	return Outcome{Count: count, Rows: output}, nil
 }
 
 type ForeignMutationRow struct {

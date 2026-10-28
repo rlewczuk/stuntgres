@@ -30,8 +30,9 @@ type preparedCommandExecution struct {
 	expressions [][]expr.Expr
 	primaryTag  string
 	syntax      parser.Statement
-	policyWaits uint64                  // Last successful original binding check's policy-import frontier.
-	sources     *querySourcePreparation // Complete admitted SQL occurrence tree, consumed once.
+	policyWaits uint64                   // Last successful original binding check's policy-import frontier.
+	sources     *querySourcePreparation  // Complete admitted SQL occurrence tree, consumed once.
+	viewTarget  *storedSourcePreparation // Complete logical OLD query; activation-owned, never a Description.
 }
 
 // Enter with Engine.mu held; every outcome releases it. Binding, signature and
@@ -520,6 +521,9 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	if err := e.materializePolicySourcesLocked(scope); err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
+	}
+	if b.ViewWrite != nil && view.ViewWriteOf(b.ViewWrite).Instead {
+		return e.executeViewTriggerLocked(scope, stmt, execution, canonical)
 	}
 	if b.Relation != nil && b.Relation.RelationKind == catalog.ForeignRelation {
 		switch stmt.(type) {

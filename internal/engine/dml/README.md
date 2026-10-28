@@ -1,7 +1,7 @@
 # internal/engine/dml
 
 The write executors (INSERT, ON CONFLICT DO UPDATE, COPY FROM, UPDATE, DELETE,
-MERGE, foreign DML), unique and exclusion probing, the staging loops, FK
+MERGE, foreign and logical view-trigger DML), unique and exclusion probing, the staging loops, FK
 enforcement and actions over `FinishHost`, and the pure pieces they use (ON
 CONFLICT arbitration, the INSERT write overlay, RETURNING, inheritance targets,
 TRUNCATE and FK action records, COPY insertion batching).
@@ -72,6 +72,18 @@ the sole write authorities.
   Physical movement emits DELETE and INSERT row events while the named command
   retains its UPDATE statement event. Explicit timing/level filters keep AFTER
   definitions out of BEFORE generation and suppression decisions.
+- Logical INSTEAD OF producers reuse the immediate host chain with explicit
+  logical admission. They freeze complete OLD/source occurrences without heap
+  identities or deduplication, evaluate simultaneous assignments against the
+  original frame, and count each non-NULL handled occurrence independently of
+  nested body counts. Replacement NEW feeds the chain and typed RETURNING;
+  DELETE retains original OLD. Suppression does not compensate prior effects.
+  Accepted INSERT/UPDATE replacement rows pass the shared view CHECK OPTION
+  evaluator for automatic layers above the trigger endpoint before RETURNING
+  and count publication. NULL suppression skips these checks, not prior effects.
+  The target arrives already selected and frozen by the stored-query bridge;
+  producers project its outputs without selecting its visibility mapping twice.
+  Statement AFTER registration/completion and the shared journal remain unchanged.
 
 `FinishHost` adds `ForeignKeys`, the FK runtime's engine side
 (`statement_host_foreign_key.go`). Mutating RI commands register statements even
@@ -145,7 +157,7 @@ by query effect identity, shared across writable CTEs and separate for nested SQ
 | Probing | `unique.go`, `exclusion.go`, `index_candidates.go` | `ProbeUniqueRow`, `ClaimUniqueRow`, `ProbeExclusion` (also SET CONSTRAINTS' deferred recheck), `ValidateIndexCandidates` |
 | Staging | `stage.go`, `partition_insert.go` | `ApplyValidated`, `ReplaceRows`, `ApplyInsertValidated` (each leaf group in first-use order) |
 | Preflight | `*_preflight.go`, `insert_conflict_update.go` | `PreflightUpdate`, `PreflightMerge`, `PreflightConflictUpdate`, `PreflightReturning`, called from the engine's `execute_bound.go` |
-| RETURNING | `returning.go`, `insert_returning.go` | `InsertReturningOutput`, `MergeReturningOutput`, `ProjectForeignReturning` |
+| RETURNING | `returning.go`, `insert_returning.go` | `InsertReturningOutput`, `MergeReturningOutput`, `ProjectReturning` |
 | COPY FROM | `copy*.go` | `CopyCursor`, `CopyBinaryCursor`, `CopyInsertionState`; codecs are in [`copyfmt`](../copyfmt/README.md) |
 | FK | `foreign_action*.go`, `foreign_key*.go` | `PrepareForeignActions`, `SettleForeignActions`, `CheckForeignKeys`, `ForeignKeyReach` |
 | TRUNCATE | `truncate*.go` | `TruncateScope`, `CheckTruncate`, `GuardedCatalogMutationError`, `TruncateGraph.CheckCurrent` |

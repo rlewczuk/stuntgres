@@ -96,10 +96,11 @@ func VisitTriggerDefinitions(ctx context.Context, read catalog.Read, relation *c
 		}
 		statement.WriteByte(')')
 		fact := TriggerPresentation{OID: p.OID, Name: p.Name, Insert: p.Events&TriggerInsert != 0, Update: p.Events&TriggerUpdate != 0, Delete: p.Events&TriggerDelete != 0, Statement: statement.String()}
-		fact.Timing, fact.Orientation = "BEFORE", "ROW"
-		if p.Timing == TriggerAfter {
-			fact.Timing = "AFTER"
+		fact.Timing, err = triggerTimingSQL(p.Timing)
+		if err != nil {
+			return err
 		}
+		fact.Orientation = "ROW"
 		if p.Level == TriggerStatement {
 			fact.Orientation = "STATEMENT"
 		}

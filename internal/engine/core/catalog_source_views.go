@@ -17,7 +17,26 @@ import (
 
 func (r EngineCatalogRuntime) ViewCapabilities(ctx context.Context, read catalog.Read, relation *catalog.Relation) (pgcatalog.ViewCapability, error) {
 	events, err := view.Capabilities(ctx, read, relation, nil, catalogViewLeafEvents)
-	return pgcatalog.ViewCapability{Events: events}, err
+	if err != nil {
+		return pgcatalog.ViewCapability{}, err
+	}
+	var triggers uint32
+	for _, trigger := range stored.TriggersOf(relation) {
+		p := trigger.Parts()
+		if p.Timing != stored.TriggerInstead || p.Level != stored.TriggerRow {
+			continue
+		}
+		if p.Events&stored.TriggerUpdate != 0 {
+			triggers |= 4
+		}
+		if p.Events&stored.TriggerInsert != 0 {
+			triggers |= 8
+		}
+		if p.Events&stored.TriggerDelete != 0 {
+			triggers |= 16
+		}
+	}
+	return pgcatalog.ViewCapability{Events: events, Triggers: triggers}, nil
 }
 
 // No provider method is called: interface support is immutable handler metadata.

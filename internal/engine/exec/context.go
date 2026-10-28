@@ -88,6 +88,9 @@ type EvalStatement struct {
 	// Separate rule-program permission: actual supplied Param leaves may become
 	// typed constants during preparation. Ordinary imported-param barriers stay.
 	SpecializeRuleParameters bool
+	// Borrowed only while this evaluator computes a demanded planning value.
+	// Routine invocation uses this phase, not absence of a captured query View.
+	ConstantPlanning bool
 	// Borrowed only while a PL assignment projection evaluates its child.
 	// Domain VALUE frames suppress propagation to their SQL CHECK routines.
 	PLAssignmentPlanning bool

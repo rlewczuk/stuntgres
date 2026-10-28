@@ -84,11 +84,13 @@ func captureInfoTriggers(in Input) ([][]sqltype.Value, error) {
 		if !visible {
 			continue
 		}
-		var ranks [3][2][2]int64
+		var ranks [3][3][2]int64
 		err = in.Runtime.VisitTriggerDefinitions(in.Context, in.Catalog, relation, owner, func(f TriggerFact) error {
 			timing, level := 0, 0
 			if f.Timing == "AFTER" {
 				timing = 1
+			} else if f.Timing == "INSTEAD OF" {
+				timing = 2
 			}
 			if f.Orientation == "STATEMENT" {
 				level = 1

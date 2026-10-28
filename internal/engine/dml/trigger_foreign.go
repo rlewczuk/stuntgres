@@ -29,7 +29,7 @@ func (s *foreignTriggerInsert) accept(h Host, row []sqltype.Value, evaluation *e
 				return err
 			}
 		}
-		return ProjectForeignReturning(h, s.binding, s.output, actual, nil, evaluation)
+		return ProjectReturning(h, s.binding, s.output, actual, nil, evaluation)
 	})
 	if err == nil {
 		s.count += count

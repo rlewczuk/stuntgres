@@ -35,7 +35,7 @@ func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, 
 		return value, err
 	}
 	defer func() { err = leaveEnvironment(err) }()
-	leavePolicy := s.activateRoutineCommandPolicy(d)
+	leavePolicy := s.activateRoutineCommandPolicy(d, false)
 	defer leavePolicy()
 	diagnosticIdentity, err := s.plDiagnosticIdentityFor(d, read)
 	if err != nil {

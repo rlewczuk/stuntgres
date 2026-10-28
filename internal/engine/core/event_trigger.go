@@ -187,7 +187,7 @@ func (s *StatementScope) invokePLEventTrigger(d *catalog.Procedure, frame *proc.
 		return err
 	}
 	defer func() { err = leaveEnvironment(err) }()
-	leavePolicy := s.activateRoutineCommandPolicy(d)
+	leavePolicy := s.activateRoutineCommandPolicy(d, false)
 	defer leavePolicy()
 	identity, err := s.plDiagnosticIdentityFor(d, read)
 	if err != nil {

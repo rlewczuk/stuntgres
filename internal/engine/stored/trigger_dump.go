@@ -42,7 +42,11 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				return nil, err
 			}
 			p := t.Parts()
-			modes = append(modes, dump.Group{Owner: owner.Name, Table: table, SQL: TriggerModeSQL(table, p.Name, t.Mode())})
+			// CREATE supplies origin mode. Clones still need an explicit reset
+			// because their recreated parent can supply a different inherited mode.
+			if t.Mode() != catalog.TriggerOrigin || p.Parent.ObjectID != 0 {
+				modes = append(modes, dump.Group{Owner: owner.Name, Table: table, SQL: TriggerModeSQL(table, p.Name, t.Mode())})
+			}
 			for _, address := range p.AutoExtensions {
 				extension, ok := read.Extension(address)
 				if !ok {
@@ -86,10 +90,11 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				return nil, fmt.Errorf("stuntgres: dump cannot serialize a trigger referencing a temporary function")
 			}
 			var sql strings.Builder
-			timing, level := "BEFORE", "ROW"
-			if p.Timing == TriggerAfter {
-				timing = "AFTER"
+			timing, err := triggerTimingSQL(p.Timing)
+			if err != nil {
+				return nil, err
 			}
+			level := "ROW"
 			if p.Level == TriggerStatement {
 				level = "STATEMENT"
 			}

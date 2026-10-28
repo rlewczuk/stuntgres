@@ -17,8 +17,9 @@ var (
 func (RuleCTECommands) RuleCTEsSlot() {}
 func (*Write) ViewWriteSlot()         {}
 
-// Base is the base relation the view write lands on.
+// Base is the physical or logical endpoint the view write lands on.
 func (w *Write) Base() *catalog.Relation { return w.BaseRelation }
+func (w *Write) LogicalTrigger() bool    { return w.Instead }
 
 // RuleCTEsOf returns the rule CTE commands in s, or nil.
 func RuleCTEsOf(s analyze.RuleCTEsSlot) RuleCTECommands {

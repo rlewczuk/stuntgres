@@ -22,12 +22,17 @@ type routineCommandPolicy struct {
 	deletes  map[ids.ObjectAddress]*visibility.PrivateDeletes
 }
 
-func (s *StatementScope) activateRoutineCommandPolicy(d *catalog.Procedure) func() {
+func (s *StatementScope) activateRoutineCommandPolicy(d *catalog.Procedure, constantPlanning bool) func() {
 	previous := s.sqlRoutine.policy
 	ref := s.TxRef
 	policy := routineCommandPolicy{active: true, readOnly: d.Volatility != expr.Volatile, writes: s.OwnWrites, deletes: s.OwnDeletes}
 	if s.View != nil {
 		policy.base = s.View.Load()
+	} else if constantPlanning && policy.readOnly && previous.active {
+		// Actual constant evaluation precedes the executor snapshot. Ordinary
+		// runtime calls can also have no View (a source-free SELECT), but must
+		// keep their reached command's merged private frontier.
+		policy.base, policy.writes, policy.deletes = previous.base, previous.writes, previous.deletes
 	}
 	s.sqlRoutine.policy = policy
 	return func() {

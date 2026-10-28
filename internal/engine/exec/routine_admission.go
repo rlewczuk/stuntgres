@@ -294,6 +294,9 @@ func admitPlanningExpression(c *Context, node expr.Expr) error {
 }
 
 func evaluateAdmittedPlanningExpression(c *Context, node expr.Expr) (sqltype.Value, error) {
+	previous := c.ConstantPlanning
+	c.ConstantPlanning = true
+	defer func() { c.ConstantPlanning = previous }()
 	value, err := node.Eval(c)
 	if err != nil && c != nil && c.PLPreflightOrigin {
 		err = &planningEvaluationError{error: err, parameters: node.Properties().ParameterDependent}

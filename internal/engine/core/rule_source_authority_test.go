@@ -57,6 +57,9 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					auth.Roles = e.RoleStore.Read(&e.Catalog.Owner, auth.Catalog, auth.RoleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
 					original := ruleUnitInsert(e, src, 1, 10).Binding()
+					// Unqualified event syntax reads no target column itself.
+					// The dependent action introduces the only OLD.id demand.
+					original.UsedColumns = []int{}
 					original.QuerySources = []exec.Leaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}
 					if effective {
 						original.QuerySources[0].Principal = reader.Ref
@@ -110,6 +113,9 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 						}
 						if sources[0].Principal != actor.Ref || sources[1].Principal != principal {
 							t.Fatal("retained producer lost caller/effective source authority")
+						}
+						if len(sources[0].Uses) != 1 || sources[0].Uses[0] != 0 || len(original.UsedColumns) != 0 {
+							t.Fatal("composed OLD demand missing or mutated caller column backing")
 						}
 					}
 					if err := analyze.CheckQuerySources(auth, sources); err != nil {

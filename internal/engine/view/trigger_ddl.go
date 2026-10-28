@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -31,9 +32,8 @@ func PlanTrigger(h Host, auth ddl.Authority, stmt parser.Statement, locked ids.O
 	return planTriggerLifecycle(h, auth, stmt, locked)
 }
 
-// planCreateTrigger checks, in order: the relation, the TRIGGER grant, the
-// timing and relation kind, the events, a name collision without OR REPLACE,
-// the function and its EXECUTE grant, then the WHEN condition.
+// planCreateTrigger checks relation-kind and timing restrictions before binding
+// forbidden WHEN/OF forms, then resolves the function before name collisions.
 func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, locked ids.ObjectRef, input sqltype.InputEnvironment) (RelationChange, error) {
 	ref, err := h.ResolveRelation(auth, s.Table)
 	if err != nil {
@@ -47,16 +47,15 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	if err := catalogAccess.Check(auth, access.Requirement{Object: ref, Privileges: authorization.TriggerPrivilege}); err != nil {
 		return RelationChange{}, err
 	}
-	if s.Timing != "after" && (s.Timing != "before" || !s.Row) {
-		return RelationChange{}, sqlError("0A000", "only row-level BEFORE and row or statement AFTER triggers are supported")
-	}
-	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.PartitionedRelation && old.RelationKind != catalog.ForeignRelation {
-		return RelationChange{}, analyze.TableKindError(old, "change")
+	if err := triggerKind(old, s); err != nil {
+		return RelationChange{}, err
 	}
 	p := stored.TriggerParts{Name: s.Name.Text, Mode: catalog.TriggerOrigin, Relation: ref, Arguments: s.Arguments}
 	p.Timing, p.Level = stored.TriggerAfter, stored.TriggerStatement
 	if s.Timing == "before" {
 		p.Timing = stored.TriggerBefore
+	} else if s.Timing == "instead" {
+		p.Timing = stored.TriggerInstead
 	}
 	if s.Row {
 		p.Level = stored.TriggerRow
@@ -66,9 +65,6 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	}
 	list := stored.TriggersOf(old)
 	index := slices.IndexFunc(list, func(t stored.Trigger) bool { return t.Name() == p.Name })
-	if index >= 0 && !s.Replace {
-		return RelationChange{}, sqlError("42710", fmt.Sprintf("trigger %q for relation %q already exists", p.Name, old.Name()))
-	}
 	address, err := triggerFunction(h, auth, catalogAccess, s.Function)
 	if err != nil {
 		return RelationChange{}, err
@@ -76,6 +72,9 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	p.Procedure = catalogAccess.Ref(address)
 	if err := catalogAccess.Check(auth, access.Requirement{Object: p.Procedure, Privileges: authorization.ExecutePrivilege}); err != nil {
 		return RelationChange{}, err
+	}
+	if index >= 0 && !s.Replace {
+		return RelationChange{}, sqlError("42710", fmt.Sprintf("trigger %q for relation %q already exists", p.Name, old.Name()))
 	}
 	p.References = []ids.ObjectAddress{address}
 	for _, attribute := range p.UpdateColumns {
@@ -111,6 +110,54 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	return change, err
 }
 
+// triggerKind preserves CREATE TRIGGER diagnostic precedence without binding
+// expressions or looking up columns prohibited at the INSTEAD OF boundary.
+func triggerKind(old *catalog.Relation, s *parser.CreateTrigger) error {
+	kind, detail := "", ""
+	switch old.RelationKind {
+	case catalog.ViewRelation:
+		kind = "view"
+		for _, event := range s.Events {
+			if event.Name == "truncate" {
+				detail = "Views cannot have TRUNCATE triggers."
+				break
+			}
+		}
+		if detail == "" && s.Row && s.Timing != "instead" {
+			detail = "Views cannot have row-level BEFORE or AFTER triggers."
+		}
+	case catalog.TableRelation, catalog.PartitionedRelation:
+		if s.Timing == "instead" {
+			kind, detail = "table", "Tables cannot have INSTEAD OF triggers."
+		}
+	case catalog.ForeignRelation:
+		if s.Timing == "instead" {
+			kind, detail = "foreign table", "Foreign tables cannot have INSTEAD OF triggers."
+		}
+	default:
+		return analyze.TableKindError(old, "change")
+	}
+	if detail != "" {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf("%q is a %s", old.Name(), kind), Detail: detail}
+	}
+	if s.Timing == "instead" {
+		if !s.Row {
+			return sqlError("0A000", "INSTEAD OF triggers must be FOR EACH ROW")
+		}
+		if s.When != nil {
+			return sqlError("0A000", "INSTEAD OF triggers cannot have WHEN conditions")
+		}
+		for _, event := range s.Events {
+			if len(event.Columns) != 0 {
+				return sqlError("0A000", "INSTEAD OF triggers cannot have column lists")
+			}
+		}
+	} else if s.Timing != "after" && (s.Timing != "before" || !s.Row) {
+		return sqlError("0A000", "only row-level BEFORE and row or statement AFTER triggers are supported")
+	}
+	return nil
+}
+
 // triggerEvents records events and validates their orientation and columns.
 func triggerEvents(p *stored.TriggerParts, old *catalog.Relation, events []parser.TriggerEvent) error {
 	for _, event := range events {
@@ -129,9 +176,6 @@ func triggerEvents(p *stored.TriggerParts, old *catalog.Relation, events []parse
 			bit = stored.TriggerTruncate
 		default:
 			return sqlError("0A000", "unsupported trigger event")
-		}
-		if p.Events&bit != 0 {
-			return sqlError("42601", "same event specified more than once")
 		}
 		p.Events |= bit
 		for _, column := range event.Columns {
@@ -158,7 +202,7 @@ func triggerFunction(h Host, auth ddl.Authority, catalogAccess access.View, name
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID}
 	d, ok := catalogAccess.Catalog.Get(address).(*catalog.Procedure)
 	if ok && d.RoutineKind == catalog.ProcedureRoutine {
-		return ids.ObjectAddress{}, sqlError("42809", fmt.Sprintf("%s() is a procedure", catalog.ObjectNameText(name)))
+		return ids.ObjectAddress{}, sqlError("42883", fmt.Sprintf("function %s() does not exist", catalog.ObjectNameText(name)))
 	}
 	if !ok || d.SQL == nil || d.SQL.Invocation != proc.DMLTriggerInvocation {
 		return ids.ObjectAddress{}, sqlError("42P17", fmt.Sprintf("function %s must return type trigger", catalog.ObjectNameText(name)))

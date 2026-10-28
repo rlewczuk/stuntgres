@@ -890,8 +890,8 @@ display settings together; failed capture or cancellation publishes no prefix.
 Structural flags do not depend on the viewer's DML rights. The engine bridges
 `view.Capabilities`, including nested output subsets, unconditional INSTEAD rules
 and the actual registered foreign handler's modification interfaces. Rules are
-not trigger facts. The current relation model has no INSTEAD OF triggers, so the
-three trigger flags are NO.
+not trigger facts. Local INSTEAD OF ROW definitions supply the three trigger
+flags independently of structural events; an outer view does not inherit them.
 Represented catalog relations classified as ordinary tables supply ordinary
 base-table structural events; this does not change catalog write admission.
 

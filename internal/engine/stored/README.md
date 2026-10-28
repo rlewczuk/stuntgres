@@ -166,13 +166,16 @@ the `#=` backer, domain identity and anonymous occurrence shapes.
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
 WHEN recipes, explicit timing/orientation and row-only partition-clone provenance,
-never activation values. Checked kinds are BEFORE ROW I/U/D, AFTER ROW I/U/D and
-AFTER STATEMENT I/U/D/TRUNCATE. Statement definitions cannot be partition clones.
+never activation values. Checked kinds are BEFORE ROW I/U/D, AFTER ROW I/U/D,
+AFTER STATEMENT I/U/D/TRUNCATE, and view-only INSTEAD OF ROW I/U/D. Views
+otherwise admit only AFTER STATEMENT I/U/D. INSTEAD OF definitions cannot retain
+WHEN, UPDATE OF or partition provenance; statement definitions cannot be clones.
 Rename retains every identity and recipe while reordering the table-local chain.
 `WithMode` replaces only the definition envelope, retaining the WHEN binding,
 presentation, arguments and dependency backing. User and RI triggers share checked
-catalog O/D/R/A modes. Mode ALTERs form a final deterministic post-definition
-dump phase and use ONLY so clone-local states, including O, replay independently.
+catalog O/D/R/A modes. Nondefault modes and clone-local states form a final
+deterministic post-definition dump phase using ONLY; ordinary CREATE supplies
+origin mode without a redundant ALTER, including for view-owned triggers.
 Complete four-slot FK mode footer records identify the logical owning
 constraint, never allocated RI names/OIDs, and sort independently of allocation.
 A shared SQL seal permits a per-FK snapshot data waiver only for the exact saved

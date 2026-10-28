@@ -142,7 +142,9 @@ func parseWithOptions(query string, options Options, readonlyRecipe bool) ([]Sta
 // retaining parentheses and ORDER/bounds on the original source. Set arms keep
 // query expressions; original input, options and absolute positions stay authoritative.
 func (l *lexer) validateInsertValues(values *ValuesQuery) bool {
-	if l.ruleDefinition {
+	// Stored procedural SQL and rule actions retain full expression syntax;
+	// their binders resolve lexical/pseudo rows rather than input-only cells.
+	if l.ruleDefinition || l.plMode {
 		return true
 	}
 	replay := &lexer{input: l.input, offset: values.Pos.Offset + len("values"), options: l.options,

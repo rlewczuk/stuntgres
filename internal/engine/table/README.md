@@ -263,6 +263,8 @@ call live here.
   relation target during either preparation or execution),
   `CheckExplicitLock` (LOCK TABLE) and the `Stage` slot (LIKE sources checked
   at publication by `ValidateLikeSources`).
+  Trigger targets use ShareRowExclusive for CREATE and AccessExclusive for DROP;
+  both therefore contend with genuine execution RowExclusive on tables or views.
   OID/TEXT view-definition inquiries, including boolean format selectors, use
   captured `DeparseInputs.BuiltinViewDefinition` authority for builtin views
   without stored payloads. Default format uses canonical fragments; pretty

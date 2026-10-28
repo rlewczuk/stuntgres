@@ -48,7 +48,9 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	case catalog.ForeignDelete:
 		event = stored.TriggerDelete
 	}
-	if err := RegisterAfterStatement(h, b, event); err != nil { return Outcome{}, err }
+	if err := RegisterAfterStatement(h, b, event); err != nil {
+		return Outcome{}, err
+	}
 	defer CompleteAfterStatement(h, b, event, &outcome, &err)
 	m, err := fdw.PlanModification(h.Context(), in.Foreign, op, false)
 	if err != nil {
@@ -173,7 +175,7 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 			}
 		}
 		if stream != nil {
-			return finishForeignResult(h, b, stream.output, stream.count)
+			return finishMutationResult(h, b, stream.output, stream.count)
 		}
 		return foreignInsertResult(h, m, b, rows, &evaluation)
 	}
@@ -191,7 +193,7 @@ func foreignInsertResult(h Host, m *fdw.Modification, b analyze.Binding, rows []
 		if err := CheckViewRow(h, &b, row, evaluation); err != nil {
 			return err
 		}
-		return ProjectForeignReturning(h, b, output, row, nil, evaluation)
+		return ProjectReturning(h, b, output, row, nil, evaluation)
 	})
 	if err != nil {
 		if output != nil {
@@ -199,22 +201,7 @@ func foreignInsertResult(h Host, m *fdw.Modification, b analyze.Binding, rows []
 		}
 		return Outcome{}, err
 	}
-	return finishForeignResult(h, b, output, count)
-}
-func finishForeignResult(h Host, b analyze.Binding, output *exec.FinalRows, count int64) (Outcome, error) {
-	if output != nil && b.Returning.RegclassOutput && count != 0 {
-		if err := h.CaptureRegclassOutput(output); err != nil {
-			output.Close()
-			return Outcome{}, err
-		}
-	}
-	if err := h.Context().Err(); err != nil {
-		if output != nil {
-			output.Close()
-		}
-		return Outcome{}, err
-	}
-	return Outcome{Count: count, Rows: output}, nil
+	return finishMutationResult(h, b, output, count)
 }
 
 func foreignTargetRows(ctx context.Context, h Host, m *fdw.Modification) ([]ForeignMutationRow, error) {
@@ -272,7 +259,9 @@ func foreignTargetRows(ctx context.Context, h Host, m *fdw.Modification) ([]Fore
 func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (outcome Outcome, err error) {
 	ctx := h.Context()
 	event := stored.TriggerDelete
-	if b.Update != nil { event = stored.TriggerUpdate }
+	if b.Update != nil {
+		event = stored.TriggerUpdate
+	}
 	after := HasRowTriggers(b.Relation, event, stored.TriggerAfter)
 	rows, err := foreignTargetRows(ctx, h, m)
 	if err != nil {
@@ -421,15 +410,17 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 					request.Event, request.Old, request.New = BeforeUpdate, candidate.Row, actual
 					request.Targets = UpdateTargetAttributes(h, b.Ref, b.Relation, b.Targets, nil)
 				}
-				if err := h.AfterRow(request); err != nil { return Outcome{}, err }
+				if err := h.AfterRow(request); err != nil {
+					return Outcome{}, err
+				}
 			}
-			if err := ProjectForeignReturning(h, b, output, actual, candidate.Row, evaluation); err != nil {
+			if err := ProjectReturning(h, b, output, actual, candidate.Row, evaluation); err != nil {
 				return Outcome{}, err
 			}
 			count++
 		}
 	}
-	result, err := finishForeignResult(h, b, output, count)
+	result, err := finishMutationResult(h, b, output, count)
 	keep = err == nil
 	return result, err
 }

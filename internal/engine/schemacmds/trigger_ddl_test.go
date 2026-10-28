@@ -383,7 +383,7 @@ func TestTriggerDDLAdmission(t *testing.T) {
 		{&parser.CreateTrigger{Table: name}, lock.ShareRowExclusive, true},
 		{&parser.AlterTrigger{Table: name, Action: "rename"}, lock.AccessExclusive, true},
 		{&parser.AlterTrigger{Table: name, Action: "depends"}, lock.AccessShare, true},
-		{&parser.DropTrigger{Table: name}, lock.AccessShare, true},
+		{&parser.DropTrigger{Table: name}, lock.AccessExclusive, true},
 	} {
 		target, ok, err := table.TargetAdmission(tc.stmt, true)
 		if err != nil || !ok || target.Mode != tc.mode || session.TransactionalSchemaUtility(tc.stmt) != tc.transaction {

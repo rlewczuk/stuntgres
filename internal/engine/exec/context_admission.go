@@ -120,10 +120,10 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 		return value, fmt.Errorf("SQL routine invocation has no statement owner")
 	}
 	if values != nil {
-		*values, err = host.InvokeSQLRoutineSet(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive)
+		*values, err = host.InvokeSQLRoutineSet(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive, c.ConstantPlanning)
 		return value, err
 	}
-	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive)
+	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive, c.ConstantPlanning)
 	if err != nil {
 		return value, err // The body owner annotates its actual command ordinal.
 	}

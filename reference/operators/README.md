@@ -13,7 +13,7 @@ comparison, BETWEEN and conditional expressions are in
 [reference/query_core](../query_core/README.md#testing) and
 [reference/types](../types/README.md#testing); explicit casts and the
 comparison resolution matrix are in `reference/type_resolution`.
-BEFORE row and AFTER row/statement trigger scenarios cover private PL frames,
+BEFORE row, AFTER row/statement and view INSTEAD OF row trigger scenarios cover private PL frames,
 ordered chains, query completion, zero-row events, TRUNCATE, permissions,
 physical mutation producers and native post-data replay. The shared
 `triggerScenario` helper follows the ordinary configured-backend loop.
@@ -131,6 +131,7 @@ Add `REFERENCE=1` for the oracle.
 - Declared CAST/typename authority: `RUN='^TestReferenceCastImplementedDeclaredTypeNameAuthority$'`
 - Row-level triggers: `RUN='^TestReferenceTriggerCore'`
 - AFTER query completion and replay: `RUN='^TestReferenceTriggerAfter'`
+- View INSTEAD OF triggers: `RUN='^TestReferenceTriggerInstead'`
 - Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`
 - Transactional trigger integration and protocol: `RUN='^TestReferenceTransactionalTrigger'`
 - Live trigger nesting and consumers: `RUN='^TestReferenceTriggerDepth'`.

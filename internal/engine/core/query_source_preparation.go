@@ -146,6 +146,16 @@ func (e *Engine) prepareCommandSourcesLocked(s *StatementScope, bRef ids.ObjectR
 			return err
 		}
 	}
+	if w := view.ViewWriteOf(binding.ViewWrite); w != nil && w.Instead && w.TriggerEvent != stored.TriggerInsert {
+		uses := make([]int, len(binding.Relation.Columns))
+		for i := range uses {
+			uses[i] = i
+		}
+		command.viewTarget, err = e.prepareStoredSourceLocked(s, binding.Ref, stored.ViewOf(binding.Relation), auth.State.CurrentUser, plan.RowMark{}, uses)
+		if err != nil {
+			return err
+		}
+	}
 	if len(binding.QuerySources) == 0 && !binding.SubqueryDemand && binding.Query == nil {
 		return nil
 	}

@@ -110,8 +110,13 @@ single-statement limit of driver calls) belong to callers.
   tokens do not turn those words into globally reserved identifiers. Query and
   expression visitors descend into both operands.
 - Trigger declarations retain explicit timing/row kind, ordered event syntax,
-  positioned WHEN and literal arguments. Parsing does not reinterpret the default
-  statement kind as ROW; execution admits the supported timing and target kind.
+  positioned WHEN and literal arguments. Repeated events are rejected at the
+  repeated event token, preserving its raw spelling and character position.
+  Parsing does not reinterpret the default statement kind as ROW; execution
+  admits the supported timing and target kind.
+  Embedded PL SQL retains full INSERT VALUES expression trees and original
+  statement boundaries; it does not replay cells through the ordinary SQL
+  input-only scalar frontier. Ordinary SQL parsing and prewalk remain unchanged.
   Timing words require keyword identity: quoted `"before"`/`"after"` are names,
   not timing syntax, and cannot install definitions.
   ALTER/DROP retain positioned table-local trigger identities and explicit

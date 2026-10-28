@@ -9,7 +9,7 @@ import (
 
 // PLTriggerRelation is the firing relation, resolved by the caller.
 type PLTriggerRelation struct {
-	Shape     *sqltype.Descriptor // physical composite row type
+	Shape     *sqltype.Descriptor // admitted table or logical view composite row type
 	OID       uint32
 	Name      string
 	Namespace string

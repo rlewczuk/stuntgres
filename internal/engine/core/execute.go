@@ -231,8 +231,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	callerSequences, callerRegtypes := b.Prepared.SequenceConstants, b.Prepared.RegtypeConstants
 	if b.ViewWrite != nil {
 		e.Mu.Unlock()
-		if view.ViewWriteOf(b.ViewWrite).BaseRelation.RelationKind != catalog.ViewRelation {
-			if err := scope.acquireViewWriteTarget(view.ViewWriteOf(b.ViewWrite)); err != nil {
+		w := view.ViewWriteOf(b.ViewWrite)
+		if w.Instead || w.BaseRelation.RelationKind != catalog.ViewRelation {
+			if err := scope.acquireViewWriteTarget(w); err != nil {
 				return Result{}, err
 			}
 		}

@@ -124,6 +124,9 @@ func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 		}
 	} else {
 		p.Sources = append([]exec.Leaf{{Ref: b.Ref, Relation: d, Storage: b.Storage, Uses: b.UsedColumns}}, b.QuerySources...)
+		if len(outputUses) != 0 {
+			p.Sources[0].Uses = outputUses[0]
+		}
 		p.Root = &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: b.Ref, Occurrence: 0}
 		var from plan.Node
 		var condition expr.Expr
@@ -350,7 +353,7 @@ func ComposeRuleAction(auth RuleAuthority, original analyze.Binding, event strin
 		return analyze.Binding{}, sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
 	}
 	catalog := auth.Access().Catalog
-	p, err := MakeRuleProducer(catalog, original, event, ruleProducerOutputUses(original, r, action.Binding()))
+	p, err := MakeRuleProducer(catalog, original, event, ruleProducerOutputUses(original, event, r, action.Binding()))
 	if err != nil {
 		return analyze.Binding{}, err
 	}
@@ -785,6 +788,11 @@ func (rw RuleRewriter) ExpandLocked(auth RuleAuthority, stmt parser.Statement, b
 		}
 	}
 	if current.RelationKind == catalog.ViewRelation && !matched {
+		if w := ViewWriteOf(b.ViewWrite); w != nil && w.Instead {
+			// Matching rules were considered first. An unrelated rule must
+			// not rebind/recurse past an admitted logical trigger endpoint.
+			return appendRuleCommand(program, auth, stmt, b), nil
+		}
 		b.ViewWrite = nil
 		if err := BindViewWrite(rw.Owner, auth.Access().Catalog, replica, &b, stmt); err != nil {
 			return -1, err

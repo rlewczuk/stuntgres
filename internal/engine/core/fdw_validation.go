@@ -44,7 +44,7 @@ func (s *StatementScope) prepareForeignValidator(d *catalog.Procedure, kind cata
 // SECURITY DEFINER and SET use the shared routine environment.
 func (s *StatementScope) invokeFDWValidator(d *catalog.Procedure, frame *proc.Frame, result sqltype.Usage) error {
 	defer frame.Close()
-	value, err := s.executeSQLRoutine(d, frame, result, nil, sqltype.CollationRef{}, false, nil, fdwValidatorAdmission)
+	value, err := s.executeSQLRoutine(d, frame, result, nil, sqltype.CollationRef{}, false, false, nil, fdwValidatorAdmission)
 	if err != nil {
 		return err
 	}

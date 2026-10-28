@@ -200,7 +200,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   coercions; failures in the import phase retain their runtime origin.
   `FoldPlanningExpression` is the single demanded conditional/preflight computation
   and current routine admission boundary, including physical IO coercions and
-  strict null-or-evaluate inputs. `FoldDefinition` owns the live generation and
+  strict null-or-evaluate inputs. Actual computation borrows `ConstantPlanning`
+  on the evaluation context and restores it on success/error. SQL/PL invocation
+  forwards this phase separately from assignment diagnostic provenance, so
+  pre-executor constant calls and source-free runtime calls select their genuine
+  snapshot owners. `FoldDefinition` owns the live generation and
   immutable typed entries/dependencies; `Begin` borrows them into a
   `FoldAttempt` and changed planning uses COW. The prepared runtime validates
   the complete operation's environment, current authority and cancellation

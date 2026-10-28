@@ -17,12 +17,15 @@ import (
 )
 
 // The requested relation remains the SQL/ACL namespace. This execution-owned
-// rewrite carries physical authority separately; no dense slots are persisted.
+// recipe selects a physical destination or logical trigger endpoint separately.
 type Write struct {
-	Logical          analyze.Binding
-	Layers           []WriteLayer
-	BaseRelation     *catalog.Relation
-	Ref              ids.ObjectRef
+	Logical      analyze.Binding
+	Layers       []WriteLayer
+	BaseRelation *catalog.Relation
+	Ref          ids.ObjectRef
+	// Instead marks a logical view endpoint, never a physical write grant.
+	Instead          bool
+	TriggerEvent     stored.TriggerEvent
 	outputs          []expr.Expr
 	Predicates       []expr.Expr
 	Checks           []CheckGroup
@@ -101,7 +104,7 @@ func BindViewWrite(owner *catalog.Owner, view catalog.Read, replica bool, b *ana
 	// outputs start in the logical target's canonical mutation frame.
 	outputs := make([]expr.Expr, len(d.Columns))
 	for i, c := range d.Columns {
-		outputs[i] = plan.ColumnExpr{Info: expr.Info{Usage: c.Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Slot: i}
+		outputs[i] = plan.ColumnExpr{Info: expr.Info{Usage: c.Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Slot: i, Scope: 1, Frame: 1}
 	}
 	cascaded := false
 	for d.RelationKind == catalog.ViewRelation {
@@ -118,6 +121,25 @@ func BindViewWrite(owner *catalog.Owner, view catalog.Read, replica bool, b *ana
 			if len(w.Layers) == 0 {
 				return nil
 			}
+			break
+		}
+		event := stored.TriggerInsert
+		if operation == "update" {
+			event = stored.TriggerUpdate
+		} else if operation == "delete" {
+			event = stored.TriggerDelete
+		}
+		for _, trigger := range stored.TriggersOf(d) {
+			p := trigger.Parts()
+			if p.Timing == stored.TriggerInstead && p.Level == stored.TriggerRow && p.Events&event != 0 {
+				w.Instead = true
+				w.TriggerEvent = event
+				break
+			}
+		}
+		if w.Instead {
+			// Stop before collecting this endpoint's own check option, but
+			// retain checks already imposed by automatic outer layers.
 			break
 		}
 		if seen[ref] {

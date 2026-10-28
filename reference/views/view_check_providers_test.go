@@ -17,14 +17,6 @@ func TestReferenceViewCheckTriggerBoundary(t *testing.T) {
 		run := func(s ...fixture.Step) { viewCheckRun(t, p, b, held, s...) }
 		run(fixture.Exec("CREATE TABLE t(a INT,b INT)", 0), fixture.Exec("CREATE VIEW inner_v AS SELECT a,b FROM t WHERE a<10 WITH LOCAL CHECK OPTION", 0), fixture.Exec("CREATE VIEW outer_v AS SELECT a,b FROM inner_v WHERE a>0 WITH CASCADED CHECK OPTION", 0))
 		trigger := "CREATE TRIGGER route INSTEAD OF INSERT ON inner_v FOR EACH ROW EXECUTE FUNCTION route_insert()"
-		if !b.PG {
-			run(fixture.Exec("CREATE FUNCTION route_insert() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN NEW; END$$", 0))
-			s := fixture.Error(trigger, "0A000")
-			s.Prepared = held
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-			run(viewCheckError("INSERT INTO outer_v VALUES(30,1)", "inner_v", "30, 1"), viewCheckPairRows())
-			return
-		}
 		run(fixture.Exec("CREATE FUNCTION route_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO t VALUES(NEW.a,NEW.b); RETURN NEW; END $$", 0), fixture.Exec(trigger, 0), fixture.Exec("INSERT INTO inner_v VALUES(20,1)", 1), fixture.Exec("INSERT INTO outer_v VALUES(30,1)", 1), viewCheckError("INSERT INTO outer_v VALUES(-1,1)", "outer_v", "-1, 1"), fixture.Exec("ALTER VIEW outer_v SET(check_option=local)", 0), fixture.Exec("INSERT INTO outer_v VALUES(40,1)", 1), fixture.Exec("DROP TRIGGER route ON inner_v", 0), fixture.Exec("ALTER VIEW outer_v SET(check_option=cascaded)", 0), viewCheckPairRows([]any{int64(20), int64(1)}, []any{int64(30), int64(1)}, []any{int64(40), int64(1)}), fixture.Exec("CREATE FUNCTION change_new() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.a := -10; RETURN NEW; END $$", 0), fixture.Exec("CREATE TRIGGER change BEFORE INSERT ON t FOR EACH ROW EXECUTE FUNCTION change_new()", 0), viewCheckError("INSERT INTO outer_v VALUES(1,1)", "outer_v", "-10, 1"), viewCheckPairRows([]any{int64(20), int64(1)}, []any{int64(30), int64(1)}, []any{int64(40), int64(1)}))
 	})
 }
