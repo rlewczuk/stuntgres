@@ -200,6 +200,10 @@ package or the engine.
   materialization and replay comparison. Projection applies canonical row
   overrides while retaining genuine builtin/provider defaults.
   The inventory rejects missing facts and never creates additional rows.
+  Settings flags and option expansion carry their released internal-language
+  display facts through this same complete seed path. Fixed options formal names
+  stay owned by `RoutineOutputs`; unnamed flag inputs remain unnamed. The option
+  source's released row estimate belongs to catalog declaration metadata.
   SQL/PL creation records original quoted source or empty SQL-standard source
   on the descriptor. Identity changes preserve those immutable facts.
   `body_inventory.go` owns every represented SQL-standard replacement's genuine
@@ -424,6 +428,8 @@ Semantic declaration normalization and private patch/error ownership use
 Statistics I/O declaration/display and complete seed materialization use
 `RUN='^TestStatisticsObjectIORoutineDeclarations$'`; public catalog metadata
 and strict calls belong to the statistics family in `reference/catalogs`.
+Settings/options declaration, display and complete seed materialization use
+`RUN='^TestSettingsOptionsRoutineDeclarations$'`.
 
 Ordered declaration units distinguish canonical lookup from expanded execution:
 `FinalDeclarationVectors` checks independent storage and collapsed ANY slots;

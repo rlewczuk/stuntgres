@@ -13,7 +13,7 @@ import (
 func (h *statementHost) InvokeSetting(name string, inputs []sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	op, e := s.Op, s.Engine()
-	if name != "current_setting" && name != "set_config" || name == "current_setting" && (len(inputs) < 1 || len(inputs) > 2) || name == "set_config" && len(inputs) != 3 {
+	if name != "current_setting" && name != "set_config" && name != "pg_settings_get_flags" || name == "current_setting" && (len(inputs) < 1 || len(inputs) > 2) || name == "set_config" && len(inputs) != 3 || name == "pg_settings_get_flags" && len(inputs) != 1 {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid setting expression signature")
 	}
 	e.Mu.Lock()
@@ -37,6 +37,21 @@ func (h *statementHost) InvokeSetting(name string, inputs []sqltype.Value, resul
 	if err := owner.AdmitLocked(DomainOf(e), op); err != nil {
 		unlock()
 		return sqltype.Value{}, err
+	}
+	if name == "pg_settings_get_flags" {
+		defer unlock()
+		if inputs[0].IsNull() {
+			return sqltype.Null(result), nil
+		}
+		requested, err := inputs[0].Text()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		flags, exists := owner.SettingFlagsLocked(e.Settings, requested)
+		if !exists {
+			return sqltype.Null(result), nil
+		}
+		return flags.Array(result)
 	}
 	if name == "current_setting" {
 		defer unlock()

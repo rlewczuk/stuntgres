@@ -22,11 +22,11 @@ type Setting struct {
 
 func bindSetting(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	valid := name == "current_setting" && (len(raw.Args) == 1 || len(raw.Args) == 2) || name == "set_config" && len(raw.Args) == 3
+	valid := name == "current_setting" && (len(raw.Args) == 1 || len(raw.Args) == 2) || name == "set_config" && len(raw.Args) == 3 || name == "pg_settings_get_flags" && len(raw.Args) == 1
 	if !valid || raw.Variadic || len(raw.ArgNames) != 0 {
 		return nil, b.CallSignatureError(raw)
 	}
-	args, err := bindSettingArguments(b, name, raw.Name, raw.Args)
+	args, err := bindSettingArguments(b, name, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,11 @@ func bindSetting(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	for _, arg := range args {
 		properties = expr.MergeProperties(properties, arg.Properties())
 	}
-	info := b.Info(b.Type(sqltype.Text).Usage(), raw.Pos, properties)
+	result := sqltype.Text
+	if name == "pg_settings_get_flags" {
+		result = 1009
+	}
+	info := b.Info(b.Type(result).Usage(), raw.Pos, properties)
 	formals := []sqltype.ID{sqltype.Text}
 	if name == "set_config" {
 		formals = []sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Bool}
@@ -64,7 +68,7 @@ func (n Setting) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
-	if n.Name == "current_setting" {
+	if n.Name != "set_config" {
 		for _, value := range values[:len(n.Args)] {
 			if value.IsNull() {
 				return sqltype.Null(n.Usage.Type), nil
@@ -94,7 +98,7 @@ func (n Setting) IntrinsicVolatility() expr.Volatility {
 }
 func (Setting) PlanningFold() expr.Fold { return expr.FoldNever }
 func (n Setting) StrictNull() expr.Strict {
-	if n.Name == "current_setting" {
+	if n.Name != "set_config" {
 		return expr.StrictAfterBare
 	}
 	return expr.StrictNone
@@ -114,8 +118,12 @@ func (n Setting) Render() (expr.Rendering, error) {
 		args[i] = expr.RenderArg{Expr: arg}
 	}
 	return expr.Rendering{Tree: "Setting " + n.Name, Inputs: n.Args, Form: expr.FormCall, Name: n.Name, Quote: expr.QuoteIdentifier, Args: args, Replay: expr.Replay{RelationOnly: true, Validate: func() error {
-		valid := n.Name == "current_setting" && (len(n.Args) == 1 || len(n.Args) == 2) || n.Name == "set_config" && len(n.Args) == 3
-		if !valid || n.Usage.Type == nil || n.Usage.Type.ID() != sqltype.Text {
+		valid := n.Name == "current_setting" && (len(n.Args) == 1 || len(n.Args) == 2) || n.Name == "set_config" && len(n.Args) == 3 || n.Name == "pg_settings_get_flags" && len(n.Args) == 1
+		result := sqltype.Text
+		if n.Name == "pg_settings_get_flags" {
+			result = 1009
+		}
+		if !valid || n.Usage.Type == nil || n.Usage.Type.ID() != result {
 			return fmt.Errorf("stuntgres: invalid stored setting signature")
 		}
 		for i, arg := range n.Args {

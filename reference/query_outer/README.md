@@ -48,6 +48,8 @@ metadata; the one-argument SQL wrapper has a declaration body and retained
 released cost 1, as do the internal implementations.
 The four zero-input session-activity declarations retain their exact released
 identities, result types, strictness, volatility and parallel-safety metadata.
+Settings flags and option expansion retain released STABLE/strict declarations,
+unnamed versus fixed input/OUT formal metadata, and the option row estimate 3.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 
 Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and

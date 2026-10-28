@@ -72,6 +72,7 @@ type Definition struct {
 	BootDefaultNull, ReadRestricted bool
 	NativeStartup                   *StartupDefault
 	FixedDefault                    bool
+	Flags                           Flags
 	// Normalize is reserved for builtin behavior; registration has no callbacks.
 	Normalize    func(string) (string, *sqlstate.Error, error)
 	bootValue    Value
@@ -161,7 +162,7 @@ func Validate(d Definition) (Definition, error) {
 	d.Name = FoldName(d.Name)
 	d.Category = "Customized Options"
 	d.ExtraDescription = ""
-	if d.BootDefaultNull || d.ReadRestricted || d.NativeStartup != nil || d.FixedDefault {
+	if d.BootDefaultNull || d.ReadRestricted || d.NativeStartup != nil || d.FixedDefault || d.Flags != 0 {
 		return d, registrationError("builtin-only setting metadata")
 	}
 	if !CustomName(d.Name) || d.Type > Enum || d.Access > Privileged || d.Unit > Minutes || !utf8.ValidString(d.Description) || strings.IndexByte(d.Description, 0) >= 0 {

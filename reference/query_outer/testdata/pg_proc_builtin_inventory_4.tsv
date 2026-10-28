@@ -488,3 +488,5 @@
 2197	inet_client_port	11	12	1	0	0	0	f	false	false	false	false	s	r	0	0	23		\N	\N	\N	false	\N	inet_client_port	\N	false	\N
 2198	inet_server_addr	11	12	1	0	0	0	f	false	false	false	false	s	r	0	0	869		\N	\N	\N	false	\N	inet_server_addr	\N	false	\N
 2199	inet_server_port	11	12	1	0	0	0	f	false	false	false	false	s	r	0	0	23		\N	\N	\N	false	\N	inet_server_port	\N	false	\N
+2289	pg_options_to_table	11	12	1	3	0	0	f	false	false	true	true	s	s	1	0	2249	1009	{1009,25,25}	{i,o,o}	{options_array,option_name,option_value}	false	\N	pg_options_to_table	\N	false	\N
+6240	pg_settings_get_flags	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1009	25	\N	\N	\N	false	\N	pg_settings_get_flags	\N	false	\N

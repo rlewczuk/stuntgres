@@ -12,6 +12,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		1689: {"acl", "grantor", "grantee", "privilege_type", "is_grantable"},
 		2284: {"string", "pattern", "replacement"},
 		2285: {"string", "pattern", "replacement", "flags"},
+		2289: {"options_array", "option_name", "option_value"},
 		2623: {"filename", "size", "access", "modification", "change", "creation", "isdir"},
 		2763: {"string", "pattern"},
 		2764: {"string", "pattern", "flags"},

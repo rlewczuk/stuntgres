@@ -1038,6 +1038,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	2074: {Language: catalog.SQLRoutineLanguage, Source: "", Cost: 1},
 	2077: {Language: catalog.InternalRoutineLanguage, Source: "show_config_by_name"},
 	2078: {Language: catalog.InternalRoutineLanguage, Source: "set_config_by_name"},
+	2289: {Language: catalog.InternalRoutineLanguage, Source: "pg_options_to_table"},
+	6240: {Language: catalog.InternalRoutineLanguage, Source: "pg_settings_get_flags"},
 	2079: {Language: catalog.InternalRoutineLanguage, Source: "pg_table_is_visible", Cost: 10},
 	2080: {Language: catalog.InternalRoutineLanguage, Source: "pg_type_is_visible", Cost: 10},
 	2085: {Language: catalog.InternalRoutineLanguage, Source: "bytea_substr"},

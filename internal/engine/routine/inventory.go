@@ -1002,6 +1002,8 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{2074, ids.PGCatalogNamespaceOID, "substring", "25,25,25"}, catalog.FunctionRoutine, 25, true, expr.Immutable, 's', false, 0, 0, functions.StringRoutineProvider, nil},
 	{catalog.RoutineIdentity{2077, ids.PGCatalogNamespaceOID, "current_setting", "25"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.SettingRoutineProvider, nil},
 	{catalog.RoutineIdentity{2078, ids.PGCatalogNamespaceOID, "set_config", "25,25,16"}, catalog.FunctionRoutine, 25, false, expr.Volatile, 'u', false, 0, 0, functions.SettingRoutineProvider, nil},
+	{catalog.RoutineIdentity{2289, ids.PGCatalogNamespaceOID, "pg_options_to_table", "1009"}, catalog.FunctionRoutine, 2249, true, expr.Stable, 's', true, 0, 0, functions.SettingRoutineProvider, catalog.NewRoutineOutputs([]ids.OID{25, 25}, "options_array", "option_name", "option_value")},
+	{catalog.RoutineIdentity{6240, ids.PGCatalogNamespaceOID, "pg_settings_get_flags", "25"}, catalog.FunctionRoutine, 1009, true, expr.Stable, 's', false, 0, 0, functions.SettingRoutineProvider, nil},
 	{catalog.RoutineIdentity{2079, ids.PGCatalogNamespaceOID, "pg_table_is_visible", "26"}, catalog.FunctionRoutine, 16, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2080, ids.PGCatalogNamespaceOID, "pg_type_is_visible", "26"}, catalog.FunctionRoutine, 16, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2085, ids.PGCatalogNamespaceOID, "substr", "17,23,23"}, catalog.FunctionRoutine, 17, true, expr.Immutable, 's', false, 0, 0, functions.BinaryRoutineProvider, nil},

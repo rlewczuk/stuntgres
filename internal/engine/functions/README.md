@@ -12,6 +12,22 @@ the authority behind evaluation capabilities in the root
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
 
+`Setting` resolves `pg_settings_get_flags` through live statement settings
+authority with a typed TEXT[] result, never a retained settings snapshot or
+restricted value read. `OptionsToTable` binds one named TEXT[] input and an
+occurrence-owned two-TEXT OUT record. Its invocation-private inline source cursor
+borrows the immutable array, validates all NULL elements before emitting rows,
+then splits only the first equals sign without materializing an output vector.
+Both calls remain STABLE, strict and unfolded; routine EXECUTE admission stays
+with the existing selected-call owner. Neither adds persistent state.
+Options OUT members follow generic computed-source metadata: nullability is
+unknown, not a table NOT NULL claim, even when a particular invocation contains
+only non-NULL fields. Scalar flag results separately expose known nullable TEXT[].
+Stored views containing either expression use the ordinary typed renderer,
+dependency capture and native-control replay path, without a builtin serializer.
+Their published view attributes expose relation-column nullability independently
+of direct computed-source metadata.
+
 `RecoveryInfo` retains a zero-input immutable typed recipe: BOOL false or typed
 PG_LSN/TIMESTAMPTZ NULL in an engine that never performs physical recovery.
 These inquiries remain VOLATILE and unfolded. `WALResourceManagers` retains
@@ -717,6 +733,9 @@ behavior is tested only in `reference/`
 Datetime sleep source admission and scalar-once lifetime use
 `RUN='^TestDatetimeSleepScalarSource$'`, also with `RACE=1`.
 Statistics I/O volatility and folding units use `RUN='^TestStatisticsObjectIO'`.
+Settings/options declaration and expression protocols use
+`RUN='^TestSettingsOptionsBinding$'`; private cursor ownership, typed EOF,
+whole-input validation and cancellation use `RUN='^TestOptionsToTableCursor$'`.
 Generic file-list binding, lexical paths, source ownership and ACL persistence
 use `RUN='^TestGenericFileList'`.
 Read/stat/tmpdir binding, scalar strict protocols and runtime ownership use

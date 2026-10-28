@@ -5,6 +5,8 @@ package catalog
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 	switch d.Identity.ID {
+	case 2289: // pg_options_to_table(text[])
+		return 3
 	case 2763: // regexp_matches(text,text)
 		return 1
 	case 1689, 2764, 3035, 3425, 6353: // ACL expansion, flagged matches, channels, ancestors, modules

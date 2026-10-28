@@ -86,6 +86,11 @@ import this package directly.
   and `Order` read it. `SessionDefaults` (`session_defaults.go`) builds once per
   registry the default text and typed values that every session without a
   `SessionDefaultProvider` shares read-only.
+  `Flags` is explicit immutable release metadata completed across every builtin
+  group, independently of access classes and restricted-value visibility.
+  `LookupFlags` is noncreating, includes identity-only settings and fixed release
+  aliases, and distinguishes unknown names from existing zero-bit definitions.
+  Session-owned placeholders are recognized only by the live settings store.
 
 ## Invariants
 
@@ -671,6 +676,7 @@ make check RUN='^TestReplicationSettings'
 make check RUN='^TestVacuumSettings'
 make check RUN='^TestWALSettings'
 make check RUN='^TestPlannerOtherSettingsDefinitions$'
+make check RUN='^TestSettingFlagsMetadata$'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in

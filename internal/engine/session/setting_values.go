@@ -30,6 +30,18 @@ func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string
 	return settings.Definition{Name: key, Type: settings.String}, nil
 }
 
+// SettingFlagsLocked reads only existing recognition under the store mutex.
+// Registry and identity metadata take precedence over custom placeholders.
+func (s *SettingsStore) SettingFlagsLocked(registry settings.Registry, name string) (settings.Flags, bool) {
+	if flags, ok := registry.LookupFlags(name); ok {
+		return flags, true
+	}
+	if s.Placeholders[settings.FoldName(name)] {
+		return settings.PlaceholderFlags, true
+	}
+	return 0, false
+}
+
 // ParseValue parses input for d without installing it. A DateStyle input is
 // read against the store's current and default styles under its mutex. The
 // notice, when present, is reported as a warning on failure and as a notice

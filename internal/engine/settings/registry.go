@@ -44,6 +44,7 @@ func newRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
 	for i, list := range groups {
 		for _, d := range list {
 			if i < len(groups)-1 {
+				d.Flags = builtinFlags(d.Name)
 				if i == 0 {
 					d = builtinMetadata(d)
 				}

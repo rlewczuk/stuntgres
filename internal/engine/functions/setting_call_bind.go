@@ -9,18 +9,22 @@ import (
 )
 
 // bindSettingArguments checks builtin visibility and implicit call applicability
-// before assigning current_setting/set_config operands to their fixed formals.
-func bindSettingArguments(b Binder, function string, name parser.ObjectName, args []parser.Expr) ([]expr.Expr, error) {
-	visible, err := b.BuiltinVisible(name)
+// before assigning settings/options operands to their fixed formals.
+func bindSettingArguments(b Binder, function string, call parser.FunctionExpr) ([]expr.Expr, error) {
+	args := call.Args
+	visible, err := b.BuiltinVisible(call.Name)
 	if err != nil {
 		return nil, err
 	}
 	if !visible {
-		return nil, b.CallSignatureError(parser.FunctionExpr{Name: name, Args: args, Pos: name.Parts[0].Pos})
+		return nil, b.CallSignatureError(call)
 	}
 	formals := [3]sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Bool}
 	if function == "current_setting" {
 		formals[1] = sqltype.Bool
+	}
+	if function == "pg_options_to_table" {
+		formals[0] = 1009
 	}
 	var operands [3]Argument
 	var targets [3]sqltype.Usage
@@ -36,7 +40,7 @@ func bindSettingArguments(b Binder, function string, name parser.ObjectName, arg
 		targets[i] = typ.Usage()
 	}
 	if !knownCallEdges(b, operands[:len(args)], targets[:len(args)]) {
-		return nil, b.CallSignatureError(parser.FunctionExpr{Name: name, Args: args, Pos: name.Parts[0].Pos})
+		return nil, b.CallSignatureError(call)
 	}
 	bound := make([]expr.Expr, len(args))
 	for i := range args {

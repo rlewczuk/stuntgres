@@ -16,6 +16,16 @@ Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rule
 Current-source, physical identity, event clocks and native-control scenarios use
 `RUN='^TestReferenceSessionActivity'` in both fixture modes.
 
+Setting-flag metadata and option-array expansion use
+`RUN='^TestReferenceSettingsOptions'` in both modes. Shared physical-session and
+held-call helpers witness noncreating live placeholder recognition, independent
+cursor reexecution, complete diagnostics, typed empty-result metadata and routine
+EXECUTE admission; unordered option rows retain duplicate multiplicities.
+Stored scalar and fixed-OUT source views use the same family: independent
+direct/prepared rows and view-column metadata are checked before and after
+same-engine and fresh-engine native Dump/Reset/Restore. PostgreSQL also executes
+the actual emitted native SQL definitions; empty views retain their OUT schema.
+
 Connection endpoint values, typed metadata, diagnostics, EXECUTE authority and
 stored-view native controls/replay use `RUN='^TestReferenceSessionEndpoints'`
 in both fixture modes. Native calls yield typed NULLs; the TCP oracle checks
