@@ -165,6 +165,7 @@ func foreignKeyTriggerRow(in Input, fact catalog.ForeignKeyTriggerFact) ([]sqlty
 	var function ids.OID
 	flags := int64(17)
 	opposite := constraint.Target.ObjectID
+	timing := constraint.Deferrable
 	switch fact.Slot {
 	case 0, 1:
 		opposite = fact.Owner.ObjectID
@@ -172,6 +173,7 @@ func foreignKeyTriggerRow(in Input, fact catalog.ForeignKeyTriggerFact) ([]sqlty
 		if fact.Slot == 0 {
 			flags, action = 9, constraint.DeleteAction
 		}
+		timing = timing && action == parser.ForeignKeyNoAction
 		switch action {
 		case parser.ForeignKeyNoAction:
 			function = 1654
@@ -212,9 +214,9 @@ func foreignKeyTriggerRow(in Input, fact catalog.ForeignKeyTriggerFact) ([]sqlty
 	}
 	row[3] = sqltype.String(in.Source.Columns[3].Usage.Type, fact.Name)
 	row[6] = sqltype.String(in.Source.Columns[6].Usage.Type, fact.Mode.String())
-	for _, i := range [...]int{7, 11, 12} {
-		row[i] = sqltype.Boolean(in.Source.Columns[i].Usage.Type, i == 7)
-	}
+	row[7] = sqltype.Boolean(in.Source.Columns[7].Usage.Type, true)
+	row[11] = sqltype.Boolean(in.Source.Columns[11].Usage.Type, timing)
+	row[12] = sqltype.Boolean(in.Source.Columns[12].Usage.Type, timing && constraint.InitiallyDeferred)
 	var err error
 	row[5], err = sqltype.Integer(in.Source.Columns[5].Usage.Type, flags)
 	if err != nil {

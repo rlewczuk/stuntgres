@@ -26,6 +26,12 @@ merge after type/typmod/collation checks, with local-column diagnostics and
 inherited-before-local details. The private Create binding retains the final
 checked pairs; unspecified local fields never reset inherited policies.
 
+Unique definition binding retains persistent timing defaults; redundant
+declarations merge only when key, NULL policy and timing agree. LIKE primary
+copies retain the source timing independently of their new identities.
+Column constraint timing diagnostics use the parser's positioned attachment
+facts at utility transformation, before type or catalog binding.
+
 `StatisticsConsumer` is a distinct retained-expression context. Prohibited
 subquery/aggregate/grouping/window/set-returning nodes use statistics-specific
 diagnostics through normal recursive binding, including selected-call routes.

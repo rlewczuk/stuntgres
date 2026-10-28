@@ -12,10 +12,18 @@ func TestCheckSyntaxExistingAPI(t *testing.T) {
 			t.Fatal(s)
 		}
 	}
-	for _, q := range []string{"CREATE TABLE t(a INT CHECK())", "CREATE TABLE t(a INT CHECK(TRUE) NO INHERIT NO INHERIT)", "CREATE TABLE t(a INT CHECK(TRUE));INSERT INTO", "CREATE TABLE t(a INT CHECK(TRUE) NOT VALID)", "CREATE TABLE t(a INT CHECK(TRUE) DEFERRABLE)"} {
+	for _, q := range []string{"CREATE TABLE t(a INT CHECK())", "CREATE TABLE t(a INT CHECK(TRUE) NO INHERIT NO INHERIT)", "CREATE TABLE t(a INT CHECK(TRUE));INSERT INTO", "CREATE TABLE t(a INT CHECK(TRUE) NOT VALID)"} {
 		s, err := Parse(q)
 		if err == nil || s != nil {
 			t.Fatal("accepted invalid whole input", q, s, err)
 		}
+	}
+	s, err := Parse("CREATE TABLE t(a INT CHECK(TRUE) DEFERRABLE)")
+	if err != nil || len(s) != 1 {
+		t.Fatal("column attribute must reach utility attachment", s, err)
+	}
+	c := s[0].(*CreateTable).Elements[0].Column.Constraints[0]
+	if c.Check == nil || c.TimingError != "misplaced DEFERRABLE clause" || c.TimingPos.Character != 34 {
+		t.Fatal("lost CHECK attribute diagnostic", c)
 	}
 }

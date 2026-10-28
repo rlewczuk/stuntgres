@@ -31,7 +31,7 @@ type UniqueWriteBinding struct {
 	TypeName                  func(sqltype.ID) string
 	Insertion                 []InsertionBinding
 	Checked                   bool
-	ConstraintEffectsRelevant bool // FK/exclusion obligations under Ref/Parent/Catalog authority.
+	ConstraintEffectsRelevant bool // FK or index-timing work under Ref/Parent/Catalog authority.
 }
 
 func (b *UniqueBoundKey) Load(row []sqltype.Value, evaluation *exec.Context) ([]sqltype.Value, error) {
@@ -111,7 +111,7 @@ func SameRelationRowShape(a, b *catalog.Relation) bool {
 func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view catalog.Read) (*UniqueWriteBinding, error) {
 	var err error
 	b := &UniqueWriteBinding{Ref: ref, Parent: parent, Catalog: view.State(),
-		ConstraintEffectsRelevant: slices.ContainsFunc(parent.Constraints.ForeignKeys, func(f catalog.ForeignKeyConstraint) bool { return !f.NotEnforced }) || len(parent.Constraints.Exclusion) != 0}
+		ConstraintEffectsRelevant: slices.ContainsFunc(parent.Constraints.ForeignKeys, func(f catalog.ForeignKeyConstraint) bool { return !f.NotEnforced }) || len(parent.Constraints.Exclusion) != 0 || slices.ContainsFunc(parent.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Deferrable })}
 	var indexes []*catalog.Relation
 	var checkedNonunique []*catalog.Relation
 	for _, idx := range view.Relations() {

@@ -32,7 +32,7 @@ func clearTransaction(t *session.TransactionOwner) {
 			}
 		}
 	}
-	ownerExtensionOf(t).exclusionModes = index.ExclusionModes{}
+	ownerExtensionOf(t).constraintModes = index.ConstraintModes{}
 	t.Clear()
 }
 

@@ -105,8 +105,8 @@ func exceptionIndexes(scope *index.Scope) *index.Scope {
 	for a, outputs := range scope.ExistingOutputs {
 		copy.ExistingOutputs[a] = maps.Clone(outputs)
 	}
-	copy.ExclusionModes.ByConstraint = maps.Clone(scope.ExclusionModes.ByConstraint)
-	copy.ExclusionModes.Events = slices.Clone(scope.ExclusionModes.Events)
+	copy.ConstraintModes.ByConstraint = maps.Clone(scope.ConstraintModes.ByConstraint)
+	copy.ConstraintModes.Events = slices.Clone(scope.ConstraintModes.Events)
 	return &copy
 }
 

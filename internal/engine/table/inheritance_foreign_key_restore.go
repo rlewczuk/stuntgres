@@ -162,6 +162,9 @@ func InheritedForeignRelationUnchanged(current, before *catalog.Relation) bool {
 }
 
 func (receipt *RestoredInheritedForeignKey) Accepts(foreign *catalog.ForeignKeyConstraint) bool {
+	if foreign.Deferrable != receipt.Raw.Deferrable || foreign.InitiallyDeferred != receipt.Raw.InitiallyDeferred {
+		return false
+	}
 	if foreign.Name != receipt.Raw.Name.Text || foreign.Target != receipt.Target.Address || foreign.NotValid || foreign.Full != receipt.Raw.Full || foreign.UpdateAction != receipt.Raw.UpdateAction || foreign.DeleteAction != receipt.Raw.DeleteAction || len(foreign.Attributes) != len(receipt.Columns) || len(foreign.Referenced) != len(receipt.Referenced) || len(foreign.DeleteAttributes) != len(receipt.Deleted) || !receipt.Providers[foreign.Index].Eligible {
 		return false
 	}

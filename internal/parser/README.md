@@ -134,20 +134,21 @@ single-statement limit of driver calls) belong to callers.
   while string literals and trailing input remain syntax errors at the offending
   token. SET's unreserved action word shifts its continuation before validation,
   so generation-expression syntax cannot steal malformed property diagnostics.
-- CHECK/FK declarations retain independent negative enforcement/validity flags
-  and positioned explicit properties. Column properties retain repetition and
-  unattached syntax-only entries for execution-time attachment diagnostics;
-  a later primary constraint cannot absorb an earlier orphan. Table conflicts
-  fail during parsing. The same FK property policy accepts NOT DEFERRABLE and
-  INITIALLY IMMEDIATE before or after enforcement without admitting deferred
-  execution. ALTER CONSTRAINT enforcement is a positioned MISC action. Domain
-  enforcement syntax remains a rejected domain operation, not a table alias.
-  Existing-index attachment rejection carries `UsingIndex.Primary` through the
-  same constraint-kind diagnostic seam; PK attachments are not mislabeled UNIQUE.
 - Text-search parser utilities retain positioned ordered callback options using
   the shared located utility value shape. CREATE, rename/schema ALTER and
   list DROP have dedicated ASTs; unsupported OWNER/callback replacement and
   trailing input fail the complete parse. PARSER remains an unreserved name.
+- UNIQUE/PK/FK definitions and existing-index attachments retain normalized
+  deferrability and initial timing independently of enforcement and validity.
+  INITIALLY DEFERRED implies DEFERRABLE unless explicitly contradicted.
+  Column attributes retain the first positioned attachment/repetition error for
+  execution-time utility transformation; a later primary constraint cannot absorb
+  an earlier orphan. Table property conflicts fail during parsing, while repeated
+  identical properties are harmless. CHECK/NOT NULL retain their nondeferrable
+  declaration boundary. ALTER CONSTRAINT timing and enforcement have distinct
+  action kinds and independent explicit-property presence, including mixed
+  property lists. Domain enforcement remains a rejected domain operation, not a
+  table alias. Existing-index enforcement diagnostics retain the PK/UNIQUE kind.
 - Statistics owner replay has a per-call `StatisticsOwnerReplay` option only
   for the isolated native Restore parser. It yields the shared positioned
   `AlterOwner` AST; ordinary calls retain the ALTER capability diagnostic.

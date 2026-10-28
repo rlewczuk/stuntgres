@@ -322,15 +322,6 @@ func TestReferenceUsingIndexImmediateAttributes(t *testing.T) {
 						}
 						deferrable := tail == "DEFERRABLE" || tail == "DEFERRABLE INITIALLY IMMEDIATE" || tail == "INITIALLY DEFERRED" || tail == "DEFERRABLE INITIALLY DEFERRED"
 						deferred := tail == "INITIALLY DEFERRED" || tail == "DEFERRABLE INITIALLY DEFERRED"
-						if !c.b.PG && deferrable {
-							// Explicit native capability boundary, not pretend deferred semantics.
-							want := usingIndexDiagnostic("0A000", kind+" deferrability is unsupported")
-							want.Position = fixture.Position(utf8.RuneCountInString(q[:len(q)-len(tail)]) + 1)
-							c.failure(q, want, true)
-							c.unchanged(original)
-							c.rows()
-							return
-						}
 						c.notices = nil
 						c.exec(q, 0)
 						c.noticesWant(usingIndexRename("ux_idx", "ux_owned"))
@@ -355,12 +346,7 @@ func TestReferenceUsingIndexImmediateAttributes(t *testing.T) {
 							constraints = append(constraints, []any{"ux_t_a_not_null", "n", "NOT NULL a", nil}, []any{"ux_t_b_not_null", "n", "NOT NULL b", nil})
 						}
 						c.catalog(constraints)
-						// Exact timing/conkey SQL inquiry is PostgreSQL-only. Shared
-						// canonical deparse, NN, backing identity, DML and private
-						// descriptor proofs retain the native normalization contract.
-						if c.b.PG {
-							c.run(fixture.Select("SELECT condeferrable,condeferred,conkey::text FROM pg_constraint WHERE conname='ux_owned'", []string{"condeferrable", "condeferred", "conkey"}, []string{"BOOL", "BOOL", "TEXT"}, [][]any{{deferrable, deferred, "{1,2}"}}))
-						}
+						c.run(fixture.Select("SELECT condeferrable,condeferred,conkey::text FROM pg_constraint WHERE conname='ux_owned'", []string{"condeferrable", "condeferred", "conkey"}, []string{"BOOL", "BOOL", "TEXT"}, [][]any{{deferrable, deferred, "{1,2}"}}))
 						c.attributes([][]any{{"a", int64(23), required}, {"b", int64(25), required}, {"payload", int64(25), false}})
 						c.indexAttributes("ux_owned", [][]any{{"a", int64(23)}, {"b", int64(25)}})
 						c.rows()

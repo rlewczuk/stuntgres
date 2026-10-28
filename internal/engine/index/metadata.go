@@ -61,6 +61,9 @@ func ProjectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.Object
 	m.IndNullsNotDistinct = definition.NullsNotDistinct
 	m.IndIsClustered = definition.Clustered
 	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == catalog.UniqueBackingKind && definition.Constraint.Primary
+	if c := UniqueDefinition(parent, index); c != nil {
+		m.IndImmediate = !c.Deferrable
+	}
 	if definition.IsExclusion() {
 		m.IndIsExclusion = true
 		if c := ExclusionDefinition(parent, index); c != nil {

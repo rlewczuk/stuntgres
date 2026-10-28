@@ -11,9 +11,9 @@ import (
 // and the SQL cursors detached for cleanup. startSession allocates it with the
 // session; its fields keep the owner's admission and owner-lock rules.
 type ownerExtension struct {
-	foreign        fdw.Transaction
-	exclusionModes index.ExclusionModes
-	cursorCleanup  []*sqlCursor // Detached under owner lock; drained unlocked.
+	foreign         fdw.Transaction
+	constraintModes index.ConstraintModes
+	cursorCleanup   []*sqlCursor // Detached under owner lock; drained unlocked.
 }
 
 func (*ownerExtension) OwnerSlot() {}

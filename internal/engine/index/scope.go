@@ -9,10 +9,11 @@ import (
 // Scope is the statement's index slot: the index maintenance grant,
 // index outputs retained for probes and the exclusion-constraint projection.
 type Scope struct {
-	Maintenance      *MaintenanceGrant
-	ExistingOutputs  map[ids.ObjectAddress]map[RowIdentity]storage.IndexOutput
-	ExclusionModes   ExclusionModes
-	ExclusionStarted bool
+	Maintenance        *MaintenanceGrant
+	ExistingOutputs    map[ids.ObjectAddress]map[RowIdentity]storage.IndexOutput
+	ConstraintModes    ConstraintModes
+	ConstraintsStarted bool
+	eventsOwned        bool
 }
 
 // EndStatement drops the index outputs retained for probes and the index
@@ -22,6 +23,21 @@ func (x *Scope) EndStatement() {
 		return
 	}
 	x.ExistingOutputs, x.Maintenance = nil, nil
+}
+
+// AppendConstraintEvent detaches the transaction/savepoint event slice once
+// before appending a command's owned suffix.
+func (x *Scope) AppendConstraintEvent(event ConstraintEvent) {
+	if !x.eventsOwned {
+		old := x.ConstraintModes.Events
+		next := make([]ConstraintEvent, len(old)+1, max(len(old)+1, 2*len(old)))
+		copy(next, old)
+		next[len(old)] = event
+		x.ConstraintModes.Events = next
+		x.eventsOwned = true
+		return
+	}
+	x.ConstraintModes.Events = append(x.ConstraintModes.Events, event)
 }
 
 // RetainExistingOutput keeps a probe's output of row on idx. The mixed lane

@@ -1649,9 +1649,9 @@ partition_element: name column_constraints {c:=Column{Name:$1.text,Constraints:$
  | exclusion_constraint {$$=&TableElement{Exclusion:$1,Pos:$1.Pos}}
  | partition_element ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,false){return 1};$$=$1}
  | partition_element NOT ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,true){return 1};$$=$1}
- | partition_element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | partition_element DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | partition_element INITIALLY name {if !sqllex.(*lexer).elementForeignProperty($1,$2,$3){return 1};$$=$1} ;
+ | partition_element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementTiming($1,$2,true,false){return 1};$$=$1}
+ | partition_element DEFERRABLE {if !sqllex.(*lexer).elementTiming($1,$2,true,true){return 1};$$=$1}
+ | partition_element INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).elementTiming($1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 typed_options: /* empty */ {$$=nil} | '(' typed_elements ')' {$$=$2} ;
 typed_elements: typed_element {$$=[]TableElement{*$1}}
  | typed_elements ',' typed_element {$$=append($1,*$3)} ;
@@ -1666,9 +1666,9 @@ typed_element: name {c:=Column{Name:$1.text,Pos:$1.pos};$$=&TableElement{Column:
  | table_not_null {$$=&TableElement{NotNull:$1,Pos:$1.Pos}}
  | typed_element ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,false){return 1};$$=$1}
  | typed_element NOT ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,true){return 1};$$=$1}
- | typed_element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | typed_element DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | typed_element INITIALLY name {if !sqllex.(*lexer).elementForeignProperty($1,$2,$3){return 1};$$=$1} ;
+ | typed_element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementTiming($1,$2,true,false){return 1};$$=$1}
+ | typed_element DEFERRABLE {if !sqllex.(*lexer).elementTiming($1,$2,true,true){return 1};$$=$1}
+ | typed_element INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).elementTiming($1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 options_word: KW_U {if $1.text!="options" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
  | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
@@ -2455,9 +2455,9 @@ element: column { $$=&TableElement{Column:$1,Pos:$1.Pos} }
  | exclusion_constraint { $$=&TableElement{Exclusion:$1,Pos:$1.Pos} }
  | element ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,false){return 1};$$=$1}
  | element NOT ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,true){return 1};$$=$1}
- | element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | element DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | element INITIALLY name {if !sqllex.(*lexer).elementForeignProperty($1,$2,$3){return 1};$$=$1}
+ | element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementTiming($1,$2,true,false){return 1};$$=$1}
+ | element DEFERRABLE {if !sqllex.(*lexer).elementTiming($1,$2,true,true){return 1};$$=$1}
+ | element INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).elementTiming($1,$2,false,$3.text=="deferred"){return 1};$$=$1}
  | element NO nn_inherit {if $1.Check==nil {sqllex.(*lexer).syntax($2);return 1};$1.Check.NoInherit=true;$$=$1} ;
 table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} } ;
@@ -2474,15 +2474,12 @@ unique_nulls: /* empty */ { $$=false }
  | NULLS_LA DISTINCT { $$=false }
  | NULLS_LA NOT DISTINCT { $$=true } ;
 column_unique: UNIQUE unique_nulls { $$=&UniqueConstraint{NullsNotDistinct:$2,Pos:$1.pos} }
- | CONSTRAINT name UNIQUE unique_nulls { $$=&UniqueConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},NullsNotDistinct:$4,Pos:$1.pos} }
- | column_unique DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
- | column_unique NOT_DEFERRABLE_LA DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
- | column_unique INITIALLY name { if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 } ;
+ | CONSTRAINT name UNIQUE unique_nulls { $$=&UniqueConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},NullsNotDistinct:$4,Pos:$1.pos} } ;
 unique_constraint: UNIQUE unique_nulls '(' view_names ')' { $$=&UniqueConstraint{Columns:$4,NullsNotDistinct:$2,Pos:$1.pos} }
  | CONSTRAINT name UNIQUE unique_nulls '(' view_names ')' { $$=&UniqueConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$6,NullsNotDistinct:$4,Pos:$1.pos} }
- | unique_constraint DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
- | unique_constraint NOT_DEFERRABLE_LA DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
- | unique_constraint INITIALLY name { if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 } ;
+ | unique_constraint DEFERRABLE {if !sqllex.(*lexer).uniqueProperty($1,$2,true,true){return 1};$$=$1}
+ | unique_constraint NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).uniqueProperty($1,$2,true,false){return 1};$$=$1}
+ | unique_constraint INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).uniqueProperty($1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 primary_head: PRIMARY name { if $2.keyword==nil || $2.text!="key" {sqllex.(*lexer).syntax($2);return 1};$$=$1 } ;
 primary_columns: view_names {$$=$1}
  | view_names WITHOUT OVERLAPS {sqllex.(*lexer).deferUnsupported($2,"PRIMARY KEY WITHOUT OVERLAPS is unsupported");$$=$1} ;
@@ -2491,11 +2488,11 @@ column_primary: primary_head {$$=&UniqueConstraint{Primary:true,Pos:$1.pos}}
  | column_primary primary_modifier {$$=$1} ;
 primary_constraint: primary_head '(' primary_columns ')' {$$=&UniqueConstraint{Columns:$3,Primary:true,Pos:$1.pos}}
  | CONSTRAINT name primary_head '(' primary_columns ')' {$$=&UniqueConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$5,Primary:true,Pos:$1.pos}}
- | primary_constraint primary_modifier {$$=$1} ;
-primary_modifier: DEFERRABLE {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY deferrability is unsupported");$$=$1}
- | NOT_DEFERRABLE_LA DEFERRABLE {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY deferrability is unsupported");$$=$1}
- | INITIALLY name {if $2.keyword==nil || ($2.text!="deferred" && $2.text!="immediate") {sqllex.(*lexer).syntax($1);return 1};sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY deferrability is unsupported");$$=$1}
- | INCLUDE '(' view_names ')' {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1}
+ | primary_constraint primary_modifier {$$=$1}
+ | primary_constraint DEFERRABLE {if !sqllex.(*lexer).uniqueProperty($1,$2,true,true){return 1};$$=$1}
+ | primary_constraint NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).uniqueProperty($1,$2,true,false){return 1};$$=$1}
+ | primary_constraint INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).uniqueProperty($1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
+primary_modifier: INCLUDE '(' view_names ')' {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1}
  | WITH '(' index_option_list ')' {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1}
  | USING INDEX TABLESPACE name {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1} ;
 foreign_columns_optional: /* empty */ {$$=nil} | '(' foreign_columns ')' {$$=$2} ;
@@ -2514,9 +2511,9 @@ foreign_actions: /* empty */ {$$=&ForeignKeyConstraint{}}
  | foreign_delete foreign_update {$$=&ForeignKeyConstraint{DeleteAction:$1.action,DeleteColumns:$1.columns,UpdateAction:$2.action}} ;
 foreign_body: foreign_reference foreign_match_optional foreign_actions {$$=$1;$$.Full=$2.text=="full";$$.UpdateAction=$3.UpdateAction;$$.DeleteAction=$3.DeleteAction;$$.DeleteColumns=$3.DeleteColumns} ;
 foreign_definition: foreign_body {$$=$1}
- | foreign_definition NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | foreign_definition DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | foreign_definition INITIALLY name {if !sqllex.(*lexer).foreignProperty($1,$2,$3){return 1};$$=$1} ;
+ | foreign_definition NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1,$2,true,false){return 1};$$=$1}
+ | foreign_definition DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1,$2,true,true){return 1};$$=$1}
+ | foreign_definition INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).foreignProperty($1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 foreign_match: FULL | name {if $1.keyword==nil||($1.text!="simple"&&$1.text!="partial"){sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 foreign_set_columns: /* empty */ {$$=nil} | '(' view_names ')' {$$=$2} ;
 foreign_action: NO name {if $2.keyword==nil||$2.text!="action"{sqllex.(*lexer).syntax($2);return 1};$$=foreignActionClause{action:ForeignKeyNoAction}}
@@ -2654,11 +2651,14 @@ alter_constraint: ADD table_not_null {$$=&AlterTableAction{Column:$2.Column,Cons
  | ADD foreign_key {$$=&AlterTableAction{Action:AddForeignKey,ForeignKey:$2,Constraint:$2.Name,Pos:$1.pos}}
  | ALTER CONSTRAINT name ENFORCED {$$=&AlterTableAction{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterConstraintEnforcement,EnforcementSet:true,EnforcementPos:$4.pos,Pos:$1.pos}}
  | ALTER CONSTRAINT name NOT nn_modifier {$$=&AlterTableAction{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterConstraintEnforcement,Pos:$1.pos};if !sqllex.(*lexer).alterConstraintValidity($$,$4,$5){return 1}}
+ | ALTER CONSTRAINT name DEFERRABLE {$$=&AlterTableAction{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterConstraintTiming,Pos:$1.pos};if !sqllex.(*lexer).alterTiming($$,$4,true,true){return 1}}
+ | ALTER CONSTRAINT name NOT_DEFERRABLE_LA DEFERRABLE {$$=&AlterTableAction{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterConstraintTiming,Pos:$1.pos};if !sqllex.(*lexer).alterTiming($$,$4,true,false){return 1}}
+ | ALTER CONSTRAINT name INITIALLY name {if $5.keyword==nil || ($5.text!="deferred" && $5.text!="immediate"){sqllex.(*lexer).syntax($5);return 1};$$=&AlterTableAction{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterConstraintTiming,Pos:$1.pos};if !sqllex.(*lexer).alterTiming($$,$4,false,$5.text=="deferred"){return 1}}
  | alter_constraint ENFORCED {if !sqllex.(*lexer).alterEnforcement($1,$2,false){return 1};$$=$1}
  | alter_constraint NOT nn_modifier {if !sqllex.(*lexer).alterConstraintValidity($1,$2,$3){return 1};$$=$1}
- | alter_constraint NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1.ForeignKey,$2,lexeme{}){return 1};$$=$1}
- | alter_constraint DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1.ForeignKey,$2,lexeme{}){return 1};$$=$1}
- | alter_constraint INITIALLY name {if !sqllex.(*lexer).foreignProperty($1.ForeignKey,$2,$3){return 1};$$=$1}
+ | alter_constraint NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).alterTiming($1,$2,true,false){return 1};$$=$1}
+ | alter_constraint DEFERRABLE {if !sqllex.(*lexer).alterTiming($1,$2,true,true){return 1};$$=$1}
+ | alter_constraint INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).alterTiming($1,$2,false,$3.text=="deferred"){return 1};$$=$1}
  | alter_constraint NO nn_inherit {if !sqllex.(*lexer).alterConstraintNoInherit($1,$2){return 1};$$=$1} ;
 alter_type_keyword: TYPE { $$=$1 }
  | SET DATA TYPE { $$=$1 } ;
@@ -2776,14 +2776,14 @@ nullability: /* empty */ { $$ = nil }
 column_constraints: column_constraint { $$=[]ColumnConstraint{*$1} }
  | column_constraints column_constraint { $$=appendColumnConstraint($1,*$2) }
  | column_constraints NO nn_inherit {c:=&$1[len($1)-1];if c.Check!=nil {if !c.EnforcementSet {sqllex.(*lexer).syntax($2);return 1};c.Check.NoInherit=true} else {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported")};$$=$1}
- | column_constraints NOT KW_U {if $3.text!="valid" {sqllex.(*lexer).syntax($3);return 1};sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported");$$=$1}
- | column_constraints NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).columnForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | column_constraints DEFERRABLE {if !sqllex.(*lexer).columnForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
- | column_constraints INITIALLY name {if !sqllex.(*lexer).columnForeignProperty($1,$2,$3){return 1};$$=$1} ;
+ | column_constraints NOT KW_U {if $3.text!="valid" {sqllex.(*lexer).syntax($3);return 1};sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported");$$=$1} ;
 column_constraint: NULL { $$=&ColumnConstraint{Pos:$1.pos} }
  | NOT NULL { $$=&ColumnConstraint{NotNull:true,Pos:$1.pos} }
  | ENFORCED {$$=&ColumnConstraint{EnforcementSet:true,EnforcementPos:$1.pos}}
  | NOT ENFORCED {$$=&ColumnConstraint{EnforcementSet:true,NotEnforced:true,EnforcementPos:$1.pos}}
+ | DEFERRABLE {$$=columnTimingAttribute($1,true,true)}
+ | NOT_DEFERRABLE_LA DEFERRABLE {$$=columnTimingAttribute($1,true,false)}
+ | INITIALLY name {if $2.keyword==nil || ($2.text!="deferred" && $2.text!="immediate"){sqllex.(*lexer).syntax($2);return 1};$$=columnTimingAttribute($1,false,$2.text=="deferred")}
  | CONSTRAINT name NULL { $$=&ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
  | CONSTRAINT name NOT NULL { $$=&ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
  | DEFAULT create_default_target { if !sqllex.(*lexer).defaultIndexPropertyAllowed($2) {return 1};$$=&ColumnConstraint{Default:$2,Pos:$1.pos} }
@@ -2791,8 +2791,8 @@ column_constraint: NULL { $$=&ColumnConstraint{Pos:$1.pos} }
  | check_constraint { $$=&ColumnConstraint{Check:$1,Pos:$1.Pos} }
  | column_unique { $$=&ColumnConstraint{Unique:$1,Pos:$1.Pos} }
  | column_primary {$$=&ColumnConstraint{Unique:$1,Pos:$1.Pos}}
- | foreign_definition {$$=&ColumnConstraint{ForeignKey:$1,Pos:$1.Pos}}
- | CONSTRAINT name foreign_definition {$3.Name=Identifier{Text:$2.text,Pos:$2.pos};$$=&ColumnConstraint{ForeignKey:$3,Pos:$3.Pos}}
+ | foreign_body {$$=&ColumnConstraint{ForeignKey:$1,Pos:$1.Pos}}
+ | CONSTRAINT name foreign_body {$3.Name=Identifier{Text:$2.text,Pos:$2.pos};$$=&ColumnConstraint{ForeignKey:$3,Pos:$3.Pos}}
  | identity_definition { $$=&ColumnConstraint{Identity:$1,Pos:$1.Pos} }
  | CONSTRAINT name identity_definition { $$=&ColumnConstraint{Identity:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | generation_definition { $$=&ColumnConstraint{Generation:$1,Pos:$1.Pos} }

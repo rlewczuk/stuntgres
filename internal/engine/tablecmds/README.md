@@ -59,6 +59,15 @@ TEMP preservation, relation admission and publication.
   VALIDATE resolves after deferred ADD FOREIGN KEY, carries only selected
   identities into unlocked effective-row scans, and publishes through the same
   fenced Finish. Eligible valid roots return without a stage or heap work.
+  Common ALTER admission checks core's effective pending index/FK events after
+  relation identity/owner authorization, before preparation, special paths and
+  no-op elision. Separate SET/DROP DEFAULT checks the root and every actual
+  recursive target before cooking or staging any default. Neither path flushes,
+  filters repaired rows nor consumes events. A parent-side FK event protects the
+  parent, not the child; separately dispatched rename/schema actions do not use
+  this ALTER guard. FK timing changes share the atomic candidate/publication
+  pipeline; persistent defaults, OID-keyed SET overrides and trigger modes remain
+  independent.
   Trigger-mode lists use one statement-private metadata stage across the addressed
   relation, partition clones and referenced-side FK owners. The target holds
   SHARE ROW EXCLUSIVE (or a stronger companion grant); additional owner grants

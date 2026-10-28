@@ -46,6 +46,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Partition pruning: `RUN='^TestReferencePartitionPruning'`
 - <a id="partitioned-constraints--selected-proof"></a>Partitioned UNIQUE/PRIMARY KEY: `RUN='^TestReferencePartitionConstraints'`
 - Partitioned exclusion constraints: `RUN='^TestReferencePartitionExclusion'`
+- Constraint timing propagation: `RUN='^TestReferenceDeferredConstraintPropagation'`
 - <a id="inherited-partition-constraints"></a>Inherited partition CHECK/NOT NULL: `RUN='^TestReferencePartitionInherited'`
 
 Engine and parser units: `make check RUN='^Test(PartitionPruning|RangePartition|HashPartition|ListPartition|PartitionAttach|PartitionDetach|PartitionConstraints)'`.

@@ -120,6 +120,10 @@ builds a binder.
   `catalog.IndexDefinition.Clustered` scalar. Preference changes do not replace
   keys, executable providers or storage roots; table ALTER owns their atomic
   staged selection and uses `Property` for method eligibility.
+  UNIQUE/PK timing remains on the parent constraint definition, not standalone
+  index state. Metadata, LIKE, partition cloning and USING INDEX replay resolve
+  the exact backing identity and retain those defaults; root validation still
+  rejects duplicate committed keys regardless of initial timing.
 - **Partitioned indexes** (`partition_*.go`, `row_history.go`): coverage,
   ATTACH checks, drop actions (`PartitionConstraintDropActions`,
   `DroppedUniqueOIDs`), `MapPartitionIndex` and Dump replay predicates.
@@ -215,8 +219,17 @@ pending passes; asks its context source for a context per comparison),
 `ProjectionLocked` copy and replaces slices and maps, so an installed
 projection never changes.
 
+Deferrable UNIQUE/PK reuse this projection/admission machinery with their real
+equality ordering and NULL semantics, not synthetic EXCLUDE definitions or eager
+exclusive key claims. Equality-root visits use the bound lower key boundary.
+Only potential conflicts enlist exact row/version events; uncontested first
+admission gets no retrospective obligation from a later peer. Due rechecks use
+current committed and private/dirty visibility and the existing completion
+tickets, then revalidate captures after every wait.
+
+
 `BuildUniqueWriteBinding` also captures `ConstraintEffectsRelevant` for incoming
-and outgoing FKs or exclusion obligations, using its existing descriptor walk.
+and outgoing FKs, exclusion and deferrable-unique obligations in its descriptor walk.
 FK validity does not disable new-write enforcement; unenforced FKs supply no
 effect obligation. Incoming references may use standalone unique indexes.
 This classification belongs to the binding's
@@ -226,7 +239,7 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
 ## State slots and registries
 
 - **Registries.** `WaitRegistry` (CONCURRENTLY build waits) and
-  `ExclusionRegistry` (each open lock owner's dirty exclusion projection plus a
+  `ExclusionRegistry` (shared dirty UNIQUE/PK/EX index projections plus a
   generation) have no mutex: `Engine.Mu` guards them and every method has the
   `Locked` suffix. The engine holds one of each (`Engine.IndexWaits`,
   `Engine.Exclusions`). Every projection change advances the generation, so a
@@ -241,9 +254,12 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
   rename/options preserve key semantics. Dump sees committed state and replays
   persistent options with qualified ALTER after final names and attachments,
   including indexes declared by constraints, without broadening CREATE syntax.
-- **Savepoint exclusion mark.** `ExclusionMark` implements
-  `session.ExclusionMarkSlot`; `ExclusionMarkSlotOf` keeps zero state as a nil
-  slot, so most savepoints allocate nothing.
+- **Savepoint constraint mark.** `ExclusionMark` implements the incumbent
+  `session.ExclusionMarkSlot`, retaining `ConstraintModes` and the shared dirty
+  projection. Its singular event vector carries concrete index and FK payloads;
+  defaults, ALL and per-OID modes are independent of persistent descriptors.
+  `ExclusionMarkSlotOf` keeps exactly zero state nil. `Scope.AppendConstraintEvent`
+  detaches an inherited event vector before adding the command's owned suffix.
 - **Statement and stage slots.** `Scope` and `Stage` are the slot records; the
   accessors on `StatementScope` and `CatalogStage` stay in the engine.
 

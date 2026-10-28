@@ -385,6 +385,12 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 		if parentIndex.SQLIndex.Constraint != nil && (candidate.SQLIndex.Constraint == nil || candidate.SQLIndex.Constraint.Kind != catalog.UniqueBackingKind || candidate.SQLIndex.Constraint.Primary != parentIndex.SQLIndex.Constraint.Primary) {
 			continue
 		}
+		if parentKey := UniqueDefinition(table, parentIndex); parentKey != nil {
+			childKey := UniqueDefinition(child, candidate)
+			if childKey == nil || childKey.Deferrable != parentKey.Deferrable || childKey.InitiallyDeferred != parentKey.InitiallyDeferred {
+				continue
+			}
+		}
 		match, err := PartitionIndexEquivalent(ctx, view, child, mapped, candidate.SQLIndex)
 		if err != nil {
 			return nil, err
@@ -472,6 +478,11 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 			mapped.Constraint = ExclusionBacking(&c)
 		} else {
 			c := catalog.UniqueConstraint{OID: cid, Name: name, Index: idx.Address(), Parent: backing.OID, Primary: backing.Primary, NullsNotDistinct: mapped.NullsNotDistinct, Attributes: make([]int32, len(mapped.Keys))}
+			source := UniqueDefinition(table, parentIndex)
+			if source == nil {
+				return nil, fmt.Errorf("stuntgres: missing partition unique definition")
+			}
+			c.Deferrable, c.InitiallyDeferred = source.Deferrable, source.InitiallyDeferred
 			for i, key := range mapped.Keys {
 				c.Attributes[i] = key.Attribute
 			}

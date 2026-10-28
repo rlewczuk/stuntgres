@@ -121,6 +121,14 @@ ordinary SQL errors leave the connection reusable.
 - `BeginTx` supports `sql.LevelReadCommitted`, `LevelReadUncommitted`,
   `LevelRepeatableRead` and `LevelSerializable`; `ReadOnly` maps to the access mode.
   Deferrability uses the session default (`sql.TxOptions` has no field for it).
+- Constraint timing is independent of transaction READ DEFERRABLE. SQL and Go
+  commits check deferred UNIQUE/PK/EX/FK obligations before publication; a failed
+  commit rolls back the transaction's private rows and definitions. SET
+  CONSTRAINTS checks pending work retroactively when made IMMEDIATE; preparing
+  that command has no timing effects. Savepoints restore modes and obligations.
+  Native Dump/Restore preserves committed definition defaults and data, not
+  active SET overrides, pending events or private rows. These remain logical,
+  process-local controls, not PostgreSQL physical durability or pg_dump.
 - SQL transaction controls and `BeginTx` share transactional relation/schema/type
   DDL: permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA,
   supported ALTER TABLE forms, ALTER/DROP TRIGGER, ordinary DROP INDEX and

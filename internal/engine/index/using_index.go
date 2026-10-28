@@ -57,8 +57,6 @@ func UsingIndexEligibility(view catalog.Read, parent, index *catalog.Relation, r
 	if definition.Predicate != nil {
 		return fail("42809", fmt.Sprintf(`"%s" is a partial index`, name), true)
 	}
-	// Deferred native UNIQUE is not represented. Associated EXCLUDE indexes have
-	// already failed above; standalone represented indexes are inherently immediate.
 	if definition.Method != catalog.BtreeMethod {
 		return fail("42809", fmt.Sprintf(`index "%s" is not a btree`, name), false)
 	}

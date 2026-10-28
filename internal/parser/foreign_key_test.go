@@ -63,8 +63,6 @@ func TestForeignKeyGrammar(t *testing.T) {
 func TestForeignKeyGrammarBoundaries(t *testing.T) {
 	for _, tc := range []struct{ suffix, token, message string }{
 		{"MATCH PARTIAL", "MATCH", "MATCH PARTIAL not yet implemented"},
-		{"DEFERRABLE", "DEFERRABLE", "foreign key deferrability is unsupported"},
-		{"INITIALLY DEFERRED", "DEFERRED", "foreign key deferrability is unsupported"},
 		{"ON UPDATE SET NULL(a)", "ON UPDATE", "a column list with SET NULL is only supported for ON DELETE actions"},
 		{"ON UPDATE SET DEFAULT(a)", "ON UPDATE", "a column list with SET DEFAULT is only supported for ON DELETE actions"},
 	} {

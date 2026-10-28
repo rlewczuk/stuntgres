@@ -556,6 +556,12 @@ type ColumnConstraint struct {
 	NotEnforced       bool
 	EnforcementPos    Position
 	EnforcementRepeat Position
+	DeferrabilitySet  bool
+	InitiallySet      bool
+	Deferrable        bool
+	InitiallyDeferred bool
+	TimingError       string
+	TimingPos         Position
 	// NamedDeclarationPos retains CONSTRAINT for named DEFAULT/NULL/NOT NULL
 	// diagnostics without replacing the clause keyword's existing Pos.
 	NamedDeclarationPos Position
@@ -565,6 +571,7 @@ type NotNullConstraint struct {
 	Column Identifier
 	Name   Identifier
 	Pos    Position
+	timing constraintTiming
 }
 
 type CheckConstraint struct {
@@ -576,33 +583,42 @@ type CheckConstraint struct {
 	EnforcementSet bool
 	EnforcementPos Position
 	Pos            Position
+	timing         constraintTiming
 }
 
 type UniqueConstraint struct {
 	Name    Identifier
 	Columns []Identifier
 	// Primary distinguishes PRIMARY KEY from UNIQUE on this shared attachment.
-	Primary          bool
-	NullsNotDistinct bool
-	Pos              Position
+	Primary           bool
+	NullsNotDistinct  bool
+	Deferrable        bool
+	InitiallyDeferred bool
+	deferrabilitySet  bool
+	initiallySet      bool
+	Pos               Position
 }
 
 // ForeignKeyConstraint retains one declaration for column and table syntax.
 // Column REFERENCES receives its local column when the CREATE binder walks it.
 type ForeignKeyConstraint struct {
-	Name           Identifier
-	Columns        []Identifier
-	Target         ObjectName
-	Referenced     []Identifier
-	Full           bool
-	NotValid       bool
-	NotEnforced    bool
-	EnforcementSet bool
-	EnforcementPos Position
-	Pos            Position
-	UpdateAction   ForeignKeyAction
-	DeleteAction   ForeignKeyAction
-	DeleteColumns  []Identifier
+	Name              Identifier
+	Columns           []Identifier
+	Target            ObjectName
+	Referenced        []Identifier
+	Full              bool
+	NotValid          bool
+	NotEnforced       bool
+	EnforcementSet    bool
+	EnforcementPos    Position
+	Deferrable        bool
+	InitiallyDeferred bool
+	deferrabilitySet  bool
+	initiallySet      bool
+	Pos               Position
+	UpdateAction      ForeignKeyAction
+	DeleteAction      ForeignKeyAction
+	DeleteColumns     []Identifier
 }
 
 // The zero value is the SQL default, independently for each event direction.
@@ -1064,6 +1080,7 @@ const (
 	ResetRelationOptions
 	ValidateConstraint
 	AlterConstraintEnforcement
+	AlterConstraintTiming
 	EnableRule
 	DisableRule
 	EnableReplicaRule
@@ -1117,12 +1134,16 @@ type AlterTableAction struct {
 	ForeignKey      *ForeignKeyConstraint
 	Options         []IndexOption
 	// NOT NULL uses the flat attachment; CHECK/FK retain validity in their AST.
-	NotValid       bool
-	NotEnforced    bool
-	EnforcementSet bool
-	EnforcementPos Position
-	NoInherit      bool
-	ValidityPos    Position
+	NotValid          bool
+	NotEnforced       bool
+	EnforcementSet    bool
+	EnforcementPos    Position
+	NoInherit         bool
+	ValidityPos       Position
+	Deferrable        bool
+	InitiallyDeferred bool
+	DeferrabilitySet  bool
+	InitiallySet      bool
 }
 
 type AlterTable struct {
@@ -1147,12 +1168,12 @@ type AlterTableAllInTablespace struct {
 func (*AlterTableAllInTablespace) statement() {}
 
 // UsingIndexConstraint refers to an existing index, never a key-list creation.
-// Property flags are parser-only provenance; supported attachments are immediate.
 type UsingIndexConstraint struct {
-	Name, Index                                                   Identifier
-	Primary                                                       bool
-	Pos, KindPos                                                  Position
-	deferrable, initiallyDeferred, deferrabilitySet, initiallySet bool
+	Name, Index                    Identifier
+	Primary                        bool
+	Pos, KindPos                   Position
+	Deferrable, InitiallyDeferred  bool
+	deferrabilitySet, initiallySet bool
 }
 
 type DefaultAction uint8

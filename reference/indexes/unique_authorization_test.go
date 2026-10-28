@@ -66,12 +66,13 @@ func uniqueReferenceAuthorization(t *testing.T, standalone bool) {
 	}
 }
 
-func TestReferenceUniqueExcludedControls(t *testing.T) {
-	// Core SQL witnesses share a body; excluded native syntax has an explicit
-	// complete capability diagnostic rather than pretend PostgreSQL success.
-	for _, c := range []struct{ name, setup, query, message, token string }{
-		{"deferrable", "", "CREATE TABLE t(a INT UNIQUE DEFERRABLE INITIALLY DEFERRED)", "UNIQUE deferrability is unsupported", "DEFERRABLE"},
-		{"alter_add", "CREATE TABLE t(a INT)", "ALTER TABLE t ADD CONSTRAINT u UNIQUE(a)", "ALTER TABLE action is unsupported", "ADD"},
+func TestReferenceUniqueDefinitionControls(t *testing.T) {
+	for _, c := range []struct {
+		name, setup, query, key string
+		deferred                bool
+	}{
+		{"deferrable", "", "CREATE TABLE t(a INT UNIQUE DEFERRABLE INITIALLY DEFERRED)", "t_a_key", true},
+		{"alter_add", "CREATE TABLE t(a INT)", "ALTER TABLE t ADD CONSTRAINT u UNIQUE(a)", "u", false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			p := fixture.NewScenario(t)
@@ -82,21 +83,12 @@ func TestReferenceUniqueExcludedControls(t *testing.T) {
 					if c.setup != "" {
 						run(fixture.Exec(c.setup, 0))
 					}
-					if backend.PG || c.name == "alter_add" {
-						run(fixture.Exec(c.query, 0))
-						if c.name == "alter_add" {
-							run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
-							run(fixture.ErrorDiagnostic("INSERT INTO t VALUES(1)", fixture.UniqueReferenceDuplicate("t", "u", "Key (a)=(1) already exists.")))
-							run(fixture.Select("SELECT conname,contype FROM pg_constraint WHERE conrelid='t'::regclass::oid", []string{"conname", "contype"}, []string{"NAME", "CHAR"}, [][]any{{"u", "u"}}))
-						}
-					} else {
-						run(fixture.ImplicitError(c.query, fixture.Diagnostic{Code: "0A000", Message: c.message, Position: fixture.Position(strings.Index(c.query, c.token) + 1)}))
-						want := [][]any{{"t", "r"}}
-						if c.name == "deferrable" {
-							want = nil
-						}
-						run(fixture.Select("SELECT relname,relkind FROM pg_class WHERE relnamespace=$1 ORDER BY relname", []string{"relname", "relkind"}, []string{"NAME", "CHAR"}, want, namespace))
-					}
+					run(fixture.Exec(c.query, 0))
+					run(fixture.Select("SELECT conname,contype,condeferrable,condeferred FROM pg_constraint WHERE conrelid='t'::regclass::oid", []string{"conname", "contype", "condeferrable", "condeferred"}, []string{"NAME", "CHAR", "BOOL", "BOOL"}, [][]any{{c.key, "u", c.deferred, c.deferred}}))
+					run(fixture.Select("SELECT relname,relkind FROM pg_class WHERE relnamespace=$1 ORDER BY relname", []string{"relname", "relkind"}, []string{"NAME", "CHAR"}, [][]any{{"t", "r"}, {c.key, "i"}}, namespace))
+					run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
+					run(fixture.ErrorDiagnostic("INSERT INTO t VALUES(1)", fixture.UniqueReferenceDuplicate("t", c.key, "Key (a)=(1) already exists.")))
+					run(fixture.Select("SELECT a FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
 				})
 			}
 		})

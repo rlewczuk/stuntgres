@@ -116,22 +116,6 @@ func TestReferenceInsertConflictUpdateDeferrableWitnesses(t *testing.T) {
 				insertConflictScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 					ddl := "CREATE TABLE t(k INT CONSTRAINT u " + kind + " " + mode + ",v INT)"
-					if !b.PG {
-						msg := "UNIQUE deferrability is unsupported"
-						if kind == "PRIMARY KEY" {
-							msg = "PRIMARY KEY deferrability is unsupported"
-						}
-						for _, prepared := range []bool{false, true} {
-							s := fixture.ImplicitError(ddl, fixture.Diagnostic{Code: "0A000", Message: msg, Position: fixture.Position(strings.Index(ddl, "DEFERRABLE") + 1)})
-							s.Prepared = prepared
-							s.ErrorStage = "execute"
-							if prepared {
-								s.ErrorStage = "prepare"
-							}
-							run(s)
-						}
-						return
-					}
 					run(fixture.Exec(ddl, 0))
 					d := fixture.ControlsReferenceDiagnostic("55000", "ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters")
 					d.Schema = "public"

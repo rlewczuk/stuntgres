@@ -80,7 +80,13 @@ func StageForeignKey(h Host, auth ddl.Authority, child *catalog.Relation, raw pa
 	if len(raw.Referenced) == 0 {
 		for _, key := range parent.Constraints.Unique {
 			if key.Primary {
+				if key.Deferrable {
+					return sqlError("55000", fmt.Sprintf(`cannot use a deferrable primary key for referenced table "%s"`, parent.Name()))
+				}
 				referenced = slices.Clone(key.Attributes)
+				if supporting == (ids.ObjectAddress{}) {
+					supporting = key.Index
+				}
 				break
 			}
 		}
@@ -129,7 +135,7 @@ func StageForeignKey(h Host, auth ddl.Authority, child *catalog.Relation, raw pa
 	if catalog.RelationConstraintNameExists(child, name) {
 		return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, child.Name()))
 	}
-	f := catalog.ForeignKeyConstraint{Name: name, Attributes: local, Target: parent.Address(), Referenced: referenced, Index: index.Address(), Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid || raw.NotEnforced, NotEnforced: raw.NotEnforced}
+	f := catalog.ForeignKeyConstraint{Name: name, Attributes: local, Target: parent.Address(), Referenced: referenced, Index: index.Address(), Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid || raw.NotEnforced, NotEnforced: raw.NotEnforced, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
 	if _, err := BindForeignKeyComparison(view, child, parent, index, f); err != nil {
 		return err
 	}

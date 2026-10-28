@@ -485,8 +485,8 @@ func WriteStageScope(x *WriteStage) *StatementScope { return x.scope }
 // WriteStageSelf returns x.self.
 func WriteStageSelf(x *WriteStage) *WriteStage { return x.self }
 
-// OwnerExtensionExclusionModes returns x.exclusionModes.
-func OwnerExtensionExclusionModes(x ownerExtension) index.ExclusionModes { return x.exclusionModes }
+// OwnerExtensionConstraintModes returns x.constraintModes.
+func OwnerExtensionConstraintModes(x ownerExtension) index.ConstraintModes { return x.constraintModes }
 
 // OwnerExtensionForeign returns x.foreign.
 func OwnerExtensionForeign(x ownerExtension) fdw.Transaction { return x.foreign }

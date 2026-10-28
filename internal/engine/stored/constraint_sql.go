@@ -79,6 +79,12 @@ func (r Deparser) ForeignKeyConstraintSQLWithPrimary(child *catalog.Relation, f 
 			text += " (" + strings.Join(labels, ", ") + ")"
 		}
 	}
+	if f.Deferrable {
+		text += " DEFERRABLE"
+	}
+	if f.InitiallyDeferred {
+		text += " INITIALLY DEFERRED"
+	}
 	if f.NotEnforced {
 		text += " NOT ENFORCED"
 	} else if f.NotValid {
@@ -133,6 +139,12 @@ func (r Deparser) UniqueConstraintSQL(parent *catalog.Relation, c *catalog.Uniqu
 			labels[len(c.Attributes)+i] = label
 		}
 		text += " INCLUDE (" + strings.Join(labels[len(c.Attributes):], ", ") + ")"
+	}
+	if c.Deferrable {
+		text += " DEFERRABLE"
+	}
+	if c.InitiallyDeferred {
+		text += " INITIALLY DEFERRED"
 	}
 	return text, nil
 }

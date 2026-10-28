@@ -58,6 +58,21 @@ func (f foreignKeyFixture) refs(relations ...*catalog.Relation) []ids.ObjectRef 
 	return refs
 }
 
+func TestForeignKeyTimingProviderIdentity(t *testing.T) {
+	f := newForeignKeyFixture()
+	original := f.c.Constraints.ForeignKeys[0]
+	for _, flags := range [][2]bool{{true, false}, {true, true}, {false, true}} {
+		changed := original
+		changed.Deferrable, changed.InitiallyDeferred = flags[0], flags[1]
+		if InstalledForeignKey(f.view, f.c.Address(), changed) {
+			t.Fatal("changed timing reused installed provider", changed)
+		}
+	}
+	if !InstalledForeignKey(f.view, f.c.Address(), original) || f.c.Constraints.ForeignKeys[0].Deferrable || f.c.Constraints.ForeignKeys[0].InitiallyDeferred {
+		t.Fatal("source definition changed")
+	}
+}
+
 func TestForeignKeyTypeProviders(t *testing.T) {
 	f := newForeignKeyFixture()
 	for _, tc := range []struct {

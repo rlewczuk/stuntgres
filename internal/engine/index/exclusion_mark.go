@@ -6,16 +6,16 @@ import "stuntgres/internal/engine/session"
 // owner's exclusion modes and the engine's pending exclusion projection. It
 // implements session.ExclusionMarkSlot.
 type ExclusionMark struct {
-	Modes      ExclusionModes
+	Modes      ConstraintModes
 	Projection *ExclusionProjection
 }
 
 func (*ExclusionMark) ExclusionMarkSlot() {}
 
 // ExclusionMarkSlotOf stores modes and projection. Exactly zero state (see
-// ExclusionModes.Zero, nil projection) stays a nil slot, so restoring it
+// ConstraintModes.Zero, nil projection) stays a nil slot, so restoring it
 // reproduces the captured value.
-func ExclusionMarkSlotOf(modes ExclusionModes, projection *ExclusionProjection) session.ExclusionMarkSlot {
+func ExclusionMarkSlotOf(modes ConstraintModes, projection *ExclusionProjection) session.ExclusionMarkSlot {
 	if projection == nil && modes.Zero() {
 		return nil
 	}

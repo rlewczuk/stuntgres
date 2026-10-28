@@ -138,6 +138,9 @@ func (r *UniqueReplay) Matches(view catalog.Read, raw *parser.AlterTable, table 
 	}
 	current := r.Definition
 	saved := r.Snapshot
+	if current.Deferrable != saved.Deferrable || current.InitiallyDeferred != saved.InitiallyDeferred {
+		return false
+	}
 	if current.Name != saved.Name || current.Primary != saved.Primary || current.NullsNotDistinct != saved.NullsNotDistinct || current.Pos != saved.Pos || !slices.Equal(current.Columns, saved.Columns) {
 		return false
 	}

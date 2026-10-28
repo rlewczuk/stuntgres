@@ -93,7 +93,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			t.Fatal("exclusion-only accepted row lost command ownership", events)
 		}
 		var diagnostic *sqlstate.Error
-		if err := core.ScopeCheckExclusionCommandEvents(scope, true, nil, true); !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
+		if err := core.ScopeCheckConstraintCommandEvents(scope, true, nil, true); !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 			t.Fatal("bounded exclusion check skipped its accepted row", err)
 		}
 	})
@@ -104,20 +104,20 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		stale := view.Domain().Ref(view.Epoch()+1, a)
 		current := view.Domain().Ref(view.Epoch(), a)
 		core.SetScopeEffectCommand(s, 2)
-		core.SetScopeIndexesSlot(s, &index.Scope{ExclusionStarted: true, ExclusionModes: index.ExclusionModes{Events: []index.ExclusionEvent{
+		core.SetScopeIndexesSlot(s, &index.Scope{ConstraintsStarted: true, ConstraintModes: index.ConstraintModes{Events: []index.ConstraintEvent{
 			{Parent: stale, Row: 1, Version: 1},
 			{Parent: current, Row: 2, Version: 2},
 		}}})
 		core.SetScopeForeignActionsSlot(s, &dml.ForeignActionScope{Transitions: []dml.ForeignActionTransition{{Relation: a, Next: storage.RowVersion{Row: 2, Version: 2}, Command: 2}}})
 		// Missing current descriptors retire an owned event; an unowned stale
 		// event must not even be probed while its outer producer is suspended.
-		if err := core.ScopeCheckExclusionCommandEvents(s, false, nil, true); err != nil {
+		if err := core.ScopeCheckConstraintCommandEvents(s, false, nil, true); err != nil {
 			t.Fatal(err)
 		}
-		if len(core.ScopeIndexesSlot(s).ExclusionModes.Events) != 1 || core.ScopeIndexesSlot(s).ExclusionModes.Events[0].Row != 1 {
+		if len(core.ScopeIndexesSlot(s).ConstraintModes.Events) != 1 || core.ScopeIndexesSlot(s).ConstraintModes.Events[0].Row != 1 {
 			t.Fatal("unowned exclusion event consumed")
 		}
-		if err := core.ScopeCheckExclusionEvents(s, true, nil); !errors.Is(err, ids.ErrCatalogReplaced) {
+		if err := core.ScopeCheckConstraintEvents(s, true, nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("root lost its original exclusion obligation", err)
 		}
 	})

@@ -18,14 +18,14 @@ func StagePrivateColumnShape(evaluation *exec.Context, stage *CatalogStage, chan
 	return stagePrivateColumnShape(evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stable)
 }
 
-// ScopeCheckExclusionCommandEvents calls x.checkExclusionCommandEvents.
-func ScopeCheckExclusionCommandEvents(x *StatementScope, all bool, selected map[ids.OID]bool, bounded bool) error {
-	return x.checkExclusionCommandEvents(all, selected, bounded)
+// ScopeCheckConstraintCommandEvents calls x.checkConstraintCommandEvents.
+func ScopeCheckConstraintCommandEvents(x *StatementScope, all bool, selected map[ids.OID]bool, bounded bool) error {
+	return x.checkConstraintCommandEvents(all, selected, bounded)
 }
 
-// ScopeCheckExclusionEvents calls x.checkExclusionEvents.
-func ScopeCheckExclusionEvents(x *StatementScope, all bool, selected map[ids.OID]bool) error {
-	return x.checkExclusionEvents(all, selected)
+// ScopeCheckConstraintEvents calls x.checkConstraintEvents.
+func ScopeCheckConstraintEvents(x *StatementScope, all bool, selected map[ids.OID]bool) error {
+	return x.checkConstraintEvents(all, selected)
 }
 
 // ScopeForeignActions calls x.foreignActions.

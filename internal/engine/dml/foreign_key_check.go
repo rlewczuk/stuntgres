@@ -86,16 +86,20 @@ func CheckForeignKeys(h FinishHost) (err error) {
 					continue
 				}
 			}
+			if f.Deferrable && event.Old.Row == 0 {
+				enlistForeignKeyEvent(h, auth, *job, event, false)
+				continue
+			}
 			any, all := table.ForeignKeyNullState(job.Comparisons, row.Values)
-			if any {
-				if f.Full && !all {
-					return table.ForeignKeyDiagnostic(h.Context(), childAuth.Access(), childAuth, job.Child, job.Parent, f, row.Values, false, true, output)
-				}
+			// UPDATE eligibility precedes queueing. INSERT still owns a check
+			// event for NULL-exempt keys; FULL partial NULL must reach its check.
+			if event.Old.Row != 0 && (all || any && !f.Full) {
 				continue
 			}
 			// Only an actual committed predecessor can suppress an unchanged-key
-			// check. Prior own updates, as well as own inserts, still require it.
-			if row.Base != 0 {
+			// check. A prior own transition in this command is not the committed
+			// base either, even when Previous still names that base.
+			if !any && row.Base != 0 && event.Old.Born != 0 {
 				previous, ok := children.Previous(row.Row)
 				if !ok {
 					return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
@@ -117,6 +121,16 @@ func CheckForeignKeys(h FinishHost) (err error) {
 					}
 				}
 			}
+			if f.Deferrable {
+				enlistForeignKeyEvent(h, auth, *job, event, false)
+				continue
+			}
+			if any {
+				if f.Full && !all {
+					return table.ForeignKeyDiagnostic(h.Context(), childAuth.Access(), childAuth, job.Child, job.Parent, f, row.Values, false, true, output)
+				}
+				continue
+			}
 			if err := checkForeignKeyChild(h, childAuth, job, parentRef, &parentRows, row); err != nil {
 				return err
 			}
@@ -132,12 +146,26 @@ func CheckForeignKeys(h FinishHost) (err error) {
 			if !event.TriggerFires(f.OID, actionSlot) {
 				continue
 			}
+			null := false
+			for _, comparison := range job.Comparisons {
+				if event.Old.Values[comparison.Parent].IsNull() {
+					null = true
+					break
+				}
+			}
+			if null {
+				continue
+			}
 			if event.Next.Row != 0 && ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
 				continue
 			}
 			action := f.DeleteAction
 			if event.Next.Row != 0 {
 				action = f.UpdateAction
+			}
+			if f.Deferrable && action == parser.ForeignKeyNoAction {
+				enlistForeignKeyEvent(h, auth, *job, event, true)
+				continue
 			}
 			if err := checkForeignKeyParent(h, parentAuth, job, parentRef, &parentRows, children, event.Old, action == parser.ForeignKeyNoAction); err != nil {
 				return err

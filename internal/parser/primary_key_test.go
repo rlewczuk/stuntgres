@@ -69,14 +69,10 @@ func TestPrimaryKeyAttachments(t *testing.T) {
 
 func TestPrimaryKeyCapabilityRecords(t *testing.T) {
 	for _, tc := range []struct{ query, token, message string }{
-		{"CREATE TABLE t(a INT PRIMARY KEY DEFERRABLE INITIALLY DEFERRED)", "DEFERRABLE", "PRIMARY KEY deferrability is unsupported"},
-		{"CREATE TABLE t(a INT PRIMARY KEY NOT DEFERRABLE)", "NOT", "PRIMARY KEY deferrability is unsupported"},
-		{"CREATE TABLE 界(a INT,PRIMARY KEY(a) INITIALLY IMMEDIATE)", "INITIALLY", "PRIMARY KEY deferrability is unsupported"},
 		{"CREATE TABLE t(a INT,b INT,PRIMARY KEY(a,b WITHOUT OVERLAPS))", "WITHOUT", "PRIMARY KEY WITHOUT OVERLAPS is unsupported"},
 		{"CREATE TABLE t(a INT,b TEXT,PRIMARY KEY(a) INCLUDE(b))", "INCLUDE", "PRIMARY KEY index parameters are unsupported"},
 		{"CREATE TABLE t(a INT PRIMARY KEY WITH(fillfactor=90))", "WITH", "PRIMARY KEY index parameters are unsupported"},
 		{"CREATE TABLE t(a INT,PRIMARY KEY(a) USING INDEX TABLESPACE pg_default)", "USING", "PRIMARY KEY index parameters are unsupported"},
-		{"ALTER TABLE t ADD CONSTRAINT pk PRIMARY KEY(a) DEFERRABLE", "DEFERRABLE", "PRIMARY KEY deferrability is unsupported"},
 		{"ALTER TABLE t ADD COLUMN a INT PRIMARY KEY", "ADD", "ALTER TABLE action is unsupported"},
 		{"ALTER TABLE t ADD COLUMN IF NOT EXISTS a INT PRIMARY KEY DEFERRABLE", "ADD", "ALTER TABLE action is unsupported"},
 	} {

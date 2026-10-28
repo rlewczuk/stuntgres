@@ -96,6 +96,9 @@ func ClaimUniqueRow(h Host, ref ids.ObjectRef, row storage.RowVersion) error {
 				continue
 			}
 		}
+		if c := index.UniqueDefinition(binding.Parent, idx); c != nil && c.Deferrable {
+			continue
+		}
 		member, key, err := ExistingUniqueOutput(h, bound, row, &evaluation, purpose)
 		if err != nil {
 			return err
@@ -218,7 +221,8 @@ retry:
 			bound = &binding.Keys[i]
 		}
 		idx := bound.Index
-		if idx.SQLIndex.IsExclusion() {
+		_, deferredUnique, _, _ := index.IndexConstraintTiming(binding.Parent, idx)
+		if idx.SQLIndex.IsExclusion() || deferredUnique {
 			if conflict, err := probeExclusionRow(h, ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.Index != nil {
 				return conflict, err
 			}

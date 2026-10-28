@@ -108,7 +108,7 @@ actions use 0/1, INSERT/UPDATE child checks use 2/3. Effective replication role
 gates each slot independently, including final parent checks, so a disabled
 action is not undone by an unconditional later check. Old/Next transition
 identity determines the event even for updates of transaction-local inserts.
-Eligibility is captured in the immutable row event before settlement. Suppression
+Trigger-mode eligibility is captured in the immutable row event before settlement. Suppression
 vectors are shared within an unchanged relation/catalog/effective-role capture,
 not mutated when settings or definitions change; all-enabled captures remain nil.
 Vectors are sorted once by constraint identity when captured and searched by
@@ -117,6 +117,21 @@ Unenforced FKs contribute neither child checks nor parent actions or effect
 admission. NOT VALID remains independently enforced. Held action jobs include
 enforcement and actual trigger identities in definition readmission; mode and
 replication-role policy apply only to existing enforced implementation slots.
+Deferred child and NO ACTION checks enlist eligible concrete events into the
+common index-owned constraint timing vector before statement transitions retire.
+Child UPDATE excludes NULL-exempt new keys and typed unchanged keys with an
+actual committed predecessor; prior own updates/inserts still require checks.
+MATCH FULL partial NULL remains an obligation. INSERT retains its check event
+even for NULL-exempt keys. Parent UPDATE/DELETE excludes old keys containing NULL.
+Captured trigger eligibility, original row/version/key references and acting
+principal survive later commands, modes and roles; no bound FK job or command
+frame is retained. Admission never prunes earlier events after repair or deletion.
+Due work rebinds current providers and skips superseded or
+deleted child incarnations. RESTRICT and CASCADE/SET actions remain immediate;
+their generated writes enter the same ordinary row/index/FK pipeline.
+Check-side stable isolation additionally probes the original supporting unique
+root after a current miss, distinguishing serialization from an absent parent.
+All provider comparisons and waits run unlocked through the host.
 Reached trigger-body statements, routine helpers and source reads retain the
 referencing-table owner's RI authority through description, prepared analysis
 and execution, including live role recapture after unlocked provider preflight.

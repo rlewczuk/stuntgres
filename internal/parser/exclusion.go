@@ -56,17 +56,7 @@ func constraintProperty(l *lexer, token lexeme, deferrability, value bool, defer
 }
 
 func usingIndexProperty(l *lexer, c *UsingIndexConstraint, token lexeme, deferrability, value bool) bool {
-	if !constraintProperty(l, token, deferrability, value, &c.deferrable, &c.initiallyDeferred, &c.deferrabilitySet, &c.initiallySet) {
-		return false
-	}
-	if value {
-		message := "UNIQUE deferrability is unsupported"
-		if c.Primary {
-			message = "PRIMARY KEY deferrability is unsupported"
-		}
-		l.deferUnsupported(token, message)
-	}
-	return true
+	return constraintProperty(l, token, deferrability, value, &c.Deferrable, &c.InitiallyDeferred, &c.deferrabilitySet, &c.initiallySet)
 }
 
 type AlterTableRenameConstraint struct {

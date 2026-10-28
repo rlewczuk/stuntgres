@@ -64,6 +64,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - NOT NULL constraints: `RUN='^TestReference(Smoke)?(Drop)?NotNull'`
 - Foreign keys (also selects alter/dml callers): `RUN='^TestReferenceForeignKey'`
 - Referential actions: `RUN='^TestReferenceForeignActions'`
+- Constraint timing (including nested utilities and procedural transaction lifetime), FK completion and native controls:
+  `RUN='^TestReferenceDeferred(Constraint|ForeignKey)'`
 - Foreign tables: `RUN='^TestReferenceFDW'`
   `TestReferenceFDWRoutineSourceCompaction` exercises six real foreign-target
   INSERT/UPDATE/DELETE source forms with direct/held routine calls, exact rows,

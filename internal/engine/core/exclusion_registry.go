@@ -4,11 +4,11 @@ import (
 	"stuntgres/internal/engine/lock"
 )
 
-func (e *Engine) checkTransactionExclusions(s *StatementScope) error {
-	if err := s.checkExclusionEvents(true, nil); err != nil {
+func (e *Engine) checkTransactionConstraints(s *StatementScope) error {
+	if err := s.checkConstraintEvents(true, nil); err != nil {
 		return err
 	}
-	ownerExtensionOf(s.Owner).exclusionModes = s.IndexesOrZero().ExclusionModes
+	ownerExtensionOf(s.Owner).constraintModes = s.IndexesOrZero().ConstraintModes
 	return nil
 }
 

@@ -76,7 +76,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, ste
 			t.Mu.Unlock()
 			err = e.Locks.CheckPreparedAdvisory(entry.Ticket)
 			if err == nil {
-				err = e.checkTransactionExclusions(s)
+				err = e.checkTransactionConstraints(s)
 			}
 			if err == nil {
 				err = e.publishRowsPrepared(s.Op, ref, t.Writes, t.Deletes, t.Catalog, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: t}, s)

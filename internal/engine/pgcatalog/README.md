@@ -82,7 +82,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
   nonconstraint; absent transitions and WHEN remain typed NULLs. Persistent
   FK-owned RI triggers retain actual identities, INTERNAL constraint links,
   opposite relation/index, action-selected functions and AFTER ROW events.
-  Their declared nondeferrable state, empty args/vector and absent
+  Check slots and NO ACTION slots project the FK's persistent timing defaults;
+  other action slots remain nondeferrable. Empty args/vector and absent
   WHEN/transitions remain distinct from ordinary user definitions. Capture
   validates source/type generations and paired catalog/role authority even empty.
   Ordinary catalog PUBLIC SELECT applies independently of target privileges,
@@ -357,6 +358,12 @@ type Producer func(Input) ([][]sqltype.Value, error)
   a domain-typed NULL nulls_distinct outside UNIQUE.
   CHECK/FK enforcement derives from the independent stored enforcement bit in
   both pg_constraint and table_constraints; validation never supplies it.
+  Deferrability and initial timing derive only from persistent definitions,
+  as do `pg_constraint` flags and backing `pg_index.indimmediate`; transaction
+  SET CONSTRAINTS modes never alter these catalog facts.
+  The condensed `pg_index` source appends its nonnullable BOOL `indimmediate`
+  without shifting established result slots; its stable catalog attribute is 9.
+  It shares the existing vector projection's captured index metadata.
   Immediately usable ownership, non-SELECT/non-MAINTAIN table
   privileges or INSERT/UPDATE/REFERENCES on any live column disclose all table
   constraints; schema USAGE is not required. Temporary rows belong only to the

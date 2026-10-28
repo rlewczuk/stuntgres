@@ -483,7 +483,7 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
 	stableAttributes := map[ids.OID][]int32{
-		2610: {1, 2, 5, 7, 11, 13, 14, 6, 10, 16, 17, 18, 19},
+		2610: {1, 2, 5, 7, 11, 13, 14, 6, 10, 16, 17, 18, 19, 9},
 		2620: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19},
 	}
 	for _, descriptor := range view.Descriptors() {
@@ -532,11 +532,11 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 			[]uint32{0, 950, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 0, 100, 100, 100, 100, 0},
 			[]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}},
 		{2610,
-			[]string{"indexrelid", "indrelid", "indisunique", "indisprimary", "indisvalid", "indisready", "indislive", "indnullsnotdistinct", "indisclustered", "indkey", "indcollation", "indclass", "indoption"},
-			[]sqltype.ID{26, 26, 16, 16, 16, 16, 16, 16, 16, 22, 30, 30, 22},
-			[]bool{false, false, false, false, false, false, false, false, false, false, false, false, false},
-			[]uint32{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			[]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}},
+			[]string{"indexrelid", "indrelid", "indisunique", "indisprimary", "indisvalid", "indisready", "indislive", "indnullsnotdistinct", "indisclustered", "indkey", "indcollation", "indclass", "indoption", "indimmediate"},
+			[]sqltype.ID{26, 26, 16, 16, 16, 16, 16, 16, 16, 22, 30, 30, 22, 16},
+			[]bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false},
+			[]uint32{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			[]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}},
 		{1418, []string{"oid", "umuser", "umserver", "umoptions"}, []sqltype.ID{26, 26, 26, 1009}, []bool{false, false, false, true}, []uint32{0, 0, 0, 950}, []int32{-1, -1, -1, -1}},
 		{pgcatalog.RulesOID, []string{"schemaname", "tablename", "rulename", "definition"}, []sqltype.ID{19, 19, 19, 25}, []bool{true, true, true, true}, []uint32{950, 950, 950, 100}, []int32{-1, -1, -1, -1}},
 		{16200, []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}, []sqltype.ID{13248, 13248, 13248, 13248, 13248, 13246, 13256, 13256}, []bool{true, true, true, true, true, true, true, true}, []uint32{950, 950, 950, 950, 950, 950, 950, 950}, []int32{-1, -1, -1, -1, -1, -1, -1, -1}},

@@ -115,7 +115,18 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 		if r.SQLIndex.Constraint.Primary {
 			kind = "PRIMARY KEY"
 		}
-		sql += "ALTER TABLE " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(parent.Name()) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(r.Name()) + " " + kind + " USING INDEX " + catalog.QuoteIdentifier(r.Name()) + ";\n"
+		constraint := index.UniqueDefinition(parent, r)
+		if constraint == nil {
+			return fmt.Errorf("stuntgres: missing USING INDEX dump constraint")
+		}
+		timing := ""
+		if constraint.Deferrable {
+			timing += " DEFERRABLE"
+		}
+		if constraint.InitiallyDeferred {
+			timing += " INITIALLY DEFERRED"
+		}
+		sql += "ALTER TABLE " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(parent.Name()) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(r.Name()) + " " + kind + " USING INDEX " + catalog.QuoteIdentifier(r.Name()) + timing + ";\n"
 	}
 	event := dump.Event{OID: oid}
 	c.Graph[event] = []dump.Event{{OID: r.SQLIndex.Parent.ObjectID}}

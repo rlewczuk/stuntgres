@@ -3,7 +3,6 @@ package parser
 import (
 	"errors"
 	"reflect"
-	"strconv"
 	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -60,28 +59,37 @@ func TestUniqueColumnAndTableSyntax(t *testing.T) {
 	}
 }
 
-func TestUniqueDeferrabilityCapabilityBoundary(t *testing.T) {
-	for _, query := range []string{
-		"CREATE TABLE t(a INT UNIQUE DEFERRABLE)",
-		"CREATE TABLE t(a INT UNIQUE NOT DEFERRABLE)",
-		"CREATE TABLE t(a INT UNIQUE DEFERRABLE INITIALLY DEFERRED)",
-		"CREATE TABLE t(a INT,CONSTRAINT u UNIQUE(a) DEFERRABLE INITIALLY IMMEDIATE)",
-		"CREATE TABLE t(a INT,UNIQUE(a) NOT DEFERRABLE)",
-		"CREATE TABLE t(a INT UNIQUE INITIALLY DEFERRED)",
-		"CREATE TABLE t(a INT,UNIQUE(a) INITIALLY IMMEDIATE)",
-	} {
-		_, err := Parse(query)
-		var got *sqlstate.Error
-		token := "DEFERRABLE"
-		if strings.Contains(query, "NOT DEFERRABLE") {
-			token = "NOT DEFERRABLE"
-		}
-		if !strings.Contains(query, "DEFERRABLE") {
-			token = "INITIALLY"
-		}
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "UNIQUE deferrability is unsupported", Position: strconv.Itoa(strings.Index(query, token) + 1)}
-		if !errors.As(err, &got) || !reflect.DeepEqual(*got, want) {
-			t.Fatalf("%s: got %#v want %#v: %v", query, got, want, err)
+func TestUniqueDeferrabilityAttachments(t *testing.T) {
+	for _, declaration := range []string{"a INT UNIQUE", "a INT,UNIQUE(a)", "a INT PRIMARY KEY", "a INT,PRIMARY KEY(a)", "a INT REFERENCES p", "a INT,FOREIGN KEY(a) REFERENCES p"} {
+		for _, property := range []string{"DEFERRABLE", "NOT DEFERRABLE", "INITIALLY DEFERRED", "INITIALLY IMMEDIATE", "DEFERRABLE INITIALLY DEFERRED", "INITIALLY DEFERRED DEFERRABLE", "NOT DEFERRABLE INITIALLY IMMEDIATE"} {
+			query := "CREATE TABLE t(" + declaration + " " + property + ")"
+			statements, err := Parse(query)
+			if err != nil {
+				t.Fatal(query, err)
+			}
+			element := statements[0].(*CreateTable).Elements
+			e := element[len(element)-1]
+			u, f := e.Unique, e.ForeignKey
+			if e.Column != nil {
+				c := e.Column.Constraints[0]
+				if c.TimingError != "" {
+					t.Fatal(query, c)
+				}
+				u, f = c.Unique, c.ForeignKey
+			}
+			var deferrable, deferred bool
+			if u != nil {
+				deferrable, deferred = u.Deferrable, u.InitiallyDeferred
+			} else if f != nil {
+				deferrable, deferred = f.Deferrable, f.InitiallyDeferred
+			} else {
+				t.Fatal(query, e)
+			}
+			wantDeferred := strings.Contains(property, "INITIALLY DEFERRED")
+			wantDeferrable := wantDeferred || strings.Contains(property, "DEFERRABLE") && !strings.Contains(property, "NOT DEFERRABLE")
+			if deferrable != wantDeferrable || deferred != wantDeferred {
+				t.Fatal(query, deferrable, deferred)
+			}
 		}
 	}
 }

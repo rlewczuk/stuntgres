@@ -726,6 +726,7 @@ var Specs = [...]Spec{
 		{"indcollation", sqltype.OidVector, false, 0, 1, -1},
 		{"indclass", sqltype.OidVector, false, 0, 1, -1},
 		{"indoption", sqltype.Int2Vector, false, 0, 1, -1},
+		{"indimmediate", sqltype.Bool, false, 0, 0, -1},
 	}, false, CatalogHasIndexes(2610), false, false, "stuntgres: missing catalog source type"},
 	{2618, ids.PGCatalogNamespaceOID, "pg_rewrite", []ColumnSpec{
 		{"oid", sqltype.Oid, true, 0, 0, -1},

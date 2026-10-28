@@ -2,6 +2,7 @@ package visibility
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -13,4 +14,12 @@ type Root struct {
 	Ends     *storage.DeletionRoot
 	Storage  *storage.Relation
 	Relation *catalog.Relation
+	// Indexes are supporting unique roots captured at the same stable frontier.
+	// They detect snapshot/current RI disagreement, never current integrity.
+	Indexes map[ids.ObjectAddress]IndexSnapshot
+}
+
+type IndexSnapshot struct {
+	Definition *catalog.Relation
+	Root       *storage.IndexRoot
 }

@@ -19,14 +19,14 @@ func (s *StatementScope) completeCommandEffects(allExclusions, bounded bool) err
 		if err := s.qualifyAfterStatements(); err != nil {
 			return err
 		}
-		if err := s.checkExclusionCommandEvents(allExclusions, nil, bounded); err != nil {
+		if err := s.checkConstraintEventPhase(allExclusions, nil, bounded, false); err != nil {
 			return err
 		}
 		if err := dml.SettleForeignActions(s.WriteHost()); err != nil {
 			return err
 		}
 		if s.foreignActionsOrZero().ExclusionAdded {
-			if err := s.checkExclusionCommandEvents(allExclusions, nil, bounded); err != nil {
+			if err := s.checkConstraintEventPhase(allExclusions, nil, bounded, false); err != nil {
 				return err
 			}
 		}
@@ -34,6 +34,9 @@ func (s *StatementScope) completeCommandEffects(allExclusions, bounded bool) err
 			if err := dml.CheckForeignKeys(s.WriteHost()); err != nil {
 				return err
 			}
+		}
+		if err := s.checkConstraintEventPhase(allExclusions, nil, bounded, true); err != nil {
+			return err
 		}
 		if s.afterTriggers == nil {
 			return nil

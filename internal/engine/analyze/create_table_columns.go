@@ -20,15 +20,24 @@ type LikeConstraint struct {
 // Keeping it independent of type/catalog binding preserves its diagnostic
 // priority without moving unrelated declaration errors ahead of name lookup.
 func ValidateColumnConstraintEnforcement(constraint parser.ColumnConstraint) error {
+	misplacedEnforcement := constraint.EnforcementSet && constraint.Check == nil && constraint.ForeignKey == nil
+	if constraint.TimingError != "" &&
+		(constraint.EnforcementRepeat.Offset == 0 || constraint.TimingPos.Offset < constraint.EnforcementRepeat.Offset) &&
+		(!misplacedEnforcement || constraint.TimingPos.Offset < constraint.EnforcementPos.Offset) {
+		return insertError("42601", constraint.TimingError, constraint.TimingPos)
+	}
 	if constraint.EnforcementRepeat.Offset != 0 {
 		return insertError("42601", "multiple ENFORCED/NOT ENFORCED clauses not allowed", constraint.EnforcementRepeat)
 	}
-	if constraint.EnforcementSet && constraint.Check == nil && constraint.ForeignKey == nil {
+	if misplacedEnforcement {
 		property := "ENFORCED"
 		if constraint.NotEnforced {
 			property = "NOT ENFORCED"
 		}
 		return insertError("42601", "misplaced "+property+" clause", constraint.EnforcementPos)
+	}
+	if constraint.TimingError != "" {
+		return insertError("42601", constraint.TimingError, constraint.TimingPos)
 	}
 	return nil
 }
@@ -252,7 +261,7 @@ func BindCreateUniques(s *parser.CreateTable, index map[string]int, likes []Like
 		redundant := false
 		for i := range retained {
 			old := &retained[i]
-			if old.NullsNotDistinct == c.NullsNotDistinct && slices.Equal(old.Attributes, c.Attributes) {
+			if old.NullsNotDistinct == c.NullsNotDistinct && old.Deferrable == c.Deferrable && old.InitiallyDeferred == c.InitiallyDeferred && slices.Equal(old.Attributes, c.Attributes) {
 				if old.Name == "" {
 					old.Name = c.Name
 				}
@@ -282,7 +291,7 @@ func BindCreateUniques(s *parser.CreateTable, index map[string]int, likes []Like
 			if !ok || source.SQLIndex == nil {
 				return nil, fmt.Errorf("stuntgres: missing LIKE primary backing")
 			}
-			c := UniqueConstraint{UniqueConstraint: catalog.UniqueConstraint{Primary: true, Attributes: make([]int32, len(old.Attributes))}, Source: source, Like: in, CopyComments: in.Options&LikeComments != 0}
+			c := UniqueConstraint{UniqueConstraint: catalog.UniqueConstraint{Primary: true, Deferrable: old.Deferrable, InitiallyDeferred: old.InitiallyDeferred, Attributes: make([]int32, len(old.Attributes))}, Source: source, Like: in, CopyComments: in.Options&LikeComments != 0}
 			for i, attribute := range old.Attributes {
 				slot := slices.Index(in.Source.Attributes, attribute)
 				if slot < 0 {
@@ -309,7 +318,7 @@ func BindUniqueAttributes(raw *parser.UniqueConstraint, column *parser.Column, i
 	if width == 0 || width > 32 {
 		return catalog.UniqueConstraint{}, sqlError("54011", "cannot use more than 32 columns in an index")
 	}
-	c := catalog.UniqueConstraint{Name: raw.Name.Text, Primary: raw.Primary, NullsNotDistinct: raw.NullsNotDistinct, Attributes: make([]int32, width)}
+	c := catalog.UniqueConstraint{Name: raw.Name.Text, Primary: raw.Primary, NullsNotDistinct: raw.NullsNotDistinct, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred, Attributes: make([]int32, width)}
 	for i := range c.Attributes {
 		name := ""
 		if column != nil {

@@ -23,6 +23,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   `usingIndexScenario` (`using_index_eligibility_test.go`).
 - `uniqueReference*(t, standalone)` helpers run one body for a UNIQUE constraint
   (`false`) and a standalone UNIQUE index (`true`).
+- UNIQUE/PK and USING INDEX property witnesses assert persistent timing flags
+  and canonical definitions on both backends, separately from transaction modes.
 - Access methods are database-global and survive the `public` reset: list every
   method a scenario creates in `amBackends`, which drops them through the admin
   pool before and after the case.
@@ -102,6 +104,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Concurrent indexes: `RUN='^TestReferenceConcurrentIndex'`
 - UNIQUE constraints and indexes: `RUN='^TestReferenceUnique'`
 - PRIMARY KEY: `RUN='^TestReferencePrimaryKey'`
+- Deferred UNIQUE/PK timing and concurrency: `RUN='^TestReferenceDeferredUnique'`
 - Index clauses: `RUN='^TestReferenceIndexClauses'`
 - Index properties: `RUN='^TestReferenceIndexProperties'`
 - Index maintenance and locks: `RUN='^TestReferenceIndexMaintenance'`

@@ -31,6 +31,39 @@ func CommittedRoots(state *catalog.State, store *storage.Store) map[ids.ObjectAd
 			roots[address] = visibility.Root{Versions: stored.Versions, Ends: stored.Ends, Storage: stored, Relation: relation}
 		}
 	}
+	// Capture immutable pointer pairs, not row/index copies. A later-created
+	// index never becomes retrospective snapshot authority.
+	for address, root := range store.IndexRoots {
+		idx, ok := state.Relation(address)
+		if !ok || idx.SQLIndex == nil || !idx.SQLIndex.Unique || !idx.SQLIndex.Ready || !idx.SQLIndex.Valid || !idx.SQLIndex.Live || idx.SQLIndex.Predicate != nil {
+			continue
+		}
+		parent, ok := roots[idx.SQLIndex.Parent]
+		if !ok {
+			continue
+		}
+		eligible := true
+		for _, key := range idx.SQLIndex.Keys {
+			if key.Derived != nil {
+				eligible = false
+				break
+			}
+		}
+		for _, constraint := range parent.Relation.Constraints.Unique {
+			if constraint.Index == address && constraint.Deferrable {
+				eligible = false
+				break
+			}
+		}
+		if !eligible {
+			continue
+		}
+		if parent.Indexes == nil {
+			parent.Indexes = make(map[ids.ObjectAddress]visibility.IndexSnapshot)
+		}
+		parent.Indexes[address] = visibility.IndexSnapshot{Definition: idx, Root: root}
+		roots[idx.SQLIndex.Parent] = parent
+	}
 	return roots
 }
 

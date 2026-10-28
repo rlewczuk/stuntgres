@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -25,36 +26,47 @@ type ExclusionProjection struct {
 	Ended   map[ids.ObjectAddress]map[ids.RowID]ids.VersionID
 }
 
-type ExclusionEvent struct {
+// ConstraintEvent is one index conflict obligation or one FK trigger event.
+// FK payloads own immutable accepted row images and original catalog references.
+type ConstraintEvent struct {
 	Parent, Index ids.ObjectRef
 	Constraint    ids.OID
 	Row           ids.RowID
 	Version       ids.VersionID
+	ForeignKey    *ForeignKeyEvent
 }
 
-type ExclusionModes struct {
+type ForeignKeyEvent struct {
+	Child, Parent, Index ids.ObjectRef
+	Old, Next            storage.RowVersion
+	Owner                authorization.PrincipalRef
+	ParentEvent          bool
+	Definition           catalog.ForeignKeyConstraint
+}
+
+type ConstraintModes struct {
 	AllSet, AllDeferred bool
 	ByConstraint        map[ids.OID]bool
-	Events              []ExclusionEvent
+	Events              []ConstraintEvent
 }
 
 // Zero reports whether m is exactly the zero value: no flags, and a nil map
 // and event list (an empty non-nil one is not zero).
-func (m ExclusionModes) Zero() bool {
+func (m ConstraintModes) Zero() bool {
 	return !m.AllSet && !m.AllDeferred && m.ByConstraint == nil && m.Events == nil
 }
 
-func (m ExclusionModes) Deferred(c *catalog.ExclusionConstraint) bool {
-	if !c.Deferrable {
+func (m ConstraintModes) Deferred(oid ids.OID, deferrable, initiallyDeferred bool) bool {
+	if !deferrable {
 		return false
 	}
-	if value, ok := m.ByConstraint[c.OID]; ok {
+	if value, ok := m.ByConstraint[oid]; ok {
 		return value
 	}
 	if m.AllSet {
 		return m.AllDeferred
 	}
-	return c.InitiallyDeferred
+	return initiallyDeferred
 }
 
 func ExclusionDefinition(parent *catalog.Relation, index *catalog.Relation) *catalog.ExclusionConstraint {
@@ -65,6 +77,36 @@ func ExclusionDefinition(parent *catalog.Relation, index *catalog.Relation) *cat
 		}
 	}
 	return nil
+}
+
+func UniqueDefinition(parent, idx *catalog.Relation) *catalog.UniqueConstraint {
+	if idx.SQLIndex == nil || idx.SQLIndex.Constraint == nil {
+		return nil
+	}
+	for i := range parent.Constraints.Unique {
+		c := &parent.Constraints.Unique[i]
+		if c.Index == idx.Address() && c.OID == idx.SQLIndex.Constraint.OID {
+			return c
+		}
+	}
+	return nil
+}
+
+func IndexConstraintTiming(parent, idx *catalog.Relation) (ids.OID, bool, bool, bool) {
+	if idx.SQLIndex.IsExclusion() {
+		if c := ExclusionDefinition(parent, idx); c != nil {
+			return c.OID, c.Deferrable, c.InitiallyDeferred, true
+		}
+	} else if c := UniqueDefinition(parent, idx); c != nil {
+		return c.OID, c.Deferrable, c.InitiallyDeferred, true
+	}
+	return 0, false, false, false
+}
+
+// ConstraintProjectionRequired identifies the constraints whose writes reserve
+// their physical row/version identity during dirty-index admission.
+func ConstraintProjectionRequired(parent *catalog.Relation) bool {
+	return len(parent.Constraints.Exclusion) != 0 || slices.ContainsFunc(parent.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Deferrable })
 }
 
 func BindExclusionOrdering(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
@@ -150,24 +192,25 @@ func (p *ExclusionProjection) DiscardVersion(version ids.VersionID) {
 	}
 }
 
-// EndRow ends row at version on parent and drops its entries from
-// every exclusion index of constraints.
-func (p *ExclusionProjection) EndRow(parent ids.ObjectAddress, constraints []catalog.ExclusionConstraint, row ids.RowID, version ids.VersionID) {
-	ends := maps.Clone(p.Ended[parent])
+// EndRow ends a globally allocated row identity on every projected index.
+func (p *ExclusionProjection) EndRow(address ids.ObjectAddress, row ids.RowID, version ids.VersionID) {
+	ends := maps.Clone(p.Ended[address])
 	if ends == nil {
 		ends = make(map[ids.RowID]ids.VersionID)
 	}
 	ends[row] = version
-	p.Ended[parent] = ends
-	for _, c := range constraints {
-		entries := p.Entries[c.Index]
+	p.Ended[address] = ends
+	for idx, entries := range p.Entries {
+		if !slices.ContainsFunc(entries, func(e ExclusionEntry) bool { return e.Row.Row == row }) {
+			continue
+		}
 		next := make([]ExclusionEntry, 0, len(entries))
 		for _, entry := range entries {
 			if entry.Row.Row != row {
 				next = append(next, entry)
 			}
 		}
-		p.Entries[c.Index] = next
+		p.Entries[idx] = next
 	}
 }
 

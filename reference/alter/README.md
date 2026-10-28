@@ -99,6 +99,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   IF NOT EXISTS skipping, supported nondeferred property orders, and authentic
   generated-name collision/ordering/locking outcomes. Run each changed definition
   in native and `REFERENCE=1` modes.
+- Deferred constraint ALTER admission, FK event eligibility and timing: `RUN='^TestReferenceDeferred(ForeignKey(Alter|EventEligibility)|ConstraintAlterSafety)'`
 - SET/DROP DEFAULT: `RUN='^TestReferenceAlterDefault'`
 - DROP COLUMN: `RUN='^TestReferenceAlterDropColumn'`
 - DROP COLUMN routine dependency closure, identity, rollback, admission and controls:

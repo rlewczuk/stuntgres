@@ -17,6 +17,9 @@ func InstalledForeignKey(base catalog.Read, address ids.ObjectAddress, f catalog
 		return false
 	}
 	for _, old := range parent.Constraints.ForeignKeys {
+		if old.Deferrable != f.Deferrable || old.InitiallyDeferred != f.InitiallyDeferred {
+			continue
+		}
 		if old.Name == f.Name && old.Target == f.Target && old.Full == f.Full && (old.NotValid == f.NotValid && old.NotEnforced == f.NotEnforced || old.OID != 0 && old.OID == f.OID && old.Index == f.Index && (old.NotEnforced != f.NotEnforced || old.NotValid && !f.NotValid)) && old.UpdateAction == f.UpdateAction && old.DeleteAction == f.DeleteAction && slices.Equal(old.DeleteAttributes, f.DeleteAttributes) && slices.Equal(old.Attributes, f.Attributes) && slices.Equal(old.Referenced, f.Referenced) {
 			return true
 		}
@@ -37,8 +40,10 @@ func AlterForeignKeyIndex(view catalog.Read, target ids.ObjectAddress, raw parse
 	if len(raw.Referenced) == 0 {
 		for _, key := range parent.Constraints.Unique {
 			if key.Primary {
-				attributes = key.Attributes
-				break
+				if key.Deferrable {
+					return ids.ObjectAddress{}
+				}
+				return key.Index
 			}
 		}
 	} else {

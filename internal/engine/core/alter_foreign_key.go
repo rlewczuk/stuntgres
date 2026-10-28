@@ -18,7 +18,7 @@ import (
 func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	count := 0
 	for _, action := range raw.Actions {
-		if action.Action == parser.AddForeignKey || action.Action == parser.ValidateConstraint || action.Action == parser.AlterConstraintEnforcement {
+		if action.Action == parser.AddForeignKey || action.Action == parser.ValidateConstraint || action.Action == parser.AlterConstraintEnforcement || action.Action == parser.AlterConstraintTiming && action.EnforcementSet {
 			count++
 		}
 	}
@@ -46,7 +46,9 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		label := "VALIDATE CONSTRAINT"
 		if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AddForeignKey }) {
 			label = "ADD CONSTRAINT"
-		} else if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AlterConstraintEnforcement }) {
+		} else if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool {
+			return a.Action == parser.AlterConstraintEnforcement || a.Action == parser.AlterConstraintTiming && a.EnforcementSet
+		}) {
 			label = "ALTER CONSTRAINT"
 		}
 		err = analyze.TableKindError(child, label)
@@ -103,9 +105,10 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 			if pass == 0 && action.Action != parser.AddForeignKey || pass == 1 && action.Action == parser.AddForeignKey {
 				continue
 			}
-			if action.Action == parser.ValidateConstraint || action.Action == parser.AlterConstraintEnforcement {
+			alterEnforcement := action.Action == parser.AlterConstraintEnforcement || action.Action == parser.AlterConstraintTiming && action.EnforcementSet
+			if action.Action == parser.ValidateConstraint || alterEnforcement {
 				if declared, ok := pending[action.Constraint.Text]; ok {
-					if action.Action == parser.AlterConstraintEnforcement && declared.negative != action.NotEnforced {
+					if alterEnforcement && declared.negative != action.NotEnforced {
 						mode := lock.ShareRowExclusive
 						if action.NotEnforced {
 							mode = lock.AccessExclusive
@@ -123,7 +126,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 					continue
 				}
 				mode := lock.RowShare
-				if action.Action == parser.AlterConstraintEnforcement {
+				if alterEnforcement {
 					previous, known := enforcement[selected.OID]
 					if !known {
 						previous = selected.ForeignKey.NotEnforced

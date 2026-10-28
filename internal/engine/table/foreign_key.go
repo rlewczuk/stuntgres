@@ -54,6 +54,7 @@ func ForeignKeyAttributes(d *catalog.Relation, columns []parser.Identifier) ([]i
 
 func ForeignKeyIndex(view catalog.Read, parent *catalog.Relation, attributes []int32) (*catalog.Relation, error) {
 	var found *catalog.Relation
+	var deferred error
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
@@ -61,6 +62,10 @@ func ForeignKeyIndex(view catalog.Read, parent *catalog.Relation, attributes []i
 		}
 		eligible, err := ForeignKeyIndexEligible(parent, index, attributes)
 		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "55000" {
+				deferred = err
+				continue
+			}
 			return nil, err
 		}
 		if eligible && (found == nil || index.Address().ObjectID < found.Address().ObjectID) {
@@ -68,6 +73,9 @@ func ForeignKeyIndex(view catalog.Read, parent *catalog.Relation, attributes []i
 		}
 	}
 	if found == nil {
+		if deferred != nil {
+			return nil, deferred
+		}
 		return nil, sqlError("42830", fmt.Sprintf(`there is no unique constraint matching given keys for referenced table "%s"`, parent.Name()))
 	}
 	return found, nil
@@ -94,6 +102,11 @@ func ForeignKeyIndexEligible(parent, idx *catalog.Relation, attributes []int32) 
 		}
 		if matches != 1 {
 			return false, nil
+		}
+	}
+	for _, constraint := range parent.Constraints.Unique {
+		if constraint.Index == idx.Address() && constraint.Deferrable {
+			return false, sqlError("55000", fmt.Sprintf(`cannot use a deferrable unique constraint for referenced table "%s"`, parent.Name()))
 		}
 	}
 	return true, nil
@@ -160,6 +173,9 @@ func ForeignKeyReferencesAllowed(view access.View, env access.Environment, paren
 
 func ValidateForeignKeys(view catalog.Read, child *catalog.Relation, names map[string]bool) error {
 	for _, f := range child.Constraints.ForeignKeys {
+		if f.InitiallyDeferred && !f.Deferrable {
+			return fmt.Errorf("stuntgres: invalid foreign-key timing")
+		}
 		if child.RelationKind != catalog.TableRelation || f.OID == 0 || f.Name == "" || len(f.Name) > 63 || !utf8.ValidString(f.Name) || strings.IndexByte(f.Name, 0) >= 0 || names[f.Name] || len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 			return fmt.Errorf("stuntgres: invalid foreign-key definition")
 		}

@@ -46,29 +46,29 @@ type Engine struct {
 	Analysis      BindingHost                  // Binding host without an operation; immutable after New.
 	notifications session.NotificationRegistry // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
-	ReplacementMu     replacementAdmission
-	Catalog           catalog.Store
-	DatabaseName      string
-	DatabaseNameError error
-	Storage           storage.Store
-	sessionMu         sync.Mutex
-	sessions          map[ids.SessionToken]*session.Session
-	Settings          settings.Registry // Immutable, initialized once before publication.
-	Authority         AuthorityInputs   // Points at settings and storage; shared by engine-built views.
-	Visibility        visibility.Registry
-	IndexWaits        index.WaitRegistry
-	Exclusions        index.ExclusionRegistry
-	prepared          session.PreparedRegistry
-	RoleStore         *access.RoleStore
-	Cluster           *DatabaseCluster
-	ImportTargets     map[authorization.PrincipalRef]authorization.PrincipalRef
+	ReplacementMu              replacementAdmission
+	Catalog                    catalog.Store
+	DatabaseName               string
+	DatabaseNameError          error
+	Storage                    storage.Store
+	sessionMu                  sync.Mutex
+	sessions                   map[ids.SessionToken]*session.Session
+	Settings                   settings.Registry // Immutable, initialized once before publication.
+	Authority                  AuthorityInputs   // Points at settings and storage; shared by engine-built views.
+	Visibility                 visibility.Registry
+	IndexWaits                 index.WaitRegistry
+	Exclusions                 index.ExclusionRegistry
+	prepared                   session.PreparedRegistry
+	RoleStore                  *access.RoleStore
+	Cluster                    *DatabaseCluster
+	ImportTargets              map[authorization.PrincipalRef]authorization.PrincipalRef
 	ImportParameterPredecessor *catalog.State // Parameter authority captured before Restore input.
-	Foreign           fdw.Registry
-	DatabaseFrozenXID uint64
-	VacuumProgress    map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
-	catalogCaptures   catalogCaptureCache          // Engine.mu; latest shared pg_type/pg_proc rows.
-	Statements        Statements                   // Family dispatch; set by the composition, shared by every target.
-	Factory           EngineFactory                // Composed constructor; set by the composition, shared by every target.
+	Foreign                    fdw.Registry
+	DatabaseFrozenXID          uint64
+	VacuumProgress             map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
+	catalogCaptures            catalogCaptureCache          // Engine.mu; latest shared pg_type/pg_proc rows.
+	Statements                 Statements                   // Family dispatch; set by the composition, shared by every target.
+	Factory                    EngineFactory                // Composed constructor; set by the composition, shared by every target.
 }
 
 // EngineFactory builds a fresh composed engine, as NewWithSettings does: the
@@ -266,7 +266,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.AlterSystem:
+	case *parser.AlterSystem, *parser.SetConstraints:
 		return Description{}, nil
 	case *parser.Explain:
 		return e.describeExplain(scope, s)

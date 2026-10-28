@@ -337,8 +337,8 @@ func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
 			t.Catalog = catalog
 			t.NotificationActions = notificationActions
 			t.NotificationEvents = notificationEvents
-			if s.IndexesOrZero().ExclusionStarted {
-				ownerExtensionOf(t).exclusionModes = s.IndexesOrZero().ExclusionModes
+			if s.IndexesOrZero().ConstraintsStarted {
+				ownerExtensionOf(t).constraintModes = s.IndexesOrZero().ConstraintModes
 			}
 			e.reconcileSerializableWritesLocked(t)
 		}

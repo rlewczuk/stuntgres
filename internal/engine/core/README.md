@@ -846,13 +846,13 @@ Accepted write events retain their actual predecessor/successor and command toke
 `sql_command_effects.go` completes only the active nested SQL command's pending
 constraint obligations and causal referential actions; probes still see the full
 private view. Root completion drains its remaining events without replaying actions.
-Only relations with incoming/outgoing FK or exclusion obligations retain accepted
+Only relations with incoming/outgoing FK, exclusion or deferrable-unique obligations retain accepted
 transitions. Row-at-a-time writers reuse relevance captured by each existing
 physical write binding, including routed insertion groups; alternating destinations
 do not repeat catalog discovery. Reuse requires the exact reference, parent and
 immutable catalog root. Other lanes retain an allocation-free command value.
 Unrelated DML does not allocate the effect queue. NOT VALID FKs still enforce new
-writes, and exclusion-only transitions retain bounded command/version ownership.
+writes, and index-only transitions retain bounded command/version ownership.
 Neither command completion nor protected rollback publishes rows, rotates snapshots,
 rewinds identities or owns `Finish`. DO uses that same root publication path.
 Nested utility completion flags are lexical scratch, saved and restored separately
@@ -862,6 +862,44 @@ Queues with no referential work advance bookkeeping without adding a cancellatio
 phase ahead of the root's final publication fence. Procedural diagnostic provenance
 uses the actual planner-to-executor handoff, not whether eager execution returned
 an error before exposing rows.
+
+Constraint timing has one transaction-owned `index.ConstraintModes`: persistent
+defaults are resolved separately from ALL and OID-keyed overrides, with one
+immutable event vector for index conflicts and FK trigger checks. Index events
+retain exact admitted row/version identities only after a potential conflict;
+FK events retain eligible accepted row images, original references, timing and
+actor even when currently valid. Their payloads contain no suspended command,
+bound job or execution frame. Savepoints retain modes/events and the incumbent
+dirty index projection together; append detaches the saved vector once.
+Batch INSERT, row-at-a-time insertion and replacements all stage the physical
+identity reserved by that same projection. Definitions requiring a reservation
+must supply it; allocating a second identity would orphan the pending event and
+make later deletion or replacement unable to retire its exact incarnation.
+Command completion checks due indexes, executes immediate RI actions, checks
+action-generated indexes, then enlists/checks due FK work before AFTER bodies.
+Nested completion consumes only its accepted command's events.
+SET checks selected pending work before installing candidate modes. Top-level
+and nested utility dispatch share the same executor; description is effect-free.
+Actual routine activation retains timing even in an implicit CALL/DO transaction,
+without an outside-block warning. Ordinary nested return preserves modes/events.
+SQL/Go COMMIT, CHAIN, PL completion and PREPARE consume the same obligations
+before publication or transfer; failure clears the old incarnation and grants.
+Procedural COMMIT/ROLLBACK, including CHAIN, drops the old scope index slot after
+releasing its scratch, so reattachment uses fresh definition defaults rather
+than copying old overrides or events into the new transaction incarnation.
+`HasPendingConstraintEvents` reads the effective scope-or-owner vector without
+allocation, locks, liveness probes or consumption. Every queued index/FK event
+protects only its transition relation (`Parent`), even after row repair or
+supersession, until ordinary completion consumes it. Uncontested index admission
+and FK-ineligible transitions do not manufacture events. Common ALTER and recursive
+default admission use this read-only query before candidate work; rename/schema
+dispatch stays separate.
+Stable FK crosschecks use supporting-root pointers captured with the original
+owner snapshot. A retained parent match after a current miss is the
+isolation-specific serialization error, not permission to publish a dangling
+reference. Provider comparisons and transaction waits run outside engine,
+owner and session locks and replacement reservations.
+
 PL lexical expressions use the existing closed-immutable folding policy before
 that handoff; PL-local, parameter, row, domain and volatile demand barriers remain.
 

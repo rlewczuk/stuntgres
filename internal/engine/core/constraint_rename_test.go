@@ -277,13 +277,13 @@ func TestConstraintRenameDeferredIdentity(t *testing.T) {
 	sessionSQL(t, s, "SET CONSTRAINTS old DEFERRED")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, s, "SAVEPOINT saved")
-	modes := core.OwnerExtensionExclusionModes(core.OwnerExtensionOrZero(s.Transactions))
+	modes := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
-	if !core.OwnerExtensionExclusionModes(core.OwnerExtensionOrZero(s.Transactions)).ByConstraint[oid] || len(core.OwnerExtensionExclusionModes(core.OwnerExtensionOrZero(s.Transactions)).Events) != 1 || core.OwnerExtensionExclusionModes(core.OwnerExtensionOrZero(s.Transactions)).Events[0].Constraint != oid {
+	if !core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).ByConstraint[oid] || len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).Events) != 1 || core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).Events[0].Constraint != oid {
 		t.Fatal("rename reset selected mode/event")
 	}
 	sessionSQL(t, s, "ROLLBACK TO saved")
-	if !reflect.DeepEqual(core.OwnerExtensionExclusionModes(core.OwnerExtensionOrZero(s.Transactions)), modes) {
+	if !reflect.DeepEqual(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)), modes) {
 		t.Fatal("rollback lost deferred obligation")
 	}
 	sessionSQL(t, s, "ROLLBACK")

@@ -51,7 +51,7 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			text, _ := e.CatalogRead().LookupType(sqltype.Text)
 			outerValue := sqltype.String(text, "outer")
 			core.SetScopeForeignActionsSlot(s, &dml.ForeignActionScope{Admissions: map[ids.ObjectAddress]*dml.ForeignActionAdmission{a: {Jobs: []dml.ForeignKeyJob{{ChildKey: []sqltype.Value{outerValue}}}}}, Transitions: []dml.ForeignActionTransition{{Relation: a, Next: rows[0], Command: 1}}})
-			core.SetScopeIndexesSlot(s, &index.Scope{ExistingOutputs: map[ids.ObjectAddress]map[index.RowIdentity]storage.IndexOutput{a: {{Row: 1, Version: 1}: {}}}, ExclusionModes: index.ExclusionModes{ByConstraint: map[ids.OID]bool{1: false}, Events: []index.ExclusionEvent{{Row: 1, Version: 1}}}})
+			core.SetScopeIndexesSlot(s, &index.Scope{ExistingOutputs: map[ids.ObjectAddress]map[index.RowIdentity]storage.IndexOutput{a: {{Row: 1, Version: 1}: {}}}, ConstraintModes: index.ConstraintModes{ByConstraint: map[ids.OID]bool{1: false}, Events: []index.ConstraintEvent{{Row: 1, Version: 1}}}})
 			core.SetScopeNotificationEvents(s, []session.Notification{{}})
 			s.Op.Session.Settings.Values["application_name"] = "outer"
 			ref, command, frontier := s.TxRef, s.Owner.Command, e.Visibility.CommitSeq()
@@ -72,8 +72,8 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			core.ScopeForeignActionsSlot(s).Transitions = append(core.ScopeForeignActionsSlot(s).Transitions, dml.ForeignActionTransition{Command: 2})
 			core.ScopeForeignActionsSlot(s).ExclusionAdded = true
 			core.ScopeIndexesSlot(s).ExistingOutputs[a][index.RowIdentity{Row: 2, Version: 2}] = storage.IndexOutput{}
-			core.ScopeIndexesSlot(s).ExclusionModes.ByConstraint[1] = true
-			core.ScopeIndexesSlot(s).ExclusionModes.Events = append(core.ScopeIndexesSlot(s).ExclusionModes.Events, index.ExclusionEvent{Row: 2})
+			core.ScopeIndexesSlot(s).ConstraintModes.ByConstraint[1] = true
+			core.ScopeIndexesSlot(s).ConstraintModes.Events = append(core.ScopeIndexesSlot(s).ConstraintModes.Events, index.ConstraintEvent{Row: 2})
 			core.SetScopeMultiEvents(s, append(core.ScopeMultiEvents(s), lock.MultiEvent{}))
 			core.SetScopeNotificationEvents(s, append(core.ScopeNotificationEvents(s), session.Notification{}))
 			s.Op.Session.Settings.Values["application_name"] = "inner"
@@ -103,7 +103,7 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			if core.ScopeForeignActionsSlot(s).Admissions[a].Mutated || len(core.ScopeForeignActionsSlot(s).Transitions) != 1 || core.ScopeForeignActionsSlot(s).Transitions[0].Checked || !sqltype.SameDatum(core.ScopeForeignActionsSlot(s).Admissions[a].Jobs[0].ChildKey[0], outerValue) || core.ScopeForeignActionsSlot(s).ExclusionAdded {
 				t.Fatal("mutable FK roots/progress not restored")
 			}
-			if len(core.ScopeIndexesSlot(s).ExistingOutputs[a]) != 1 || core.ScopeIndexesSlot(s).ExclusionModes.ByConstraint[1] || len(core.ScopeIndexesSlot(s).ExclusionModes.Events) != 1 || len(core.ScopeMultiEvents(s)) != 0 || len(core.ScopeNotificationEvents(s)) != 1 {
+			if len(core.ScopeIndexesSlot(s).ExistingOutputs[a]) != 1 || core.ScopeIndexesSlot(s).ConstraintModes.ByConstraint[1] || len(core.ScopeIndexesSlot(s).ConstraintModes.Events) != 1 || len(core.ScopeMultiEvents(s)) != 0 || len(core.ScopeNotificationEvents(s)) != 1 {
 				t.Fatal("index/exclusion/notification suffix leaked")
 			}
 			if s.Op.Session.Settings.Values["application_name"] != "outer" || len(s.OwnWrites[a]) != 1 || len(s.OwnDeletes[a].Rows) != 1 {

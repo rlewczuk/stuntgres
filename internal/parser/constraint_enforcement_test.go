@@ -86,7 +86,7 @@ func TestConstraintEnforcementPropertySyntax(t *testing.T) {
 				t.Fatal("later primary absorbed orphan", column)
 			}
 		}
-		for _, property := range []string{"NOT DEFERRABLE", "INITIALLY IMMEDIATE", "NOT DEFERRABLE INITIALLY IMMEDIATE"} {
+		for _, property := range []string{"NOT DEFERRABLE", "INITIALLY IMMEDIATE", "NOT DEFERRABLE INITIALLY IMMEDIATE", "DEFERRABLE", "INITIALLY DEFERRED", "DEFERRABLE INITIALLY DEFERRED"} {
 			for _, properties := range []string{attribute + " " + property, property + " " + attribute} {
 				for _, q := range []string{
 					"CREATE TABLE t(a INT REFERENCES p " + properties + ")",
@@ -101,12 +101,10 @@ func TestConstraintEnforcementPropertySyntax(t *testing.T) {
 		}
 	}
 	for _, q := range []string{
-		"CREATE TABLE t(a INT REFERENCES p ENFORCED DEFERRABLE)",
-		"ALTER TABLE t ADD FOREIGN KEY(a) REFERENCES p NOT ENFORCED INITIALLY DEFERRED",
 		"CREATE TABLE t(a INT REFERENCES p ENFORCED INITIALLY \"immediate\")",
 	} {
 		if statements, err := Parse(q); err == nil || statements != nil {
-			t.Fatal("expanded deferred/quoted-property boundary", q, statements, err)
+			t.Fatal("expanded quoted-property boundary", q, statements, err)
 		}
 	}
 }

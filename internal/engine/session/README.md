@@ -100,6 +100,11 @@ nontransactional.
   which serializable write evidence survives.
   Stable isolation retains immutable tuple roots, the commit frontier, sequence
   catalog and public transaction snapshot as one acquisition on this owner.
+  Supporting unique index roots retain only immutable descriptor/root pointers
+  alongside that original tuple frontier. FK crosschecks probe these originals
+  to detect snapshot/current disagreement; current roots remain integrity
+  authority. Later-created indexes never enter an existing snapshot, and live
+  index publication, savepoint copies and row projections never mutate its map.
   Snapshot-requiring analysis inside the transaction can establish that pair;
   preparing before BEGIN cannot retain it into the later transaction. RC analysis
   does not retain execution authority. Command-local pairs belong to

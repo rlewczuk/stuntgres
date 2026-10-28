@@ -9,11 +9,11 @@ import (
 )
 
 func (s *StatementScope) BeginExclusionProjectionLocked(e *Engine) {
-	if s.IndexesOrZero().ExclusionStarted {
+	if s.IndexesOrZero().ConstraintsStarted {
 		return
 	}
-	s.indexes().ExclusionStarted = true
-	s.indexes().ExclusionModes = ownerExtensionOrZero(s.Owner).exclusionModes
+	s.indexes().ConstraintsStarted = true
+	s.indexes().ConstraintModes = ownerExtensionOrZero(s.Owner).constraintModes
 }
 func (s *StatementScope) InstallExclusionProjectionLocked(e *Engine, p *index.ExclusionProjection) {
 	e.Exclusions.InstallLocked(s.LockTicket, p)
@@ -42,11 +42,11 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *index.Wri
 }
 func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate visibility.DeleteCandidate) {
 	parent, ok := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(candidate.Ref.Address)
-	if !ok || len(parent.Constraints.Exclusion) == 0 {
+	if !ok || !index.ConstraintProjectionRequired(parent) {
 		return
 	}
 	s.BeginExclusionProjectionLocked(e)
 	p := e.Exclusions.ProjectionLocked(s.LockTicket)
-	p.EndRow(candidate.Ref.Address, parent.Constraints.Exclusion, candidate.Row, candidate.Version)
+	p.EndRow(candidate.Ref.Address, candidate.Row, candidate.Version)
 	s.InstallExclusionProjectionLocked(e, p)
 }

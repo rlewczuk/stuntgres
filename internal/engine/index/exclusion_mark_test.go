@@ -8,7 +8,7 @@ import (
 )
 
 func TestExclusionMarkNilWhenZero(t *testing.T) {
-	if s := ExclusionMarkSlotOf(ExclusionModes{}, nil); s != nil {
+	if s := ExclusionMarkSlotOf(ConstraintModes{}, nil); s != nil {
 		t.Fatalf("zero exclusion state stored slot %v", s)
 	}
 	if got := ExclusionMarkOrZero(nil); !got.Modes.Zero() || got.Projection != nil {
@@ -20,12 +20,12 @@ func TestExclusionMarkRestoresCapturedState(t *testing.T) {
 	byConstraint := map[ids.OID]bool{7: true}
 	projection := &ExclusionProjection{}
 	cases := map[string]struct {
-		modes      ExclusionModes
+		modes      ConstraintModes
 		projection *ExclusionProjection
 	}{
-		"flags":            {modes: ExclusionModes{AllSet: true, AllDeferred: true}},
-		"constraint modes": {modes: ExclusionModes{ByConstraint: byConstraint}},
-		"empty events":     {modes: ExclusionModes{Events: []ExclusionEvent{}}},
+		"flags":            {modes: ConstraintModes{AllSet: true, AllDeferred: true}},
+		"constraint modes": {modes: ConstraintModes{ByConstraint: byConstraint}},
+		"empty events":     {modes: ConstraintModes{Events: []ConstraintEvent{}}},
 		"projection only":  {projection: projection},
 	}
 	for name, c := range cases {
@@ -41,7 +41,7 @@ func TestExclusionMarkRestoresCapturedState(t *testing.T) {
 			t.Fatalf("%s: restored events nil-ness differs", name)
 		}
 	}
-	if got := ExclusionMarkOrZero(ExclusionMarkSlotOf(ExclusionModes{ByConstraint: byConstraint}, nil)); reflect.ValueOf(got.Modes.ByConstraint).Pointer() != reflect.ValueOf(byConstraint).Pointer() {
+	if got := ExclusionMarkOrZero(ExclusionMarkSlotOf(ConstraintModes{ByConstraint: byConstraint}, nil)); reflect.ValueOf(got.Modes.ByConstraint).Pointer() != reflect.ValueOf(byConstraint).Pointer() {
 		t.Fatal("restored constraint modes are not the captured map")
 	}
 }

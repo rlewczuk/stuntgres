@@ -107,6 +107,10 @@ func PartitionIndexAttachCheck(ctx context.Context, view catalog.Read, parent, c
 				}
 			}
 		}
+		source, target := UniqueDefinition(table, parent), UniqueDefinition(childTable, child)
+		if source == nil || target == nil || source.Deferrable != target.Deferrable || source.InitiallyDeferred != target.InitiallyDeferred {
+			return diagnostic("42P17", "The index definitions do not match.")
+		}
 	}
 	return nil
 }
@@ -176,7 +180,8 @@ func ValidatePartitionIndex(view catalog.Read, index, table *catalog.Relation) e
 		found := false
 		for _, c := range table.Constraints.Unique {
 			if c.Index == index.Address() && c.Parent == expected && c.IsLocal == (expected == 0) {
-				found = true
+				source := UniqueDefinition(parentTable, parent)
+				found = expected == 0 || source != nil && c.Deferrable == source.Deferrable && c.InitiallyDeferred == source.InitiallyDeferred
 			}
 		}
 		for _, c := range table.Constraints.Exclusion {

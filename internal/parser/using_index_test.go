@@ -13,7 +13,7 @@ import (
 func TestUsingIndexParserAttachments(t *testing.T) {
 	for _, kind := range []string{"UNIQUE", "PRIMARY KEY"} {
 		for _, named := range []bool{false, true} {
-			for _, tail := range []string{"", " NOT DEFERRABLE", " INITIALLY IMMEDIATE", " NOT DEFERRABLE INITIALLY IMMEDIATE", " INITIALLY IMMEDIATE NOT DEFERRABLE", " NOT DEFERRABLE NOT DEFERRABLE", " INITIALLY IMMEDIATE INITIALLY IMMEDIATE"} {
+			for _, tail := range []string{"", " NOT DEFERRABLE", " INITIALLY IMMEDIATE", " NOT DEFERRABLE INITIALLY IMMEDIATE", " INITIALLY IMMEDIATE NOT DEFERRABLE", " NOT DEFERRABLE NOT DEFERRABLE", " INITIALLY IMMEDIATE INITIALLY IMMEDIATE", " DEFERRABLE", " INITIALLY DEFERRED", " DEFERRABLE INITIALLY DEFERRED"} {
 				declaration := kind
 				name := ""
 				start := kind
@@ -40,8 +40,10 @@ func TestUsingIndexParserAttachments(t *testing.T) {
 				if action.Pos.Character != position("ADD") || attachment.Pos.Character != position(start) || attachment.KindPos.Character != position(kind) || attachment.Index.Pos.Character != position(`"pre built"`) {
 					t.Fatal("lost source positions", q, action, attachment)
 				}
-				if attachment.deferrable || attachment.initiallyDeferred {
-					t.Fatal("immediate normalization lost", attachment)
+				wantDeferred := strings.Contains(tail, "INITIALLY DEFERRED")
+				wantDeferrable := wantDeferred || strings.Contains(tail, "DEFERRABLE") && !strings.Contains(tail, "NOT DEFERRABLE")
+				if attachment.Deferrable != wantDeferrable || attachment.InitiallyDeferred != wantDeferred {
+					t.Fatal("timing normalization lost", attachment)
 				}
 			}
 		}
@@ -60,10 +62,6 @@ func TestUsingIndexParserWholeInput(t *testing.T) {
 	for _, kind := range []string{"UNIQUE", "PRIMARY KEY"} {
 		prefix := "ALTER TABLE 界 ADD CONSTRAINT chosen " + kind + " USING INDEX idx "
 		for _, tc := range []struct{ tail, code, message, token string }{
-			{"DEFERRABLE", "0A000", kind + " deferrability is unsupported", "DEFERRABLE"},
-			{"DEFERRABLE INITIALLY IMMEDIATE", "0A000", kind + " deferrability is unsupported", "DEFERRABLE"},
-			{"INITIALLY DEFERRED", "0A000", kind + " deferrability is unsupported", "INITIALLY"},
-			{"DEFERRABLE INITIALLY DEFERRED", "0A000", kind + " deferrability is unsupported", "DEFERRABLE"},
 			{"NOT DEFERRABLE DEFERRABLE", "42601", "conflicting constraint properties", "DEFERRABLE"},
 			{"DEFERRABLE NOT DEFERRABLE", "42601", "conflicting constraint properties", "NOT DEFERRABLE"},
 			{"INITIALLY IMMEDIATE INITIALLY DEFERRED", "42601", "conflicting constraint properties", "INITIALLY DEFERRED"},

@@ -169,7 +169,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	var err error
 	committed := false
 	if commit && t.State != session.TxAborted {
-		if len(ownerExtensionOrZero(t).exclusionModes.Events) != 0 || PayloadOf(op.Session).Cursors.hasCurrentHold(ref) {
+		if len(ownerExtensionOrZero(t).constraintModes.Events) != 0 || PayloadOf(op.Session).Cursors.hasCurrentHold(ref) {
 			if scope == nil {
 				scope = newStatementScope(op, t, op.StatementStart())
 			}
@@ -183,7 +183,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		err = e.holdPrecommit(op, t, nextStart, scope)
 		if err == nil {
 			if scope != nil {
-				err = e.checkTransactionExclusions(scope)
+				err = e.checkTransactionConstraints(scope)
 			}
 		}
 		if scope != nil && ownerHasForeign(t) {

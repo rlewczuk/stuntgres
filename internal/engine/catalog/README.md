@@ -104,6 +104,10 @@ private frames, not catalog authority.
   `ForeignKeyTriggerFacts` derives actual owners, not disabled synthetic slots.
   Definition reservation and remapping preserve surviving identities/modes;
   genuine re-enabling allocates fresh O-mode identities.
+  UNIQUE/PK and FK timing defaults are immutable `Deferrable` and
+  `InitiallyDeferred` definition facts; deferred implies deferrable. Copies,
+  provider equality and remapping preserve them independently of transaction
+  timing overrides and trigger enable modes.
 - **Extended statistics.** `StatisticsProvider` validates schema-bound class
   3381 definitions, live owner and domain/epoch-bound input relation authority.
   `StatisticsSelection` owns fixed canonical positive simple keys, expression

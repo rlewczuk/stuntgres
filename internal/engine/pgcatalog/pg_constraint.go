@@ -147,6 +147,8 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 			if err != nil {
 				return nil, err
 			}
+			builder.boolean(row, 4, c.Deferrable)
+			builder.boolean(row, 5, c.InitiallyDeferred)
 			builder.oid(row, 10, c.Index.ObjectID)
 			builder.oid(row, 11, c.Parent)
 			builder.boolean(row, 16, c.IsLocal)
@@ -161,6 +163,8 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 			if err != nil {
 				return nil, err
 			}
+			builder.boolean(row, 4, c.Deferrable)
+			builder.boolean(row, 5, c.InitiallyDeferred)
 			builder.boolean(row, 6, !c.NotEnforced)
 			builder.boolean(row, 7, !c.NotValid)
 			builder.boolean(row, 18, true)

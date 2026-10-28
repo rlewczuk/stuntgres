@@ -18,7 +18,8 @@ standard library. It never imports the root engine. Layering is in
 - **Snapshot data:** `View`, the handle a statement reads through, and
   `Data`, its immutable payload: the frontier, the catalog read, captured
   storage `Generation`s, end roots, own writes and the private deletion
-  overlay. `Root` retains one relation's immutable version/end headers.
+  overlay. `Root` retains one relation's immutable version/end headers and
+  original supporting unique index descriptor/root pointers for stable FK checks.
 - **The ordinary heap operation authority:** zero-state concrete
   `HeapOperations` owns the single `LiveVersion` implementation over real
   `storage.RowVersion`, frontier, end roots and `PrivateDeletes` overlays.
@@ -88,6 +89,10 @@ standard library. It never imports the root engine. Layering is in
 - **Snapshots and retention.** Repeatable read and serializable acquire every
   immutable relation root and end root (`Root`), the tuple frontier and the public
   full-XID value together, including snapshot-requiring transaction analysis.
+  Supporting unique roots are captured at that same frontier, never reconstructed
+  from later definitions. Current roots decide RI integrity; an original match
+  after a current miss identifies isolation-specific serialization. The map and
+  its roots are immutable and are not added to unrelated RC/dynamic captures.
   Ordinary RC execution acquires its pair after relation admission. Admitted
   physical mutation targets retain their committed version/end roots in that
   same engine-lock window: one target is inline, and only additional distinct

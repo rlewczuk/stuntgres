@@ -69,7 +69,9 @@ func ResolveAlterForeignKeys(child *catalog.Relation, scheduled []AlterForeignKe
 			checks = make([]ForeignKeyCheck, len(prefix), len(prefix)+len(scheduled))
 			copy(checks, prefix)
 		}
-		// The admitted scan obligation survives final NOT ENFORCED metadata.
+		// The admitted scan obligation survives final NOT ENFORCED metadata
+		// and same-identity timing alterations. Timing defaults do not change
+		// the historical row predicate or postpone this DDL validation.
 		// Definition links were checked above; execution uses captured flags.
 		key = selected.ForeignKeyConstraint
 		checks = append(checks, ForeignKeyCheck{Child: child, Key: key})

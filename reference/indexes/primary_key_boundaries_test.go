@@ -8,9 +8,9 @@ import (
 
 func TestReferencePrimaryKeyBoundaries(t *testing.T) {
 	for _, c := range []struct{ name, setup, query, message, token, key, insert string }{
-		{"deferrable", "", "CREATE TABLE t(a INT PRIMARY KEY DEFERRABLE INITIALLY DEFERRED)", "PRIMARY KEY deferrability is unsupported", "DEFERRABLE", "t_pkey", "INSERT INTO t VALUES(1)"},
-		{"not_deferrable", "", "CREATE TABLE t(a INT PRIMARY KEY NOT DEFERRABLE)", "PRIMARY KEY deferrability is unsupported", "NOT DEFERRABLE", "t_pkey", "INSERT INTO t VALUES(1)"},
-		{"initially", "", "CREATE TABLE t(a INT PRIMARY KEY INITIALLY IMMEDIATE)", "PRIMARY KEY deferrability is unsupported", "INITIALLY", "t_pkey", "INSERT INTO t VALUES(1)"},
+		{"deferrable", "", "CREATE TABLE t(a INT PRIMARY KEY DEFERRABLE INITIALLY DEFERRED)", "", "", "t_pkey", "INSERT INTO t VALUES(1)"},
+		{"not_deferrable", "", "CREATE TABLE t(a INT PRIMARY KEY NOT DEFERRABLE)", "", "", "t_pkey", "INSERT INTO t VALUES(1)"},
+		{"initially", "", "CREATE TABLE t(a INT PRIMARY KEY INITIALLY IMMEDIATE)", "", "", "t_pkey", "INSERT INTO t VALUES(1)"},
 		{"alter_add", "CREATE TABLE t(a INT)", "ALTER TABLE t ADD CONSTRAINT pk PRIMARY KEY(a)", "ALTER TABLE action is unsupported", "ADD", "pk", "INSERT INTO t VALUES(1)"},
 		{"add_column", "CREATE TABLE t(a INT)", "ALTER TABLE t ADD COLUMN b INT PRIMARY KEY", "ALTER TABLE action is unsupported", "ADD", "t_pkey", "INSERT INTO t VALUES(1,1)"},
 		{"add_column_if_not_exists", "CREATE TABLE t(a INT)", "ALTER TABLE t ADD COLUMN IF NOT EXISTS b INT PRIMARY KEY", "ALTER TABLE action is unsupported", "ADD", "t_pkey", "INSERT INTO t VALUES(1,1)"},
@@ -30,9 +30,10 @@ func TestReferencePrimaryKeyBoundaries(t *testing.T) {
 						run(fixture.Exec(q, 0))
 					}
 				}
-				if b.PG || c.name == "alter_add" {
+				if b.PG || c.message == "" || c.name == "alter_add" {
 					run(fixture.Prepared(fixture.Exec(c.query, 0)))
 					run(fixture.Select("SELECT contype FROM pg_constraint WHERE conname=$1", []string{"contype"}, []string{"CHAR"}, [][]any{{"p"}}, c.key))
+					run(fixture.Select("SELECT condeferrable,condeferred FROM pg_constraint WHERE conname=$1", []string{"condeferrable", "condeferred"}, []string{"BOOL", "BOOL"}, [][]any{{c.name == "deferrable", c.name == "deferrable"}}, c.key))
 					run(fixture.Exec(c.insert, 1))
 					run(fixture.Select("SELECT count(*) AS n FROM t", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))
 					run(fixture.Exec("DROP TABLE t", 0))

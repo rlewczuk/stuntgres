@@ -90,6 +90,12 @@ call live here.
   identity and returning transition-time historical work. Already-enforced
   invalid facts remain invalid on an ENFORCED no-op; VALIDATE rejects unenforced
   facts. CHECK enforcement changes use ordinary atomic DROP/ADD replacement.
+  `AlterConstraintTimingCandidate` changes only persistent FK timing defaults,
+  retaining constraint/trigger OIDs, trigger modes, enforcement and validity.
+  No-ops retain the predecessor; changed candidates detach only the FK slice.
+  Timing is root-only MISC work, independent of enforcement and transaction-local
+  mode overrides. Historical ADD/enable validation is not deferred by changing
+  those defaults.
   Every admitted ADD, VALIDATE and genuine-enable scan retains its captured
   historical obligation. Final false/invalid metadata is accepted only with an
   actual later disable of that exact queued identity; never-admitted invalid
@@ -234,6 +240,9 @@ call live here.
   Restore (`RestoredForeignKeys`). A `ForeignKeyScan` carries a
   `ForeignKeyRowsCapture` callback that takes `Engine.Mu`, so callers hold
   nothing.
+  Supporting UNIQUE/PK constraints must be nondeferrable; eligible standalone
+  unique indexes remain valid targets. Implicit primary-key selection and explicit
+  target/provider validation retain their distinct PostgreSQL 55000 diagnostics.
   `ResolveAlterForeignKeys` resolves scheduled stable definitions in execution
   order, preserving an independently required changed-value prefix and deduping
   each child/OID at its first position. Authentic final names, keys, supporting

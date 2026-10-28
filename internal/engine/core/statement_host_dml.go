@@ -49,7 +49,12 @@ func (h *statementHost) ForeignActions(allocate bool) *dml.ForeignActionScope {
 
 func (h *statementHost) IndexScope(allocate bool) *index.Scope {
 	if allocate {
-		return h.scope().indexes()
+		s := h.scope()
+		if !s.IndexesOrZero().ConstraintsStarted {
+			s.indexes().ConstraintModes = ownerExtensionOrZero(s.Owner).constraintModes
+			s.indexes().ConstraintsStarted = true
+		}
+		return s.indexes()
 	}
 	return h.indexesSlot
 }

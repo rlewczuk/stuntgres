@@ -60,11 +60,6 @@ func TestReferenceInsertConflictProviderBoundaries(t *testing.T) {
 				insertConflictScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 					q := "CREATE TABLE t(k INT CONSTRAINT u UNIQUE " + mode + ")"
 					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
-					if !b.PG {
-						run(fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "UNIQUE deferrability is unsupported", Position: fixture.Position(strings.Index(q, "DEFERRABLE") + 1)}))
-						run(fixture.Select("SELECT relname FROM pg_class WHERE relname='t'", []string{"relname"}, []string{"NAME"}, nil))
-						return
-					}
 					run(fixture.Exec(q, 0))
 					d := fixture.ControlsReferenceDiagnostic("55000", "ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters")
 					d.Schema, d.Table, d.Constraint = "public", "t", "u"

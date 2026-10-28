@@ -34,6 +34,9 @@ func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 		return fail(err)
 	}
 	old := scope.LockedDescriptor.(*catalog.Relation)
+	if scope.HasPendingConstraintEvents(old.Address()) {
+		return fail(core.SQLError("55006", fmt.Sprintf(`cannot ALTER TABLE "%s" because it has pending trigger events`, old.Name())))
+	}
 	if catalog.HierarchyRelation(old) && !core.PartitionDefaultReplayAllowed(e, op, auth, s) {
 		return fail(core.SQLError("0A000", "altering partition hierarchies is unsupported"))
 	}

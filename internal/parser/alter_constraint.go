@@ -6,7 +6,7 @@ func (l *lexer) alterConstraintValidity(a *AlterTableAction, not, modifier lexem
 	if modifier.text == "enforced" {
 		return l.alterEnforcement(a, not, true)
 	}
-	if a.Action == AlterConstraintEnforcement {
+	if a.Action == AlterConstraintEnforcement || a.Action == AlterConstraintTiming {
 		l.deferUnsupported(not, "constraints cannot be altered to be NOT VALID")
 		return true
 	}

@@ -48,6 +48,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := scope.executionContext()
 	switch stmt.(type) {
+	case *parser.SetConstraints:
+		return scope.executeSetConstraints(stmt.(*parser.SetConstraints), count)
 	case *parser.Explain:
 		return e.executeExplain(scope, stmt.(*parser.Explain), count, importFrame)
 	case *parser.LockTable:

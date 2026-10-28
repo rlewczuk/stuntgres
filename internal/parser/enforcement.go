@@ -52,7 +52,7 @@ func (l *lexer) elementEnforcement(e *TableElement, token lexeme, negative bool)
 }
 
 func (l *lexer) alterEnforcement(a *AlterTableAction, token lexeme, negative bool) bool {
-	if a.Action == AlterConstraintEnforcement {
+	if a.Action == AlterConstraintEnforcement || a.Action == AlterConstraintTiming {
 		return l.enforcementProperty(&a.EnforcementSet, &a.NotEnforced, &a.EnforcementPos, token, negative)
 	}
 	e := TableElement{Check: a.Check, ForeignKey: a.ForeignKey, Unique: a.Unique, Exclusion: a.Exclusion}
@@ -90,44 +90,8 @@ func appendColumnConstraint(columns []ColumnConstraint, constraint ColumnConstra
 	if constraint.EnforcementSet && constraint.Pos.Offset == 0 {
 		return columnEnforcement(columns, lexeme{pos: constraint.EnforcementPos}, constraint.NotEnforced)
 	}
+	if constraint.Pos.Character == 0 && (constraint.DeferrabilitySet || constraint.InitiallySet) {
+		return columnTiming(columns, lexeme{pos: constraint.TimingPos}, constraint.DeferrabilitySet, constraint.Deferrable || constraint.InitiallyDeferred)
+	}
 	return append(columns, constraint)
-}
-
-// All declaration attachment paths share the existing nondeferred FK policy.
-// Enforcement does not terminate the repeated property list.
-func (l *lexer) foreignProperty(f *ForeignKeyConstraint, token, value lexeme) bool {
-	if f == nil {
-		l.syntax(token)
-		return false
-	}
-	switch token.text {
-	case "not":
-		return true // NOT_DEFERRABLE_LA DEFERRABLE
-	case "deferrable":
-		l.deferUnsupported(token, "foreign key deferrability is unsupported")
-	case "initially":
-		if value.keyword == nil || value.text != "immediate" && value.text != "deferred" {
-			l.syntax(value)
-			return false
-		}
-		if value.text == "deferred" {
-			l.deferUnsupported(value, "foreign key deferrability is unsupported")
-		}
-	}
-	return true
-}
-
-func (l *lexer) columnForeignProperty(columns []ColumnConstraint, token, value lexeme) bool {
-	if len(columns) == 0 {
-		l.syntax(token)
-		return false
-	}
-	return l.foreignProperty(columns[len(columns)-1].ForeignKey, token, value)
-}
-
-func (l *lexer) elementForeignProperty(element *TableElement, token, value lexeme) bool {
-	if element.Column != nil {
-		return l.columnForeignProperty(element.Column.Constraints, token, value)
-	}
-	return l.foreignProperty(element.ForeignKey, token, value)
 }

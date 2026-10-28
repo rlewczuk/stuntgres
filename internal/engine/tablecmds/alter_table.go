@@ -45,6 +45,9 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	if s.Materialized && old.RelationKind != catalog.MaterializedViewRelation {
 		return fail(core.SQLError("42809", fmt.Sprintf(`"%s" is not a materialized view`, old.Name())))
 	}
+	if scope.HasPendingConstraintEvents(old.Address()) {
+		return fail(core.SQLError("55006", fmt.Sprintf(`cannot ALTER TABLE "%s" because it has pending trigger events`, old.Name())))
+	}
 	if s.Only && scope.Inheritance.Alter == nil && !catalog.HierarchyRelation(old) {
 		s = table.OnlySetNotNull(auth.Catalog, old, s)
 	}
@@ -297,7 +300,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	hasAttachments := false
 	hasForeignKeys := len(foreignKeysOrZero(scope).AlterKeys) != 0
 	hasValidations := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool {
-		return a.Action == parser.ValidateConstraint || a.Action == parser.AlterConstraintEnforcement
+		return a.Action == parser.ValidateConstraint || a.Action == parser.AlterConstraintEnforcement || a.Action == parser.AlterConstraintTiming
 	})
 	hasRuleModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.RuleModeAction(a.Action) })
 	hasTriggerModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.TriggerModeAction(a.Action) })
@@ -640,7 +643,14 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			}
 			continue
 		}
-		if action.Action == parser.AlterConstraintEnforcement {
+		if action.Action == parser.AlterConstraintTiming && !action.EnforcementSet {
+			next, err = table.AlterConstraintTimingCandidate(next, action.Constraint.Text, action.Deferrable, action.InitiallyDeferred)
+			if err != nil {
+				return core.Result{}, err
+			}
+			continue
+		}
+		if action.Action == parser.AlterConstraintEnforcement || action.Action == parser.AlterConstraintTiming && action.EnforcementSet {
 			var scan *catalog.ForeignKeyConstraint
 			before := next
 			e.Mu.Lock()
@@ -663,6 +673,12 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 						}
 					}
 					break
+				}
+			}
+			if action.DeferrabilitySet || action.InitiallySet {
+				next, err = table.AlterConstraintTimingCandidate(next, action.Constraint.Text, action.Deferrable, action.InitiallyDeferred)
+				if err != nil {
+					return core.Result{}, err
 				}
 			}
 			continue

@@ -131,6 +131,11 @@ func StageLikeIndexes(h Host, auth ddl.Authority, destination *catalog.Relation,
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 			if old.Constraint != nil && old.Constraint.Kind == catalog.UniqueBackingKind {
 				c := catalog.UniqueConstraint{Name: name, IsLocal: true, Primary: old.Constraint.Primary, NullsNotDistinct: old.NullsNotDistinct, Index: address, Attributes: make([]int32, len(old.Keys))}
+				original := index.UniqueDefinition(in.Source, source)
+				if original == nil {
+					return fmt.Errorf("stuntgres: missing LIKE unique definition")
+				}
+				c.Deferrable, c.InitiallyDeferred = original.Deferrable, original.InitiallyDeferred
 				c.OID, err = h.AllocateOID()
 				if err != nil {
 					return err

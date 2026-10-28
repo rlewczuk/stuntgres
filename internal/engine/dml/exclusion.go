@@ -14,22 +14,22 @@ import (
 
 func publishExclusionCandidate(h Host, ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, precheck bool, purpose index.ProbePurpose) (storage.RowVersion, error) {
 	evaluation := bindingEvaluation(h, binding)
-	definition := index.ExclusionDefinition(binding.Parent, bound.Index)
-	if definition == nil {
+	_, deferrable, _, found := index.IndexConstraintTiming(binding.Parent, bound.Index)
+	if !found {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	member, keys, err := proposal.UniqueOutput(bound, &evaluation, precheck, purpose)
 	if err != nil {
 		return storage.RowVersion{}, err
 	}
-	member = member && !index.UniqueHasNull(keys)
+	member = member && (bound.Index.SQLIndex.NullsNotDistinct || !index.UniqueHasNull(keys))
 	if member && (purpose == index.ProbeRuntime && !bound.Index.SQLIndex.HasRuntimeDomainConversion() || bound.Index.SQLIndex.Method == catalog.HashMethod) {
 		keys = slices.Clone(keys)
 	}
 	if purpose == index.ProbeRevalidation && proposal.Exclusion == nil {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
-	row, err := h.PublishExclusion(ref, binding.Catalog, *proposal, index.ExclusionEdit{Index: definition.Index, Keys: keys, Member: member, Admitted: definition.Deferrable, Precheck: precheck, Excluded: excluded})
+	row, err := h.PublishExclusion(ref, binding.Catalog, *proposal, index.ExclusionEdit{Index: bound.Index.Address(), Keys: keys, Member: member, Admitted: deferrable, Precheck: precheck, Excluded: excluded})
 	if err != nil {
 		return storage.RowVersion{}, err
 	}
@@ -102,15 +102,15 @@ func probeExclusionRow(h Host, ref ids.ObjectRef, binding *index.UniqueWriteBind
 	if err != nil {
 		return UniqueConflict{}, err
 	}
-	c := index.ExclusionDefinition(binding.Parent, idx)
-	if c == nil {
+	oid, deferrable, _, found := index.IndexConstraintTiming(binding.Parent, idx)
+	if !found {
 		return UniqueConflict{}, ids.ErrCatalogReplaced
 	}
-	if action != nil && c.Deferrable {
+	if action != nil && deferrable {
 		schema := binding.Catalog.Get(binding.Parent.Namespace()).Name()
 		return UniqueConflict{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters", Schema: schema, Table: binding.Parent.Name(), Constraint: idx.Name()}
 	}
-	if !c.Deferrable {
+	if !deferrable {
 		// Existing exact-key grants serialize nondeferrable equal admissions.
 		keys := h.OwnExclusionKeys(idx.Address(), candidate.Version)
 		if keys == nil {
@@ -132,14 +132,14 @@ func probeExclusionRow(h Host, ref ids.ObjectRef, binding *index.UniqueWriteBind
 	if conflict.Index != nil {
 		return conflict, nil
 	}
-	if c.Deferrable && potential {
-		event := index.ExclusionEvent{Parent: ref, Index: ref.Domain().Ref(ref.Epoch, idx.Address()), Constraint: c.OID, Row: candidate.Row, Version: candidate.Version}
-		var events []index.ExclusionEvent
+	if deferrable && potential {
+		event := index.ConstraintEvent{Parent: ref, Index: ref.Domain().Ref(ref.Epoch, idx.Address()), Constraint: oid, Row: candidate.Row, Version: candidate.Version}
+		var events []index.ConstraintEvent
 		if scope := h.IndexScope(false); scope != nil {
-			events = scope.ExclusionModes.Events
+			events = scope.ConstraintModes.Events
 		}
 		if !slices.Contains(events, event) {
-			h.IndexScope(true).ExclusionModes.Events = append(slices.Clone(events), event)
+			h.IndexScope(true).AppendConstraintEvent(event)
 			if actions := h.ForeignActions(false); actions != nil && actions.Settling {
 				actions.ExclusionAdded = true
 			}

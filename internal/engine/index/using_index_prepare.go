@@ -114,7 +114,7 @@ func PrepareUsingIndex(a ddl.Allocator, reader catalog.DefinitionReader, parent,
 		prepared.Err = err
 		return prepared, nil
 	}
-	constraint := catalog.UniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.Attributes, Primary: captured.Syntax.Primary, NullsNotDistinct: idx.SQLIndex.NullsNotDistinct, Index: idx.Address()}
+	constraint := catalog.UniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.Attributes, Primary: captured.Syntax.Primary, NullsNotDistinct: idx.SQLIndex.NullsNotDistinct, Index: idx.Address(), Deferrable: captured.Syntax.Deferrable, InitiallyDeferred: captured.Syntax.InitiallyDeferred}
 	next := *parent
 	next.Constraints.Unique = make([]catalog.UniqueConstraint, len(parent.Constraints.Unique)+1)
 	copy(next.Constraints.Unique, parent.Constraints.Unique)

@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"stuntgres/reference/fixture"
@@ -72,64 +73,44 @@ func TestReferenceForeignKeyDefinitionTypes(t *testing.T) {
 func TestReferenceForeignKeyBoundariesModes(t *testing.T) {
 	for _, clause := range []string{"ON DELETE CASCADE", "ON UPDATE CASCADE", "ON DELETE RESTRICT", "ON DELETE SET NULL", "ON DELETE SET DEFAULT", "DEFERRABLE", "INITIALLY DEFERRED"} {
 		t.Run(clause, func(t *testing.T) {
-			foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
+			body := func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 				run(fixture.Exec("CREATE TABLE p(id INT PRIMARY KEY)", 0))
-				q := "CREATE TABLE c(pid INT DEFAULT 1 REFERENCES p " + clause + ")"
-				if b.PG || clause != "DEFERRABLE" && clause != "INITIALLY DEFERRED" {
-					run(fixture.Exec(q, 0))
-					run(fixture.Exec("INSERT INTO p VALUES(1),(2)", 2))
-					run(fixture.Exec("INSERT INTO c VALUES(2)", 1))
-					switch clause {
-					case "ON DELETE CASCADE":
-						run(fixture.Exec("DELETE FROM p WHERE id=2", 1))
-						run(foreignKeyIntRows("SELECT pid FROM c", "pid"))
-					case "ON UPDATE CASCADE":
-						run(fixture.Exec("UPDATE p SET id=3 WHERE id=2", 1))
-						run(foreignKeyIntRows("SELECT pid FROM c", "pid", 3))
-					case "ON DELETE SET NULL":
-						run(fixture.Exec("DELETE FROM p WHERE id=2", 1))
-						run(fixture.Select("SELECT pid FROM c", []string{"pid"}, []string{"INT4"}, [][]any{{nil}}))
-					case "ON DELETE SET DEFAULT":
-						run(fixture.Exec("DELETE FROM p WHERE id=2", 1))
-						run(foreignKeyIntRows("SELECT pid FROM c", "pid", 1))
-					case "ON DELETE RESTRICT":
-						d := foreignActionsRestrict("p", "c", "c_pid_fkey", `Key (id)=(2) is referenced from table "c".`)
-						run(fixture.ForeignKeyFail("DELETE FROM p WHERE id=2", d, false))
-						run(foreignKeyIntRows("SELECT pid FROM c", "pid", 2))
-					default:
-						tx, err := b.DB.BeginTx(p.Ctx, nil)
-						if err != nil {
-							t.Fatal(err)
-						}
-						defer tx.Rollback()
-						fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("SET CONSTRAINTS ALL DEFERRED", 0))
-						fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("INSERT INTO c VALUES(9)", 1))
-						fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("INSERT INTO p VALUES(9)", 1))
-						if err := tx.Commit(); err != nil {
-							t.Fatal(err)
-						}
-						run(foreignKeyIntRows("SELECT pid FROM c ORDER BY pid", "pid", 2, 9))
-					}
-					return
+				run(fixture.Exec("CREATE TABLE c(pid INT DEFAULT 1 REFERENCES p "+clause+")", 0))
+				run(fixture.Exec("INSERT INTO p VALUES(1),(2)", 2))
+				run(fixture.Exec("INSERT INTO c VALUES(2)", 1))
+				switch clause {
+				case "ON DELETE CASCADE":
+					run(fixture.Exec("DELETE FROM p WHERE id=2", 1))
+					run(foreignKeyIntRows("SELECT pid FROM c", "pid"))
+				case "ON UPDATE CASCADE":
+					run(fixture.Exec("UPDATE p SET id=3 WHERE id=2", 1))
+					run(foreignKeyIntRows("SELECT pid FROM c", "pid", 3))
+				case "ON DELETE SET NULL":
+					run(fixture.Exec("DELETE FROM p WHERE id=2", 1))
+					run(fixture.Select("SELECT pid FROM c", []string{"pid"}, []string{"INT4"}, [][]any{{nil}}))
+				case "ON DELETE SET DEFAULT":
+					run(fixture.Exec("DELETE FROM p WHERE id=2", 1))
+					run(foreignKeyIntRows("SELECT pid FROM c", "pid", 1))
+				case "ON DELETE RESTRICT":
+					d := foreignActionsRestrict("p", "c", "c_pid_fkey", `Key (id)=(2) is referenced from table "c".`)
+					run(fixture.ForeignKeyFail("DELETE FROM p WHERE id=2", d, false))
+					run(foreignKeyIntRows("SELECT pid FROM c", "pid", 2))
+				default:
+					run(fixture.Exec("BEGIN", 0))
+					run(fixture.Exec("SET CONSTRAINTS ALL DEFERRED", 0))
+					run(fixture.Prepared(fixture.Exec("INSERT INTO c VALUES(9)", 1)))
+					run(fixture.Exec("INSERT INTO p VALUES(9)", 1))
+					run(fixture.Exec("COMMIT", 0))
+					run(foreignKeyIntRows("SELECT pid FROM c ORDER BY pid", "pid", 2, 9))
 				}
-				message, token := "foreign key deferrability is unsupported", ""
-				if clause == "DEFERRABLE" {
-					message, token = "foreign key deferrability is unsupported", "DEFERRABLE"
-				} else if clause == "INITIALLY DEFERRED" {
-					message, token = "foreign key deferrability is unsupported", "DEFERRED"
-				}
-				d := fixture.ForeignKeyError("0A000", message, "", "", "")
-				d.Position = fixture.Position(strings.Index(q, token) + 1)
-				for _, prepared := range []bool{false, true} {
-					s := fixture.ErrorDiagnostic(q, d)
-					s.Prepared = prepared
-					if prepared {
-						s.ErrorStage = "prepare"
-					}
-					run(s)
-				}
-				run(fixture.Select("SELECT relname FROM pg_class WHERE relname='c'", []string{"relname"}, []string{"NAME"}, nil))
-			})
+			}
+			if clause == "DEFERRABLE" || clause == "INITIALLY DEFERRED" {
+				fixture.DeferredConstraintScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step)) {
+					body(t, p, b, run)
+				})
+			} else {
+				foreignKeyScenario(t, body)
+			}
 		})
 	}
 }

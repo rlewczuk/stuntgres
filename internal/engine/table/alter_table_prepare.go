@@ -198,7 +198,7 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 		label = "DROP CONSTRAINT"
 	case parser.ValidateConstraint:
 		label = "VALIDATE CONSTRAINT"
-	case parser.AlterConstraintEnforcement:
+	case parser.AlterConstraintEnforcement, parser.AlterConstraintTiming:
 		label = "ALTER CONSTRAINT"
 	case parser.EnableRule:
 		label = "ENABLE RULE"

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
@@ -224,7 +223,7 @@ func (s *StatementScope) foreignEffectRelevant(ref ids.ObjectRef, view catalog.R
 	}
 	*cached = foreignEffectAdmission{ref: ref, catalog: view.State()}
 	if relation, ok := view.Relation(ref.Address); ok {
-		if slices.ContainsFunc(relation.Constraints.ForeignKeys, func(f catalog.ForeignKeyConstraint) bool { return !f.NotEnforced }) || len(relation.Constraints.Exclusion) != 0 {
+		if slices.ContainsFunc(relation.Constraints.ForeignKeys, func(f catalog.ForeignKeyConstraint) bool { return !f.NotEnforced }) || len(relation.Constraints.Exclusion) != 0 || slices.ContainsFunc(relation.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Deferrable }) {
 			cached.relevant = true
 			return true
 		}
@@ -245,7 +244,13 @@ func (s *StatementScope) foreignEffectRelevant(ref ids.ObjectRef, view catalog.R
 }
 
 func (s *StatementScope) recordForeignEffect(ref ids.ObjectRef, old, next storage.RowVersion) {
-	var owner authorization.PrincipalRef
+	owner := s.RoutineAuth.State.CurrentUser
+	if s.ruleAction.Auth != nil {
+		owner = s.ruleAction.Auth.State.CurrentUser
+	}
+	if s.ForeignActionAuth != nil {
+		owner = s.ForeignActionAuth.State.CurrentUser
+	}
 	if s.foreignActionsOrZero().Settling {
 		admission := s.foreignActionsOrZero().Admissions[ref.Address]
 		if admission != nil {

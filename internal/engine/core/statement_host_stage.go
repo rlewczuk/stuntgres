@@ -99,7 +99,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 	defer func() {
 		if err == nil && !stale && after {
 			var targets []int32
-			for i := len(s.BeforeTargets)-1; i >= 0; i-- {
+			for i := len(s.BeforeTargets) - 1; i >= 0; i-- {
 				if s.BeforeTargets[i].Relation == ref {
 					targets = s.BeforeTargets[i].Attributes
 					break
@@ -305,12 +305,12 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 		return false, err
 	}
 	var versions []storage.RowVersion
-	if len(relation.Constraints.Exclusion) != 0 {
+	if index.ConstraintProjectionRequired(relation) {
 		versions = make([]storage.RowVersion, len(rows))
 		for i := range rows {
 			reserved := batch.Candidate(i).Exclusion
 			if reserved == nil {
-				return false, errors.New("stuntgres: exclusion row lost its admission identity")
+				return false, errors.New("stuntgres: constraint row lost its admission identity")
 			}
 			versions[i] = *reserved
 			versions[i].IndexAdmission = admission

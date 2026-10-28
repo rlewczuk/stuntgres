@@ -34,6 +34,27 @@ func TestPrimaryKeyExplicitRetention(t *testing.T) {
 	}
 }
 
+func TestUniqueTimingBindingRetention(t *testing.T) {
+	for _, primary := range []bool{false, true} {
+		raw := &parser.UniqueConstraint{Primary: primary, Deferrable: true, InitiallyDeferred: true, Columns: []parser.Identifier{{Text: "a"}}}
+		bound, err := BindUniqueAttributes(raw, nil, map[string]int{"a": 0}, []int32{7})
+		if err != nil || !bound.Deferrable || !bound.InitiallyDeferred || bound.Primary != primary || !reflect.DeepEqual(bound.Attributes, []int32{7}) {
+			t.Fatal(bound, err)
+		}
+		if !raw.Deferrable || !raw.InitiallyDeferred || raw.Columns[0].Text != "a" {
+			t.Fatal("binding mutated source definition", raw)
+		}
+	}
+	immediate := &parser.UniqueConstraint{Columns: []parser.Identifier{{Text: "a"}}}
+	deferred := *immediate
+	deferred.Deferrable, deferred.InitiallyDeferred = true, true
+	raw := &parser.CreateTable{Name: primaryKeyUnitName("t"), Elements: []parser.TableElement{{Unique: immediate}, {Unique: &deferred}}}
+	bound, err := BindCreateUniques(raw, map[string]int{"a": 0}, nil, catalog.Read{})
+	if err != nil || len(bound) != 2 || bound[0].Deferrable || !bound[1].InitiallyDeferred {
+		t.Fatal("different timing declarations merged", bound, err)
+	}
+}
+
 func TestPrimaryKeyNotNullBinding(t *testing.T) {
 	types := indexClausesTypes()
 	columns := []catalog.Column{{Name: "z", Usage: types[sqltype.Int4].Usage(), Nullable: true, NullabilityKnown: true}, {Name: "b", Usage: types[sqltype.Int4].Usage(), Nullable: true, NullabilityKnown: true}, {Name: "a", Usage: types[sqltype.Int4].Usage(), Nullable: true, NullabilityKnown: true}}

@@ -91,6 +91,10 @@ type ForeignKeys interface {
 	// RefreshForeignKeyRows moves rows to ref's current committed rows and
 	// index root. Locks once.
 	RefreshForeignKeyRows(ref ids.ObjectRef, rows *table.ForeignKeyRows) error
+	// CheckForeignKeySnapshot probes the original stable supporting root after
+	// a current miss, rejecting isolation-specific snapshot disagreement.
+	// Captures pointers under Engine.mu; provider comparisons run unlocked.
+	CheckForeignKeySnapshot(ref ids.ObjectRef, job ForeignKeyJob, child []sqltype.Value) error
 	// GrantForeignKey takes ref (or its row) in mode. Waits with the caller
 	// holding nothing, releasing the replacement read across the wait; then
 	// locks once to revalidate ref and, when set, its storage.

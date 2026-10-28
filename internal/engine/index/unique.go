@@ -58,6 +58,9 @@ func ValidateUniques(view catalog.Read, parent *catalog.Relation, names map[stri
 	primary := false
 	var physicalSupport *catalog.PhysicalPrimarySupport
 	for _, c := range parent.Constraints.Unique {
+		if c.InitiallyDeferred && !c.Deferrable {
+			return fmt.Errorf("stuntgres: invalid unique constraint timing")
+		}
 		if (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation) || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
 			return fmt.Errorf("stuntgres: invalid unique constraint identity")
 		}

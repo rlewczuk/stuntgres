@@ -24,6 +24,9 @@ COPY transports and notice connections are documented in the
 INSERT RETURNING observes final BEFORE replacement rows and omits suppressed
 rows from both output and affected counts. Shared trigger cases cover expression
 and conditional PL row replacement and suppression.
+ON CONFLICT witnesses use the same deferrable UNIQUE/PK definitions on both
+backends: selected arbiters fail when a row is demanded, while empty producers
+retain their ordinary no-row behavior.
 
 - COPY helpers: `copyTextScenario` (`copy_text_helpers_test.go`) borrows a pinned
   connection per backend (native `p.Native` with the public `CopyFrom`/`CopyTo`;

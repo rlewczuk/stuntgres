@@ -56,7 +56,7 @@ func VisitExclusion(op interface{ Context() context.Context }, evaluation *exec.
 		if own != nil && own.Ended[parent][entry.Row.Row] == entry.Row.Version && committed {
 			return nil
 		}
-		match, err := ExclusionKeysMatch(op.Context(), idx.SQLIndex, current.Keys, entry.Keys)
+		match, err := constraintKeysMatch(op.Context(), bound, current.Keys, entry.Keys)
 		if err != nil || !match {
 			return err
 		}
@@ -64,7 +64,7 @@ func VisitExclusion(op interface{ Context() context.Context }, evaluation *exec.
 			if err := bound.Ordering.FillKeys(entry.Row.Values, bound.Scratch, evaluation); err != nil {
 				return err
 			}
-			match, err = ExclusionKeysMatch(op.Context(), idx.SQLIndex, current.Keys, bound.Scratch)
+			match, err = constraintKeysMatch(op.Context(), bound, current.Keys, bound.Scratch)
 			if err != nil || !match {
 				return err
 			}
@@ -110,7 +110,26 @@ func VisitExclusion(op interface{ Context() context.Context }, evaluation *exec.
 				}
 			}
 		} else {
-			for _, entry := range scan.Root.Entries {
+			start := 0
+			equality := !idx.SQLIndex.IsExclusion()
+			if equality {
+				var err error
+				start, err = UniqueRootStart(op.Context(), &bound.Ordering, scan.Root.Entries, current.Keys)
+				if err != nil {
+					return ExclusionVisit{}, err
+				}
+			}
+			for at := start; at < len(scan.Root.Entries); at++ {
+				entry := scan.Root.Entries[at]
+				if equality {
+					order, err := bound.Ordering.CompareKeys(op.Context(), entry, storage.IndexEntry{Keys: current.Keys})
+					if err != nil {
+						return ExclusionVisit{}, err
+					}
+					if order != 0 {
+						break
+					}
+				}
 				row, err := ConflictEntryVersion(scan.Versions, entry)
 				if err != nil {
 					return ExclusionVisit{}, err
@@ -131,12 +150,23 @@ func VisitExclusion(op interface{ Context() context.Context }, evaluation *exec.
 	return v, nil
 }
 
-// ExclusionDeferred reports whether idx's constraint on parent is deferrable
-// and this is not the recheck, so a potential conflict is only recorded.
+// ExclusionDeferred also covers equality-backed constraint indexes. Admission
+// records potential conflicts; only a due-boundary recheck waits or rejects.
 func ExclusionDeferred(parent, idx *catalog.Relation, recheck bool) (bool, error) {
-	c := ExclusionDefinition(parent, idx)
-	if c == nil {
+	_, deferrable, _, found := IndexConstraintTiming(parent, idx)
+	if !found {
 		return false, ids.ErrCatalogReplaced
 	}
-	return c.Deferrable && !recheck, nil
+	return deferrable && !recheck, nil
+}
+
+func constraintKeysMatch(ctx context.Context, bound *UniqueBoundKey, left, right []sqltype.Value) (bool, error) {
+	if bound.Index.SQLIndex.IsExclusion() {
+		return ExclusionKeysMatch(ctx, bound.Index.SQLIndex, left, right)
+	}
+	if !bound.Index.SQLIndex.NullsNotDistinct && (UniqueHasNull(left) || UniqueHasNull(right)) {
+		return false, nil
+	}
+	comparison, err := bound.Ordering.CompareKeys(ctx, storage.IndexEntry{Keys: left}, storage.IndexEntry{Keys: right})
+	return comparison == 0, err
 }
