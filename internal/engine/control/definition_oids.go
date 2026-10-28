@@ -78,6 +78,9 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 			}
 			for _, definition := range d.Constraints.ForeignKeys {
 				claimed[definition.OID] = true
+				if definition.NotEnforced {
+					continue // This definition has no internal trigger identities.
+				}
 				for _, trigger := range definition.TriggerOIDs {
 					claimed[trigger] = true
 				}
@@ -304,10 +307,12 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 				return err
 			}
 			triggers := def.TriggerOIDs
-			for slot, trigger := range triggers {
-				triggers[slot], err = remint(trigger)
-				if err != nil {
-					return err
+			if !def.NotEnforced {
+				for slot, trigger := range triggers {
+					triggers[slot], err = remint(trigger)
+					if err != nil {
+						return err
+					}
 				}
 			}
 			if id == def.OID && triggers == def.TriggerOIDs {

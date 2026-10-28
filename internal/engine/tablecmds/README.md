@@ -61,6 +61,15 @@ TEMP preservation, relation admission and publication.
   enrolled in the ADD prefix when MISC later promotes it. Resolution retains the
   incumbent changed-value traversal as an earlier prefix, then deduplicates stable
   child/OID identities without resorting scheduled work into descriptor order.
+  ADD, VALIDATE and enable all retain the same admitted historical obligation:
+  a later genuine disable of that queued identity still checks history before
+  publishing final false flags and absent triggers. Resolution requires that
+  disable evidence rather than exempting one producer's work. TYPE rebuilds use
+  the authentic replacement FK identity, unlike enforcement-only toggles. All
+  scans and later actions finish before flags, dependencies and trigger identities
+  are published together. ADD cooking consumes immutable captured name schedules,
+  retaining PostgreSQL's duplicate-name boundary when later explicit CHECK
+  installation collides with an already-assigned unnamed FK.
   Recursive CHECK/NOT NULL validation admits the closure through the incumbent
   non-pure provider path, then uses one metadata/physical/final-validation stage;
   already-valid intermediates relay intent without scanning or replacement.
@@ -217,6 +226,7 @@ make check RUN='^Test(InheritanceAlter|InheritanceMaint|InheritanceMetadata|Tabl
 make check RUN='^Test(TableLike|TableCore|PartitionConstraints|UsingIndex)'  # CREATE TABLE forms and constraints
 make check RUN='^Test(TableHost|AlterHost|IndexHost)'      # the hosts
 make check RUN='^TestAlterValidateConstraint'               # selection, publication, admission and parser invariants
+make check RUN='^TestConstraintEnforcement'               # enforcement candidate, lifecycle, history and publication ownership
 make check RUN='^Test(Sequence|Identity|Serial)'           # sequence, identity and serial DDL
 make check RUN='^TestVacuum'                               # VACUUM selection, phases, publication
 make check RACE=1 RUN='^TestVacuum(PublicationFences|AuthorizationLocks)$$'  # VACUUM lock and publication races

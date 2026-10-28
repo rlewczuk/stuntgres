@@ -122,6 +122,10 @@ Complete four-slot FK mode footer records identify the logical owning
 constraint, never allocated RI names/OIDs, and sort independently of allocation.
 A shared SQL seal permits a per-FK snapshot data waiver only for the exact saved
 stream; metadata validation remains independent of that waiver.
+CHECK/FK deparse renders NOT ENFORCED in preference to NOT VALID. Native replay
+uses ordinary bound post-data declarations for unenforced facts and their
+violating rows. An absent FK implementation produces no trigger-mode footer
+records; enforcement is not serialized as a fabricated disabled trigger mode.
 Automatic extension addresses are constructor-owned, sorted unique metadata,
 separate from normal function/WHEN references and extension membership.
 Mapping preserves source snapshots and resolves extension addresses in the

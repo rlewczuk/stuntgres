@@ -6,6 +6,19 @@
   the authorized current-catalog boundary; no slot, decoded stream or advancement
   is fabricated. Physical-decoding rejection is unreachable without real slots.
 
+- CHECK and FOREIGN KEY declarations retain enforcement independently of
+  validation. Unenforced definitions retain binding/dependencies without runtime
+  rejection; FK toggles validate historical rows atomically and own real logical
+  trigger lifecycles. Catalogs, prepared execution and native Dump/Restore retain
+  the same enforcement state and publication guarantees.
+  Queued ADD/VALIDATE history remains obligatory after a later FK disable.
+  Declaration properties compose in either supported immediate order; misplaced
+  column attributes retain utility diagnostics. Generated FK names share binding
+  and lock-admission authority, including collision, multibyte naming, and genuine
+  NOT NULL removal versus no-op distinctions without freeing other objects' names.
+  Unsupported USING INDEX enforcement attributes retain the actual PRIMARY KEY
+  or UNIQUE diagnostic kind without changing index-attachment execution.
+
 - ANALYZE collects multivariate MCV lists with actual joint frequencies,
   full-population marginal baselines, separate SQL NULL flags and target caps.
   Publish genuine `pg_mcv_list` native datum images for executable typed grouping

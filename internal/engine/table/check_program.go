@@ -49,6 +49,9 @@ func prepareCheckProgram(d *catalog.Relation, evaluation *exec.Context) (exec.Ch
 		// All constraints prepare successfully before any row truth. Each owns
 		// its original manifest; a borrowed statement manifest is insufficient.
 		for i, check := range d.Constraints.Check {
+			if check.NotEnforced {
+				continue
+			}
 			local := *evaluation
 			local.RoutineRecipe, local.RoutineGraft = true, false
 			local.RoutineChecks = check.Dependencies

@@ -79,7 +79,9 @@ func (r Deparser) ForeignKeyConstraintSQLWithPrimary(child *catalog.Relation, f 
 			text += " (" + strings.Join(labels, ", ") + ")"
 		}
 	}
-	if f.NotValid {
+	if f.NotEnforced {
+		text += " NOT ENFORCED"
+	} else if f.NotValid {
 		text += " NOT VALID"
 	}
 	return text, nil

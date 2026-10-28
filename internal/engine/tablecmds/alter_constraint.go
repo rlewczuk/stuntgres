@@ -59,8 +59,8 @@ func stageAddedUnique(e *core.Engine, op *session.Operation, auth core.Authoriza
 	return next, nil
 }
 
-func stageAddedForeignKey(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {
+func stageAddedForeignKey(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress, name string) (*catalog.Relation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.StageAddedForeignKey(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, parent, raw, target, supporting)
+	return table.StageAddedForeignKey(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, parent, raw, target, supporting, name)
 }

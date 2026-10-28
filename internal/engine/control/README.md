@@ -65,6 +65,11 @@ and saved rows, so Restore never transforms stored data twice. Partition clones
 are derived through catalog publication rather than serialized independently;
 definition OIDs, parent provenance and WHEN captures remap with the destination.
 
+Unenforced foreign keys retain their constraint identity but have no internal
+trigger identities. Replacement remaps the constraint OID and leaves those
+absent trigger slots zero; it neither imports zero as an object identity nor
+creates placeholder triggers.
+
 Event-trigger collection retains validated immutable descriptors and real owner/
 function authority. `prepareEventTriggers` renders the complete final section
 before any writer I/O; an existing owner demoted from superuser is explicitly

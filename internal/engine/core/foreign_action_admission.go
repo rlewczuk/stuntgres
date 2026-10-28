@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
@@ -223,7 +224,7 @@ func (s *StatementScope) foreignEffectRelevant(ref ids.ObjectRef, view catalog.R
 	}
 	*cached = foreignEffectAdmission{ref: ref, catalog: view.State()}
 	if relation, ok := view.Relation(ref.Address); ok {
-		if len(relation.Constraints.ForeignKeys) != 0 || len(relation.Constraints.Exclusion) != 0 {
+		if slices.ContainsFunc(relation.Constraints.ForeignKeys, func(f catalog.ForeignKeyConstraint) bool { return !f.NotEnforced }) || len(relation.Constraints.Exclusion) != 0 {
 			cached.relevant = true
 			return true
 		}
@@ -233,7 +234,7 @@ func (s *StatementScope) foreignEffectRelevant(ref ids.ObjectRef, view catalog.R
 	for _, descriptor := range view.Descriptors() {
 		if child, ok := descriptor.(*catalog.Relation); ok {
 			for _, constraint := range child.Constraints.ForeignKeys {
-				if constraint.Target == ref.Address {
+				if !constraint.NotEnforced && constraint.Target == ref.Address {
 					cached.relevant = true
 					return true
 				}

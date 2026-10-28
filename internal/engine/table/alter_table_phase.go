@@ -30,7 +30,7 @@ func AlterActionPhase(action parser.AlterTableActionKind) int {
 		return 8
 	case parser.InheritTable, parser.NoInheritTable, parser.SetRelationOptions, parser.ResetRelationOptions:
 		return 9
-	case parser.ValidateConstraint, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
+	case parser.AlterConstraintEnforcement, parser.ValidateConstraint, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
 		// Misc is consumed after the deferred FOREIGN KEY definitions exist.
 		return 10
 	}
@@ -55,7 +55,7 @@ func inheritanceActionPass(action parser.AlterTableActionKind) int {
 		return 6
 	case parser.AddIdentity:
 		return 7
-	case parser.ValidateConstraint, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
+	case parser.AlterConstraintEnforcement, parser.ValidateConstraint, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
 		return 10
 	default:
 		return 8

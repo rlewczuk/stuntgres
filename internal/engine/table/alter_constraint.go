@@ -98,6 +98,9 @@ func PrepareAddedChecks(h AlterHost, plan *InheritanceAlterPlan, auth ddl.Author
 				if !merge {
 					continue
 				}
+				if plan.Descendant && c.NotEnforced && !a.NotEnforced || !plan.Descendant && !c.NotEnforced && a.NotEnforced {
+					return prepared, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT ENFORCED constraint on relation "%s"`, c.Name, parent.Name()))
+				}
 				if c.NoInherit {
 					return prepared, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with non-inherited constraint on relation "%s"`, c.Name, parent.Name()))
 				}
@@ -136,7 +139,8 @@ func PrepareAddedChecks(h AlterHost, plan *InheritanceAlterPlan, auth ddl.Author
 		next.Inheritance = graph
 	}
 	for _, c := range OrderedChecks(&next) {
-		if c.Ordinal >= ordinal && !c.NotValid {
+		mergedEnable := slices.ContainsFunc(parent.Constraints.Check, func(old catalog.CheckConstraint) bool { return old.OID == c.OID && old.NotEnforced && !c.NotEnforced })
+		if (c.Ordinal >= ordinal || mergedEnable) && !c.NotValid {
 			prepared.Scans = append(prepared.Scans, c)
 		}
 	}
@@ -184,15 +188,20 @@ func StageAddedUnique(h Host, op *session.Operation, parent *catalog.Relation, r
 	return &next, nil
 }
 
-// StageAddedForeignKey stages ADD FOREIGN KEY on parent against the captured
-// target and supporting index.
-func StageAddedForeignKey(h Host, auth ddl.Authority, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {
+// StageAddedForeignKey stages ADD FOREIGN KEY against its captured target,
+// supporting index and pre-wait name schedule. Keep parser syntax immutable.
+func StageAddedForeignKey(h Host, auth ddl.Authority, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress, name string) (*catalog.Relation, error) {
 	next := *parent
 	next.Constraints.ForeignKeys = slices.Clone(parent.Constraints.ForeignKeys)
 	if err := h.Stage().Replace(&next); err != nil {
 		return nil, err
 	}
-	err := StageForeignKey(h, auth, &next, *raw, target, supporting)
+	if name == "" {
+		return nil, ids.ErrCatalogReplaced
+	}
+	definition := *raw
+	definition.Name.Text = name
+	err := StageForeignKey(h, auth, &next, definition, target, supporting)
 	if err != nil {
 		return nil, AlterCookingError(err)
 	}

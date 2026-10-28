@@ -94,16 +94,10 @@ func TestReferenceInheritanceAlterChecks(t *testing.T) {
 		s.exec("ALTER TABLE p ADD CONSTRAINT future CHECK(a<2) NOT VALID", 0)
 		s.values("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='c'::regclass::oid AND conname='future'", []string{"definition"}, []string{"TEXT"}, [][]any{{"CHECK ((a < 2)) NOT VALID"}})
 		s.fail("INSERT INTO c VALUES(3)", inheritanceCheckDiagnostic("c", "future", "3"))
-		q := "ALTER TABLE p ADD CONSTRAINT passive CHECK(a<0) NOT ENFORCED"
-		if s.b.PG {
-			s.exec(q, 0)
-		} else {
-			step := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "constraint modifiers are unsupported", Position: strconv.Itoa(strings.Index(q, "NOT ENFORCED") + 1)})
-			step.ErrorStage = "execute"
-			if s.prepared {
-				step.ErrorStage = "prepare"
-			}
-			s.run(step)
+		s.exec("ALTER TABLE p ADD CONSTRAINT passive CHECK(a<0) NOT ENFORCED", 0)
+		for _, relation := range []string{"p", "c"} {
+			s.values("SELECT conenforced,convalidated FROM pg_constraint WHERE conrelid='"+relation+"'::regclass::oid AND conname='passive'",
+				[]string{"conenforced", "convalidated"}, []string{"BOOL", "BOOL"}, [][]any{{false, false}})
 		}
 		s.exec("INSERT INTO c VALUES(1)", 1)
 		s.values("SELECT a FROM c ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})

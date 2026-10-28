@@ -45,6 +45,9 @@ func StageCreateDomainLocked(h StageHost, auth ddl.Authority, s *parser.CreateDo
 	var defaultRaw parser.Expr
 	seenNull, ownNotNull := false, false
 	for _, c := range s.Constraints {
+		if c.EnforcementSet {
+			return expr.ErrorAt("42P17", "specifying constraint enforceability not supported for domains", c.EnforcementPos)
+		}
 		declarationPos := c.Pos
 		if c.NamedDeclarationPos.Character > 0 {
 			declarationPos = c.NamedDeclarationPos

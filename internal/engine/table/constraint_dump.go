@@ -53,7 +53,11 @@ func (t *DumpRelation) EmitInvalidConstraints(ctx context.Context, catalogView c
 		if c.NoInherit {
 			clause += " NO INHERIT"
 		}
-		if err := emit(prefix + catalog.QuoteIdentifier(c.Name) + clause + " NOT VALID;\n"); err != nil {
+		property := " NOT VALID"
+		if c.NotEnforced {
+			property = " NOT ENFORCED"
+		}
+		if err := emit(prefix + catalog.QuoteIdentifier(c.Name) + clause + property + ";\n"); err != nil {
 			return err
 		}
 	}

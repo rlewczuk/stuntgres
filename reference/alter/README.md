@@ -5,6 +5,11 @@ replacement and mixed RESTRICT/CASCADE drops), SET/DROP DEFAULT (with inheritanc
 recursion), SET/DROP NOT NULL, VALIDATE CONSTRAINT, identity column options, column TYPE changes
 (including identity columns under savepoints), RENAME, SET SCHEMA, SET TABLESPACE
 and constraint rename, plus foreign-key callers of DROP COLUMN and SET SCHEMA.
+CHECK/FK declaration enforcement, FK enforcement toggles and atomic CHECK
+replacement share exact flags, diagnostics, historical scans, logical trigger
+lifecycle, dependencies, locking and native persistence scenarios. Physical
+PostgreSQL pages, WAL/crash durability and the internal PostgreSQL trigger
+executor are outside the logical engine/API contract.
 Transactional table/schema integration covers CREATE/ALTER/DROP lifecycle,
 private catalog/dependency visibility and atomic DDL/DML publication, savepoints,
 held prepared consumers, utility boundaries, conflict scheduling and native
@@ -71,6 +76,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - ADD COLUMN: `RUN='^TestReferenceAlterAddColumn'`
 - ADD CONSTRAINT: `RUN='^TestReferenceAlterAddConstraint'`
 - VALIDATE CONSTRAINT: `RUN='^TestReferenceAlterValidateConstraint'`
+- Constraint enforcement: `RUN='^TestReferenceConstraintEnforcement'`
+  Review counterexamples are independently selected by the same prefix:
+  `QueuedHistory`, `UnattachedDiagnostics`, `PropertyOrder`, `GeneratedNames`,
+  `DropNotNullNames` and `UsingIndexDiagnostics`.
+  They cover final-disabled historical obligations, utility attribute errors and
+  IF NOT EXISTS skipping, supported nondeferred property orders, and authentic
+  generated-name collision/ordering/locking outcomes. Run each changed definition
+  in native and `REFERENCE=1` modes.
 - SET/DROP DEFAULT: `RUN='^TestReferenceAlterDefault'`
 - DROP COLUMN: `RUN='^TestReferenceAlterDropColumn'`
 - DROP COLUMN routine dependency closure, identity, rollback, admission and controls:

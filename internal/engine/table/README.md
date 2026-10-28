@@ -30,7 +30,10 @@ call live here.
   `StageCreateTable` stages in fixed order (descriptor, row type, inheritance,
   NOT NULL names, identity and serial sequences, LIKE columns, defaults,
   generations, CHECKs, LIKE checks, constraint OIDs, UNIQUE, EXCLUDE, LIKE
-  indexes, FOREIGN KEYs); `CheckCreateShape` reports shape errors in order;
+  indexes, FOREIGN KEYs); `CheckCreateShape` reports shape errors in order,
+  including column enforcement-attribute transformation before plain CREATE's
+  duplicate-name error. Existing IF NOT EXISTS targets skip that transformation.
+  Attribute errors stay Execute-phase even for held statements.
   `NewRelation`/`AssignDefinitionOIDs` work over a `ddl.Allocator`.
   The same stage serves permanent and TEMP creation in explicit transactions;
   transaction admission and shared catalog/storage publication belong to the
@@ -55,6 +58,23 @@ call live here.
   predecessor. Misc resolution follows all ADD definitions, including deferred
   foreign keys. `PlanAlterScan` unions selected validation with independently
   required shape checks without scanning unrelated invalid facts.
+  `EnforceConstraintCandidate` changes only an owned FK slice, retaining constraint
+  identity and returning transition-time historical work. Already-enforced
+  invalid facts remain invalid on an ENFORCED no-op; VALIDATE rejects unenforced
+  facts. CHECK enforcement changes use ordinary atomic DROP/ADD replacement.
+  Every admitted ADD, VALIDATE and genuine-enable scan retains its captured
+  historical obligation. Final false/invalid metadata is accepted only with an
+  actual later disable of that exact queued identity; never-admitted invalid
+  selections, changed definitions/providers and invalid-still-enforced facts
+  remain fenced. `AlterForeignKeyNames` projects command-local naming without
+  cooking definitions or allocating OIDs. It shares `ForeignKeyConstraintName`
+  with binding, preserves namespace reservations outside the candidate, and
+  distinguishes other-constraint assignment order from deferred installation.
+  DROP NOT NULL uses the same pure stable-attribute/fact selector as
+  `NotNullCandidate`. Only an actually selected NN identity is omitted from the
+  private naming candidate; absence is a no-op, and relation/domain reservations
+  remain intact. Physical-NN, identity, primary-key and other eligibility checks
+  retain their ordinary execution-stage ordering and diagnostics.
   Named rule-mode actions are root-only miscellaneous work after deferred FKs.
   Their pure immutable candidates preserve recipes/OIDs/dependencies and return
   the identical predecessor for no-ops. Mode-only lists use metadata-only
@@ -85,13 +105,15 @@ call live here.
   types and selected routine declarations before conditional simplification.
   Non-builtin routine provenance is rejected independently of volatility or
   spelling; stored generation keeps its separate immutability admission.
-  `ValidateCheckRow` prepares every ordinary CHECK before completed-row truth,
+  `ValidateCheckRow` prepares every enforced CHECK before completed-row truth,
   retaining each constraint's immutable original manifest and relation consumer.
   `CheckRecipeHost` shares cooked expressions within the live statement and
   registers stable consumed routine programs for its existing wait/publication
   readmission. Actual invoker and trusted RI-owner phases initialize separately;
   repeated rows reuse preparation without per-row ACL lookup. Readmission never
-  evaluates CHECK truth or folds expressions. The no-CHECK path allocates nothing.
+  evaluates CHECK truth or folds expressions. Unenforced checks retain complete
+  bound definitions/dependencies but enter neither runtime preparation nor truth.
+  The no-CHECK and all-unenforced paths allocate nothing.
 - **DROP dependency decisions** (`composite_field_dependency.go`,
   `owned_sequences.go`, `drop_removal.go`, the CHECK, DEFAULT, foreign-key and
   identity drop files): passes over `DropDependencyReader`, the drop stage the

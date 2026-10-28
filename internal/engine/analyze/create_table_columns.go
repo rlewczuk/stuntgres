@@ -15,12 +15,33 @@ type LikeConstraint struct {
 	catalog.NotNullConstraint
 }
 
+// ValidateColumnConstraintEnforcement is the utility-transform check shared by
+// CREATE's name fast path and column declaration binding (including ALTER ADD).
+// Keeping it independent of type/catalog binding preserves its diagnostic
+// priority without moving unrelated declaration errors ahead of name lookup.
+func ValidateColumnConstraintEnforcement(constraint parser.ColumnConstraint) error {
+	if constraint.EnforcementRepeat.Offset != 0 {
+		return insertError("42601", "multiple ENFORCED/NOT ENFORCED clauses not allowed", constraint.EnforcementRepeat)
+	}
+	if constraint.EnforcementSet && constraint.Check == nil && constraint.ForeignKey == nil {
+		property := "ENFORCED"
+		if constraint.NotEnforced {
+			property = "NOT ENFORCED"
+		}
+		return insertError("42601", "misplaced "+property+" clause", constraint.EnforcementPos)
+	}
+	return nil
+}
+
 func BindCreateColumnDeclaration(column *parser.Column, table string) (ColumnDeclaration, error) {
 	var declaration ColumnDeclaration
 	declaration.Serial = sequence.SerialTypeName(column.TypeName) != ""
 	seen := declaration.Serial
 	declaration.ColumnNotNull = declaration.Serial
 	for _, constraint := range column.Constraints {
+		if err := ValidateColumnConstraintEnforcement(constraint); err != nil {
+			return declaration, err
+		}
 		if constraint.Check != nil || constraint.ForeignKey != nil {
 			continue
 		}

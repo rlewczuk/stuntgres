@@ -66,6 +66,9 @@ func ValidateCheckProviders(view catalog.Read, d *catalog.Relation) error {
 func ValidateChecks(view catalog.Read, d *catalog.Relation, names map[string]bool) error {
 	previous := ""
 	for i, c := range d.Constraints.Check {
+		if c.NotEnforced && !c.NotValid {
+			return fmt.Errorf("stuntgres: unenforced check is marked valid")
+		}
 		if c.Ordinal < 0 {
 			return fmt.Errorf("stuntgres: invalid check declaration ordinal")
 		}
@@ -134,6 +137,16 @@ func ValidateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *exec.Conte
 	if len(d.Constraints.Check) == 0 {
 		return nil, nil
 	}
+	enforced := false
+	for _, c := range d.Constraints.Check {
+		if !c.NotEnforced {
+			enforced = true
+			break
+		}
+	}
+	if !enforced {
+		return nil, nil
+	}
 	oldRow, oldScope, oldFrame := eval.Row, eval.Scope, eval.Frame
 	eval.Row, eval.Scope, eval.Frame = row, 1, 1
 	defer func() { eval.Row, eval.Scope, eval.Frame = oldRow, oldScope, oldFrame }()
@@ -158,6 +171,9 @@ func ValidateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *exec.Conte
 	}()
 	for i := range d.Constraints.Check {
 		c := &d.Constraints.Check[i]
+		if c.NotEnforced {
+			continue
+		}
 		eval.RoutineRecipe, eval.RoutineGraft = true, false
 		eval.RoutineChecks, eval.RoutineReferences, eval.RoutineConsumer = c.Dependencies, nil, d
 		expression := c.Expression

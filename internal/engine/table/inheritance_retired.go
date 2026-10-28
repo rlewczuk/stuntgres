@@ -131,7 +131,7 @@ func RetireRebuiltCheckHistory(old, next *catalog.Relation) error {
 			continue
 		}
 		before := old.Constraints.Check[previous]
-		if old.Address() != next.Address() || before.NoInherit != c.NoInherit || before.NotValid != c.NotValid {
+		if old.Address() != next.Address() || before.NoInherit != c.NoInherit || before.NotValid != c.NotValid || before.NotEnforced != c.NotEnforced {
 			return fmt.Errorf("stuntgres: changed retired check reconstruction source")
 		}
 		replacement, err := retireRebuiltDefinitionHistory(p, before.OID, c.OID)

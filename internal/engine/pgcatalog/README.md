@@ -339,8 +339,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   retain their owning relation identity. Physical nullability, domain checks,
   indexes and exclusions do not manufacture rows. Its eleven nullable columns
   retain captured sql_identifier, character_data and yes_or_no domains, including
-  a domain-typed NULL nulls_distinct outside UNIQUE. Validation is independent
-  of enforcement. Immediately usable ownership, non-SELECT/non-MAINTAIN table
+  a domain-typed NULL nulls_distinct outside UNIQUE.
+  CHECK/FK enforcement derives from the independent stored enforcement bit in
+  both pg_constraint and table_constraints; validation never supplies it.
+  Immediately usable ownership, non-SELECT/non-MAINTAIN table
   privileges or INSERT/UPDATE/REFERENCES on any live column disclose all table
   constraints; schema USAGE is not required. Temporary rows belong only to the
   captured session. One paired immutable catalog/role frontier owns every cell

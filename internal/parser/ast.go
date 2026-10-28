@@ -543,15 +543,19 @@ const (
 )
 
 type ColumnConstraint struct {
-	NotNull    bool
-	Default    Expr
-	Check      *CheckConstraint
-	Unique     *UniqueConstraint
-	ForeignKey *ForeignKeyConstraint
-	Identity   *IdentityDefinition
-	Generation *GenerationDefinition
-	Name       Identifier
-	Pos        Position
+	NotNull           bool
+	Default           Expr
+	Check             *CheckConstraint
+	Unique            *UniqueConstraint
+	ForeignKey        *ForeignKeyConstraint
+	Identity          *IdentityDefinition
+	Generation        *GenerationDefinition
+	Name              Identifier
+	Pos               Position
+	EnforcementSet    bool
+	NotEnforced       bool
+	EnforcementPos    Position
+	EnforcementRepeat Position
 	// NamedDeclarationPos retains CONSTRAINT for named DEFAULT/NULL/NOT NULL
 	// diagnostics without replacing the clause keyword's existing Pos.
 	NamedDeclarationPos Position
@@ -564,11 +568,14 @@ type NotNullConstraint struct {
 }
 
 type CheckConstraint struct {
-	Name       Identifier
-	Expression Expr
-	NoInherit  bool
-	NotValid   bool
-	Pos        Position
+	Name           Identifier
+	Expression     Expr
+	NoInherit      bool
+	NotValid       bool
+	NotEnforced    bool
+	EnforcementSet bool
+	EnforcementPos Position
+	Pos            Position
 }
 
 type UniqueConstraint struct {
@@ -583,16 +590,19 @@ type UniqueConstraint struct {
 // ForeignKeyConstraint retains one declaration for column and table syntax.
 // Column REFERENCES receives its local column when the CREATE binder walks it.
 type ForeignKeyConstraint struct {
-	Name          Identifier
-	Columns       []Identifier
-	Target        ObjectName
-	Referenced    []Identifier
-	Full          bool
-	NotValid      bool
-	Pos           Position
-	UpdateAction  ForeignKeyAction
-	DeleteAction  ForeignKeyAction
-	DeleteColumns []Identifier
+	Name           Identifier
+	Columns        []Identifier
+	Target         ObjectName
+	Referenced     []Identifier
+	Full           bool
+	NotValid       bool
+	NotEnforced    bool
+	EnforcementSet bool
+	EnforcementPos Position
+	Pos            Position
+	UpdateAction   ForeignKeyAction
+	DeleteAction   ForeignKeyAction
+	DeleteColumns  []Identifier
 }
 
 // The zero value is the SQL default, independently for each event direction.
@@ -1040,6 +1050,7 @@ const (
 	SetRelationOptions
 	ResetRelationOptions
 	ValidateConstraint
+	AlterConstraintEnforcement
 	EnableRule
 	DisableRule
 	EnableReplicaRule
@@ -1084,9 +1095,12 @@ type AlterTableAction struct {
 	ForeignKey      *ForeignKeyConstraint
 	Options         []IndexOption
 	// NOT NULL uses the flat attachment; CHECK/FK retain validity in their AST.
-	NotValid    bool
-	NoInherit   bool
-	ValidityPos Position
+	NotValid       bool
+	NotEnforced    bool
+	EnforcementSet bool
+	EnforcementPos Position
+	NoInherit      bool
+	ValidityPos    Position
 }
 
 type AlterTable struct {

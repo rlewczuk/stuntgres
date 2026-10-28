@@ -127,6 +127,7 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 				return nil, err
 			}
 			local, count := NonuniqueConstraintProvenance(view, table, c.Name, 0, true)
+			builder.boolean(row, 6, !c.NotEnforced)
 			builder.boolean(row, 7, !c.NotValid)
 			builder.boolean(row, 16, local)
 			builder.integer(row, 17, count)
@@ -160,6 +161,7 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 			if err != nil {
 				return nil, err
 			}
+			builder.boolean(row, 6, !c.NotEnforced)
 			builder.boolean(row, 7, !c.NotValid)
 			builder.boolean(row, 18, true)
 			builder.oid(row, 10, c.Index.ObjectID)

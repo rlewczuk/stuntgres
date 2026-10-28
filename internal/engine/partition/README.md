@@ -137,6 +137,10 @@ adapter; `partition_info_runtime.go` holds the
 - **ATTACH** skips the scan only when `ConstraintProven` proves the bound.
   Compatibility matches columns by name and type, NOT NULL by mapped attribute
   and CHECK by name and cooked definition, never by physical slot.
+  Enforcement compatibility is independent of validity: a false parent permits
+  a true child, not the reverse. Unenforced checks cannot prove a bound or skip
+  the ordinary partition-bound scan. Matched attached CHECKs become inherited
+  nonlocal facts while retaining their real identities and enforcement.
 - **Lock order.** ATTACH: the parent keeps SHARE UPDATE EXCLUSIVE; the
   candidate, its descendants and the incumbent DEFAULT take ACCESS EXCLUSIVE.
   DETACH: parent, incumbent DEFAULT, candidate, then descendants, all ACCESS

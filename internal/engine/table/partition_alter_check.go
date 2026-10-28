@@ -61,6 +61,9 @@ func preparePartitionChecks(h AlterHost, plan *InheritanceAlterPlan, auth ddl.Au
 			if !equality.SameGroupExpression(expression, old.Expression) {
 				return result, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, old.Name, child.Name()))
 			}
+			if !source.NotEnforced && old.NotEnforced {
+				return result, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT ENFORCED constraint on relation "%s"`, old.Name, child.Name()))
+			}
 			if old.NotValid && !source.NotValid {
 				return result, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on relation "%s"`, old.Name, child.Name()))
 			}

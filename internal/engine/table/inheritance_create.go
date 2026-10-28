@@ -121,9 +121,13 @@ func StageInheritance(h Host, auth ddl.Authority, d *catalog.Relation, b analyze
 				if !analyze.SameGroupExpression(d.Constraints.Check[incumbent].Expression, node) {
 					return sqlError("42710", fmt.Sprintf(`check constraint name "%s" appears multiple times but with different expressions`, old.Name))
 				}
+				if !old.NotEnforced {
+					d.Constraints.Check[incumbent].NotEnforced = false
+					d.Constraints.Check[incumbent].NotValid = false
+				}
 				continue
 			}
-			copied := catalog.CheckConstraint{Name: old.Name, Ordinal: len(d.Constraints.Check), Expression: node}
+			copied := catalog.CheckConstraint{Name: old.Name, Ordinal: len(d.Constraints.Check), Expression: node, NotEnforced: old.NotEnforced, NotValid: old.NotEnforced}
 			var dependencies []ids.ObjectRef
 			if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: d, Dependencies: &dependencies, CommentSnapshot: &copied.CommentSnapshot, VisibilitySnapshot: &copied.VisibilitySnapshot}).SQL(h.Context(), view.Catalog, node); err != nil {
 				return err

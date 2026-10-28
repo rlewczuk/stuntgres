@@ -296,6 +296,7 @@ package parser
 %token <tok> OVER WINDOW PARTITION FRAME_UNIT FRAME_EDGE FRAME_START
 %token <tok> UNIQUE PRIMARY
 %token <tok> FOREIGN REFERENCES MATCH PERIOD INITIALLY
+%token <tok> ENFORCED
 %token <tok> NOT_DEFERRABLE_LA NOT_IN_LA
 %token <tok> FOR
 %token <tok> LIMIT OFFSET FETCH
@@ -1597,7 +1598,12 @@ partition_element: name column_constraints {c:=Column{Name:$1.text,Constraints:$
  | check_constraint {$$=&TableElement{Check:$1,Pos:$1.Pos}}
  | unique_constraint {$$=&TableElement{Unique:$1,Pos:$1.Pos}}
  | primary_constraint {$$=&TableElement{Unique:$1,Pos:$1.Pos}}
- | exclusion_constraint {$$=&TableElement{Exclusion:$1,Pos:$1.Pos}} ;
+ | exclusion_constraint {$$=&TableElement{Exclusion:$1,Pos:$1.Pos}}
+ | partition_element ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,false){return 1};$$=$1}
+ | partition_element NOT ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,true){return 1};$$=$1}
+ | partition_element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | partition_element DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | partition_element INITIALLY name {if !sqllex.(*lexer).elementForeignProperty($1,$2,$3){return 1};$$=$1} ;
 typed_options: /* empty */ {$$=nil} | '(' typed_elements ')' {$$=$2} ;
 typed_elements: typed_element {$$=[]TableElement{*$1}}
  | typed_elements ',' typed_element {$$=append($1,*$3)} ;
@@ -1609,7 +1615,12 @@ typed_element: name {c:=Column{Name:$1.text,Pos:$1.pos};$$=&TableElement{Column:
  | primary_constraint {$$=&TableElement{Unique:$1,Pos:$1.Pos}}
  | foreign_key {$$=&TableElement{ForeignKey:$1,Pos:$1.Pos}}
  | exclusion_constraint {$$=&TableElement{Exclusion:$1,Pos:$1.Pos}}
- | table_not_null {$$=&TableElement{NotNull:$1,Pos:$1.Pos}} ;
+ | table_not_null {$$=&TableElement{NotNull:$1,Pos:$1.Pos}}
+ | typed_element ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,false){return 1};$$=$1}
+ | typed_element NOT ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,true){return 1};$$=$1}
+ | typed_element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | typed_element DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | typed_element INITIALLY name {if !sqllex.(*lexer).elementForeignProperty($1,$2,$3){return 1};$$=$1} ;
 options_word: KW_U {if $1.text!="options" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
  | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
@@ -1755,8 +1766,7 @@ domain_constraints: /* empty */ {$$=nil}
  | '(' {sqllex.(*lexer).syntax($1);return 1}
  | column_suffix {sqllex.(*lexer).capability($1,unsupportedSuffixes,"domain constraints are unsupported");return 1} ;
 domain_column_constraints: column_constraint { $$=[]ColumnConstraint{*$1} }
- | domain_column_constraints column_constraint { $$=append($1,*$2) }
- | domain_column_constraints NOT nn_modifier {sqllex.(*lexer).syntax($3);return 1}
+ | domain_column_constraints column_constraint { $$=appendColumnConstraint($1,*$2) }
  | domain_column_constraints NO nn_inherit {if $1[len($1)-1].Check!=nil {$1[len($1)-1].Check.NoInherit=true} else {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported")};$$=$1} ;
 drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode:$4,Pos:$1.pos} }
  | DROP DOMAIN IF EXISTS relation_names drop_mode { $$=&DropDomain{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
@@ -1770,7 +1780,8 @@ alter_domain: ALTER DOMAIN relation_name ADD domain_alter_check {$$=&AlterDomain
  | ALTER DOMAIN relation_name SET NOT NULL {$$=&AlterDomain{Name:$3,Action:DomainSetNotNull,Pos:$1.pos}}
  | ALTER DOMAIN relation_name DROP NOT NULL {$$=&AlterDomain{Name:$3,Action:DomainDropNotNull,Pos:$1.pos}} ;
 domain_alter_check: check_constraint {$$=$1}
- | domain_alter_check NOT nn_modifier {if $3.text!="valid" {sqllex.(*lexer).syntax($3);return 1};$1.NotValid=true;$$=$1}
+ | domain_alter_check NOT nn_modifier {if $3.text=="enforced" {sqllex.(*lexer).deferUnsupported($2,"CHECK constraints cannot be marked NOT ENFORCED")} else {$1.NotValid=true};$$=$1}
+ | domain_alter_check ENFORCED {sqllex.(*lexer).deferUnsupported($2,"CHECK constraints cannot be marked ENFORCED");$$=$1}
  | domain_alter_check NO nn_inherit {$1.NoInherit=true;$$=$1} ;
 validate_word: KW_U {if $1.keyword==nil || $1.text!="validate" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 drop_type: DROP TYPE relation_names drop_mode {$$=&DropType{Names:$3,Mode:$4,Pos:$1.pos}}
@@ -2376,11 +2387,17 @@ element: column { $$=&TableElement{Column:$1,Pos:$1.Pos} }
  | unique_constraint { $$=&TableElement{Unique:$1,Pos:$1.Pos} }
  | primary_constraint { $$=&TableElement{Unique:$1,Pos:$1.Pos} }
  | foreign_key { $$=&TableElement{ForeignKey:$1,Pos:$1.Pos} }
- | exclusion_constraint { $$=&TableElement{Exclusion:$1,Pos:$1.Pos} } ;
+ | exclusion_constraint { $$=&TableElement{Exclusion:$1,Pos:$1.Pos} }
+ | element ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,false){return 1};$$=$1}
+ | element NOT ENFORCED {if !sqllex.(*lexer).elementEnforcement($1,$2,true){return 1};$$=$1}
+ | element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | element DEFERRABLE {if !sqllex.(*lexer).elementForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | element INITIALLY name {if !sqllex.(*lexer).elementForeignProperty($1,$2,$3){return 1};$$=$1}
+ | element NO nn_inherit {if $1.Check==nil {sqllex.(*lexer).syntax($2);return 1};$1.Check.NoInherit=true;$$=$1} ;
 table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} } ;
 create_not_null: table_not_null {$$=$1}
- | create_not_null NOT nn_modifier {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported");$$=$1}
+ | create_not_null NOT nn_modifier {message:="NOT NULL modifiers are unsupported";if $3.text=="enforced"{message="NOT NULL constraints cannot be marked NOT ENFORCED"};sqllex.(*lexer).deferUnsupported($2,message);$$=$1}
  | create_not_null NO nn_inherit {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported");$$=$1} ;
 /* NO belongs to the CHECK before the generic column-modifier path can reduce.
  * The closing ')' otherwise has higher precedence than NO. */
@@ -2432,9 +2449,9 @@ foreign_actions: /* empty */ {$$=&ForeignKeyConstraint{}}
  | foreign_delete foreign_update {$$=&ForeignKeyConstraint{DeleteAction:$1.action,DeleteColumns:$1.columns,UpdateAction:$2.action}} ;
 foreign_body: foreign_reference foreign_match_optional foreign_actions {$$=$1;$$.Full=$2.text=="full";$$.UpdateAction=$3.UpdateAction;$$.DeleteAction=$3.DeleteAction;$$.DeleteColumns=$3.DeleteColumns} ;
 foreign_definition: foreign_body {$$=$1}
- | foreign_definition NOT_DEFERRABLE_LA DEFERRABLE {$$=$1}
- | foreign_definition DEFERRABLE {sqllex.(*lexer).deferUnsupported($2,"foreign key deferrability is unsupported");$$=$1}
- | foreign_definition INITIALLY name {if $3.keyword==nil||($3.text!="immediate"&&$3.text!="deferred"){sqllex.(*lexer).syntax($3);return 1};if $3.text=="deferred"{sqllex.(*lexer).deferUnsupported($3,"foreign key deferrability is unsupported")};$$=$1} ;
+ | foreign_definition NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | foreign_definition DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | foreign_definition INITIALLY name {if !sqllex.(*lexer).foreignProperty($1,$2,$3){return 1};$$=$1} ;
 foreign_match: FULL | name {if $1.keyword==nil||($1.text!="simple"&&$1.text!="partial"){sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 foreign_set_columns: /* empty */ {$$=nil} | '(' view_names ')' {$$=$2} ;
 foreign_action: NO name {if $2.keyword==nil||$2.text!="action"{sqllex.(*lexer).syntax($2);return 1};$$=foreignActionClause{action:ForeignKeyNoAction}}
@@ -2481,7 +2498,7 @@ relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relat
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 /* All ALTER TABLE actions share one target prefix. Reducing alter_target on
  * some paths and rename_target on others steals action lookahead from peers. */
-alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
+alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && a.Action!=AlterConstraintEnforcement && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
  | ALTER TABLE ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$6.text,Pos:$6.pos},Destination:Identifier{Text:$10.text,Pos:$10.pos},Owners:$7,Nowait:$11,Pos:$1.pos} }
  | alter_default_single { $$=$1 }
  | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
@@ -2561,7 +2578,13 @@ alter_constraint: ADD table_not_null {$$=&AlterTableAction{Column:$2.Column,Cons
  | ADD using_index_constraint {$$=&AlterTableAction{Action:AddUsingIndex,UsingIndex:$2,Constraint:$2.Name,Pos:$1.pos}}
  | ADD exclusion_constraint {$$=&AlterTableAction{Action:AddExclusion,Exclusion:$2,Constraint:$2.Name,Pos:$1.pos}}
  | ADD foreign_key {$$=&AlterTableAction{Action:AddForeignKey,ForeignKey:$2,Constraint:$2.Name,Pos:$1.pos}}
+ | ALTER CONSTRAINT name ENFORCED {$$=&AlterTableAction{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterConstraintEnforcement,EnforcementSet:true,EnforcementPos:$4.pos,Pos:$1.pos}}
+ | ALTER CONSTRAINT name NOT nn_modifier {$$=&AlterTableAction{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterConstraintEnforcement,Pos:$1.pos};if !sqllex.(*lexer).alterConstraintValidity($$,$4,$5){return 1}}
+ | alter_constraint ENFORCED {if !sqllex.(*lexer).alterEnforcement($1,$2,false){return 1};$$=$1}
  | alter_constraint NOT nn_modifier {if !sqllex.(*lexer).alterConstraintValidity($1,$2,$3){return 1};$$=$1}
+ | alter_constraint NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1.ForeignKey,$2,lexeme{}){return 1};$$=$1}
+ | alter_constraint DEFERRABLE {if !sqllex.(*lexer).foreignProperty($1.ForeignKey,$2,lexeme{}){return 1};$$=$1}
+ | alter_constraint INITIALLY name {if !sqllex.(*lexer).foreignProperty($1.ForeignKey,$2,$3){return 1};$$=$1}
  | alter_constraint NO nn_inherit {if !sqllex.(*lexer).alterConstraintNoInherit($1,$2){return 1};$$=$1} ;
 alter_type_keyword: TYPE { $$=$1 }
  | SET DATA TYPE { $$=$1 } ;
@@ -2674,13 +2697,18 @@ nullability: /* empty */ { $$ = nil }
  | column_constraints { $$=$1 }
  | column_suffix { sqllex.(*lexer).capability($1,unsupportedSuffixes,"column constraints are unsupported"); return 1 }
  | '(' { sqllex.(*lexer).failAt("0A000","type modifiers are unsupported",$1.pos.Offset); return 1 } ;
-/* Modifiers require a preceding constraint, never an empty nullability list. */
+/* Orphan attributes remain syntax-only entries for utility-stage diagnostics. */
 column_constraints: column_constraint { $$=[]ColumnConstraint{*$1} }
- | column_constraints column_constraint { $$=append($1,*$2) }
- | column_constraints NO nn_inherit { if $1[len($1)-1].Check!=nil {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
- | column_constraints NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 } ;
+ | column_constraints column_constraint { $$=appendColumnConstraint($1,*$2) }
+ | column_constraints NO nn_inherit {c:=&$1[len($1)-1];if c.Check!=nil {if !c.EnforcementSet {sqllex.(*lexer).syntax($2);return 1};c.Check.NoInherit=true} else {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported")};$$=$1}
+ | column_constraints NOT KW_U {if $3.text!="valid" {sqllex.(*lexer).syntax($3);return 1};sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported");$$=$1}
+ | column_constraints NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).columnForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | column_constraints DEFERRABLE {if !sqllex.(*lexer).columnForeignProperty($1,$2,lexeme{}){return 1};$$=$1}
+ | column_constraints INITIALLY name {if !sqllex.(*lexer).columnForeignProperty($1,$2,$3){return 1};$$=$1} ;
 column_constraint: NULL { $$=&ColumnConstraint{Pos:$1.pos} }
  | NOT NULL { $$=&ColumnConstraint{NotNull:true,Pos:$1.pos} }
+ | ENFORCED {$$=&ColumnConstraint{EnforcementSet:true,EnforcementPos:$1.pos}}
+ | NOT ENFORCED {$$=&ColumnConstraint{EnforcementSet:true,NotEnforced:true,EnforcementPos:$1.pos}}
  | CONSTRAINT name NULL { $$=&ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
  | CONSTRAINT name NOT NULL { $$=&ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
  | DEFAULT create_default_target { if !sqllex.(*lexer).defaultIndexPropertyAllowed($2) {return 1};$$=&ColumnConstraint{Default:$2,Pos:$1.pos} }
@@ -2695,7 +2723,7 @@ column_constraint: NULL { $$=&ColumnConstraint{Pos:$1.pos} }
  | generation_definition { $$=&ColumnConstraint{Generation:$1,Pos:$1.Pos} }
  | CONSTRAINT name generation_definition { $$=&ColumnConstraint{Generation:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.Pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
-nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+nn_modifier: KW_U { if $1.text!="valid" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } | ENFORCED {$$=$1} ;
 nn_inherit: INHERIT { $$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | RETURNING | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
 update: UPDATE alter_target update_alias SET update_row_assignments update_from mutation_where returning { $$=&Update{Name:$2.Name,Only:$2.Only,Star:$2.Star,Alias:Identifier{Text:$3.text,Pos:$3.pos},Assignments:$5,From:$6,Where:$7.Where,CurrentOf:$7.CurrentOf,Returning:$8,Pos:$1.pos} }
@@ -3560,6 +3588,7 @@ conditional_word: COALESCE | NULLIF | GREATEST | LEAST | MERGE_ACTION ;
 string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
+ | ENFORCED
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION
@@ -3611,6 +3640,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
 name: non_between_name | BETWEEN | PL_SLICE ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
+ | ENFORCED
  | PL_SLICE
  | EXPLAIN
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
@@ -3654,7 +3684,7 @@ generic_create_word: generic_word_base_without_vacuum_frame | FRAME_UNIT | VACUU
 /* Bare maintenance commands are complete native statements. Preserve their
  * generic-word uses elsewhere without competing with empty legacy options. */
 generic_statement_word: generic_word_base_without_vacuum | WITH | EXISTS ;
-generic_word_base: generic_word_base_without_vacuum | VACUUM | EXPLAIN | ANALYZE ;
+generic_word_base: generic_word_base_without_vacuum | VACUUM | EXPLAIN | ANALYZE | ENFORCED ;
 /* The RANGE declaration has its own frame-unit token frontier; ENUM keeps
  * generic unsupported-word diagnostics without accepting a range body. */
 generic_word_without_frame: generic_word_base_without_vacuum_frame | STATISTICS | VACUUM | EXPLAIN | ANALYZE | WITH | EXISTS ;

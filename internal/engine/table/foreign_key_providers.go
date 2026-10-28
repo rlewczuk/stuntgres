@@ -17,7 +17,7 @@ func InstalledForeignKey(base catalog.Read, address ids.ObjectAddress, f catalog
 		return false
 	}
 	for _, old := range parent.Constraints.ForeignKeys {
-		if old.Name == f.Name && old.Target == f.Target && old.Full == f.Full && (old.NotValid == f.NotValid || old.NotValid && !f.NotValid && old.OID != 0 && old.OID == f.OID && old.Index == f.Index) && old.UpdateAction == f.UpdateAction && old.DeleteAction == f.DeleteAction && slices.Equal(old.DeleteAttributes, f.DeleteAttributes) && slices.Equal(old.Attributes, f.Attributes) && slices.Equal(old.Referenced, f.Referenced) {
+		if old.Name == f.Name && old.Target == f.Target && old.Full == f.Full && (old.NotValid == f.NotValid && old.NotEnforced == f.NotEnforced || old.OID != 0 && old.OID == f.OID && old.Index == f.Index && (old.NotEnforced != f.NotEnforced || old.NotValid && !f.NotValid)) && old.UpdateAction == f.UpdateAction && old.DeleteAction == f.DeleteAction && slices.Equal(old.DeleteAttributes, f.DeleteAttributes) && slices.Equal(old.Attributes, f.Attributes) && slices.Equal(old.Referenced, f.Referenced) {
 			return true
 		}
 	}

@@ -163,7 +163,16 @@ func ValidateForeignKeys(view catalog.Read, child *catalog.Relation, names map[s
 		if child.RelationKind != catalog.TableRelation || f.OID == 0 || f.Name == "" || len(f.Name) > 63 || !utf8.ValidString(f.Name) || strings.IndexByte(f.Name, 0) >= 0 || names[f.Name] || len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 			return fmt.Errorf("stuntgres: invalid foreign-key definition")
 		}
+		if f.NotEnforced && !f.NotValid {
+			return fmt.Errorf("stuntgres: unenforced foreign key is marked valid")
+		}
 		for slot, trigger := range f.TriggerOIDs {
+			if f.NotEnforced {
+				if trigger != 0 || f.TriggerModes[slot] != 0 {
+					return fmt.Errorf("stuntgres: unenforced foreign key owns trigger state")
+				}
+				continue
+			}
 			if !f.TriggerMode(slot).Valid() {
 				return fmt.Errorf("stuntgres: invalid foreign-key trigger mode")
 			}

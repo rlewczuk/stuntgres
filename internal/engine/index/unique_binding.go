@@ -111,7 +111,7 @@ func SameRelationRowShape(a, b *catalog.Relation) bool {
 func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view catalog.Read) (*UniqueWriteBinding, error) {
 	var err error
 	b := &UniqueWriteBinding{Ref: ref, Parent: parent, Catalog: view.State(),
-		ConstraintEffectsRelevant: len(parent.Constraints.ForeignKeys) != 0 || len(parent.Constraints.Exclusion) != 0}
+		ConstraintEffectsRelevant: slices.ContainsFunc(parent.Constraints.ForeignKeys, func(f catalog.ForeignKeyConstraint) bool { return !f.NotEnforced }) || len(parent.Constraints.Exclusion) != 0}
 	var indexes []*catalog.Relation
 	var checkedNonunique []*catalog.Relation
 	for _, idx := range view.Relations() {
@@ -120,7 +120,7 @@ func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view c
 		// support the referenced key, independently of Unique constraints.
 		if !b.ConstraintEffectsRelevant {
 			for _, constraint := range idx.Constraints.ForeignKeys {
-				if constraint.Target == parent.Address() {
+				if !constraint.NotEnforced && constraint.Target == parent.Address() {
 					b.ConstraintEffectsRelevant = true
 					break
 				}

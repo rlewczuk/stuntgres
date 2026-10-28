@@ -88,6 +88,9 @@ func VisitDefinitionOIDs(descriptor Descriptor, visit func(ids.OID) error) error
 			return err
 		}
 		for _, trigger := range c.TriggerOIDs {
+			if c.NotEnforced {
+				continue
+			}
 			if err := visit(trigger); err != nil {
 				return err
 			}

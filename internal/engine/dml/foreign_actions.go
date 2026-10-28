@@ -26,7 +26,7 @@ type ForeignKeyJob struct {
 }
 
 func SameForeignKeyDefinition(a, b catalog.ForeignKeyConstraint) bool {
-	return a.OID == b.OID && a.TriggerOIDs == b.TriggerOIDs && a.Target == b.Target && a.Index == b.Index && a.Full == b.Full && a.UpdateAction == b.UpdateAction && a.DeleteAction == b.DeleteAction && slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Referenced, b.Referenced) && slices.Equal(a.DeleteAttributes, b.DeleteAttributes)
+	return a.NotEnforced == b.NotEnforced && a.OID == b.OID && a.TriggerOIDs == b.TriggerOIDs && a.Target == b.Target && a.Index == b.Index && a.Full == b.Full && a.UpdateAction == b.UpdateAction && a.DeleteAction == b.DeleteAction && slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Referenced, b.Referenced) && slices.Equal(a.DeleteAttributes, b.DeleteAttributes)
 }
 
 func RefreshForeignActionJob(view catalog.Read, job *ForeignKeyJob) error {

@@ -26,6 +26,9 @@ func (s *StatementScope) foreignTriggerSuppression(ref ids.ObjectRef) []dml.Fore
 	var suppressed []dml.ForeignTriggerSuppression
 	for _, child := range read.Relations() {
 		for _, key := range child.Constraints.ForeignKeys {
+			if key.NotEnforced {
+				continue
+			}
 			var mask uint8
 			if key.Target == ref.Address {
 				for slot := range 2 {

@@ -34,22 +34,30 @@ type ForeignKeyCheck struct {
 	Key   catalog.ForeignKeyConstraint
 }
 
+// AlterForeignKeyScan is an admitted historical obligation. Disabled records
+// an actual later staged disable of this exact identity, independently of
+// whether ADD, VALIDATE or an enable originally scheduled the work.
+type AlterForeignKeyScan struct {
+	catalog.ForeignKeyConstraint
+	Disabled bool
+}
+
 // ResolveAlterForeignKeys resolves an execution-ordered historical worklist
 // against the authentic final child, retaining the existing required prefix.
 // Scheduled order is authoritative, not a membership filter over declaration
 // order. Repeated identities keep their first position.
-func ResolveAlterForeignKeys(child *catalog.Relation, scheduled []catalog.ForeignKeyConstraint, prefix []ForeignKeyCheck) ([]ForeignKeyCheck, error) {
+func ResolveAlterForeignKeys(child *catalog.Relation, scheduled []AlterForeignKeyScan, prefix []ForeignKeyCheck) ([]ForeignKeyCheck, error) {
 	if len(scheduled) == 0 {
 		return prefix, nil
 	}
 	checks := prefix
 	for _, selected := range scheduled {
 		slot := slices.IndexFunc(child.Constraints.ForeignKeys, func(c catalog.ForeignKeyConstraint) bool { return c.OID == selected.OID })
-		if selected.OID == 0 || slot < 0 {
+		if selected.OID == 0 || selected.NotValid || selected.NotEnforced || slot < 0 {
 			return nil, ids.ErrCatalogReplaced
 		}
 		key := child.Constraints.ForeignKeys[slot]
-		if key.NotValid || key.Name != selected.Name || key.Target != selected.Target || key.Index != selected.Index || key.Full != selected.Full || key.UpdateAction != selected.UpdateAction || key.DeleteAction != selected.DeleteAction || !slices.Equal(key.Attributes, selected.Attributes) || !slices.Equal(key.Referenced, selected.Referenced) || !slices.Equal(key.DeleteAttributes, selected.DeleteAttributes) {
+		if key.NotValid != key.NotEnforced || key.NotEnforced && !selected.Disabled || key.Name != selected.Name || key.Target != selected.Target || key.Index != selected.Index || key.Full != selected.Full || key.UpdateAction != selected.UpdateAction || key.DeleteAction != selected.DeleteAction || !slices.Equal(key.Attributes, selected.Attributes) || !slices.Equal(key.Referenced, selected.Referenced) || !slices.Equal(key.DeleteAttributes, selected.DeleteAttributes) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if slices.ContainsFunc(checks, func(previous ForeignKeyCheck) bool {
@@ -61,6 +69,9 @@ func ResolveAlterForeignKeys(child *catalog.Relation, scheduled []catalog.Foreig
 			checks = make([]ForeignKeyCheck, len(prefix), len(prefix)+len(scheduled))
 			copy(checks, prefix)
 		}
+		// The admitted scan obligation survives final NOT ENFORCED metadata.
+		// Definition links were checked above; execution uses captured flags.
+		key = selected.ForeignKeyConstraint
 		checks = append(checks, ForeignKeyCheck{Child: child, Key: key})
 	}
 	return checks, nil

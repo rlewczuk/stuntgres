@@ -296,7 +296,7 @@ library, and never the root engine or `session`. The engine, the root driver
 - **Default evaluation** (`default_eval.go`): `ApplyDefaultOrigin` and
   `EvalDefault` over an `exec.Context`.
   `CaptureRetainedWriteInput` also walks retained defaults, generation plans and
-  CHECKs for each node's `SnapshotDemander` visibility demand. These recipes skip
+  enforced CHECKs for each node's `SnapshotDemander` visibility demand. These recipes skip
   ordinary function binding: runtime demand must reach the consuming statement's
   captured snapshot even when the outer node (such as `pg_typeof`) needs none.
   This walk captures no catalog authority and evaluates no children. Non-binding

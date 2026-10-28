@@ -33,7 +33,7 @@ func PartitionConstraintActions(root *catalog.Relation, actions []parser.AlterTa
 			}
 		case parser.AddNotNull:
 		case parser.SetNotNull, parser.DropNotNull:
-		case parser.ValidateConstraint:
+		case parser.ValidateConstraint, parser.AlterConstraintEnforcement:
 			// Resolve kind and missing-name diagnostics at the actual misc phase.
 		case parser.DropConstraint:
 			if catalog.RelationConstraintNameExists(root, a.Constraint.Text) && !names[a.Constraint.Text] {

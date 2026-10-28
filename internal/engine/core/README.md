@@ -220,6 +220,31 @@ against current authority without evaluating defaults or CHECK truth again.
 Action diagnostics retain the generated RI statement after caller restoration;
 neither initiating-user EXECUTE nor a cooked value substitutes for owner admission.
 
+ALTER CONSTRAINT enforcement admission takes target ACCESS EXCLUSIVE, including
+no-ops. Referenced-side trigger creation requires SHARE ROW EXCLUSIVE; removal
+requires ACCESS EXCLUSIVE. Same-state requests add no parent grant. ADD-pass
+captures precede MISC admission; mixed grants retain the strongest mode and
+self-references deduplicate. Existing stored-key toggles preserve provider/storage
+fences without becoming fresh REFERENCES declarations. Publication uses the
+ordinary statement/transaction journal and cancellation boundary.
+Lock modes are bit identities, not numeric strength ranks. This admission folds
+its RS/SUE/SRE/AX requirements into one canonical strongest grant, so a
+self-referencing VALIDATE retains SUE rather than adding a redundant RS bit,
+and mixed enforcement transitions never downgrade AX. Owner proof:
+`make check RUN='^(TestAlterValidateConstraintAdmission|TestConstraintEnforcementAdmission)$'`.
+Later FK definition-provider readmission reuses an already-held AX grant rather
+than appending the ordinary ADD-side SRE bit. It still performs the normal
+epoch/catalog/target revalidation and provider-authority checks; ordinary
+definitions without AX continue to acquire SRE.
+ADD captures include the exact name chosen by the shared table naming authority,
+whether explicit or generated. The command-local projection accounts for DROP,
+prior index/NN reservations and ordered CHECK/FK name assignment, and is recomputed
+after unlocked waits before cooking. Thus generated names receive the same
+strongest parent grants and namespace-change fences as explicit declarations.
+DROP NOT NULL recapture uses the table owner's shared NN selector rather than a
+column-name deletion heuristic. Removing this relation's NN fact does not erase
+another relation/domain reservation, and absent facts do not manufacture removals.
+
 ## Hooks
 
 `NewEngine` (`engine.go`) seeds one engine's state: the stores, settings,
@@ -1512,6 +1537,8 @@ Trigger-mode candidate, staged cancellation, prepared publication, clone/FK and
 replay ownership units share `RUN='^TestTriggerMode'`, also with `RACE=1`.
 They inspect installed immutable definitions, real journals and accepted folds;
 SQL values, diagnostics and native-control effects remain in `reference/operators`.
+Retained enforcement CHECK preparation and manifest ownership use
+`RUN='^TestConstraintEnforcementCheckProgram$'`.
 
 Other planner-option admission, actual collection/publication, branch selection,
 cursor-source retention and scoped recursive estimates use `RUN='^TestPlannerOther'`.

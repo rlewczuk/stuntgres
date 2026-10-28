@@ -3,6 +3,13 @@ package parser
 // CREATE retains its own modifier boundary; only selected ALTER attachments
 // reach this helper. Deferring capability errors preserves complete-input syntax.
 func (l *lexer) alterConstraintValidity(a *AlterTableAction, not, modifier lexeme) bool {
+	if modifier.text == "enforced" {
+		return l.alterEnforcement(a, not, true)
+	}
+	if a.Action == AlterConstraintEnforcement {
+		l.deferUnsupported(not, "constraints cannot be altered to be NOT VALID")
+		return true
+	}
 	if modifier.text != "valid" {
 		message := "constraint modifiers are unsupported"
 		if a.Action == AddNotNull {

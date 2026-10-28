@@ -58,6 +58,9 @@ func (v AlterConstraintValidation) Recursive() bool {
 // already-valid fact returns exactly its predecessor, without a revision change.
 func ValidateConstraintCandidate(old *catalog.Relation, name string) (*catalog.Relation, AlterConstraintValidation, error) {
 	v, err := SelectAlterConstraintValidation(old, name)
+	if err == nil && (v.Check != nil && v.Check.NotEnforced || v.ForeignKey != nil && v.ForeignKey.NotEnforced) {
+		return old, v, sqlError("55000", "cannot validate NOT ENFORCED constraint")
+	}
 	if err != nil || !v.Invalid() {
 		return old, v, err
 	}

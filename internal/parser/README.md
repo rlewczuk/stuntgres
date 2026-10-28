@@ -105,6 +105,16 @@ single-statement limit of driver calls) belong to callers.
   action lists; execution owns current constraint lookup and authority.
   Rule-mode actions retain a distinct action kind and positioned rule name;
   relation-only IF EXISTS does not add a per-rule existence modifier or wildcard.
+- CHECK/FK declarations retain independent negative enforcement/validity flags
+  and positioned explicit properties. Column properties retain repetition and
+  unattached syntax-only entries for execution-time attachment diagnostics;
+  a later primary constraint cannot absorb an earlier orphan. Table conflicts
+  fail during parsing. The same FK property policy accepts NOT DEFERRABLE and
+  INITIALLY IMMEDIATE before or after enforcement without admitting deferred
+  execution. ALTER CONSTRAINT enforcement is a positioned MISC action. Domain
+  enforcement syntax remains a rejected domain operation, not a table alias.
+  Existing-index attachment rejection carries `UsingIndex.Primary` through the
+  same constraint-kind diagnostic seam; PK attachments are not mislabeled UNIQUE.
 - Statistics owner replay has a per-call `StatisticsOwnerReplay` option only
   for the isolated native Restore parser. It yields the shared positioned
   `AlterOwner` AST; ordinary calls retain the ALTER capability diagnostic.
@@ -343,6 +353,7 @@ text is sliced from these boundaries and never rescanned into executable syntax.
 ## Testing
 
 Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
+Constraint enforcement AST/property/full-input units use `RUN='^TestConstraintEnforcement(Parser|PropertySyntax|UsingIndexParser)$'`.
 Trigger-mode selectors, quoted names and complete-input AST units use
 `RUN='^TestTriggerModeGrammar$'`.
 Static capture AST/boundary units use `RUN='^TestPLpgSQLSelectIntoParser$'`.

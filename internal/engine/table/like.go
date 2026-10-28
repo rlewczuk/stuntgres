@@ -189,7 +189,7 @@ func StageLikeChecks(h Host, auth ddl.Authority, destination *catalog.Relation, 
 			if err != nil {
 				return err
 			}
-			definition := catalog.CheckConstraint{Name: old.Name, NoInherit: old.NoInherit, Ordinal: ordinal, Expression: node}
+			definition := catalog.CheckConstraint{Name: old.Name, NoInherit: old.NoInherit, NotEnforced: old.NotEnforced, NotValid: old.NotEnforced, Ordinal: ordinal, Expression: node}
 			var dependencies []ids.ObjectRef
 			if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: destination, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(h.Context(), view.Catalog, node); err != nil {
 				return err

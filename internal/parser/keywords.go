@@ -216,7 +216,7 @@ var keywords = [...]keyword{
 	{"encoding", Unreserved, true, 0},
 	{"encrypted", Unreserved, true, 0},
 	{"end", Reserved, true, END},
-	{"enforced", Unreserved, true, 0},
+	{"enforced", Unreserved, true, ENFORCED},
 	{"enum", Unreserved, true, 0},
 	{"error", Unreserved, true, 0},
 	{"escape", Unreserved, true, ESCAPE},

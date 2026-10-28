@@ -1,7 +1,6 @@
 package tablecmds
 
 import (
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/table"
 )
 
@@ -44,6 +43,6 @@ func NewPreparedIdentityDrop(drop *table.DropPreparation) *preparedIdentityDrop 
 
 // AlterForeignKeyWorklist exposes the immutable scheduled work, not a catalog
 // mutation or scan hook, to the composed owner's structural invariant tests.
-func AlterForeignKeyWorklist(work AlterTablePhysical) ([]catalog.ForeignKeyConstraint, bool) {
+func AlterForeignKeyWorklist(work AlterTablePhysical) ([]table.AlterForeignKeyScan, bool) {
 	return work.foreignKeyHistory, work.changedValues
 }

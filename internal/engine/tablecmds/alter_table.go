@@ -276,7 +276,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	var typeChecks []catalog.CheckConstraint
 	var addedChecks []catalog.CheckConstraint
 	var addedIndexes []ids.ObjectAddress
-	var foreignKeyHistory []catalog.ForeignKeyConstraint
+	var foreignKeyHistory []table.AlterForeignKeyScan
 	var validatedChecks []catalog.CheckConstraint
 	var validatedNotNull []catalog.NotNullConstraint
 	var additions []table.AddedColumn
@@ -284,7 +284,9 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	var attachments []index.UsingIndexAttachment
 	hasAttachments := false
 	hasForeignKeys := len(foreignKeysOrZero(scope).AlterKeys) != 0
-	hasValidations := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.ValidateConstraint })
+	hasValidations := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool {
+		return a.Action == parser.ValidateConstraint || a.Action == parser.AlterConstraintEnforcement
+	})
 	hasRuleModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.RuleModeAction(a.Action) })
 	hasTriggerModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.TriggerModeAction(a.Action) })
 	for _, action := range s.Actions {
@@ -549,14 +551,14 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, ids.ErrCatalogReplaced
 		}
 		capture := foreignKeysOrZero(scope).AlterKeys[fkIndex]
-		next, err = stageAddedForeignKey(e, scope, auth, stage, next, action.ForeignKey, capture.Target.Address, capture.Index)
+		next, err = stageAddedForeignKey(e, scope, auth, stage, next, action.ForeignKey, capture.Target.Address, capture.Index, capture.Name)
 		if err != nil {
 			return core.Result{}, err
 		}
 		added := next.Constraints.ForeignKeys[len(next.Constraints.ForeignKeys)-1]
 		// Capture ADD-pass eligibility before MISC can promote NOT VALID.
 		if !added.NotValid {
-			foreignKeyHistory = append(foreignKeyHistory, added)
+			foreignKeyHistory = append(foreignKeyHistory, table.AlterForeignKeyScan{ForeignKeyConstraint: added})
 		}
 		fkIndex++
 	}
@@ -583,6 +585,33 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			next, err = table.RuleModeCandidate(next, action)
 			if err != nil {
 				return core.Result{}, err
+			}
+			continue
+		}
+		if action.Action == parser.AlterConstraintEnforcement {
+			var scan *catalog.ForeignKeyConstraint
+			before := next
+			e.Mu.Lock()
+			next, scan, err = table.EnforceConstraintCandidate(core.DDLHost{E: e, CatalogStage: stage}, next, action.Constraint.Text, action.NotEnforced)
+			e.Mu.Unlock()
+			if err != nil {
+				return core.Result{}, err
+			}
+			if scan != nil {
+				foreignKeyHistory = append(foreignKeyHistory, table.AlterForeignKeyScan{ForeignKeyConstraint: *scan})
+			}
+			if next != before && action.NotEnforced {
+				for _, key := range next.Constraints.ForeignKeys {
+					if key.Name != action.Constraint.Text {
+						continue
+					}
+					for i := range foreignKeyHistory {
+						if foreignKeyHistory[i].OID == key.OID {
+							foreignKeyHistory[i].Disabled = true
+						}
+					}
+					break
+				}
 			}
 			continue
 		}
@@ -616,7 +645,9 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		case selected.NotNull != nil:
 			validatedNotNull = append(validatedNotNull, *selected.NotNull)
 		case selected.ForeignKey != nil:
-			foreignKeyHistory = append(foreignKeyHistory, *selected.ForeignKey)
+			admitted := *selected.ForeignKey
+			admitted.NotValid = false
+			foreignKeyHistory = append(foreignKeyHistory, table.AlterForeignKeyScan{ForeignKeyConstraint: admitted})
 		}
 	}
 	if (hasValidations || hasRuleModes || hasTriggerModes) && next != old {

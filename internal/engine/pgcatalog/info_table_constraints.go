@@ -66,9 +66,8 @@ func captureInfoTableConstraints(in Input) ([][]sqltype.Value, error) {
 		if !visible {
 			continue
 		}
-		// All currently represented included families are immediate and enforced.
-		// NOT VALID is independent of enforcement; exclusions are not included.
-		emit := func(oid ids.OID, name, kind, distinct string) error {
+		// Validity never determines enforcement; admitted deferrability is false.
+		emit := func(oid ids.OID, name, kind, distinct string, negative bool) error {
 			if err := in.Context.Err(); err != nil {
 				return err
 			}
@@ -76,7 +75,11 @@ func captureInfoTableConstraints(in Input) ([][]sqltype.Value, error) {
 				return fmt.Errorf("stuntgres: invalid table_constraints definition")
 			}
 			row := make([]sqltype.Value, 11)
-			for i, text := range [11]string{database, namespace.Name(), name, database, namespace.Name(), table.Name(), kind, "NO", "NO", "YES", distinct} {
+			enforced := "YES"
+			if negative {
+				enforced = "NO"
+			}
+			for i, text := range [11]string{database, namespace.Name(), name, database, namespace.Name(), table.Name(), kind, "NO", "NO", enforced, distinct} {
 				typ := in.Source.Columns[i].Usage.Type
 				if i == 10 && distinct == "" {
 					row[i] = sqltype.Null(typ)
@@ -93,13 +96,13 @@ func captureInfoTableConstraints(in Input) ([][]sqltype.Value, error) {
 		}
 		for i := range table.Constraints.NotNull {
 			constraint := &table.Constraints.NotNull[i]
-			if err := emit(constraint.OID, constraint.Name, "CHECK", ""); err != nil {
+			if err := emit(constraint.OID, constraint.Name, "CHECK", "", false); err != nil {
 				return nil, err
 			}
 		}
 		for i := range table.Constraints.Check {
 			constraint := &table.Constraints.Check[i]
-			if err := emit(constraint.OID, constraint.Name, "CHECK", ""); err != nil {
+			if err := emit(constraint.OID, constraint.Name, "CHECK", "", constraint.NotEnforced); err != nil {
 				return nil, err
 			}
 		}
@@ -112,13 +115,13 @@ func captureInfoTableConstraints(in Input) ([][]sqltype.Value, error) {
 			if constraint.Primary {
 				kind, distinct = "PRIMARY KEY", ""
 			}
-			if err := emit(constraint.OID, constraint.Name, kind, distinct); err != nil {
+			if err := emit(constraint.OID, constraint.Name, kind, distinct, false); err != nil {
 				return nil, err
 			}
 		}
 		for i := range table.Constraints.ForeignKeys {
 			constraint := &table.Constraints.ForeignKeys[i]
-			if err := emit(constraint.OID, constraint.Name, "FOREIGN KEY", ""); err != nil {
+			if err := emit(constraint.OID, constraint.Name, "FOREIGN KEY", "", constraint.NotEnforced); err != nil {
 				return nil, err
 			}
 		}

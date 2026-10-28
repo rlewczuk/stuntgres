@@ -26,6 +26,7 @@ type RestoredHistoricalFact struct {
 	Attributes          []int32
 	Expression          expr.Expr
 	NotValid, NoInherit bool
+	NotEnforced         bool
 	Local               bool
 	Count               int
 }
@@ -110,10 +111,10 @@ func CaptureHistoricalRelation(view catalog.Read, ref ids.ObjectRef, facts map[i
 		if len(p.Retired) != 0 {
 			continue
 		}
-		if old, exists := facts[c.OID]; exists && old.Local == p.Local && old.Count == len(p.Origins) && old.NotValid == c.NotValid && old.NoInherit == c.NoInherit {
+		if old, exists := facts[c.OID]; exists && old.Local == p.Local && old.Count == len(p.Origins) && old.NotValid == c.NotValid && old.NotEnforced == c.NotEnforced && old.NoInherit == c.NoInherit {
 			continue
 		}
-		facts[c.OID] = RestoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Check: true, Attributes: ConstraintAttributeKeys(table, c.Expression), Expression: c.Expression, NotValid: c.NotValid, NoInherit: c.NoInherit, Local: p.Local, Count: len(p.Origins)}
+		facts[c.OID] = RestoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Check: true, Attributes: ConstraintAttributeKeys(table, c.Expression), Expression: c.Expression, NotValid: c.NotValid, NotEnforced: c.NotEnforced, NoInherit: c.NoInherit, Local: p.Local, Count: len(p.Origins)}
 	}
 }
 
@@ -330,7 +331,7 @@ func RetiredConstraintCandidate(r RestoreResolver, auth ddl.Authority, view cata
 	if repair.Check {
 		for _, c := range old.Constraints.Check {
 			if c.Name == repair.Name {
-				fact = RestoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Check: true, Attributes: ConstraintAttributeKeys(old, c.Expression), Expression: c.Expression, NotValid: c.NotValid, NoInherit: c.NoInherit}
+				fact = RestoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Check: true, Attributes: ConstraintAttributeKeys(old, c.Expression), Expression: c.Expression, NotValid: c.NotValid, NotEnforced: c.NotEnforced, NoInherit: c.NoInherit}
 				provenance = graph.Checks[c.Name]
 				break
 			}
@@ -345,7 +346,7 @@ func RetiredConstraintCandidate(r RestoreResolver, auth ddl.Authority, view cata
 		}
 	}
 	captured, exists := authority.Facts[fact.OID]
-	if !exists || captured.OID != fact.OID || fact.OID == 0 || captured.Ref != ref || captured.Name != fact.Name || captured.Check != fact.Check || captured.NotValid != fact.NotValid || captured.NoInherit != fact.NoInherit || !slices.Equal(captured.Attributes, fact.Attributes) || !analyze.SameGroupExpression(captured.Expression, fact.Expression) || captured.Local != repair.BeforeLocal || captured.Count != repair.Before || provenance.Local != repair.BeforeLocal || provenance.Count() != repair.Before || len(provenance.Retired) != 0 || len(fact.Attributes) != len(repair.Columns) {
+	if !exists || captured.OID != fact.OID || fact.OID == 0 || captured.Ref != ref || captured.Name != fact.Name || captured.Check != fact.Check || captured.NotValid != fact.NotValid || captured.NotEnforced != fact.NotEnforced || captured.NoInherit != fact.NoInherit || !slices.Equal(captured.Attributes, fact.Attributes) || !analyze.SameGroupExpression(captured.Expression, fact.Expression) || captured.Local != repair.BeforeLocal || captured.Count != repair.Before || provenance.Local != repair.BeforeLocal || provenance.Count() != repair.Before || len(provenance.Retired) != 0 || len(fact.Attributes) != len(repair.Columns) {
 		return reject()
 	}
 	for i, attribute := range fact.Attributes {

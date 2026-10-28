@@ -3,7 +3,6 @@ package table
 import (
 	"fmt"
 	"slices"
-	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
@@ -119,19 +118,14 @@ func StageForeignKey(h Host, auth ddl.Authority, child *catalog.Relation, raw pa
 	if err := ForeignKeyReferencesAllowed(h.AccessView(auth), auth, parent, referenced); err != nil {
 		return err
 	}
-	used := catalog.ConstraintNames(view, child.Namespace(), child)
 	name := raw.Name.Text
 	if name == "" {
-		labels := make([]string, len(raw.Columns))
-		for i, column := range raw.Columns {
-			labels[i] = column.Text
-		}
-		name = catalog.GeneratedConstraintName(child.Name(), strings.Join(labels, "_"), "fkey", used)
+		name = ForeignKeyConstraintName(child, raw, catalog.ConstraintNames(view, child.Namespace(), child))
 	}
 	if catalog.RelationConstraintNameExists(child, name) {
 		return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, child.Name()))
 	}
-	f := catalog.ForeignKeyConstraint{Name: name, Attributes: local, Target: parent.Address(), Referenced: referenced, Index: index.Address(), Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid}
+	f := catalog.ForeignKeyConstraint{Name: name, Attributes: local, Target: parent.Address(), Referenced: referenced, Index: index.Address(), Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid || raw.NotEnforced, NotEnforced: raw.NotEnforced}
 	if _, err := BindForeignKeyComparison(view, child, parent, index, f); err != nil {
 		return err
 	}
@@ -150,6 +144,9 @@ func StageForeignKey(h Host, auth ddl.Authority, child *catalog.Relation, raw pa
 // AssignForeignKeyTriggerOIDs allocates persistent logical implementation
 // identities with the constraint, never during catalog projection or DROP.
 func AssignForeignKeyTriggerOIDs(a ddl.Allocator, f *catalog.ForeignKeyConstraint) error {
+	if f.NotEnforced {
+		return nil
+	}
 	for slot := range f.TriggerOIDs {
 		if f.TriggerOIDs[slot] != 0 {
 			continue

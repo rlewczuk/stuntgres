@@ -26,5 +26,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Inherited DML: `RUN='^TestReferenceInheritanceDML'`
 - Inherited ALTER: `RUN='^TestReferenceInheritanceAlter'`
 - INHERIT/NO INHERIT maintenance: `RUN='^TestReferenceInheritanceMaint'`
+- Inherited ALTER CHECKs share native/PostgreSQL success for `NOT ENFORCED`,
+  asserting false enforcement/validity on both parent and child while retaining
+  enforced sibling checks and final rows: `RUN='^TestReferenceInheritanceAlterChecks$'`.
 
 Engine and parser units: `make check RUN='^Test(Inheritance|Typed|TableLike)'`.

@@ -87,12 +87,14 @@ private frames, not catalog authority.
   authority. `Removal` retains it with successful effects; ORIGINAL and NORMAL
   reachability merge independently of operation-internal suppression.
   `RelationPayloadAddresses` enumerates logical owned identities, not attributes
-  of a removed whole relation. FK definitions own four persistent RI trigger OIDs
-  and their checked O/D/R/A `TriggerMode` values: target DELETE/UPDATE actions,
-  then owner INSERT/UPDATE checks. `ForeignKeyTriggerFacts` derives their
-  execution/descriptor owners without executable user-trigger payloads or another
-  registry. Definition reservation, validation and replacement remapping include
-  those identities; surviving identities retain modes, fresh identities start O.
+  of a removed whole relation. CHECK/FK `NotEnforced` is independent of
+  deferrability and validity; an unenforced fact is also invalid, while an
+  enforced invalid fact still constrains future writes. Enforced FKs own four
+  persistent RI trigger OIDs and checked O/D/R/A modes: target DELETE/UPDATE,
+  then owner INSERT/UPDATE. Unenforced FKs own no trigger identities or modes.
+  `ForeignKeyTriggerFacts` derives actual owners, not disabled synthetic slots.
+  Definition reservation and remapping preserve surviving identities/modes;
+  genuine re-enabling allocates fresh O-mode identities.
 - **Extended statistics.** `StatisticsProvider` validates schema-bound class
   3381 definitions, live owner and domain/epoch-bound input relation authority.
   `StatisticsSelection` owns fixed canonical positive simple keys, expression

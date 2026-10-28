@@ -129,6 +129,9 @@ func (b *Binder) CaptureRetainedWriteInput(defaults []expr.Expr, generations map
 		}
 	}
 	for _, definition := range checks {
+		if definition.NotEnforced {
+			continue
+		}
 		plan.WalkExpression(definition.Expression, visit)
 		if failure != nil {
 			return failure

@@ -124,7 +124,9 @@ func Deparse(c *exec.Context, in DeparseInputs, signature functions.DeparseSigna
 				if def.NoInherit {
 					text += " NO INHERIT"
 				}
-				if def.NotValid {
+				if def.NotEnforced {
+					text += " NOT ENFORCED"
+				} else if def.NotValid {
 					text += " NOT VALID"
 				}
 			}

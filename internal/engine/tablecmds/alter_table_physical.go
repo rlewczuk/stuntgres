@@ -35,7 +35,7 @@ type AlterTablePhysical struct {
 	addedIndexes                                                       []ids.ObjectAddress
 	validatedChecks                                                    []catalog.CheckConstraint
 	validatedNotNull                                                   []catalog.NotNullConstraint
-	foreignKeyHistory                                                  []catalog.ForeignKeyConstraint
+	foreignKeyHistory                                                  []table.AlterForeignKeyScan
 	fills                                                              map[int32]sqltype.Value
 	rewrite, rewriteEvent, physicalRows, hasAttachments, changedValues bool
 	destination                                                        ids.ObjectRef

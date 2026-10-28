@@ -21,6 +21,9 @@ func ForeignKeyReach(view catalog.Read, rows map[ids.ObjectAddress][]storage.Row
 			continue
 		}
 		for _, f := range child.Constraints.ForeignKeys {
+			if f.NotEnforced {
+				continue
+			}
 			if len(rows[child.Address()]) != 0 || deletes[child.Address()] != nil || len(rows[f.Target]) != 0 || deletes[f.Target] != nil {
 				relevant = true
 				break
@@ -58,6 +61,9 @@ func ForeignKeyReach(view catalog.Read, rows map[ids.ObjectAddress][]storage.Row
 				continue
 			}
 			for _, f := range child.Constraints.ForeignKeys {
+				if f.NotEnforced {
+					continue
+				}
 				parentDirections := directions[f.Target]
 				next := directions[child.Address()]
 				if parentDirections&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade {
@@ -86,6 +92,9 @@ func ForeignKeyReach(view catalog.Read, rows map[ids.ObjectAddress][]storage.Row
 			continue
 		}
 		for _, f := range child.Constraints.ForeignKeys {
+			if f.NotEnforced {
+				continue
+			}
 			if !changed[child.Address()] && !changed[f.Target] {
 				continue
 			}

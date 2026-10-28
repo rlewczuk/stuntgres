@@ -19,21 +19,34 @@ const (
 	NotNullValidation
 )
 
-func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Relation, a parser.AlterTableAction, recursion NotNullRecursion) (*catalog.Relation, error) {
-	slot, idx := -1, -1
-	if a.Action == parser.DropConstraint {
-		for i, c := range old.Constraints.NotNull {
-			if c.Name == a.Constraint.Text {
-				idx = i
-				for j, attr := range old.Attributes {
-					if attr == c.Attribute {
-						slot = j
-						break
-					}
-				}
-				break
+// selectNotNullConstraint is the pure fact lookup shared by candidate cooking
+// and name projection. It selects by stable attribute, or by the explicit name
+// for DROP CONSTRAINT. Absence is not a synthesized fact or a removal.
+// Legality checks, diagnostics and notices belong to NotNullCandidate.
+func selectNotNullConstraint(relation *catalog.Relation, action parser.AlterTableAction) (slot, fact int) {
+	if action.Action == parser.DropConstraint {
+		for i, constraint := range relation.Constraints.NotNull {
+			if constraint.Name == action.Constraint.Text {
+				return relation.IndexForAttribute(constraint.Attribute), i
 			}
 		}
+		return -1, -1
+	}
+	slot, ok := relation.Index[action.Column.Text]
+	if !ok {
+		return -1, -1
+	}
+	for i, constraint := range relation.Constraints.NotNull {
+		if constraint.Attribute == relation.Attributes[slot] {
+			return slot, i
+		}
+	}
+	return slot, -1
+}
+
+func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Relation, a parser.AlterTableAction, recursion NotNullRecursion) (*catalog.Relation, error) {
+	slot, idx := selectNotNullConstraint(old, a)
+	if a.Action == parser.DropConstraint {
 		for _, c := range old.Constraints.Check {
 			if c.Name == a.Constraint.Text {
 				next := *old
@@ -101,16 +114,8 @@ func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			}
 			return nil, sqlError("0A000", message)
 		}
-		var ok bool
-		slot, ok = old.Index[a.Column.Text]
-		if !ok {
+		if slot < 0 {
 			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.Name()))
-		}
-		for i, c := range old.Constraints.NotNull {
-			if c.Attribute == old.Attributes[slot] {
-				idx = i
-				break
-			}
 		}
 	}
 	adding := a.Action == parser.SetNotNull || a.Action == parser.AddNotNull

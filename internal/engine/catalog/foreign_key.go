@@ -22,6 +22,7 @@ type ForeignKeyConstraint struct {
 	DeleteAction     parser.ForeignKeyAction
 	DeleteAttributes []int32
 	NotValid         bool
+	NotEnforced      bool
 }
 
 func (f ForeignKeyConstraint) TriggerMode(slot int) TriggerMode {

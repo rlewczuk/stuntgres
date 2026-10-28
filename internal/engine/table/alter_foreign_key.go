@@ -12,6 +12,7 @@ type AlterForeignKeyAdmission struct {
 	Target           ids.ObjectRef
 	Storage          *storage.Relation
 	Index            ids.ObjectAddress
+	Name             string  // Command-local ADD name, selected and rechecked before cooking.
 	Constraint       ids.OID // Nonzero only for an existing selected validation fact.
 	Parent, Provider *catalog.Relation
 }

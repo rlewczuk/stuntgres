@@ -90,6 +90,10 @@ vectors are shared within an unchanged relation/catalog/effective-role capture,
 not mutated when settings or definitions change; all-enabled captures remain nil.
 Vectors are sorted once by constraint identity when captured and searched by
 binary lookup, rather than rescanned for each FK/slot during settlement.
+Unenforced FKs contribute neither child checks nor parent actions or effect
+admission. NOT VALID remains independently enforced. Held action jobs include
+enforcement and actual trigger identities in definition readmission; mode and
+replication-role policy apply only to existing enforced implementation slots.
 Reached trigger-body statements, routine helpers and source reads retain the
 referencing-table owner's RI authority through description, prepared analysis
 and execution, including live role recapture after unlocked provider preflight.

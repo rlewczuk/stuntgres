@@ -164,6 +164,9 @@ func AttachInheritance(ctx context.Context, view catalog.Read, child, parent *ca
 		if actual.NoInherit {
 			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with non-inherited constraint on child table "%s"`, required.Name, child.Name()))
 		}
+		if !required.NotEnforced && actual.NotEnforced {
+			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT ENFORCED constraint on child table "%s"`, required.Name, child.Name()))
+		}
 		if !required.NotValid && actual.NotValid {
 			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, required.Name, child.Name()))
 		}

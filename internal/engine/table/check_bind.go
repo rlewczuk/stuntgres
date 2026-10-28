@@ -88,8 +88,15 @@ func BindChecks(h Host, auth ddl.Authority, d *catalog.Relation, raw []*parser.C
 			if c.NoInherit {
 				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.Name()))
 			}
-			if ancestor.NotValid && !c.NotValid {
+			if !ancestor.NotEnforced && !c.NotEnforced && ancestor.NotValid && !c.NotValid {
 				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on relation "%s"`, name, d.Name()))
+			}
+			if ancestor.NotEnforced && !c.NotEnforced {
+				for i := range d.Constraints.Check {
+					if d.Constraints.Check[i].Name == name {
+						d.Constraints.Check[i].NotEnforced, d.Constraints.Check[i].NotValid = false, false
+					}
+				}
 			}
 			current[name] = true
 			h.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging constraint "%s" with inherited definition`, name)})
@@ -104,6 +111,12 @@ func BindChecks(h Host, auth ddl.Authority, d *catalog.Relation, raw []*parser.C
 					}
 					if c.NoInherit {
 						return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.Name()))
+					}
+					if !d.Constraints.Check[old].NotEnforced && c.NotEnforced {
+						return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT ENFORCED constraint on relation "%s"`, name, d.Name()))
+					}
+					if !c.NotEnforced {
+						d.Constraints.Check[old].NotEnforced, d.Constraints.Check[old].NotValid = false, c.NotValid
 					}
 					provenance.Local = true
 					d.Inheritance.Checks[name] = provenance
@@ -121,7 +134,7 @@ func BindChecks(h Host, auth ddl.Authority, d *catalog.Relation, raw []*parser.C
 			return diagnostic
 		}
 		current[name], used[name] = true, true
-		definition := catalog.CheckConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, Ordinal: ordinal, Expression: node}
+		definition := catalog.CheckConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid || c.NotEnforced, NotEnforced: c.NotEnforced, Ordinal: ordinal, Expression: node}
 		var dependencies []ids.ObjectRef
 		if _, err := (stored.ScalarRenderer{Definition: h.OperationDefinition(), ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: d, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(h.Context(), view.Catalog, node); err != nil {
 			return err

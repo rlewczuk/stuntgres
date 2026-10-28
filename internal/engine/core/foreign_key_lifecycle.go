@@ -12,8 +12,16 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	if len(refs) == 0 {
 		return nil
 	}
+	e := stage.Owner
 	for _, ref := range refs {
-		if err := s.ForeignKeyGrant(ref, 0, lock.ShareRowExclusive, nil); err != nil {
+		mode := lock.ShareRowExclusive
+		// ALTER admission already folds ADD and stored-toggle requirements.
+		// Reuse its AX grant instead of adding an independent SRE bit during
+		// definition-provider readmission; still perform ordinary revalidation.
+		if e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive) {
+			mode = lock.AccessExclusive
+		}
+		if err := s.ForeignKeyGrant(ref, 0, mode, nil); err != nil {
 			return err
 		}
 	}
@@ -21,7 +29,6 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	if err != nil {
 		return err
 	}
-	e := stage.Owner
 	e.Mu.Lock()
 	auth.Catalog = e.PrivateCatalogLocked(s.PendingCatalog())
 	auth.Recapture(auth.Catalog)
