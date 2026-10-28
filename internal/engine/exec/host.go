@@ -77,6 +77,7 @@ type Host interface {
 	SizeInquiry(functions.SizeKind, sqltype.Value, string, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.GenericFileListRuntime
 	GenericFileList(functions.GenericFileListKind, string) error
+	LogicalDecoding(sqltype.Value, sqltype.Value) error
 	GenericFileRead(functions.GenericFileReadKind, string, int64, bool) error
 	GenericFileTmpdir(uint32) error
 	PartitionTree(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)

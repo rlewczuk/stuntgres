@@ -65,6 +65,10 @@ engines inherit the same mode.
 - `WithCommitTimestampTracking()` enables commit timestamps on the package's single
   oracle (used by `locking_transactions`; other packages stay default-off). It is
   not a session SET toggle and never a second container.
+- `WithLogicalWAL()` starts the package's existing pinned oracle with
+  `wal_level=logical`; it changes neither the image pin nor native configuration.
+  Logical-decoding scenarios also require a positive stock
+  `max_replication_slots` before asserting SQL validation and missing-slot errors.
 
 ### Test-only legacy crypto oracle
 

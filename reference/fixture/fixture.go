@@ -46,6 +46,13 @@ func WithCommitTimestampTracking() StartupOption {
 	return func() { trackCommitTimestamp = true }
 }
 
+var logicalWAL bool
+
+// WithLogicalWAL enables logical decoding prerequisites on the package oracle.
+func WithLogicalWAL() StartupOption {
+	return func() { logicalWAL = true }
+}
+
 // Tests run serially; one test can create multiple pairs before its cleanup.
 
 func Main(m *testing.M, options ...StartupOption) (code int) {

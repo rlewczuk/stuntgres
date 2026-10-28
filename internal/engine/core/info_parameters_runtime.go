@@ -92,7 +92,7 @@ func (r EngineCatalogRuntime) routineDefaultNode(ctx context.Context, capture ca
 	}
 	recipe := d.LiteralDefaults.At(slot - (inputs - count))
 	switch sqltype.ID(recipe.SourceType) {
-	case sqltype.Bool, sqltype.Int4, sqltype.Int8, sqltype.Float8, sqltype.Numeric, sqltype.Text, sqltype.JSONB:
+	case sqltype.Bool, sqltype.Int4, sqltype.Int8, sqltype.Float8, sqltype.Numeric, sqltype.Text, sqltype.JSONB, 1009:
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid routine default literal type")
 	}

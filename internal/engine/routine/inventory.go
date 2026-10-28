@@ -1744,6 +1744,10 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{2997, ids.PGCatalogNamespaceOID, "pg_table_size", "2205"}, catalog.FunctionRoutine, 20, true, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2998, ids.PGCatalogNamespaceOID, "pg_indexes_size", "2205"}, catalog.FunctionRoutine, 20, true, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2286, ids.PGCatalogNamespaceOID, "pg_total_relation_size", "2205"}, catalog.FunctionRoutine, 20, true, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{3782, ids.PGCatalogNamespaceOID, "pg_logical_slot_get_changes", "19,3220,23,1009"}, catalog.FunctionRoutine, 2249, false, expr.Volatile, 'u', true, 25, 1, functions.CatalogRoutineProvider, catalog.NewRoutineOutputs([]ids.OID{3220, 28, 25}, "slot_name", "upto_lsn", "upto_nchanges", "options", "lsn", "xid", "data")},
+	{catalog.RoutineIdentity{3783, ids.PGCatalogNamespaceOID, "pg_logical_slot_get_binary_changes", "19,3220,23,1009"}, catalog.FunctionRoutine, 2249, false, expr.Volatile, 'u', true, 25, 1, functions.CatalogRoutineProvider, catalog.NewRoutineOutputs([]ids.OID{3220, 28, 17}, "slot_name", "upto_lsn", "upto_nchanges", "options", "lsn", "xid", "data")},
+	{catalog.RoutineIdentity{3784, ids.PGCatalogNamespaceOID, "pg_logical_slot_peek_changes", "19,3220,23,1009"}, catalog.FunctionRoutine, 2249, false, expr.Volatile, 'u', true, 25, 1, functions.CatalogRoutineProvider, catalog.NewRoutineOutputs([]ids.OID{3220, 28, 25}, "slot_name", "upto_lsn", "upto_nchanges", "options", "lsn", "xid", "data")},
+	{catalog.RoutineIdentity{3785, ids.PGCatalogNamespaceOID, "pg_logical_slot_peek_binary_changes", "19,3220,23,1009"}, catalog.FunctionRoutine, 2249, false, expr.Volatile, 'u', true, 25, 1, functions.CatalogRoutineProvider, catalog.NewRoutineOutputs([]ids.OID{3220, 28, 17}, "slot_name", "upto_lsn", "upto_nchanges", "options", "lsn", "xid", "data")},
 	{catalog.RoutineIdentity{2625, ids.PGCatalogNamespaceOID, "pg_ls_dir", "25"}, catalog.FunctionRoutine, 25, true, expr.Volatile, 's', true, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3297, ids.PGCatalogNamespaceOID, "pg_ls_dir", "25,16,16"}, catalog.FunctionRoutine, 25, true, expr.Volatile, 's', true, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3353, ids.PGCatalogNamespaceOID, "pg_ls_logdir", ""}, catalog.FunctionRoutine, 2249, true, expr.Volatile, 's', true, 0, 0, functions.CatalogRoutineProvider, catalog.NewRoutineOutputs([]ids.OID{25, 20, 1184}, "name", "size", "modification")},
@@ -1822,7 +1826,7 @@ func indexBuiltinRoutineDeclarations() map[ids.OID]*catalog.BuiltinRoutineDeclar
 	for _, declarations := range [...][]catalog.BuiltinRoutineDeclaration{BuiltinRoutineDeclarations, sharedMemoryDeclarations[:]} {
 		for i := range declarations {
 			d := &declarations[i]
-			if d.Outputs != nil && (!d.Outputs.MatchesInputs(d.Identity.Signature) || d.Variadic != 0) {
+			if d.Outputs != nil && !d.Outputs.MatchesInputs(d.Identity.Signature) {
 				panic("stuntgres: invalid builtin fixed output declaration")
 			}
 			byOID[d.Identity.ID] = d

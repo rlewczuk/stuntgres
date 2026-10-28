@@ -157,6 +157,14 @@ func (c *Context) GenericFileList(kind functions.GenericFileListKind, dirname st
 	return host.GenericFileList(kind, dirname)
 }
 
+func (c *Context) LogicalDecoding(slot, options sqltype.Value) error {
+	host := c.LiveHost()
+	if host == nil {
+		return fmt.Errorf("stuntgres: missing logical decoding host")
+	}
+	return host.LogicalDecoding(slot, options)
+}
+
 func (c *Context) GenericFileRead(kind functions.GenericFileReadKind, filename string, length int64, hasLength bool) error {
 	host := c.LiveHost()
 	if host == nil {

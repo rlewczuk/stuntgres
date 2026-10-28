@@ -45,7 +45,10 @@ execution. Remaining unavailable functions retain their binding-time boundaries.
 
 ## Testing
 
-Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
+Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses
+`fixture.WithLogicalWAL()` for the package-owned oracle. The logical-decoding
+family uses `make check RUN='^TestReferenceLogicalDecoding'` for signatures,
+typed metadata, options, diagnostics, live authority and unchanged-state witnesses.
 Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
 The file-list family uses `make check RUN='^TestReferenceGenericFileLists'`.

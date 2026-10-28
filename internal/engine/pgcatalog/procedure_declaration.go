@@ -67,7 +67,7 @@ func visitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes
 	}
 	inputs := int(ProcedureArity(d))
 	outputs := d.OutputDeclaration()
-	if outputs != nil && (outputs.Inputs() != inputs || variadic != 0) {
+	if outputs != nil && outputs.Inputs() != inputs {
 		return fmt.Errorf("stuntgres: invalid fixed output declaration")
 	}
 	defaults := int(d.Installed.Defaults)

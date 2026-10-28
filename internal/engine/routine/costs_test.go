@@ -24,6 +24,7 @@ func TestBuiltinRoutineCosts(t *testing.T) {
 		3935: 1, 3936: 1, 5023: 1, 6159: 10, 6212: 1, 6249: 100,
 		6348: 10, 6349: 10, 6350: 10,
 		3353: 10, 3354: 10, 5029: 10, 5030: 10, 5031: 10, 6270: 10, 6271: 10, 6272: 10, 6400: 10,
+		3782: 1000, 3783: 1000, 3784: 1000, 3785: 1000,
 		// Unreplaced quoted SQL declarations retain pg_proc.h bootstrap cost1.
 		1285: 1, 1290: 1, 2003: 1, 2004: 1,
 		// The released pg_relation_size(regclass) SQL wrapper retains cost1,

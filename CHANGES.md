@@ -1,5 +1,11 @@
 # Changes
 
+- Add the four logical-slot get/peek text/binary SQL signatures with initialized
+  empty-options defaults, typed record metadata, ordered option validation and
+  live current-role replication authorization. Preserve missing-slot 42704 under
+  the authorized current-catalog boundary; no slot, decoded stream or advancement
+  is fabricated. Physical-decoding rejection is unreachable without real slots.
+
 - ANALYZE collects multivariate MCV lists with actual joint frequencies,
   full-population marginal baselines, separate SQL NULL flags and target caps.
   Publish genuine `pg_mcv_list` native datum images for executable typed grouping

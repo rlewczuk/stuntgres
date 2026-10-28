@@ -81,6 +81,7 @@ var definitions = [...]Definition{
 	{Names: sizeNames[:], Bind: bindRelationSize},
 	{Names: genericFileListNames[:], ExactSpelling: true, Bind: bindGenericFileList, NamedCall: namedGenericFileList},
 	{Names: genericFileReadNames[:], ExactSpelling: true, Bind: bindGenericFileRead, NamedCall: namedGenericFileRead},
+	{Names: logicalDecodingNames[:], ExactSpelling: true, Bind: bindLogicalDecoding, NamedCall: namedLogicalDecoding},
 	{Names: []string{"pg_listening_channels", "pg_notification_queue_usage"}, Bind: bindNotificationInfo},
 	{Names: recoveryInfoNames[:], ExactSpelling: true, Bind: bindRecoveryInfo},
 	{Names: []string{"pg_event_trigger_dropped_objects"}, ExactSpelling: true, Bind: bindEventTriggerDroppedObjects},

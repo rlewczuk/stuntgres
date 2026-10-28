@@ -43,6 +43,15 @@ evaluate before a NULL produces a typed empty cursor. `pg_ls_tmpdir` borrows a
 typed OID capability and the statement's owner-validated tablespace snapshot.
 Non-NULL calls borrow current statement authority, never host filesystem access.
 
+`LogicalDecoding` owns the four non-strict, volatile logical-slot get/peek typed
+sources. Written operands and formal mappings survive capture/reconstruction;
+the released empty TEXT[] default belongs to the routine declaration. Every
+demanded invocation evaluates all written operands before borrowing live current
+role authority through the used `LogicalDecoding` runtime bridge. REPLICATION is
+an actor attribute, not an inherited capability. Pure NULL/rank/element/count
+checks precede truthful missing-slot errors; no slot, decoder, cursor or authority
+is retained. Text and binary output descriptors differ only in their data member.
+
 `GenericFileRead` binds text/binary reads and scalar file metadata with fixed
 typed operands and written-to-formal slots. Scalar reads permit strict NULL
 planning erasure after required child work; RECORD stat calls remain admitted
@@ -683,6 +692,9 @@ Read/stat/tmpdir binding, scalar strict protocols and runtime ownership use
 `RUN='^TestGenericFileRead'`; public SQL scenarios remain in `reference/roles`.
 Recovery inquiry carriers, fixed OUT validation and physical source admission use
 `RUN='^TestRecoveryInfo'`; public witnesses use `^TestReferenceRecoveryInfo`.
+Logical-decoding declaration, reconstruction, option and runtime ownership units
+live in `core` and use `RUN='^TestLogicalDecoding'`; public shared scenarios live
+in `reference/roles`.
 
 Native ordered support state, tuple ownership and cancellation units use
 `RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in

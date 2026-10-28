@@ -17,6 +17,10 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
+	3782: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_slot_get_changes", Cost: 1000},
+	3783: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_slot_get_binary_changes", Cost: 1000},
+	3784: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_slot_peek_changes", Cost: 1000},
+	3785: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_slot_peek_binary_changes", Cost: 1000},
 	2168: {Language: catalog.InternalRoutineLanguage, Source: "pg_database_size_name"},
 	2324: {Language: catalog.InternalRoutineLanguage, Source: "pg_database_size_oid"},
 	2323: {Language: catalog.InternalRoutineLanguage, Source: "pg_tablespace_size_name"},

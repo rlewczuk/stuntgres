@@ -26,6 +26,8 @@ func TestRoutineDefaultPresentation(t *testing.T) {
 		want string
 	}{
 		{3464, 0, "0"}, {3464, 6, "0.0"}, {6212, 0, "0"}, {6212, 1, "1"}, {1268, 1, "true"}, {4005, 2, "'{}'::jsonb"}, {4005, 3, "false"}, {4350, 1, "'NFC'::text"},
+		{3782, 3, "'{}'::text[]"}, {3783, 3, "'{}'::text[]"},
+		{3784, 3, "'{}'::text[]"}, {3785, 3, "'{}'::text[]"},
 	} {
 		d := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: x.oid})
 		got, err := runtime.RoutineDefault(t.Context(), view, d, x.slot)

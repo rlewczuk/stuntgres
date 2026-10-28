@@ -46,12 +46,16 @@ func referenceStart() error {
 	if trackCommitTimestamp {
 		tracking = "on"
 	}
+	args := []string{"-c", "max_prepared_transactions=100",
+		"-c", "log_line_prefix=timeout-oracle|%p|%c|%e|",
+		"-c", "track_commit_timestamp=" + tracking}
+	if logicalWAL {
+		args = append(args, "-c", "wal_level=logical")
+	}
 	options := []testcontainers.ContainerCustomizer{
 		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
 		postgres.WithPassword("stuntgres"), postgres.BasicWaitStrategies(),
-		testcontainers.WithCmdArgs("-c", "max_prepared_transactions=100",
-			"-c", "log_line_prefix=timeout-oracle|%p|%c|%e|",
-			"-c", "track_commit_timestamp="+tracking),
+		testcontainers.WithCmdArgs(args...),
 		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": "--locale=C --encoding=UTF8"}),
 	}
 	if legacyCryptoProvider {
