@@ -507,7 +507,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		}
 		// Network operators follow the release's custom-plan Execute frontier:
 		// imported parameters are available now, but retain their provenance.
-		if e.Usage.Type.ID() == sqltype.Inet && NetworkOperatorExecutionConstant(e, c) {
+		if e.Usage.Type.ID() == sqltype.Inet && OperatorExecutionConstant(e, c) {
 			if folded, changed, err := preflightStrictParameterNull(c, e, decisiveDefaults); err != nil || changed {
 				return folded, changed, err
 			}
@@ -552,7 +552,14 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		if ArithmeticSetConstantNull(expression.(plan.ArithmeticExpr), e) {
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
-		if (e.Left.ResultUsage().Type.ID() == sqltype.Inet || e.Right != nil && e.Right.ResultUsage().Type.ID() == sqltype.Inet) && NetworkOperatorExecutionConstant(e, c) {
+		// Only network and pg_lsn arithmetic opt into available-frame folding.
+		// Volatile, row/stage/domain-dependent and unavailable children stay runtime.
+		leftID := e.Left.ResultUsage().Type.ID()
+		rightID := sqltype.ID(0)
+		if e.Right != nil {
+			rightID = e.Right.ResultUsage().Type.ID()
+		}
+		if (leftID == sqltype.Inet || rightID == sqltype.Inet || leftID == sqltype.PgLSN || rightID == sqltype.PgLSN) && OperatorExecutionConstant(e, c) {
 			if folded, changed, err := preflightStrictParameterNull(c, e, decisiveDefaults); err != nil || changed {
 				return folded, changed, err
 			}

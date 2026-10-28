@@ -35,6 +35,18 @@ only its fixed three-member OUT record; metadata binding never borrows a
 physical registry. Demanding source opening rejects that unavailable mechanism
 with an explicit diagnostic, without synthesizing manager rows or progress.
 
+`WALSummary` retains immutable typed RECORD recipes, written operands and formal
+slots for two set sources and one scalar state inquiry. All written operands
+evaluate before strict NULL yields an exhausted typed contents source; timeline
+validation follows, without an LSN interval rule. Ordinary live routine EXECUTE
+admission precedes runtime evaluation. Planning keeps these volatile calls intact;
+preflight folds immutable operand work before admission, including errors from
+this execution's parameters. Binding and LIMIT 0 expose metadata without physical
+demand; demand rejects unavailable embedded physical files or summarizer state
+rather than inventing stock PostgreSQL file rows or never-ran progress. Recipes
+store no physical authority or state and use ordinary capture and control replay,
+preserving named operands and their formal destinations in stored view SQL.
+
 `RuntimeCapability`, `LoadedModules` and `CurrentLogfile` retain immutable typed
 recipes, not physical facility state or invocation authority. Without native
 JIT, NUMA, a library loader or a collector, they report BOOL false, a typed empty
@@ -762,6 +774,8 @@ Read/stat/tmpdir binding, scalar strict protocols and runtime ownership use
 `RUN='^TestGenericFileRead'`; public SQL scenarios remain in `reference/roles`.
 Recovery inquiry carriers, fixed OUT validation and physical source admission use
 `RUN='^TestRecoveryInfo'`; public witnesses use `^TestReferenceRecoveryInfo`.
+WAL summary declarations, typed shapes, evaluation and owned reconstruction use
+`RUN='^TestWALSummary'`; public scenarios live in sessions and roles.
 Runtime inquiry binding, immutable protocols and typed source ownership use
 `RUN='^TestRuntimeInfo'`; public scenarios live in `reference/extensions`.
 Logical-decoding declaration, reconstruction, option and runtime ownership units

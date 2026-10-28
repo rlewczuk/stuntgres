@@ -339,6 +339,11 @@ OVERLAPS route. Preflight reaches the engine only through `Preparation` and runs
 outside engine and publication locks. Conditional planning keeps every analyzed
 dependency and authorization even when it removes a branch; held parameters are
 reconsidered on every execution, never stored as planning facts.
+Network and `pg_lsn` arithmetic explicitly opt into immutable available-frame
+planning through `OperatorExecutionConstant`. This may expose an immutable child
+error before its volatile parent's runtime EXECUTE admission. Missing parameters,
+row/stage/domain dependence and volatile children never qualify; other arithmetic
+keeps its existing frontier. Imported values are reconsidered, not retained.
 Only a private PL query-preflight context opts into failure provenance: actual
 `Eval` failures retain whether that computation consumed imported parameters or
 SQL constants, and the current computation shadows a nested callee's origin.

@@ -13,9 +13,9 @@ func bitwiseConstantNull(node expr.Expr) bool {
 	return ok && !literal.Property.ParameterDependent && literal.Value.IsNull()
 }
 
-// Only network signatures opt into imported-parameter Execute planning.
+// Opted-in network and pg_lsn signatures admit imported-parameter Execute planning.
 // Conservative properties survive folding; availability is not SQL constness.
-func NetworkOperatorExecutionConstant(node expr.Expr, c *Context) bool {
+func OperatorExecutionConstant(node expr.Expr, c *Context) bool {
 	if node == nil {
 		return false
 	}
@@ -39,7 +39,7 @@ func NetworkOperatorExecutionConstant(node expr.Expr, c *Context) bool {
 			return
 		}
 		found = true
-		constant = constant && NetworkOperatorExecutionConstant(child, c)
+		constant = constant && OperatorExecutionConstant(child, c)
 	})
 	return found && constant
 }

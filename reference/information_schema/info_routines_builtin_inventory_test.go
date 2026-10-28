@@ -77,13 +77,16 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3821, "pg_last_wal_replay_lsn", "pg_last_wal_replay_lsn", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3830, "pg_last_xact_replay_timestamp", "pg_last_xact_replay_timestamp", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6224, "pg_get_wal_resource_managers", "pg_get_wal_resource_managers", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6321, "pg_available_wal_summaries", "pg_available_wal_summaries", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6322, "pg_wal_summary_contents", "pg_wal_summary_contents", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6323, "pg_get_wal_summarizer_state", "pg_get_wal_summarizer_state", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3782, "pg_logical_slot_get_changes", "pg_logical_slot_get_changes", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3783, "pg_logical_slot_get_binary_changes", "pg_logical_slot_get_binary_changes", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3784, "pg_logical_slot_peek_changes", "pg_logical_slot_peek_changes", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3785, "pg_logical_slot_peek_binary_changes", "pg_logical_slot_peek_binary_changes", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1723 {
-		t.Fatalf("released represented inventory: got %d, want 1723", len(facts))
+	if len(facts) != 1726 {
+		t.Fatalf("released represented inventory: got %d, want 1726", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

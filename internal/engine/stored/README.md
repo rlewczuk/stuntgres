@@ -20,6 +20,10 @@ runs the ordinary source/current provider validation, including exact destinatio
 generations and reference authority, rather than trusting an earlier accepted
 root. An outermost failure discards partial operation memo state.
 
+Frozen WAL summary view recipes retain written named operands and their formal
+destinations when rendering both catalog presentation and replay SQL. A reordered
+`pg_wal_summary_contents` call must not become positional during dump/restore.
+
 Statistics recipes use these same expression remap/retag and stable-attribute
 deparse owners. Replacement remaps relation/input/provider references and both
 definition and execution trees before validating destination usages; it never

@@ -43,6 +43,13 @@ Predefined-capability boundaries check read-function EXECUTE denial both before
 and after server-file role grants; those roles grant path authority, not function
 execution. Remaining unavailable functions retain their binding-time boundaries.
 
+WAL summary scenarios own default PUBLIC execution, live held-statement ACL
+reauthorization and actual native control replay of typed views and raw routine
+ACLs. Authorization separates immutable child preflight failures from genuine
+volatile runtime errors after admission. The shared builtin cleanup preserves
+NULL versus genuine one-dimensional explicit-empty ACLs and removes grant
+dependencies before restoring the oracle's originals.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses
@@ -52,6 +59,7 @@ typed metadata, options, diagnostics, live authority and unchanged-state witness
 Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
 The file-list family uses `make check RUN='^TestReferenceGenericFileLists'`.
+WAL summary ACL and control scenarios use `RUN='^TestReferenceWALSummary'`.
 File-list scenarios restore the original PostgreSQL builtin ACLs on every exit,
 after removing actor-owned grant dependencies and before cluster role teardown.
 Restricted actors never read protected log settings for helper expectations;

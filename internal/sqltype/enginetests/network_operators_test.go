@@ -313,10 +313,10 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 	e := engine.New()
 	b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}
-	if exec.NetworkOperatorExecutionConstant(nil, c) {
+	if exec.OperatorExecutionConstant(nil, c) {
 		t.Fatal("absent root is not an available expression")
 	}
-	if exec.NetworkOperatorExecutionConstant(plan.BitwiseExpr{}, c) {
+	if exec.OperatorExecutionConstant(plan.BitwiseExpr{}, c) {
 		t.Fatal("absent-only operands are not execution ready")
 	}
 
@@ -324,7 +324,7 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !exec.NetworkOperatorExecutionConstant(node, c) {
+	if !exec.OperatorExecutionConstant(node, c) {
 		t.Fatal("absent unary right operand blocked readiness")
 	}
 	folded, changed, err := exec.PreflightCoercions(c, node)

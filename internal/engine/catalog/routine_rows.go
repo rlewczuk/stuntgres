@@ -18,8 +18,9 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 	case 2947, 4100, 5052, 5064, 6224: // legacy/modern snapshot XIPs, shared-memory allocations, WAL resource managers
 		return 50
 	case 1293, 2331, // multirange and array unnest
-		3084,                                           // extension update paths
-		3566,                                           // pg_event_trigger_dropped_objects
+		3084,       // extension update paths
+		3566,       // pg_event_trigger_dropped_objects
+		6321, 6322, // physical WAL summaries
 		3205, 3208, 3219, 3465, 3475, 3491, 3931, 3932, // JSONB sets
 		3955, 3957, 3958, 3959, 3961, 3969: // JSON sets
 		return 100

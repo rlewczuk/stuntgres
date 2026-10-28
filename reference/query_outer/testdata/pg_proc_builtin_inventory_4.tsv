@@ -459,6 +459,9 @@
 3821	pg_last_wal_replay_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_last_wal_replay_lsn	\N	false	\N
 3830	pg_last_xact_replay_timestamp	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	1184		\N	\N	\N	false	\N	pg_last_xact_replay_timestamp	\N	false	\N
 6224	pg_get_wal_resource_managers	11	12	1	50	0	0	f	false	false	true	true	v	s	0	0	2249		{23,25,16}	{o,o,o}	{rm_id,rm_name,rm_builtin}	false	\N	pg_get_wal_resource_managers	\N	false	\N
+6321	pg_available_wal_summaries	11	12	1	100	0	0	f	false	false	true	true	v	s	0	0	2249		{20,3220,3220}	{o,o,o}	{tli,start_lsn,end_lsn}	false	\N	pg_available_wal_summaries	\N	false	\N
+6322	pg_wal_summary_contents	11	12	1	100	0	0	f	false	false	true	true	v	s	3	0	2249	20 3220 3220	{20,3220,3220,26,26,26,21,20,16}	{i,i,i,o,o,o,o,o,o}	{tli,start_lsn,end_lsn,relfilenode,reltablespace,reldatabase,relforknumber,relblocknumber,is_limit_block}	false	\N	pg_wal_summary_contents	\N	false	\N
+6323	pg_get_wal_summarizer_state	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2249		{20,3220,3220,23}	{o,o,o,o}	{summarized_tli,summarized_lsn,pending_lsn,summarizer_pid}	false	\N	pg_get_wal_summarizer_state	\N	false	\N
 2168	pg_database_size	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	20	19	\N	\N	\N	false	\N	pg_database_size_name	\N	false	\N
 2324	pg_database_size	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	20	26	\N	\N	\N	false	\N	pg_database_size_oid	\N	false	\N
 2323	pg_tablespace_size	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	20	19	\N	\N	\N	false	\N	pg_tablespace_size_name	\N	false	\N
