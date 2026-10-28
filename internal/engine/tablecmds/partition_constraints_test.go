@@ -60,6 +60,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	leaf.ObjectName = "unit_leaf"
 	leaf.Partition = nil
 	leaf.RelationKind = catalog.TableRelation
+	leaf.TableMethod = 2
 	leaf.Membership = &catalog.PartitionMembership{Parent: root.Address(), DefaultBound: true}
 	leaf.Columns = []catalog.Column{root.Columns[1], root.Columns[0], root.Columns[2]}
 	leaf.Attributes = []int32{11, 22, 33}

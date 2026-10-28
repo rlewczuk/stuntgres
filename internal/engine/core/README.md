@@ -294,6 +294,15 @@ strongest parent grants and namespace-change fences as explicit declarations.
 DROP NOT NULL recapture uses the table owner's shared NN selector rather than a
 column-name deletion heuristic. Removing this relation's NN fact does not erase
 another relation/domain reservation, and absent facts do not manufacture removals.
+Table-method changes share this final private publication and AX ownership.
+Command admission captures the current default without acquiring settings locks
+inside DDL windows. Definition consumers fence exact original/new method and
+handler predecessors, including pinned heap. Prepared analysis observes the
+actual method/handler stamps; mutation admission validates its captured physical
+relation without manufacturing a catalog journal. Captured row admissions and
+coherent publication re-admission retain the existing owner lifecycle. No-op
+assignment preserves descriptor/accepted authority; a genuine transition
+reanalyzes without mutating old accepted graphs or requiring unrelated fold churn.
 
 ## Pending partition detach ownership
 

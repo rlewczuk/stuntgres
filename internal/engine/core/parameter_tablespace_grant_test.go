@@ -236,6 +236,7 @@ func objectGrantUnitFixture(t *testing.T) (*core.Engine, *session.Operation, aut
 		t.Fatal("missing int4 fixture type")
 	}
 	relation := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "grant_unit", ObjectRevision: 1, RelationKind: catalog.TableRelation, Owner: op.RoleState().CurrentUser, Columns: []catalog.Column{{Name: "a", Usage: typ.Usage()}, {Name: "b", Usage: typ.Usage()}}, Index: map[string]int{"a": 0, "b": 1}, Attributes: []int32{1, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}}
+	relation.TableMethod = 2
 	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
 	e.Catalog.State.SetDescriptor(address, relation)
 	e.Catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.Name()}, address)

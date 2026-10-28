@@ -48,7 +48,7 @@ func ValidateMaterializedReplacement(r *MaterializedReplacement, stage *catalog.
 	// This private constructor owns the shallow descriptor copy. No general
 	// Replace/ALTER caller may attach arbitrary metadata to its storage authority.
 	old := r.Original
-	if d != r.Descriptor || d.Address() != old.Address() || d.Namespace() != old.Namespace() || d.Name() != old.Name() || d.Owner != old.Owner || d.RowType != old.RowType || d.View != old.View || d.RelationKind != catalog.MaterializedViewRelation || d.Revision() != old.Revision()+1 || len(d.Columns) != len(old.Columns) || len(d.Attributes) != len(old.Attributes) || len(d.Columns) != 0 && &d.Columns[0] != &old.Columns[0] || len(d.Attributes) != 0 && &d.Attributes[0] != &old.Attributes[0] || !d.Populated && len(r.Storage.Versions) != 0 {
+	if d != r.Descriptor || d.Address() != old.Address() || d.Namespace() != old.Namespace() || d.Name() != old.Name() || d.Owner != old.Owner || d.RowType != old.RowType || d.View != old.View || d.TableMethod != old.TableMethod || d.RelationKind != catalog.MaterializedViewRelation || d.Revision() != old.Revision()+1 || len(d.Columns) != len(old.Columns) || len(d.Attributes) != len(old.Attributes) || len(d.Columns) != 0 && &d.Columns[0] != &old.Columns[0] || len(d.Attributes) != 0 && &d.Attributes[0] != &old.Attributes[0] || !d.Populated && len(r.Storage.Versions) != 0 {
 		return fmt.Errorf("stuntgres: invalid materialized replacement definition")
 	}
 	if r.Concurrent && !d.Populated {

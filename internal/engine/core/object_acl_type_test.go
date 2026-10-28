@@ -50,6 +50,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	relation, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_provenance_row", op.RoleState().CurrentUser, []catalog.Column{{Name: "a", Usage: integer.Usage()}}, nil)
 	if err == nil {
+		relation.TableMethod = 2
 		err = e.StageRowTypeLocked(stage, relation)
 	}
 	e.Mu.Unlock()

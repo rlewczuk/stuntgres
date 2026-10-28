@@ -49,7 +49,7 @@ func StageTable(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.
 	if err = CheckTableDeclaration(s.Table); err != nil {
 		return nil, nil, err
 	}
-	if err = table.StageCreateTable(h, auth, TableSyntax(s.Table), ns.Address, view.State.CurrentUser, input, nil); err != nil {
+	if err = table.StageCreateTable(h, auth, TableSyntax(s.Table), ns.Address, view.State.CurrentUser, input, nil, catalog.ForeignRelation); err != nil {
 		return nil, nil, err
 	}
 	d, ok := h.Stage().Get(h.Stage().LookupName(key)).(*catalog.Relation)

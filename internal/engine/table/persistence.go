@@ -78,17 +78,6 @@ func persistenceKindError(relation *catalog.Relation, action, kind string) error
 	return err
 }
 
-func PersistenceOnly(actions []parser.AlterTableAction) bool {
-	if len(actions) == 0 {
-		return false
-	}
-	for _, action := range actions {
-		if action.Action != parser.SetLogged && action.Action != parser.SetUnlogged {
-			return false
-		}
-	}
-	return true
-}
 
 func persistenceCompositeError(relation *catalog.Relation) error {
 	err := sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, relation.Name())).(*sqlstate.Error)

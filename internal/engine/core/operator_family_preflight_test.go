@@ -156,6 +156,7 @@ func TestOperatorFamilyPreflight(t *testing.T) {
 			// a public custom-class association. Never validate/publish this
 			// relation: SQL CHECK admission does not accept member references.
 			dependent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: family.Namespace(), ObjectName: "family_preflight_dependent", ObjectRevision: 7, Owner: family.Owner, RelationKind: catalog.TableRelation}
+			dependent.TableMethod = 2
 			dependent.Constraints.Check = []catalog.CheckConstraint{{OID: catalogUnitOID(t, e), Name: "member_guard", Dependencies: []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(stage.Base.Epoch(), target), Revision: stage.Base.Get(target).Revision()}}}}
 			if err := stage.Create(dependent); err != nil {
 				t.Fatal(err)

@@ -66,6 +66,7 @@ func relationSizeOwnerFixture(t *testing.T) (*core.Engine,*catalog.Relation) {
 	e:=engine.New();base:=e.CatalogRead();stage:=e.BeginCatalogStage(base)
 	owner:=e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	r:=&catalog.Relation{ObjectAddress:ids.ObjectAddress{ClassID:ids.RelationClassID,ObjectID:20000},ObjectNamespace:ids.ObjectAddress{ClassID:ids.NamespaceClassID,ObjectID:ids.PublicNamespaceOID},ObjectName:"size_owner",ObjectRevision:1,Owner:owner,Columns:[]catalog.Column{{Name:"i",Usage:enginetest.Usage(e,sqltype.Int4)}},Index:map[string]int{"i":0},Attributes:[]int32{1},ColumnMeta:catalog.ColumnMetadata{HighWater:1}}
+	r.TableMethod = 2
 	if err:=stage.Create(r);err!=nil{t.Fatal(err)}
 	publication,err:=e.ValidateCatalogStage(context.Background(),stage);if err!=nil{t.Fatal(err)}
 	if _,err:=enginetest.PublishCatalog(e,publication,core.PublicationToken{Epoch:base.Epoch()});err!=nil{t.Fatal(err)}

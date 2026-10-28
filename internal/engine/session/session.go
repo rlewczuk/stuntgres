@@ -124,6 +124,7 @@ type Operation struct {
 	PlannerCosts             plan.PlannerCosts // Immutable command admission; retained sources copy it.
 	StatisticsTarget         int
 	ConstraintExclusion      string
+	TableAccessMethod        string // Captured current default for execution-time DDL.
 	CursorTupleFraction      float64
 	RecursiveWorktableFactor float64
 	AsyncAppend              bool // Immutable prior-setting snapshot at command admission.
@@ -178,7 +179,13 @@ func (s *Session) newOperation() *Operation {
 	return op
 }
 func (s *Session) Acquire(ctx context.Context) (*Operation, error) {
-	return s.acquire(ctx, false)
+	op, err := s.acquire(ctx, false)
+	if err == nil && s.Settings != nil {
+		s.Settings.Mu.Lock()
+		op.TableAccessMethod = s.Settings.Value("default_table_access_method")
+		s.Settings.Mu.Unlock()
+	}
+	return op, err
 }
 func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error) {
 	if err := ctx.Err(); err != nil {

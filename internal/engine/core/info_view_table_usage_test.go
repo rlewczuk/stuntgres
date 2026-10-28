@@ -29,6 +29,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	state := catalog.CloneState(f.e.Catalog.State)
 	a := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20300}, Namespace: f.schema, Name: "table_a", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead())})
 	a.RelationKind = catalog.TableRelation
+	a.TableMethod = 2
 	b := *a
 	b.ObjectAddress.ObjectID++
 	b.ObjectName = "table_b"
@@ -298,6 +299,7 @@ func infoViewTableUsageCapture(t *testing.T) {
 	state := catalog.CloneState(f.e.Catalog.State)
 	target := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20300}, Namespace: f.schema, Name: "captured_table", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead())})
 	target.RelationKind = catalog.TableRelation
+	target.TableMethod = 2
 	state.SetDescriptor(target.Address(), target)
 	v := *target
 	v.ObjectAddress.ObjectID++

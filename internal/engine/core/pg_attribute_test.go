@@ -49,6 +49,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 	}
 	// Ordinary storage validation must not admit this pseudo type elsewhere.
 	ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", Owner: e.RoleStore.Domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
+	ordinary.TableMethod = 2
 	if err := (core.RelationProvider).Validate(view, ordinary); err == nil {
 		t.Fatal("ANYARRAY stored column admitted")
 	}

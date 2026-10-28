@@ -196,6 +196,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*core.Engine, *catalog.Relation
 		tbl, err = table.NewRelation(core.DDLHost{E: e}, source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
 	}
 	if err == nil {
+		tbl.TableMethod = 2
 		tbl.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
 		if !empty {
 			tbl.Attributes = []int32{1, 7}

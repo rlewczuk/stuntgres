@@ -46,11 +46,19 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 	}
 	if index, isView := s.ViewIndices[oid]; isView {
 		view := s.Views[index]
+		relation, _ := s.CatalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
+		scopedMethod := relation != nil && relation.RelationKind == catalog.MaterializedViewRelation && relation.TableMethod != 2
+		if scopedMethod {
+			if err := emitCreateTableMethod(s, w, relation); err != nil { return err }
+		}
 		if err := w.setOwner(view.Owner); err != nil {
 			return err
 		}
 		if err := s.emitBound(w, castConsumer{Event: event}, view.SQL); err != nil {
 			return err
+		}
+		if scopedMethod {
+			if err := w.emit("SET default_table_access_method = 'heap';\n"); err != nil { return err }
 		}
 		if oid == s.extensionTypeAfter && s.extensionTypeSQL != "" {
 			if err := w.setOwner("postgres"); err != nil {
@@ -165,6 +173,11 @@ func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx OwnedStatement
 // repairs, typed attachment, renames and comments.
 func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.DumpRelation) error {
 	t.Descriptor = s.CatalogView.MustRelation(t.Descriptor.Address())
+	independentPhysical := t.Descriptor.RelationKind == catalog.TableRelation && (t.Descriptor.Membership == nil || partition.DumpNeedsAttach(s.CatalogView, t.Descriptor))
+	scopedMethod := independentPhysical && t.Descriptor.TableMethod != 2
+	if scopedMethod {
+		if err := emitCreateTableMethod(s, w, t.Descriptor); err != nil { return err }
+	}
 	privilegedCreation := t.Owner != "postgres" && t.Descriptor.RelationKind == catalog.TableRelation && t.Descriptor.Partition == nil && t.Descriptor.Membership == nil
 	if privilegedCreation {
 		// Pair the captured owner with this exact fresh table. Ownership does
@@ -206,6 +219,10 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 			return err
 		}
 	}
+	if scopedMethod {
+		if err := w.emit("SET default_table_access_method = 'heap';\n"); err != nil { return err }
+	}
+	if err := emitTableMethod(s,w,t.Descriptor); err != nil { return err }
 	if schedule == nil {
 		if err := s.emitLocalAttributeRetirements(w, t.Descriptor); err != nil {
 			return err
@@ -270,6 +287,39 @@ func emitTableCompletion(ctx context.Context, s *dumpScript, w *dumpWriter, t ta
 		}
 	}
 	return nil
+}
+
+// Independent physical declarations use a scoped creation setting, preserving
+// the exact CREATE/OWNER pair even when the owner lacks schema USAGE.
+func emitCreateTableMethod(s *dumpScript, w *dumpWriter, relation *catalog.Relation) error {
+	if err := catalog.ValidateRelationTableMethod(s.CatalogView, relation); err != nil { return err }
+	actual, ok := s.CatalogView.AccessMethod(relation.TableMethod)
+	if !ok { return fmt.Errorf("stuntgres: missing table method during dump") }
+	return w.emit("SET default_table_access_method = " + dump.CommentLiteral(actual.Name()) + ";\n")
+}
+
+// Virtual defaults and compact partition constructors ignore the creation
+// setting. Repair only a represented choice that differs from their constructor.
+func emitTableMethod(s *dumpScript, w *dumpWriter, relation *catalog.Relation) error {
+	if relation.RelationKind != catalog.PartitionedRelation &&
+		(relation.RelationKind != catalog.TableRelation || relation.Membership == nil || partition.DumpNeedsAttach(s.CatalogView, relation)) {
+		return nil
+	}
+	if err := catalog.ValidateRelationTableMethod(s.CatalogView, relation); err != nil { return err }
+	var inherited ids.OID
+	if relation.Membership != nil && !partition.DumpNeedsAttach(s.CatalogView, relation) {
+		inherited = s.CatalogView.MustRelation(relation.Membership.Parent).TableMethod
+	}
+	if inherited == 0 && relation.RelationKind == catalog.TableRelation { inherited = 2 }
+	if relation.TableMethod == inherited { return nil }
+	method := "DEFAULT"
+	if relation.TableMethod != 0 {
+		actual, ok := s.CatalogView.AccessMethod(relation.TableMethod)
+		if !ok { return fmt.Errorf("stuntgres: missing table method during dump") }
+		method = catalog.QuoteIdentifier(actual.Name())
+	}
+	name := catalog.QuoteIdentifier(s.CatalogView.MustNamespace(relation.Namespace()).Name())+"."+catalog.QuoteIdentifier(relation.Name())
+	return w.emit("ALTER TABLE "+name+" SET ACCESS METHOD "+method+";\n")
 }
 
 // dumpRelationOptionsSQL renders captured explicit intent with base entries

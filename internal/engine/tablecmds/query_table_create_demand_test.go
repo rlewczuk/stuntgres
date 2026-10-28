@@ -166,6 +166,7 @@ func queryCreateStage(t *testing.T, e *core.Engine, name string, width int) (*co
 	d, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
 	stage := e.BeginCatalogStage(e.Catalog.Current())
 	if err == nil {
+		d.TableMethod = 2
 		err = stage.Create(d)
 	}
 	e.Mu.Unlock()

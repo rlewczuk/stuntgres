@@ -3,8 +3,9 @@
 ALTER TABLE actions: ADD/DROP COLUMN, ADD CONSTRAINT (including NOT VALID,
 replacement and mixed RESTRICT/CASCADE drops), SET/DROP DEFAULT (with inheritance
 recursion), SET/DROP NOT NULL, VALIDATE CONSTRAINT, identity column options, column TYPE changes
-(including identity columns under savepoints), RENAME, SET SCHEMA, SET TABLESPACE
-and constraint rename, plus foreign-key callers of DROP COLUMN and SET SCHEMA.
+(including identity columns under savepoints), RENAME, SET SCHEMA, SET TABLESPACE,
+SET ACCESS METHOD and constraint rename, plus foreign-key callers of DROP COLUMN
+and SET SCHEMA.
 CHECK/FK declaration enforcement, FK enforcement toggles and atomic CHECK
 replacement share exact flags, diagnostics, historical scans, logical trigger
 lifecycle, dependencies, locking and native persistence scenarios. Physical
@@ -35,6 +36,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   `referenceDDLNativeDump`/`referenceDDLPositionError`
   (`alter_ddl_controls_helpers_test.go`) and `referenceSchemaSequenceState`
   (`alter_schema_helpers_test.go`).
+- Access-method scenarios own database-global AM cleanup as well as pinned
+  sessions. Emitted-SQL replay on PostgreSQL deliberately leaves native snapshot
+  comments uninterpreted: assert unpopulated MVs before normal REFRESH of the
+  originally populated recipe. Native Restore instead preserves captured rows
+  and population flags without REFRESH. Replay cleanup runs on failure too,
+  before the next backend setup.
 - `dcrScenario` and `dcr*` helpers (`alter_drop_column_routine_helpers_test.go`)
   share notice-enabled direct/held routine dependency scenarios, exact attribute
   edge bags and native-control phases. Each column action owns its notice group;
@@ -94,6 +101,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - SET SCHEMA: `RUN='^TestReference(Smoke)?AlterSchema'`
 - SET TABLESPACE: `RUN='^TestReferenceAlterTablespace'`
 - Logged/unlogged identity: `RUN='^TestReferenceAlterPersistence'`
+- Relation access methods: `RUN='^TestReferenceAlterAccessMethod'`
 - Column TYPE: `RUN='^TestReference(Smoke)?AlterType'`
 - Constraint rename: `RUN='^TestReferenceConstraintRename'`
 - Foreign-key callers: `RUN='^TestReferenceForeignKey[A-Za-z]*Caller$'`

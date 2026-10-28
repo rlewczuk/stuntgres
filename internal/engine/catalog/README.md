@@ -117,6 +117,12 @@ private frames, not catalog authority.
   logged/unlogged identity. TEMP lifetime remains namespace-owned; sequences
   retain their independent identity in `SequenceOptions`, and indexes derive
   persistence from their parent instead of duplicating it.
+  `TableMethod` is exact nonzero table-AM identity on ordinary tables and stored
+  materialized views. Partition roots may use zero for no explicit child default;
+  explicit heap remains 2. Other kinds keep zero and index methods remain in
+  `SQLIndex`. Provider validation requires the genuine finite installed handler;
+  method/handler predecessors and incoming consumers participate in publication
+  fences. Materialized defining-authority compatibility includes the method.
   `HasSupportedAttribute` admits live positive attributes and eligible tableoid
   attribute -6 without widening ordinary `HasAttribute`. `CatalogView` records
   canonical SQL relation kind separately from execution `VirtualView`; bootstrap

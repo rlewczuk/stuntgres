@@ -86,7 +86,7 @@ func StageCreate(h Host, auth ddl.Authority, s *parser.CreateTable, namespace id
 		if _, err := stageChild(h, auth, parent, s, namespace, owner, input); err != nil {
 			return nil, err
 		}
-	} else if err := table.StageCreateTable(h, auth, s, namespace, owner, input, foreignTargets); err != nil {
+	} else if err := table.StageCreateTable(h, auth, s, namespace, owner, input, foreignTargets, catalog.PartitionedRelation); err != nil {
 		return nil, err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -172,6 +172,11 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 		return nil, err
 	}
 	d.Persistence = syntax.Persistence
+	d.TableMethod = parent.TableMethod
+	if d.TableMethod == 0 && syntax.PartitionBy == nil {
+		d.TableMethod, err = table.ResolveTableMethod(view.Catalog, h.DefaultTableAccessMethod())
+		if err != nil { return nil, err }
+	}
 	d.Security.ACL = h.CreationACL(d.Owner, namespace, authorization.DefaultTables)
 	for i := range d.Columns {
 		d.Columns[i].DeclaredDimensions = 0

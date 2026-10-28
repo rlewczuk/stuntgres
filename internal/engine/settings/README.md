@@ -341,14 +341,18 @@ The typed setting stores the encoding ID, so rollback and reset restore the
 ID without repeating catalog lookup or calling a session-default provider.
 
 The following are **setting-only simulations**, not operational switches:
-`check_function_bodies`, `createrole_self_grant`, `default_table_access_method`,
+`check_function_bodies`, `createrole_self_grant`,
 `default_tablespace`, `default_text_search_config`, `default_toast_compression`,
 `dynamic_library_path`, `event_triggers`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
 `restrict_nonsystem_relation_kind`, `session_preload_libraries`,
 `temp_tablespaces`, `xmlbinary` and `xmloption`.
-Table AM/tablespace names use actual catalog identities and temporary
-tablespaces check CREATE privileges. Text-search configuration names resolve
+`default_table_access_method` instead selects a genuine installed table-method
+identity for ordinary and query-derived creation and stored-relation ALTER
+DEFAULT. Explicit partition defaults override it; zero defaults use it only for
+new physical children, not virtual partition roots. Tablespace names use actual
+catalog identities and temporary tablespaces check CREATE privileges.
+Text-search configuration names resolve
 actual configuration descriptors under current namespace authority; no language
 names succeed without their genuine providers. The setting does not select the
 configuration of the explicit two-argument conversion.

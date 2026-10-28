@@ -15,6 +15,7 @@ type AlterTablePreparation struct {
 	Destination ids.ObjectRef
 	Types       []AlterTypePreparation
 	Persistence PersistencePreparation
+	AccessMethod AccessMethodPreparation
 }
 
 // Prepare root actions in their original order against the original row shape.
@@ -29,12 +30,13 @@ func PrepareAlterTableActions(h AlterHost, auth ddl.Authority, original *catalog
 		return AlterTablePreparation{}, err
 	}
 	for _, action := range actions {
-		if (action.Action == parser.SetLogged || action.Action == parser.SetUnlogged) && original.SQLIndex != nil {
+		if (action.Action == parser.SetLogged || action.Action == parser.SetUnlogged || action.Action == parser.SetAccessMethod) && original.SQLIndex != nil {
 			if parent, ok := view.Catalog.Relation(original.SQLIndex.Parent); ok && parent.Partition != nil {
 				label := "SET LOGGED"
 				if action.Action == parser.SetUnlogged {
 					label = "SET UNLOGGED"
 				}
+				if action.Action == parser.SetAccessMethod { label = "SET ACCESS METHOD" }
 				return fail(persistenceKindError(original, label, "partitioned indexes"))
 			}
 		}
@@ -48,6 +50,10 @@ func PrepareAlterTableActions(h AlterHost, auth ddl.Authority, original *catalog
 			if err != nil {
 				return fail(err)
 			}
+		case parser.SetAccessMethod:
+			var err error
+			prepared.AccessMethod, err = PrepareAccessMethod(view.Catalog, original, action, h.DefaultTableAccessMethod(), prepared.AccessMethod)
+			if err != nil { return fail(err) }
 		case parser.AlterColumnType:
 			admitted, err := AdmitAlterType(h, auth, original, ref, action, nil)
 			if err != nil {
@@ -99,6 +105,22 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 		return RelationshipChildKind(original, action)
 	case parser.NoInheritTable:
 		label = "NO INHERIT"
+	case parser.SetAccessMethod:
+		switch original.RelationKind {
+		case catalog.TableRelation, catalog.PartitionedRelation, catalog.MaterializedViewRelation:
+			return nil
+		case catalog.CompositeRelation:
+			return persistenceCompositeError(original)
+		case catalog.ViewRelation:
+			return persistenceKindError(original, "SET ACCESS METHOD", "views")
+		case catalog.IndexRelation:
+			return persistenceKindError(original, "SET ACCESS METHOD", "indexes")
+		case catalog.SequenceRelation:
+			return persistenceKindError(original, "SET ACCESS METHOD", "sequences")
+		case catalog.ForeignRelation:
+			return persistenceKindError(original, "SET ACCESS METHOD", "foreign tables")
+		}
+		label = "SET ACCESS METHOD"
 	case parser.SetLogged, parser.SetUnlogged:
 		label = "SET LOGGED"
 		if action == parser.SetUnlogged {

@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
@@ -252,6 +253,11 @@ func (s *dumpScript) addDeclarationEdges() error {
 		columns, err := ColumnPredecessors(s.CatalogView, relation, dump.DeclarationIDs(predecessors))
 		if err != nil {
 			return err
+		}
+		if relation.TableMethod != 0 {
+			method, ok := s.CatalogView.AccessMethod(relation.TableMethod)
+			if !ok { return fmt.Errorf("stuntgres: missing table method declaration") }
+			if !catalog.AccessMethodSeeded(method) { columns = append(columns, method.Address().ObjectID) }
 		}
 		s.Graph[event] = dump.DeclarationEvents(columns)
 		if inline, ok := s.InlinePredecessors[id]; ok {

@@ -953,14 +953,14 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	var indexes *index.Snapshot
 	copyRows := func(owner *Engine) error {
 		source, frontier := owner.Storage.Relations, owner.Visibility.CommitSeq()
-		heap, err := visibility.ResolveHeapAccess(owner.Catalog.Current(), 2)
-		if err != nil {
-			return err
-		}
 		for _, a := range relationAddresses {
 			if source[a] == nil {
 				return fmt.Errorf("stuntgres: relation storage is missing")
 			}
+			relation, ok := owner.Catalog.Current().Relation(a)
+			if !ok { return ids.ErrCatalogReplaced }
+			heap, err := visibility.ResolveHeapAccess(owner.Catalog.Current(), relation.TableMethod)
+			if err != nil { return err }
 			selected, err := exec.SelectQuerySource(ctx, &exec.Source{Committed: source[a].Versions}, frontier, source[a].Ends, nil, heap)
 			if err != nil {
 				return err
@@ -972,6 +972,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 			selected.Close()
 			relations[a] = &storage.Relation{Versions: versions}
 		}
+		var err error
 		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.Storage.IndexRoots, frontier)
 		return err
 	}

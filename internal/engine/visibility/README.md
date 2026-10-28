@@ -27,10 +27,12 @@ standard library. It never imports the root engine. Layering is in
   installed, provider-validated handler (OID 3); it never infers registration
   from a signature or marker. `visibility.LiveVersion` is the ordinary-heap
   API and forwards to the same implementation. Source capture/reselection and
-  catalog replacement bind the builtin heap method (OID 2) once outside their
-  row loops, then pass concrete operations to `exec.SelectQuerySource`. There
-  is no custom table access method selection, storage type or callback
-  dispatch.
+  catalog replacement bind each physical relation's represented method once
+  outside row loops. Source reselection uses that source reference's same captured
+  catalog; inheritance and partition leaves never borrow their virtual root's
+  default. Genuine heap aliases share the existing concrete heap implementation.
+  PostgreSQL native handler ABI loading, extension binaries, page rewrites and
+  physical WAL remain external mechanisms, not alternate successful no-ops.
 - **Repeatable-read fetch conflicts:** `RepeatableConflict` (`repeatable.go`),
   the 40001 "concurrent update"/"concurrent delete" rule for a row fetched
   under a stable snapshot, over its frontier and the end markers. The DML

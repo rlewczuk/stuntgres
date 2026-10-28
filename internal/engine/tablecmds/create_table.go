@@ -179,5 +179,5 @@ func SchemaTableLocked(e *core.Engine, op *session.Operation, auth core.Authoriz
 			return core.SQLError("42501", "cannot create temporary table within security-restricted operation")
 		}
 	}
-	return table.StageCreateTable(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s, ns, owner, input, foreignTargets)
+	return table.StageCreateTable(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s, ns, owner, input, foreignTargets, catalog.TableRelation)
 }

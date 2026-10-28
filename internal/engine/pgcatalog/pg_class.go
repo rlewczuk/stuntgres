@@ -105,9 +105,10 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 	boolean := func(i int, b bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, b) }
 	kind := ClassKind(view, relation)
 	method := uint32(0)
-	if kind == "r" || kind == "m" {
-		method = 2
+	if relation.RelationKind == catalog.TableRelation || kind == "m" || kind == "p" {
+		method = uint32(relation.TableMethod)
 	}
+	if relation.RelationKind == catalog.CatalogRelation && kind == "r" { method = 2 }
 	if relation.SQLIndex != nil {
 		method = uint32(relation.SQLIndex.MethodIdentity())
 	}

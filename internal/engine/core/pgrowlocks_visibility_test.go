@@ -108,6 +108,7 @@ func pgrowlocksDynamicSnapshotUnits(t *testing.T) {
 			e.Mu.Lock()
 			target, err := table.NewRelation(core.DDLHost{E: e}, outer.Namespace(), "pgrow_dynamic", outer.Owner, nil, nil)
 			if err == nil {
+				target.TableMethod = 2
 				err = e.StageRowTypeLocked(stage, target)
 			}
 			e.Mu.Unlock()

@@ -1711,6 +1711,7 @@ alter_view: view_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identif
  | materialized_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1}
  | materialized_alter_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
  | materialized_alter_head depends_word ON EXTENSION name {if $1.IfExists {sqllex.(*lexer).syntax($2);return 1};$1.Action="depends";$1.Target=Identifier{Text:$5.text,Pos:$5.pos};$$=$1}
+ | materialized_alter_head alter_actions {hasMethod:=false;for _,a:=range $2 {switch a.Action {case SetAccessMethod: hasMethod=true;case SetTablespace,SetRelationOptions,ResetRelationOptions: default: sqllex.(*lexer).failAt("0A000","ALTER MATERIALIZED VIEW action is unsupported",a.Pos.Offset);return 1}};if !hasMethod {sqllex.(*lexer).failAt("0A000","ALTER MATERIALIZED VIEW action is unsupported",$2[0].Pos.Offset);return 1};$$=&AlterTable{Name:$1.Name,IfExists:$1.IfExists,Materialized:true,Actions:$2,Pos:$1.Pos}}
  | materialized_alter_head NO depends_word ON EXTENSION name {if $1.IfExists {sqllex.(*lexer).syntax($3);return 1};$1.Action="no_depends";$1.Target=Identifier{Text:$6.text,Pos:$6.pos};$$=$1} ;
 materialized_alter_head: ALTER MATERIALIZED VIEW relation_name {$$=&AlterView{Name:$4,Materialized:true,Pos:$1.pos}}
  | ALTER MATERIALIZED VIEW IF EXISTS relation_name {$$=&AlterView{Name:$6,Materialized:true,IfExists:true,Pos:$1.pos}} ;
@@ -2536,7 +2537,7 @@ relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relat
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 /* All ALTER TABLE actions share one target prefix. Reducing alter_target on
  * some paths and rename_target on others steals action lookahead from peers. */
-alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetLogged && a.Action!=SetUnlogged && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && a.Action!=AlterConstraintEnforcement && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
+alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetLogged && a.Action!=SetUnlogged && a.Action!=SetAccessMethod && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && a.Action!=AlterConstraintEnforcement && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
  | ALTER TABLE ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$6.text,Pos:$6.pos},Destination:Identifier{Text:$10.text,Pos:$10.pos},Owners:$7,Nowait:$11,Pos:$1.pos} }
  | alter_default_single { $$=$1 }
  | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
@@ -2584,6 +2585,8 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | SET TABLESPACE name { $$=&AlterTableAction{Action:SetTablespace,Tablespace:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | SET LOGGED { $$=&AlterTableAction{Action:SetLogged,Pos:$1.pos} }
  | SET UNLOGGED { $$=&AlterTableAction{Action:SetUnlogged,Pos:$1.pos} }
+ | SET ACCESS method_word name {$$=&AlterTableAction{Action:SetAccessMethod,Method:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}}
+ | SET ACCESS method_word DEFAULT {$$=&AlterTableAction{Action:SetAccessMethod,MethodDefault:true,Pos:$1.pos}}
  | SET '(' maintenance_index_option_list ')' { $$=&AlterTableAction{Action:SetRelationOptions,Options:$3,Pos:$1.pos} }
  | RESET '(' maintenance_index_option_list ')' { $$=&AlterTableAction{Action:ResetRelationOptions,Options:$3,Pos:$1.pos} }
  | INHERIT relation_name { $$=&AlterTableAction{Action:InheritTable,Parent:$2,Pos:$1.pos} }

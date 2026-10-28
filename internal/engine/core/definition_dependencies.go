@@ -83,6 +83,7 @@ func visitDefinitionProviders(view catalog.Read, d catalog.Descriptor, visit fun
 			implementation = op.Function
 		}
 	case *catalog.Relation:
+		if err := methodProvider(d.TableMethod); err != nil { return err }
 		if d.SQLIndex == nil {
 			return nil
 		}

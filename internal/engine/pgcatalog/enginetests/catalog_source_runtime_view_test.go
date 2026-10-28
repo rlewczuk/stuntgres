@@ -27,6 +27,7 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 	state := catalog.CloneState(f.e.Catalog.State)
 	target := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20300}, Namespace: f.schema, Name: "runtime_target", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead())})
 	target.RelationKind = catalog.TableRelation
+	target.TableMethod = 2
 	state.SetDescriptor(target.Address(), target)
 	ref := f.e.Catalog.Domain.Ref(state.Epoch(), target.Address())
 	consumer := *target

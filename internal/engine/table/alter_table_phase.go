@@ -32,7 +32,7 @@ func AlterActionPhase(action parser.AlterTableActionKind) int {
 		return 9
 	case parser.AlterConstraintEnforcement, parser.ValidateConstraint, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
 		return 10
-	case parser.SetLogged, parser.SetUnlogged:
+	case parser.SetLogged, parser.SetUnlogged, parser.SetAccessMethod:
 		// Misc is consumed after the deferred FOREIGN KEY definitions exist.
 		return 10
 	}

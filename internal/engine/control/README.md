@@ -26,6 +26,17 @@ place, builds the script and writes it; the root never reads the capture again.
 Table declarations retain logged/unlogged identity, including typed and partition
 children. Identity sequence completion states its own persistence explicitly in
 both directions, preserving independent table/sequence choices on replay.
+Independent nonheap table/materialized declarations use a scoped
+`default_table_access_method` setting around CREATE and its immediately paired
+OWNER transfer, then reset to heap. Restore admits only this ordinary validated
+creation setting, without extra privileges. All-heap canonical streams remain
+unchanged; native Restore's isolated engine starts at heap regardless of the
+destination session setting. Virtual partition defaults and compact children
+receive qualified SET ACCESS METHOD only when their constructor would choose a
+different method. Custom-method declarations precede consumers and replacement
+remaps table methods through the existing access-method identity map. Live TEMP
+consumers retain their exact custom-method provider with a certified installed
+handler; a distinct same-name imported provider rejects replacement atomically.
 
 Extension-owned composite types are reconstructed by their installation.
 Their standalone backing relations are therefore omitted from CREATE TYPE

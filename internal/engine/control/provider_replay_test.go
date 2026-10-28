@@ -153,6 +153,7 @@ func TestProviderReplayInstalledTypeOrdering(t *testing.T) {
 			var out bytes.Buffer
 			alter := "ALTER FUNCTION isbn_src.isn_out(" + argument + ") RENAME TO moved_output;\n"
 			s := &dumpScript{Capture: &Capture{
+				CatalogView: catalog.NewRead(nil, catalog.NewState(1)),
 				Views:       []OwnedStatement{{"postgres", "CREATE EXTENSION isn SCHEMA isbn_src;\n"}},
 				ViewIndices: map[ids.OID]int{10: 0},
 			}, eventOrder: []dump.Event{{OID: 10}},

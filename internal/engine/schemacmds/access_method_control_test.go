@@ -35,6 +35,7 @@ func TestAccessMethodDropClosure(t *testing.T) {
 	// The relation is an actual SQL-index descriptor, not an AM-only drop list.
 	typ, _ := base.LookupType(sqltype.Int4)
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: class.Namespace(), ObjectRevision: 1, ObjectName: "am_closure_rows", RelationKind: catalog.TableRelation, Owner: class.Owner, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Attributes: []int32{1}, Index: map[string]int{"n": 0}}
+	parent.TableMethod = 2
 	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: class.Namespace(), ObjectRevision: 1, ObjectName: "am_closure_i", RelationKind: catalog.IndexRelation, Owner: class.Owner, Columns: parent.Columns, Attributes: parent.Attributes, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: method.Address().ObjectID, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: selected}}, Ready: true, Valid: true, Live: true}}
 	state := catalog.CloneState(base.State())
 	for _, d := range []catalog.Descriptor{parent, idx} {
@@ -134,6 +135,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 	}
 	typ, _ := view.LookupType(sqltype.Int4)
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: class.Namespace(), ObjectRevision: 1, ObjectName: "am_capture_rows", RelationKind: catalog.TableRelation, Owner: class.Owner, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Attributes: []int32{1}, Index: map[string]int{"n": 0}}
+	parent.TableMethod = 2
 	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: class.Namespace(), ObjectRevision: 1, ObjectName: "am_capture_i", RelationKind: catalog.IndexRelation, Owner: class.Owner, Columns: parent.Columns, Attributes: parent.Attributes, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: method.Address().ObjectID, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: selected}}, Ready: true, Valid: true, Live: true}}
 	next := catalog.CloneState(view.State())
 	for _, d := range []catalog.Descriptor{parent, idx} {
@@ -227,6 +229,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 		return value
 	}
 	destinationParent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, foreign)}, ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: dt.Usage()}}, Index: map[string]int{"n": 0}}
+	destinationParent.TableMethod = 2
 	destinationDefinition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: dm.Address().ObjectID, Parent: destinationParent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: destinationClass}}, Ready: true, Valid: true, Live: true}
 	destinationIndex := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, foreign)}, SQLIndex: destinationDefinition}
 	store := &storage.Relation{}

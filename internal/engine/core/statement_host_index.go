@@ -36,6 +36,7 @@ func (h *statementHost) UniqueParent(ref ids.ObjectRef) (*catalog.Relation, cata
 	if !ok {
 		return nil, catalog.Read{}, errors.New("stuntgres: invalid unique parent")
 	}
+	if err := catalog.ValidateRelationTableMethod(view, parent); err != nil { return nil, catalog.Read{}, err }
 	return parent, view, nil
 }
 

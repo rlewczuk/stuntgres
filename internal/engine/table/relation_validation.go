@@ -62,6 +62,7 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if r.Populated && r.RelationKind != catalog.MaterializedViewRelation || r.View != nil && r.RelationKind != catalog.ViewRelation && r.RelationKind != catalog.MaterializedViewRelation {
 		return fmt.Errorf("stuntgres: invalid stored definition kind")
 	}
+	if err := catalog.ValidateRelationTableMethod(v, r); err != nil { return err }
 	if len(r.AutoExtensions) != 0 && r.RelationKind != catalog.MaterializedViewRelation {
 		return fmt.Errorf("stuntgres: extension dependency requires a materialized view")
 	}

@@ -152,6 +152,7 @@ func TestCommitTimePublication(t *testing.T) {
 						stage.InitialTx = ref
 					}
 					d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "commit_time_unit", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+					d.TableMethod = 2
 					if err := stage.Create(d); err != nil {
 						t.Fatal(err)
 					}

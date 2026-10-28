@@ -51,6 +51,7 @@ type Relation struct {
 	ObjectRevision                 ids.DefinitionRevision
 	RelationKind                   RelationKind
 	Persistence                    string // Empty is logged; TEMP provenance remains namespace-owned.
+	TableMethod                    ids.OID // Exact table AM; partition roots alone may have no explicit default (zero).
 	Owner                          authorization.PrincipalRef
 	Comment                        string
 	AutoExtensions                 []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.

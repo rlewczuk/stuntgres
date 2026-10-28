@@ -103,7 +103,7 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	makeDesc := func(oid ids.OID, name string) *catalog.Relation {
-		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+		return &catalog.Relation{TableMethod: 2, ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	}
 	first, second := e.BeginCatalogStage(base), e.BeginCatalogStage(base)
 	if err := first.Create(makeDesc(catalogUnitOID(t, e), "first")); err != nil {
@@ -183,6 +183,7 @@ func TestCatalogCanceledStageHasNoPublication(t *testing.T) {
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: "canceled", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+	d.TableMethod = 2
 	d.ColumnMeta.HighWater = 1
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
@@ -264,6 +265,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 		t.Helper()
 		stage := e.BeginCatalogStage(base)
 		d := &catalog.Relation{ObjectAddress: address, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+		d.TableMethod = 2
 		d.ColumnMeta.HighWater = 1
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
@@ -531,6 +533,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(base)
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: creation.Address, ObjectName: "private", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+	d.TableMethod = 2
 	d.ColumnMeta.HighWater = 1
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -677,6 +680,7 @@ func TestCatalogRejectsMalformedColumnIndex(t *testing.T) {
 				attributes[i] = int32(i + 1)
 			}
 			d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", ObjectRevision: 1, Columns: tc.columns, Index: tc.index, Attributes: attributes}
+			d.TableMethod = 2
 			d.ColumnMeta.HighWater = int32(len(attributes))
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)
@@ -757,6 +761,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			base := e.CatalogRead()
 			stage := e.BeginCatalogStage(base)
 			d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "p", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+			d.TableMethod = 2
 			d.ColumnMeta.HighWater = 1
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)

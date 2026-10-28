@@ -259,6 +259,7 @@ func partitionAttachUnitRoot(t *testing.T, e *core.Engine, name string, id ids.O
 	t.Helper()
 	d := inheritanceUnitRelation(e, name, id, "k")
 	d.RelationKind = catalog.PartitionedRelation
+	d.TableMethod = 0
 	class, _ := sqltype.DefaultIndexClass(d.Columns[0].Usage.Type)
 	comparison, err := operatorFamilyTestOrdering(d.Columns[0].Usage, class)
 	if err != nil {
@@ -270,6 +271,7 @@ func partitionAttachUnitRoot(t *testing.T, e *core.Engine, name string, id ids.O
 
 func inheritanceUnitRelation(e *core.Engine, name string, id ids.OID, names ...string) *catalog.Relation {
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Index: make(map[string]int)}
+	d.TableMethod = 2
 	for i, name := range names {
 		d.Index[name] = i
 		d.Attributes = append(d.Attributes, int32(i+1))

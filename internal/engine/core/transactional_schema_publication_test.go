@@ -30,6 +30,7 @@ func transactionalSchemaUnitStage(t *testing.T, e *core.Engine, op *session.Oper
 	stage.AuthorizeLocked(auth, op.Session)
 	d, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, auth.State.CurrentUser, []catalog.Column{{Name: "v", Usage: usage, Nullable: true, NullabilityKnown: true}}, map[string]int{"v": 0})
 	if err == nil {
+		d.TableMethod = 2
 		err = e.StageRowTypeLocked(stage, d)
 	}
 	if err == nil {

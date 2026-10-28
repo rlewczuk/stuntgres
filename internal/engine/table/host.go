@@ -28,6 +28,8 @@ type Host interface {
 	ddl.TypeStaging
 	Resolver
 	RestoreResolver
+	// DefaultTableAccessMethod is the command's captured current setting.
+	DefaultTableAccessMethod() string
 
 	// StageRowType stages the composite row type of relation.
 	StageRowType(relation *catalog.Relation) error

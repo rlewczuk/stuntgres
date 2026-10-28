@@ -251,6 +251,7 @@ func TestPGAttributePublication(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	u := enginetest.Usage(e, sqltype.Int4)
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "attribute_unit", ObjectRevision: 1, Owner: e.RoleStore.Domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
+	table.TableMethod = 2
 	if err := stage.Create(table); err != nil {
 		t.Fatal(err)
 	}
@@ -380,6 +381,7 @@ func alterAddUnitScope(t *testing.T) (*core.Engine, *core.StatementScope, core.A
 	}
 	u := enginetest.Usage(e, sqltype.Int4)
 	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, Owner: auth.State.CurrentUser, Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, Index: map[string]int{"a": 0}}
+	old.TableMethod = 2
 	return e, scope, auth, old
 }
 

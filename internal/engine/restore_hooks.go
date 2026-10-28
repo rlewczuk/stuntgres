@@ -67,6 +67,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "SELECT", Admit: control.AdmitStatement[*restoreRun](control.CheckSelect)},
 	{Name: "COMMENT", Admit: control.AdmitStatement[*restoreRun](control.CheckComment)},
 	{Name: "SET SESSION AUTHORIZATION", Admit: restoreAdmitChecked(admitRestoreSessionAuthorization)},
+	{Name: "table access method creation setting", Admit: restoreAdmitChecked(admitRestoreTableMethodSetting)},
 	{Name: "UPDATE catalog repair", Admit: restoreAdmitReplayed(replayRestoreCatalogUpdate)},
 	{Name: "DELETE physical NOT NULL repair", Admit: restoreAdmitReplayed(replayRestorePhysicalNotNull)},
 	{Name: "INSERT", Admit: restoreAdmitChecked(admitRestoreInsert)},

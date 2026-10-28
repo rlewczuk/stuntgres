@@ -84,6 +84,8 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	if err != nil {
 		return nil, nil, false, err
 	}
+	d.TableMethod, err = table.ResolveTableMethod(auth.Catalog, (DDLHost{E:e,Op:op}).DefaultTableAccessMethod())
+	if err != nil { return nil,nil,false,err }
 	if s.Form == parser.CreateMaterializedView {
 		definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, CatalogSourceTemporaryOwner(auth), s.Query, b, false, false, 0, catalog.MaterializedViewRelation, false)
 		if err != nil {

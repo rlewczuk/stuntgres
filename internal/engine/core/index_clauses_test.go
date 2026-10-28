@@ -92,6 +92,7 @@ func indexClausesFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, *c
 	t.Helper()
 	types := indexClausesTypes()
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{10, 20, 30}, ColumnMeta: catalog.ColumnMetadata{HighWater: 30}, Columns: []catalog.Column{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
+	parent.TableMethod = 2
 	c, ok, defaultErr := operatorFamilyTestRead().DefaultIndexClass(403, types[sqltype.Int4])
 	if defaultErr != nil {
 		t.Fatal(defaultErr)

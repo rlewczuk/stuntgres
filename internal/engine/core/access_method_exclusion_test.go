@@ -84,6 +84,7 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 			e.Mu.Lock()
 			parent, err := table.NewRelation(h, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "am_exclusion_rows", auth.State.CurrentUser, []catalog.Column{{Name: "n", Usage: typ.Usage()}}, nil)
 			if err == nil {
+				parent.TableMethod = 2
 				err = e.StageRowTypeLocked(stage, parent)
 			}
 			if err == nil {

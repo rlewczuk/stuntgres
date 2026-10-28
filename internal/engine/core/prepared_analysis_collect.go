@@ -100,6 +100,13 @@ func CollectAnalysis(read catalog.Read, env PreparedEnvironment, input AnalysisI
 				}
 			}
 		}
+		if relation, ok := d.(*catalog.Relation); ok && relation.TableMethod != 0 {
+			if err := catalog.ValidateRelationTableMethod(read, relation); err != nil { return err }
+			method, _ := read.AccessMethod(relation.TableMethod)
+			for _, a := range [...]ids.ObjectAddress{{ClassID: ids.AccessMethodClassID, ObjectID: relation.TableMethod}, {ClassID: ids.ProcedureClassID, ObjectID: method.Handler}} {
+				if err := visitPurpose(env.Domain.Ref(read.Epoch(), a), purpose); err != nil { return err }
+			}
+		}
 		if relation, ok := d.(*catalog.Relation); ok && purpose == catalog.DefinitionDependency && relation.Security.RLSEnabled {
 			cell.FoldRoleSensitive = true
 		}

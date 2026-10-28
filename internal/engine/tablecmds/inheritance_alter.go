@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (result core.Result, err error) {
+func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation, method table.AccessMethodPreparation) (result core.Result, err error) {
 	root := scope.LockedDescriptor.(*catalog.Relation)
 	plan, preparatory, err := table.PlanInheritanceAlter(auth.Catalog, root, raw)
 	if err != nil {
@@ -23,6 +23,7 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 	var stage *core.CatalogStage
 	var successors map[ids.ObjectAddress]bool
 	plan.Tablespace, plan.Types = tablespace, types
+	plan.AccessMethod = method
 	state := &core.InheritanceAlterState{InheritanceAlterPlan: plan}
 	scope.Inheritance.Alter = state
 	scope.Catalog = scope.PendingCatalog().Clone()

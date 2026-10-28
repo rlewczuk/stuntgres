@@ -38,6 +38,7 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*cor
 	c := session.NewJournal()
 	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: s.SessionToken}
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: namespace.Address(), ObjectName: "candidate", ObjectRevision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []catalog.Column{{Name: "v", Usage: enginetest.Usage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+	table.TableMethod = 2
 	e.Mu.Lock()
 	e.CatalogChangeLocked(c, namespace.Address(), namespace)
 	e.CatalogChangeLocked(c, table.Address(), table)

@@ -71,6 +71,7 @@ func TestOperatorClassSupportExecution(t *testing.T) {
 				t.Fatal("custom class unavailable")
 			}
 			parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}}
+			parent.TableMethod = 2
 			definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: selected, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}
 			idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, SQLIndex: definition}
 			ordering, err := index.BindIndexOrdering(view, parent, definition)

@@ -1057,6 +1057,7 @@ const (
 	SetTablespace
 	SetLogged
 	SetUnlogged
+	SetAccessMethod
 	InheritTable
 	NoInheritTable
 	SetRelationOptions
@@ -1088,6 +1089,8 @@ type AlterTableAction struct {
 	Trigger         Identifier
 	TriggerSelector TriggerSelector
 	Tablespace      Identifier
+	Method          Identifier
+	MethodDefault   bool
 	Parent          ObjectName
 	Action          AlterTableActionKind
 	IfExists        bool
@@ -1120,6 +1123,7 @@ type AlterTable struct {
 	Actions  []AlterTableAction
 	Only     bool
 	IfExists bool
+	Materialized bool // ALTER MATERIALIZED VIEW spelling requires an exact target kind.
 	Pos      Position
 }
 

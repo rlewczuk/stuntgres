@@ -90,7 +90,7 @@ func (c *inheritanceAlterAdmissionCase) run() error {
 	}
 	command := *c.raw
 	command.Actions = prepared.Actions
-	_, err = tablecmds.AlterInheritanceLocked(c.e, c.scope, c.op, c.auth, &command, 0, prepared.Destination, prepared.Types)
+	_, err = tablecmds.AlterInheritanceLocked(c.e, c.scope, c.op, c.auth, &command, 0, prepared.Destination, prepared.Types, prepared.AccessMethod)
 	return err
 }
 func inheritanceAlterAXHolder(t *testing.T, e *core.Engine, table *catalog.Relation) *core.StatementScope {

@@ -71,6 +71,7 @@ func (s *dumpScript) attributeModels(component []*catalog.Relation) ([]*catalog.
 		address := source.Address()
 		address.SubID = -1
 		helper := &catalog.Relation{ObjectAddress: address, ObjectNamespace: source.Namespace(), ObjectName: name, RelationKind: catalog.TableRelation, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(orphaned)), Dropped: make(map[int32]catalog.AttributeMetadata)}}
+		helper.TableMethod = 2
 		for j, number := range orphaned {
 			n := int32(j + 1)
 			helper.ColumnMeta.Dropped[n] = catalog.AttributeMetadata{Number: n, Dropped: true, Local: true}

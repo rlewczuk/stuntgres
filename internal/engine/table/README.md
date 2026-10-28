@@ -43,6 +43,12 @@ call live here.
   intentions against original FK facts. Persistence actions are root-only;
   definition passes retain original identity until the final staged transition.
   A same-state request changes no descriptor, generation or owned sequence.
+  Table-kind creation owners initialize exact `Relation.TableMethod` from the
+  captured current default; generic `NewRelation` remains method-neutral.
+  `PrepareAccessMethod` resolves original-order, root-only method intent once.
+  DEFAULT clears a partition root's explicit choice but selects the current
+  method for stored tables/materialized views. Method-only work shares the final
+  private ALTER stage without copying rows or rebuilding unaffected indexes.
   Identity sequences default to the destination identity only when the
   declaration omits LOGGED/UNLOGGED. Explicit nontemporary choices win for
   CREATE and ADD IDENTITY; lower staging receives the resolved identity.

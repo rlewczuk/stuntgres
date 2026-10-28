@@ -30,6 +30,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	e.Mu.Lock()
 	attached, err := table.NewRelation(core.DDLHost{E: e}, tbl.Namespace(), "late", tbl.Owner, append([]catalog.Column(nil), tbl.Columns...), tbl.Index)
 	if err == nil {
+		attached.TableMethod = 2
 		attached.OfType = tbl.OfType
 		err = e.StageRowTypeLocked(late, attached)
 	}

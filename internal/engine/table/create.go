@@ -116,7 +116,9 @@ func AssignDefinitionOIDs(a ddl.Allocator, d *catalog.Relation) error {
 // generations, CHECKs, constraint OIDs, UNIQUE and EXCLUDE indexes and
 // FOREIGN KEYs, in that order. foreignTargets, when given, are the FOREIGN
 // KEY parents analysis resolved.
-func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
+// kind is the final consumer kind; its owner completes kind-specific payloads
+// after this shared staging pass. Only physical table creation selects an AM.
+func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef, kind catalog.RelationKind) error {
 	auth = h.Recapture(auth, h.StageBase())
 	if namespace, ok := h.StageBase().Namespace(ns); ok {
 		auth = h.StagedTemporary(auth, namespace)
@@ -167,6 +169,10 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 		return err
 	}
 	d.Persistence = s.Persistence
+	if kind == catalog.TableRelation {
+		d.TableMethod, err = ResolveTableMethod(view.Catalog, h.DefaultTableAccessMethod())
+		if err != nil { return err }
+	}
 	if b.Create.OfType != nil {
 		d.OfType = b.Create.OfType.Address()
 		h.AddDomainBase(b.Create.OfType)

@@ -10,4 +10,5 @@ func (op *Operation) RefreshInvocationSettingsLocked(store *SettingsStore) {
 	op.LockTimeout = time.Duration(store.TypedValue("lock_timeout").Number) * time.Millisecond
 	op.NoticeThreshold, _ = messageLevel(store.Value("client_min_messages"))
 	op.NonstandardStrings = !store.TypedValue("standard_conforming_strings").Boolean
+	op.TableAccessMethod = store.Value("default_table_access_method")
 }

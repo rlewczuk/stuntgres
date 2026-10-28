@@ -85,6 +85,7 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	old.Attributes = append(old.Attributes, 3)
 	old.Index["scalar"] = 1
 	old.ColumnMeta.HighWater = 3
+	old.TableMethod = 2
 	staged := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(staged)
 	if err := staged.Create(old); err != nil {

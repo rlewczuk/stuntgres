@@ -388,6 +388,7 @@ func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *core.CatalogSta
 	f.e.Mu.Lock()
 	d, err := table.NewRelation(core.DDLHost{E: f.e}, f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
+		d.TableMethod = 2
 		d.Security.ACL = stage.CreationACL(owner, f.schema, authorization.DefaultTables)
 		err = f.e.StageRowTypeLocked(stage, d)
 	}

@@ -14,6 +14,9 @@ imports `access`, `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`,
 `table.StageCreateTable`) and the standard library, and never the engine,
 `dml` or another upper feature. `table` never imports it. The engine and the
 driver import it.
+The shared table creation pass receives the final foreign relation kind, so it
+does not select a physical table access method or consume the table-AM default.
+The foreign owner completes its existing kind/server payload before validation.
 
 ## What it owns
 

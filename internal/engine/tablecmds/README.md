@@ -238,6 +238,7 @@ make check RUN='^TestAlterValidateConstraint'               # selection, publica
 make check RUN='^TestConstraintEnforcement'               # enforcement candidate, lifecycle, history and publication ownership
 make check RUN='^Test(Sequence|Identity|Serial)'           # sequence, identity and serial DDL
 make check RUN='^TestAlterPersistence'                     # metadata, cache, post-grant fences and retained authority
+make check RUN='^TestAlterAccessMethod'                    # method intent, providers, publication and retained authority
 make check RUN='^TestVacuum'                               # VACUUM selection, phases, publication
 make check RACE=1 RUN='^TestVacuum(PublicationFences|AuthorizationLocks)$$'  # VACUUM lock and publication races
 ```

@@ -86,9 +86,9 @@ func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.
 			}
 		}
 		for _, action := range s.Actions {
-			if action.Action == parser.SetLogged || action.Action == parser.SetUnlogged {
-				// The ordinary ALTER preparation owns source-order kind errors.
-				// A partitioned target rejects SET before any candidate is staged.
+			if action.Action == parser.SetLogged || action.Action == parser.SetUnlogged || action.Action == parser.SetAccessMethod {
+				// Ordered ordinary preparation owns exact property eligibility;
+				// method assignment is supported without descending into leaves.
 				return nil
 			}
 		}

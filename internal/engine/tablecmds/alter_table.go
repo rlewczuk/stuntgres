@@ -42,6 +42,9 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		return fail(err)
 	}
 	old := scope.LockedDescriptor.(*catalog.Relation)
+	if s.Materialized && old.RelationKind != catalog.MaterializedViewRelation {
+		return fail(core.SQLError("42809", fmt.Sprintf(`"%s" is not a materialized view`, old.Name())))
+	}
 	if s.Only && scope.Inheritance.Alter == nil && !catalog.HierarchyRelation(old) {
 		s = table.OnlySetNotNull(auth.Catalog, old, s)
 	}
@@ -63,6 +66,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	var preparation table.AlterTablePreparation
 	if scope.Inheritance.Alter != nil && !scope.Inheritance.Alter.Descendant {
 		preparation = table.AlterTablePreparation{Actions: s.Actions, Destination: scope.Inheritance.Alter.Tablespace, Types: scope.Inheritance.Alter.Types}
+		preparation.AccessMethod = scope.Inheritance.Alter.AccessMethod
 		for _, action := range s.Actions {
 			if action.Action == parser.SetLogged || action.Action == parser.SetUnlogged {
 				preparation.Persistence, err = table.PreparePersistence(auth.Catalog, old, action.Action, preparation.Persistence)
@@ -138,7 +142,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 	}
 	if scope.Inheritance.Alter == nil && !access.RowSecurityActions(s.Actions) && !table.TriggerModesOnly(s.Actions) && !table.RuleModesOnly(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
-		return alterInheritanceLocked(e, scope, op, auth, s, count, destination, prepared)
+		return alterInheritanceLocked(e, scope, op, auth, s, count, destination, prepared, preparation.AccessMethod)
 	}
 	if scope.Inheritance.Alter == nil || !scope.Inheritance.Alter.Descendant {
 		if err := table.InheritanceAlterActionsGuard(auth.Catalog, old, s.Actions); err != nil {
@@ -210,7 +214,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	// Virtual partition nodes share the candidate/provider/publication pipeline,
 	// but have no heap. The inheritance plan visits physical descendants with
 	// their own storage, validators and journal fences.
-	physicalRows := old.Partition == nil && !table.PersistenceOnly(s.Actions)
+	physicalRows := old.RelationKind.Stored() && !table.MetadataOnlyActions(s.Actions)
 	var original, store *storage.Relation
 	var shape session.StorageChange
 	var frontier ids.CommitSeq
@@ -483,7 +487,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		stage.UpdateDescriptor(next)
 		return core.Result{}, nil
 	}
-	if finish.NoOp && !preparation.Persistence.Changed {
+	if finish.NoOp && !preparation.Persistence.Changed && !preparation.AccessMethod.Changed {
 		return core.Result{}, nil
 	}
 	// The actual identity-AS validation/cache prephase has already run. Keep
@@ -519,6 +523,15 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 	}
 	stage = authorizedStage(e, stage, auth, op.Session)
+	if preparation.AccessMethod.Changed && old.TableMethod != 0 {
+		method, ok := auth.Catalog.AccessMethod(old.TableMethod)
+		if !ok { return core.Result{}, ids.ErrCatalogReplaced }
+		handler, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:method.Handler})
+		if !ok { return core.Result{}, ids.ErrCatalogReplaced }
+		// The source provider is defining authority too, even when the final
+		// candidate selects a different genuine method.
+		stage.DomainBases = append(stage.DomainBases, method, handler)
+	}
 	if err := stage.Replace(next); err != nil {
 		return core.Result{}, err
 	}
@@ -683,6 +696,13 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				return core.Result{}, err
 			}
 		}
+	}
+	if preparation.AccessMethod.Changed {
+		changed := *next
+		changed.TableMethod = preparation.AccessMethod.Method
+		if err := table.BumpAlterRevision(old, &changed); err != nil { return core.Result{}, err }
+		next = &changed
+		if err := stage.Replace(next); err != nil { return core.Result{}, err }
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		return core.Result{}, err

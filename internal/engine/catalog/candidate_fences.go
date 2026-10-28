@@ -102,6 +102,9 @@ func (c *Candidate) AccessMethodsCurrent(current Read) bool {
 			if d.SQLIndex != nil {
 				return ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: d.SQLIndex.MethodIdentity()}
 			}
+			if d.TableMethod != 0 {
+				return ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: d.TableMethod}
+			}
 		}
 		return ids.ObjectAddress{}
 	}

@@ -21,7 +21,7 @@ func TestCommentInquiryLegacyCollision(t *testing.T) {
 	if err := stage.Create(&catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: owner, ObjectName: "collision", ObjectRevision: 1, Comment: "namespace candidate"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stage.Create(&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: owner, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "collision", ObjectRevision: 1, Comment: "relation candidate", Columns: []catalog.Column{{Name: "a", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"a": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1, Comments: map[int32]string{1: "column excluded"}}}); err != nil {
+	if err := stage.Create(&catalog.Relation{TableMethod: 2, ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: owner, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "collision", ObjectRevision: 1, Comment: "relation candidate", Columns: []catalog.Column{{Name: "a", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"a": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1, Comments: map[int32]string{1: "column excluded"}}}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := e.ValidateCatalogStage(context.Background(), stage)

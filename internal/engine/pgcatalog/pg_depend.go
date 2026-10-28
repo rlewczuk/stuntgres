@@ -260,6 +260,9 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				}
 			}
 			add(d.Address(), d.OfType, 'n')
+			if d.TableMethod != 0 {
+				add(d.Address(), ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: d.TableMethod}, 'n')
+			}
 			if d.SQLIndex != nil {
 				definition := d.SQLIndex
 				if definition.PartitionParent != (ids.ObjectAddress{}) {

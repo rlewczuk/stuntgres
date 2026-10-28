@@ -77,6 +77,7 @@ func hashPartitionUnitEngine(t *testing.T) (*core.Engine, catalog.Read, *catalog
 	leaf.ObjectAddress.ObjectID++
 	leaf.ObjectName = "hash_leaf"
 	leaf.RelationKind = catalog.TableRelation
+	leaf.TableMethod = 2
 	leaf.Membership = &catalog.PartitionMembership{Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 1}
 	root.Partition = &catalog.PartitionDefinition{Strategy: parser.PartitionHash, Keys: []catalog.PartitionKeyEntry{{Attribute: 1, Usage: typ.Usage(), Class: class, Hash: provider, Label: "k"}}, Children: []ids.ObjectAddress{leaf.Address()}}
 	snapshot.SetDescriptor(root.Address(), root)

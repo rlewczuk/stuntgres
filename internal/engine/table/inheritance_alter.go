@@ -26,6 +26,7 @@ type InheritanceAlterPlan struct {
 	Definition InheritanceDefinitionReader
 	Tablespace ids.ObjectRef          // Prepared root-only destination; never propagated.
 	Types      []AlterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
+	AccessMethod AccessMethodPreparation
 }
 
 // Unlike the OF-type entry, ordinary propagation includes its named root.
@@ -96,7 +97,7 @@ func InheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableActio
 	case parser.ValidateConstraint:
 		selected, err := SelectAlterConstraintValidation(root, a.Constraint.Text)
 		return err == nil && selected.Recursive()
-	case parser.SetLogged, parser.SetUnlogged:
+	case parser.SetLogged, parser.SetUnlogged, parser.SetAccessMethod:
 		return false
 	case parser.SetTablespace, parser.SetRelationOptions, parser.ResetRelationOptions, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
 		return false // Assignment is always root-only, independent of ONLY/star.

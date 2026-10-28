@@ -40,6 +40,24 @@ func TemporarySet(current catalog.Read, next *catalog.State) (map[ids.ObjectAddr
 		}
 		temporary[address] = descriptor
 	}
+	// Global table methods are real providers of retained physical TEMP rows,
+	// not namespace members. Preserve their exact identity through the existing
+	// collision map; never substitute an imported same-name descriptor.
+	for _, descriptor := range temporary {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || relation.TableMethod == 0 { continue }
+		if err := catalog.ValidateRelationTableMethod(current, relation); err != nil { return nil,err }
+		method, _ := current.AccessMethod(relation.TableMethod)
+		handler := ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:method.Handler}
+		if next.Get(handler) != current.Get(handler) && !compatibleTemporaryPolicyBuiltin(current,next,handler) {
+			return nil,fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary table method dependencies is unsupported")
+		}
+		if catalog.AccessMethodSeeded(method) || next.Get(method.Address()) == method { continue }
+		if imported, exists := next.LookupName(catalog.DescriptorNameKey(method)); exists && next.Get(imported) != method {
+			return nil,fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary access method %q",method.Name())
+		}
+		temporary[method.Address()] = method
+	}
 	return temporary, nil
 }
 

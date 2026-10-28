@@ -102,7 +102,7 @@ func (s *Source) selectInheritancePrefixes(ctx context.Context) error {
 	total := 0
 	for i, segment := range s.Inheritance {
 		data := segment.Prefix.View.Data()
-		heap, err := visibility.ResolveHeapAccess(data.Catalog, 2)
+		heap, err := visibility.ResolveRelationHeapAccess(data.Catalog, segment.Prefix.Ref)
 		if err != nil {
 			return err
 		}
@@ -361,11 +361,11 @@ func SelectQuerySources(ctx context.Context, source *Source) error {
 		if source.Inheritance != nil {
 			return source.selectInheritancePrefixes(ctx)
 		}
-		if source.View == nil {
+		if source.View == nil || source.RlsDenied {
 			return ctx.Err()
 		}
 		data := source.View.Data()
-		heap, err := visibility.ResolveHeapAccess(data.Catalog, 2)
+		heap, err := visibility.ResolveRelationHeapAccess(data.Catalog, source.Ref)
 		if err != nil {
 			return err
 		}

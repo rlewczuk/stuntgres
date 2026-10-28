@@ -229,6 +229,9 @@ imports `view`.
   `array_fill`/`array_cat` providers and returns the input environment with
   the statement resolvers; `EvaluateMaterializedSnapshotRows` evaluates the
   rows into the column types and checks constructor array bounds.
+  Refresh replacement preserves exact `TableMethod` as defining authority;
+  compatible row/population updates cannot authorize a changed method or attach
+  unrelated method metadata to a constructor's storage token.
 - **Policies and RLS** (`policy*.go`, `rls_base.go`, `row_security*.go`): policy
   validation and dependencies, `RowSecurityLayers`, the `row_security` setting
   walkers and the command state `RowSecurity`, which borrows OLD/NEW

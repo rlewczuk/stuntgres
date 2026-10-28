@@ -252,6 +252,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	idx := inheritanceLifecycleTable(e, 24000, "temp_ex")
 	idx.ObjectNamespace = temp.Namespace()
 	idx.RelationKind = catalog.IndexRelation
+	idx.TableMethod = 0
 	constraint := catalog.ExclusionConstraint{OID: parent.Address().ObjectID, Name: idx.Name(), Index: idx.Address(), Operators: []sqltype.ExclusionOperator{operator}}
 	tempChild.Constraints.Exclusion = []catalog.ExclusionConstraint{constraint}
 	tempChild.History.HasIndexes = true

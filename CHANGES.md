@@ -6,6 +6,13 @@
   are fabricated. Add direct/prepared schema, full-diagnostic rejection,
   ownership/cancellation and deterministic in-flight native Dump witnesses.
 
+- Add logical relation access-method changes with exact catalog identities,
+  current-default and future-partition selection, atomic mixed ALTER, prepared
+  invalidation, and native Dump/Restore remapping. Scoped creation settings keep
+  mixed-owner replay and existing heap-only canonical dumps unchanged. Genuine
+  heap aliases share the installed heap provider; PostgreSQL native ABI loading
+  and physical page rewrites are not claimed.
+
 - Add CREATE UNLOGGED TABLE and transactional ALTER TABLE SET LOGGED/UNLOGGED,
   preserving relation metadata, original-state FK admission, owned sequence
   generations with lazy cache adoption, prepared invalidation and logical

@@ -54,6 +54,15 @@ func restoreAdmitReplayed[T parser.Statement](replay func(*restoreRun, *session.
 	}
 }
 
+// Only the ordinary validated creation setting is part of the dump language.
+// It grants no replay privilege and cannot smuggle other session configuration.
+func admitRestoreTableMethodSetting(_ *restoreRun, _ *session.Operation, s *parser.Set) error {
+	if s.Name.Text != "default_table_access_method" || s.Local || s.Default || s.FromCurrent || s.Interval != nil || len(s.Values) != 1 {
+		return core.SQLError("0A000", "restore accepts only explicit table access method creation settings")
+	}
+	return nil
+}
+
 // restoreAdmitForeignDDL admits declarations, owner transfers and the selected
 // deferred default repairs. Binding validates each repair's actual eligibility.
 func restoreAdmitForeignDDL(r *restoreRun, op *session.Operation, stmt parser.Statement) (control.Admission, error) {
@@ -183,6 +192,9 @@ func admitRestoreCreateTable(r *restoreRun, op *session.Operation, s *parser.Cre
 // a valid CHECK (with inherited repair authority where needed), or the
 // restorable constraint forms.
 func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.AlterTable) error {
+	if len(s.Actions) == 1 && s.Actions[0].Action == parser.SetAccessMethod && !s.IfExists && !s.Only && len(s.Name.Parts) == 2 {
+		return nil // Only represented method completion; ordinary eligibility and providers apply.
+	}
 	if table.RestoreRuleMode(s) || table.RestoreTriggerMode(s) {
 		return nil // Canonical rule post-data ALTER; normal ownership/staging applies.
 	}

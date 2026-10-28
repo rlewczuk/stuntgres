@@ -64,6 +64,7 @@ func TestTransactionalSchemaPrivateProviders(t *testing.T) {
 			consumer := e.BeginCatalogStage(private)
 			target, err := table.NewRelation(core.DDLHost{E: e}, source.Namespace(), "private_typed", source.Owner, nil, nil)
 			if err == nil {
+				target.TableMethod = 2
 				target.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
 				err = consumer.Create(target)
 			}

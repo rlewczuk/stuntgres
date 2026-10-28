@@ -15,7 +15,7 @@ func CaptureSource(ctx context.Context, view *visibility.View, ref ids.ObjectRef
 		return nil, err
 	}
 	data := source.View.Data()
-	heap, err := visibility.ResolveHeapAccess(data.Catalog, 2)
+	heap, err := visibility.ResolveRelationHeapAccess(data.Catalog, ref)
 	if err != nil {
 		source.Close()
 		return nil, err
