@@ -49,7 +49,9 @@ func dictionaryCapability(v catalog.Read, d *catalog.TSTemplate) uint8 {
 	if !iok || !lok {
 		return 0
 	}
-	if d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726}) {
+	simple := d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726})
+	synonym := d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3728}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3729})
+	if simple || synonym {
 		for _, p := range [2]*catalog.Procedure{init, lexize} {
 			if p.Builtin == nil || p.Builtin.Identity.ID != p.Address().ObjectID || p.Builtin.Identity.Signature != p.Signature || p.Builtin.Result != 2281 || p.Result != 2281 || p.Extension != (ids.ObjectAddress{}) || p.Implementation != nil || p.SQL != nil || p.Foreign != nil {
 				return 0
@@ -57,6 +59,9 @@ func dictionaryCapability(v catalog.Read, d *catalog.TSTemplate) uint8 {
 			if err := ValidateProviderHeader(v, p, ids.ProcedureClassID); err != nil {
 				return 0
 			}
+		}
+		if synonym {
+			return 4
 		}
 		return 1
 	}

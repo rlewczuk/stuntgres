@@ -21,7 +21,7 @@ import (
 // Portions Copyright (c) 1994, Regents of the University of California.
 // PostgreSQL License: https://www.postgresql.org/about/licence/
 //
-//go:embed english.stop unaccent.rules
+//go:embed english.stop unaccent.rules synonym_sample.syn
 var dictionaryResources embed.FS
 
 var englishWords struct {

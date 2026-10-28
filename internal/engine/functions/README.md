@@ -671,6 +671,14 @@ publication and lock-manager tickets stay in the engine.
   1000-byte guard belong to the wrapper. Both dictionaries share the same sorted
   127-word resource. The full BSD notice is in `snowball_LICENSE.txt`; binary
   distributions must reproduce it in their documentation or accompanying materials.
+  `SynonymDictionary` compiles the real `synonym_sample.syn` resource into an
+  immutable sorted table. Its first two C-whitespace-delimited words per line
+  are source and replacement; case-insensitive mode lowers both with C semantics.
+  A terminal replacement star becomes rich prefix metadata, not spelling in the
+  SQL array or vector. Misses remain unrecognized so the mapping chain continues.
+  Compilation, sorting and lookup check cancellation; malformed UTF8 reports the
+  actual resource and line before any runtime is published. Results own their
+  lexeme slices and share only immutable strings.
   Strict NULL-or-evaluate preflight uses the shared immutable typed-fold owner:
   warmed all-constant calls may reuse their accepted result across dictionary
   option revisions, while runtime-token calls invoke current dictionary state.
@@ -856,6 +864,7 @@ make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider au
 make check RUN='^TestFTSQueryFunctions'  # query utility providers, kernels and runtime lifetime
 make check RUN='^TestSimpleDictionary'  # dictionary kernels and shipped resources
 make check RUN='^TestSnowball'  # released English rules, provider/resource and lifetime ownership
+make check RUN='^TestSynonym'  # real synonym compiler, provider and retained publication lifetimes
 make check RUN='^TestTablefunc'  # installed Gaussian expression and cursor contracts
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
 make check RUN='^TestMACOperationsProviderLifecycle$'  # fixed-width MAC function protocol

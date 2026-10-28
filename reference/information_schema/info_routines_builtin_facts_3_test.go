@@ -264,6 +264,8 @@ var irBuiltinFacts3 = []irBuiltinFact{
 	{5009, "websearch_to_tsquery", "websearch_to_tsquery", "INTERNAL", "INVOKER"},
 	{3725, "dsimple_init", "dsimple_init", "INTERNAL", "INVOKER"},
 	{3726, "dsimple_lexize", "dsimple_lexize", "INTERNAL", "INVOKER"},
+	{3728, "dsynonym_init", "dsynonym_init", "INTERNAL", "INVOKER"},
+	{3729, "dsynonym_lexize", "dsynonym_lexize", "INTERNAL", "INVOKER"},
 	{3696, "starts_with", "text_starts_with", "INTERNAL", "INVOKER"},
 	{3778, "pg_tablespace_location", "pg_tablespace_location", "INTERNAL", "INVOKER"},
 	{3787, "to_jsonb", "to_jsonb", "INTERNAL", "INVOKER"},

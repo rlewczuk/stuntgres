@@ -248,7 +248,7 @@ private frames, not catalog authority.
   install steps write a state still in its bulk load, before the store is shared:
   `InstallBuiltinNamespaces`, `InstallBuiltinTypes`, `InstallBuiltinCollations`,
   `InstallBuiltinProcedures` (then the native access methods),
-  `InstallBuiltinDictionaries` (simple dictionary/template and typed runtime),
+  `InstallBuiltinDictionaries` (simple dictionary/runtime and simple/synonym templates),
   `InstallBuiltinTSConfigurations` (simple's genuine nineteen token mappings),
   `Store.InstallBuiltinLanguagesLocked` (plpgsql and its handlers at allocated
   OIDs, with creation-owned C display sources and canonical strictness),

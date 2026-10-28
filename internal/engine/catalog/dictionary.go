@@ -10,7 +10,7 @@ func (d *TSDictionary) Seeded() bool {
 	return d.english || d.Address() == (ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765})
 }
 func (d *TSTemplate) Seeded() bool {
-	return d.snowball || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727})
+	return d.snowball || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727}) || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3730})
 }
 
 func InstallBuiltinDictionaries(state *State, owner authorization.PrincipalRef, runtime DictionaryRuntime) {
@@ -18,6 +18,7 @@ func InstallBuiltinDictionaries(state *State, owner authorization.PrincipalRef, 
 	template := &TSTemplate{ObjectAddress: ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: "simple", Init: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}, Lexize: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726}}
 	installSeedDescriptor(state, template)
 	installSeedDescriptor(state, &TSDictionary{ObjectAddress: ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: "simple", Owner: owner, Template: template.Address(), Runtime: runtime})
+	installSeedDescriptor(state, &TSTemplate{ObjectAddress: ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3730}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: "synonym", Init: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3728}, Lexize: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3729}})
 }
 
 // DictionaryOptionsText is the canonical ordered pg_ts_dict option representation.

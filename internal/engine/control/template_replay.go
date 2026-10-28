@@ -22,16 +22,21 @@ func (s *dumpScript) templateProviderReplays() ([]providerReplay, error) {
 		providers = append(providers, providerReplay{family: templateProvider, original: original, current: providerKey{ns.Name(), d.Name(), ""}})
 		return nil
 	}
-	seed, ok := s.CatalogView.TSTemplate(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727})
-	if !ok {
-		return nil, extension.InvalidProviderDescriptor()
-	}
 	ns, ok := s.CatalogView.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
 	if !ok {
 		return nil, extension.InvalidProviderDescriptor()
 	}
-	if err := add(seed, providerKey{ns.Name(), "simple", ""}); err != nil {
-		return nil, err
+	for _, fixed := range []struct {
+		oid  ids.OID
+		name string
+	}{{3727, "simple"}, {3730, "synonym"}} {
+		seed, ok := s.CatalogView.TSTemplate(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: fixed.oid})
+		if !ok {
+			return nil, extension.InvalidProviderDescriptor()
+		}
+		if err := add(seed, providerKey{ns.Name(), fixed.name, ""}); err != nil {
+			return nil, err
+		}
 	}
 	for _, descriptor := range s.CatalogView.Descriptors() {
 		d, ok := descriptor.(*catalog.TSTemplate)

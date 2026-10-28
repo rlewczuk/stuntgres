@@ -132,6 +132,13 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
   complete user-request `57014` diagnostic; this witnesses admitted SQL after
   lexization, not interruption inside a particular stemmer instruction. Held
   statements close before interrupted borrowers return to the fixture.
+  Synonym scenarios use the shipped `synonym_sample` data, distinguish default
+  and sensitive lookup, and retain dictionary-origin prefix flags through query
+  conversion while projecting spelling alone in TEXT[] and TSVECTOR. They cover
+  ordered duplicate options, held constants versus runtime parameters, actual
+  emitted controls, retained same-class TEMP collisions and output-gated
+  cancellation. Numeric-OID parameters preserve captured dictionary identity;
+  a stale named literal is resolved again after rename or schema movement.
 - Regtype catalog probes restrict a derived left operand before the reciprocal
   `pg_type` self-join and batch expectation OID probes once per catalog
   checkpoint, refreshed after catalog replacement; never use LIMIT, cached OIDs
@@ -157,6 +164,8 @@ Extension member identity/persistence: `RUN='^TestReferenceDictionaryExtension(I
 Held all-constant characterization: `RUN='^TestReferenceDictionaryPreparedConstants$'`.
 English Snowball morphology, options, identities and native lifecycle:
 `RUN='^TestReferenceSnowball'`.
+Stock synonym data, options, conversion, authority and native lifecycle:
+`RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:
 `RUN='^TestReferenceDictionaryUnaccentCaller$'`.
 

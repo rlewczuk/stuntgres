@@ -35,30 +35,47 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	nextOID, nextRevision := e.Catalog.NextOID(), e.Catalog.NextRevision()
 	snowballAddress := view.NameAddress(ids.NameKey{ClassID: ids.TSTemplateClassID, Namespace: source.Namespace(), Name: "snowball"})
 	snowball, ok := view.TSTemplate(snowballAddress)
-	if !ok || snowballAddress.ObjectID == 0 || snowballAddress.ObjectID == 3727 { t.Fatal("actual Snowball template seed", snowballAddress) }
+	if !ok || snowballAddress.ObjectID == 0 || snowballAddress.ObjectID == 3727 {
+		t.Fatal("actual Snowball template seed", snowballAddress)
+	}
 	for range 2 {
 		got, err := core.CaptureCatalogSourceRows(input, produce)
 		if err != nil || got == nil {
 			t.Fatal("seed template capture", got, err)
 		}
-		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 2 {
-			t.Fatal("exact simple/Snowball template inventory", got)
+		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 3 {
+			t.Fatal("exact simple/synonym/Snowball template inventory", got)
 		}
 		seen := map[string]bool{}
 		for _, row := range got.Anonymous {
-			if len(row) != 5 { t.Fatal("template row width", row) }
+			if len(row) != 5 {
+				t.Fatal("template row width", row)
+			}
 			for i, value := range row {
-				if value.IsNull() || value.Type() != source.Columns[i].Usage.Type { t.Fatal("source-owned template cell", i, value) }
+				if value.IsNull() || value.Type() != source.Columns[i].Usage.Type {
+					t.Fatal("source-owned template cell", i, value)
+				}
 			}
 			name, err := row[1].Text()
-			if err != nil || seen[name] || name != "simple" && name != "snowball" { t.Fatal("template seed identity", name, err) }
+			if err != nil || seen[name] || name != "simple" && name != "synonym" && name != "snowball" {
+				t.Fatal("template seed identity", name, err)
+			}
 			seen[name] = true
 			wantOID, handlers := uint32(3727), []uint32{3725, 3726}
-			if name == "snowball" { wantOID, handlers = uint32(snowballAddress.ObjectID), []uint32{uint32(snowball.Init.ObjectID), uint32(snowball.Lexize.ObjectID)} }
+			if name == "snowball" {
+				wantOID, handlers = uint32(snowballAddress.ObjectID), []uint32{uint32(snowball.Init.ObjectID), uint32(snowball.Lexize.ObjectID)}
+			}
+			if name == "synonym" {
+				wantOID, handlers = 3730, []uint32{3728, 3729}
+			}
 			oid, err := row[0].OID()
-			if err != nil || oid != wantOID { t.Fatal("template actual OID", name, oid, err) }
+			if err != nil || oid != wantOID {
+				t.Fatal("template actual OID", name, oid, err)
+			}
 			namespace, err := row[2].OID()
-			if err != nil || namespace != 11 { t.Fatal("template namespace", name, namespace, err) }
+			if err != nil || namespace != 11 {
+				t.Fatal("template namespace", name, namespace, err)
+			}
 			for i, want := range handlers {
 				value := row[i+3]
 				gotOID, err := value.ProcedureOID()
@@ -70,6 +87,7 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	}
 	empty := catalog.CloneState(view.State())
 	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727})
+	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3730})
 	empty.RemoveDescriptor(snowballAddress)
 	emptyInput := input
 	emptyInput.Catalog = e.Catalog.Read(empty)

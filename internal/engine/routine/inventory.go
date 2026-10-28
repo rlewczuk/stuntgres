@@ -233,6 +233,8 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{5009, ids.PGCatalogNamespaceOID, "websearch_to_tsquery", "25"}, catalog.FunctionRoutine, 3615, true, expr.Stable, 's', false, 0, 0, functions.FTSQueryRoutineProvider, nil},
 	{catalog.RoutineIdentity{3725, ids.PGCatalogNamespaceOID, "dsimple_init", "2281"}, catalog.FunctionRoutine, 2281, true, expr.Immutable, 's', false, 0, 0, 0, nil},
 	{catalog.RoutineIdentity{3726, ids.PGCatalogNamespaceOID, "dsimple_lexize", "2281,2281,2281,2281"}, catalog.FunctionRoutine, 2281, true, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{3728, ids.PGCatalogNamespaceOID, "dsynonym_init", "2281"}, catalog.FunctionRoutine, 2281, true, expr.Immutable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{3729, ids.PGCatalogNamespaceOID, "dsynonym_lexize", "2281,2281,2281,2281"}, catalog.FunctionRoutine, 2281, true, expr.Immutable, 's', false, 0, 0, 0, nil},
 	// REL_18_6 POINT predicates; no default equality or ordering authority.
 	{catalog.RoutineIdentity{131, ids.PGCatalogNamespaceOID, "point_above", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{132, ids.PGCatalogNamespaceOID, "point_left", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},

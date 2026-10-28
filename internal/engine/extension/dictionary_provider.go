@@ -35,6 +35,13 @@ func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog
 	if capability == 3 {
 		return compileSnowballOptions(ctx, options)
 	}
+	if capability == 4 {
+		resource, sensitive, err := synonymOptions(options)
+		if err != nil {
+			return nil, err
+		}
+		return functions.CompileSynonymDictionary(ctx, resource, sensitive)
+	}
 	if capability == 1 {
 		accept, stopwords, err := simpleOptions(options)
 		if err != nil {
@@ -111,6 +118,48 @@ func simpleOptions(options []catalog.DictionaryOption) (bool, string, error) {
 	return accept, stopwords, nil
 }
 
+func synonymOptions(options []catalog.DictionaryOption) (string, bool, error) {
+	resource, sensitive, supplied := "", false, false
+	for _, o := range options {
+		switch o.Name {
+		case "synonyms":
+			if !o.Supplied {
+				return "", false, dictionaryError("42601", "synonyms requires a parameter")
+			}
+			resource, supplied = o.Value, true
+		case "casesensitive":
+			// Bare CREATE reaches serialization only after successful init.
+			// Bare ALTER options have already been removed by the merger.
+			sensitive = true
+			if !o.Supplied {
+				continue
+			}
+			if o.Numeric {
+				n, err := strconv.ParseInt(o.Value, 10, 32)
+				if err != nil || n != 0 && n != 1 {
+					return "", false, dictionaryError("42601", "casesensitive requires a Boolean value")
+				}
+				sensitive = n == 1
+			} else {
+				switch {
+				case strings.EqualFold(o.Value, "true"), strings.EqualFold(o.Value, "on"):
+					sensitive = true
+				case strings.EqualFold(o.Value, "false"), strings.EqualFold(o.Value, "off"):
+					sensitive = false
+				default:
+					return "", false, dictionaryError("42601", "casesensitive requires a Boolean value")
+				}
+			}
+		default:
+			return "", false, dictionaryError("22023", fmt.Sprintf(`unrecognized synonym parameter: "%s"`, o.Name))
+		}
+	}
+	if !supplied {
+		return "", false, dictionaryError("22023", "missing Synonyms parameter")
+	}
+	return resource, sensitive, nil
+}
+
 // MergeDictionaryOptions implements PostgreSQL's remove-then-append ALTER order.
 func MergeDictionaryOptions(old, changes []catalog.DictionaryOption) []catalog.DictionaryOption {
 	result := slices.Clone(old)
@@ -143,6 +192,12 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 		runtime, ok := d.Runtime.(*functions.SimpleDictionary)
 		accept, stopwords, err := simpleOptions(d.Options)
 		if !ok || err != nil || !runtime.Configured(accept, stopwords) || d.Implementation != nil {
+			return InvalidProviderDescriptor()
+		}
+	} else if dictionaryCapability(v, template) == 4 {
+		runtime, ok := d.Runtime.(*functions.SynonymDictionary)
+		resource, sensitive, err := synonymOptions(d.Options)
+		if !ok || err != nil || !runtime.Configured(resource, sensitive) || d.Implementation != nil || d.Extension != (ids.ObjectAddress{}) {
 			return InvalidProviderDescriptor()
 		}
 	} else if dictionaryCapability(v, template) == 3 {

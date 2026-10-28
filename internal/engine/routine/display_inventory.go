@@ -179,6 +179,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	5009: {Language: catalog.InternalRoutineLanguage, Source: "websearch_to_tsquery", Cost: 100},
 	3725: {Language: catalog.InternalRoutineLanguage, Source: "dsimple_init"},
 	3726: {Language: catalog.InternalRoutineLanguage, Source: "dsimple_lexize"},
+	3728: {Language: catalog.InternalRoutineLanguage, Source: "dsynonym_init"},
+	3729: {Language: catalog.InternalRoutineLanguage, Source: "dsynonym_lexize"},
 	768:  {Language: catalog.InternalRoutineLanguage, Source: "int4larger"},
 	6299: {Language: catalog.InternalRoutineLanguage, Source: "string_agg_combine"},
 	6300: {Language: catalog.InternalRoutineLanguage, Source: "string_agg_serialize"},
