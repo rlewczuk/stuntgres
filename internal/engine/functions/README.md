@@ -19,6 +19,15 @@ only its fixed three-member OUT record; metadata binding never borrows a
 physical registry. Demanding source opening rejects that unavailable mechanism
 with an explicit diagnostic, without synthesizing manager rows or progress.
 
+`RuntimeCapability`, `LoadedModules` and `CurrentLogfile` retain immutable typed
+recipes, not physical facility state or invocation authority. Without native
+JIT, NUMA, a library loader or a collector, they report BOOL false, a typed empty
+three-TEXT source, and TEXT NULL respectively. Extension descriptors and settings
+do not fabricate facilities. These recipes never fold; logfile overloads are
+non-strict, evaluate their optional child once and validate exact format names
+before returning collector absence. Ordinary live routine EXECUTE admission owns
+authorization, including NULL operands and inherited `pg_monitor` grants.
+
 `TypeInquiry` binds `format_type`, `pg_basetype` and `pg_typeof` through ordinary
 selected routine admission. Stable calls never retain evaluated results;
 preflight preserves demanded child work. Logical type identity is separate from
@@ -692,6 +701,8 @@ Read/stat/tmpdir binding, scalar strict protocols and runtime ownership use
 `RUN='^TestGenericFileRead'`; public SQL scenarios remain in `reference/roles`.
 Recovery inquiry carriers, fixed OUT validation and physical source admission use
 `RUN='^TestRecoveryInfo'`; public witnesses use `^TestReferenceRecoveryInfo`.
+Runtime inquiry binding, immutable protocols and typed source ownership use
+`RUN='^TestRuntimeInfo'`; public scenarios live in `reference/extensions`.
 Logical-decoding declaration, reconstruction, option and runtime ownership units
 live in `core` and use `RUN='^TestLogicalDecoding'`; public shared scenarios live
 in `reference/roles`.

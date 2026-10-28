@@ -57,6 +57,10 @@ func genericFileACLReconstructed(p *catalog.Procedure, bootstrap, monitor author
 		name = "pg_ls_tmpdir"
 	case 5030:
 		name, signature = "pg_ls_tmpdir", "26"
+	case 3800:
+		name = "pg_current_logfile"
+	case 3801:
+		name, signature = "pg_current_logfile", "25"
 	default:
 		return false
 	}

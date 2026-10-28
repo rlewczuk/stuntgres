@@ -37,9 +37,11 @@ not an operational worker-scheduling capability.
 Generic file declarations belong to the ordinary builtin inventory, including
 all read/binary/stat/tmpdir overloads and fixed record outputs.
 `SeedGenericFileACLs` installs owner-only read/stat/dirname ACLs and additional
-`pg_monitor` grants for the fixed listing family, including tmpdir. These are
-mutable procedure ACLs, not runtime name-based exceptions. Dump repairs preserve
-raw NULL, empty and explicit states across restricted reseeding.
+`pg_monitor` grants for the fixed listing family, including tmpdir, and both
+non-strict logfile inquiry overloads. These are mutable procedure ACLs, not runtime
+name-based exceptions. Dump repairs preserve raw NULL, empty and explicit states
+across restricted reseeding; only exact identity/signature/owner/ordered seed
+entries can be omitted as reconstructed authority.
 
 SQL result declarations retain set cardinality independently of scalar/composite
 shape. OUT/INOUT and TABLE fields use the same ordered formal projections and

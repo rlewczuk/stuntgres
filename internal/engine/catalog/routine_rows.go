@@ -7,7 +7,7 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 	switch d.Identity.ID {
 	case 2763: // regexp_matches(text,text)
 		return 1
-	case 1689, 2764, 3035, 3425: // ACL expansion, flagged matches, channels, ancestors
+	case 1689, 2764, 3035, 3425, 6353: // ACL expansion, flagged matches, channels, ancestors, modules
 		return 10
 	case 3713, 3714: // ts_token_type(oid) and ts_token_type(text)
 		return 16

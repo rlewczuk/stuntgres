@@ -13,6 +13,10 @@ func TestAccessExecutionACLRepairAdmission(t *testing.T) {
 		want bool
 	}{
 		{"UPDATE pg_catalog.pg_proc SET proacl=NULL::pg_catalog.aclitem[] WHERE oid='public.f(integer)'::pg_catalog.regprocedure", true},
+		{"UPDATE pg_catalog.pg_proc SET proacl=NULL::pg_catalog.aclitem[] WHERE oid='pg_catalog.pg_current_logfile()'::pg_catalog.regprocedure", true},
+		{"UPDATE pg_catalog.pg_proc SET proacl=NULL::pg_catalog.aclitem[] WHERE oid='pg_catalog.pg_current_logfile(text)'::pg_catalog.regprocedure", true},
+		{"UPDATE pg_catalog.pg_proc SET proacl=NULL WHERE oid='pg_catalog.pg_current_logfile()'::pg_catalog.regprocedure", false},
+		{"UPDATE pg_catalog.pg_proc SET proacl=NULL::aclitem[] WHERE oid='pg_catalog.pg_current_logfile(text)'::pg_catalog.regprocedure", false},
 		{`UPDATE pg_catalog.pg_language SET lanacl=pg_catalog.acldefault('c'::pg_catalog."char",0::pg_catalog.oid)::pg_catalog.aclitem[] WHERE lanname='sql'::pg_catalog.name`, true},
 		{"UPDATE pg_catalog.pg_language SET lanowner='recipient'::pg_catalog.regrole WHERE lanname='sql'::pg_catalog.name", true},
 		{`UPDATE pg_catalog.pg_foreign_data_wrapper SET fdwacl=pg_catalog.acldefault('c'::pg_catalog."char",0::pg_catalog.oid)::pg_catalog.aclitem[] WHERE fdwname='wrapper'::pg_catalog.name`, true},
@@ -60,6 +64,9 @@ func TestAccessExecutionACLRepairAdmission(t *testing.T) {
 		}
 		if tc.want && strings.Contains(tc.sql, "pg_catalog.acldefault") && (repair.Absent || repair.Owner || repair.Text != "{}") {
 			t.Fatal("empty constructor lost explicit-empty provenance", repair)
+		}
+		if tc.want && strings.Contains(tc.sql, "proacl=NULL::pg_catalog.aclitem[]") && (!repair.Absent || repair.Owner || repair.Text != "") {
+			t.Fatal("routine NULL repair lost raw absence", repair)
 		}
 	}
 }

@@ -2,7 +2,7 @@
 
 Extensions and loadable code: the extension registry, installation, TEMP
 installs, versions and removal, `pg_extension`, the available-extension views,
-LOAD, pgcrypto, uuid-ossp and fuzzystrmatch, plus encoding conversions
+LOAD, loaded-module and optional-runtime inquiries, pgcrypto, uuid-ossp and fuzzystrmatch, plus encoding conversions
 (`pg_conversion`, which share the extension TEMP helpers). The other catalog
 families are listed in [reference/catalogs](../catalogs/README.md).
 
@@ -10,6 +10,11 @@ families are listed in [reference/catalogs](../catalogs/README.md).
 from implemented conversion descriptors, including off-search-path nondefault
 objects. Conversion identity, namespace and owner remain distinct from the
 encoding pair and procedure identity; rejected definitions publish no catalog row.
+
+Runtime information scenarios keep physical facilities distinct from extension
+descriptors and settings. Typed empty sources, genuine backend-local libraries,
+collector absence, exact format validation, live routine ACLs and portable ACL
+reconstruction use public fixture/control APIs only.
 
 ## Testing
 
@@ -68,6 +73,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Encoding conversions: `RUN='^TestReferenceConversion'`
 - LOAD: `RUN='^TestReferenceLoad'`
+- Runtime inquiries: `RUN='^TestReferenceRuntimeInfo'`
 - Extensions (registry, TEMP, removal, versions): `RUN='^TestReferencePGExtension'`, `RUN='^TestReferenceExtensionTemporary'`, `RUN='^TestReferenceExtensionDrop'`, `RUN='^TestReferenceExtensionVersion'`, `RUN='^TestReferenceExtension'`
 - Available-extension views: `RUN='^TestReferenceAvailableExtensions'`
 - Installed dictionary metadata: `RUN='^TestReferenceTSDict'`

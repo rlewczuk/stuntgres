@@ -47,6 +47,13 @@ destination identities without publishing temporary grants. Sparse baseline
 normalization, explicit-empty arrays, grantor order and role mapping are preserved;
 setting values and source parameter OIDs are not serialized.
 
+Restricted builtin routine ACLs use the same object-ACL repair owner. Exact seed
+authority needs no emitted SQL; raw absence is emitted as
+`NULL::pg_catalog.aclitem[]`, distinct from an explicit empty array. Isolated
+Restore recognizes that canonical typed literal and preserves ordinary default
+ACL semantics without reapplying the destination's restricted seed. Untyped
+catalog updates do not acquire this replay capability.
+
 PL bootstrap languages/handlers are validated and not recreated. Accepted
 handler parallel/cost metadata uses the existing provider ALTER replay.
 Changed retained language owners and raw ACLs replay through bounded catalog

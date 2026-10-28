@@ -25,6 +25,7 @@ func TestGenericFileListACLReplayBaseline(t *testing.T) {
 		{3826, false}, {6208, false}, {2624, false}, {3293, false},
 		{3828, false}, {6209, false}, {3827, false}, {3295, false},
 		{2623, false}, {3307, false}, {5029, true}, {5030, true},
+		{3800, true}, {3801, true},
 	} {
 		var original catalog.Procedure
 		for _, p := range routine.BuiltinProcedures(owner) {

@@ -6,12 +6,12 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// GenericFileRoutine identifies restricted builtins whose raw NULL ACL must
-// survive Dump/Restore rather than being replaced with their bootstrap ACL.
+// GenericFileRoutine identifies restricted file access and logfile inquiries
+// whose raw NULL ACL must survive Dump/Restore instead of bootstrap reseeding.
 func GenericFileRoutine(oid ids.OID) bool {
 	switch oid {
 	case 2625, 3297, 3353, 3354, 6271, 6270, 6272, 6400, 5031,
-		3826, 6208, 2624, 3293, 3828, 6209, 3827, 3295, 2623, 3307, 5029, 5030:
+		3826, 6208, 2624, 3293, 3828, 6209, 3827, 3295, 2623, 3307, 5029, 5030, 3800, 3801:
 		return true
 	}
 	return false
@@ -44,7 +44,7 @@ func SeedGenericFileACLs(procedures []catalog.Procedure, owner, monitor authoriz
 // GenericFileMonitorRoutine identifies the released pg_monitor EXECUTE seeds.
 func GenericFileMonitorRoutine(oid ids.OID) bool {
 	switch oid {
-	case 3353, 3354, 6271, 6270, 6272, 6400, 5031, 5029, 5030:
+	case 3353, 3354, 6271, 6270, 6272, 6400, 5031, 5029, 5030, 3800, 3801:
 		return true
 	}
 	return false

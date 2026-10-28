@@ -475,3 +475,8 @@
 3783	pg_logical_slot_get_binary_changes	11	12	1000	1000	25	0	f	false	false	false	true	v	u	4	1	2249	19 3220 23 1009	{19,3220,23,1009,3220,28,17}	{i,i,i,v,o,o,o}	{slot_name,upto_lsn,upto_nchanges,options,lsn,xid,data}	true	\N	pg_logical_slot_get_binary_changes	\N	false	\N
 3784	pg_logical_slot_peek_changes	11	12	1000	1000	25	0	f	false	false	false	true	v	u	4	1	2249	19 3220 23 1009	{19,3220,23,1009,3220,28,25}	{i,i,i,v,o,o,o}	{slot_name,upto_lsn,upto_nchanges,options,lsn,xid,data}	true	\N	pg_logical_slot_peek_changes	\N	false	\N
 3785	pg_logical_slot_peek_binary_changes	11	12	1000	1000	25	0	f	false	false	false	true	v	u	4	1	2249	19 3220 23 1009	{19,3220,23,1009,3220,28,17}	{i,i,i,v,o,o,o}	{slot_name,upto_lsn,upto_nchanges,options,lsn,xid,data}	true	\N	pg_logical_slot_peek_binary_changes	\N	false	\N
+315	pg_jit_available	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	16		\N	\N	\N	false	\N	pg_jit_available	\N	false	\N
+3800	pg_current_logfile	11	12	1	0	0	0	f	false	false	false	false	v	s	0	0	25		\N	\N	\N	false	\N	pg_current_logfile	\N	false	\N
+3801	pg_current_logfile	11	12	1	0	0	0	f	false	false	false	false	v	s	1	0	25	25	\N	\N	\N	false	\N	pg_current_logfile_1arg	\N	false	\N
+4099	pg_numa_available	11	12	1	0	0	0	f	false	false	true	false	s	s	0	0	16		\N	\N	\N	false	\N	pg_numa_available	\N	false	\N
+6353	pg_get_loaded_modules	11	12	1	10	0	0	f	false	false	true	true	v	r	0	0	2249		{25,25,25}	{o,o,o}	{module_name,version,file_name}	false	\N	pg_get_loaded_modules	\N	false	\N

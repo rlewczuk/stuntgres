@@ -120,6 +120,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		6339: {"min", "max"},
 		6340: {"min", "max"},
 		6341: {"min", "max"},
+		6353: {"module_name", "version", "file_name"},
 		6385: {"classid", "objid", "objsubid"},
 		6389: {"array", "descending"},
 		6390: {"array", "descending", "nulls_first"},
