@@ -10,7 +10,7 @@ import (
 )
 
 func DefinitionObjectClass(class ids.OID) bool {
-	return class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID
+	return class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID || class == ids.TSParserClassID
 }
 
 func CompareDefinitionAddress(a, b ids.ObjectAddress) int {
@@ -39,9 +39,11 @@ func (s *StatementScope) acquireDefinitionObjectDependencies(stage *CatalogStage
 			d.VisitDependencies(func(a ids.ObjectAddress, _ byte) { a.SubID = 0; addresses = append(addresses, a) })
 		case *catalog.Conversion:
 			addresses = append(addresses, d.Handler)
+		case *catalog.TSParser:
+			addresses = append(addresses, d.Dependencies()...)
 		case *catalog.TSConfiguration:
 			for _, dependency := range d.Dependencies() {
-				if dependency.ClassID == ids.TSDictionaryClassID {
+				if dependency.ClassID == ids.TSDictionaryClassID || dependency.ClassID == ids.TSParserClassID {
 					addresses = append(addresses, dependency)
 				}
 			}

@@ -171,6 +171,10 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Init, 'n')
 			add(d.Address(), d.Lexize, 'n')
+		case *catalog.TSParser:
+			for _, dependency := range d.Dependencies() {
+				add(d.Address(), dependency, 'n')
+			}
 		case *catalog.TSConfiguration:
 			for _, dependency := range d.Dependencies() {
 				add(d.Address(), dependency, 'n')

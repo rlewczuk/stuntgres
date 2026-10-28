@@ -68,7 +68,7 @@ func ValidateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, defi
 			if ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid default namespace provider")
 			}
-		} else if provider.Kind() != ids.TypeObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.TSConfigurationObject {
+		} else if provider.Kind() != ids.TypeObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.TSConfigurationObject && provider.Kind() != ids.TSParserObject {
 			return fmt.Errorf("stuntgres: invalid default provider kind")
 		}
 	}

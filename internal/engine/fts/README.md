@@ -43,6 +43,12 @@ descriptors and parser-name resolution belong to callers, not this leaf.
 by parser metadata and configuration validation. `VectorBuilder` transfers
 invocation-owned lexeme/position entries directly into canonical immutable
 vectors; it never renders and reparses vector input to construct a result.
+`ParserRuntime` copies checked callback identities without retaining a catalog.
+Parsing admits only the actual stock START/GETTOKEN/END combination; descriptor
+enumeration independently admits the stock LEXTYPES identity. Unused HEADLINE
+does not gate either operation. A different signature-compatible identity fails
+the affected native operation explicitly rather than producing default/empty
+output. Catalog owners certify SQL signatures before constructing this value.
 
 
 ## Limits

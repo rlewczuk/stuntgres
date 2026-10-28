@@ -254,6 +254,12 @@ private frames, not catalog authority.
   Authorized installed-dictionary rename/schema changes preserve the original
   reciprocal extension member identity; mutable placement does not redefine the
   extension target namespace or the dictionary's template/provider authority.
+  `TSParser` owns current namespace/name/revision and five exact routine
+  identities, with no owner or ACL. The seeded default uses that same name index
+  and immutable replacement path as user parsers. Provider validation checks
+  signatures/results independently of native capability; checked descriptors
+  construct catalog-free, method-specific `fts.ParserRuntime` values. Namespace
+  and nonzero callback references are real declaration dependencies.
   `TSConfiguration` owns parser identity and token-ID-sorted immutable mapping
   slices; each mapping owns its ordered dictionary identities, including repeats.
   COPY clones both slice levels, retains no source edge and shares only genuine
@@ -423,7 +429,8 @@ private frames, not catalog authority.
   history (`relation_history.go`: the sticky `HasSubclasses`/`HasIndexes` flags,
   set on replacement and cleared only by VACUUM's own publication), principal
   remap (`principal_remap.go`: `RemapPrincipals` over an unpublished candidate;
-  ownerless kinds stay unchanged, unknown kinds fail), reg\* references
+  ownerless parsers and other ownerless kinds retain descriptor identity, names
+  and callbacks unchanged; unknown kinds fail), reg\* references
   (`alias_references.go`), extension version paths (`extension_versions.go`),
   `AdvanceRevisionFrontier` and `RevisionFrontier` (the frontier over a
   descriptor sequence; nil entries are skipped).

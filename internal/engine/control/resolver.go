@@ -128,6 +128,12 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		if template.Seeded() { return 0, nil }
 		return template.Address().ObjectID, nil
 	}
+	if parser, ok := object.(*catalog.TSParser); ok {
+		if parser.Seeded() && parser.Revision() == 1 {
+			return 0, nil
+		}
+		return parser.Address().ObjectID, nil
+	}
 	if config, ok := object.(*catalog.TSConfiguration); ok {
 		if config.Seeded() && config.Revision() == 1 {
 			return 0, nil

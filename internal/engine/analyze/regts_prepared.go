@@ -25,6 +25,9 @@ func (b *Binder) RegTSConstant(text string, usage sqltype.Usage, pos parser.Posi
 				address := ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)}
 				if config, ok := read.TSConfiguration(address); ok {
 					b.captureDependency(read.Domain().Ref(read.Epoch(), address), config.Revision(), catalog.OperandDependency)
+					if parser, ok := read.TSParser(config.Parser); ok {
+						b.captureDependency(read.Domain().Ref(read.Epoch(), config.Parser), parser.Revision(), catalog.OperandDependency)
+					}
 					for _, mapping := range config.Mappings {
 						for _, address := range mapping.Dictionaries {
 							if dictionary, ok := read.TSDictionary(address); ok {

@@ -397,7 +397,7 @@ var keywords = [...]keyword{
 	{"owner", Unreserved, true, OWNER},
 	{"parallel", Unreserved, true, ROUTINE_PARALLEL},
 	{"parameter", Unreserved, true, PARAMETER},
-	{"parser", Unreserved, true, 0},
+	{"parser", Unreserved, true, TS_PARSER},
 	{"partial", Unreserved, true, 0},
 	{"partition", Unreserved, true, PARTITION},
 	{"passing", Unreserved, true, 0},

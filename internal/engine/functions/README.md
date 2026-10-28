@@ -258,10 +258,14 @@ binding or execution authority; the selected descriptor and manifest are require
 `ts_parse` and `ts_token_type` share one fixed-OUT source provider. Their text
 and OID formals select ordinary routine authority; text-name resolution borrows
 the statement's captured text-search namespace path. Inputs evaluate once in
-written order before strict NULL handling. Document tokenization completes
-privately through the FTS leaf before a source cursor can publish a token.
+written order before strict NULL handling. Resolution returns a catalog-free
+`fts.ParserRuntime`; document parsing and descriptor enumeration consume its
+method-specific native authority, never a default-only post-lookup fallback.
+Document tokenization completes privately before a source cursor publishes.
 Cursor advancement constructs typed records against its current result
 descriptor, so rewritten plans retain no stale composites or invocation state.
+Each descriptor cursor owns a pointer to its checked token-type array; advancing
+copies only the selected entry, never the complete inventory.
 
 Explicit `to_tsvector(regconfig,text)` is a strict immutable typed conversion.
 Its node owns only checked children and routine authority; execution borrows one

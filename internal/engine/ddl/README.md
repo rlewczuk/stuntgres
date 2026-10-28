@@ -71,10 +71,22 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   `RestoredStatisticsOwner` retains exact descriptor, namespace and principal
   generations for one immediate private replay; `schemacmds` owns its trusted
   capture and owner-only replacement, and the replay driver expires it.
+- **Text-search parsers** (`ts_parser.go`): CREATE validates located options in
+  written order against exact routine input/result signatures. Valid repetitions
+  overwrite earlier values; absent optional HEADLINE remains zero. CREATE and
+  rename/schema ALTER require superuser authority. SET SCHEMA checks destination
+  existence and CREATE permission before the parser-specific superuser check.
+  Its scoped destination resolver permits system namespaces without relaxing
+  ordinary user-CREATE namespace protection. ALTER superuser denial describes the
+  current object using ordinary search-path visibility and dependency spelling.
+  DROP permits containing-schema owners without inventing parser ownership;
+  unrelated users receive the ordinary superuser-required diagnostic. All names,
+  callback dependencies and collisions validate privately before the ordinary
+  single-stage publication.
 - **Text-search configurations** (`ts_configuration.go`): ordinary private stages
   resolve namespace CREATE and owner authority, COPY/PARSER, every ordered mapping
   action, rename/schema/owner transfers and DROP targets. Token aliases resolve
-  against the actual default parser inventory. Mapping candidates own both slice
+  against the referenced parser's checked LEXTYPES authority. Mapping candidates own both slice
   levels; all operands validate before one replacement, without resource I/O.
   `ConfigurationHost.SearchConfigurationNamespaces` resolves every existing source
   operand: ALTER/DROP targets, COPY/PARSER, mapping dictionary lists and old/new

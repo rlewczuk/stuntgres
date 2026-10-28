@@ -697,7 +697,7 @@ func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 			}
 			return []authorization.PrincipalRef{t.MappedRole}
 		}
-	case *catalog.TSTemplate:
+	case *catalog.TSTemplate, *catalog.TSParser:
 		return nil
 	}
 	owner, acl, cols := access.DescriptorACL(d)

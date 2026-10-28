@@ -33,6 +33,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		}
 		return result, true, err
 	case *parser.CreateTemplate, *parser.AlterTemplate, *parser.DropTemplate, *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger, *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary,
+		*parser.CreateParser, *parser.AlterParser, *parser.DropParser,
 		*parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration:
 		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {

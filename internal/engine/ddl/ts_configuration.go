@@ -36,6 +36,8 @@ func configurationLookup(h ConfigurationHost, auth Authority, name parser.Object
 	what := "configuration"
 	if class == ids.TSDictionaryClassID {
 		what = "dictionary"
+	} else if class == ids.TSParserClassID {
+		what = "parser"
 	}
 	return nil, configurationError("42704", fmt.Sprintf(`text search %s "%s" does not exist`, what, catalog.ObjectNameText(name)))
 }
@@ -68,22 +70,12 @@ func StageCreateConfiguration(h ConfigurationHost, auth Authority, s *parser.Cre
 			if o.Numeric {
 				return configurationError("42601", "argument of parser must be a name")
 			}
-			path, err := h.SearchConfigurationNamespaces(auth, o.Value, 3601)
+			raw, err := configurationLookup(h, auth, o.Value, ids.TSParserClassID)
 			if err != nil {
 				return err
 			}
-			p := catalog.DefaultTextParser()
-			found := false
-			for _, ns := range path {
-				if ns.ObjectID == p.Namespace && o.Value.Parts[len(o.Value.Parts)-1].Text == p.Name {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return configurationError("42704", fmt.Sprintf(`text search parser "%s" does not exist`, catalog.ObjectNameText(o.Value)))
-			}
-			d.Parser = ids.ObjectAddress{ClassID: 3601, ObjectID: p.OID}
+			h.AddDomainBase(raw)
+			d.Parser = raw.Address()
 			parsed = true
 		case "copy":
 			if !o.Supplied {
@@ -208,9 +200,25 @@ func StageAlterConfiguration(h ConfigurationHost, auth Authority, s *parser.Alte
 	return h.Stage().Replace(&next)
 }
 func configurationMappings(h ConfigurationHost, auth Authority, d *catalog.TSConfiguration, s *parser.AlterConfiguration) error {
+	p := h.AccessView(auth).Catalog.MustTSParser(d.Parser)
+	runtime, err := catalog.ResolveParserRuntime(h.AccessView(auth).Catalog, p)
+	if err != nil {
+		return err
+	}
+	descriptors, err := runtime.TokenTypes(h.Context())
+	if err != nil {
+		return err
+	}
 	var tokens []int32
 	for _, t := range s.Tokens {
-		id, ok := catalog.TextParserTokenID(t.Text)
+		var id int32
+		var ok bool
+		for i, descriptor := range descriptors {
+			if descriptor.Alias == t.Text {
+				id, ok = int32(i+1), true
+				break
+			}
+		}
 		if !ok {
 			return configurationError("22023", fmt.Sprintf(`token type "%s" does not exist`, t.Text))
 		}
@@ -251,7 +259,6 @@ func configurationMappings(h ConfigurationHost, auth Authority, d *catalog.TSCon
 		}
 		return nil
 	}
-	descriptors := catalog.TextParserTokens()
 	for _, token := range tokens {
 		if err := h.Context().Err(); err != nil {
 			return err

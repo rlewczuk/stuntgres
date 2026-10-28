@@ -17,16 +17,18 @@ func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype
 	if len(in.Source.Columns) != procedureColumnCount {
 		return nil, fmt.Errorf("stuntgres: invalid procedure source shape")
 	}
-	p := catalog.DefaultTextParser()
 	language := in.Catalog.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: "internal"})
 	if language == (ids.ObjectAddress{}) {
 		return nil, fmt.Errorf("stuntgres: missing parser handler language")
 	}
-	for _, fact := range [...]struct{ oid ids.OID; volatile bool }{
-		{p.Start,false},{p.Token,false},{p.End,false},{p.Headline,false},{p.LexType,false},
-		{40,false},{41,false},{54,false},{55,false},{2410,false},{2411,false},{2420,false},{2421,false},{88,false},
-		{1644,true},{1645,true},{1646,true},{1647,true},{1648,true},{1649,true},
-		{1650,true},{1651,true},{1652,true},{1653,true},{1654,true},{1655,true},
+	for _, fact := range [...]struct {
+		oid      ids.OID
+		volatile bool
+	}{
+		{3717, false}, {3718, false}, {3719, false}, {3720, false}, {3721, false},
+		{40, false}, {41, false}, {54, false}, {55, false}, {2410, false}, {2411, false}, {2420, false}, {2421, false}, {88, false},
+		{1644, true}, {1645, true}, {1646, true}, {1647, true}, {1648, true}, {1649, true},
+		{1650, true}, {1651, true}, {1652, true}, {1653, true}, {1654, true}, {1655, true},
 	} {
 		oid := fact.oid
 		if err := in.Context.Err(); err != nil {
@@ -58,7 +60,9 @@ func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype
 			row[field.index] = value
 		}
 		volatility := "i"
-		if fact.volatile { volatility = "v" }
+		if fact.volatile {
+			volatility = "v"
+		}
 		for _, field := range [...]struct {
 			index int
 			text  string

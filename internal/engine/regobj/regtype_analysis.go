@@ -150,6 +150,9 @@ func observeConfig(o Observation, c analyze.RegtypeConstant) configObservation {
 	if config, ok := read.TSConfiguration(address); ok {
 		current.present = true
 		current.operands = append(current.operands, catalog.ExpressionDependency{Ref: o.View.Ref(address), Revision: config.Revision()})
+		if parser, ok := read.TSParser(config.Parser); ok {
+			current.operands = append(current.operands, catalog.ExpressionDependency{Ref: o.View.Ref(config.Parser), Revision: parser.Revision()})
+		}
 		for _, mapping := range config.Mappings {
 			for _, address := range mapping.Dictionaries {
 				if slices.ContainsFunc(current.operands, func(d catalog.ExpressionDependency) bool { return d.Ref.Address == address }) {

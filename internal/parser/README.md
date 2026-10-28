@@ -131,6 +131,10 @@ single-statement limit of driver calls) belong to callers.
   enforcement syntax remains a rejected domain operation, not a table alias.
   Existing-index attachment rejection carries `UsingIndex.Primary` through the
   same constraint-kind diagnostic seam; PK attachments are not mislabeled UNIQUE.
+- Text-search parser utilities retain positioned ordered callback options using
+  the shared located utility value shape. CREATE, rename/schema ALTER and
+  list DROP have dedicated ASTs; unsupported OWNER/callback replacement and
+  trailing input fail the complete parse. PARSER remains an unreserved name.
 - Statistics owner replay has a per-call `StatisticsOwnerReplay` option only
   for the isolated native Restore parser. It yields the shared positioned
   `AlterOwner` AST; ordinary calls retain the ALTER capability diagnostic.
@@ -367,6 +371,8 @@ retains an expression and ordered USING list, not a second SQL parser; diagnosti
 text is sliced from these boundaries and never rescanned into executable syntax.
 
 ## Testing
+
+Text-search parser utility AST/options/full-input ownership uses `RUN='^TestTSParser'`.
 
 Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
 Constraint enforcement AST/property/full-input units use `RUN='^TestConstraintEnforcement(Parser|PropertySyntax|UsingIndexParser)$'`.

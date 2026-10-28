@@ -9,7 +9,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type FTSParserRuntime interface{ ResolveFTSParser(sqltype.Value) error }
+type FTSParserRuntime interface {
+	ResolveFTSParser(sqltype.Value) (fts.ParserRuntime, error)
+}
 
 // Args stay in written order; Order maps each operand to its formal slot.
 // The analyzed node owns no invocation cursor or document tokens.
@@ -131,7 +133,8 @@ func (e FTSParser) OpenSource(c expr.Context) (expr.SourceCursor, error) {
 	if !ok {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing text parser authority")
 	}
-	if err := runtime.ResolveFTSParser(values[0]); err != nil {
+	parser, err := runtime.ResolveFTSParser(values[0])
+	if err != nil {
 		return expr.SourceCursor{}, err
 	}
 	cursor := expr.SourceCursor{Type: e.Usage.Type, Advance: nextFTSDescriptor}
@@ -140,11 +143,17 @@ func (e FTSParser) OpenSource(c expr.Context) (expr.SourceCursor, error) {
 		if err != nil {
 			return expr.SourceCursor{}, err
 		}
-		tokens, err := fts.ParseDocument(ctx, text)
+		tokens, err := parser.Parse(ctx, text)
 		if err != nil {
 			return expr.SourceCursor{}, err
 		}
 		cursor.State, cursor.Advance = tokens, nextFTSToken
+	} else {
+		types, err := parser.TokenTypes(ctx)
+		if err != nil {
+			return expr.SourceCursor{}, err
+		}
+		cursor.State = &types
 	}
 	return expr.NewSourceCursor(cursor), nil
 }
@@ -163,10 +172,11 @@ func nextFTSToken(_ context.Context, s *expr.SourceCursor) (sqltype.Value, bool,
 	return v, err == nil, err
 }
 func nextFTSDescriptor(_ context.Context, s *expr.SourceCursor) (sqltype.Value, bool, error) {
-	if s.Position == len(ftsParserDescriptors) {
+	descriptors := s.State.(*[23]struct{ Alias, Description string })
+	if s.Position == len(descriptors) {
 		return sqltype.Value{}, false, nil
 	}
-	d := ftsParserDescriptors[s.Position]
+	d := descriptors[s.Position]
 	s.Position++
 	id, err := sqltype.Integer(s.Type.CompositeMember(0).Usage.Type, int64(s.Position))
 	if err != nil {
@@ -175,5 +185,3 @@ func nextFTSDescriptor(_ context.Context, s *expr.SourceCursor) (sqltype.Value, 
 	v, err := sqltype.OwnedCompositeValue(s.Type, []sqltype.Value{id, sqltype.String(s.Type.CompositeMember(1).Usage.Type, d.Alias), sqltype.String(s.Type.CompositeMember(2).Usage.Type, d.Description)})
 	return v, err == nil, err
 }
-
-var ftsParserDescriptors = fts.DocumentTypes()

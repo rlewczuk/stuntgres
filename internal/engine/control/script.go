@@ -441,6 +441,13 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 		}
 		s.declarations[statistics.Address().ObjectID] = declaration
 	}
+	for _, parser := range s.Parsers {
+		declaration, err := parserDumpStatement(s.CatalogView, parser)
+		if err != nil {
+			return err
+		}
+		s.declarations[parser.Address().ObjectID] = declaration
+	}
 	for _, config := range s.Configurations {
 		declaration, err := configurationDumpStatement(s.CatalogView, s.DomainRoles, config)
 		if err != nil {

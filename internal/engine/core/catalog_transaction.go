@@ -247,6 +247,10 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 					if candidate.Get(target) == nil && (owner.Handler == target || owner.Namespace() == target) {
 						return catalog.Conflict{}
 					}
+				case *catalog.TSParser:
+					if candidate.Get(target) == nil && slices.Contains(owner.Dependencies(), target) {
+						return catalog.Conflict{}
+					}
 				case *catalog.TSConfiguration:
 					if candidate.Get(target) == nil && slices.Contains(owner.Dependencies(), target) {
 						return catalog.Conflict{}

@@ -63,6 +63,7 @@ type Capture struct {
 	Dictionaries        []*catalog.TSDictionary
 	Templates           []*catalog.TSTemplate
 	Configurations      []*catalog.TSConfiguration
+	Parsers             []*catalog.TSParser
 	Statistics          []*catalog.Statistics
 	ExtendedStatistics  []storage.ExtendedStatisticsSnapshot
 	Providers           []providerReplay

@@ -283,7 +283,7 @@ func pgResourceRecord(resource Resource, owner RecordOwner, mode Mode) (Record, 
 		case ids.SubscriptionClassID, ids.StatisticExtClassID, ids.TypeClassID, ids.NamespaceClassID, ids.RoleClassID, ids.CollationClassID, ids.ConversionClassID, ids.CastClassID, ids.ProcedureClassID, ids.AccessMethodClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.EventTriggerClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID:
 			r.Kind, r.Class = ObjectRecord, uint32(resource.Address.ClassID)
 			r.Shared = resource.Address.ClassID == ids.RoleClassID || resource.Address.ClassID == ids.SubscriptionClassID
-		case ids.TSConfigurationClassID:
+		case ids.TSConfigurationClassID, ids.TSParserClassID:
 			r.Kind, r.Class = ObjectRecord, uint32(resource.Address.ClassID)
 			r.Shared = resource.Address.ClassID == ids.RoleClassID
 		default:

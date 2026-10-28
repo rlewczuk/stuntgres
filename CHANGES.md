@@ -55,6 +55,12 @@
   sort/window captures authenticate original class/support declarations and mapped
   destination identities without substituting a current default.
 
+- Text-search parser definitions now use ordinary immutable catalog descriptors,
+  exact callback signatures and staged CREATE/ALTER/DROP authority without owner
+  ACLs. Stock native callbacks execute through checked parser capabilities;
+  configurations, metadata and native persistence retain actual parser identities
+  across rename, schema moves and catalog replacement.
+
 - Add the four logical-slot get/peek text/binary SQL signatures with initialized
   empty-options defaults, typed record metadata, ordered option validation and
   live current-role replication authorization. Preserve missing-slot 42704 under

@@ -24,7 +24,7 @@ func collectConfigurationDump(ctx context.Context, c *dumpCollection, _ ids.Obje
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if a.ClassID == 3601 || a.ClassID == ids.NamespaceClassID {
+		if a.ClassID == ids.NamespaceClassID {
 			continue
 		}
 		oid, err := predecessor(c.CatalogView, a, d.Address())
@@ -56,6 +56,18 @@ func configurationDumpStatement(view catalog.Read, roles authorization.Read, d *
 		return catalog.QuoteIdentifier(view.MustNamespace(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 	}
 	name := qualified(d)
+	parser := view.MustTSParser(d.Parser)
+	var tokens [23]struct{ Alias, Description string }
+	if d.Seeded() || len(d.Mappings) > 0 {
+		runtime, err := catalog.ResolveParserRuntime(view, parser)
+		if err != nil {
+			return dump.Statement{}, err
+		}
+		tokens, err = runtime.TokenTypes(context.Background())
+		if err != nil {
+			return dump.Statement{}, err
+		}
+	}
 	var text strings.Builder
 	if d.Seeded() {
 		originalNS := view.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}).Name()
@@ -68,7 +80,7 @@ func configurationDumpStatement(view catalog.Read, roles authorization.Read, d *
 			fmt.Fprintf(&text, "ALTER TEXT SEARCH CONFIGURATION %s SET SCHEMA %s;\n", current, catalog.QuoteIdentifier(view.MustNamespace(d.Namespace()).Name()))
 		}
 		text.WriteString("ALTER TEXT SEARCH CONFIGURATION " + name + " DROP MAPPING IF EXISTS FOR ")
-		for i, t := range catalog.TextParserTokens() {
+		for i, t := range tokens {
 			if i > 0 {
 				text.WriteString(", ")
 			}
@@ -76,11 +88,8 @@ func configurationDumpStatement(view catalog.Read, roles authorization.Read, d *
 		}
 		text.WriteString(";\n")
 	} else {
-		parser := catalog.DefaultTextParser()
-		parserNS := view.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: parser.Namespace}).Name()
-		fmt.Fprintf(&text, "CREATE TEXT SEARCH CONFIGURATION %s (PARSER = %s.%s);\n", name, catalog.QuoteIdentifier(parserNS), catalog.QuoteIdentifier(parser.Name))
+		fmt.Fprintf(&text, "CREATE TEXT SEARCH CONFIGURATION %s (PARSER = %s);\n", name, qualified(parser))
 	}
-	tokens := catalog.TextParserTokens()
 	for _, m := range d.Mappings {
 		fmt.Fprintf(&text, "ALTER TEXT SEARCH CONFIGURATION %s ADD MAPPING FOR %s WITH ", name, catalog.QuoteIdentifier(tokens[m.TokenID-1].Alias))
 		for i, a := range m.Dictionaries {

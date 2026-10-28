@@ -92,12 +92,16 @@ func (TSConfigurationProvider) Validate(v Read, raw Descriptor) error {
 	if _, ok := v.Namespace(d.Namespace()); !ok {
 		return invalid()
 	}
-	if d.Parser != (ids.ObjectAddress{ClassID: 3601, ObjectID: DefaultTextParser().OID}) {
+	parser, ok := v.TSParser(d.Parser)
+	if !ok {
 		return invalid()
+	}
+	if err := (TSParserProvider{}).Validate(v, parser); err != nil {
+		return err
 	}
 	var previous int32
 	for _, m := range d.Mappings {
-		if m.TokenID <= previous || m.TokenID > 23 || len(m.Dictionaries) == 0 {
+		if m.TokenID <= previous || (parser.LexType == 3721 && int(m.TokenID) > len(TextParserTokens())) || len(m.Dictionaries) == 0 {
 			return invalid()
 		}
 		previous = m.TokenID

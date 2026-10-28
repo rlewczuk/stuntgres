@@ -164,6 +164,9 @@ func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
 	if d.Kind() == ids.StatisticsObject || d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
 		return 0
 	}
+	if d.Kind() == ids.TSParserObject {
+		return 0
+	}
 	if d.Kind() == ids.ExtensionObject || d.Kind() == ids.TSDictionaryObject || d.Kind() == ids.TSTemplateObject || d.Kind() == ids.TSConfigurationObject {
 		return 0
 	}
@@ -527,7 +530,7 @@ func ValidateACL(r authorization.Read, d catalog.Descriptor) error {
 			}
 			return r.ValidatePrincipal(t.MappedRole)
 		}
-	case *catalog.AccessMethod, *catalog.Cast, *catalog.TSTemplate, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+	case *catalog.AccessMethod, *catalog.Cast, *catalog.TSTemplate, *catalog.TSParser, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		return nil
 	}
 	owner, acl, cols := DescriptorACL(d)

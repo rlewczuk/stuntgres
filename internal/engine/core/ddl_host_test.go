@@ -49,6 +49,26 @@ func TestDDLHostCreationNamespaceRecapturesCopy(t *testing.T) {
 	}
 }
 
+func TestDDLHostParserSchemaNamespace(t *testing.T) {
+	e := engine.New()
+	op, auth := conversionUnitAuth(t, e)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	stage := e.BeginCatalogStage(auth.Catalog)
+	defer e.DiscardCatalogStage(stage)
+	h := core.DDLHost{E: e, Op: op, CatalogStage: stage}
+	name := ddlHostName("pg_catalog", "parser_destination")
+	_, err := h.ExistingCreationNamespace(auth, name)
+	extensionUnitError(t, err, "0A000")
+	ref, err := h.ParserSchemaNamespace(auth, name)
+	if err != nil || ref.Address != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
+		t.Fatal("parser system destination resolution", ref, err)
+	}
+	if stage.DescriptorCount() != 0 || auth.Catalog.State() != stage.Base.State() {
+		t.Fatal("existing destination resolution mutated catalog authority")
+	}
+}
+
 func TestDDLHostStageKeepsLifecycle(t *testing.T) {
 	e := engine.New()
 	op, auth := conversionUnitAuth(t, e)
@@ -214,6 +234,42 @@ func TestDDLHostConfigurationSourceNamespaces(t *testing.T) {
 				t.Fatal("configuration lookup changed caller restore flag")
 			}
 		})
+	}
+}
+
+func TestDDLHostParserRoutineUtilityPositions(t *testing.T) {
+	e := engine.New()
+	op, auth := conversionUnitAuth(t, e)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	stage := e.BeginCatalogStage(auth.Catalog)
+	defer e.DiscardCatalogStage(stage)
+	h := core.DDLHost{E: e, Op: op, CatalogStage: stage}
+	before := auth
+	assertDiagnostic := func(err error, position string) {
+		t.Helper()
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "3F000", Message: `schema "parser_callback_absent_schema" does not exist`, Position: position}
+		var got *sqlstate.Error
+		if !errors.As(err, &got) || !reflect.DeepEqual(*got, want) {
+			t.Fatalf("diagnostic: got %#v (%v), want %#v", got, err, want)
+		}
+	}
+	for _, namespace := range []string{"parser_callback_absent_schema", "pg_catalog"} {
+		name := ddlHostName(namespace, "prsd_start")
+		name.Parts[0].Pos = parser.Position{Offset: 22, Character: 20}
+		name.Parts[1].Pos = parser.Position{Offset: 44, Character: 42}
+		source := parser.ObjectName{Parts: slices.Clone(name.Parts)}
+		routine, found, err := h.LookupParserRoutine(auth, name, "2281,23")
+		if namespace == "parser_callback_absent_schema" {
+			assertDiagnostic(err, "")
+			_, err = h.LookupFunction(auth, name, "2281,23")
+			assertDiagnostic(err, "20")
+		} else if err != nil || !found || routine.ID != 3717 {
+			t.Fatal("utility lookup lost genuine stock callback identity", routine, found, err)
+		}
+		if !reflect.DeepEqual(name, source) || !reflect.DeepEqual(auth, before) {
+			t.Fatal("parser routine utility lookup mutated source AST or caller authority")
+		}
 	}
 }
 

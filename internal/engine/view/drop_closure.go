@@ -323,6 +323,11 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				if d.Extension == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
+			case *catalog.TSParser:
+				if slices.Contains(d.Dependencies(), target) {
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+					direct[len(direct)-1].Normal = true
+				}
 			case *catalog.TSConfiguration:
 				if slices.Contains(d.Dependencies(), target) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
@@ -677,7 +682,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				result = append(result, edge)
 			}
 			seen[edge.Address] = true
-			if edge.Address.ClassID == ids.TSConfigurationClassID {
+			if edge.Address.ClassID == ids.TSConfigurationClassID || edge.Address.ClassID == ids.TSParserClassID {
 				if err := visit(edge.Address, root); err != nil {
 					return err
 				}

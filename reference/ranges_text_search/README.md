@@ -130,6 +130,8 @@ COPY test in reference/dml.
 - Text search operators: `RUN='^TestReferenceFTSOps'`
 - Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
 - Text search document parser: `RUN='^TestReferenceFTSParser'`
+  Parser definition lifecycle, checked callback execution, diagnostics, privileges,
+  dependencies and native replacement/replay share `RUN='^TestReferenceFTSParserDDL'`.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

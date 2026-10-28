@@ -82,6 +82,13 @@ func (h DDLHost) ExistingCreationNamespace(a ddl.Authority, name parser.ObjectNa
 	return h.E.CreationNamespace(DDLAuthorityOf(a), name)
 }
 
+// Parser ALTER can return a superuser-authorized definition to a system
+// namespace. Keep this destination policy separate from ordinary user CREATE;
+// StageAlterParser still applies destination CREATE and superuser checks.
+func (h DDLHost) ParserSchemaNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
+	return h.E.creationNamespaceWithSystem(DDLAuthorityOf(a), name, true)
+}
+
 func (h DDLHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class ids.OID) ([]ids.ObjectAddress, error) {
 	var kind analyze.LookupKind
 	switch class {
@@ -131,6 +138,23 @@ func (h DDLHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signatu
 		return nil, err
 	}
 	return analyze.ProcedureInNamespaces(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, signature), nil
+}
+
+func (h DDLHost) LookupParserRoutine(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, bool, error) {
+	v := DDLAuthorityOf(a)
+	var semanticParts [2]parser.Identifier
+	if len(name.Parts) == len(semanticParts) {
+		copy(semanticParts[:], name.Parts)
+		// Callback lookup is utility resolution, not an expression location.
+		semanticParts[0].Pos = parser.Position{}
+		name.Parts = semanticParts[:]
+	}
+	path, err := h.E.LookupNamespaces(v, name, analyze.FunctionLookup)
+	if err != nil {
+		return catalog.RoutineIdentity{}, false, err
+	}
+	p, count := regobj.SelectExactRoutine(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, signature)
+	return p, count == 1, nil
 }
 
 // DependencyObject renders the description even when the path fails, so a

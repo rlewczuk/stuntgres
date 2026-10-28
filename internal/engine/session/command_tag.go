@@ -133,6 +133,12 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "ALTER SCHEMA"
 	case *parser.DropSchema:
 		base = "DROP SCHEMA"
+	case *parser.CreateParser:
+		base = "CREATE TEXT SEARCH PARSER"
+	case *parser.AlterParser:
+		base = "ALTER TEXT SEARCH PARSER"
+	case *parser.DropParser:
+		base = "DROP TEXT SEARCH PARSER"
 	case *parser.CreateConfiguration:
 		base = "CREATE TEXT SEARCH CONFIGURATION"
 	case *parser.AlterConfiguration:

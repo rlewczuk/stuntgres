@@ -37,12 +37,13 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	switch stmt.(type) {
 	case *parser.Subscription:
 		alter = stmt.(*parser.Subscription).Action != "create" && stmt.(*parser.Subscription).Action != "drop"
-	case *parser.AlterTemplate, *parser.AlterStatisticsTarget, *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
+	case *parser.AlterParser, *parser.AlterTemplate, *parser.AlterStatisticsTarget, *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
 		alter = true
 	}
 	switch stmt.(type) {
 	case *parser.Subscription:
 	case *parser.DropStatistics, *parser.AlterStatisticsTarget:
+	case *parser.AlterParser, *parser.DropParser:
 	case *parser.AlterTemplate, *parser.DropTemplate, *parser.AlterConfiguration, *parser.DropConfiguration, *parser.AlterDictionary, *parser.DropDictionary, *parser.AlterCollation, *parser.DropCollation,
 		*parser.AlterConversion, *parser.DropConversion, *parser.DropCast, *parser.DropRoutine,
 		*parser.CreateFunction, *parser.AlterEventTrigger, *parser.DropEventTrigger:
@@ -81,7 +82,7 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	for _, address := range addresses {
 		ref := s.Engine().Catalog.Domain.Ref(stage.Base.Epoch(), address)
 		mode := lock.AccessExclusive
-		if _, configuration := stmt.(*parser.AlterConfiguration); configuration && address.ClassID == ids.TSDictionaryClassID {
+		if _, configuration := stmt.(*parser.AlterConfiguration); configuration && (address.ClassID == ids.TSDictionaryClassID || address.ClassID == ids.TSParserClassID) {
 			mode = lock.AccessShare
 		}
 		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, mode); err != nil {

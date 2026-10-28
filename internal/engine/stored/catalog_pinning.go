@@ -12,9 +12,9 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 	if address.ClassID == ids.NamespaceClassID {
 		return address.ObjectID == ids.PGCatalogNamespaceOID || address.ObjectID == ids.PGToastNamespaceOID
 	}
-	if address.ClassID == 3601 {
-		_, builtin := catalog.BuiltinTextParser(uint32(address.ObjectID))
-		return builtin && address.SubID == 0
+	if address.ClassID == ids.ProcedureClassID && address.SubID == 0 && view.Get(address) == nil {
+		_, pinned := catalog.BuiltinRoutineIdentityByOID(address.ObjectID)
+		return pinned
 	}
 	whole := address
 	whole.SubID = 0
@@ -30,6 +30,8 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 	case *catalog.Collation:
 		return d.Seeded()
 	case *catalog.Conversion:
+		return d.Seeded()
+	case *catalog.TSParser:
 		return d.Seeded()
 	case *catalog.TSConfiguration:
 		return d.Seeded()

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -62,6 +63,9 @@ func (r TextSearchInput) ResolveRegconfig(ctx context.Context, text string) (uin
 		if d, ok := a.View.Catalog.TSConfiguration(address); ok {
 			if r.resolved != nil {
 				*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: a.View.Ref(d.Address()), Revision: d.Revision()})
+				if parser, ok := a.View.Catalog.TSParser(d.Parser); ok {
+					*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: a.View.Ref(d.Parser), Revision: parser.Revision()})
+				}
 				for _, dependency := range d.Dependencies() {
 					if dependency.ClassID == ids.TSDictionaryClassID {
 						if dictionary, ok := a.View.Catalog.TSDictionary(dependency); ok {
@@ -110,14 +114,28 @@ func (r TextSearchInput) ResolveTextParser(ctx context.Context, text string) (ui
 	if err != nil {
 		return 0, err
 	}
-	p := catalog.DefaultTextParser()
+	view := r.capture.Authority.View
 	for i := range selection.Count() {
-		ns := selection.At(i)
-		if ns.ObjectID == p.Namespace && parts[len(parts)-1].Text == p.Name {
-			return uint32(p.OID), nil
+		address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.TSParserClassID, Namespace: selection.At(i), Name: parts[len(parts)-1].Text})
+		if d, ok := view.Catalog.TSParser(address); ok {
+			if r.resolved != nil {
+				*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: view.Ref(address), Revision: d.Revision()})
+			}
+			return uint32(address.ObjectID), nil
 		}
 	}
 	return 0, sqlError("42704", "text search parser \""+spelling+"\" does not exist")
+}
+
+// ResolveParserRuntime uses exactly the snapshot that resolved the textual name.
+// It never refreshes the captured input or retains a mutable catalog pointer.
+func (r TextSearchInput) ResolveParserRuntime(ctx context.Context, text string) (fts.ParserRuntime, error) {
+	oid, err := r.ResolveTextParser(ctx, text)
+	if err != nil {
+		return fts.ParserRuntime{}, err
+	}
+	view := r.capture.Authority.View.Catalog
+	return catalog.ResolveParserRuntime(view, view.MustTSParser(ids.ObjectAddress{ClassID: ids.TSParserClassID, ObjectID: ids.OID(oid)}))
 }
 
 // The existing dictionary input preserves its missing-schema soft-input contract;

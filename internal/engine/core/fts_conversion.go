@@ -32,8 +32,12 @@ func (h *statementHost) ConvertTSVector(value sqltype.Value, text string, result
 	config, ok := read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)})
 	var dictionaries map[ids.ObjectAddress]catalog.DictionaryRuntime
 	var array *sqltype.Descriptor
+	var parser fts.ParserRuntime
 	if ok {
 		err = (catalog.TSConfigurationProvider{}).Validate(read, config)
+		if err == nil {
+			parser, err = catalog.ResolveParserRuntime(read, read.MustTSParser(config.Parser))
+		}
 		if err == nil {
 			dictionaries = make(map[ids.ObjectAddress]catalog.DictionaryRuntime)
 			for _, m := range config.Mappings {
@@ -53,7 +57,7 @@ func (h *statementHost) ConvertTSVector(value sqltype.Value, text string, result
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	tokens, err := fts.ParseDocument(ctx, text)
+	tokens, err := parser.Parse(ctx, text)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

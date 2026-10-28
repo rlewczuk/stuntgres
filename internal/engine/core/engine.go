@@ -176,6 +176,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.SubscriptionProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(catalog.TSParserProvider{}); err != nil {
+		return nil, err
+	}
 	if err := e.RegisterCatalogProvider(catalog.TSConfigurationProvider{}); err != nil {
 		return nil, err
 	}
@@ -203,6 +206,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	routine.SeedGenericFileACLs(procedures, bootstrap, principals.LookupRef("pg_monitor"))
 	catalog.InstallBuiltinProcedures(e.Catalog.State, typedef.BuiltinConversionProcedures(bootstrap), procedures, routine.NativeAccessMethodProcedures(bootstrap), routine.SharedMemoryProcedures(bootstrap, principals.LookupRef("pg_read_all_stats")))
 	catalog.InstallBuiltinDictionaries(e.Catalog.State, bootstrap, functions.DefaultSimpleDictionary)
+	catalog.InstallBuiltinTSParsers(e.Catalog.State)
 	catalog.InstallBuiltinTSConfigurations(e.Catalog.State, bootstrap)
 	if err := e.Catalog.InstallBuiltinLanguagesLocked(bootstrap); err != nil {
 		return nil, err
@@ -311,6 +315,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return Description{}, nil
 	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget:
+		return Description{}, nil
+	case *parser.CreateParser, *parser.AlterParser, *parser.DropParser:
 		return Description{}, nil
 	case *parser.CreateTemplate, *parser.AlterTemplate, *parser.DropTemplate, *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration:
 		return Description{}, nil

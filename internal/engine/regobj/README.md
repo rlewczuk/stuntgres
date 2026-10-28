@@ -83,7 +83,9 @@ import it.
   `TextSearchInput.ResolveTextParser` uses that same captured, TEMP-free path
   for parser names, with explicit namespace USAGE checked before lookup.
   Parser names remain TEXT inputs; no regparser type or parser-owner ACL is
-  introduced. The stock parser identity belongs to the catalog bootstrap data.
+  introduced. Both seeded and user parsers resolve current descriptor/name keys
+  and retain actual dependency revisions when requested. Configurations capture
+  their actual parser revision alongside dictionary observations.
   REGCONFIG and REGDICTIONARY resolve actual descriptor identities, capture
   operand revisions and retain visibility-sensitive output spellings. Their
   persistence walkers recurse through arrays, domains, composites and ranges;

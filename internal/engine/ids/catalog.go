@@ -47,6 +47,7 @@ const (
 	TSTemplateClassID            OID = 3764
 	TSDictionaryClassID          OID = 3600
 	TSConfigurationClassID       OID = 3602
+	TSParserClassID              OID = 3601
 	DatabaseClassID              OID = 1262
 	ForeignWrapperClassID        OID = 2328
 	ForeignServerClassID         OID = 1417
@@ -102,4 +103,5 @@ const (
 	TSConfigurationObject
 	StatisticsObject
 	SubscriptionObject
+	TSParserObject
 )

@@ -176,9 +176,15 @@ database identity while retaining other databases' committed subscriptions.
   precede atomic destination publication, preserving held old captures.
   PostgreSQL18 script replay ignores these comments and leaves collected state
   absent.
+- **Parsers** (`ts_parser.go`) serialize fully qualified actual callback names,
+  omit zero HEADLINE and emit no owner/ACL clauses. Unmodified default is seeded;
+  modified default emits rename/schema ALTERs from its bootstrap identity.
+  Parser events precede dependent configurations and follow represented routine
+  declarations. Replacement remaps real parser/callback/configuration identities
+  through the existing private Restore candidate.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
-  ADD MAPPING statements, never COPY provenance. Namespace, mapped dictionary
-  and stored alias/default/view dependencies use the ordinary event graph.
+  ADD MAPPING statements, never COPY provenance. Actual parser, namespace, mapped
+  dictionary and stored alias/default/view dependencies use the ordinary graph.
   Owner transfers use privileged creation; seed edits replay current mappings
   after canonical seed initialization. Temporary retention and replacement
   remap configuration descriptors and REGCONFIG datums through existing owners.
@@ -483,6 +489,9 @@ authorization); the composition functions `Reset`, `Dump` and `Restore`
 (`control.go`).
 
 ## Testing
+
+Text-search parser graph, declaration and canceled/failed capture ownership
+uses the shared `RUN='^TestTSParser'` family.
 
 Package units drive the Restore driver and hooks with a fake `Host`; engine
 units cover the collect, emit, remap and TEMP preservation callers. Public

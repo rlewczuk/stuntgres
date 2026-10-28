@@ -387,10 +387,10 @@ cursors rewind to hold the entire result under their existing cursor semantics.
 Ordinary open cursors close; held loop storage belongs to loop cleanup.
 
 
-Text-search conversion captures a real configuration and its distinct immutable
-dictionary runtimes from one private catalog generation under `Engine.Mu`, then
-releases it before tokenization/lexization. Mapping changes publish through
-ordinary schema stages and definition locks. Generic folds retain immutable
+Text-search conversion captures a real configuration, its checked immutable
+parser capability and distinct dictionary runtimes from one private catalog
+generation under `Engine.Mu`, then releases it before tokenization/lexization.
+Mapping changes publish through ordinary schema stages and definition locks. Generic folds retain immutable
 constant vectors; runtime arguments consume current mappings without local caches.
 The prepared identifier owner keeps original REGCONFIG occurrence provenance
 separate from current operand observations. Operand-only reanalysis carries an
@@ -408,6 +408,16 @@ construction. It delegates to shared namespace resolution with a by-value
 authority and a private qualifier copy without expression location; caller
 authority and source AST remain unchanged. Generic dictionary, parser and
 operator lookup retain their expression positions and trusted definition policy.
+`DDLHost.LookupParserRoutine` likewise copies the callback qualifier into a bounded
+semantic name with no expression position before exact routine selection. It
+preserves the source AST and caller authority; ordinary function/expression lookup
+keeps its original source position.
+Parser SRFs resolve current descriptor-backed identities, including the seeded
+default after rename/schema moves, and borrow only checked catalog-free callback
+capabilities. Parser declarations retain namespace and represented callback
+dependencies; configuration consumers retain their actual parser dependency.
+Definition mutation, retirement and cancellation use the existing ordered
+object/name resources and publication fences, not a separate utility path.
 
 Code shared by families with no arrow between them sits here: relation
 ownership (`ExecuteRelationOwnership`, `OwnershipStage`, `PublishOwnership`)
@@ -1664,6 +1674,9 @@ session, transaction, prepared-analysis and typed-frame authorities.
   `StatementScope.Finish`'s disposal; no timer callback mutates the transaction.
 
 ## Testing
+
+Text-search parser descriptor, staging, native capability and dependency owner
+units share `RUN='^TestTSParser'`.
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.

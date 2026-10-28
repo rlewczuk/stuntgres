@@ -16,7 +16,7 @@ engine.
   engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
   detached from its session (`DetachPrepared`).
 - **Resources and modes.** A `Resource` is a real relation, type, namespace,
-  collation, conversion, statistics, cast, procedure, text-search template/dictionary,
+  collation, conversion, statistics, cast, procedure, text-search parser/template/dictionary/configuration,
   access method, operator family/class or shared role (`ids.ObjectRef`),
   an exact catalog destination binding (`Name`),
   a role attribute tuple claim (`RoleTuple`), a logical row (`Row`), an interned
@@ -32,7 +32,7 @@ engine.
   procedures and NONE operator operands. Family/class names include their exact
   SQL method signature; method names are global and member names identify actual
   family/pair/slot keys. Other name classes forbid signatures. There is no
-  default-class absence lock. Procedures, text-search templates/dictionaries and
+  default-class absence lock. Procedures, text-search parser/template/dictionary/configuration and
   nonpinned method/family/class providers use ordinary AS/AX object grants, not
   relation aliases. The engine acquires and waits outside `Engine.Mu`, then
   rechecks original identities;
@@ -108,7 +108,7 @@ engine.
   `RetireDetachPhase` captures the AX-conflicting cohort and releases the
   completed utility phase's SUE relation grants in one manager critical section;
   the transaction ticket, completion resource and unrelated grants remain live.
-  Namespace, procedure, text-search template/dictionary, access-method,
+  Namespace, procedure, text-search parser/template/dictionary/configuration, access-method,
   family/class and shared role holds project as real object tags; shared roles
   have SQL database zero. Exact name and
   role-tuple claims are internal, not physical
