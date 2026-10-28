@@ -77,7 +77,7 @@ func restoreAdmitForeignDDL(r *restoreRun, op *session.Operation, stmt parser.St
 			}
 		}
 	}
-	if s.Action == "alter" && s.Owner != nil && !s.IfExists && !s.HandlerSet && !s.ValidatorSet && !s.VersionSet && len(s.Options) == 0 && len(s.TableActions) == 0 && s.Inner == nil && s.NewName.Text == "" {
+	if s.Action == "alter" && s.Owner != nil && !s.IfExists && len(s.Support) == 0 && !s.VersionSet && len(s.Options) == 0 && len(s.TableActions) == 0 && s.Inner == nil && s.NewName.Text == "" {
 		switch s.Kind {
 		case "wrapper", "server", "table":
 			return control.Admitted, nil
@@ -97,7 +97,7 @@ func restoreAdmitForeignDDL(r *restoreRun, op *session.Operation, stmt parser.St
 func restoreForeignDefault(s *parser.ForeignDDL) *parser.AlterTableDefault {
 	if s.Action != "alter" || s.Kind != "table" || len(s.Name.Parts) != 2 || s.IfExists || s.IfNotExists ||
 		s.Owner != nil || s.Inner != nil || s.Table != nil || s.NewName.Text != "" ||
-		s.HandlerSet || s.ValidatorSet || s.VersionSet || len(s.Options) != 0 || len(s.ColumnOptions) != 0 || len(s.TableActions) != 1 {
+		len(s.Support) != 0 || s.VersionSet || len(s.Options) != 0 || len(s.ColumnOptions) != 0 || len(s.TableActions) != 1 {
 		return nil
 	}
 	action := s.TableActions[0]

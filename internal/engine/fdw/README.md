@@ -69,8 +69,18 @@ driver import it.
   mapping and ownership authority over an `access.View` (`MappedRole`,
   `MappingAuthority`, `MappingDiagnostic`, `MappingFor`; the owner change rule
   is `access.ForeignOwnershipEligibility`, shared with REASSIGN OWNED),
-  validator jobs (`Validation`, `ValidatorJob`, `RunValidations`), IMPORT
-  helpers (`HandlerFor`, `ImportExpression`, `ImportedOptions`,
+  validator jobs (`Validation`, `ValidatorJob`, `RunValidations`) retaining the
+  immutable procedure and owned ordered options. Registered callbacks execute
+  directly; SQL routines execute through the caller-supplied statement-owned
+  invocation, with a non-NULL text[] and the option catalog's OID. Non-NULL result
+  values are discarded; NULL non-void results fail at the call boundary. No
+  validator implementation is inferred from a matching name.
+  Table creation retains raw immutable column syntax and stable attribute
+  identities. `PrepareColumnValidation` transforms and resolves one column only
+  after table validation and preceding column phases succeed. Its installation
+  payload is separate from the callback's mutable copy. Table validation precedes
+  foreign metadata; column validation precedes installation of its own options.
+  IMPORT helpers (`HandlerFor`, `ImportExpression`, `ImportedOptions`,
   `ImportError`), foreign-table syntax checks (`CheckTableDeclaration`,
   `TableSyntax`, `AlterAdmission`) and scan requests (`ScanRequest`,
   `RequiredAttributes`).
@@ -82,14 +92,16 @@ driver import it.
   - `StageDDL` stages CREATE, ALTER and DROP of wrappers, servers and user
     mappings in this order: actor, owner operand, wrapper superuser gate, the
     foreign-table route, then the drop or definition path with its IF [NOT]
-    EXISTS notices, HANDLER/VALIDATOR resolution, options, rename, ownership
+    EXISTS notices, source-ordered HANDLER/VALIDATOR resolution (including
+    execution-time redundant-clause errors), options, rename, ownership
     change and the two ALTER WRAPPER warnings. It returns the validator jobs
     and the dropped roots.
   - `StageTable` stages CREATE FOREIGN TABLE (namespace and CREATE, name
     conflict, server USAGE, declaration checks, `table.StageCreateTable`, the
-    foreign definition, options and one validator job for the table and each
-    column) and DROP FOREIGN TABLE (IF EXISTS notices, kind and owner checks,
-    removal); IMPORT stages each table through it too.
+    foreign definition with table options and an empty column map, one table
+    validator job and ordered raw configured-column schedules) and DROP FOREIGN
+    TABLE (IF EXISTS notices, kind and owner checks, removal); IMPORT stages
+    each table through it too.
   - ALTER FOREIGN TABLE's decisions are `AlterTarget` (resolution, IF EXISTS
     notice, kind, admission reference and owner), `AlterBases` (server and
     wrapper as observed dependencies), `AlterCandidate` (the working copy),
@@ -99,6 +111,18 @@ driver import it.
     records the server, wrapper, mapping, handler and local schema as observed
     dependencies; `ImportSelected` applies LIMIT TO/EXCEPT and
     `ImportedTable` builds each table's CREATE FOREIGN TABLE.
+    The caller uses the same private construction schedule for direct CREATE
+    and each imported definition, completing it before processing the next.
+    Later validators see completed earlier definitions and column options.
+    Discovery dependencies remain independently fenced even for empty imports.
+    All metadata and transactional effects stay private until enclosing Finish;
+    any later failure rolls them back without intermediate committed publication.
+    A caught PL exception restores its private catalog/effect suffix and exact
+    construction-token membership/progress through the existing exception mark.
+    Outer construction remains live; failed nested construction cannot leak a
+    pending guard into a successfully handled enclosing command.
+    The imported-definition boundary owns one `ImportError` annotation for all
+    staging, construction and validator failures; direct CREATE is unannotated.
   - `PlanGrant` is GRANT and REVOKE on wrappers and servers as a pure plan
     over an `access.View`: it returns the `GrantChange`s in statement order
     and the warnings, which come back even with a later error so the engine
@@ -107,8 +131,10 @@ driver import it.
   `DumpProcedure` and `DumpOptions` render immutable captured declarations,
   actual qualified capability identities and ordered options; `control` owns
   graph ordering and output.
-  - Foreign tables never use storage/row collection. Compatible destination
-    registrations are prerequisites, never serialized code.
+  - Foreign tables never use storage/row collection. Native handler/validator
+    callbacks require compatible destination registrations, never serialized
+    code. SQL validators use the existing routine dump and dependency graph,
+    preceding their wrappers and executing genuinely during atomic replay.
   - Mapping credentials are emitted as stored (sensitive host output).
     Wrapper/server and foreign relation/column raw ACLs replay exactly through
     `control`'s bounded generated catalog repairs.
@@ -141,9 +167,9 @@ provider's own async capability policy; Dump/Restore never starts requests.
 - **No locks, no callbacks under locks.** The package adds no mutex.
   `Engine.Mu` guards the `Registry`; the transaction owner's mutex and
   admission guard a `Transaction`. Functions that call application code
-  (`RunValidations`, the `Modification` and `Transaction` methods,
-  `Rollback`) run only after the engine released `Engine.Mu` and
-  `replacementMu`. Rollback uses `context.WithoutCancel`.
+  (`RunValidations`, including its SQL invocation, the `Modification` and
+  `Transaction` methods, `Rollback`) run only after the engine released
+  `Engine.Mu` and `replacementMu`. Rollback uses `context.WithoutCancel`.
 - **Commit order.** `Transaction.Commit` commits each open participant once.
   A failed Commit has an unknown outcome: it is never retried, and the other
   participants roll back.

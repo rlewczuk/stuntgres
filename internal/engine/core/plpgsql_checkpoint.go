@@ -33,6 +33,7 @@ type plExceptionCheckpoint struct {
 	catalog                                     *session.Journal
 	catalogAuthority                            *session.CatalogAuthority
 	alterNames                                  map[ids.NameKey]ids.ObjectRef
+	foreignConstructions                        map[ids.ObjectAddress]foreignConstructionCheckpoint
 	EventCommand                                *EventCommand
 	eventState                                  EventCommand
 	foreignActions                              *dml.ForeignActionScope
@@ -138,6 +139,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 	c.holdPromotions = slices.Clone(s.foreignTablesOrZero().holdPromotions)
 	c.afterTriggers = cloneAfterState(s.afterTriggers)
 	c.alterNames = maps.Clone(s.alterNames)
+	c.foreignConstructions = s.checkpointForeignConstructions()
 	c.EventCommand = s.EventCommand
 	if s.EventCommand != nil {
 		c.eventState = *s.EventCommand
@@ -228,6 +230,7 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 		s.Stage.Rows, s.Stage.Deletes, s.Stage.Replacing = c.rows, c.deletes, c.replacing
 		s.OwnWrites, s.OwnDeletes = c.ownWrites, c.ownDeletes
 		s.Catalog, s.CatalogAuthority = c.catalog, c.catalogAuthority
+		s.restoreForeignConstructions(c.foreignConstructions)
 		s.alterNames = c.alterNames
 		s.EventCommand = c.EventCommand
 		if s.EventCommand != nil {

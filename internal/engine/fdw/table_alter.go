@@ -121,6 +121,9 @@ func AddedColumnOptions(h Host, candidate *catalog.Relation, wrapper *catalog.Fo
 	}
 	attribute := candidate.Attributes[candidate.Index[column]]
 	candidate.Foreign.Columns[attribute] = options
+	if len(options) == 0 {
+		return Validation{}, nil
+	}
 	return stageValidatorJob(h, wrapper, catalog.ForeignAttribute, options)
 }
 

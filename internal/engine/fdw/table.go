@@ -1,6 +1,7 @@
 package fdw
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -61,13 +62,14 @@ func AlterAdmission(s *parser.ForeignDDL) parser.Statement {
 }
 
 func ImportError(err error, name string) error {
-	if d, ok := err.(*sqlstate.Error); ok {
+	var d *sqlstate.Error
+	if errors.As(err, &d) {
 		copy := *d
 		if copy.Context != "" {
 			copy.Context += "\n"
 		}
 		copy.Context += fmt.Sprintf(`importing foreign table "%s"`, name)
-		return &copy
+		return sqlstate.WithDiagnostic(err, &copy)
 	}
 	return err
 }

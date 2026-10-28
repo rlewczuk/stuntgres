@@ -4059,10 +4059,10 @@ foreign_wrapper_head: CREATE FOREIGN data_word wrapper_word name {
  $$=&ForeignDDL{Action:"create",Kind:"wrapper",Name:ObjectName{Parts:[]Identifier{{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos}
 } ;
 foreign_wrapper_definition: foreign_wrapper_head {$$=$1}
- | foreign_wrapper_definition FDW_HANDLER relation_name {if $1.HandlerSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.HandlerSet=true;n:=$3;$$.Handler=&n}
- | foreign_wrapper_definition NO FDW_HANDLER {if $1.HandlerSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.HandlerSet=true}
- | foreign_wrapper_definition FDW_VALIDATOR relation_name {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true;n:=$3;$$.Validator=&n}
- | foreign_wrapper_definition NO FDW_VALIDATOR {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true} ;
+ | foreign_wrapper_definition FDW_HANDLER relation_name {$$=$1;n:=$3;$$.Support=append($$.Support,ForeignSupportOption{Kind:"handler",Function:&n,Pos:$2.pos})}
+ | foreign_wrapper_definition NO FDW_HANDLER {$$=$1;$$.Support=append($$.Support,ForeignSupportOption{Kind:"handler",Pos:$2.pos})}
+ | foreign_wrapper_definition FDW_VALIDATOR relation_name {$$=$1;n:=$3;$$.Support=append($$.Support,ForeignSupportOption{Kind:"validator",Function:&n,Pos:$2.pos})}
+ | foreign_wrapper_definition NO FDW_VALIDATOR {$$=$1;$$.Support=append($$.Support,ForeignSupportOption{Kind:"validator",Pos:$2.pos})} ;
 foreign_server_head: CREATE FDW_SERVER name {$$=&ForeignDDL{Action:"create",Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos}}
  | CREATE FDW_SERVER IF NOT EXISTS name {$$=&ForeignDDL{Action:"create",Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$6.text,Pos:$6.pos}}},IfNotExists:true,Pos:$1.pos}} ;
 foreign_server_definition: foreign_server_head {$$=$1}
@@ -4092,10 +4092,10 @@ foreign_alter_wrapper_head: ALTER FOREIGN data_word wrapper_word name {
  $$=&ForeignDDL{Action:"alter",Kind:"wrapper",Name:ObjectName{Parts:[]Identifier{{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos}
 } ;
 foreign_alter_wrapper_prefix: foreign_alter_wrapper_head {$$=$1} | foreign_alter_wrapper {$$=$1} ;
-foreign_alter_wrapper: foreign_alter_wrapper_prefix FDW_HANDLER relation_name {if $1.HandlerSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.HandlerSet=true;n:=$3;$$.Handler=&n}
- | foreign_alter_wrapper_prefix NO FDW_HANDLER {if $1.HandlerSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.HandlerSet=true}
- | foreign_alter_wrapper_prefix FDW_VALIDATOR relation_name {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true;n:=$3;$$.Validator=&n}
- | foreign_alter_wrapper_prefix NO FDW_VALIDATOR {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true} ;
+foreign_alter_wrapper: foreign_alter_wrapper_prefix FDW_HANDLER relation_name {$$=$1;n:=$3;$$.Support=append($$.Support,ForeignSupportOption{Kind:"handler",Function:&n,Pos:$2.pos})}
+ | foreign_alter_wrapper_prefix NO FDW_HANDLER {$$=$1;$$.Support=append($$.Support,ForeignSupportOption{Kind:"handler",Pos:$2.pos})}
+ | foreign_alter_wrapper_prefix FDW_VALIDATOR relation_name {$$=$1;n:=$3;$$.Support=append($$.Support,ForeignSupportOption{Kind:"validator",Function:&n,Pos:$2.pos})}
+ | foreign_alter_wrapper_prefix NO FDW_VALIDATOR {$$=$1;$$.Support=append($$.Support,ForeignSupportOption{Kind:"validator",Pos:$2.pos})} ;
 foreign_version: STRING {v:=$1.text;$$=&v} | NULL {$$=nil} ;
 foreign_table_actions: foreign_table_action {$$=[]ForeignTableAction{*$1}}
  | foreign_table_actions ',' foreign_table_action {$$=append($1,*$3)} ;

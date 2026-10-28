@@ -272,11 +272,13 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, activati
 			s.Expected = &description
 		}
 	}
-	count := len(frame.Parameters)
-	switch statement.(type) {
-	case *parser.Set, *parser.Reset, *parser.Show:
-		// Utility commands do not bind the enclosing routine's formal frame.
-		count = 0
+	// The accepted command owns arity. Its formal frame is still available to
+	// genuinely parameterized bindings, but must not leak into utility commands.
+	count := 0
+	if program != nil {
+		count = s.sqlRoutine.binding.Parameters.Count
+	} else {
+		count = s.Expected.Parameters.Count
 	}
 	result, err := e.executeStatement(s, statement, count, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, frame.Parameters)

@@ -128,10 +128,10 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 			return runtimeFailure(e)
 		}
 	}
-	count := 0
-	if lexical {
-		count = f.Program.FormalCount
-	}
+	// Execute the reached command's signature, not the enclosing routine's
+	// formal count. Utilities consume no arguments; bound commands retain the
+	// lexical formal signature supplied by their ordinary description.
+	count := description.Parameters.Count
 	s.routineLive = &live
 	liveActive = true
 	result, e = s.Engine().executeStatement(s, statement, count, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {

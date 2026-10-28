@@ -91,6 +91,8 @@ func TestReferenceFDWRegistration(t *testing.T) {
 func TestReferenceFDWValidator(t *testing.T) {
 	fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fdwSQLReader, run func(fixture.Step)) {
 		fdwLive(t, p, b, r, run)
+		run(fixture.Prepared(fixture.Exec("ALTER FOREIGN TABLE fdw_data ALTER COLUMN id OPTIONS(column_name 'id')", 0)))
+		run(fixture.Select("SELECT attname,attfdwoptions::text AS options FROM pg_attribute WHERE attrelid='fdw_data'::regclass::oid AND attname='id'", []string{"attname", "options"}, []string{"NAME", "TEXT"}, [][]any{{"id", "{column_name=id}"}}))
 		run(fixture.Exec("ALTER FOREIGN TABLE fdw_data OPTIONS(SET table_name 'data')", 0))
 		run(fixture.Select("SELECT ftoptions::text AS options FROM pg_foreign_table WHERE ftrelid='fdw_data'::regclass::oid", []string{"options"}, []string{"TEXT"}, [][]any{{"{schema_name=fdw_source,table_name=data}"}}))
 		if b.PG {

@@ -20,10 +20,17 @@ func (s *StatementScope) Finish(err error) error {
 	if s.Finished {
 		return s.result
 	}
+	if err == nil && len(s.foreignConstructions) != 0 {
+		err = errors.New("stuntgres: incomplete foreign construction")
+	}
 	copyState := s.CopyFrom
 	// Finishing still consumes held cursors, foreign-action recipes and index
 	// expressions. Their borrowed admission context ends only after those users.
 	defer func() {
+		for _, construction := range s.foreignConstructions {
+			construction.invalidate()
+		}
+		s.foreignConstructions = nil
 		s.afterTriggers = nil
 		s.currentSnapshot = nil
 		s.snapshotFrontier = 0

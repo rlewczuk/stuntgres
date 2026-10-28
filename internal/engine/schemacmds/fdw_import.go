@@ -34,7 +34,11 @@ func executeForeignImport(e *core.Engine, scope *core.StatementScope, s *parser.
 	if err != nil {
 		return core.Result{}, err
 	}
-	var jobs []fdw.Validation
+	// Completed definitions join the current statement's private catalog, never
+	// the committed root. Finish alone publishes the complete IMPORT and effects.
+	if scope.Catalog == nil {
+		scope.Catalog = scope.PendingCatalog().Clone()
+	}
 	for _, definition := range definitions {
 		if err := scope.Op.Context().Err(); err != nil {
 			return core.Result{}, err
@@ -46,26 +50,9 @@ func executeForeignImport(e *core.Engine, scope *core.StatementScope, s *parser.
 		if err != nil {
 			return core.Result{}, fdw.ImportError(err, definition.Name)
 		}
-		e.Mu.Lock()
-		_, currentErr := e.AuthorizationLocked(scope.Op)
-		if currentErr == nil && e.Catalog.State.Epoch() != stage.Base.Epoch() {
-			currentErr = ids.ErrCatalogReplaced
+		if err := executeImportedDefinition(e, scope, table, definition.Name, stage.Base.Epoch()); err != nil {
+			return core.Result{}, err
 		}
-		var validations []fdw.Validation
-		if currentErr == nil {
-			validations, _, currentErr = fdw.StageTable(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, table, scope.Input)
-		}
-		e.Mu.Unlock()
-		if currentErr != nil {
-			return core.Result{}, fdw.ImportError(currentErr, definition.Name)
-		}
-		for i := range validations {
-			validations[i].ImportTable = definition.Name
-		}
-		jobs = append(jobs, validations...)
-	}
-	if err = fdw.RunValidations(scope.Op.Context(), jobs); err != nil {
-		return core.Result{}, err
 	}
 	if err = scope.AcquireDefinitionProviders(stage); err != nil {
 		return core.Result{}, err
@@ -76,4 +63,28 @@ func executeForeignImport(e *core.Engine, scope *core.StatementScope, s *parser.
 	}
 	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	return core.Result{}, err
+}
+
+// Each definition consumes a fresh stage over the newest private predecessor.
+// The initial IMPORT stage separately retains discovery dependencies, including
+// when the provider returns no selected definitions.
+func executeImportedDefinition(e *core.Engine, scope *core.StatementScope, table *parser.ForeignDDL, name string, epoch ids.CatalogEpoch) error {
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(scope.Op)
+	if err == nil && e.Catalog.State.Epoch() != epoch {
+		err = ids.ErrCatalogReplaced
+	}
+	if err != nil {
+		e.Mu.Unlock()
+		return fdw.ImportError(err, name)
+	}
+	stage := e.BeginCatalogStage(auth.Catalog)
+	stage.AuthorizeLocked(auth, scope.Op.Session)
+	validations, _, err := fdw.StageTable(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, table, scope.Input)
+	e.Mu.Unlock()
+	defer e.DiscardCatalogStage(stage)
+	if err != nil {
+		return fdw.ImportError(err, name)
+	}
+	return fdw.ImportError(finishForeignTableCreation(e, scope, stage, validations), name)
 }

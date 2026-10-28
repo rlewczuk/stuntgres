@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
 )
 
@@ -75,3 +76,17 @@ func ForeignTableScopeValueStatements(x foreignTableScope) []*fdw.Participant { 
 
 // SetForeignTableScopeStatements sets x.statements.
 func SetForeignTableScopeStatements(x *foreignTableScope, v []*fdw.Participant) { x.statements = v }
+
+var ForeignValidatorFrame = foreignValidatorFrame
+
+func ScopeInvokeForeignValidatorFrame(s *StatementScope, p *catalog.Procedure, frame *proc.Frame) error {
+	return s.invokeForeignValidatorFrame(p, frame)
+}
+
+func ScopePendingForeignConstructions(s *StatementScope) int {
+	return len(s.foreignConstructions)
+}
+
+func ForeignConstructionRetainsState(t *ForeignConstruction) bool {
+	return t.scope != nil || t.expected != nil || t.foreign != nil || t.columns != nil
+}

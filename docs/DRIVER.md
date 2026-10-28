@@ -754,6 +754,13 @@ sql_source_validator` then binds these registrations; SQL options are passed to
 the provider uninterpreted. See `reference/tables/fdw_reader_test.go` and
 `fdw_writer_test.go` for complete in-process providers.
 
+SQL-defined validators with inputs `(text[], oid)` can also be selected by
+`VALIDATOR`. They execute in the current SQL statement; their non-NULL return
+value is ignored, while NULL results or routine errors abort the definition or
+option change together with transactional validator writes. This does not supply
+a foreign handler: remote reads and writes still require a genuine compatible
+registered provider.
+
 - **Scans.** `ForeignDataWrapper` mirrors PostgreSQL's FDW callbacks
   (`GetForeignRelSize`, `GetForeignPaths`, `GetForeignPlan`, `BeginForeignScan`), and
   `ForeignScan` provides `IterateForeignScan`, `ReScanForeignScan` and

@@ -216,7 +216,7 @@ func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *par
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
 	}
-	if err = fdw.RunValidations(scope.Op.Context(), jobs); err != nil {
+	if err = fdw.RunValidations(scope.Op.Context(), jobs, scope.InvokeForeignValidator); err != nil {
 		return core.Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)

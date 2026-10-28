@@ -98,6 +98,17 @@ make check RUN='^TestReferenceFeatureBehavior$'              # quick mode
 make quickcheck                                             # before review/merge
 ```
 
+For foreign support-function diagnostics and genuine SQL validators, use a small
+selected pair in both modes:
+
+```sh
+make check REFERENCE=1 RUN='^(TestReferenceFDWSupportFunctions|TestReferenceFDWSQLValidator)$'
+make check RUN='^(TestReferenceFDWSupportFunctions|TestReferenceFDWSQLValidator)$'
+```
+
+These scenarios assert full diagnostics, typed argument witnesses and failed
+metadata/effect publication, rather than only comparing backend results.
+
 During discovery only, filter the shared `p.Backends()` loop to `backend.PG`
 (`if !backend.PG { continue }`) so a missing native feature cannot block oracle
 observation. Remove it before quick-mode validation; never commit a backend filter.

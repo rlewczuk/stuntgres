@@ -92,9 +92,16 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
 - `ExecuteExtension`, `ExecuteExtensionUpdate` and `ExecuteDropExtension`
   (see [Extensions](#extensions)).
 - `ExecuteForeignDDL` stages through `fdw.StageDDL` on `TableHost`, releases
-  the replacement read before the wrapper validations and publishes;
+  the replacement read before wrapper validations and publishes. Direct and
+  imported CREATE FOREIGN TABLE share `finishForeignTableCreation`: a sealed
+  core construction token supplies relation-shape, table and configured-column
+  visibility before the corresponding validators complete. It never routes ALTER
+  through a shell or exposes incomplete descriptors to committed readers;
   `executeForeignImport` keeps the importer callback, the per-table relock,
-  re-authorization and epoch check; `executeForeignTableAlter` routes OWNER,
+  re-authorization and epoch check, consumes each completed definition's fresh
+  stage into the ordinary statement-private overlay, and retains initial
+  discovery dependencies until final validation. Only enclosing Finish commits
+  metadata and validator effects; `executeForeignTableAlter` routes OWNER,
   RENAME and SET SCHEMA to the shared relation executors and runs the phased
   action loop with its lock windows. `ExecuteForeignGrant` clones the
   journal's catalog changes, emits the grant warnings and installs each

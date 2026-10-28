@@ -15,9 +15,10 @@ import (
 )
 
 // StageTable stages CREATE or DROP FOREIGN TABLE. CREATE stages the table
-// through table.StageCreateTable and returns one validator job for the table
-// and one per column; DROP returns the dropped roots, whose dependents the
-// engine stages. A nil, nil, nil result means there is nothing to publish.
+// through table.StageCreateTable and returns its table validator followed by
+// ordered raw configured-column schedules, prepared only at each column's turn.
+// DROP returns roots whose dependents the engine stages.
+// A nil, nil, nil result means there is nothing to publish.
 func StageTable(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.InputEnvironment) ([]Validation, []ids.ObjectAddress, error) {
 	if s.Action == "drop" {
 		return stageTableDrop(h, auth, s)
@@ -74,16 +75,11 @@ func StageTable(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.
 	jobs := []Validation{job}
 	for _, attribute := range d.Attributes {
 		column := d.Columns[d.IndexForAttribute(attribute)]
-		options, er := TransformOptions(nil, s.ColumnOptions[column.Name])
-		if er != nil {
-			return nil, nil, er
+		raw := s.ColumnOptions[column.Name]
+		if len(raw) == 0 {
+			continue
 		}
-		d.Foreign.Columns[attribute] = options
-		job, er := stageValidatorJob(h, wrapper, catalog.ForeignAttribute, options)
-		if er != nil {
-			return nil, nil, er
-		}
-		jobs = append(jobs, job)
+		jobs = append(jobs, Validation{Attribute: attribute, raw: raw, wrapper: wrapper.Address()})
 	}
 	return jobs, nil, nil
 }

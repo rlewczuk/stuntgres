@@ -9,9 +9,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// handlerProcedure resolves the HANDLER or VALIDATOR function of a
-// wrapper: it must exist with signature, be executable by the actor and
-// return fdw_handler or void. A nil name (NO HANDLER, NO VALIDATOR) is nil.
+// handlerProcedure resolves the HANDLER or VALIDATOR function of a wrapper.
+// Both require their exact input signature and EXECUTE privilege; only handlers
+// require fdw_handler results. Nil denotes NO HANDLER or NO VALIDATOR.
 func handlerProcedure(h Host, auth ddl.Authority, name *parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
 	if name == nil {
 		return nil, nil
@@ -30,12 +30,8 @@ func handlerProcedure(h Host, auth ddl.Authority, name *parser.ObjectName, signa
 	if err := ddl.Check(h, auth, access.Requirement{Object: ObjectRef(h.AccessView(auth), p), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err
 	}
-	result := ids.OID(3115)
-	if signature == catalog.ForeignValidatorSignature {
-		result = 2278
-	}
-	if p.Result != result {
-		return nil, sqlError("42804", "foreign-data wrapper function has incorrect return type")
+	if signature == catalog.ForeignHandlerSignature && p.Result != ids.OID(3115) {
+		return nil, sqlError("42809", "function "+catalog.ObjectNameText(*name)+" must return type fdw_handler")
 	}
 	return p, nil
 }

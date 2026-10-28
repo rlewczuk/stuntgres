@@ -1,11 +1,15 @@
 package parser
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestFDWParser(t *testing.T) {
 	for _, q := range []string{
 		"CREATE FOREIGN DATA WRAPPER w NO HANDLER NO VALIDATOR OPTIONS(a '1',b '2')",
 		"CREATE FOREIGN DATA WRAPPER w HANDLER public.h VALIDATOR public.v",
+		"CREATE FOREIGN DATA WRAPPER w HANDLER h NO HANDLER",
 		"ALTER FOREIGN DATA WRAPPER w NO HANDLER VALIDATOR v OPTIONS(SET a '2',DROP b,ADD c '3')",
 		"ALTER FOREIGN DATA WRAPPER w RENAME TO other",
 		"ALTER FOREIGN DATA WRAPPER w OWNER TO CURRENT_USER",
@@ -53,9 +57,34 @@ func TestFDWParser(t *testing.T) {
 	if f.Server.Text != "s" || len(f.Table.Elements) != 1 || len(f.Options) != 1 || f.Options[0].Value != "table" || len(f.ColumnOptions["id"]) != 1 || f.ColumnOptions["id"][0].Value != "column" {
 		t.Fatalf("lost foreign definition: %#v", f)
 	}
+	for _, prefix := range []string{"CREATE", "ALTER"} {
+		q := prefix + ` FOREIGN DATA WRAPPER "é" NO VALIDATOR HANDLER public.h VALIDATOR public.v NO HANDLER`
+		statements, err := Parse(q)
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		support := statements[0].(*ForeignDDL).Support
+		if len(support) != 4 {
+			t.Fatalf("lost support occurrences: %#v", support)
+		}
+		kinds := []string{"validator", "handler", "validator", "handler"}
+		tokens := []string{"NO VALIDATOR", "HANDLER public.h", "VALIDATOR public.v", "NO HANDLER"}
+		for i, option := range support {
+			want := len([]rune(q[:strings.Index(q, tokens[i])])) + 1
+			if option.Kind != kinds[i] || option.Pos.Character != want {
+				t.Fatalf("support %d: %#v, want kind %s position %d", i, option, kinds[i], want)
+			}
+			if i == 0 || i == 3 {
+				if option.Function != nil {
+					t.Fatal("NO clause retained a function")
+				}
+			} else if option.Function == nil || len(option.Function.Parts) != 2 || option.Function.Parts[0].Text != "public" || option.Function.Parts[1].Text != []string{"", "h", "v"}[i] {
+				t.Fatalf("lost owned support name: %#v", option)
+			}
+		}
+	}
 	for _, q := range []string{
 		"CREATE FOREIGN DATA WRAPPER w NO HANDLER trailing",
-		"CREATE FOREIGN DATA WRAPPER w HANDLER h NO HANDLER",
 		"CREATE FOREIGN TABLE f(id integer) SERVER s OPTIONS(a '1') trailing",
 		"DROP USER MAPPING FOR PUBLIC SERVER s CASCADE",
 		"CREATE USER MAPPING FOR SESSION_USER SERVER s",

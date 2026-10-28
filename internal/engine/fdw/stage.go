@@ -2,6 +2,7 @@ package fdw
 
 import (
 	"fmt"
+	"strconv"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -43,7 +44,7 @@ func StageDDL(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.In
 			return nil, nil, err
 		}
 	}
-	changesCapability := s.Action == "create" || s.Action == "alter" && (s.HandlerSet || s.ValidatorSet || s.Options != nil)
+	changesCapability := s.Action == "create" || s.Action == "alter" && (len(s.Support) != 0 || s.Options != nil)
 	if s.Kind == "wrapper" && changesCapability && !actor.Superuser {
 		d := sqlError("42501", fmt.Sprintf(`permission denied to %s foreign-data wrapper "%s"`, s.Action, s.Name.Parts[len(s.Name.Parts)-1].Text)).(*sqlstate.Error)
 		d.Hint = "Must be superuser to " + s.Action + " a foreign-data wrapper."
@@ -136,27 +137,25 @@ func stageDefinition(h Host, auth ddl.Authority, s *parser.ForeignDDL, target st
 	if err != nil {
 		return nil, nil, err
 	}
+	var handlerSet, validatorSet bool
 	switch class {
 	case ids.ForeignWrapperClassID:
-		if s.HandlerSet {
-			p, er := handlerProcedure(h, auth, s.Handler, catalog.ForeignHandlerSignature)
+		for _, option := range s.Support {
+			seen, address, signature := &handlerSet, &next.Handler, catalog.ForeignHandlerSignature
+			if option.Kind == "validator" {
+				seen, address, signature = &validatorSet, &next.Validator, catalog.ForeignValidatorSignature
+			}
+			if *seen {
+				return nil, nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "conflicting or redundant options", Position: strconv.Itoa(option.Pos.Character)}
+			}
+			*seen = true
+			p, er := handlerProcedure(h, auth, option.Function, signature)
 			if er != nil {
 				return nil, nil, er
 			}
-			next.Handler = ids.ObjectAddress{}
+			*address = ids.ObjectAddress{}
 			if p != nil {
-				next.Handler = p.Address()
-				h.AddDomainBase(p)
-			}
-		}
-		if s.ValidatorSet {
-			p, er := handlerProcedure(h, auth, s.Validator, catalog.ForeignValidatorSignature)
-			if er != nil {
-				return nil, nil, er
-			}
-			next.Validator = ids.ObjectAddress{}
-			if p != nil {
-				next.Validator = p.Address()
+				*address = p.Address()
 				h.AddDomainBase(p)
 			}
 		}
@@ -234,10 +233,10 @@ func stageDefinition(h Host, auth ddl.Authority, s *parser.ForeignDDL, target st
 		return nil, nil, err
 	}
 	if s.Action == "alter" && class == ids.ForeignWrapperClassID {
-		if s.HandlerSet {
+		if handlerSet {
 			h.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "changing the foreign-data wrapper handler can change behavior of existing foreign tables"})
 		}
-		if s.ValidatorSet && next.Validator != (ids.ObjectAddress{}) {
+		if validatorSet && next.Validator != (ids.ObjectAddress{}) {
 			h.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "changing the foreign-data wrapper validator can cause the options for dependent objects to become invalid"})
 		}
 	}

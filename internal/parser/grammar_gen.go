@@ -34224,46 +34224,28 @@ sqldefault:
 	case 3780:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].foreignDDL.HandlerSet {
-				sqllex.(*lexer).syntax(sqlDollar[2].tok)
-				return 1
-			}
 			sqlVAL.foreignDDL = sqlDollar[1].foreignDDL
-			sqlVAL.foreignDDL.HandlerSet = true
 			n := sqlDollar[3].objectName
-			sqlVAL.foreignDDL.Handler = &n
+			sqlVAL.foreignDDL.Support = append(sqlVAL.foreignDDL.Support, ForeignSupportOption{Kind: "handler", Function: &n, Pos: sqlDollar[2].tok.pos})
 		}
 	case 3781:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].foreignDDL.HandlerSet {
-				sqllex.(*lexer).syntax(sqlDollar[2].tok)
-				return 1
-			}
 			sqlVAL.foreignDDL = sqlDollar[1].foreignDDL
-			sqlVAL.foreignDDL.HandlerSet = true
+			sqlVAL.foreignDDL.Support = append(sqlVAL.foreignDDL.Support, ForeignSupportOption{Kind: "handler", Pos: sqlDollar[2].tok.pos})
 		}
 	case 3782:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].foreignDDL.ValidatorSet {
-				sqllex.(*lexer).syntax(sqlDollar[2].tok)
-				return 1
-			}
 			sqlVAL.foreignDDL = sqlDollar[1].foreignDDL
-			sqlVAL.foreignDDL.ValidatorSet = true
 			n := sqlDollar[3].objectName
-			sqlVAL.foreignDDL.Validator = &n
+			sqlVAL.foreignDDL.Support = append(sqlVAL.foreignDDL.Support, ForeignSupportOption{Kind: "validator", Function: &n, Pos: sqlDollar[2].tok.pos})
 		}
 	case 3783:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].foreignDDL.ValidatorSet {
-				sqllex.(*lexer).syntax(sqlDollar[2].tok)
-				return 1
-			}
 			sqlVAL.foreignDDL = sqlDollar[1].foreignDDL
-			sqlVAL.foreignDDL.ValidatorSet = true
+			sqlVAL.foreignDDL.Support = append(sqlVAL.foreignDDL.Support, ForeignSupportOption{Kind: "validator", Pos: sqlDollar[2].tok.pos})
 		}
 	case 3784:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
@@ -34397,46 +34379,28 @@ sqldefault:
 	case 3808:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].foreignDDL.HandlerSet {
-				sqllex.(*lexer).syntax(sqlDollar[2].tok)
-				return 1
-			}
 			sqlVAL.foreignDDL = sqlDollar[1].foreignDDL
-			sqlVAL.foreignDDL.HandlerSet = true
 			n := sqlDollar[3].objectName
-			sqlVAL.foreignDDL.Handler = &n
+			sqlVAL.foreignDDL.Support = append(sqlVAL.foreignDDL.Support, ForeignSupportOption{Kind: "handler", Function: &n, Pos: sqlDollar[2].tok.pos})
 		}
 	case 3809:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].foreignDDL.HandlerSet {
-				sqllex.(*lexer).syntax(sqlDollar[2].tok)
-				return 1
-			}
 			sqlVAL.foreignDDL = sqlDollar[1].foreignDDL
-			sqlVAL.foreignDDL.HandlerSet = true
+			sqlVAL.foreignDDL.Support = append(sqlVAL.foreignDDL.Support, ForeignSupportOption{Kind: "handler", Pos: sqlDollar[2].tok.pos})
 		}
 	case 3810:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].foreignDDL.ValidatorSet {
-				sqllex.(*lexer).syntax(sqlDollar[2].tok)
-				return 1
-			}
 			sqlVAL.foreignDDL = sqlDollar[1].foreignDDL
-			sqlVAL.foreignDDL.ValidatorSet = true
 			n := sqlDollar[3].objectName
-			sqlVAL.foreignDDL.Validator = &n
+			sqlVAL.foreignDDL.Support = append(sqlVAL.foreignDDL.Support, ForeignSupportOption{Kind: "validator", Function: &n, Pos: sqlDollar[2].tok.pos})
 		}
 	case 3811:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].foreignDDL.ValidatorSet {
-				sqllex.(*lexer).syntax(sqlDollar[2].tok)
-				return 1
-			}
 			sqlVAL.foreignDDL = sqlDollar[1].foreignDDL
-			sqlVAL.foreignDDL.ValidatorSet = true
+			sqlVAL.foreignDDL.Support = append(sqlVAL.foreignDDL.Support, ForeignSupportOption{Kind: "validator", Pos: sqlDollar[2].tok.pos})
 		}
 	case 3812:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]

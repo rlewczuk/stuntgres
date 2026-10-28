@@ -289,6 +289,11 @@ func TestReferenceFDWMissingSupport(t *testing.T) {
 			s.SelectRows = true
 			s.Prepared = prepared
 			run(s)
+			for _, q := range []string{"INSERT INTO fdw_no_handler VALUES(1)", "UPDATE fdw_no_handler SET id=2", "DELETE FROM fdw_no_handler"} {
+				write := fixture.ErrorDiagnostic(q, d)
+				write.Prepared = prepared
+				run(write)
+			}
 		}
 		run(fixture.ErrorDiagnostic("IMPORT FOREIGN SCHEMA absent FROM SERVER fdw_server INTO public", d))
 	})

@@ -35,11 +35,11 @@ func DumpOptions(options []catalog.ForeignOption) string {
 	return b.String()
 }
 
-// DumpProcedure validates an actual native capability prerequisite. Its code
-// remains supplied by the target Driver; only its SQL identity is serialized.
+// DumpProcedure validates a support identity. SQL validators are replayed by
+// the routine graph; native callbacks remain destination registration prerequisites.
 func DumpProcedure(view catalog.Read, address ids.ObjectAddress, signature catalog.ProcedureSignature) (string, error) {
 	proc, ok := view.Procedure(address)
-	if !ok || proc.Foreign == nil || proc.Signature != signature {
+	if !ok || proc.Signature != signature || proc.Foreign == nil && (signature != catalog.ForeignValidatorSignature || proc.SQL == nil) {
 		return "", fmt.Errorf("stuntgres: incompatible foreign dump procedure")
 	}
 	if err := (stored.ProcedureProvider{}).Validate(view, proc); err != nil {

@@ -8,6 +8,14 @@ type ForeignOption struct {
 	Action string
 }
 
+// ForeignSupportOption retains source order and the start of each support
+// clause. A nil Function denotes NO HANDLER or NO VALIDATOR.
+type ForeignSupportOption struct {
+	Kind     string
+	Function *ObjectName
+	Pos      Position
+}
+
 // ForeignDDL retains SQL/MED utility inputs without conflating executable
 // procedure identities, relation declarations, or local storage statements.
 type ForeignDDL struct {
@@ -17,8 +25,7 @@ type ForeignDDL struct {
 	IfExists, IfNotExists    bool
 	Mode                     DropMode
 	Pos                      Position
-	Handler, Validator       *ObjectName
-	HandlerSet, ValidatorSet bool
+	Support                  []ForeignSupportOption
 	Options                  []ForeignOption
 	Server                   Identifier
 	Role                     GrantGrantee

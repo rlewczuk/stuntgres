@@ -104,6 +104,7 @@ type StatementScope struct {
 	deferredAfterCommand        uint64                     // Nested routine queries never borrow that boundary.
 	FoldCaptures                *exec.FoldCaptureCandidate // sealed before executor/source publication
 	Catalog                     *session.Journal
+	foreignConstructions        map[ids.ObjectAddress]*ForeignConstruction // Statement-owned, never lexical routine scratch.
 	EventCommand                *EventCommand // Borrowed lexical boundary; never publication authority.
 	largeObjectRead             catalog.Read  // Immutable active-query READ view, saved/restored by SQL body activation.
 	CatalogAuthority            *session.CatalogAuthority

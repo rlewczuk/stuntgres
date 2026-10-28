@@ -9,6 +9,33 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
+`StatementScope.InvokeForeignValidator` borrows the current admitted operation
+and normal SQL routine executor after the foreign DDL caller releases engine
+and replacement locks. It owns one typed argument frame until routine success,
+failure or cancellation, discards non-NULL results, and leaves publication to
+the caller. NULL non-void results fail at the validator call boundary. Before
+invocation it retains the existing statement-private journal so local writes and
+foreign metadata reach Finish atomically. SQL validators share routine
+authorization, settings, security and diagnostic context; they never start a
+root command or finish the enclosing operation.
+
+`StageForeignConstruction` strictly validates a complete CREATE candidate with
+table metadata and no column options, forces ordinary publication into the
+statement-private journal, then immediately installs an immutable foreign shell
+before any user callback can run. Its sealed `ForeignConstruction` token owns the
+ordered stable-attribute schedule and advances from relation shape to table
+definition to validated column payloads using fresh latest-private stages.
+Each advance rejects mutation of its exact current relation, never overwrites a
+callback's change, and leaves unrelated callback effects intact. Nested tokens
+retain independent address guards. Only strict validation of the actual completed
+descriptor retires its guard; `Finish(nil)` rejects any pending construction and
+error/cancellation cleanup releases token authority. Final provider validation
+is unchanged and never accepts incomplete foreign descriptors.
+Recoverable PL exceptions restore construction authority with their ordinary
+catalog/effect checkpoint: suffix tokens become inactive, while preexisting
+tokens recover their exact identity, predecessor descriptor and column progress,
+even if they completed inside the failed suffix. Successful marks never rewind.
+
 Statistics expressions share the single-relation binder setup with indexes but
 use a distinct `StatisticsConsumer`: no parameters, subqueries, aggregates,
 grouping, windows or SRFs, and no index-specific IMMUTABLE restriction.
@@ -533,6 +560,11 @@ merging their removed entries with older transaction writes. Thus AFTER TRUNCATE
 reads the staged empty target even when earlier commands wrote it in the same
 transaction; read-only routine policies retain their calling-query frontier.
 
+Reached static PL and SQL commands execute with their description's parameter
+count (the accepted binding's count for frozen SQL-standard commands), not the
+enclosing routine's formal count. Utilities therefore receive no arguments.
+The original invocation frame remains intact for subsequent bound commands.
+
 
 ## Procedural exception boundaries
 
@@ -547,6 +579,11 @@ while preserving the originating diagnostic and secondary failure.
 `BeginPLException` returns an opaque statement-owned mark; `EndPLException`
 consumes it once in LIFO order, releasing success or restoring the failed suffix
 before handler execution.
+Construction guards participate in this same mark, with a full immutable-backed
+token-value snapshot and exact pointer membership rather than a shallow map
+copy. Rollback invalidates new pending guards and reactivates saved guards in
+place alongside the restored private catalog; it neither commits a phase nor
+weakens normal final provider validation.
 The statement walk is `proc.PLRun` ([proc README](../proc/README.md)); `plpgsql_host.go`
 adapts it per invocation (`plHost`, allocated once with its run) and keeps
 expression execution, conversion, checkpoints, cursors and RAISE/ASSERT here.

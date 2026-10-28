@@ -52,7 +52,10 @@ func ExecuteForeignDDL(e *core.Engine, scope *core.StatementScope, s *parser.For
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
 	}
-	if err := fdw.RunValidations(op.Context(), jobs); err != nil {
+	if s.Kind == "table" && s.Action == "create" {
+		return core.Result{}, finishForeignTableCreation(e, scope, stage, jobs)
+	}
+	if err := fdw.RunValidations(op.Context(), jobs, scope.InvokeForeignValidator); err != nil {
 		return core.Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

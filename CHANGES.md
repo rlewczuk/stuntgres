@@ -5,6 +5,22 @@
   immutable snapshot runtime. Preserve unsigned snapshot text, signed bigint
   bit transport, nominal replay and PostgreSQL snapshot-bound diagnostics.
 
+- Execute SQL foreign-data option validators in the current statement, preserving
+  ordered typed options, transactional effects and diagnostics while discarding
+  non-NULL results and rejecting NULL results. Resolve support clauses in SQL
+  order, report redundant clauses at execution, and preserve validator routines
+  through native controls. IMPORT validates each definition before staging the
+  next and retains completed definitions for subsequent statement-local SQL,
+  preserving first-error ordering and atomic rollback without peer exposure.
+  Direct and imported table validators observe their actual construction phases:
+  relation shape, then foreign metadata, then completed earlier column options.
+  Column-option transformation also waits its turn, so later option errors
+  cannot preempt an earlier validator failure.
+  Caught procedural exceptions restore construction identity and phase progress
+  with their catalog/effect checkpoint, without leaking failed nested guards.
+  Reached routine utilities use their own zero-argument command signature while
+  later bound commands retain the original invocation's formal values.
+
 - Add installed ltree standard comparisons with typed label ordering, grouping
   and B-tree/hash keys, preserving captured comparison identities and immutable
   operands through prepared execution and native catalog replacement. Stored
