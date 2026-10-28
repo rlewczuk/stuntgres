@@ -21,7 +21,7 @@ func TestReferenceJSONContextBoundaries(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
 					want := jsonReferenceDiagnostic(tc)
 					want.Position = "8"
-					s := fixture.ErrorDiagnostic("SELECT "+jsonReferenceQuote(tc.input)+"::json", want)
+					s := fixture.ErrorDiagnostic("SELECT "+fixture.JSONReferenceQuote(tc.input)+"::json", want)
 					s.SelectRows = true
 					s.ErrorStage = "execute"
 					if prepared {

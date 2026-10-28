@@ -78,7 +78,7 @@ func TestReferenceJSONBDiagnostics(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
 					for _, route := range []string{"postfix", "cast", "typed", "multibyte", "insert", "bound_select", "bound_insert"} {
 						t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared]+"/"+route, func(t *testing.T) {
-							quote := jsonReferenceQuote(tc.input)
+							quote := fixture.JSONReferenceQuote(tc.input)
 							prefix := "SELECT "
 							suffix := "::jsonb"
 							selectRows := true
@@ -154,7 +154,7 @@ func TestReferenceJSONBDiagnosticContext(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
 					want := jsonReferenceDiagnostic(tc)
 					want.Position = "8"
-					s := fixture.ErrorDiagnostic("SELECT "+jsonReferenceQuote(tc.input)+"::jsonb", want)
+					s := fixture.ErrorDiagnostic("SELECT "+fixture.JSONReferenceQuote(tc.input)+"::jsonb", want)
 					s.SelectRows = true
 					s.ErrorStage = "execute"
 					if prepared {

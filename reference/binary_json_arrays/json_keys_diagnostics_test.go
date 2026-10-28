@@ -22,7 +22,7 @@ func TestReferenceJSONKeysDiagnostics(t *testing.T) {
 						args = []any{input}
 					}
 					for _, prepared := range []bool{false, true} {
-						jsonKeysError(t, p, b, c, q, prepared, d, "execute", args...)
+						fixture.JSONKeysError(t, p, b, c, q, prepared, d, "execute", args...)
 					}
 				})
 			}
@@ -47,7 +47,7 @@ func TestReferenceJSONKeysDiagnostics(t *testing.T) {
 						if prepared {
 							stage = "prepare"
 						}
-						jsonKeysError(t, p, b, c, prefix+tc.call, prepared, d, stage)
+						fixture.JSONKeysError(t, p, b, c, prefix+tc.call, prepared, d, stage)
 					}
 				})
 			}
@@ -71,7 +71,7 @@ func TestReferenceJSONKeysDiagnostics(t *testing.T) {
 					if prepared && args == nil {
 						stage = "prepare"
 					}
-					jsonKeysError(t, p, b, c, q, prepared, d, stage, args...)
+					fixture.JSONKeysError(t, p, b, c, q, prepared, d, stage, args...)
 				}
 			})
 		}
@@ -101,7 +101,7 @@ func TestReferenceJSONKeysContextDiagnostics(t *testing.T) {
 					if prepared {
 						stage = "prepare"
 					}
-					jsonKeysError(t, p, b, c, tc.q, prepared, d, stage)
+					fixture.JSONKeysError(t, p, b, c, tc.q, prepared, d, stage)
 				}
 			})
 		}

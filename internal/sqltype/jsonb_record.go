@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/workadmission"
 )
 
 // JSONBPopulateRecord converts private immutable nodes, not their rendered whole
@@ -73,7 +74,7 @@ func JSONBPopulateRecordset(ctx context.Context, name string, destination Usage,
 }
 
 func populateJSONBField(ctx context.Context, u Usage, base Value, node *jsonbNode, env InputEnvironment, key string) (Value, error) {
-	if err := ctx.Err(); err != nil {
+	if err := workadmission.Admit(ctx, workadmission.WorkJSONBRecordPopulate); err != nil {
 		return Value{}, err
 	}
 	d := u.Type
@@ -125,6 +126,9 @@ func populateJSONBField(ctx context.Context, u Usage, base Value, node *jsonbNod
 			fields = make([]Value, d.CompositeLen())
 		}
 		for i := range d.CompositeLen() {
+			if err := workadmission.Admit(ctx, workadmission.WorkJSONBRecordPopulate); err != nil {
+				return Value{}, err
+			}
 			member := d.CompositeMember(i)
 			child, err := jsonbExtractField(ctx, node, member.Name)
 			if err != nil {
@@ -209,7 +213,7 @@ func populateJSONBArray(ctx context.Context, u Usage, node *jsonbNode, env Input
 	leaf := node
 	count := int64(1)
 	for {
-		if err := ctx.Err(); err != nil {
+		if err := workadmission.Admit(ctx, workadmission.WorkJSONBRecordPopulate); err != nil {
 			return Value{}, err
 		}
 		if len(dimensions) == 6 {
@@ -231,7 +235,7 @@ func populateJSONBArray(ctx context.Context, u Usage, node *jsonbNode, env Input
 	var indices [6]int
 	var walk func(*jsonbNode, int) error
 	walk = func(n *jsonbNode, depth int) error {
-		if err := ctx.Err(); err != nil {
+		if err := workadmission.Admit(ctx, workadmission.WorkJSONBRecordPopulate); err != nil {
 			return err
 		}
 		if n.kind != jsonbArray {

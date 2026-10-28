@@ -26,7 +26,7 @@ func TestReferenceJSONReviewUnicodePhysicalEOF(t *testing.T) {
 						if prefix != "SELECT " {
 							want.Position = "14"
 						}
-						s := fixture.ErrorDiagnostic(prefix+jsonReferenceQuote(tc.input)+"::json", want)
+						s := fixture.ErrorDiagnostic(prefix+fixture.JSONReferenceQuote(tc.input)+"::json", want)
 						s.SelectRows, s.ErrorStage = true, "execute"
 						if prepared {
 							s = fixture.Prepared(s)

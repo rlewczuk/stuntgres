@@ -47,8 +47,8 @@ func TestReferenceSQLJSONQueryFeatureSmoke(t *testing.T) {
 			{`JSON_QUERY('"123"','$' RETURNING text KEEP QUOTES)`, "TEXT", `"123"`},
 		})
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`CREATE VIEW sqjq_smoke AS SELECT JSON_VALUE('{"s":"7"}','$.s' RETURNING int4) AS v`, 0))
-		check := sqljsonQueryOne(`SELECT v FROM sqjq_smoke`, "INT4", int64(7))
-		sqljsonBoth(t, p, b, c, check)
-		jsonpathNavigateReplay(t, p, b, c, check)
+		check := fixture.SQLJSONQueryOne(`SELECT v FROM sqjq_smoke`, "INT4", int64(7))
+		fixture.SQLJSONBoth(t, p, b, c, check)
+		fixture.JSONPathNavigateReplay(t, p, b, c, check)
 	})
 }

@@ -40,9 +40,9 @@ func TestReferenceJSONBRepresentation(t *testing.T) {
 				var want [][]any
 				for i, tc := range cases {
 					run(fixture.Exec("INSERT INTO jb_io VALUES($1,$2)", 1, i, tc.input))
-					run(fixture.Exec("INSERT INTO jb_literal VALUES($1,"+jsonReferenceQuote(tc.input)+")", 1, i))
+					run(fixture.Exec("INSERT INTO jb_literal VALUES($1,"+fixture.JSONReferenceQuote(tc.input)+")", 1, i))
 					want = append(want, []any{int64(i), tc.output})
-					for _, expression := range []string{"jsonb " + jsonReferenceQuote(tc.input), "CAST(" + jsonReferenceQuote(tc.input) + " AS jsonb)", jsonReferenceQuote(tc.input) + "::pg_catalog.jsonb"} {
+					for _, expression := range []string{"jsonb " + fixture.JSONReferenceQuote(tc.input), "CAST(" + fixture.JSONReferenceQuote(tc.input) + " AS jsonb)", fixture.JSONReferenceQuote(tc.input) + "::pg_catalog.jsonb"} {
 						run(fixture.Select("SELECT "+expression+" AS v", []string{"v"}, []string{"JSONB"}, [][]any{{tc.output}}))
 					}
 				}
@@ -70,7 +70,7 @@ func TestReferenceJSONBBoundFrames(t *testing.T) {
 		held := fixture.HeldStatement{Executor: backend.DB, Statement: stmt, SQL: q}
 		buf := []byte(` {"b":2,"b":1} `)
 		var nilBytes []byte
-		cases := []struct{ arg, want any }{{`{"a":1}`, `{"a": 1}`}, {buf, `{"b": 1}`}, {jsonReferenceValuer(`"\uD83D\uDE04"`), `"😄"`}, {nil, nil}, {nilBytes, nil}, {true, "true"}, {int64(42), "42"}, {1.25, "1.25"}, {"null", "null"}}
+		cases := []struct{ arg, want any }{{`{"a":1}`, `{"a": 1}`}, {buf, `{"b": 1}`}, {fixture.JSONReferenceValuer(`"\uD83D\uDE04"`), `"😄"`}, {nil, nil}, {nilBytes, nil}, {true, "true"}, {int64(42), "42"}, {1.25, "1.25"}, {"null", "null"}}
 		var want [][]any
 		for i, tc := range cases {
 			fixture.RunStep(t, p.Ctx, held, backend.Recorder, fixture.Exec(q, 1, i, tc.arg))
@@ -98,7 +98,7 @@ func TestReferenceJSONBNumericBoundaries(t *testing.T) {
 			for _, backend := range p.Backends() {
 				for _, prepared := range []bool{false, true} {
 					for _, bound := range []bool{false, true} {
-						q := "SELECT " + jsonReferenceQuote(tc.input) + "::jsonb AS v"
+						q := "SELECT " + fixture.JSONReferenceQuote(tc.input) + "::jsonb AS v"
 						var args []any
 						if bound {
 							q = "SELECT $1::jsonb AS v"

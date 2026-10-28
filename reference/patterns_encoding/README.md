@@ -5,8 +5,8 @@ collation management functions; expression collation derivation; encoding,
 locale and float-presentation settings; `format`, `concat`/`concat_ws` and
 `quote_*`; LIKE/ILIKE, SIMILAR TO, POSIX regular expressions and the `regexp_*`
 functions. Other string functions live in `reference/strings`; BYTEA
-substring/position in `reference/binary_json_arrays`; JSONPath `like_regex` in
-`reference/binary_json_arrays`.
+substring/position in [temporal_types](../temporal_types/README.md#testing);
+JSONPath `like_regex` in [datetime_formatting](../datetime_formatting/README.md#testing).
 
 ## Testing
 
@@ -28,10 +28,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 - **Cancellation admission** uses one of two patterns; both reject early
   completion, join workers under bounded cleanup and check nil outputs, the
   sentinel and same-owner/held recovery:
-  - *Native stack observer*: LIKE uses `fixture.BinaryConversionActiveCancel`,
-    whose context holds an actual provider cancellation poll until the observer
-    sees that provider and its `activeProviderCancel` worker in the same live
-    stack and cancels it. Finite normalization cannot escape between samples.
+  - *Native provider admission*: LIKE uses `fixture.BinaryConversionActiveCancel`
+    with distinct `stuntgres.WorkPatternMatch` and `WorkPatternNormalize` classes.
+    A real synchronous workload-credit wait witnesses the selected quantum,
+    without an overridden context error method or stack-based resource gate.
     POSIX and regexp retain `likeReferenceCancelEntered`, matching the provider
     and `likeReferenceCancelEntered.func1` in one live stack, with creation
     metadata excluded. Their workloads must keep the provider busy between
@@ -49,10 +49,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   same-physical-owner recovery. This proves SQL admission, not matcher entry;
   `TestReferenceRegexpActualCancellation` independently retains real provider
   work/cancellation and PostgreSQL streaming coverage.
-- **Frame names matched by tests.** `sqltype.matchLike`,
-  `sqltype.LikeEscapePlan.Evaluate`, `sqltype.(*PGRegexProgram)` methods and the
-  test workers `activeProviderCancel` and `likeReferenceCancelEntered.func1`.
-  Update the probes when renaming them.
+- **Frame names matched by regexp tests.** `sqltype.(*PGRegexProgram)` methods
+  and `likeReferenceCancelEntered.func1`; update these probes when renaming them.
 - **Resource limits.** Regex work budgets are tested only by internal units with
   injected limits; reference tests never assume a portable complexity cutoff.
 - **Replay errors.** Expected errors during PostgreSQL emitted-SQL replay run

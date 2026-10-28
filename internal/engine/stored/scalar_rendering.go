@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -184,6 +185,22 @@ func templateSQL(pieces []expr.Piece, parts []string, returning string, word fun
 // replayArgument renders one argument with the transport that keeps its type
 // on replay.
 func (r ScalarRenderer) replayArgument(ctx context.Context, view catalog.Read, arg expr.RenderArg) (string, error) {
+	if arg.XMLSource != (parser.Position{}) {
+		var failure error
+		plan.WalkExpression(arg.Expr, func(node expr.Expr) {
+			if failure == nil {
+				failure = r.recordStoredRoutine(view, node)
+			}
+		})
+		if failure != nil {
+			return "", failure
+		}
+		var err error
+		arg.Expr, err = plan.XMLSourceOperand(arg.Expr, arg.XMLSource)
+		if err != nil {
+			return "", err
+		}
+	}
 	if arg.JSONFormattedSource {
 		arg.Expr = plan.SQLJSONSource(arg.Expr)
 	}

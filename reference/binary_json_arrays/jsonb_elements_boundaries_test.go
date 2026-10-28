@@ -95,7 +95,7 @@ func TestReferenceJSONBElementsAuthority(t *testing.T) {
 		run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
 		for _, f := range []string{"jsonb_array_elements", "jsonb_array_elements_text"} {
 			for _, prepared := range []bool{false, true} {
-				jsonKeysError(t, p, b, c, "SELECT e.value FROM jbe_acl s,"+f+"(s.j) e", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbe_acl"), "execute")
+				fixture.JSONKeysError(t, p, b, c, "SELECT e.value FROM jbe_acl s,"+f+"(s.j) e", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbe_acl"), "execute")
 			}
 		}
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
@@ -104,7 +104,7 @@ func TestReferenceJSONBElementsAuthority(t *testing.T) {
 		for _, f := range []string{"jsonb_array_elements", "jsonb_array_elements_text"} {
 			jsonTypeBoth(t, p, b, c, jsonbElementsSelect(f, "SELECT e.value FROM jbe_acl s,"+f+"(s.j) e", []string{"value"}, [][]any{{"1"}}))
 			for _, prepared := range []bool{false, true} {
-				jsonKeysError(t, p, b, c, "SELECT e.value FROM jbe_acl s,"+f+"(s.hidden) e WHERE false", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbe_acl"), "execute")
+				fixture.JSONKeysError(t, p, b, c, "SELECT e.value FROM jbe_acl s,"+f+"(s.hidden) e WHERE false", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbe_acl"), "execute")
 			}
 		}
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

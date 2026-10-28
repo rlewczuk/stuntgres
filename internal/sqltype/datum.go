@@ -198,6 +198,8 @@ func SameDatum(a, b Value) bool {
 			}
 		}
 		return true
+	case XML:
+		return a.validXML() && b.validXML() && a.xml == b.xml
 	case JSONPath:
 		return a.jsonpath != nil && b.jsonpath != nil && a.text == b.text
 	case JSONB:

@@ -37,7 +37,7 @@ func completeCastRoutines(base []catalog.BuiltinRoutineDeclaration) []catalog.Bu
 		}
 		volatility := expr.Immutable
 		switch id {
-		case 1079, 1174, 1178, 1388, 2019, 2027, 2028, 2047, 3811, 3812, 3823, 3824:
+		case 1079, 1174, 1178, 1388, 2019, 2027, 2028, 2047, 2896, 3811, 3812, 3823, 3824:
 			volatility = expr.Stable
 		}
 		byOID[id] = len(base)

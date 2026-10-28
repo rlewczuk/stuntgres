@@ -55,17 +55,17 @@ func jsonbPrettyHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 		{jsonbPrettyEscapeInput, jsonbPrettyEscaped}, {[]byte(nil), nil},
 		{[]byte("[]"), "[\n]"}, {jsonTypeOrderedObject, jsonbPrettyOrdered},
 	} {
-		jsonTypeRun(t, p, b, held, jsonTypeWithMetadata(jsonbPrettyOne(q, tc.want, tc.input), b.PG))
+		jsonTypeRun(t, p, b, held, fixture.JSONTypeWithMetadata(jsonbPrettyOne(q, tc.want, tc.input), b.PG))
 	}
 	jsonTypeRun(t, p, b, held, jsonbPrettyInputError(q, true, "oops"))
-	jsonTypeRun(t, p, b, held, jsonTypeWithMetadata(jsonbPrettyOne(q, "[\n]", "[]"), b.PG))
+	jsonTypeRun(t, p, b, held, fixture.JSONTypeWithMetadata(jsonbPrettyOne(q, "[\n]", "[]"), b.PG))
 	owned := []byte(jsonbPrettyNestedInput)
 	rows, err := stmt.QueryContext(p.Ctx, owned)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rows.Close()
-	jsonTypeMetadataCheck(t, rows, b.PG, []string{"pretty"}, []string{"TEXT"})
+	fixture.JSONTypeMetadataCheck(t, rows, b.PG, []string{"pretty"}, []string{"TEXT"})
 	metadata, err := rows.ColumnTypes()
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +90,7 @@ func jsonbPrettyHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	if err := rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	jsonTypeRun(t, p, b, held, jsonTypeWithMetadata(jsonbPrettyOne(q, "{\n}", "{}"), b.PG))
+	jsonTypeRun(t, p, b, held, fixture.JSONTypeWithMetadata(jsonbPrettyOne(q, "{\n}", "{}"), b.PG))
 	if text != jsonbPrettyNested || string(data) != jsonbPrettyNested {
 		t.Fatalf("retained values=%q/%q", text, data)
 	}

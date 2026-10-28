@@ -204,7 +204,11 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		fmt.Fprintf(out, "Collate oid %d", n.Usage.Collation.ID)
 		err = child(n.Child)
 	case CoercionExpr:
-		fmt.Fprintf(out, "Coerce mode %d", n.Mode)
+		if n.XMLSerializeResult {
+			fmt.Fprint(out, "XMLSerializeResult")
+		} else {
+			fmt.Fprintf(out, "Coerce mode %d", n.Mode)
+		}
 		err = child(n.Child)
 	case SelectedOperatorExpr:
 		fmt.Fprintf(out, "Operator oid %d", n.Ref.Address.ObjectID)

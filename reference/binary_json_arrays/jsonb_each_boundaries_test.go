@@ -35,7 +35,7 @@ func jsonbEachBoundaryDiagnostics(t *testing.T, p *fixture.Pair, b fixture.Backe
 				if prepared && !bound {
 					stage = "prepare"
 				}
-				jsonKeysError(t, p, b, c, q, prepared, d, stage, args...)
+				fixture.JSONKeysError(t, p, b, c, q, prepared, d, stage, args...)
 			}
 		}
 	}
@@ -64,7 +64,7 @@ func jsonbEachBoundaryDiagnostics(t *testing.T, p *fixture.Pair, b fixture.Backe
 			if prepared {
 				stage = "prepare"
 			}
-			jsonKeysError(t, p, b, c, q, prepared, d, stage)
+			fixture.JSONKeysError(t, p, b, c, q, prepared, d, stage)
 		}
 	}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE jbeach_placement_"+f+"(j jsonb)", 0))
@@ -89,7 +89,7 @@ func jsonbEachBoundaryDiagnostics(t *testing.T, p *fixture.Pair, b fixture.Backe
 				if prepared && strings.HasPrefix(tc.q, "SELECT ") {
 					stage = "prepare"
 				}
-				jsonKeysError(t, p, b, c, tc.q, prepared, d, stage)
+				fixture.JSONKeysError(t, p, b, c, tc.q, prepared, d, stage)
 			}
 		})
 	}

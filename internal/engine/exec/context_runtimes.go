@@ -928,5 +928,5 @@ func (c *Context) ConvertTSVector(configuration sqltype.Value, text string, resu
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: to_tsvector lacks statement authority")
 	}
-	return host.ConvertTSVector(configuration, text, result)
+	return host.ConvertTSVector(c.Context, configuration, text, result)
 }

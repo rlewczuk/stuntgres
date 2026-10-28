@@ -106,8 +106,10 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, failure
 				}
 			}
-			if capture,installed:=ltreeComparisonCaptureOf(node);ok&&installed{
-				if failure:=remapLtreeComparisonRoutine(view,reader,captured,current,capture,retainedType);failure!=nil{return nil,false,failure}
+			if capture, installed := ltreeComparisonCaptureOf(node); ok && installed {
+				if failure := remapLtreeComparisonRoutine(view, reader, captured, current, capture, retainedType); failure != nil {
+					return nil, false, failure
+				}
 			}
 			if capture, isCube := cubeComparisonCaptureOf(node); ok && isCube {
 				if failure := remapCubeComparisonRoutine(view, reader, captured, current, capture, retainedType); failure != nil {
@@ -150,7 +152,9 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 				}
 			}
 			if call, isLtree := node.(functions.LtreeArray); isLtree {
-				if failure := remapLtreeArrayRoutine(view, reader, captured, current, call, retainedType); failure != nil { return nil, false, failure }
+				if failure := remapLtreeArrayRoutine(view, reader, captured, current, call, retainedType); failure != nil {
+					return nil, false, failure
+				}
 			}
    if call, isLtree := node.(functions.LtreeLtxtquery); isLtree {
     if failure := remapLtreeLtxtqueryRoutine(view, reader, captured, current, call, retainedType); failure != nil { return nil, false, failure }
@@ -924,9 +928,10 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
 				}
 				if old.TestUsage.Type.IsLtree() || old.Condition.ResultUsage().Type.IsLtree() {
-					if failure:=remapLtreeComparisonRoutine(view,reader,old.Routine,current,ltreeComparisonCapture{ref:old.RoutineRef,left:old.TestUsage.Type,right:old.Condition.ResultUsage().Type,name:"ltree_eq",result:sqltype.Bool},retainedType);failure!=nil{return nil,false,failure}
-				} else
-				if old.TestUsage.Type.IsHstore() || old.Condition.ResultUsage().Type.IsHstore() {
+					if failure := remapLtreeComparisonRoutine(view, reader, old.Routine, current, ltreeComparisonCapture{ref: old.RoutineRef, left: old.TestUsage.Type, right: old.Condition.ResultUsage().Type, name: "ltree_eq", result: sqltype.Bool}, retainedType); failure != nil {
+						return nil, false, failure
+					}
+				} else if old.TestUsage.Type.IsHstore() || old.Condition.ResultUsage().Type.IsHstore() {
 					if failure := remapHstoreComparisonRoutine(view, reader, old.Routine, current, hstoreComparisonCapture{ref: old.RoutineRef, left: old.TestUsage.Type, right: old.Condition.ResultUsage().Type, name: "hstore_eq", result: sqltype.Bool}, retainedType); failure != nil {
 						return nil, false, failure
 					}
@@ -1086,6 +1091,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		n.Info = info
 		rebound = n
 	case plan.CoercionExpr:
+		if n.XMLSerializeResult {
+			if _, _, failure := plan.XMLSerialization(n); failure != nil {
+				return nil, false, failure
+			}
+		}
 		if _, failure := n.LogicalInputCast(); failure != nil {
 			return nil, false, failure
 		}
@@ -1124,6 +1134,9 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		n.Info = info
 		if err == nil {
 			_, err = n.LogicalInputCast()
+		}
+		if err == nil && n.XMLSerializeResult {
+			_, _, err = plan.XMLSerialization(n)
 		}
 		rebound = n
 	case plan.BitwiseExpr:

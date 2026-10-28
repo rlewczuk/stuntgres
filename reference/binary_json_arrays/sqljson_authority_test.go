@@ -30,14 +30,14 @@ func TestReferenceSQLJSONAuthority(t *testing.T) {
 			`SELECT JSON_SCALAR(hidden) AS v FROM sqj_acl`,
 		} {
 			t.Run("denied source "+q, func(t *testing.T) {
-				sqljsonDiagnostic(t, p, b, c, q, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table sqj_acl"), false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, q, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table sqj_acl"), false)
 			})
 		}
 		t.Run("denied schema", func(t *testing.T) {
 			q := `SELECT JSON_ARRAY(SELECT v FROM sqj_private.docs) AS v`
 			d := fixture.ControlsReferenceDiagnostic("42501", "permission denied for schema sqj_private")
 			d.Position = "33"
-			sqljsonDiagnostic(t, p, b, c, q, d, true)
+			fixture.SQLJSONDiagnostic(t, p, b, c, q, d, true)
 		})
 		run(fixture.Exec(`RESET SESSION AUTHORIZATION`, 0))
 		run(fixture.Exec("GRANT SELECT(id,k) ON sqj_acl TO "+role, 0))
@@ -49,20 +49,20 @@ func TestReferenceSQLJSONAuthority(t *testing.T) {
 			`SELECT JSON_ARRAY(SELECT i.k FROM sqj_acl i WHERE i.id=o.id AND o.hidden IS NOT NULL) AS v FROM sqj_acl o WHERE FALSE`,
 		} {
 			t.Run("denied actual column "+q, func(t *testing.T) {
-				sqljsonDiagnostic(t, p, b, c, q, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table sqj_acl"), false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, q, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table sqj_acl"), false)
 			})
 		}
 		t.Run("unused column not demanded", func(t *testing.T) {
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT JSON_OBJECT(k:id) AS v FROM sqj_acl`, []string{"v"}, []string{"JSON"}, [][]any{{`{"a" : 1}`}}))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT JSON_OBJECT(k:id) AS v FROM sqj_acl`, []string{"v"}, []string{"JSON"}, [][]any{{`{"a" : 1}`}}))
 		})
 		run(fixture.Exec(`RESET SESSION AUTHORIZATION`, 0))
 		run(fixture.Exec("GRANT SELECT(v) ON sqj_acl TO "+role, 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
 		t.Run("allowed actual operands", func(t *testing.T) {
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT JSON_OBJECT(k:v FORMAT JSON) AS v FROM sqj_acl`, []string{"v"}, []string{"JSON"}, [][]any{{`{"a" : {}}`}}))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT JSON_OBJECT(k:v FORMAT JSON) AS v FROM sqj_acl`, []string{"v"}, []string{"JSON"}, [][]any{{`{"a" : {}}`}}))
 		})
 		t.Run("allowed correlated query", func(t *testing.T) {
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT JSON_ARRAY(SELECT i.v FROM sqj_acl i WHERE i.id=o.id FORMAT JSON) AS v FROM sqj_acl o`, []string{"v"}, []string{"JSON"}, [][]any{{`[{}]`}}))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT JSON_ARRAY(SELECT i.v FROM sqj_acl i WHERE i.id=o.id FORMAT JSON) AS v FROM sqj_acl o`, []string{"v"}, []string{"JSON"}, [][]any{{`[{}]`}}))
 		})
 		run(fixture.Exec(`RESET SESSION AUTHORIZATION`, 0))
 	})

@@ -43,18 +43,18 @@ func TestReferenceIntaggInstalledIdentity(t *testing.T) {
 			t.Run("absent-"+tc.q, func(t *testing.T) { intaggError(t, p, b, c, tc.q, intaggMissing(tc.signature), false) })
 		}
 		intaggInstall(run)
-		arrayAggBoth(run, fixture.Select("SELECT extname,extversion,extrelocatable FROM pg_extension WHERE extname='intagg'", []string{"extname", "extversion", "extrelocatable"}, []string{"NAME", "TEXT", "BOOL"}, [][]any{{"intagg", "1.1", true}}))
-		arrayAggBoth(run, fixture.Select("SELECT version,superuser,trusted,relocatable FROM pg_available_extension_versions WHERE name='intagg' AND version='1.1'", []string{"version", "superuser", "trusted", "relocatable"}, []string{"TEXT", "BOOL", "BOOL", "BOOL"}, [][]any{{"1.1", true, false, true}}))
+		fixture.ArrayAggBoth(run, fixture.Select("SELECT extname,extversion,extrelocatable FROM pg_extension WHERE extname='intagg'", []string{"extname", "extversion", "extrelocatable"}, []string{"NAME", "TEXT", "BOOL"}, [][]any{{"intagg", "1.1", true}}))
+		fixture.ArrayAggBoth(run, fixture.Select("SELECT version,superuser,trusted,relocatable FROM pg_available_extension_versions WHERE name='intagg' AND version='1.1'", []string{"version", "superuser", "trusted", "relocatable"}, []string{"TEXT", "BOOL", "BOOL", "BOOL"}, [][]any{{"1.1", true, false, true}}))
 		t.Run("duplicate-install", func(t *testing.T) {
 			intaggError(t, p, b, c, "CREATE EXTENSION intagg SCHEMA ia_addon", fixture.Diagnostic{Code: "42710", Message: `extension "intagg" already exists`}, true)
 		})
-		arrayAggBoth(run, fixture.Select("SELECT p.proname,p.prorettype::bigint AS prorettype,p.proisstrict,p.provolatile FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ia_addon' AND p.proname IN ('int_array_aggregate','int_array_enum') ORDER BY p.proname", []string{"proname", "prorettype", "proisstrict", "provolatile"}, []string{"NAME", "INT8", "BOOL", "CHAR"}, [][]any{{"int_array_aggregate", int64(1007), false, "i"}, {"int_array_enum", int64(23), true, "i"}}))
+		fixture.ArrayAggBoth(run, fixture.Select("SELECT p.proname,p.prorettype::bigint AS prorettype,p.proisstrict,p.provolatile FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ia_addon' AND p.proname IN ('int_array_aggregate','int_array_enum') ORDER BY p.proname", []string{"proname", "prorettype", "proisstrict", "provolatile"}, []string{"NAME", "INT8", "BOOL", "CHAR"}, [][]any{{"int_array_aggregate", int64(1007), false, "i"}, {"int_array_enum", int64(23), true, "i"}}))
 		if b.PG {
 			// Upstream corroboration only: native intentionally does not expose
 			// pg_proc.proretset. Shared cursor metadata proves the SRF contract.
-			arrayAggBoth(run, fixture.Select("SELECT p.proname,p.proretset FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ia_addon' AND p.proname IN ('int_array_aggregate','int_array_enum') ORDER BY p.proname", []string{"proname", "proretset"}, []string{"NAME", "BOOL"}, [][]any{{"int_array_aggregate", false}, {"int_array_enum", true}}))
+			fixture.ArrayAggBoth(run, fixture.Select("SELECT p.proname,p.proretset FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ia_addon' AND p.proname IN ('int_array_aggregate','int_array_enum') ORDER BY p.proname", []string{"proname", "proretset"}, []string{"NAME", "BOOL"}, [][]any{{"int_array_aggregate", false}, {"int_array_enum", true}}))
 		}
-		arrayAggBoth(run, fixture.Select("SELECT count(*) FROM pg_depend d JOIN pg_proc p ON p.oid=d.objid JOIN pg_extension e ON e.oid=d.refobjid WHERE e.extname='intagg' AND d.deptype='e' AND p.proname IN ('int_array_aggregate','int_array_enum')", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
+		fixture.ArrayAggBoth(run, fixture.Select("SELECT count(*) FROM pg_depend d JOIN pg_proc p ON p.oid=d.objid JOIN pg_extension e ON e.oid=d.refobjid WHERE e.extname='intagg' AND d.deptype='e' AND p.proname IN ('int_array_aggregate','int_array_enum')", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
 		for _, tc := range []struct{ q, signature string }{
 			{"SELECT int_array_aggregate(2)", "int_array_aggregate(integer)"},
 			{"SELECT int_array_enum('{2}'::integer[])", "int_array_enum(integer[])"},
@@ -65,12 +65,12 @@ func TestReferenceIntaggInstalledIdentity(t *testing.T) {
 		} {
 			t.Run("off-path-"+tc.q, func(t *testing.T) { intaggError(t, p, b, c, tc.q, intaggMissing(tc.signature), false) })
 		}
-		arrayAggBoth(run, intaggArray(b, "SELECT ia_addon.\"int_array_aggregate\"(2)", []string{"int_array_aggregate"}, []string{"_INT4"}, [][]any{{"{2}"}}))
+		fixture.ArrayAggBoth(run, intaggArray(b, "SELECT ia_addon.\"int_array_aggregate\"(2)", []string{"int_array_aggregate"}, []string{"_INT4"}, [][]any{{"{2}"}}))
 		run(fixture.Exec("SET search_path=ia_addon,public", 0))
-		arrayAggBoth(run, intaggArray(b, "SELECT int_array_aggregate(2)", []string{"int_array_aggregate"}, []string{"_INT4"}, [][]any{{"{2}"}}))
+		fixture.ArrayAggBoth(run, intaggArray(b, "SELECT int_array_aggregate(2)", []string{"int_array_aggregate"}, []string{"_INT4"}, [][]any{{"{2}"}}))
 		visible := fixture.Select("SELECT int_array_enum('{2,2,NULL}')", []string{"int_array_enum"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(2)}, {nil}})
 		visible.Bag = true
-		arrayAggBoth(run, visible)
+		fixture.ArrayAggBoth(run, visible)
 		if !b.PG {
 			run(fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ia_addon'", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
 		}
@@ -137,7 +137,7 @@ func TestReferenceIntaggDiagnostics(t *testing.T) {
 		})
 		positive := fixture.Select("SELECT ia_addon.int_array_enum(VARIADIC ARRAY[v]) FROM ia_input", []string{"int_array_enum"}, []string{"INT4"}, [][]any{{int64(2)}, {nil}, {int64(2)}, {int64(-2147483648)}, {int64(2147483647)}})
 		positive.Bag = true
-		arrayAggBoth(run, positive)
+		fixture.ArrayAggBoth(run, positive)
 		for _, tc := range []struct{ q, arg, code, message, detail string }{
 			{"SELECT ia_addon.int_array_aggregate($1)", "bad", "22P02", `invalid input syntax for type integer: "bad"`, ""},
 			{"SELECT ia_addon.int_array_aggregate($1)", "2147483648", "22003", `value "2147483648" is out of range for type integer`, ""},
@@ -152,7 +152,7 @@ func TestReferenceIntaggDiagnostics(t *testing.T) {
 		for _, filter := range []string{"", " FILTER(WHERE TRUE)"} {
 			q := "SELECT id,ia_addon.int_array_aggregate(v)" + filter + " OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS a FROM ia_input WHERE id<=3 ORDER BY id"
 			if b.PG {
-				arrayAggBoth(run, intaggArray(b, q, []string{"id", "a"}, []string{"INT4", "_INT4"}, [][]any{{int64(1), "{2}"}, {int64(2), "{2,NULL}"}, {int64(3), "{2,NULL,2}"}}))
+				fixture.ArrayAggBoth(run, intaggArray(b, q, []string{"id", "a"}, []string{"INT4", "_INT4"}, [][]any{{int64(1), "{2}"}, {int64(2), "{2,NULL}"}, {int64(3), "{2,NULL,2}"}}))
 			} else {
 				w := fixture.Diagnostic{Code: "0A000", Message: "window function provider is unsupported", Position: fixture.StringAggPosition(q, "ia_addon", false)}
 				if filter != "" {

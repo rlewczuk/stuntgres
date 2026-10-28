@@ -1,6 +1,11 @@
 package sqltype
 
-import "math"
+import (
+	"context"
+	"math"
+
+	"stuntgres/internal/workadmission"
+)
 
 func temporalArithmeticType(id ID) bool {
 	return id == Date || id == Time || id == Timetz || id == Timestamp || id == Timestamptz || id == Interval
@@ -41,7 +46,7 @@ func arithmeticDateMidnight(a Value) (int64, error) {
 	return n * microsPerDay, nil
 }
 
-func (p Arithmetic) datetimeBinary(a, b Value, input InputEnvironment) (Value, error) {
+func (p Arithmetic) datetimeBinary(ctx context.Context, a, b Value, input InputEnvironment) (Value, error) {
 	l, r := a.typ.id, b.typ.id
 	// Normalize only released commutations, never subtraction or division.
 	if p.operator == ArithmeticAdd && (l == Int4 || l == Time && r == Date || l == Timetz && r == Date || l == Interval && r != Interval) || p.operator == ArithmeticMultiply && l == Float8 {
@@ -86,10 +91,10 @@ func (p Arithmetic) datetimeBinary(a, b Value, input InputEnvironment) (Value, e
 			}
 			return arithmeticTimestamp(p.result, n)
 		}
-		return addTimestampInterval(n, b, p.result, p.operator == ArithmeticSubtract, input)
+		return addTimestampInterval(ctx, n, b, p.result, p.operator == ArithmeticSubtract, input)
 	case Timestamp, Timestamptz:
 		if r == Interval {
-			return addTimestampInterval(a.integer, b, p.result, p.operator == ArithmeticSubtract, input)
+			return addTimestampInterval(ctx, a.integer, b, p.result, p.operator == ArithmeticSubtract, input)
 		}
 		ai, bi := timestampInfinity(a.integer), timestampInfinity(b.integer)
 		if ai != 0 || bi != 0 {
@@ -137,7 +142,7 @@ func (p Arithmetic) datetimeBinary(a, b Value, input InputEnvironment) (Value, e
 	panic("unreachable validated datetime signature")
 }
 
-func addTimestampInterval(n int64, interval Value, d *Descriptor, subtract bool, input InputEnvironment) (Value, error) {
+func addTimestampInterval(ctx context.Context, n int64, interval Value, d *Descriptor, subtract bool, input InputEnvironment) (Value, error) {
 	if subtract {
 		var err error
 		interval, err = negateInterval(interval, interval.typ)
@@ -161,6 +166,9 @@ func addTimestampInterval(n int64, interval Value, d *Descriptor, subtract bool,
 	for stage, delta := range [...]int32{interval.months, interval.days} {
 		if delta == 0 {
 			continue
+		}
+		if err := workadmission.Admit(ctx, workadmission.WorkCalendarArithmetic); err != nil {
+			return Value{}, err
 		}
 		local := n
 		if d.id == Timestamptz {

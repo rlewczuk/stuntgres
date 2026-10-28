@@ -9,6 +9,12 @@ INTERVAL arithmetic are in [reference/datetime](../datetime/README.md#testing);
 temporal ranges are in [reference/ranges_text_search](../ranges_text_search/README.md#testing); timestamp
 series are in [reference/numeric](../numeric/README.md#testing).
 
+Scalar value codecs also include BYTEA input/output/settings, binary hashing,
+concatenation/length/trim, slicing/overlay/position, byte/bit access/reverse and
+`encode`/`decode`/`convert*`. BIT/VARBIT string values and operations live in
+[strings](../strings/README.md#testing); JSON codecs remain in
+[binary_json_arrays](../binary_json_arrays/README.md#testing).
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
@@ -43,3 +49,16 @@ same-prefix families in other packages (`DateRange`/`TimestampRange` in types,
 - TIME: `RUN='^TestReferenceTime[A-Z]'`
 - TIMESTAMP: `RUN='^TestReferenceTimestamp([A-QT-Z]|Re|SQ|Set)'`
 - INTERVAL, including `avg(interval)`: `RUN='^TestReferenceInterval'`
+- BYTEA type, input and output settings: `RUN='^TestReferenceBytea'`
+- BYTEA concatenation, length and trim: `RUN='^TestReferenceBinaryBasic'`
+- `md5`, `sha*`, `crc32[c]`: `RUN='^TestReferenceBinaryHash'`
+- BYTEA `substring`, `overlay`, `position`: `RUN='^TestReferenceBinarySlice'`
+- BYTEA bit/byte access and `reverse`: `RUN='^TestReferenceBinaryAccess'`
+- `encode`, `decode`, `convert*`: `RUN='^TestReferenceBinaryConversion'`
+
+Binary helpers stay in `<family>_helpers_test.go` and
+`binary_conversion_fixture_test.go`. Shared access diagnostics and scenario setup
+use `fixture.BinaryAccessBodyError`, `BinaryAccessAnalysisError`,
+`BinaryAccessDiagnosticStages` and `BitAccessScenario`; completed-output
+cancellation uses `fixture.OutputGateCancel` from [fixture](../fixture/README.md#helpers).
+BYTEA Length is `(MaxInt64,true)` through pq and `(0,false)` natively.

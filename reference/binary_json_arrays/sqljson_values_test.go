@@ -37,7 +37,7 @@ func TestReferenceSQLJSONArguments(t *testing.T) {
 			`JSON_OBJECT(ROW(1,'x'):1)`,
 		} {
 			t.Run(expr, func(t *testing.T) {
-				sqljsonDiagnostic(t, p, b, c, "SELECT "+expr+" AS v",
+				fixture.SQLJSONDiagnostic(t, p, b, c, "SELECT "+expr+" AS v",
 					fixture.ControlsReferenceDiagnostic("22023", "key value must be scalar, not array, composite, or json"), false)
 			})
 		}
@@ -45,7 +45,7 @@ func TestReferenceSQLJSONArguments(t *testing.T) {
 			expr := "JSON_ARRAY(" + strings.TrimSuffix(strings.Repeat("1,", n), ",") + ")"
 			want := "[" + strings.TrimSuffix(strings.Repeat("1, ", n), ", ") + "]"
 			t.Run(expr, func(t *testing.T) {
-				sqljsonBoth(t, p, b, c, fixture.Select("SELECT "+expr+" AS v", []string{"v"}, []string{"JSON"}, [][]any{{want}}))
+				fixture.SQLJSONBoth(t, p, b, c, fixture.Select("SELECT "+expr+" AS v", []string{"v"}, []string{"JSON"}, [][]any{{want}}))
 			})
 		}
 	})
@@ -99,7 +99,7 @@ func TestReferenceSQLJSONConversion(t *testing.T) {
 				if b.PG {
 					want = "\x02"
 				}
-				sqljsonBoth(t, p, b, c, fixture.Select("SELECT "+expr+" AS v", []string{"v"}, []string{"TEXT"}, [][]any{{want}}))
+				fixture.SQLJSONBoth(t, p, b, c, fixture.Select("SELECT "+expr+" AS v", []string{"v"}, []string{"TEXT"}, [][]any{{want}}))
 			})
 		}
 	})
@@ -125,7 +125,7 @@ func TestReferenceSQLJSONFormat(t *testing.T) {
 		} {
 			t.Run(tc.expr, func(t *testing.T) {
 				d := fixture.ControlsReferenceDiagnostic("22023", `invalid source encoding name "`+tc.encoding+`"`)
-				sqljsonDiagnostic(t, p, b, c, "SELECT "+tc.expr+" AS v", d, false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, "SELECT "+tc.expr+" AS v", d, false)
 			})
 		}
 	})
@@ -159,13 +159,13 @@ func TestReferenceSQLJSONReturning(t *testing.T) {
 		})
 		for _, q := range []string{`SELECT JSON_ARRAY(123 RETURNING varchar(3)) AS v`, `SELECT JSON_SERIALIZE('[123]' RETURNING varchar(3)) AS v`} {
 			t.Run(q, func(t *testing.T) {
-				sqljsonDiagnostic(t, p, b, c, q, fixture.ControlsReferenceDiagnostic("22001", "value too long for type character varying(3)"), false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, q, fixture.ControlsReferenceDiagnostic("22001", "value too long for type character varying(3)"), false)
 			})
 		}
 		d := fixture.ControlsReferenceDiagnostic("23514", `value for domain sqj_positive violates check constraint "sqj_positive_check"`)
 		d.Schema, d.DataType, d.Constraint = "public", "sqj_positive", "sqj_positive_check"
 		t.Run("domain constraint", func(t *testing.T) {
-			sqljsonDiagnostic(t, p, b, c, `SELECT JSON_ARRAY(RETURNING sqj_positive) AS v`, d, false)
+			fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT JSON_ARRAY(RETURNING sqj_positive) AS v`, d, false)
 		})
 	})
 }

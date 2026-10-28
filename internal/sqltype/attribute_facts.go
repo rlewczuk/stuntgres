@@ -124,6 +124,9 @@ func (v Value) ValidResult(u Usage) bool {
 	if v.typ == u.Type && v.null && u.QueryNullUsage() {
 		return true
 	}
+	if v.typ != nil && !v.null && v.typ.BaseType().id == XML && !v.validXML() {
+		return false
+	}
 	if v.typ != nil && !v.null && (v.typ.BaseType().IsSeg() && !v.seg.valid() || v.typ.BaseType().IsCatalogVector() && !v.validCatalogVectorPayload() || v.typ.BaseType().IsHstore() && !v.validHstore()) {
 		return false
 	}

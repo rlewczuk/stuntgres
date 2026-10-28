@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func jsonEachMetadata(t *testing.T, r *sql.Rows, pg bool, names, types []string, sourceColumns ...jsonTypeSourceColumn) {
+func jsonEachMetadata(t *testing.T, r *sql.Rows, pg bool, names, types []string, sourceColumns ...fixture.JSONTypeSourceColumn) {
 	t.Helper()
 	meta, err := r.ColumnTypes()
 	if err != nil || len(meta) != len(types) {
@@ -42,8 +42,8 @@ func jsonEachMetadata(t *testing.T, r *sql.Rows, pg bool, names, types []string,
 		wantNullable, wantKnown := false, false
 		if !pg {
 			for _, column := range sourceColumns {
-				if column.index == i {
-					wantNullable, wantKnown = column.nullable, true
+				if column.Index == i {
+					wantNullable, wantKnown = column.Nullable, true
 				}
 			}
 		}
@@ -56,7 +56,7 @@ func jsonEachMetadata(t *testing.T, r *sql.Rows, pg bool, names, types []string,
 	}
 }
 
-func jsonEachWithMetadata(s fixture.Step, pg bool, sourceColumns ...jsonTypeSourceColumn) fixture.Step {
+func jsonEachWithMetadata(s fixture.Step, pg bool, sourceColumns ...fixture.JSONTypeSourceColumn) fixture.Step {
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		jsonEachMetadata(t, rows, pg, s.Columns, s.Types, sourceColumns...)
 	}
@@ -85,7 +85,7 @@ func TestReferenceJSONEachMetadata(t *testing.T) {
 						if input == `{"a":1}` {
 							want = [][]any{tc.row}
 						}
-						jsonEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select(tc.q, tc.names, tc.types, want, input), b.PG))
+						fixture.JSONEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select(tc.q, tc.names, tc.types, want, input), b.PG))
 					})
 				}
 			}
@@ -93,7 +93,7 @@ func TestReferenceJSONEachMetadata(t *testing.T) {
 			if f == "json_each_text" {
 				value = "(a,)"
 			}
-			jsonEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select("SELECT "+f+"('{\"a\":null}'::json)", []string{f}, []string{"RECORD"}, [][]any{{value}}), b.PG))
+			fixture.JSONEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select("SELECT "+f+"('{\"a\":null}'::json)", []string{f}, []string{"RECORD"}, [][]any{{value}}), b.PG))
 		}
 	})
 }

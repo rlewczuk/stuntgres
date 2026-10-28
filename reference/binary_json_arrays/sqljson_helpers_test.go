@@ -22,20 +22,6 @@ func sqljsonScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.
 	}
 }
 
-func sqljsonBoth(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, s fixture.Step) {
-	t.Helper()
-	for _, prepared := range []bool{false, true} {
-		name := "direct"
-		if prepared {
-			name = "prepared"
-		}
-		t.Run(name, func(t *testing.T) {
-			s.Prepared = prepared
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-		})
-	}
-}
-
 func sqljsonValues(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, cases []struct {
 	expr, typ string
 	want      any
@@ -43,27 +29,7 @@ func sqljsonValues(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.E
 	t.Helper()
 	for _, tc := range cases {
 		t.Run(tc.expr, func(t *testing.T) {
-			sqljsonBoth(t, p, b, c, fixture.Select("SELECT "+tc.expr+" AS v", []string{"v"}, []string{tc.typ}, [][]any{{tc.want}}))
-		})
-	}
-}
-
-func sqljsonDiagnostic(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, q string, d fixture.Diagnostic, analysis bool, args ...any) {
-	t.Helper()
-	for _, prepared := range []bool{false, true} {
-		name := "direct"
-		if prepared {
-			name = "prepared"
-		}
-		t.Run(name, func(t *testing.T) {
-			s := fixture.ErrorDiagnostic(q, d, args...)
-			s.SelectRows = true
-			s.Prepared = prepared
-			s.ErrorStage = "execute"
-			if prepared && analysis {
-				s.ErrorStage = "prepare"
-			}
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select("SELECT "+tc.expr+" AS v", []string{"v"}, []string{tc.typ}, [][]any{{tc.want}}))
 		})
 	}
 }

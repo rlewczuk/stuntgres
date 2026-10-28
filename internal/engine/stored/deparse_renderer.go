@@ -535,6 +535,13 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		}
 		return "(" + text + ")", nil
 	case plan.CoercionExpr:
+		if n.XMLSerializeResult {
+			spec, err := plan.XMLSerializationRendering(n)
+			if err != nil {
+				return "", err
+			}
+			return r.rendering(ctx, n, spec, parent)
+		}
 		logical, err := n.LogicalInputCast()
 		if err != nil {
 			return "", err

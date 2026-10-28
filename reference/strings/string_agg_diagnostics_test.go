@@ -85,11 +85,6 @@ func TestReferenceStringAggDiagnostics(t *testing.T) {
 							if tc.name == "parameter-conflict" {
 								s.Args = []any{int64(1)}
 							}
-							if tc.name == "bad-order-type" && !backend.PG {
-								s = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: "unsupported column type", Position: fixture.StringAggPosition(tc.q, "xml", false)})
-								s.SelectRows = true
-								s.Prepared = prepared
-							}
 							runStep := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s) }
 							runStep(s)
 						})

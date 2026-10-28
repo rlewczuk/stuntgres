@@ -95,7 +95,7 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 // domain into its value.
 func preflightEvaluate(c *Context, node expr.Expr, changed bool) (expr.Expr, bool, error) {
 	p := node.Properties()
-	if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
+	if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(node) {
 		value, err := FoldPlanningExpression(c, node)
 		return preflightValue(c, expr.InfoOf(node), value, err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -55,7 +56,7 @@ func TestReferenceJSONEachCancellation(t *testing.T) {
 					if writing {
 						query = writeSQL
 					}
-					fixture.BinaryConversionActiveCancel(t, p, b, c, query, "sqltype.JSONEachPlan.Open", func(ctx context.Context) fixture.RelationOutcome {
+					fixture.BinaryConversionActiveCancel(t, p, b, c, query, stuntgres.WorkJSONObjectExpand, func(ctx context.Context) fixture.RelationOutcome {
 						if writing {
 							result, err := write.ExecContext(ctx)
 							return fixture.RelationOutcome{Result: result, Err: err}

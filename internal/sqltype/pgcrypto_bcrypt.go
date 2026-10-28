@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/binary"
 	"strings"
+
+	"stuntgres/internal/workadmission"
 )
 
 // PostgreSQL's bcrypt protocol derives from Solar Designer's public-domain
@@ -85,7 +87,7 @@ func pgcryptoBcryptEncode(dst, src []byte) {
 	}
 }
 
-// pgcryptoBcrypt is the live cancellation-admission frame used by public tests.
+// pgcryptoBcrypt consumes one admission quantum for each actual bcrypt round.
 // All state/scratch is fixed size. Cost31 is representable; cancellation, not
 // an arbitrary lower safety ceiling, bounds abandoned expensive operations.
 func pgcryptoBcrypt(ctx context.Context, password, salt string) (string, error) {
@@ -106,7 +108,7 @@ func pgcryptoBcrypt(ctx context.Context, password, salt string) (string, error) 
 	state := pgcryptoBlowfishInitial
 	state.expand(key[:], &saltWords)
 	for round, rounds := uint64(0), uint64(1)<<cost; round < rounds; round++ {
-		if err := ctx.Err(); err != nil {
+		if err := workadmission.Admit(ctx, workadmission.WorkPasswordBcrypt); err != nil {
 			return "", err
 		}
 		state.expand(key[:], nil)

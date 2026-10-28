@@ -15,6 +15,8 @@ const (
 	CaptureLocal
 	CaptureField
 	CaptureIdentity
+	CaptureXMLParse
+	CaptureXMLSerialize
 )
 
 // Capturable explicitly admits a raw syntax kind. It must not evaluate, render,
@@ -43,6 +45,7 @@ type CaptureOperands struct {
 	PosixSubstring   bool
 	SimilarSubstring bool
 	JSONSources      bool
+	XMLSources       bool
 	DotBuiltin       string
 }
 

@@ -39,6 +39,9 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		if !ok || coercion.Mode == sqltype.Explicit && !coercion.SyntheticConstructorElement {
 			break
 		}
+		if _, xml := raw.(parser.XMLSerializeExpr); xml && coercion.XMLSerializeResult {
+			break
+		}
 		if constructor, ok := raw.(parser.SQLJSONExpr); ok && constructor.Returning != nil && coercion.Mode == sqltype.Assignment {
 			break
 		}
@@ -114,6 +117,13 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			if operands.JSONSources {
 				arg = plan.SQLJSONSource(arg)
 			}
+			if operands.XMLSources {
+				var err error
+				arg, err = plan.XMLSourceOperand(arg, bound.SourcePosition())
+				if err != nil {
+					return err
+				}
+			}
 			if err := child(written, arg); err != nil {
 				return err
 			}
@@ -121,6 +131,33 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.XMLParseExpr:
+		n, ok := bound.(functions.XMLParse)
+		if !ok || n.Document != r.Document || n.Whitespace != r.Whitespace {
+			return fmt.Errorf("stuntgres: mismatched XMLPARSE occurrence")
+		}
+		return protocol(expr.CaptureXMLParse, []parser.Expr{r.Child})
+	case parser.XMLSerializeExpr:
+		result, ok := bound.(plan.CoercionExpr)
+		if !ok || !result.XMLSerializeResult {
+			return fmt.Errorf("stuntgres: mismatched XMLSERIALIZE occurrence")
+		}
+		n, target, err := plan.XMLSerialization(result)
+		if err != nil {
+			return err
+		}
+		if n.Document != r.Document || n.Indent != r.Indent {
+			return fmt.Errorf("stuntgres: mismatched XMLSERIALIZE options")
+		}
+		if b.Capture.CastUsages == nil {
+			b.Capture.CastUsages = make(map[ViewLiteralPath]sqltype.Usage)
+		}
+		b.Capture.CastUsages[path] = target
+		written, err := plan.XMLSourceOperand(n.Child, n.Pos)
+		if err != nil {
+			return err
+		}
+		return child(r.Child, written)
 	case parser.ParameterExpr:
 		// MV parameter admission follows complete typed analysis. No such
 		// definition can publish; leave this occurrence to the later 0A000.

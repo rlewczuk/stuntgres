@@ -3,6 +3,8 @@ package sqltype
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/workadmission"
 )
 
 type jsonScanMode uint8
@@ -22,6 +24,7 @@ type jsonMember struct {
 }
 
 type jsonScanResult struct {
+	workClass        workadmission.Class
 	root             byte
 	mode             jsonScanMode
 	keys             []string

@@ -3,6 +3,8 @@ package sqltype
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/workadmission"
 )
 
 func (p BinaryPlan) jsonbContainment(ctx context.Context, left, right Value) (Value, error) {
@@ -44,14 +46,13 @@ func jsonbScalarContains(ctx context.Context, a, b *jsonbNode) (bool, error) {
 	return false, nil
 }
 
-// jsonbContains walks borrowed immutable nodes. Keep this structural worker
-// frame available to the public active-cancellation admission helper.
+// jsonbContains walks borrowed immutable nodes one containment frame step at a time.
 func jsonbContains(ctx context.Context, a, b *jsonbNode) (bool, error) {
 	var local [32]jsonbContainmentFrame
 	stack := append(local[:0], jsonbContainmentFrame{a: a, b: b})
 	returning, found := false, false
 	for len(stack) != 0 {
-		if err := ctx.Err(); err != nil {
+		if err := workadmission.Admit(ctx, workadmission.WorkJSONBContainment); err != nil {
 			return false, err
 		}
 		f := &stack[len(stack)-1]

@@ -49,12 +49,22 @@ nontransactional.
   analysis slots; `Session.AcquireCommand` admits commands. Notice levels,
   emission and the relation skip notices (`ExistingRelation`,
   `MissingRelation`) are in `notices.go`.
+  New operation contexts suspend only inherited private work activation before
+  ordinary cancellation derivation. This admits reuse of a callback context on
+  another connection without borrowing the old runtime owner. The original
+  request policy remains inert until that operation's own unlocked runtime;
+  `SourceContext` retains the exact caller context and cancellation authority.
   `Operation.OriginalSQL` and `SQLAvailable` retain the command-admitted immutable
   frontend text, not a statement substring or mutable session setting. A simple
   batch shares it through every statement; prepared execution installs its
   original source. Nested execution keeps the outer command, while source-less
   internal operations remain explicitly unavailable. Source lives until Done and
   is never copied into a retained cursor or prepared expression.
+  `XMLInput` copies literal/parameter provenance into mapped XML errors and
+  warnings for the active operation. `OutputNotices` retains only a handler and
+  captured filtering threshold; a fresh `OutputNoticeCollector` records actual
+  typed output before unlocked delivery, including warnings before later errors.
+  Retained rows keep sink-free output presentation, never a completed operation.
   Command admission captures typed CPU/parallel planner costs, statistics target,
   constraint-exclusion mode, cursor fraction and recursive-worktable factor under
   the existing settings mutex alongside the worker ceiling. Consumers receive
@@ -153,6 +163,8 @@ nontransactional.
   provider provenance without reparsing display text; ordinary/native string
   providers still pass through the definition parser. All callbacks remain
   outside runtime locks.
+  Presentation captures `xmloption` under this same mutex; current execution
+  parameters/text casts use that mode, while accepted XML literals retain theirs.
   The settings cores (`Presentation`, `LookupDefinition`, `ParseValue`, `SetInput`,
   `SettingAccess`, `ValidateValueLocked`) parse and check without installing. The
   engine's persisted test path reuses them without changing the issuer. Under the root's
@@ -474,6 +486,8 @@ types.
 
 ## Testing
 
+New-operation workload activation/source-identity units use `RUN='^TestWorkAdmission'`.
+
 Package units cover the journal with its fences, capture and merge, notices,
 SET/LOCAL/SAVE actions, RESET ALL and SHOW ALL, the 2PC registry's claim and preflight, CHAIN modes and
 PREPARE refusals, the notification
@@ -488,6 +502,9 @@ before reading settings; a zero or incomplete role view is not a visibility gran
 Routine configuration journal units live in `enginetests/` and use
 `RUN='^TestRoutineConfiguration'`, also with `RACE=1`; they assert typed action
 ownership, immutable checkpoint backing and transaction versus SAVE boundaries.
+XML diagnostic ownership and real protocol output codec units use
+`RUN='^TestXML(Input|Protocol)'`, including `RACE=1`
+for detached collector/cancellation ownership.
 
 ```sh
 make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|TransactionalSchemaAdmission|StatementPhases|DataView|PrivateStorage|CommittedRoots|NeedsSnapshotProjection|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'

@@ -342,6 +342,18 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			if err != nil {
 				return nil, err
 			}
+		case parser.XMLParseExpr:
+			var err error
+			node, err = b.bindXMLParse(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.XMLSerializeExpr:
+			var err error
+			node, err = b.bindXMLSerialize(r)
+			if err != nil {
+				return nil, err
+			}
 		case parser.SQLJSONQueryExpr:
 			var err error
 			node, err = functions.BindSQLJSONQuery(b, r)
@@ -580,7 +592,7 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			if err != nil {
 				return nil, err
 			}
-			if r.RequiresDomain && !u.Type.IsDomain() && !u.Type.IsLquery() && !u.Type.IsLtree() && !u.Type.IsLtxtquery() {
+			if r.RequiresDomain && u.Type.BaseType().ID() != sqltype.XML && !u.Type.IsDomain() && !u.Type.IsLquery() && !u.Type.IsLtree() && !u.Type.IsLtxtquery() {
 				return nil, expr.ErrorAt("0A000", "typed literals are unsupported", rawType.Pos)
 			}
 			if found {

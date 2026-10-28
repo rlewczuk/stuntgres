@@ -25,11 +25,11 @@ func TestReferenceSQLJSONAssignmentControls(t *testing.T) {
 		check := fixture.Select(`SELECT id,s,j,o FROM sqj_assignment ORDER BY id`,
 			[]string{"id", "s", "j", "o"}, []string{"INT4", "JSONB", "JSONB", "JSONB"},
 			[][]any{{int64(1), `1`, `{"a": 1}`, `{}`}})
-		sqljsonBoth(t, p, b, c, check)
+		fixture.SQLJSONBoth(t, p, b, c, check)
 		if b.PG {
 			run(fixture.Exec(`INSERT INTO sqj_assignment(id) VALUES(2)`, 1))
 			check.Rows = append(check.Rows, []any{int64(2), `1`, `{"a": 1}`, `{}`})
-			sqljsonBoth(t, p, b, c, check)
+			fixture.SQLJSONBoth(t, p, b, c, check)
 			return
 		}
 
@@ -45,7 +45,7 @@ func TestReferenceSQLJSONAssignmentControls(t *testing.T) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatalf("restore actual assignment recipe: %v\n%s", err, dump.String())
 		}
-		sqljsonBoth(t, p, b, c, check)
+		fixture.SQLJSONBoth(t, p, b, c, check)
 		var redump bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
 			t.Fatal(err)
@@ -55,7 +55,7 @@ func TestReferenceSQLJSONAssignmentControls(t *testing.T) {
 		}
 		run(fixture.Exec(`INSERT INTO sqj_assignment(id) VALUES(2)`, 1))
 		check.Rows = append(check.Rows, []any{int64(2), `1`, `{"a": 1}`, `{}`})
-		sqljsonBoth(t, p, b, c, check)
+		fixture.SQLJSONBoth(t, p, b, c, check)
 
 		if p.Postgres != nil {
 			if _, err := p.Postgres.ExecContext(p.Ctx, `DROP SCHEMA public CASCADE; CREATE SCHEMA public`); err != nil {

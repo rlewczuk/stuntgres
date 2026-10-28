@@ -26,6 +26,8 @@ func releasedCatalogFacts() []CastMetadata {
 		{0, Polygon, Point, 1540, 'e', 'f'}, {0, Polygon, Path, 1447, 'a', 'f'}, {0, Polygon, Box, 1446, 'e', 'f'}, {0, Polygon, Circle, 1474, 'e', 'f'},
 		{0, Circle, Point, 1416, 'e', 'f'}, {0, Circle, Box, 1480, 'e', 'f'}, {0, Circle, Polygon, 1544, 'e', 'f'},
 		{0, Int4Range, Int4Multirange, 4281, 'e', 'f'}, {0, NumRange, NumMultirange, 4284, 'e', 'f'}, {0, Int8Range, Int8Multirange, 4296, 'e', 'f'},
+		{0, XML, Text, 0, 'a', 'b'}, {0, XML, VarChar, 0, 'a', 'b'}, {0, XML, BPChar, 0, 'a', 'b'},
+		{0, Text, XML, 2896, 'e', 'f'}, {0, VarChar, XML, 2896, 'e', 'f'}, {0, BPChar, XML, 2896, 'e', 'f'},
 	}
 	for _, pair := range [][2]ID{{Regproc, Regprocedure}, {Regprocedure, Regproc}, {Regoper, Regoperator}, {Regoperator, Regoper}, {Cidr, Inet}, {Bit, VarBit}, {VarBit, Bit}} {
 		rows = append(rows, CastMetadata{0, pair[0], pair[1], 0, 'i', 'b'})

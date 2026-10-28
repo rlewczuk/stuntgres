@@ -51,7 +51,7 @@ func TestReferenceJSONBEachPredecessorDemand(t *testing.T) {
 							if tc.bad {
 								// Runtime root failure has no SQL position, portal-input
 								// context, detail, hint or object fields, even when bound.
-								jsonKeysError(t, p, b, executor, query, false, fixture.ControlsReferenceDiagnostic("22023", "cannot call "+function+" on a non-object"), "execute", tc.id)
+								fixture.JSONKeysError(t, p, b, executor, query, false, fixture.ControlsReferenceDiagnostic("22023", "cannot call "+function+" on a non-object"), "execute", tc.id)
 								return
 							}
 							s := fixture.Select(query, []string{"key", "value"}, []string{"TEXT", jsonbEachType(function)}, tc.rows, tc.id)

@@ -161,6 +161,11 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
 - Simple commands attach their complete frontend SQL to the admitted operation.
   Extended Bind and every Execute/resume attach the original prepared source;
   nested SQL EXECUTE and FETCH keep the outer frontend command's source.
+- XML text/binary values use the shared genuine codecs. Actual typed output
+  attaches an ephemeral warning sink while the command is active; all simple
+  result rows are consumed before Finish. Logging/metadata are quiet, and
+  committed warnings precede a later conversion error. Wire text converts once
+  through admitted client authority; XML binary send owns its declaration.
 
 ## Testing
 
@@ -182,6 +187,8 @@ Session activity source transport and identity-capacity mechanics use
   (`password_cost.go`).
 - Byte- and function-level units (framing, cancellation, prepared log values,
   startup parameters) supplement the public wire witnesses in `reference/sessions`.
+- Active XML output units use `RUN='^TestXMLServerActiveOutput$'`;
+  they exercise the real codec, ephemeral notice delivery and row framing.
 
 ```sh
 make check RUN='^TestServer(ProtocolFraming|ProtocolCancellation|PreparedLogValues|StartupParameters)$'

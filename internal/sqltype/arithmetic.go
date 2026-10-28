@@ -110,7 +110,7 @@ func (p Arithmetic) Binary(ctx context.Context, a, b Value, input InputEnvironme
 		return p.moneyBinary(a, b)
 	}
 	if temporalArithmeticType(p.left.id) || temporalArithmeticType(p.right.id) {
-		return p.datetimeBinary(a, b, input)
+		return p.datetimeBinary(ctx, a, b, input)
 	}
 	if p.left.id == Point || p.left.id == Box || p.left.id == Path || p.left.id == Circle {
 		return p.geometryBinary(ctx, a, b)

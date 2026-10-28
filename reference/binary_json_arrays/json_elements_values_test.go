@@ -45,7 +45,7 @@ func jsonElementsValues(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 				t.Fatalf("scalar carrier=%T", raw)
 			}
 		}
-		jsonKeysBoth(t, p, b, c, jsonElementsMetadata(s, b.PG))
+		fixture.JSONKeysBoth(t, p, b, c, jsonElementsMetadata(s, b.PG))
 		for _, tc := range []struct {
 			input     string
 			raw, text [][]any
@@ -59,7 +59,7 @@ func jsonElementsValues(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 			}
 			s := jsonElementsSelect(f, "SELECT * FROM "+f+"($1)", want, tc.input)
 			s.Bag = true
-			jsonKeysBoth(t, p, b, c, s)
+			fixture.JSONKeysBoth(t, p, b, c, s)
 		}
 	}
 }
@@ -109,7 +109,7 @@ func jsonElementsNullMetadata(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 					names = append(names, "ordinality")
 					types = append(types, "INT8")
 				}
-				jsonKeysBoth(t, p, b, c, jsonElementsMetadata(fixture.Select(tc.query, names, types, want, input), b.PG))
+				fixture.JSONKeysBoth(t, p, b, c, jsonElementsMetadata(fixture.Select(tc.query, names, types, want, input), b.PG))
 			}
 		}
 	}

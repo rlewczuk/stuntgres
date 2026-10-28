@@ -25,7 +25,7 @@ func TestReferenceJSONControlsAndStoredExpressions(t *testing.T) {
 func jsonReferenceControls(t *testing.T, p *fixture.Pair) {
 	t.Helper()
 	nativeRun := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, s) }
-	nativeRun(fixture.Exec("CREATE TABLE json_saved(id INTEGER,v JSON DEFAULT json "+jsonReferenceQuote(jsonControlDefault)+",n JSON)", 0))
+	nativeRun(fixture.Exec("CREATE TABLE json_saved(id INTEGER,v JSON DEFAULT json "+fixture.JSONReferenceQuote(jsonControlDefault)+",n JSON)", 0))
 	nativeRun(fixture.Exec("CREATE TABLE json_empty(v JSON)", 0))
 	nativeRun(fixture.Exec("INSERT INTO json_saved VALUES(1,$1,NULL)", 1, jsonControlDocument))
 	nativeRun(fixture.Prepared(fixture.Exec("INSERT INTO json_saved(id,n) VALUES(2,'null')", 1)))

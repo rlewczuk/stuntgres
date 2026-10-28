@@ -13,6 +13,7 @@ func TestCastImplementedInventory(t *testing.T) {
 	scalarIDs := map[ID]string{
 		16: "bool", 17: "bytea", 18: "char", 19: "name", 20: "int8", 21: "int2", 23: "int4", 25: "text", 1790: "refcursor",
 		22: "int2vector", 30: "oidvector",
+		142:  "xml",
 		3220: "pg_lsn",
 		3361: "pg_ndistinct", 3402: "pg_dependencies", 5017: "pg_mcv_list",
 		26: "oid", 27: "tid", 28: "xid", 29: "cid", 5069: "xid8", 5038: "pg_snapshot", 2970: "txid_snapshot", 24: "regproc", 2202: "regprocedure", 2203: "regoper", 2204: "regoperator", 2205: "regclass", 2206: "regtype", 4096: "regrole", 4191: "regcollation", 4089: "regnamespace", 3734: "regconfig", 3769: "regdictionary",

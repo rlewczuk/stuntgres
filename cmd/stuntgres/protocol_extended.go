@@ -180,6 +180,12 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 				if e := op.Context().Err(); e != nil {
 					return e
 				}
+				if logical, socketErr := c.writeNotices(op); logical != nil {
+					return logical
+				} else if socketErr != nil {
+					transportErr = socketErr
+					return socketErr
+				}
 				logicalErr, socketErr := c.writeFields(fields, &body)
 				if socketErr != nil {
 					transportErr = socketErr

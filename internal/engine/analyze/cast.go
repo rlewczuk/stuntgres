@@ -229,6 +229,15 @@ func (b *Binder) CoerceSelected(node expr.Expr, target sqltype.Usage, mode sqlty
 	if err != nil {
 		return nil, err
 	}
+	// Collation derivation can change the destination Usage (notably NAME's
+	// declared C collation). Retain the selected operation, but bind its plan
+	// to the same effective usages carried by the executable expression.
+	if info.Usage != target {
+		p, err = p.Rebind(node.ResultUsage(), info.Usage, mode)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return plan.CoercionExpr{Info: info, Child: node, Plan: p, Mode: mode}, nil
 }
 

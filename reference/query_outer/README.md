@@ -7,6 +7,12 @@ Polymorphic routine outputs reuse these owners for declaration-preserving OUT,
 INOUT, TABLE and SETOF specialization, including duplicate rows, typed NULLs,
 held argument frames and native emitted-script replay.
 
+`JSON_TABLE` relational FROM sources belong here, including nested rows,
+PASSING, path/policy authority, diagnostics, stored definitions, cancellation and
+native replay. Scalar SQL/JSON query functions remain in
+[binary_json_arrays](../binary_json_arrays/README.md#sqljson-query-functions);
+JSONPath evaluation is in [datetime_formatting](../datetime_formatting/README.md#testing).
+
 ## Testing
 
 Follow [the shared testing policy](../../docs/TESTING.md). `main_test.go` owns
@@ -79,3 +85,10 @@ make check RUN='^TestReferenceRoutineProcedures' REFERENCE=1
 make check RUN='^TestReferenceQueryOuterJoin'
 make check RUN='^TestReferenceQueryOuterJoin' REFERENCE=1
 ```
+- `JSON_TABLE` relational sources: `RUN='^TestReferenceJSONTable'`
+
+JSON_TABLE helpers stay in `json_table_helpers_test.go`; shared setup/runners and
+native-control replay use `fixture.JSONTableScenario`, `SQLJSONBoth`,
+`SQLJSONDiagnostic`, `SQLJSONQueryOne` and `JSONPathNavigateReplay` with its
+single-owner replay/metadata closure. Cancellation uses the existing provider
+admission helpers; retained native controls replay actual emitted SQL on the oracle.

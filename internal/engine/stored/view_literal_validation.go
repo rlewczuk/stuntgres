@@ -188,6 +188,15 @@ func (v *viewLiteralValidator) validate(catalog catalog.Read) error {
 // walkLiteralRoots is the checked raw/source pairing shared by capture ownership
 // and literal validation. Ordinals remain local to the original raw root.
 func (v *View) walkLiteralRoots(visit func(parser.Expr, analyze.ViewLiteralPath, *int) error, star func(analyze.ViewLiteralPath) error) error {
+	// Rendering starts from syntax, whereas occurrence traversal starts from
+	// frames. They must name the same accepted root before either can grant
+	// authority; otherwise replacement root syntax is never inspected here.
+	if v.syntax != nil {
+		project := v.queries[v.syntax]
+		if project == nil || project.Syntax != v.syntax || v.frames[project.Frame] != project {
+			return fmt.Errorf("stuntgres: mismatched frozen root syntax")
+		}
+	}
 	for frame, project := range v.frames {
 		s := project.Syntax
 		if s == nil {
@@ -452,6 +461,20 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.XMLParseExpr:
+		if _, err := v.capturedXML(path, r); err != nil {
+			return err
+		}
+		return child(r.Child)
+	case parser.XMLSerializeExpr:
+		usage, err := v.capturedXML(path, r)
+		if err != nil {
+			return err
+		}
+		if captured, ok := v.castUsages[path]; !ok || captured != usage {
+			return fmt.Errorf("stuntgres: mismatched frozen XMLSERIALIZE target")
+		}
+		return child(r.Child)
 	case parser.GroupingExpr:
 		return args(r.Args)
 	case parser.InListExpr:

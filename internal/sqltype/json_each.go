@@ -3,6 +3,8 @@ package sqltype
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/workadmission"
 )
 
 // JSONEachPlan retains concrete usages only; all scan/iteration state belongs
@@ -73,7 +75,7 @@ func (p JSONEachPlan) Open(ctx context.Context, value Value) (JSONEachCursor, er
 		cursor.document = value
 		return cursor, nil
 	}
-	scan := jsonScanResult{mode: jsonScanEach}
+	scan := jsonScanResult{mode: jsonScanEach, workClass: workadmission.WorkJSONObjectExpand}
 	if cursor.asText {
 		scan.mode = jsonScanEachText
 	}
@@ -95,6 +97,9 @@ func (c *JSONEachCursor) Next(ctx context.Context) (Value, bool, error) {
 		fields := c.document.jsonb.root.fields
 		if c.index == len(fields) {
 			return Null(c.result), false, nil
+		}
+		if err := workadmission.Admit(ctx, workadmission.WorkJSONBObjectExpand); err != nil {
+			return Value{}, false, err
 		}
 		member := &fields[c.index]
 		keyType := c.result.CompositeMember(0).Usage.Type

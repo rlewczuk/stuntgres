@@ -34,7 +34,7 @@ func TestReferenceSQLJSONDiagnostics(t *testing.T) {
 					if tc.token != "" {
 						d.Position = fixture.Position(len([]rune(prefix)) + len([]rune(tc.expr[:strings.Index(tc.expr, tc.token)])) + 1)
 					}
-					sqljsonDiagnostic(t, p, b, c, prefix+tc.expr+" AS v", d, true)
+					fixture.SQLJSONDiagnostic(t, p, b, c, prefix+tc.expr+" AS v", d, true)
 				})
 			}
 			for _, tc := range []struct{ expr, token string }{
@@ -46,7 +46,7 @@ func TestReferenceSQLJSONDiagnostics(t *testing.T) {
 				t.Run(prefix+tc.expr, func(t *testing.T) {
 					d := fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "`+tc.token+`"`)
 					d.Position = fixture.Position(len([]rune(prefix)) + len([]rune(tc.expr[:strings.LastIndex(tc.expr, tc.token)])) + 1)
-					sqljsonDiagnostic(t, p, b, c, prefix+tc.expr, d, true)
+					fixture.SQLJSONDiagnostic(t, p, b, c, prefix+tc.expr, d, true)
 				})
 			}
 			for _, tc := range []struct{ expr, signature string }{
@@ -58,7 +58,7 @@ func TestReferenceSQLJSONDiagnostics(t *testing.T) {
 					d := fixture.ControlsReferenceDiagnostic("42883", "function "+tc.signature+" does not exist")
 					d.Position = fixture.Position(len([]rune(prefix)) + 1)
 					d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-					sqljsonDiagnostic(t, p, b, c, prefix+tc.expr, d, true)
+					fixture.SQLJSONDiagnostic(t, p, b, c, prefix+tc.expr, d, true)
 				})
 			}
 		}
@@ -68,7 +68,7 @@ func TestReferenceSQLJSONDiagnostics(t *testing.T) {
 					d := fixture.ControlsReferenceDiagnostic("22P02", "invalid input syntax for type json")
 					d.Detail = `Token "x" is invalid.`
 					d.Context = "JSON data, line 1: " + input
-					sqljsonDiagnostic(t, p, b, c, "SELECT "+expr+" AS v", d, false, input)
+					fixture.SQLJSONDiagnostic(t, p, b, c, "SELECT "+expr+" AS v", d, false, input)
 				})
 			}
 		}
@@ -76,13 +76,13 @@ func TestReferenceSQLJSONDiagnostics(t *testing.T) {
 			d := fixture.ControlsReferenceDiagnostic("22P02", "invalid input syntax for type json")
 			d.Detail = `Token "x" is invalid.`
 			d.Context = `JSON data, line 1: {"a":1,"a":2} x`
-			sqljsonDiagnostic(t, p, b, c, `SELECT JSON($1::text WITH UNIQUE KEYS) AS v`, d, false, `{"a":1,"a":2} x`)
+			fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT JSON($1::text WITH UNIQUE KEYS) AS v`, d, false, `{"a":1,"a":2} x`)
 		})
 		for _, expr := range []string{`JSON('x')`, `JSON_ARRAY('x' FORMAT JSON)`, `JSON_SERIALIZE('x')`} {
 			t.Run("literal "+expr, func(t *testing.T) {
 				d := fixture.ControlsReferenceDiagnostic("22P02", "invalid input syntax for type json")
 				d.Detail, d.Context = `Token "x" is invalid.`, "JSON data, line 1: x"
-				sqljsonDiagnostic(t, p, b, c, "SELECT "+expr+" AS v", d, false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, "SELECT "+expr+" AS v", d, false)
 			})
 		}
 	})

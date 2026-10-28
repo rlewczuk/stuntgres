@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/workadmission"
 )
 
 func (s *State) inheritCTEs() {
@@ -80,8 +81,13 @@ func (s *recursiveUnionStage) close() error {
 }
 
 func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, error) {
+	defer func() { s.Arm.Inner.Evaluation.Context = nil }()
 	for s.Phase < 2 {
 		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		// One step advances a row or completes/opens a recursive round.
+		if err := workadmission.Admit(ctx, workadmission.WorkRecursiveUnion); err != nil {
 			return false, err
 		}
 		if !s.Opened {
@@ -345,6 +351,7 @@ func (a *SetArm) Close() error { return a.Inner.Close() }
 // The arm scratch is reused on every pull; only unique keys or demanded UNION
 // ALL outputs are retained by the parent. Arm-local clauses execute first.
 func (a *SetArm) Next(ctx context.Context) ([]sqltype.Value, bool, error) {
+	defer func() { a.Inner.Evaluation.Context = nil }()
 	i, present, err := a.Inner.NextOccurrence(ctx)
 	if err != nil || !present {
 		return nil, present, err

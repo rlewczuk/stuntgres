@@ -66,6 +66,13 @@ type Folding interface {
 	PlanningFold() Fold
 }
 
+// ExecutionDemand marks providers whose diagnostics belong to demanded runtime
+// evaluation, even beneath an otherwise preflight-evaluable enclosing expression.
+// Unlike node-local FoldNever, this barrier propagates through enclosing nodes.
+type ExecutionDemand interface {
+	ExecutionDemand()
+}
+
 // Strict is when conditional planning replaces a call that has a literal NULL
 // child with a typed NULL.
 type Strict uint8

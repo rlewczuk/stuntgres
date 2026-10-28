@@ -221,6 +221,8 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	c.state.CapturePlannerAdmission()
 	c.state.CaptureAsyncAdmission()
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
+	c.state.Input.XMLInput = cursorXMLInput{authority: c.authority}
+	c.state.Output.XMLNotice = nil
 	// Presentation readers stored in query frames must not retain this admission.
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
 	c.state.Output.Regproc = nil
@@ -276,7 +278,9 @@ type sqlCursorProducer struct {
 
 var _ exec.CursorProducer = sqlCursorProducer{}
 
-func (p sqlCursorProducer) Context() context.Context { return p.scope.Op.Context() }
+func (p sqlCursorProducer) Context() context.Context {
+	return p.scope.activateWork(p.scope.executionContext())
+}
 func (p sqlCursorProducer) Open() (*exec.Stage, error) {
 	if err := p.cursor.openProducer(p.scope); err != nil {
 		return nil, err
@@ -311,6 +315,9 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.Inquiry.visibilityCatalog = c.visibilityCatalog
 	s.Inquiry.visibilityRelationPath, s.Inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
 	c.authority.Host = HostOf(s)
+	// Runtime character-to-XML conversion follows this FETCH/Execute's mode;
+	// already accepted XML parameters/literals keep their immutable payloads.
+	c.state.Input.XMLMode = s.Input.XMLMode
 	s.foreignTables().cursor = c
 }
 func (s *StatementScope) sessionPublicationPreflight() error {

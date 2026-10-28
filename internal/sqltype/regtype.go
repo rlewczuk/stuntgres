@@ -54,6 +54,11 @@ func (d *Descriptor) ContainsCatalogIdentifier() bool {
 // ParameterInput associates provider notices with the actual portal input slot.
 // Runtime text IO uses the unchanged environment and has no portal context.
 func (input InputEnvironment) ParameterInput(slot int, empty bool) InputEnvironment {
+	if adapter, ok := input.XMLInput.(interface {
+		XMLParameter(int, bool) XMLInputDiagnostics
+	}); ok {
+		input.XMLInput = adapter.XMLParameter(slot, empty)
+	}
 	if input.FTS != nil {
 		input.FTS = input.FTS.FTSParameter(slot, empty)
 	}
@@ -83,6 +88,9 @@ func (input InputEnvironment) ParameterInput(slot int, empty bool) InputEnvironm
 // LiteralInput associates codec notices with the enclosing SQL literal, including
 // array children and warnings emitted before a later input error.
 func (input InputEnvironment) LiteralInput(position int) InputEnvironment {
+	if adapter, ok := input.XMLInput.(interface{ XMLLiteral(int) XMLInputDiagnostics }); ok {
+		input.XMLInput = adapter.XMLLiteral(position)
+	}
 	if input.FTS != nil {
 		input.FTS = input.FTS.FTSLiteral(position)
 	}

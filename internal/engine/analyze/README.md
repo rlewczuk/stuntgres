@@ -8,6 +8,13 @@ Rule rewriting, view-write lowering and RLS walkers are in
 [`view`](../view/README.md); ON CONFLICT and MERGE execution state is in
 [`dml`](../dml/README.md).
 
+`NewBinder` suspends only workload-admission activation on its private context.
+Domain/default compilation may enter from runtime conversion, but binding cannot
+invoke application workload callbacks under the caller's metadata locks.
+Cancellation, deadline, cause, unrelated values and the inert request policy are
+unchanged; only a later known-unlocked runtime owner may activate that policy.
+Pure unlocked execution preflight is not blanket-disabled by package location.
+
 `StatisticsConsumer` is a distinct retained-expression context. Prohibited
 subquery/aggregate/grouping/window/set-returning nodes use statistics-specific
 diagnostics through normal recursive binding, including selected-call routes.
@@ -87,6 +94,17 @@ belong to the invocation-private Binding, never declarations or retained plans.
 Nominal typed literals for installed ltree and lquery resolve through the ordinary
 type lookup before admission. Their resolved scalar descriptors, not their written
 names, authorize input alongside domains.
+
+XML nominal literals resolve the concrete XML descriptor through that same
+typed-literal lane. Their accepted immutable payload joins the existing
+InputConstant/TemporalConstant capture, independently of fold publication.
+Runtime concrete TEXT casts and XMLPARSE remain execution recipes. Both XML
+sources use ordinary assignment-context coercion before provider NULL handling,
+including declared nonstrict casts. Serializer source input precedes target
+resolution; target conversion uses ordinary implicit coercion. A narrow result
+marker on the existing coercion wrapper preserves XML syntax across native and
+catalog cast graphs. Frozen target Usage and source occurrences, not raw names,
+are authenticated against that actual accepted structure.
 
 Installed connectby calls complete anonymous caller definitions through the
 same captured type/collation/input authority as other record sources, before
@@ -389,6 +407,9 @@ library, and never the root engine or `session`. The engine, the root driver
   callable/operator probes: it binds no routine, checks no EXECUTE and captures
   no losing-candidate dependency. Catalog-free callers pass nil. Prepared
   captures record pair identity or absence for invalidation.
+  Native selected plans retain their admitted operation and exact descriptor
+  generations while binding the effective result Usage after collation
+  derivation; declared type collation is not a second executable destination.
   Negative selected-routine argument slots are binder-local transport, never
   frozen source syntax. The owning written cast/operator supplies original
   argument recipes; provider dispatch cannot overwrite them with placeholders.
@@ -445,6 +466,8 @@ conditions, defaults, checks, index and partition expressions); `expectedOf`,
 `signatureOf`; rule program execution and admission.
 
 ## Testing
+
+Workload-policy binder isolation units use `RUN='^TestWorkAdmission'`.
 
 Pure selected aggregate-mode invariants use `RUN='^TestAggregateMovingSelection$'`;
 the public SQL log witnesses live in `reference/aggregates`.

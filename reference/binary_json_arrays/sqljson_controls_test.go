@@ -33,7 +33,7 @@ func sqljsonControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 		{int64(1), `{"doc" : {"n":1}}`, `[1]`, `{"n":1,"label":"{\"n\":1}"}`},
 		{int64(2), `{}`, `[1, 2]`, `{"n":2,"label":null}`},
 	})
-	sqljsonBoth(t, p, b, c, check)
+	fixture.SQLJSONBoth(t, p, b, c, check)
 	if b.PG {
 		return
 	}
@@ -69,7 +69,7 @@ func sqljsonControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	if err = stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	sqljsonBoth(t, p, b, c, check)
+	fixture.SQLJSONBoth(t, p, b, c, check)
 	var redump bytes.Buffer
 	if err = stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestReferenceSQLJSONDomainPredicate(t *testing.T) {
 			`'{}'::sqj_control_json IS NOT JSON`,
 		} {
 			t.Run(expr, func(t *testing.T) {
-				sqljsonDiagnostic(t, p, b, c, "SELECT "+expr+" AS v",
+				fixture.SQLJSONDiagnostic(t, p, b, c, "SELECT "+expr+" AS v",
 					fixture.ControlsReferenceDiagnostic("42804", "cannot use type sqj_control_json in IS JSON predicate"), true)
 			})
 		}

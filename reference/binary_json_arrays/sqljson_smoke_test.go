@@ -28,8 +28,8 @@ func TestReferenceSQLJSONFeatureSmoke(t *testing.T) {
 		if err = insert.Close(); err != nil {
 			t.Fatal(err)
 		}
-		sqljsonBoth(t, p, b, c, fixture.Select(`SELECT JSON_OBJECT('a' VALUE JSON_ARRAY(1,NULL,'null' FORMAT JSON),'b':JSON_ARRAY(SELECT doc FROM sqj_smoke WHERE id<=2 ORDER BY id FORMAT JSON) WITH UNIQUE KEYS) AS v`, []string{"v"}, []string{"JSON"}, [][]any{{`{"a" : [1, null], "b" : [{"n":1}]}`}}))
-		sqljsonBoth(t, p, b, c, fixture.Select(`SELECT id,JSON_ARRAY(SELECT x.id FROM sqj_smoke x WHERE x.id<=s.id ORDER BY x.id RETURNING text) AS a FROM sqj_smoke s ORDER BY id`, []string{"id", "a"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), `[1]`}, {int64(2), `[1, 2]`}, {int64(3), `[1, 2, 3]`}}))
+		fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT JSON_OBJECT('a' VALUE JSON_ARRAY(1,NULL,'null' FORMAT JSON),'b':JSON_ARRAY(SELECT doc FROM sqj_smoke WHERE id<=2 ORDER BY id FORMAT JSON) WITH UNIQUE KEYS) AS v`, []string{"v"}, []string{"JSON"}, [][]any{{`{"a" : [1, null], "b" : [{"n":1}]}`}}))
+		fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT id,JSON_ARRAY(SELECT x.id FROM sqj_smoke x WHERE x.id<=s.id ORDER BY x.id RETURNING text) AS a FROM sqj_smoke s ORDER BY id`, []string{"id", "a"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), `[1]`}, {int64(2), `[1, 2]`}, {int64(3), `[1, 2, 3]`}}))
 		sqljsonValues(t, p, b, c, []struct {
 			expr, typ string
 			want      any
@@ -53,10 +53,10 @@ func TestReferenceSQLJSONFeatureSmoke(t *testing.T) {
 			if b.PG {
 				want = "\x02"
 			}
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT `+expr+` AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{want}}))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT `+expr+` AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{want}}))
 		}
 		for _, root := range []struct{ source, kind string }{{`{}`, "OBJECT"}, {`[]`, "ARRAY"}, {`"s"`, "SCALAR"}, {`1`, "SCALAR"}, {`true`, "SCALAR"}, {`false`, "SCALAR"}, {`null`, "SCALAR"}} {
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT $1::text IS JSON `+root.kind+` AS v`, []string{"v"}, []string{"BOOL"}, [][]any{{true}}, root.source))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT $1::text IS JSON `+root.kind+` AS v`, []string{"v"}, []string{"BOOL"}, [][]any{{true}}, root.source))
 		}
 		held, err := c.PrepareContext(p.Ctx, `SELECT JSON($1::text WITH UNIQUE KEYS) AS v`)
 		if err != nil {
@@ -123,7 +123,7 @@ func TestReferenceSQLJSONFeatureSmoke(t *testing.T) {
 			{`JSON_OBJECT(NULL:1)`, "22004", "null value not allowed for object key"},
 			{`JSON_OBJECT(NULL:NULL ABSENT ON NULL RETURNING jsonb)`, "22023", "argument 1: key must not be null"},
 		} {
-			sqljsonDiagnostic(t, p, b, c, `SELECT `+tc.expr+` AS v`, fixture.ControlsReferenceDiagnostic(tc.code, tc.message), false)
+			fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+tc.expr+` AS v`, fixture.ControlsReferenceDiagnostic(tc.code, tc.message), false)
 		}
 		run(fixture.Exec(`CREATE TABLE sqj_smoke_atomic(id int,j json)`, 0))
 		run(fixture.Exec(`INSERT INTO sqj_smoke_atomic VALUES(1,JSON_ARRAY(1))`, 1))

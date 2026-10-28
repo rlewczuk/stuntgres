@@ -92,12 +92,12 @@ func TestReferenceIntaggControls(t *testing.T) {
 		intaggStored(run)
 		checks := intaggStoredChecks(b)
 		for _, s := range checks {
-			arrayAggBoth(run, s)
+			fixture.ArrayAggBoth(run, s)
 		}
 		// Both installed functions must own real stored-expression edges, not
 		// merely have equal values to their builtin implementation kernels.
 		deps := fixture.Select("SELECT DISTINCT p.proname FROM pg_depend d JOIN pg_proc p ON p.oid=d.refobjid JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ia_addon' AND d.refclassid='pg_proc'::regclass::oid AND p.proname IN ('int_array_aggregate','int_array_enum') ORDER BY p.proname", []string{"proname"}, []string{"NAME"}, [][]any{{"int_array_aggregate"}, {"int_array_enum"}})
-		arrayAggBoth(run, deps)
+		fixture.ArrayAggBoth(run, deps)
 		t.Run("schema-restrict", func(t *testing.T) {
 			w := fixture.Diagnostic{
 				Code: "2BP01", Message: "cannot drop schema ia_addon because other objects depend on it",
@@ -174,7 +174,7 @@ func TestReferenceIntaggControls(t *testing.T) {
 			intaggControlRows(t, r.rows, r.step)
 		}
 		for _, s := range checks {
-			arrayAggBoth(run, s)
+			fixture.ArrayAggBoth(run, s)
 		}
 		run(deps)
 		if intaggDump(t, p.Ctx, p.Native) != dump {
@@ -274,7 +274,7 @@ func TestReferenceIntaggFeatureSmoke(t *testing.T) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 		intaggStored(run)
 		for _, s := range intaggStoredChecks(b) {
-			arrayAggBoth(run, s)
+			fixture.ArrayAggBoth(run, s)
 		}
 		q := "SELECT ia_addon.int_array_enum($1)"
 		stmt, err := c.PrepareContext(p.Ctx, q)
@@ -290,7 +290,7 @@ func TestReferenceIntaggFeatureSmoke(t *testing.T) {
 			}
 			s := fixture.Select(q, []string{"int_array_enum"}, []string{"INT4"}, want, arg)
 			s.Bag = true
-			arrayAggBoth(run, s)
+			fixture.ArrayAggBoth(run, s)
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 		}
 		t.Run("bad-signature", func(t *testing.T) {
@@ -308,7 +308,7 @@ func TestReferenceIntaggFeatureSmoke(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, s := range intaggStoredChecks(b) {
-				arrayAggBoth(run, s)
+				fixture.ArrayAggBoth(run, s)
 			}
 		}
 	})

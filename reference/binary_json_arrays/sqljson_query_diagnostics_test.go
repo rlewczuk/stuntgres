@@ -30,24 +30,24 @@ func TestReferenceSQLJSONQueryDiagnostics(t *testing.T) {
 			t.Run(tc.expr+tc.doc+tc.path, func(t *testing.T) {
 				d := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
 				d.Hint, d.Detail = tc.hint, tc.detail
-				sqljsonDiagnostic(t, p, b, c, `SELECT `+tc.expr+` AS v`, d, false, tc.doc, tc.path)
+				fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+tc.expr+` AS v`, d, false, tc.doc, tc.path)
 			})
 		}
 		for _, fn := range []string{"JSON_EXISTS", "JSON_QUERY", "JSON_VALUE"} {
 			for _, clause := range []string{"", "ERROR ON ERROR"} {
 				t.Run(fn+clause+" missing variable", func(t *testing.T) {
 					d := fixture.ControlsReferenceDiagnostic("42704", `could not find jsonpath variable "x"`)
-					sqljsonDiagnostic(t, p, b, c, `SELECT `+fn+`($1::jsonb,$2::jsonpath `+clause+`) AS v`, d, false, `{}`, `$x`)
+					fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+fn+`($1::jsonb,$2::jsonpath `+clause+`) AS v`, d, false, `{}`, `$x`)
 				})
 			}
 			t.Run(fn+" source document", func(t *testing.T) {
 				d := fixture.ControlsReferenceDiagnostic("22P02", "invalid input syntax for type json")
 				d.Detail, d.Context = `Token "x" is invalid.`, `JSON data, line 1: x`
-				sqljsonDiagnostic(t, p, b, c, `SELECT `+fn+`($1::text::jsonb,'$') AS v`, d, false, `x`)
+				fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+fn+`($1::text::jsonb,'$') AS v`, d, false, `x`)
 			})
 			t.Run(fn+" source path", func(t *testing.T) {
 				d := fixture.ControlsReferenceDiagnostic("42601", "syntax error at end of jsonpath input")
-				sqljsonDiagnostic(t, p, b, c, `SELECT `+fn+`('{}',$1::text::jsonpath) AS v`, d, false, `$[`)
+				fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+fn+`('{}',$1::text::jsonpath) AS v`, d, false, `$[`)
 			})
 			for _, tc := range []struct{ doc, path, code, message, detail, context, token string }{
 				{`'x'`, `'$'`, "22P02", "invalid input syntax for type json", `Token "x" is invalid.`, `JSON data, line 1: x`, `'x'`},
@@ -60,21 +60,21 @@ func TestReferenceSQLJSONQueryDiagnostics(t *testing.T) {
 					if tc.code == "42601" {
 						d.Position = fixture.Position(len([]rune(q[:strings.Index(q, tc.token)])) + 1)
 					}
-					sqljsonDiagnostic(t, p, b, c, q, d, tc.code == "42601")
+					fixture.SQLJSONDiagnostic(t, p, b, c, q, d, tc.code == "42601")
 				})
 			}
 			t.Run(fn+" unused passing failure", func(t *testing.T) {
 				d := fixture.ControlsReferenceDiagnostic("22P02", `invalid input syntax for type boolean: "bad"`)
 				q := `SELECT ` + fn + `('{}','$' PASSING $1::text::boolean AS unused) AS v`
-				sqljsonDiagnostic(t, p, b, c, q, d, false, "bad")
+				fixture.SQLJSONDiagnostic(t, p, b, c, q, d, false, "bad")
 			})
 			t.Run(fn+" constant preflight before NULL", func(t *testing.T) {
 				// Bound parameters become constants during PostgreSQL preflight;
 				// these errors do not witness runtime child evaluation.
 				d := fixture.ControlsReferenceDiagnostic("42601", "syntax error at end of jsonpath input")
-				sqljsonDiagnostic(t, p, b, c, `SELECT `+fn+`(NULL::jsonb,$1::text::jsonpath PASSING $2::text::boolean AS unused) AS v`, d, false, "$[", "bad")
+				fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+fn+`(NULL::jsonb,$1::text::jsonpath PASSING $2::text::boolean AS unused) AS v`, d, false, "$[", "bad")
 				d = fixture.ControlsReferenceDiagnostic("22P02", `invalid input syntax for type boolean: "bad"`)
-				sqljsonDiagnostic(t, p, b, c, `SELECT `+fn+`('{}',NULL::jsonpath PASSING $1::text::boolean AS unused) AS v`, d, false, "bad")
+				fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+fn+`('{}',NULL::jsonpath PASSING $1::text::boolean AS unused) AS v`, d, false, "bad")
 			})
 			t.Run(fn+" skipped runtime casts", func(t *testing.T) {
 				typ := "TEXT"
@@ -85,12 +85,12 @@ func TestReferenceSQLJSONQueryDiagnostics(t *testing.T) {
 					typ = "BOOL"
 				}
 				// Real table values cannot be folded into constant input casts.
-				sqljsonBoth(t, p, b, c, sqljsonQueryOne(`SELECT `+fn+`(doc,path::jsonpath PASSING binding::boolean AS unused) AS v FROM sqjq_runtime_inputs WHERE id=1`, typ, nil))
-				sqljsonBoth(t, p, b, c, sqljsonQueryOne(`SELECT `+fn+`(doc,path::jsonpath PASSING binding::boolean AS unused) AS v FROM sqjq_runtime_inputs WHERE id=2`, typ, nil))
+				fixture.SQLJSONBoth(t, p, b, c, fixture.SQLJSONQueryOne(`SELECT `+fn+`(doc,path::jsonpath PASSING binding::boolean AS unused) AS v FROM sqjq_runtime_inputs WHERE id=1`, typ, nil))
+				fixture.SQLJSONBoth(t, p, b, c, fixture.SQLJSONQueryOne(`SELECT `+fn+`(doc,path::jsonpath PASSING binding::boolean AS unused) AS v FROM sqjq_runtime_inputs WHERE id=2`, typ, nil))
 				d := fixture.ControlsReferenceDiagnostic("42601", "syntax error at end of jsonpath input")
-				sqljsonDiagnostic(t, p, b, c, `SELECT `+fn+`(doc,path::jsonpath PASSING binding::boolean AS unused) AS v FROM sqjq_runtime_inputs WHERE id=3`, d, false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+fn+`(doc,path::jsonpath PASSING binding::boolean AS unused) AS v FROM sqjq_runtime_inputs WHERE id=3`, d, false)
 				d = fixture.ControlsReferenceDiagnostic("22P02", `invalid input syntax for type boolean: "bad"`)
-				sqljsonDiagnostic(t, p, b, c, `SELECT `+fn+`(doc,path::jsonpath PASSING binding::boolean AS unused) AS v FROM sqjq_runtime_inputs WHERE id=4`, d, false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+fn+`(doc,path::jsonpath PASSING binding::boolean AS unused) AS v FROM sqjq_runtime_inputs WHERE id=4`, d, false)
 			})
 			// Native capability errors must escape selected error suppression. PG
 			// executes this same demanded path and has its independent value.
@@ -98,7 +98,7 @@ func TestReferenceSQLJSONQueryDiagnostics(t *testing.T) {
 				q := `SELECT ` + fn + `($1::jsonb,$2::jsonpath) AS v`
 				if !b.PG {
 					d := fixture.ControlsReferenceDiagnostic("0A000", "stuntgres: JSONPath scalar methods are unsupported")
-					sqljsonDiagnostic(t, p, b, c, q, d, false, `2`, `$.double()`)
+					fixture.SQLJSONDiagnostic(t, p, b, c, q, d, false, `2`, `$.double()`)
 					return
 				}
 				typ, want := "TEXT", any("2")
@@ -108,7 +108,7 @@ func TestReferenceSQLJSONQueryDiagnostics(t *testing.T) {
 				if fn == "JSON_EXISTS" {
 					typ, want = "BOOL", true
 				}
-				sqljsonBoth(t, p, b, c, sqljsonQueryOne(q, typ, want, `2`, `$.double()`))
+				fixture.SQLJSONBoth(t, p, b, c, fixture.SQLJSONQueryOne(q, typ, want, `2`, `$.double()`))
 			})
 		}
 		for _, prefix := range []string{"SELECT ", "/*é🙂*/ SELECT "} {
@@ -132,7 +132,7 @@ func TestReferenceSQLJSONQueryDiagnostics(t *testing.T) {
 					if tc.token != "" {
 						d.Position = fixture.Position(len([]rune(prefix+tc.expr[:strings.Index(tc.expr, tc.token)])) + 1)
 					}
-					sqljsonDiagnostic(t, p, b, c, prefix+tc.expr+` AS v`, d, true)
+					fixture.SQLJSONDiagnostic(t, p, b, c, prefix+tc.expr+` AS v`, d, true)
 				})
 			}
 		}
@@ -147,7 +147,7 @@ func TestReferenceSQLJSONQueryDiagnostics(t *testing.T) {
 				q := `/*é🙂*/ SELECT ` + tc.expr
 				d := fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "`+tc.token+`"`)
 				d.Position = fixture.Position(len([]rune(q[:strings.Index(q, tc.token)])) + 1)
-				sqljsonDiagnostic(t, p, b, c, q, d, true)
+				fixture.SQLJSONDiagnostic(t, p, b, c, q, d, true)
 			})
 		}
 	})

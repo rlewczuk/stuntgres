@@ -3,10 +3,11 @@ package sqltype
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/workadmission"
 )
 
-// jsonbExists searches only the immutable root. Keep this reached frame on the
-// structural search path: public active-cancellation admission observes it.
+// jsonbExists searches only the immutable root, admitting each candidate.
 func jsonbExists(ctx context.Context, root *jsonbNode, key string) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
@@ -15,6 +16,9 @@ func jsonbExists(ctx context.Context, root *jsonbNode, key string) (bool, error)
 	case jsonbObject:
 		lo, hi := 0, len(root.fields)
 		for lo < hi {
+			if err := workadmission.Admit(ctx, workadmission.WorkJSONBExistence); err != nil {
+				return false, err
+			}
 			mid := lo + (hi-lo)/2
 			order, err := compareJSONBKeys(ctx, root.fields[mid].key, key)
 			if err != nil {
@@ -31,10 +35,8 @@ func jsonbExists(ctx context.Context, root *jsonbNode, key string) (bool, error)
 		}
 	case jsonbArray:
 		for i := range root.items {
-			if i%jsonbWorkChunk == 0 {
-				if err := ctx.Err(); err != nil {
-					return false, err
-				}
+			if err := workadmission.Admit(ctx, workadmission.WorkJSONBExistence); err != nil {
+				return false, err
 			}
 			item := &root.items[i]
 			if item.kind != jsonbString {
@@ -46,6 +48,9 @@ func jsonbExists(ctx context.Context, root *jsonbNode, key string) (bool, error)
 			}
 		}
 	case jsonbString:
+		if err := workadmission.Admit(ctx, workadmission.WorkJSONBExistence); err != nil {
+			return false, err
+		}
 		order, err := compareJSONBKeys(ctx, root.text, key)
 		return order == 0 && err == nil, err
 	case jsonbNull, jsonbNumber, jsonbBoolean:

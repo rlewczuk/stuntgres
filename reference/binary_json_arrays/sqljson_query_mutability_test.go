@@ -75,8 +75,8 @@ func TestReferenceSQLJSONQueryMutability(t *testing.T) {
 						want bool
 					}{{"UTC", false}, {"America/Los_Angeles", true}, {"UTC", false}} {
 						run(fixture.Exec(`SET TIME ZONE '`+zone.name+`'`, 0))
-						s := sqljsonQueryOne(q, "BOOL", zone.want)
-						sqljsonBoth(t, p, b, c, s)
+						s := fixture.SQLJSONQueryOne(q, "BOOL", zone.want)
+						fixture.SQLJSONBoth(t, p, b, c, s)
 						fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 					}
 				})
@@ -116,11 +116,11 @@ func TestReferenceSQLJSONQueryMutability(t *testing.T) {
 							s.Prepared = prepared
 							run(s)
 							run(fixture.Exec(`INSERT INTO `+table+`(a,b,c,z,d,tm,tz) VALUES(`+values+`)`, 1))
-							sqljsonBoth(t, p, b, c, sqljsonQueryOne(`SELECT v FROM `+table, "BOOL", tc.want))
+							fixture.SQLJSONBoth(t, p, b, c, fixture.SQLJSONQueryOne(`SELECT v FROM `+table, "BOOL", tc.want))
 							s = fixture.Exec(`CREATE INDEX `+index+` ON sqjq_mutability_source((`+tc.expression+`))`, 0)
 							s.Prepared = prepared
 							run(s)
-							sqljsonBoth(t, p, b, c, sqljsonQueryOne(`SELECT `+tc.expression+` AS v FROM sqjq_mutability_source`, "BOOL", tc.want))
+							fixture.SQLJSONBoth(t, p, b, c, fixture.SQLJSONQueryOne(`SELECT `+tc.expression+` AS v FROM sqjq_mutability_source`, "BOOL", tc.want))
 							run(fixture.Exec(`DROP INDEX `+index, 0))
 							run(fixture.Exec(`DROP TABLE `+table, 0))
 						})

@@ -100,7 +100,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		next = n
 	case functions.LtreeArray:
 		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
-		if ref != nil { n.Ref = ref(n.Ref) }
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
 		next = n
  case functions.LtreeLtxtquery:
   n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
@@ -372,7 +374,17 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		n.Child = child(n.Child)
 		next = n
 	case plan.CoercionExpr:
+		if n.XMLSerializeResult {
+			if _, _, failure := plan.XMLSerialization(n); failure != nil {
+				return nil, failure
+			}
+		}
 		n.Child = child(n.Child)
+		if n.XMLSerializeResult {
+			if _, _, failure := plan.XMLSerialization(n); failure != nil {
+				return nil, failure
+			}
+		}
 		next = n
 	case plan.BitwiseExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)

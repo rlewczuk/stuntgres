@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"stuntgres/internal/workadmission"
 )
 
 // JSONStripNullsPlan retains occurrence-owned descriptor authority.
@@ -46,12 +48,12 @@ type jsonStripFrame struct {
 // Input storage is already grammar-validated. Decode every string during
 // processing, including keys whose null-valued member will be removed.
 func jsonStripNulls(ctx context.Context, source string, arrays bool) (string, error) {
-	l := jsonLexer{ctx: ctx, text: source, line: 1, decode: true}
+	l := jsonLexer{ctx: ctx, text: source, line: 1, decode: true, workClass: workadmission.WorkJSONStripNulls}
 	var out strings.Builder
 	var local [32]jsonStripFrame
 	stack := local[:0]
 	for {
-		if err := ctx.Err(); err != nil {
+		if err := workadmission.Admit(ctx, workadmission.WorkJSONStripNulls); err != nil {
 			return "", err
 		}
 		if err := l.next(); err != nil {
@@ -109,7 +111,7 @@ func jsonStripNulls(ctx context.Context, source string, arrays bool) (string, er
 			}
 		case 'n', 't', 'f', 'z':
 			for start := l.start; start < l.end; {
-				if err := ctx.Err(); err != nil {
+				if err := workadmission.Admit(ctx, workadmission.WorkJSONStripNulls); err != nil {
 					return "", err
 				}
 				end := min(start+4096, l.end)

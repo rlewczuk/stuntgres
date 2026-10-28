@@ -14,7 +14,7 @@ func TestReferenceJSONBPrettyFeatureSmoke(t *testing.T) {
 			{jsonbPrettyEscapeInput, jsonbPrettyEscaped}, {"[]", "[\n]"},
 			{"1.230e-5", "0.00001230"}, {"null", "null"}, {nil, nil},
 		} {
-			jsonTypeRun(t, p, b, c, jsonTypeWithMetadata(jsonbPrettyOne("SELECT jsonb_pretty($1) AS pretty", tc.want, tc.input), b.PG))
+			jsonTypeRun(t, p, b, c, fixture.JSONTypeWithMetadata(jsonbPrettyOne("SELECT jsonb_pretty($1) AS pretty", tc.want, tc.input), b.PG))
 		}
 		jsonTypeAnalysisError(t, p, b, c, jsonTypeSignature("SELECT jsonb_pretty(1)", "jsonb_pretty(integer)", 8))
 		// Reuse behavioral consumers, not a second implementation or fixture matrix:

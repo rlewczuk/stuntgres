@@ -188,6 +188,7 @@ func newStatementScope(op *session.Operation, owner *session.TransactionOwner, s
 	s.Stage.scope = s
 	s.Stage.self = &s.Stage
 	s.Input, s.Output = op.EffectiveSettings().Presentation()
+	s.Input.XMLInput = session.XMLInput{Op: op}
 	// Only private Restore INSERT replay owns this authority. The same input
 	// flows to literal analysis and execution-time coercions; ordinary scopes
 	// (including statements after Restore) retain normal BOX normalization.

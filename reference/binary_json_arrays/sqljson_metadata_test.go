@@ -84,7 +84,7 @@ func TestReferenceSQLJSONMetadata(t *testing.T) {
 								t.Fatalf("raw %#v want %#v", raw, tc.want)
 							}
 						}
-						sqljsonBoth(t, p, b, c, s)
+						fixture.SQLJSONBoth(t, p, b, c, s)
 					})
 				}
 			})
@@ -116,7 +116,7 @@ func TestReferenceSQLJSONLegacyResolution(t *testing.T) {
 			{`JSON_OBJECT(ARRAY[NULL,'1'])`, "22004", "null value not allowed for object key"},
 		} {
 			t.Run(tc.expr, func(t *testing.T) {
-				sqljsonDiagnostic(t, p, b, c, "SELECT "+tc.expr+" AS v", fixture.ControlsReferenceDiagnostic(tc.code, tc.message), false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, "SELECT "+tc.expr+" AS v", fixture.ControlsReferenceDiagnostic(tc.code, tc.message), false)
 			})
 		}
 	})

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
@@ -226,7 +227,7 @@ func TestReferenceFTSConfigurationAtomicity(t *testing.T) {
 		}
 		defer held.Close()
 		input := strings.Repeat("word ", 2_000_000)
-		fixture.BinaryConversionActiveCancel(t, p, b, c, query, "ConvertTSVector", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, c, query, stuntgres.WorkTSVectorConvert, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := held.QueryContext(ctx, input)
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})

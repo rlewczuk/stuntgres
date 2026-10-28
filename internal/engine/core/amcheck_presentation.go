@@ -13,6 +13,7 @@ func (s *StatementScope) refreshRestrictedPresentation() error {
 	input.LockedDomainInput, input.DomainChecks = s.Input.LockedDomainInput, s.Input.DomainChecks
 	input.ExactSnapshot, input.RawBoxReplay = s.Input.ExactSnapshot, s.Input.RawBoxReplay
 	input.EnumMemberSafe, input.FTS = s.Input.EnumMemberSafe, s.Input.FTS
+	input.XMLInput = s.Input.XMLInput
 	output.Regclass, output.Regtype, output.Regproc = s.Output.Regclass, s.Output.Regtype, s.Output.Regproc
 	output.Regrole, output.Operator = s.Output.Regrole, s.Output.Operator
 	output.Regcollation, output.Regnamespace, output.RegTS = s.Output.Regcollation, s.Output.Regnamespace, s.Output.RegTS

@@ -51,6 +51,10 @@ func bindIndexExpression(e *core.Engine, op *session.Operation, input sqltype.In
 	}
 	label := "expr"
 	switch r := raw.(type) {
+	case parser.XMLParseExpr:
+		label = "xmlparse"
+	case parser.XMLSerializeExpr:
+		label = "xmlserialize"
 	case parser.ColumnExpr:
 		label = r.Name.Parts[len(r.Name.Parts)-1].Text
 	case parser.SQLJSONQueryExpr:

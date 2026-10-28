@@ -162,6 +162,9 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 		}
 	}()
 	importer := func(ctx context.Context, formal analyze.ParameterInfo, frame []sqltype.Value, env sqltype.InputEnvironment) error {
+		if xmlInput, ok := env.XMLInput.(session.XMLInput); ok {
+			env.XMLInput = xmlInput.WithPortal(name)
+		}
 		if e := session.ImportProtocolParameters(s.Op.Context(), s.Output, input, formats, formal.Count, formal.Types, frame, env, &p.context, session.ProtocolBindInput); e != nil {
 			var diagnostic *sqlstate.Error
 			if errors.As(e, &diagnostic) {
@@ -188,11 +191,17 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 						}
 					}
 				}
-				if copy.Context != "" {
-					copy.Context += "\n"
+				if slot > 0 && slot <= len(formal.Types) && formal.Types[slot-1].Type.BaseType().ID() == sqltype.XML {
+					// The XML input adapter supplies native provenance too; the
+					// wire owner replaces that label with this portal's name.
+					copy.Context = context
+				} else {
+					if copy.Context != "" {
+						copy.Context += "\n"
+					}
+					copy.Context += context
 				}
-				copy.Context += context
-				return &copy
+				return sqlstate.InputDiagnostic(e, &copy)
 			}
 			return e
 		}
@@ -310,6 +319,8 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	c.state = exec.State{Methods: s.PlannerMethods, Source: source, SourceMode: exec.SourceReusable, Parameters: values, Input: s.Input, Output: s.Output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.CapturePlannerAdmission()
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
+	c.state.Input.XMLInput = cursorXMLInput{authority: c.authority}
+	c.state.Output.XMLNotice = nil
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
 	c.state.Output.Regproc, c.state.Output.Regrole, c.state.Output.Operator = nil, nil, nil
 	c.state.Output.Regcollation, c.state.Output.Regnamespace, c.state.Output.RegTS = nil, nil, nil
@@ -420,9 +431,10 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 	defer func() { p.fields, p.scratch = fields, scratch }()
 	outputInitialized := len(p.formats) == 0
 	catalogReady := p.producer != nil
+	pullContext := s.activateWork(s.executionContext())
 	for int32(maxRows) <= 0 || out.Count < int64(maxRows) {
 		var present bool
-		present, err = p.next(s.Op.Context(), values)
+		present, err = p.next(pullContext, values)
 		if err != nil {
 			return out, err
 		}
@@ -462,8 +474,10 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		if err = s.captureProtocolOutput(p.outputRows, values, catalog); err != nil {
 			return out, err
 		}
-		p.outputRows.Output.Transport = s.Op.EffectiveSettings().ClientEncoding()
-		fields, scratch, err = session.EncodeProtocolRow(s.Op.Context(), values, p.formats, p.outputRows.Output, fields, scratch)
+		output := p.outputRows.Output
+		output.Transport = s.Op.EffectiveSettings().ClientEncoding()
+		output.XMLNotice = func(d sqlstate.Error) { s.Op.EmitNotice(session.LevelWarning, d) }
+		fields, scratch, err = session.EncodeProtocolRow(s.Op.Context(), values, p.formats, output, fields, scratch)
 		if err != nil {
 			return out, err
 		}

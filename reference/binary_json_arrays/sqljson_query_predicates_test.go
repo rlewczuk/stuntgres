@@ -30,14 +30,14 @@ func TestReferenceSQLJSONQuery(t *testing.T) {
 			{`JSON_ARRAY(SELECT v FROM sqj_source ORDER BY id RETURNING bytea)`, "BYTEA", `[2, 1]`},
 		})
 		t.Run("correlated", func(t *testing.T) {
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT o.id, JSON_ARRAY(SELECT i.v FROM sqj_source i WHERE i.id <= o.id ORDER BY i.id) AS v FROM sqj_source o ORDER BY o.id`, []string{"id", "v"}, []string{"INT4", "JSON"}, [][]any{{int64(1), `[2]`}, {int64(2), `[2]`}, {int64(3), `[2, 1]`}}))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT o.id, JSON_ARRAY(SELECT i.v FROM sqj_source i WHERE i.id <= o.id ORDER BY i.id) AS v FROM sqj_source o ORDER BY o.id`, []string{"id", "v"}, []string{"INT4", "JSON"}, [][]any{{int64(1), `[2]`}, {int64(2), `[2]`}, {int64(3), `[2, 1]`}}))
 		})
 		t.Run("nested correlation", func(t *testing.T) {
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT o.id, JSON_ARRAY(SELECT JSON_ARRAY(SELECT i.v FROM sqj_source i WHERE i.id=o.id)) AS v FROM sqj_source o ORDER BY o.id`, []string{"id", "v"}, []string{"INT4", "JSON"}, [][]any{{int64(1), `[[2]]`}, {int64(2), `[[]]`}, {int64(3), `[[1]]`}}))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT o.id, JSON_ARRAY(SELECT JSON_ARRAY(SELECT i.v FROM sqj_source i WHERE i.id=o.id)) AS v FROM sqj_source o ORDER BY o.id`, []string{"id", "v"}, []string{"INT4", "JSON"}, [][]any{{int64(1), `[[2]]`}, {int64(2), `[[]]`}, {int64(3), `[[1]]`}}))
 		})
 		run(fixture.Exec(`CREATE VIEW sqj_query_view AS SELECT o.id, JSON_ARRAY(SELECT i.v FROM sqj_source i WHERE i.id<=o.id ORDER BY i.id) AS v FROM sqj_source o`, 0))
 		t.Run("query view", func(t *testing.T) {
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT id,v FROM sqj_query_view ORDER BY id`, []string{"id", "v"}, []string{"INT4", "JSON"}, [][]any{{int64(1), `[2]`}, {int64(2), `[2]`}, {int64(3), `[2, 1]`}}))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT id,v FROM sqj_query_view ORDER BY id`, []string{"id", "v"}, []string{"INT4", "JSON"}, [][]any{{int64(1), `[2]`}, {int64(2), `[2]`}, {int64(3), `[2, 1]`}}))
 		})
 	})
 }
@@ -64,7 +64,7 @@ func TestReferenceSQLJSONPredicates(t *testing.T) {
 							suffix, want = " IS NOT JSON"+kind.name, !want
 						}
 						t.Run(suffix, func(t *testing.T) {
-							sqljsonBoth(t, p, b, c, fixture.Select(`SELECT $1::text`+suffix+` AS v`, []string{"v"}, []string{"BOOL"}, [][]any{{want}}, tc.input))
+							fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT $1::text`+suffix+` AS v`, []string{"v"}, []string{"BOOL"}, [][]any{{want}}, tc.input))
 						})
 					}
 				}
@@ -115,14 +115,14 @@ func TestReferenceSQLJSONUnique(t *testing.T) {
 			{`JSON('[{"a":1,"a":2}]' WITH UNIQUE KEYS)`, `duplicate JSON object key value`},
 		} {
 			t.Run(tc.expr, func(t *testing.T) {
-				sqljsonDiagnostic(t, p, b, c, "SELECT "+tc.expr+" AS v", fixture.ControlsReferenceDiagnostic("22030", tc.message), false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, "SELECT "+tc.expr+" AS v", fixture.ControlsReferenceDiagnostic("22030", tc.message), false)
 			})
 		}
 		t.Run("null JSON key", func(t *testing.T) {
-			sqljsonDiagnostic(t, p, b, c, `SELECT JSON_OBJECT(NULL:1) AS v`, fixture.ControlsReferenceDiagnostic("22004", "null value not allowed for object key"), false)
+			fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT JSON_OBJECT(NULL:1) AS v`, fixture.ControlsReferenceDiagnostic("22004", "null value not allowed for object key"), false)
 		})
 		t.Run("null JSONB key before omission", func(t *testing.T) {
-			sqljsonDiagnostic(t, p, b, c, `SELECT JSON_OBJECT(NULL:NULL ABSENT ON NULL RETURNING jsonb) AS v`, fixture.ControlsReferenceDiagnostic("22023", "argument 1: key must not be null"), false)
+			fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT JSON_OBJECT(NULL:NULL ABSENT ON NULL RETURNING jsonb) AS v`, fixture.ControlsReferenceDiagnostic("22023", "argument 1: key must not be null"), false)
 		})
 	})
 }

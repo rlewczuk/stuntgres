@@ -65,6 +65,6 @@ func TestReferenceJSONBKeysDecodedOrdering(t *testing.T) {
 			{"outer", int64(9)},
 		}
 		step := jsonTypeKeySelect("jsonb", input, want)
-		jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(step, b.PG))
+		jsonTypeBoth(t, p, b, c, fixture.JSONTypeWithMetadata(step, b.PG))
 	})
 }

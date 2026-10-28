@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/workadmission"
 )
 
 type EndReason uint8
@@ -127,35 +128,38 @@ type Operation struct {
 	TableAccessMethod        string // Captured current default for execution-time DDL.
 	CursorTupleFraction      float64
 	RecursiveWorktableFactor float64
-	AsyncAppend              bool // Immutable prior-setting snapshot at command admission.
+	AsyncAppend              bool                // Immutable prior-setting snapshot at command admission.
 	PlannerMethods           plan.PlannerMethods // Immutable effective command admission.
 	StatementDeadline        time.Time
 	CommandStart             time.Time
 	SourceContext            context.Context
 	// OriginalSQL is command-owned frontend text, shared unchanged by a batch.
 	// Internal operations leave SQLAvailable false; an available empty source is text.
-	OriginalSQL              string
-	SQLAvailable             bool
-	CommandAdmission         bool
-	OriginTransaction        ids.TxRef // Immutable acquisition evidence, never transaction authority.
-	sqlActivity              bool
-	SQLFinished              bool // Session.mu: ERROR/completion fence, not transaction state
-	Lease                    *StatementLease
-	Definition               catalog.DefinitionReader // Scoped once-only DDL cooking, restored before evaluation.
-	LockWait                 lock.TimeoutSlot         // queued lock request's SQL-deadline projection
-	NonstandardStrings       bool
-	DiscardRoleReset         authorization.RoleState  // nonzero Authenticated only during DISCARD ALL publication
-	ReplaySlot               ReplaySlot               // Restore and materialized population only; see operationReplay.
-	Analysis                 AnalysisSlot             // Immutable after creation; see Host.NewOperation.
-	Restricted               *RestrictedInvocation    // Serial invocation environment, never session identity.
-	EffectiveUser            *EffectiveUserInvocation // Balanced routine-local actor; session_user stays unchanged.
+	OriginalSQL        string
+	SQLAvailable       bool
+	CommandAdmission   bool
+	OriginTransaction  ids.TxRef // Immutable acquisition evidence, never transaction authority.
+	sqlActivity        bool
+	SQLFinished        bool // Session.mu: ERROR/completion fence, not transaction state
+	Lease              *StatementLease
+	Definition         catalog.DefinitionReader // Scoped once-only DDL cooking, restored before evaluation.
+	LockWait           lock.TimeoutSlot         // queued lock request's SQL-deadline projection
+	NonstandardStrings bool
+	DiscardRoleReset   authorization.RoleState  // nonzero Authenticated only during DISCARD ALL publication
+	ReplaySlot         ReplaySlot               // Restore and materialized population only; see operationReplay.
+	Analysis           AnalysisSlot             // Immutable after creation; see Host.NewOperation.
+	Restricted         *RestrictedInvocation    // Serial invocation environment, never session identity.
+	EffectiveUser      *EffectiveUserInvocation // Balanced routine-local actor; session_user stays unchanged.
 }
 
 func (s *Session) Token() ids.SessionToken { return s.SessionToken }
 func (s *Session) Operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
 	// cancels every admitted child under the same admission lock; Done removes it.
-	combined, cancel := context.WithCancelCause(ctx)
+	// An application may reuse a callback's effective context on another
+	// connection. New operations inherit its original inert request policy,
+	// never the completed or still-busy runtime scope's active callable.
+	combined, cancel := context.WithCancelCause(workadmission.Suspend(ctx))
 	op := s.newOperation()
 	op.Ctx, op.CommandContext, op.SourceContext, op.Cancel, op.private = combined, combined, ctx, cancel, private
 	if s.Operations == nil {

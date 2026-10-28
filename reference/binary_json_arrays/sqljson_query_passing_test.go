@@ -57,7 +57,7 @@ func TestReferenceSQLJSONQueryPassing(t *testing.T) {
 				})
 				// The typed destination is checked on RowDescription even with no row.
 				q := `SELECT JSON_VALUE('{}','$v'` + passing + ` RETURNING ` + tc.typ + `) AS v WHERE false`
-				sqljsonBoth(t, p, b, c, fixture.Select(q, []string{"v"}, []string{tc.typ}, [][]any{}))
+				fixture.SQLJSONBoth(t, p, b, c, fixture.Select(q, []string{"v"}, []string{tc.typ}, [][]any{}))
 			})
 		}
 		for _, tc := range []struct {
@@ -80,7 +80,7 @@ func TestReferenceSQLJSONQueryPassing(t *testing.T) {
 		} {
 			t.Run(tc.left+"="+tc.right, func(t *testing.T) {
 				q := `SELECT JSON_VALUE('{}','$a == $b' PASSING ` + tc.left + ` AS a,` + tc.right + ` AS b RETURNING boolean ERROR ON ERROR) AS v`
-				sqljsonBoth(t, p, b, c, sqljsonQueryOne(q, "BOOL", tc.want))
+				fixture.SQLJSONBoth(t, p, b, c, fixture.SQLJSONQueryOne(q, "BOOL", tc.want))
 			})
 		}
 		run(fixture.Exec(`CREATE SEQUENCE sqjq_order`, 0))
@@ -95,9 +95,9 @@ func TestReferenceSQLJSONQueryPassing(t *testing.T) {
 				{`NULL::jsonb`, `'$x'`, nil, 1, false},
 				{`'{}'`, `NULL::jsonpath`, nil, 1, false},
 			} {
-				run(sqljsonQueryOne(`SELECT setval('sqjq_order',1,false) AS v`, "INT8", int64(1)))
+				run(fixture.SQLJSONQueryOne(`SELECT setval('sqjq_order',1,false) AS v`, "INT8", int64(1)))
 				q := `SELECT JSON_VALUE(` + tc.doc + `,` + tc.path + ` PASSING nextval('sqjq_order') AS x,nextval('sqjq_order') AS x,nextval('sqjq_order') AS unused RETURNING bigint) AS v`
-				s := sqljsonQueryOne(q, "INT8", tc.want)
+				s := fixture.SQLJSONQueryOne(q, "INT8", tc.want)
 				s.Prepared = prepared
 				run(s)
 				run(fixture.Select(`SELECT last_value,is_called FROM sqjq_order`, []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{tc.last, tc.called}}))

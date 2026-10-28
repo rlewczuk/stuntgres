@@ -28,6 +28,21 @@ dependency capture and native-control replay path, without a builtin serializer.
 Their published view attributes expose relation-column nullability independently
 of direct computed-source metadata.
 
+`XMLParse` and `XMLSerialize` retain immutable checked operands, explicit modes
+and written options. The analyzer owns ordinary source assignment conversions
+to TEXT/XML and implicit serializer target conversion, including catalog casts,
+domains and typmods. Providers consume checked TEXT/XML and never
+planning-fold: execution owns errors and call-local diagnostics.
+Explicit modes are independent of xmloption; semantic volatility follows child
+and conversion properties. Capture kinds distinguish both written families.
+Rebuild/retag follows ordinary conversion wrappers and preserves accepted values.
+
+`ArrayTransform` evaluates its child operands before parent transformation.
+`array_to_string` consumes one `WorkArrayTransform` runtime admission grant per
+input element, after strict NULL handling and separator/replacement conversion.
+An element grant is not a byte bound on its type's output. Refusal publishes no
+partial string and retains neither policy nor grant in the immutable expression.
+
 `RecoveryInfo` retains a zero-input immutable typed recipe: BOOL false or typed
 PG_LSN/TIMESTAMPTZ NULL in an engine that never performs physical recovery.
 These inquiries remain VOLATILE and unfolded. `WALResourceManagers` retains
@@ -764,6 +779,8 @@ publication and lock-manager tickets stay in the engine.
 
 Session activity leaf and composed authority units use `RUN='^TestSessionActivity'`.
 Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.
+XML expression protocol, immutable conversion authority and call-local diagnostics
+use `RUN='^TestXMLExpression'`.
 
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.

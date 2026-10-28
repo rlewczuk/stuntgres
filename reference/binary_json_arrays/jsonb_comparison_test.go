@@ -55,7 +55,7 @@ func TestReferenceJSONBComparison(t *testing.T) {
 								s = fixture.Prepared(s)
 							}
 							run(s)
-							s = fixture.Select("SELECT "+jsonReferenceQuote(tc.left)+"::jsonb "+op+" "+jsonReferenceQuote(tc.right)+"::jsonb AS v", []string{"v"}, []string{"BOOL"}, [][]any{{value}})
+							s = fixture.Select("SELECT "+fixture.JSONReferenceQuote(tc.left)+"::jsonb "+op+" "+fixture.JSONReferenceQuote(tc.right)+"::jsonb AS v", []string{"v"}, []string{"BOOL"}, [][]any{{value}})
 							if prepared {
 								s = fixture.Prepared(s)
 							}
@@ -73,7 +73,7 @@ func TestReferenceJSONBComparison(t *testing.T) {
 								s = fixture.Prepared(s)
 							}
 							run(s)
-							s = fixture.Select("SELECT id FROM jb_compare WHERE v "+op+" "+jsonReferenceQuote(tc.right)+"::jsonb ORDER BY id", []string{"id"}, []string{"INT4"}, ids)
+							s = fixture.Select("SELECT id FROM jb_compare WHERE v "+op+" "+fixture.JSONReferenceQuote(tc.right)+"::jsonb ORDER BY id", []string{"id"}, []string{"INT4"}, ids)
 							if prepared {
 								s = fixture.Prepared(s)
 							}

@@ -5,7 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"runtime"
-	"sync"
+	"stuntgres"
 	"testing"
 	"time"
 )
@@ -13,51 +13,60 @@ import (
 // Observe real provider/server admission before cancellation. Admission has a
 // deadline and cleanup has a bounded worker join on every exit, before the
 // caller closes its held statements or physical connection.
-func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider string, operation func(context.Context) RelationOutcome) {
+func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query string, class stuntgres.WorkClass, operation func(context.Context) RelationOutcome) {
 	t.Helper()
-	activeProviderCancel(t, p, b, c, query, provider, "", "", nil, func(ctx context.Context) RelationOutcome {
-		if !b.PG {
-			ctx = &nativeProviderPollContext{Context: ctx, provider: []byte(provider), worker: []byte("activeProviderCancel")}
+	if b.PG {
+		activeProviderCancel(t, p, b, c, query, "", "", "", nil, operation)
+		return
+	}
+	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
+	defer cancel()
+	entered := make(chan struct{}, 1)
+	ctx = stuntgres.WithWorkAdmission(ctx, func(effective context.Context, actual stuntgres.WorkClass) error {
+		if actual != class {
+			return nil
 		}
-		return operation(ctx)
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-effective.Done()
+		return effective.Err()
 	})
-}
-
-// nativeProviderPollContext holds a real cancellation poll on the operation's
-// provider stack until the observer cancels the underlying context. Finite work
-// cannot run between samples and escape admission. Other callers of Err remain
-// ordinary context observers; no cancellation error is manufactured here.
-// Progress-callback and sleep helpers deliberately retain their existing routes.
-type nativeProviderPollContext struct {
-	context.Context
-	provider, worker []byte
-	mu               sync.Mutex
-	stacks           []byte
-}
-
-func (c *nativeProviderPollContext) Err() error {
-	if err := c.Context.Err(); err != nil {
-		return err
+	done := make(chan RelationOutcome, 1)
+	joined := false
+	defer func() {
+		cancel()
+		if !joined {
+			outcome := LockResult(t, done)
+			if outcome.Rows != nil {
+				outcome.Rows.Close()
+			}
+		}
+	}()
+	go func() { done <- operation(ctx) }()
+	select {
+	case <-entered:
+	case outcome := <-done:
+		joined = true
+		if outcome.Rows != nil {
+			outcome.Rows.Close()
+		}
+		t.Fatal("conversion completed before work admission", query, outcome.Err)
+	case <-ctx.Done():
+		t.Fatal("conversion work admission deadline", query, ctx.Err())
 	}
-	c.mu.Lock()
-	if len(c.stacks) == 0 {
-		c.stacks = make([]byte, 16<<10)
+	cancel()
+	outcome := LockResult(t, done)
+	joined = true
+	if outcome.Rows != nil {
+		outcome.Rows.Close()
+		t.Fatal("active canceled conversion published cursor")
 	}
-	n := runtime.Stack(c.stacks, false)
-	for n == len(c.stacks) {
-		c.stacks = make([]byte, len(c.stacks)*2)
-		n = runtime.Stack(c.stacks, false)
+	if outcome.Result != nil {
+		t.Fatal("active canceled conversion published result")
 	}
-	frames := c.stacks[:n]
-	if created := bytes.Index(frames, []byte("\ncreated by ")); created >= 0 {
-		frames = frames[:created]
-	}
-	admitted := bytes.Contains(frames, c.provider) && bytes.Contains(frames, c.worker)
-	c.mu.Unlock()
-	if admitted {
-		<-c.Context.Done()
-	}
-	return c.Context.Err()
+	LexicalOrdinary(t, outcome.Err, context.Canceled)
 }
 
 // BinaryConversionActiveCancelAfter additionally observes caller-defined progress

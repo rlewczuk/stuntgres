@@ -17,7 +17,7 @@ func jsonbSetHeldModes(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 	held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, held, b.Recorder, s) }
 	good := jsonbSetSelect(q, `{"a": 2, "b": 2}`, `{"a":1,"b":2}`, "{a}", "2", true, "ignored")
-	good.CheckMetadata = func(t *testing.T, r *sql.Rows) { jsonbObjectMetadata(t, r, b.PG, "changed") }
+	good.CheckMetadata = func(t *testing.T, r *sql.Rows) { fixture.JSONBObjectMetadata(t, r, b.PG, "changed") }
 	run(good)
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, good)
 	for _, tc := range []struct{ mode, want string }{

@@ -9,7 +9,7 @@ import (
 
 func TestReferenceJSONElementsUnicode(t *testing.T) {
 	jsonElementsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		jsonKeysBoth(t, p, b, c, jsonElementsSelect("json_array_elements", "SELECT * FROM json_array_elements($1)", [][]any{{`"\u0000"`}, {`"\ud800"`}, {`{"x":"\u0000"}`}}, `["\u0000","\ud800",{"x":"\u0000"}]`))
+		fixture.JSONKeysBoth(t, p, b, c, jsonElementsSelect("json_array_elements", "SELECT * FROM json_array_elements($1)", [][]any{{`"\u0000"`}, {`"\ud800"`}, {`{"x":"\u0000"}`}}, `["\u0000","\ud800",{"x":"\u0000"}]`))
 		for _, tc := range []struct{ input, code, message, detail, context string }{
 			{`["\u0000"]`, "22P05", "unsupported Unicode escape sequence", `\u0000 cannot be converted to text.`, `JSON data, line 1: ["\u0000...`},
 			{`["\ud800"]`, "22P02", "invalid input syntax for type json", `Unicode low surrogate must follow a high surrogate.`, `JSON data, line 1: ["\ud800"...`},
@@ -29,10 +29,10 @@ func TestReferenceJSONElementsUnicode(t *testing.T) {
 				// The same valid JSON input does not decode strings in raw mode.
 				// Each input here has one immediate value except the late-failure case.
 				if tc.input != `["ok",{"late":"\u0000"}]` {
-					jsonKeysBoth(t, p, b, c, jsonElementsSelect("json_array_elements", "SELECT * FROM json_array_elements($1)", [][]any{{tc.input[1 : len(tc.input)-1]}}, tc.input))
+					fixture.JSONKeysBoth(t, p, b, c, jsonElementsSelect("json_array_elements", "SELECT * FROM json_array_elements($1)", [][]any{{tc.input[1 : len(tc.input)-1]}}, tc.input))
 				}
 			})
 		}
-		jsonKeysBoth(t, p, b, c, jsonElementsSelect("json_array_elements_text", "SELECT * FROM json_array_elements_text($1)", [][]any{{"𝄞"}, {`{"x":"\ud834\udd1e"}`}}, `["\ud834\udd1e",{"x":"\ud834\udd1e"}]`))
+		fixture.JSONKeysBoth(t, p, b, c, jsonElementsSelect("json_array_elements_text", "SELECT * FROM json_array_elements_text($1)", [][]any{{"𝄞"}, {`{"x":"\ud834\udd1e"}`}}, `["\ud834\udd1e",{"x":"\ud834\udd1e"}]`))
 	})
 }

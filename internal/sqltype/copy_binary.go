@@ -7,6 +7,7 @@ import (
 	"math"
 	"strconv"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/xml"
 )
 
 // binaryReceive reports consumed bytes separately: array/record members require
@@ -37,6 +38,10 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 			v, err = d.Wrap(v)
 		}
 		return
+	}
+	if d.id == XML {
+		v, err = xmlInput(ctx, d, string(p), xml.Options{Mode: env.XMLMode, InputKind: xml.Binary}, env)
+		return v, len(p), err
 	}
 	if d.IsCatalogVector() {
 		return v, 0, d.unsupportedBinaryProvider(false)
@@ -229,6 +234,13 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		base := d.Usage().BaseUsage()
 		v.typ = base.Type
 		return base.Type.AppendBinaryWithEnvironment(ctx, dst, v, env)
+	}
+	if d.id == XML {
+		text, err := d.xmlOutput(ctx, v, env, true)
+		if err != nil {
+			return dst, err
+		}
+		return env.AppendTransport(ctx, dst, text)
 	}
 	if d.IsCatalogVector() {
 		return dst, d.unsupportedBinaryProvider(true)

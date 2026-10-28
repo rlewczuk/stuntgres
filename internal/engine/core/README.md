@@ -992,6 +992,22 @@ the shared visibility-sensitive dependency labels, never a bare-name fallback.
 mutex is innermost and never taken under `Engine.Mu`. Callbacks and external I/O
 run outside these locks ([full rules](../lock/README.md#mutex-ownership-and-lock-order)).
 
+Workload-credit policies attach inertly to caller contexts. Known-unlocked
+preflight and runtime owners activate only local evaluation/pull contexts, never
+the operation, command/source context or `scope.executionContext`. Before each
+application admission, the runtime uses the external-work reservation handoff;
+row waits may have reacquired that reservation since startup. After a grant,
+ordinary live-operation, immutable transaction-reference and catalog-epoch fences
+must still accept. Refusals keep their original error identity. Local parallel
+workers never mutate the statement's reservation; audited worker source/expression
+gates exclude lock/host-mutation paths and the leader joins before continuing.
+SQL cursor and protocol demand use the current request's context, and retained
+executor evaluations clear their scoped contexts between pulls. Full-text vector
+conversion receives the actual evaluator context through the host interface;
+only catalog capture is locked, never token dispatch or the admission callback.
+Each protocol Execute activates its pull context once and reuses it for that
+request's row loop; later Execute requests obtain their own current capability.
+
 ## Row mutation
 
 MultiXact records, counters and history belong to the lock manager. CHECK and
@@ -1678,6 +1694,9 @@ session, transaction, prepared-analysis and typed-frame authorities.
 Text-search parser descriptor, staging, native capability and dependency owner
 units share `RUN='^TestTSParser'`.
 
+Runtime work-policy handoff and terminal-owner mechanics use
+`RUN='^TestWorkAdmission'`; real SQL waits and operation lifecycle use reference.
+
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.
 
@@ -1704,6 +1723,9 @@ Type inquiry retained-definition, stored and concurrent ownership units use
 `RUN='^TestTypeDescribe(PreparedOwnership|StoredOwnership|ConcurrentReuse)$'`,
 also with `RACE=1`. The composed cases inspect real accepted bindings, private
 producer frames and immutable fold generations rather than SQL equality.
+
+XML retained-description and accepted-binding generation/backing proofs use
+`RUN='^TestXMLSQLPrepared(Portal)?Ownership$'`, also with `RACE=1`.
 
 Type-path backing and COPY predicate/retained-recipe demand units use
 `RUN='^TestTypeDescribe(CapturedTypePath|CopySnapshotDemand|RetainedSnapshotDemand)$'`.

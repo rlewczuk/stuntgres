@@ -24,10 +24,6 @@ func sqljsonQueryScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fix
 	}
 }
 
-func sqljsonQueryOne(q, typ string, want any, args ...any) fixture.Step {
-	return fixture.Select(q, []string{"v"}, []string{typ}, [][]any{{want}}, args...)
-}
-
 func sqljsonQueryCases(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, cases []struct {
 	expr, typ string
 	want      any
@@ -35,7 +31,7 @@ func sqljsonQueryCases(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixtu
 	t.Helper()
 	for _, tc := range cases {
 		t.Run(tc.expr, func(t *testing.T) {
-			sqljsonBoth(t, p, b, c, sqljsonQueryOne("SELECT "+tc.expr+" AS v", tc.typ, tc.want))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.SQLJSONQueryOne("SELECT "+tc.expr+" AS v", tc.typ, tc.want))
 		})
 	}
 }

@@ -51,6 +51,12 @@ func stringSingleton(expr Expr) (valid, found bool) { return stringSingletonFami
 
 func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 	switch e := expr.(type) {
+	case XMLParseExpr:
+		valid, _ := stringSingletonFamily(e.Child, datetimeOnly)
+		return valid, !datetimeOnly
+	case XMLSerializeExpr:
+		valid, _ := stringSingletonFamily(e.Child, datetimeOnly)
+		return valid, !datetimeOnly
 	case LiteralExpr, TypedLiteralExpr, ParameterExpr, IdentityExpr, CurrentDateTimeExpr:
 		return true, false
 	case CastExpr:

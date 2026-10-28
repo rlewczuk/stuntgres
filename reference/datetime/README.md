@@ -36,7 +36,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   explicit cancellation, not a deadline, end each wait.
 - **Active cancellation.** `pg_sleep` waits use `fixture.SleepActiveCancel`
   ([fixture README](../fixture/README.md#helpers)). `date_add` cancellation uses
-  `fixture.BinaryConversionActiveCancel` on a finite row-dependent INSERT SELECT.
+  `fixture.BinaryConversionActiveCancel` with `stuntgres.WorkCalendarArithmetic`
+  on a finite row-dependent INSERT SELECT.
 - **Stored sleep controls.** `TestReferenceDatetimeSleepStored` runs under a
   2-second `statement_timeout`: its catalog probes resolve the fixture table first
   and bound every join input before joining. Each native Dump, Reset and Restore
@@ -44,7 +45,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   the worker and the sleep provider in the same live goroutine stack.
   VOID columns and view results share the exact pseudo-type storage diagnostic;
   defaults and checks retain their sleep value and side-effect witnesses.
-- **Frame names matched by tests.** `sqltype.addTimestampInterval`,
+- **Frame names matched by sleep tests.**
   `functions.datetimeSleepWaitRemaining` and the test worker
   `datetime_test.storedSleepControlWorker`. Update the probes when renaming them.
 

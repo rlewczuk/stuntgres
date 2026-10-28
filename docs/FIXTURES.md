@@ -58,6 +58,11 @@ owner-switching `SET SESSION AUTHORIZATION` directives, `CREATE` statements in
 dependency order, `INSERT`s with canonical literals, represented database-local
 comments, and sequence state. The output can also be replayed on PostgreSQL.
 
+- XML literals replay the exact accepted original spelling with explicit
+  XMLPARSE DOCUMENT or CONTENT, preserving the originally requested mode.
+  They do not use typed transport output, so declaration normalization and
+  output warnings cannot change the dump. Restore is independent of the
+  destination `xmloption`; a failed XML input leaves the old catalog intact.
 - Not dumped: roles or their shared comments, passwords, memberships, settings,
   TEMP objects, uncommitted or prepared work, sequence `currval`/`lastval` session
   state, and commit timestamp history.

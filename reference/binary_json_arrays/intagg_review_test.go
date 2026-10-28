@@ -78,13 +78,13 @@ func TestReferenceIntaggTemporaryControls(t *testing.T) {
 		target.Bag = true
 		check := func() {
 			// Observe genuine procedure dependencies first after replacement.
-			arrayAggBoth(run, checks[2])
+			fixture.ArrayAggBoth(run, checks[2])
 			for i, s := range checks {
 				if i != 2 {
-					arrayAggBoth(run, s)
+					fixture.ArrayAggBoth(run, s)
 				}
 			}
-			arrayAggBoth(run, target)
+			fixture.ArrayAggBoth(run, target)
 		}
 		check()
 		if b.PG {

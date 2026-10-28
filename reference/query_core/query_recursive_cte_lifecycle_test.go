@@ -68,10 +68,10 @@ func recursiveCTECancellation(t *testing.T) {
 				defer stmt.Close()
 				x = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 			}
-			// Existing admission helper observes the actual worker/server, joins
-			// every exit and asserts no published result/cursor. Native provider
-			// frame "recursiveUnion" must match the production-round stage name.
-			fixture.BinaryConversionActiveCancel(t, p, b, c, q, "recursiveUnion", func(ctx context.Context) fixture.RelationOutcome {
+			// The shared helper witnesses real work admission, joins every exit
+			// and asserts no published result/cursor before held-statement reuse.
+			// PostgreSQL retains independently observed server cancellation.
+			fixture.BinaryConversionActiveCancel(t, p, b, c, q, stuntgres.WorkRecursiveUnion, func(ctx context.Context) fixture.RelationOutcome {
 				if b.PG {
 					result, err := x.ExecContext(ctx, q, nil)
 					return fixture.RelationOutcome{Result: result, Err: err}
@@ -83,7 +83,7 @@ func recursiveCTECancellation(t *testing.T) {
 			run(fixture.Select("SELECT 7 AS n", []string{"n"}, []string{"INT4"}, recursiveCTEInts(7)))
 		}
 		insert := "INSERT INTO recursive_cancel_sink WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n FROM r) SELECT n FROM r"
-		fixture.BinaryConversionActiveCancel(t, p, b, c, insert, "recursiveUnion", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, c, insert, stuntgres.WorkRecursiveUnion, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := c.ExecContext(ctx, insert)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

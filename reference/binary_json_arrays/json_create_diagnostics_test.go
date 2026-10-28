@@ -86,7 +86,7 @@ func TestReferenceJSONCreateDiagnostics(t *testing.T) {
 			// These JSON values are valid JSON source; only conversion to JSONB fails.
 			for _, call := range []string{"to_jsonb(%s)", "jsonb_build_array(%s)", "jsonb_build_object('a',%s,'a',1)"} {
 				for _, bound := range []bool{false, true} {
-					operand := jsonReferenceQuote(tc.input) + "::json"
+					operand := fixture.JSONReferenceQuote(tc.input) + "::json"
 					var args []any
 					if bound {
 						operand = "$1::json"
@@ -96,7 +96,7 @@ func TestReferenceJSONCreateDiagnostics(t *testing.T) {
 					t.Run(q+tc.name, func(t *testing.T) { jsonCreateError(t, p, b, c, q, tc.want, false, args...) })
 				}
 			}
-			jsonObjectBoth(t, p, b, c, jsonCreateSelect("SELECT json_build_array("+jsonReferenceQuote(tc.input)+"::json) AS v", "JSON", "["+tc.input+"]"))
+			jsonObjectBoth(t, p, b, c, jsonCreateSelect("SELECT json_build_array("+fixture.JSONReferenceQuote(tc.input)+"::json) AS v", "JSON", "["+tc.input+"]"))
 		}
 		for _, count := range []int{100, 101} {
 			args := strings.TrimSuffix(strings.Repeat("1,", count), ",")

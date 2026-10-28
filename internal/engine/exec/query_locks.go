@@ -307,6 +307,7 @@ func ArbitrateViewQuery(ctx context.Context, state *State, node plan.Node, child
 	currentRows := make([][]sqltype.Value, len(locks.Leaves))
 	scratch := make([]sqltype.Value, QueryLockRecheckWidth(node, state.Source))
 	evaluation := state.Evaluation(nil)
+	evaluation.Context = nil
 	joined := child.Source.Materialized
 	source := child.Source
 	if !joined {
@@ -319,6 +320,7 @@ func ArbitrateViewQuery(ctx context.Context, state *State, node plan.Node, child
 	out.Source, out.Expressions, out.Evaluation = source, child.Expressions, child.Evaluation
 	out.Pending = nil
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
+		defer func() { evaluation.Context = nil }()
 		host := state.Source.LiveHost()
 		if host == nil {
 			return false, fmt.Errorf("stuntgres: missing row locking scope")

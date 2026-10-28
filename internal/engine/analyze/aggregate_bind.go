@@ -221,6 +221,7 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 	case plan.CoercionExpr:
 		o, ok := other.(plan.CoercionExpr)
 		return ok && e.Plan.Equal(o.Plan) && (checkDefinitionEquality || e.Mode == o.Mode) &&
+			e.XMLSerializeResult == o.XMLSerializeResult &&
 			(e.UnknownInputCast == nil) == (o.UnknownInputCast == nil) &&
 			// Authenticated transparent steps change no value or logical type.
 			(e.UnknownInputCast == nil || e.UnknownInputCast.Target == o.UnknownInputCast.Target && e.UnknownInputCast.Source == o.UnknownInputCast.Source) && same(e.Child, o.Child)

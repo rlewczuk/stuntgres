@@ -10,7 +10,7 @@ func TestReferenceJSONKeysReviewMixedFrom(t *testing.T) {
 	jsonKeysScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		for _, tc := range []struct {
 			name, source string
-			rows [][]any
+			rows         [][]any
 		}{
 			{"keys_longer", `ROWS FROM(json_object_keys('{"a":1,"b":2}'),regexp_split_to_table('x',','))`, [][]any{{"a", "x", int64(1)}, {"b", nil, int64(2)}}},
 			{"regexp_longer_duplicates", `ROWS FROM(json_object_keys('{"a":1,"a":2}'),regexp_split_to_table('x,y,z',','))`, [][]any{{"a", "x", int64(1)}, {"a", "y", int64(2)}, {nil, "z", int64(3)}}},
@@ -27,7 +27,7 @@ func TestReferenceJSONKeysReviewMixedFrom(t *testing.T) {
 				if tc.name != "both_empty" {
 					s.CheckMetadata = func(t *testing.T, r *sql.Rows) { jsonKeysMetadata(t, r, b.PG, s.Columns, s.Types) }
 				}
-				jsonKeysBoth(t, p, b, c, s)
+				fixture.JSONKeysBoth(t, p, b, c, s)
 			})
 		}
 		// Constants in the same mixed group exercise stored literal ownership,
@@ -52,9 +52,9 @@ func TestReferenceJSONKeysReviewMixedFrom(t *testing.T) {
 				}
 			}
 		}
-		jsonKeysBoth(t, p, b, c, check)
+		fixture.JSONKeysBoth(t, p, b, c, check)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("ALTER VIEW jk_review_mixed RENAME COLUMN k TO key", 0))
 		check.Query = "SELECT key AS k,s,n FROM jk_review_mixed ORDER BY n"
-		jsonKeysBoth(t, p, b, c, check)
+		fixture.JSONKeysBoth(t, p, b, c, check)
 	})
 }

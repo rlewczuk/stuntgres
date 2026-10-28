@@ -8,6 +8,9 @@ import "stuntgres/internal/sqltype"
 func (s *SettingsStore) Presentation() (input sqltype.InputEnvironment, output sqltype.OutputEnvironment) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
+	if s.Value("xmloption") == "document" {
+		input.XMLMode = sqltype.XMLDocument
+	}
 	if s.Value("bytea_output") == "escape" {
 		output.ByteaOutput = sqltype.ByteaEscape
 	}

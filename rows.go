@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -22,16 +23,18 @@ type rows struct {
 	scratch            []sqltype.Value
 	pending            []exec.RowResult
 	batchError         error
+	notices            session.OutputNotices
+	pendingNotices     []session.OutputNotices
 }
 
-func newRows(ctx context.Context, r core.Result) *rows {
+func newRows(ctx context.Context, r core.Result, notices session.OutputNotices) *rows {
 	var schema []catalog.Column
 	if r.Rows != nil {
 		schema = r.Rows.Schema()
 	}
-	return &rows{ctx: ctx, columns: schema, cursor: r.Rows, scratch: make([]sqltype.Value, len(schema))}
+	return &rows{ctx: ctx, columns: schema, cursor: r.Rows, scratch: make([]sqltype.Value, len(schema)), notices: notices}
 }
-func newBatchRows(ctx context.Context, sets []exec.RowResult, terminal error) *rows {
+func newBatchRows(ctx context.Context, sets []exec.RowResult, terminal error, notices []session.OutputNotices) *rows {
 	schema := sets[0].Schema()
 	width := len(schema)
 	for _, set := range sets[1:] {
@@ -39,7 +42,8 @@ func newBatchRows(ctx context.Context, sets []exec.RowResult, terminal error) *r
 			width = n
 		}
 	}
-	r := &rows{ctx: ctx, columns: schema, cursor: sets[0], scratch: make([]sqltype.Value, len(schema), width)}
+	r := &rows{ctx: ctx, columns: schema, cursor: sets[0], scratch: make([]sqltype.Value, len(schema), width), notices: notices[0], pendingNotices: notices[1:]}
+	notices[0] = session.OutputNotices{}
 	r.pending = sets[1:]
 	r.batchError = terminal
 	return r
@@ -67,6 +71,9 @@ func (r *rows) NextResultSet() error {
 	r.cursor = r.pending[0]
 	r.pending[0] = nil
 	r.pending = r.pending[1:]
+	r.notices = r.pendingNotices[0]
+	r.pendingNotices[0] = session.OutputNotices{}
+	r.pendingNotices = r.pendingNotices[1:]
 	r.columns = r.cursor.Schema()
 	r.scratch = r.scratch[:len(r.columns)]
 	r.exhausted = false
@@ -88,6 +95,7 @@ func (r *rows) release() error {
 		}
 	}
 	clear(r.scratch)
+	r.notices = session.OutputNotices{}
 	return r.closeErr
 }
 func (r *rows) releaseAll() {
@@ -99,6 +107,9 @@ func (r *rows) releaseAll() {
 	}
 	r.pending = nil
 	r.scratch = nil
+	r.notices = session.OutputNotices{}
+	clear(r.pendingNotices)
+	r.pendingNotices = nil
 }
 func (r *rows) Close() error {
 	if !r.closed {
@@ -154,10 +165,18 @@ func (r *rows) Next(dst []driver.Value) error {
 		r.exhausted = true
 		return io.EOF
 	}
+	var collector session.OutputNoticeCollector
+	output := r.cursor.OutputEnvironment()
+	delivery := r.notices
+	output.XMLNotice = nil
+	if delivery.Handler != nil && delivery.Threshold <= session.LevelWarning {
+		output.XMLNotice = collector.Add
+		defer func() { delivery.Deliver(collector.Detach()) }()
+	}
 	for i, v := range r.scratch {
 		var value driver.Value
 		var err error
-		if !v.IsNull() && v.Type().BaseType().ID() == sqltype.Regclass {
+		if !v.IsNull() && v.Type() != nil && v.Type().BaseType().ID() == sqltype.Regclass {
 			if v.Type().IsDomain() {
 				v, err = v.BaseValue()
 				if err != nil {
@@ -166,7 +185,7 @@ func (r *rows) Next(dst []driver.Value) error {
 			}
 			value, err = r.cursor.RegclassText(v)
 		} else {
-			value, err = exportValue(r.ctx, v, r.cursor.OutputEnvironment())
+			value, err = exportValue(r.ctx, v, output)
 		}
 		if err != nil {
 			return r.fail(err)

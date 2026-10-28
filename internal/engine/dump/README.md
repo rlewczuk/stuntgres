@@ -86,6 +86,9 @@ standard library, and holds no state, no mutex and no engine callback.
 
 ## Testing
 
+XML replay recursion and unconditional nested-parameter rejection use
+`RUN='^TestXMLRestoreScalarGuard$'`.
+
 Package units pin `Order`'s phase scheduler and the `RestoreScalar` modes;
 engine witnesses build dump graphs (partition attach/detach, operators,
 inheritance, domain constraints, index properties) or call the validators;

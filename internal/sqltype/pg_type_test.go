@@ -34,6 +34,8 @@ func TestPGTypeBuiltinFacts(t *testing.T) {
 		{1013, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "i", "x"}, Kind: "b", Category: "A", Element: OidVector, Subscript: 6179, Input: 750, Output: 751, Receive: 2400, Send: 2401, Analyze: 3816, Modifier: -1}},
 		{23, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{4, true, "i", "p"}, Kind: "b", Category: "N", Input: 42, Output: 43, Receive: 2406, Send: 2407, Modifier: -1}},
 		{25, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "i", "x"}, Kind: "b", Category: "S", Preferred: true, Input: 46, Output: 47, Receive: 2414, Send: 2415, Modifier: -1, Collation: 100}},
+		{XML, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "i", "x"}, Kind: "b", Category: "U", Input: 2893, Output: 2894, Receive: 2898, Send: 2899, Modifier: -1}},
+		{143, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "i", "x"}, Kind: "b", Category: "A", Element: XML, Subscript: 6179, Input: 750, Output: 751, Receive: 2400, Send: 2401, Analyze: 3816, Modifier: -1}},
 		{Point, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{16, false, "d", "p"}, Kind: "b", Category: "G", Element: Float8, Subscript: 6180, Input: 117, Output: 118, Receive: 2428, Send: 2429, Modifier: -1}},
 		{Box, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{32, false, "d", "p"}, Kind: "b", Category: "G", Element: Point, Subscript: 6180, Input: 123, Output: 124, Receive: 2484, Send: 2485, Modifier: -1}},
 		{1017, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "d", "x"}, Kind: "b", Category: "A", Element: Point, Subscript: 6179, Input: 750, Output: 751, Receive: 2400, Send: 2401, Analyze: 3816, Modifier: -1}},
@@ -46,17 +48,17 @@ func TestPGTypeBuiltinFacts(t *testing.T) {
 			t.Fatal(c.id, got, ok, c.want)
 		}
 	}
-	for _, id := range []ID{142, 143, 2201, 4533, 4534, 4535, 6152, 6153, 6155} {
+	for _, id := range []ID{2201, 4533, 4534, 4535, 6152, 6153, 6155} {
 		if got, ok := types[id].PGTypeMetadata(); ok {
 			t.Fatal("unsupported family metadata", id, got)
 		}
 	}
-	for _, id := range []ID{1017, 1020, 1006, 1013} {
+	for _, id := range []ID{143, 1017, 1020, 1006, 1013} {
 		if types[id].Concrete() {
 			t.Fatal("metadata-only companion enabled an array codec", id)
 		}
 		if _, err := types[id].Input(t.Context(), "{}", -1); err == nil {
-			t.Fatal("geometry companion input became executable", id)
+			t.Fatal("metadata-only companion input became executable", id)
 		}
 	}
 	name, _ := types[19].PGTypeMetadata()

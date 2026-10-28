@@ -33,10 +33,3 @@ func jsonEachSelect(f, q string, rows [][]any, args ...any) fixture.Step {
 	s.Bag = true
 	return s
 }
-
-// These are independently specified contracts, not learned native goldens.
-// Shared direct/prepared and full-diagnostic runners are the JSON fixture seams.
-func jsonEachBoth(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, s fixture.Step) {
-	t.Helper()
-	jsonKeysBoth(t, p, b, c, s)
-}

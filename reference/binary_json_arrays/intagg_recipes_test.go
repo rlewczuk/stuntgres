@@ -27,7 +27,7 @@ func TestReferenceIntaggUnqualifiedRecipes(t *testing.T) {
 		}
 		checks[2].Bag = true
 		for _, s := range checks {
-			arrayAggBoth(run, s)
+			fixture.ArrayAggBoth(run, s)
 		}
 		if b.PG {
 			return
@@ -43,7 +43,7 @@ func TestReferenceIntaggUnqualifiedRecipes(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, s := range checks {
-			arrayAggBoth(run, s)
+			fixture.ArrayAggBoth(run, s)
 		}
 		other := fixture.CatalogControlPool(t, stuntgres.NewDriver(), "intagg_unqualified_destination")
 		if err := stuntgres.Restore(p.Ctx, other, strings.NewReader(dump)); err != nil {

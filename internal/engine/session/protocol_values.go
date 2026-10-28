@@ -90,6 +90,8 @@ const (
 // frame and records each in log. It reads only its inputs and takes no lock.
 func ImportProtocolParameters(ctx context.Context, output sqltype.OutputEnvironment, input ProtocolInput, formats []int16, count int, types []sqltype.Usage, frame []sqltype.Value, env sqltype.InputEnvironment, log *ProtocolContext, kind ProtocolReceiveKind) error {
 	env.ByteTransport = true
+	// Logging is incidental presentation, never a client typed-output event.
+	output.XMLNotice = nil
 	for i := range count {
 		n, err := input.Int32()
 		if err != nil {
@@ -112,6 +114,13 @@ func ImportProtocolParameters(ctx context.Context, output sqltype.OutputEnvironm
 		}
 		log.Parameters = append(log.Parameters, parameter)
 		parameterInput := env.ParameterInput(i+1, len(raw) == 0)
+		if parameter.Format == 1 {
+			if binary, ok := env.XMLInput.(interface {
+				XMLBinaryParameter(int) sqltype.XMLInputDiagnostics
+			}); ok {
+				parameterInput.XMLInput = binary.XMLBinaryParameter(i + 1)
+			}
+		}
 		var value sqltype.Value
 		switch parameter.Format {
 		case 0:

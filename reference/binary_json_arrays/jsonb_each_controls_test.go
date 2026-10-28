@@ -64,7 +64,7 @@ func jsonbEachStored(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 		}
 	}
 	for _, s := range checks {
-		jsonEachBoth(t, p, b, c, s)
+		fixture.JSONEachBoth(t, p, b, c, s)
 	}
 	return checks
 }
@@ -100,7 +100,7 @@ func jsonbEachControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 		}
 	}
 	for _, s := range checks {
-		jsonEachBoth(t, p, b, c, s)
+		fixture.JSONEachBoth(t, p, b, c, s)
 	}
 	var redump bytes.Buffer
 	if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
@@ -139,7 +139,7 @@ func TestReferenceJSONBEachAuthorityAndControls(t *testing.T) {
 		run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
 		for _, f := range []string{"jsonb_each", "jsonb_each_text"} {
 			for _, prepared := range []bool{false, true} {
-				jsonKeysError(t, p, b, c, "SELECT * FROM jbeach_acl s,"+f+"(s.j) f", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbeach_acl"), "execute")
+				fixture.JSONKeysError(t, p, b, c, "SELECT * FROM jbeach_acl s,"+f+"(s.j) f", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbeach_acl"), "execute")
 			}
 		}
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
@@ -147,7 +147,7 @@ func TestReferenceJSONBEachAuthorityAndControls(t *testing.T) {
 		run(fixture.Exec("GRANT SELECT(j) ON jbeach_acl TO "+role, 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
 		for _, f := range []string{"jsonb_each", "jsonb_each_text"} {
-			jsonEachBoth(t, p, b, c, jsonbEachSelect(f, "SELECT f.key,f.value FROM jbeach_acl s,"+f+"(s.j) f", [][]any{{"a", "1"}}))
+			fixture.JSONEachBoth(t, p, b, c, jsonbEachSelect(f, "SELECT f.key,f.value FROM jbeach_acl s,"+f+"(s.j) f", [][]any{{"a", "1"}}))
 			q := "SELECT f.key,f.value FROM jbeach_acl s," + f + "(s.j) f"
 			stmt, err := c.PrepareContext(p.Ctx, q)
 			if err != nil {
@@ -159,9 +159,9 @@ func TestReferenceJSONBEachAuthorityAndControls(t *testing.T) {
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec("REVOKE SELECT(j) ON jbeach_acl FROM "+role, 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
-			jsonKeysError(t, p, b, held, q, false, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbeach_acl"), "execute")
+			fixture.JSONKeysError(t, p, b, held, q, false, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbeach_acl"), "execute")
 			for _, prepared := range []bool{false, true} {
-				jsonKeysError(t, p, b, c, q+" WHERE false", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbeach_acl"), "execute")
+				fixture.JSONKeysError(t, p, b, c, q+" WHERE false", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbeach_acl"), "execute")
 			}
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec("GRANT SELECT(j) ON jbeach_acl TO "+role, 0))
@@ -169,7 +169,7 @@ func TestReferenceJSONBEachAuthorityAndControls(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, jsonbEachSelect(f, q, [][]any{{"a", "1"}}))
 			stmt.Close()
 			for _, prepared := range []bool{false, true} {
-				jsonKeysError(t, p, b, c, "SELECT * FROM jbeach_acl s,"+f+"(s.hidden) f WHERE false", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbeach_acl"), "execute")
+				fixture.JSONKeysError(t, p, b, c, "SELECT * FROM jbeach_acl s,"+f+"(s.hidden) f WHERE false", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jbeach_acl"), "execute")
 			}
 		}
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

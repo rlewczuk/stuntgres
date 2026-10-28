@@ -11,7 +11,7 @@ func TestReferenceJSONKeysValues(t *testing.T) {
 	jsonKeysScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		for _, tc := range []struct {
 			input string
-			keys []string
+			keys  []string
 		}{
 			{`{}`, nil},
 			{`{"f1":"abc","f2":{"f3":1,"f4":2}}`, []string{"f1", "f2"}},
@@ -23,10 +23,10 @@ func TestReferenceJSONKeysValues(t *testing.T) {
 		} {
 			t.Run(tc.input[:min(len(tc.input), 50)], func(t *testing.T) {
 				for _, q := range []string{"SELECT json_object_keys($1::json)", "SELECT * FROM json_object_keys($1::json)"} {
-					jsonKeysBoth(t, p, b, c, jsonKeysSelect(q, tc.keys, tc.input))
+					fixture.JSONKeysBoth(t, p, b, c, jsonKeysSelect(q, tc.keys, tc.input))
 				}
 				for _, q := range []string{"SELECT json_object_keys('" + tc.input + "'::json)", "SELECT * FROM json_object_keys('" + tc.input + "'::json)"} {
-					jsonKeysBoth(t, p, b, c, jsonKeysSelect(q, tc.keys))
+					fixture.JSONKeysBoth(t, p, b, c, jsonKeysSelect(q, tc.keys))
 				}
 			})
 		}
@@ -35,13 +35,13 @@ func TestReferenceJSONKeysValues(t *testing.T) {
 			if strings.Contains(q, "$1") {
 				args = []any{nil}
 			}
-			jsonKeysBoth(t, p, b, c, jsonKeysSelect(q, nil, args...))
+			fixture.JSONKeysBoth(t, p, b, c, jsonKeysSelect(q, nil, args...))
 		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE DOMAIN jk_json AS json", 0))
 		for _, expr := range []string{`json_object_keys('{"a":1}')`, `pg_catalog.json_object_keys('{"a":1}')`, `"json_object_keys"('{"a":1}')`, `JSON_OBJECT_KEYS('{"a":1}')`, `json_object_keys('{"a":1}'::jk_json)`, `json_object_keys('{"a":1}'::text::json)`} {
-			jsonKeysBoth(t, p, b, c, jsonKeysSelect("SELECT "+expr, []string{"a"}))
+			fixture.JSONKeysBoth(t, p, b, c, jsonKeysSelect("SELECT "+expr, []string{"a"}))
 		}
-		jsonKeysBoth(t, p, b, c, jsonKeysSelect("SELECT json_object_keys(NULL::jk_json)", nil))
+		fixture.JSONKeysBoth(t, p, b, c, jsonKeysSelect("SELECT json_object_keys(NULL::jk_json)", nil))
 	})
 }
 
@@ -49,7 +49,7 @@ func TestReferenceJSONKeysUnicode(t *testing.T) {
 	jsonKeysScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		input := `{"":null,"a\"b":1,"x\\y":2,"\u00e9":3,"\uD83D\uDE04":4,"é":5}`
 		for _, q := range []string{"SELECT json_object_keys($1)", "SELECT * FROM json_object_keys($1)"} {
-			jsonKeysBoth(t, p, b, c, jsonKeysSelect(q, []string{"", `a"b`, `x\y`, "é", "😄", "é"}, input))
+			fixture.JSONKeysBoth(t, p, b, c, jsonKeysSelect(q, []string{"", `a"b`, `x\y`, "é", "😄", "é"}, input))
 		}
 		for _, tc := range []struct{ input, code, message, detail, context string }{
 			{`{"a":"\u0000"}`, "22P05", "unsupported Unicode escape sequence", `\u0000 cannot be converted to text.`, `JSON data, line 1: {"a":"\u0000...`},
@@ -71,7 +71,7 @@ func TestReferenceJSONKeysUnicode(t *testing.T) {
 						args = []any{tc.input}
 					}
 					for _, prepared := range []bool{false, true} {
-						jsonKeysError(t, p, b, c, q, prepared, d, "execute", args...)
+						fixture.JSONKeysError(t, p, b, c, q, prepared, d, "execute", args...)
 					}
 				}
 			})

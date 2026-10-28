@@ -16,7 +16,7 @@ func jsonbPrettyStoredCheck(pg bool) fixture.Step {
 	s := fixture.Select("SELECT id,p,d FROM jbp_store ORDER BY id", []string{"id", "p", "d"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{
 		{int64(1), jsonbPrettyEmptyNested, "[\n]"}, {int64(2), "null", "[\n]"}, {int64(3), nil, "[\n]"},
 	})
-	return jsonTypeWithMetadata(s, pg, jsonTypeSourceColumn{index: 0, nullable: true}, jsonTypeSourceColumn{index: 1, nullable: true}, jsonTypeSourceColumn{index: 2, nullable: true})
+	return fixture.JSONTypeWithMetadata(s, pg, fixture.JSONTypeSourceColumn{Index: 0, Nullable: true}, fixture.JSONTypeSourceColumn{Index: 1, Nullable: true}, fixture.JSONTypeSourceColumn{Index: 2, Nullable: true})
 }
 
 func jsonbPrettyStored(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
@@ -67,7 +67,7 @@ func jsonbPrettyControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 		t.Fatal(err)
 	}
 	defer old.Close()
-	jsonTypeMetadataCheck(t, old, false, check.Columns, check.Types, jsonTypeSourceColumn{index: 0, nullable: true}, jsonTypeSourceColumn{index: 1, nullable: true}, jsonTypeSourceColumn{index: 2, nullable: true})
+	fixture.JSONTypeMetadataCheck(t, old, false, check.Columns, check.Types, fixture.JSONTypeSourceColumn{Index: 0, Nullable: true}, fixture.JSONTypeSourceColumn{Index: 1, Nullable: true}, fixture.JSONTypeSourceColumn{Index: 2, Nullable: true})
 	metadata, err := old.ColumnTypes()
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func jsonbPrettyControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 	jsonTypeRun(t, p, b, c, fixture.Exec("INSERT INTO jbp_store(id) VALUES(4)", 1))
 	fresh := fixture.Select("SELECT pretty FROM jbp_view WHERE id=4", []string{"pretty"}, []string{"TEXT"}, [][]any{{"{\n    \"a\": 2,\n    \"z\": 1\n}"}})
 	// This projects a declared view column, not a computed SELECT expression.
-	jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(fresh, b.PG, jsonTypeSourceColumn{index: 0, nullable: true}))
+	jsonTypeBoth(t, p, b, c, fixture.JSONTypeWithMetadata(fresh, b.PG, fixture.JSONTypeSourceColumn{Index: 0, Nullable: true}))
 	if p.Postgres != nil {
 		if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
 			t.Fatal(err)
@@ -124,7 +124,7 @@ func jsonbPrettyControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 		}
 		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, jsonbPrettyStoredCheck(true))
 		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Exec("INSERT INTO jbp_store(id) VALUES(4)", 1))
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, jsonTypeWithMetadata(fresh, true))
+		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.JSONTypeWithMetadata(fresh, true))
 		if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
 			t.Fatal(err)
 		}

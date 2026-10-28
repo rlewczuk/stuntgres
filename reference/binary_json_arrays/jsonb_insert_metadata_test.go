@@ -25,7 +25,7 @@ func TestReferenceJSONBInsertMetadata(t *testing.T) {
 			}{
 				{1, 2, [][]any{{"[9, 0]"}, {nil}}}, {2, 2, [][]any{{nil}}}, {99, 99, nil},
 			} {
-				s := jsonbSetMetadataStep(fixture.Select(q, []string{"changed"}, []string{"JSONB"}, tc.want, tc.lo, tc.hi), b.PG)
+				s := fixture.JSONBSetMetadataStep(fixture.Select(q, []string{"changed"}, []string{"JSONB"}, tc.want, tc.lo, tc.hi), b.PG)
 				jsonbSetBoth(t, p, b, c, s)
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 			}
@@ -38,8 +38,8 @@ func TestReferenceJSONBInsertMetadata(t *testing.T) {
 		} {
 			s := fixture.Select("SELECT jsonb_insert(v,'{0}','9') FROM jbi_meta"+tc.suffix, []string{"jsonb_insert"}, []string{"JSONB"}, tc.want)
 			s.CheckMetadata = func(t *testing.T, r *sql.Rows) {
-				jsonbObjectMetadata(t, r, b.PG, "jsonb_insert")
-				jsonbObjectMetadata(t, r, b.PG, "jsonb_insert")
+				fixture.JSONBObjectMetadata(t, r, b.PG, "jsonb_insert")
+				fixture.JSONBObjectMetadata(t, r, b.PG, "jsonb_insert")
 			}
 			jsonbSetBoth(t, p, b, c, s)
 		}

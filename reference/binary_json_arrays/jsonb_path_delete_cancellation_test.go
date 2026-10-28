@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"stuntgres"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -56,7 +57,7 @@ func TestReferenceJSONBPathDeleteCancellation(t *testing.T) {
 		// Keep admission inside the deletion provider through both the short
 		// removal walk and canonical output of the retained 32MiB subtree.
 		// Matching only jsonbSetPath misses the dominant output phase.
-		provider := "sqltype.BinaryPlan.jsonbPathDelete"
+		provider := stuntgres.WorkJSONBPathDelete
 		fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, provider, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := read.QueryContext(ctx)
 			return fixture.RelationOutcome{Rows: rows, Err: err}

@@ -46,7 +46,7 @@ func TestReferenceSQLJSONPredicateUnicode(t *testing.T) {
 										predicate, want = " IS NOT JSON", !want
 									}
 									t.Run(predicate+kind+unique, func(t *testing.T) {
-										sqljsonBoth(t, p, b, c, fixture.Select(`SELECT $1::text`+predicate+kind+unique+` AS v`,
+										fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT $1::text`+predicate+kind+unique+` AS v`,
 											[]string{"v"}, []string{"BOOL"}, [][]any{{want}}, input))
 									})
 								}
@@ -57,7 +57,7 @@ func TestReferenceSQLJSONPredicateUnicode(t *testing.T) {
 						// not reject it merely because decoding would fail.
 						for _, expr := range []string{`$1::json`, `JSON($1::text)`, `JSON($1::text WITHOUT UNIQUE KEYS)`} {
 							t.Run(expr, func(t *testing.T) {
-								sqljsonBoth(t, p, b, c, fixture.Select("SELECT "+expr+" AS v",
+								fixture.SQLJSONBoth(t, p, b, c, fixture.Select("SELECT "+expr+" AS v",
 									[]string{"v"}, []string{"JSON"}, [][]any{{input}}, input))
 							})
 						}
@@ -76,7 +76,7 @@ func TestReferenceSQLJSONPredicateUnicode(t *testing.T) {
 								// Parameters keep input evaluation at execute even for
 								// prepared calls. All optional fields, including both
 								// positions and Hint, are independently required empty.
-								sqljsonDiagnostic(t, p, b, c, "SELECT "+expr+" AS v", d, false, input)
+								fixture.SQLJSONDiagnostic(t, p, b, c, "SELECT "+expr+" AS v", d, false, input)
 							})
 						}
 					})
@@ -103,7 +103,7 @@ func TestReferenceSQLJSONPredicateUnicode(t *testing.T) {
 							want = !want.(bool)
 						}
 					}
-					sqljsonBoth(t, p, b, c, fixture.Select(`SELECT $1::text`+predicate+tc.kind+` WITH UNIQUE KEYS AS v`,
+					fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT $1::text`+predicate+tc.kind+` WITH UNIQUE KEYS AS v`,
 						[]string{"v"}, []string{"BOOL"}, [][]any{{want}}, tc.input))
 				}
 			}

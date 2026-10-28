@@ -250,7 +250,7 @@ func (p RangeSupport) InRange(ctx context.Context, val, base, offset Value, sub,
 		if p.key.id == Interval {
 			bound, err = addIntervals(base, offset, p.key, sub)
 		} else {
-			bound, err = addTimestampInterval(base.integer, offset, p.timestamp, sub, input)
+			bound, err = addTimestampInterval(ctx, base.integer, offset, p.timestamp, sub, input)
 		}
 		if err != nil {
 			return false, err

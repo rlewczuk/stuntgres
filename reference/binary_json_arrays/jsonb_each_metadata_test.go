@@ -28,7 +28,7 @@ func TestReferenceJSONBEachMetadata(t *testing.T) {
 						if input == `{"a":1}` {
 							want = [][]any{tc.row}
 						}
-						jsonEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select(tc.q, tc.names, tc.types, want, input), b.PG))
+						fixture.JSONEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select(tc.q, tc.names, tc.types, want, input), b.PG))
 					})
 				}
 			}
@@ -36,7 +36,7 @@ func TestReferenceJSONBEachMetadata(t *testing.T) {
 			if f == "jsonb_each_text" {
 				value = "(a,)"
 			}
-			jsonEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select("SELECT "+f+"('{\"a\":null}'::jsonb)", []string{f}, []string{"RECORD"}, [][]any{{value}}), b.PG))
+			fixture.JSONEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select("SELECT "+f+"('{\"a\":null}'::jsonb)", []string{f}, []string{"RECORD"}, [][]any{{value}}), b.PG))
 		}
 	})
 }

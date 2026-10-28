@@ -35,7 +35,7 @@ func jsonbInsertControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 	if err != nil {
 		t.Fatal(err)
 	}
-	jsonbObjectMetadata(t, old, false, "changed")
+	fixture.JSONBObjectMetadata(t, old, false, "changed")
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}

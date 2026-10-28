@@ -183,6 +183,7 @@ func (s *StatementScope) CallProtocolFunction(input session.ProtocolInput) (sess
 	output.Operator, output.Regcollation, output.Regnamespace, output.RegTS = rows, rows, rows, rows
 	output.ACLItem = rows
 	output.Transport = s.Op.EffectiveSettings().ClientEncoding()
+	output.XMLNotice = func(d sqlstate.Error) { s.Op.EmitNotice(session.LevelWarning, d) }
 	fields, _, err := session.EncodeProtocolRow(s.Op.Context(), rows.Values, []int16{int16(format)}, output, nil, nil)
 	if err != nil {
 		return session.ProtocolField{}, err

@@ -109,7 +109,7 @@ func (s *TimestampSeriesCursor) Next(ctx context.Context) (Value, bool, error) {
 		fixedZone = Zone{types: fixedType[:], fixed: true}
 		input.Zone = &fixedZone
 	}
-	next, err := addTimestampInterval(s.current, s.step, s.typ, false, input)
+	next, err := addTimestampInterval(ctx, s.current, s.step, s.typ, false, input)
 	if err != nil {
 		s.Close()
 		return Value{}, false, err

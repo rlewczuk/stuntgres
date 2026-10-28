@@ -188,7 +188,9 @@ func openPGSequencesStage(state *State, source *Source, schema []catalog.Column)
 	out := Stage{Source: source, Columns: schema, Selection: []int{}}
 	position := 0
 	evaluation := state.Evaluation(nil)
+	evaluation.Context = nil
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
+		defer func() { evaluation.Context = nil }()
 		for position < len(p.Refs) {
 			i := position
 			position++

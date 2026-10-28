@@ -3,6 +3,7 @@ package reference_test
 import (
 	"context"
 	"database/sql"
+	"stuntgres"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ func TestReferencePgcryptoPasswordSHACancellation(t *testing.T) {
 				if transaction {
 					fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("BEGIN", 0))
 				}
-				fixture.BinaryConversionActiveCancel(t, p, backend, c, q, "pgcryptoSHA", func(ctx context.Context) fixture.RelationOutcome {
+				fixture.BinaryConversionActiveCancel(t, p, backend, c, q, stuntgres.WorkPasswordSHA, func(ctx context.Context) fixture.RelationOutcome {
 					rows, err := stmt.QueryContext(ctx, "password", setting)
 					return fixture.RelationOutcome{Rows: rows, Err: err}
 				})

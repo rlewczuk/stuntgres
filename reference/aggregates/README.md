@@ -6,8 +6,9 @@ variance, standard deviation and regression aggregates; hypothetical-set and
 ordered-set aggregates; SUM over MONEY and INTERVAL; JSON/JSONB object and array
 aggregates and SQL/JSON `JSON_OBJECTAGG`/`JSON_ARRAYAGG`; bitwise and range
 aggregates. Related families elsewhere: numeric SUM/AVG in `reference/numeric`,
-INTERVAL AVG in `reference/temporal_types`, `array_agg` and `intagg` in
-`reference/binary_json_arrays`, `string_agg` in `reference/strings`, Boolean
+INTERVAL AVG in `reference/temporal_types`, `array_agg` in
+[cursors](../cursors/README.md#testing) and `intagg` in
+[binary_json_arrays](../binary_json_arrays/README.md#testing), `string_agg` in `reference/strings`, Boolean
 aggregates in `reference/types`, multiranges in `reference/ranges_text_search`,
 count expressions in
 `reference/query_order`.
@@ -61,13 +62,13 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   - Recovery reuses the same held statement with a small input instead of
     repeating the large sort.
 - **Other cancellation.** Hypothetical-set cancellation admits on
-  `exec.openAggregateNode` through `fixture.BinaryConversionActiveCancel`; sort
+  `stuntgres.WorkAggregateInput` through `fixture.BinaryConversionActiveCancel`; sort
   phases are covered by private units. SQL/JSON object aggregation places a
   `pg_sleep` inside the aggregated value and uses `fixture.SleepActiveCancel`;
   transition and sort cancellation belong to the internal
   `TestSQLJSONObjectAggregateReachedCancellation` unit, not public stack sampling.
-- **Frame names matched by tests.** `exec.sortOrderedAggregate`,
-  `exec.openAggregateNode`. Update the probes when renaming them.
+- **Frame names matched by tests.** Ordered-set's separate native sort observer
+  matches `exec.sortOrderedAggregate`; update that probe when renaming it.
 - **Client metadata.** The pinned lib/pq OID map lacks some types (for example
   REGCOLLATION and XID8): assert their pq database type name separately from the
   native name.

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
@@ -147,6 +148,7 @@ func (s *StatementScope) resetPLSegment() {
 	}
 	s.rlsPrograms, s.rlsActive = nil, nil
 	s.Input, s.Output = s.Op.EffectiveSettings().Presentation()
+	s.Input.XMLInput = session.XMLInput{Op: s.Op}
 	s.installSQLRoutineScratch(s.rebaseRoutineScratch(s.sqlRoutineScratch()))
 	s.Stage.Rows, s.Stage.Deletes = nil, nil
 	s.Stage.Replacing = false

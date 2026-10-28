@@ -304,6 +304,7 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | `pg_snapshot`, `txid_snapshot` | `[]byte` (owned canonical snapshot text; byte-slice scan type) |
 | `pg_lsn` | canonical uppercase slash-hex `string` (string scan type) |
 | `json` | `string` (exact input text) |
+| `xml` | transport-normalized `string` (string scan type; OID 142) |
 | `jsonb`, `uuid`, network, geometric, bit strings, text search | canonical `string` |
 | `int2vector`, `oidvector` | canonical space-separated `string` |
 | arrays, composites, ranges, multiranges, enums | canonical `string` |
@@ -328,6 +329,15 @@ columns retain `INET` with string scan types and port columns `INT4` with int64
 scan types, including empty results; raw values are actual `nil` interfaces.
 Direct, prepared and stored-view calls use the same typed result path. Native
 Dump/Reset/Restore preserves stored calls symbolically, not as endpoint values.
+
+XML string and non-nil byte arguments use text input; bytes are copied before
+execution and are not binary protocol parameters. XML nil/typed-nil bytes are
+SQL NULL, distinct from empty CONTENT. Session `xmloption` is captured for each
+execution's XML parameters and concrete text casts. Accepted typed XML literals
+retain their prepare-time value without reparsing or replaying input warnings.
+XMLPARSE has its own explicit mode. Character casts and XMLSERIALIZE CONTENT
+NO INDENT preserve original spelling; typed output and binary send apply their
+transport declaration and encoding rules.
 
 Vector columns report `INT2VECTOR`/`OIDVECTOR` and string scan types. Text or
 non-nil byte arguments may carry empty vectors, distinct from SQL NULL; typed-nil
@@ -416,6 +426,86 @@ The driver does not add implicit conversions between other installed
 families. Native Reset/Dump/Restore preserves full values, validity flags, issue
 digits, NULLs and independent type identities.
 
+## Cooperative work admission
+
+`WithWorkAdmission(ctx, admission)` attaches a request-scoped native embedding
+policy. `WorkAdmission` is `func(context.Context, WorkClass) error`; a nil policy
+disables control. Pass the returned context to ordinary direct or prepared
+`database/sql` operations. Attaching the policy does not alter context values,
+deadlines, cancellation or causes. It is inert during binding and locked codecs;
+only actual runtime work at supported unlocked provider frontiers invokes it.
+Completed requests and retained statements, values and plans retain no policy.
+Without a policy the provider admission path allocates nothing.
+
+Each successful invocation consumes one application-defined credit for one
+semantic quantum of its class. Applications can share credits across requests,
+replenish a bounded channel to resume work, or return an ordinary refusal error.
+These are consumptive credits, not permits held across nested work. A callback
+must be concurrency-safe, honor the supplied effective context, and return
+`ctx.Err()` when its wait is canceled. It must not reenter the busy connection;
+an independent connection remains usable. The engine invokes admission without
+holding its engine/session/store mutexes. Statement-owned SQL resource locks
+remain held while waiting, just as for other statement work.
+
+```go
+credits := make(chan struct{}, 32)
+ctx = stuntgres.WithWorkAdmission(ctx, func(ctx context.Context, class stuntgres.WorkClass) error {
+    if class != stuntgres.WorkEncodingConvert {
+        return nil
+    }
+    select {
+    case <-credits:
+        return nil
+    case <-ctx.Done():
+        return ctx.Err()
+    }
+})
+// A workload scheduler supplies credits; the request waits until granted.
+rows, err := db.QueryContext(ctx, "SELECT convert_to(v,'LATIN1') FROM messages")
+```
+
+The supplied context is the effective operation child, including statement
+timeout and session termination, not merely the original caller context.
+Cancellation is checked before admission and again after a successful grant,
+so a callback cannot publish success after cancellation. Ordinary policy errors
+preserve identity and do not acquire a synthetic SQLSTATE. Existing parent
+cancellation, deadline, cancellation-cause and SQL timeout/FATAL error mappings
+remain authoritative. A nil nested policy disables an inherited policy.
+
+Supported `WorkClass` quanta:
+
+| Class | One semantic quantum |
+| --- | --- |
+| `WorkPatternNormalize` | At most 4096 escape-normalization iterations; an iteration may consume an escaped pair. |
+| `WorkPatternMatch` | At most 4096 LIKE matching iterations, distinct from normalization. |
+| `WorkJSONArrayCount` | One token-state step after validation of the array root. |
+| `WorkJSONObjectExpand` | One JSON object-expansion token-state step. |
+| `WorkJSONRecordExpand` | One JSON record-expansion token-state step. |
+| `WorkJSONStripNulls` | One token-state step or at most 4096 copied bytes. |
+| `WorkJSONBContainment` | One containment traversal frame step. |
+| `WorkJSONBObjectExpand` | One present object member, not NULL or EOF. |
+| `WorkJSONBArrayExpand` | One present array element, not NULL or EOF. |
+| `WorkJSONBExistence` | One object-search, array or scalar-string candidate step. |
+| `WorkJSONBPathDelete` | One delete path or bounded copied-entry chunk; unrelated set/insert work is not charged. |
+| `WorkJSONBPretty` | One node/frame step or at most 64 indentation bytes. |
+| `WorkJSONBRecordPopulate` | One record-field, domain or array-frame step. |
+| `WorkArrayTransform` | One `array_to_string` input element examined, including skipped NULLs, after child operands, strict NULL handling and separator/replacement conversion; no element-output byte bound. |
+| `WorkCalendarArithmetic` | One nonzero month/day adjustment stage, after interval-negation and infinity precedence. |
+| `WorkEncodingConvert` | At most 4096 source bytes on character boundaries in either sizing or emission pass; validation and identity conversions are not charged. |
+| `WorkPasswordBcrypt` | One fixed bcrypt round containing two Blowfish expansions. |
+| `WorkPasswordSHA` | At most 4096 password-specific copied/hash bytes or 64 repeated bytes, not an arbitrary password round. |
+| `WorkAggregateInput` | One aggregate support/input initialization before the child opens or drains, absent precomputed partials; not input draining or sorting. |
+| `WorkRecursiveUnion` | One producer loop step advancing a row or opening/completing a round, possibly encountering EOF or discarding a duplicate. |
+| `WorkTSVectorConvert` | One text-search document/token conversion step after unlocked configuration capture. |
+
+These quanta are cooperative scheduling boundaries, not universal CPU, memory,
+wall-clock or query-wide accounting. JSON expansion uses an explicit operation
+class; raw input scans, classification and extraction do not spend its credits.
+Long scalar scans and comparisons retain their ordinary cancellation checks;
+a structural step does not promise a scalar byte bound. Cached immutable work
+need not execute again and therefore need not consume credit. SQL NULL, lazy
+operand evaluation and original error precedence are unchanged.
+
 ## Errors
 
 SQL errors satisfy `errors.As(err, &e)` for `interface{ SQLState() string }` and
@@ -445,8 +535,12 @@ db := sql.OpenDB(connector)
 
 `WithNoticeHandler` returns a configured copy that affects new physical connections
 only; plain connectors deliver no notices. Handlers run synchronously, in order,
-after engine locks are released and before the command returns. Do not re-enter
-the same `*sql.Conn` from a handler.
+after engine locks and the request lease are released. Input notices arrive
+before the command returns; typed XML output notices arrive during `Rows.Next`,
+with each result set's captured `client_min_messages` filter. Metadata, NULL,
+EOF, Close and incidental diagnostic/dump formatting emit no output notices.
+A warning produced before a later field conversion fails is still delivered.
+Handlers may use an independent connection; do not re-enter the same `*sql.Conn`.
 
 `stuntgres.WaitForNotification(ctx, conn)` waits on a pinned, unwrapped native
 `*sql.Conn` for the next committed `NOTIFY` on a channel it `LISTEN`s to and returns

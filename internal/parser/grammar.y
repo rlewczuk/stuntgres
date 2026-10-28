@@ -326,6 +326,7 @@ package parser
 %token <tok> ANY SOME ROW
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
 %token <tok> RECURSIVE XML
+%token <tok> XML_PARSE XML_SERIALIZE XML_MODE XML_SPACE XML_WHITESPACE XML_INDENT
 %token <tok> GRANT REVOKE ADMIN INHERIT OPTION GRANTED
 %token <tok> CURRENT_CATALOG SYSTEM_USER IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %token <tok> CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP LOCALTIME LOCALTIMESTAMP
@@ -849,6 +850,8 @@ package parser
 %type <desc> json_unique
 %type <sqljson> sqljson_members sqljson_member sqljson_values sqljson_value sqljson_optional_values
 %type <expr> sqljson_constructor
+%type <expr> xml_expression
+%type <tok> xml_parse_head xml_serialize_head xml_mode xml_whitespace xml_indent
 %type <expr> sqljson_query
 %type <tok> sqljson_query_head sqljson_wrapper sqljson_quotes sqljson_wrapper_kind sqljson_scalar_string
 %type <sqljsonPassing> sqljson_passing sqljson_bindings
@@ -2909,6 +2912,7 @@ scalar: scalar_atom { $$=$1 }
  | scalar COLLATE relation_name %prec COLLATE { if !selectedScalarChild(sqllex,$1,$2) {return 1};$$=CollateExpr{Child:$1,Name:$3,Pos:$2.pos} }
  | aggregate_application { $$=$1 }
  | sqljson_constructor { $$=$1 }
+ | xml_expression { $$=$1 }
  | sqljson_query { $$=$1 }
  | GROUPING '(' function_values ')' { $$=GroupingExpr{Args:$3,Pos:$1.pos} }
  /* Share the call opener, but retain raw DATE modifiers instead of reducing
@@ -3518,6 +3522,13 @@ json_null_policy: /* empty */ { $$=&JSONAggregateOptions{Absent:true} }
  | JSON_NULL ON NULL { $$=&JSONAggregateOptions{NullPos:$1.pos} } ;
 json_returning: /* empty */ { $$=&JSONAggregateOptions{} }
  | RETURNING json_return_type json_format { typ:=$2;$$=&JSONAggregateOptions{Returning:&typ,Output:$3,ReturningPos:$1.pos} } ;
+xml_parse_head: XML_PARSE '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth});$$=$1} ;
+xml_serialize_head: XML_SERIALIZE '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Serialize:true});$$=$1} ;
+xml_mode: XML_MODE {$$=$1} ;
+xml_whitespace: /* empty */ {$$=lexeme{}} | XML_SPACE XML_WHITESPACE {$$=$1} ;
+xml_indent: /* empty */ {$$=lexeme{}} | XML_INDENT {$$=$1} | NO XML_INDENT {$$=$1;$$.text="no indent"} ;
+xml_expression: xml_parse_head xml_mode target_or xml_whitespace ')' {$$=XMLParseExpr{Child:$3,Document:$2.text=="document",Whitespace:$4.text,Pos:$1.pos}}
+ | xml_serialize_head xml_mode target_or AS declaration_type_base xml_indent ')' {$$=XMLSerializeExpr{Child:$3,Document:$2.text=="document",Target:$5,Indent:$6.text,Pos:$1.pos}} ;
 json_return_type: type { $$=$1 } | SETOF_TYPE type { $$=$2;$$.Setof=true } ;
 sqljson_array_head: SQLJSON_ARRAY '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
 sqljson_object_head: SQLJSON_OBJECT '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);l.jsonObjectFirst=true;$$=$1 } ;
@@ -3691,6 +3702,8 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | SQLJSON_SCALAR %prec NAME_LIST { $$=$1 }
  | SQLJSON_SERIALIZE %prec NAME_LIST { $$=$1 }
  | SQLJSON_QUERY_FUNC %prec NAME_LIST { $$=$1 }
+ | XML_PARSE %prec NAME_LIST {$$=$1}
+ | XML_SERIALIZE %prec NAME_LIST {$$=$1}
  | JSON_TABLE_FUNC %prec NAME_LIST {$$=$1}
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN | PL_SLICE ;

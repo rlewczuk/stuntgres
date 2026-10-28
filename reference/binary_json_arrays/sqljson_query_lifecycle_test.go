@@ -19,7 +19,7 @@ func TestReferenceSQLJSONQueryLifecycle(t *testing.T) {
 				fixture.Exec(`UPDATE sqjq_stored SET doc='{"a":[3],"s":"7"}' WHERE id=1`, 1),
 				fixture.Select(`SELECT found,items,value FROM sqjq_view`, []string{"found", "items", "value"}, []string{"BOOL", "JSONB", "INT4"}, [][]any{{true, `[3]`, int64(7)}}),
 			}
-			dump := jsonpathNavigateReplay(t, p, b, c, check, future...)
+			dump := fixture.JSONPathNavigateReplay(t, p, b, c, check, future...)
 			if !b.PG {
 				unchanged := func() {
 					var after bytes.Buffer
@@ -71,8 +71,8 @@ func TestReferenceSQLJSONQueryLifecycle(t *testing.T) {
 							s := fixture.ErrorDiagnostic(q, d)
 							s.Prepared, s.ErrorStage = prepared, "execute"
 							run(s)
-							run(sqljsonQueryOne(`SELECT v FROM sqjq_out`, "INT4", int64(99)))
-							run(sqljsonQueryOne(`SELECT count(*) AS v FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON c.relnamespace=n.oid WHERE n.nspname='public' AND c.relname='sqjq_failed'`, "INT8", int64(0)))
+							run(fixture.SQLJSONQueryOne(`SELECT v FROM sqjq_out`, "INT4", int64(99)))
+							run(fixture.SQLJSONQueryOne(`SELECT count(*) AS v FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON c.relnamespace=n.oid WHERE n.nspname='public' AND c.relname='sqjq_failed'`, "INT8", int64(0)))
 						}
 					})
 				}
@@ -139,7 +139,7 @@ func TestReferenceSQLJSONQueryLifecycle(t *testing.T) {
 						}
 					}
 				}
-				resetProgress := func() { run(sqljsonQueryOne(`SELECT setval('sqjq_progress',1,false) AS v`, "INT8", int64(1))) }
+				resetProgress := func() { run(fixture.SQLJSONQueryOne(`SELECT setval('sqjq_progress',1,false) AS v`, "INT8", int64(1))) }
 				run(fixture.Prepared(fixture.Exec(`UPDATE sqjq_active SET doc=$1,path=$2,repetitions=100`, 3, large, path)))
 				resetProgress()
 				// Existing shared walker frame, not a nonexistent query-plan symbol.

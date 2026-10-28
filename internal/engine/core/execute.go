@@ -398,7 +398,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		// CHECK recipes use this captured authority and run without Engine.mu.
 		captured := auth.Catalog
 		e.Mu.Unlock()
-		err = importFrame(ctx, b.Parameters, canonical, evaluation.Input)
+		runtimeContext := scope.activateWork(ctx)
+		evaluation.Context = runtimeContext
+		err = importFrame(runtimeContext, b.Parameters, canonical, evaluation.Input)
+		evaluation.Context = ctx
 		e.Mu.Lock()
 		if err != nil {
 			e.Mu.Unlock()

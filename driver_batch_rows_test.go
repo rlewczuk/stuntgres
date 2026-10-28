@@ -7,6 +7,7 @@ import (
 	"io"
 	"slices"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -108,7 +109,7 @@ func TestDriverBatchPrimaryCleanupAndCancellation(t *testing.T) {
 			if primary {
 				terminal = errors.New("already executed terminal error")
 			}
-			r := newBatchRows(context.Background(), []exec.RowResult{first, second}, terminal)
+			r := newBatchRows(context.Background(), []exec.RowResult{first, second}, terminal, make([]session.OutputNotices, 2))
 			want := cleanup
 			if primary {
 				want = terminal

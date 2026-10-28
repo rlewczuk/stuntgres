@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -56,7 +57,7 @@ func TestReferenceJSONBExistsCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer active.Close()
-		fixture.BinaryConversionActiveCancel(t, p, b, c, activeSQL, "sqltype.jsonbExists", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, c, activeSQL, stuntgres.WorkJSONBExistence, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := active.QueryContext(ctx)
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})

@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"context"
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
@@ -16,6 +17,7 @@ import (
 // sources (nil without USING or subquery demand) and the canonical
 // parameters. ExecuteDelete closes Inputs; the caller closes Source.
 type DeleteInput struct {
+	Context    context.Context // Effective runtime context; nil uses operation authority.
 	Binding    analyze.Binding
 	Source     *exec.Source
 	Inputs     *exec.Source
@@ -29,7 +31,9 @@ type DeleteInput struct {
 func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 	b, source, inputs, parameters := in.Binding, in.Source, in.Inputs, in.Parameters
 	if err := RegisterAfterStatement(h, b, stored.TriggerDelete); err != nil {
-		if inputs != nil { inputs.Close() }
+		if inputs != nil {
+			inputs.Close()
+		}
 		return Outcome{}, err
 	}
 	defer CompleteAfterStatement(h, b, stored.TriggerDelete, &outcome, &err)
@@ -51,7 +55,10 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 			return Outcome{}, err
 		}
 	}
-	ctx := h.Operation().Context()
+	ctx := in.Context
+	if ctx == nil {
+		ctx = h.Operation().Context()
+	}
 	input, output := h.Environments()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Host: h, Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if inputs != nil {

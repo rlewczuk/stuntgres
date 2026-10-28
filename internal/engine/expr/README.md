@@ -1,5 +1,11 @@
 # internal/engine/expr
 
+XML capture uses distinct `CaptureXMLParse` and `CaptureXMLSerialize` kinds, each
+with one written operand. `CaptureOperands.XMLSources` and `RenderArg.XMLSource`
+delegate peeling of the opener-owned source assignment to the engine's existing
+coercion structure. Modes/options and resolved serializer target Usage remain
+checked node/presentation data, not raw type-name authority.
+
 The expression contract shared by the engine and `internal/engine/functions`:
 types and small pure helpers, including invocation-private cursor handles. It has
 no shared state and no mutex. Layer L2 of
@@ -97,9 +103,12 @@ switch's generic behavior.
 - **`CallCoster`**: inline-policy procost without evaluation or catalog lookup.
 - **`GroupPropertyRewriter`**: merges already rewritten children at grouping
   only; substitution, preflight and retag never invoke it.
-- **`Folding`** (`PlanningFold`): `FoldConstant` (default), `FoldNever`, and
-  the engine-owned `FoldOverlapsRoute` dispatched by
-  kind. **`StrictFolding`** (`StrictNull`): when a literal NULL child replaces
+- **`Folding`** (`PlanningFold`): node-local `FoldConstant` (default),
+  `FoldNever`, and the engine-owned `FoldOverlapsRoute` dispatched by kind.
+  **`ExecutionDemand`**: diagnostics require demanded runtime evaluation, so
+  enclosing preflight computations must not evaluate this subtree. This is
+  distinct from `FoldNever`: relational providers still preflight their inputs.
+  **`StrictFolding`** (`StrictNull`): when a literal NULL child replaces
   the call with a typed NULL.
 - **`StoredProvider`** (`ValidateStoredProvider`): stored generation plans
   reject protocol nodes without it.

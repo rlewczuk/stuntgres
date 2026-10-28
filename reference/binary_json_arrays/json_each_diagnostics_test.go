@@ -23,7 +23,7 @@ func TestReferenceJSONEachDiagnostics(t *testing.T) {
 						}
 						t.Run(prefix+call+input, func(t *testing.T) {
 							for _, prepared := range []bool{false, true} {
-								jsonKeysError(t, p, b, c, prefix+call, prepared, fixture.ControlsReferenceDiagnostic("22023", message), "execute", args...)
+								fixture.JSONKeysError(t, p, b, c, prefix+call, prepared, fixture.ControlsReferenceDiagnostic("22023", message), "execute", args...)
 							}
 						})
 					}
@@ -47,7 +47,7 @@ func TestReferenceJSONEachDiagnostics(t *testing.T) {
 							if prepared && !bound {
 								stage = "prepare"
 							}
-							jsonKeysError(t, p, b, c, q, prepared, d, stage, args...)
+							fixture.JSONKeysError(t, p, b, c, q, prepared, d, stage, args...)
 						}
 					})
 				}
@@ -75,7 +75,7 @@ func TestReferenceJSONEachDiagnostics(t *testing.T) {
 						if prepared {
 							stage = "prepare"
 						}
-						jsonKeysError(t, p, b, c, tc.expression, prepared, d, stage)
+						fixture.JSONKeysError(t, p, b, c, tc.expression, prepared, d, stage)
 					}
 				})
 			}
@@ -88,9 +88,9 @@ func TestReferenceJSONEachTyping(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE DOMAIN je_document AS json", 0))
 		for _, f := range []string{"json_each", "json_each_text"} {
 			for _, call := range []string{f + "($1)", f + "($1::json)", "pg_catalog." + f + "($1)", f + "(from_json => $1)", f + "(from_json := $1)", f + "($1::je_document)"} {
-				jsonEachBoth(t, p, b, c, jsonEachSelect(f, "SELECT * FROM "+call, [][]any{{"a", "1"}}, `{"a":1}`))
+				fixture.JSONEachBoth(t, p, b, c, jsonEachSelect(f, "SELECT * FROM "+call, [][]any{{"a", "1"}}, `{"a":1}`))
 			}
-			jsonEachBoth(t, p, b, c, jsonEachSelect(f, "SELECT * FROM "+f+"(NULL)", nil))
+			fixture.JSONEachBoth(t, p, b, c, jsonEachSelect(f, "SELECT * FROM "+f+"(NULL)", nil))
 			for _, tc := range []struct{ call, signature string }{
 				{f + "()", f + "()"},
 				{f + "('{}','{}')", f + "(unknown, unknown)"},
@@ -110,7 +110,7 @@ func TestReferenceJSONEachTyping(t *testing.T) {
 							if prepared {
 								stage = "prepare"
 							}
-							jsonKeysError(t, p, b, c, prefix+tc.call, prepared, d, stage)
+							fixture.JSONKeysError(t, p, b, c, prefix+tc.call, prepared, d, stage)
 						}
 					})
 				}

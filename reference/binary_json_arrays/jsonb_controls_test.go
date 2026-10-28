@@ -27,7 +27,7 @@ func TestReferenceJSONBControls(t *testing.T) {
 func jsonbReferenceControlSeed(t *testing.T, p *fixture.Pair, backend fixture.Backend) {
 	t.Helper()
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s) }
-	run(fixture.Exec("CREATE TABLE jb_saved(id INT,v JSONB DEFAULT jsonb "+jsonReferenceQuote(jsonbControlDefault)+",n JSONB DEFAULT CAST(NULL AS JSONB))", 0))
+	run(fixture.Exec("CREATE TABLE jb_saved(id INT,v JSONB DEFAULT jsonb "+fixture.JSONReferenceQuote(jsonbControlDefault)+",n JSONB DEFAULT CAST(NULL AS JSONB))", 0))
 	run(fixture.Exec("CREATE TABLE jb_empty(v JSONB)", 0))
 	run(fixture.Exec("INSERT INTO jb_saved VALUES(1,$1,NULL)", 1, jsonbControlInput))
 	run(fixture.Prepared(fixture.Exec("INSERT INTO jb_saved(id,n) VALUES(2,'null')", 1)))
@@ -100,7 +100,7 @@ func jsonbReferenceNativeControls(t *testing.T, p *fixture.Pair, smoke bool) {
 			{`"\u0000"`, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P05", Message: "unsupported Unicode escape sequence", Detail: `\u0000 cannot be converted to text.`, Context: `JSON data, line 1: "\u0000...`}},
 		} {
 			prefix := "CREATE TABLE staged(v JSONB); INSERT INTO staged VALUES('null'),("
-			script := prefix + jsonReferenceQuote(tc.input) + ")"
+			script := prefix + fixture.JSONReferenceQuote(tc.input) + ")"
 			tc.want.Position = fixture.Position(len(prefix) + 1)
 			err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(script))
 			fixture.AssertDiagnostic(t, err, &tc.want)

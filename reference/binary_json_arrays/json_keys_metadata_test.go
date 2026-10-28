@@ -31,7 +31,7 @@ func TestReferenceJSONKeysMetadata(t *testing.T) {
 	jsonKeysScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		for _, input := range []any{`{"a":1}`, `{}`, nil} {
 			for _, tc := range []struct {
-				q string
+				q            string
 				names, types []string
 			}{
 				{"SELECT json_object_keys($1)", []string{"json_object_keys"}, []string{"TEXT"}},
@@ -51,7 +51,7 @@ func TestReferenceJSONKeysMetadata(t *testing.T) {
 					s := fixture.Select(tc.q, tc.names, tc.types, want, input)
 					s.Bag = true
 					s.CheckMetadata = func(t *testing.T, r *sql.Rows) { jsonKeysMetadata(t, r, b.PG, tc.names, tc.types) }
-					jsonKeysBoth(t, p, b, c, s)
+					fixture.JSONKeysBoth(t, p, b, c, s)
 				})
 			}
 		}
@@ -69,8 +69,8 @@ func jsonKeysHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn)
 			defer stmt.Close()
 			held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 			for _, tc := range []struct {
-				input any
-				keys []string
+				input         any
+				keys          []string
 				code, message string
 			}{
 				{`{"a":1,"a":2,"b":3}`, []string{"a", "a", "b"}, "", ""},
@@ -86,7 +86,7 @@ func jsonKeysHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn)
 						d.Detail = `\u0000 cannot be converted to text.`
 						d.Context = `JSON data, line 1: {"a":"\u0000...`
 					}
-					jsonKeysError(t, p, b, held, q, false, d, "execute", tc.input)
+					fixture.JSONKeysError(t, p, b, held, q, false, d, "execute", tc.input)
 					continue
 				}
 				s := jsonKeysSelect(q, tc.keys, tc.input)
@@ -104,6 +104,6 @@ func TestReferenceJSONKeysParametersAndLifecycle(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`INSERT INTO jk_atomic_source VALUES(1,'{"ok":1}'),(2,'[]')`, 2))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE jk_dest(k text)", 0))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ErrorDiagnostic("INSERT INTO jk_dest SELECT json_object_keys(j) FROM jk_atomic_source ORDER BY id", fixture.ControlsReferenceDiagnostic("22023", "cannot call json_object_keys on an array")))
-		jsonKeysBoth(t, p, b, c, fixture.Select("SELECT k FROM jk_dest", []string{"k"}, []string{"TEXT"}, nil))
+		fixture.JSONKeysBoth(t, p, b, c, fixture.Select("SELECT k FROM jk_dest", []string{"k"}, []string{"TEXT"}, nil))
 	})
 }

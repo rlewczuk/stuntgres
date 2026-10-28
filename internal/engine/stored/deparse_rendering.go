@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -134,6 +135,13 @@ func (r Deparser) renderingInfix(ctx context.Context, spec expr.Rendering, paren
 }
 
 func (r Deparser) renderingArg(ctx context.Context, spec expr.Rendering, arg expr.RenderArg, parent DeparseParent) (string, error) {
+	if arg.XMLSource != (parser.Position{}) {
+		var err error
+		arg.Expr, err = plan.XMLSourceOperand(arg.Expr, arg.XMLSource)
+		if err != nil {
+			return "", err
+		}
+	}
 	if arg.JSONFormattedSource {
 		arg.Expr = plan.SQLJSONSource(arg.Expr)
 	}

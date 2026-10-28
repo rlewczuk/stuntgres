@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fts"
@@ -8,13 +9,13 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/workadmission"
 )
 
 // ConvertTSVector captures one catalog generation. No catalog mutex is held
 // while parser or dictionary execution runs; runtimes are immutable authority.
-func (h *statementHost) ConvertTSVector(value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *statementHost) ConvertTSVector(ctx context.Context, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
-	ctx := s.Op.Context()
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -65,6 +66,9 @@ func (h *statementHost) ConvertTSVector(value sqltype.Value, text string, result
 	position := 0
 	for _, token := range tokens {
 		if err := ctx.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		if err := workadmission.Admit(ctx, workadmission.WorkTSVectorConvert); err != nil {
 			return sqltype.Value{}, err
 		}
 		// The document parser accepts arbitrary spans, but conversion ignores

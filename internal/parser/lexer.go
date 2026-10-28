@@ -32,6 +32,7 @@ type lexer struct {
 	extractField        bool
 	jsonParenDepth      int
 	jsonAggregateDepths []int
+	xmlDepths           []xmlLexical
 	jsonQueryDepths     []int
 	jsonFunctionDepths  []int
 	jsonTableDepths     []int
@@ -1185,6 +1186,47 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 	}
 	if token.lexeme.keyword != nil && l.previousToken != int('.') {
+		if token.lexeme.text == "xmlparse" || token.lexeme.text == "xmlserialize" {
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			if next.code == int('(') {
+				if token.lexeme.text == "xmlparse" {
+					token.code = XML_PARSE
+				} else {
+					token.code = XML_SERIALIZE
+				}
+			}
+		}
+		if len(l.xmlDepths) > 0 && l.jsonParenDepth == l.xmlDepths[len(l.xmlDepths)-1].Depth {
+			state := &l.xmlDepths[len(l.xmlDepths)-1]
+			if token.code == AS && state.Serialize {
+				state.Target = true
+			}
+			if l.previousToken != AS {
+				switch token.lexeme.text {
+				case "document", "content":
+					if l.previousToken == int('(') {
+						token.code = XML_MODE
+					}
+				case "preserve", "strip":
+					next := l.nextRaw()
+					l.lookahead, l.hasLookahead = next, true
+					if next.lexeme.keyword != nil && next.lexeme.text == "whitespace" {
+						token.code = XML_SPACE
+					}
+				case "whitespace":
+					if l.previousToken == XML_SPACE {
+						token.code = XML_WHITESPACE
+					}
+				case "indent":
+					if state.Target {
+						token.code = XML_INDENT
+					}
+				}
+			}
+		}
+	}
+	if token.lexeme.keyword != nil && l.previousToken != int('.') {
 		switch token.lexeme.text {
 		case "json", "json_array", "json_object", "json_scalar", "json_serialize":
 			if token.lexeme.text == "json" && (l.previousToken == IS || l.previousToken == NOT) {
@@ -1860,6 +1902,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == int('(') {
 		l.jsonParenDepth++
 	} else if token.code == int(')') {
+		if len(l.xmlDepths) > 0 && l.xmlDepths[len(l.xmlDepths)-1].Depth == l.jsonParenDepth {
+			l.xmlDepths = l.xmlDepths[:len(l.xmlDepths)-1]
+		}
 		if len(l.jsonTableDepths) > 0 && l.jsonTableDepths[len(l.jsonTableDepths)-1] == l.jsonParenDepth {
 			l.jsonTableDepths = l.jsonTableDepths[:len(l.jsonTableDepths)-1]
 		}

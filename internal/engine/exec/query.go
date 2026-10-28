@@ -485,6 +485,7 @@ func (s *Stage) ProjectOrdinal(ctx context.Context, ordinal int, dst []sqltype.V
 		}
 	} else {
 		s.Evaluation.setContext(ctx)
+		defer func() { s.Evaluation.Context = nil }()
 		s.Evaluation.Row = row
 		s.Evaluation.BindQueryIdentity(s.Source, s.Index(ordinal))
 		if s.CacheWidth != 0 {
@@ -599,12 +600,14 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		EstablishSourcePresence(source, n.PresenceSlot)
 		out := Stage{Source: source, Columns: n.Schema(), Selection: []int{}}
 		evaluation := state.Evaluation(nil)
+		evaluation.Context = nil
 		out.Reset = func(ctx context.Context, out *Stage) (bool, error) {
 			source.Flat, source.FlatCount = source.Flat[:0], 0
 			out.Selection, out.Done = out.Selection[:0], false
 			return true, ctx.Err()
 		}
 		out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
+			defer func() { evaluation.Context = nil }()
 			i := source.FlatCount
 			if i == len(n.Rows) {
 				return false, nil
@@ -668,6 +671,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		return child, nil
 	case *plan.FilterNode:
 		evaluation := state.Evaluation(ctx)
+		defer func() { evaluation.Context = nil }()
 		rejects, err := QueryPredicateRejectsAll(&evaluation, n.Predicate)
 		if err != nil {
 			return Stage{}, err
@@ -764,6 +768,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 			return changed, nil
 		}
 		out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
+			defer func() { evaluation.Context = nil }()
 			for {
 				var i int
 				if candidates := out.HashCandidates; candidates != nil {
@@ -922,6 +927,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		child.Columns = n.Schema()
 		child.Expressions = n.Expressions
 		child.Evaluation = state.Evaluation(nil)
+		child.Evaluation.Context = nil
 		if owner != nil {
 			finish := child.Finish
 			child.Finish = func() error {

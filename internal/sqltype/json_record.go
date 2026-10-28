@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/workadmission"
 )
 
 // DeferredRecord transports only a typed SQL NULL until a genuine descriptor
@@ -106,14 +107,14 @@ func (p JSONRecordPlan) Open(ctx context.Context, args []Value, env InputEnviron
 	}
 	c.conversion = conversion
 	if p.ReturnsSet() {
-		scan := jsonScanResult{mode: jsonScanElements, recordName: p.name, recordSet: true}
+		scan := jsonScanResult{mode: jsonScanElements, recordName: p.name, recordSet: true, workClass: workadmission.WorkJSONRecordExpand}
 		if _, err := input.typ.scanJSON(ctx, input.text, &scan); err != nil {
 			return JSONRecordCursor{}, err
 		}
 		c.rows, c.text, c.next = scan.members, input.text, 0
 	} else {
 		c.document.text = input.text
-		scan := jsonScanResult{record: &c.document, recordName: p.name}
+		scan := jsonScanResult{record: &c.document, recordName: p.name, workClass: workadmission.WorkJSONRecordExpand}
 		if _, err := input.typ.scanJSON(ctx, input.text, &scan); err != nil {
 			return JSONRecordCursor{}, err
 		}
@@ -182,7 +183,7 @@ func (c *JSONRecordCursor) Next(ctx context.Context) (Value, bool, error) {
 		clear(c.document.keys)
 		c.document.text = text
 		c.document.nodes, c.document.keys, c.document.open = c.document.nodes[:0], c.document.keys[:0], c.document.open[:0]
-		scan := jsonScanResult{record: &c.document, recordName: c.plan.name, origin: c.text, originOffset: row.start}
+		scan := jsonScanResult{record: &c.document, recordName: c.plan.name, origin: c.text, originOffset: row.start, workClass: workadmission.WorkJSONRecordExpand}
 		if _, err := c.plan.args[c.plan.jsonIndex].Type.scanJSON(ctx, text, &scan); err != nil {
 			return Value{}, false, err
 		}

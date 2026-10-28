@@ -15,11 +15,11 @@ func TestReferenceJSONBSetFeatureSmoke(t *testing.T) {
 			{`'[1,2,3]','{3}','9'`, `[1, 2, 3, 9]`},
 			{`'[1,2,3]','{3}','9',false`, `[1, 2, 3]`},
 		} {
-			s := jsonbSetMetadataStep(jsonbSetSelect("SELECT jsonb_set("+tc.args+") AS changed", tc.want), b.PG)
+			s := fixture.JSONBSetMetadataStep(jsonbSetSelect("SELECT jsonb_set("+tc.args+") AS changed", tc.want), b.PG)
 			jsonbSetBoth(t, p, b, c, s)
 		}
-		jsonbSetBoth(t, p, b, c, jsonbSetMetadataStep(jsonbSetSelect("SELECT jsonb_set(NULL,'{a}','2') AS changed", nil), b.PG))
-		jsonbSetBoth(t, p, b, c, jsonbSetMetadataStep(fixture.Select("SELECT jsonb_set(v,'{a}','2') AS changed FROM (SELECT NULL::jsonb AS v) AS x WHERE false", []string{"changed"}, []string{"JSONB"}, nil), b.PG))
+		jsonbSetBoth(t, p, b, c, fixture.JSONBSetMetadataStep(jsonbSetSelect("SELECT jsonb_set(NULL,'{a}','2') AS changed", nil), b.PG))
+		jsonbSetBoth(t, p, b, c, fixture.JSONBSetMetadataStep(fixture.Select("SELECT jsonb_set(v,'{a}','2') AS changed FROM (SELECT NULL::jsonb AS v) AS x WHERE false", []string{"changed"}, []string{"JSONB"}, nil), b.PG))
 		jsonbSetHeldModes(t, p, b, c)
 		jsonbSetBoth(t, p, b, c, jsonbSetSelect(`SELECT jsonb_set_lax('{"a":1}',path => '{a}',replacement => NULL,null_value_treatment => 'delete_key') AS changed`, `{}`))
 		check := jsonbSetStored(t, p, b, c)

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/workadmission"
 )
 
 type ArrayTransformKind uint8
@@ -293,6 +294,11 @@ func (e ArrayTransform) Eval(c expr.Context) (sqltype.Value, error) {
 		output := c.FunctionStringOutput()
 		for i := range a.ArrayLen() {
 			if err := ctx.Err(); err != nil {
+				return sqltype.Value{}, err
+			}
+			// Child operands and strict NULL handling are complete; admit
+			// only this parent's next element transformation.
+			if err := workadmission.Admit(ctx, workadmission.WorkArrayTransform); err != nil {
 				return sqltype.Value{}, err
 			}
 			v := a.ArrayElement(i)

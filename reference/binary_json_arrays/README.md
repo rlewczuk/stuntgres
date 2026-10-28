@@ -1,38 +1,38 @@
 # reference/binary_json_arrays
 
-JSON, JSONB and JSONPATH types, operators and processing functions; JSONPath
-evaluation; SQL/JSON constructors, predicates, query functions and `JSON_TABLE`;
-ARRAY types, expressions and functions (construction, transformation, search,
-comparison, dimensions, `array_sample`/`array_shuffle`/`unnest`, `array_agg`);
-BIT/VARBIT types, operators and functions; BYTEA types, functions, hashing, bit and
-byte access and binary conversion; and the `intagg` extension. JSON aggregates
-live in `reference/aggregates`; Boolean aggregates in `reference/types`; ranges
-and multiranges in `reference/ranges_text_search`; other string functions in `reference/strings`; the intagg
-`pg_aggregate` identity in `reference/catalog_objects`.
+JSON and JSONB types, operators and processing functions; SQL/JSON
+constructors, predicates and query functions; and the `intagg` extension.
+Collection/record-producing array and JSON record consumers live in
+[cursors](../cursors/README.md#testing); BYTEA and binary codecs in
+[temporal_types](../temporal_types/README.md#testing); BIT/VARBIT in
+[strings](../strings/README.md#testing); JSONPath and `@?`/`@@` in
+[datetime_formatting](../datetime_formatting/README.md#testing); `JSON_TABLE`
+in [query_outer](../query_outer/README.md#testing). JSON aggregates live in
+[aggregates](../aggregates/README.md#testing); the intagg `pg_aggregate`
+identity is in [catalog_objects](../catalog_objects/README.md#testing).
 
 ## Testing
 
-Follow [docs/TESTING.md](../../docs/TESTING.md); `array_sample`/`array_shuffle`
-follow its random-property rule. `TestMain` uses the default `fixture.Main(m)`.
+Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default `fixture.Main(m)`.
 
-JSON record consumers preserve conversion and stored-view identity through
-standalone type rename. Relation-owned rowtype changes use the table's DDL route.
-
-- **Helpers.** Each family keeps its scenario, metadata and diagnostic helpers in
-  `<family>_helpers_test.go` (`array_search_fixture_test.go` and
-  `binary_conversion_fixture_test.go` for those families); `output_gate_test.go`
-  holds `outputGateCancel`.
+- **Helpers.** Family-local scenario helpers remain in `<family>_helpers_test.go`.
+  Cross-family runners, JSON metadata, quoting and output cancellation are owned
+  once by [reference/fixture](../fixture/README.md#helpers), including
+  `JSONEachBoth`, `JSONKeysBoth`, `JSONKeysError`, `JSONTypeMetadataCheck`,
+  `JSONTypeWithMetadata`, `JSONTypeSourceColumn`, `JSONBObjectMetadata`,
+  `JSONBSetMetadataStep`, `JSONReferenceQuote`, `JSONReferenceValuer`,
+  `SQLJSONBoth`, `SQLJSONDiagnostic`, `SQLJSONQueryOne` and `OutputGateCancel`.
 - **Active cancellation** uses one of three patterns:
-  - `fixture.BinaryConversionActiveCancel` with the native provider frame name
-    (for example `sqltype.jsonbExists`, `sqltype.(*JSONEachCursor).Next`,
-    `sqltype.(*jsonpathExecutor).walk`).
+  - `fixture.BinaryConversionActiveCancel` with a typed public work class,
+    such as `stuntgres.WorkJSONBExistence` or `stuntgres.WorkJSONBObjectExpand`.
+    Its synchronous real provider admission policy cannot be satisfied by input scans.
     `BinaryConversionActiveCancelAfter` adds a progress callback when PostgreSQL
     admission must observe argument progress (a sequence advance), as in the
     JSONPath query/operator, SQL/JSON query and `JSON_TABLE` families. See the
     [fixture README](../fixture/README.md#helpers).
-    Provider names are matched at runtime: grep this package and update the
-    strings when renaming or moving a provider.
-  - `outputGateCancel`: a MATERIALIZED producer maps actual output length to an
+    The typed class contract is documented in
+    [DRIVER](../../docs/DRIVER.md#cooperative-work-admission).
+  - `fixture.OutputGateCancel`: a MATERIALIZED producer maps actual output length to an
     advisory transaction lock key (2 small, 67108864 large) held by an
     independent transaction. Admission requires the worker's exact waiting lock,
     the holder's grant and `pg_blocking_pids`; writers also require the earlier
@@ -49,21 +49,6 @@ standalone type rename. Relation-owned rowtype changes use the table's DDL route
     CHECK after the ordered small row. Both require completed large output
     before cancellation; writers also require the earlier small-output grant
     and assert no partial insertion.
-  - `fixture.SleepActiveCancel` for ordinary predicates (`ArrayOrderCancellation`).
-- **Heavy workloads.** Each JSONPath path, JSONPath query consumer and JSONB
-  record read/write/valid attempt gets its own 30-second scenario
-  (`jsonpathNavigateScenario`, `jsonpathQueryScenario`,
-  `jsonbRecordCancellationScenario`). Within one, admission, cancellation, join
-  and same-held recovery share the context, and helpers use that callback's
-  `testing.T`.
-- **Arithmetic.** `jsonpath_arithmetic_helpers_test.go` fixes an exact numeric
-  document and reuses the navigation scenario/direct-prepared helpers. Assert
-  decimal JSON text and scale, not float-normalized parity. Binary shape and
-  ordered-demand cases differ from unary materialization/prefix cases.
-  Arithmetic cancellation gates completed unary or multiplicative-filter output
-  over typed numeric workloads below 32MiB. Native controls retain old output,
-  replay stored recipes on the same/fresh Driver and PostgreSQL, then execute
-  future writes; failed/canceled Restore must leave the prior dump unchanged.
 - **Client metadata.** lib/pq reports an empty `DatabaseTypeName` for
   user-defined arrays, composites and JSONPATH; `interface{}` ScanType and byte
   payloads for JSON, JSONPATH and RECORD (native: type name, string); BYTEA
@@ -71,8 +56,6 @@ standalone type rename. Relation-owned rowtype changes use the table's DDL route
   (native MaxInt64). Native reports known nullability for stored table and view
   columns; computed projections are unknown on both. Assert each backend before
   normalization.
-- **ACL output.** The authenticated grantor in ACL items is `postgres` natively
-  and `stuntgres` on the oracle; specify both expectations.
 - **Oracle defect.** For `JSON_SERIALIZE(jsonb)` the oracle returns an internal
   byte instead of JSON text (`"\x02"` for the bounded fixture input;
   [upstream report](https://www.postgresql.org/message-id/03583FE7-A5EE-407C-907D-67865F3F8BFC%40gmail.com)).
@@ -95,37 +78,9 @@ Add `REFERENCE=1` for the oracle.
 - `json[b]_object_keys`: `RUN='^TestReferenceJSONB?Keys'`
 - `json[b]_typeof`, array length and object keys: `RUN='^TestReferenceJSONType'`
 - `json_array_length`, `jsonb_array_length`: `RUN='^TestReferenceJSONArrayLength'`
-- `json[b]_populate_record[set]`, `json[b]_to_record[set]`, `jsonb_populate_record_valid`: `RUN='^TestReferenceJSONB?Record'`
 - `json_strip_nulls`: `RUN='^TestReferenceJSONStripNulls'`
 - `to_json[b]`, `array_to_json`, `row_to_json`, `json[b]_build_*`: `RUN='^TestReferenceJSONCreate'`
 - `json_object`, `jsonb_object` over text arrays: `RUN='^TestReferenceJSONB?Object'`
-- JSONPATH type, grammar and regex syntax: `RUN='^TestReferenceJSONPath(Representation|Composition|Consumers|Diagnostic|Grammar|Regex|Review|FeatureSmoke)'`
-- `@?`, `@@`: `RUN='^TestReferenceJSONBPathOps'`
-- `jsonb_path_query_array` and path navigation: `RUN='^TestReferenceJSONPathNavigate'`
-- `jsonb_path_exists`/`match`/`query`/`query_first`: `RUN='^TestReferenceJSONPathQuery'`
-- JSONPath item methods: `RUN='^TestReferenceJSONPathMethods'`
-- JSONPath temporal methods: `RUN='^TestReferenceJSONPathDatetime'`
-- JSONPath arithmetic: `RUN='^TestReferenceJSONPathArithmetic'`
 - SQL/JSON constructors, `IS JSON`, `JSON_SERIALIZE` (also selects `SQLJSONQuery`): `RUN='^TestReferenceSQLJSON'`
 - <a id="sqljson-query-functions"></a>`JSON_EXISTS`, `JSON_QUERY`, `JSON_VALUE`: `RUN='^TestReferenceSQLJSONQuery'`
-- `JSON_TABLE`: `RUN='^TestReferenceJSONTable'`
-- ARRAY type: literals, domains, typmods, metadata, controls: `RUN='^TestReferenceArray(Atomicity|Diagnostics|Domain|Element|Frames|Generated|Interval|Literal|Metadata|NativeControls|Output|Regclass|Structural|Syntax|Typmods|Smoke)'`
-- ARRAY constructors, subscripts and assignment: `RUN='^TestReferenceArrayExpression'`
-- `array_append`, `array_cat`, `array_fill`, `array_sort`, ... and array `||`: `RUN='^TestReferenceArrayTransform'`
-- `array_dims`, `array_length`, bounds, `cardinality`: `RUN='^TestReferenceArrayInspect'`
-- `array_position[s]`, `array_remove`, `array_replace`, `@>`, `<@`, `&&`: `RUN='^TestReferenceArraySearch'`
-- IN lists and `ANY`/`SOME`/`ALL`: `RUN='^TestReferenceArrayCompare'`
-- Array comparison operators: `RUN='^TestReferenceArrayOrder'`
-- `array_sample`, `array_shuffle`, `unnest`: `RUN='^TestReferenceArrayRelational'`
-- `array_agg`: `RUN='^TestReferenceArrayAgg'`
 - `intagg` extension: `RUN='^TestReferenceIntagg'`
-- BIT and VARBIT types: `RUN='^TestReferenceBitstring'`
-- Bit-string operators: `RUN='^TestReferenceBitOperators'`
-- Bit-string functions (`bit_count`, `length`, `position`, `substring`, `overlay`, ...): `RUN='^TestReferenceBitStringFunctions'`
-- Bit-string `get_bit`, `set_bit`: `RUN='^TestReferenceBitAccess'`
-- BYTEA type, input and output settings: `RUN='^TestReferenceBytea'`
-- BYTEA concatenation, length and trim: `RUN='^TestReferenceBinaryBasic'`
-- `md5`, `sha*`, `crc32[c]`: `RUN='^TestReferenceBinaryHash'`
-- BYTEA `substring`, `overlay`, `position`: `RUN='^TestReferenceBinarySlice'`
-- BYTEA bit/byte access and `reverse`: `RUN='^TestReferenceBinaryAccess'`
-- `encode`, `decode`, `convert*`: `RUN='^TestReferenceBinaryConversion'`

@@ -3,6 +3,8 @@ package sqltype
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/workadmission"
 )
 
 // JSONBElementsPlan binds the two scalar-result JSONB array expansion signatures.
@@ -73,6 +75,9 @@ func (c *JSONBElementCursor) Next(ctx context.Context) (Value, bool, error) {
 	}
 	if c.payload == nil || c.index >= len(c.payload.root.items) {
 		return Null(c.result), false, nil
+	}
+	if err := workadmission.Admit(ctx, workadmission.WorkJSONBArrayExpand); err != nil {
+		return Value{}, false, err
 	}
 	n := &c.payload.root.items[c.index]
 	if c.text {

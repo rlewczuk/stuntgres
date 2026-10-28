@@ -44,7 +44,7 @@ func jsonElementsStored(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 		}
 	}
 	for _, s := range checks {
-		jsonKeysBoth(t, p, b, c, s)
+		fixture.JSONKeysBoth(t, p, b, c, s)
 		stmt, err := c.PrepareContext(p.Ctx, s.Query)
 		if err != nil {
 			t.Fatal(err)
@@ -96,7 +96,7 @@ func jsonElementsControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		t.Fatal("malformed replacement succeeded")
 	}
 	for _, s := range checks {
-		jsonKeysBoth(t, p, b, c, s)
+		fixture.JSONKeysBoth(t, p, b, c, s)
 	}
 	var redump bytes.Buffer
 	if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
@@ -153,7 +153,7 @@ func TestReferenceJSONElementsAuthorityAndControls(t *testing.T) {
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec("REVOKE SELECT(j) ON jelements_acl FROM "+role, 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
-			jsonKeysError(t, p, b, held, q, false, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jelements_acl"), "execute")
+			fixture.JSONKeysError(t, p, b, held, q, false, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jelements_acl"), "execute")
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec("GRANT SELECT(j) ON jelements_acl TO "+role, 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))

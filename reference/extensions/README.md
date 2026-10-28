@@ -70,9 +70,9 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
 - FIPS mode needs one process per mode:
   `env GODEBUG=fips140=off make check RUN='^TestReferencePgcryptoRandomFIPSMode$'`,
   then the same with `fips140=on`.
-- Frame names matched by tests (active-cancel admission): `sqltype.binaryEncodingPass`,
-  `pgcryptoSHA` and `pgcryptoBcrypt` in `internal/sqltype`. Update the tests when
-  renaming them.
+- Active provider cancellation uses typed `stuntgres.WorkEncodingConvert`,
+  `WorkPasswordSHA` and `WorkPasswordBcrypt` admission quanta through the shared
+  [fixture](../fixture/README.md#helpers), not function-name matching.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

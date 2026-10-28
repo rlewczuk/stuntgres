@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
@@ -51,8 +52,8 @@ func TestReferenceDatetimeZoneActiveCancellation(t *testing.T) {
 					defer stmt.Close()
 				}
 				// Existing public-reference helper gates PG on this exact query/PID
-				// and native on actual provider+worker stack, with deadline and join.
-				fixture.BinaryConversionActiveCancel(t, p, b, c, query, "sqltype.addTimestampInterval", func(ctx context.Context) fixture.RelationOutcome {
+				// and native on actual calendar work admission, with deadline and join.
+				fixture.BinaryConversionActiveCancel(t, p, b, c, query, stuntgres.WorkCalendarArithmetic, func(ctx context.Context) fixture.RelationOutcome {
 					var result sql.Result
 					var err error
 					if stmt != nil {

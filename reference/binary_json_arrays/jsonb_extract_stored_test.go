@@ -13,9 +13,9 @@ import (
 // Stored-column projections and COUNT carry known native nullability, unlike
 // computed extraction expressions. pq reports nullability as unknown.
 func jsonbExtractStoredMetadata(s fixture.Step, pg, nullable bool) fixture.Step {
-	columns := make([]jsonTypeSourceColumn, len(s.Types))
+	columns := make([]fixture.JSONTypeSourceColumn, len(s.Types))
 	for i := range columns {
-		columns[i] = jsonTypeSourceColumn{index: i, nullable: nullable}
+		columns[i] = fixture.JSONTypeSourceColumn{Index: i, Nullable: nullable}
 	}
 	return jsonEachWithMetadata(s, pg, columns...)
 }

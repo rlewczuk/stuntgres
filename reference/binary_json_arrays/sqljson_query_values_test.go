@@ -34,15 +34,15 @@ func TestReferenceSQLJSONQueryValues(t *testing.T) {
 				if tc.expr != `JSON_EXISTS('false','$')` {
 					args = append(args, sqljsonQueryDocument)
 				}
-				sqljsonBoth(t, p, b, c, sqljsonQueryOne("SELECT "+tc.expr+" AS v", tc.typ, tc.want, args...))
+				fixture.SQLJSONBoth(t, p, b, c, fixture.SQLJSONQueryOne("SELECT "+tc.expr+" AS v", tc.typ, tc.want, args...))
 			})
 		}
 		for _, fn := range []struct{ name, typ string }{{"JSON_EXISTS", "BOOL"}, {"JSON_QUERY", "JSONB"}, {"JSON_VALUE", "TEXT"}} {
 			for _, args := range []string{`NULL::jsonb,'$'`, `'{}',NULL::jsonpath`, `NULL::jsonb,NULL::jsonpath`} {
 				t.Run(fn.name+args, func(t *testing.T) {
 					q := `SELECT ` + fn.name + `(` + args + `) AS v`
-					sqljsonBoth(t, p, b, c, sqljsonQueryOne(q, fn.typ, nil))
-					sqljsonBoth(t, p, b, c, fixture.Select(q+` WHERE false`, []string{"v"}, []string{fn.typ}, [][]any{}))
+					fixture.SQLJSONBoth(t, p, b, c, fixture.SQLJSONQueryOne(q, fn.typ, nil))
+					fixture.SQLJSONBoth(t, p, b, c, fixture.Select(q+` WHERE false`, []string{"v"}, []string{fn.typ}, [][]any{}))
 				})
 			}
 		}
@@ -132,7 +132,7 @@ func TestReferenceSQLJSONQueryReturning(t *testing.T) {
 			t.Run(tc.expr, func(t *testing.T) {
 				d := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
 				d.Detail = tc.detail
-				sqljsonDiagnostic(t, p, b, c, `SELECT `+tc.expr+` AS v`, d, false)
+				fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+tc.expr+` AS v`, d, false)
 			})
 		}
 	})

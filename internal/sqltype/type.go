@@ -37,6 +37,7 @@ const (
 	PgSnapshot       ID = 5038
 	TxidSnapshot     ID = 2970
 	JSON             ID = 114
+	XML              ID = 142
 	PgNodeTree       ID = 194
 	PgNDistinct      ID = 3361
 	PgDependencies   ID = 3402
@@ -327,6 +328,7 @@ func buildBuiltins() []*Descriptor {
 		{id: PgSnapshot, name: "pg_snapshot", sql: "PG_SNAPSHOT", database: "PG_SNAPSHOT"},
 		{id: TxidSnapshot, name: "txid_snapshot", sql: "TXID_SNAPSHOT", database: "TXID_SNAPSHOT"},
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
+		{id: XML, name: "xml", sql: "XML", database: "XML", associatedArray: 143},
 		{id: JSONB, name: "jsonb", sql: "JSONB", database: "JSONB", associatedArray: 3807},
 		{id: JSONPath, name: "jsonpath", sql: "JSONPATH", database: "JSONPATH", associatedArray: 4073},
 		{id: TSVector, name: "tsvector", sql: "TSVECTOR", database: "TSVECTOR", associatedArray: 3643},
@@ -510,6 +512,7 @@ type Value struct {
 	array           *arrayPayload
 	composite       *compositePayload
 	jsonb           *jsonbPayload
+	xml             *xmlPayload
 	jsonpath        *jsonpathPayload
 	rangeDatum      rangeDatum
 	multirange      *multirangePayload
@@ -544,6 +547,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if v.typ == nil || !v.typ.Concrete() || !d.Concrete() || v.typ.id != d.id || v.typ.IsDomain() != d.IsDomain() || v.typ.BaseType().id != d.BaseType().id {
 		return Value{}, fmt.Errorf("incompatible scalar type identity")
+	}
+	if v.typ.BaseType().id == XML && !v.null && !v.validXML() {
+		return Value{}, fmt.Errorf("invalid XML payload")
 	}
 	fromEnum, toEnum := v.typ.BaseType(), d.BaseType()
 	if fromEnum.IsHstore() != toEnum.IsHstore() || fromEnum.IsHstore() && (fromEnum != toEnum || !v.null && !v.validHstore()) {
@@ -901,6 +907,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
+	if d.id == XML {
+		return XMLInput(ctx, d, text, env.XMLMode, env)
+	}
 	if IsFTS(d.id) || d.IsSeg() || d.IsHstore() || d.IsCube() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree() || d.IsLtxtquery()) || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Char || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
@@ -1239,6 +1248,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		v.typ = d.BaseType()
 		return v.typ.OutputWithEnvironment(ctx, v, env)
 	}
+	if d.id == XML {
+		return d.xmlOutput(ctx, v, env, false)
+	}
 	if IsStatisticsType(d.id) {
 		return d.statisticsOutput(ctx, v, env)
 	}
@@ -1502,6 +1514,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	if d.IsDomain() {
 		v.typ = d.BaseType()
 		return v.typ.SQLLiteral(ctx, v)
+	}
+	if d.id == XML {
+		return xmlLiteral(ctx, v)
 	}
 	if d.IsComposite() {
 		text, err := d.compositeOutput(ctx, v, OutputEnvironment{})
@@ -2111,7 +2126,7 @@ func StoredScalarCastType(id ID) bool {
 	case PgSnapshot, TxidSnapshot, PgLSN:
 		return true
 	case Bool, Int2, Int2Vector, OidVector, Int4, Int8, Oid, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
+		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, XML, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
 		return true
 	}
 	return false
@@ -2223,6 +2238,9 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 	}
 	if v.null {
 		return Null(p.target.Type), nil
+	}
+	if v.typ.BaseType().id == XML && !v.validXML() {
+		return Value{}, fmt.Errorf("invalid XML payload")
 	}
 	switch p.method {
 	case upcEanConversion:
@@ -2380,9 +2398,18 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		}
 		return Float(p.target.Type, n)
 	case viaIO:
-		text, err := p.source.Type.OutputWithEnvironment(ctx, v, output)
+		var text string
+		var err error
+		if p.source.Type.id == XML && (p.target.Type.id == Text || p.target.Type.id == VarChar || p.target.Type.id == BPChar) {
+			text, err = XMLSerialize(ctx, v, XMLContent, false, InputEnvironment{})
+		} else {
+			text, err = p.source.Type.OutputWithEnvironment(ctx, v, output)
+		}
 		if err != nil {
 			return Value{}, err
+		}
+		if p.target.Type.id == XML && p.source.Type.id == BPChar {
+			text = strings.TrimRight(text, " ")
 		}
 		value, err := p.target.Type.InputWithEnvironment(ctx, text, -1, input)
 		if err != nil {

@@ -64,7 +64,7 @@ func jsonEachStored(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 		}
 	}
 	for _, s := range checks {
-		jsonEachBoth(t, p, b, c, s)
+		fixture.JSONEachBoth(t, p, b, c, s)
 	}
 	return checks
 }
@@ -100,7 +100,7 @@ func jsonEachControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 		}
 	}
 	for _, s := range checks {
-		jsonEachBoth(t, p, b, c, s)
+		fixture.JSONEachBoth(t, p, b, c, s)
 	}
 	var redump bytes.Buffer
 	if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
@@ -139,7 +139,7 @@ func TestReferenceJSONEachAuthorityAndControls(t *testing.T) {
 		run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
 		for _, f := range []string{"json_each", "json_each_text"} {
 			for _, prepared := range []bool{false, true} {
-				jsonKeysError(t, p, b, c, "SELECT * FROM je_acl s,"+f+"(s.j) f", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table je_acl"), "execute")
+				fixture.JSONKeysError(t, p, b, c, "SELECT * FROM je_acl s,"+f+"(s.j) f", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table je_acl"), "execute")
 			}
 		}
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
@@ -147,9 +147,9 @@ func TestReferenceJSONEachAuthorityAndControls(t *testing.T) {
 		run(fixture.Exec("GRANT SELECT(j) ON je_acl TO "+role, 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
 		for _, f := range []string{"json_each", "json_each_text"} {
-			jsonEachBoth(t, p, b, c, jsonEachSelect(f, "SELECT f.key,f.value FROM je_acl s,"+f+"(s.j) f", [][]any{{"a", "1"}}))
+			fixture.JSONEachBoth(t, p, b, c, jsonEachSelect(f, "SELECT f.key,f.value FROM je_acl s,"+f+"(s.j) f", [][]any{{"a", "1"}}))
 			for _, prepared := range []bool{false, true} {
-				jsonKeysError(t, p, b, c, "SELECT * FROM je_acl s,"+f+"(s.hidden) f WHERE false", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table je_acl"), "execute")
+				fixture.JSONKeysError(t, p, b, c, "SELECT * FROM je_acl s,"+f+"(s.hidden) f WHERE false", prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table je_acl"), "execute")
 			}
 		}
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

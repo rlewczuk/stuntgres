@@ -358,7 +358,9 @@ func OpenEvaluationNode(ctx context.Context, state *State, n *plan.EvaluationNod
 	out := ProducingStage(&child, n.Schema())
 	out.CacheWidth = n.Base + len(n.Expressions)
 	evaluation := state.Evaluation(nil)
+	evaluation.Context = nil
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
+		defer func() { evaluation.Context = nil }()
 		i, present, err := child.NextOccurrence(ctx)
 		if err != nil || !present {
 			return present, err

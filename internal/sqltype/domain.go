@@ -83,6 +83,9 @@ func (v Value) DomainValue(base *Descriptor) (Value, error) {
 	if v.typ == nil || base == nil || v.typ.BaseType() != base.BaseType() {
 		return Value{}, fmt.Errorf("foreign domain VALUE base")
 	}
+	if !v.null && v.typ.BaseType().id == XML && !v.validXML() {
+		return Value{}, fmt.Errorf("invalid XML payload")
+	}
 	v.typ = base
 	return v, nil
 }
@@ -127,6 +130,9 @@ func (v Value) BaseValue() (Value, error) {
 	if !v.typ.Concrete() {
 		return Value{}, fmt.Errorf("invalid domain value")
 	}
+	if !v.null && v.typ.BaseType().id == XML && !v.validXML() {
+		return Value{}, fmt.Errorf("invalid XML payload")
+	}
 	v.typ = v.typ.BaseType()
 	return v, nil
 }
@@ -134,6 +140,9 @@ func (v Value) BaseValue() (Value, error) {
 func (d *Descriptor) Wrap(v Value) (Value, error) {
 	if !d.IsDomain() || v.typ != d.BaseType() {
 		return Value{}, fmt.Errorf("foreign domain base value")
+	}
+	if !v.null && v.typ.BaseType().id == XML && !v.validXML() {
+		return Value{}, fmt.Errorf("invalid XML payload")
 	}
 	v.typ = d
 	return v, nil

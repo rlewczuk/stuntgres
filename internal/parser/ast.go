@@ -1659,6 +1659,10 @@ type queryTail struct {
 
 func singletonArgument(expr Expr) bool {
 	switch e := expr.(type) {
+	case XMLParseExpr:
+		return singletonArgument(e.Child)
+	case XMLSerializeExpr:
+		return singletonArgument(e.Child)
 	case CaseExpr:
 		if e.Test != nil && !singletonArgument(e.Test) {
 			return false

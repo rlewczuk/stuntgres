@@ -20,7 +20,7 @@ func TestReferenceTemporaryViewCancellation(t *testing.T) {
 					defer tx.Rollback()
 					fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("LOCK TABLE cancellation_source IN ACCESS EXCLUSIVE MODE", 0))
 					q := "CREATE TEMP VIEW cancellation_v AS SELECT v FROM cancellation_source"
-					fixture.BinaryConversionActiveCancel(t, p, b, c, q, "relationRequest", func(ctx context.Context) fixture.RelationOutcome {
+					fixture.BinaryConversionActiveCancelAfter(t, p, b, c, q, "relationRequest", nil, func(ctx context.Context) fixture.RelationOutcome {
 						if !prepared {
 							r, err := c.ExecContext(ctx, q)
 							return fixture.RelationOutcome{Result: r, Err: err}

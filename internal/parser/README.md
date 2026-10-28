@@ -104,9 +104,11 @@ single-statement limit of driver calls) belong to callers.
   call even for a quoted or non-SETOF token; it never extends into the body.
   General type productions are not SETOF-recursive.
 - `SET [SESSION|LOCAL] XML OPTION DOCUMENT/CONTENT` lowers to the existing
-  xmloption Set node. XML has an explicit unreserved terminal to distinguish
-  this prefix from SET CONSTRAINTS, while retaining its ordinary identifier,
-  type-name and typed-literal contexts. No XML evaluator is implied.
+  xmloption Set node. XML retains ordinary identifier, type-name and literal
+  contexts. Positioned XMLPARSE/XMLSERIALIZE nodes keep their child, explicit
+  mode, whitespace/indent choice and serializer target syntax. Contextual clause
+  tokens do not turn those words into globally reserved identifiers. Query and
+  expression visitors descend into both operands.
 - Trigger declarations retain explicit timing/row kind, ordered event syntax,
   positioned WHEN and literal arguments. Parsing does not reinterpret the default
   statement kind as ROW; execution admits the supported timing and target kind.
@@ -401,6 +403,7 @@ feature prefix.
 - Keywords and ordinary keyword calls: `RUN='^Test(Keyword|OrdinaryKeywordCallHeads)'`
 - Scratch receivers: `RUN='^TestParseScratch'` (also with `RACE=1`)
 - SQL/JSON and JSON_TABLE: `RUN='^Test(SQLJSONQueryParser|JSONTableParser|JSONBPathOpsParser)$'`
+- XML positioned grammar and source/admission traversal: `RUN='^TestXML(PositionedGrammar|SourceAndAdmissionTraversal)$'`
 - CTE SEARCH and recursive views: `RUN='^Test(CTESearch|CreateRecursiveView)'`
 - Access methods and operator families: `RUN='^Test(AccessMethodGrammar|OperatorFamilyParser)$'`
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`

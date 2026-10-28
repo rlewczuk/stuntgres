@@ -150,7 +150,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	if err := s.readmitPreparedPrograms(auth); err != nil {
 		return err
 	}
-	evaluation := c.state.Evaluation(s.Op.Context())
+	evaluation := c.state.Evaluation(s.activateWork(s.executionContext()))
 	return view.ValidateQueryJoinExecution(&evaluation, c.Root, auth.Catalog, 0)
 }
 
@@ -160,7 +160,7 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 	}
 	c.authority.Expression = &exec.CursorExpressionData{Identity: s.Identity, StatementStart: s.statementStart}
 	c.state.Retain = c.scroll
-	stage, err := exec.OpenQueryProjectStage(s.Op.Context(), &c.state, c.Root)
+	stage, err := exec.OpenQueryProjectStage(s.activateWork(s.executionContext()), &c.state, c.Root)
 	if err != nil {
 		return err
 	}
@@ -187,6 +187,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		return err
 	}
 	var values []sqltype.Value
+	ctx := s.activateWork(s.executionContext())
 	count := 0
 	savedOrdinal, savedPosition, savedEnd := c.OrdinalPosition, c.Place, c.AtEnd
 	offset := savedOrdinal
@@ -209,7 +210,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 			start := len(values)
 			values = slices.Grow(values, width)
 			values = values[:start+width]
-			present, pullErr := c.stage.Next(s.Op.Context(), values[start:])
+			present, pullErr := c.stage.Next(ctx, values[start:])
 			if pullErr != nil {
 				return pullErr
 			}

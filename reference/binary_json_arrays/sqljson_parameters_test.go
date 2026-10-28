@@ -23,7 +23,7 @@ func TestReferenceSQLJSONParameters(t *testing.T) {
 			{`SELECT JSON_OBJECT(($1::text) VALUE $1::text) AS v`, "JSON", []any{"a"}, `{"a" : "a"}`},
 		} {
 			t.Run(tc.q, func(t *testing.T) {
-				sqljsonBoth(t, p, b, c, fixture.Select(tc.q, []string{"v"}, []string{tc.typ}, [][]any{{tc.want}}, tc.args...))
+				fixture.SQLJSONBoth(t, p, b, c, fixture.Select(tc.q, []string{"v"}, []string{tc.typ}, [][]any{{tc.want}}, tc.args...))
 			})
 		}
 		for _, tc := range []struct {
@@ -36,7 +36,7 @@ func TestReferenceSQLJSONParameters(t *testing.T) {
 			t.Run(tc.q, func(t *testing.T) {
 				d := fixture.ControlsReferenceDiagnostic(tc.code, "could not determine data type of parameter $1")
 				d.Position = tc.position
-				sqljsonDiagnostic(t, p, b, c, tc.q, d, true, tc.args...)
+				fixture.SQLJSONDiagnostic(t, p, b, c, tc.q, d, true, tc.args...)
 			})
 		}
 		for _, q := range []string{`SELECT JSON_ARRAY($1 FORMAT JSON) AS v`, `SELECT JSON_OBJECT('a':$1 FORMAT JSON) AS v`, `SELECT JSON($1 WITH UNIQUE KEYS) AS v`} {

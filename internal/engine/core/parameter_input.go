@@ -11,6 +11,9 @@ import (
 // catalog/role authority and actual codec input later runs without that mutex.
 func (s *StatementScope) captureFormalInputLocked(auth AuthorizationView, types []sqltype.Usage) (err error) {
 	e, op := s.Engine(), s.Op
+	if s.Input.XMLInput == nil {
+		s.Input.XMLInput = session.XMLInput{Op: op}
+	}
 	for _, usage := range types {
 		if sqltype.IsFTS(usage.Type.BaseType().ID()) && s.Input.FTS == nil {
 			s.Input.FTS = session.FTSInput{Op: op}

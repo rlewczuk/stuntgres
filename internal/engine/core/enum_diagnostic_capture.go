@@ -42,6 +42,9 @@ func captureEnumOperationInput(auth AuthorizationView, input *sqltype.InputEnvir
 }
 
 func (e *Engine) CaptureTypeDiagnosticInput(auth AuthorizationView, op *session.Operation, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
+	if typ.BaseType().ID() == sqltype.XML && input.XMLInput == nil {
+		input.XMLInput = session.XMLInput{Op: op}
+	}
 	if sqltype.IsFTS(typ.BaseType().ID()) && input.FTS == nil {
 		input.FTS = session.FTSInput{Op: op}
 	}

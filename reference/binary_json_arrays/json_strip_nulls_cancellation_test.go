@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -54,14 +55,14 @@ func TestReferenceJSONStripNullsCancellation(t *testing.T) {
 			}
 			fixture.LexicalOrdinary(t, err, context.Canceled)
 		}
-		fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, "sqltype.JSONStripNullsPlan.Evaluate", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, stuntgres.WorkJSONStripNulls, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := read.QueryContext(ctx)
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})
 		run(fixture.Exec("UPDATE js_cancel_input SET v='[null,1]' WHERE id>1", 8))
 		jsonTypeRun(t, p, b, fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(27)}}))
 		run(fixture.Prepared(fixture.Exec("UPDATE js_cancel_input SET v=$1 WHERE id>1", 8, large)))
-		fixture.BinaryConversionActiveCancel(t, p, b, c, writeSQL, "sqltype.JSONStripNullsPlan.Evaluate", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, c, writeSQL, stuntgres.WorkJSONStripNulls, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := write.ExecContext(ctx)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

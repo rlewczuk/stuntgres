@@ -69,8 +69,8 @@ func TestReferenceSQLJSONStored(t *testing.T) {
 			run(fixture.Exec(`CREATE TABLE sqj_store(id int,doc text,j json DEFAULT JSON_OBJECT('a':1), CHECK(doc IS JSON WITH UNIQUE KEYS))`, 0))
 			run(fixture.Exec(`INSERT INTO sqj_store(id,doc) VALUES(1,'{}')`, 1))
 			run(fixture.Exec(`CREATE VIEW sqj_store_view AS SELECT id,JSON_ARRAY(JSON(doc) RETURNING text) AS v FROM sqj_store`, 0))
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT id,doc,j FROM sqj_store ORDER BY id`, []string{"id", "doc", "j"}, []string{"INT4", "TEXT", "JSON"}, [][]any{{int64(1), `{}`, `{"a" : 1}`}}))
-			sqljsonBoth(t, p, b, c, fixture.Select(`SELECT id,v FROM sqj_store_view ORDER BY id`, []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), `[{}]`}}))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT id,doc,j FROM sqj_store ORDER BY id`, []string{"id", "doc", "j"}, []string{"INT4", "TEXT", "JSON"}, [][]any{{int64(1), `{}`, `{"a" : 1}`}}))
+			fixture.SQLJSONBoth(t, p, b, c, fixture.Select(`SELECT id,v FROM sqj_store_view ORDER BY id`, []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), `[{}]`}}))
 			run(fixture.Exec(`CREATE TABLE sqj_atomic(id int,j json)`, 0))
 			run(fixture.Exec(`INSERT INTO sqj_atomic VALUES(1,JSON('{}'))`, 1))
 			for _, prepared := range []bool{false, true} {

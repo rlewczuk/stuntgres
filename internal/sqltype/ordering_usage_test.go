@@ -32,11 +32,11 @@ func TestOrderingUsage(t *testing.T) {
 				return
 			}
 			switch d.ID() {
-			case PgNDistinct, PgDependencies, PgMCVList:
+			case XML, PgNDistinct, PgDependencies, PgMCVList:
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + d.Name(), Hint: "Use an explicit ordering operator or modify the query."}
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || *diagnostic != want || provider != (Comparison{}) {
-					t.Fatalf("statistics ordering got %#v (%v), want %#v", diagnostic, err, want)
+					t.Fatalf("noncomparable ordering got %#v (%v), want %#v", diagnostic, err, want)
 				}
 				return
 			}

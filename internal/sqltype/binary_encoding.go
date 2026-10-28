@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype/pgencoding18"
+	"stuntgres/internal/workadmission"
 )
 
 // ConvertBinaryEncoding is pg_convert's raw immutable-string provider. NAME
@@ -120,6 +121,7 @@ func binaryEncodingInvalid(raw string, id int) error {
 }
 func binaryEncodingPass(ctx context.Context, raw string, source, destination int, out *strings.Builder) (int, error) {
 	size, next := 0, 0
+	remaining := 0
 	for i := 0; i < len(raw); {
 		if i >= next {
 			if err := ctx.Err(); err != nil {
@@ -134,6 +136,15 @@ func binaryEncodingPass(ctx context.Context, raw string, source, destination int
 		if n == 0 {
 			return 0, failure("22P05", fmt.Sprintf("character with byte sequence %s in encoding %q has no equivalent in encoding %q", binaryEncodingBytes(raw[i:], source), pgencoding18.Name(source), pgencoding18.Name(destination)))
 		}
+		// A conversion step consumes at most eight input bytes. Keep each
+		// granted pass quantum within 4096 bytes, including combined maps.
+		if n > remaining {
+			if err := workadmission.Admit(ctx, workadmission.WorkEncodingConvert); err != nil {
+				return 0, err
+			}
+			remaining = 4096
+		}
+		remaining -= n
 		width := pgencoding18.Width(a) + pgencoding18.Width(b)
 		if size >= 0x3fffffff-width {
 			return 0, binaryEncodingSizeError(len(raw))

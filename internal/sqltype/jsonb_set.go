@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/workadmission"
 )
 
 // JSONBSetPlan owns signature authority, never mutable JSON storage.
@@ -155,9 +156,20 @@ func jsonbSetPath(ctx context.Context, root jsonbNode, path Value, replacement j
 	var local [16]jsonbSetAncestor
 	ancestors := local[:0]
 	node := root
+	// Only deletion owns this admission class; rebuilding its ancestors must
+	// retain that identity even though their leaf update is a replacement.
+	var workClass workadmission.Class
+	if mode == jsonbDelete {
+		workClass = workadmission.WorkJSONBPathDelete
+	}
 	for depth := range path.ArrayLen() {
 		if err := ctx.Err(); err != nil {
 			return jsonbNode{}, false, err
+		}
+		if workClass != 0 {
+			if err := workadmission.Admit(ctx, workClass); err != nil {
+				return jsonbNode{}, false, err
+			}
 		}
 		step := path.ArrayElement(depth)
 		if step.null {
@@ -219,13 +231,13 @@ func jsonbSetPath(ctx context.Context, root jsonbNode, path Value, replacement j
 			}
 			continue
 		}
-		changed, err := jsonbSetLeaf(ctx, node, index, exists, step.text, replacement, mode)
+		changed, err := jsonbSetLeaf(ctx, node, index, exists, step.text, replacement, mode, workClass)
 		if err != nil {
 			return jsonbNode{}, false, err
 		}
 		for i := len(ancestors) - 1; i >= 0; i-- {
 			a := ancestors[i]
-			changed, err = jsonbSetLeaf(ctx, a.node, a.index, true, "", changed, jsonbReplace)
+			changed, err = jsonbSetLeaf(ctx, a.node, a.index, true, "", changed, jsonbReplace, workClass)
 			if err != nil {
 				return jsonbNode{}, false, err
 			}
@@ -235,7 +247,7 @@ func jsonbSetPath(ctx context.Context, root jsonbNode, path Value, replacement j
 	return root, false, ctx.Err()
 }
 
-func jsonbSetLeaf(ctx context.Context, node jsonbNode, index int, exists bool, key string, replacement jsonbNode, mode jsonbMutationMode) (jsonbNode, error) {
+func jsonbSetLeaf(ctx context.Context, node jsonbNode, index int, exists bool, key string, replacement jsonbNode, mode jsonbMutationMode, workClass workadmission.Class) (jsonbNode, error) {
 	if mode == jsonbInsertBefore || mode == jsonbInsertAfter {
 		if node.kind == jsonbObject && exists {
 			return jsonbNode{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "cannot replace existing key", Hint: "Try using the function jsonb_set to replace key value."}
@@ -266,19 +278,19 @@ func jsonbSetLeaf(ctx context.Context, node jsonbNode, index int, exists bool, k
 	}
 	if node.kind == jsonbArray {
 		items := make([]jsonbNode, n)
-		if err := jsonbSetCopy(ctx, items[:index], node.items[:index]); err != nil {
+		if err := jsonbSetCopy(ctx, items[:index], node.items[:index], workClass); err != nil {
 			return jsonbNode{}, err
 		}
 		if !remove {
 			items[index] = replacement
 		}
-		if err := jsonbSetCopy(ctx, items[newEnd:], node.items[oldEnd:]); err != nil {
+		if err := jsonbSetCopy(ctx, items[newEnd:], node.items[oldEnd:], workClass); err != nil {
 			return jsonbNode{}, err
 		}
 		node.items = items
 	} else {
 		fields := make([]jsonbEntry, n)
-		if err := jsonbSetCopy(ctx, fields[:index], node.fields[:index]); err != nil {
+		if err := jsonbSetCopy(ctx, fields[:index], node.fields[:index], workClass); err != nil {
 			return jsonbNode{}, err
 		}
 		if !remove {
@@ -289,7 +301,7 @@ func jsonbSetLeaf(ctx context.Context, node jsonbNode, index int, exists bool, k
 				fields[index] = jsonbEntry{key: key, value: replacement}
 			}
 		}
-		if err := jsonbSetCopy(ctx, fields[newEnd:], node.fields[oldEnd:]); err != nil {
+		if err := jsonbSetCopy(ctx, fields[newEnd:], node.fields[oldEnd:], workClass); err != nil {
 			return jsonbNode{}, err
 		}
 		node.fields = fields
@@ -297,10 +309,15 @@ func jsonbSetLeaf(ctx context.Context, node jsonbNode, index int, exists bool, k
 	return node, ctx.Err()
 }
 
-func jsonbSetCopy[T any](ctx context.Context, dst, src []T) error {
+func jsonbSetCopy[T any](ctx context.Context, dst, src []T, workClass workadmission.Class) error {
 	for start := 0; start < len(src); start += jsonbWorkChunk {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if workClass != 0 {
+			if err := workadmission.Admit(ctx, workClass); err != nil {
+				return err
+			}
 		}
 		end := min(start+jsonbWorkChunk, len(src))
 		copy(dst[start:end], src[start:end])

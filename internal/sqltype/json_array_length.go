@@ -3,6 +3,8 @@ package sqltype
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/workadmission"
 )
 
 // jsonArrayLength scans validated retained JSON without decoding strings or
@@ -24,10 +26,11 @@ func jsonArrayLength(ctx context.Context, source string) (int64, error) {
 	default:
 		return 0, fmt.Errorf("invalid retained JSON root")
 	}
+	l.workClass = workadmission.WorkJSONArrayCount
 	depth := 1
 	var count int64
 	for depth > 0 {
-		if err := ctx.Err(); err != nil {
+		if err := workadmission.Admit(ctx, workadmission.WorkJSONArrayCount); err != nil {
 			return 0, err
 		}
 		if err := l.next(); err != nil {

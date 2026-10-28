@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/workadmission"
 )
 
 // SHA-crypt steps1-22 follow the public-domain Drepper reference and PostgreSQL
@@ -30,17 +31,19 @@ func pgcryptoSHA(ctx context.Context, notice func(sqlstate.Error), password, set
 	var current, sequenceP, sequenceS [64]byte
 	size := a.Size()
 	// A starts with password and decoded salt; B uses the raw salt prefix.
-	if err := writeHashString(ctx, a, password, &scratch); err != nil {
+	if err := writeHashString(ctx, a, password, &scratch, workadmission.WorkPasswordSHA); err != nil {
 		return "", err
 	}
-	a.Write(p.salt[:p.size])
-	if err := writeHashString(ctx, b, password, &scratch); err != nil {
+	if err := pgcryptoSHARepeat(ctx, a, p.salt[:p.size], p.size); err != nil {
 		return "", err
 	}
-	if err := writeHashString(ctx, b, p.raw, &scratch); err != nil {
+	if err := writeHashString(ctx, b, password, &scratch, workadmission.WorkPasswordSHA); err != nil {
 		return "", err
 	}
-	if err := writeHashString(ctx, b, password, &scratch); err != nil {
+	if err := writeHashString(ctx, b, p.raw, &scratch, workadmission.WorkPasswordSHA); err != nil {
+		return "", err
+	}
+	if err := writeHashString(ctx, b, password, &scratch, workadmission.WorkPasswordSHA); err != nil {
 		return "", err
 	}
 	b.Sum(current[:0])
@@ -52,8 +55,10 @@ func pgcryptoSHA(ctx context.Context, notice func(sqlstate.Error), password, set
 			return "", err
 		}
 		if bits&1 != 0 {
-			a.Write(current[:size])
-		} else if err := writeHashString(ctx, a, password, &scratch); err != nil {
+			if err := pgcryptoSHARepeat(ctx, a, current[:size], size); err != nil {
+				return "", err
+			}
+		} else if err := writeHashString(ctx, a, password, &scratch, workadmission.WorkPasswordSHA); err != nil {
 			return "", err
 		}
 	}
@@ -62,14 +67,14 @@ func pgcryptoSHA(ctx context.Context, notice func(sqlstate.Error), password, set
 	// scratch and cancellation, never allocate a password-sized P sequence.
 	b.Reset()
 	for range len(password) {
-		if err := writeHashString(ctx, b, password, &scratch); err != nil {
+		if err := writeHashString(ctx, b, password, &scratch, workadmission.WorkPasswordSHA); err != nil {
 			return "", err
 		}
 	}
 	b.Sum(sequenceP[:0])
 	b.Reset()
 	for range 16 + int(current[0]) {
-		if err := writeHashString(ctx, b, p.raw, &scratch); err != nil {
+		if err := writeHashString(ctx, b, p.raw, &scratch, workadmission.WorkPasswordSHA); err != nil {
 			return "", err
 		}
 	}
@@ -84,10 +89,14 @@ func pgcryptoSHA(ctx context.Context, notice func(sqlstate.Error), password, set
 				return "", err
 			}
 		} else {
-			b.Write(current[:size])
+			if err := pgcryptoSHARepeat(ctx, b, current[:size], size); err != nil {
+				return "", err
+			}
 		}
 		if round%3 != 0 {
-			b.Write(sequenceS[:p.size])
+			if err := pgcryptoSHARepeat(ctx, b, sequenceS[:p.size], p.size); err != nil {
+				return "", err
+			}
 		}
 		if round%7 != 0 {
 			if err := pgcryptoSHARepeat(ctx, b, sequenceP[:size], len(password)); err != nil {
@@ -95,7 +104,9 @@ func pgcryptoSHA(ctx context.Context, notice func(sqlstate.Error), password, set
 			}
 		}
 		if round&1 != 0 {
-			b.Write(current[:size])
+			if err := pgcryptoSHARepeat(ctx, b, current[:size], size); err != nil {
+				return "", err
+			}
 		} else if err := pgcryptoSHARepeat(ctx, b, sequenceP[:size], len(password)); err != nil {
 			return "", err
 		}
@@ -132,7 +143,7 @@ func pgcryptoSHA(ctx context.Context, notice func(sqlstate.Error), password, set
 // allocation or materialized P string; cancellation bounds large input work.
 func pgcryptoSHARepeat(ctx context.Context, h hash.Hash, digest []byte, count int) error {
 	for count > 0 {
-		if err := ctx.Err(); err != nil {
+		if err := workadmission.Admit(ctx, workadmission.WorkPasswordSHA); err != nil {
 			return err
 		}
 		n := min(count, len(digest))

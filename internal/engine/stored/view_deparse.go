@@ -1305,6 +1305,42 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			text = "(" + text + ")"
 		}
 		return text, nil
+	case parser.XMLParseExpr:
+		text, err := child(e.Child)
+		if err != nil {
+			return "", err
+		}
+		mode := "CONTENT"
+		if e.Document {
+			mode = "DOCUMENT"
+		}
+		suffix := ")"
+		if e.Whitespace != "" {
+			suffix = " " + strings.ToUpper(e.Whitespace) + " WHITESPACE)"
+		}
+		return "XMLPARSE(" + mode + " " + text + suffix, nil
+	case parser.XMLSerializeExpr:
+		text, err := child(e.Child)
+		if err != nil {
+			return "", err
+		}
+		usage, ok := v.castUsages[path]
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing XMLSERIALIZE target usage")
+		}
+		declaration, err := regobj.TypeDeclaration(catalogView, usage)
+		if err != nil {
+			return "", err
+		}
+		mode := "CONTENT"
+		if e.Document {
+			mode = "DOCUMENT"
+		}
+		suffix := ")"
+		if e.Indent != "" {
+			suffix = " " + strings.ToUpper(e.Indent) + ")"
+		}
+		return "XMLSERIALIZE(" + mode + " " + text + " AS " + declaration + suffix, nil
 	case parser.JSONPredicateExpr:
 		text, err := child(e.Child)
 		if err != nil {

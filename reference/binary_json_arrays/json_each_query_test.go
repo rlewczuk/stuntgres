@@ -18,9 +18,9 @@ func TestReferenceJSONEachQueryStructure(t *testing.T) {
 					"SELECT (j).key,(j).value FROM " + f + "('{\"a\":1}'::json) AS j",
 					"SELECT (" + f + "('{\"a\":1}'::json)).key AS key,(" + f + "('{\"a\":1}'::json)).value AS value",
 				} {
-					jsonEachBoth(t, p, b, c, jsonEachSelect(f, q, [][]any{{"a", "1"}}))
+					fixture.JSONEachBoth(t, p, b, c, jsonEachSelect(f, q, [][]any{{"a", "1"}}))
 				}
-				jsonEachBoth(t, p, b, c, fixture.Select("SELECT j FROM "+f+"('{\"a\":1}'::json) AS j", []string{"j"}, []string{"RECORD"}, [][]any{{"(a,1)"}}))
+				fixture.JSONEachBoth(t, p, b, c, fixture.Select("SELECT j FROM "+f+"('{\"a\":1}'::json) AS j", []string{"j"}, []string{"RECORD"}, [][]any{{"(a,1)"}}))
 				for _, input := range []string{`{"a":1,"b":2}`, `{}`, `null`} {
 					arg := "'" + input + "'::json"
 					if input == "null" {
@@ -33,7 +33,7 @@ func TestReferenceJSONEachQueryStructure(t *testing.T) {
 						rows = [][]any{{nil, nil, int64(7), int64(1)}, {nil, nil, int64(8), int64(2)}, {nil, nil, int64(9), int64(3)}}
 					}
 					q := "SELECT * FROM ROWS FROM(" + f + "(" + arg + "),generate_series(7::int,9::int)) WITH ORDINALITY AS r(k,v,g,n) ORDER BY n"
-					jsonEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select(q, []string{"k", "v", "g", "n"}, []string{"TEXT", valueType, "INT4", "INT8"}, rows), b.PG))
+					fixture.JSONEachBoth(t, p, b, c, jsonEachWithMetadata(fixture.Select(q, []string{"k", "v", "g", "n"}, []string{"TEXT", valueType, "INT4", "INT8"}, rows), b.PG))
 				}
 				nullValue := any("null")
 				if f == "json_each_text" {
@@ -59,7 +59,7 @@ func TestReferenceJSONEachQueryStructure(t *testing.T) {
 					t.Run(tc.q, func(t *testing.T) {
 						s := fixture.Select(tc.q, tc.names, tc.types, tc.rows)
 						s.Bag = !strings.Contains(tc.q, "ORDER BY")
-						jsonEachBoth(t, p, b, c, s)
+						fixture.JSONEachBoth(t, p, b, c, s)
 					})
 				}
 			})
@@ -68,10 +68,10 @@ func TestReferenceJSONEachQueryStructure(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`INSERT INTO je_lateral VALUES(1,'{"a":1,"b":2}'),(2,'{}'),(3,NULL)`, 3))
 		for _, f := range []string{"json_each", "json_each_text"} {
 			for _, from := range []string{"je_lateral s," + f + "(s.j) f", "je_lateral s CROSS JOIN LATERAL " + f + "(s.j) f"} {
-				jsonEachBoth(t, p, b, c, fixture.Select("SELECT s.id,f.key,f.value FROM "+from+" ORDER BY s.id,f.key", []string{"id", "key", "value"}, []string{"INT4", "TEXT", jsonEachType(f)}, [][]any{{int64(1), "a", "1"}, {int64(1), "b", "2"}}))
+				fixture.JSONEachBoth(t, p, b, c, fixture.Select("SELECT s.id,f.key,f.value FROM "+from+" ORDER BY s.id,f.key", []string{"id", "key", "value"}, []string{"INT4", "TEXT", jsonEachType(f)}, [][]any{{int64(1), "a", "1"}, {int64(1), "b", "2"}}))
 			}
-			jsonEachBoth(t, p, b, c, fixture.Select("SELECT s.id,f.key,f.value FROM je_lateral s LEFT JOIN LATERAL "+f+"(s.j) f ON true ORDER BY s.id,f.key", []string{"id", "key", "value"}, []string{"INT4", "TEXT", jsonEachType(f)}, [][]any{{int64(1), "a", "1"}, {int64(1), "b", "2"}, {int64(2), nil, nil}, {int64(3), nil, nil}}))
-			jsonEachBoth(t, p, b, c, fixture.Select("SELECT s.id,f.key FROM je_lateral s,"+f+"((SELECT s.j)) f ORDER BY s.id,f.key", []string{"id", "key"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "a"}, {int64(1), "b"}}))
+			fixture.JSONEachBoth(t, p, b, c, fixture.Select("SELECT s.id,f.key,f.value FROM je_lateral s LEFT JOIN LATERAL "+f+"(s.j) f ON true ORDER BY s.id,f.key", []string{"id", "key", "value"}, []string{"INT4", "TEXT", jsonEachType(f)}, [][]any{{int64(1), "a", "1"}, {int64(1), "b", "2"}, {int64(2), nil, nil}, {int64(3), nil, nil}}))
+			fixture.JSONEachBoth(t, p, b, c, fixture.Select("SELECT s.id,f.key FROM je_lateral s,"+f+"((SELECT s.j)) f ORDER BY s.id,f.key", []string{"id", "key"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "a"}, {int64(1), "b"}}))
 		}
 	})
 }

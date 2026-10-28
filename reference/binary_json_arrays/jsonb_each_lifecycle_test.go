@@ -24,7 +24,7 @@ func jsonbEachHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn
 				for _, input := range []any{`{"a":1,"a":2}`, `{}`, nil, `[]`, `[1]`, `null`, `0`, `true`, `false`, `"x"`, `{"a":2}`} {
 					bad := input != nil && input != `{"a":1,"a":2}` && input != `{}` && input != `{"a":2}`
 					if bad {
-						jsonKeysError(t, p, b, held, q, false, fixture.ControlsReferenceDiagnostic("22023", "cannot call "+f+" on a non-object"), "execute", input)
+						fixture.JSONKeysError(t, p, b, held, q, false, fixture.ControlsReferenceDiagnostic("22023", "cannot call "+f+" on a non-object"), "execute", input)
 						continue
 					}
 					var rows, records [][]any

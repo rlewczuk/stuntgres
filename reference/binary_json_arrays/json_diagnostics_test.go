@@ -65,7 +65,7 @@ func TestReferenceJSONInvalidSyntax(t *testing.T) {
 							if prefix != "SELECT " {
 								want.Position = "14"
 							}
-							s := fixture.ErrorDiagnostic(prefix+jsonReferenceQuote(tc.input)+"::json", want)
+							s := fixture.ErrorDiagnostic(prefix+fixture.JSONReferenceQuote(tc.input)+"::json", want)
 							s.SelectRows = true
 							s.ErrorStage = "execute"
 							if prepared {

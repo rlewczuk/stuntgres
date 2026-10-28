@@ -102,6 +102,8 @@ type Connector struct {
 
 // WithNoticeHandler returns an independent configuration. Nil disables delivery.
 // Handlers run synchronously after execution releases all locks and its lease.
+// Typed output notices run during Rows.Next, using that result's captured filter,
+// without retaining the completed request or borrowing a new session lease.
 func (c *Connector) WithNoticeHandler(handler func(Error)) *Connector {
 	copy := *c
 	copy.noticeHandler = handler

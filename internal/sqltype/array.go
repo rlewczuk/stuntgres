@@ -54,7 +54,7 @@ func (d *Descriptor) ContainsRegclass() bool {
 // ArrayElementAdmitted is the scalar admission surface shared by generic array
 // codecs and storage. Internal char does not widen scalar annotations.
 func ArrayElementAdmitted(id ID) bool {
-	return id != PgLSN && (id == Char || StoredScalarCastType(id) || id == Regclass)
+	return id != XML && id != PgLSN && (id == Char || StoredScalarCastType(id) || id == Regclass)
 }
 
 func Array(id ID, name string, element *Descriptor) (*Descriptor, error) {

@@ -85,6 +85,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 	var correlationMoves []presenceCopy
 	var correlationPresence []bool
 	correlation := state.Evaluation(nil)
+	correlation.Context = nil
 	if n.CorrelatedRight {
 		correlationRow = make([]sqltype.Value, n.CorrelationPrefix+n.LeftWidth)
 		correlation.Frame = n.Frame
@@ -135,6 +136,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 		return other
 	}
 	evaluation := state.Evaluation(nil)
+	evaluation.Context = nil
 	evaluation.Row = frame
 	if identity {
 		evaluation.QueryOccurrences = source.Occurrences
@@ -201,6 +203,10 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 		return true, ctx.Err()
 	}
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
+		defer func() {
+			evaluation.Context = nil
+			correlation.Context = nil
+		}()
 		for {
 			if err := ctx.Err(); err != nil {
 				return false, err

@@ -6,14 +6,15 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/workadmission"
 )
 
 type QueryGroup struct {
 	occurrence int // Grouping-set occurrence, including duplicate sets.
-	Keys     []sqltype.Value
-	states   []any
-	ordered  [][]sqltype.Value
-	distinct []AggregateDistinctState
+	Keys       []sqltype.Value
+	states     []any
+	ordered    [][]sqltype.Value
+	distinct   []AggregateDistinctState
 }
 
 type AggregateDistinctState struct {
@@ -54,6 +55,11 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	evaluation := state.Evaluation(ctx)
 	for _, call := range n.Calls {
 		if state.aggregatePartials == nil {
+			// Admit one aggregate support/input initialization, before the child
+			// is materialized. This is not admission for ordered-input sorting.
+			if err := workadmission.Admit(ctx, workadmission.WorkAggregateInput); err != nil {
+				return Stage{}, err
+			}
 			if err := AdmitAggregateSupport(&evaluation, &call); err != nil {
 				return Stage{}, err
 			}

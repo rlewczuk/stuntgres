@@ -47,7 +47,7 @@ func intaggInput(run func(fixture.Step)) {
 func intaggArray(b fixture.Backend, q string, columns []string, types []string, rows [][]any, args ...any) fixture.Step {
 	s := fixture.ArrayReferenceSelect(q, columns, types, types, rows, b.PG, args...)
 	if len(types) == 1 && types[0] == "_INT4" {
-		s.CheckMetadata = arrayAggMetadata(b.PG, types)
+		s.CheckMetadata = fixture.ArrayAggMetadata(b.PG, types)
 	}
 	return s
 }
@@ -79,20 +79,20 @@ func TestReferenceIntaggAggregate(t *testing.T) {
 				if i == 10 {
 					args = []any{int64(9)}
 				}
-				arrayAggBoth(func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }, intaggArray(b, tc.q, []string{"int_array_aggregate"}, []string{"_INT4"}, tc.rows, args...))
+				fixture.ArrayAggBoth(func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }, intaggArray(b, tc.q, []string{"int_array_aggregate"}, []string{"_INT4"}, tc.rows, args...))
 			})
 		}
-		arrayAggBoth(run, intaggArray(b, "SELECT k,ia_addon.int_array_aggregate(v ORDER BY id) FROM ia_input GROUP BY k ORDER BY k", []string{"k", "int_array_aggregate"}, []string{"TEXT", "_INT4"}, [][]any{{"a", "{2,NULL,2}"}, {"b", "{-2147483648,2147483647}"}}))
-		arrayAggBoth(run, intaggArray(b, "SELECT array_agg(v ORDER BY id),ia_addon.int_array_aggregate(v ORDER BY id),ia_addon.int_array_aggregate(v ORDER BY id) FROM ia_input", []string{"array_agg", "int_array_aggregate", "int_array_aggregate"}, []string{"_INT4", "_INT4", "_INT4"}, [][]any{{"{2,NULL,2,-2147483648,2147483647}", "{2,NULL,2,-2147483648,2147483647}", "{2,NULL,2,-2147483648,2147483647}"}}))
+		fixture.ArrayAggBoth(run, intaggArray(b, "SELECT k,ia_addon.int_array_aggregate(v ORDER BY id) FROM ia_input GROUP BY k ORDER BY k", []string{"k", "int_array_aggregate"}, []string{"TEXT", "_INT4"}, [][]any{{"a", "{2,NULL,2}"}, {"b", "{-2147483648,2147483647}"}}))
+		fixture.ArrayAggBoth(run, intaggArray(b, "SELECT array_agg(v ORDER BY id),ia_addon.int_array_aggregate(v ORDER BY id),ia_addon.int_array_aggregate(v ORDER BY id) FROM ia_input", []string{"array_agg", "int_array_aggregate", "int_array_aggregate"}, []string{"_INT4", "_INT4", "_INT4"}, [][]any{{"{2,NULL,2,-2147483648,2147483647}", "{2,NULL,2,-2147483648,2147483647}", "{2,NULL,2,-2147483648,2147483647}"}}))
 		// Observe the unordered aggregate only through its element bag.
 		s := fixture.Select("SELECT ia_addon.int_array_enum(a) AS v FROM (SELECT ia_addon.int_array_aggregate(v) AS a FROM ia_input) AS s", []string{"v"}, []string{"INT4"}, [][]any{{int64(2)}, {nil}, {int64(2)}, {int64(-2147483648)}, {int64(2147483647)}})
 		s.Bag = true
-		arrayAggBoth(run, s)
+		fixture.ArrayAggBoth(run, s)
 		run(fixture.Exec("CREATE TABLE ia_out(v integer[])", 0))
 		run(fixture.Exec("INSERT INTO ia_out SELECT ia_addon.int_array_aggregate(v ORDER BY id) FROM ia_input", 1))
-		arrayAggBoth(run, intaggArray(b, "SELECT v FROM ia_out", []string{"v"}, []string{"_INT4"}, [][]any{{"{2,NULL,2,-2147483648,2147483647}"}}))
+		fixture.ArrayAggBoth(run, intaggArray(b, "SELECT v FROM ia_out", []string{"v"}, []string{"_INT4"}, [][]any{{"{2,NULL,2,-2147483648,2147483647}"}}))
 		run(fixture.Exec("CREATE DOMAIN ia_int AS integer", 0))
-		arrayAggBoth(run, intaggArray(b, "SELECT ia_addon.int_array_aggregate(4::ia_int)", []string{"int_array_aggregate"}, []string{"_INT4"}, [][]any{{"{4}"}}))
+		fixture.ArrayAggBoth(run, intaggArray(b, "SELECT ia_addon.int_array_aggregate(4::ia_int)", []string{"int_array_aggregate"}, []string{"_INT4"}, [][]any{{"{4}"}}))
 	})
 }
 
@@ -105,22 +105,22 @@ func TestReferenceIntaggEnumeration(t *testing.T) {
 		for _, q := range []string{"SELECT ia_addon.int_array_enum(a) FROM ia_arrays", "SELECT * FROM ia_addon.int_array_enum('{2,2,NULL}'::integer[])", "SELECT ia_addon.int_array_enum('{2,2,NULL}')"} {
 			s := fixture.Select(q, []string{"int_array_enum"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(2)}, {nil}})
 			s.Bag = true
-			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { jsonTypeMetadataCheck(t, rows, b.PG, s.Columns, s.Types) }
-			arrayAggBoth(run, s)
+			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { fixture.JSONTypeMetadataCheck(t, rows, b.PG, s.Columns, s.Types) }
+			fixture.ArrayAggBoth(run, s)
 		}
 		for _, arg := range []string{"'{}'::integer[]", "NULL::integer[]", "NULL"} {
 			for _, q := range []string{"SELECT ia_addon.int_array_enum(" + arg + ")", "SELECT * FROM ia_addon.int_array_enum(" + arg + ")"} {
 				s := fixture.Select(q, []string{"int_array_enum"}, []string{"INT4"}, nil)
-				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { jsonTypeMetadataCheck(t, rows, b.PG, s.Columns, s.Types) }
-				arrayAggBoth(run, s)
+				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { fixture.JSONTypeMetadataCheck(t, rows, b.PG, s.Columns, s.Types) }
+				fixture.ArrayAggBoth(run, s)
 			}
 		}
-		arrayAggBoth(run, fixture.Select("SELECT v,n FROM ia_addon.int_array_enum('[0:1][3:4]={{1,2},{3,NULL}}'::integer[]) WITH ORDINALITY AS u(v,n) ORDER BY n", []string{"v", "n"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}, {int64(3), int64(3)}, {nil, int64(4)}}))
+		fixture.ArrayAggBoth(run, fixture.Select("SELECT v,n FROM ia_addon.int_array_enum('[0:1][3:4]={{1,2},{3,NULL}}'::integer[]) WITH ORDINALITY AS u(v,n) ORDER BY n", []string{"v", "n"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}, {int64(3), int64(3)}, {nil, int64(4)}}))
 		s := fixture.Select("SELECT ia_addon.int_array_enum(a)+1 AS v FROM ia_arrays", []string{"v"}, []string{"INT4"}, [][]any{{int64(3)}, {int64(3)}, {nil}})
 		s.Bag = true
-		arrayAggBoth(run, s)
-		arrayAggBoth(run, fixture.Select("SELECT id,v,n FROM ia_arrays LEFT JOIN LATERAL ia_addon.int_array_enum(a) WITH ORDINALITY AS u(v,n) ON TRUE ORDER BY id,n", []string{"id", "v", "n"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(1), int64(2), int64(1)}, {int64(1), int64(2), int64(2)}, {int64(1), nil, int64(3)}, {int64(2), nil, nil}, {int64(3), nil, nil}}))
-		arrayAggBoth(run, fixture.Select("SELECT x,y,n FROM ROWS FROM (ia_addon.int_array_enum('{2,NULL}'::integer[]),unnest(ARRAY[7,8,9])) WITH ORDINALITY AS u(x,y,n) ORDER BY n", []string{"x", "y", "n"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(2), int64(7), int64(1)}, {nil, int64(8), int64(2)}, {nil, int64(9), int64(3)}}))
+		fixture.ArrayAggBoth(run, s)
+		fixture.ArrayAggBoth(run, fixture.Select("SELECT id,v,n FROM ia_arrays LEFT JOIN LATERAL ia_addon.int_array_enum(a) WITH ORDINALITY AS u(v,n) ON TRUE ORDER BY id,n", []string{"id", "v", "n"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(1), int64(2), int64(1)}, {int64(1), int64(2), int64(2)}, {int64(1), nil, int64(3)}, {int64(2), nil, nil}, {int64(3), nil, nil}}))
+		fixture.ArrayAggBoth(run, fixture.Select("SELECT x,y,n FROM ROWS FROM (ia_addon.int_array_enum('{2,NULL}'::integer[]),unnest(ARRAY[7,8,9])) WITH ORDINALITY AS u(x,y,n) ORDER BY n", []string{"x", "y", "n"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(2), int64(7), int64(1)}, {nil, int64(8), int64(2)}, {nil, int64(9), int64(3)}}))
 		q := "SELECT v,n FROM ia_addon.int_array_enum($1) WITH ORDINALITY AS u(v,n) ORDER BY n"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -137,7 +137,7 @@ func TestReferenceIntaggEnumeration(t *testing.T) {
 			{"{-2147483648,2147483647}", [][]any{{int64(-2147483648), int64(1)}, {int64(2147483647), int64(2)}}},
 		} {
 			s := fixture.Select(q, []string{"v", "n"}, []string{"INT4", "INT8"}, tc.rows, tc.arg)
-			arrayAggBoth(run, s)
+			fixture.ArrayAggBoth(run, s)
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 		}
 	})

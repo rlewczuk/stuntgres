@@ -1,12 +1,12 @@
 package stuntgres
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"database/sql/driver"
 	"errors"
 	"fmt"
 	"runtime"
+	"stuntgres/internal/engine/core"
 	"sync/atomic"
 )
 
@@ -14,9 +14,9 @@ import (
 // never an executable graph. Binding and authority are current on every use.
 // FETCH and EXECUTE wrappers expose their live named resource's actual schema.
 type stmt struct {
-	conn        *conn
+	conn       *conn
 	definition core.PreparedDefinition
-	closed      atomic.Bool
+	closed     atomic.Bool
 }
 
 func (s *stmt) Close() error {
@@ -26,7 +26,10 @@ func (s *stmt) Close() error {
 	}
 	return nil
 }
-func (s *stmt) NumInput() int { defer runtime.KeepAlive(s.conn); return s.definition.Description.Parameters.Count }
+func (s *stmt) NumInput() int {
+	defer runtime.KeepAlive(s.conn)
+	return s.definition.Description.Parameters.Count
+}
 func (s *stmt) check(ctx context.Context) error {
 	defer runtime.KeepAlive(s.conn)
 	if err := s.conn.check(ctx); err != nil {
@@ -70,11 +73,14 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 	if err := s.checkArguments(args); err != nil {
 		return nil, err
 	}
-	r, err := s.conn.execute(ctx, s.definition.Source, s.definition.Body, args, &s.definition.Description)
+	r, _, _, err := s.conn.request(ctx, s.definition.Source, s.definition.Body, args, false, false, &s.definition.Description)
+	if len(r.sets) != 0 {
+		return newBatchRows(ctx, r.sets, err, r.setNotices), nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	return newRows(ctx, r), nil
+	return newRows(ctx, r.Result, r.notices), nil
 }
 func (s *stmt) Exec(args []driver.Value) (driver.Result, error) {
 	return s.ExecContext(context.Background(), named(args))

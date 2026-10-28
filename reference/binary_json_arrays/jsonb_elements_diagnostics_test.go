@@ -41,7 +41,7 @@ func TestReferenceJSONBElementsDiagnostics(t *testing.T) {
 						if prepared && !bound {
 							stage = "prepare"
 						}
-						jsonKeysError(t, p, b, c, q, prepared, d, stage, args...)
+						fixture.JSONKeysError(t, p, b, c, q, prepared, d, stage, args...)
 					}
 				}
 			}

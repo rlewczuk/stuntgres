@@ -40,6 +40,8 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,t.typcategory,t.typcollation,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=1790", []string{"oid", "typname", "typarray", "typcategory", "typcollation", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "CHAR", "OID", "OID", "NAME", "OID"}, [][]any{{int64(1790), "refcursor", int64(2201), "U", int64(0), int64(2201), "_refcursor", int64(1790)}}))
 		// OIDVECTOR is concrete; its real canonical companion is metadata only.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typelem,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=30", []string{"oid", "typname", "typelem", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "OID", "NAME", "OID"}, [][]any{{int64(30), "oidvector", int64(26), int64(1013), int64(1013), "_oidvector", int64(30)}}))
+		// XML is concrete; its released companion is catalog metadata only.
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,t.typcategory,t.typcollation,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=142", []string{"oid", "typname", "typarray", "typcategory", "typcollation", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "CHAR", "OID", "OID", "NAME", "OID"}, [][]any{{int64(142), "xml", int64(143), "U", int64(0), int64(143), "_xml", int64(142)}}))
 		// Catalog-owned pg_statistic row/array values have a restricted output
 		// codec; this grants neither a pg_statistic reader nor external input.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid::bigint AS oid,typtype,typrelid::bigint AS relation,typelem::bigint AS element,typarray::bigint AS array FROM pg_type WHERE oid IN(10028,10029) ORDER BY oid", []string{"oid", "typtype", "relation", "element", "array"}, []string{"INT8", "CHAR", "INT8", "INT8", "INT8"}, [][]any{{int64(10028), "b", int64(0), int64(10029), int64(0)}, {int64(10029), "c", int64(2619), int64(0), int64(10028)}}))
@@ -85,6 +87,8 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// REFCURSOR is now a concrete scalar. Its canonical companion is
 		// advertised catalog metadata, not executable array admission.
 		expected[1790], expected[2201] = true, true
+		// XML scalar admission exposes the canonical companion, not an array codec.
+		expected[142], expected[143] = true, true
 		expected[22], expected[30], expected[1006], expected[1013] = true, true, true, true
 		expected[10028], expected[10029] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
@@ -132,8 +136,8 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 			want = append(want, []any{id})
 		}
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type ORDER BY oid", []string{"oid"}, []string{"OID"}, want))
-		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (142,143,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
-		// Lookup identity is deliberately broader than SQL catalog/codec admission.
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (142,143,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, [][]any{{int64(142)}, {int64(143)}}))
+		// Keep admitted XML and lookup-only multirange identities distinct.
 		for _, id := range []int64{142, 4533} {
 			literal := fmt.Sprint(id)
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT '"+literal+"'::regtype::bigint AS identity", []string{"identity"}, []string{"INT8"}, [][]any{{id}}))

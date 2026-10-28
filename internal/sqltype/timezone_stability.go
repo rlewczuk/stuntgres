@@ -23,6 +23,9 @@ func (p CoercionPlan) SessionDependent() bool {
 // Domains delegate to base input here; domain_in itself is not invoked.
 func (d *Descriptor) InputSessionDependent() bool {
 	base := d.BaseType()
+	if base.id == XML {
+		return true
+	}
 	if base.IsArray() || base.IsEnum() || base.IsComposite() || base.rangeSubtype != nil || base.multirangeRange != nil {
 		return true
 	}

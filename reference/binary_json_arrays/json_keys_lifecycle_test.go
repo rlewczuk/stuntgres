@@ -16,7 +16,7 @@ func jsonKeysStored(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE VIEW jk_view AS SELECT id,k,n FROM jk_source,json_object_keys(j) WITH ORDINALITY AS f(k,n)", 0))
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("ALTER TABLE jk_source RENAME COLUMN j TO document", 0))
 	check := fixture.Select("SELECT id,k,n FROM jk_view ORDER BY id,n", []string{"id", "k", "n"}, []string{"INT4", "TEXT", "INT8"}, [][]any{{int64(1), "a", int64(1)}, {int64(1), "b", int64(2)}, {int64(4), "a", int64(1)}, {int64(4), "a", int64(2)}})
-	jsonKeysBoth(t, p, b, c, check)
+	fixture.JSONKeysBoth(t, p, b, c, check)
 	return check
 }
 
@@ -70,7 +70,7 @@ func jsonKeysControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	jsonKeysBoth(t, p, b, c, check)
+	fixture.JSONKeysBoth(t, p, b, c, check)
 	storage := fixture.Select("SELECT document FROM jk_source ORDER BY id", []string{"document"}, []string{"JSON"}, [][]any{{`{"a":1,"b":2}`}, {`{}`}, {nil}, {`{"a":1,"a":2}`}})
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, storage)
 	var redump bytes.Buffer
@@ -109,14 +109,14 @@ func TestReferenceJSONKeysAuthorityAndControls(t *testing.T) {
 		run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
 		for _, q := range []string{"SELECT json_object_keys(j) FROM jk_acl", "SELECT json_object_keys(hidden) FROM jk_acl WHERE false"} {
 			for _, prepared := range []bool{false, true} {
-				jsonKeysError(t, p, b, c, q, prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jk_acl"), "execute")
+				fixture.JSONKeysError(t, p, b, c, q, prepared, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table jk_acl"), "execute")
 			}
 		}
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		run(fixture.Exec(`INSERT INTO jk_acl VALUES('{"a":1}','{}')`, 1))
 		run(fixture.Exec("GRANT SELECT(j) ON jk_acl TO "+role, 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
-		jsonKeysBoth(t, p, b, c, jsonKeysSelect("SELECT json_object_keys(j) FROM jk_acl", []string{"a"}))
+		fixture.JSONKeysBoth(t, p, b, c, jsonKeysSelect("SELECT json_object_keys(j) FROM jk_acl", []string{"a"}))
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		// Explicit ACLs are intentionally outside native Dump's representation.
 		// Finish authorization witnesses before exporting the independent source/view.

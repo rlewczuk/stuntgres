@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/workadmission"
 )
 
 // LikePlan retains descriptors and operation identity, never execution values.
@@ -95,12 +96,22 @@ func matchLike(ctx context.Context, input, pattern string, binary, fold bool) (b
 				return false, err
 			}
 		}
+		if work&4095 == 1 {
+			if err := workadmission.Admit(ctx, workadmission.WorkPatternMatch); err != nil {
+				return false, err
+			}
+		}
 		if j < len(pattern) && pattern[j] == '%' {
 			j++
 			for j < len(pattern) && (pattern[j] == '%' || pattern[j] == '_') {
 				work++
 				if work&4095 == 0 {
 					if err := ctx.Err(); err != nil {
+						return false, err
+					}
+				}
+				if work&4095 == 1 {
+					if err := workadmission.Admit(ctx, workadmission.WorkPatternMatch); err != nil {
 						return false, err
 					}
 				}
@@ -154,6 +165,11 @@ func matchLike(ctx context.Context, input, pattern string, binary, fold bool) (b
 				return false, err
 			}
 		}
+		if work&4095 == 1 {
+			if err := workadmission.Admit(ctx, workadmission.WorkPatternMatch); err != nil {
+				return false, err
+			}
+		}
 		j++
 	}
 	return j == len(pattern), nil
@@ -197,7 +213,7 @@ func (p LikeEscapePlan) Evaluate(ctx context.Context, pattern, escape Value) (Va
 	size, changed := len(s), false
 	for i, work := 0, 0; i < len(s); work++ {
 		if work&4095 == 0 {
-			if err := ctx.Err(); err != nil {
+			if err := workadmission.Admit(ctx, workadmission.WorkPatternNormalize); err != nil {
 				return Value{}, err
 			}
 		}
@@ -221,7 +237,7 @@ func (p LikeEscapePlan) Evaluate(ctx context.Context, pattern, escape Value) (Va
 	out.Grow(size)
 	for i, work := 0, 0; i < len(s); work++ {
 		if work&4095 == 0 {
-			if err := ctx.Err(); err != nil {
+			if err := workadmission.Admit(ctx, workadmission.WorkPatternNormalize); err != nil {
 				return Value{}, err
 			}
 		}

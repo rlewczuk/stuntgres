@@ -1,6 +1,9 @@
 package expr
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
 
 // Renderable nodes describe their own presentation. One Rendering value serves
 // every engine renderer that lists nodes: the node-tree output, the PostgreSQL
@@ -163,6 +166,9 @@ type RenderArg struct {
 	// JSONFormattedSource renders the original child of one recognized
 	// formatted-JSON input conversion. The engine owns that conversion.
 	JSONFormattedSource bool
+	// XMLSource identifies the XML opener owning a source assignment
+	// conversion. Render the written operand, not that synthetic conversion.
+	XMLSource parser.Position
 	// Listed renders the argument in a function-argument position, where
 	// pretty mode drops parentheses around COLLATE and nested casts.
 	Listed bool

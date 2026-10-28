@@ -5,11 +5,12 @@ and assignment), string literals and Unicode escapes, and string functions:
 trim, `normalize` and concatenation, case mapping, length and position, padding,
 `repeat` and `reverse`, replacement and `overlay`, slicing (`left`, `right`,
 `substring`), splitting, `parse_ident`, integer-base formatting and TEXT `md5`,
-`ascii`/`chr`/`unistr`/`to_ascii`, and `string_agg`. Pattern matching, `format`
+`ascii`/`chr`/`unistr`/`to_ascii`, `string_agg`, and XML scalar input,
+parsing, serialization, session/prepared lifetimes, wire/COPY and controls. Pattern matching, `format`
 and the variadic `concat`/`quote_*` functions are in
-[reference/patterns_encoding](../patterns_encoding/README.md#testing); BYTEA,
-bit strings and binary hashing are in
-[reference/binary_json_arrays](../binary_json_arrays/README.md#testing).
+[reference/patterns_encoding](../patterns_encoding/README.md#testing); BYTEA and
+binary hashing are in [temporal_types](../temporal_types/README.md#testing).
+BIT/VARBIT types, operators, functions and bit access are owned here.
 
 ## Testing
 
@@ -39,3 +40,14 @@ Add `REFERENCE=1` for the oracle.
 - `to_hex`/`to_oct`/`to_bin`, TEXT `md5`: `RUN='^TestReferenceStringNumericBase'`
 - `ascii`, `chr`, `unistr`, `to_ascii`: `RUN='^TestReferenceStringEncoding'`
 - `string_agg`: `RUN='^TestReferenceStringAgg'`
+- XML scalar acceptance: `RUN='^TestReferenceXML'`
+- BIT and VARBIT types: `RUN='^TestReferenceBitstring'`
+- Bit-string operators: `RUN='^TestReferenceBitOperators'`
+- Bit-string functions (`bit_count`, `length`, `position`, `substring`, `overlay`, ...): `RUN='^TestReferenceBitStringFunctions'`
+- Bit-string `get_bit`, `set_bit`: `RUN='^TestReferenceBitAccess'`
+
+Bit families keep their local `<family>_helpers_test.go`; access diagnostics use
+`fixture.BinaryAccessBodyError`, `BinaryAccessAnalysisError` and
+`BinaryAccessDiagnosticStages`, with `fixture.BitAccessScenario` for setup.
+The shared binary access witnesses are owned by
+[temporal_types](../temporal_types/README.md#testing).

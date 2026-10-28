@@ -61,7 +61,7 @@ func TestReferenceJSONBSetCancellation(t *testing.T) {
 				fixture.LexicalOrdinary(t, err, context.Canceled)
 			}
 		}
-		outputGateCancel(t, p, b, c, false, func(ctx context.Context) fixture.RelationOutcome {
+		fixture.OutputGateCancel(t, p, b, c, false, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := read.QueryContext(ctx)
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})
@@ -69,7 +69,7 @@ func TestReferenceJSONBSetCancellation(t *testing.T) {
 		heldRead := fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}
 		fixture.RunStep(t, p.Ctx, heldRead, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(27)}}))
 		run(fixture.Prepared(fixture.Exec("UPDATE jbs_active_input SET v=$1 WHERE id>1", 8, large)))
-		outputGateCancel(t, p, b, c, true, func(ctx context.Context) fixture.RelationOutcome {
+		fixture.OutputGateCancel(t, p, b, c, true, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := write.ExecContext(ctx)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

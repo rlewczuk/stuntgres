@@ -17,6 +17,30 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 	if v.null || other.null {
 		return v.null == other.null, nil
 	}
+	if v.xml != nil || other.xml != nil || v.typ != nil && v.typ.BaseType().id == XML || other.typ != nil && other.typ.BaseType().id == XML {
+		if !v.validXML() || !other.validXML() {
+			return false, nil
+		}
+		if v.xml != other.xml {
+			a, b := v.xml.result, other.xml.result
+			if a.RequestedMode() != b.RequestedMode() || a.EffectiveMode() != b.EffectiveMode() || len(a.Original()) != len(b.Original()) {
+				return false, nil
+			}
+			// Declaration metadata is derived from the accepted spelling and mode.
+			// Compare that spelling without copying or an unbounded whole-string scan.
+			left, right := a.Original(), b.Original()
+			for start := 0; start < len(left); start += 4096 {
+				if err := ctx.Err(); err != nil {
+					return false, err
+				}
+				end := min(start+4096, len(left))
+				if left[start:end] != right[start:end] {
+					return false, nil
+				}
+			}
+		}
+		v.xml, other.xml = nil, nil
+	}
 	if v.statisticArray != nil || other.statisticArray != nil {
 		if !v.validStatisticResult() || !other.validStatisticResult() || v.statisticArray == nil || other.statisticArray == nil {
 			return false, nil

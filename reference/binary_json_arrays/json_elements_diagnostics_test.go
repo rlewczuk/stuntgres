@@ -15,7 +15,7 @@ func jsonElementsError(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixtu
 		if prepared && analysis {
 			stage = "prepare"
 		}
-		jsonKeysError(t, p, b, c, q, prepared, d, stage, args...)
+		fixture.JSONKeysError(t, p, b, c, q, prepared, d, stage, args...)
 	}
 }
 
@@ -28,9 +28,9 @@ func TestReferenceJSONElementsTyping(t *testing.T) {
 				if strings.Contains(call, "'[1]'") {
 					args = nil
 				}
-				jsonKeysBoth(t, p, b, c, jsonElementsSelect(f, "SELECT * FROM "+call, [][]any{{"1"}}, args...))
+				fixture.JSONKeysBoth(t, p, b, c, jsonElementsSelect(f, "SELECT * FROM "+call, [][]any{{"1"}}, args...))
 			}
-			jsonKeysBoth(t, p, b, c, jsonElementsSelect(f, "SELECT * FROM "+f+"(NULL)", nil))
+			fixture.JSONKeysBoth(t, p, b, c, jsonElementsSelect(f, "SELECT * FROM "+f+"(NULL)", nil))
 			for _, tc := range []struct{ call, signature string }{
 				{f + "()", f + "()"}, {f + "('[]','[]')", f + "(unknown, unknown)"},
 				{f + "('[]'::text)", f + "(text)"}, {f + "(1)", f + "(integer)"},

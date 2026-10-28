@@ -83,7 +83,7 @@ func searchCancellation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 				defer stmt.Close()
 				x = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 			}
-			fixture.BinaryConversionActiveCancel(t, p, b, c, q, "recursiveUnion", func(ctx context.Context) fixture.RelationOutcome {
+			fixture.BinaryConversionActiveCancel(t, p, b, c, q, stuntgres.WorkRecursiveUnion, func(ctx context.Context) fixture.RelationOutcome {
 				if b.PG {
 					result, err := x.ExecContext(ctx, q, true)
 					return fixture.RelationOutcome{Result: result, Err: err}
@@ -96,7 +96,7 @@ func searchCancellation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 		})
 	}
 	for _, target := range []string{"INSERT INTO " + name + " " + base + "SELECT n FROM r", "CREATE TABLE " + name + "_ctas AS " + base + "SELECT n FROM r"} {
-		fixture.BinaryConversionActiveCancel(t, p, b, c, target, "recursiveUnion", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, c, target, stuntgres.WorkRecursiveUnion, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := c.ExecContext(ctx, target, true)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

@@ -86,6 +86,28 @@ production dependency is involved.
 
 ## Helpers
 
+- **Collections, binary and JSON shared ownership.** `array_agg_shared.go` owns
+  `ArrayAggBoth`/`ArrayAggMetadata` for [cursors](../cursors/README.md#testing)
+  and intagg in [binary_json_arrays](../binary_json_arrays/README.md#testing).
+  `binary_access_diagnostics_shared.go` and `bit_access_values_shared.go` own
+  the shared access diagnostic runners and `BitAccessScenario` for
+  [temporal_types](../temporal_types/README.md#testing) and [strings](../strings/README.md#testing).
+  `json_*_shared.go` and `jsonb_*_shared.go` own the JSON direct/prepared runners,
+  exact metadata checks (including `JSONTypeSourceColumn.Index`/`Nullable`),
+  quote/valuer helpers and raw-value/rescan ownership assertions.
+  `sqljson_*_shared.go` and `json_table_helpers_shared.go` share SQL/JSON runners
+  and JSON_TABLE setup with [query_outer](../query_outer/README.md#testing).
+  `jsonpath_navigate_*_shared.go` owns replay, raw retained-row and view metadata
+  helpers shared with [datetime_formatting](../datetime_formatting/README.md#testing).
+  These helpers preserve caller-provided goldens and all direct, prepared, held,
+  native-control and actual emitted-SQL replay routes; no fixture learns goldens.
+  `output_gate_shared.go` owns `OutputGateCancel`/`OutputGatePID`: actual output
+  length maps to advisory keys 2/67108864; admission requires the worker wait,
+  blocker, holder grant and optional earlier small grant before cancellation.
+  Every exit joins workers and removes requests/grants before borrower cleanup.
+  This proves cancellation after output exists, not inside a provider. Reusable
+  consumer selectors live in the linked owning READMEs.
+
 - **Scenarios.** `NewScenarioWithDriverConfig(t, configure)` runs
   `configure(*stuntgres.Driver)` before the first connector, for embedding
   registries such as foreign handlers and validators; it does not touch PostgreSQL
@@ -153,21 +175,21 @@ production dependency is involved.
   ExclusiveLock and blocker PID. It rejects premature completion and leaves
   release/cancellation/join ownership with the caller; it does not assume that
   a catalog owner update acquires a shared-object or name lock.
-- **Active cancellation.** `BinaryConversionActiveCancel` and `SleepActiveCancel`
-  cancel only after real admission: natively, the exact provider and fixture worker
-  frames in one complete live goroutine stack (creation metadata does not count);
-  on PostgreSQL, the actual query and wait event. Admission deadline 15 s; every
-  exit cancels and joins before statements and connections close. Sampling stops
-  the world, so after a miss it waits 1 ms on a reusable timer. Native admission
-  matches function names, so **update the probes when renaming or moving a
-  provider or worker**; a stale name makes the observer wait on a runaway query.
-  `BinaryConversionActiveCancel` also holds a native provider's actual context
-  cancellation poll until cancellation, only when that poll's complete current
-  stack contains both the requested provider and operation worker. The external
-  live-stack observer still establishes admission before canceling; unrelated
-  context callers remain unblocked and underlying context semantics are retained.
-  Finite provider work therefore cannot escape between observer samples. Progress
-  callbacks and sleep helpers keep their existing observation routes.
+- **Active cancellation.** `BinaryConversionActiveCancel` takes a typed public
+  `stuntgres.WorkClass`. Its native request-scoped admission policy grants all
+  other classes and synchronously waits at the requested provider quantum until
+  the observer cancels the parent. The actual policy entry is the witness: no
+  stack text or overridden `Context.Err` selects resource admission. Completion
+  before entry fails, and cancellation must publish neither cursor nor result.
+  PostgreSQL retains actual PID/query admission and `pg_cancel_backend`, with
+  the complete independently expected 57014 diagnostic. Admission deadline is
+  15 s; every exit cancels and joins before statements and connections close.
+  `SleepActiveCancel` and `BinaryConversionActiveCancelAfter` retain their actual
+  wait/progress paths, including live-stack observation natively and actual
+  server query/wait events on PostgreSQL. Their stack samples exclude creation
+  metadata and wait 1 ms after a miss so observation cannot monopolize progress.
+  See [cooperative work admission](../../docs/DRIVER.md#cooperative-work-admission)
+  for the useful public host-control contract and semantic class quanta.
   - `SleepActiveCancelWithContext` and `PLpgSQLLoopActiveCancel` accept an
     independently observed PostgreSQL diagnostic Context. The loop wrapper admits
     the actual `executePLLoop` worker, including an empty body, without a sleep wait
@@ -179,6 +201,16 @@ production dependency is involved.
   - `BinaryConversionActiveCancelAfter` runs a progress callback after admission
     and before cancellation, on the supplied context and a different connection;
     consumers assert a real progress transition, not a timer.
+  - The fixture's `^TestReferenceFixtureProviderPoll(Context|Authority)$` family
+    exercises real direct/held SQL consumers: context values/deadlines/causes,
+    cancellation, wrong-class grants, operand precedence and refusal atomicity.
+    `^TestReferenceWorkAdmission` covers finite shared workload credits, resume,
+    independent concurrent requests, completed-policy isolation and effective
+    statement/session timeout contexts. Native controls are explicit phases in
+    the same dual-mode bodies; PostgreSQL retains independent rows/diagnostics.
+    The fatal-timeout oracle uses a named prepared `pgconn` request on the same
+    pinned server to inspect complete FATAL diagnostics; pq's held-statement
+    boundary exposes `sql.ErrConnDone`, which is not a diagnostic substitute.
   - `SQLCursorCancelDemand(t, p, conn, query)` cancels an admitted oracle query and
     checks the complete diagnostic (cursor FETCH, HOLD COMMIT, SQL-prepared writes).
 - **Schema and role scopes.** `WithPublicSchemaOwner(t, pair, backend, owner,

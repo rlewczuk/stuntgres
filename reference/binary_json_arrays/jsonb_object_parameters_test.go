@@ -36,7 +36,7 @@ func TestReferenceJSONBObjectParameters(t *testing.T) {
 				}
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, held, b.Recorder, s) }
 				good := jsonbObjectSelect(q, want, valid...)
-				good.CheckMetadata = func(t *testing.T, r *sql.Rows) { jsonbObjectMetadata(t, r, b.PG, "v") }
+				good.CheckMetadata = func(t *testing.T, r *sql.Rows) { fixture.JSONBObjectMetadata(t, r, b.PG, "v") }
 				run(good)
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, good)
 				run(jsonbObjectSelect(q, "{}", args("{}", "{}")...))

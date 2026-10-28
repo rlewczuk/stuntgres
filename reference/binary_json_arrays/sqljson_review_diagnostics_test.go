@@ -35,7 +35,7 @@ func TestReferenceSQLJSONClauseBoundaries(t *testing.T) {
 						offset = strings.Index(tc.expr, " ON ") + 1
 					}
 					d.Position = fixture.Position(len([]rune(prefix)) + len([]rune(tc.expr[:offset])) + 1)
-					sqljsonDiagnostic(t, p, b, c, prefix+tc.expr+";", d, true)
+					fixture.SQLJSONDiagnostic(t, p, b, c, prefix+tc.expr+";", d, true)
 				})
 			}
 		}
@@ -83,7 +83,7 @@ func TestReferenceSQLJSONOutputEncoding(t *testing.T) {
 							// declared identity, even when their base type is BYTEA.
 							d := fixture.ControlsReferenceDiagnostic("0A000", "cannot set JSON encoding for non-bytea output types")
 							d.Position = fixture.Position(len([]rune(prefix)) + len([]rune(expr[:strings.Index(expr, "FORMAT")])) + 1)
-							sqljsonDiagnostic(t, p, b, c, prefix+expr+";", d, true)
+							fixture.SQLJSONDiagnostic(t, p, b, c, prefix+expr+";", d, true)
 						})
 					}
 				}
@@ -93,7 +93,7 @@ func TestReferenceSQLJSONOutputEncoding(t *testing.T) {
 						d := fixture.ControlsReferenceDiagnostic("0A000", "unsupported JSON encoding")
 						d.Hint = "Only UTF8 JSON encoding is supported."
 						d.Position = fixture.Position(len([]rune(prefix)) + len([]rune(expr[:strings.Index(expr, "FORMAT")])) + 1)
-						sqljsonDiagnostic(t, p, b, c, prefix+expr+";", d, true)
+						fixture.SQLJSONDiagnostic(t, p, b, c, prefix+expr+";", d, true)
 					})
 				}
 			}

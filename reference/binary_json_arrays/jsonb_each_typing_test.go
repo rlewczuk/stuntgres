@@ -11,9 +11,9 @@ func TestReferenceJSONBEachTyping(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE DOMAIN jbeach_document AS jsonb", 0))
 		for _, f := range []string{"jsonb_each", "jsonb_each_text"} {
 			for _, call := range []string{f + "($1)", f + "($1::jsonb)", "pg_catalog." + f + "($1)", f + "(from_json => $1)", f + "(from_json := $1)", f + "($1::jbeach_document)"} {
-				jsonEachBoth(t, p, b, c, jsonbEachSelect(f, "SELECT * FROM "+call, [][]any{{"a", "1"}}, `{"a":1}`))
+				fixture.JSONEachBoth(t, p, b, c, jsonbEachSelect(f, "SELECT * FROM "+call, [][]any{{"a", "1"}}, `{"a":1}`))
 			}
-			jsonEachBoth(t, p, b, c, jsonbEachSelect(f, "SELECT * FROM "+f+"(NULL)", nil))
+			fixture.JSONEachBoth(t, p, b, c, jsonbEachSelect(f, "SELECT * FROM "+f+"(NULL)", nil))
 			for _, tc := range []struct{ call, signature string }{
 				{f + "()", f + "()"},
 				{f + "('{}','{}')", f + "(unknown, unknown)"},
@@ -33,7 +33,7 @@ func TestReferenceJSONBEachTyping(t *testing.T) {
 							if prepared {
 								stage = "prepare"
 							}
-							jsonKeysError(t, p, b, c, prefix+tc.call, prepared, d, stage)
+							fixture.JSONKeysError(t, p, b, c, prefix+tc.call, prepared, d, stage)
 						}
 					})
 				}

@@ -261,6 +261,7 @@
 2890	pg_advisory_unlock	11	12	1	0	0	0	f	false	false	true	false	v	r	2	0	16	23 23	\N	\N	\N	false	\N	pg_advisory_unlock_int4	\N	false	\N
 2891	pg_advisory_unlock_shared	11	12	1	0	0	0	f	false	false	true	false	v	r	2	0	16	23 23	\N	\N	\N	false	\N	pg_advisory_unlock_shared_int4	\N	false	\N
 2892	pg_advisory_unlock_all	11	12	1	0	0	0	f	false	false	true	false	v	r	0	0	2278		\N	\N	\N	false	\N	pg_advisory_unlock_all	\N	false	\N
+2896	xml	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	142	25	\N	\N	\N	false	\N	texttoxml	\N	false	\N
 2954	uuid_lt	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	2950 2950	\N	\N	\N	false	\N	uuid_lt	\N	false	\N
 2955	uuid_le	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	2950 2950	\N	\N	\N	false	\N	uuid_le	\N	false	\N
 2956	uuid_eq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	2950 2950	\N	\N	\N	false	\N	uuid_eq	\N	false	\N

@@ -37,6 +37,8 @@ type InputEnvironment struct {
 	RegTS                                     RegTSResolver
 	ACLItem                                   ACLItemResolver
 	FTS                                       FTSInputNotices
+	XMLMode                                   XMLMode
+	XMLInput                                  XMLInputDiagnostics
 	NumericLocale, MonetaryLocale, TimeLocale Locale
 	ByteTransport                             bool
 	Transport                                 ClientEncodingPolicy

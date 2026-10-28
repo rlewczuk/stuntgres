@@ -9,6 +9,12 @@ import (
 
 // REL_18_6 pg_cast.dat: direct edges only; automatic string I/O is separate.
 var releasedCasts = [...]castSpec{
+	{XML, Text, Assignment, viaIO, castCatalogFact{}},
+	{XML, VarChar, Assignment, viaIO, castCatalogFact{}},
+	{XML, BPChar, Assignment, viaIO, castCatalogFact{}},
+	{Text, XML, Explicit, viaIO, castCatalogFact{}},
+	{VarChar, XML, Explicit, viaIO, castCatalogFact{}},
+	{BPChar, XML, Explicit, viaIO, castCatalogFact{}},
 	{Text, BPChar, Implicit, stringConversion, castCatalogFact{}},
 	{Text, VarChar, Implicit, stringConversion, castCatalogFact{}},
 	{BPChar, Text, Implicit, stringConversion, castCatalogFact{}},

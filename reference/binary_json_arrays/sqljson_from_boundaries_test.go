@@ -30,7 +30,7 @@ func TestReferenceSQLJSONFromClauseBoundaries(t *testing.T) {
 							// in syntax analysis, before scalar-FROM provider binding.
 							d := fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "FORMAT"`)
 							d.Position = fixture.Position(len([]rune(q[:strings.Index(q, "FORMAT")])) + 1)
-							sqljsonDiagnostic(t, p, b, c, q, d, true)
+							fixture.SQLJSONDiagnostic(t, p, b, c, q, d, true)
 						})
 					}
 				}

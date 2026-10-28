@@ -34,6 +34,15 @@ unchanged callable declarations retain their original identity rather than an
 operation-local clone. The complete expression mapper still checks hidden
 type/collation fields, so genuine provider changes replace recipe backing.
 
+XML parse/serialize recipes retain explicit modes and whitespace/indent options
+through scalar rendering and frozen query presentation. Serializer target Usage
+is authenticated against the actual accepted node in its owning query frame;
+raw target spelling cannot supply descriptor authority. Generic remap/retag
+rebinds hidden TEXT conversion generations without reparsing accepted XML.
+Lossless datum replay remains the scalar literal owner's requested-mode spelling.
+Literal validation pairs the rendered root syntax with its registered query
+frame before traversing occurrences; detached replacement syntax has no authority.
+
 SQL/PL routines share callable captures. Language/body kind, declaration replay
 sources and typed local Usages participate in validation, equivalence and remap;
 declared pseudo signatures pass the same determinability and language checks as
@@ -876,6 +885,10 @@ is involved. Ordinary view/rule/routine replay modes remain unchanged.
 redump/replacement, renamed providers/attributes and retained payload ownership.
 
 ## Testing
+
+XML frozen target/operand occurrence authority, selected conversion association
+and hidden conversion generations use
+`RUN='^(TestXMLFrozenCaptureOwnership|TestXMLSerializationAssociation)$'`.
 
 Type inquiry immutable recipe ownership and frozen view/policy cast-occurrence
 authority use `RUN='^TestTypeDescribe(StoredOwnership|ComposedStoredOwnership|FrozenCastOccurrence)$'`.

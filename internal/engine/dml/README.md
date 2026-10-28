@@ -20,6 +20,13 @@ and adds command, stage, row-lock, presentation and row/statement trigger capabi
 The engine's `statementHost` implements them (`statement_host_dml.go`,
 `statement_host_stage.go`, `statement_host_latest_row.go`, `statement_host_trigger.go`).
 
+DELETE accepts an effective runtime context in `DeleteInput`, just as the other
+bound write inputs do. Core supplies its local unlocked execution context; a nil
+context retains the operation authority for internal callers. This does not
+replace the operation or host context. Provider admission and cancellation use
+that effective context while existing row grants, staging and publication remain
+the sole write authorities.
+
 - `Statement`: the active command, target, private rows, snapshot, unique
   journal, query authority, scopes, lock ticket, WHERE CURRENT OF row,
   disclosure environment and `Operation`. It never locks or waits and is read

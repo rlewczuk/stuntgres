@@ -456,6 +456,11 @@ type finalUnitSQLHost struct {
 	Host
 	name  string
 	usage sqltype.Usage
+	input sqltype.InputEnvironment
+}
+
+func (h finalUnitSQLHost) Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment) {
+	return h.input, sqltype.OutputEnvironment{}
 }
 
 func (h finalUnitSQLHost) InvokeAggregateSQLRoutine(ctx context.Context, _ *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, _ *catalog.Procedure, _ sqltype.CollationRef) (sqltype.Value, error) {
@@ -472,8 +477,8 @@ func TestAggregateFinalCurrentHost(t *testing.T) {
 	p, text := finalUnitProvider(t)
 	p.Final.SQL, p.FinalCall = &proc.Definition{}, nil
 	ctx := context.Background()
-	first := &Context{EvalStatement: EvalStatement{Context: ctx, Host: finalUnitSQLHost{name: "first", usage: text.Usage()}}}
-	second := &Context{EvalStatement: EvalStatement{Context: ctx, Host: finalUnitSQLHost{name: "second", usage: text.Usage()}}}
+	first := &Context{EvalStatement: EvalStatement{Context: ctx, Host: finalUnitSQLHost{name: "first", usage: text.Usage(), input: sqltype.InputEnvironment{XMLMode: sqltype.XMLContent}}}}
+	second := &Context{EvalStatement: EvalStatement{Context: ctx, Host: finalUnitSQLHost{name: "second", usage: text.Usage(), input: sqltype.InputEnvironment{XMLMode: sqltype.XMLDocument}}}}
 	state, err := p.InitWithContext(ctx, first)
 	if err != nil {
 		t.Fatal(err)
@@ -486,6 +491,9 @@ func TestAggregateFinalCurrentHost(t *testing.T) {
 		got, err := result.Text()
 		if err != nil || got != evaluation.Host.(finalUnitSQLHost).name {
 			t.Fatal("final retained initialization/previous host", got, err)
+		}
+		if evaluation.FunctionInput().XMLMode != evaluation.Host.(finalUnitSQLHost).input.XMLMode {
+			t.Fatal("final retained initialization/previous host environment")
 		}
 	}
 }

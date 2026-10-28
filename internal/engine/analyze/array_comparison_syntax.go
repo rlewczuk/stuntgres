@@ -78,6 +78,16 @@ func (b *Binder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) 
 		}
 	}
 	switch r := raw.(type) {
+	case parser.XMLParseExpr:
+		r.Child = child(r.Child)
+		if changed {
+			return r, true
+		}
+	case parser.XMLSerializeExpr:
+		r.Child = child(r.Child)
+		if changed {
+			return r, true
+		}
 	case parser.InListExpr:
 		r.Left, r.Items = child(r.Left), args(r.Items)
 		if changed {

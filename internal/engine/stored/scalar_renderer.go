@@ -377,6 +377,22 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		return "CAST(" + child + " AS " + declaration + ")", nil
 	case plan.CoercionExpr:
+		if n.XMLSerializeResult {
+			spec, err := plan.XMLSerializationRendering(n)
+			if err != nil {
+				return "", err
+			}
+			var failure error
+			plan.WalkExpression(n.Child, func(node expr.Expr) {
+				if failure == nil {
+					failure = r.recordStoredRoutine(view, node)
+				}
+			})
+			if failure != nil {
+				return "", failure
+			}
+			return r.rendering(ctx, view, spec)
+		}
 		logical, err := n.LogicalInputCast()
 		if err != nil {
 			return "", err

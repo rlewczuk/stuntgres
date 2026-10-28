@@ -213,7 +213,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error),
 		var size int
 		if len(key) > blockSize {
 			digest = newHash()
-			if err := writeHashString(ctx, digest, key, &scratch); err != nil {
+			if err := writeHashString(ctx, digest, key, &scratch, 0); err != nil {
 				return Value{}, err
 			}
 			size = len(digest.Sum(effective[:0]))
@@ -224,7 +224,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error),
 	} else {
 		digest = newHash()
 	}
-	if err := writeHashString(ctx, digest, data, &scratch); err != nil {
+	if err := writeHashString(ctx, digest, data, &scratch, 0); err != nil {
 		return Value{}, err
 	}
 	var sum [sha512.Size]byte

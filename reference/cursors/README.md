@@ -36,6 +36,12 @@ constant cursors fail only at generated-name assignment, after earlier query and
 USING work; non-NULL constant names remain usable. Complete diagnostics, prepared
 reuse, sequence effects and portal cleanup are asserted before healthy recovery.
 
+Collection and record-producing consumers also belong here: ARRAY types,
+constructors/subscripts/assignment, transforms, inspection/search/comparison,
+`array_sample`/`array_shuffle`/`unnest`, `array_agg`, and JSON/JSONB record
+conversion/validation and recordset expansion. General JSON operators and `intagg`
+remain in [binary_json_arrays](../binary_json_arrays/README.md#testing).
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md).
@@ -82,3 +88,24 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - PL cursor/CASE diagnostic ledger: `RUN='^TestReferencePLpgSQLCursorDiagnosticLedger$'`
 - PL FOUND/name publication: `RUN='^TestReferencePLpgSQLCursor(FoundPublication|ConstantOpen)$'`
 - Contextual FOREACH keyword in counted MOVE: `RUN='^TestReferencePLpgSQLForeachCursorKeyword$'`
+- ARRAY type: literals, domains, typmods, metadata, controls: `RUN='^TestReferenceArray(Atomicity|Diagnostics|Domain|Element|Frames|Generated|Interval|Literal|Metadata|NativeControls|Output|Regclass|Structural|Syntax|Typmods|Smoke)'`
+- ARRAY constructors, subscripts and assignment: `RUN='^TestReferenceArrayExpression'`
+- `array_append`, `array_cat`, `array_fill`, `array_sort`, ... and array `||`: `RUN='^TestReferenceArrayTransform'`
+- `array_dims`, `array_length`, bounds, `cardinality`: `RUN='^TestReferenceArrayInspect'`
+- `array_position[s]`, `array_remove`, `array_replace`, `@>`, `<@`, `&&`: `RUN='^TestReferenceArraySearch'`
+- IN lists and `ANY`/`SOME`/`ALL`: `RUN='^TestReferenceArrayCompare'`
+- Array comparison operators: `RUN='^TestReferenceArrayOrder'`
+- `array_sample`, `array_shuffle`, `unnest`: `RUN='^TestReferenceArrayRelational'`
+- `array_agg`: `RUN='^TestReferenceArrayAgg'`
+- JSON/JSONB record conversion, recordsets and validation: `RUN='^TestReferenceJSONB?Record'`
+
+Array helpers stay in `array_*_helpers_test.go` and `array_search_fixture_test.go`;
+record helpers stay in `json_record_helpers_test.go` and `jsonb_record_helpers_test.go`.
+Shared metadata and direct/prepared runners use `fixture.ArrayAggBoth`,
+`ArrayAggMetadata`, `JSONTypeMetadataCheck`, `JSONTypeWithMetadata`,
+`JSONTypeSourceColumn`, `JSONEachBoth` and `JSONKeysError`.
+`array_sample`/`array_shuffle` follow the shared random-property rule.
+Record consumers preserve stored-view identity through standalone type rename;
+relation-owned rowtype changes use the table DDL route. Each heavy JSONB record
+attempt owns its scenario and callback `testing.T`. ACL grantors are `postgres`
+natively and `stuntgres` on the oracle; assert each independently.

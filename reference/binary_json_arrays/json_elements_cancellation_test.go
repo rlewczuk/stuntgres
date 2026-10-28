@@ -80,7 +80,7 @@ func TestReferenceJSONElementsCancellation(t *testing.T) {
 					run(fixture.Prepared(fixture.Exec("UPDATE jelements_active SET j=$1 WHERE id>1", 8, large)))
 					// Ordered INSERT must retain its earlier small-output grant
 					// while waiting on the large-output holder.
-					outputGateCancel(t, p, b, c, writing, func(ctx context.Context) fixture.RelationOutcome {
+					fixture.OutputGateCancel(t, p, b, c, writing, func(ctx context.Context) fixture.RelationOutcome {
 						if writing {
 							result, err := write.ExecContext(ctx)
 							return fixture.RelationOutcome{Result: result, Err: err}

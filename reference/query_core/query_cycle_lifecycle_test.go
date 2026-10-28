@@ -81,7 +81,7 @@ func cycleCancellation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 				defer stmt.Close()
 				x = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 			}
-			fixture.BinaryConversionActiveCancel(t, p, b, c, q, "recursiveUnion", func(ctx context.Context) fixture.RelationOutcome {
+			fixture.BinaryConversionActiveCancel(t, p, b, c, q, stuntgres.WorkRecursiveUnion, func(ctx context.Context) fixture.RelationOutcome {
 				if b.PG {
 					result, err := x.ExecContext(ctx, q, nil)
 					return fixture.RelationOutcome{Result: result, Err: err}
@@ -98,7 +98,7 @@ func cycleCancellation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 		{"ctas", "CREATE TABLE cycle_cancel_ctas AS " + body + "SELECT n FROM r"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			fixture.BinaryConversionActiveCancel(t, p, b, c, tc.q, "recursiveUnion", func(ctx context.Context) fixture.RelationOutcome {
+			fixture.BinaryConversionActiveCancel(t, p, b, c, tc.q, stuntgres.WorkRecursiveUnion, func(ctx context.Context) fixture.RelationOutcome {
 				result, err := c.ExecContext(ctx, tc.q, nil)
 				return fixture.RelationOutcome{Result: result, Err: err}
 			})

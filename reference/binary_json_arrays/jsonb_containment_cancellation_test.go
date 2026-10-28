@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"stuntgres"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -60,7 +61,7 @@ func TestReferenceJSONBContainmentCancellation(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer active.Close()
-				fixture.BinaryConversionActiveCancel(t, p, b, c, activeSQL, "sqltype.jsonbContain", func(ctx context.Context) fixture.RelationOutcome {
+				fixture.BinaryConversionActiveCancel(t, p, b, c, activeSQL, stuntgres.WorkJSONBContainment, func(ctx context.Context) fixture.RelationOutcome {
 					if strings.HasPrefix(activeSQL, "UPDATE") {
 						result, err := active.ExecContext(ctx)
 						return fixture.RelationOutcome{Result: result, Err: err}

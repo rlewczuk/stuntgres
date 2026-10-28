@@ -19,9 +19,11 @@ multiranges, text search and UUID);
 Related families elsewhere: character types in
 [reference/strings](../strings/README.md#testing); numeric types in
 [reference/numeric](../numeric/README.md#testing); DATE/TIME/TIMESTAMP/INTERVAL
-in [reference/temporal_types](../temporal_types/README.md#testing); bit strings,
-BYTEA, JSON and arrays in
-[reference/binary_json_arrays](../binary_json_arrays/README.md#testing); OID
+and BYTEA in [reference/temporal_types](../temporal_types/README.md#testing);
+bit strings in [strings](../strings/README.md#testing), arrays and JSON record
+consumers in [cursors](../cursors/README.md#testing), JSON in
+[binary_json_arrays](../binary_json_arrays/README.md#testing), JSONPath in
+[datetime_formatting](../datetime_formatting/README.md#testing); OID
 aliases, NAME/OID and the comparison resolution matrix in
 [reference/type_resolution](../type_resolution/README.md#testing); `pg_type`
 inventories in [reference/catalogs](../catalogs/README.md#testing); `pg_operator`

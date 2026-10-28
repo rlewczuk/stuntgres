@@ -91,6 +91,12 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 			if e := op.Context().Err(); e != nil {
 				return e
 			}
+			if logical, socketErr := c.writeNotices(op); logical != nil {
+				return logical
+			} else if socketErr != nil {
+				transportErr = socketErr
+				return socketErr
+			}
 			logicalErr, socketErr := c.writeFields(fields, &buffer)
 			if socketErr != nil {
 				transportErr = socketErr

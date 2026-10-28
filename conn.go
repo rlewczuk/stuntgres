@@ -123,14 +123,16 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 	if err != nil {
 		return nil, err
 	}
-	return &stmt{conn:c,definition:core.PreparedDefinition{Body:ast,Source:query,Description:description}}, nil
+	return &stmt{conn: c, definition: core.PreparedDefinition{Body: ast, Source: query, Description: description}}, nil
 }
 
 // Direct and prepared execution share one message/statement admission path.
 // Completed outputs are transport, not transaction or execution authority.
 type commandOutput struct {
 	core.Result
-	sets []exec.RowResult
+	sets       []exec.RowResult
+	notices    session.OutputNotices
+	setNotices []session.OutputNotices
 }
 
 func (r *commandOutput) close() error {
@@ -145,6 +147,9 @@ func (r *commandOutput) close() error {
 		}
 	}
 	r.sets = nil
+	r.notices = session.OutputNotices{}
+	clear(r.setNotices)
+	r.setNotices = nil
 	return first
 }
 func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool, expected *core.Description) (r commandOutput, description core.Description, parsed parser.Statement, err error) {
@@ -163,6 +168,7 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	}
 	defer op.Done()
 	op.OriginalSQL, op.SQLAvailable = query, true
+	r.notices = session.OutputNotices{Handler: c.noticeHandler, Threshold: op.NoticeThreshold}
 	scope, err := c.engine.StartStatement(op)
 	if err != nil {
 		err = c.terminalError(op.CommandError(err))
@@ -227,6 +233,7 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 				scope = next
 			}
 			var current core.Result
+			delivery := session.OutputNotices{Handler: c.noticeHandler, Threshold: op.NoticeThreshold}
 			current, err = scope.Execute(statement, 0, frameImporter(values))
 			err = scope.Finish(err)
 			err = op.CommandError(err)
@@ -242,14 +249,21 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 			r.Count = current.Count
 			if current.Rows != nil {
 				r.sets = append(r.sets, current.Rows)
+				r.setNotices = append(r.setNotices, delivery)
 			}
 			r.sets = append(r.sets, current.RowSets...)
+			for range current.RowSets {
+				r.setNotices = append(r.setNotices, delivery)
+			}
 		}
 		return
 	}
 	scope.Expected = expected
 	r.Result, err = scope.Execute(ast, len(values), frameImporter(values))
 	r.sets = r.RowSets
+	for range r.sets {
+		r.setNotices = append(r.setNotices, r.notices)
+	}
 	r.RowSets = nil
 	return
 }
@@ -276,12 +290,12 @@ func (c *conn) ExecContext(ctx context.Context, query string, args []driver.Name
 func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	r, _, _, err := c.request(ctx, query, nil, args, true, false, nil)
 	if len(r.sets) != 0 {
-		return newBatchRows(ctx, r.sets, err), nil
+		return newBatchRows(ctx, r.sets, err, r.setNotices), nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return newRows(ctx, r.Result), nil
+	return newRows(ctx, r.Result, r.notices), nil
 }
 func named(values []driver.Value) []driver.NamedValue {
 	out := make([]driver.NamedValue, len(values))

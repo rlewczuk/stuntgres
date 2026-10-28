@@ -23,6 +23,10 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 	}
 	var args []Expr
 	switch e := raw.(type) {
+	case XMLParseExpr:
+		child(e.Child)
+	case XMLSerializeExpr:
+		child(e.Child)
 	case FunctionExpr:
 		if len(e.Name.Parts) != 0 {
 			name := e.Name.Parts[len(e.Name.Parts)-1].Text

@@ -15,11 +15,11 @@ import (
 // The same fresh-reader assertions run after native Restore and after executing
 // the actual emitted SQL on PostgreSQL. Declaration specs are independent of
 // the retained cursors and metadata is checked even when the selection is empty.
-func jsonTypeFreshStoredReaders(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, check fixture.Step, scalarColumns, keyColumns []jsonTypeSourceColumn) {
+func jsonTypeFreshStoredReaders(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, check fixture.Step, scalarColumns, keyColumns []fixture.JSONTypeSourceColumn) {
 	t.Helper()
-	jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(check, b.PG, scalarColumns...))
+	jsonTypeBoth(t, p, b, c, fixture.JSONTypeWithMetadata(check, b.PG, scalarColumns...))
 	empty := fixture.Select("SELECT "+strings.Join(check.Columns, ",")+" FROM jt_stored WHERE FALSE ORDER BY id", check.Columns, check.Types, [][]any{})
-	jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(empty, b.PG, scalarColumns...))
+	jsonTypeBoth(t, p, b, c, fixture.JSONTypeWithMetadata(empty, b.PG, scalarColumns...))
 	for _, view := range []struct {
 		name string
 		rows [][]any
@@ -28,9 +28,9 @@ func jsonTypeFreshStoredReaders(t *testing.T, p *fixture.Pair, b fixture.Backend
 		{"jt_bkey_view", [][]any{{"a", int64(1)}, {"zz", int64(2)}}},
 	} {
 		read := fixture.Select("SELECT k,n FROM "+view.name+" ORDER BY n", []string{"k", "n"}, []string{"TEXT", "INT8"}, view.rows)
-		jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(read, b.PG, keyColumns...))
+		jsonTypeBoth(t, p, b, c, fixture.JSONTypeWithMetadata(read, b.PG, keyColumns...))
 		empty := fixture.Select("SELECT k,n FROM "+view.name+" WHERE FALSE ORDER BY n", []string{"k", "n"}, []string{"TEXT", "INT8"}, [][]any{})
-		jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(empty, b.PG, keyColumns...))
+		jsonTypeBoth(t, p, b, c, fixture.JSONTypeWithMetadata(empty, b.PG, keyColumns...))
 	}
 }
 
@@ -38,15 +38,15 @@ func jsonTypeFreshDefaultReaders(t *testing.T, p *fixture.Pair, b fixture.Backen
 	t.Helper()
 	// These eight jt_stored columns all have nullable declarations, including
 	// selected scalar defaults and stored generated kind/length results.
-	columns := []jsonTypeSourceColumn{
-		{index: 0, nullable: true}, {index: 1, nullable: true}, {index: 2, nullable: true},
-		{index: 3, nullable: true}, {index: 4, nullable: true}, {index: 5, nullable: true},
-		{index: 6, nullable: true}, {index: 7, nullable: true},
+	columns := []fixture.JSONTypeSourceColumn{
+		{Index: 0, Nullable: true}, {Index: 1, Nullable: true}, {Index: 2, Nullable: true},
+		{Index: 3, Nullable: true}, {Index: 4, Nullable: true}, {Index: 5, Nullable: true},
+		{Index: 6, Nullable: true}, {Index: 7, Nullable: true},
 	}
 	read := fixture.Select("SELECT dk,bk,dl,bl,jk,bt,jl,bn FROM jt_stored WHERE id=7", []string{"dk", "bk", "dl", "bl", "jk", "bt", "jl", "bn"}, []string{"TEXT", "TEXT", "INT4", "INT4", "TEXT", "TEXT", "INT4", "INT4"}, [][]any{{"null", "boolean", int64(0), int64(1), "array", "array", int64(1), int64(2)}})
-	jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(read, b.PG, columns...))
+	jsonTypeBoth(t, p, b, c, fixture.JSONTypeWithMetadata(read, b.PG, columns...))
 	empty := fixture.Select("SELECT dk,bk,dl,bl,jk,bt,jl,bn FROM jt_stored WHERE FALSE", read.Columns, read.Types, [][]any{})
-	jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(empty, b.PG, columns...))
+	jsonTypeBoth(t, p, b, c, fixture.JSONTypeWithMetadata(empty, b.PG, columns...))
 }
 
 func jsonTypeControlPhase(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, check fixture.Step) {
@@ -61,12 +61,12 @@ func jsonTypeControlPhase(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 	defer oldScalar.Close()
 	// Every selected jt_stored column is declared nullable, including stored
 	// generated/default columns; these are column-derived output descriptors.
-	scalarColumns := make([]jsonTypeSourceColumn, len(check.Columns))
+	scalarColumns := make([]fixture.JSONTypeSourceColumn, len(check.Columns))
 	for i := range scalarColumns {
-		scalarColumns[i] = jsonTypeSourceColumn{index: i, nullable: true}
+		scalarColumns[i] = fixture.JSONTypeSourceColumn{Index: i, Nullable: true}
 	}
-	jsonTypeMetadataCheck(t, oldScalar, false, check.Columns, check.Types, scalarColumns...)
-	check = jsonTypeWithMetadata(check, b.PG, scalarColumns...)
+	fixture.JSONTypeMetadataCheck(t, oldScalar, false, check.Columns, check.Types, scalarColumns...)
+	check = fixture.JSONTypeWithMetadata(check, b.PG, scalarColumns...)
 	oldKeys, err := c.QueryContext(p.Ctx, "SELECT k,n FROM jt_key_view ORDER BY n")
 	if err != nil {
 		t.Fatal(err)
@@ -78,8 +78,8 @@ func jsonTypeControlPhase(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 	}
 	// View source columns retain their native declaration metadata, whereas
 	// the direct key SRF/ordinality projections checked elsewhere are computed.
-	keyColumns := []jsonTypeSourceColumn{{index: 0, nullable: true}, {index: 1, nullable: true}}
-	jsonTypeMetadataCheck(t, oldKeys, false, []string{"k", "n"}, []string{"TEXT", "INT8"}, keyColumns...)
+	keyColumns := []fixture.JSONTypeSourceColumn{{Index: 0, Nullable: true}, {Index: 1, Nullable: true}}
+	fixture.JSONTypeMetadataCheck(t, oldKeys, false, []string{"k", "n"}, []string{"TEXT", "INT8"}, keyColumns...)
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 		t.Fatal(err)
@@ -92,8 +92,8 @@ func jsonTypeControlPhase(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	jsonTypeMetadataCheck(t, oldScalar, false, check.Columns, check.Types, scalarColumns...)
-	jsonTypeMetadataCheck(t, oldKeys, false, []string{"k", "n"}, []string{"TEXT", "INT8"}, keyColumns...)
+	fixture.JSONTypeMetadataCheck(t, oldScalar, false, check.Columns, check.Types, scalarColumns...)
+	fixture.JSONTypeMetadataCheck(t, oldKeys, false, []string{"k", "n"}, []string{"TEXT", "INT8"}, keyColumns...)
 	fixture.ScalarRows(t, false, oldScalar, check.Columns, check.Types, check.Rows, false)
 	fixture.ScalarRows(t, false, oldKeys, []string{"k", "n"}, []string{"TEXT", "INT8"}, [][]any{{"b", int64(1)}, {"a", int64(2)}}, false)
 	fixture.ScalarAssertDescription(t, oldMeta, []string{"k", "n"}, []string{"TEXT", "INT8"})

@@ -3,6 +3,7 @@ package reference_test
 import (
 	"bytes"
 	"context"
+	"stuntgres"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -33,7 +34,7 @@ func TestReferenceConversionCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer write.Close()
-		fixture.BinaryConversionActiveCancel(t, p, b, conn, readSQL, "sqltype.binaryEncodingPass", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, conn, readSQL, stuntgres.WorkEncodingConvert, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := read.QueryContext(ctx)
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})
@@ -42,7 +43,7 @@ func TestReferenceConversionCancellation(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, heldRead, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(4)}}))
 		result, err = conn.ExecContext(p.Ctx, `UPDATE conv_cancel_input SET b=$1 WHERE id=2`, large)
 		fixture.DeleteReferenceCount(t, result, err, 1)
-		fixture.BinaryConversionActiveCancel(t, p, b, conn, writeSQL, "sqltype.binaryEncodingPass", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, conn, writeSQL, stuntgres.WorkEncodingConvert, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := write.ExecContext(ctx)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

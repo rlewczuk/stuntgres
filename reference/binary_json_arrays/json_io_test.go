@@ -1,17 +1,10 @@
 package reference_test
 
 import (
-	"database/sql/driver"
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
-
-type jsonReferenceValuer string
-
-func (v jsonReferenceValuer) Value() (driver.Value, error) { return string(v), nil }
-
-func jsonReferenceQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 
 func TestReferenceJSONRepresentation(t *testing.T) {
 	documents := []string{
@@ -38,7 +31,7 @@ func TestReferenceJSONRepresentation(t *testing.T) {
 				want := make([][]any, 0, len(documents)+1)
 				for i, doc := range documents {
 					run(fixture.Exec("INSERT INTO json_io VALUES($1,$2)", 1, i, doc))
-					run(fixture.Exec("INSERT INTO json_literals VALUES($1,"+jsonReferenceQuote(doc)+")", 1, i))
+					run(fixture.Exec("INSERT INTO json_literals VALUES($1,"+fixture.JSONReferenceQuote(doc)+")", 1, i))
 					want = append(want, []any{int64(i), doc})
 				}
 				run(fixture.Exec("INSERT INTO json_io(id) VALUES($1)", 1, len(documents)))
@@ -69,7 +62,7 @@ func TestReferenceJSONBoundFrames(t *testing.T) {
 			want any
 		}{
 			{`{"a":1}`, `{"a":1}`}, {buf, ` {"b":2,"b":1} `},
-			{jsonReferenceValuer(`"\uD800"`), `"\uD800"`},
+			{fixture.JSONReferenceValuer(`"\uD800"`), `"\uD800"`},
 			{nil, nil}, {nilBytes, nil}, {true, "true"}, {int64(42), "42"}, {1.25, "1.25"},
 			{"null", "null"},
 		}

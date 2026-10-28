@@ -227,7 +227,7 @@ func TestReferenceJSONArrayLengthCancellation(t *testing.T) {
 			}
 			fixture.LexicalOrdinary(t, err, context.Canceled)
 		}
-		fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, "sqltype.jsonArrayLength", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, stuntgres.WorkJSONArrayCount, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := read.QueryContext(ctx)
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})
@@ -235,7 +235,7 @@ func TestReferenceJSONArrayLengthCancellation(t *testing.T) {
 		heldRead := fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}
 		fixture.RunStep(t, p.Ctx, heldRead, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		run(fixture.Exec("UPDATE jal_active_input SET j=$1 WHERE id>1", 8, large))
-		fixture.BinaryConversionActiveCancel(t, p, b, c, writeSQL, "sqltype.jsonArrayLength", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, c, writeSQL, stuntgres.WorkJSONArrayCount, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := write.ExecContext(ctx)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

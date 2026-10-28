@@ -63,6 +63,10 @@ func castImplementedCatalogExpected() []CastMetadata {
 			add(source, target, function, 'a', 'f')
 		}
 	}
+	for _, character := range []ID{Text, VarChar, BPChar} {
+		add(XML, character, 0, 'a', 'b')
+		add(character, XML, 2896, 'e', 'f')
+	}
 	return rows
 }
 

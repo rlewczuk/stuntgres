@@ -359,7 +359,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			e.Elements = elements
 		}
 		p := e.Properties()
-		if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
+		if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(e) {
 			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
@@ -400,7 +400,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			return folded, did, err
 		}
 		p := e.Properties()
-		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
+		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(e) {
 			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
@@ -421,7 +421,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		p := e.Properties()
-		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
+		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(e) {
 			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}

@@ -30,7 +30,7 @@ func jsonElementsHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 					{`[1,null]`, [][]any{{"1"}, {n}}, false}, {`[]`, nil, false}, {nil, nil, false}, {`{}`, nil, true}, {`[2]`, [][]any{{"2"}}, false},
 				} {
 					if tc.bad {
-						jsonKeysError(t, p, b, held, q, false, fixture.ControlsReferenceDiagnostic("22023", "cannot call "+f+" on a non-array"), "execute", tc.input)
+						fixture.JSONKeysError(t, p, b, held, q, false, fixture.ControlsReferenceDiagnostic("22023", "cannot call "+f+" on a non-array"), "execute", tc.input)
 						continue
 					}
 					s := jsonElementsSelect(f, q, tc.rows, tc.input)

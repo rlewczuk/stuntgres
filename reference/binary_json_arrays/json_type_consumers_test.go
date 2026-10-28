@@ -17,12 +17,12 @@ func jsonTypeStored(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	check := fixture.Select("SELECT id,dk,bk,dl,bl,jk,bt,jl,bn FROM jt_stored ORDER BY id", []string{"id", "dk", "bk", "dl", "bl", "jk", "bt", "jl", "bn"}, []string{"INT4", "TEXT", "TEXT", "INT4", "INT4", "TEXT", "TEXT", "INT4", "INT4"}, [][]any{{int64(1), "null", "boolean", int64(0), int64(1), "array", "array", int64(1), int64(2)}, {int64(2), "null", "boolean", int64(0), int64(1), "array", "array", int64(0), int64(1)}})
 	// All nine projections are declared nullable jt_stored columns, not
 	// computed function outputs. Assert the source descriptors on fresh readers.
-	columns := []jsonTypeSourceColumn{
-		{index: 0, nullable: true}, {index: 1, nullable: true}, {index: 2, nullable: true},
-		{index: 3, nullable: true}, {index: 4, nullable: true}, {index: 5, nullable: true},
-		{index: 6, nullable: true}, {index: 7, nullable: true}, {index: 8, nullable: true},
+	columns := []fixture.JSONTypeSourceColumn{
+		{Index: 0, Nullable: true}, {Index: 1, Nullable: true}, {Index: 2, Nullable: true},
+		{Index: 3, Nullable: true}, {Index: 4, Nullable: true}, {Index: 5, Nullable: true},
+		{Index: 6, Nullable: true}, {Index: 7, Nullable: true}, {Index: 8, Nullable: true},
 	}
-	check = jsonTypeWithMetadata(check, b.PG, columns...)
+	check = fixture.JSONTypeWithMetadata(check, b.PG, columns...)
 	jsonTypeBoth(t, p, b, c, check)
 	jsonTypeRun(t, p, b, c, fixture.Exec(`CREATE TABLE jt_objects(id int,j json,b jsonb)`, 0))
 	jsonTypeRun(t, p, b, c, fixture.Exec(`INSERT INTO jt_objects VALUES(1,'{"b":1,"a":2}','{"zz":1,"a":2}')`, 1))

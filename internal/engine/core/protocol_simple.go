@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -69,6 +70,7 @@ func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe f
 			}
 			env := rows.OutputEnvironment()
 			env.Transport = s.Op.EffectiveSettings().ClientEncoding()
+			env.XMLNotice = func(d sqlstate.Error) { s.Op.EmitNotice(session.LevelWarning, d) }
 			fields, scratch, err = session.EncodeProtocolRow(s.Op.Context(), values, nil, env, fields, scratch)
 			if err != nil {
 				return result, err

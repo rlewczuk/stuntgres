@@ -18,7 +18,7 @@ func jsonbInsertHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	defer stmt.Close()
 	held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, held, b.Recorder, s) }
-	good := jsonbSetMetadataStep(jsonbSetSelect(q, `[0, "x", 1, 2]`, "[0,1,2]", "{1}", `"x"`, false), b.PG)
+	good := fixture.JSONBSetMetadataStep(jsonbSetSelect(q, `[0, "x", 1, 2]`, "[0,1,2]", "{1}", `"x"`, false), b.PG)
 	run(good)
 	for _, tc := range []struct {
 		source, path, replacement string
@@ -32,7 +32,7 @@ func jsonbInsertHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 		{"{}", "{a}", "9", false, `{"a": 9}`},
 		{"[0]", "{0}", "9", nil, nil},
 	} {
-		run(jsonbSetMetadataStep(jsonbSetSelect(q, tc.want, tc.source, tc.path, tc.replacement, tc.after), b.PG))
+		run(fixture.JSONBSetMetadataStep(jsonbSetSelect(q, tc.want, tc.source, tc.path, tc.replacement, tc.after), b.PG))
 	}
 	for slot := range 4 {
 		args := []any{"[0]", "{0}", "9", false}

@@ -170,6 +170,7 @@ func OpenFunctionFromNode(ctx context.Context, state *State, n *plan.FunctionFro
 	frame := make([]sqltype.Value, len(n.Schema()))
 	out.Finish = func() error { invocation.Close(); return nil }
 	evaluation := state.Evaluation(nil)
+	evaluation.Context = nil
 	evaluation.Frame = n.Frame
 	if state.Invocation != nil && state.Invocation.Scope == evaluation.Scope && state.Invocation.Frame == n.Frame {
 		evaluation.Row = state.Invocation.Row
@@ -182,6 +183,7 @@ func OpenFunctionFromNode(ctx context.Context, state *State, n *plan.FunctionFro
 		return Stage{}, fmt.Errorf("stuntgres: missing function invocation frame")
 	}
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
+		defer func() { evaluation.Context = nil }()
 		evaluation.setContext(ctx)
 		if !opened {
 			var err error
@@ -315,9 +317,11 @@ func OpenSetProjectNode(ctx context.Context, state *State, n *plan.SetProjectNod
 		frame[base+i] = sqltype.Null(n.Schema()[base+i].Usage.Type)
 	}
 	evaluation := state.Evaluation(nil)
+	evaluation.Context = nil
 	evaluation.Frame = n.Frame
 	out.Finish = func() error { invocation.Close(); return child.Close() }
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
+		defer func() { evaluation.Context = nil }()
 		for {
 			evaluation.setContext(ctx)
 			if input < 0 {

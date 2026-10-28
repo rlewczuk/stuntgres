@@ -68,6 +68,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
 		e.Mu.Unlock()
+		evaluation.Context = scope.activateWork(ctx)
 		if err := scope.readmitPreparedPrograms(routineAuth); err != nil {
 			return Result{}, err
 		}
@@ -261,6 +262,9 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		if privateDefaults != nil {
 			b.Insert.Defaults = privateDefaults
 		}
+		// Never carry runtime activation into locked recapture/publication or a
+		// retained prepared execution. Runtime owners activate their own copies.
+		evaluation.Context = ctx
 		e.Mu.Lock()
 		if err = ctx.Err(); err != nil {
 			e.Mu.Unlock()
@@ -526,7 +530,9 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	switch s := stmt.(type) {
 	case *parser.Call:
 		e.Mu.Unlock()
+		evaluationContext := scope.activateWork(ctx)
 		evaluation := execution.evaluation
+		evaluation.Context = evaluationContext
 		value, err := execution.expressions[0][0].Eval(&evaluation)
 		if err != nil {
 			return Result{}, err
@@ -585,6 +591,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 		e.Mu.Unlock()
+		ctx = scope.activateWork(ctx)
 		return executeMerge(ctx, scope, b, target, inputs, canonical, schema)
 	case *parser.Update:
 		if err = scope.capturePartitionInsertLocked(e, auth, b.Relation); err != nil {
@@ -639,6 +646,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 		e.Mu.Unlock()
+		ctx = scope.activateWork(ctx)
 		return executeUpdate(ctx, scope, b, source, from, canonical, schema)
 	case *parser.Insert:
 		return e.executeInsertLocked(scope, execution, canonical)
@@ -679,6 +687,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		source, sourceErr := e.captureSelectSourcesLocked(scope, queryRoot, b.QuerySources, canonical, s.Query.From == nil && s.Query.Values == nil)
 		e.Mu.Unlock()
+		ctx = scope.activateWork(ctx)
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}
@@ -693,6 +702,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		source, sourceErr := e.captureSelectSourcesLocked(scope, queryRoot, b.QuerySources, canonical, s.From == nil && s.Values == nil)
 		e.Mu.Unlock()
+		ctx = scope.activateWork(ctx)
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}

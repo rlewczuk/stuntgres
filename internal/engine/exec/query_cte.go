@@ -11,13 +11,13 @@ import (
 // Owners form an invocation chain. A correlated query gets a new local owner;
 // enclosing definitions still find their existing producer through that chain.
 type CTEInvocation struct {
-	Frame     uint32
-	Parent    *CTEInvocation
-	State     State
-	Producers map[*plan.CTEDefinition]*CTEProducer
-	Order     []*CTEProducer
-	Closed    bool
-	failure   error
+	Frame          uint32
+	Parent         *CTEInvocation
+	State          State
+	Producers      map[*plan.CTEDefinition]*CTEProducer
+	Order          []*CTEProducer
+	Closed         bool
+	failure        error
 	cleanupFailure error
 }
 type CTEProducer struct {
@@ -28,13 +28,13 @@ type CTEProducer struct {
 	Opened, Done, Closed bool
 	Affected             int64 // Completed modifier count, never added to primary results.
 	failure              error
-	cleanupFailure error
+	cleanupFailure       error
 	Recursion            *recursiveUnionStage
 	// Modifiers retain eager typed materialization, but activate on first
 	// consumer demand and qualify statement effects on actual exhaustion.
-	StartMutation        func() error
-	CompleteMutation     func() error
-	MutationPending      bool
+	StartMutation    func() error
+	CompleteMutation func() error
+	MutationPending  bool
 }
 
 func (o *CTEInvocation) Close() error {
@@ -86,6 +86,7 @@ func (p *CTEProducer) Fail(err error) error {
 }
 
 func (p *CTEProducer) Ensure(ctx context.Context, index int) (bool, error) {
+	defer func() { p.Inner.Evaluation.Context = nil }()
 	if p.failure != nil {
 		return false, p.failure
 	}

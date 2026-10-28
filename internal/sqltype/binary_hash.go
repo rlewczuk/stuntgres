@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"hash"
 	"hash/crc32"
+
+	"stuntgres/internal/workadmission"
 )
 
 var binaryCRCCastagnoli = crc32.MakeTable(crc32.Castagnoli)
@@ -54,7 +56,7 @@ func binaryDigest(ctx context.Context, name string, result *Descriptor, raw stri
 		return Value{}, fmt.Errorf("invalid binary digest")
 	}
 	var scratch [4096]byte
-	if err := writeHashString(ctx, digest, raw, &scratch); err != nil {
+	if err := writeHashString(ctx, digest, raw, &scratch, 0); err != nil {
 		return Value{}, err
 	}
 	var sum [sha512.Size]byte
@@ -71,13 +73,20 @@ func binaryDigest(ctx context.Context, name string, result *Descriptor, raw stri
 }
 
 // Adapt immutable octets with bounded scratch shared by builtin and installed hashes.
-func writeHashString(ctx context.Context, digest hash.Hash, raw string, scratch *[4096]byte) error {
+// class is invocation-local: only SHA-password derivation selects admission;
+// unrelated digest, HMAC and MD5 work passes zero and retains cancellation only.
+func writeHashString(ctx context.Context, digest hash.Hash, raw string, scratch *[4096]byte, class workadmission.Class) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	for start := 0; start < len(raw); {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if class == workadmission.WorkPasswordSHA {
+			if err := workadmission.Admit(ctx, class); err != nil {
+				return err
+			}
 		}
 		n := min(len(scratch), len(raw)-start)
 		copy(scratch[:n], raw[start:start+n])

@@ -1,5 +1,13 @@
 # reference/triggers
 
+This package owns executable-trigger catalog (`pg_trigger`) scenarios alongside
+event-trigger declarations and catalogs. Executable-trigger definitions,
+metadata, identity, visibility, diagnostics, persistent foreign-key triggers
+and native controls live here; ordinary DML-trigger execution remains in
+[reference/operators](../operators/README.md#testing). Other relation catalogs
+and their shared catalog rules live in
+[reference/catalogs](../catalogs/README.md#testing).
+
 Public dual-mode event-trigger scenarios cover database-local declarations,
 function frames and identity, command-phase ordering, private DDL publication,
 actual object/subobject drops, semantic table rewrites, target-sensitive utility
@@ -76,6 +84,20 @@ network/process or native ABI mechanisms.
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` delegates directly to
 `fixture.Main`. Existing ordinary DML-trigger scenarios remain in
 [reference/operators](../operators/README.md#testing).
+
+Catalog helpers remain with the `pg_trigger_*_test.go` family:
+`pgTriggerBoth` retains direct/fresh-prepared routes, `pgTriggerOID` resolves
+actual identities, and `pg_trigger_foreign_key_helpers_test.go` owns the RI
+identity/control closure. Shared catalog helpers remain in `reference/fixture`.
+
+Trigger catalog witnesses use actual relation-owned executable definitions and
+independent direct/prepared metadata, identity, visibility, consumer diagnostics
+and native-control expectations. Native structural trees are opaque across
+backends; semantic deparse and executable behavior are separate assertions.
+Persistent FK witnesses cover all action-selected RI functions, four real trigger
+identities, exact internal/constraint/index/opposite-relation fields, both
+relations' trigger-presence flags and removal through held metadata reads.
+Select the family with `make check RUN='^TestReferencePGTrigger'` in either mode.
 
 Event-trigger family selector: `RUN='^TestReference(EventTrigger|PGEventTriggerCatalog)'`. Add
 `REFERENCE=1` for the pinned PostgreSQL oracle. Direct, fresh-prepared and held

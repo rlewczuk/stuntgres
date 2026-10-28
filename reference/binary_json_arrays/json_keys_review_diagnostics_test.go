@@ -26,7 +26,7 @@ func TestReferenceJSONKeysReviewDiagnostics(t *testing.T) {
 						if prepared {
 							stage = "prepare"
 						}
-						jsonKeysError(t, p, b, c, q, prepared, d, stage)
+						fixture.JSONKeysError(t, p, b, c, q, prepared, d, stage)
 					})
 				}
 			}
@@ -47,7 +47,7 @@ func TestReferenceJSONKeysReviewDiagnostics(t *testing.T) {
 						if prepared {
 							stage = "prepare"
 						}
-						jsonKeysError(t, p, b, c, q, prepared, d, stage)
+						fixture.JSONKeysError(t, p, b, c, q, prepared, d, stage)
 					})
 				}
 			}

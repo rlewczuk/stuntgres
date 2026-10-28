@@ -16,10 +16,10 @@ func TestReferenceJSONKeysQueryStructure(t *testing.T) {
 	jsonKeysScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		jsonKeysSources(t, p, b, c)
 		for _, tc := range []struct {
-			q string
+			q              string
 			columns, types []string
-			rows [][]any
-			ordered bool
+			rows           [][]any
+			ordered        bool
 		}{
 			{`SELECT 7,json_object_keys('{}'::json)`, []string{"?column?", "json_object_keys"}, []string{"INT4", "TEXT"}, nil, false},
 			{`SELECT json_object_keys('{"a":1,"b":2}'::json),string_to_table('x',',')`, []string{"json_object_keys", "string_to_table"}, []string{"TEXT", "TEXT"}, [][]any{{"a", "x"}, {"b", nil}}, false},
@@ -39,7 +39,7 @@ func TestReferenceJSONKeysQueryStructure(t *testing.T) {
 			t.Run(tc.q, func(t *testing.T) {
 				s := fixture.Select(tc.q, tc.columns, tc.types, tc.rows)
 				s.Bag = !tc.ordered
-				jsonKeysBoth(t, p, b, c, s)
+				fixture.JSONKeysBoth(t, p, b, c, s)
 			})
 		}
 	})

@@ -1312,6 +1312,7 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	2890: {Language: catalog.InternalRoutineLanguage, Source: "pg_advisory_unlock_int4"},
 	2891: {Language: catalog.InternalRoutineLanguage, Source: "pg_advisory_unlock_shared_int4"},
 	2892: {Language: catalog.InternalRoutineLanguage, Source: "pg_advisory_unlock_all"},
+	2896: {Language: catalog.InternalRoutineLanguage, Source: "texttoxml"},
 	2954: {Language: catalog.InternalRoutineLanguage, Source: "uuid_lt"},
 	2955: {Language: catalog.InternalRoutineLanguage, Source: "uuid_le"},
 	2956: {Language: catalog.InternalRoutineLanguage, Source: "uuid_eq"},

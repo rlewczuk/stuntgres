@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/workadmission"
 )
 
 // JSONText exposes the retained source, not a decoded document or SQL equality.
@@ -34,6 +35,7 @@ const (
 
 type jsonLexer struct {
 	ctx                                                context.Context
+	workClass                                          workadmission.Class
 	text                                               string
 	offset, start, end, line, lineStart, checkedOffset int
 	kind                                               byte
@@ -57,6 +59,7 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 	l := jsonLexer{ctx: ctx, text: text, line: 1, decode: build || scan != nil && (scan.unique || !scan.classify && scan.mode != jsonScanElements)}
 	if scan != nil {
 		l.origin, l.originOffset = scan.origin, scan.originOffset
+		l.workClass = scan.workClass
 	}
 	var local [32]jsonState
 	stack := local[:1]
@@ -74,6 +77,11 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 	for {
 		if err := ctx.Err(); err != nil {
 			return Value{}, err
+		}
+		if l.workClass != 0 {
+			if err := workadmission.Admit(ctx, l.workClass); err != nil {
+				return Value{}, err
+			}
 		}
 		// A completed immediate value ends at the last consumed token, not
 		// at the next comma/brace or its surrounding whitespace.
@@ -351,6 +359,9 @@ func jsonHex(c byte) bool   { return jsonDigit(c) || c >= 'a' && c <= 'f' || c >
 func (l *jsonLexer) canceled() error {
 	if l.offset-l.checkedOffset >= 4096 {
 		l.checkedOffset = l.offset
+		if l.workClass != 0 {
+			return workadmission.Admit(l.ctx, l.workClass)
+		}
 		return l.ctx.Err()
 	}
 	return nil

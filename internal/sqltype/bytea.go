@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
 )
 
@@ -53,6 +54,8 @@ type OutputEnvironment struct {
 	// ByteTransport is enabled only by wire/COPY, never native Unicode APIs.
 	ByteTransport bool
 	Transport     ClientEncodingPolicy
+	// XMLNotice is ephemeral actual-output delivery; nil keeps incidental output quiet.
+	XMLNotice func(sqlstate.Error)
 	// An unspecified precision retains canonical shortest serialization.
 	ExtraFloatDigits                          int32
 	FloatPrecisionSet                         bool

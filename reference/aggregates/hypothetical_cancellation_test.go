@@ -3,6 +3,7 @@ package reference_test
 import (
 	"context"
 	"database/sql"
+	"stuntgres"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -19,11 +20,10 @@ func TestReferenceHypotheticalAggregateCancellation(t *testing.T) {
 		}
 		defer stmt.Close()
 		for _, prepared := range []bool{false, true} {
-			// Observe this worker inside aggregate execution, before child drain.
-			// Waiting for its later sort excludes active input materialization
-			// from admission and can miss the fixed deadline under race load.
+			// Admit actual aggregate support/input initialization before child
+			// open/drain. This is not a claim that sorting has started.
 			// Private units separately cancel inside actual sorting/comparison.
-			fixture.BinaryConversionActiveCancel(t, p, b, c, q, "openAggregateNode", func(ctx context.Context) fixture.RelationOutcome {
+			fixture.BinaryConversionActiveCancel(t, p, b, c, q, stuntgres.WorkAggregateInput, func(ctx context.Context) fixture.RelationOutcome {
 				var rows *sql.Rows
 				var err error
 				if prepared {

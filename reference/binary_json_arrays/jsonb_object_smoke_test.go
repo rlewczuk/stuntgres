@@ -11,7 +11,7 @@ func TestReferenceJSONBObjectFeatureSmoke(t *testing.T) {
 		check := jsonbObjectStored(t, p, b, c)
 		for _, expr := range []string{`jsonb_object('{a,1,b,2}')`, `jsonb_object('{{a,1},{b,2}}')`, `jsonb_object('[-2:-1]={a,b}'::text[],'[7:8]={1,2}'::text[])`} {
 			s := jsonbObjectSelect("SELECT "+expr+" AS v", `{"a": "1", "b": "2"}`)
-			s.CheckMetadata = func(t *testing.T, r *sql.Rows) { jsonbObjectMetadata(t, r, b.PG, "v") }
+			s.CheckMetadata = func(t *testing.T, r *sql.Rows) { fixture.JSONBObjectMetadata(t, r, b.PG, "v") }
 			jsonObjectBoth(t, p, b, c, s)
 		}
 		jsonObjectBoth(t, p, b, c, jsonbObjectSelect("SELECT jsonb_object(ARRAY['a','first','a',NULL]) AS v", `{"a": null}`))

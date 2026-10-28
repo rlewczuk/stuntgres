@@ -11,6 +11,10 @@ import (
 func ContainsValuesAggregateAnalysis(raw parser.Expr) bool {
 	var children []parser.Expr
 	switch e := raw.(type) {
+	case parser.XMLParseExpr:
+		return ContainsValuesAggregateAnalysis(e.Child)
+	case parser.XMLSerializeExpr:
+		return ContainsValuesAggregateAnalysis(e.Child)
 	case parser.AggregateExpr:
 		if e.Name == "sum" || e.Name == "bit_and" || e.Name == "bit_or" || e.Name == "bit_xor" || functions.JSONArrayAggregateName(e.Name) || functions.JSONObjectAggregateName(e.Name) || functions.OrderedSetName(e.Name) {
 			return true

@@ -23,14 +23,14 @@ func pgcryptoMD5(ctx context.Context, password, setting string) (string, error) 
 	alternate, digest := md5.New(), md5.New()
 	var scratch [4096]byte
 	for _, raw := range [...]string{password, salt, password} {
-		if err := writeHashString(ctx, alternate, raw, &scratch); err != nil {
+		if err := writeHashString(ctx, alternate, raw, &scratch, 0); err != nil {
 			return "", err
 		}
 	}
 	var sum, other [md5.Size]byte
 	alternate.Sum(other[:0])
 	for _, raw := range [...]string{password, "$1$", salt} {
-		if err := writeHashString(ctx, digest, raw, &scratch); err != nil {
+		if err := writeHashString(ctx, digest, raw, &scratch, 0); err != nil {
 			return "", err
 		}
 	}
@@ -55,25 +55,25 @@ func pgcryptoMD5(ctx context.Context, password, setting string) (string, error) 
 		}
 		digest.Reset()
 		if round&1 != 0 {
-			if err := writeHashString(ctx, digest, password, &scratch); err != nil {
+			if err := writeHashString(ctx, digest, password, &scratch, 0); err != nil {
 				return "", err
 			}
 		} else {
 			digest.Write(sum[:])
 		}
 		if round%3 != 0 {
-			if err := writeHashString(ctx, digest, salt, &scratch); err != nil {
+			if err := writeHashString(ctx, digest, salt, &scratch, 0); err != nil {
 				return "", err
 			}
 		}
 		if round%7 != 0 {
-			if err := writeHashString(ctx, digest, password, &scratch); err != nil {
+			if err := writeHashString(ctx, digest, password, &scratch, 0); err != nil {
 				return "", err
 			}
 		}
 		if round&1 != 0 {
 			digest.Write(sum[:])
-		} else if err := writeHashString(ctx, digest, password, &scratch); err != nil {
+		} else if err := writeHashString(ctx, digest, password, &scratch, 0); err != nil {
 			return "", err
 		}
 		digest.Sum(sum[:0])

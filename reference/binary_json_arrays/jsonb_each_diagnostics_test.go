@@ -21,7 +21,7 @@ func TestReferenceJSONBEachDiagnostics(t *testing.T) {
 						}
 						t.Run(prefix+call+input, func(t *testing.T) {
 							for _, prepared := range []bool{false, true} {
-								jsonKeysError(t, p, b, c, prefix+call, prepared, fixture.ControlsReferenceDiagnostic("22023", message), "execute", args...)
+								fixture.JSONKeysError(t, p, b, c, prefix+call, prepared, fixture.ControlsReferenceDiagnostic("22023", message), "execute", args...)
 							}
 						})
 					}
@@ -45,7 +45,7 @@ func TestReferenceJSONBEachDiagnostics(t *testing.T) {
 							if prepared && !bound {
 								stage = "prepare"
 							}
-							jsonKeysError(t, p, b, c, q, prepared, d, stage, args...)
+							fixture.JSONKeysError(t, p, b, c, q, prepared, d, stage, args...)
 						}
 					})
 				}
@@ -73,7 +73,7 @@ func TestReferenceJSONBEachDiagnostics(t *testing.T) {
 						if prepared {
 							stage = "prepare"
 						}
-						jsonKeysError(t, p, b, c, tc.expression, prepared, d, stage)
+						fixture.JSONKeysError(t, p, b, c, tc.expression, prepared, d, stage)
 					}
 				})
 			}

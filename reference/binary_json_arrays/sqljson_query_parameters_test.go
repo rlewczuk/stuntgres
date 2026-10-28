@@ -86,11 +86,11 @@ func TestReferenceSQLJSONQueryParameters(t *testing.T) {
 				want bool
 			}{{"UTC", false}, {"America/Los_Angeles", true}, {"UTC", false}} {
 				run(fixture.Exec(`SET TIME ZONE '`+tc.zone+`'`, 0))
-				fixture.RunStep(t, p.Ctx, ch, b.Recorder, sqljsonQueryOne(compareSQL, "BOOL", tc.want, `2018-02-20 18:34:56`, `2018-02-21 02:34:56+00`))
+				fixture.RunStep(t, p.Ctx, ch, b.Recorder, fixture.SQLJSONQueryOne(compareSQL, "BOOL", tc.want, `2018-02-20 18:34:56`, `2018-02-21 02:34:56+00`))
 				// Current local date plus supplied clock, not the transaction's
 				// current instant, owns the time-to-timetz offset.
-				s := sqljsonQueryOne(`SELECT JSON_VALUE('{}','$a == $b' PASSING TIME '12:00' AS a,((CURRENT_DATE + TIME '12:00') AT TIME ZONE '`+tc.zone+`')::timetz AS b RETURNING boolean) AS v`, "BOOL", true)
-				sqljsonBoth(t, p, b, c, s)
+				s := fixture.SQLJSONQueryOne(`SELECT JSON_VALUE('{}','$a == $b' PASSING TIME '12:00' AS a,((CURRENT_DATE + TIME '12:00') AT TIME ZONE '`+tc.zone+`')::timetz AS b RETURNING boolean) AS v`, "BOOL", true)
+				fixture.SQLJSONBoth(t, p, b, c, s)
 			}
 		})
 	})

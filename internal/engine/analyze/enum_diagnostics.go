@@ -40,7 +40,8 @@ func (b *Binder) CaptureTypeDiagnosticInput(typ *sqltype.Descriptor) error {
 	}
 	acl := typ.ContainsACLItem() && b.Input.ACLItem == nil
 	naming := b.Input.TypeDiagnosticName == nil && NeedsTypeDiagnosticInput(typ)
-	if !acl && !naming {
+	xml := typ.BaseType().ID() == sqltype.XML && b.Input.XMLInput == nil
+	if !acl && !naming && !xml {
 		return nil
 	}
 	auth, err := b.BindingAuthorization()

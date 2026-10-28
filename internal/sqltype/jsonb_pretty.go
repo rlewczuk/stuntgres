@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"stuntgres/internal/workadmission"
 )
 
 // jsonbPrettyLine appends indentation without constructing per-line strings.
@@ -11,7 +13,7 @@ func jsonbPrettyLine(ctx context.Context, b *strings.Builder, depth int) error {
 	const spaces = "                                                                "
 	b.WriteByte('\n')
 	for remaining := depth * 4; remaining > 0; {
-		if err := ctx.Err(); err != nil {
+		if err := workadmission.Admit(ctx, workadmission.WorkJSONBPretty); err != nil {
 			return err
 		}
 		n := min(remaining, len(spaces))
@@ -32,7 +34,7 @@ func jsonbPrettyOutput(ctx context.Context, root *jsonbNode) (string, error) {
 	stack := local[:0]
 	n := root
 	for {
-		if err := ctx.Err(); err != nil {
+		if err := workadmission.Admit(ctx, workadmission.WorkJSONBPretty); err != nil {
 			return "", err
 		}
 		switch n.kind {
@@ -88,6 +90,9 @@ func jsonbPrettyOutput(ctx context.Context, root *jsonbNode) (string, error) {
 			}
 			if len(stack) == 0 {
 				return b.String(), nil
+			}
+			if err := workadmission.Admit(ctx, workadmission.WorkJSONBPretty); err != nil {
+				return "", err
 			}
 			f := &stack[len(stack)-1]
 			i := f.index

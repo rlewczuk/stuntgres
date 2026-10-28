@@ -36,7 +36,7 @@ func TestReferenceJSONBPathDeleteTyping(t *testing.T) {
 }
 
 func jsonbPathDeleteMetadata(s fixture.Step, pg bool) fixture.Step {
-	s.CheckMetadata = func(t *testing.T, r *sql.Rows) { jsonbObjectMetadata(t, r, pg, "v") }
+	s.CheckMetadata = func(t *testing.T, r *sql.Rows) { fixture.JSONBObjectMetadata(t, r, pg, "v") }
 	s.CheckScan = func(t *testing.T, r *sql.Rows, i int) {
 		want := s.Rows[i][0]
 		var raw any

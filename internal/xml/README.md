@@ -322,10 +322,13 @@ suppressing its original malformed-byte diagnostic.
 
 ## Character serialization
 
-`Serialize(ctx, value, SerializeOptions{Mode, Indent}) (string, error)` converts
+`Serialize(ctx, value, SerializeOptions{Mode, Indent}) (string, []Diagnostic, error)` converts
 an accepted value to characters independently of its original parse mode. Zero
 options mean CONTENT, NO INDENT: this returns the original immutable backing
 without a parse or copy. DOCUMENT NO INDENT first qualifies using document grammar.
+Diagnostics are detached events from this call's single qualification parse,
+including events committed before a later failure. They never replay the value's
+input diagnostics; CONTENT NO INDENT returns no events.
 INDENT reparses the character spelling once with a transient collector and the
 parse-time ignorable-blank policy, including inherited/defaulted `xml:space`,
 DTD model classification and literal versus scalar-reference callbacks. ASCII
@@ -359,8 +362,11 @@ transport and return a warning independently of character serialization.
 
 `OutputText(ctx, value)` normalizes a declaration for UTF8 typed XML output;
 `OutputBinary(ctx, value, targetID)` uses an explicit canonical PostgreSQL target
-and direct codec. Both return `(characters, OutputWarning, error)`. A character
-conversion uses `Serialize`, not typed-output normalization.
+and direct codec. `OutputBinaryCharacters(ctx, value, targetID)` uses the same
+declaration formatting but leaves Unicode characters for the SQL adapter's
+admitted client transport authority. All return `(characters, OutputWarning,
+error)`; only `OutputBinary` encodes target bytes. A character conversion uses
+`Serialize`, not typed-output normalization.
 
 Each output operation reuses the custom byte0 declaration reader, scanning only
 the prefix, never the body. Successful DOCUMENT declaration metadata does not

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
@@ -105,9 +106,13 @@ func likeReferenceCancelEntered(t *testing.T, provider string, operation func(co
 }
 
 func TestReferenceLikeHeldEnteredCancellation(t *testing.T) {
-	for _, tc := range []struct{ name, provider, input, pattern, escape string }{
-		{"matcher", "sqltype.matchLike", strings.Repeat("a", 200000), "%" + strings.Repeat("a", 100000) + "b", "\\"},
-		{"normalizer", "sqltype.LikeEscapePlan.Evaluate", "a", strings.Repeat("é!", 1000000), "!"},
+	for _, tc := range []struct {
+		name                   string
+		provider               stuntgres.WorkClass
+		input, pattern, escape string
+	}{
+		{"matcher", stuntgres.WorkPatternMatch, strings.Repeat("a", 200000), "%" + strings.Repeat("a", 100000) + "b", "\\"},
+		{"normalizer", stuntgres.WorkPatternNormalize, "a", strings.Repeat("é!", 1000000), "!"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := fixture.NewScenario(t)
@@ -187,7 +192,7 @@ func TestReferenceLikeHeldUpdateEnteredCancellation(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				fixture.BinaryConversionActiveCancel(t, p, backend, nil, "", "sqltype.matchLike", func(ctx context.Context) fixture.RelationOutcome {
+				fixture.BinaryConversionActiveCancel(t, p, backend, nil, "", stuntgres.WorkPatternMatch, func(ctx context.Context) fixture.RelationOutcome {
 					result, err := stmt.ExecContext(ctx, "%"+strings.Repeat("a", 100000)+"b")
 					return fixture.RelationOutcome{Result: result, Err: err}
 				})

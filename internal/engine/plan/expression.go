@@ -77,6 +77,9 @@ type CoercionExpr struct {
 	// The explicit conversion belongs to the enclosing ARRAY or ROW cast, not
 	// to a written cast at this element's raw syntax occurrence.
 	SyntheticConstructorElement bool
+	// XMLSerializeResult owns XMLSERIALIZE's ordinary implicit result
+	// conversion. Its child is the actual selected coercion, not raw syntax.
+	XMLSerializeResult bool
 }
 
 // COLLATE changes analyzed usage only; values retain the same type and datum.

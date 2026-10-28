@@ -18,12 +18,18 @@ func (c *Context) presentedOutput() sqltype.OutputEnvironment {
 	output.Regrole, output.Regcollation, output.Regnamespace = p, p, p
 	output.Operator, output.ACLItem = p, p
 	output.RegTS = p
+	// SQL conversions and formatting are actual output consumers. Bind only
+	// this evaluation's unspecialized diagnostic owner, not literal/parameter
+	// provenance or a callback retained in a cursor's output snapshot.
+	if input := c.Input; input.XMLInput != nil {
+		output.XMLNotice = input.XMLInput.XMLInputWarning
+	}
 	return output
 }
 
 func (c *Context) ApplyCoercion(plan sqltype.CoercionPlan, value sqltype.Value, domainChecks bool) (sqltype.Value, error) {
 	output := c.presentedOutput()
-	input := c.Input
+	input := c.FunctionInput()
 	if input.Regrole == nil || input.Regcollation == nil || input.Regnamespace == nil {
 		if host := c.LiveHost(); host != nil {
 			borrowed, _ := host.Environments()

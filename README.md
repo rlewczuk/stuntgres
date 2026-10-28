@@ -58,12 +58,17 @@ Client connection defaults use one typed settings registry, including
 `SET XML OPTION DOCUMENT/CONTENT`. Presentation, UTF8/C locale boundaries,
 search paths, row security, transaction characteristics and timeouts retain
 their real native behavior. Storage/GIN/TOAST, FTS configuration selection,
-XML defaults, library/path/preload strings and other absent mechanisms are
+library/path/preload strings and other absent mechanisms are
 explicit **setting-only simulations**, not physical effects. The effective
 `session_replication_role` controls user and foreign-key trigger firing through
 their stored enable modes. `check_function_bodies=off` never admits invalid routines. Postmaster settings
 still refuse live mutation; SET grants and restricted reads are independent.
 See the [settings boundary inventory](internal/engine/settings/README.md#client-connection-defaults).
+
+XML values use native document/content validation, XMLPARSE and XMLSERIALIZE,
+with session `xmloption` controlling casts and parameter input. XML results scan
+as strings; use character serialization when original declaration spelling is
+needed instead of transport-normalized typed XML output.
 
 All 20 [preset options](internal/engine/settings/README.md#preset-options) are
 universally readable and immutable (`55P02` on individual SET/RESET, even for

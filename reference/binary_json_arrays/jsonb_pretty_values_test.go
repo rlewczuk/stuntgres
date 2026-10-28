@@ -21,7 +21,7 @@ func jsonbPrettyOne(q string, want any, args ...any) fixture.Step {
 
 func jsonbPrettyBoth(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, s fixture.Step) {
 	t.Helper()
-	jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(s, b.PG))
+	jsonTypeBoth(t, p, b, c, fixture.JSONTypeWithMetadata(s, b.PG))
 }
 
 func TestReferenceJSONBPrettyValues(t *testing.T) {

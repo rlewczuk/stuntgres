@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/workadmission"
 )
 
 // Context is the per-evaluation state that engine expression nodes recover
@@ -128,7 +129,16 @@ func (c *Context) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
 	return host.FunctionArrayRandomOwner()
 }
 
-func (c *Context) FunctionInput() sqltype.InputEnvironment { return c.Input }
+func (c *Context) FunctionInput() sqltype.InputEnvironment {
+	input := c.Input
+	if host := c.LiveHost(); host != nil {
+		current, _ := host.Environments()
+		// Retained stages keep their other captured presentation. Runtime XML
+		// character conversion alone follows the current FETCH/Execute admission.
+		input.XMLMode = current.XMLMode
+	}
+	return input
+}
 
 func (c *Context) FunctionOutput() sqltype.OutputEnvironment { return c.Output }
 
@@ -321,6 +331,7 @@ func (c *Context) Presentation() PresentationFormatters {
 }
 
 func (c *Context) setContext(ctx context.Context) {
+	runtime := ctx
 	if c.Query != nil && c.Query.ExecutionContext != nil {
 		c.Context = c.Query.ExecutionContext
 	} else if ctx == nil && c.Query != nil && c.Query.Source != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Host != nil {
@@ -329,5 +340,8 @@ func (c *Context) setContext(ctx context.Context) {
 		c.Context = c.Query.Source.Authority.Host.Context()
 	} else {
 		c.Context = ctx
+	}
+	if c.Context != nil {
+		c.Context = workadmission.Rebase(c.Context, runtime)
 	}
 }

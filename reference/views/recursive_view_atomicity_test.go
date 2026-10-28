@@ -38,7 +38,7 @@ func TestReferenceRecursiveViewAtomicity(t *testing.T) {
 				defer stmt.Close()
 				x = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 			}
-			fixture.BinaryConversionActiveCancel(t, p, b, c, q, "recursiveUnion", func(ctx context.Context) fixture.RelationOutcome {
+			fixture.BinaryConversionActiveCancel(t, p, b, c, q, stuntgres.WorkRecursiveUnion, func(ctx context.Context) fixture.RelationOutcome {
 				if b.PG {
 					result, err := x.ExecContext(ctx, q)
 					return fixture.RelationOutcome{Result: result, Err: err}
@@ -53,7 +53,7 @@ func TestReferenceRecursiveViewAtomicity(t *testing.T) {
 			run(fixture.Exec("CREATE OR REPLACE RECURSIVE VIEW rv_spin(n) AS SELECT 1 UNION ALL SELECT n FROM rv_spin", 0))
 		}
 		insert := "INSERT INTO rv_atomic_sink SELECT n,n FROM rv_spin"
-		fixture.BinaryConversionActiveCancel(t, p, b, c, insert, "recursiveUnion", func(ctx context.Context) fixture.RelationOutcome {
+		fixture.BinaryConversionActiveCancel(t, p, b, c, insert, stuntgres.WorkRecursiveUnion, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := c.ExecContext(ctx, insert)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

@@ -6,6 +6,15 @@ evaluates expressions. It reaches statement, session and engine state only
 through one host interface and one installed preparation value, both
 implemented by the root engine.
 
+Runtime workload admission is a local context capability supplied by unlocked
+core owners. `setContext` keeps the selected query execution context (or host
+fallback) authoritative for cancellation, deadlines, causes and unrelated values;
+only an active work policy follows a runtime context replacement. Retained stage,
+function-source, join, CTE and set-arm evaluators hold no completed pull context:
+their local context is installed for evaluation and cleared on every exit.
+Full-text vector conversion forwards the effective evaluator context explicitly,
+never recovers an older operation context from the host.
+
 ## Imports
 
 Layer L9.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
@@ -66,6 +75,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   `FinalizeSelect` turn a root into a `RowResult`. CTEs, set operations,
   recursive unions, windows, aggregates, DISTINCT, LIMIT/WITH TIES and subqueries
   live here.
+  Runtime work admission consumes one `WorkAggregateInput` grant per aggregate
+  support/input initialization before child materialization, not per sort or
+  complete child drain. Recursive union consumes one `WorkRecursiveUnion` grant
+  per producer row/round step. Refusal uses the existing private-stage and CTE
+  failure/close owners; no policy or lifetime grant is retained by the plan.
   Aggregate partial workers capture the leader's outer CTE owner before launch,
   including a real nil owner. Their partial-state sink marks closed inheritance:
   repeated worker Evaluation must never consult a shared SQL host whose lexical
@@ -167,6 +181,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Session activity forwards through `LiveHost`: FETCH borrows its current client
   source without replacing or depending on the cursor's clock snapshots.
   Neither source nor live session authority enters `CursorExpressionData`.
+  `FunctionInput` overlays only XML input mode from the current admitted host:
+  already-open cursor stages therefore use current FETCH/Execute mode for
+  runtime character casts, without changing accepted XML datums or their other
+  captured presentation. XML warning input follows the detachable authority;
+  retained output environments are sink-free.
   Dropped-object inspection forwards per opening to the live statement's lexical
   event command; no host or inactive `sql_drop` yields the protocol diagnostic.
   The context retains neither records nor a phase guard between invocations.
@@ -344,6 +363,11 @@ planning through `OperatorExecutionConstant`. This may expose an immutable child
 error before its volatile parent's runtime EXECUTE admission. Missing parameters,
 row/stage/domain dependence and volatile children never qualify; other arithmetic
 keeps its existing frontier. Imported values are reconsidered, not retained.
+An `expr.ExecutionDemand` provider is an execution barrier for every enclosing
+computational frontier, including coercions and array/composite preflight. The
+bound-tree predicate preserves demanded diagnostics without relabelling semantic
+volatility or disabling ordinary typed-parameter computations. `FoldNever` alone
+is node-local and does not block enclosing preflight or relational input validation.
 Only a private PL query-preflight context opts into failure provenance: actual
 `Eval` failures retain whether that computation consumed imported parameters or
 SQL constants, and the current computation shadows a nested callee's origin.
@@ -544,6 +568,12 @@ materialization and disposal, portals and rule execution;
 the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 ## Testing
+
+Effective work-policy context and retained evaluator ownership units use
+`RUN='^TestWorkAdmission'`; public SQL credit waits remain in reference packages.
+
+Execution-only XML provider composition through enclosing planning frontiers uses
+`RUN='^TestXMLPlanningExecutionBarrier$'`.
 
 Type inquiry datum identity, ordinary cancellation and detached-authority units
 use `RUN='^TestTypeDescribeExecutionOwnership$'` in `enginetests`.

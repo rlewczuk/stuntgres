@@ -90,6 +90,9 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.BaseType().IsCatalogVector() {
 			return sqltype.Null(target.Type), nil
 		}
+		if target.Type.BaseType().ID() == sqltype.XML {
+			return sqltype.Null(target.Type), nil
+		}
 		if target.Type.BaseType().ID() == sqltype.Refcursor || target.Type.BaseType().ID() == sqltype.Char {
 			return sqltype.Null(target.Type), nil
 		}
@@ -194,6 +197,10 @@ func frameImporter(values []driver.Value) core.FrameImporter {
 			if err != nil {
 				var diagnostic *Error
 				if errors.As(err, &diagnostic) {
+					// XML's input owner already attached exact portal provenance.
+					if parameters.Types[i].Type.BaseType().ID() == sqltype.XML && diagnostic.Context != "" {
+						return err
+					}
 					copy := *diagnostic
 					if copy.Context != "" {
 						copy.Context += "\n"
@@ -237,6 +244,8 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
+	case sqltype.XML:
+		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case 2275, 2249, 2277:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point, sqltype.Line, sqltype.Lseg, sqltype.Path:
@@ -306,6 +315,8 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {
+	case sqltype.XML:
+		return reflect.TypeFor[string]()
 	case 2275:
 		return reflect.TypeFor[string]()
 	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point, sqltype.Line, sqltype.Lseg, sqltype.Path:
