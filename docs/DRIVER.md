@@ -483,6 +483,18 @@ There is no configuration/HBA/ident file loading, data-directory selection,
 PID-file creation, reload or restart effect. These strings neither change
 logical database contents nor configure authentication or persistence.
 
+`ALTER SYSTEM SET name TO/= value` (including lists and DEFAULT), `RESET name`
+and `RESET ALL` prepare without effects, then fail at execution with SQLSTATE
+`0A000`, `ALTER SYSTEM is not allowed in this environment`. Transaction blocks
+(including internal exception subtransactions and read-only blocks) take `25001`
+precedence over the nested-routine context restriction. These commands are not session
+SET/LOCAL/RESET: no live setting changes and no auto file is opened or created.
+The absent mechanism is data-directory `postgresql.auto.conf` merge/removal,
+`AutoFileLock`, `.tmp` write/sync/rename, and postmaster/backend reload (or restart
+for startup-only settings). RESET ALL would remove auto-file entries, not reset
+sessions or necessarily delete the file. Simulated paths and `allow_alter_system`
+do not enable persistence; logical Dump/Restore never serialize these commands.
+
 The builtin connection/authentication family also exposes stored, typed
 simulations through the same SQL registry. Startup-only and sighup parameters
 reject individual live changes with 55P02; the eight user-context settings retain

@@ -1027,6 +1027,11 @@ DDL staging belongs to `schemacmds` and publishes through the normal catalog jou
 
 ## Read-only utility execution
 
+- ALTER SYSTEM describes an empty signature without snapshots or authority.
+  Common direct and nested execution checks block context (including actual
+  internal exception marks) before routine context, then refuses auto-configuration with
+  `0A000`. It is strictly read-only for database admission, not a session setting,
+  and never resolves values, takes file locks or performs file I/O.
 - Ordinary modifying utilities reject read-only execution before object
   resolution, authorization or relation locks; Prepare remains effect-free.
   CTAS/SELECT INTO and CREATE MATERIALIZED VIEW retain source analysis, source

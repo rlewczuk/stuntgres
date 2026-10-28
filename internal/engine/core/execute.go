@@ -23,6 +23,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
 	}
+	if _, ok := stmt.(*parser.AlterSystem); ok {
+		return scope.executeAlterSystem()
+	}
 	if err := scope.parallelExecutionEligibility(stmt); err != nil {
 		return Result{}, err
 	}

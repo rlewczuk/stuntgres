@@ -117,6 +117,7 @@ func TestEventTriggerClassification(t *testing.T) {
 		&parser.PrepareSQL{}, &parser.ExecuteSQL{}, &parser.DeallocateSQL{}, &parser.DeclareCursor{}, &parser.FetchCursor{}, &parser.CloseCursor{},
 		&parser.Listen{}, &parser.Unlisten{}, &parser.Notify{}, &parser.Discard{},
 		&parser.Set{}, &parser.Reset{}, &parser.Show{}, &parser.RoleSelection{}, &parser.SessionAuthorization{},
+		&parser.AlterSystem{},
 		&parser.TransactionControl{}, &parser.TransactionCharacteristics{}, &parser.SavepointControl{}, &parser.SetConstraints{},
 	} {
 		check(stmt, "", false)

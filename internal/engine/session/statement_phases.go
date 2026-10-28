@@ -50,6 +50,8 @@ const (
 // Copy and the transaction controls are the root's.
 func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 	switch s := stmt.(type) {
+	case *parser.AlterSystem:
+		return DescribeEmpty
 	case *parser.TransactionCharacteristics, *parser.SetConstraints, *parser.AlterTableRenameConstraint, *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return DescribeEmpty
 	case *parser.Analyze, *parser.Do, *parser.AlterTableAllInTablespace, *parser.ForeignDDL, *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.Load, *parser.Vacuum, *parser.Truncate, *parser.RefreshMaterializedView:

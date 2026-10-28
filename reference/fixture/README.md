@@ -69,6 +69,10 @@ engines inherit the same mode.
   `wal_level=logical`; it changes neither the image pin nor native configuration.
   Logical-decoding scenarios also require a positive stock
   `max_replication_slots` before asserting SQL validation and missing-slot errors.
+- `WithAlterSystemDisabled()` adds `-c allow_alter_system=off` to the single
+  oracle's existing startup arguments (`extensions`). Startup verifies SHOW is
+  off; packages without this option retain and verify on. This is physical-oracle
+  configuration only, not a native setting-default change, reload or file write.
 
 ### Test-only legacy crypto oracle
 

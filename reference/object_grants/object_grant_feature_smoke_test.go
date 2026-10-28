@@ -157,11 +157,8 @@ func TestReferenceObjectGrantFeatureSmoke(t *testing.T) {
 				t.Fatal("parameter and tablespace ACL Dump", err, output.Len())
 			}
 			q := "ALTER SYSTEM SET lc_messages='C'"
-			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "SYSTEM"`, Position: "7"})
+			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "ALTER SYSTEM is not allowed in this environment"})
 			s.ErrorStage = "execute"
-			if prepared {
-				s.ErrorStage = "prepare"
-			}
 			run(s)
 		}
 		run(fixture.Exec("GRANT USAGE ON LANGUAGE plpgsql TO og_object_reader", 0))

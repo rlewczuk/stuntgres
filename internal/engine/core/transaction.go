@@ -505,6 +505,9 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if _, ok := stmt.(*parser.Vacuum); ok {
 		return s.Engine().executeStatement(s, stmt, count, importFrame)
 	}
+	if _, ok := stmt.(*parser.AlterSystem); ok {
+		return s.executeAlterSystem()
+	}
 	if _, ok := stmt.(*parser.CreateDatabaseStmt); ok {
 		// Cluster creation has no local data snapshot. Reject read-only mode
 		// before explicit or retained-message blocks, then resolve options and

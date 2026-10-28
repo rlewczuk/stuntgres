@@ -52,6 +52,9 @@ func referenceStart() error {
 	if logicalWAL {
 		args = append(args, "-c", "wal_level=logical")
 	}
+	if alterSystemDisabled {
+		args = append(args, "-c", "allow_alter_system=off")
+	}
 	options := []testcontainers.ContainerCustomizer{
 		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
 		postgres.WithPassword("stuntgres"), postgres.BasicWaitStrategies(),
@@ -111,6 +114,18 @@ func referenceInitialize(ctx context.Context) (err error) {
 	if err = Admin.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping: %w", err)
 	}
+	var alterSystem string
+	if err = Admin.QueryRowContext(ctx, "SHOW allow_alter_system").Scan(&alterSystem); err != nil {
+		return fmt.Errorf("allow_alter_system: %w", err)
+	}
+	wantAlterSystem := "on"
+	if alterSystemDisabled {
+		wantAlterSystem = "off"
+	}
+	if alterSystem != wantAlterSystem {
+		return fmt.Errorf("allow_alter_system=%q, want %q", alterSystem, wantAlterSystem)
+	}
+	fmt.Fprintf(os.Stderr, "reference allow_alter_system=%s\n", alterSystem)
 	var version, number, encoding, collate, ctype, messages, preparedCapacity, tracking string
 	if err = Admin.QueryRowContext(ctx, "SELECT current_setting('server_version'), current_setting('server_version_num'), current_setting('server_encoding'), datcollate, datctype, current_setting('lc_messages'), current_setting('max_prepared_transactions'), current_setting('track_commit_timestamp') FROM pg_database WHERE datname = current_database()").Scan(&version, &number, &encoding, &collate, &ctype, &messages, &preparedCapacity, &tracking); err != nil {
 		return fmt.Errorf("configuration: %w", err)

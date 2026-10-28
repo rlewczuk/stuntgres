@@ -974,6 +974,7 @@ package parser
 %type <typ> standalone_type
 %type <stmt> prepare_sql execute_sql deallocate_sql preparable discard
 %type <stmt> notify listen unlisten load
+%type <stmt> alter_system
 %type <types> prepare_types prepare_type_list
 %type <row> execute_arguments execute_argument_list
 %%
@@ -1038,6 +1039,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
  | notify | listen | unlisten | load
+ | alter_system
  ;
 explain: EXPLAIN explainable { $$=&Explain{Statement:$2,Pos:$1.pos} }
  | EXPLAIN explain_legacy explainable { $$=&Explain{Statement:$3,Options:$2,Pos:$1.pos} }
@@ -1465,6 +1467,14 @@ set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier
  | SET LOCAL TIME ZONE zone_setting { $$=$5; $5.Name=Identifier{Text:"timezone",Pos:$3.pos};$5.Pos=$1.pos;$5.Local=true }
  | SET LOCAL SCHEMA STRING { s:=parsedSet(Identifier{Text:"search_path",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{true}},$1.pos);s.Local=true;$$=s } ;
 setting_assignment: TO | '=' ;
+alter_system: ALTER SYSTEM SET setting_name setting_assignment external_setting_values { $$=&AlterSystem{Action:"SET",Name:$4.identifier(),Pos:$1.pos} }
+ | ALTER SYSTEM SET setting_name setting_assignment DEFAULT { $$=&AlterSystem{Action:"SET",Name:$4.identifier(),Default:true,Pos:$1.pos} }
+ | ALTER SYSTEM RESET setting_name { $$=&AlterSystem{Action:"RESET",Name:$4.identifier(),Pos:$1.pos} }
+ | ALTER SYSTEM RESET ALL { $$=&AlterSystem{Action:"RESET ALL",Pos:$1.pos} } ;
+/* External values consume the lexer's numeric syntax without session conversion
+ * or allocation of a discarded list. Execution refuses before value validation. */
+external_setting_values: external_setting_value | external_setting_values ',' external_setting_value ;
+external_setting_value: STRING | name | TRUE | FALSE | ON | NUMBER | '+' NUMBER | '-' NUMBER ;
 setting_values: setting_value { $$=settingList{values:[]string{$1.text},stringValues:[]bool{$1.isString}} } | setting_values ',' setting_value { $$=$1;$$.values=append($$.values,$3.text);$$.stringValues=append($$.stringValues,$3.isString) } ;
 setting_value: STRING { $$=settingAtom{text:$1.text,isString:true} } | name { $$=settingAtom{text:$1.text,isString:true} }
  | TRUE { $$=settingAtom{text:"true",isString:true} } | FALSE { $$=settingAtom{text:"false",isString:true} }

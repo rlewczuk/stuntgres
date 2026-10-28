@@ -255,6 +255,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		}
 	}
 	switch stmt.(type) {
+	case *parser.AlterSystem:
+		return true
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 		return true
 	case *parser.CreateDatabaseStmt:
@@ -375,6 +377,8 @@ func ReadOnlyRefusal(stmt parser.Statement, readOnly bool) error {
 func ExplicitUtilityRefusal(stmt parser.Statement, state TxState, inBlock bool) error {
 	command := ""
 	switch s := stmt.(type) {
+	case *parser.AlterSystem:
+		command = "ALTER SYSTEM"
 	case *parser.CreateDatabaseStmt:
 		command = "CREATE DATABASE"
 	case *parser.CreateTablespace:
@@ -391,7 +395,7 @@ func ExplicitUtilityRefusal(stmt parser.Statement, state TxState, inBlock bool) 
 	if command != "" && inBlock {
 		return sqlError("25001", command+" cannot run inside a transaction block")
 	}
-	if command == "CREATE DATABASE" || command == "CREATE TABLESPACE" || state != TxActive {
+	if command == "CREATE DATABASE" || command == "CREATE TABLESPACE" || command == "ALTER SYSTEM" || state != TxActive {
 		return nil
 	}
 	return UnsupportedInBlockError()

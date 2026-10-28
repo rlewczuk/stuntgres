@@ -71,6 +71,8 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "CREATE TABLESPACE"
 	case *parser.Load:
 		base = "LOAD"
+	case *parser.AlterSystem:
+		base = "ALTER SYSTEM"
 	case *parser.CreateTable:
 		base = "CREATE TABLE"
 	case *parser.DropTable:

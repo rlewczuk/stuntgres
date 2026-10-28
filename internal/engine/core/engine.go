@@ -249,6 +249,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.AlterSystem:
+		return Description{}, nil
 	case *parser.Explain:
 		return e.describeExplain(scope, s)
 	case *parser.Do, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateCast, *parser.DropCast:

@@ -76,6 +76,17 @@ type Load struct {
 
 func (*Load) statement() {}
 
+// AlterSystem is syntax-only external configuration, never a session setting.
+// Values are deliberately not retained or normalized.
+type AlterSystem struct {
+	Action  string // SET, RESET, or RESET ALL.
+	Name    Identifier
+	Default bool
+	Pos     Position
+}
+
+func (*AlterSystem) statement() {}
+
 // CreateTablespace retains SQL validation inputs; physical creation is external.
 type CreateTablespace struct {
 	Name        Identifier

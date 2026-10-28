@@ -39,6 +39,9 @@ single-statement limit of driver calls) belong to callers.
   parameter indices.
 - The entire input is consumed: a valid prefix followed by junk is an error,
   never a partial parse.
+- ALTER SYSTEM owns a syntax-only AST distinct from session SET/RESET. External
+  value lists are consumed without retention or normalization; signed numeric
+  tokens use lexer syntax, not the session setting integer consumer.
 - Grammar actions copy semantic values and allocate AST nodes and backing
   slices independently, so no returned AST depends on parser lifetime.
 - Column expressions share one-, two- and three-component syntax in every

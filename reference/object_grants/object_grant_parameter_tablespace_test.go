@@ -196,11 +196,8 @@ func objectGrantParameterSystemBoundary(t *testing.T, p *fixture.Pair, b fixture
 		if b.PG {
 			run(fixture.Exec(q, 0))
 		} else {
-			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "SYSTEM"`, Position: "7"})
+			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "ALTER SYSTEM is not allowed in this environment"})
 			s.ErrorStage = "execute"
-			if prepared {
-				s.ErrorStage = "prepare"
-			}
 			run(s)
 			s.Query = "ALTER SYSTEM RESET lc_messages"
 			run(s)
