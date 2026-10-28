@@ -18,10 +18,27 @@ import (
 var _ functions.SessionActivityRuntime = (*Context)(nil)
 
 func (c *Context) SessionActivityValue(kind functions.SessionActivityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
-	if err := EvaluationContext(c); err != nil { return sqltype.Value{}, err }
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
 	host := c.LiveHost()
-	if host == nil { return sqltype.Value{}, fmt.Errorf("stuntgres: session activity lacks statement authority") }
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: session activity lacks statement authority")
+	}
 	return host.SessionActivityValue(kind, result)
+}
+
+var _ functions.TriggerDepthRuntime = (*Context)(nil)
+
+func (c *Context) TriggerDepthValue(result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: trigger depth lacks statement authority")
+	}
+	return host.TriggerDepthValue(result)
 }
 
 // The ACL SQL functions borrow the executing statement's authority through

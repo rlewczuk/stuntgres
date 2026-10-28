@@ -46,6 +46,7 @@ type Definition struct {
 // The static table is the registry: no init() registration. Names must not
 // overlap any family that is still dispatched by the engine's name chain.
 var definitions = [...]Definition{
+	{Names: []string{"pg_trigger_depth"}, ExactSpelling: true, SharedGates: true, Bind: bindTriggerDepth},
 	{Names: sessionActivityNames[:], ExactSpelling: true, SharedGates: true, Bind: bindSessionActivity},
 	{Names: sessionEndpointNames[:], ExactSpelling: true, SharedGates: true, Bind: bindSessionEndpoint},
 	{Names: statisticsIONames, ExactSpelling: true, SharedGates: true, Bind: bindStatisticsIO},

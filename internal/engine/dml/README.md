@@ -72,6 +72,10 @@ for zero matches and qualify each producer at exhaustion. Like SPI execution
 without a separate trigger boundary, their AFTER bodies remain in the caller's
 query frame: all RI changes precede draining, and later same-target/event statement
 sets supersede earlier ones. Helper SQL still owns independent nested frames.
+Each admitted RI action or check separately borrows the host's paired
+internal-trigger scope. The scope covers action defaults, child BEFORE bodies
+and producer qualification, and ends before queued AFTER bodies drain.
+Post-action validation does not manufacture a second invocation.
 `Staged` never locks; the job, authority and
 row-image captures and the internal action windows each lock once and never
 wait; `GrantForeignKey` waits with the caller holding nothing, then locks to

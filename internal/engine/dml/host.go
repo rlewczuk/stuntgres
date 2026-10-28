@@ -64,6 +64,10 @@ type Authority interface {
 // ForeignKeys is the FK runtime's engine side. The caller holds nothing; the
 // lock contract is stated per method.
 type ForeignKeys interface {
+	// Internal trigger entry is per admitted RI callback, never per queue.
+	// These paired operations borrow the root invocation owner and never lock.
+	EnterForeignKeyTrigger()
+	LeaveForeignKeyTrigger()
 	// Staged is the statement's staged rows and deletions by relation. Never
 	// locks; valid until the next host call that stages.
 	Staged() (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes)

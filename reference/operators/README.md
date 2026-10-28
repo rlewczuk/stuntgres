@@ -17,6 +17,9 @@ BEFORE row and AFTER row/statement trigger scenarios cover private PL frames,
 ordered chains, query completion, zero-row events, TRUNCATE, permissions,
 physical mutation producers and native post-data replay. The shared
 `triggerScenario` helper follows the ordinary configured-backend loop.
+Trigger-depth scenarios retain live queries across nested user/RI invocation,
+exception unwind and native consumer replay. They distinguish WHEN/default
+evaluation, actual bodies and queued AFTER execution using ordered phase keys.
 Queued AFTER function replacement is covered for ROW and STATEMENT firing through
 direct and prepared commands: an earlier trigger replaces a later function before
 its first invocation, with exact current-body audits and atomic rollback of a
@@ -130,6 +133,7 @@ Add `REFERENCE=1` for the oracle.
 - AFTER query completion and replay: `RUN='^TestReferenceTriggerAfter'`
 - Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`
 - Transactional trigger integration and protocol: `RUN='^TestReferenceTransactionalTrigger'`
+- Live trigger nesting and consumers: `RUN='^TestReferenceTriggerDepth'`.
 
 ### PL/pgSQL core
 

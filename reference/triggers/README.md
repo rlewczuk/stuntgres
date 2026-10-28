@@ -44,6 +44,8 @@ loop and registers database-global cleanup before declarations. Each backend and
 replay owner retires triggers under a fresh bounded context before schema
 teardown. Failure callbacks must never survive into fixture reset. Audit helpers
 use fixed phase values rather than transactional assumptions about sequences.
+The trigger-depth event witness distinguishes event callback execution from a
+DML trigger frame, including eligible DDL reached through an ordinary helper.
 Real lock-admission observers establish pre-publication peer witnesses without
 sleeps or simulated callback barriers.
 
@@ -79,6 +81,7 @@ Event-trigger family selector: `RUN='^TestReference(EventTrigger|PGEventTriggerC
 `REFERENCE=1` for the pinned PostgreSQL oracle. Direct, fresh-prepared and held
 utility handles share the same SQL definitions and independent expected rows,
 metadata, diagnostics and atomicity assertions.
+The live nesting cross-family witness uses `RUN='^TestReferenceTriggerDepthEvent$'`.
 
 Bounded recipe selectors (run each natively and with `REFERENCE=1`; add `RACE=1`
 for selected race coverage):

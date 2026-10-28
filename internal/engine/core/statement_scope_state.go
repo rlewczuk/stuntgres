@@ -43,7 +43,7 @@ type StatementScope struct {
 	Op                      *session.Operation
 	ruleAction              RuleActionScope
 	RowSecurity             bool                      // Immutable effective setting for this admitted statement.
-	PlannerMethods          plan.PlannerMethods // Immutable effective statement admission.
+	PlannerMethods          plan.PlannerMethods       // Immutable effective statement admission.
 	rlsActive               []ids.ObjectAddress       // Active policy expansion path, not an occurrence cache.
 	rlsPrograms             []*rowSecurityProgram     // Owns runtime plus original selected admission identities.
 	rlsAdmissionDepth       int                       // Whole target/source admission, including recursive policies.
@@ -91,16 +91,17 @@ type StatementScope struct {
 	lease                       session.StatementLease // identity for session-layer state; never copied on purpose
 	Output                      sqltype.OutputEnvironment
 	initialParameters           []sqltype.Usage
-	activeSQLRoutineDepth       int                        // Root invocation owner; never saved/reset as lexical scratch.
-	plAtomic                    bool                       // Captured command context, then defer-scoped active invocation barriers.
-	plLoops                     *plQueryRows               // Borrowed active adapters; not a named portal registry.
-	plExecutingPortal           *protocolPortal            // Current CALL/DO portal survives its own internal boundaries.
+	activeSQLRoutineDepth       int             // Root invocation owner; never saved/reset as lexical scratch.
+	activeTriggerDepth          int             // Actual user/RI invocations, independent of routine safety depth.
+	plAtomic                    bool            // Captured command context, then defer-scoped active invocation barriers.
+	plLoops                     *plQueryRows    // Borrowed active adapters; not a named portal registry.
+	plExecutingPortal           *protocolPortal // Current CALL/DO portal survives its own internal boundaries.
 	routineLive                 *routineLive
 	expressionLive              *plExpressionLive
-	effectCommand, effectSerial uint64                     // admission-private command event ownership; never rewound
-	afterTriggers              *afterTriggerState
-	deferAfterProducers         bool   // Lexical eager-CTE materialization boundary.
-	deferredAfterCommand        uint64 // Nested routine queries never borrow that boundary.
+	effectCommand, effectSerial uint64 // admission-private command event ownership; never rewound
+	afterTriggers               *afterTriggerState
+	deferAfterProducers         bool                       // Lexical eager-CTE materialization boundary.
+	deferredAfterCommand        uint64                     // Nested routine queries never borrow that boundary.
 	FoldCaptures                *exec.FoldCaptureCandidate // sealed before executor/source publication
 	Catalog                     *session.Journal
 	EventCommand                *EventCommand // Borrowed lexical boundary; never publication authority.

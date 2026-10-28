@@ -1427,6 +1427,7 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	3801: {Language: catalog.InternalRoutineLanguage, Source: "pg_current_logfile_1arg"},
 	817:  {Language: catalog.InternalRoutineLanguage, Source: "current_query"},
 	2026: {Language: catalog.InternalRoutineLanguage, Source: "pg_backend_pid"},
+	3163: {Language: catalog.InternalRoutineLanguage, Source: "pg_trigger_depth"},
 	2560: {Language: catalog.InternalRoutineLanguage, Source: "pg_postmaster_start_time"},
 	2034: {Language: catalog.InternalRoutineLanguage, Source: "pg_conf_load_time"},
 	2196: {Language: catalog.InternalRoutineLanguage, Source: "inet_client_addr"},

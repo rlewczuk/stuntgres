@@ -354,6 +354,7 @@
 3155	row_to_json	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	114	2249	\N	\N	\N	false	\N	row_to_json	\N	false	\N
 3156	row_to_json	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	114	2249 16	\N	\N	\N	false	\N	row_to_json_pretty	\N	false	\N
 3159	pg_get_viewdef	11	12	1	0	0	0	f	false	false	true	false	s	r	2	0	25	26 23	\N	\N	\N	false	\N	pg_get_viewdef_wrap	\N	false	\N
+3163	pg_trigger_depth	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	23		\N	\N	\N	false	\N	pg_trigger_depth	\N	false	\N
 3166	pg_size_pretty	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	1700	\N	\N	\N	false	\N	pg_size_pretty_numeric	\N	false	\N
 3167	array_remove	11	12	1	0	0	0	f	false	false	false	false	i	s	2	0	5078	5078 5077	\N	\N	\N	false	\N	array_remove	\N	false	\N
 3168	array_replace	11	12	1	0	0	0	f	false	false	false	false	i	s	3	0	5078	5078 5077 5077	\N	\N	\N	false	\N	array_replace	\N	false	\N

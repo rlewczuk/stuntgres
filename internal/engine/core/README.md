@@ -161,6 +161,11 @@ an enclosing RI actor only for its body, without weakening genuine restrictions
 or later RI relation-write authority. Trigger frame/depth/diagnostic and
 SAVE/policy unwind covers success, error, partial entry and cancellation;
 event start/end/drop/rewrite retain their atomic utility owner.
+`activeTriggerDepth` belongs to the root invocation owner, separately from
+routine safety depth and lexical scratch. Only admitted DML trigger bodies and
+individual internal RI callbacks enter it, with deferred unwind. WHEN and queue
+qualification read the surrounding level. Ordinary routines and event triggers
+borrow it without entering; rollback and native controls never serialize it.
 Trigger-bearing admitted mutation targets also retain dynamic source roots at
 the calling command's initial data-view capture: lazy trigger-body reads are
 not outer expression dependencies. STABLE/IMMUTABLE trigger commands borrow
@@ -1559,6 +1564,7 @@ session, transaction, prepared-analysis and typed-frame authorities.
 ## Testing
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
+Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.
 
 Scalar hierarchy accepted definition/fold backing and rejected-publication fences
 use `RUN='^TestLtreeHierarchyPrepared'`.

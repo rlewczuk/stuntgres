@@ -50,6 +50,10 @@ All four remain unfolded in planning and preflight. `SessionActivityRuntime`
 borrows the executing command through the live host, including FETCH; no source,
 session, clock result or authority is retained in the immutable leaf.
 
+`TriggerDepth` is a stable, unfolded zero-child INT4 recipe with ordinary
+routine identity. Its runtime capability reads the executing invocation owner;
+reconstruction, stored capture and scalar sources retain no measured depth.
+
 `SessionEndpoint` retains a zero-child stable typed recipe and ordinary routine
 provenance, never socket state or authority. In-process sessions have no transport
 endpoints: address leaves return typed INET NULL and port leaves typed INT4 NULL.
@@ -753,6 +757,9 @@ in `reference/roles`.
 Native ordered support state, tuple ownership and cancellation units use
 `RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in
 `reference/aggregates`.
+
+Live trigger-depth leaf, provenance and executable catalog units use
+`RUN='^TestTriggerDepth'`; public SQL scenarios stay in `reference/`.
 
 - Unit fakes embed `expr.Info` (arguments) or the nil `unitCapabilities`
   (contexts), so they implement only what the code under test calls; any other

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -116,26 +117,9 @@ func CheckForeignKeys(h FinishHost) (err error) {
 					}
 				}
 			}
-			found, err := foreignKeyParentExists(h, parentRef, *job, &parentRows, row.Values, true)
-			if err != nil {
+			if err := checkForeignKeyChild(h, childAuth, job, parentRef, &parentRows, row); err != nil {
 				return err
 			}
-			if !found {
-				return table.ForeignKeyDiagnostic(h.Context(), childAuth.Access(), childAuth, job.Child, job.Parent, f, row.Values, false, false, output)
-			}
-		}
-		checkOld := func(old storage.RowVersion) error {
-			return children.Each(func(child storage.RowVersion) (bool, error) {
-				match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, child.Values, old.Values, input)
-				if err != nil || !match {
-					return false, err
-				}
-				found, err := foreignKeyParentExists(h, parentRef, *job, &parentRows, child.Values, false)
-				if err != nil || found {
-					return false, err
-				}
-				return false, table.ForeignKeyDiagnostic(h.Context(), parentAuth.Access(), parentAuth, job.Child, job.Parent, f, old.Values, true, false, output)
-			})
 		}
 		for _, event := range slot.Transitions {
 			if event.Command != slot.Command || event.Checked || event.Relation != parentRef.Address || event.Old.Row == 0 {
@@ -151,12 +135,52 @@ func CheckForeignKeys(h FinishHost) (err error) {
 			if event.Next.Row != 0 && ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
 				continue
 			}
-			if err := checkOld(event.Old); err != nil {
+			action := f.DeleteAction
+			if event.Next.Row != 0 {
+				action = f.UpdateAction
+			}
+			if err := checkForeignKeyParent(h, parentAuth, job, parentRef, &parentRows, children, event.Old, action == parser.ForeignKeyNoAction); err != nil {
 				return err
 			}
 		}
 	}
 	return h.Context().Err()
+}
+
+// Admission (mode, final version, NULL and unchanged key) precedes invocation.
+func checkForeignKeyChild(h FinishHost, auth Authority, job *ForeignKeyJob, parentRef ids.ObjectRef, parents *table.ForeignKeyRows, row storage.RowVersion) error {
+	h.EnterForeignKeyTrigger()
+	defer h.LeaveForeignKeyTrigger()
+	found, err := foreignKeyParentExists(h, parentRef, *job, parents, row.Values, true)
+	if err != nil {
+		return err
+	}
+	if !found {
+		_, output := h.Environments()
+		return table.ForeignKeyDiagnostic(h.Context(), auth.Access(), auth, job.Child, job.Parent, job.Definition, row.Values, false, false, output)
+	}
+	return nil
+}
+
+// Other actions already ran their actual callback in applyForeignAction. Their
+// later validation must not invent an additional invocation.
+func checkForeignKeyParent(h FinishHost, auth Authority, job *ForeignKeyJob, parentRef ids.ObjectRef, parents *table.ForeignKeyRows, children table.ForeignKeyRows, old storage.RowVersion, invoke bool) error {
+	if invoke {
+		h.EnterForeignKeyTrigger()
+		defer h.LeaveForeignKeyTrigger()
+	}
+	input, output := h.Environments()
+	return children.Each(func(child storage.RowVersion) (bool, error) {
+		match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, child.Values, old.Values, input)
+		if err != nil || !match {
+			return false, err
+		}
+		found, err := foreignKeyParentExists(h, parentRef, *job, parents, child.Values, false)
+		if err != nil || found {
+			return false, err
+		}
+		return false, table.ForeignKeyDiagnostic(h.Context(), auth.Access(), auth, job.Child, job.Parent, job.Definition, old.Values, true, false, output)
+	})
 }
 
 // foreignKeyParentExists probes rows' FK index for child's parent key. With

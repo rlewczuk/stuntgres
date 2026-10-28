@@ -98,6 +98,8 @@ func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event 
 	if err := h.AdmitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
 		return err
 	}
+	h.EnterForeignKeyTrigger()
+	defer h.LeaveForeignKeyTrigger()
 	input, output := h.Environments()
 	reportAuth := auth.ActingAs(event.Owner)
 	if action == parser.ForeignKeyRestrict {
