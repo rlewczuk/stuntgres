@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 	"stuntgres/internal/sqltype/unicode16"
 )
 
@@ -153,45 +153,32 @@ func compileStopwords(ctx context.Context, data string) ([]string, error) {
 	return words, ctx.Err()
 }
 
-func lexemeArray(ctx context.Context, result *sqltype.Descriptor, token string, empty bool) (sqltype.Value, error) {
-	if err := ctx.Err(); err != nil {
-		return sqltype.Value{}, err
-	}
-	if result == nil || result.ID() != 1009 || !result.IsArray() || result.Element().ID() != sqltype.Text {
-		return sqltype.Value{}, fmt.Errorf("invalid dictionary result descriptor")
-	}
-	if empty {
-		return sqltype.OwnedArrayValue(result, nil, nil)
-	}
-	return sqltype.OwnedArrayValue(result, []sqltype.ArrayDimension{{Lower: 1, Length: 1}}, []sqltype.Value{sqltype.String(result.Element(), token)})
-}
-
 func (*SimpleDictionary) Filtering() bool { return false }
 func (*UnaccentMatcher) Filtering() bool  { return true }
 
-func (d *SimpleDictionary) Lexize(ctx context.Context, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (d *SimpleDictionary) Lexize(ctx context.Context, input string) (fts.LexicalResult, error) {
 	token, err := unicode16.ConvertCase(ctx, input, unicode16.Lower, unicode16.ASCII)
 	if err != nil {
-		return sqltype.Value{}, err
+		return fts.LexicalResult{}, err
 	}
 	_, stopped := slices.BinarySearch(d.words, token)
 	if token == "" || stopped {
-		return lexemeArray(ctx, result, "", true)
+		return fts.LexicalResult{Recognized: true}, ctx.Err()
 	}
 	if !d.accept {
-		return sqltype.Null(result), ctx.Err()
+		return fts.LexicalResult{}, ctx.Err()
 	}
-	return lexemeArray(ctx, result, token, false)
+	return fts.LexicalResult{Recognized: true, Lexemes: []fts.Lexeme{{Text: token}}}, ctx.Err()
 }
 
-// Lexize applies the genuine unaccent dictionary's recognized/unrecognized rule.
-func (p *UnaccentMatcher) Lexize(ctx context.Context, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
+// Lexize retains the filtering provider's recognized/unrecognized distinction.
+func (p *UnaccentMatcher) Lexize(ctx context.Context, input string) (fts.LexicalResult, error) {
 	token, changed, err := p.lexize(ctx, p.init(), input)
 	if err != nil {
-		return sqltype.Value{}, err
+		return fts.LexicalResult{}, err
 	}
 	if !changed {
-		return sqltype.Null(result), ctx.Err()
+		return fts.LexicalResult{}, ctx.Err()
 	}
-	return lexemeArray(ctx, result, token, false)
+	return fts.LexicalResult{Recognized: true, Lexemes: []fts.Lexeme{{Text: token}}}, ctx.Err()
 }

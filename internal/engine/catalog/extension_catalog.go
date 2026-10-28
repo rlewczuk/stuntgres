@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
@@ -136,7 +137,7 @@ type DictionaryOption struct {
 
 // DictionaryRuntime is immutable, catalog-independent execution authority.
 type DictionaryRuntime interface {
-	Lexize(context.Context, string, *sqltype.Descriptor) (sqltype.Value, error)
+	Lexize(context.Context, string) (fts.LexicalResult, error)
 	Filtering() bool
 }
 

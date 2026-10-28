@@ -129,6 +129,10 @@ COPY test in reference/dml.
 - Text search types: `RUN='^TestReferenceFTSTypes'`
 - Text search operators: `RUN='^TestReferenceFTSOps'`
 - Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
+- Text search conversion: `RUN='^TestReferenceFTSConvert'`; shared configuration
+  callbacks own pinned-session settings, typed metadata and held statements.
+  Exact diagnostics distinguish input/coercion from constructor execution;
+  notice phases distinguish first-only immutable folds from stable/runtime calls.
 - Text search document parser: `RUN='^TestReferenceFTSParser'`
   Parser definition lifecycle, checked callback execution, diagnostics, privileges,
   dependencies and native replacement/replay share `RUN='^TestReferenceFTSParserDDL'`.

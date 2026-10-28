@@ -6,22 +6,28 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"stuntgres/internal/workadmission"
 )
 
-// ConvertTSVector captures one catalog generation. No catalog mutex is held
-// while parser or dictionary execution runs; runtimes are immutable authority.
-func (h *statementHost) ConvertTSVector(ctx context.Context, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+// ConvertTextSearch captures one catalog generation, including the live default
+// when omitted. Engine.Mu precedes the effective settings mutex. All parser,
+// dictionary and notice callbacks run after releasing catalog authority.
+func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	oid, err := value.RegTSOID()
-	if err != nil {
-		return sqltype.Value{}, err
+	var oid uint32
+	var err error
+	if explicit {
+		oid, err = value.RegTSOID()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
 	}
 	e := s.Engine()
 	e.Mu.Lock()
@@ -30,88 +36,126 @@ func (h *statementHost) ConvertTSVector(ctx context.Context, value sqltype.Value
 		changes = s.Owner.Catalog
 	}
 	read := e.PrivateCatalogLocked(changes)
-	config, ok := read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)})
-	var dictionaries map[ids.ObjectAddress]catalog.DictionaryRuntime
-	var array *sqltype.Descriptor
-	var parser fts.ParserRuntime
-	if ok {
-		err = (catalog.TSConfigurationProvider{}).Validate(read, config)
+	if !explicit {
+		var auth AuthorizationView
+		auth, err = s.namespaceAuthorizationLocked(e)
 		if err == nil {
-			parser, err = catalog.ResolveParserRuntime(read, read.MustTSParser(config.Parser))
+			name, _ := s.Op.Setting("default_text_search_config")
+			oid, err = regobj.NewTextSearchInput(inputCapture(auth, nil)).ResolveRegconfig(ctx, name)
 		}
-		if err == nil {
-			dictionaries = make(map[ids.ObjectAddress]catalog.DictionaryRuntime)
-			for _, m := range config.Mappings {
-				for _, a := range m.Dictionaries {
-					if _, exists := dictionaries[a]; !exists {
-						dictionaries[a] = read.MustTSDictionary(a).Runtime
-					}
+	}
+	var config *catalog.TSConfiguration
+	var ok bool
+	var parser fts.ParserRuntime
+	var dictionaries map[ids.ObjectAddress]catalog.DictionaryRuntime
+	if err == nil {
+		config, ok = read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)})
+		if !ok {
+			err = SQLError("XX000", fmt.Sprintf("cache lookup failed for text search configuration %d", oid))
+		}
+	}
+	if err == nil {
+		err = (catalog.TSConfigurationProvider{}).Validate(read, config)
+	}
+	if err == nil {
+		parser, err = catalog.ResolveParserRuntime(read, read.MustTSParser(config.Parser))
+	}
+	if err == nil {
+		dictionaries = make(map[ids.ObjectAddress]catalog.DictionaryRuntime)
+		for _, mapping := range config.Mappings {
+			for _, address := range mapping.Dictionaries {
+				if _, exists := dictionaries[address]; !exists {
+					dictionaries[address] = read.MustTSDictionary(address).Runtime
 				}
 			}
-			array = read.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1009}).SQLType
 		}
 	}
 	e.Mu.Unlock()
-	if !ok {
-		return sqltype.Value{}, SQLError("XX000", fmt.Sprintf("cache lookup failed for text search configuration %d", oid))
-	}
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	tokens, err := parser.Parse(ctx, text)
-	if err != nil {
-		return sqltype.Value{}, err
+	noticeLong := func() {
+		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
 	}
-	var builder fts.VectorBuilder
-	position := 0
-	for _, token := range tokens {
-		if err := ctx.Err(); err != nil {
-			return sqltype.Value{}, err
-		}
+	lexize := func(token fts.DocumentToken) (fts.LexicalResult, error) {
 		if err := workadmission.Admit(ctx, workadmission.WorkTSVectorConvert); err != nil {
-			return sqltype.Value{}, err
+			return fts.LexicalResult{}, err
 		}
-		// The document parser accepts arbitrary spans, but conversion ignores
-		// oversized tokens before consulting any dictionary.
 		if len(token.Text) >= 2047 {
-			s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
-			continue
+			noticeLong()
+			return fts.LexicalResult{}, nil
 		}
 		input := token.Text
-		for _, a := range config.Mapping(token.ID) {
-			dictionary := dictionaries[a]
-			lexemes, err := dictionary.Lexize(ctx, input, array)
+		for _, address := range config.Mapping(token.ID) {
+			if err := ctx.Err(); err != nil {
+				return fts.LexicalResult{}, err
+			}
+			dictionary := dictionaries[address]
+			lexical, err := dictionary.Lexize(ctx, input)
 			if err != nil {
-				return sqltype.Value{}, err
+				return fts.LexicalResult{}, err
 			}
-			if lexemes.IsNull() {
+			if !lexical.Recognized {
 				continue
 			}
-			if dictionary.Filtering() && lexemes.ArrayLen() > 0 {
-				input, err = lexemes.ArrayElement(0).Text()
-				if err != nil {
-					return sqltype.Value{}, err
-				}
+			if dictionary.Filtering() && len(lexical.Lexemes) > 0 {
+				input = lexical.Lexemes[0].Text
 				continue
 			}
-			position++
-			for i := range lexemes.ArrayLen() {
-				word, err := lexemes.ArrayElement(i).Text()
-				if err != nil {
-					return sqltype.Value{}, err
+			words := lexical.Lexemes[:0]
+			for _, word := range lexical.Lexemes {
+				if err := ctx.Err(); err != nil {
+					return fts.LexicalResult{}, err
 				}
-				if len(word) > 2047 {
-					s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
+				if len(word.Text) > 2047 {
+					noticeLong()
 					continue
 				}
-				builder.Add(word, position)
+				words = append(words, word)
 			}
-			break
+			lexical.Lexemes = words
+			return lexical, nil
 		}
+		return fts.LexicalResult{}, nil
 	}
-	vector, err := builder.Finish(ctx)
+	walk := func(input string, emit func(fts.LexicalPosition)) error {
+		tokens, err := parser.Parse(ctx, input)
+		if err != nil {
+			return err
+		}
+		return fts.NormalizeTokens(ctx, tokens, lexize, emit)
+	}
+	normalize := func(input string) ([]fts.LexicalPosition, error) {
+		var positions []fts.LexicalPosition
+		err := walk(input, func(position fts.LexicalPosition) { positions = append(positions, position) })
+		return positions, err
+	}
+	if kind == fts.VectorConversion {
+		var builder fts.VectorBuilder
+		err := walk(text, func(position fts.LexicalPosition) {
+			for _, word := range position.Lexemes {
+				builder.Add(word.Text, position.Position)
+			}
+		})
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		vector, err := builder.Finish(ctx)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.TSVectorValue(result, vector)
+	}
+	query, parsed, err := fts.ConvertQuery(ctx, kind, text, normalize)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return sqltype.TSVectorValue(result, vector)
+	if query.Empty() {
+		message := "text-search query doesn't contain lexemes: \"" + text + "\""
+		if parsed {
+			message = "text-search query contains only stop words or doesn't contain lexemes, ignored"
+		}
+		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
+	}
+	return sqltype.TSQueryValue(result, query)
 }

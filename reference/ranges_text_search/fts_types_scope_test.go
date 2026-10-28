@@ -16,7 +16,7 @@ func TestReferenceFTSTypesScope(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE fts_scope(v tsvector,q tsquery)", 0))
 		for _, query := range []string{
 			"CREATE TABLE fts_array(v tsvector[])", "CREATE TABLE fts_query_array(q tsquery[])",
-			"SELECT 'a'::tsvector @@ 'a'::tsquery", "SELECT to_tsvector('a')", "SELECT to_tsquery('a')",
+			"SELECT 'a'::tsvector @@ 'a'::tsquery",
 			"SELECT 'a'::tsvector = 'a'::tsvector", "SELECT 'a'::tsquery = 'a'::tsquery",
 			"CREATE INDEX fts_vector_index ON fts_scope(v)", "CREATE INDEX fts_query_index ON fts_scope(q)",
 		} {

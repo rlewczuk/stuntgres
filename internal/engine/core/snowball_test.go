@@ -174,17 +174,12 @@ func TestSnowballPublication(t *testing.T) {
 			if e.CatalogRead().State() != incumbent.State() || p.Runtime == nil || snowballUnitDictionary(t, e).Runtime != old {
 				t.Fatal("rejected publication changed catalog/runtime")
 			}
-			array, ok := incumbent.LookupType(1009)
-			if !ok {
-				t.Fatal("TEXT[] missing")
-			}
-			value, err := p.Runtime.Lexize(t.Context(), "RATS", array)
-			if err != nil || value.ArrayLen() != 1 {
+			value, err := p.Runtime.Lexize(t.Context(), "RATS")
+			if err != nil || !value.Recognized || len(value.Lexemes) != 1 {
 				t.Fatal("rejected initializer lost its immutable runtime", value, err)
 			}
-			text, err := value.ArrayElement(0).Text()
-			if err != nil || text != "rat" {
-				t.Fatal(text, err)
+			if value.Lexemes[0].Text != "rat" || value.Lexemes[0].Prefix || value.Lexemes[0].Variant != 0 {
+				t.Fatal(value)
 			}
 		})
 	}
@@ -203,8 +198,7 @@ func TestSnowballPreparedOwnership(t *testing.T) {
 	entry := preparedFoldEntry(t, d, 1009, "{}")
 	before := snapshotFoldDescription(d)
 	a := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "snowball_fold"})
-	array, ok := e.CatalogRead().LookupType(1009)
-	if !ok {
+	if _, ok := e.CatalogRead().LookupType(1009); !ok {
 		t.Fatal("TEXT[] missing")
 	}
 	old := e.CatalogRead().MustTSDictionary(a)
@@ -215,17 +209,16 @@ func TestSnowballPreparedOwnership(t *testing.T) {
 	if current.Runtime == old.Runtime || current.Revision() == operand.Revision {
 		t.Fatal("replacement runtime authority not published")
 	}
-	oldValue, err := old.Runtime.Lexize(t.Context(), "ONLY", array)
-	if err != nil || oldValue.IsNull() || oldValue.ArrayLen() != 0 {
+	oldValue, err := old.Runtime.Lexize(t.Context(), "ONLY")
+	if err != nil || !oldValue.Recognized || len(oldValue.Lexemes) != 0 {
 		t.Fatal("retained old runtime", oldValue, err)
 	}
-	newValue, err := current.Runtime.Lexize(t.Context(), "ONLY", array)
-	if err != nil || newValue.ArrayLen() != 1 {
+	newValue, err := current.Runtime.Lexize(t.Context(), "ONLY")
+	if err != nil || !newValue.Recognized || len(newValue.Lexemes) != 1 {
 		t.Fatal(newValue, err)
 	}
-	text, err := newValue.ArrayElement(0).Text()
-	if err != nil || text != "onli" {
-		t.Fatal(text, err)
+	if newValue.Lexemes[0].Text != "onli" || newValue.Lexemes[0].Prefix || newValue.Lexemes[0].Variant != 0 {
+		t.Fatal(newValue)
 	}
 	preparedFoldExecute(t, e, s, ast, &d)
 	after := d.Folds.Current()

@@ -430,9 +430,14 @@ Ordinary open cursors close; held loop storage belongs to loop cleanup.
 
 Text-search conversion captures a real configuration, its checked immutable
 parser capability and distinct dictionary runtimes from one private catalog
-generation under `Engine.Mu`, then releases it before tokenization/lexization.
-Mapping changes publish through ordinary schema stages and definition locks. Generic folds retain immutable
-constant vectors; runtime arguments consume current mappings without local caches.
+generation under `Engine.Mu`, then releases it before tokenization, lexization
+or notice callbacks. Omitted configuration reads the operation's effective
+`default_text_search_config` at execution, with Engine-before-settings lock order.
+Mapping changes publish through ordinary schema stages and definition locks.
+Generic folds retain immutable explicit vector/query results and their first
+execution notices are not replayed. Stable omitted forms and runtime arguments
+consume current defaults/mappings without local caches. Rich lexical metadata
+stays internal; only `ts_lexize` projects TEXT[] at its checked SQL boundary.
 The prepared identifier owner keeps original REGCONFIG occurrence provenance
 separate from current operand observations. Operand-only reanalysis carries an
 attempt-private eligible input projection through the existing binder transport;

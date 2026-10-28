@@ -35,5 +35,9 @@ func (h *statementHost) LexizeDictionary(value sqltype.Value, text string, resul
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return d.Runtime.Lexize(s.Op.Context(), text, result)
+	lexemes, err := d.Runtime.Lexize(s.Op.Context(), text)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return sqltype.LexicalArray(result, lexemes)
 }

@@ -24,6 +24,23 @@ let generated NOT chains exceed 32 nodes without exceeding the per-frame parser
 limit on replay. `String` stays canonical. Lossless text is computed only when
 needed by SQLLiteral, never for SELECT, with no extra cache.
 
+`ConvertQuery` reuses strict operand grammar with a borrowed document-normalizer
+callback, or builds plain, phrase and forgiving web modes directly into the same
+owned arena. Each normalized operand drops stopped edge padding, retains internal
+position gaps and contributes one placeholder if entirely stopped. Grammatical
+stopword nodes survive complete syntax validation; iterative cleanup propagates
+independent left/right phrase widths before rendering once. Constructor limits
+apply to emitted lexemes/storage, while raw `ParseQuery` bounds its input operands.
+Web empty quoted spans remain operands, including for notice classification;
+contextual OR uses input-cursor boundaries and lookahead rather than token equality.
+`LexicalResult`/`LexicalPosition` are catalog-free data: recognition, ordered
+lexemes, prefix and variant grouping. Query expansion combines source and
+dictionary prefixes, ANDs one variant and ORs alternatives. No dictionary
+registration, synonym resource or configuration authority belongs here.
+`NormalizeTokens` shares recognized-token position assignment between vector
+streaming and query expansion; its borrowed lexical callback owns dictionary
+selection/filtering and notices, never the resulting arena.
+
 ### Document tokenization
 
 `ParseDocument(ctx, text)` returns ordered `DocumentToken{ID, Text}` values.

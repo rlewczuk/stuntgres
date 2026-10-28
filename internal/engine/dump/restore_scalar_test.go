@@ -117,7 +117,7 @@ func TestFTSOpsRestoreScalar(t *testing.T) {
 		}
 	}
 	if err := RestoreScalar(selectTarget(t, "SELECT to_tsquery('a')"), false); err == nil {
-		t.Fatal("adjacent FTS constructor admitted")
+		t.Fatal("unlisted INSERT Restore recipe admitted")
 	}
 }
 

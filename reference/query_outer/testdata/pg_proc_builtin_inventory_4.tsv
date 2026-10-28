@@ -23,6 +23,11 @@
 3725	dsimple_init	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2281	2281	\N	\N	\N	false	\N	dsimple_init	\N	false	\N
 3726	dsimple_lexize	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	2281	2281 2281 2281 2281	\N	\N	\N	false	\N	dsimple_lexize	\N	false	\N
 3745	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3614	3734 25	\N	\N	\N	false	\N	to_tsvector_byid	\N	false	\N
+3746	to_tsquery	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3615	3734 25	\N	\N	\N	false	\N	to_tsquery_byid	\N	false	\N
+3747	plainto_tsquery	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3615	3734 25	\N	\N	\N	false	\N	plainto_tsquery_byid	\N	false	\N
+3749	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3614	25	\N	\N	\N	false	\N	to_tsvector	\N	false	\N
+3750	to_tsquery	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3615	25	\N	\N	\N	false	\N	to_tsquery	\N	false	\N
+3751	plainto_tsquery	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3615	25	\N	\N	\N	false	\N	plainto_tsquery	\N	false	\N
 3778	pg_tablespace_location	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_tablespace_location	\N	false	\N
 3787	to_jsonb	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	3802	2283	\N	\N	\N	false	\N	to_jsonb	\N	false	\N
 3811	money	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	790	23	\N	\N	\N	false	\N	int4_cash	\N	false	\N
@@ -277,8 +282,12 @@
 4541	range_contains_multirange	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	3831 4537	\N	\N	\N	false	\N	range_contains_multirange	\N	false	\N
 4542	multirange_contained_by_range	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	4537 3831	\N	\N	\N	false	\N	multirange_contained_by_range	\N	false	\N
 4549	unicode_version	11	12	1	0	0	0	f	false	false	true	false	i	s	0	0	25		\N	\N	\N	false	\N	unicode_version	\N	false	\N
+5001	phraseto_tsquery	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3615	25	\N	\N	\N	false	\N	phraseto_tsquery	\N	false	\N
 5003	tsquery_phrase	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	3615	3615 3615	\N	\N	\N	false	\N	tsquery_phrase	\N	false	\N
 5004	tsquery_phrase	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	3615	3615 3615 23	\N	\N	\N	false	\N	tsquery_phrase_distance	\N	false	\N
+5006	phraseto_tsquery	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3615	3734 25	\N	\N	\N	false	\N	phraseto_tsquery_byid	\N	false	\N
+5007	websearch_to_tsquery	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3615	3734 25	\N	\N	\N	false	\N	websearch_to_tsquery_byid	\N	false	\N
+5009	websearch_to_tsquery	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3615	25	\N	\N	\N	false	\N	websearch_to_tsquery	\N	false	\N
 5018	pg_mcv_list_in	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	5017	2275	\N	\N	\N	false	\N	pg_mcv_list_in	\N	false	\N
 5019	pg_mcv_list_out	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2275	5017	\N	\N	\N	false	\N	pg_mcv_list_out	\N	false	\N
 5020	pg_mcv_list_recv	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	5017	2281	\N	\N	\N	false	\N	pg_mcv_list_recv	\N	false	\N

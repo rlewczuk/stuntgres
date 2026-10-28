@@ -274,8 +274,10 @@ private frames, not catalog authority.
   name map.
 - **Text-search descriptors** (`extension_catalog.go`, `dictionary.go`):
   dictionaries hold ordered decoded immutable options, actual owner/template and
-  a catalog-free `DictionaryRuntime`. Runtime authority is separate from genuine
-  extension membership; bootstrap simple and Snowball are not extensions.
+  a catalog-free `DictionaryRuntime`. Its invocation-owned `fts.LexicalResult`
+  distinguishes unrecognized tokens from recognized-empty stopwords and retains
+  prefix/variant metadata without SQL descriptors. Runtime authority is separate
+  from genuine extension membership; bootstrap simple and Snowball are not extensions.
   Allocated Snowball seeds retain private seed markers and typed helper authority
   across ordinary copies/remapping; canonical replay names/default options do not
   derive from mutable labels. Seed classification excludes system roots from bulk

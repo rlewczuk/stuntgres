@@ -154,10 +154,12 @@ func TestFTSOpsProviderLifecycle(t *testing.T) {
 			t.Fatal("genuine routine binder", name)
 		}
 	}
-	if definition, ok := Lookup("to_tsvector"); !ok || definition.Bind == nil || !definition.SharedGates {
-		t.Fatal("explicit configuration conversion binder")
+	for _, name := range []string{"to_tsvector", "to_tsquery", "plainto_tsquery", "phraseto_tsquery", "websearch_to_tsquery"} {
+		if definition, ok := Lookup(name); !ok || definition.Bind == nil || !definition.SharedGates {
+			t.Fatal("text search conversion binder", name)
+		}
 	}
-	for _, name := range []string{"to_tsquery", "tsquery_cmp", "tsvector_cmp", "ts_match_vq"} {
+	for _, name := range []string{"tsquery_cmp", "tsvector_cmp", "ts_match_vq"} {
 		if _, ok := Lookup(name); ok {
 			t.Fatal("adjacent routine claimed", name)
 		}

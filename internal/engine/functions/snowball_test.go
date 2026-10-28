@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/sqltype"
 	"sync"
 	"testing"
 )
@@ -47,7 +48,16 @@ func TestSnowballDictionaryResources(t *testing.T) {
 	array := dictionaryArrayType(t)
 	check := func(input, want string, empty bool) {
 		t.Helper()
-		v, err := d.Lexize(ctx, input, array)
+		lexical, err := d.Lexize(ctx, input)
+		if err != nil || !lexical.Recognized {
+			t.Fatal(lexical, err)
+		}
+		for _, word := range lexical.Lexemes {
+			if word.Prefix || word.Variant != 0 {
+				t.Fatal(word)
+			}
+		}
+		v, err := sqltype.LexicalArray(array, lexical)
 		if err != nil || v.IsNull() || v.Type() != array {
 			t.Fatal(v, err)
 		}
@@ -80,7 +90,7 @@ func TestSnowballDictionaryResources(t *testing.T) {
 	if _, err := CompileSnowballDictionary(canceled, "english", "english"); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, err := d.Lexize(canceled, "RATS", array); !errors.Is(err, context.Canceled) {
+	if _, err := d.Lexize(canceled, "RATS"); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	// The shared provider has no mutable Snowball environment or token cache.

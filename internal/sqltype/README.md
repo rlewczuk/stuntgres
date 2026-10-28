@@ -541,6 +541,10 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   a closed operand returns typed NULL, and combined size is checked before allocation.
 - No geometric type gains default ordering/hash/index authority from its
   scalar operators.
+- `TSVectorValue`/`TSQueryValue` check nominal result descriptors and immutable
+  leaf payloads without reparsing canonical text. `LexicalArray` projects rich
+  dictionary recognition/spelling into checked TEXT[] once at the SQL boundary;
+  prefix/variant metadata remains internal and unrecognized differs from empty.
 - `FTSQueryPlan` checks source/result descriptor authority for query inspection
   and direct rewriting. `FTSRewriteRules` bridges actual typed SQL rule cells
   into one leaf-owned workspace, distinguishing skipped NULL rows from empty

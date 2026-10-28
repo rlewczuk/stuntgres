@@ -16,6 +16,32 @@ func TSVectorValue(d *Descriptor, vector *fts.Vector) (Value, error) {
 	return Value{typ: d, ftsVector: vector}, nil
 }
 
+// TSQueryValue wraps a constructed immutable arena without text re-input.
+func TSQueryValue(d *Descriptor, query *fts.Query) (Value, error) {
+	if d == nil || d.ID() != TSQuery || !query.Valid() {
+		return Value{}, fmt.Errorf("invalid tsquery result authority")
+	}
+	return Value{typ: d, ftsQuery: query}, nil
+}
+
+// LexicalArray projects internal dictionary metadata at the SQL boundary only.
+func LexicalArray(d *Descriptor, result fts.LexicalResult) (Value, error) {
+	if d == nil || d.ID() != 1009 || !d.IsArray() || d.Element().ID() != Text {
+		return Value{}, fmt.Errorf("invalid dictionary result descriptor")
+	}
+	if !result.Recognized {
+		return Null(d), nil
+	}
+	if len(result.Lexemes) == 0 {
+		return OwnedArrayValue(d, nil, nil)
+	}
+	values := make([]Value, len(result.Lexemes))
+	for i, lexeme := range result.Lexemes {
+		values[i] = String(d.Element(), lexeme.Text)
+	}
+	return OwnedArrayValue(d, []ArrayDimension{{Lower: 1, Length: int32(len(values))}}, values)
+}
+
 // FTSInputNotices belongs to an operation, never to a stored datum or codec.
 type FTSInputNotices interface {
 	EmptyQuery(context.Context, string)

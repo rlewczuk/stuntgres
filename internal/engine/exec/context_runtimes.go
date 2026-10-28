@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -923,10 +924,10 @@ func (c *Context) LexizeDictionary(dictionary sqltype.Value, text string, result
 
 var _ functions.FTSConversionRuntime = (*Context)(nil)
 
-func (c *Context) ConvertTSVector(configuration sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (c *Context) ConvertTextSearch(kind fts.ConversionKind, explicit bool, configuration sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
 	if host == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: to_tsvector lacks statement authority")
+		return sqltype.Value{}, fmt.Errorf("stuntgres: text search conversion lacks statement authority")
 	}
-	return host.ConvertTSVector(c.Context, configuration, text, result)
+	return host.ConvertTextSearch(c.Context, kind, explicit, configuration, text, result)
 }

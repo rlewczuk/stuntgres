@@ -83,6 +83,12 @@ type pending struct {
 }
 
 func ParseQuery(ctx context.Context, text string) (*Query, error) {
+	return parseQuery(ctx, text, nil)
+}
+
+// normalize runs at each grammatical operand; stopped operands remain nodes
+// until the complete strict grammar has been accepted.
+func parseQuery(ctx context.Context, text string, normalize func(*[]queryNode, queryNode) (int, error)) (*Query, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -160,13 +166,15 @@ func ParseQuery(ctx context.Context, text string) (*Query, error) {
 			if err != nil {
 				return nil, err
 			}
-			if len(word) > maxWordBytes {
-				return nil, sqlstate.SoftInputError(failure("54000", "word is too long in tsquery: \""+text+"\""))
+			if normalize == nil {
+				if len(word) > maxWordBytes {
+					return nil, sqlstate.SoftInputError(failure("54000", "word is too long in tsquery: \""+text+"\""))
+				}
+				if operandBytes >= maxStringOffset {
+					return nil, sqlstate.SoftInputError(failure("54000", "value is too big in tsquery: \""+text+"\""))
+				}
+				operandBytes += len(word) + 1
 			}
-			if operandBytes >= maxStringOffset {
-				return nil, sqlstate.SoftInputError(failure("54000", "value is too big in tsquery: \""+text+"\""))
-			}
-			operandBytes += len(word) + 1
 			n := queryNode{op: 'v', word: word}
 			if l.pos < len(text) && text[l.pos] == ':' {
 				l.pos++
@@ -195,8 +203,17 @@ func ParseQuery(ctx context.Context, text string) (*Query, error) {
 				}
 			}
 		modifiersDone:
-			nodes = append(nodes, n)
-			values = append(values, len(nodes)-1)
+			root := len(nodes)
+			if normalize == nil {
+				nodes = append(nodes, n)
+			} else {
+				var err error
+				root, err = normalize(&nodes, n)
+				if err != nil {
+					return nil, err
+				}
+			}
+			values = append(values, root)
 			expecting = false
 		} else {
 			switch c {
@@ -281,6 +298,9 @@ func ParseQuery(ctx context.Context, text string) (*Query, error) {
 		return nil, sqlstate.SoftInputError(failure("54000", "tsquery is too large"))
 	}
 	q := &Query{nodes: nodes, root: values[0]}
+	if normalize != nil {
+		return q, nil
+	}
 	rendered, err := q.render(ctx, false)
 	if err != nil {
 		return nil, err

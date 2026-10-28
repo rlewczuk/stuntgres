@@ -24,7 +24,19 @@ func dictionaryArrayType(t *testing.T) *sqltype.Descriptor {
 func assertLexeme(t *testing.T, d *SimpleDictionary, input string, want []string, null bool) {
 	t.Helper()
 	array := dictionaryArrayType(t)
-	v, err := d.Lexize(context.Background(), input, array)
+	lexical, err := d.Lexize(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lexical.Recognized == null {
+		t.Fatal("recognition", lexical)
+	}
+	for _, word := range lexical.Lexemes {
+		if word.Prefix || word.Variant != 0 {
+			t.Fatal("ordinary dictionary flags", word)
+		}
+	}
+	v, err := sqltype.LexicalArray(array, lexical)
 	if err != nil || v.Type() != array || v.IsNull() != null {
 		t.Fatal("typed lexize", v, err)
 	}
@@ -97,7 +109,7 @@ func TestSimpleDictionaryCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v, err := d.Lexize(ctx, strings.Repeat("WORD", 1024), dictionaryArrayType(t)); v.Type() != nil || !errors.Is(err, context.Canceled) {
+	if v, err := d.Lexize(ctx, strings.Repeat("WORD", 1024)); v.Recognized || len(v.Lexemes) != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatal(v, err)
 	}
 	if words, err := compileStopwords(ctx, "word\n"); words != nil || !errors.Is(err, context.Canceled) {

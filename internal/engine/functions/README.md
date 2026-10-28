@@ -282,10 +282,12 @@ descriptor, so rewritten plans retain no stale composites or invocation state.
 Each descriptor cursor owns a pointer to its checked token-type array; advancing
 copies only the selected entry, never the complete inventory.
 
-Explicit `to_tsvector(regconfig,text)` is a strict immutable typed conversion.
-Its node owns only checked children and routine authority; execution borrows one
-statement-coherent configuration/dictionary capture. Normal preflight folding
-owns retained vectors, with no conversion-local cache or revision bypass.
+`FTSConversion` binds all five text-search constructors with explicit or omitted
+configuration. Both forms are strict; explicit REGCONFIG/TEXT is immutable and
+omitted TEXT is stable. The node owns checked children and routine authority,
+never a synthetic default-config constant. Execution borrows one coherent
+parser/dictionary capture; ordinary folding owns immutable explicit results,
+without a conversion cache or notice replay.
 
 `VerifyHeapam` holds six canonical typed inputs, including omitted defaults.
 Named-input binding and applicability share slot assignment and ordinary
@@ -654,8 +656,10 @@ publication and lock-manager tickets stay in the engine.
 ## Family notes
 
 - **Dictionary lexization**: `DictionaryLexize` binds REGDICTIONARY/TEXT to
-  checked TEXT[] results through `DictionaryRuntime`. `SimpleDictionary` owns
-  immutable Accept/stopword state and whole-token database-C normalization.
+  checked TEXT[] results. Internal runtimes return `fts.LexicalResult`, preserving
+  unrecognized versus stopword, ordered spelling, prefix and variant metadata;
+  only the SQL boundary projects an array. `SimpleDictionary` owns immutable
+  Accept/stopword state and whole-token database-C normalization.
   `english.stop` is the verbatim released PostgreSQL English resource; its
   compiled sorted list is shared, not reread per evaluation. Resource names
   resolve only shipped bytes; missing names report the actual embed-relative

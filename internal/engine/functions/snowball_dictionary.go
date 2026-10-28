@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/sqltype/unicode16"
 )
 
@@ -82,19 +82,18 @@ func (d *SnowballDictionary) Configured(language, stopwords string) bool {
 
 func (*SnowballDictionary) Filtering() bool { return false }
 
-func (d *SnowballDictionary) Lexize(ctx context.Context, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (d *SnowballDictionary) Lexize(ctx context.Context, input string) (fts.LexicalResult, error) {
 	token, err := unicode16.ConvertCase(ctx, input, unicode16.Lower, unicode16.ASCII)
 	if err != nil {
-		return sqltype.Value{}, err
+		return fts.LexicalResult{}, err
 	}
-	// PostgreSQL's implementation guard is on original input bytes, before
-	// stopword lookup and stemming, not on UTF8 character count.
+	// The release guard uses original input bytes before lookup and stemming.
 	if len(input) > 1000 {
-		return lexemeArray(ctx, result, token, false)
+		return fts.LexicalResult{Recognized: true, Lexemes: []fts.Lexeme{{Text: token}}}, ctx.Err()
 	}
 	_, stopped := slices.BinarySearch(d.words, token)
 	if token == "" || stopped {
-		return lexemeArray(ctx, result, "", true)
+		return fts.LexicalResult{Recognized: true}, ctx.Err()
 	}
-	return lexemeArray(ctx, result, d.provider.stem(token), false)
+	return fts.LexicalResult{Recognized: true, Lexemes: []fts.Lexeme{{Text: d.provider.stem(token)}}}, ctx.Err()
 }

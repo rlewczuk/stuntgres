@@ -85,8 +85,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3784, "pg_logical_slot_peek_changes", "pg_logical_slot_peek_changes", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3785, "pg_logical_slot_peek_binary_changes", "pg_logical_slot_peek_binary_changes", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1726 {
-		t.Fatalf("released represented inventory: got %d, want 1726", len(facts))
+	if len(facts) != 1735 {
+		t.Fatalf("released represented inventory: got %d, want 1735", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {
