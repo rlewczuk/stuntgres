@@ -49,6 +49,13 @@
   `ltxtq_exec`/`ltxtq_rexec` backers, retaining selected mixed-type identities
   through prepared execution, stored expressions and native replacement.
 
+- Add database-scoped SET/RESET/RESET ALL/FROM CURRENT defaults with current
+  inherited-owner authorization, transactional publication and shared
+  `pg_db_role_setting` storage. New physical sessions capture committed defaults;
+  existing sessions, other databases and native-control destination defaults
+  retain their own state. Persisted parameter names retain PostgreSQL catalog
+  spelling while replacement, reset and startup lookups remain case-insensitive.
+
 - Add installed ltree standard comparisons with typed label ordering, grouping
   and B-tree/hash keys, preserving captured comparison identities and immutable
   operands through prepared execution and native catalog replacement. Stored

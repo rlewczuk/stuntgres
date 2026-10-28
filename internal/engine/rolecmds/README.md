@@ -5,7 +5,7 @@ The role, privilege and ownership statement executors
 ALTER and DROP ROLE; GRANT and REVOKE of role membership; SET ROLE and SET
 SESSION AUTHORIZATION; GRANT and REVOKE on objects and on databases; ALTER
 DEFAULT PRIVILEGES; ALTER ... OWNER TO for types, domains, databases and large objects;
-REASSIGN OWNED and DROP OWNED; CREATE DATABASE; and the `RoleHost` family
+REASSIGN OWNED and DROP OWNED; CREATE DATABASE and ALTER DATABASE defaults; and the `RoleHost` family
 host. The decisions are [`role`](../role/README.md)'s, the role graph and
 ACL algorithms [`authorization`](../authorization/README.md)'s and the
 database option checks [`ddl`](../ddl/README.md)'s; this package
@@ -38,11 +38,14 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   destination-name waits, preserves the principal and complete defaults, and
   replaces the immutable descriptor/name index. Only MD5 verifiers are cleared,
   with one notice after successful statement installation.
-- `ExecuteRoleSettings` resolves current role/database authority, validates
-  through the existing setting and parameter-ACL owners and replaces only the
-  selected immutable scope row. Cluster row locks serialize conflicting writers;
-  ordinary protected RESET ALL entries remain. Both executors use the normal role
-  journal, savepoints and Finish publication, without changing issuer settings.
+- `ExecuteRoleSettings` and `ExecuteDatabaseSettings` adapt syntax to one row
+  executor: resolve current authority, wait on the exact cluster scope, then
+  reauthorize and validate through the existing setting/parameter-ACL owners.
+  ALTER DATABASE uses inherited database ownership and the same database-only
+  row as ALTER ROLE ALL IN DATABASE. Owner-dependent writes journal the database
+  predecessor before installation, so later owner changes veto commit. Protected
+  RESET ALL entries remain. The normal role journal, savepoints and Finish
+  publication apply without changing issuer overrides or reset images.
 - `ExecuteRole` (role membership GRANT and REVOKE, SET ROLE, SET SESSION
   AUTHORIZATION, DROP ROLE) decides under `Engine.Mu`. Membership releases it
   for its locks and rechecks the role record; SET ROLE and SESSION
@@ -111,7 +114,7 @@ and, for CREATE DATABASE,
 
 ```sh
 make check RUN='^Test(Role|Membership|Predefined|SessionIdentity|DriverBatchIdentity|AlterNullabilityAuthorization|Authorization(Public|Namespace))'  # roles, membership, SET ROLE, identity
-make check RUN='^Test(ObjectGrant|ObjectRevoke|DefaultPrivileges|TransactionalPrivileges|Database)'  # GRANT, REVOKE, default ACLs, CREATE DATABASE
+make check RUN='^Test(ObjectGrant|ObjectRevoke|DefaultPrivileges|TransactionalPrivileges|Database)'  # grants, default ACLs and database command ownership
 make check RUN='^Test(RoleOwnership|ReassignOwned|DropOwned|LargeObjectOwner)'  # ALTER OWNER, REASSIGN and DROP OWNED
 make check RACE=1 RUN='^Test(RoleOwnershipPublication|ReassignOwnedPublication|RoleTransactional|RoleSwitch|DatabaseCreate)'  # publication and session races
 ```

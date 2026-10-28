@@ -14,8 +14,8 @@ Reset/Dump/Restore and cancellation. Related: reg* alias input in
 Role identity lifecycle also lives here: CREATE/ALTER/DROP ROLE and USER,
 attributes/passwords/admission, trusted connectors, membership ADMIN/INHERIT/SET,
 SET ROLE and SESSION AUTHORIZATION, retained identities, transactional role
-publication, native controls, and shared role rename and persisted-default
-mutation/lifetime scenarios. Ownership, grants and RLS remain in
+publication, native controls, and shared role rename and role/database
+persisted-default mutation/lifetime scenarios. Ownership, grants and RLS remain in
 `reference/roles`.
 
 ## Testing
@@ -37,6 +37,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   Special-role cases distinguish explicit self selection from NONE, captured
   startup RESET, definer reads/capture and restricted writes, and local/savepoint
   restoration without deriving setting text from effective identity.
+  Database-default cases use `dsCases` with the existing database selector and
+  bounded database-before-role cleanup. They assert the actual database/zero-role
+  row, both SQL spellings, complete diagnostics and captured physical defaults;
+  raw controls remain explicit native-only phases of shared scenarios.
 - Inventory expectations are released data, never native output: types from
   `docs/design/regtype-pg18-inventory.tsv`, operators from
   `docs/design/regoperator-pg18-inventory.tsv`, routines from the REL_18_0
@@ -101,6 +105,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Role attributes and admission: `RUN='^TestReferenceRoleAttributes'`
 - Role transaction publication and lifetime: `RUN='^TestReferenceRoleTransactional'`
 - Shared role identity/default mutations: `RUN='^TestReferenceRole(Rename|Settings)'`
+- Database-scoped defaults: `RUN='^TestReferenceDatabaseSettings'`
 - Trusted connectors: `RUN='^TestReferenceRole(Trusted)?Connector'`
 - Membership and role switching: `RUN='^TestReferenceRole(Membership|Switch)'`
 - Membership inquiry: `RUN='^TestReferenceAccessRole(Membership|Privileges|NamesAndOIDs)$'`

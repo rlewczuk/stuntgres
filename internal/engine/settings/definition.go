@@ -92,7 +92,7 @@ func (d Definition) DefaultValue() Value {
 	return d.bootValue
 }
 
-// DisplayName returns PostgreSQL's mixed-case spelling for diagnostics.
+// DisplayName returns PostgreSQL's spelling for diagnostics and catalog pairs.
 func DisplayName(name string) string {
 	switch name {
 	case "timezone":

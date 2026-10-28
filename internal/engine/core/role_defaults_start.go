@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
 )
 
 // Immutable row selection is completed before any external startup callback.
@@ -20,7 +21,7 @@ func capturedRoleDefaults(record *access.RoleRecord, database ids.ObjectAddress,
 			if result == nil {
 				result = make(map[string]session.CapturedDefault)
 			}
-			result[entry.Name] = session.CapturedDefault{Input: entry.Value, Source: session.DefaultSource(i + 1)}
+			result[settings.FoldName(entry.Name)] = session.CapturedDefault{Input: entry.Value, Source: session.DefaultSource(i + 1)}
 		}
 	}
 	return result

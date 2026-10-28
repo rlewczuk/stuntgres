@@ -9,13 +9,40 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 )
 
-// ExecuteRoleSettings changes one immutable persisted row, not the issuer's
-// physical settings. Scope writers wait without Engine.Mu, then decide again
-// against the refreshed complete role record before constructing the candidate.
+// settingsRequest adapts the two SQL entry points to one persisted-row protocol.
+// It retains syntax only, never a resolved target or execution authority.
+type settingsRequest struct {
+	role        *parser.AlterRoleSettings
+	database    *parser.AlterDatabaseSettings
+	set         *parser.Set
+	reset       *parser.Reset
+	fromCurrent bool
+}
+
+func (s settingsRequest) plan(view access.View) (role.RoleSettingsTarget, error) {
+	if s.database != nil {
+		return role.PlanDatabaseSettingsTarget(view, s.database.Database)
+	}
+	return role.PlanRoleSettingsTarget(view, s.role)
+}
+
+// ExecuteRoleSettings changes persisted defaults, not the issuing session.
 func ExecuteRoleSettings(e *core.Engine, scope *core.StatementScope, s *parser.AlterRoleSettings, count int) (core.Result, error) {
+	return executeSettings(e, scope, settingsRequest{role: s, set: s.Set, reset: s.Reset, fromCurrent: s.FromCurrent}, count)
+}
+
+// ExecuteDatabaseSettings uses the same database-only row as ALTER ROLE ALL
+// IN DATABASE. Both spellings share writer admission and publication fences.
+func ExecuteDatabaseSettings(e *core.Engine, scope *core.StatementScope, s *parser.AlterDatabaseSettings, count int) (core.Result, error) {
+	return executeSettings(e, scope, settingsRequest{database: s, set: s.Set, reset: s.Reset, fromCurrent: s.FromCurrent}, count)
+}
+
+// Scope writers wait without Engine.Mu and reauthorize after admission.
+func executeSettings(e *core.Engine, scope *core.StatementScope, s settingsRequest, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -24,7 +51,7 @@ func ExecuteRoleSettings(e *core.Engine, scope *core.StatementScope, s *parser.A
 	v, err := e.AuthorizationLocked(op)
 	var target role.RoleSettingsTarget
 	if err == nil {
-		target, err = role.PlanRoleSettingsTarget(v.View, s)
+		target, err = s.plan(v.View)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -46,7 +73,7 @@ func ExecuteRoleSettings(e *core.Engine, scope *core.StatementScope, s *parser.A
 			e.Mu.Unlock()
 			return core.Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 		}
-		fresh, err := role.PlanRoleSettingsTarget(v.View, s)
+		fresh, err := s.plan(v.View)
 		if err != nil {
 			e.Mu.Unlock()
 			return core.Result{}, err
@@ -59,7 +86,7 @@ func ExecuteRoleSettings(e *core.Engine, scope *core.StatementScope, s *parser.A
 		row := v.RoleRecord.Settings.Lookup(fresh.Key)
 		e.Mu.Unlock()
 		noticeStart := len(op.Notices)
-		next, err := roleSettingsRow(e, op, s, row)
+		next, err := settingsRow(e, op, s, row)
 		if err != nil {
 			return core.Result{}, err
 		}
@@ -69,10 +96,14 @@ func ExecuteRoleSettings(e *core.Engine, scope *core.StatementScope, s *parser.A
 			e.Mu.Unlock()
 			return core.Result{}, err
 		}
-		_, err = role.PlanRoleSettingsTarget(current.View, s)
+		checked, err := s.plan(current.View)
 		if err != nil {
 			e.Mu.Unlock()
 			return core.Result{}, err
+		}
+		if checked.Key != target.Key {
+			e.Mu.Unlock()
+			return core.Result{}, ids.ErrCatalogReplaced
 		}
 		if current.RoleRecord != v.RoleRecord || current.Catalog.State() != v.Catalog.State() || current.State != v.State {
 			e.Mu.Unlock()
@@ -89,7 +120,7 @@ func ExecuteRoleSettings(e *core.Engine, scope *core.StatementScope, s *parser.A
 		}
 		op.Session.Mu.Lock()
 		err = core.PublicationOperationLocked(e, op)
-		if err == nil && s.All && fresh.Database != nil {
+		if err == nil && (s.database != nil || s.role.All) && fresh.Database != nil {
 			err = e.FenceRoleSettingDatabaseLocked(op, fresh.Key.Database, fresh.Database)
 		}
 		if err == nil {
@@ -101,9 +132,9 @@ func ExecuteRoleSettings(e *core.Engine, scope *core.StatementScope, s *parser.A
 	}
 }
 
-// roleSettingsRow copies only the selected row and never installs live settings.
-func roleSettingsRow(e *core.Engine, op *session.Operation, s *parser.AlterRoleSettings, row []access.RoleSetting) ([]access.RoleSetting, error) {
-	if s.Reset != nil && s.Reset.All {
+// settingsRow copies only the selected row and never installs live settings.
+func settingsRow(e *core.Engine, op *session.Operation, s settingsRequest, row []access.RoleSetting) ([]access.RoleSetting, error) {
+	if s.reset != nil && s.reset.All {
 		var next []access.RoleSetting
 		for _, entry := range row {
 			allowed, err := e.PersistedSettingResetAllowed(op, entry.Name)
@@ -119,17 +150,17 @@ func roleSettingsRow(e *core.Engine, op *session.Operation, s *parser.AlterRoleS
 	var name string
 	var input *string
 	var err error
-	if s.Set != nil {
-		name = s.Set.Name.Text
-		if s.FromCurrent {
+	if s.set != nil {
+		name = s.set.Name.Text
+		if s.fromCurrent {
 			var value string
 			name, value, err = e.PersistedSettingCurrent(op, name)
 			input = &value
 		} else {
-			input, err = session.SetInput(op, s.Set, false)
+			input, err = session.SetInput(op, s.set, false)
 		}
 	} else {
-		name = s.Reset.Name.Text
+		name = s.reset.Name.Text
 	}
 	if err != nil {
 		return nil, err
@@ -142,7 +173,8 @@ func roleSettingsRow(e *core.Engine, op *session.Operation, s *parser.AlterRoleS
 	if err != nil {
 		return nil, err
 	}
-	index := slices.IndexFunc(row, func(entry access.RoleSetting) bool { return entry.Name == canonical })
+	key := settings.FoldName(canonical)
+	index := slices.IndexFunc(row, func(entry access.RoleSetting) bool { return settings.FoldName(entry.Name) == key })
 	if input == nil {
 		if index < 0 {
 			return row, nil

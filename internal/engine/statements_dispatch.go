@@ -151,6 +151,12 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 			scope.CompleteUtility()
 		}
 		return result, true, err
+	case *parser.AlterDatabaseSettings:
+		result, err := rolecmds.ExecuteDatabaseSettings(e, scope, stmt.(*parser.AlterDatabaseSettings), count)
+		if err == nil {
+			scope.CompleteUtility()
+		}
+		return result, true, err
 	case *parser.CreateRole, *parser.AlterRole:
 		result, err := rolecmds.ExecuteRoleAttributes(e, scope, stmt, count)
 		if err == nil {

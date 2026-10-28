@@ -38,14 +38,21 @@ func TestRoleSettingsPersistedValidation(t *testing.T) {
 	}{
 		{"APPLICATION_NAME", "stored", ""}, {"capture.placeholder", "custom", ""},
 		{"work_mem", "1536kB", ""}, {"capture_unknown", "x", "42704"},
+		{"TIMEZONE", "UTC", ""}, {"DateStyle", "ISO, MDY", ""}, {"INTERVALSTYLE", "postgres", ""},
 		{"work_mem", "not-memory", "22023"}, {"server_encoding", "UTF8", "55P02"},
 		{"default_tablespace", "absent_capture_space", "22023"},
 	} {
 		canonical, stored, err := e.ValidatePersistedSetting(op, tc.name, &tc.input)
 		if tc.code != "" {
 			enginetest.State(t, err, tc.code)
-		} else if err != nil || canonical != settings.FoldName(tc.name) || stored != tc.input {
+		} else if err != nil || canonical != settings.DisplayName(settings.FoldName(tc.name)) || stored != tc.input {
 			t.Fatal("pure extracted input changed", canonical, stored, err)
+		}
+		if tc.code == "" {
+			resetName, _, resetErr := e.ValidatePersistedSetting(op, tc.name, nil)
+			if resetErr != nil || resetName != canonical {
+				t.Fatal("reset lost canonical catalog spelling", resetName, canonical, resetErr)
+			}
 		}
 		if !reflect.DeepEqual(s.Settings.Values, values) || !reflect.DeepEqual(s.Settings.Typed, typed) || !reflect.DeepEqual(s.Settings.Placeholders, placeholders) || !reflect.DeepEqual(s.Settings.Savepoint(), actions) || !reflect.DeepEqual(s.Settings.Defaults, originalDefaults) || !reflect.DeepEqual(s.Settings.DefaultTyped, originalTyped) || e.RoleStore.Published != record {
 			t.Fatal("persisted test mutated issuer or shared authority", tc.name)

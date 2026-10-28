@@ -104,6 +104,12 @@ sessions, pool reuse and identity switches retain their captured reset baseline;
 new connections see committed changes. Role rename preserves the principal and
 its defaults. Configured notice handlers also receive startup diagnostics before
 Connect returns, without running under engine lifecycle locks.
+`ALTER DATABASE ... SET`, `SET FROM CURRENT`, `RESET` and `RESET ALL` change
+the selected database's committed defaults, not the issuing physical session.
+They share storage with `ALTER ROLE ALL IN DATABASE`; role-specific defaults
+take precedence at startup. The exact opaque DSN and `WithDatabase` selector
+still choose the engine/database independently of settings. Native Reset and
+Restore preserve destination defaults; Dump does not export them.
 
 Returning a connection to the pool keeps all of that state: `ResetSession` is a
 health check only, never an implicit `DISCARD` or rollback. Run `DISCARD ALL` on

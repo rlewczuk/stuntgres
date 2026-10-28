@@ -88,7 +88,7 @@ func (e *Engine) ValidatePersistedSetting(op *session.Operation, name string, in
 		return "", "", err
 	}
 	if input == nil {
-		return d.Name, "", nil
+		return settings.DisplayName(d.Name), "", nil
 	}
 	value, notice, err := op.EffectiveSettings().ParseValue(d, *input)
 	if err != nil {
@@ -123,7 +123,7 @@ func (e *Engine) ValidatePersistedSetting(op *session.Operation, name string, in
 	if notice != nil {
 		op.EmitNotice(session.LevelNotice, *notice)
 	}
-	return d.Name, *input, nil
+	return settings.DisplayName(d.Name), *input, nil
 }
 
 // roleSettingValue reads the captured physical role GUC, never the effective

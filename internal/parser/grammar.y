@@ -666,7 +666,7 @@ package parser
 %type <tok> collation_name_word
 %type <stmt> create_extension drop_extension alter_extension_update
 %type <stmt> create_tablespace
-%type <stmt> create_database
+%type <stmt> create_database alter_database_settings
 %type <databaseOptions> database_options database_option_list
 %type <databaseOption> database_option database_option_value
 %type <tok> database_option_name
@@ -1030,6 +1030,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | create_extension | drop_extension | alter_extension_update
  | create_tablespace
  | create_database
+ | alter_database_settings
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
  | drop_statistics
@@ -1081,6 +1082,9 @@ explain_option_value: explain_word { $$=ColumnExpr{Name:ObjectName{Parts:[]Ident
 load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
 create_database: CREATE DATABASE name database_options {
  $$=&CreateDatabaseStmt{Name:$3.text,Options:$4}
+} ;
+alter_database_settings: ALTER DATABASE name role_setting_action {
+ s:=$4.(*AlterRoleSettings);$$=&AlterDatabaseSettings{Database:Identifier{Text:$3.text,Pos:$3.pos},Set:s.Set,Reset:s.Reset,FromCurrent:s.FromCurrent,Pos:$1.pos}
 } ;
 database_options: database_option_list {$$=$1}
  | WITH database_option_list {$$=$2} ;

@@ -882,6 +882,11 @@ transaction journal. Scope keys use principal references and cluster database
 identities, never names or local replacement epochs. Settings-only writes retain
 graph authority lineage but still participate in complete-record three-way
 merge, savepoints and final publication. Scope writers use cluster lock authority.
+ALTER DATABASE and ALTER ROLE ALL IN DATABASE share the actual database-address,
+zero-role row. Their owner-dependent mutations retain a database predecessor
+fence through final commit; scope-lock admission never retains stale authority.
+Catalog pairs retain the registry's PostgreSQL display spelling (for example
+`TimeZone`); row replacement/reset and startup precedence use folded keys.
 Physical startup captures one committed defaults root for the login principal
 and selected database before callbacks; provider-present values win per name.
 Typed reset values and their sources remain fixed for that physical lifetime.
@@ -1987,6 +1992,7 @@ an accessor. The inspection accessors are:
 ```sh
 make check RUN='^TestPreparedRebind'                  # prepared analysis identity
 make check RUN='^TestSetting'                         # settings registry
+make check RUN='^TestDatabaseSettings'                 # database defaults publication, cancellation and startup ownership
 make check RUN='^Test(AlterDropColumnRevisionFrontier|CatalogConcurrentReplacement|AccessMethod|Builtin)'  # catalog writes, seed
 make check RUN='^Test(CatalogRelations|NamespaceIdentity|ObjectAddress)'  # catalog inquiry and identity
 make check RUN='^TestNotification'                     # immutable session/cluster queues and publication

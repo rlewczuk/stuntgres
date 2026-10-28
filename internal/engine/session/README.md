@@ -263,6 +263,8 @@ nontransactional.
   Core owns balanced entry, authority/presentation refresh and unwinding.
 - **Statement classification** (pure functions of the AST and owner values):
   command tags (`command_tag.go`), including non-counted ALTER STATISTICS targets;
+  ALTER DATABASE defaults are modifying, non-counted transactional utilities,
+  excluded from event-trigger dispatch independently of their completion tag.
   admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,
   `ExplicitUtilityRefusal`, `TransactionalSchemaUtility`); snapshot, replacement-read and Describe classes

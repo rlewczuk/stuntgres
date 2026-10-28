@@ -336,7 +336,7 @@ func transactionalIndexMaintenance(stmt parser.Statement) bool {
 
 func transactionalRoleUtility(stmt parser.Statement) bool {
 	switch stmt.(type) {
-	case *parser.CreateRole, *parser.AlterRole, *parser.RenameRole, *parser.AlterRoleSettings, *parser.DropRole, *parser.RoleMembership, *parser.SessionAuthorization:
+	case *parser.CreateRole, *parser.AlterRole, *parser.RenameRole, *parser.AlterRoleSettings, *parser.AlterDatabaseSettings, *parser.DropRole, *parser.RoleMembership, *parser.SessionAuthorization:
 		return true
 	}
 	return false

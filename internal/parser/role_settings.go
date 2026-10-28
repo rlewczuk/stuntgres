@@ -23,6 +23,18 @@ type AlterRoleSettings struct {
 
 func (*AlterRoleSettings) statement() {}
 
+// AlterDatabaseSettings changes the database-only persisted defaults.
+// Exactly one of Set and Reset is present; no target authority is retained.
+type AlterDatabaseSettings struct {
+	Database    Identifier
+	Set         *Set
+	Reset       *Reset
+	FromCurrent bool
+	Pos         Position
+}
+
+func (*AlterDatabaseSettings) statement() {}
+
 func roleSettingSpec(t lexeme) RoleSpec {
 	s := RoleSpec{Name: t.text, Pos: t.pos}
 	if t.keyword != nil {

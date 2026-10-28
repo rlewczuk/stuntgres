@@ -163,6 +163,9 @@ single-statement limit of driver calls) belong to callers.
   database scope are separate from RESET ALL. Setting lists reuse ordinary SET
   extraction; DEFAULT and FROM CURRENT remain explicit actions. Complete grammar
   shapes, not prefix guards, reject malformed suffixes before execution.
+  ALTER DATABASE defaults have a distinct positioned `AlterDatabaseSettings`
+  node and reuse the same SET/RESET action production; database names remain
+  decoded syntax, with ownership and parameter decisions deferred to Execute.
 - Large-object ownership retains a positioned `NumericOnly` node in `AlterOwner`:
   scanner int32 integers keep their decoded value; larger and real spellings stay
   textual. OID input and role/object resolution belong to execution, never parsing.

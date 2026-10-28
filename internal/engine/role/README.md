@@ -66,6 +66,10 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   database ownership and return immutable candidates. Rename preserves principal
   identity and settings; role-specific defaults use principal/database identities
   and never mutate the issuing session's settings.
+  `PlanDatabaseSettingsTarget` resolves the named database before ownership,
+  admits inherited ownership or superuser without CREATEDB/CONNECT checks, and
+  renders the ALTER DATABASE owner diagnostic with its raw decoded name.
+  ALTER ROLE's existing role-first order and identifier diagnostics stay separate.
 - **Default privileges** (`default_privileges.go`): `DefaultPrivilegesPlan`
   returns the default ACL records ALTER DEFAULT PRIVILEGES changes, without
   OIDs.

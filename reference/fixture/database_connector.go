@@ -64,10 +64,13 @@ func DatabaseScenarioPool(t *testing.T, p *Pair, pg bool, database, role string)
 		}
 		connector = base.WithDatabase(database)
 	}
-	return databaseScenarioPools(t, connector, pg)
+	return DatabaseConnectorScenarioPool(t, connector, pg)
 }
 
-func databaseScenarioPools(t *testing.T, connector driver.Connector, pg bool) (*sql.DB, *sql.DB, *Recorder) {
+// DatabaseConnectorScenarioPool preserves recorder and raw-control ownership for
+// callers exercising an explicitly configured public connector (including opaque
+// Driver keys and copy-returning selectors).
+func DatabaseConnectorScenarioPool(t *testing.T, connector driver.Connector, pg bool) (*sql.DB, *sql.DB, *Recorder) {
 	t.Helper()
 	raw := sql.OpenDB(connector)
 	wrappedDriver := sqlmw.Driver(NoticeReferenceDriver{connector}, Interceptor{})

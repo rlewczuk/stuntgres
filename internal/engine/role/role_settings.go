@@ -81,3 +81,29 @@ func PlanRoleSettingsTarget(view access.View, s *parser.AlterRoleSettings) (Role
 	}
 	return target, nil
 }
+
+// PlanDatabaseSettingsTarget resolves the actual database before checking
+// inherited ownership. ALTER DATABASE reports the raw decoded database name.
+func PlanDatabaseSettingsTarget(view access.View, database parser.Identifier) (RoleSettingsTarget, error) {
+	var target RoleSettingsTarget
+	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.DatabaseClassID, Name: database.Text})
+	db, ok := view.Catalog.Database(address)
+	if !ok {
+		return target, sqlError("3D000", fmt.Sprintf("database \"%s\" does not exist", database.Text))
+	}
+	target.Database, target.Key.Database = db, address
+	actor, err := view.Roles.Descriptor(view.State.CurrentUser)
+	if err != nil {
+		return target, err
+	}
+	if !actor.Superuser {
+		allowed, err := view.Roles.InheritsRole(actor.Ref, db.Owner)
+		if err != nil {
+			return target, err
+		}
+		if !allowed {
+			return target, sqlError("42501", "must be owner of database "+db.Name())
+		}
+	}
+	return target, nil
+}
