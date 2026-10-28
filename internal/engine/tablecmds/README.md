@@ -50,6 +50,12 @@ TEMP preservation, relation admission and publication.
   VALIDATE resolves after deferred ADD FOREIGN KEY, carries only selected
   identities into unlocked effective-row scans, and publishes through the same
   fenced Finish. Eligible valid roots return without a stage or heap work.
+  Trigger-mode lists use one statement-private metadata stage across the addressed
+  relation, partition clones and referenced-side FK owners. The target holds
+  SHARE ROW EXCLUSIVE (or a stronger companion grant); additional owner grants
+  are OID-ordered outside `Engine.Mu`, then exact base descriptors are rechecked.
+  Root MISC consumes the original ONLY intent; descendant structural candidates
+  retain already staged modes. Finish publishes all owners together or none.
   Historical FK work is one ordered payload: ADD-time history-validating keys
   precede action-ordered MISC selections. ADD NOT VALID is not retroactively
   enrolled in the ADD prefix when MISC later promotes it. Resolution retains the
@@ -80,6 +86,16 @@ TEMP preservation, relation admission and publication.
   `ValidateRestoredDefault` and `PublishRestoreRepairLocked`;
   `ValidateRestoreIdentityConfiguration` admits only the parameter-free
   configuration of an existing internal sequence.
+  FK mode replay resolves all already constructed definitions, including ordinary
+  post-data NOT VALID ALTERs. Complete sealed snapshot groups waive row scans only
+  for their exact selected FKs. Without the matching SQL seal, every valid
+  installed FK is scanned, including definitions outside deferred CREATE work;
+  BoundSlot/OID and provider validation remain mandatory in either case.
+  Replay resolves logical owners through catalog names and indexes each owner's
+  constraint positions once. It detaches one envelope/FK slice only on the first
+  changed slot, validates complete groups before replacing each changed owner
+  once, and retains unchanged owners for default-O or repeated-mode snapshots.
+  Fully waived pending groups require no temporary definition-slice copy.
 - Shared with other families: `SchemaTableLocked` (CREATE TABLE inside CREATE
   SCHEMA), `SkipMissingRelationLocked`, `AcquireTypedSources`,
   `AcquirePartitionValidationViewsLocked`, `PendingPartitionDefinition` and

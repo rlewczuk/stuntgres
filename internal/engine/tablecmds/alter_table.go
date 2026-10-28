@@ -129,7 +129,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, nil
 		}
 	}
-	if scope.Inheritance.Alter == nil && !access.RowSecurityActions(s.Actions) && !table.RuleModesOnly(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
+	if scope.Inheritance.Alter == nil && !access.RowSecurityActions(s.Actions) && !table.TriggerModesOnly(s.Actions) && !table.RuleModesOnly(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
 		return alterInheritanceLocked(e, scope, op, auth, s, count, destination, prepared)
 	}
 	if scope.Inheritance.Alter == nil || !scope.Inheritance.Alter.Descendant {
@@ -152,6 +152,12 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return fail(err)
 		}
 		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next)
+	}
+	if table.TriggerModesOnly(s.Actions) {
+		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
+			return fail(err)
+		}
+		return triggerModesLocked(e, scope, op, auth, old, s)
 	}
 	if table.RuleModesOnly(s.Actions) {
 		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
@@ -259,6 +265,10 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		return core.Result{}, err
 	}
 	next := old
+	var stagedModes *catalog.Relation
+	if state := scope.Inheritance.Alter; state != nil && state.Descendant {
+		stagedModes, _ = state.Stage.Get(old.Address()).(*catalog.Relation)
+	}
 	definition := inheritancePreparedNode(scope)
 	var transformations []index.ColumnTransformation
 	var pendingChecks []table.AlterTypeCheck
@@ -276,6 +286,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	hasForeignKeys := len(foreignKeysOrZero(scope).AlterKeys) != 0
 	hasValidations := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.ValidateConstraint })
 	hasRuleModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.RuleModeAction(a.Action) })
+	hasTriggerModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.TriggerModeAction(a.Action) })
 	for _, action := range s.Actions {
 		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
 	}
@@ -441,6 +452,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, err)
 		}
 	}
+	next = table.PreserveTriggerModes(stagedModes, next)
 	op.Definition = originalDefinition
 	auth.Definition = nil
 	finish, err := table.FinishAlterCandidate(table.AlterFinishInput{
@@ -449,7 +461,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		FinishInheritance: func(o, n *catalog.Relation) (*catalog.Relation, error) {
 			return finishInheritanceAlterCandidate(scope, o, n)
 		},
-		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys, ValidateConstraints: hasValidations || hasRuleModes,
+		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys, ValidateConstraints: hasValidations || hasRuleModes || hasTriggerModes,
 		StageEmpty:  stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.Sequence.StagedGenerators()) == 0,
 		Destination: destination,
 	})
@@ -553,6 +565,20 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if err := op.Context().Err(); err != nil {
 			return core.Result{}, err
 		}
+		if table.TriggerModeAction(action.Action) {
+			if err := stage.ReplaceDescriptor(next, false, false); err != nil {
+				return core.Result{}, err
+			}
+			only := s.Only
+			if state := inheritancePlan(scope); state != nil && !state.Descendant {
+				only = state.Only
+			}
+			next, err = stageTriggerMode(e, scope, auth, stage, next, action, only)
+			if err != nil {
+				return core.Result{}, err
+			}
+			continue
+		}
 		if table.RuleModeAction(action.Action) {
 			next, err = table.RuleModeCandidate(next, action)
 			if err != nil {
@@ -593,7 +619,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			foreignKeyHistory = append(foreignKeyHistory, *selected.ForeignKey)
 		}
 	}
-	if (hasValidations || hasRuleModes) && next != old {
+	if (hasValidations || hasRuleModes || hasTriggerModes) && next != old {
 		if err := stage.Replace(next); err != nil {
 			return core.Result{}, err
 		}

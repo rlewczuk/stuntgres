@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"cmp"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,7 +26,7 @@ type ForeignKeyJob struct {
 }
 
 func SameForeignKeyDefinition(a, b catalog.ForeignKeyConstraint) bool {
-	return a.OID == b.OID && a.Target == b.Target && a.Index == b.Index && a.Full == b.Full && a.UpdateAction == b.UpdateAction && a.DeleteAction == b.DeleteAction && slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Referenced, b.Referenced) && slices.Equal(a.DeleteAttributes, b.DeleteAttributes)
+	return a.OID == b.OID && a.TriggerOIDs == b.TriggerOIDs && a.Target == b.Target && a.Index == b.Index && a.Full == b.Full && a.UpdateAction == b.UpdateAction && a.DeleteAction == b.DeleteAction && slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Referenced, b.Referenced) && slices.Equal(a.DeleteAttributes, b.DeleteAttributes)
 }
 
 func RefreshForeignActionJob(view catalog.Read, job *ForeignKeyJob) error {
@@ -70,6 +71,21 @@ type ForeignActionTransition struct {
 	Owner                authorization.PrincipalRef // zero means the initiating statement's actor
 	Command              uint64                     // zero is the root statement; child SQL commands are distinct
 	ActionsDone, Checked bool
+	// Event-time eligibility, sorted by constraint identity, survives later
+	// mode/role changes before draining. The capture is immutable once shared.
+	Suppressed []ForeignTriggerSuppression
+}
+
+type ForeignTriggerSuppression struct {
+	Constraint ids.OID
+	Slots      uint8
+}
+
+func (event ForeignActionTransition) TriggerFires(constraint ids.OID, slot int) bool {
+	at, found := slices.BinarySearchFunc(event.Suppressed, constraint, func(suppressed ForeignTriggerSuppression, oid ids.OID) int {
+		return cmp.Compare(suppressed.Constraint, oid)
+	})
+	return !found || event.Suppressed[at].Slots&(1<<slot) == 0
 }
 
 func ForeignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []sqltype.Value) bool {

@@ -331,7 +331,7 @@ The following are **setting-only simulations**, not operational switches:
 `dynamic_library_path`, `event_triggers`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
 `restrict_nonsystem_relation_kind`, `session_preload_libraries`,
-`session_replication_role`, `temp_tablespaces`, `xmlbinary` and `xmloption`.
+`temp_tablespaces`, `xmlbinary` and `xmloption`.
 Table AM/tablespace names use actual catalog identities and temporary
 tablespaces check CREATE privileges. Text-search configuration names resolve
 actual configuration descriptors under current namespace authority; no language
@@ -342,9 +342,10 @@ the setting's invalid-value diagnostic (22023); namespace permission failures
 retain their authority diagnostic instead of being hidden as invalid values.
 No compressors, GIN truncation/pending lists, physical placement, automatic
 role membership, relation restrictions, XML execution or event-trigger
-mechanisms are implied. In particular, native FK checks still run with
-replication role replica, and invalid routines cannot publish with
-check_function_bodies off. `SET XML OPTION DOCUMENT/CONTENT` (including
+mechanisms are implied. `session_replication_role` instead controls real user
+and per-event foreign-key trigger execution through their stored O/D/R/A modes;
+effective changes use the shared prepared-plan discard generation. Invalid
+routines cannot publish with check_function_bodies off. `SET XML OPTION DOCUMENT/CONTENT` (including
 SESSION/LOCAL) is syntax for the same xmloption value.
 
 Library/path settings never probe or load files. Preload SET argument lists

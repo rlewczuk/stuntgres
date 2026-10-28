@@ -47,7 +47,7 @@ type afterTriggerEvent struct {
 	event      stored.TriggerEvent
 	old, next  []sqltype.Value
 	actor      *AuthorizationView // Immutable RI authority; live grants are recaptured.
-	qualified  bool // Statement WHEN is decided once at producer completion.
+	qualified  bool               // Statement WHEN is decided once at producer completion.
 	skip       bool
 }
 
@@ -127,7 +127,7 @@ func (h *statementHost) queueAfter(ref ids.ObjectRef, event stored.TriggerEvent,
 	}
 	for _, definition := range definitions {
 		p := definition.Parts()
-		if p.Timing != stored.TriggerAfter || p.Level != level || !definition.Fires(event, targets) {
+		if p.Timing != stored.TriggerAfter || p.Level != level || level == stored.TriggerRow && !definition.Mode().Fires(auth.RuleReplica()) || !definition.Fires(event, targets) {
 			continue
 		}
 		if f == nil {
@@ -246,6 +246,9 @@ func (s *StatementScope) qualifyAfterStatement(event afterTriggerEvent) (bool, e
 	e.Mu.Unlock()
 	if err != nil {
 		return false, err
+	}
+	if !event.definition.Mode().Fires(auth.RuleReplica()) {
+		return false, nil
 	}
 	return s.afterWhen(event, auth)
 }

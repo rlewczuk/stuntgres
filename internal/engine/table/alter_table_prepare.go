@@ -28,7 +28,7 @@ func PrepareAlterTableActions(h AlterHost, auth ddl.Authority, original *catalog
 		return AlterTablePreparation{}, err
 	}
 	for _, action := range actions {
-		if err := AlterTableActionKind(original, action.Action); err != nil {
+		if err := AlterTableActionAdmission(original, action); err != nil {
 			return fail(err)
 		}
 		switch action.Action {
@@ -106,6 +106,14 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 		label = "ENABLE REPLICA RULE"
 	case parser.EnableAlwaysRule:
 		label = "ENABLE ALWAYS RULE"
+	case parser.EnableTrigger:
+		label = "ENABLE TRIGGER"
+	case parser.DisableTrigger:
+		label = "DISABLE TRIGGER"
+	case parser.EnableReplicaTrigger:
+		label = "ENABLE REPLICA TRIGGER"
+	case parser.EnableAlwaysTrigger:
+		label = "ENABLE ALWAYS TRIGGER"
 	case parser.DropColumn:
 		label = "DROP COLUMN"
 	case parser.SetNotNull:
@@ -121,6 +129,28 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 		return access.RowSecurityKind(original, action, analyze.TableKindError)
 	default:
 		return fmt.Errorf("stuntgres: invalid ALTER action")
+	}
+	return analyze.TableKindError(original, label)
+}
+
+func AlterTableActionAdmission(original *catalog.Relation, action parser.AlterTableAction) error {
+	if !TriggerModeAction(action.Action) {
+		return AlterTableActionKind(original, action.Action)
+	}
+	label := "ENABLE TRIGGER"
+	switch action.Action {
+	case parser.DisableTrigger:
+		label = "DISABLE TRIGGER"
+	case parser.EnableReplicaTrigger:
+		label = "ENABLE REPLICA TRIGGER"
+	case parser.EnableAlwaysTrigger:
+		label = "ENABLE ALWAYS TRIGGER"
+	}
+	switch action.TriggerSelector {
+	case parser.TriggerAll:
+		label += " ALL"
+	case parser.TriggerUser:
+		label += " USER"
 	}
 	return analyze.TableKindError(original, label)
 }

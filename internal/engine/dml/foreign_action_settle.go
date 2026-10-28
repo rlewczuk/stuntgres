@@ -99,11 +99,16 @@ func SettleForeignActions(h FinishHost) error {
 					continue
 				}
 				action := job.Definition.DeleteAction
+				actionSlot := 0
 				if event.Next.Row != 0 {
 					if ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
 						continue
 					}
 					action = job.Definition.UpdateAction
+					actionSlot = 1
+				}
+				if !event.TriggerFires(job.Definition.OID, actionSlot) {
+					continue
 				}
 				if action == parser.ForeignKeyNoAction {
 					continue

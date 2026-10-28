@@ -112,6 +112,22 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   restores their historical parent link only in native Restore; PostgreSQL
   ignores the comment and recreates independent child triggers with the same
   firing behavior, not the native drop/detach dependency link.
+- User trigger enable modes replay after every trigger definition, using ONLY to
+  retain independently stored partition-clone modes. Complete four-slot
+  `stuntgres-fk-trigger-mode-v2` records form a deterministic native footer with
+  logical owning constraint/slot identities and a SHA256 seal of the exact SQL
+  bytes preceding it; no allocated RI name or OID enters the footer. Native
+  Restore applies modes after all FK declaration paths have completed. Only a
+  complete snapshot whose seal matches the entire SQL stream receives its
+  per-constraint data-retention waiver, preserving saved replica/disabled-trigger
+  orphan rows. Edited or appended SQL loses that waiver and undergoes ordinary FK
+  validation with its normal diagnostics; NOT VALID state remains unchanged.
+  Valid edited SQL can restore successfully without a matching seal. Marker-looking
+  text within SQL literals is ordinary data, never a decoded footer record or a
+  byte range excluded from hashing.
+  The seal is deterministic provenance, not cryptographic authentication.
+  Malformed, incomplete, duplicate or unresolved metadata rejects the isolated
+  restore without changing target data, modes or held prepared handles.
 - User-mapping options are written as stored, including credentials.
 - Materialized view contents are carried in `-- stuntgres-matview-v1 <base64>`
   comments (JSON fields `schema`, `name`, `populated`, `rows`). Native Restore

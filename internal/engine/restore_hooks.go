@@ -19,6 +19,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "extension: owner records", Decode: decodeRestoreExtensionOwners},
 	{Name: "view: materialized snapshot records", Decode: decodeRestoreMaterializedSnapshot},
 	{Name: "trigger: retained clone records", Decode: decodeRestoreTriggerClone},
+	{Name: "trigger: foreign key mode records", Decode: decodeRestoreForeignKeyMode},
 	{Name: "comparison binding records", Decode: decodeRestoreComparisonContext},
 	{Name: "statistics: extended records", Decode: decodeRestoreExtendedStatistics},
 

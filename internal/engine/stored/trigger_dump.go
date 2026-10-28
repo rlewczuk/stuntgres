@@ -20,6 +20,7 @@ import (
 func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorization.Read) ([]dump.Group, error) {
 	var groups []dump.Group
 	var dependencies []dump.Group
+	var modes []dump.Group
 	for _, descriptor := range read.Descriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok || !relation.HasTriggers() {
@@ -41,6 +42,7 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				return nil, err
 			}
 			p := t.Parts()
+			modes = append(modes, dump.Group{Owner: owner.Name, Table: table, SQL: TriggerModeSQL(table, p.Name, t.Mode())})
 			for _, address := range p.AutoExtensions {
 				extension, ok := read.Extension(address)
 				if !ok {
@@ -59,7 +61,10 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				}
 				var source Trigger
 				for _, candidate := range TriggersOf(parent) {
-					if candidate.OID() == p.Parent.ObjectID { source = candidate; break }
+					if candidate.OID() == p.Parent.ObjectID {
+						source = candidate
+						break
+					}
 				}
 				if source.OID() == 0 {
 					return nil, ids.ErrCatalogReplaced
@@ -151,7 +156,9 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 			if retained != nil {
 				retained.SQL = text
 				comment, err := retained.Comment()
-				if err != nil { return nil, err }
+				if err != nil {
+					return nil, err
+				}
 				text = comment + text
 			}
 			groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: text})
@@ -172,5 +179,12 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 		return strings.Compare(a.SQL, b.SQL)
 	})
 	groups = append(groups, dependencies...)
+	slices.SortFunc(modes, func(a, b dump.Group) int {
+		if a.Table != b.Table {
+			return strings.Compare(a.Table, b.Table)
+		}
+		return strings.Compare(a.SQL, b.SQL)
+	})
+	groups = append(groups, modes...)
 	return groups, nil
 }

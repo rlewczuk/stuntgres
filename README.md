@@ -46,9 +46,9 @@ Client connection defaults use one typed settings registry, including
 search paths, row security, transaction characteristics and timeouts retain
 their real native behavior. Storage/GIN/TOAST, FTS configuration selection,
 XML defaults, library/path/preload strings and other absent mechanisms are
-explicit **setting-only simulations**, not physical effects. Native
-`session_replication_role=replica` never bypasses FK checks, and
-`check_function_bodies=off` never admits invalid routines. Postmaster settings
+explicit **setting-only simulations**, not physical effects. The effective
+`session_replication_role` controls user and foreign-key trigger firing through
+their stored enable modes. `check_function_bodies=off` never admits invalid routines. Postmaster settings
 still refuse live mutation; SET grants and restricted reads are independent.
 See the [settings boundary inventory](internal/engine/settings/README.md#client-connection-defaults).
 

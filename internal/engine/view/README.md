@@ -52,6 +52,14 @@ imports `view`.
   Statement definitions stay local to their named relation. Replacing a parent
   row definition with statement level retains existing row clones and their
   parent links; replacing it with row level resynchronizes that lineage.
+  New clones inherit the parent mode; structural synchronization retains existing
+  clone-local modes except actual CREATE OR REPLACE, which resets its lineage to O.
+  Mode-only revision changes advance clone provenance without reconstructing
+  WHEN/function backing. Original parent recipes use matching positions or one
+  invocation-local identity lookup when positions shifted, not repeated scans.
+  Explicit ALTER recursion is owned by
+  `table.TriggerModeCandidate`, follows parent identities, and does not sweep
+  unrelated same-name triggers or traditional inheritance children.
 - **Query preflight and join legality** (`query_preflight.go`,
   `query_set_preflight.go`, `query_join_legality.go`): `PreflightQuery` copies
   the plan paths that hold folded coercions for one execution;

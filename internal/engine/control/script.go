@@ -34,6 +34,7 @@ type dumpScript struct {
 
 	policyGroups, ruleGroups, securityGroups  []dump.Group
 	triggerGroups                             []dump.Group
+	foreignKeyModes []stored.ForeignKeyModeReplay
 	eventTriggerReplay                        []eventTriggerReplay
 	domainNodes                               map[ids.OID]*catalog.Type
 	collationStatements, conversionStatements []dump.Statement
@@ -70,6 +71,9 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if s.triggerGroups, err = stored.TriggerDumpGroups(ctx, s.OriginalCatalog, s.OriginalRoles); err != nil {
+		return nil, err
+	}
+	if s.foreignKeyModes, err = stored.ForeignKeyModeRecords(ctx, s.OriginalCatalog); err != nil {
 		return nil, err
 	}
 	if s.securityGroups, err = stored.RowSecurityDumpGroups(ctx, s.CatalogView, s.DomainRoles); err != nil {

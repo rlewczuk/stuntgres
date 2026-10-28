@@ -2,6 +2,8 @@ package control
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 
 	"stuntgres/internal/engine/authorization"
@@ -94,6 +96,9 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 		return err
 	}
 	w := &dumpWriter{ctx: ctx, dst: dst}
+	if len(script.foreignKeyModes) != 0 {
+		w.seal, w.sealBuffer = sha256.New(), make([]byte, 4096)
+	}
 	if script.rawFloat4 {
 		final, exists := capture.CatalogView.Cast(sqltype.Xid, sqltype.Float4)
 		if !exists || final.Method != "b" || script.rawFinalDeferred {
@@ -114,6 +119,16 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 	if w.comparisonContext {
 		if err := w.emit("-- " + ComparisonContextEnd + "\nRESET search_path;\n"); err != nil {
 			return err
+		}
+	}
+	if w.seal != nil {
+		seal := hex.EncodeToString(w.seal.Sum(nil))
+		w.seal = nil // The terminal native footer is excluded from the SQL seal.
+		for _, record := range script.foreignKeyModes {
+			record.Seal = seal
+			comment, err := record.Comment()
+			if err != nil { return err }
+			if err := w.emit(comment); err != nil { return err }
 		}
 	}
 	return ctx.Err()

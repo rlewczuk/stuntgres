@@ -867,7 +867,11 @@ follow it. Shared mutations journal successor/deletion events while private
 roots are locked and flush after the engine/owner unlock. No `Engine.Mu` →
 manager-mutex acquisition exists. Finish discards private stages on failure.
 Each DML activation captures the current owner-private trigger list, not a
-list cached by its prepared handle. VACUUM is
+list cached by its prepared handle. Each BEFORE trigger reads operation-effective
+replication role separately, before UPDATE-column/WHEN and routine admission:
+earlier bodies in the same row chain can change it. AFTER ROW eligibility is
+captured before WHEN/tuple ownership; draining never rechecks a queued mode/role.
+Disabled statement candidates become skipped registrations, not fired events. VACUUM is
 [`tablecmds`](../tablecmds/README.md#vacuum)'s.
 
 AFTER state belongs to `StatementScope`, keyed by monotonic effect-command
@@ -875,9 +879,10 @@ identity rather than swapped DML scratch. Writable CTEs share their query frame;
 routine SQL completes its own frame synchronously. Accepted ROW WHEN predicates
 run unlocked on final images; queued bodies run at command completion after
 immediate obligations and before publication, with rows preceding statements.
-Statement registration is execution-only and independent of row count. Statement
-WHEN qualifies each producer's registration at its exhaustion, before immediate
-RI work and row-body draining; firing does not reevaluate it. A repeated
+Statement registration is bookkeeping only and independent of row count. Mode
+eligibility, then WHEN, qualifies each producer's candidates at its successful
+exhaustion, after row production but before immediate RI work and row-body
+draining; firing reevaluates neither decision. A repeated
 target/event producer replaces prior decisions, while bodies still drain once
 at query completion. Where statement effects require consumer boundaries, writable
 CTE modifiers activate on demand through their existing typed materialized source.
@@ -1488,6 +1493,11 @@ session, transaction, prepared-analysis and typed-frame authorities.
   `StatementScope.Finish`'s disposal; no timer callback mutates the transaction.
 
 ## Testing
+
+Trigger-mode candidate, staged cancellation, prepared publication, clone/FK and
+replay ownership units share `RUN='^TestTriggerMode'`, also with `RACE=1`.
+They inspect installed immutable definitions, real journals and accepted folds;
+SQL values, diagnostics and native-control effects remain in `reference/operators`.
 
 Other planner-option admission, actual collection/publication, branch selection,
 cursor-source retention and scoped recursive estimates use `RUN='^TestPlannerOther'`.

@@ -55,9 +55,11 @@ The engine's `statementHost` implements them (`statement_host_dml.go`,
 - `AfterRow` queues an accepted physical image after successful staging and before
   RETURNING. WHEN evaluates at admission on completed generated values; bodies
   run through the query owner's completion, never in retryable staging windows.
-  `AfterStatement` registers logical target/event independently of row count.
-  Successful producers report exhaustion through `CompleteAfterStatement`,
-  without draining the shared query. Core qualifies exhausted modifiers immediately;
+  `AfterStatement` registers logical target/event independently of row count,
+  without selecting replication-role modes before row production. Successful
+  producers report exhaustion through `CompleteAfterStatement`, where core checks
+  current mode eligibility before WHEN, without draining the shared query.
+  Core qualifies exhausted modifiers immediately;
   a suspended RETURNING source retains candidates until consumer EOF or auxiliary
   exhaustion. Repeated target/event completions replace prior decisions, including FALSE.
   Physical movement emits DELETE and INSERT row events while the named command
@@ -78,6 +80,16 @@ slot. `Authority` is the statement authority the FK runtime checks and
 evaluates with (`ActingAs` gives the referencing table owner's); the engine's
 `*AuthorizationView` implements it and is also an `exec.Context`'s
 `RoutineAuthority`.
+RI execution uses the FK descriptor's actual event slot: DELETE/UPDATE parent
+actions use 0/1, INSERT/UPDATE child checks use 2/3. Effective replication role
+gates each slot independently, including final parent checks, so a disabled
+action is not undone by an unconditional later check. Old/Next transition
+identity determines the event even for updates of transaction-local inserts.
+Eligibility is captured in the immutable row event before settlement. Suppression
+vectors are shared within an unchanged relation/catalog/effective-role capture,
+not mutated when settings or definitions change; all-enabled captures remain nil.
+Vectors are sorted once by constraint identity when captured and searched by
+binary lookup, rather than rescanned for each FK/slot during settlement.
 Reached trigger-body statements, routine helpers and source reads retain the
 referencing-table owner's RI authority through description, prepared analysis
 and execution, including live role recapture after unlocked provider preflight.

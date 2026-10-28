@@ -164,6 +164,9 @@ func ValidateForeignKeys(view catalog.Read, child *catalog.Relation, names map[s
 			return fmt.Errorf("stuntgres: invalid foreign-key definition")
 		}
 		for slot, trigger := range f.TriggerOIDs {
+			if !f.TriggerMode(slot).Valid() {
+				return fmt.Errorf("stuntgres: invalid foreign-key trigger mode")
+			}
 			if trigger == 0 || trigger == f.OID || slices.Contains(f.TriggerOIDs[:slot], trigger) {
 				return fmt.Errorf("stuntgres: invalid foreign-key trigger identity")
 			}

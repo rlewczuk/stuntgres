@@ -41,6 +41,7 @@ const (
 type TriggerParts struct {
 	OID            ids.OID
 	Name           string
+	Mode           catalog.TriggerMode
 	Relation       ids.ObjectRef
 	Procedure      ids.ObjectRef
 	Parent         ids.ObjectAddress // Parent trigger identity for a partition clone.
@@ -60,6 +61,9 @@ type TriggerParts struct {
 type Trigger struct{ parts TriggerParts }
 
 func validateTriggerParts(p TriggerParts) error {
+	if !p.Mode.Normalized().Valid() {
+		return fmt.Errorf("stuntgres: invalid trigger mode")
+	}
 	if p.OID == 0 || p.Name == "" || p.Relation.Address.ClassID != ids.RelationClassID || p.Relation.Address.ObjectID == 0 || p.Procedure.Address.ClassID != ids.ProcedureClassID || p.Procedure.Address.ObjectID == 0 || p.Events == 0 || p.Events&^(TriggerInsert|TriggerUpdate|TriggerDelete|TriggerTruncate) != 0 || (p.When == nil) != (p.Presentation == nil) || (p.When == nil) != (p.Binding == nil) {
 		return fmt.Errorf("stuntgres: invalid trigger definition")
 	}
@@ -80,6 +84,7 @@ func validateTriggerParts(p TriggerParts) error {
 	return nil
 }
 func NewTrigger(p TriggerParts) (Trigger, error) {
+	p.Mode = p.Mode.Normalized()
 	p.AutoExtensions = slices.Clone(p.AutoExtensions)
 	slices.SortFunc(p.AutoExtensions, func(a, b ids.ObjectAddress) int { return cmp.Compare(a.ObjectID, b.ObjectID) })
 	p.AutoExtensions = slices.Compact(p.AutoExtensions)
@@ -91,9 +96,30 @@ func NewTrigger(p TriggerParts) (Trigger, error) {
 	p.References = slices.Clone(p.References)
 	return Trigger{parts: p}, nil
 }
-func (t Trigger) Parts() TriggerParts { return t.parts }
-func (t Trigger) Name() string        { return t.parts.Name }
-func (t Trigger) OID() ids.OID        { return t.parts.OID }
+func (t Trigger) Parts() TriggerParts       { return t.parts }
+func (t Trigger) Name() string              { return t.parts.Name }
+func (t Trigger) OID() ids.OID              { return t.parts.OID }
+func (t Trigger) Mode() catalog.TriggerMode { return t.parts.Mode.Normalized() }
+
+// WithMode replaces only the immutable envelope, retaining executable backing.
+func (t Trigger) WithMode(mode catalog.TriggerMode) (Trigger, error) {
+	if !mode.Valid() {
+		return Trigger{}, fmt.Errorf("stuntgres: invalid trigger mode")
+	}
+	t.parts.Mode = mode
+	return t, nil
+}
+
+// WithParentRevision advances clone provenance without rebuilding its recipe.
+func (t Trigger) WithParentRevision(revision ids.DefinitionRevision) Trigger {
+	t.parts.ParentRevision = revision
+	return t
+}
+
+func (t Trigger) SameExecutable(other Trigger) bool {
+	a, b := t.parts, other.parts
+	return a.OID == b.OID && a.Name == b.Name && a.Relation == b.Relation && a.Procedure == b.Procedure && a.Parent == b.Parent && a.Events == b.Events && a.Timing == b.Timing && a.Level == b.Level && a.Binding == b.Binding && a.Presentation == b.Presentation && slices.Equal(a.UpdateColumns, b.UpdateColumns) && slices.Equal(a.Arguments, b.Arguments) && slices.Equal(a.References, b.References) && slices.Equal(a.AutoExtensions, b.AutoExtensions)
+}
 func (t Trigger) Fires(event TriggerEvent, targets []int32) bool {
 	if t.parts.Events&event == 0 {
 		return false
@@ -111,7 +137,7 @@ func (t Trigger) Fires(event TriggerEvent, targets []int32) bool {
 
 type TriggerList []Trigger
 
-func (t TriggerList) Len() int { return len(t) }
+func (t TriggerList) Len() int          { return len(t) }
 func (t TriggerList) OID(i int) ids.OID { return t[i].parts.OID }
 
 func (t TriggerList) Visit(visit func(catalog.TriggerFact) error) error {

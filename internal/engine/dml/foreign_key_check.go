@@ -68,6 +68,13 @@ func CheckForeignKeys(h FinishHost) (err error) {
 			if event.Command != slot.Command || event.Checked || event.Relation != childRef.Address || event.Next.Row == 0 {
 				continue
 			}
+			checkSlot := 2
+			if event.Old.Row != 0 {
+				checkSlot = 3
+			}
+			if !event.TriggerFires(f.OID, checkSlot) {
+				continue
+			}
 			row := event.Next
 			final, _, found := storage.RowByID(staged.Staged, row.Row, -1)
 			if !found || final.Version != row.Version {
@@ -132,6 +139,13 @@ func CheckForeignKeys(h FinishHost) (err error) {
 		}
 		for _, event := range slot.Transitions {
 			if event.Command != slot.Command || event.Checked || event.Relation != parentRef.Address || event.Old.Row == 0 {
+				continue
+			}
+			actionSlot := 0
+			if event.Next.Row != 0 {
+				actionSlot = 1
+			}
+			if !event.TriggerFires(f.OID, actionSlot) {
 				continue
 			}
 			if event.Next.Row != 0 && ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {

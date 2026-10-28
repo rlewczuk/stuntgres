@@ -14,6 +14,7 @@ type ForeignKeyTriggerFact struct {
 	Relation, Owner ids.ObjectAddress
 	Constraint      ForeignKeyConstraint
 	Slot            int
+	Mode            TriggerMode
 }
 
 func ForeignKeyTriggerFacts(view Read) iter.Seq[ForeignKeyTriggerFact] {
@@ -28,7 +29,7 @@ func ForeignKeyTriggerFacts(view Read) iter.Seq[ForeignKeyTriggerFact] {
 					if slot < 2 {
 						relation, kind = constraint.Target, "a"
 					}
-					fact := ForeignKeyTriggerFact{OID: oid, Name: "RI_ConstraintTrigger_" + kind + "_" + strconv.FormatUint(uint64(oid), 10), Relation: relation, Owner: owner.Address(), Constraint: constraint, Slot: slot}
+					fact := ForeignKeyTriggerFact{OID: oid, Name: "RI_ConstraintTrigger_" + kind + "_" + strconv.FormatUint(uint64(oid), 10), Relation: relation, Owner: owner.Address(), Constraint: constraint, Slot: slot, Mode: constraint.TriggerMode(slot)}
 					if !yield(fact) {
 						return
 					}

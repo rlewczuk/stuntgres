@@ -159,6 +159,7 @@ func AssignForeignKeyTriggerOIDs(a ddl.Allocator, f *catalog.ForeignKeyConstrain
 			return err
 		}
 		f.TriggerOIDs[slot] = oid
+		f.TriggerModes[slot] = catalog.TriggerOrigin
 	}
 	return nil
 }

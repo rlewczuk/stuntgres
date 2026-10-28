@@ -193,7 +193,7 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 			}
 			roleExecute(t, e, op, mutation)
 			before := e.Catalog.State
-			if err := tablecmds.BindRestoredForeignKeys(e, context.Background(), op, []table.RestoredForeignKeys{pending}); !errors.Is(err, ids.ErrCatalogReplaced) || e.Catalog.State != before {
+			if err := tablecmds.BindRestoredForeignKeys(e, context.Background(), op, []table.RestoredForeignKeys{pending}, nil, false); !errors.Is(err, ids.ErrCatalogReplaced) || e.Catalog.State != before {
 				t.Fatal("stale source/key/provider receipt rebound or published", err)
 			}
 		})
@@ -208,7 +208,7 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		before := e.Catalog.State
-		if err := tablecmds.BindRestoredForeignKeys(e, ctx, op, []table.RestoredForeignKeys{pending}); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
+		if err := tablecmds.BindRestoredForeignKeys(e, ctx, op, []table.RestoredForeignKeys{pending}, nil, false); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
 			t.Fatal("canceled post-data validation published staged metadata", err)
 		}
 	})

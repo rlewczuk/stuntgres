@@ -210,6 +210,13 @@ function references once into the destination authority.
   uses `dump.Statement.PrivilegedCreation` and `DEFAULT` (the authenticated
   administrator), emits `FollowingSQL` with the actual owner transfer, then
   restores tracked owner authority before any dependent event.
+  When FK snapshot records exist, the writer incrementally hashes successfully
+  emitted ordinary bytes using bounded scratch. After every section and final
+  comparison-context RESET it emits the allocation-independent native FK footer,
+  excluded from that seal. Restore checks the whole SQL stream excluding only
+  those complete record lines; appended SQL executes normally but cannot retain
+  a stale snapshot waiver. Short writes, errors and cancellation retain their
+  ordinary writer boundaries; the seal is not an authentication mechanism.
   Ordinary non-bootstrap-owned tables likewise capture the named owner, create
   under authenticated `DEFAULT`, transfer that exact fresh table immediately,
   and restore owner authority before declaration completion or data. The private

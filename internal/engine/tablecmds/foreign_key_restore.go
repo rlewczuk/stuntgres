@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
@@ -50,8 +51,8 @@ func ResolveRestoredForeignKeyTargets(e *core.Engine, pending *table.RestoredFor
 	return nil
 }
 
-func BindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Operation, pending []table.RestoredForeignKeys) error {
-	if len(pending) == 0 {
+func BindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Operation, pending []table.RestoredForeignKeys, modes []stored.ForeignKeyModeReplay, snapshotValid bool) error {
+	if len(pending) == 0 && len(modes) == 0 {
 		return nil
 	}
 	base := e.CatalogRead()
@@ -101,7 +102,21 @@ func BindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Op
 		}
 	}
 	e.Mu.Unlock()
+	unvalidated, err := applyRestoredForeignKeyModes(e, stage, modes)
+	if err != nil {
+		return err
+	}
 	view := e.StageRead(stage)
+	pendingIDs := make(map[ids.OID]bool)
+	for _, declaration := range pending {
+		child := view.MustRelation(declaration.Child.Address)
+		for _, definition := range declaration.Definitions {
+			if definition.BoundSlot < 0 || definition.BoundSlot >= len(child.Constraints.ForeignKeys) || child.Constraints.ForeignKeys[definition.BoundSlot].OID != definition.BoundOID {
+				return ids.ErrCatalogReplaced
+			}
+			pendingIDs[definition.BoundOID] = true
+		}
+	}
 	// The Restore scan reads the committed rows and index roots directly.
 	capture := func(ref ids.ObjectRef, idx ids.ObjectAddress) (table.ForeignKeyRows, error) {
 		store := e.Storage.Relations[ref.Address]
@@ -120,8 +135,43 @@ func BindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Op
 		auth.Catalog = view
 		auth.Recapture(auth.Catalog)
 		scan := table.ForeignKeyScan{View: auth.View, Env: auth, Domain: e.Catalog.Domain, Capture: capture}
-		if err := table.ScanRestoredForeignKeys(ctx, scan, child, declaration.Definitions); err != nil {
+		definitions := declaration.Definitions
+		if snapshotValid && len(unvalidated) != 0 {
+			keep := 0
+			for _, definition := range definitions {
+				if !unvalidated[definition.BoundOID] { keep++ }
+			}
+			if keep == 0 {
+				definitions = nil
+			} else if keep != len(definitions) {
+				filtered := make([]table.RestoredForeignKey, 0, keep)
+				for _, definition := range definitions {
+					if !unvalidated[definition.BoundOID] { filtered = append(filtered, definition) }
+				}
+				definitions = filtered
+			}
+		}
+		if err := table.ScanRestoredForeignKeys(ctx, scan, child, definitions); err != nil {
 			return err
+		}
+	}
+	// Some post-data declarations (notably NOT VALID forms) were installed by
+	// real ALTER before this finish hook. A changed SQL seal also requires
+	// ordinary validation of every installed valid FK, not only pending CREATEs.
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
+	if err != nil { return err }
+	auth.Catalog = view
+	for _, child := range view.Relations() {
+		ownerAuth := auth
+		ownerAuth.State.CurrentUser = child.Owner
+		ownerAuth.Recapture(view)
+		scan := table.ForeignKeyScan{View: ownerAuth.View, Env: ownerAuth, Domain: e.Catalog.Domain, Capture: capture}
+		for slot, key := range child.Constraints.ForeignKeys {
+			if pendingIDs[key.OID] || key.NotValid || snapshotValid && unvalidated[key.OID] { continue }
+			selected := [1]table.RestoredForeignKey{{BoundOID: key.OID, BoundSlot: slot}}
+			if err := table.ScanRestoredForeignKeys(ctx, scan, child, selected[:]); err != nil { return err }
 		}
 	}
 	prepared, err := e.ValidateCatalogStage(ctx, stage)

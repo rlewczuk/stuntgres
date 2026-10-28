@@ -183,7 +183,7 @@ func admitRestoreCreateTable(r *restoreRun, op *session.Operation, s *parser.Cre
 // a valid CHECK (with inherited repair authority where needed), or the
 // restorable constraint forms.
 func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.AlterTable) error {
-	if table.RestoreRuleMode(s) {
+	if table.RestoreRuleMode(s) || table.RestoreTriggerMode(s) {
 		return nil // Canonical rule post-data ALTER; normal ownership/staging applies.
 	}
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.DropColumn {

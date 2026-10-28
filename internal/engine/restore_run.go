@@ -40,6 +40,8 @@ type restoreRun struct {
 	triggerClones         []stored.PositionedTriggerClone
 	triggerClonePairs     map[*parser.CreateTrigger]stored.TriggerCloneReplay
 	triggerCloneCaptures  []viewcmds.RestoredTriggerClone
+	foreignKeyModes       []stored.PositionedForeignKeyMode
+	foreignKeySnapshotValid bool
 	extensionOwners       []extension.OwnerRecord
 	snapshots             []view.MaterializedSnapshot
 	extendedStatistics    []storage.ExtendedStatisticsSnapshot
@@ -131,6 +133,10 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 		return err
 	}
 	r.triggerClonePairs, err = stored.PairTriggerClones(r.source, r.statements, r.triggerClones)
+	if err != nil {
+		return err
+	}
+	r.foreignKeySnapshotValid, err = stored.ValidateForeignKeyModeFooter(r.source, r.foreignKeyModes)
 	if err != nil {
 		return err
 	}

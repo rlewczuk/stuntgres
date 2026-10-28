@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"hash"
 	"io"
 	"strings"
 
@@ -20,6 +21,8 @@ type dumpWriter struct {
 	dst               io.Writer
 	currentOwner      string
 	comparisonContext bool
+	seal hash.Hash
+	sealBuffer []byte
 }
 
 // emit writes one block of statements and honors cancellation before and
@@ -34,6 +37,14 @@ func (w *dumpWriter) emit(s string) error {
 	}
 	if n != len(s) {
 		return io.ErrShortWrite
+	}
+	if w.seal != nil {
+		remaining := s
+		for len(remaining) != 0 {
+			n := copy(w.sealBuffer, remaining)
+			_, _ = w.seal.Write(w.sealBuffer[:n])
+			remaining = remaining[n:]
+		}
 	}
 	return w.ctx.Err()
 }

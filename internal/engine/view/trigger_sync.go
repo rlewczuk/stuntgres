@@ -98,7 +98,12 @@ func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Re
 			}
 		}
 		if parent != nil {
-			for _, source := range stored.TriggersOf(parent) {
+			baseParent, _ := c.Base.Relation(parent.Address())
+			var baseSources []stored.Trigger
+			if baseParent != nil { baseSources = stored.TriggersOf(baseParent) }
+			var basePositions map[ids.OID]int
+		sourceLoop:
+			for sourceIndex, source := range stored.TriggersOf(parent) {
 				if source.Parts().Level != stored.TriggerRow {
 					continue
 				}
@@ -130,6 +135,25 @@ func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Re
 						next = append(next, list[prior])
 						continue
 					}
+					// A mode-only replacement retains row-shape and recipe
+					// backing; clone provenance needs no WHEN rebinding.
+					if !replaceLocal && sameParent && baseParent != nil && len(parent.Columns) == len(baseParent.Columns) && len(parent.Attributes) == len(baseParent.Attributes) && (len(parent.Columns) == 0 || &parent.Columns[0] == &baseParent.Columns[0]) && (len(parent.Attributes) == 0 || &parent.Attributes[0] == &baseParent.Attributes[0]) {
+						at := sourceIndex
+						if at >= len(baseSources) || baseSources[at].OID() != source.OID() {
+							if basePositions == nil {
+								basePositions = make(map[ids.OID]int, len(baseSources))
+								for i, prior := range baseSources { basePositions[prior.OID()] = i }
+							}
+							var found bool
+							at, found = basePositions[source.OID()]
+							if !found { at = -1 }
+						}
+						if at >= 0 && source.SameExecutable(baseSources[at]) {
+							next = append(next, list[prior].WithParentRevision(parent.Revision()))
+							changed = true
+							continue sourceLoop
+						}
+					}
 				} else {
 					var err error
 					oid, err = alloc.AllocateOID()
@@ -147,6 +171,9 @@ func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Re
 				if prior >= 0 && list[prior].Parts().Parent == parentAddress {
 					p := cloned.Parts()
 					p.AutoExtensions = list[prior].Parts().AutoExtensions
+					if !replaceLocal {
+						p.Mode = list[prior].Mode()
+					}
 					cloned, err = stored.NewTrigger(p)
 					if err != nil {
 						return err

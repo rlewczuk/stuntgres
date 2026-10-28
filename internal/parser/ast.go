@@ -1033,31 +1033,45 @@ const (
 	DisableRule
 	EnableReplicaRule
 	EnableAlwaysRule
+	EnableTrigger
+	DisableTrigger
+	EnableReplicaTrigger
+	EnableAlwaysTrigger
+)
+
+type TriggerSelector uint8
+
+const (
+	TriggerNamed TriggerSelector = iota
+	TriggerAll
+	TriggerUser
 )
 
 type AlterTableAction struct {
-	Column      Identifier
-	Constraint  Identifier
-	Rule        Identifier
-	Tablespace  Identifier
-	Parent      ObjectName
-	Action      AlterTableActionKind
-	IfExists    bool
-	IfNotExists bool
-	Definition  *Column
-	Mode        DropMode
-	Pos         Position
-	Identity    *IdentityDefinition
-	TypeName    TypeName
-	Collation   *ObjectName
-	Using       Expr
-	Exclusion   *ExclusionConstraint
-	UsingIndex  *UsingIndexConstraint
-	Generation  *GenerationDefinition
-	Check       *CheckConstraint
-	Unique      *UniqueConstraint
-	ForeignKey  *ForeignKeyConstraint
-	Options     []IndexOption
+	Column          Identifier
+	Constraint      Identifier
+	Rule            Identifier
+	Trigger         Identifier
+	TriggerSelector TriggerSelector
+	Tablespace      Identifier
+	Parent          ObjectName
+	Action          AlterTableActionKind
+	IfExists        bool
+	IfNotExists     bool
+	Definition      *Column
+	Mode            DropMode
+	Pos             Position
+	Identity        *IdentityDefinition
+	TypeName        TypeName
+	Collation       *ObjectName
+	Using           Expr
+	Exclusion       *ExclusionConstraint
+	UsingIndex      *UsingIndexConstraint
+	Generation      *GenerationDefinition
+	Check           *CheckConstraint
+	Unique          *UniqueConstraint
+	ForeignKey      *ForeignKeyConstraint
+	Options         []IndexOption
 	// NOT NULL uses the flat attachment; CHECK/FK retain validity in their AST.
 	NotValid    bool
 	NoInherit   bool

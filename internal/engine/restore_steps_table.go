@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
@@ -209,5 +210,9 @@ func finishRestorePhysicalBoundary(r *restoreRun, _ context.Context, _ *session.
 
 // finishRestoreForeignKeys binds every captured foreign key.
 func finishRestoreForeignKeys(r *restoreRun, ctx context.Context, op *session.Operation) error {
-	return tablecmds.BindRestoredForeignKeys(r.stage, ctx, op, r.pendingForeignKeys)
+	modes := make([]stored.ForeignKeyModeReplay, 0, len(r.foreignKeyModes))
+	for _, entry := range r.foreignKeyModes {
+		modes = append(modes, entry.Record)
+	}
+	return tablecmds.BindRestoredForeignKeys(r.stage, ctx, op, r.pendingForeignKeys, modes, r.foreignKeySnapshotValid)
 }

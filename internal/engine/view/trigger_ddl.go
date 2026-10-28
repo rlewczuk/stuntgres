@@ -53,7 +53,7 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.PartitionedRelation && old.RelationKind != catalog.ForeignRelation {
 		return RelationChange{}, analyze.TableKindError(old, "change")
 	}
-	p := stored.TriggerParts{Name: s.Name.Text, Relation: ref, Arguments: s.Arguments}
+	p := stored.TriggerParts{Name: s.Name.Text, Mode: catalog.TriggerOrigin, Relation: ref, Arguments: s.Arguments}
 	p.Timing, p.Level = stored.TriggerAfter, stored.TriggerStatement
 	if s.Timing == "before" {
 		p.Timing = stored.TriggerBefore

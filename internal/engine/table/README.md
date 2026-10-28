@@ -60,6 +60,21 @@ call live here.
   the identical predecessor for no-ops. Mode-only lists use metadata-only
   staging without heap copies; mixed lists share the ordinary candidate, stage
   and enclosing Finish, including cancellation and late validation failure.
+  `TriggerModeCandidate` selects named/ALL/USER triggers from the current staged
+  catalog and returns private replacements for user definitions, identity-linked
+  partition clones and FK descriptor owners. ALL and named system selection
+  require actual superuser authority even when unchanged. Trigger actions are
+  root-only MISC work; ordinary inherited work composes from staged modes without
+  forwarding trigger selectors to traditional descendants.
+  Each invocation creates at most one envelope per changed owner and lazily
+  detaches its user-trigger and FK slices independently, once each. Bulk updates
+  reuse that private backing; user entries use captured indices and grouped FK
+  facts advance a forward constraint cursor. Partition recursion selects parent
+  identities together and visits each descendant list once, without a persistent
+  trigger index. No-op selection retains every borrowed payload and owner.
+  Structural mode composition uses matching positions directly and builds
+  invocation-local identity positions only when surviving entries have shifted;
+  it does not repeatedly search entire source lists.
 - **NOT NULL, CHECK, DEFAULT and generated columns** (`not_null_*.go`,
   `physical_not_null*.go`, `check*.go`, `default*.go`, `generated*.go`,
   `row_constraints.go`): `NotNullCandidate`, the physical NOT NULL transitions,

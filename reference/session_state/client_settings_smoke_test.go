@@ -34,15 +34,16 @@ func TestReferenceClientSettingsSimulationSmoke(t *testing.T) {
 			s.run(clientText("SHOW xmloption", "xmloption", "document"))
 			const invalidInsert = "INSERT INTO client_smoke_child VALUES(99)"
 			const invalidRoutine = "CREATE FUNCTION client_smoke_invalid() RETURNS integer LANGUAGE SQL AS $$SELECT 'x'::text$$"
+			insert := fixture.Exec(invalidInsert, 1)
+			insert.Prepared = prepared
+			s.run(insert)
+			s.run(fixture.Select("SELECT v FROM client_smoke_child WHERE v=99", []string{"v"}, []string{"INT4"}, [][]any{{int64(99)}}))
+			s.run(fixture.Exec("DELETE FROM client_smoke_child WHERE v=99", 1))
 			if s.pg {
-				// PostgreSQL really suppresses FK triggers and quoted-body validation.
-				// Explicitly assert that difference rather than weaken native safety.
-				s.run(fixture.Exec(invalidInsert, 1))
-				s.run(fixture.Exec("DELETE FROM client_smoke_child WHERE v=99", 1))
+				// Quoted-body routine validation remains a separate setting boundary.
 				s.run(fixture.Exec(invalidRoutine, 0))
 				s.run(fixture.Exec("DROP FUNCTION client_smoke_invalid()", 0))
 			} else {
-				s.run(physicalError(invalidInsert, fixture.ForeignKeyChild("client_smoke_child", "client_smoke_fk", `Key (v)=(99) is not present in table "client_smoke_parent".`), prepared, false))
 				d := physicalDiagnostic("42P13", "return type mismatch in function declared to return integer")
 				d.Detail, d.Context = "Actual return type is text.", `SQL function "client_smoke_invalid"`
 				s.run(physicalError(invalidRoutine, d, prepared, false))
@@ -58,6 +59,7 @@ func TestReferenceClientSettingsSimulationSmoke(t *testing.T) {
 			s.run(fixture.Select("SELECT v FROM client_smoke_child ORDER BY v", []string{"v"}, []string{"INT4"}, [][]any{{int64(1)}}))
 			s.run(physicalError("SET shared_preload_libraries='absent_client_module'", physicalRestart("shared_preload_libraries"), prepared, false))
 			s.run(fixture.Exec("SET session_replication_role='origin'", 0))
+			s.run(fixture.ForeignKeyFail(invalidInsert, fixture.ForeignKeyChild("client_smoke_child", "client_smoke_fk", `Key (v)=(99) is not present in table "client_smoke_parent".`), prepared))
 			s.run(fixture.Exec("SET check_function_bodies=on", 0))
 		}
 		s.run(fixture.Exec("CREATE FUNCTION client_smoke_valid() RETURNS integer LANGUAGE SQL AS $$SELECT 8$$", 0))

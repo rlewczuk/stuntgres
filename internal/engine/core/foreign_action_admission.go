@@ -200,9 +200,12 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 // binding (including each routed insertion group). Lanes without that binding
 // use this allocation-free command value. Exact catalog changes invalidate both.
 type foreignEffectAdmission struct {
-	ref      ids.ObjectRef
-	catalog  *catalog.State
-	relevant bool
+	ref           ids.ObjectRef
+	catalog       *catalog.State
+	relevant      bool
+	modesCaptured bool
+	replica       bool
+	suppressed    []dml.ForeignTriggerSuppression
 }
 
 func (s *StatementScope) foreignEffectRelevant(ref ids.ObjectRef, view catalog.Read) bool {
@@ -249,7 +252,7 @@ func (s *StatementScope) recordForeignEffect(ref ids.ObjectRef, old, next storag
 			owner = admission.Relation.Owner
 		}
 	}
-	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: owner, Command: s.effectCommand})
+	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: owner, Command: s.effectCommand, Suppressed: s.foreignTriggerSuppression(ref)})
 }
 
 // foreignActions returns the statement's foreignActions slot, allocating it on first use.

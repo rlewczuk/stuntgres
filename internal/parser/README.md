@@ -340,6 +340,8 @@ text is sliced from these boundaries and never rescanned into executable syntax.
 ## Testing
 
 Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
+Trigger-mode selectors, quoted names and complete-input AST units use
+`RUN='^TestTriggerModeGrammar$'`.
 Static capture AST/boundary units use `RUN='^TestPLpgSQLSelectIntoParser$'`.
 Embedded static SQL variants and per-call syntax ownership use
 `RUN='^TestPLpgSQLSQLExecutionParser$'`.

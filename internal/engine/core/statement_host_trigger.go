@@ -53,7 +53,7 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 	}
 	event := stored.TriggerEvent(request.Event)
 	for _, definition := range list {
-		if p := definition.Parts(); p.Timing != stored.TriggerBefore || p.Level != stored.TriggerRow || !definition.Fires(event, request.Targets) {
+		if p := definition.Parts(); p.Timing != stored.TriggerBefore || p.Level != stored.TriggerRow {
 			continue
 		}
 		if err := s.Op.Context().Err(); err != nil {
@@ -62,6 +62,12 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 		p := definition.Parts()
 		e.Mu.Lock()
 		current, err := s.RoutineAuthorizationLocked()
+		// Earlier bodies in this row chain can change the effective role.
+		// Decide eligibility before WHEN or function admission, not per chain.
+		if err == nil && (!definition.Mode().Fires(current.RuleReplica()) || !definition.Fires(event, request.Targets)) {
+			e.Mu.Unlock()
+			continue
+		}
 		var d *catalog.Procedure
 		if err == nil {
 			if current.Ref(p.Procedure.Address) != p.Procedure {

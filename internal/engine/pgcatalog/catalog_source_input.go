@@ -113,6 +113,7 @@ type TriggerFact struct {
 type TriggerCatalogFact struct {
 	OID, Relation, Function, Parent ids.OID
 	Name                            string
+	Mode                            catalog.TriggerMode
 	Type                            int16
 	Attributes                      []int32
 	Arguments                       []string

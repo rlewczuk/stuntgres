@@ -378,7 +378,7 @@ func (r EngineCatalogRuntime) VisitTriggerDefinitions(ctx context.Context, view 
 
 func (r EngineCatalogRuntime) VisitTriggerCatalog(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.TriggerCatalogFact) error) error {
 	return stored.VisitTriggerCatalog(ctx, view, relation, typ, func(f stored.TriggerCatalogDefinition) error {
-		return visit(pgcatalog.TriggerCatalogFact{OID: f.OID, Relation: f.Relation, Function: f.Function, Parent: f.Parent, Name: f.Name, Type: f.Type, Attributes: f.Attributes, Arguments: f.Arguments, Qual: f.Qual})
+		return visit(pgcatalog.TriggerCatalogFact{OID: f.OID, Relation: f.Relation, Function: f.Function, Parent: f.Parent, Name: f.Name, Mode: f.Mode, Type: f.Type, Attributes: f.Attributes, Arguments: f.Arguments, Qual: f.Qual})
 	})
 }
 func (r EngineCatalogRuntime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {

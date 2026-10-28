@@ -99,6 +99,14 @@ WHEN recipes, explicit timing/orientation and row-only partition-clone provenanc
 never activation values. Checked kinds are BEFORE ROW I/U/D, AFTER ROW I/U/D and
 AFTER STATEMENT I/U/D/TRUNCATE. Statement definitions cannot be partition clones.
 Rename retains every identity and recipe while reordering the table-local chain.
+`WithMode` replaces only the definition envelope, retaining the WHEN binding,
+presentation, arguments and dependency backing. User and RI triggers share checked
+catalog O/D/R/A modes. Mode ALTERs form a final deterministic post-definition
+dump phase and use ONLY so clone-local states, including O, replay independently.
+Complete four-slot FK mode footer records identify the logical owning
+constraint, never allocated RI names/OIDs, and sort independently of allocation.
+A shared SQL seal permits a per-FK snapshot data waiver only for the exact saved
+stream; metadata validation remains independent of that waiver.
 Automatic extension addresses are constructor-owned, sorted unique metadata,
 separate from normal function/WHEN references and extension membership.
 Mapping preserves source snapshots and resolves extension addresses in the
@@ -114,8 +122,10 @@ along the exact CREATE OR REPLACE root definition's stage-local clone lineage.
 Ordinary CREATE, ATTACH and unrelated catalog synchronization retain conflicts;
 replaced local definitions and their dependency edges retire atomically.
 Clone matching follows exact Parent identity before checking destination-name
-collisions. Existing clone OIDs and local extension edges survive parent
-resynchronization; a new clone does not inherit the parent's extension edges.
+collisions. Existing clone OIDs, local modes and local extension edges survive
+unrelated parent resynchronization; new clones inherit parent mode, not extension
+edges. Actual CREATE OR REPLACE retains identity but resets the replaced
+definition and its row-clone lineage to ordinary O.
 WHEN literal validation closes OLD/NEW occurrences over the owning relation,
 not the synthetic Boolean projection's output frame. Ordinary view validation
 retains its query-frame rules. Pseudo-column remapping resolves current physical
