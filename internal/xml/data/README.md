@@ -1,4 +1,4 @@
-# Recognition-only source inputs
+# XML provider source inputs
 
 `recognition.tsv` is a compact transcription of independently captured pinned
 names and preferred resolution, not conversion data or expectations learned from
@@ -78,3 +78,65 @@ using standard-library `go/format`, following the existing codec generator.
 Run `go run ./internal/xml/generate` from the repository root. It requires only
 this compact input, not Docker, network, iconv, ICU, a host XML parser or the
 original temporary research helpers.
+
+## Character serialization oracle
+
+`serialize-oracle.json` contains 322 independently captured PostgreSQL records
+from the pinned image/runtime/UTF8/C and libxml2 package identified above. No
+expectation was produced by this provider. Groups retain the finite initial,
+further, qualification, edge, composed, XHTML, document-entry, notation-order,
+branches, DTD-edges and review1 observations; IDs identify inputs within their group.
+The output strings retain literal CR/LF, empty fields and declaration spelling.
+
+Reproduction uses `psql -X -U postgres -At -v ON_ERROR_STOP=1` inside that
+image, initialized with `POSTGRES_INITDB_ARGS=--locale=C --encoding=UTF8` and
+`LANG=C`. Verify `version()`, server encoding, `lc_collate`, `lc_ctype` and
+`dpkg-query -W libxml2` before capture. A temporary PL/pgSQL function accepts
+input text, requested mode and indent, binds input with dynamic SQL
+`SELECT XMLSERIALIZE(%s XMLPARSE(CONTENT $1) AS text %s)`, and returns JSON with
+the output or caught RETURNED_SQLSTATE/MESSAGE_TEXT/PG_EXCEPTION_DETAIL/
+PG_EXCEPTION_HINT. Finite VALUES cross-products cover both requested modes and
+indent flags where present. Document-entry changes initial XMLPARSE to DOCUMENT.
+Initial input rejection is distinct from serialization qualification failure.
+Binary composition units inherit CORE’s actual binary-receive decoding evidence;
+these new SQL serialization captures themselves use Unicode character input.
+
+`TestXMLSerializeDTDEntityValueIdentity` additionally holds two literal full-output
+captures from this same runtime and recipe, one per requested mode. Its legal
+nested declaration uses p=`ok` and r=`<!ENTITY &#37; q "&#38;#65;&#37;p;">`,
+then expands `%r;` in the internal subset. q’s processed replacement is `Aok`,
+while its saved original EntityValue is `&#65;%p;`. The test asserts the entire
+DTD and document, including CONTENT’s final LF, not a substring projection.
+
+The 36 `review1` records independently capture complete INDENT outputs in both
+requested modes for CR followed by 298/299/300/301/400 tabs (unspecified and
+explicit-default space state), namespace-bound element/local DTD-model lookup,
+and adjacent/nonadjacent duplicate ENUMERATION/NOTATION members. They use the
+same runtime and capture recipe above. The callback boundary is observable:
+the first complex callback contains 300 normalized bytes, and its raw lookahead
+determines blank admission before text coalescing. QName witnesses distinguish
+local `a` declarations from lexical `p:a`; duplicate-member witnesses preserve
+first-admitted distinct order without adding validity rejection.
+Source-derived width extensions retain these first-admission rules for 20,000
+distinct fixed-width members in ENUMERATION and NOTATION, with repeated members
+and separate following attributes/declarations. They assert full canonical output,
+not a measured runtime bound or a fresh SQL capture. Deterministic cancellation
+witnesses enter actual wide-list admission and long-token indexed lookup work.
+
+Twenty identical DOCUMENT notation saves produced all six permutations of three
+records. Only the contiguous notation section is compared unordered: exact
+records, multiplicities and placement before ordinary declarations remain fixed.
+The local serializer deliberately uses deterministic first-binding order.
+
+Release authorities: [PostgreSQL REL_18_0 xml.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/xml.c)
+`xmltotext_with_options`, `xml_parse`, `parse_xml_decl`; [release regression](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/test/regress/expected/xml.out)
+478–684. Matching [libxml2 xmlsave.c](https://raw.githubusercontent.com/GNOME/libxml2/v2.9.14/xmlsave.c)
+owns escaping, ordinary/DTD/XHTML layout and identifier detection;
+[parser.c](https://raw.githubusercontent.com/GNOME/libxml2/v2.9.14/parser.c)
+owns parse-time blank callbacks and model occurrence normalization;
+[valid.c](https://raw.githubusercontent.com/GNOME/libxml2/v2.9.14/valid.c),
+[entities.c](https://raw.githubusercontent.com/GNOME/libxml2/v2.9.14/entities.c)
+and [HTMLtree.c](https://raw.githubusercontent.com/GNOME/libxml2/v2.9.14/HTMLtree.c)
+own canonical declarations and XHTML boolean membership. Additional labeled units
+extend these source rules without claiming fresh SQL observations. Attribution
+remains in `../LICENSE-libxml2`.

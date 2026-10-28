@@ -35,13 +35,14 @@ func TestXMLDTDCancellation(t *testing.T) {
   {"applyDefaults",`<!DOCTYPE a [<!ATTLIST a`+many.String()+`>]><a/>`,false},
   {"normalizeLines",`<!DOCTYPE a [<!ENTITY e "<b>`+long+`</b>">]><a>&e;</a>`,true},
   {"appendNode",`<!DOCTYPE a [<!ENTITY e "<b/><b/><b/><b/><b/>">]><a>&e;</a>`,true},
-  {"collectValue",`<!DOCTYPE a [<!ENTITY e "&#13;`+long+`">]><a>&e;</a>`,true},
+  // Character collection now owns callback-local normalization before merging.
+  {"collectCharacters",`<!DOCTYPE a [<!ENTITY e "&#13;`+long+`">]><a>&e;</a>`,true},
   {"cloneNode",`<!DOCTYPE a [<!ENTITY e "<b/><b/><b/><b/><b/>">]><a>&e;&e;</a>`,true},
   {"finishNode",`<!DOCTYPE a [<!ENTITY e "`+long+`">]><a>x&e;y</a>`,true},
  }
  for _,tc:=range cases{for _,collect:=range []bool{false,true}{if tc.collectOnly&&!collect{continue};for _,cause:=range []error{context.Canceled,context.DeadlineExceeded}{
   positions:=[]int{2,4}
-  if tc.phase=="collectValue"||tc.phase=="finishNode"||tc.phase=="decodeParameterValue"||tc.phase=="decodeAttributeEntity"||tc.phase=="normalizeTokens"||tc.phase=="applyDefaults"{positions=append(positions,8,12)}
+  if tc.phase=="collectCharacters"||tc.phase=="finishNode"||tc.phase=="decodeParameterValue"||tc.phase=="decodeAttributeEntity"||tc.phase=="normalizeTokens"||tc.phase=="applyDefaults"{positions=append(positions,8,12)}
   for _,at:=range positions{
   c:=&phaseContext{Context:context.Background(),phase:tc.phase,after:at,cause:cause}
   r,d,e:=parse(c,tc.input,Options{Mode:Document},collect)

@@ -35,6 +35,8 @@ type parser struct {
  namespaceURIs []namespaceURI
  tree *document
  parent *node
+ ignoreBlanks bool
+ spaceState int
  dtdState *dtdState
  source DiagnosticSource
  entityName string

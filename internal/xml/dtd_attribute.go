@@ -12,14 +12,15 @@ func (p *parser) attributeListDeclaration()string {
  for p.byte()!='>'&&p.err==nil&&!p.stopped {
   name:=p.name();if name==""{p.event("XML_ERR_NAME_REQUIRED","ATTLIST: no name for Attribute");break}
   if !p.requiredDTDspace("Space required after the attribute name"){break}
+  p.dtdState.currentMembers=nil
   typ,ok:=p.attributeType();if p.err!=nil{return element};if !ok{break}
   if !p.requiredDTDspace("Space required after the attribute type"){break}
-  supplied:=true;value:=""
+  supplied:=true;value:="";defaultKind:=""
   switch {
-  case p.has("#REQUIRED"):p.advance(9);supplied=false
-  case p.has("#IMPLIED"):p.advance(8);supplied=false
+  case p.has("#REQUIRED"):p.advance(9);supplied=false;defaultKind="#REQUIRED"
+  case p.has("#IMPLIED"):p.advance(8);supplied=false;defaultKind="#IMPLIED"
   default:
-   if p.has("#FIXED"){p.advance(6);p.requiredDTDspace("Space required after '#FIXED'")}
+   if p.has("#FIXED"){defaultKind="#FIXED";p.advance(6);p.requiredDTDspace("Space required after '#FIXED'")}
    facts:=namespaceValue{capture:true,start:p.i+1,end:p.i+1}
    valid:=p.attribute(&facts,false)
    if !valid {
@@ -35,13 +36,20 @@ func (p *parser) attributeListDeclaration()string {
   definitions:=p.dtdState.attributes[element];found:=false
   for _,d:=range definitions{p.err=p.ctx.Err();if p.err!=nil{return element};if p.equalName(d.name,name){found=true;break}}
   local:=p.dtdLocalName(name);if p.err!=nil{return element}
-  if !found {p.dtdState.attributes[element]=checkedAppend(p,definitions,attributeDefinition{name,local,typ,value,supplied})}
-  if p.tree!=nil{p.dtdState.currentAttributes=checkedAppend(p,p.dtdState.currentAttributes,attributeDefinition{name,local,typ,value,supplied})}
+  definition:=attributeDefinition{name:name,local:local,typ:typ,value:value,supplied:supplied,defaultKind:defaultKind,members:p.dtdState.currentMembers}
+  if !found {p.dtdState.attributes[element]=checkedAppend(p,definitions,definition)}
+  if p.tree!=nil&&!found{p.dtdState.currentAttributes=checkedAppend(p,p.dtdState.currentAttributes,definition)}
   if p.byte()=='>'{break}
  }
  if p.err==nil&&p.byte()=='>'{p.declarationEnd("Attribute list",p.declarationInput)};return element
 }
 func (p *parser) attributeType()(string,bool) {
+ // Membership scratch belongs to this one attribute type, not the declaration
+ // registry or saved ordered members. Validation never allocates the index.
+ if p.tree!=nil {
+  p.dtdState.currentMemberHashes=nil;p.dtdState.currentMemberLinks=nil
+  defer func(){p.dtdState.currentMemberHashes=nil;p.dtdState.currentMemberLinks=nil}()
+ }
  // Prefix recognition deliberately has no token-boundary condition.
  for _,typ:=range []string{"CDATA","IDREFS","IDREF","ID","ENTITY","ENTITIES","NMTOKENS","NMTOKEN"} {
   if p.has(typ){p.advance(len(typ));return typ,true}
@@ -61,12 +69,34 @@ func (p *parser) attributeType()(string,bool) {
    if built{return "ENUMERATION",true};return "",false
   }
   built=true
+  if p.tree!=nil{p.collectEnumerationMember(token)}
   p.dtdSpaces();if p.byte()=='|'{p.advance(1);p.dtdSpaces();continue}
   if p.byte()==')'{p.advance(1);if notation{return "NOTATION",true};return "ENUMERATION",true}
   if notation{p.event("XML_ERR_NOTATION_NOT_FINISHED","'>' required to close NOTATION declaration");return "",false}
   p.event("XML_ERR_ATTLIST_NOT_FINISHED","')' required to finish ATTLIST enumeration");return "ENUMERATION",true
  }
  return "",false
+}
+
+func (p *parser) collectEnumerationMember(token string){
+ // Match namespace interning: hash in bounded chunks, use an integer-keyed
+ // index, and confirm hash collisions with cancellable exact comparisons.
+ hash:=uint64(0)
+ for at:=range len(token){
+  if at&4095==0{p.err=p.ctx.Err();if p.err!=nil{return}}
+  hash=(hash^uint64(token[at]))*1099511628211
+ }
+ state:=p.dtdState
+ for id:=state.currentMemberHashes[hash];id!=0;id=state.currentMemberLinks[id-1]{
+  p.err=p.ctx.Err();if p.err!=nil{return}
+  if p.equalName(state.currentMembers[id-1],token){return}
+  if p.err!=nil{return}
+ }
+ p.err=p.ctx.Err();if p.err!=nil{return}
+ if state.currentMemberHashes==nil{state.currentMemberHashes=make(map[uint64]int)}
+ state.currentMemberLinks=checkedAppend(p,state.currentMemberLinks,state.currentMemberHashes[hash]);if p.err!=nil{return}
+ state.currentMembers=checkedAppend(p,state.currentMembers,token);if p.err!=nil{return}
+ state.currentMemberHashes[hash]=len(state.currentMembers)
 }
 func (p *parser) normalizeTokens(value string)string {
  if p.err!=nil{return ""}

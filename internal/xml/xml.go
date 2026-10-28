@@ -41,6 +41,9 @@ func Parse(ctx context.Context, input string, opts Options) (Result, error) {
  r,_,err:=parse(ctx,input,opts,false);return r,err
 }
 func parse(ctx context.Context,input string,opts Options,collect bool)(Result,*document,error) {
+ return parseConfigured(ctx,input,opts,collect,false)
+}
+func parseConfigured(ctx context.Context,input string,opts Options,collect,ignoreBlanks bool)(Result,*document,error) {
  if err := ctx.Err(); err != nil { return Result{},nil,err }
  if opts.Mode > Document || opts.InputKind > Binary { return Result{},nil,fmt.Errorf("invalid XML options") }
  if opts.InputKind == Binary {
@@ -60,7 +63,7 @@ func parse(ctx context.Context,input string,opts Options,collect bool)(Result,*d
   input, errConvert = convert(ctx, input, id, 6)
   if errConvert != nil { return Result{},nil,errConvert }
  }
- p := parser{ctx:ctx, s:input, requested:opts.Mode, effective:opts.Mode, line:1, column:1,replaceEntities:opts.Mode==Document}
+ p := parser{ctx:ctx, s:input, requested:opts.Mode, effective:opts.Mode, line:1, column:1,replaceEntities:opts.Mode==Document,ignoreBlanks:ignoreBlanks,spaceState:-1}
  if collect {p.tree=&document{}}
  if opts.Mode == Content {
   d, detail, err := readContentDeclaration(ctx,input)

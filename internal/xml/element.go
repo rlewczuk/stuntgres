@@ -20,6 +20,9 @@ func (p *parser) element() {
  p.noteKind(elementNode)
  p.depth++
  defer func(){p.depth--}()
+ inheritedSpace:=p.spaceState
+ defer func(){p.spaceState=inheritedSpace}()
+ if p.spaceState==-2{p.spaceState=-1}
  var namespaces attributeNames
  var firstAttribute [1]ordinaryAttribute
  attributes:=firstAttribute[:0]
@@ -62,6 +65,7 @@ func (p *parser) element() {
       constructed=p.s[normalized.start:normalized.end]
       if normalized.transformed {constructed=normalized.uri.String()}
      }
+     if constructed=="default"{p.spaceState=0}else if constructed=="preserve"{p.spaceState=1}
      if constructed!="default"&&constructed!="preserve" {
       p.eventLevel("XML_WAR_SPACE_VALUE",p.joinMessage("Invalid value \"",constructed,"\" for xml:space : \"default\" or \"preserve\" expected"),Warning)
      }
@@ -108,6 +112,15 @@ func (p *parser) element() {
  }
  if p.err!=nil||p.stopped{return}
  attributes=p.applyDefaults(name,local,attributes,&namespaces,&undo,&collectedNamespaces)
+ if p.ignoreBlanks&&p.dtdState!=nil {
+  for _,d:=range p.dtdState.attributes[name] {
+   p.err=p.ctx.Err();if p.err!=nil{return}
+   if d.name!="xml:space"||!d.supplied{continue}
+   present:=false
+   for _,a:=range attributes{p.err=p.ctx.Err();if p.err!=nil{return};if a.name=="xml:space"&&!a.defaulted{present=true;break}}
+   if !present{if d.value=="default"{p.spaceState=0}else if d.value=="preserve"{p.spaceState=1}}
+  }
+ }
  // Resolve after every declaration, including ones following attributes.
  // First-prior namespace collisions terminate the ordinary lexical search.
  p.attributeDuplicates(attributes)

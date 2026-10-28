@@ -1,0 +1,3220 @@
+[
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "",
+    "indent": true,
+    "result": {
+      "output": ""
+    },
+    "group": "initial"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "",
+    "indent": false,
+    "result": {
+      "output": ""
+    },
+    "group": "initial"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "",
+    "indent": false,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "   ",
+    "indent": true,
+    "result": {
+      "output": "   "
+    },
+    "group": "initial"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "   ",
+    "indent": false,
+    "result": {
+      "output": "   "
+    },
+    "group": "initial"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "   ",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "   ",
+    "indent": false,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "text",
+    "indent": true,
+    "result": {
+      "output": "text"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "text",
+    "indent": false,
+    "result": {
+      "output": "text"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "text",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "text",
+    "indent": false,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<a/><b/>",
+    "indent": true,
+    "result": {
+      "output": "<a/>\n<b/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<a/><b/>",
+    "indent": false,
+    "result": {
+      "output": "<a/><b/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<a/><b/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<a/><b/>",
+    "indent": false,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<a><b/><c>é &amp; &lt; &gt; &#13;</c></a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n  <b/>\n  <c>&#xE9; &amp; &lt; &gt; &#xD;</c>\n</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<a><b/><c>é &amp; &lt; &gt; &#13;</c></a>",
+    "indent": false,
+    "result": {
+      "output": "<a><b/><c>é &amp; &lt; &gt; &#13;</c></a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<a><b/><c>é &amp; &lt; &gt; &#13;</c></a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n  <b/>\n  <c>&#xE9; &amp; &lt; &gt; &#xD;</c>\n</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<a><b/><c>é &amp; &lt; &gt; &#13;</c></a>",
+    "indent": false,
+    "result": {
+      "output": "<a><b/><c>é &amp; &lt; &gt; &#13;</c></a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 5,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\"?><a><b>é</b></a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n  <b>&#xE9;</b>\n</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 5,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\"?><a><b>é</b></a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\"?><a><b>é</b></a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 5,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\"?><a><b>é</b></a>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a>\n  <b>é</b>\n</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 5,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\"?><a><b>é</b></a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\"?><a><b>é</b></a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 6,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.1\" standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "output": "<a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 6,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.1\" standalone=\"yes\"?><a/>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.1\" standalone=\"yes\"?><a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 6,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.1\" standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.1\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 6,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.1\" standalone=\"yes\"?><a/>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.1\" standalone=\"yes\"?><a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 7,
+    "mode": "CONTENT",
+    "input": "<!--x--><?pi q?><a/><!---->",
+    "indent": true,
+    "result": {
+      "output": "<!--x-->\n<?pi q?>\n<a/>\n<!---->"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 7,
+    "mode": "CONTENT",
+    "input": "<!--x--><?pi q?><a/><!---->",
+    "indent": false,
+    "result": {
+      "output": "<!--x--><?pi q?><a/><!---->"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 7,
+    "mode": "DOCUMENT",
+    "input": "<!--x--><?pi q?><a/><!---->",
+    "indent": true,
+    "result": {
+      "output": "<!--x-->\n<?pi q?>\n<a/>\n<!---->"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 7,
+    "mode": "DOCUMENT",
+    "input": "<!--x--><?pi q?><a/><!---->",
+    "indent": false,
+    "result": {
+      "output": "<!--x--><?pi q?><a/><!---->"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 8,
+    "mode": "CONTENT",
+    "input": "<![CDATA[a<&é]]>",
+    "indent": true,
+    "result": {
+      "output": "<![CDATA[a<&é]]>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 8,
+    "mode": "CONTENT",
+    "input": "<![CDATA[a<&é]]>",
+    "indent": false,
+    "result": {
+      "output": "<![CDATA[a<&é]]>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 8,
+    "mode": "DOCUMENT",
+    "input": "<![CDATA[a<&é]]>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 8,
+    "mode": "DOCUMENT",
+    "input": "<![CDATA[a<&é]]>",
+    "indent": false,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 9,
+    "mode": "CONTENT",
+    "input": "<a> <b/> <c/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n  <b/>\n  <c/>\n</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 9,
+    "mode": "CONTENT",
+    "input": "<a> <b/> <c/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a> <b/> <c/> </a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 9,
+    "mode": "DOCUMENT",
+    "input": "<a> <b/> <c/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n  <b/>\n  <c/>\n</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 9,
+    "mode": "DOCUMENT",
+    "input": "<a> <b/> <c/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a> <b/> <c/> </a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 10,
+    "mode": "CONTENT",
+    "input": "<a>x<b/> y<c/> z</a>",
+    "indent": true,
+    "result": {
+      "output": "<a>x<b/> y<c/> z</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 10,
+    "mode": "CONTENT",
+    "input": "<a>x<b/> y<c/> z</a>",
+    "indent": false,
+    "result": {
+      "output": "<a>x<b/> y<c/> z</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 10,
+    "mode": "DOCUMENT",
+    "input": "<a>x<b/> y<c/> z</a>",
+    "indent": true,
+    "result": {
+      "output": "<a>x<b/> y<c/> z</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 10,
+    "mode": "DOCUMENT",
+    "input": "<a>x<b/> y<c/> z</a>",
+    "indent": false,
+    "result": {
+      "output": "<a>x<b/> y<c/> z</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 11,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"preserve\"> <b/> <c/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b/> <c/> </a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 11,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"preserve\"> <b/> <c/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b/> <c/> </a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 11,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"preserve\"> <b/> <c/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b/> <c/> </a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 11,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"preserve\"> <b/> <c/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b/> <c/> </a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 12,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b*)><!ELEMENT b EMPTY><!ATTLIST a x CDATA \"d\"><!ENTITY e \"<b/>\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b)*>\n<!ELEMENT b EMPTY>\n<!ATTLIST a x CDATA \"d\">\n<!ENTITY e \"<b/>\">\n]>\n<a x=\"d\">\n  <b/>\n</a>\n"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 12,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b*)><!ELEMENT b EMPTY><!ATTLIST a x CDATA \"d\"><!ENTITY e \"<b/>\">]><a>&e;</a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ELEMENT a (b*)><!ELEMENT b EMPTY><!ATTLIST a x CDATA \"d\"><!ENTITY e \"<b/>\">]><a>&e;</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 12,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b*)><!ELEMENT b EMPTY><!ATTLIST a x CDATA \"d\"><!ENTITY e \"<b/>\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b)*>\n<!ELEMENT b EMPTY>\n<!ATTLIST a x CDATA \"d\">\n<!ENTITY e \"<b/>\">\n]>\n<a x=\"d\">\n  <b/>\n</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 12,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b*)><!ELEMENT b EMPTY><!ATTLIST a x CDATA \"d\"><!ENTITY e \"<b/>\">]><a>&e;</a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ELEMENT a (b*)><!ELEMENT b EMPTY><!ATTLIST a x CDATA \"d\"><!ENTITY e \"<b/>\">]><a>&e;</a>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 13,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!-- c -->]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a>\n<a/>\n"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 13,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!-- c -->]><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!-- c -->]><a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 13,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!-- c -->]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a>\n<a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 13,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!-- c -->]><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!-- c -->]><a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 14,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a SYSTEM \"file:///no\"><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a SYSTEM \"file:///no\">\n<a/>\n"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 14,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a SYSTEM \"file:///no\"><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a SYSTEM \"file:///no\"><a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 14,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a SYSTEM \"file:///no\"><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a SYSTEM \"file:///no\">\n<a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 14,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a SYSTEM \"file:///no\"><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a SYSTEM \"file:///no\"><a/>"
+    },
+    "group": "initial"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">&#xE9;&#xD;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">&#xE9;&#xD;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">&#xE9;&#xD;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">&#xE9;&#xD;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.1\" encoding=\"UTF-8\"?>\n<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" standalone=\"yes\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">&#xE9;&#xD;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" standalone=\"yes\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\" standalone=\"yes\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" standalone=\"yes\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" standalone=\"yes\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\" standalone=\"yes\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" standalone=\"no\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">&#xE9;&#xD;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" standalone=\"no\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\" standalone=\"no\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" standalone=\"no\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" standalone=\"no\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\" standalone=\"no\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 5,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" encoding=\"LATIN1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">&#xE9;&#xD;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 5,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" encoding=\"LATIN1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\" encoding=\"LATIN1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 5,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" encoding=\"LATIN1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a x=\"é&#9;&#10;&#13;&quot;&lt;&gt;&amp;\">é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 5,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" encoding=\"LATIN1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>",
+    "indent": false,
+    "result": {
+      "output": "<?xml version=\"1.0\" encoding=\"LATIN1\"?><a x='é&#9;&#10;&#13;&quot;&lt;&gt;&amp;'>é&#13;&gt;\"'</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 6,
+    "mode": "CONTENT",
+    "input": "<a> <b/> text<c><d/></c> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a><b/> text<c><d/></c> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 6,
+    "mode": "CONTENT",
+    "input": "<a> <b/> text<c><d/></c> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a> <b/> text<c><d/></c> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 6,
+    "mode": "DOCUMENT",
+    "input": "<a> <b/> text<c><d/></c> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a><b/> text<c><d/></c> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 6,
+    "mode": "DOCUMENT",
+    "input": "<a> <b/> text<c><d/></c> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a> <b/> text<c><d/></c> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 7,
+    "mode": "CONTENT",
+    "input": "<a>   </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>   </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 7,
+    "mode": "CONTENT",
+    "input": "<a>   </a>",
+    "indent": false,
+    "result": {
+      "output": "<a>   </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 7,
+    "mode": "DOCUMENT",
+    "input": "<a>   </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>   </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 7,
+    "mode": "DOCUMENT",
+    "input": "<a>   </a>",
+    "indent": false,
+    "result": {
+      "output": "<a>   </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 8,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"preserve\"> <b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 8,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"preserve\"> <b/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 8,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"preserve\"> <b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 8,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"preserve\"> <b/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 9,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"default\"> <b/> text<c/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\"><b/> text<c/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 9,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"default\"> <b/> text<c/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a xml:space=\"default\"> <b/> text<c/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 9,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"default\"> <b/> text<c/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\"><b/> text<c/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 9,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"default\"> <b/> text<c/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a xml:space=\"default\"> <b/> text<c/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 10,
+    "mode": "CONTENT",
+    "input": "<a><![CDATA[]]><b/></a>",
+    "indent": true,
+    "result": {
+      "output": "<a><![CDATA[]]><b/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 10,
+    "mode": "CONTENT",
+    "input": "<a><![CDATA[]]><b/></a>",
+    "indent": false,
+    "result": {
+      "output": "<a><![CDATA[]]><b/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 10,
+    "mode": "DOCUMENT",
+    "input": "<a><![CDATA[]]><b/></a>",
+    "indent": true,
+    "result": {
+      "output": "<a><![CDATA[]]><b/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 10,
+    "mode": "DOCUMENT",
+    "input": "<a><![CDATA[]]><b/></a>",
+    "indent": false,
+    "result": {
+      "output": "<a><![CDATA[]]><b/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 11,
+    "mode": "CONTENT",
+    "input": "<a><![CDATA[x<é&]]><b/></a>",
+    "indent": true,
+    "result": {
+      "output": "<a><![CDATA[x<é&]]><b/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 11,
+    "mode": "CONTENT",
+    "input": "<a><![CDATA[x<é&]]><b/></a>",
+    "indent": false,
+    "result": {
+      "output": "<a><![CDATA[x<é&]]><b/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 11,
+    "mode": "DOCUMENT",
+    "input": "<a><![CDATA[x<é&]]><b/></a>",
+    "indent": true,
+    "result": {
+      "output": "<a><![CDATA[x<é&]]><b/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 11,
+    "mode": "DOCUMENT",
+    "input": "<a><![CDATA[x<é&]]><b/></a>",
+    "indent": false,
+    "result": {
+      "output": "<a><![CDATA[x<é&]]><b/></a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 12,
+    "mode": "CONTENT",
+    "input": "<?p?><?p ?><a><!--c--><?p x?><b/></a><!--e-->",
+    "indent": true,
+    "result": {
+      "output": "<?p?>\n<?p ?>\n<a>\n  <!--c-->\n  <?p x?>\n  <b/>\n</a>\n<!--e-->"
+    },
+    "group": "further"
+  },
+  {
+    "id": 12,
+    "mode": "CONTENT",
+    "input": "<?p?><?p ?><a><!--c--><?p x?><b/></a><!--e-->",
+    "indent": false,
+    "result": {
+      "output": "<?p?><?p ?><a><!--c--><?p x?><b/></a><!--e-->"
+    },
+    "group": "further"
+  },
+  {
+    "id": 12,
+    "mode": "DOCUMENT",
+    "input": "<?p?><?p ?><a><!--c--><?p x?><b/></a><!--e-->",
+    "indent": true,
+    "result": {
+      "output": "<?p?>\n<?p ?>\n<a>\n  <!--c-->\n  <?p x?>\n  <b/>\n</a>\n<!--e-->"
+    },
+    "group": "further"
+  },
+  {
+    "id": 12,
+    "mode": "DOCUMENT",
+    "input": "<?p?><?p ?><a><!--c--><?p x?><b/></a><!--e-->",
+    "indent": false,
+    "result": {
+      "output": "<?p?><?p ?><a><!--c--><?p x?><b/></a><!--e-->"
+    },
+    "group": "further"
+  },
+  {
+    "id": 13,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a []><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a>\n<a/>\n"
+    },
+    "group": "further"
+  },
+  {
+    "id": 13,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a []><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a []><a/>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 13,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a []><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a>\n<a/>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 13,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a []><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a []><a/>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 14,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!--c--><?p x?>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a>\n<a/>\n"
+    },
+    "group": "further"
+  },
+  {
+    "id": 14,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!--c--><?p x?>]><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!--c--><?p x?>]><a/>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 14,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!--c--><?p x?>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a>\n<a/>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 14,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!--c--><?p x?>]><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!--c--><?p x?>]><a/>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 15,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b , c?)><!ELEMENT b (#PCDATA)><!ELEMENT c EMPTY><!ATTLIST a x CDATA #IMPLIED y (one | two) #FIXED \"one\"><!ENTITY e \"<b>é</b>\"><!NOTATION n SYSTEM \"urn:n\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!NOTATION n SYSTEM \"urn:n\" >\n<!ELEMENT a (b , c?)>\n<!ELEMENT b (#PCDATA)>\n<!ELEMENT c EMPTY>\n<!ATTLIST a x CDATA #IMPLIED>\n<!ATTLIST a y (one | two) #FIXED \"one\">\n<!ENTITY e \"<b>é</b>\">\n]>\n<a y=\"one\">\n  <b>&#xE9;</b>\n</a>\n"
+    },
+    "group": "further"
+  },
+  {
+    "id": 15,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b , c?)><!ELEMENT b (#PCDATA)><!ELEMENT c EMPTY><!ATTLIST a x CDATA #IMPLIED y (one | two) #FIXED \"one\"><!ENTITY e \"<b>é</b>\"><!NOTATION n SYSTEM \"urn:n\">]><a>&e;</a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ELEMENT a (b , c?)><!ELEMENT b (#PCDATA)><!ELEMENT c EMPTY><!ATTLIST a x CDATA #IMPLIED y (one | two) #FIXED \"one\"><!ENTITY e \"<b>é</b>\"><!NOTATION n SYSTEM \"urn:n\">]><a>&e;</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 15,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b , c?)><!ELEMENT b (#PCDATA)><!ELEMENT c EMPTY><!ATTLIST a x CDATA #IMPLIED y (one | two) #FIXED \"one\"><!ENTITY e \"<b>é</b>\"><!NOTATION n SYSTEM \"urn:n\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!NOTATION n SYSTEM \"urn:n\" >\n<!ELEMENT a (b , c?)>\n<!ELEMENT b (#PCDATA)>\n<!ELEMENT c EMPTY>\n<!ATTLIST a x CDATA #IMPLIED>\n<!ATTLIST a y (one | two) #FIXED \"one\">\n<!ENTITY e \"<b>é</b>\">\n]>\n<a y=\"one\">\n  <b>&#xE9;</b>\n</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 15,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b , c?)><!ELEMENT b (#PCDATA)><!ELEMENT c EMPTY><!ATTLIST a x CDATA #IMPLIED y (one | two) #FIXED \"one\"><!ENTITY e \"<b>é</b>\"><!NOTATION n SYSTEM \"urn:n\">]><a>&e;</a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ELEMENT a (b , c?)><!ELEMENT b (#PCDATA)><!ELEMENT c EMPTY><!ATTLIST a x CDATA #IMPLIED y (one | two) #FIXED \"one\"><!ENTITY e \"<b>é</b>\"><!NOTATION n SYSTEM \"urn:n\">]><a>&e;</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 16,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"first\"><!ENTITY e \"second\"><!ATTLIST a x CDATA \"first\"><!ATTLIST a x CDATA \"second\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e \"first\">\n<!ATTLIST a x CDATA \"first\">\n]>\n<a x=\"first\">first</a>\n"
+    },
+    "group": "further"
+  },
+  {
+    "id": 16,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"first\"><!ENTITY e \"second\"><!ATTLIST a x CDATA \"first\"><!ATTLIST a x CDATA \"second\">]><a>&e;</a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ENTITY e \"first\"><!ENTITY e \"second\"><!ATTLIST a x CDATA \"first\"><!ATTLIST a x CDATA \"second\">]><a>&e;</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 16,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"first\"><!ENTITY e \"second\"><!ATTLIST a x CDATA \"first\"><!ATTLIST a x CDATA \"second\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e \"first\">\n<!ATTLIST a x CDATA \"first\">\n]>\n<a x=\"first\">first</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 16,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"first\"><!ENTITY e \"second\"><!ATTLIST a x CDATA \"first\"><!ATTLIST a x CDATA \"second\">]><a>&e;</a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ENTITY e \"first\"><!ENTITY e \"second\"><!ATTLIST a x CDATA \"first\"><!ATTLIST a x CDATA \"second\">]><a>&e;</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 17,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p '<!ELEMENT a EMPTY><!ATTLIST a x CDATA \"v\">'>%p;]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY % p '<!ELEMENT a EMPTY><!ATTLIST a x CDATA \"v\">'>\n<!ELEMENT a EMPTY>\n<!ATTLIST a x CDATA \"v\">\n]>\n<a x=\"v\"/>\n"
+    },
+    "group": "further"
+  },
+  {
+    "id": 17,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p '<!ELEMENT a EMPTY><!ATTLIST a x CDATA \"v\">'>%p;]><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ENTITY % p '<!ELEMENT a EMPTY><!ATTLIST a x CDATA \"v\">'>%p;]><a/>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 17,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p '<!ELEMENT a EMPTY><!ATTLIST a x CDATA \"v\">'>%p;]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY % p '<!ELEMENT a EMPTY><!ATTLIST a x CDATA \"v\">'>\n<!ELEMENT a EMPTY>\n<!ATTLIST a x CDATA \"v\">\n]>\n<a x=\"v\"/>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 17,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p '<!ELEMENT a EMPTY><!ATTLIST a x CDATA \"v\">'>%p;]><a/>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ENTITY % p '<!ELEMENT a EMPTY><!ATTLIST a x CDATA \"v\">'>%p;]><a/>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 18,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///not-present\">]><a>x&e;y</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e SYSTEM \"file:///not-present\">\n]>\n<a>xy</a>\n"
+    },
+    "group": "further"
+  },
+  {
+    "id": 18,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///not-present\">]><a>x&e;y</a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///not-present\">]><a>x&e;y</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 18,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///not-present\">]><a>x&e;y</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e SYSTEM \"file:///not-present\">\n]>\n<a>xy</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 18,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///not-present\">]><a>x&e;y</a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///not-present\">]><a>x&e;y</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 19,
+    "mode": "CONTENT",
+    "input": "<a> &#32;<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>  <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 19,
+    "mode": "CONTENT",
+    "input": "<a> &#32;<b/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a> &#32;<b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 19,
+    "mode": "DOCUMENT",
+    "input": "<a> &#32;<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>  <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 19,
+    "mode": "DOCUMENT",
+    "input": "<a> &#32;<b/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a> &#32;<b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 20,
+    "mode": "CONTENT",
+    "input": "<a>&#32;<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a> <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 20,
+    "mode": "CONTENT",
+    "input": "<a>&#32;<b/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a>&#32;<b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 20,
+    "mode": "DOCUMENT",
+    "input": "<a>&#32;<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a> <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 20,
+    "mode": "DOCUMENT",
+    "input": "<a>&#32;<b/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<a>&#32;<b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 21,
+    "mode": "CONTENT",
+    "input": "<a><b/>&#32;</a>",
+    "indent": true,
+    "result": {
+      "output": "<a><b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 21,
+    "mode": "CONTENT",
+    "input": "<a><b/>&#32;</a>",
+    "indent": false,
+    "result": {
+      "output": "<a><b/>&#32;</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 21,
+    "mode": "DOCUMENT",
+    "input": "<a><b/>&#32;</a>",
+    "indent": true,
+    "result": {
+      "output": "<a><b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 21,
+    "mode": "DOCUMENT",
+    "input": "<a><b/>&#32;</a>",
+    "indent": false,
+    "result": {
+      "output": "<a><b/>&#32;</a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 22,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (#PCDATA|b)*><!ELEMENT b EMPTY>]><a> <b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (#PCDATA | b)*>\n<!ELEMENT b EMPTY>\n]>\n<a> <b/> </a>\n"
+    },
+    "group": "further"
+  },
+  {
+    "id": 22,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (#PCDATA|b)*><!ELEMENT b EMPTY>]><a> <b/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ELEMENT a (#PCDATA|b)*><!ELEMENT b EMPTY>]><a> <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 22,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (#PCDATA|b)*><!ELEMENT b EMPTY>]><a> <b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (#PCDATA | b)*>\n<!ELEMENT b EMPTY>\n]>\n<a> <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 22,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (#PCDATA|b)*><!ELEMENT b EMPTY>]><a> <b/> </a>",
+    "indent": false,
+    "result": {
+      "output": "<!DOCTYPE a [<!ELEMENT a (#PCDATA|b)*><!ELEMENT b EMPTY>]><a> <b/> </a>"
+    },
+    "group": "further"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<a x=\"1\" x=\"2\"/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Attribute x redefined\n<a x=\"1\" x=\"2\"/>\n              ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<a x=\"1\" x=\"2\"/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Attribute x redefined\n<a x=\"1\" x=\"2\"/>\n              ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<a xmlns:p=\"urn:p\" xmlns:q=\"urn:p\" p:x=\"1\" q:x=\"2\"/>",
+    "indent": true,
+    "result": {
+      "output": "<a xmlns:p=\"urn:p\" xmlns:q=\"urn:p\" p:x=\"1\" q:x=\"2\"/>"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<a xmlns:p=\"urn:p\" xmlns:q=\"urn:p\" p:x=\"1\" q:x=\"2\"/>",
+    "indent": true,
+    "result": {
+      "output": "<a xmlns:p=\"urn:p\" xmlns:q=\"urn:p\" p:x=\"1\" q:x=\"2\"/>"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "<p:a/>",
+    "indent": true,
+    "result": {
+      "output": "<p:a/>"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "<p:a/>",
+    "indent": true,
+    "result": {
+      "output": "<p:a/>"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" encoding=\"\"?><a/>",
+    "indent": true,
+    "result": {
+      "output": "<a/>"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" encoding=\"\"?><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\"?><!DOCTYPE a [<!ENTITY e \"<b>\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Premature end of data in tag b line 1\n<b>\n   ^\nline 1: Entity 'e' failed to parse\n<?xml version=\"1.0\"?><!DOCTYPE a [<!ENTITY e \"<b>\">]><a>&e;</a>\n                                                           ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\"?><!DOCTYPE a [<!ENTITY e \"<b>\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Premature end of data in tag b line 1\n<b>\n   ^\nline 1: Entity 'e' failed to parse\n<?xml version=\"1.0\"?><!DOCTYPE a [<!ENTITY e \"<b>\">]><a>&e;</a>\n                                                           ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 5,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"&e;\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n<!DOCTYPE a [<!ENTITY e \"&e;\">]><a>&e;</a>\n                                      ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 5,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"&e;\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n&e;\n   ^\nline 1: Detected an entity reference loop\n<!DOCTYPE a [<!ENTITY e \"&e;\">]><a>&e;</a>\n                                      ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 6,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x CDATA \"&missing;\">]><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Entity 'missing' not defined\n<!DOCTYPE a [<!ATTLIST a x CDATA \"&missing;\">]><a/>\n                                           ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 6,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x CDATA \"&missing;\">]><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Entity 'missing' not defined\n<!DOCTYPE a [<!ATTLIST a x CDATA \"&missing;\">]><a/>\n                                           ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 7,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"x\">]><a>&missing;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Entity 'missing' not defined\n<!DOCTYPE a [<!ENTITY e \"x\">]><a>&missing;</a>\n                                          ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 7,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \"x\">]><a>&missing;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Entity 'missing' not defined\n<!DOCTYPE a [<!ENTITY e \"x\">]><a>&missing;</a>\n                                          ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 8,
+    "mode": "CONTENT",
+    "input": "<a>&#0;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: xmlParseCharRef: invalid xmlChar value 0\n<a>&#0;</a>\n       ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 8,
+    "mode": "DOCUMENT",
+    "input": "<a>&#0;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: xmlParseCharRef: invalid xmlChar value 0\n<a>&#0;</a>\n       ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 9,
+    "mode": "CONTENT",
+    "input": "<a x=\"1\"><b></a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Opening and ending tag mismatch: b line 1 and a\n<a x=\"1\"><b></a>\n                ^\nline 1: Premature end of data in tag a line 1\n<a x=\"1\"><b></a>\n                ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 9,
+    "mode": "DOCUMENT",
+    "input": "<a x=\"1\"><b></a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Opening and ending tag mismatch: b line 1 and a\n<a x=\"1\"><b></a>\n                ^\nline 1: Premature end of data in tag a line 1\n<a x=\"1\"><b></a>\n                ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 10,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a EMPTY> garbage]><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: internal error: xmlParseInternalSubset: error detected in Markup declaration\n<!DOCTYPE a [<!ELEMENT a EMPTY> garbage]><a/>\n                                ^\nline 1: DOCTYPE improperly terminated\n<!DOCTYPE a [<!ELEMENT a EMPTY> garbage]><a/>\n                                ^\nline 1: Start tag expected, '<' not found\n<!DOCTYPE a [<!ELEMENT a EMPTY> garbage]><a/>\n                                ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 10,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a EMPTY> garbage]><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: internal error: xmlParseInternalSubset: error detected in Markup declaration\n<!DOCTYPE a [<!ELEMENT a EMPTY> garbage]><a/>\n                                ^\nline 1: DOCTYPE improperly terminated\n<!DOCTYPE a [<!ELEMENT a EMPTY> garbage]><a/>\n                                ^\nline 1: Start tag expected, '<' not found\n<!DOCTYPE a [<!ELEMENT a EMPTY> garbage]><a/>\n                                ^",
+      "message": "invalid XML content"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 11,
+    "mode": "CONTENT",
+    "input": "<a/>tail",
+    "indent": true,
+    "result": {
+      "output": "<a/>tail"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 11,
+    "mode": "DOCUMENT",
+    "input": "<a/>tail",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 12,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.1\"?><a/>",
+    "indent": true,
+    "result": {
+      "output": "<a/>"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 12,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.1\"?><a/>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.1\" encoding=\"UTF-8\"?>\n<a/>"
+    },
+    "group": "qualification"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><x/></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n>",
+    "indent": true,
+    "result": {
+      "output": "<n>\n  <n>\n    <n>\n      <n>\n        <n>\n          <n>\n            <n>\n              <n>\n                <n>\n                  <n>\n                    <n>\n                      <n>\n                        <n>\n                          <n>\n                            <n>\n                              <n>\n                                <n>\n                                  <n>\n                                    <n>\n                                      <n>\n                                        <n>\n                                          <n>\n                                            <n>\n                                              <n>\n                                                <n>\n                                                  <n>\n                                                    <n>\n                                                      <n>\n                                                        <n>\n                                                          <n>\n                                                            <n>\n                                                            <n>\n                                                            <n>\n                                                            <x/>\n                                                            </n>\n                                                            </n>\n                                                            </n>\n                                                          </n>\n                                                        </n>\n                                                      </n>\n                                                    </n>\n                                                  </n>\n                                                </n>\n                                              </n>\n                                            </n>\n                                          </n>\n                                        </n>\n                                      </n>\n                                    </n>\n                                  </n>\n                                </n>\n                              </n>\n                            </n>\n                          </n>\n                        </n>\n                      </n>\n                    </n>\n                  </n>\n                </n>\n              </n>\n            </n>\n          </n>\n        </n>\n      </n>\n    </n>\n  </n>\n</n>"
+    },
+    "group": "edge"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><x/></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n>",
+    "indent": true,
+    "result": {
+      "output": "<n>\n  <n>\n    <n>\n      <n>\n        <n>\n          <n>\n            <n>\n              <n>\n                <n>\n                  <n>\n                    <n>\n                      <n>\n                        <n>\n                          <n>\n                            <n>\n                              <n>\n                                <n>\n                                  <n>\n                                    <n>\n                                      <n>\n                                        <n>\n                                          <n>\n                                            <n>\n                                              <n>\n                                                <n>\n                                                  <n>\n                                                    <n>\n                                                      <n>\n                                                        <n>\n                                                          <n>\n                                                            <n>\n                                                            <n>\n                                                            <n>\n                                                            <x/>\n                                                            </n>\n                                                            </n>\n                                                            </n>\n                                                          </n>\n                                                        </n>\n                                                      </n>\n                                                    </n>\n                                                  </n>\n                                                </n>\n                                              </n>\n                                            </n>\n                                          </n>\n                                        </n>\n                                      </n>\n                                    </n>\n                                  </n>\n                                </n>\n                              </n>\n                            </n>\n                          </n>\n                        </n>\n                      </n>\n                    </n>\n                  </n>\n                </n>\n              </n>\n            </n>\n          </n>\n        </n>\n      </n>\n    </n>\n  </n>\n</n>"
+    },
+    "group": "edge"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html xmlns=\"http://www.w3.org/1999/xhtml\"><head/><body><br/><img src=\"x\"/><div/><input checked=\"checked\"/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n    <img src=\"x\" />\n    <div></div>\n    <input checked=\"checked\" />\n  </body>\n</html>\n"
+    },
+    "group": "edge"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html xmlns=\"http://www.w3.org/1999/xhtml\"><head/><body><br/><img src=\"x\"/><div/><input checked=\"checked\"/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n    <img src=\"x\" />\n    <div></div>\n    <input checked=\"checked\" />\n  </body>\n</html>"
+    },
+    "group": "edge"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!NOTATION z SYSTEM \"z\"><!NOTATION a SYSTEM \"a\"><!NOTATION m SYSTEM \"m\"><!ENTITY e SYSTEM \"u\" NDATA z>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>\n"
+    },
+    "group": "edge"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!NOTATION z SYSTEM \"z\"><!NOTATION a SYSTEM \"a\"><!NOTATION m SYSTEM \"m\"><!ENTITY e SYSTEM \"u\" NDATA z>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>"
+    },
+    "group": "edge"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\"?><!DOCTYPE a [<!ENTITY e \"é\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE a [\n<!ENTITY e \"é\">\n]>\n<a>é</a>\n"
+    },
+    "group": "edge"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\"?><!DOCTYPE a [<!ENTITY e \"é\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE a [\n<!ENTITY e \"é\">\n]>\n<a>é</a>"
+    },
+    "group": "edge"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p '<!ENTITY e \"<b>é</b>\"><!ATTLIST a x CDATA \"v\">'>%p;]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY % p '<!ENTITY e \"<b>é</b>\"><!ATTLIST a x CDATA \"v\">'>\n<!ENTITY e \"<b>é</b>\">\n<!ATTLIST a x CDATA \"v\">\n]>\n<a x=\"v\">\n  <b>&#xE9;</b>\n</a>\n"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY % p '<!ENTITY e \"<b>é</b>\"><!ATTLIST a x CDATA \"v\">'>%p;]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY % p '<!ENTITY e \"<b>é</b>\"><!ATTLIST a x CDATA \"v\">'>\n<!ENTITY e \"<b>é</b>\">\n<!ATTLIST a x CDATA \"v\">\n]>\n<a x=\"v\">\n  <b>&#xE9;</b>\n</a>"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a p:x CDATA \"x\" xmlns:p CDATA \"urn:p\" y CDATA \"y\">]><a z=\"z\"/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a p:x CDATA \"x\">\n<!ATTLIST a xmlns:p CDATA \"urn:p\">\n<!ATTLIST a y CDATA \"y\">\n]>\n<a xmlns:p=\"urn:p\" z=\"z\" p:x=\"x\" y=\"y\"/>\n"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a p:x CDATA \"x\" xmlns:p CDATA \"urn:p\" y CDATA \"y\">]><a z=\"z\"/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a p:x CDATA \"x\">\n<!ATTLIST a xmlns:p CDATA \"urn:p\">\n<!ATTLIST a y CDATA \"y\">\n]>\n<a xmlns:p=\"urn:p\" z=\"z\" p:x=\"x\" y=\"y\"/>"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a SYSTEM \"urn:missing\"><a>x&missing;y</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a SYSTEM \"urn:missing\">\n<a>x&missing;y</a>\n"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a SYSTEM \"urn:missing\"><a>x&missing;y</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a SYSTEM \"urn:missing\">\n<a>x&missing;y</a>"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///not-present\">]><a>x&e;y</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e SYSTEM \"file:///not-present\">\n]>\n<a>xy</a>\n"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e SYSTEM \"file:///not-present\">]><a>x&e;y</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e SYSTEM \"file:///not-present\">\n]>\n<a>xy</a>"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\">]><a>&e3;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e0 \"x\">\n<!ENTITY e1 \"&e0;&e0;\">\n<!ENTITY e2 \"&e1;&e1;\">\n<!ENTITY e3 \"&e2;&e2;\">\n]>\n<a>xxxxxxxx</a>\n"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\">]><a>&e3;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e0 \"x\">\n<!ENTITY e1 \"&e0;&e0;\">\n<!ENTITY e2 \"&e1;&e1;\">\n<!ENTITY e3 \"&e2;&e2;\">\n]>\n<a>xxxxxxxx</a>"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 5,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\">]><a>&e4;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Detected an entity reference loop\n&e3;&e3;\n    ^\nline 1: Detected an entity reference loop\n\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\">]><a>&e4;\n                                                                               ^",
+      "message": "invalid XML content"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 5,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\">]><a>&e4;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Detected an entity reference loop\n&e3;&e3;\n    ^\nline 1: Detected an entity reference loop\n\"><!ENTITY e2 \"&e1;&e1;\"><!ENTITY e3 \"&e2;&e2;\"><!ENTITY e4 \"&e3;&e3;\">]><a>&e4;\n                                                                               ^",
+      "message": "invalid XML content"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 6,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\">]><a>&e16;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e0 \"x\">\n<!ENTITY e1 \"&e0;\">\n<!ENTITY e2 \"&e1;\">\n<!ENTITY e3 \"&e2;\">\n<!ENTITY e4 \"&e3;\">\n<!ENTITY e5 \"&e4;\">\n<!ENTITY e6 \"&e5;\">\n<!ENTITY e7 \"&e6;\">\n<!ENTITY e8 \"&e7;\">\n<!ENTITY e9 \"&e8;\">\n<!ENTITY e10 \"&e9;\">\n<!ENTITY e11 \"&e10;\">\n<!ENTITY e12 \"&e11;\">\n<!ENTITY e13 \"&e12;\">\n<!ENTITY e14 \"&e13;\">\n<!ENTITY e15 \"&e14;\">\n<!ENTITY e16 \"&e15;\">\n]>\n<a>x</a>\n"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 6,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\">]><a>&e16;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e0 \"x\">\n<!ENTITY e1 \"&e0;\">\n<!ENTITY e2 \"&e1;\">\n<!ENTITY e3 \"&e2;\">\n<!ENTITY e4 \"&e3;\">\n<!ENTITY e5 \"&e4;\">\n<!ENTITY e6 \"&e5;\">\n<!ENTITY e7 \"&e6;\">\n<!ENTITY e8 \"&e7;\">\n<!ENTITY e9 \"&e8;\">\n<!ENTITY e10 \"&e9;\">\n<!ENTITY e11 \"&e10;\">\n<!ENTITY e12 \"&e11;\">\n<!ENTITY e13 \"&e12;\">\n<!ENTITY e14 \"&e13;\">\n<!ENTITY e15 \"&e14;\">\n<!ENTITY e16 \"&e15;\">\n]>\n<a>x</a>"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 7,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\">]><a>&e17;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Detected an entity reference loop\n&e16;\n     ^\nline 1: Detected an entity reference loop\n&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\">]><a>&e17;\n                                                                               ^",
+      "message": "invalid XML content"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 7,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e0 \"x\"><!ENTITY e1 \"&e0;\"><!ENTITY e2 \"&e1;\"><!ENTITY e3 \"&e2;\"><!ENTITY e4 \"&e3;\"><!ENTITY e5 \"&e4;\"><!ENTITY e6 \"&e5;\"><!ENTITY e7 \"&e6;\"><!ENTITY e8 \"&e7;\"><!ENTITY e9 \"&e8;\"><!ENTITY e10 \"&e9;\"><!ENTITY e11 \"&e10;\"><!ENTITY e12 \"&e11;\"><!ENTITY e13 \"&e12;\"><!ENTITY e14 \"&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\">]><a>&e17;</a>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "line 1: Detected an entity reference loop\n&e16;\n     ^\nline 1: Detected an entity reference loop\n&e13;\"><!ENTITY e15 \"&e14;\"><!ENTITY e16 \"&e15;\"><!ENTITY e17 \"&e16;\">]><a>&e17;\n                                                                               ^",
+      "message": "invalid XML content"
+    },
+    "group": "composed"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" encoding=\"UTF8\"standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "Space required.",
+      "message": "invalid XML content: invalid XML declaration"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" encoding=\"UTF8\"standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "Space required.",
+      "message": "invalid XML content: invalid XML declaration"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" encoding=\"UTF-8\"standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "Space required.",
+      "message": "invalid XML content: invalid XML declaration"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" encoding=\"UTF-8\"standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200N",
+      "detail": "Space required.",
+      "message": "invalid XML content: invalid XML declaration"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><head><title>x</title></head><body><a name=\"x\"/><form name=\"f\"/><input name=\"i\"/><hr/><script/><textarea/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n    <title>x</title>\n  </head>\n  <body>\n    <a name=\"x\" id=\"x\"></a>\n    <form name=\"f\" id=\"f\"></form>\n    <input name=\"i\" />\n    <hr />\n    <script></script>\n    <textarea></textarea>\n  </body>\n</html>\n"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><head><title>x</title></head><body><a name=\"x\"/><form name=\"f\"/><input name=\"i\"/><hr/><script/><textarea/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n    <title>x</title>\n  </head>\n  <body>\n    <a name=\"x\" id=\"x\"></a>\n    <form name=\"f\" id=\"f\"></form>\n    <input name=\"i\" />\n    <hr />\n    <script></script>\n    <textarea></textarea>\n  </body>\n</html>"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta http-equiv=\"Content-Type\" content=\"application/xhtml+xml; charset=LATIN1\"/></head><body><br></br><p/><a id=\"i\"/><a name=\"n\"/><input disabled=\"disabled\"/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"application/xhtml+xml; charset=LATIN1\" />\n  </head>\n  <body>\n    <br />\n    <p></p>\n    <a id=\"i\"></a>\n    <a name=\"n\" id=\"n\"></a>\n    <input disabled=\"disabled\" />\n  </body>\n</html>\n"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta http-equiv=\"Content-Type\" content=\"application/xhtml+xml; charset=LATIN1\"/></head><body><br></br><p/><a id=\"i\"/><a name=\"n\"/><input disabled=\"disabled\"/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"application/xhtml+xml; charset=LATIN1\" />\n  </head>\n  <body>\n    <br />\n    <p></p>\n    <a id=\"i\"></a>\n    <a name=\"n\" id=\"n\"></a>\n    <input disabled=\"disabled\" />\n  </body>\n</html>"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><head><meta charset=\"UTF-8\"/><meta http-equiv=\"content-type\" content=\"text/html\"/></head><body/></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta http-equiv=\"content-type\" content=\"text/html\" />\n  </head>\n  <body></body>\n</html>\n"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><head><meta charset=\"UTF-8\"/><meta http-equiv=\"content-type\" content=\"text/html\"/></head><body/></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta http-equiv=\"content-type\" content=\"text/html\" />\n  </head>\n  <body></body>\n</html>"
+    },
+    "group": "xhtml"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" encoding=\"UTF8\"standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "initial_mode": "DOCUMENT",
+    "group": "document-entry"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" encoding=\"UTF8\"standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "output": "<a/>"
+    },
+    "initial_mode": "DOCUMENT",
+    "group": "document-entry"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<?xml version=\"1.0\" encoding=\"UTF-8\"standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "hint": "",
+      "state": "2200L",
+      "detail": "",
+      "message": "not an XML document"
+    },
+    "initial_mode": "DOCUMENT",
+    "group": "document-entry"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<?xml version=\"1.0\" encoding=\"UTF-8\"standalone=\"yes\"?><a/>",
+    "indent": true,
+    "result": {
+      "output": "<a/>"
+    },
+    "initial_mode": "DOCUMENT",
+    "group": "document-entry"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION m SYSTEM \"m\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION z SYSTEM \"z\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION m SYSTEM \"m\" >\n<!NOTATION a SYSTEM \"a\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION m SYSTEM \"m\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION z SYSTEM \"z\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!NOTATION z SYSTEM \"z\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!NOTATION z SYSTEM \"z\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION m SYSTEM \"m\" >\n<!NOTATION a SYSTEM \"a\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!NOTATION z SYSTEM \"z\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION m SYSTEM \"m\" >\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION m SYSTEM \"m\" >\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION a SYSTEM \"a\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "output": "<!DOCTYPE a [\n<!NOTATION a SYSTEM \"a\" >\n<!NOTATION z SYSTEM \"z\" >\n<!NOTATION m SYSTEM \"m\" >\n<!ENTITY e SYSTEM \"u\" NDATA z>\n]>\n<a/>",
+    "group": "notation-order"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"preserve\"> <b xml:space=\"default\"> <c/> </b> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b xml:space=\"default\"><c/></b> </a>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"preserve\"> <b xml:space=\"default\"> <c/> </b> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"preserve\"> <b xml:space=\"default\"><c/></b> </a>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a ANY>]><a> <b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a ANY>\n]>\n<a> <b/> </a>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a ANY>]><a> <b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a ANY>\n]>\n<a> <b/> </a>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a EMPTY>]><a> <b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a EMPTY>\n]>\n<a> <b/> </a>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a EMPTY>]><a> <b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a EMPTY>\n]>\n<a> <b/> </a>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b*)>]><a> <b/> text </a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b)*>\n]>\n<a><b/> text </a>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b*)>]><a> <b/> text </a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b)*>\n]>\n<a><b/> text </a>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \" <b/> \">]><a>&e;&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e \" <b/> \">\n]>\n<a><b/> <b/> </a>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \" <b/> \">]><a>&e;&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e \" <b/> \">\n]>\n<a><b/> <b/> </a>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 5,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \" <b/> \">]><a xml:space=\"preserve\">&e;<c xml:space=\"default\">&e;</c></a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e \" <b/> \">\n]>\n<a xml:space=\"preserve\"><b/> <c xml:space=\"default\"><b/> </c></a>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 5,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e \" <b/> \">]><a xml:space=\"preserve\">&e;<c xml:space=\"default\">&e;</c></a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ENTITY e \" <b/> \">\n]>\n<a xml:space=\"preserve\"><b/> <c xml:space=\"default\"><b/> </c></a>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 6,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a ((b|c)+,d?,(e,f)*)><!ATTLIST a r CDATA #REQUIRED i CDATA #IMPLIED n NOTATION (one|two) #IMPLIED en (a|b|c) \"b\">]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a ((b | c)+ , d? , (e , f)*)>\n<!ATTLIST a r CDATA #REQUIRED>\n<!ATTLIST a i CDATA #IMPLIED>\n<!ATTLIST a n NOTATION (one | two) #IMPLIED>\n<!ATTLIST a en (a | b | c) \"b\">\n]>\n<a en=\"b\"/>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 6,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a ((b|c)+,d?,(e,f)*)><!ATTLIST a r CDATA #REQUIRED i CDATA #IMPLIED n NOTATION (one|two) #IMPLIED en (a|b|c) \"b\">]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a ((b | c)+ , d? , (e , f)*)>\n<!ATTLIST a r CDATA #REQUIRED>\n<!ATTLIST a i CDATA #IMPLIED>\n<!ATTLIST a n NOTATION (one | two) #IMPLIED>\n<!ATTLIST a en (a | b | c) \"b\">\n]>\n<a en=\"b\"/>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 7,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"urn:other\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"urn:other\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 7,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"urn:other\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"urn:other\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 8,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 8,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 9,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"urn:other\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"urn:other\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 9,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"urn:other\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"urn:other\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 10,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 10,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 11,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Frameset//EN\" \"urn:other\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Frameset//EN\" \"urn:other\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 11,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Frameset//EN\" \"urn:other\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Frameset//EN\" \"urn:other\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 12,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 12,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd\"><html><head/><body><br/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html SYSTEM \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n</head>\n  <body>\n    <br />\n  </body>\n</html>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 13,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><body><x:a xmlns:x=\"http://www.w3.org/1999/xhtml\"/><x:br xmlns:x=\"http://www.w3.org/1999/xhtml\"/><br xmlns=\"urn:foreign\"/><input checked=\"\" READONLY=\"\"/><p lang=\"en\"/><p xml:lang=\"fr\"/><p lang=\"en\" xml:lang=\"fr\"/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <body>\n    <x:a xmlns:x=\"http://www.w3.org/1999/xhtml\"></x:a>\n    <x:br xmlns:x=\"http://www.w3.org/1999/xhtml\"></x:br>\n    <br xmlns=\"urn:foreign\"></br>\n    <input checked=\"checked\" READONLY=\"READONLY\" />\n    <p lang=\"en\" xml:lang=\"en\"></p>\n    <p xml:lang=\"fr\" lang=\"fr\"></p>\n    <p lang=\"en\" xml:lang=\"fr\"></p>\n  </body>\n</html>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 13,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><body><x:a xmlns:x=\"http://www.w3.org/1999/xhtml\"/><x:br xmlns:x=\"http://www.w3.org/1999/xhtml\"/><br xmlns=\"urn:foreign\"/><input checked=\"\" READONLY=\"\"/><p lang=\"en\"/><p xml:lang=\"fr\"/><p lang=\"en\" xml:lang=\"fr\"/></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <body>\n    <x:a xmlns:x=\"http://www.w3.org/1999/xhtml\"></x:a>\n    <x:br xmlns:x=\"http://www.w3.org/1999/xhtml\"></x:br>\n    <br xmlns=\"urn:foreign\"></br>\n    <input checked=\"checked\" READONLY=\"READONLY\" />\n    <p lang=\"en\" xml:lang=\"en\"></p>\n    <p xml:lang=\"fr\" lang=\"fr\"></p>\n    <p lang=\"en\" xml:lang=\"fr\"></p>\n  </body>\n</html>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 14,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><body><![CDATA[x]]><br/><!--c--><?p x?></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <body>\n<![CDATA[x]]>\n    <br />\n<!--c-->\n<?p x?>\n  </body>\n</html>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 14,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><body><![CDATA[x]]><br/><!--c--><?p x?></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <body>\n<![CDATA[x]]>\n    <br />\n<!--c-->\n<?p x?>\n  </body>\n</html>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 15,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><body>text<br/><!--c--><?p x?></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <body>text<br /><!--c--><?p x?></body>\n</html>\n"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 15,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><body>text<br/><!--c--><?p x?></body></html>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n  <body>text<br /><!--c--><?p x?></body>\n</html>"
+    },
+    "group": "branches"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a EMPTY><!ELEMENT a ANY>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a EMPTY>\n]>\n<a/>\n"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a EMPTY><!ELEMENT a ANY>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a EMPTY>\n]>\n<a/>"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b*)><!ELEMENT a (#PCDATA)>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b)*>\n]>\n<a/>\n"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b*)><!ELEMENT a (#PCDATA)>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b)*>\n]>\n<a/>"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!NOTATION n SYSTEM \"one\"><!NOTATION n SYSTEM \"two\">]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!NOTATION n SYSTEM \"one\" >\n]>\n<a/>\n"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!NOTATION n SYSTEM \"one\"><!NOTATION n SYSTEM \"two\">]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!NOTATION n SYSTEM \"one\" >\n]>\n<a/>"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY amp \"&#38;\">]><a>&amp;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a>\n<a>&amp;</a>\n"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY amp \"&#38;\">]><a>&amp;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a>\n<a>&amp;</a>"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a PUBLIC \"\" \"\"><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a PUBLIC \"\" \"\">\n<a/>\n"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a PUBLIC \"\" \"\"><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a PUBLIC \"\" \"\">\n<a/>"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 5,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ENTITY e PUBLIC \"\" \"\"><!NOTATION n PUBLIC \"\" \"\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!NOTATION n PUBLIC \"\" \"\" >\n<!ENTITY e PUBLIC \"\" \"\">\n]>\n<a/>\n"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 5,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ENTITY e PUBLIC \"\" \"\"><!NOTATION n PUBLIC \"\" \"\">]><a>&e;</a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!NOTATION n PUBLIC \"\" \"\" >\n<!ENTITY e PUBLIC \"\" \"\">\n]>\n<a/>"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 6,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a ((b*)+)>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b)*>\n]>\n<a/>\n"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 6,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a ((b*)+)>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b)*>\n]>\n<a/>"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 7,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b?|c)+>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b | c)*>\n]>\n<a/>\n"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 7,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b?|c)+>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b | c)*>\n]>\n<a/>"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 8,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b?|c)*>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b | c)*>\n]>\n<a/>\n"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 8,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ELEMENT a (b?|c)*>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ELEMENT a (b | c)*>\n]>\n<a/>"
+    },
+    "group": "dtd-edges"
+  },
+  {
+    "id": 0,
+    "mode": "CONTENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n  <b/>\n</a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 0,
+    "mode": "DOCUMENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n  <b/>\n</a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 1,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n  <b/>\n</a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 1,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n  <b/>\n</a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 2,
+    "mode": "CONTENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n  <b/>\n</a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 2,
+    "mode": "DOCUMENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n  <b/>\n</a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 3,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n  <b/>\n</a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 3,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n  <b/>\n</a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 4,
+    "mode": "CONTENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 4,
+    "mode": "DOCUMENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 5,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 5,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 6,
+    "mode": "CONTENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 6,
+    "mode": "DOCUMENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 7,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 7,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 8,
+    "mode": "CONTENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 8,
+    "mode": "DOCUMENT",
+    "input": "<a>\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a>\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 9,
+    "mode": "CONTENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 9,
+    "mode": "DOCUMENT",
+    "input": "<a xml:space=\"default\">\r\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>",
+    "indent": true,
+    "result": {
+      "output": "<a xml:space=\"default\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<b/> </a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 10,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE p:a [<!ELEMENT a (b*)>]><p:a xmlns:p=\"urn:p\"> </p:a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE p:a [\n<!ELEMENT a (b)*>\n]>\n<p:a xmlns:p=\"urn:p\"/>\n"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 10,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE p:a [<!ELEMENT a (b*)>]><p:a xmlns:p=\"urn:p\"> </p:a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE p:a [\n<!ELEMENT a (b)*>\n]>\n<p:a xmlns:p=\"urn:p\"/>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 11,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE p:a [<!ELEMENT p:a (b*)>]><p:a xmlns:p=\"urn:p\"> </p:a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE p:a [\n<!ELEMENT p:a (b)*>\n]>\n<p:a xmlns:p=\"urn:p\"> </p:a>\n"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 11,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE p:a [<!ELEMENT p:a (b*)>]><p:a xmlns:p=\"urn:p\"> </p:a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE p:a [\n<!ELEMENT p:a (b)*>\n]>\n<p:a xmlns:p=\"urn:p\"> </p:a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 12,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE p:a [<!ELEMENT a ANY>]><p:a xmlns:p=\"urn:p\"> </p:a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE p:a [\n<!ELEMENT a ANY>\n]>\n<p:a xmlns:p=\"urn:p\"> </p:a>\n"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 12,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE p:a [<!ELEMENT a ANY>]><p:a xmlns:p=\"urn:p\"> </p:a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE p:a [\n<!ELEMENT a ANY>\n]>\n<p:a xmlns:p=\"urn:p\"> </p:a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 13,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE p:a [<!ELEMENT a (#PCDATA)>]><p:a xmlns:p=\"urn:p\"> </p:a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE p:a [\n<!ELEMENT a (#PCDATA)>\n]>\n<p:a xmlns:p=\"urn:p\"> </p:a>\n"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 13,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE p:a [<!ELEMENT a (#PCDATA)>]><p:a xmlns:p=\"urn:p\"> </p:a>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE p:a [\n<!ELEMENT a (#PCDATA)>\n]>\n<p:a xmlns:p=\"urn:p\"> </p:a>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 14,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x (v|v) \"v\">]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a x (v) \"v\">\n]>\n<a x=\"v\"/>\n"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 14,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x (v|v) \"v\">]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a x (v) \"v\">\n]>\n<a x=\"v\"/>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 15,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x (v|w|v|w|z) \"v\">]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a x (v | w | z) \"v\">\n]>\n<a x=\"v\"/>\n"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 15,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x (v|w|v|w|z) \"v\">]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a x (v | w | z) \"v\">\n]>\n<a x=\"v\"/>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 16,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x NOTATION (n|n) #IMPLIED>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a x NOTATION (n) #IMPLIED>\n]>\n<a/>\n"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 16,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x NOTATION (n|n) #IMPLIED>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a x NOTATION (n) #IMPLIED>\n]>\n<a/>"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 17,
+    "mode": "CONTENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x NOTATION (n|m|n|m|o) #IMPLIED>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a x NOTATION (n | m | o) #IMPLIED>\n]>\n<a/>\n"
+    },
+    "group": "review1"
+  },
+  {
+    "id": 17,
+    "mode": "DOCUMENT",
+    "input": "<!DOCTYPE a [<!ATTLIST a x NOTATION (n|m|n|m|o) #IMPLIED>]><a/>",
+    "indent": true,
+    "result": {
+      "output": "<!DOCTYPE a [\n<!ATTLIST a x NOTATION (n | m | o) #IMPLIED>\n]>\n<a/>"
+    },
+    "group": "review1"
+  }
+]

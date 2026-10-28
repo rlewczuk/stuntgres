@@ -5,18 +5,26 @@ import (
 )
 
 type entity struct {name,value,publicID,systemID,notation string; external,parameter,unparsed bool; checked,owner,childReferences uint64; parsed bool;nodes []*node;shape uint8}
-type attributeDefinition struct {name,local,typ,value string; supplied bool}
+type attributeDefinition struct {name,local,typ,value string; supplied bool; defaultKind string; members []string}
 type dtdState struct {
  general,parameter map[string]*entity
  attributes map[string][]attributeDefinition
  external,peReferences bool
  doctype *doctype
  currentAttributes []attributeDefinition
+ elementTypes map[string]string
+ currentModel *contentModel
+ currentType,originalEntityValue string
+ currentMembers []string
+ currentMemberHashes map[uint64]int
+ currentMemberLinks []int
+ currentPublic,currentSystem,currentAdmitted bool
+ notations map[string]bool
 }
 type inputFrame struct {s string;i,base,line,column,nextPoll,inputID int; source DiagnosticSource;entityName string}
 func (p *parser) frame()inputFrame{return inputFrame{p.s,p.i,p.base,p.line,p.column,p.nextPoll,p.inputID,p.source,p.entityName}}
 func (p *parser) restoreFrame(f inputFrame){p.s=f.s;p.i=f.i;p.base=f.base;p.line=f.line;p.column=f.column;p.nextPoll=min(f.nextPoll,f.i);p.inputID=f.inputID;p.source=f.source;p.entityName=f.entityName}
-func (p *parser) dtdInit(){if p.dtdState==nil{p.dtdState=&dtdState{general:make(map[string]*entity),parameter:make(map[string]*entity),attributes:make(map[string][]attributeDefinition)}}}
+func (p *parser) dtdInit(){if p.dtdState==nil{p.dtdState=&dtdState{general:make(map[string]*entity),parameter:make(map[string]*entity),attributes:make(map[string][]attributeDefinition),elementTypes:make(map[string]string)}}}
 
 // Lookahead has no grammar side effects. The first double hyphen must terminate
 // a comment, exactly as xml_doctype_in_content; malformed misc cannot promote.
@@ -129,6 +137,8 @@ func (p *parser) dtdDeclaration(kind string) {
  p.advance(len(kind)+2)
  var name,value,publicID,systemID,notation string;parameter,external,unparsed:=false,false,false
  p.dtdState.currentAttributes=nil
+ p.dtdState.currentModel=nil;p.dtdState.currentType="";p.dtdState.originalEntityValue=""
+ p.dtdState.currentPublic=false;p.dtdState.currentSystem=false;p.dtdState.currentAdmitted=true
  switch kind {
  case "ELEMENT":name=p.elementDeclaration()
  case "ATTLIST":name=p.attributeListDeclaration()
@@ -136,8 +146,10 @@ func (p *parser) dtdDeclaration(kind string) {
  case "NOTATION":name,publicID,systemID=p.notationDeclaration()
  }
  if p.err!=nil{return}
- if p.inputID==id&&p.i>start&&p.i<=len(source)&&p.tree!=nil {
-  p.dtdState.doctype.declarations=checkedAppend(p,p.dtdState.doctype.declarations,dtdDeclaration{kind:kind,name:name,raw:source[start:p.i],value:value,publicID:publicID,systemID:systemID,notation:notation,parameter:parameter,external:external,unparsed:unparsed,attributes:p.dtdState.currentAttributes})
+ if kind=="ELEMENT"&&name!="" {if _,exists:=p.dtdState.elementTypes[name];!exists{p.dtdState.elementTypes[name]=p.dtdState.currentType}else{p.dtdState.currentAdmitted=false}}
+ if kind=="NOTATION"&&p.tree!=nil {if p.dtdState.notations==nil{p.dtdState.notations=make(map[string]bool)};if p.dtdState.notations[name]{p.dtdState.currentAdmitted=false};p.dtdState.notations[name]=true}
+ if p.inputID==id&&p.i>start&&p.i<=len(source)&&p.tree!=nil&&p.dtdState.currentAdmitted {
+  p.dtdState.doctype.declarations=checkedAppend(p,p.dtdState.doctype.declarations,dtdDeclaration{kind:kind,name:name,raw:source[start:p.i],value:value,originalValue:p.dtdState.originalEntityValue,publicID:publicID,systemID:systemID,notation:notation,parameter:parameter,external:external,unparsed:unparsed,attributes:p.dtdState.currentAttributes,model:p.dtdState.currentModel,elementType:p.dtdState.currentType,public:p.dtdState.currentPublic,systemPresent:p.dtdState.currentSystem})
  }
 }
 func (p *parser) declarationEnd(kind string,id int)bool {
@@ -148,15 +160,18 @@ func (p *parser) declarationEnd(kind string,id int)bool {
 }
 func (p *parser) externalID(notation bool)(publicID,systemID string,ok bool) {
  if p.has("SYSTEM") {
+  p.dtdState.currentSystem=true
   p.advance(6);if !p.dtdSpaces(){p.event("XML_ERR_SPACE_REQUIRED","Space required after 'SYSTEM'")}
   systemID,ok=p.dtdLiteral(false)
  }else if p.has("PUBLIC") {
+  p.dtdState.currentPublic=true
   p.advance(6);if !p.dtdSpaces(){p.event("XML_ERR_SPACE_REQUIRED","Space required after 'PUBLIC'")}
   publicID,ok=p.dtdLiteral(true)
   if !ok{p.event("XML_ERR_PUBID_REQUIRED","PUBLIC, the Public Identifier is missing");return}
   separated:=p.dtdSpaces()
   if notation&&p.byte()!='\''&&p.byte()!='"'{return publicID,"",true}
   if !separated{p.event("XML_ERR_SPACE_REQUIRED","Space required after the Public Identifier")}
+  p.dtdState.currentSystem=true
   systemID,ok=p.dtdLiteral(false)
  }else{return "","",false}
  if !ok{p.event("XML_ERR_URI_REQUIRED","SYSTEM or PUBLIC, the URI is missing")}

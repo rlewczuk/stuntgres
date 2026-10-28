@@ -226,8 +226,11 @@ DOCTYPE and the complete internal ELEMENT/ATTLIST/ENTITY/NOTATION grammar are
 nonvalidating: unused declarations are syntax-checked, but root/content-model,
 ID, required-attribute, enumeration-membership and FIXED-equality validity are
 not enforced. First entity/attribute definitions bind; later declarations are
-still parsed. The transient DOCTYPE retains raw declaration order/identity and
-processed internal entity definitions for later parsed serialization.
+still parsed. The transient DOCTYPE retains admitted declaration order/identity,
+canonical grammar models, attribute default kinds and original EntityValues.
+Processed replacement values remain distinct from original declaration spelling:
+collector projections consume the former, while declaration serialization uses
+the latter.
 External general entities require whitespace before `NDATA` after their SYSTEM
 or PUBLIC identifier, even when unused. A missing separator reports a syntax
 error and continues parsing the NDATA clause and declaration terminator; an
@@ -300,8 +303,7 @@ entity-reference node; declared external general entities contribute no nodes.
 Nested general-entity contexts do not inherit external-subset/PE/standalone
 leniency. Entity counts, local density, copy volume, input/decode depth, names,
 identifier and construct lengths use the pinned release accounting, independently
-of whether collection is enabled. Pretty serialization and SQL adapters remain
-separate owners.
+of whether collection is enabled. SQL adapters remain separate owners.
 Replacement-copy volume charges source byte length plus five on first and cached
 nonempty GE publication, in document and balanced replacement contexts and with
 or without collection. Single-text ownership does not exempt the first use;
@@ -318,12 +320,47 @@ Entity-string chunks align valid UTF8 within at most three boundary bytes and
 always advance. Already-failed single-byte input progresses without clearing or
 suppressing its original malformed-byte diagnostic.
 
+## Character serialization
+
+`Serialize(ctx, value, SerializeOptions{Mode, Indent}) (string, error)` converts
+an accepted value to characters independently of its original parse mode. Zero
+options mean CONTENT, NO INDENT: this returns the original immutable backing
+without a parse or copy. DOCUMENT NO INDENT first qualifies using document grammar.
+INDENT reparses the character spelling once with a transient collector and the
+parse-time ignorable-blank policy, including inherited/defaulted `xml:space`,
+DTD model classification and literal versus scalar-reference callbacks. ASCII
+and complex character callbacks retain their parse-time lookahead and space-state
+transitions; complex callbacks flush at 300 normalized bytes before coalescing.
+Model lookup uses the actual bound node’s local identity, not its lexical QName.
+DTD enumeration/NOTATION metadata retains first-admitted distinct members in order.
+Collection-only per-attribute hash indexing admits members without rescanning the
+ordered list. Token hashing and collision equality poll in bounded chunks; the
+index is discarded when that attribute type finishes and never enters Result.
+
+The operation-local saver emits ordinary XML, canonical DTD declarations and
+automatic DOCTYPE-selected XHTML. It retains no nodes or formatting state in
+Result. Two-space indentation is capped at 60 bytes; mixed subtrees suppress
+layout. Requested/effective modes independently govern declaration eligibility,
+Unicode escaping, top-level separators and terminal newlines. DOCUMENT strips
+terminal CR/LF; DOCTYPE-promoted CONTENT retains the document saver’s final LF.
+Notation records precede ordinary declarations in deterministic binding order.
+
+`*NotDocumentError` has exactly `not an XML document` as its message, without
+SQLSTATE, detail, hint or a fabricated parser diagnostic. It identifies soft
+document qualification/custom declaration failures. Hard grammar failures retain
+`*ParseError`; context, size and invalid-argument failures remain ordinary errors.
+Every failure returns empty output and leaves the accepted value unchanged.
+
+Typed output is separate: `OutputText`/`OutputBinary` normalize declaration
+transport and return a warning independently of character serialization.
+
+
 ## Typed output and lifecycle
 
 `OutputText(ctx, value)` normalizes a declaration for UTF8 typed XML output;
 `OutputBinary(ctx, value, targetID)` uses an explicit canonical PostgreSQL target
 and direct codec. Both return `(characters, OutputWarning, error)`. A character
-cast uses `Original()` instead and produces no output warning.
+conversion uses `Serialize`, not typed-output normalization.
 
 Each output operation reuses the custom byte0 declaration reader, scanning only
 the prefix, never the body. Successful DOCUMENT declaration metadata does not
@@ -369,8 +406,8 @@ conversion mappings. Its provenance, reproduction and licensing are in
 
 ## Testing
 
-Package tests call actual parser/output functions and never issue SQL or invoke a
-native parser. Expected grammar/output literals and ordered diagnostics precede
+Package tests call actual parser/output/serialization functions and never issue
+SQL or invoke a native parser. Expected grammar/output literals and ordered diagnostics precede
 implementation and use release sources plus the pinned PostgreSQL18.6 UTF8/C
 captures described with the metadata. Marked LF/empty-version output,
 forward-compatible version/QName grammar and structured-column cases are
@@ -404,6 +441,14 @@ projections and long-separator PI completion/cancellation are also covered.
 The 68-case runtime corpus is distinct from additional source-derived URI,
 attribute-type recovery, default-value, storage and accounting witnesses; those
 witnesses do not claim an oracle execution that was not performed.
+Serialization’s independent literal corpus and exact diagnostic details live in
+`data/serialize-oracle.json`, with reproduction/runtime provenance in its README.
+Notation comparisons permit only the independently observed section permutations;
+every declaration byte, count and section position remains asserted. Source-derived
+extensions are explicitly labeled. Provider smoke calls real Parse/Serialize
+operations, and lifecycle cases admit real parse, model, formatting, escaping and
+copy phases without production hooks.
+
 
 Follow-up pinned captures cover the string-PE standalone override and malformed
 EntityValue bytes. The latter were delivered to genuine PostgreSQL binary XML
@@ -416,4 +461,5 @@ attributes and cancellation during valid and already-failed string decoding.
 ```sh
 make check RUN='^TestXMLCore'
 make check RUN='^TestXMLDTD'
+make check RUN='^TestXMLSerialize'
 ```

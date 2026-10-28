@@ -18,10 +18,12 @@ type node struct {
  children []*node
  doctype *doctype
  textParts []string
+ dataPresent bool
 }
 type nodeAttribute struct {name,prefix,local,uri,value string; defaulted bool}
 type doctype struct {name,publicID,systemID,subset,raw string; hasSubset,external,public bool; declarations []dtdDeclaration}
-type dtdDeclaration struct {kind,name,raw,value,publicID,systemID,notation string; parameter,external,unparsed bool;attributes []attributeDefinition}
+type contentModel struct {kind byte; name string; occurrence byte; children []*contentModel}
+type dtdDeclaration struct {kind,name,raw,value,originalValue,publicID,systemID,notation string; parameter,external,unparsed,dataPresent,public,systemPresent bool;attributes []attributeDefinition; model *contentModel; elementType string}
 
 func parseExpanded(ctx context.Context,input string,opts Options)(Result,*document,error){return parse(ctx,input,opts,true)}
 func (p *parser) appendNode(n *node) {
@@ -34,8 +36,22 @@ func (p *parser) appendNode(n *node) {
 func (p *parser) collectValue(kind nodeKind,s string) {
  if s!=""||kind!=textNode{p.noteKind(kind)}
  if p.tree==nil||s==""&&kind==textNode{return}
+ if kind==textNode {p.collectCharacters(s,false,p.i);return}
  value:=p.normalizeLines(s)
- if p.err==nil{if kind==textNode{p.appendText(value)}else{p.appendNode(&node{kind:kind,value:value})}}
+ if p.err==nil{p.appendNode(&node{kind:kind,value:value})}
+}
+
+// collectCharacters receives one grammar callback, before text coalescing. Its
+// lookahead is the raw cursor after libxml's normalized next-character read.
+func (p *parser) collectCharacters(s string,complex bool,lookahead int){
+ if s!=""{p.noteKind(textNode)}
+ if p.tree==nil||s==""||p.err!=nil{return}
+ if p.ignoreBlanks&&p.parent!=nil {
+  if p.ignorableBlank(s,lookahead){return}
+  if (complex||space(s[0]))&&p.spaceState==-1{p.spaceState=-2}
+ }
+ value:=p.normalizeLines(s)
+ if p.err==nil{p.appendText(value)}
 }
 func (p *parser) normalizeLines(s string) string {
  if p.err!=nil{return ""}
@@ -74,8 +90,8 @@ func (p *parser) collectMarkup(kind nodeKind,name string,start,end,rawStart int)
  value:=p.normalizeLines(p.s[start:end])
  if p.inDTD {
   label:="COMMENT";if kind==piNode{label="PI"}
-  p.dtdState.doctype.declarations=checkedAppend(p,p.dtdState.doctype.declarations,dtdDeclaration{kind:label,name:name,raw:p.s[rawStart:p.i],value:value})
- }else{p.appendNode(&node{kind:kind,name:name,value:value})}
+  p.dtdState.doctype.declarations=checkedAppend(p,p.dtdState.doctype.declarations,dtdDeclaration{kind:label,name:name,raw:p.s[rawStart:p.i],value:value,dataPresent:kind==piNode&&p.s[rawStart+2+len(name)]!='?'})
+ }else{p.appendNode(&node{kind:kind,name:name,value:value,dataPresent:kind==piNode&&p.s[rawStart+2+len(name)]!='?'})}
 }
 func (p *parser) cloneNode(original *node)*node {
  p.err=p.ctx.Err();if p.err!=nil{return nil}

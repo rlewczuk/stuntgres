@@ -69,11 +69,13 @@ func (p *parser) expandGeneral(e *entity) {
   return
  }
  child:=parser{ctx:p.ctx,s:e.value,line:1,column:1,requested:p.requested,effective:Content,replaceEntities:p.replaceEntities,priorError:p.illFormed||p.priorError,entityDepth:p.entityDepth+2,source:EntitySource,entityName:e.name,dtdState:p.dtdState,namespaceBindings:p.namespaceBindings,namespaceHashes:p.namespaceHashes,namespaceURIs:p.namespaceURIs}
- if p.tree!=nil{child.tree=&document{}}
+ child.ignoreBlanks=p.ignoreBlanks;child.spaceState=-1
+ if p.tree!=nil{child.tree=&document{};if p.ignoreBlanks{child.parent=&node{kind:elementNode}}}
  // Child parser contexts deliberately do not inherit external/PE/standalone
  // leniency. Tables and lexical namespace scope are inherited, not flags.
  if p.dtdState!=nil {state:=*p.dtdState;state.external=false;state.peReferences=false;child.dtdState=&state}
  child.top()
+ if child.parent!=nil{child.tree.nodes=child.parent.children;child.parent=nil}
  if child.err==nil&&child.stopped&&child.byte()!=0&&!child.has("</")&&child.lastEntityError!="XML_ERR_ENTITY_LOOP"{child.event("XML_ERR_EXTRA_CONTENT","extra content at the end of well balanced chunk")}
  if child.err!=nil{p.err=child.err;return}
  p.namespaceBindings=child.namespaceBindings;p.namespaceHashes=child.namespaceHashes;p.namespaceURIs=child.namespaceURIs

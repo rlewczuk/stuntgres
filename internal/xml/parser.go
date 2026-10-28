@@ -52,7 +52,17 @@ func (p *parser) text() {
  }
  start:=p.i;ascii:=true
  collectStart:=p.i
- defer func(){if p.i>collectStart{p.collectValue(textNode,p.s[collectStart:p.i])}}()
+ collectComplex:=false;callbackBytes:=0
+ callbacks:=p.tree!=nil&&p.ignoreBlanks
+ flush:=func(){
+  if p.i>collectStart {
+   lookahead:=p.i
+   if collectComplex&&lookahead+1<len(p.s)&&p.s[lookahead]=='\r'&&p.s[lookahead+1]=='\n'{lookahead++}
+   p.collectCharacters(p.s[collectStart:p.i],collectComplex,lookahead)
+  }
+  collectStart=p.i;callbackBytes=0
+ }
+ defer flush()
  for p.i<len(p.s)&&p.byte()!='<'&&p.poll() {
   if p.depth==0&&!space(p.byte()) {p.rootSeen=true}
   if p.has("]]>") {
@@ -64,18 +74,29 @@ func (p *parser) text() {
   }
   if p.byte()=='&' {
    if p.i!=start&&!p.contentBoundary(){return}
-   if p.i>collectStart{p.collectValue(textNode,p.s[collectStart:p.i])}
+   flush()
    p.contentReference()
-   collectStart=p.i
+   collectStart=p.i;collectComplex=false;callbackBytes=0
    if !p.contentBoundary(){return}
    start=p.i;ascii=true;continue
   }
   if p.byte()==0&&p.depth>0 {return}
   at:=p.i;crlf:=p.byte()=='\r'&&len(p.s)-p.i>1&&p.s[p.i+1]=='\n'
+  if callbacks&&!collectComplex&&(p.byte()>=128||p.byte()=='\r') {
+   // ASCII callbacks end before CR/non-ASCII. CRLF resumes the accelerator;
+   // a lone CR or non-ASCII scalar enters the complex 300-byte buffer.
+   flush()
+   if !crlf{collectComplex=true}
+  }
   if p.byte()>=128||p.byte()=='\r'&&!crlf {ascii=false}
-  if p.character()==0 {
+  width:=p.character()
+  if width==0 {
    if p.err==nil {p.event("XML_ERR_INTERNAL_ERROR","internal error: detected an error in element content")}
    p.stopped=true;return
+  }
+  if callbacks&&collectComplex {
+   callbackBytes+=width
+   if callbackBytes>=300{flush()}
   }
   // The ASCII accelerator commits the LF cursor before its CRLF restart.
   if ascii&&crlf {start=at+1}

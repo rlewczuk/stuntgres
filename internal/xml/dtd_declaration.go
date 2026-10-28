@@ -10,11 +10,11 @@ func (p *parser) elementDeclaration()string {
  name:=p.name();if name==""{p.event("XML_ERR_NAME_REQUIRED","xmlParseElementDecl: no name for Element");return ""}
  p.requiredDTDspace("Space required after the element name")
  switch {
- case p.has("EMPTY"):p.advance(5)
- case p.has("ANY"):p.advance(3)
+ case p.has("EMPTY"):p.dtdState.currentType="EMPTY";p.advance(5)
+ case p.has("ANY"):p.dtdState.currentType="ANY";p.advance(3)
  case p.byte()=='(':
   groupID:=p.inputID;p.advance(1);p.dtdSpaces()
-  if p.has("#PCDATA") {p.mixedModel(groupID)}else{p.childrenModel(1,groupID)}
+  if p.has("#PCDATA") {p.dtdState.currentType="MIXED";p.mixedModel(groupID)}else{p.dtdState.currentType="ELEMENT";p.childrenModel(1,groupID)}
  default:
   if p.byte()=='%'&&p.inputID==0 {
    // Placement errors do not consume the reference: the subset production
@@ -29,10 +29,12 @@ func (p *parser) elementDeclaration()string {
 }
 func (p *parser) mixedModel(id int) {
  p.advance(7);p.dtdSpaces();names:=false
- for p.byte()=='|'&&p.err==nil {names=true;p.advance(1);p.dtdSpaces();if p.name()==""{p.event("XML_ERR_NAME_REQUIRED","xmlParseElementMixedContentDecl : Name expected");return};p.dtdSpaces()}
+ var model *contentModel
+ if p.tree!=nil{model=&contentModel{kind:'|',children:[]*contentModel{{name:"#PCDATA"}}}}
+ for p.byte()=='|'&&p.err==nil {names=true;p.advance(1);p.dtdSpaces();name:=p.name();if name==""{p.event("XML_ERR_NAME_REQUIRED","xmlParseElementMixedContentDecl : Name expected");return};if model!=nil{model.children=checkedAppend(p,model.children,&contentModel{name:name})};p.dtdSpaces()}
  if p.byte()==')'&&(!names||p.has(")*")) {
   if id!=p.inputID{p.event("XML_ERR_ENTITY_BOUNDARY","Element content declaration doesn't start and stop in the same entity")}
-  p.advance(1);if p.byte()=='*'{p.advance(1)};return
+  p.advance(1);if p.byte()=='*'{p.advance(1);if model!=nil{model.occurrence='*'}};p.dtdState.currentModel=model;return
  }
  p.event("XML_ERR_MIXED_NOT_STARTED","MixedContentDecl : '|' or ')*' expected")
 }
@@ -40,20 +42,47 @@ func (p *parser) mixedModel(id int) {
 func (p *parser) childrenModel(depth,id int)bool {
  if depth>128{p.event("XML_ERR_ELEMCONTENT_NOT_FINISHED",fmt.Sprintf("xmlParseElementChildrenContentDecl : depth %d too deep, use XML_PARSE_HUGE",depth));return false}
  if !p.contentParticle(depth){return false}
+ var model *contentModel
+ if p.tree!=nil{model=&contentModel{children:[]*contentModel{p.dtdState.currentModel}}}
  p.dtdSpaces();separator:=p.byte()
  if separator!=','&&separator!='|'&&separator!=')'{p.event("XML_ERR_ELEMCONTENT_NOT_FINISHED","ContentDecl : ',' '|' or ')' expected");return false}
- for p.byte()==separator&&separator!=')'&&p.err==nil {p.advance(1);p.dtdSpaces();if !p.contentParticle(depth){return false};p.dtdSpaces()}
+ for p.byte()==separator&&separator!=')'&&p.err==nil {
+  p.advance(1);p.dtdSpaces();if !p.contentParticle(depth){return false}
+  if model!=nil{model.children=checkedAppend(p,model.children,p.dtdState.currentModel)};p.dtdSpaces()
+ }
  if p.byte()!=')'{p.event("XML_ERR_SEPARATOR_REQUIRED",fmt.Sprintf("xmlParseElementChildrenContentDecl : '%c' expected",separator));return false}
  if id!=p.inputID{p.event("XML_ERR_ENTITY_BOUNDARY","Element content declaration doesn't start and stop in the same entity")}
- p.advance(1);p.occurrence();return true
+ p.advance(1)
+ if model!=nil {model.kind=separator;if separator==')'{model=model.children[0]};p.dtdState.currentModel=model}
+ p.groupOccurrence(model);return true
 }
 func (p *parser) contentParticle(depth int)bool {
  p.dtdSpaces()
  if p.byte()=='(' {id:=p.inputID;p.advance(1);p.dtdSpaces();return p.childrenModel(depth+1,id)}
- if p.name()==""{p.event("XML_ERR_ELEMCONTENT_NOT_STARTED","ContentDecl : Name or '(' expected");return false}
+ name:=p.name();if name==""{p.event("XML_ERR_ELEMCONTENT_NOT_STARTED","ContentDecl : Name or '(' expected");return false}
+ if p.tree!=nil{p.dtdState.currentModel=&contentModel{name:name}}
  p.occurrence();return true
 }
-func (p *parser) occurrence(){if p.byte()=='?'||p.byte()=='*'||p.byte()=='+'{p.advance(1)}}
+func (p *parser) occurrence(){if p.byte()=='?'||p.byte()=='*'||p.byte()=='+'{if p.tree!=nil&&p.dtdState.currentModel!=nil{p.dtdState.currentModel.occurrence=p.byte()};p.advance(1)}}
+func (p *parser) groupOccurrence(model *contentModel){
+ c:=p.byte();if c!='?'&&c!='*'&&c!='+'{return}
+ if model!=nil{
+  switch c{case '?':if model.occurrence=='+'||model.occurrence=='*'{model.occurrence='*'}else{model.occurrence='?'}
+  case '*':model.occurrence='*'
+  case '+':if model.occurrence=='?'||model.occurrence=='*'{model.occurrence='*'}else{model.occurrence='+'}}
+  found:=false
+  if c=='*'||c=='+' {
+   cur:=model
+   for cur!=nil&&cur.kind=='|' {
+    start:=0;if c=='+'{start=max(0,len(cur.children)-2)}
+    for _,child:=range cur.children[start:]{p.err=p.ctx.Err();if p.err!=nil{return};if child.occurrence=='?'||child.occurrence=='*'{child.occurrence=0;found=true}}
+    cur=cur.children[len(cur.children)-1]
+   }
+  }
+  if c=='+'&&found{model.occurrence='*'}
+ }
+ p.advance(1)
+}
 func (p *parser) notationDeclaration()(name,publicID,systemID string) {
  id:=p.declarationInput
  if !p.requiredDTDspace("Space required after '<!NOTATION'"){return}
@@ -87,9 +116,10 @@ func (p *parser) entityDeclaration()(name,value,publicID,systemID,notation strin
  if p.byte()!='>' {p.event("XML_ERR_ENTITY_NOT_FINISHED",p.joinMessage("xmlParseEntityDecl: entity ",name," not terminated"));p.stopped=true;return}
  if p.inputID!=id{p.event("XML_ERR_ENTITY_BOUNDARY","Entity declaration doesn't start and stop in the same entity")}
  p.advance(1)
+ if _,builtin:=predefined(name);!parameter&&builtin{p.dtdState.currentAdmitted=false}
  if valid&&p.err==nil&&!p.saxDisabled {
   table:=p.dtdState.general;if parameter{table=p.dtdState.parameter}
-  if table[name]==nil {table[name]=&entity{name:name,value:value,publicID:publicID,systemID:systemID,notation:notation,external:external,parameter:parameter,unparsed:unparsed}}
+  if table[name]==nil {table[name]=&entity{name:name,value:value,publicID:publicID,systemID:systemID,notation:notation,external:external,parameter:parameter,unparsed:unparsed}}else{p.dtdState.currentAdmitted=false}
  }
  return
 }
@@ -110,6 +140,7 @@ func (p *parser) entityValue()(string,bool) {
  }
  if p.byte()!=quote{p.event("XML_ERR_ENTITY_NOT_FINISHED","EntityValue: \" or ' expected");return "",false}
  raw:=p.s[start:p.i];if normalize{raw=p.normalizeLines(raw)};p.advance(1)
+ if p.tree!=nil{p.dtdState.originalEntityValue=raw}
  if references&&!p.validateEntityValueReferences(raw){return "",false}
  if !decode{return raw,p.err==nil}
  value,_,_,ok:=p.decodeEntityString(raw,substituteParameter,1,true,nil)
