@@ -1560,6 +1560,9 @@ session, transaction, prepared-analysis and typed-frame authorities.
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 
+Scalar hierarchy accepted definition/fold backing and rejected-publication fences
+use `RUN='^TestLtreeHierarchyPrepared'`.
+
 Trigger-mode candidate, staged cancellation, prepared publication, clone/FK and
 replay ownership units share `RUN='^TestTriggerMode'`, also with `RACE=1`.
 They inspect installed immutable definitions, real journals and accepted folds;

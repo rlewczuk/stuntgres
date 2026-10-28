@@ -83,6 +83,14 @@ func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Render
 		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
 		return spec, nil
 	}
+	if call, installed := node.(functions.LtreeHierarchy); installed {
+		current, err := currentLtreeHierarchy(view, call)
+		if err != nil { return spec, err }
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok { return spec, fmt.Errorf("stuntgres: missing ltree hierarchy namespace") }
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
 	if call, installed := citextStringCallOf(node); installed {
 		current, err := currentCitextString(view, call)
 		if err != nil {

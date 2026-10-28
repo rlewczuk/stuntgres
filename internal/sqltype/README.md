@@ -263,6 +263,9 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   for exact kernel pairing; original catalog declarations remain with the owning
   sort capture. Neither operand capabilities nor numeric stamps alone grant
   authenticated ordering provenance.
+  `LtreeHierarchyOperation` reuses complete-label prefix matching in either
+  orientation without reparsing or allocating. Exact installed operand generations
+  are checked before typed NULL propagation; equality and empty ancestors are inclusive.
 - Ltree and lquery use ordinary concrete companion arrays, including supported
   domain elements. `LtreeArrayOperation` checks exact formal generations and
   implements the selected installed predicates/extractors. Whole NULL arguments

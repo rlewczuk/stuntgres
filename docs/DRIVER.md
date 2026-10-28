@@ -365,6 +365,12 @@ with suffix modifiers and precedence; empty input is invalid. Results report
 `LTREE`/`LQUERY`/`LTXTQUERY`, string scan types
 and stored column nullability even for empty results. Native Dump/Reset/Restore
 preserves values and typed NULLs with destination-owned scalar and codec identities.
+Scalar `@>` and `<@` return BOOL for inclusive ancestor/descendant relationships
+over complete case-sensitive labels. Equal paths match in both directions;
+the empty path is every path's ancestor. Either SQL NULL operand produces NULL.
+The genuine `ltree_isparent` and `ltree_risparent` backing routines use the same
+installed identity and caller privileges. Stored scalar predicates and projections
+retain destination-owned identities through native controls.
 Ltree and lquery companion arrays use the shared rectangular array input/output,
 bound-value and stored-value contracts. Installed array predicates return BOOL;
 first-ancestor/descendant and first-lquery/ltxtquery-match (`?~`/`?@`) extraction

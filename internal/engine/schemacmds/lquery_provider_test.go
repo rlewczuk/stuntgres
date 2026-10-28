@@ -111,6 +111,12 @@ func TestLqueryProviderIdentity(t *testing.T) {
 			if member.Kind!="operator_class"||member.Name!="hash_ltree_ops"||member.Signature!="hash"{t.Fatal("hash class owner role",member)}
 		default:
 			switch{
+			case member.Slot>=extension.LtreeHierarchyProcedureStart&&member.Slot<extension.LtreeHierarchyOperatorStart:
+				name:=[]string{"ltree_isparent","ltree_risparent"}[member.Slot-extension.LtreeHierarchyProcedureStart]
+				if member.Kind!="procedure"||member.Name!=name||member.Signature!="ltree,ltree"{t.Fatal("hierarchy procedure owner role",member)}
+			case member.Slot>=extension.LtreeHierarchyOperatorStart&&member.Slot<extension.LtreeMemberCount:
+				name:=[]string{"@>","<@"}[member.Slot-extension.LtreeHierarchyOperatorStart]
+				if member.Kind!="operator"||member.Name!=name||member.Signature!="ltree,ltree"{t.Fatal("hierarchy operator owner role",member)}
 			case member.Slot>=extension.LtreeComparisonProcedureStart&&member.Slot<extension.LtreeComparisonOperatorStart:
 				index:=member.Slot-extension.LtreeComparisonProcedureStart
 				name:=[]string{"ltree_eq","ltree_ne","ltree_lt","ltree_le","ltree_gt","ltree_ge","ltree_cmp","hash_ltree","hash_ltree_extended"}[index]

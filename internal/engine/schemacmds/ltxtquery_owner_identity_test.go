@@ -18,7 +18,7 @@ func ltxtqueryRenamedOwner(t *testing.T) {
  metadata,err:=extension.OwnerMetadata(view,e.RoleStore.PublishedRead(&e.Catalog.Owner,view),ext);if err!=nil {t.Fatal(err)}
  record,found,err:=extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata,"-- ")))
  if err!=nil || !found || len(record.Members)!=extension.LtreeMemberCount {t.Fatal("renamed owner recipe",err)}
- if extension.LtreeMemberCount!=60 || extension.LtreeComparisonProcedureStart!=41 {t.Fatal("ltree provider member bounds",extension.LtreeMemberCount,extension.LtreeComparisonProcedureStart)}
+ if extension.LtreeMemberCount!=64 || extension.LtreeComparisonProcedureStart!=41 || extension.LtreeHierarchyProcedureStart!=60 {t.Fatal("ltree provider member bounds",extension.LtreeMemberCount,extension.LtreeComparisonProcedureStart)}
  if record.Members[8].Signature!="ltxtquery" {t.Fatal("output signature lost canonical role",record.Members[8])}
  for _,role:=range []struct{slot int;kind,name,signature string}{
   {extension.LtreeBtreeFamilySlot,"operator_family","ltree_ops","btree"},

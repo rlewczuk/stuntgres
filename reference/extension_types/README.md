@@ -140,6 +140,9 @@ these are shared across families:
   columns. Retained descriptors are checked after consumption/close and native
   replacement, including empty readers. Array overloads, matching, diagnostics,
   prepared authority and actual emitted-SQL replay share `RUN='^TestReferenceLtreeArray'`.
+- Scalar hierarchy fixtures independently specify inclusive path relationships,
+  Boolean metadata, overload/privilege diagnostics and restored stored consumers.
+  The reusable selector is `RUN='^TestReferenceLtreeHierarchy'`.
 
 Client quirks:
 

@@ -90,7 +90,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   never mutable labels or equal OIDs, authorize invocation and owner import.
   Nine comparison/support routines and six standard operators follow the array
   tail, with default B-tree and hash classes/families. Staging and validation keep
-  the complete sixty-member graph atomic, preserving all earlier slots.
+  the complete sixty-four-member graph atomic, preserving all earlier slots.
+  Two scalar hierarchy routines and reciprocal `@>`/`<@` operators append after
+  those classes, returning strict BOOL with inclusive equality and the genuine
+  `matchingsel`/`matchingjoinsel` catalog identities.
   Required strategy/support members have exact INTERNAL class ownership;
   optional hash support2 has AUTO family/routine dependencies. Symbolic owner
   signatures include exact B-tree/hash class and family method roles; encoding,

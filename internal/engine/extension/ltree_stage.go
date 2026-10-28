@@ -115,7 +115,8 @@ func (p *LtreeProvider) Stage(stage Stage, ext *catalog.Extension, owner authori
 		}
 		if err := stage.Create(op); err != nil { return err }
 	}
-	return p.stageComparisons(stage,ext,owner,types[1][0])
+	if err := p.stageComparisons(stage, ext, owner, types[1][0]); err != nil { return err }
+	return p.stageHierarchy(stage, ext, owner, types[1][0])
 }
 
 func ltreeTypeContext(name string) string {

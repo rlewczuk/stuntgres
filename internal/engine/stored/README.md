@@ -84,6 +84,13 @@ Captured-source validation precedes authorized remapping; current destination
 manifest/signature/array associations are checked before retagging or rendering.
 Replay casts both operands to genuine destination formals. No matching scratch or
 caller authority is retained.
+Scalar hierarchy calls use `LtreeHierarchy` with the same original/current
+declaration authentication, exact operand generations and destination-owned BOOL
+result. Both qualified operators and genuine backing calls survive authorized
+transport; mutable names and equal numeric OIDs never authorize remapping.
+Unchanged-generation retagging rejects captures newer than the current routine
+revision, while historical presentation/ACL revisions remain valid. Authorized
+cross-generation import preserves source revisions independently.
   Ltree comparisons use the existing scalar/row, distinctness, membership,
   NULLIF and simple-CASE carriers. They retain both operand generations, selected
   immutable routine, operation and catalog-domain/epoch reference. Transport
@@ -845,6 +852,8 @@ redump/replacement, renamed providers/attributes and retained payload ownership.
 
 Type inquiry immutable recipe ownership and frozen view/policy cast-occurrence
 authority use `RUN='^TestTypeDescribe(StoredOwnership|ComposedStoredOwnership|FrozenCastOccurrence)$'`.
+Scalar hierarchy source/destination authority and immutable graph ownership use
+`RUN='^TestLtreeHierarchyStored'`.
 
 Package units cover the payload API, rule presentation, routine recipes and aggregate recipes.
 `TestViewPartsRoundTrip` and `TestRulePartsRoundTrip` require every `View`,

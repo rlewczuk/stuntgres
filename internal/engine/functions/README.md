@@ -303,6 +303,8 @@ mode and exact member identity.
 selected installed array-operation role. Shared routine/operator binding,
 strict-null preflight and current routine admission apply normally. Immutable
 matching indexes belong to typed values; all execution scratch is call-local.
+`LtreeHierarchy` applies the same capture and admission contract to scalar
+inclusive ancestor/descendant BOOL calls, without retaining execution authority.
 Reconstruction, capture, grouping and qualified replay preserve the selected
 member and original declaration rather than dispatching by operator spelling.
 Shared strict NULL preflight and routine admission use current caller authority;

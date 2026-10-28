@@ -120,5 +120,4 @@ const (
  LtreeBtreeClassSlot = LtreeBtreeFamilySlot + 1
  LtreeHashFamilySlot = LtreeBtreeClassSlot + 1
  LtreeHashClassSlot = LtreeHashFamilySlot + 1
- LtreeMemberCount = LtreeHashClassSlot + 1
 )

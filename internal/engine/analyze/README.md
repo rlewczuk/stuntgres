@@ -41,6 +41,9 @@ Installed ltree array routines enter the same catalog callable discovery and
 selection as their backing operators. Recipe spellings are discovery hints only;
 the selected declaration's genuine provider role, exact concrete companion
 formals, current dependencies and privileges authorize binding.
+Scalar hierarchy backers follow the same selection path with exact ltree/ltree
+formals and BOOL results; shared coercion handles unknown literals and domains,
+without granting implicit TEXT conversion or spelling-based execution authority.
   The six installed scalar ltree comparisons lower through the shared comparison
   carrier with authentic operator/backer dependencies. Ordering resolves the
   current installed default B-tree class and support even for empty input.

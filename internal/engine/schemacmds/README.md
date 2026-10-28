@@ -163,6 +163,8 @@ collision/allocation and destination-role replacement fences without public
 SQL. Routine-metadata units use the real capture fixture and staged
 extension constructors for declaration completeness, independent source
 bags, redaction, empty/canceled results and generation fences.
+Scalar hierarchy manifest authority and atomic member conflicts use
+`RUN='^TestLtreeHierarchyProvider'`.
 
 Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing),

@@ -212,7 +212,13 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 		if len(ext.Members) != count || slot < 0 || slot >= count || ltreeMemberClass(slot) != ids.ProcedureClassID {
 			return invalid()
 		}
-		if slot >= LtreeComparisonProcedureStart {
+		if slot >= LtreeHierarchyProcedureStart && slot < LtreeHierarchyOperatorStart {
+			base, ok := v.Type(ext.Members[3]); if !ok || !base.SQLType.IsLtree() || base.Extension != ext.Address() { return invalid() }
+			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }
+			name = LtreeHierarchyProcedureSymbol(sqltype.LtreeHierarchyOperation(slot-LtreeHierarchyProcedureStart))
+			signature = catalog.ProcedureSignature(fmt.Sprintf("%d,%d", base.SQLType.ID(), base.SQLType.ID()))
+			result = 16
+		} else if slot >= LtreeComparisonProcedureStart && slot < LtreeComparisonOperatorStart {
 			base,ok:=v.Type(ext.Members[3]);if !ok||!base.SQLType.IsLtree()||base.Extension!=ext.Address(){return invalid()}
 			if err:=ValidateProviderHeader(v,base,ids.TypeClassID);err!=nil{return invalid()}
 			name,signature,result=LtreeComparisonDeclaration(slot-LtreeComparisonProcedureStart,base.SQLType.ID())
