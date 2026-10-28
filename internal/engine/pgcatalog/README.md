@@ -41,6 +41,10 @@ type Input struct {
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
 
+- `pg_index.indisclustered` projects the captured index definition's preference
+  bit as a non-null BOOL with stable PostgreSQL attribute number 10. Projection
+  ordinals remain independent of stable catalog attributes; the vector columns
+  retain attributes 16–19 and their captured typed values.
 - Text-search rows project actual descriptor ownership, namespace, template
   helpers and ordered options. Empty dictionary options are typed SQL NULL;
   numeric nodes remain unquoted and strings use canonical SQL escaping. Builtin

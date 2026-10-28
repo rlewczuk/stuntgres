@@ -11,10 +11,10 @@ import (
 )
 
 type AlterTablePreparation struct {
-	Actions     []parser.AlterTableAction
-	Destination ids.ObjectRef
-	Types       []AlterTypePreparation
-	Persistence PersistencePreparation
+	Actions      []parser.AlterTableAction
+	Destination  ids.ObjectRef
+	Types        []AlterTypePreparation
+	Persistence  PersistencePreparation
 	AccessMethod AccessMethodPreparation
 }
 
@@ -36,7 +36,9 @@ func PrepareAlterTableActions(h AlterHost, auth ddl.Authority, original *catalog
 				if action.Action == parser.SetUnlogged {
 					label = "SET UNLOGGED"
 				}
-				if action.Action == parser.SetAccessMethod { label = "SET ACCESS METHOD" }
+				if action.Action == parser.SetAccessMethod {
+					label = "SET ACCESS METHOD"
+				}
 				return fail(persistenceKindError(original, label, "partitioned indexes"))
 			}
 		}
@@ -53,7 +55,9 @@ func PrepareAlterTableActions(h AlterHost, auth ddl.Authority, original *catalog
 		case parser.SetAccessMethod:
 			var err error
 			prepared.AccessMethod, err = PrepareAccessMethod(view.Catalog, original, action, h.DefaultTableAccessMethod(), prepared.AccessMethod)
-			if err != nil { return fail(err) }
+			if err != nil {
+				return fail(err)
+			}
 		case parser.AlterColumnType:
 			admitted, err := AdmitAlterType(h, auth, original, ref, action, nil)
 			if err != nil {
@@ -101,6 +105,37 @@ func PrepareAlterTableActions(h AlterHost, auth ddl.Authority, original *catalog
 func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableActionKind) error {
 	label := "ALTER COLUMN ... SET NOT NULL"
 	switch action {
+	case parser.ClusterOn, parser.SetWithoutCluster, parser.SetWithoutOIDs:
+		label = "CLUSTER ON"
+		if action == parser.SetWithoutCluster {
+			label = "SET WITHOUT CLUSTER"
+		}
+		if action == parser.SetWithoutOIDs {
+			label = "SET WITHOUT OIDS"
+		}
+		switch original.RelationKind {
+		case catalog.TableRelation, catalog.PartitionedRelation:
+			return nil
+		case catalog.MaterializedViewRelation:
+			if action != parser.SetWithoutOIDs {
+				return nil
+			}
+			return persistenceKindError(original, label, "materialized views")
+		case catalog.ForeignRelation:
+			if action == parser.SetWithoutOIDs {
+				return nil
+			}
+			return persistenceKindError(original, label, "foreign tables")
+		case catalog.ViewRelation:
+			return persistenceKindError(original, label, "views")
+		case catalog.IndexRelation:
+			return persistenceKindError(original, label, "indexes")
+		case catalog.SequenceRelation:
+			return persistenceKindError(original, label, "sequences")
+		case catalog.CompositeRelation:
+			return persistenceCompositeError(original)
+		}
+		return analyze.TableKindError(original, label)
 	case parser.InheritTable:
 		return RelationshipChildKind(original, action)
 	case parser.NoInheritTable:

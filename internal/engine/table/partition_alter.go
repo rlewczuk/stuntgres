@@ -25,8 +25,8 @@ func PartitionConstraintActions(root *catalog.Relation, actions []parser.AlterTa
 	}
 	for _, a := range actions {
 		switch a.Action {
-		case parser.SetAccessMethod:
-			// Method intent belongs only to the selected root, never its leaves.
+		case parser.SetAccessMethod, parser.ClusterOn, parser.SetWithoutCluster, parser.SetWithoutOIDs:
+			// These intents belong only to the selected root, never its leaves.
 		case parser.SetRelationOptions, parser.ResetRelationOptions, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
 			// Root-only metadata companions do not expand the shape whitelist.
 		case parser.AddCheck:

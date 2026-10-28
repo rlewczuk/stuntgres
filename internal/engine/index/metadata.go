@@ -59,6 +59,7 @@ func ProjectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.Object
 	m = Metadata{IndexRelID: index.Address().ObjectID, IndRelID: parent.Address().ObjectID, IndNatts: int16(n + len(definition.Include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.Include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
 	m.IndIsUnique = definition.Unique
 	m.IndNullsNotDistinct = definition.NullsNotDistinct
+	m.IndIsClustered = definition.Clustered
 	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == catalog.UniqueBackingKind && definition.Constraint.Primary
 	if definition.IsExclusion() {
 		m.IndIsExclusion = true

@@ -108,6 +108,10 @@ builds a binder.
   (`pg_get_indexdef` and Dump), `Metadata`/`IndexesMetadata`, the
   `MaintenanceGrant` lock plan, SET CONSTRAINTS name selection and the
   `USING INDEX` records.
+  `Metadata.IndIsClustered` projects the single persisted
+  `catalog.IndexDefinition.Clustered` scalar. Preference changes do not replace
+  keys, executable providers or storage roots; table ALTER owns their atomic
+  staged selection and uses `Property` for method eligibility.
 - **Partitioned indexes** (`partition_*.go`, `row_history.go`): coverage,
   ATTACH checks, drop actions (`PartitionConstraintDropActions`,
   `DroppedUniqueOIDs`), `MapPartitionIndex` and Dump replay predicates.

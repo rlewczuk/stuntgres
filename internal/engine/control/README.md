@@ -37,6 +37,14 @@ different method. Custom-method declarations precede consumers and replacement
 remaps table methods through the existing access-method identity map. Live TEMP
 consumers retain their exact custom-method provider with a certified installed
 handler; a distinct same-name imported provider rejects replacement atomically.
+Clustering preferences replay in a deterministic schema/table/index section after
+events and index options, under each target's owner. The section includes implicit
+constraint indexes and materialized-view indexes after their final names exist,
+omits TEMP namespaces and emits ordinary qualified-target ALTER syntax. Restore
+admits only a single unconditional qualified-target CLUSTER ON preference, uses
+the common private ALTER stage and remaps the full index payload once; no
+physical heap ordering or standalone CLUSTER execution is represented.
+
 
 Extension-owned composite types are reconstructed by their installation.
 Their standalone backing relations are therefore omitted from CREATE TYPE

@@ -720,6 +720,7 @@ var Specs = [...]Spec{
 		{"indisready", sqltype.Bool, false, 0, 0, -1},
 		{"indislive", sqltype.Bool, false, 0, 0, -1},
 		{"indnullsnotdistinct", sqltype.Bool, false, 0, 0, -1},
+		{"indisclustered", sqltype.Bool, false, 0, 0, -1},
 		{"indkey", sqltype.Int2Vector, false, 0, 1, -1},
 		{"indcollation", sqltype.OidVector, false, 0, 1, -1},
 		{"indclass", sqltype.OidVector, false, 0, 1, -1},

@@ -12,20 +12,20 @@ import (
 // the actions and the events each node recorded for its children. It holds no
 // stage or journal; inheritanceAlterState carries those.
 type InheritanceAlterPlan struct {
-	Root       *catalog.Relation
-	Targets    []*catalog.Relation
-	Selected   map[ids.ObjectAddress]bool
-	Graph      *catalog.TableInheritance
-	Descendant bool
-	Only       bool
-	Partition  bool
-	Actions    []parser.AlterTableAction
-	Events     map[ids.ObjectAddress][]InheritanceAlterEvent
-	Validating map[string]bool
-	Preparing  bool
-	Definition InheritanceDefinitionReader
-	Tablespace ids.ObjectRef          // Prepared root-only destination; never propagated.
-	Types      []AlterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
+	Root         *catalog.Relation
+	Targets      []*catalog.Relation
+	Selected     map[ids.ObjectAddress]bool
+	Graph        *catalog.TableInheritance
+	Descendant   bool
+	Only         bool
+	Partition    bool
+	Actions      []parser.AlterTableAction
+	Events       map[ids.ObjectAddress][]InheritanceAlterEvent
+	Validating   map[string]bool
+	Preparing    bool
+	Definition   InheritanceDefinitionReader
+	Tablespace   ids.ObjectRef          // Prepared root-only destination; never propagated.
+	Types        []AlterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
 	AccessMethod AccessMethodPreparation
 }
 
@@ -97,7 +97,7 @@ func InheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableActio
 	case parser.ValidateConstraint:
 		selected, err := SelectAlterConstraintValidation(root, a.Constraint.Text)
 		return err == nil && selected.Recursive()
-	case parser.SetLogged, parser.SetUnlogged, parser.SetAccessMethod:
+	case parser.SetLogged, parser.SetUnlogged, parser.SetAccessMethod, parser.ClusterOn, parser.SetWithoutCluster, parser.SetWithoutOIDs:
 		return false
 	case parser.SetTablespace, parser.SetRelationOptions, parser.ResetRelationOptions, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
 		return false // Assignment is always root-only, independent of ONLY/star.

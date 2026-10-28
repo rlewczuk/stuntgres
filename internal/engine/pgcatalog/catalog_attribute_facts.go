@@ -32,6 +32,8 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 			return 5
 		case "indisprimary":
 			return 7
+		case "indisclustered":
+			return 10
 		case "indisvalid":
 			return 11
 		case "indisready":

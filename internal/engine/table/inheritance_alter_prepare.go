@@ -124,6 +124,9 @@ phases:
 			op.Notices = nil
 			var err error
 			switch action.Action {
+			case parser.SetWithoutOIDs:
+				// Compatibility no-op participates in phase zero but has no
+				// definition provider or recursive shape work.
 			case parser.DropColumn:
 				step.Drop, err = h.PrepareColumnDropAfter(reader, next, action, prior)
 				if err == nil {

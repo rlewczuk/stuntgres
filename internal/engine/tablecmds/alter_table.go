@@ -141,7 +141,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, nil
 		}
 	}
-	if scope.Inheritance.Alter == nil && !access.RowSecurityActions(s.Actions) && !table.TriggerModesOnly(s.Actions) && !table.RuleModesOnly(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
+	if scope.Inheritance.Alter == nil && !table.ClusterActionsOnly(s.Actions) && !access.RowSecurityActions(s.Actions) && !table.TriggerModesOnly(s.Actions) && !table.RuleModesOnly(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
 		return alterInheritanceLocked(e, scope, op, auth, s, count, destination, prepared, preparation.AccessMethod)
 	}
 	if scope.Inheritance.Alter == nil || !scope.Inheritance.Alter.Descendant {
@@ -301,6 +301,9 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	})
 	hasRuleModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.RuleModeAction(a.Action) })
 	hasTriggerModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.TriggerModeAction(a.Action) })
+	hasCluster := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool {
+		return a.Action == parser.ClusterOn || a.Action == parser.SetWithoutCluster
+	})
 	for _, action := range s.Actions {
 		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
 	}
@@ -324,6 +327,8 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				if err == nil && cachedAdded.Column != nil {
 					additions = append(additions, cachedAdded)
 				}
+			} else if action.Action == parser.SetWithoutOIDs {
+				// Accepted compatibility syntax; no physical OID column exists.
 			} else if table.RelationOptionsAction(action.Action) {
 				next, err = table.RelationOptionsCandidate(next, action)
 			} else if table.RelationshipAction(action.Action) {
@@ -487,7 +492,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		stage.UpdateDescriptor(next)
 		return core.Result{}, nil
 	}
-	if finish.NoOp && !preparation.Persistence.Changed && !preparation.AccessMethod.Changed {
+	if finish.NoOp && !preparation.Persistence.Changed && !preparation.AccessMethod.Changed && !hasCluster {
 		return core.Result{}, nil
 	}
 	// The actual identity-AS validation/cache prephase has already run. Keep
@@ -504,6 +509,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, err
 		}
 	}
+	previousCatalog := scope.Catalog
 	scope.Catalog = changes
 	e.Mu.Unlock()
 	if next != old {
@@ -525,9 +531,13 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	stage = authorizedStage(e, stage, auth, op.Session)
 	if preparation.AccessMethod.Changed && old.TableMethod != 0 {
 		method, ok := auth.Catalog.AccessMethod(old.TableMethod)
-		if !ok { return core.Result{}, ids.ErrCatalogReplaced }
-		handler, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:method.Handler})
-		if !ok { return core.Result{}, ids.ErrCatalogReplaced }
+		if !ok {
+			return core.Result{}, ids.ErrCatalogReplaced
+		}
+		handler, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: method.Handler})
+		if !ok {
+			return core.Result{}, ids.ErrCatalogReplaced
+		}
 		// The source provider is defining authority too, even when the final
 		// candidate selects a different genuine method.
 		stage.DomainBases = append(stage.DomainBases, method, handler)
@@ -587,6 +597,13 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	for _, action := range s.Actions {
 		if err := op.Context().Err(); err != nil {
 			return core.Result{}, err
+		}
+		if action.Action == parser.ClusterOn || action.Action == parser.SetWithoutCluster {
+			next, err = table.ClusterCandidate(core.DDLHost{E: e, CatalogStage: stage}, old, next, action)
+			if err != nil {
+				return core.Result{}, err
+			}
+			continue
 		}
 		if table.TriggerModeAction(action.Action) {
 			if err := stage.ReplaceDescriptor(next, false, false); err != nil {
@@ -671,6 +688,12 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			foreignKeyHistory = append(foreignKeyHistory, table.AlterForeignKeyScan{ForeignKeyConstraint: admitted})
 		}
 	}
+	if hasCluster && finish.NoOp && next == old && !preparation.Persistence.Changed && !preparation.AccessMethod.Changed {
+		// Deferred clustering validated against the candidate without changing it.
+		// Keep the private analysis environment's exact journal identity as well.
+		scope.Catalog = previousCatalog
+		return core.Result{}, nil
+	}
 	if (hasValidations || hasRuleModes || hasTriggerModes) && next != old {
 		if err := stage.Replace(next); err != nil {
 			return core.Result{}, err
@@ -700,9 +723,13 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	if preparation.AccessMethod.Changed {
 		changed := *next
 		changed.TableMethod = preparation.AccessMethod.Method
-		if err := table.BumpAlterRevision(old, &changed); err != nil { return core.Result{}, err }
+		if err := table.BumpAlterRevision(old, &changed); err != nil {
+			return core.Result{}, err
+		}
 		next = &changed
-		if err := stage.Replace(next); err != nil { return core.Result{}, err }
+		if err := stage.Replace(next); err != nil {
+			return core.Result{}, err
+		}
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		return core.Result{}, err

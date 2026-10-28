@@ -4,8 +4,8 @@ ALTER TABLE actions: ADD/DROP COLUMN, ADD CONSTRAINT (including NOT VALID,
 replacement and mixed RESTRICT/CASCADE drops), SET/DROP DEFAULT (with inheritance
 recursion), SET/DROP NOT NULL, VALIDATE CONSTRAINT, identity column options, column TYPE changes
 (including identity columns under savepoints), RENAME, SET SCHEMA, SET TABLESPACE,
-SET ACCESS METHOD and constraint rename, plus foreign-key callers of DROP COLUMN
-and SET SCHEMA.
+SET ACCESS METHOD, clustering preferences, OID-removal compatibility syntax and
+constraint rename, plus foreign-key callers of DROP COLUMN and SET SCHEMA.
 CHECK/FK declaration enforcement, FK enforcement toggles and atomic CHECK
 replacement share exact flags, diagnostics, historical scans, logical trigger
 lifecycle, dependencies, locking and native persistence scenarios. Physical
@@ -77,6 +77,14 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   reader failures reuse `addConstraintFailedReader`. Each serial route owns its
   scenario and schema/role cleanup; workers register cancellation and bounded
   joins before handles close. Assertions precede backend comparison.
+- Clustering scenarios assert complete malformed-index/trailing-input diagnostics
+  and direct/Prepare error stages, with unchanged preference and ordered data.
+  Mixed inheritance failures combine recursive column work, root-only clustering
+  and OID compatibility with descendant CHECK validation; both execution routes
+  retain root/child columns, rows, constraints and complete index/preference bags.
+  Native Restore rejects unqualified, conditional, ONLY, multi-action, clear and
+  OID preference replay forms, preserving the destination dump preimage,
+  sentinel, temporary rows and held permanent/temporary row snapshots per case.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
@@ -102,6 +110,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - SET TABLESPACE: `RUN='^TestReferenceAlterTablespace'`
 - Logged/unlogged identity: `RUN='^TestReferenceAlterPersistence'`
 - Relation access methods: `RUN='^TestReferenceAlterAccessMethod'`
+- Clustering preferences: `RUN='^TestReferenceAlterCluster'`
 - Column TYPE: `RUN='^TestReference(Smoke)?AlterType'`
 - Constraint rename: `RUN='^TestReferenceConstraintRename'`
 - Foreign-key callers: `RUN='^TestReferenceForeignKey[A-Za-z]*Caller$'`

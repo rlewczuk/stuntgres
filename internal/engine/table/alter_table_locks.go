@@ -19,8 +19,8 @@ func AlterTableLockMode(raw *parser.AlterTable) lock.Mode {
 			}
 		} else if action.Action == parser.AddForeignKey || TriggerModeAction(action.Action) {
 			mode = lock.ShareRowExclusive
-		} else if action.Action == parser.ValidateConstraint {
-			// Validation never weakens a stronger companion grant.
+		} else if action.Action == parser.ValidateConstraint || action.Action == parser.ClusterOn || action.Action == parser.SetWithoutCluster {
+			// These actions never weaken a stronger companion grant.
 		} else {
 			return lock.AccessExclusive
 		}

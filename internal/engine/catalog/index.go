@@ -44,6 +44,7 @@ type IndexDefinition struct {
 	NullsNotDistinct   bool
 	Constraint         *BackingConstraint
 	Ready, Valid, Live bool
+	Clustered          bool
 	Predicate          *IndexPredicate
 	Exclusion          []sqltype.ExclusionOperator
 }

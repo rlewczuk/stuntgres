@@ -72,6 +72,20 @@ call live here.
   predecessor. Misc resolution follows all ADD definitions, including deferred
   foreign keys. `PlanAlterScan` unions selected validation with independently
   required shape checks without scanning unrelated invalid facts.
+  `ClusterCandidate` resolves an unqualified index in the target namespace from
+  the current stage after index reconstruction. Capability, predicate and validity
+  checks precede partitioned-target rejection and any bit replacement. Changed
+  index envelopes and the parent advance effective revisions together; an index
+  created or rebuilt by a companion action retains its already-staged revision.
+  Fresh private indexes update the candidate rather than replacing a nonexistent
+  base descriptor. Unchanged selections retain descriptor identity and all keys,
+  providers and storage roots. A proven deferred no-op also retains the prior
+  statement journal identity, so private prepared analysis and accepted fold backing
+  remain reusable; companion mutations still install their complete candidate.
+  Selection/clearing are root-only
+  ShareUpdateExclusive metadata actions; `SET WITHOUT OIDS` is an AccessExclusive
+  compatibility no-op, including phase-zero inheritance prefix preparation.
+  Neither operation performs physical heap clustering or promises unordered query order.
   `EnforceConstraintCandidate` changes only an owned FK slice, retaining constraint
   identity and returning transition-time historical work. Already-enforced
   invalid facts remain invalid on an ENFORCED no-op; VALIDATE rejects unenforced

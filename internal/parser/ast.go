@@ -1072,6 +1072,9 @@ const (
 	DisableTrigger
 	EnableReplicaTrigger
 	EnableAlwaysTrigger
+	ClusterOn
+	SetWithoutCluster
+	SetWithoutOIDs
 )
 
 type TriggerSelector uint8
@@ -1090,6 +1093,7 @@ type AlterTableAction struct {
 	TriggerSelector TriggerSelector
 	Tablespace      Identifier
 	Method          Identifier
+	ClusterIndex    Identifier
 	MethodDefault   bool
 	Parent          ObjectName
 	Action          AlterTableActionKind
@@ -1119,12 +1123,12 @@ type AlterTableAction struct {
 }
 
 type AlterTable struct {
-	Name     ObjectName
-	Actions  []AlterTableAction
-	Only     bool
-	IfExists bool
+	Name         ObjectName
+	Actions      []AlterTableAction
+	Only         bool
+	IfExists     bool
 	Materialized bool // ALTER MATERIALIZED VIEW spelling requires an exact target kind.
-	Pos      Position
+	Pos          Position
 }
 
 func (*AlterTable) statement() {}

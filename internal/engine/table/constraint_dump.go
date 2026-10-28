@@ -82,6 +82,10 @@ func RestoreAlterConstraints(raw *parser.AlterTable) error {
 	}
 	for _, action := range raw.Actions {
 		switch action.Action {
+		case parser.ClusterOn:
+			if len(raw.Actions) != 1 || raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || action.ClusterIndex.Text == "" {
+				return sqlError("0A000", "restore accepts only unconditional qualified clustering preferences")
+			}
 		case parser.AddUsingIndex:
 		case parser.AddUnique:
 			if action.Unique == nil || len(raw.Actions) != 1 || raw.Only || raw.IfExists || !strings.HasPrefix(action.Unique.Name.Text, "__stuntgres_partition_key_") {

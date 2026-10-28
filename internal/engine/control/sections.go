@@ -40,6 +40,7 @@ var dumpSections = [...]dumpSection{
 	{"collations and conversions", emitDumpTypeStatements},
 	{"events", emitDumpEvents},
 	{"index options", emitDumpIndexOptions},
+	{"clustering preferences", emitDumpClusteringPreferences},
 	{"sequence completion", emitDumpSequenceCompletion},
 	{"large objects", emitDumpLargeObjects},
 	{"materialized snapshots", emitDumpMaterializedSnapshots},
