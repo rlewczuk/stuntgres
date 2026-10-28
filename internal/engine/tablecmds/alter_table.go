@@ -63,6 +63,14 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	var preparation table.AlterTablePreparation
 	if scope.Inheritance.Alter != nil && !scope.Inheritance.Alter.Descendant {
 		preparation = table.AlterTablePreparation{Actions: s.Actions, Destination: scope.Inheritance.Alter.Tablespace, Types: scope.Inheritance.Alter.Types}
+		for _, action := range s.Actions {
+			if action.Action == parser.SetLogged || action.Action == parser.SetUnlogged {
+				preparation.Persistence, err = table.PreparePersistence(auth.Catalog, old, action.Action, preparation.Persistence)
+				if err != nil {
+					return fail(err)
+				}
+			}
+		}
 	} else {
 		preparation, err = prepareAlterTableActions(e, scope, op, auth, old, ref, s.Actions)
 		if err != nil {
@@ -202,7 +210,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	// Virtual partition nodes share the candidate/provider/publication pipeline,
 	// but have no heap. The inheritance plan visits physical descendants with
 	// their own storage, validators and journal fences.
-	physicalRows := old.Partition == nil
+	physicalRows := old.Partition == nil && !table.PersistenceOnly(s.Actions)
 	var original, store *storage.Relation
 	var shape session.StorageChange
 	var frontier ids.CommitSeq
@@ -475,7 +483,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		stage.UpdateDescriptor(next)
 		return core.Result{}, nil
 	}
-	if finish.NoOp {
+	if finish.NoOp && !preparation.Persistence.Changed {
 		return core.Result{}, nil
 	}
 	// The actual identity-AS validation/cache prephase has already run. Keep
@@ -663,6 +671,17 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	if hasForeignKeys && next.Revision() == old.Revision() {
 		if err := table.BumpAlterRevision(old, next); err != nil {
 			return core.Result{}, err
+		}
+	}
+	if preparation.Persistence.Changed {
+		next, err = stageTablePersistence(e, scope, stage, next, preparation.Persistence.Destination)
+		if err != nil {
+			return core.Result{}, err
+		}
+		if next.Revision() == old.Revision() {
+			if err := table.BumpAlterRevision(old, next); err != nil {
+				return core.Result{}, err
+			}
 		}
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {

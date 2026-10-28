@@ -75,6 +75,13 @@ and grantor provenance, atomically with member identities. Held calls still
 recheck current EXECUTE authority; a captured persistent regclass literal is not
 retargeted across Reset/Restore.
 
+Logged and unlogged tables retain their SQL identity in `pg_class` and native
+Dump/Restore. Table persistence changes publish transactionally with all surviving
+owned sequences; failed action lists, cancellation and rollback publish none.
+Both kinds retain committed values for the Driver's process-local lifetime,
+including pool close/reopen. These logical controls do not provide WAL, crash
+truncation, disk durability, standby replication or recovery across process exit.
+
 The engine core owns the [database and template contract](../internal/engine/core/README.md#cluster-and-logical-database-ownership).
 
 ## Physical sessions and pooling

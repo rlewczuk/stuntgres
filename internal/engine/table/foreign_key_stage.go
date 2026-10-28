@@ -37,8 +37,12 @@ func StageForeignKey(h Host, auth ddl.Authority, child *catalog.Relation, raw pa
 	if childTemp != (ids.SessionToken{}) && parentTemp == (ids.SessionToken{}) {
 		return sqlError("42P16", "constraints on temporary tables may reference only temporary tables")
 	}
-	if childTemp == (ids.SessionToken{}) && parentTemp != (ids.SessionToken{}) {
+	childPersistence, parentPersistence := EffectivePersistence(view, child), EffectivePersistence(view, parent)
+	if childPersistence == "logged" && parentPersistence != "logged" {
 		return sqlError("42P16", "constraints on permanent tables may reference only permanent tables")
+	}
+	if childPersistence == "unlogged" && parentPersistence == "temporary" {
+		return sqlError("42P16", "constraints on unlogged tables may reference only permanent or unlogged tables")
 	}
 	if childTemp != parentTemp {
 		return ids.ErrCatalogReplaced

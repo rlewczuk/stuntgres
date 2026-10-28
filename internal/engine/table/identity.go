@@ -42,7 +42,6 @@ func StageCreateIdentities(h Host, auth ddl.Authority, relation *catalog.Relatio
 			if err != nil {
 				return err
 			}
-			options.Persistence = split.Persistence
 			read := h.StageRead()
 			tableNamespace := read.MustNamespace(relation.Namespace())
 			if tableNamespace.Temporary != (ids.SessionToken{}) {
@@ -50,8 +49,8 @@ func StageCreateIdentities(h Host, auth ddl.Authority, relation *catalog.Relatio
 				if err := split.CheckTemporary(); err != nil {
 					return err
 				}
-				options.Persistence = "temporary"
 			}
+			options.Persistence = split.ResolvePersistence(EffectivePersistence(read, relation))
 			namespace := relation.Namespace()
 			used := func(name string) bool {
 				return len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})) != 0 || name == relation.Name()
@@ -79,17 +78,9 @@ func StageCreateIdentities(h Host, auth ddl.Authority, relation *catalog.Relatio
 	return nil
 }
 
-// StageIdentitySequence stages the sequence of an identity column of
-// relation's slot: its OID, then its revision, its creation ACL and its
-// initial generator.
+// StageIdentitySequence stages an identity sequence with already resolved
+// persistence: its OID, revision, creation ACL and initial generator.
 func StageIdentitySequence(h Host, relation *catalog.Relation, slot int, name string, mode parser.IdentityMode, options catalog.SequenceOptions, restart *int64) error {
-	namespace := h.StageBase().Get(relation.Namespace())
-	if staged := h.Stage().Get(relation.Namespace()); staged != nil {
-		namespace = staged
-	}
-	if namespace.(*catalog.Namespace).Temporary != (ids.SessionToken{}) {
-		options.Persistence = "temporary"
-	}
 	oid, err := h.AllocateOID()
 	if err != nil {
 		return err

@@ -23,6 +23,9 @@ The root's capture window (`captureDumpLocked`, under `Engine.Mu`) calls
 `Collect(ctx, source)`; nothing in `Source` is read after the unlock.
 `Dump(ctx, capture, dst)` (`dump.go`) then sorts and completes the `Capture` in
 place, builds the script and writes it; the root never reads the capture again.
+Table declarations retain logged/unlogged identity, including typed and partition
+children. Identity sequence completion states its own persistence explicitly in
+both directions, preserving independent table/sequence choices on replay.
 
 Extension-owned composite types are reconstructed by their installation.
 Their standalone backing relations are therefore omitted from CREATE TYPE

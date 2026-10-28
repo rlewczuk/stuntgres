@@ -311,7 +311,11 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelatio
 	if t.Descriptor.Membership == nil || partition.DumpNeedsAttach(s.CatalogView, t.Descriptor) {
 		typed := t.Descriptor.OfType != (ids.ObjectAddress{}) && !attachAfterCreate
 		hasElements := !typed || len(t.Columns) != 0 || len(t.Descriptor.Constraints.Check) != 0 || len(t.Descriptor.Constraints.Unique) != 0 || len(t.Descriptor.Constraints.Exclusion) != 0 || len(t.Descriptor.Constraints.ForeignKeys) != 0
-		line.WriteString("CREATE TABLE " + qualified)
+		prefix := "CREATE TABLE "
+		if t.Descriptor.Persistence == "unlogged" {
+			prefix = "CREATE UNLOGGED TABLE "
+		}
+		line.WriteString(prefix + qualified)
 		if typed {
 			source := s.CatalogView.MustType(t.Descriptor.OfType)
 			namespace := s.CatalogView.Get(source.ObjectNamespace).Name()

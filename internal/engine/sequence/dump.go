@@ -63,9 +63,11 @@ func DumpStatements(sequences []Dump) (creation, completion []string) {
 			if s.Divergent {
 				suffix = append(suffix, fmt.Sprintf("ALTER SEQUENCE %s AS %s %s RESTART WITH %d;\n", name, strings.ToUpper(typ), NumericSQL(s.Options), s.State.Last))
 			}
+			mode := "LOGGED"
 			if s.Options.Persistence == "unlogged" {
-				suffix = append(suffix, "ALTER SEQUENCE "+name+" SET UNLOGGED;\n")
+				mode = "UNLOGGED"
 			}
+			suffix = append(suffix, "ALTER SEQUENCE "+name+" SET "+mode+";\n")
 		}
 		if s.Comment != "" {
 			if s.Options.Identity {
@@ -118,5 +120,5 @@ func NumericSQL(options catalog.SequenceOptions) string {
 // defaults its column type implies, so the dump must ALTER it.
 func IdentityDumpDivergent(options catalog.SequenceOptions, column sqltype.ID) bool {
 	lo, hi, _ := TypeLimits(column)
-	return options.Persistence != "logged" || options.SQLType != column || options.Min < lo || options.Max > hi || options.Start < lo || options.Start > hi
+	return options.SQLType != column || options.Min < lo || options.Max > hi || options.Start < lo || options.Start > hi
 }

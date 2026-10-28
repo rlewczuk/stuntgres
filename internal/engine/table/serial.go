@@ -20,6 +20,7 @@ func StageCreateSerials(h Host, relation *catalog.Relation, declarations []analy
 			return err
 		}
 		read := h.StageRead()
+		options.Persistence = EffectivePersistence(read, relation)
 		if read.MustNamespace(relation.Namespace()).Temporary != (ids.SessionToken{}) {
 			options.Persistence = "temporary"
 		}

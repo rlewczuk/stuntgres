@@ -93,6 +93,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - RENAME: `RUN='^TestReference(Smoke)?AlterRename'`
 - SET SCHEMA: `RUN='^TestReference(Smoke)?AlterSchema'`
 - SET TABLESPACE: `RUN='^TestReferenceAlterTablespace'`
+- Logged/unlogged identity: `RUN='^TestReferenceAlterPersistence'`
 - Column TYPE: `RUN='^TestReference(Smoke)?AlterType'`
 - Constraint rename: `RUN='^TestReferenceConstraintRename'`
 - Foreign-key callers: `RUN='^TestReferenceForeignKey[A-Za-z]*Caller$'`

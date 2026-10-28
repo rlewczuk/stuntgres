@@ -38,6 +38,9 @@ it. It never builds a binder.
   `StageConstraintDrop` marks only the successfully selected constraint ORIGINAL,
   after inherited/backing-index validation and constraint-driven recursive
   retirement. Recursive constraints and backing indexes are not SQL roots.
+  PARTITION OF constructs its own relation descriptor and retains the child's
+  adjusted creation persistence before row-type/constraint staging; it does not
+  inherit logged/unlogged identity from the partitioned parent.
 - **Proofs** (`proof.go`, `retained_checks.go`): `ConstraintProven` lets ATTACH
   skip its scan; `RetainedChecks.ForRow` picks CHECKs for hash-remap repair.
   RANGE/LIST concurrent-detach CHECK reconstruction selects the saved opclass's

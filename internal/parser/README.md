@@ -39,6 +39,8 @@ single-statement limit of driver calls) belong to callers.
   parameter indices.
 - The entire input is consumed: a valid prefix followed by junk is an error,
   never a partial parse.
+  Ordinary UNLOGGED table declarations remain distinct from query-derived
+  creation; recognizing persistence does not grant query-table capability.
 - Text-search template utilities retain qualified names and ordered positioned
   callback options, including repeated and bare values. CREATE, identity ALTER
   and list DROP have distinct nodes; callback signatures and privileges belong

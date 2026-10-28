@@ -74,7 +74,7 @@ func StageLikeColumns(h Host, auth ddl.Authority, destination *catalog.Relation,
 					}
 					h.TableStage().CaptureLikeSource(sequence)
 					options := *sequence.Sequence
-					options.Persistence = "logged"
+					options.Persistence = EffectivePersistence(h.StageRead(), destination)
 					read := h.StageRead()
 					name := ownedSequenceName(destination.Name(), destination.Columns[in.TargetSlot(slot)].Name, func(n string) bool {
 						return n == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: n})) != 0

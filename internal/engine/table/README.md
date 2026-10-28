@@ -38,6 +38,14 @@ call live here.
   The same stage serves permanent and TEMP creation in explicit transactions;
   transaction admission and shared catalog/storage publication belong to the
   engine, not `CheckCreateShape`.
+  Ordinary descriptors retain logged/unlogged identity before owned sequence
+  creation. `persistence.go` normalizes namespace-owned TEMP and prepares ALTER
+  intentions against original FK facts. Persistence actions are root-only;
+  definition passes retain original identity until the final staged transition.
+  A same-state request changes no descriptor, generation or owned sequence.
+  Identity sequences default to the destination identity only when the
+  declaration omits LOGGED/UNLOGGED. Explicit nontemporary choices win for
+  CREATE and ADD IDENTITY; lower staging receives the resolved identity.
 - **ALTER TABLE** (`alter_*.go`, `rename.go`): `AlterActionPhase` (the
   provider-phase order), `AlterTableLockMode`, `AlterTablePreparation`, candidates
   over `AlterHost` (`AddColumnCandidate`, `AlterTypeCandidate`,
@@ -369,6 +377,7 @@ TABLE in [reference/alter](../../../reference/alter/README.md#testing); add
 ```sh
 make check RUN='^Test(TableHost|AlterHost|RelationValidatorsOrder|GeneratedRemapCheckCapture|TableTargetAdmission|AdmitTargetAsksEachEntry)'
 make check RUN='^Test(CheckCreateShape|TypedSources|PlanAlterScan|ValidateAddedConstraintRows|RelationOptions|PrepareInheritanceNode|InheritancePendingGrants|InheritanceDropClosure|DefinitionProviders|Deparse(SerialSequence|MissingObjects)|ValidateSelectedDomainRows|OwnedSequenceName)'
+make check RUN='^TestAlterPersistence'
 make check RUN='^Test(DropPreparation|DropColumnRoutine|DropReaderSeam|InheritanceAlterAdmission|ReferenceAlterDropColumn)'
 make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|Scan(Restored)?ForeignKeys|RestoredForeignKeyTarget|RestoreInherited|AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit)'
 make check RACE=1 RUN='^Test(NotNull|PhysicalNotNull|Inheritance)'

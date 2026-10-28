@@ -52,6 +52,9 @@ func CreateTableLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 		e.Mu.Unlock()
 		return core.Result{}, ddl.CreationError(err, s.Name)
 	}
+	command := *s
+	command.Persistence = persistence
+	s = &command
 	temporary := persistence == "temporary"
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	_, exists := auth.Catalog.LookupName(key)

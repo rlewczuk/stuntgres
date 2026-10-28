@@ -50,6 +50,7 @@ type Relation struct {
 	ObjectName                     string
 	ObjectRevision                 ids.DefinitionRevision
 	RelationKind                   RelationKind
+	Persistence                    string // Empty is logged; TEMP provenance remains namespace-owned.
 	Owner                          authorization.PrincipalRef
 	Comment                        string
 	AutoExtensions                 []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.

@@ -1055,6 +1055,8 @@ const (
 	AddUnique
 	AddForeignKey
 	SetTablespace
+	SetLogged
+	SetUnlogged
 	InheritTable
 	NoInheritTable
 	SetRelationOptions

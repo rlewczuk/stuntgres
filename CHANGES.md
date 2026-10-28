@@ -1,5 +1,11 @@
 # Changes
 
+- Add CREATE UNLOGGED TABLE and transactional ALTER TABLE SET LOGGED/UNLOGGED,
+  preserving relation metadata, original-state FK admission, owned sequence
+  generations with lazy cache adoption, prepared invalidation and logical
+  Dump/Restore identity. No physical WAL or crash-recovery behavior is claimed.
+  Identity declarations preserve explicit LOGGED/UNLOGGED sequence overrides.
+
 - Add the eight legacy bigint transaction inquiries with distinct
   `txid_snapshot` metadata and storage, sharing the existing transaction and
   immutable snapshot runtime. Preserve unsigned snapshot text, signed bigint

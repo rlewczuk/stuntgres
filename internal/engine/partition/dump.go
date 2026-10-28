@@ -225,7 +225,11 @@ func ChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation
 		return "", fmt.Errorf("stuntgres: missing partition dump parent")
 	}
 	var text strings.Builder
-	text.WriteString("CREATE TABLE " + qualified + " PARTITION OF " + catalog.QuoteIdentifier(catalogView.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name()))
+	prefix := "CREATE TABLE "
+	if d.Persistence == "unlogged" {
+		prefix = "CREATE UNLOGGED TABLE "
+	}
+	text.WriteString(prefix + qualified + " PARTITION OF " + catalog.QuoteIdentifier(catalogView.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name()))
 	var options strings.Builder
 	appendOption := func(option string) {
 		if options.Len() != 0 {

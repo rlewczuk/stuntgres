@@ -41,6 +41,9 @@ func CheckCreateShape(s *parser.CreateTable, temporary, exists bool) (existing b
 	if exists {
 		return false, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, s.Name.Parts[len(s.Name.Parts)-1].Text))
 	}
+	if s.PartitionBy != nil && s.Persistence == "unlogged" {
+		return false, sqlError("0A000", "partitioned tables cannot be unlogged")
+	}
 	if s.PartitionBy != nil && len(s.Parents) != 0 {
 		return false, sqlError("42P17", "cannot create partitioned table as inheritance child")
 	}

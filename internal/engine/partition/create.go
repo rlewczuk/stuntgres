@@ -171,6 +171,7 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 	if err != nil {
 		return nil, err
 	}
+	d.Persistence = syntax.Persistence
 	d.Security.ACL = h.CreationACL(d.Owner, namespace, authorization.DefaultTables)
 	for i := range d.Columns {
 		d.Columns[i].DeclaredDimensions = 0

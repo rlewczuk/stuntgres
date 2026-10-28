@@ -47,6 +47,15 @@ TEMP preservation, relation admission and publication.
   transferring effects. Ordinary metadata transfer installs sequence descriptors,
   generators and retirements once before identity or volatile physical recipes;
   AS validation and cache-tail demand retain their earlier ordering.
+  Table persistence preparation retains original FK identity through definition
+  work, including root re-entry during inheritance. Final surviving owned
+  sequences receive OID-ordered AccessExclusive grants outside Engine.Mu and
+  replacement descriptors/generators in the same metadata stage. A sequence
+  addressed by ALTER TABLE selects itself through that same stage; unsupported
+  companion actions reject the complete list before any persistence effect.
+  Pure persistence work never replaces heap storage. Cache adoption remains lazy.
+  Post-grant descriptor replacement rejects the stale candidate without widening
+  its base; generator-only advancement is captured from the latest live state.
   VALIDATE resolves after deferred ADD FOREIGN KEY, carries only selected
   identities into unlocked effective-row scans, and publishes through the same
   fenced Finish. Eligible valid roots return without a stage or heap work.
@@ -228,6 +237,7 @@ make check RUN='^Test(TableHost|AlterHost|IndexHost)'      # the hosts
 make check RUN='^TestAlterValidateConstraint'               # selection, publication, admission and parser invariants
 make check RUN='^TestConstraintEnforcement'               # enforcement candidate, lifecycle, history and publication ownership
 make check RUN='^Test(Sequence|Identity|Serial)'           # sequence, identity and serial DDL
+make check RUN='^TestAlterPersistence'                     # metadata, cache, post-grant fences and retained authority
 make check RUN='^TestVacuum'                               # VACUUM selection, phases, publication
 make check RACE=1 RUN='^TestVacuum(PublicationFences|AuthorizationLocks)$$'  # VACUUM lock and publication races
 ```

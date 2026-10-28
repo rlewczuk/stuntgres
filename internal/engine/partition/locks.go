@@ -85,6 +85,13 @@ func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.
 				return table.RelationshipChildKind(d, action.Action)
 			}
 		}
+		for _, action := range s.Actions {
+			if action.Action == parser.SetLogged || action.Action == parser.SetUnlogged {
+				// The ordinary ALTER preparation owns source-order kind errors.
+				// A partitioned target rejects SET before any candidate is staged.
+				return nil
+			}
+		}
 		if table.RelationshipOnly(s.Actions) {
 			return nil // Detach rejects actual partitions at its misc action.
 		}

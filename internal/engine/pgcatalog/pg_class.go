@@ -74,6 +74,9 @@ func ClassPersistence(catalog catalog.Read, relation *catalog.Relation) string {
 	if namespace, ok := catalog.Namespace(relation.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 		return "t"
 	}
+	if relation.Persistence == "unlogged" {
+		return "u"
+	}
 	return "p"
 }
 

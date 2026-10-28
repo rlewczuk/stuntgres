@@ -14,6 +14,7 @@ type AlterTablePreparation struct {
 	Actions     []parser.AlterTableAction
 	Destination ids.ObjectRef
 	Types       []AlterTypePreparation
+	Persistence PersistencePreparation
 }
 
 // Prepare root actions in their original order against the original row shape.
@@ -28,10 +29,25 @@ func PrepareAlterTableActions(h AlterHost, auth ddl.Authority, original *catalog
 		return AlterTablePreparation{}, err
 	}
 	for _, action := range actions {
+		if (action.Action == parser.SetLogged || action.Action == parser.SetUnlogged) && original.SQLIndex != nil {
+			if parent, ok := view.Catalog.Relation(original.SQLIndex.Parent); ok && parent.Partition != nil {
+				label := "SET LOGGED"
+				if action.Action == parser.SetUnlogged {
+					label = "SET UNLOGGED"
+				}
+				return fail(persistenceKindError(original, label, "partitioned indexes"))
+			}
+		}
 		if err := AlterTableActionAdmission(original, action); err != nil {
 			return fail(err)
 		}
 		switch action.Action {
+		case parser.SetLogged, parser.SetUnlogged:
+			var err error
+			prepared.Persistence, err = PreparePersistence(view.Catalog, original, action.Action, prepared.Persistence)
+			if err != nil {
+				return fail(err)
+			}
 		case parser.AlterColumnType:
 			admitted, err := AdmitAlterType(h, auth, original, ref, action, nil)
 			if err != nil {
@@ -83,6 +99,27 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 		return RelationshipChildKind(original, action)
 	case parser.NoInheritTable:
 		label = "NO INHERIT"
+	case parser.SetLogged, parser.SetUnlogged:
+		label = "SET LOGGED"
+		if action == parser.SetUnlogged {
+			label = "SET UNLOGGED"
+		}
+		switch original.RelationKind {
+		case catalog.TableRelation, catalog.SequenceRelation:
+			return nil
+		case catalog.PartitionedRelation:
+			return persistenceKindError(original, label, "partitioned tables")
+		case catalog.ViewRelation:
+			return persistenceKindError(original, label, "views")
+		case catalog.MaterializedViewRelation:
+			return persistenceKindError(original, label, "materialized views")
+		case catalog.IndexRelation:
+			return persistenceKindError(original, label, "indexes")
+		case catalog.ForeignRelation:
+			return persistenceKindError(original, label, "foreign tables")
+		case catalog.CompositeRelation:
+			return persistenceCompositeError(original)
+		}
 	case parser.SetTablespace:
 		return ddl.AlterTablespaceKind(original)
 	case parser.SetRelationOptions, parser.ResetRelationOptions:

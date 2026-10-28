@@ -14,6 +14,7 @@ import (
 // method accepts nil. The caller holds Engine.mu, as for the stage itself.
 type Stage struct {
 	generators map[ids.ObjectAddress]*storage.SequenceGenerator
+	lazyPersistence map[ids.ObjectAddress]bool
 	// identityOriginals hold the live descriptor an identity change started
 	// from; publication compares against it instead of the grant catalog.
 	identityOriginals    map[ids.ObjectAddress]catalog.Descriptor
@@ -41,17 +42,34 @@ func (s *Stage) SetGenerator(address ids.ObjectAddress, generator *storage.Seque
 		s.generators = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	}
 	s.generators[address] = generator
+	delete(s.lazyPersistence, address)
 }
 
 func (s *Stage) DeleteGenerator(address ids.ObjectAddress) {
 	if s != nil {
 		delete(s.generators, address)
+		delete(s.lazyPersistence, address)
 	}
 }
 
 // ResetGenerators drops every staged generator, sized for capacity more.
 func (s *Stage) ResetGenerators(capacity int) {
 	s.generators = make(map[ids.ObjectAddress]*storage.SequenceGenerator, capacity)
+	s.lazyPersistence = nil
+}
+
+// SetPersistenceGenerator replaces storage without eagerly adopting its generation
+// in physical-session memory. Demand observes it through Memory.ObserveLocked.
+func (s *Stage) SetPersistenceGenerator(address ids.ObjectAddress, generator *storage.SequenceGenerator) {
+	s.SetGenerator(address, generator)
+	if s.lazyPersistence == nil {
+		s.lazyPersistence = make(map[ids.ObjectAddress]bool)
+	}
+	s.lazyPersistence[address] = true
+}
+
+func (s *Stage) LazyPersistence(address ids.ObjectAddress) bool {
+	return s != nil && s.lazyPersistence[address]
 }
 
 // IdentityOriginal returns the captured live descriptor of an identity sequence.

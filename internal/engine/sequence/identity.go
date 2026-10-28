@@ -57,6 +57,15 @@ func SplitIdentityOptions(as parser.SequenceOption, options []parser.SequenceOpt
 	return split, nil
 }
 
+// ResolvePersistence applies the destination default only when the declaration
+// omitted LOGGED/UNLOGGED. Call after option binding and TEMP-option admission.
+func (o IdentityOptions) ResolvePersistence(destination string) string {
+	if o.persistenceSet {
+		return o.Persistence
+	}
+	return destination
+}
+
 // CheckTemporary rejects an explicit LOGGED or UNLOGGED of a TEMP table's
 // identity, at the option's position. The engine calls it after binding the
 // options, which take precedence.

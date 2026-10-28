@@ -83,6 +83,9 @@ func (e *Engine) PublishAlterMetadata(scope *StatementScope, stage *CatalogStage
 		phase.Targets[a] = true
 	}
 	for a, generator := range stage.Sequence.StagedGenerators() {
+		if stage.Sequence.LazyPersistence(a) {
+			continue
+		}
 		if memory := PayloadOf(scope.Op.Session).Sequences.Memory(a); memory != nil {
 			memory.DiscardStaleTailLocked(generator.Generation)
 		}

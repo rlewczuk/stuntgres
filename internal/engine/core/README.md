@@ -535,6 +535,9 @@ drop facts alongside the catalog, row and effect roots. Internal replacement
 effects do not become user-visible drops.
 
 `PublishAlterMetadata` consumes structurally validated metadata before heap work.
+Sequence replacements marked for persistence omit eager session-tail discard;
+the normal sequence demand path adopts their generation. Stage/journal transfer
+and rollback remain identical to other generator replacements.
 `TransferAlterStage` retains ordinary normalization and admission; one fresh
 `FinishAlterValidation` stage demands registered providers after all physical
 work, over exact final descriptors without another revision or resurrection.

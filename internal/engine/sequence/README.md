@@ -29,10 +29,13 @@ library, and never `analyze`, `exec` or the engine.
   `TemporaryLoggedError`, `CheckSchemaMove`, `NotSequenceError` and
   `AlterEffects`, which decides the plan-stamp bump, the generator
   replacement and the session tail discard of ALTER SEQUENCE.
-- **Identity and serial options** (`identity.go`): `IdentityTypeOption`,
-  `SplitIdentityOptions` with `IdentityOptions.CheckTemporary` (called after
-  the options bind, which take precedence), `CheckIdentitySetOptions`,
-  `SerialOptions`, `SerialDefault` and `CheckRestoreIdentityConfiguration`.
+- **Identity and serial options** (`identity.go`): `IdentityTypeOption` selects
+  the column's sequence type.
+  `SplitIdentityOptions` retains explicit persistence presence separately from
+  its default. `IdentityOptions.CheckTemporary` follows numeric option binding;
+  `ResolvePersistence` then selects an explicit nontemporary choice or the
+  destination default once. `CheckIdentitySetOptions`, `SerialOptions`,
+  `SerialDefault` and `CheckRestoreIdentityConfiguration` keep their own roles.
 - **Function calls** (`call.go`): `CallPrivileges`, `ReadOnlyCallError` and
   `CallLocked`, the currval/lastval/nextval/setval semantics over the opened
   relation, its generator and the session memory.
@@ -50,6 +53,12 @@ library, and never `analyze`, `exec` or the engine.
   `TemporaryEpochValid` and the plan-stamp rule `DefinitionStamp`.
 - **Stage slot** (`stage.go`): `Stage`, the generator replacements and
   identity captures of one engine `CatalogStage`; nil reads answer empty.
+  Table persistence replacements carry a stage-local lazy-adoption marker:
+  publication preserves session tails, and the next sequence demand observes the
+  replacement generation. Rollback without demand therefore preserves the old
+  unused tail. Every surviving owned sequence rewrites on a genuine table
+  transition, including independently prealigned sequences; ordinary sequence
+  option and identity-AS eager-discard semantics remain separate.
 - **Control** (`control.go`): `CopyGenerators` and the retain predicate
   `OwnTemporary`.
 - **Dump formatting** (`dump.go`): `Dump`, `DumpStatements` (byte-identical
@@ -147,6 +156,7 @@ RESTART IDENTITY and native Dump/Restore; add `RACE=1` for concurrent
 ```sh
 make check RUN='^TestSequence'
 make check RUN='^Test(Discard|Serial|Identity|TruncateRestart)'
+make check RUN='^TestAlterPersistence'
 ```
 
 Public behavior lives in

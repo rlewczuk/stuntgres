@@ -166,6 +166,7 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 	if err != nil {
 		return err
 	}
+	d.Persistence = s.Persistence
 	if b.Create.OfType != nil {
 		d.OfType = b.Create.OfType.Address()
 		h.AddDomainBase(b.Create.OfType)

@@ -96,6 +96,8 @@ func InheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableActio
 	case parser.ValidateConstraint:
 		selected, err := SelectAlterConstraintValidation(root, a.Constraint.Text)
 		return err == nil && selected.Recursive()
+	case parser.SetLogged, parser.SetUnlogged:
+		return false
 	case parser.SetTablespace, parser.SetRelationOptions, parser.ResetRelationOptions, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
 		return false // Assignment is always root-only, independent of ONLY/star.
 	case parser.AddColumn, parser.DropColumn, parser.AlterColumnType:
