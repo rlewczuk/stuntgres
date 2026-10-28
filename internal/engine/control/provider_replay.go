@@ -23,11 +23,14 @@ type providerKey struct {
 	signature    catalog.ProcedureSignature
 }
 type providerFamily uint8
+
 const (
 	routineProvider providerFamily = iota
 	dictionaryProvider
 	templateProvider
+	configurationProvider
 )
+
 type providerReplay struct {
 	original, current providerKey
 	arguments, owner  string
@@ -81,6 +84,10 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 	} else if p.PLHandler != catalog.NoPLHandler {
 		name, signature, _ := p.PLHandler.Declaration()
 		r.original = providerKey{ns.Name(), name, signature}
+	} else if p.SnowballHelper != catalog.NoSnowballHelper {
+		name, signature := p.SnowballHelper.Declaration()
+		originalNS := c.CatalogView.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
+		r.original = providerKey{originalNS.Name(), name, signature}
 	} else if p.Foreign != nil {
 		r.original = providerKey{p.Foreign.Name.Schema, p.Foreign.Name.Name, p.Signature}
 	} else {
@@ -194,6 +201,8 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 			return "ALTER TEXT SEARCH DICTIONARY " + name
 		case templateProvider:
 			return "ALTER TEXT SEARCH TEMPLATE " + name
+		case configurationProvider:
+			return "ALTER TEXT SEARCH CONFIGURATION " + name
 		}
 		return "ALTER FUNCTION " + name + "(" + p.arguments + ")"
 	}
@@ -249,8 +258,12 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 				serial++
 				kind := "routine"
 				switch p.family {
-				case dictionaryProvider: kind = "dictionary"
-				case templateProvider: kind = "template"
+				case dictionaryProvider:
+					kind = "dictionary"
+				case templateProvider:
+					kind = "template"
+				case configurationProvider:
+					kind = "configuration"
 				}
 				next.name = fmt.Sprintf("__stuntgres_%s_%d", kind, serial)
 				other := next
@@ -330,9 +343,13 @@ func (s *dumpScript) prepareProviderReplay() error {
 		return err
 	}
 	templates, err := s.templateProviderReplays()
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	templateStatements, err := planProviderReplay(templates)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	statements = append(statements, templateStatements...)
 	dictionaries, err := s.dictionaryProviderReplays()
 	if err != nil {
@@ -343,6 +360,15 @@ func (s *dumpScript) prepareProviderReplay() error {
 		return err
 	}
 	statements = append(statements, dictionaryStatements...)
+	configurations, err := s.configurationProviderReplays()
+	if err != nil {
+		return err
+	}
+	configurationStatements, err := planProviderReplay(configurations)
+	if err != nil {
+		return err
+	}
+	statements = append(statements, configurationStatements...)
 	operators, err := s.operatorProviderReplayStatements()
 	if err != nil {
 		return err

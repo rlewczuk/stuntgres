@@ -143,7 +143,7 @@ func TestReferenceTSTemplateMetadata(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_template", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}))
+			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_template", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
 		}
 		for _, prepared := range []bool{false, true} {
 			s := fixture.Select("SELECT oid::bigint,tmplname,tmplnamespace::bigint,tmplinit::oid::bigint,tmpllexize::oid::bigint FROM pg_catalog.pg_ts_template WHERE oid=3727", tsTemplateNames, []string{"INT8", "NAME", "INT8", "INT8", "INT8"}, [][]any{{int64(3727), "simple", int64(11), int64(3725), int64(3726)}})
@@ -161,7 +161,7 @@ func TestReferenceTSTemplateMetadata(t *testing.T) {
 				run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA ext_addon", 0))
 				tsTemplateLinked(t, p, c, r, pg)
 				if !pg {
-					run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_template", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
+					run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_template", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}}))
 				}
 			}
 			for _, prepared := range []bool{false, true} {

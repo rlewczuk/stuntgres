@@ -138,13 +138,15 @@ database identity while retaining other databases' committed subscriptions.
   Templates have no OWNER directive. Privileged creation restores optional INIT
   as zero and re-establishes genuine callback capability from destination
   descriptors; no initialized native pointers are serialized.
-- **Dictionaries** (`dictionary_replay.go`): builtin simple and installed members
+- **Dictionaries** (`dictionary_replay.go`): builtin simple/English and installed members
   never get duplicate CREATE statements. Their initialized identities use the
   captured names of their installation namespaces, after namespace replay, and
   share one dictionary collision plan, separate from routine keys; relabels
   precede option refreshes and owner transfers. Admitted option removals replay explicitly,
   preserving SQL NULL rather than equivalent default resource behavior; genuine
   unaccent dictionaries require explicit Rules and cannot replay its removal.
+  English seed differences remove default options before replaying the exact
+  current ordered list, so removed StopWords cannot reappear on Restore.
   Final slot metadata and stored references/defaults/views follow those changes.
   Standalone dictionaries own declaration events after template installation.
   Non-bootstrap owners use the shared `dump.Statement.PrivilegedCreation` protocol:
@@ -193,9 +195,11 @@ database identity while retaining other databases' committed subscriptions.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
   ADD MAPPING statements, never COPY provenance. Actual parser, namespace, mapped
   dictionary and stored alias/default/view dependencies use the ordinary graph.
-  Owner transfers use privileged creation; seed edits replay current mappings
-  after canonical seed initialization. Temporary retention and replacement
-  remap configuration descriptors and REGCONFIG datums through existing owners.
+  Owner transfers use privileged creation; allocated English and fixed simple
+  seed identities share the ordinary collision planner before mapping replay.
+  Seed edits replay current mappings after canonical initialization. Temporary
+  retention and replacement remap configurations and REGCONFIG datums through
+  existing owners.
 - **Provider differences** (`provider_replay.go`): immutable released builtin
   identity and checked versioned extension slots, never mutable labels, select
   real ALTER FUNCTION or ALTER TEXT SEARCH DICTIONARY replay. Original SQL

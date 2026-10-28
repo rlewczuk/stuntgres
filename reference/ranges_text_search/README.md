@@ -132,6 +132,10 @@ COPY test in reference/dml.
 - Text search document parser: `RUN='^TestReferenceFTSParser'`
   Parser definition lifecycle, checked callback execution, diagnostics, privileges,
   dependencies and native replacement/replay share `RUN='^TestReferenceFTSParserDDL'`.
+- English Snowball configuration mappings and seed replay:
+  `RUN='^TestReferenceFTSSnowball'`.
+  Mapping proofs join actual parser aliases to catalog mappings and specify
+  the six English and thirteen simple aliases independently of numeric ordering.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

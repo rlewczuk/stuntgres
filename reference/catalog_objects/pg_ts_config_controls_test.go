@@ -22,17 +22,21 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 		}
 		defer stmt.Close()
 		held := fixture.HeldStatement{Executor: b.DB, Statement: stmt, SQL: pgTSConfigNameProbe}
+		seedRows := func() [][]any {
+			var english int64
+			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_ts_config WHERE cfgname='english' AND cfgnamespace='pg_catalog'::regnamespace").Scan(&english); err != nil || english <= 0 || english == 3748 {
+				t.Fatal("actual English configuration identity", english, err)
+			}
+			return append([][]any{{english, "english", int64(11), int64(10), int64(3722)}}, pgTSConfigSimple(b)...)
+		}
 		catalog := func() {
 			pgTSConfigInventory(t, p, b, b.DB)
 			fixture.PgDescriptionExecutorRows(t, p, b, held, pgTSConfigStep(b, pgTSConfigNameProbe, pgTSConfigSimple(b), "simple"))
 		}
 		check := func() {
 			catalog()
-			q := "SELECT * FROM public.ptsc_control_view"
-			if b.PG {
-				q += " WHERE cfgname='simple'"
-			}
-			pgTSConfigBoth(t, p, b, b.DB, fixture.Select(q, fixture.PGTSConfigColumns, pgTSConfigTypes, pgTSConfigSimple(b)))
+			q := "SELECT * FROM public.ptsc_control_view WHERE cfgname IN ('english','simple') ORDER BY cfgname"
+			pgTSConfigBoth(t, p, b, b.DB, fixture.Select(q, fixture.PGTSConfigColumns, pgTSConfigTypes, seedRows()))
 			s := fixture.Select("SELECT v FROM public.ptsc_control_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}})
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Prepared(s))
@@ -41,7 +45,8 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 		if b.PG {
 			return // Native controls have no PostgreSQL API equivalent.
 		}
-		old, err := b.DB.QueryContext(p.Ctx, "SELECT * FROM pg_catalog.pg_ts_config")
+		retainedRows := seedRows()
+		old, err := b.DB.QueryContext(p.Ctx, "SELECT * FROM pg_catalog.pg_ts_config ORDER BY cfgname")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -59,13 +64,13 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		check()
-		if !old.Next() {
-			t.Fatal("retained configuration cursor lost seed row", old.Err())
-		}
-		var oid, namespace, owner, parser int64
-		var name string
-		if err := old.Scan(&oid, &name, &namespace, &owner, &parser); err != nil || oid != 3748 || name != "simple" || namespace != 11 || owner != 10 || parser != 3722 {
-			t.Fatal("retained configuration seed row", oid, name, namespace, owner, parser, err)
+		for _, expected := range retainedRows {
+			if !old.Next() { t.Fatal("retained configuration cursor lost seed row", old.Err()) }
+			var oid, namespace, owner, parser int64
+			var name string
+			if err := old.Scan(&oid, &name, &namespace, &owner, &parser); err != nil || oid != expected[0] || name != expected[1] || namespace != expected[2] || owner != expected[3] || parser != expected[4] {
+				t.Fatal("retained configuration seed row", oid, name, namespace, owner, parser, err)
+			}
 		}
 		if old.Next() || old.Err() != nil {
 			t.Fatal("retained configuration cursor trailing rows", old.Err())

@@ -660,6 +660,13 @@ publication and lock-manager tickets stay in the engine.
   compiled sorted list is shared, not reread per evaluation. Resource names
   resolve only shipped bytes; missing names report the actual embed-relative
   lookup path. Kernels retain neither catalog identities nor expression collation.
+  `SnowballDictionary` uses an immutable language-provider table and the complete
+  English kernel shipped by PostgreSQL REL_18_6 (Snowball revision
+  d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
+  Stopwords precede stemming; C-locale ASCII lowering and the original-byte
+  1000-byte guard belong to the wrapper. Both dictionaries share the same sorted
+  127-word resource. The full BSD notice is in `snowball_LICENSE.txt`; binary
+  distributions must reproduce it in their documentation or accompanying materials.
   Strict NULL-or-evaluate preflight uses the shared immutable typed-fold owner:
   warmed all-constant calls may reuse their accepted result across dictionary
   option revisions, while runtime-token calls invoke current dictionary state.
@@ -844,6 +851,7 @@ make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryAlignment|GeometryRela
 make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider authority
 make check RUN='^TestFTSQueryFunctions'  # query utility providers, kernels and runtime lifetime
 make check RUN='^TestSimpleDictionary'  # dictionary kernels and shipped resources
+make check RUN='^TestSnowball'  # released English rules, provider/resource and lifetime ownership
 make check RUN='^TestTablefunc'  # installed Gaussian expression and cursor contracts
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
 make check RUN='^TestMACOperationsProviderLifecycle$'  # fixed-width MAC function protocol

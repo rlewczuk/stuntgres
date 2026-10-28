@@ -88,6 +88,10 @@ states before installed-provider delegation or any intrinsic family early return
 Installed symbol validation enforces the same invariant for direct provider and
 capture/remap consumers. Builtin and installed strictness/volatility remain sealed
 to their real declarations; allowed parallel/cost/rows changes do not relax them.
+Allocated Snowball C helpers use their typed bootstrap declaration capability,
+not the fixed builtin-OID registry or an externally callable INTERNAL ABI.
+Pinning follows actual seed authority, including renamed/moved English
+dictionaries/configurations; outgoing dependencies still follow current targets.
 
 Installed crosstab consumers retain their selected procedure and genuine named
 result generation, or their completed anonymous record definition. Reference,

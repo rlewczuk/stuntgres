@@ -7,10 +7,10 @@ import (
 )
 
 func (d *TSDictionary) Seeded() bool {
-	return d.Address() == (ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765})
+	return d.english || d.Address() == (ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765})
 }
 func (d *TSTemplate) Seeded() bool {
-	return d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727})
+	return d.snowball || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727})
 }
 
 func InstallBuiltinDictionaries(state *State, owner authorization.PrincipalRef, runtime DictionaryRuntime) {

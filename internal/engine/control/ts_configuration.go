@@ -70,15 +70,6 @@ func configurationDumpStatement(view catalog.Read, roles authorization.Read, d *
 	}
 	var text strings.Builder
 	if d.Seeded() {
-		originalNS := view.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}).Name()
-		current := catalog.QuoteIdentifier(originalNS) + ".simple"
-		if d.Name() != "simple" {
-			fmt.Fprintf(&text, "ALTER TEXT SEARCH CONFIGURATION %s RENAME TO %s;\n", current, catalog.QuoteIdentifier(d.Name()))
-			current = catalog.QuoteIdentifier(originalNS) + "." + catalog.QuoteIdentifier(d.Name())
-		}
-		if d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
-			fmt.Fprintf(&text, "ALTER TEXT SEARCH CONFIGURATION %s SET SCHEMA %s;\n", current, catalog.QuoteIdentifier(view.MustNamespace(d.Namespace()).Name()))
-		}
 		text.WriteString("ALTER TEXT SEARCH CONFIGURATION " + name + " DROP MAPPING IF EXISTS FOR ")
 		for i, t := range tokens {
 			if i > 0 {

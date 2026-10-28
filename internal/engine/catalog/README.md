@@ -220,6 +220,8 @@ private frames, not catalog authority.
   `InstallBuiltinTSConfigurations` (simple's genuine nineteen token mappings),
   `Store.InstallBuiltinLanguagesLocked` (plpgsql and its handlers at allocated
   OIDs, with creation-owned C display sources and canonical strictness),
+  `Store.InstallSnowballLocked` (allocated C helper/template/english_stem/english
+  identities, compiled runtime supplied by core and real nineteen-token mapping),
   `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
   `InstallBuiltinOperators`, `InstallBuiltinFamilies`, `InstallBuiltinClasses`
   and `InstallCatalogSource`, which hands a same-named row type and its array
@@ -245,8 +247,11 @@ private frames, not catalog authority.
 - **Text-search descriptors** (`extension_catalog.go`, `dictionary.go`):
   dictionaries hold ordered decoded immutable options, actual owner/template and
   a catalog-free `DictionaryRuntime`. Runtime authority is separate from genuine
-  extension membership; builtin simple is not an extension. Seed classification
-  excludes system roots from bulk ownership and independent dump declarations.
+  extension membership; bootstrap simple and Snowball are not extensions.
+  Allocated Snowball seeds retain private seed markers and typed helper authority
+  across ordinary copies/remapping; canonical replay names/default options do not
+  derive from mutable labels. Seed classification excludes system roots from bulk
+  ownership and independent dump declarations.
   Templates are ownerless identities with mandatory LEXIZE and optional INIT;
   absent INIT is the zero address, never a synthetic dependency. Namespace and
   nonzero callback links are NORMAL dependencies. Public relabeling preserves

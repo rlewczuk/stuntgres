@@ -23,9 +23,7 @@ func (s *dumpScript) dictionaryProviderReplays() ([]providerReplay, error) {
 		}
 		r := providerReplay{family: dictionaryProvider, original: original, current: providerKey{ns.Name(), d.Name(), ""}, ownerChanged: d.Owner != owner}
 		if d.Seeded() {
-			if len(d.Options) != 0 {
-				r.options = " (" + catalog.DictionaryOptionsText(d.Options) + ")"
-			}
+			r.options = seedDictionaryOptionDelta(d)
 		} else {
 			if extension.UnaccentDictionaryProviderOf(d) != extension.StockUnaccent {
 				return extension.InvalidProviderDescriptor()
@@ -41,8 +39,7 @@ func (s *dumpScript) dictionaryProviderReplays() ([]providerReplay, error) {
 		providers = append(providers, r)
 		return nil
 	}
-	seed, ok := s.CatalogView.TSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765})
-	if !ok || s.CatalogView.Owner() == nil || s.CatalogView.Owner().Principals == nil {
+	if s.CatalogView.Owner() == nil || s.CatalogView.Owner().Principals == nil {
 		return nil, extension.InvalidProviderDescriptor()
 	}
 	// Namespace replay runs first, so the initialized dictionary already follows
@@ -52,8 +49,14 @@ func (s *dumpScript) dictionaryProviderReplays() ([]providerReplay, error) {
 	if !ok {
 		return nil, extension.InvalidProviderDescriptor()
 	}
-	if err := add(seed, providerKey{originalNS.Name(), "simple", ""}, s.CatalogView.Owner().Principals.Principal(authorization.BootstrapPrincipalID)); err != nil {
-		return nil, err
+	for _, descriptor := range s.CatalogView.Descriptors() {
+		dictionary, ok := descriptor.(*catalog.TSDictionary)
+		if !ok || !dictionary.Seeded() {
+			continue
+		}
+		if err := add(dictionary, providerKey{originalNS.Name(), dictionary.SeedName(), ""}, s.CatalogView.Owner().Principals.Principal(authorization.BootstrapPrincipalID)); err != nil {
+			return nil, err
+		}
 	}
 	for _, event := range s.eventOrder {
 		if event.Phase != dump.Declaration {

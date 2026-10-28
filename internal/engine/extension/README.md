@@ -127,9 +127,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Explicit member DROP remains forbidden under both RESTRICT and CASCADE;
   only retirement through the owning extension consumes that membership.
   Definition validity is separate from native dictionary execution. Compilation
-  admits only the genuine stock-simple pair or a currently authenticated
-  unaccent installation's helper pair. Missing INIT never fabricates initialized
-  state, and unavailable native callback combinations fail before publication.
+  admits only the genuine stock-simple pair, authenticated bootstrap Snowball
+  helpers, or a currently authenticated unaccent installation's helper pair.
+  Standalone templates use the same actual helper authority. Missing INIT never
+  fabricates initialized state, and unavailable native callback combinations fail
+  before publication.
   Detached compilation captures the catalog and rechecks both real helpers at
   completion. No callback or resource I/O runs under the catalog mutex.
   Callback links remain executable dependencies even when SQL `pg_depend`
@@ -141,11 +143,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   completion rechecks current namespace/template/revision and role authority.
   SET SCHEMA checks destination CREATE before source ownership, both during
   preparation and at current-authority completion.
-  Ordered immutable options and genuine simple/unaccent runtime state publish in
+  Ordered immutable options and genuine simple/unaccent/Snowball runtime state publish in
   the existing catalog journal. ALTER removes matching options before appending
   supplied replacements. Standalone dictionaries depend on their real namespace
   and template, without fabricated extension membership. `DictionaryDumpStatement`
   serializes qualified template/options and owner metadata, never runtime pointers.
+  Snowball CREATE validates each Language/StopWords option as encountered, then
+  requires Language; ALTER uses the same ordered remove-then-append merge.
+  Admission checks the registered immutable language/configuration and genuine
+  bootstrap template/helper capability, never mutable names or output equality.
   Installed dictionaries retain their genuine provider, template/helper links and
   reciprocal manifest slot across supported name/schema changes. Their public
   placement is not the installation namespace. Owner metadata accepts mutable

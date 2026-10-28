@@ -33,24 +33,44 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	nextOID, nextRevision := e.Catalog.NextOID(), e.Catalog.NextRevision()
+	snowballAddress := view.NameAddress(ids.NameKey{ClassID: ids.TSTemplateClassID, Namespace: source.Namespace(), Name: "snowball"})
+	snowball, ok := view.TSTemplate(snowballAddress)
+	if !ok || snowballAddress.ObjectID == 0 || snowballAddress.ObjectID == 3727 { t.Fatal("actual Snowball template seed", snowballAddress) }
 	for range 2 {
 		got, err := core.CaptureCatalogSourceRows(input, produce)
 		if err != nil || got == nil {
 			t.Fatal("seed template capture", got, err)
 		}
-		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 1 {
-			t.Fatal("template source must contain simple", got)
+		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 2 {
+			t.Fatal("exact simple/Snowball template inventory", got)
 		}
-		for i, want := range []uint32{3725, 3726} {
-			value := got.Anonymous[0][i+3]
-			gotOID, err := value.ProcedureOID()
-			if err != nil || gotOID != want || value.IsNull() || value.Type() != source.Columns[i+3].Usage.Type {
-				t.Fatal("simple source-owned REGPROC handler", i, value, err)
+		seen := map[string]bool{}
+		for _, row := range got.Anonymous {
+			if len(row) != 5 { t.Fatal("template row width", row) }
+			for i, value := range row {
+				if value.IsNull() || value.Type() != source.Columns[i].Usage.Type { t.Fatal("source-owned template cell", i, value) }
+			}
+			name, err := row[1].Text()
+			if err != nil || seen[name] || name != "simple" && name != "snowball" { t.Fatal("template seed identity", name, err) }
+			seen[name] = true
+			wantOID, handlers := uint32(3727), []uint32{3725, 3726}
+			if name == "snowball" { wantOID, handlers = uint32(snowballAddress.ObjectID), []uint32{uint32(snowball.Init.ObjectID), uint32(snowball.Lexize.ObjectID)} }
+			oid, err := row[0].OID()
+			if err != nil || oid != wantOID { t.Fatal("template actual OID", name, oid, err) }
+			namespace, err := row[2].OID()
+			if err != nil || namespace != 11 { t.Fatal("template namespace", name, namespace, err) }
+			for i, want := range handlers {
+				value := row[i+3]
+				gotOID, err := value.ProcedureOID()
+				if err != nil || gotOID != want || value.IsNull() || value.Type() != source.Columns[i+3].Usage.Type {
+					t.Fatal("source-owned REGPROC handler", name, i, value, err)
+				}
 			}
 		}
 	}
 	empty := catalog.CloneState(view.State())
 	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727})
+	empty.RemoveDescriptor(snowballAddress)
 	emptyInput := input
 	emptyInput.Catalog = e.Catalog.Read(empty)
 	emptyRows, err := core.CaptureCatalogSourceRows(emptyInput, produce)

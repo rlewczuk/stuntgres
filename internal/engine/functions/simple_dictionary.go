@@ -82,9 +82,22 @@ func CompileSimpleDictionary(ctx context.Context, accept bool, stopwords string)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	d := &SimpleDictionary{accept: accept, stopwords: stopwords}
+	words, err := loadDictionaryStopwords(ctx, stopwords)
+	if err != nil {
+		return nil, err
+	}
+	return &SimpleDictionary{accept: accept, stopwords: stopwords, words: words}, nil
+}
+
+// CheckDictionaryStopwords loads and validates a resource in source-option order.
+func CheckDictionaryStopwords(ctx context.Context, name string) error {
+	_, err := loadDictionaryStopwords(ctx, name)
+	return err
+}
+
+func loadDictionaryStopwords(ctx context.Context, stopwords string) ([]string, error) {
 	if stopwords == "" {
-		return d, nil
+		return nil, ctx.Err()
 	}
 	if err := CheckDictionaryResourceName(ctx, stopwords); err != nil {
 		return nil, err
@@ -110,8 +123,7 @@ func CompileSimpleDictionary(ctx context.Context, accept bool, stopwords string)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	d.words = englishWords.words
-	return d, nil
+	return englishWords.words, nil
 }
 
 func (d *SimpleDictionary) Configured(accept bool, stopwords string) bool {

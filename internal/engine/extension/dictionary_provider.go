@@ -17,7 +17,6 @@ func dictionaryError(code, message string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }
 
-
 // CompileDictionary compiles immutable execution state before catalog publication.
 func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog.TSTemplate, options []catalog.DictionaryOption) (catalog.DictionaryRuntime, error) {
 	if err := ctx.Err(); err != nil {
@@ -26,11 +25,16 @@ func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog
 	if template == nil {
 		return nil, InvalidProviderDescriptor()
 	}
-	if err := validateTemplate(view, template); err != nil { return nil, err }
+	if err := validateTemplate(view, template); err != nil {
+		return nil, err
+	}
 	if template.Init == (ids.ObjectAddress{}) && len(options) != 0 {
 		return nil, dictionaryError("42601", fmt.Sprintf(`text search template "%s" does not accept options`, template.Name()))
 	}
 	capability := dictionaryCapability(view, template)
+	if capability == 3 {
+		return compileSnowballOptions(ctx, options)
+	}
 	if capability == 1 {
 		accept, stopwords, err := simpleOptions(options)
 		if err != nil {
@@ -139,6 +143,29 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 		runtime, ok := d.Runtime.(*functions.SimpleDictionary)
 		accept, stopwords, err := simpleOptions(d.Options)
 		if !ok || err != nil || !runtime.Configured(accept, stopwords) || d.Implementation != nil {
+			return InvalidProviderDescriptor()
+		}
+	} else if dictionaryCapability(v, template) == 3 {
+		runtime, ok := d.Runtime.(*functions.SnowballDictionary)
+		language, stopwords := "", ""
+		seenLanguage, seenStopwords := false, false
+		for _, option := range d.Options {
+			switch option.Name {
+			case "language":
+				if seenLanguage {
+					return InvalidProviderDescriptor()
+				}
+				seenLanguage, language = true, option.Value
+			case "stopwords":
+				if seenStopwords {
+					return InvalidProviderDescriptor()
+				}
+				seenStopwords, stopwords = true, option.Value
+			default:
+				return InvalidProviderDescriptor()
+			}
+		}
+		if !ok || !seenLanguage || !runtime.Configured(language, stopwords) || d.Implementation != nil || d.Extension != (ids.ObjectAddress{}) {
 			return InvalidProviderDescriptor()
 		}
 	} else if dictionaryCapability(v, template) == 2 {

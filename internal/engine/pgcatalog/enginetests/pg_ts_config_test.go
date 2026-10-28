@@ -14,6 +14,29 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.Relation, rows [][]sqltype.Value) {
+	t.Helper()
+	if len(rows) != 2 { t.Fatal("exact simple/English configuration inventory", rows) }
+	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
+	if english.ObjectID == 0 || english.ObjectID == 3748 { t.Fatal("actual allocated English configuration", english) }
+	seen := map[string]bool{}
+	for _, row := range rows {
+		if len(row) != 5 { t.Fatal("configuration row width", row) }
+		for i, value := range row {
+			if value.IsNull() || value.Type() != source.Columns[i].Usage.Type { t.Fatal("source-owned configuration cell", i, value) }
+		}
+		name, err := row[1].Text()
+		if err != nil || seen[name] || name != "simple" && name != "english" { t.Fatal("configuration identity", name, err) }
+		seen[name] = true
+		want := uint32(3748)
+		if name == "english" { want = uint32(english.ObjectID) }
+		for i, expected := range map[int]uint32{0: want, 2: 11, 3: 10, 4: 3722} {
+			got, err := row[i].OID()
+			if err != nil || got != expected { t.Fatal("configuration seed relationship", name, i, got, expected, err) }
+		}
+	}
+}
+
 func TestPGTSConfigCapture(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
@@ -24,15 +47,16 @@ func TestPGTSConfigCapture(t *testing.T) {
 		t.Fatal("missing configuration producer")
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
-	if rows, err := produce(input); err != nil || rows == nil || len(rows) != 1 {
-		t.Fatal("genuine simple configuration inventory", rows, err)
-	}
+	rows, err := produce(input)
+	if err != nil { t.Fatal(err) }
+	assertSeedConfigurations(t, view, source, rows)
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
 	captured, err := core.CaptureCatalogSourceRows(input, produce)
-	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 1 {
+	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 2 {
 		t.Fatal("configuration capture lost source identity", captured, err)
 	}
+	assertSeedConfigurations(t, view, source, captured.Anonymous)
 	for _, width := range []int{4, 6} {
 		invalid := *source
 		invalid.Columns = make([]catalog.Column, width)
@@ -121,9 +145,9 @@ func TestPGTSConfigOwnership(t *testing.T) {
 		t.Fatal("missing configuration producer")
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: core.EngineCatalogRuntime{}}
-	if rows, err := produce(input); rows == nil || len(rows) != 1 || err != nil {
-		t.Fatal("replacement configuration capture", rows, err)
-	}
+	rows, err := produce(input)
+	if err != nil { t.Fatal(err) }
+	assertSeedConfigurations(t, freshView, fresh, rows)
 	input.Source = old
 	if rows, err := produce(input); rows != nil || err == nil {
 		t.Fatal("old generation configuration source admitted", rows, err)
@@ -140,10 +164,13 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 19 {
-		t.Fatal("actual simple mappings", rows, err)
+	if err != nil || len(rows) != 38 {
+		t.Fatal("actual simple and English mappings", rows, err)
 	}
-	tokens := map[int64]bool{}
+	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
+	stem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english_stem"})
+	if english.ObjectID == 0 || stem.ObjectID == 0 { t.Fatal("missing allocated English identities") }
+	tokens := map[[2]int64]bool{}
 	for _, row := range rows {
 		if len(row) != 4 {
 			t.Fatal("mapping shape", row)
@@ -164,14 +191,19 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if values[0] != 3748 || values[2] != 1 || values[3] != 3765 || tokens[values[1]] {
+		key := [2]int64{values[0], values[1]}
+		wantDictionary := int64(3765)
+		if values[0] == int64(english.ObjectID) {
+			switch values[1] { case 1, 2, 10, 11, 16, 17: wantDictionary = int64(stem.ObjectID) }
+		} else if values[0] != 3748 { t.Fatal("unexpected configuration mapping", values) }
+		if values[2] != 1 || values[3] != wantDictionary || tokens[key] {
 			t.Fatal("mapping identity/sequence/dictionary", values)
 		}
-		tokens[values[1]] = true
+		tokens[key] = true
 	}
-	for _, token := range []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22} {
-		if !tokens[token] {
-			t.Fatal("missing stock token", token)
+	for _, config := range []int64{3748, int64(english.ObjectID)} {
+		for _, token := range []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22} {
+			if !tokens[[2]int64{config, token}] { t.Fatal("missing stock token", config, token) }
 		}
 	}
 	retained := make([][]sqltype.Value, len(rows))
@@ -189,6 +221,10 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	next.ObjectRevision++
 	state := catalog.CloneState(view.State())
 	state.SetDescriptor(next.Address(), &next)
+	nextEnglish := *view.MustTSConfiguration(english)
+	nextEnglish.Mappings = nil
+	nextEnglish.ObjectRevision++
+	state.SetDescriptor(english, &nextEnglish)
 	input.Catalog = view.WithState(state)
 	if fresh, err := produce(input); err != nil || fresh == nil || len(fresh) != 0 || !reflect.DeepEqual(rows, retained) {
 		t.Fatal("capture retained exact mapping rows", fresh, err)
@@ -274,7 +310,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: oldView, Source: old, Owner: oldView.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 19 {
+	if err != nil || len(rows) != 38 {
 		t.Fatal("old generation mapping rows", rows, err)
 	}
 	retained := make([][]sqltype.Value, len(rows))
@@ -305,7 +341,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 		t.Fatal("replacement changed retained mapping generation")
 	}
 	input.Catalog, input.Owner, input.Source = freshView, freshView.Owner(), fresh
-	if got, err := produce(input); err != nil || got == nil || len(got) != 19 {
+	if got, err := produce(input); err != nil || got == nil || len(got) != 38 {
 		t.Fatal("fresh mapping producer", got, err)
 	}
 	input.Source = old

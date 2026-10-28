@@ -19,6 +19,7 @@ type TSConfiguration struct {
 	ObjectName                             string
 	Owner                                  authorization.PrincipalRef
 	Mappings                               []TSMapping
+	english                                bool
 }
 
 func (d *TSConfiguration) Address() ids.ObjectAddress       { return d.ObjectAddress }
@@ -27,7 +28,7 @@ func (d *TSConfiguration) Revision() ids.DefinitionRevision { return d.ObjectRev
 func (d *TSConfiguration) Name() string                     { return d.ObjectName }
 func (*TSConfiguration) Kind() ids.ObjectKind               { return ids.TSConfigurationObject }
 func (d *TSConfiguration) Seeded() bool {
-	return d.Address() == (ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: 3748})
+	return d.english || d.Address() == (ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: 3748})
 }
 func CloneTSMappings(in []TSMapping) []TSMapping {
 	out := slices.Clone(in)

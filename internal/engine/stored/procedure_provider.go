@@ -32,6 +32,12 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	if ok && d.RangeConstructor != nil && (d.Implementation != nil || d.AccessMethod != catalog.NoAccessMethod) {
 		return extension.InvalidProviderDescriptor()
 	}
+	if ok && d.SnowballHelper != catalog.NoSnowballHelper {
+		if err := extension.ValidateProviderHeader(v, descriptor, ids.ProcedureClassID); err != nil {
+			return err
+		}
+		return catalog.ValidateSnowballHelper(v, d)
+	}
 	if ok && d.Implementation != nil {
 		if d.AccessMethod != catalog.NoAccessMethod {
 			return extension.InvalidProviderDescriptor()

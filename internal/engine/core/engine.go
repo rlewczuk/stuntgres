@@ -211,6 +211,13 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.Catalog.InstallBuiltinLanguagesLocked(bootstrap); err != nil {
 		return nil, err
 	}
+	snowball, err := functions.DefaultSnowballDictionary()
+	if err != nil {
+		return nil, err
+	}
+	if err := e.Catalog.InstallSnowballLocked(bootstrap, snowball); err != nil {
+		return nil, err
+	}
 	catalog.InstallBuiltinTablespaces(e.Catalog.State, bootstrap)
 	catalog.InstallBuiltinConversions(e.Catalog.State, bootstrap)
 	catalog.InstallBuiltinOperators(e.Catalog.State, routine.SeededOperatorNames(), routine.BuiltinOperatorDescriptors(bootstrap))

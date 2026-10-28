@@ -10,8 +10,8 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/routine"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 )
 
 // Resolver is Dump's dump.Resolver: it maps a dependency to the dump event
@@ -33,7 +33,9 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 	object, exists := view.Descriptor(address)
 	if !exists {
 		if address.ClassID == ids.ProcedureClassID {
-			if _, builtin := catalog.BuiltinRoutineIdentityByOID(address.ObjectID); builtin { return 0, nil }
+			if _, builtin := catalog.BuiltinRoutineIdentityByOID(address.ObjectID); builtin {
+				return 0, nil
+			}
 		}
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
 	}
@@ -102,8 +104,10 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		return operator.Address().ObjectID, nil
 	}
 	if proc, ok := object.(*catalog.Procedure); ok {
-		if proc.Builtin != nil || proc.AccessMethod != catalog.NoAccessMethod || proc.BrinSupport != 0 || proc.Conversion.Name() != "" {
-			if err := catalog.Validate(stored.ProcedureProvider{}, view, proc); err != nil { return 0, err }
+		if proc.Builtin != nil || proc.AccessMethod != catalog.NoAccessMethod || proc.BrinSupport != 0 || proc.Conversion.Name() != "" || proc.SnowballHelper != catalog.NoSnowballHelper {
+			if err := catalog.Validate(stored.ProcedureProvider{}, view, proc); err != nil {
+				return 0, err
+			}
 			return 0, nil
 		}
 		if owner := catalog.RangeConstructorOwner(proc); owner != (ids.ObjectAddress{}) {
@@ -125,7 +129,9 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		return ext.Address().ObjectID, nil
 	}
 	if template, ok := object.(*catalog.TSTemplate); ok {
-		if template.Seeded() { return 0, nil }
+		if template.Seeded() {
+			return 0, nil
+		}
 		return template.Address().ObjectID, nil
 	}
 	if parser, ok := object.(*catalog.TSParser); ok {

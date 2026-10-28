@@ -95,6 +95,7 @@ type Procedure struct {
 	ACL            authorization.ACLValue
 	Dictionary     ids.ObjectAddress
 	Foreign        *ForeignProcedure
+	SnowballHelper SnowballHelper
 }
 
 func (d *Procedure) Address() ids.ObjectAddress { return d.ObjectAddress }
@@ -112,6 +113,7 @@ type TSTemplate struct {
 	ObjectRevision                                          ids.DefinitionRevision
 	ObjectName                                              string
 	Implementation                                          ExtensionImplementation
+	snowball                                                bool
 }
 
 func (d *TSTemplate) Address() ids.ObjectAddress { return d.ObjectAddress }
@@ -146,6 +148,7 @@ type TSDictionary struct {
 	Implementation                                      ExtensionImplementation
 	Options                                             []DictionaryOption
 	Runtime                                             DictionaryRuntime
+	english                                             bool
 }
 
 func (d *TSDictionary) Address() ids.ObjectAddress { return d.ObjectAddress }

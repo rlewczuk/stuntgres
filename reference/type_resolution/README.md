@@ -107,7 +107,7 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
   target; persistent domains supply user TypeClassID remapping witnesses.
 - Replay phases need the full dual-mode selection: a `/postgres` selector cannot
   supply the native emitted stream.
-- RegTS reads genuine builtin simple, standalone dictionary definitions and
+- RegTS reads genuine builtin simple/english_stem, standalone dictionary definitions and
   installed unaccent identities through `pg_ts_dict`; alias rows use the local
   `regtsAssertAliasRows`, not the generic fixture type inventory. Dictionary
   scenarios independently check typed TEXT[] output, ordered options, current
@@ -124,6 +124,14 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
   native typed-nil bytes become empty TEXT (`{}`), while lib/pq sends SQL NULL.
   Ordinary nil is SQL NULL on both; nonnil empty bytes and empty strings produce
   genuine empty arrays on both. This boundary never changes function selection.
+  Snowball cancellation retains native ordinary-context DDL/direct/prepared
+  rejection and full Dump preservation. Shared direct/held routes gate on the
+  actual parameterized Snowball result, observe the exact advisory waiter and
+  blocker independently, then cancel and join before checking dictionary state
+  and subsequent lexization on the same physical owner. PostgreSQL requires the
+  complete user-request `57014` diagnostic; this witnesses admitted SQL after
+  lexization, not interruption inside a particular stemmer instruction. Held
+  statements close before interrupted borrowers return to the fixture.
 - Regtype catalog probes restrict a derived left operand before the reciprocal
   `pg_type` self-join and batch expectation OID probes once per catalog
   checkpoint, refreshed after catalog replacement; never use LIMIT, cached OIDs
@@ -147,6 +155,8 @@ Add `REFERENCE=1` for the oracle.
 Dictionary definitions and lexization: `RUN='^TestReferenceDictionary'`.
 Extension member identity/persistence: `RUN='^TestReferenceDictionaryExtension(Identity|Controls)$'`.
 Held all-constant characterization: `RUN='^TestReferenceDictionaryPreparedConstants$'`.
+English Snowball morphology, options, identities and native lifecycle:
+`RUN='^TestReferenceSnowball'`.
 Default unaccent caller resolution after dictionary/routine DDL:
 `RUN='^TestReferenceDictionaryUnaccentCaller$'`.
 

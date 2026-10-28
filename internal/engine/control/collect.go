@@ -276,6 +276,12 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		}
 		return c.collectProvider(t)
 	}
+	if t.SnowballHelper != catalog.NoSnowballHelper {
+		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
+			return err
+		}
+		return c.collectProvider(t)
+	}
 	if t.DynamicCallable() {
 		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
