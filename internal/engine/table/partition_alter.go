@@ -36,7 +36,7 @@ func PartitionConstraintActions(root *catalog.Relation, actions []parser.AlterTa
 			}
 		case parser.AddNotNull:
 		case parser.SetNotNull, parser.DropNotNull:
-		case parser.ValidateConstraint, parser.AlterConstraintEnforcement, parser.AlterConstraintTiming:
+		case parser.ValidateConstraint, parser.AlterConstraint, parser.AlterConstraintInherit, parser.AlterConstraintEnforcement, parser.AlterConstraintTiming:
 			// Resolve kind and missing-name diagnostics at the actual misc phase.
 		case parser.DropConstraint:
 			if catalog.RelationConstraintNameExists(root, a.Constraint.Text) && !names[a.Constraint.Text] {
@@ -132,7 +132,9 @@ func partitionInheritedActions(state *InheritanceAlterPlan, old *catalog.Relatio
 	for _, a := range InheritanceParentActions(state, old) {
 		switch a.Action {
 		case parser.SetStorage:
-			if !state.Only { actions = append(actions, a) }
+			if !state.Only {
+				actions = append(actions, a)
+			}
 		case parser.ValidateConstraint:
 			// Keep the logical column until the completed child definition exists.
 			actions = append(actions, a)

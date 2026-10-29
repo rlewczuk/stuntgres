@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -425,10 +424,10 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	}
 	e.ImportTargets = targets
 	before := e.CatalogRead().MustRelation(refs["c"].Address)
-	nn := table.RestoredNotNull{Ref: refs["c"], Attribute: 1, Constraint: before.Constraints.NotNull[0].OID}
+	nn := before.Constraints.NotNull[0]
 	roleExecute(t, e, op, "ALTER TABLE public.c OWNER TO captured_owner")
 	after := e.CatalogRead().MustRelation(refs["c"].Address)
-	if after.Owner != owner.Ref || before.Owner == owner.Ref || after.Constraints.NotNull[0].OID != nn.Constraint {
+	if after.Owner != owner.Ref || before.Owner == owner.Ref || after.Constraints.NotNull[0].OID != nn.OID {
 		t.Fatal("actual owner transfer changed source capture or physical NN identity")
 	}
 	if err := partitioncmds.RestoreInheritedOwner(e, op, raw, pair); err == nil {
@@ -438,11 +437,12 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	if err := partitioncmds.PairRestoredGeneration(e, op, generation, origins); err != nil {
 		t.Fatal("legal owner metadata copy invalidated actual generation identity", err)
 	}
-	if err := tablecmds.RestoreNoInheritNotNull(e, op, restoreNNRaw("public.c", "a", "local_nn"), nn); err != nil {
+	current, err := table.AlterConstraintInheritCandidate(after, "local_nn", true)
+	if err != nil {
 		t.Fatal("legal owner metadata copy invalidated actual NN identity", err)
 	}
-	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.Owner != owner.Ref || !current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != nn.Constraint {
-		t.Fatal("paired NN repair changed final captured owner/identity")
+	if current.Owner != owner.Ref || !current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != nn.OID || after.Constraints.NotNull[0].NoInherit != nn.NoInherit {
+		t.Fatal("NN mode candidate changed captured owner/identity or predecessor")
 	}
 }
 
@@ -677,29 +677,4 @@ func TestRestoreTableOwnerPairActorBoundary(t *testing.T) {
 			}
 		})
 	}
-}
-
-func restoreNNRaw(relation, column, name string) *parser.Update {
-	query := &parser.Select{Targets: []parser.Expr{parser.ColumnExpr{Name: restoreNNName("attnum")}}, From: &parser.TableReference{Name: restoreNNName("pg_catalog", "pg_attribute")}, Where: parser.LogicalExpr{Op: parser.LogicalAnd, Left: restoreNNEqual("attrelid", restoreNNRegclass(relation)), Right: restoreNNEqual("attname", restoreNNText(column))}}
-	return &parser.Update{Name: restoreNNName("pg_catalog", "pg_constraint"), Assignments: []parser.UpdateAssignment{{Target: parser.Identifier{Text: "connoinherit"}, Value: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}}}, Where: parser.LogicalExpr{Op: parser.LogicalAnd, Left: parser.LogicalExpr{Op: parser.LogicalAnd, Left: restoreNNEqual("conrelid", restoreNNRegclass(relation)), Right: restoreNNEqual("conname", restoreNNText(name))}, Right: restoreNNEqual("conkey", parser.ArrayExpr{Elements: []parser.Expr{parser.SubqueryExpr{Kind: parser.SubqueryScalar, Query: query}}})}}
-}
-
-func restoreNNName(parts ...string) parser.ObjectName {
-	name := parser.ObjectName{}
-	for _, part := range parts {
-		name.Parts = append(name.Parts, parser.Identifier{Text: part})
-	}
-	return name
-}
-
-func restoreNNEqual(column string, value parser.Expr) parser.Expr {
-	return parser.OperatorExpr{Name: restoreNNName("="), Args: []parser.Expr{parser.ColumnExpr{Name: restoreNNName(column)}, value}}
-}
-
-func restoreNNRegclass(text string) parser.Expr {
-	return parser.RegclassExpr{Child: restoreNNText(text)}
-}
-
-func restoreNNText(text string) parser.Expr {
-	return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: text}}
 }

@@ -37,6 +37,9 @@ type Options struct {
 	// StatisticsOwnerReplay admits only the native Restore owner's paired AST.
 	// Ordinary SQL and Prepare leave it false.
 	StatisticsOwnerReplay bool
+	// NotNullInheritReplay retains the canonical post-data invalid NO INHERIT
+	// attachment for isolated Restore. Ordinary SQL leaves this false.
+	NotNullInheritReplay bool
 	// LineComment is a trusted import hook; ordinary SQL leaves it nil.
 	// Position identifies the first byte/character after the -- opener.
 	LineComment func(string, Position) error

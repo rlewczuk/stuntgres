@@ -15,6 +15,25 @@ func (plan *InheritanceAlterPlan) RecordAction(before, after *catalog.Relation, 
 		return
 	}
 	events := state.Events[before.Address()]
+	if parser.IsAlterConstraint(a.Action) && a.InheritabilitySet {
+		for _, fact := range after.Constraints.NotNull {
+			if fact.Name != a.Constraint.Text {
+				continue
+			}
+			if prior := slices.IndexFunc(before.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.OID == fact.OID }); prior >= 0 && before.Constraints.NotNull[prior].NoInherit != fact.NoInherit {
+				state.Events[before.Address()] = recordConstraintMode(events, after, fact, fact.NoInherit)
+			}
+			return
+		}
+	}
+	if a.Action == parser.SetNotNull && a.InheritabilitySet {
+		for _, fact := range after.Constraints.NotNull {
+			if fact.Attribute == after.Attributes[after.Index[a.Column.Text]] && !slices.ContainsFunc(before.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.Attribute == fact.Attribute }) {
+				state.Events[before.Address()] = recordConstraintMode(events, after, fact, false)
+			}
+		}
+		return
+	}
 	switch a.Action {
 	case parser.SetStorage:
 		if !state.Only {

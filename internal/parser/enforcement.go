@@ -52,7 +52,13 @@ func (l *lexer) elementEnforcement(e *TableElement, token lexeme, negative bool)
 }
 
 func (l *lexer) alterEnforcement(a *AlterTableAction, token lexeme, negative bool) bool {
-	if a.Action == AlterConstraintEnforcement || a.Action == AlterConstraintTiming {
+	if IsAlterConstraint(a.Action) {
+		if a.Action == AlterConstraint {
+			a.Action = AlterConstraintEnforcement
+		}
+		if a.ConstraintPropertyPos.Character == 0 {
+			a.ConstraintPropertyPos = token.pos
+		}
 		return l.enforcementProperty(&a.EnforcementSet, &a.NotEnforced, &a.EnforcementPos, token, negative)
 	}
 	e := TableElement{Check: a.Check, ForeignKey: a.ForeignKey, Unique: a.Unique, Exclusion: a.Exclusion}

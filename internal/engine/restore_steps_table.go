@@ -14,7 +14,7 @@ import (
 )
 
 // Restore hook entries owned by tables: physical NOT NULL constructors and
-// their foreign key providers, NOT NULL pairing, foreign keys and deferred
+// their foreign key providers, foreign keys and deferred
 // defaults. Each calls the existing Engine method on the restore stage.
 
 // beforeRestorePhysicalBoundary rejects a statement that interrupts a
@@ -87,7 +87,6 @@ func beforeRestorePhysicalSelfForeignKey(r *restoreRun, op *session.Operation, s
 	if admitted {
 		delete(r.attributePairs.Constraints, alteration)
 		r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
-		r.pairedNotNull = table.RestoredNotNull{}
 		return true, nil
 	}
 	r.cur.physicalConstructor, err = tablecmds.PreparePhysicalCompetingUnique(r.stage, op, alteration, r.physicalForeignProvider, r.historicalRefs)
@@ -98,26 +97,6 @@ func beforeRestorePhysicalSelfForeignKey(r *restoreRun, op *session.Operation, s
 		r.physicalForeignProvider = nil
 	}
 	return false, nil
-}
-
-// prepareRestoreNotNullPairReset ends a NOT NULL pair at any statement
-// other than an owner directive.
-func prepareRestoreNotNullPairReset(r *restoreRun, _ *session.Operation, stmt parser.Statement) error {
-	if _, ownerDirective := stmt.(*parser.SessionAuthorization); !ownerDirective {
-		r.pairedNotNull = table.RestoredNotNull{}
-	}
-	return nil
-}
-
-// prepareRestoreNotNullPair pairs a SET NOT NULL with its restored origin.
-func prepareRestoreNotNullPair(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
-	alteration, ok := stmt.(*parser.AlterTable)
-	if !ok || r.cur.physicalConstructor != nil || len(alteration.Actions) != 1 || alteration.Actions[0].Action != parser.SetNotNull {
-		return nil
-	}
-	var err error
-	r.pairedNotNull, err = tablecmds.PairRestoredNotNull(r.stage, op, alteration, r.notNullOrigins)
-	return err
 }
 
 // afterRestorePhysicalConstructor captures the physical NOT NULL repairs
@@ -157,15 +136,6 @@ func afterRestorePhysicalImportIndex(r *restoreRun, _ *session.Operation, stmt p
 	}
 	if index := table.CapturePhysicalImportIndex(r.cur.physicalIndexBase, r.stage.CatalogRead(), r.stage.Catalog.Domain, creation, r.historicalRefs); index != nil {
 		r.physicalIndexes[index.Address()] = index
-	}
-	return nil
-}
-
-// afterRestoreNotNullOrigins records the NOT NULL constraints a CREATE TABLE
-// made, for pairing with later repairs.
-func afterRestoreNotNullOrigins(r *restoreRun, _ *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
-	if creation, ok := stmt.(*parser.CreateTable); ok && outcome.Created != (ids.ObjectRef{}) {
-		table.CaptureRestoredNotNulls(r.stage.CatalogRead(), outcome.Created, creation, r.notNullOrigins)
 	}
 	return nil
 }

@@ -112,7 +112,13 @@ func (l *lexer) uniqueProperty(c *UniqueConstraint, token lexeme, deferrability,
 }
 
 func (l *lexer) alterTiming(a *AlterTableAction, token lexeme, deferrability, value bool) bool {
-	if a.Action == AlterConstraintTiming || a.Action == AlterConstraintEnforcement {
+	if IsAlterConstraint(a.Action) {
+		if a.Action == AlterConstraint {
+			a.Action = AlterConstraintTiming
+		}
+		if a.ConstraintPropertyPos.Character == 0 {
+			a.ConstraintPropertyPos = token.pos
+		}
 		return constraintProperty(l, token, deferrability, value, &a.Deferrable, &a.InitiallyDeferred, &a.DeferrabilitySet, &a.InitiallySet)
 	}
 	if a.UsingIndex != nil {

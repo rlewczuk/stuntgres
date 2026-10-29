@@ -47,7 +47,7 @@ func Restore[R any](ctx context.Context, host Host, hooks []Hook[R], run R, src 
 		return err
 	}
 	source := string(data)
-	statements, err := parser.ParseWithOptions(source, parser.Options{Context: ctx, StandardConformingStrings: true, StatisticsOwnerReplay: true, LineComment: func(comment string, position parser.Position) error {
+	statements, err := parser.ParseWithOptions(source, parser.Options{Context: ctx, StandardConformingStrings: true, StatisticsOwnerReplay: true, NotNullInheritReplay: true, LineComment: func(comment string, position parser.Position) error {
 		return decodeComment(hooks, run, comment, position)
 	}})
 	if err != nil {

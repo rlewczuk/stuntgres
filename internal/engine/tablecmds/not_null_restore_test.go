@@ -1,204 +1,138 @@
 package tablecmds_test
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func restoreNNName(parts ...string) parser.ObjectName {
-	name := parser.ObjectName{}
-	for _, part := range parts {
-		name.Parts = append(name.Parts, parser.Identifier{Text: part})
+func TestAlterConstraintInheritCandidateOwnership(t *testing.T) {
+	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22000}, ObjectName: "t", ObjectRevision: 7, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "a", Nullable: false}}, Index: map[string]int{"a": 0}, Constraints: catalog.RelationConstraints{NotNull: []catalog.NotNullConstraint{{OID: 23000, Name: "nn", Attribute: 1, NotValid: true}}, Check: []catalog.CheckConstraint{{OID: 23001, Name: "ck"}}, Unique: []catalog.UniqueConstraint{{OID: 23002, Name: "pk", Primary: true, Attributes: []int32{1}}}}}
+	before := *old
+	next, err := table.AlterConstraintInheritCandidate(old, "nn", true)
+	if err != nil || next == old || !reflect.DeepEqual(old, &before) {
+		t.Fatal("candidate changed predecessor", err)
 	}
-	return name
-}
-func restoreNNText(text string) parser.Expr {
-	return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: text}}
-}
-func restoreNNEqual(column string, value parser.Expr) parser.Expr {
-	return parser.OperatorExpr{Name: restoreNNName("="), Args: []parser.Expr{parser.ColumnExpr{Name: restoreNNName(column)}, value}}
-}
-func restoreNNRegclass(text string) parser.Expr {
-	return parser.RegclassExpr{Child: restoreNNText(text)}
-}
-func restoreNNRaw(relation, column, name string) *parser.Update {
-	query := &parser.Select{Targets: []parser.Expr{parser.ColumnExpr{Name: restoreNNName("attnum")}}, From: &parser.TableReference{Name: restoreNNName("pg_catalog", "pg_attribute")}, Where: parser.LogicalExpr{Op: parser.LogicalAnd, Left: restoreNNEqual("attrelid", restoreNNRegclass(relation)), Right: restoreNNEqual("attname", restoreNNText(column))}}
-	return &parser.Update{Name: restoreNNName("pg_catalog", "pg_constraint"), Assignments: []parser.UpdateAssignment{{Target: parser.Identifier{Text: "connoinherit"}, Value: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}}}, Where: parser.LogicalExpr{Op: parser.LogicalAnd, Left: parser.LogicalExpr{Op: parser.LogicalAnd, Left: restoreNNEqual("conrelid", restoreNNRegclass(relation)), Right: restoreNNEqual("conname", restoreNNText(name))}, Right: restoreNNEqual("conkey", parser.ArrayExpr{Elements: []parser.Expr{parser.SubqueryExpr{Kind: parser.SubqueryScalar, Query: query}}})}}
-}
-
-func TestRestoreNotNullNoInheritSyntax(t *testing.T) {
-	raw := restoreNNRaw(`public."quoted"`, "a", "captured")
-	name, column, label, err := table.RestoreNoInheritSyntax(raw)
-	if err != nil || len(name.Parts) != 2 || name.Parts[1].Text != "quoted" || column != "a" || label != "captured" {
-		t.Fatal(name, column, label, err)
+	if &next.Constraints.NotNull[0] == &old.Constraints.NotNull[0] || &next.Columns[0] != &old.Columns[0] || &next.Attributes[0] != &old.Attributes[0] || &next.Constraints.Unique[0] != &old.Constraints.Unique[0] || &next.Constraints.Check[0] != &old.Constraints.Check[0] {
+		t.Fatal("wrong immutable backing detached")
 	}
-	mutations := map[string]func(*parser.Update){
-		"schema":  func(r *parser.Update) { r.Name = restoreNNName("other", "pg_constraint") },
-		"catalog": func(r *parser.Update) { r.Name = restoreNNName("pg_catalog", "pg_attribute") },
-		"only":    func(r *parser.Update) { r.Only = true }, "star": func(r *parser.Update) { r.Star = true },
-		"cte": func(r *parser.Update) { r.With = []parser.CommonTableExpression{{}} }, "recursive": func(r *parser.Update) { r.WithRecursive = true },
-		"alias": func(r *parser.Update) { r.Alias.Text = "c" }, "from": func(r *parser.Update) { r.From = &parser.TableReference{Name: restoreNNName("p")} },
-		"current_of": func(r *parser.Update) { r.CurrentOf = &parser.Identifier{Text: "cursor"} }, "returning": func(r *parser.Update) { r.Returning = &parser.Returning{} },
-		"extra_assignment": func(r *parser.Update) { r.Assignments = append(r.Assignments, r.Assignments[0]) },
-		"wrong_assignment": func(r *parser.Update) { r.Assignments[0].Target.Text = "conislocal" },
-		"target_path":      func(r *parser.Update) { r.Assignments[0].Steps = []parser.TargetStep{{}} },
-		"false": func(r *parser.Update) {
-			r.Assignments[0].Value = parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue}}
-		},
-		"parameter": func(r *parser.Update) { r.Assignments[0].Value = parser.ParameterExpr{Number: 1} },
-		"predicate_or": func(r *parser.Update) {
-			where := r.Where.(parser.LogicalExpr)
-			where.Op = parser.LogicalOr
-			r.Where = where
-		},
-		"missing_key": func(r *parser.Update) { r.Where = r.Where.(parser.LogicalExpr).Left },
-		"empty_key": func(r *parser.Update) {
-			where := r.Where.(parser.LogicalExpr)
-			where.Right = restoreNNEqual("conkey", parser.ArrayExpr{})
-			r.Where = where
-		},
-		"unqualified_relation": func(r *parser.Update) {
-			where := r.Where.(parser.LogicalExpr)
-			pair := where.Left.(parser.LogicalExpr)
-			pair.Left = restoreNNEqual("conrelid", restoreNNRegclass("p"))
-			where.Left = pair
-			r.Where = where
-		},
+	fact := next.Constraints.NotNull[0]
+	fact.NoInherit = false
+	if !reflect.DeepEqual(fact, old.Constraints.NotNull[0]) || next.Revision() != old.Revision() {
+		t.Fatal("candidate changed identity/validity/revision")
 	}
-	for _, field := range []string{"bounds", "group", "different_relation", "wrong_attribute_catalog", "wrong_target", "alias", "exists", "parameter"} {
-		field := field
-		mutations["subquery_"+field] = func(r *parser.Update) {
-			where := r.Where.(parser.LogicalExpr)
-			key := where.Right.(parser.OperatorExpr)
-			array := key.Args[1].(parser.ArrayExpr)
-			subquery := array.Elements[0].(parser.SubqueryExpr)
-			query := subquery.Query
-			switch field {
-			case "bounds":
-				query.Bounds = &parser.QueryBounds{}
-			case "group":
-				query.GroupBy = &parser.GroupClause{}
-			case "different_relation":
-				query.Where = parser.LogicalExpr{Op: parser.LogicalAnd, Left: restoreNNEqual("attrelid", restoreNNRegclass("public.other")), Right: restoreNNEqual("attname", restoreNNText("a"))}
-			case "wrong_attribute_catalog":
-				query.From = &parser.TableReference{Name: restoreNNName("pg_catalog", "pg_class")}
-			case "wrong_target":
-				query.Targets = []parser.Expr{parser.ColumnExpr{Name: restoreNNName("attname")}}
-			case "alias":
-				query.Labels = []parser.Identifier{{Text: "renamed"}}
-			case "exists":
-				subquery.Kind = parser.SubqueryExists
-			case "parameter":
-				query.Where = parser.LogicalExpr{Op: parser.LogicalAnd, Left: restoreNNEqual("attrelid", restoreNNRegclass("public.p")), Right: restoreNNEqual("attname", parser.ParameterExpr{Number: 1})}
-			}
-			array.Elements[0] = subquery
-			key.Args[1] = array
-			where.Right = key
-			r.Where = where
+	again, err := table.AlterConstraintInheritCandidate(next, "nn", true)
+	if err != nil || again != next {
+		t.Fatal("no-op replaced predecessor", err)
+	}
+	restored, err := table.AlterConstraintInheritCandidate(next, "nn", false)
+	if err != nil || !reflect.DeepEqual(restored, old) {
+		t.Fatal("mode roundtrip changed persistent facts", err)
+	}
+	for _, tc := range []struct{ name, code string }{{"ck", "42809"}, {"missing", "42704"}} {
+		got, err := table.AlterConstraintInheritCandidate(old, tc.name, true)
+		var diagnostic *sqlstate.Error
+		if got != old || !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
+			t.Fatal("selection changed source", got, err)
 		}
 	}
-	for name, mutate := range mutations {
-		t.Run(name, func(t *testing.T) {
-			raw := restoreNNRaw("public.p", "a", "captured")
-			mutate(raw)
-			_, _, _, err := table.RestoreNoInheritSyntax(raw)
-			var diagnostic *sqlstate.Error
-			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: table.RestoreNoInheritBoundary}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
-				t.Fatal("noncanonical repair admitted or wrong diagnostic", diagnostic, err)
-			}
-		})
+	// Live and retired contributions both block detach; locality is independent.
+	inherited := *old
+	inherited.Inheritance = &catalog.TableInheritance{NotNull: map[int32]catalog.InheritedConstraint{1: {Local: true, Origins: []catalog.InheritanceOrigin{{Parent: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22001}, Attribute: 1, Constraint: 23003}}}}}
+	got, err := table.AlterConstraintInheritCandidate(&inherited, "nn", true)
+	var diagnostic *sqlstate.Error
+	if got != &inherited || !errors.As(err, &diagnostic) || diagnostic.Code != "55000" {
+		t.Fatal("inherited detach admitted", err)
+	}
+	got, err = table.AlterConstraintInheritCandidate(&inherited, "nn", false)
+	if err != nil || got != &inherited {
+		t.Fatal("matching inherited INHERIT rejected", err)
+	}
+	inherited.Inheritance.NotNull[1] = catalog.InheritedConstraint{Local: true, Retired: []catalog.RetiredInheritanceOrigin{{Attribute: 1, Constraint: 23003, Own: 23000, Detached: true, Archive: 1, Lifetime: 1}}}
+	got, err = table.AlterConstraintInheritCandidate(&inherited, "nn", true)
+	if got != &inherited || !errors.As(err, &diagnostic) || diagnostic.Code != "55000" {
+		t.Fatal("retired contribution ignored", err)
+	}
+	a := parser.AlterTableAction{Action: parser.AlterConstraintInherit, Constraint: parser.Identifier{Text: "nn"}, InheritabilitySet: true}
+	if table.AlterActionPhase(a.Action) != 10 || !table.InheritanceRecursiveAction(old, a, true) || table.AlterTableLockMode(&parser.AlterTable{Actions: []parser.AlterTableAction{a}}) != lock.AccessExclusive {
+		t.Fatal("mode escaped misc/AX/direct-child pipeline")
+	}
+	noop, err := table.ConstraintModeNoOp(old, []parser.AlterTableAction{a}, false)
+	if err != nil || !noop {
+		t.Fatal("matching mode lost no-journal path", err)
+	}
+	a.NoInherit = true
+	noop, err = table.ConstraintModeNoOp(old, []parser.AlterTableAction{a}, false)
+	if err != nil || noop {
+		t.Fatal("changed mode elided", err)
 	}
 }
 
-func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
-	e := engine.New().RestoreStage()
-	old := inheritanceUnitRelation(e, "p", 22000, "a")
-	old.Columns[0].Nullable = false
-	old.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23000, Name: "captured", Attribute: 1}}
-	stage := e.BeginCatalogStage(e.CatalogRead())
-	if err := stage.Create(old); err != nil {
+func TestRestoreConstraintModeAdmission(t *testing.T) {
+	valid := func() *parser.AlterTable {
+		return &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}}, Only: true, Actions: []parser.AlterTableAction{{Action: parser.AlterConstraintInherit, Constraint: parser.Identifier{Text: "nn"}, InheritabilitySet: true, NoInherit: true}}}
+	}
+	if err := table.RestoreAlterConstraints(valid()); err != nil {
 		t.Fatal(err)
 	}
-	queryCreatePublish(t, e, stage)
-	old = e.CatalogRead().MustRelation(old.Address())
-	op, done := roleOperation(t, e, "postgres")
-	defer done()
-	origin := table.RestoredNotNull{Ref: e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), old.Address()), Attribute: 1, Constraint: old.Constraints.NotNull[0].OID}
-	raw := restoreNNRaw("public.p", "a", "captured")
-	for name, mutate := range map[string]func(*table.RestoredNotNull){"epoch": func(r *table.RestoredNotNull) { r.Ref.Epoch++ }, "attribute": func(r *table.RestoredNotNull) { r.Attribute++ }, "constraint": func(r *table.RestoredNotNull) { r.Constraint++ }, "missing_pair": func(r *table.RestoredNotNull) { *r = table.RestoredNotNull{} }} {
+	for name, mutate := range map[string]func(*parser.AlterTable){
+		"unqualified":  func(s *parser.AlterTable) { s.Name.Parts = s.Name.Parts[1:] },
+		"conditional":  func(s *parser.AlterTable) { s.IfExists = true },
+		"recursive":    func(s *parser.AlterTable) { s.Only = false },
+		"star":         func(s *parser.AlterTable) { s.Star = true },
+		"materialized": func(s *parser.AlterTable) { s.Materialized = true },
+		"multiple":     func(s *parser.AlterTable) { s.Actions = append(s.Actions, s.Actions[0]) },
+		"inherit":      func(s *parser.AlterTable) { s.Actions[0].NoInherit = false },
+		"bare": func(s *parser.AlterTable) {
+			s.Actions[0].Action = parser.AlterConstraint
+			s.Actions[0].InheritabilitySet = false
+		},
+		"timing":      func(s *parser.AlterTable) { s.Actions[0].DeferrabilitySet = true },
+		"enforcement": func(s *parser.AlterTable) { s.Actions[0].EnforcementSet = true },
+		"old_set":     func(s *parser.AlterTable) { s.Actions[0].Action = parser.SetNotNull },
+	} {
 		t.Run(name, func(t *testing.T) {
-			candidate := origin
-			mutate(&candidate)
-			before := e.Catalog.State
-			if err := tablecmds.RestoreNoInheritNotNull(e, op, raw, candidate); err == nil || e.Catalog.State != before {
-				t.Fatal("foreign pairing published", err)
+			s := valid()
+			mutate(s)
+			if err := table.RestoreAlterConstraints(s); err == nil {
+				t.Fatal("noncanonical mode replay admitted")
 			}
 		})
 	}
-	for _, kind := range []string{"invalid", "nullable", "inherited", "primary"} {
-		before := e.Catalog.State
-		altered := *old
-		altered.Columns = append([]catalog.Column(nil), old.Columns...)
-		altered.Constraints.NotNull = append([]catalog.NotNullConstraint(nil), old.Constraints.NotNull...)
-		switch kind {
-		case "invalid":
-			altered.Constraints.NotNull[0].NotValid = true
-		case "nullable":
-			altered.Columns[0].Nullable = true
-		case "inherited":
-			altered.Inheritance = &catalog.TableInheritance{NotNull: map[int32]catalog.InheritedConstraint{1: {Origins: []catalog.InheritanceOrigin{{Parent: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22001}, Attribute: 1, Constraint: 23001}}}}}
-		case "primary":
-			altered.Constraints.Unique = []catalog.UniqueConstraint{{OID: 23002, Name: "key", Primary: true, Attributes: []int32{1}}}
+	t.Run("invalid_constructor", func(t *testing.T) {
+		build := func() *parser.AlterTable {
+			s := valid()
+			s.Only = false
+			s.Actions[0] = parser.AlterTableAction{Action: parser.AddNotNull, Constraint: parser.Identifier{Text: "nn"}, Column: parser.Identifier{Text: "a"}, NotValid: true, NoInherit: true}
+			return s
 		}
-		candidate := catalog.CloneState(before)
-		candidate.SetDescriptor(old.Address(), &altered)
-		e.Catalog.PublishLocked(candidate)
-		if err := tablecmds.RestoreNoInheritNotNull(e, op, raw, origin); err == nil || e.Catalog.State != candidate {
-			t.Fatal("ineligible NN fact published", kind, err)
+		if err := table.RestoreAlterConstraints(build()); err != nil {
+			t.Fatal(err)
 		}
-		e.Catalog.PublishLocked(before)
-	}
-	targets := e.ImportTargets
-	e.ImportTargets = nil
-	before := e.Catalog.State
-	if err := tablecmds.RestoreNoInheritNotNull(e, op, raw, origin); err == nil || e.Catalog.State != before {
-		t.Fatal("ordinary engine gained importer authority", err)
-	}
-	e.ImportTargets = targets
-	foreign := engine.New()
-	foreignOp, foreignDone := roleOperation(t, foreign, "postgres")
-	defer foreignDone()
-	if err := tablecmds.RestoreNoInheritNotNull(e, foreignOp, raw, origin); err == nil || e.Catalog.State != before {
-		t.Fatal("foreign operation gained importer authority", err)
-	}
-	canceled, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	cancelOp, cancelDone, err := enginetest.Operation(e, canceled)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cancelDone()
-	cancel()
-	if err := tablecmds.RestoreNoInheritNotNull(e, cancelOp, raw, origin); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
-		t.Fatal("canceled repair published", err)
-	}
-	if err := tablecmds.RestoreNoInheritNotNull(e, op, raw, origin); err != nil {
-		t.Fatal(err)
-	}
-	current := e.CatalogRead().MustRelation(old.Address())
-	if !current.Constraints.NotNull[0].NoInherit || old.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != origin.Constraint || current.Columns[0].Nullable || current.Revision() != old.Revision()+1 {
-		t.Fatal("repair changed identity/local nullability or old capture", current)
-	}
+		for name, mutate := range map[string]func(*parser.AlterTable){
+			"only":        func(s *parser.AlterTable) { s.Only = true },
+			"star":        func(s *parser.AlterTable) { s.Star = true },
+			"conditional": func(s *parser.AlterTable) { s.IfExists = true },
+			"unqualified": func(s *parser.AlterTable) { s.Name.Parts = s.Name.Parts[1:] },
+			"multiple":    func(s *parser.AlterTable) { s.Actions = append(s.Actions, s.Actions[0]) },
+			"valid":       func(s *parser.AlterTable) { s.Actions[0].NotValid = false },
+			"timing":      func(s *parser.AlterTable) { s.Actions[0].DeferrabilitySet = true },
+			"enforcement": func(s *parser.AlterTable) { s.Actions[0].EnforcementSet = true },
+		} {
+			t.Run(name, func(t *testing.T) {
+				s := build()
+				mutate(s)
+				if err := table.RestoreAlterConstraints(s); err == nil {
+					t.Fatal("invalid constructor shape admitted")
+				}
+			})
+		}
+	})
 }

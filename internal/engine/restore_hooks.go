@@ -79,8 +79,6 @@ var restoreHooks = []control.Hook[*restoreRun]{
 
 	// After admission, before execution.
 	{Name: "inheritance: generation recipe data", Prepare: prepareRestoreRecipeData},
-	{Name: "table: NOT NULL pair reset", Prepare: prepareRestoreNotNullPairReset},
-	{Name: "table: NOT NULL pair", Prepare: prepareRestoreNotNullPair},
 	{Name: "inheritance: generation pair", Prepare: prepareRestoreGenerationPair},
 	{Name: "replay flags", Prepare: prepareRestoreReplayFlags},
 	{Name: "partition: CHECK replay", Prepare: prepareRestorePartitionCheck},
@@ -100,7 +98,6 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "typedef: fresh type owner", After: afterRestoreTypeOwner},
 	{Name: "statistics: fresh owner", After: afterRestoreStatisticsOwner},
 	{Name: "inheritance: historical relation", After: afterRestoreHistoricalRelation},
-	{Name: "table: NOT NULL origins", After: afterRestoreNotNullOrigins},
 	{Name: "inheritance: generation placeholders", After: afterRestoreGenerationPlaceholders},
 	{Name: "inheritance: inherited owner", After: afterRestoreInheritedOwner},
 	{Name: "inheritance: historical facts", After: afterRestoreHistoricalFacts},

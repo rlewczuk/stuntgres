@@ -308,9 +308,8 @@ func admitRestoreSessionAuthorization(r *restoreRun, _ *session.Operation, s *pa
 	return nil
 }
 
-// replayRestoreCatalogUpdate applies a generated pg_constraint or
-// pg_attribute repair: a retired constraint, a NO INHERIT NOT NULL or an
-// attribute rank.
+// replayRestoreCatalogUpdate applies a generated retired-constraint,
+// attribute-rank, index-policy or ACL repair. NN modes use ordinary ALTER.
 func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.Update) error {
 	var err error
 	if table.RestoreCatalogName(s.Name, "pg_attribute") {
@@ -335,17 +334,11 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 	if _, ok := control.ParseObjectACLRepair(s); ok {
 		return restoreObjectACL(r.stage, op, s)
 	}
-	if table.RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
+	if table.RestoreCatalogName(s.Name, "pg_constraint") {
 		err = partitioncmds.RestoreRetiredConstraint(r.stage, op, s, r.historicalAuthority)
-	} else if table.RestoreCatalogName(s.Name, "pg_constraint") {
-		err = tablecmds.RestoreNoInheritNotNull(r.stage, op, s, r.pairedNotNull)
-		if err == nil {
-			delete(r.notNullOrigins, r.pairedNotNull.Constraint)
-		}
 	} else {
 		err = tablecmds.RestoreAttributeRank(r.stage, op, s)
 	}
-	r.pairedNotNull = table.RestoredNotNull{}
 	return err
 }
 
@@ -368,6 +361,5 @@ func replayRestorePhysicalNotNull(r *restoreRun, op *session.Operation, s *parse
 		}
 		r.pairedPhysical = nil
 	}
-	r.pairedNotNull = table.RestoredNotNull{}
 	return nil
 }

@@ -141,7 +141,9 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 			return nil
 		}
 		label = "ALTER COLUMN ... SET STORAGE"
-		if action == parser.SetCompression { label = "ALTER COLUMN ... SET COMPRESSION" }
+		if action == parser.SetCompression {
+			label = "ALTER COLUMN ... SET COMPRESSION"
+		}
 	case parser.SetReplicaIdentity:
 		return analyze.TableKindError(original, "REPLICA IDENTITY")
 	case parser.InheritTable:
@@ -200,7 +202,7 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 		label = "DROP CONSTRAINT"
 	case parser.ValidateConstraint:
 		label = "VALIDATE CONSTRAINT"
-	case parser.AlterConstraintEnforcement, parser.AlterConstraintTiming:
+	case parser.AlterConstraint, parser.AlterConstraintInherit, parser.AlterConstraintEnforcement, parser.AlterConstraintTiming:
 		label = "ALTER CONSTRAINT"
 	case parser.EnableRule:
 		label = "ENABLE RULE"

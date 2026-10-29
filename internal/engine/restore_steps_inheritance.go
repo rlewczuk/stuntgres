@@ -30,7 +30,6 @@ func beforeRestoreInheritedForeignKey(r *restoreRun, op *session.Operation, stmt
 	delete(r.attributePairs.Constraints, alteration)
 	r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
 	r.physicalForeignProvider = nil
-	r.pairedNotNull = table.RestoredNotNull{}
 	return true, nil
 }
 
@@ -87,10 +86,10 @@ func afterRestoreInheritedOwner(r *restoreRun, op *session.Operation, stmt parse
 }
 
 // afterRestoreHistoricalFacts refreshes the historical facts after an ALTER
-// TABLE that adds CHECK or NOT NULL constraints.
+// TABLE that adds constraints or changes NN inheritability.
 func afterRestoreHistoricalFacts(r *restoreRun, _ *session.Operation, stmt parser.Statement, _ control.Outcome) error {
 	if alteration, altered := stmt.(*parser.AlterTable); altered && slices.ContainsFunc(alteration.Actions, func(a parser.AlterTableAction) bool {
-		return a.Action == parser.AddCheck || a.Action == parser.AddNotNull || a.Action == parser.SetNotNull
+		return a.Action == parser.AddCheck || a.Action == parser.AddNotNull || a.Action == parser.SetNotNull || parser.IsAlterConstraint(a.Action) && a.InheritabilitySet
 	}) {
 		table.CaptureHistoricalFacts(r.stage.CatalogRead(), r.historicalRefs, r.historicalAuthority.Facts)
 	}

@@ -37,7 +37,11 @@ func (t *DumpRelation) EmitInvalidConstraints(ctx context.Context, catalogView c
 			continue
 		}
 		slot := t.Descriptor.IndexForAttribute(n.Attribute)
-		if err := emit(prefix + catalog.QuoteIdentifier(n.Name) + " NOT NULL " + catalog.QuoteIdentifier(t.Columns[slot].Name) + " NOT VALID;\n"); err != nil {
+		suffix := " NOT VALID"
+		if n.NoInherit {
+			suffix += " NO INHERIT"
+		}
+		if err := emit(prefix + catalog.QuoteIdentifier(n.Name) + " NOT NULL " + catalog.QuoteIdentifier(t.Columns[slot].Name) + suffix + ";\n"); err != nil {
 			return err
 		}
 	}
@@ -115,13 +119,16 @@ func RestoreAlterConstraints(raw *parser.AlterTable) error {
 			if err := dump.RestoreScalar(action.Generation.Expression, true); err != nil {
 				return err
 			}
-		case parser.SetNotNull:
-			if !raw.Only || raw.IfExists || len(raw.Actions) != 1 || len(raw.Name.Parts) != 2 {
-				return sqlError("0A000", RestoreNoInheritBoundary)
+		case parser.AlterConstraintInherit:
+			if !raw.Only || raw.IfExists || raw.Star || raw.Materialized || len(raw.Actions) != 1 || len(raw.Name.Parts) != 2 || action.Constraint.Text == "" || !action.InheritabilitySet || !action.NoInherit || action.EnforcementSet || action.DeferrabilitySet || action.InitiallySet {
+				return sqlError("0A000", RestoreConstraintModeBoundary)
 			}
 		case parser.AddNotNull:
 			if !action.NotValid {
 				return sqlError("0A000", "restore accepts only existing-index or NOT VALID constraint attachments")
+			}
+			if action.NoInherit && (raw.Only || raw.IfExists || raw.Star || raw.Materialized || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || action.Constraint.Text == "" || action.EnforcementSet || action.DeferrabilitySet || action.InitiallySet) {
+				return sqlError("0A000", "restore accepts only unconditional qualified single invalid NO INHERIT not-null attachments")
 			}
 		case parser.AddCheck:
 			if action.Check == nil || !action.Check.NotValid {

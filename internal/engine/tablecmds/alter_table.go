@@ -131,6 +131,20 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		command.Actions = work
 		s = &command
 	}
+	if scope.Inheritance.Alter == nil {
+		noop, err := table.ConstraintModeNoOp(old, s.Actions, s.Only)
+		if err != nil {
+			return fail(err)
+		}
+		if noop {
+			if err := op.Context().Err(); err != nil {
+				return fail(err)
+			}
+			scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, e.Catalog.State.Get(ref.Address))
+			e.Mu.Unlock()
+			return core.Result{}, nil
+		}
+	}
 	if table.ValidationOnly(s.Actions) {
 		if scope.Inheritance.Alter != nil && scope.Inheritance.Alter.Descendant {
 			command := *s
@@ -319,7 +333,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	hasAttachments := false
 	hasForeignKeys := len(foreignKeysOrZero(scope).AlterKeys) != 0
 	hasValidations := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool {
-		return a.Action == parser.ValidateConstraint || a.Action == parser.AlterConstraintEnforcement || a.Action == parser.AlterConstraintTiming
+		return a.Action == parser.ValidateConstraint || parser.IsAlterConstraint(a.Action)
 	})
 	hasRuleModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.RuleModeAction(a.Action) })
 	hasTriggerModes := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.TriggerModeAction(a.Action) })
@@ -546,6 +560,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if err != nil {
 			return core.Result{}, err
 		}
+		inheritancePlan(scope).RecordAssignedConstraintModes(next)
 		if len(transformations) != 0 {
 			if err := table.RetireRebuiltCheckHistory(old, next); err != nil {
 				return core.Result{}, err
@@ -675,14 +690,34 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			}
 			continue
 		}
-		if action.Action == parser.AlterConstraintTiming && !action.EnforcementSet {
+		if parser.IsAlterConstraint(action.Action) {
+			only := s.Only
+			if plan := inheritancePlan(scope); plan != nil {
+				only = plan.Only && !plan.Descendant
+			}
+			if err := table.CheckAlterConstraint(next, action, only); err != nil {
+				return core.Result{}, err
+			}
+			if action.InheritabilitySet {
+				before := next
+				next, err = table.AlterConstraintInheritCandidate(next, action.Constraint.Text, action.NoInherit)
+				if err != nil {
+					return core.Result{}, err
+				}
+				inheritancePlan(scope).RecordAction(before, next, action)
+			}
+			if action.Action == parser.AlterConstraint || action.InheritabilitySet && !action.EnforcementSet && !action.DeferrabilitySet && !action.InitiallySet {
+				continue
+			}
+		}
+		if parser.IsAlterConstraint(action.Action) && (action.DeferrabilitySet || action.InitiallySet) && !action.EnforcementSet {
 			next, err = table.AlterConstraintTimingCandidate(next, action.Constraint.Text, action.Deferrable, action.InitiallyDeferred)
 			if err != nil {
 				return core.Result{}, err
 			}
 			continue
 		}
-		if action.Action == parser.AlterConstraintEnforcement || action.Action == parser.AlterConstraintTiming && action.EnforcementSet {
+		if parser.IsAlterConstraint(action.Action) && action.EnforcementSet {
 			var scan *catalog.ForeignKeyConstraint
 			before := next
 			e.Mu.Lock()
@@ -749,6 +784,10 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			admitted.NotValid = false
 			foreignKeyHistory = append(foreignKeyHistory, table.AlterForeignKeyScan{ForeignKeyConstraint: admitted})
 		}
+	}
+	if table.ConstraintModesOnly(s.Actions) && next == old && stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 {
+		scope.Catalog = previousCatalog
+		return core.Result{}, nil
 	}
 	if hasCluster && finish.NoOp && next == old && !preparation.Persistence.Changed && !preparation.AccessMethod.Changed {
 		// Deferred clustering validated against the candidate without changing it.

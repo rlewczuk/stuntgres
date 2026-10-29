@@ -7,6 +7,10 @@ import (
 func InheritanceEntryOwner(actions []parser.AlterTableAction) bool {
 	for _, action := range actions {
 		switch action.Action {
+		case parser.AlterConstraintInherit:
+			if !action.NoInherit {
+				return true
+			}
 		case parser.SetStorage:
 			return true
 		case parser.AddColumn, parser.SetNotNull, parser.AddNotNull, parser.AddCheck, parser.AlterColumnType, parser.SetExpression, parser.DropExpression:

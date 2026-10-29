@@ -18,7 +18,7 @@ import (
 func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	count := 0
 	for _, action := range raw.Actions {
-		if action.Action == parser.AddForeignKey || action.Action == parser.ValidateConstraint || action.Action == parser.AlterConstraintEnforcement || action.Action == parser.AlterConstraintTiming && action.EnforcementSet {
+		if action.Action == parser.AddForeignKey || action.Action == parser.ValidateConstraint || parser.IsAlterConstraint(action.Action) && action.EnforcementSet {
 			count++
 		}
 	}
@@ -47,7 +47,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AddForeignKey }) {
 			label = "ADD CONSTRAINT"
 		} else if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool {
-			return a.Action == parser.AlterConstraintEnforcement || a.Action == parser.AlterConstraintTiming && a.EnforcementSet
+			return parser.IsAlterConstraint(a.Action) && a.EnforcementSet
 		}) {
 			label = "ALTER CONSTRAINT"
 		}
@@ -105,7 +105,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 			if pass == 0 && action.Action != parser.AddForeignKey || pass == 1 && action.Action == parser.AddForeignKey {
 				continue
 			}
-			alterEnforcement := action.Action == parser.AlterConstraintEnforcement || action.Action == parser.AlterConstraintTiming && action.EnforcementSet
+			alterEnforcement := parser.IsAlterConstraint(action.Action) && action.EnforcementSet
 			if action.Action == parser.ValidateConstraint || alterEnforcement {
 				if declared, ok := pending[action.Constraint.Text]; ok {
 					if alterEnforcement && declared.negative != action.NotEnforced {

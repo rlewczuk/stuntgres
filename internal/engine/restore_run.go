@@ -60,8 +60,6 @@ type restoreRun struct {
 
 	// Table, NOT NULL and foreign key captures.
 	pendingForeignKeys      []table.RestoredForeignKeys
-	notNullOrigins          map[ids.OID]table.RestoredNotNull
-	pairedNotNull           table.RestoredNotNull
 	pairedPhysical          *table.RestoredPhysicalNotNull
 	deferredPhysical        *table.RestoredPhysicalNotNull
 	physicalIndexes         map[ids.ObjectAddress]*catalog.Relation
@@ -111,7 +109,6 @@ type restoreStatement struct {
 func (r *restoreRun) startCaptures(archiveHighWater uint64) {
 	r.attributeConstructors = make(map[control.AttributeDropTarget]ids.ObjectRef)
 	r.partitionTeardowns = make(map[ids.ObjectAddress]partition.ReplayTeardown)
-	r.notNullOrigins = make(map[ids.OID]table.RestoredNotNull)
 	r.physicalIndexes = make(map[ids.ObjectAddress]*catalog.Relation)
 	r.placeholderOrigins = make(map[table.RestoredGenerationKey]table.RestoredGenerationRecipe)
 	r.historicalRefs = make(map[ids.ObjectAddress]ids.ObjectRef)

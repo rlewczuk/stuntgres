@@ -77,38 +77,23 @@ func TestReferenceInheritanceAlterNoInheritControls(t *testing.T) {
 					if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &dump); err != nil {
 						s.t.Fatal(err)
 					}
-					const marker = "UPDATE pg_catalog.pg_constraint SET connoinherit = true"
-					var repair string
-					for _, line := range strings.Split(dump.String(), "\n") {
-						if strings.HasPrefix(line, marker) {
-							repair = line
-							break
-						}
-					}
-					if repair == "" {
-						s.t.Fatal("actual dump omitted captured no-inherit repair")
-					}
-					// Match the genuine stream's setting-independent escape literals.
-					// This is input construction, not a substitute for Restore rejection.
-					capturedLiteral := "E'" + strings.ReplaceAll(strings.ReplaceAll(capturedName, "\\", "\\\\"), "'", "''") + "'"
+					// Replay accepts only the emitted single qualified ONLY
+					// NO INHERIT action. Catalog UPDATE has no legacy shim.
 					invalid := []string{
-						dump.String() + "\n" + repair,
-						strings.Replace(dump.String(), "conname = "+capturedLiteral, "conname = E'forged_nn'", 1),
-						strings.Replace(dump.String(), "attname = E'a'", "attname = E'missing_attribute'", 1),
-						strings.Replace(dump.String(), "SET connoinherit = true", "SET connoinherit = false", 1),
-						strings.Replace(dump.String(), "UPDATE pg_catalog.pg_constraint SET", "UPDATE pg_catalog.pg_constraint * SET", 1),
-						dump.String() + "\nALTER TABLE ONLY public.p ALTER COLUMN a SET NOT NULL;\n" + repair,
-					}
-					if kind == "primary_key_dependency" {
-						forged := "ALTER TABLE ONLY public.compatible ALTER COLUMN a SET NOT NULL; UPDATE pg_catalog.pg_constraint SET connoinherit = true WHERE conrelid = 'public.compatible'::regclass AND conname = 'compatible_nn' AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.compatible'::regclass AND attname = 'a')];"
-						invalid = append(invalid, dump.String()+"\n"+forged)
+						dump.String() + "\nALTER TABLE ONLY public.p ALTER CONSTRAINT forged_nn NO INHERIT;",
+						dump.String() + "\nALTER TABLE ONLY public.p ALTER CONSTRAINT " + capturedSQL + " INHERIT;",
+						dump.String() + "\nALTER TABLE public.p ALTER CONSTRAINT " + capturedSQL + " NO INHERIT;",
+						dump.String() + "\nALTER TABLE IF EXISTS ONLY public.p ALTER CONSTRAINT " + capturedSQL + " NO INHERIT;",
+						dump.String() + "\nALTER TABLE ONLY public.p ALTER CONSTRAINT " + capturedSQL + " NO INHERIT, ALTER CONSTRAINT " + capturedSQL + " NO INHERIT;",
+						dump.String() + "\nUPDATE pg_catalog.pg_constraint SET connoinherit=true WHERE FALSE;",
+						dump.String() + "\nALTER TABLE ONLY public.p ALTER COLUMN a SET NOT NULL;",
 					}
 					for caseIndex, text := range invalid {
 						if text == dump.String() {
 							s.t.Fatalf("forged fixture did not change the valid stream: case=%d kind=%s", caseIndex, kind)
 						}
 						if err := stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader(text)); err == nil {
-							s.t.Fatalf("unpaired/forged catalog repair restored: case=%d kind=%s", caseIndex, kind)
+							s.t.Fatalf("noncanonical constraint-mode replay restored: case=%d kind=%s", caseIndex, kind)
 						}
 						for _, step := range checks {
 							s.run(step)

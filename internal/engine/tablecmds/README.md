@@ -68,6 +68,11 @@ TEMP preservation, relation admission and publication.
   this ALTER guard. FK timing changes share the atomic candidate/publication
   pipeline; persistent defaults, OID-keyed SET overrides and trigger modes remain
   independent.
+  NN inheritability uses that same stage, with exact source-parent events.
+  NO INHERIT retains/localizes direct-child facts without child SET authority;
+  INHERIT checks actually visited child owners and uses ordinary inherited SET.
+  Compatible existing facts stop recursion without validation; missing facts
+  acquire normal selected row scans. No descendant publishes independently.
   Trigger-mode lists use one statement-private metadata stage across the addressed
   relation, partition clones and referenced-side FK owners. The target holds
   SHARE ROW EXCLUSIVE (or a stronger companion grant); additional owner grants
@@ -130,7 +135,7 @@ TEMP preservation, relation admission and publication.
   they take `Engine.Mu` in short windows and release it around lock waits.
 - Restore hooks: `CaptureRestoredForeignKeys`,
   `ResolveRestoredForeignKeyTargets`, `BindRestoredForeignKeys`,
-  `PairRestoredNotNull`, `RestoreNoInheritNotNull`, `RestoreAttributeRank`,
+  `RestoreAttributeRank`,
   the physical NOT NULL constructors and foreign-key providers,
   `ValidateRestoredDefault` and `PublishRestoreRepairLocked`;
   `ValidateRestoreIdentityConfiguration` admits only the parameter-free
@@ -140,6 +145,9 @@ TEMP preservation, relation admission and publication.
   for their exact selected FKs. Without the matching SQL seal, every valid
   installed FK is scanned, including definitions outside deferred CREATE work;
   BoundSlot/OID and provider validation remain mandatory in either case.
+  NN inheritability replay instead executes ordinary qualified ALTER, or the
+  isolated canonical invalid-NN ADD constructor, under normal ownership and
+  atomic publication. It grants no writable pg_constraint capability.
   Replay resolves logical owners through catalog names and indexes each owner's
   constraint positions once. It detaches one envelope/FK slice only on the first
   changed slot, validates complete groups before replacing each changed owner

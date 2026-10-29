@@ -106,6 +106,14 @@ call live here.
   Timing is root-only MISC work, independent of enforcement and transaction-local
   mode overrides. Historical ADD/enable validation is not deferred by changing
   those defaults.
+  `AlterConstraintInheritCandidate` changes only a selected NN's inheritability,
+  retaining identity, validity, PK/physical backing and nullability. Explicit
+  parent/attribute/constraint events localize only direct children on detach.
+  Attach merges existing compatible facts without validation and stops that
+  branch; missing facts use the ordinary inherited SET constructor and recurse.
+  Ordinary ONLY still performs direct-child work. Bare and matching operations
+  retain relation/owner/pending-event/kind guards; inherited-count rejection is
+  specific to requested NO INHERIT.
   Every admitted ADD, VALIDATE and genuine-enable scan retains its captured
   historical obligation. Final false/invalid metadata is accepted only with an
   actual later disable of that exact queued identity; never-admitted invalid
@@ -296,6 +304,11 @@ call live here.
   mode through the same domain/array traversal. Reconstruction remains
   `typedef.RestoreDomainReplayNode` with checked scalar input and an explicit
   statistics-only tree capability, never general SQL input or row provenance.
+  Valid noninheritable NN declarations replay a qualified ONLY ALTER CONSTRAINT
+  before descendants are declared. Invalid facts replay after rows as atomic
+  named ADD NOT NULL NOT VALID NO INHERIT constructors, admitted only by the
+  isolated parser option and exact Restore allowlist. Both use ordinary
+  candidates and catalog publication, with no paired catalog UPDATE repair.
 - **Other cores**: `DropTargets` (over `Resolver`), SET SCHEMA, CREATE TABLE AS
   (`QueryTableColumns`), `RelationProvider` (its `RelationValidators` slots run
   in fixed order), `RecomputeRemappedGenerations`, `Stage.DefinitionProviders`
@@ -467,7 +480,7 @@ make check RUN='^Test(TableHost|AlterHost|RelationValidatorsOrder|GeneratedRemap
 make check RUN='^Test(CheckCreateShape|TypedSources|PlanAlterScan|ValidateAddedConstraintRows|RelationOptions|PrepareInheritanceNode|InheritancePendingGrants|InheritanceDropClosure|DefinitionProviders|Deparse(SerialSequence|MissingObjects)|ValidateSelectedDomainRows|OwnedSequenceName)'
 make check RUN='^TestAlterPersistence'
 make check RUN='^Test(DropPreparation|DropColumnRoutine|DropReaderSeam|InheritanceAlterAdmission|ReferenceAlterDropColumn)'
-make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|Scan(Restored)?ForeignKeys|RestoredForeignKeyTarget|RestoreInherited|AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit)'
+make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|Scan(Restored)?ForeignKeys|RestoredForeignKeyTarget|RestoreInherited|AttributeRankRestore|RestoreConstraintHistory|RestoreConstraintModeAdmission|AlterConstraintInherit)'
 make check RACE=1 RUN='^Test(NotNull|PhysicalNotNull|Inheritance)'
 make check RUN='^TestPartitionRenameColumn'
 make check RUN='^Test(Reference)?Vacuum'

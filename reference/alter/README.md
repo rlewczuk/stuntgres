@@ -11,6 +11,12 @@ replacement share exact flags, diagnostics, historical scans, logical trigger
 lifecycle, dependencies, locking and native persistence scenarios. Physical
 PostgreSQL pages, WAL/crash durability and the internal PostgreSQL trigger
 executor are outside the logical engine/API contract.
+ALTER CONSTRAINT scenarios cover guarded bare requests, persistent FK timing
+and enforcement, NN inheritability's direct-child localization versus recursive
+construction, exact diagnostics, current authority, atomic failures, held
+metadata/DML, deterministic cancellation and native replay. Invalid
+noninheritable NN replay uses a real atomic post-data declaration, not a
+privileged catalog UPDATE.
 Transactional table/schema integration covers CREATE/ALTER/DROP lifecycle,
 private catalog/dependency visibility and atomic DDL/DML publication, savepoints,
 held prepared consumers, utility boundaries, conflict scheduling and native
@@ -100,6 +106,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   generated-name collision/ordering/locking outcomes. Run each changed definition
   in native and `REFERENCE=1` modes.
 - Deferred constraint ALTER admission, FK event eligibility and timing: `RUN='^TestReferenceDeferred(ForeignKey(Alter|EventEligibility)|ConstraintAlterSafety)'`
+- Constraint modes: `RUN='^TestReferenceAlterConstraint'`
 - SET/DROP DEFAULT: `RUN='^TestReferenceAlterDefault'`
 - DROP COLUMN: `RUN='^TestReferenceAlterDropColumn'`
 - DROP COLUMN routine dependency closure, identity, rollback, admission and controls:

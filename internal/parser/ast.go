@@ -1102,6 +1102,8 @@ const (
 	ValidateConstraint
 	AlterConstraintEnforcement
 	AlterConstraintTiming
+	AlterConstraint
+	AlterConstraintInherit
 	EnableRule
 	DisableRule
 	EnableReplicaRule
@@ -1168,22 +1170,25 @@ type AlterTableAction struct {
 	ForeignKey      *ForeignKeyConstraint
 	Options         []IndexOption
 	// NOT NULL uses the flat attachment; CHECK/FK retain validity in their AST.
-	NotValid          bool
-	NotEnforced       bool
-	EnforcementSet    bool
-	EnforcementPos    Position
-	NoInherit         bool
-	ValidityPos       Position
-	Deferrable        bool
-	InitiallyDeferred bool
-	DeferrabilitySet  bool
-	InitiallySet      bool
+	NotValid              bool
+	NotEnforced           bool
+	EnforcementSet        bool
+	EnforcementPos        Position
+	NoInherit             bool
+	InheritabilitySet     bool
+	ConstraintPropertyPos Position
+	ValidityPos           Position
+	Deferrable            bool
+	InitiallyDeferred     bool
+	DeferrabilitySet      bool
+	InitiallySet          bool
 }
 
 type AlterTable struct {
 	Name         ObjectName
 	Actions      []AlterTableAction
 	Only         bool
+	Star         bool
 	IfExists     bool
 	Materialized bool // ALTER MATERIALIZED VIEW spelling requires an exact target kind.
 	Pos          Position

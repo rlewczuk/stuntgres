@@ -6,8 +6,12 @@ func (l *lexer) alterConstraintValidity(a *AlterTableAction, not, modifier lexem
 	if modifier.text == "enforced" {
 		return l.alterEnforcement(a, not, true)
 	}
-	if a.Action == AlterConstraintEnforcement || a.Action == AlterConstraintTiming {
-		l.deferUnsupported(not, "constraints cannot be altered to be NOT VALID")
+	if IsAlterConstraint(a.Action) {
+		position := not
+		if a.ConstraintPropertyPos.Character != 0 {
+			position.pos = a.ConstraintPropertyPos
+		}
+		l.deferUnsupported(position, "constraints cannot be altered to be NOT VALID")
 		return true
 	}
 	if modifier.text != "valid" {
@@ -43,14 +47,37 @@ func (l *lexer) alterConstraintValidity(a *AlterTableAction, not, modifier lexem
 }
 
 func (l *lexer) alterConstraintNoInherit(a *AlterTableAction, no lexeme) bool {
+	if IsAlterConstraint(a.Action) {
+		if a.Action == AlterConstraint {
+			a.Action = AlterConstraintInherit
+		}
+		a.InheritabilitySet, a.NoInherit = true, true
+		if a.ConstraintPropertyPos.Character == 0 {
+			a.ConstraintPropertyPos = no.pos
+		}
+		return true
+	}
 	if a.Action == AddCheck {
 		a.Check.NoInherit = true
 		return true
 	}
 	if a.Action == AddNotNull {
+		if l.options.NotNullInheritReplay {
+			a.NoInherit = true
+			return true
+		}
 		l.deferUnsupported(no, "NOT NULL modifiers are unsupported")
 		return true
 	}
 	l.syntax(no)
+	return false
+}
+
+// IsAlterConstraint identifies the one ALTER CONSTRAINT property family.
+func IsAlterConstraint(kind AlterTableActionKind) bool {
+	switch kind {
+	case AlterConstraint, AlterConstraintInherit, AlterConstraintTiming, AlterConstraintEnforcement:
+		return true
+	}
 	return false
 }

@@ -63,7 +63,7 @@ func InheritanceParentActions(state *InheritanceAlterPlan, old *catalog.Relation
 					continue
 				}
 			}
-			if state.Only && a.Action != parser.DropColumn && a.Action != parser.DropConstraint && a.Action != parser.DropNotNull {
+			if state.Only && a.Action != parser.AlterConstraintInherit && a.Action != parser.DropColumn && a.Action != parser.DropConstraint && a.Action != parser.DropNotNull {
 				continue
 			}
 			if a.Action == parser.SetStorage || !slices.ContainsFunc(actions, func(previous parser.AlterTableAction) bool {
@@ -106,6 +106,11 @@ func InheritanceRemovedOrigin(state *InheritanceAlterPlan, origin catalog.Inheri
 }
 
 func InheritancePreparatoryLocks(root *catalog.Relation, actions []parser.AlterTableAction, only bool) bool {
+	for _, a := range actions {
+		if a.InheritabilitySet {
+			return true
+		}
+	}
 	if only {
 		return false
 	}

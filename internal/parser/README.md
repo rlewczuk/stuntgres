@@ -152,10 +152,12 @@ single-statement limit of driver calls) belong to callers.
   execution-time utility transformation; a later primary constraint cannot absorb
   an earlier orphan. Table property conflicts fail during parsing, while repeated
   identical properties are harmless. CHECK/NOT NULL retain their nondeferrable
-  declaration boundary. ALTER CONSTRAINT timing and enforcement have distinct
-  action kinds and independent explicit-property presence, including mixed
-  property lists. Domain enforcement remains a rejected domain operation, not a
-  table alias. Existing-index enforcement diagnostics retain the PK/UNIQUE kind.
+  declaration boundary. ALTER CONSTRAINT retains bare requests and independent
+  timing, enforcement and inheritability presence. NO INHERIT properties
+  accumulate; positive INHERIT is terminal. Positions survive mixed properties
+  and contradictions. Execution owns current kind, ownership and eligibility.
+  Domain enforcement remains a rejected domain operation, not a table alias.
+  Existing-index enforcement diagnostics retain the PK/UNIQUE kind.
 - Statistics owner replay has a per-call `StatisticsOwnerReplay` option only
   for the isolated native Restore parser. It yields the shared positioned
   `AlterOwner` AST; ordinary calls retain the ALTER capability diagnostic.
@@ -166,6 +168,11 @@ single-statement limit of driver calls) belong to callers.
   CREATE retains ordered `Elements []Expr`, reusing column, function and grouped
   expression productions. Grouping a column does not change its semantic kind;
   no SQL-text scanner or alternate expression grammar determines statistics keys.
+- Invalid noninheritable NN replay has a per-call `NotNullInheritReplay` option
+  used only by isolated Restore. It retains the ordinary ADD NOT NULL AST and
+  its NO INHERIT bit; the exact qualified single-action constructor allowlist
+  and ordinary execution authority still apply. Public declarations and
+  prepared parsing do not acquire this permission.
 - ALTER ROLE and USER share positioned rename and persisted-setting nodes.
   Role specs retain execute-time current/session identity, while ALL and optional
   database scope are separate from RESET ALL. Setting lists reuse ordinary SET
