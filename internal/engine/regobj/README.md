@@ -91,6 +91,11 @@ import it.
   already-parsed type syntax. The `Retarget*` methods implement the `analyze`
   retarget interfaces, and `DetachCursorInput` rebinds a cursor's resolvers to
   its execution authority.
+  `TypeInput.ResolveInputUsage` parses a SQL declaration and returns the actual
+  catalog descriptor plus encoded typmod (including array element typmods).
+  It shares resolution/modifier validation with OID-facing REGTYPE and parsed
+  callers, but intentionally rejects REGTYPE's numeric-OID/dash value shortcuts.
+  Its setup errors stay outside data-validity conversion recovery.
   `TextSearchInput.ResolveTextParser` uses that same captured, TEMP-free path
   for parser names, with explicit namespace USAGE checked before lookup.
   Parser names remain TEXT inputs; no regparser type or parser-owner ACL is

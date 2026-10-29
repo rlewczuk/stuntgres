@@ -66,6 +66,10 @@ parallel-safety declarations; snapshot member expansion has row estimate 50.
 The four zero-input control-data functions retain scalar RECORD results and
 their exact ordered OUT types/names (18/4/5/12 members for
 checkpoint/system/recovery/init), without inventing input or set-returning slots.
+The two input-validity declarations add released OIDs6210/6211 with exact
+strict/STABLE/parallel-safe scalar metadata. Only error-info has named inputs
+and four TEXT OUT fields; the boolean formals are unnamed. Membership and all
+28 direct/prepared property assertions include both records.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 The rule and trigger definition functions add four independently released
 `REL_18_6` overload records (1573, 1662, 2504, 2730), including their strict,

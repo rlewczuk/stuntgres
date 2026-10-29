@@ -17,6 +17,24 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
 `fixture.Main(m)`. `name_external_test.go` and `diagnostics_postgres_test.go`
 carry the `reference` build tag (PostgreSQL-only complements).
 
+### Input validity diagnostics
+
+`TestReferenceInputValidityValues`, `NullRecords`, `Typmods`, `HardErrors`,
+`Binding`, `Lifecycle` and `Smoke` share independent direct/prepared public SQL
+expectations in both modes. They cover BOOL/RECORD/TEXT metadata, strict NULL
+versus successful all-null records, typmod-aware conversion, message/detail/hint
+and SQLSTATE, declaration/setup and hard producer boundaries, domain checks,
+transactions, held target changes, statement atomicity and native stored replay.
+Scalar FROM uses the common typed scalar-once cursor, including one expanded
+four-NULL row for strict NULL error-info. Named `value`/`type_name` arguments
+belong only to error-info; named boolean calls must fail. Retained view rows
+use the established BOOL/TEXT metadata contract (unbounded TEXT length), not
+REGTYPE-specific length assumptions.
+Select the family with
+`make check RUN='^TestReferenceInputValidity(Values|NullRecords|Typmods|HardErrors|Binding|Lifecycle|Smoke)$'`
+and repeat with `REFERENCE=1`. The bounded feature smoke selector is
+`make check RUN='^TestReferenceInputValiditySmoke$'` (also with `REFERENCE=1`).
+
 ### Comparison matrix
 
 - [comparison-ledger.md](comparison-ledger.md) records the evidence method and

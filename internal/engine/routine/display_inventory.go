@@ -17,11 +17,11 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
-	40: {Language: catalog.InternalRoutineLanguage, Source: "int2vectorin"},
-	41: {Language: catalog.InternalRoutineLanguage, Source: "int2vectorout"},
-	54: {Language: catalog.InternalRoutineLanguage, Source: "oidvectorin"},
-	55: {Language: catalog.InternalRoutineLanguage, Source: "oidvectorout"},
-	88: {Language: catalog.InternalRoutineLanguage, Source: "pg_ddl_command_recv"},
+	40:   {Language: catalog.InternalRoutineLanguage, Source: "int2vectorin"},
+	41:   {Language: catalog.InternalRoutineLanguage, Source: "int2vectorout"},
+	54:   {Language: catalog.InternalRoutineLanguage, Source: "oidvectorin"},
+	55:   {Language: catalog.InternalRoutineLanguage, Source: "oidvectorout"},
+	88:   {Language: catalog.InternalRoutineLanguage, Source: "pg_ddl_command_recv"},
 	2410: {Language: catalog.InternalRoutineLanguage, Source: "int2vectorrecv"},
 	2411: {Language: catalog.InternalRoutineLanguage, Source: "int2vectorsend"},
 	2420: {Language: catalog.InternalRoutineLanguage, Source: "oidvectorrecv"},
@@ -907,6 +907,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	1264: {Language: catalog.InternalRoutineLanguage, Source: "PG_char_to_encoding"},
 	1597: {Language: catalog.InternalRoutineLanguage, Source: "PG_encoding_to_char"},
 	1686: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_keywords", Cost: 10},
+	6210: {Language: catalog.InternalRoutineLanguage, Source: "pg_input_is_valid"},
+	6211: {Language: catalog.InternalRoutineLanguage, Source: "pg_input_error_info"},
 	1643: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_indexdef"},
 	1656: {Language: catalog.InternalRoutineLanguage, Source: "texticregexeq"},
 	1657: {Language: catalog.InternalRoutineLanguage, Source: "texticregexne"},

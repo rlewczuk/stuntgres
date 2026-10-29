@@ -163,20 +163,22 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		return ids.ObjectAddress{}, sqlError("54023", noun+" cannot have more than 100 arguments")
 	}
 	if typeName {
-		typeID, err = types.resolveParsed(ctx, parsedName, notices)
+		var usage sqltype.Usage
+		usage, err = types.resolveParsed(ctx, parsedName, notices)
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
+		typeID = uint32(usage.Type.ID())
 	}
 	var argIDs []ids.OID
 	if parsedArgs != nil {
 		argIDs = make([]ids.OID, len(parsedArgs))
 		for i, raw := range parsedArgs {
-			id, err := types.resolveParsed(ctx, raw, notices)
+			usage, err := types.resolveParsed(ctx, raw, notices)
 			if err != nil {
 				return ids.ObjectAddress{}, err
 			}
-			argIDs[i] = ids.OID(id)
+			argIDs[i] = ids.OID(usage.Type.ID())
 		}
 	}
 	a := ids.ObjectAddress{ClassID: class}

@@ -94,6 +94,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		5054: {"jsonb_in", "path", "replacement", "create_if_missing", "null_value_treatment"},
 		6159: {"fktable", "fkcols", "pktable", "pkcols", "is_array", "is_opt"},
 		6168: {"xid", "timestamp", "roident"},
+		6211: {"value", "type_name", "message", "detail", "hint", "sql_error_code"},
 		6212: {"mean", "stddev"},
 		6224: {"rm_id", "rm_name", "rm_builtin"},
 		6321: {"tli", "start_lsn", "end_lsn"},

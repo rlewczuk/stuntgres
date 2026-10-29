@@ -12,6 +12,24 @@ the authority behind evaluation capabilities in the root
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
 
+`InputValidity` binds the strict two-TEXT `pg_input_is_valid` and
+`pg_input_error_info` signatures and ordinary routine provenance. Only error-info
+has named inputs (`value`, `type_name`); the boolean declaration is unnamed.
+Stable nodes never planning-fold and retain no target or
+diagnostic cache. `InputValidityRuntime.CheckTypeInput(value,typeName)` returns
+either nil for success, a producer-owned recoverable SQL diagnostic, or a hard
+error. The live execution host owns declaration resolution and input environment;
+only direct destination conversion is inside the soft boundary.
+Dynamic destinations reuse `CaptureTypeDiagnosticInput`; domain CHECK evaluation
+borrows that conversion's coherent input environment, including visibility-aware
+type names, and restores the caller's environment on every exit. The four-TEXT
+record is occurrence-owned: valid input constructs a non-NULL all-NULL-fields
+record, whereas strict NULL returns a typed NULL record. `SourceAdmission` and
+`OpenSource` use the common scalar-once typed cursor: FROM expands the record
+members and emits one row even for a whole-NULL record, without declaring an
+SRF. Generic record transport, stored protocols and native replay require no
+adapter special case.
+
 `EncodingNameCall` binds the strict NAME/INT4 encoding conversions through the
 ordinary routine owner and reuses `sqltype.EncodingID`/`EncodingName` after formal
 coercion. `Keywords` binds a fixed five-OUT record and streams the parser's sole

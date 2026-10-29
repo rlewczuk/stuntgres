@@ -16,6 +16,19 @@ import (
 	"time"
 )
 
+var _ functions.InputValidityRuntime = (*Context)(nil)
+
+func (c *Context) CheckTypeInput(value, typeName string) (*sqlstate.Error, error) {
+	if err := EvaluationContext(c); err != nil {
+		return nil, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: missing type-input authority")
+	}
+	return host.CheckTypeInput(c, value, typeName)
+}
+
 var _ functions.SessionActivityRuntime = (*Context)(nil)
 
 func (c *Context) SessionActivityValue(kind functions.SessionActivityKind, result *sqltype.Descriptor) (sqltype.Value, error) {

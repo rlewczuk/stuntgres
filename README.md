@@ -30,6 +30,20 @@ Type inquiries use the same direct, prepared and stored expression paths:
 nested domains without replacing nominal `pg_typeof` identity. Native fixture
 controls preserve the underlying type graph and stored expressions.
 
+Input diagnostics use `pg_input_is_valid(text, text) → boolean`
+and `pg_input_error_info(value text, type_name text) → record(message text,
+detail text, hint text, sql_error_code text)`. Only error-info supports the named
+inputs `value` and `type_name`; the boolean inputs are unnamed. The target is a SQL type
+declaration, including qualified names, arrays and typmods such as
+`numeric(7,4)`, not a numeric REGTYPE shortcut. Both calls are strict: either
+NULL argument yields SQL NULL. Successful error-info is instead a non-NULL
+record with four NULL fields (`(,,,)` as text). Only producer-supported soft
+input errors become false or diagnostics; unknown types, invalid declarations,
+unsupported hard input routines and exceptions inside domain CHECK expressions
+remain ordinary statement errors. Missing detail/hint are NULL; SQLSTATE is
+the original five-character code. Direct, prepared and stored calls share the
+typed input path; stateless builtins need no separate native dump state.
+
 Session inquiries use ordinary typed SQL: `current_query()` returns the complete
 submitted SQL, including comments, batches and prepared placeholders.
 `pg_backend_pid()` identifies the embedded physical session, not an OS process.

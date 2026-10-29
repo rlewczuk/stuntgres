@@ -5,3 +5,5 @@
 1264	pg_char_to_encoding	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	23	19	\N	\N	\N	false	\N	PG_char_to_encoding	\N	false	\N
 1597	pg_encoding_to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	19	23	\N	\N	\N	false	\N	PG_encoding_to_char	\N	false	\N
 1686	pg_get_keywords	11	12	10	500	0	0	f	false	false	true	true	s	s	0	0	2249		{25,18,16,25,25}	{o,o,o,o,o}	{word,catcode,barelabel,catdesc,baredesc}	false	\N	pg_get_keywords	\N	false	\N
+6210	pg_input_is_valid	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	16	25 25	\N	\N	\N	false	\N	pg_input_is_valid	\N	false	\N
+6211	pg_input_error_info	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	2249	25 25	{25,25,25,25,25,25}	{i,i,o,o,o,o}	{value,type_name,message,detail,hint,sql_error_code}	false	\N	pg_input_error_info	\N	false	\N

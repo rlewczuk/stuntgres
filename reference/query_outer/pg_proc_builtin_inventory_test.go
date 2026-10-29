@@ -124,8 +124,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 		}
 	}
 	// This is the exact represented membership, not a guessed PostgreSQL total:
-	if len(facts) != 2060 {
-		t.Fatalf("released represented overloads: got %d, want 2060", len(facts))
+	if len(facts) != 2062 {
+		t.Fatalf("released represented overloads: got %d, want 2062", len(facts))
 	}
 	return facts
 }
