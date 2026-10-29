@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -26,7 +27,7 @@ func ExecuteExtension(e *core.Engine, scope *core.StatementScope, s *parser.Crea
 	return publishExtensionStage(e, scope, stage)
 }
 
-// CREATE and UPDATE publish through the same validated statement-owned changes.
+// Extension commands publish through the same validated statement-owned changes.
 // Provider callbacks run in ValidateCatalogStage outside the engine mutex.
 func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *core.CatalogStage) (core.Result, error) {
 	defer e.DiscardCatalogStage(stage)
@@ -34,36 +35,49 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 		return core.Result{}, err
 	}
 	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	changes := scope.PendingCatalog().Clone()
+	capture := session.JournalCapture{Journal: changes, Candidate: &stage.Candidate, Committed: e.Catalog.State, Current: e.PrivateCatalogLocked(scope.PendingCatalog()).State()}
+	if err := capture.ObserveCandidate(); err != nil {
+		return core.Result{}, err
+	}
+	if err := capture.FenceNames(nil); err != nil {
+		return core.Result{}, err
+	}
 	for a, d := range stage.Descriptors() {
-		// Validation ran without the mutex. Capture the stage's exact
-		// predecessor, never whatever a peer published during validation.
-		if _, captured := changes.Originals[a]; !captured {
-			changes.Originals[a] = stage.Base.Get(a)
-		}
 		if _, extension := d.(*catalog.Extension); extension {
-			tag := "CREATE EXTENSION"
-			if _, exists := stage.Base.Extension(a); exists {
-				tag = "ALTER EXTENSION"
-			}
-			scope.RecordDDLCommand(tag, a)
 			if old, exists := stage.Base.Extension(a); exists {
 				for _, member := range old.Members {
-					if _, captured := changes.Originals[member]; !captured {
-						changes.Originals[member] = stage.Base.Get(member)
+					if err := capture.ObserveBase(member); err != nil {
+						return core.Result{}, err
 					}
 				}
 			}
 		}
+	}
+	namespace := extensionNamespaceOf(stage)
+	if err := capture.ObserveBase(namespace); err != nil {
+		return core.Result{}, err
+	}
+	if h, ok := stage.ExtensionSlot.(*extensionHost); ok && h.predecessor != nil {
+		if err := capture.ObserveBase(h.predecessor.Address()); err != nil {
+			return core.Result{}, err
+		}
+	}
+	for a, d := range stage.Descriptors() {
 		e.CatalogChangeLocked(changes, a, d)
 	}
-	for key, original := range stage.Touched() {
-		changes.Names[key] = original
+	// Candidate observations use the private predecessor; journal fences
+	// retain committed roots, including names already changed by this TX.
+	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.RoleRevision, Namespace: e.Catalog.State.Get(namespace), Database: stage.DatabasePredecessor}})
+	if err := e.CatalogPreflightLocked(changes); err != nil {
+		return core.Result{}, err
 	}
-	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.RoleRevision, Namespace: stage.Base.Get(extensionNamespaceOf(stage)), Database: stage.DatabasePredecessor}})
 	scope.Catalog = changes
 	scope.CatalogAuthority = &session.CatalogAuthority{Session: scope.Op.Session, Authorization: stage.AuthRevision, Roles: stage.RoleRevision, Ref: ids.ObjectRef{Address: e.Catalog.Owner.DatabaseAddress()}, Descriptor: stage.DatabasePredecessor, DatabaseAuthority: stage.DatabaseAuthority, DatabasePredecessor: stage.DatabasePredecessor}
-	e.Mu.Unlock()
+	if scope.EventCommand != nil && scope.EventCommand.CollectDDL {
+		scope.EventCommand.Commands = append(scope.EventCommand.Commands, stage.DDLCommands...)
+	}
 	return core.Result{}, nil
 }
 
@@ -78,5 +92,9 @@ func stageExtensionLocked(e *core.Engine, scope *core.StatementScope, s *parser.
 	if err != nil || staged == nil {
 		return nil, err
 	}
-	return stageOf(staged)
+	stage, err := stageOf(staged)
+	if err == nil {
+		ddl.RecordCommand(stage, "CREATE EXTENSION", stage.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text}))
+	}
+	return stage, err
 }

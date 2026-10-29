@@ -54,6 +54,27 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 		e.Mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}
+	// Extension CREATE owns the public duplicate-name diagnostic. Check its
+	// authority before the generic predecessor fence, just as final
+	// publication does, without constructing a mixed private graph.
+	if err := e.catalogFencesCurrentLocked(c, FenceExtensionAuthority); err != nil {
+		e.Mu.Unlock()
+		return nil, err
+	}
+	// Shared parameter replacement can leave this database's epoch unchanged.
+	// Reject its old authority before removed parameter descriptors look like
+	// ordinary stale predecessors, matching final publication's incarnation fence.
+	if c.ParameterWritten && c.ParameterIncarnation != e.Catalog.State.ParameterIncarnation() {
+		e.Mu.Unlock()
+		return nil, ids.ErrCatalogReplaced
+	}
+	// Reject stale committed predecessors before overlaying them with private
+	// descriptors. Otherwise provider validation sees a graph that never
+	// existed (for example, an old extension plus a winner's new members).
+	if err := e.catalogJournalPredecessorsCurrentLocked(c); err != nil {
+		e.Mu.Unlock()
+		return nil, err
+	}
 	view := e.PrivateCatalogLocked(c)
 	if err := catalogDependencyPreflight(e.Catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
 		e.Mu.Unlock()
@@ -71,6 +92,9 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 		p := e.Catalog.Provider(a.ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class")
+		}
+		if err := catalog.ValidateExtensionMembership(view, d); err != nil {
+			return nil, err
 		}
 		if err := catalog.Validate(p, view, d); err != nil {
 			return nil, err
@@ -156,6 +180,22 @@ func (e *Engine) CatalogPreflightLocked(c *session.Journal) error {
 	if err := e.catalogFencesCurrentLocked(c, fenceMaterializedSource); err != nil {
 		return err
 	}
+	if err := e.catalogJournalPredecessorsCurrentLocked(c); err != nil {
+		return err
+	}
+	for _, d := range c.Descriptors {
+		if d != nil {
+			if err := access.ValidateACL(read, d); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Both private preparation and final publication fence the same committed
+// originals and names. Private descriptors never replace these observations.
+func (e *Engine) catalogJournalPredecessorsCurrentLocked(c *session.Journal) error {
 	for a, original := range c.Originals {
 		if e.Catalog.State.Get(a) != original {
 			return catalog.Conflict{}
@@ -164,13 +204,6 @@ func (e *Engine) CatalogPreflightLocked(c *session.Journal) error {
 	for k, a := range c.Names {
 		if e.Catalog.State.NameAddress(k) != a {
 			return catalog.Conflict{}
-		}
-	}
-	for _, d := range c.Descriptors {
-		if d != nil {
-			if err := access.ValidateACL(read, d); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
@@ -206,7 +239,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						return catalog.Conflict{}
 					}
 				case *catalog.Procedure:
-					if (target.ClassID != ids.TypeClassID || candidate.Get(target) == nil) && catalog.ProcedureDefinitionDependsOn(owner, target) {
+					if (target.ClassID != ids.TypeClassID || candidate.Get(target) == nil) && catalog.ProcedureDefinitionDependsOn(catalog.NewRead(nil, candidate), owner, target) {
 						return catalog.Conflict{}
 					}
 				case *catalog.Operator:

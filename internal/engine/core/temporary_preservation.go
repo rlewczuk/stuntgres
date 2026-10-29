@@ -69,6 +69,10 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err != nil {
 		return err
 	}
+	mapping, err = control.ProvenanceCollisionMapping(next, temporary, mapping, func(floor ids.OID) (ids.OID, error) { return e.Catalog.AllocateOIDFromLocked(&oids.Next, floor) })
+	if err != nil {
+		return err
+	}
 	if err := typedef.ImportScalarTypesLocked(next, mapping, e.Catalog.AllocateEnumMemberLocked); err != nil {
 		return err
 	}
@@ -98,7 +102,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return current
 	}
 	routineRemap := stored.NewRoutineRemap(candidate, mapping, typ, principal, false)
-	if err := control.RemapReplacementIdentities(current, next, temporary, mapping, relations, sequences, routineRemap.Procedure); err != nil {
+	if err := control.RemapReplacementIdentities(current, next, temporary, mapping, relations, sequences, routineRemap); err != nil {
 		return err
 	}
 	if err := stored.ReownInstalledDomainChecks(candidate, next, mapping, false, routineRemap); err != nil {

@@ -297,13 +297,13 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		domain := domainUnitType(t, view, "pt18_query_domain")
 		nested := domainUnitType(t, view, "pt18_query_nested")
 		ext, ok := view.Extension(base.Extension)
-		if !ok || len(ext.Members) != 3 {
+		if !ok || len(ext.Members) != 4 || len(ext.Installation.Members) != 3 || catalog.ExtensionMembership(array(t, view, base)) != ext.Address() {
 			t.Fatal("missing actual intarray installation")
 		}
 		if err := extension.StockIntarray.ValidateExtension(view, ext); err != nil {
 			t.Fatal(err)
 		}
-		output := uint32(ext.Members[2].ObjectID)
+		output := uint32(ext.Installation.Members[2].ObjectID)
 		for _, pair := range []struct{ d, base *catalog.Type }{{domain, base}, {nested, domain}} {
 			if pair.d.SQLType.DomainBase().Type != pair.base.SQLType {
 				t.Fatal("wrong immediate base generation")

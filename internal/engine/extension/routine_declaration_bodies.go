@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
 )
@@ -58,4 +59,37 @@ func earthDeclarationBody(op sqltype.EarthOperation, cubeSchema string) (sqltype
 	}
 	source = strings.ReplaceAll(source, "@cube@", catalog.DependencyIdentifier(cubeSchema))
 	return proc.NewRoutineDeclarationBody(source)
+}
+
+// EarthInstallationCubePlacement reads the real producer's dependency spelling.
+// The returned name is only a replay coordinate; the sealed domain's base type,
+// not that name, identifies the prerequisite installation.
+func EarthInstallationCubePlacement(recipe *catalog.Installation) (string, ids.ObjectAddress, error) {
+	invalid := func() (string, ids.ObjectAddress, error) {
+		return "", ids.ObjectAddress{}, InvalidProviderDescriptor()
+	}
+	if !recipe.Valid() || recipe.Provider != "earthdistance" || recipe.Implementation != StockEarthdistance || recipe.Version != "1.2" || len(recipe.Declarations) != EarthMemberCount {
+		return invalid()
+	}
+	domain, ok := recipe.Declarations[0].(*catalog.Type)
+	if !ok || domain.SQLType == nil || !domain.SQLType.IsDomain() || !domain.SQLType.DomainBase().Type.IsCube() {
+		return invalid()
+	}
+	schema := ""
+	for _, op := range []sqltype.EarthOperation{sqltype.EarthLL, sqltype.EarthLatitude, sqltype.EarthLongitude} {
+		slot := 2 + int(op)
+		p, ok := recipe.Declarations[slot].(*catalog.Procedure)
+		if !ok || p.Address() != recipe.Members[slot] || p.Origin != nil || p.Implementation != StockEarthdistance || p.Name() != op.Name() || p.Signature != earthRoutineSignature(op, domain.SQLType.ID()) || p.Result != earthRoutineResult(op, domain.SQLType.ID()) {
+			return invalid()
+		}
+		captured, err := proc.EarthDeclarationCubeSchema(p.DeclarationBody, op)
+		if err != nil {
+			return "", ids.ObjectAddress{}, err
+		}
+		if schema != "" && schema != captured {
+			return invalid()
+		}
+		schema = captured
+	}
+	return schema, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.SQLType.DomainBase().Type.ID())}, nil
 }

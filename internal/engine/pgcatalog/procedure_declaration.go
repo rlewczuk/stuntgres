@@ -3,7 +3,6 @@ package pgcatalog
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -189,11 +188,11 @@ func procedureNameProjection(view catalog.Read, d *catalog.Procedure) (procedure
 		}
 		n.inputNames = d.InputNames
 		n.present = true
-	} else if ext, ok := view.Extension(d.Extension); ok && ext.Name() == "uuid-ossp" && d.Implementation != nil && slices.Contains(ext.Members, d.Address()) {
-		if err := d.Implementation.ValidateExtension(view, ext); err != nil {
+	} else if installation, ok := catalog.OriginInstallation(d); ok && installation.Provider == "uuid-ossp" && d.Implementation != nil {
+		if err := validateInstalledProcedureOwner(view, d); err != nil {
 			return n, err
 		}
-		slot := slices.Index(ext.Members, d.Address())
+		slot := d.Origin.Declaration
 		if slot >= len(functions.UUIDOsspMembers) {
 			return n, fmt.Errorf("stuntgres: invalid UUID routine manifest slot")
 		}
@@ -217,4 +216,18 @@ func procedureNameProjection(view catalog.Read, d *catalog.Procedure) (procedure
 		n.present = true
 	}
 	return n, nil
+}
+
+// The registered procedure class owner validates the concrete installed
+// declaration. ExtensionImplementation alone promises only extension metadata;
+// it is not a callable validation capability.
+func validateInstalledProcedureOwner(view catalog.Read, d *catalog.Procedure) error {
+	if d == nil || d.Implementation == nil || view.Owner() == nil {
+		return fmt.Errorf("stuntgres: missing installed procedure declaration owner")
+	}
+	provider := view.Owner().Providers[ids.ProcedureClassID]
+	if provider == nil {
+		return fmt.Errorf("stuntgres: missing registered procedure provider")
+	}
+	return provider.Validate(view, d)
 }

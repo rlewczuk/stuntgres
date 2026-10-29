@@ -31,10 +31,10 @@ func hstoreComparisonCaptureOf(node expr.Expr) (hstoreComparisonCapture, bool) {
 		direct = true
 		capture.ref = n.Ref
 		if len(n.Args) > 0 && n.Args[0] != nil {
-            capture.left = n.Args[0].ResultUsage().Type
-            capture.right = capture.left
-        }
-        if len(n.Args) == 2 && n.Args[0] != nil && n.Args[1] != nil {
+			capture.left = n.Args[0].ResultUsage().Type
+			capture.right = capture.left
+		}
+		if len(n.Args) == 2 && n.Args[0] != nil && n.Args[1] != nil {
 			capture.left, capture.right = n.Args[0].ResultUsage().Type, n.Args[1].ResultUsage().Type
 		}
 		if int(n.Kind) < len(extension.HstoreComparisonNames) {
@@ -43,7 +43,9 @@ func hstoreComparisonCaptureOf(node expr.Expr) (hstoreComparisonCapture, bool) {
 		if n.Kind == 6 || n.Kind == 7 {
 			capture.result = sqltype.Int4
 		}
-		if n.Kind == 8 { capture.result = sqltype.Int8 }
+		if n.Kind == 8 {
+			capture.result = sqltype.Int8
+		}
 	case plan.ComparisonExpr:
 		capture.ref, operator = n.RoutineRef, n.Operator
 		capture.left, capture.right = n.Left.ResultUsage().Type, n.Right.ResultUsage().Type
@@ -122,12 +124,12 @@ func currentHstoreComparisonProcedure(view catalog.Read, original *catalog.Proce
 	if current.Implementation != extension.StockHstore || symbol != capture.name || current.Signature != hstoreCaptureSignature(capture) || current.Result != ids.OID(capture.result) || current.RoutineKind != catalog.FunctionRoutine || !current.Strict || current.Volatility != expr.Immutable || current.Builtin != nil {
 		return nil, fmt.Errorf("stuntgres: invalid mapped hstore comparison declaration")
 	}
-	installation, exists := view.Extension(current.Extension)
+	installation, exists := catalog.OriginInstallation(current)
 	if !exists || len(installation.Members) != extension.HstoreMemberCount {
 		return nil, fmt.Errorf("stuntgres: missing mapped hstore comparison installation")
 	}
 	base, exists := view.Type(installation.Members[0])
-	if !exists || base.SQLType != capture.left || base.Extension != installation.Address() {
+	if !exists || base.SQLType != capture.left || !catalog.SameInstallation(base, installation) {
 		return nil, fmt.Errorf("stuntgres: foreign mapped hstore comparison type")
 	}
 	member := -1
@@ -175,5 +177,11 @@ func hstoreComparisonRendering(n plan.HstoreComparisonExpr, name string) (expr.R
 }
 
 func hstoreCaptureSignature(c hstoreComparisonCapture) catalog.ProcedureSignature {
- for i,n := range extension.HstoreComparisonNames { if n==c.name { _,sig,_:=extension.HstoreComparisonDeclaration(i,c.left.ID());return sig } };return ""
+	for i, n := range extension.HstoreComparisonNames {
+		if n == c.name {
+			_, sig, _ := extension.HstoreComparisonDeclaration(i, c.left.ID())
+			return sig
+		}
+	}
+	return ""
 }

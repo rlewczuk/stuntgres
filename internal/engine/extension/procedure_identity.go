@@ -9,26 +9,19 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// ProcedureSymbol returns the executable installation symbol, never a mutable
-// public label. Membership order is the versioned manifest, preserved by remap.
-// This low-level authority deliberately does not call provider validators.
+// ProcedureSymbol resolves immutable released declaration authority. Public
+// names, namespaces and current extension membership never select a symbol.
 func ProcedureSymbol(v catalog.Read, p *catalog.Procedure) (string, error) {
-	return procedureSymbol(v, p, false)
+	return procedureIdentityName(v, p, false)
 }
 
-// ProcedureInstallationName returns the original SQL declaration name from the
-// checked versioned manifest, not its C symbol or its current public label.
+// ProcedureInstallationName returns the immutable released SQL name rather than
+// a C symbol or mutable public label.
 func ProcedureInstallationName(v catalog.Read, p *catalog.Procedure) (string, error) {
-	return procedureIdentityName(v, p, false, true)
+	return procedureIdentityName(v, p, true)
 }
 
-// allowDetached is reserved for incumbent provider metadata validation.
-// It never grants installed execution or portable replay authority.
-func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (string, error) {
-	return procedureIdentityName(v, p, allowDetached, false)
-}
-
-func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, installationName bool) (string, error) {
+func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationName bool) (string, error) {
 	invalid := func() (string, error) { return "", fmt.Errorf("stuntgres: invalid installed procedure identity") }
 	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
 		return invalid()
@@ -44,57 +37,20 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 	if _, ok := v.Namespace(p.Namespace()); !ok {
 		return invalid()
 	}
-	// Detached unaccent declarations are an incumbent script-provider capability.
-	// Its four exact signatures distinguish every released symbol without labels.
-	if p.Extension == (ids.ObjectAddress{}) {
-		if !allowDetached {
-			return invalid()
-		}
-		if p.Implementation != StockUnaccent || p.RoutineKind != catalog.FunctionRoutine || p.Aggregate != nil || p.Dictionary != (ids.ObjectAddress{}) {
-			return invalid()
-		}
-		switch p.Signature {
-		case catalog.UnaccentTextSignature, catalog.UnaccentDictionarySignature:
-			if p.Result == 25 && p.Volatility == expr.Stable && p.Strict {
-				return "unaccent", nil
-			}
-		case catalog.UnaccentInitSignature:
-			if p.Result == 2281 && p.Volatility == expr.Volatile && !p.Strict {
-				return "unaccent_init", nil
-			}
-		case catalog.UnaccentLexizeSignature:
-			if p.Result == 2281 && p.Volatility == expr.Volatile && !p.Strict {
-				return "unaccent_lexize", nil
-			}
-		}
+	if err := catalog.ValidateExtensionMembership(v, p); err != nil {
 		return invalid()
 	}
-	ext, ok := v.Extension(p.Extension)
-	if !ok || ext.Address().ClassID != ids.ExtensionClassID || ext.Address().SubID != 0 || ext.Address().ObjectID == 0 || ext.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(ext)) != ext.Address() {
+	if !p.Origin.Valid(p.Address()) {
 		return invalid()
 	}
-	if ext.Owner.ID() == 0 || ext.Owner != v.Owner().Principals.Principal(ext.Owner.ID()) {
+	ext := p.Origin.Installation
+	implementation, registered := v.Owner().Extensions[ext.Name()]
+	if !registered || implementation != p.Implementation || implementation != ext.Implementation || implementation.Versions().InstallPath(ext.Version) == nil {
 		return invalid()
 	}
-	if _, ok := v.Namespace(ext.TargetNamespace); !ok {
-		return invalid()
-	}
-	implementation, ok := v.Owner().Extensions[ext.Name()]
-	if !ok || implementation != p.Implementation || implementation.Versions().InstallPath(ext.Version) == nil {
-		return invalid()
-	}
-	slot := -1
-	for i, a := range ext.Members {
-		for _, b := range ext.Members[:i] {
-			if a == b {
-				return invalid()
-			}
-		}
-		if a == p.Address() {
-			slot = i
-		}
-	}
-	if slot < 0 {
+	slot := p.Origin.Declaration
+	canonical, ok := ext.Declarations[slot].(*catalog.Procedure)
+	if !ok || p.Display != canonical.Display || p.Installed != canonical.Installed || p.DeclarationBody != canonical.DeclarationBody || p.Language != canonical.Language || p.SQLBody != canonical.SQLBody || p.SQLDefaults != canonical.SQLDefaults || p.LiteralDefaults != canonical.LiteralDefaults || p.InputNames != canonical.InputNames || p.PLHandler != canonical.PLHandler || p.RangeConstructor != canonical.RangeConstructor || p.AccessMethod != canonical.AccessMethod || p.BrinSupport != canonical.BrinSupport || len(p.Body) != 0 || len(p.DeclarationDependencies) != 0 {
 		return invalid()
 	}
 	name, signature, result := "", catalog.ProcedureSignature(""), ids.OID(0)
@@ -116,6 +72,11 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 		}
 		m := functions.UUIDOsspMembers[slot]
 		name, signature, result, volatility = m.Name, catalog.ProcedureSignature(m.Signature), 2950, m.Volatility
+		declaration := catalog.InstalledRoutineDeclaration{Parallel: 's'}
+		copy(declaration.ArgumentNames[:], m.ArgumentNames[:])
+		if p.Installed != declaration {
+			return invalid()
+		}
 	case StockFuzzystrmatch:
 		count = len(FuzzystrmatchMembers)
 		index := slot
@@ -138,16 +99,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 		if p.Installed != intaggDeclaration(slot) {
 			return invalid()
 		}
+		if err := validateOwnedAggregate(v, p); err != nil {
+			return "", err
+		}
 	case StockEarthdistance:
 		count = EarthMemberCount
 		if ext.Version != "1.2" || slot < 2 || slot >= EarthPointOperatorSlot {
-			return invalid()
-		}
-		base, ok := v.Type(ext.Members[0])
-		if !ok || base.SQLType == nil || !base.SQLType.IsDomain() || !base.SQLType.DomainBase().Type.IsCube() || base.Extension != ext.Address() {
-			return invalid()
-		}
-		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
 			return invalid()
 		}
 		if slot == EarthPointProcedureSlot {
@@ -157,7 +114,49 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 			if p.DeclarationBody == nil {
 				return invalid()
 			}
-			name, signature, result, strict = op.Name(), earthRoutineSignature(op, base.SQLType.ID()), earthRoutineResult(op, base.SQLType.ID()), op != sqltype.EarthRadiusOperation
+			earthID := sqltype.ID(ext.Members[0].ObjectID)
+			if op >= sqltype.EarthLL {
+				base, ok := v.Type(ext.Members[0])
+				if !ok || base.SQLType == nil || !base.SQLType.IsDomain() || !base.SQLType.DomainBase().Type.IsCube() || !catalog.SameInstallation(base, ext) {
+					return invalid()
+				}
+				if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+					return invalid()
+				}
+			}
+			dependencies := 0
+			valid := StockEarthdistance.VisitProcedureDependencies(v, p, func(dependency ids.ObjectAddress) bool {
+				helper, ok := v.Procedure(dependency)
+				if !ok {
+					return false
+				}
+				symbol, err := ProcedureSymbol(v, helper)
+				if err != nil {
+					return false
+				}
+				if dependency == ext.Members[2] {
+					if !catalog.SameInstallation(helper, ext) || symbol != "earth" {
+						return false
+					}
+				} else if helper.Implementation != StockCube || symbol != "cube" && symbol != "cube_ll_coord" {
+					return false
+				}
+				dependencies++
+				return true
+			})
+			expected := 0
+			switch op {
+			case sqltype.EarthSecToGC, sqltype.EarthGCToSec, sqltype.EarthLongitude:
+				expected = 1
+			case sqltype.EarthLatitude:
+				expected = 2
+			case sqltype.EarthLL:
+				expected = 3
+			}
+			if !valid || dependencies != expected {
+				return invalid()
+			}
+			name, signature, result, strict = op.Name(), earthRoutineSignature(op, earthID), earthRoutineResult(op, earthID), op != sqltype.EarthRadiusOperation
 		}
 	case StockCube:
 		count = CubeMemberCount
@@ -165,7 +164,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 			return invalid()
 		}
 		base, ok := v.Type(ext.Members[0])
-		if !ok || base.SQLType == nil || !base.SQLType.IsCube() || base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 {
+		if !ok || base.SQLType == nil || !base.SQLType.IsCube() || base.Address() != ext.Members[0] || !catalog.SameInstallation(base, ext) || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 {
 			return invalid()
 		}
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
@@ -192,15 +191,15 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 				return invalid()
 			}
 			base, ok := v.Type(ext.Members[recipe.slot])
-			if !ok || !recipe.accept(base.SQLType) || base.Extension != ext.Address() || base.Revision() == 0 {
+			if !ok || !recipe.accept(base.SQLType) || !catalog.SameInstallation(base, ext) || base.Revision() == 0 {
 				return invalid()
 			}
 			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
 				return invalid()
 			}
-			name, signature, result = recipe.input, "2275", ids.OID(base.SQLType.ID())
+			name, sqlName, signature, result = recipe.inputSource, recipe.input, "2275", ids.OID(base.SQLType.ID())
 			if slot == recipe.slot+2 {
-				name, signature, result = recipe.output, IsnSignature(base.SQLType.ID()), 2275
+				name, sqlName, signature, result = recipe.output, recipe.output, IsnSignature(base.SQLType.ID()), 2275
 			}
 			found = true
 		}
@@ -212,49 +211,72 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 		if len(ext.Members) != count || slot < 0 || slot >= count || ltreeMemberClass(slot) != ids.ProcedureClassID {
 			return invalid()
 		}
-  if slot >= LtreePathProcedureStart && slot < LtreePathOperatorStart {
-   var err error
-   signature, result, err = ltreePathSignature(v, ext, slot-LtreePathProcedureStart)
-   if err != nil { return invalid() }
-   name = ltreePathRecipes[slot-LtreePathProcedureStart].symbol
-   sqlName = ltreePathRecipes[slot-LtreePathProcedureStart].name
-  } else if slot >= LtreeLqueryProcedureStart && slot < LtreeLqueryOperatorStart {
-   index := slot-LtreeLqueryProcedureStart
-   left, right, err := ltreeLqueryTypes(v, ext, index); if err != nil { return invalid() }
-   name = LtreeLqueryProcedureSymbol(sqltype.LtreeLqueryOperation(index))
-   signature = catalog.ProcedureSignature(fmt.Sprintf("%d,%d", left.ID(), right.ID()))
-   result = 16
-  } else if slot >= LtreeLtxtqueryProcedureStart && slot < LtreeLtxtqueryOperatorStart {
-   base, ok := v.Type(ext.Members[3]); if !ok || !base.SQLType.IsLtree() || base.Extension != ext.Address() { return invalid() }
-   query, ok := v.Type(ext.Members[6]); if !ok || !query.SQLType.IsLtxtquery() || query.Extension != ext.Address() { return invalid() }
-   if ValidateProviderHeader(v, base, ids.TypeClassID) != nil || ValidateProviderHeader(v, query, ids.TypeClassID) != nil { return invalid() }
-   index := slot-LtreeLtxtqueryProcedureStart
-   left, right := base.SQLType, query.SQLType; if index == 1 { left, right = right, left }
-   name = LtreeLtxtqueryProcedureSymbol(sqltype.LtreeLtxtqueryOperation(index))
-   signature, result = catalog.ProcedureSignature(fmt.Sprintf("%d,%d", left.ID(), right.ID())), 16
-  } else if slot >= LtreeHierarchyProcedureStart && slot < LtreeHierarchyOperatorStart {
-			base, ok := v.Type(ext.Members[3]); if !ok || !base.SQLType.IsLtree() || base.Extension != ext.Address() { return invalid() }
-			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }
-			name = LtreeHierarchyProcedureSymbol(sqltype.LtreeHierarchyOperation(slot-LtreeHierarchyProcedureStart))
+		if slot >= LtreePathProcedureStart && slot < LtreePathOperatorStart {
+			var err error
+			signature, result, err = ltreePathSignature(v, ext, slot-LtreePathProcedureStart)
+			if err != nil {
+				return invalid()
+			}
+			name = ltreePathRecipes[slot-LtreePathProcedureStart].symbol
+			sqlName = ltreePathRecipes[slot-LtreePathProcedureStart].name
+		} else if slot >= LtreeLqueryProcedureStart && slot < LtreeLqueryOperatorStart {
+			index := slot - LtreeLqueryProcedureStart
+			left, right, err := ltreeLqueryTypes(v, ext, index)
+			if err != nil {
+				return invalid()
+			}
+			name = LtreeLqueryProcedureSymbol(sqltype.LtreeLqueryOperation(index))
+			signature = catalog.ProcedureSignature(fmt.Sprintf("%d,%d", left.ID(), right.ID()))
+			result = 16
+		} else if slot >= LtreeLtxtqueryProcedureStart && slot < LtreeLtxtqueryOperatorStart {
+			index := slot - LtreeLtxtqueryProcedureStart
+			left, right, err := ltreeLtxtqueryTypes(v, ext, index)
+			if err != nil {
+				return invalid()
+			}
+			name = LtreeLtxtqueryProcedureSymbol(sqltype.LtreeLtxtqueryOperation(index))
+			signature, result = catalog.ProcedureSignature(fmt.Sprintf("%d,%d", left.ID(), right.ID())), 16
+		} else if slot >= LtreeHierarchyProcedureStart && slot < LtreeHierarchyOperatorStart {
+			base, ok := v.Type(ext.Members[3])
+			if !ok || base.SQLType == nil || !base.SQLType.IsLtree() || !catalog.SameInstallation(base, ext) {
+				return invalid()
+			}
+			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+				return invalid()
+			}
+			name = LtreeHierarchyProcedureSymbol(sqltype.LtreeHierarchyOperation(slot - LtreeHierarchyProcedureStart))
 			signature = catalog.ProcedureSignature(fmt.Sprintf("%d,%d", base.SQLType.ID(), base.SQLType.ID()))
 			result = 16
 		} else if slot >= LtreeComparisonProcedureStart && slot < LtreeComparisonOperatorStart {
-			base,ok:=v.Type(ext.Members[3]);if !ok||!base.SQLType.IsLtree()||base.Extension!=ext.Address(){return invalid()}
-			if err:=ValidateProviderHeader(v,base,ids.TypeClassID);err!=nil{return invalid()}
-			name,signature,result=LtreeComparisonDeclaration(slot-LtreeComparisonProcedureStart,base.SQLType.ID())
+			base, ok := v.Type(ext.Members[3])
+			if !ok || base.SQLType == nil || !base.SQLType.IsLtree() || !catalog.SameInstallation(base, ext) {
+				return invalid()
+			}
+			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+				return invalid()
+			}
+			name, signature, result = LtreeComparisonDeclaration(slot-LtreeComparisonProcedureStart, base.SQLType.ID())
 		} else if slot >= LtreeArrayProcedureStart {
-			index := slot-LtreeArrayProcedureStart
+			index := slot - LtreeArrayProcedureStart
 			var err error
 			signature, result, err = ltreeArraySignature(v, ext, index)
-			if err != nil { return invalid() }
+			if err != nil {
+				return invalid()
+			}
 			name = ltreeArrayRecipes[index].name
 		} else {
 			recipe := ltreeRecipes[slot/3]
 			base, ok := v.Type(ext.Members[recipe.slot])
-			if !ok || !recipe.accept(base.SQLType) || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 { return invalid() }
-			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }
+			if !ok || !recipe.accept(base.SQLType) || !catalog.SameInstallation(base, ext) || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 {
+				return invalid()
+			}
+			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+				return invalid()
+			}
 			name, signature, result = recipe.input, "2275", ids.OID(base.SQLType.ID())
-			if slot%3 == 2 { name, signature, result = recipe.output, LquerySignature(base.SQLType.ID()), 2275 }
+			if slot%3 == 2 {
+				name, signature, result = recipe.output, LquerySignature(base.SQLType.ID()), 2275
+			}
 		}
 		if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/ltree", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()
@@ -274,7 +296,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 		if !ok || base.SQLType == nil {
 			return invalid()
 		}
-		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockHstore && !base.SQLType.IsHstore() || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockSeg && !base.SQLType.IsSeg() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
+		if base.Address() != ext.Members[0] || !catalog.SameInstallation(base, ext) || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockHstore && !base.SQLType.IsHstore() || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockSeg && !base.SQLType.IsSeg() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
 			return invalid()
 		}
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
@@ -408,11 +430,21 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, allowDetached, 
 			name, signature, result, volatility = member.name, member.signature, member.result, member.volatility
 			declaration, source = tablefuncNormalDeclaration(), member.source
 		} else {
-			name, signature, result = tablefuncProcedure(slot, ext)
+			recipe := catalog.Extension{Members: ext.Members}
+			name, signature, result = tablefuncProcedure(slot, &recipe)
 			if name == "" {
 				return invalid()
 			}
 			volatility = expr.Stable
+			if slot >= tablefuncCrosstabStart+7 && slot <= tablefuncCrosstabStart+9 {
+				typ, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: result})
+				if !ok || !catalog.SameInstallation(typ, ext) {
+					return invalid()
+				}
+				if err := ValidateTypeOrigin(v, typ); err != nil {
+					return "", err
+				}
+			}
 		}
 		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source, Binary: "$libdir/tablefunc", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
 			return invalid()

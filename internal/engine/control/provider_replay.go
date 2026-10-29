@@ -9,7 +9,6 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
@@ -36,6 +35,7 @@ type providerReplay struct {
 	arguments, owner  string
 	ownerChanged      bool
 	family            providerFamily
+	objectKind        string // Empty is the ordinary FUNCTION planner.
 	options           string // Rendered dictionary ALTER clause, after identity replay.
 	parallel          byte
 	cost, rows        float32
@@ -49,26 +49,15 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 	}
 	r := providerReplay{current: providerKey{ns.Name(), p.Name(), p.Signature}}
 	originalOwner := c.source.Bootstrap
+	if catalog.DescriptorOrigin(p) != nil {
+		// Released objects belong to the sequential installation replay owner.
+		return nil
+	}
 	r.parallel, r.rows = p.Parallel, p.Rows
 	if p.Cost != 0 && (p.Builtin == nil || p.Cost != routine.BuiltinRoutineCost(p.Builtin)) {
 		r.cost = p.Cost
 	}
-	if p.Extension != (ids.ObjectAddress{}) {
-		name, err := extension.ProcedureInstallationName(c.CatalogView, p)
-		if err != nil {
-			return err
-		}
-		ext, ok := c.CatalogView.Extension(p.Extension)
-		if !ok {
-			return fmt.Errorf("stuntgres: missing provider extension")
-		}
-		originalNS, ok := c.CatalogView.Namespace(ext.TargetNamespace)
-		if !ok {
-			return fmt.Errorf("stuntgres: missing provider installation namespace")
-		}
-		r.original = providerKey{originalNS.Name(), name, p.Signature}
-		originalOwner = ext.Owner
-	} else if p.RangeConstructor != nil {
+	if p.RangeConstructor != nil {
 		// Generated identities belong to the actual type generation, never
 		// the released builtin OID domain. The resolver also collapses a
 		// multirange constructor to its parent range's CREATE TYPE event.
@@ -102,6 +91,11 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 		r.original = providerKey{originalNS.Name(), identity.Name, identity.Signature}
 	}
 	r.ownerChanged = p.Owner != originalOwner
+	if p.RangeConstructor != nil {
+		// The type epilogue owns constructor identity and current owner replay.
+		// Only execution estimates remain at the following declaration boundary.
+		r.ownerChanged = false
+	}
 	if r.ownerChanged {
 		owner, err := c.DomainRoles.Descriptor(p.Owner)
 		if err != nil {
@@ -203,6 +197,12 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 			return "ALTER TEXT SEARCH TEMPLATE " + name
 		case configurationProvider:
 			return "ALTER TEXT SEARCH CONFIGURATION " + name
+		}
+		switch p.objectKind {
+		case "OPERATOR CLASS", "OPERATOR FAMILY":
+			return "ALTER " + p.objectKind + " " + name + " USING " + catalog.QuoteIdentifier(p.arguments)
+		case "PROCEDURE", "AGGREGATE":
+			return "ALTER " + p.objectKind + " " + name + "(" + p.arguments + ")"
 		}
 		return "ALTER FUNCTION " + name + "(" + p.arguments + ")"
 	}
@@ -317,7 +317,7 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 	return statements, nil
 }
 
-func (s *dumpScript) prepareProviderReplay() error {
+func (s *dumpScript) prepareProviderReplay(ctx context.Context) error {
 	var early []providerReplay
 	byEvent := make(map[ids.OID][]providerReplay)
 	for _, p := range s.Providers {
@@ -329,7 +329,7 @@ func (s *dumpScript) prepareProviderReplay() error {
 	}
 	s.providerEventStatements = make(map[ids.OID][]string, len(byEvent))
 	for oid, providers := range byEvent {
-		if _, exists := s.declarations[oid]; !exists {
+		if _, exists := s.Graph[dump.Event{OID: oid}]; !exists {
 			return fmt.Errorf("stuntgres: missing generated provider declaration event")
 		}
 		statements, err := planProviderReplay(providers)
@@ -342,24 +342,6 @@ func (s *dumpScript) prepareProviderReplay() error {
 	if err != nil {
 		return err
 	}
-	templates, err := s.templateProviderReplays()
-	if err != nil {
-		return err
-	}
-	templateStatements, err := planProviderReplay(templates)
-	if err != nil {
-		return err
-	}
-	statements = append(statements, templateStatements...)
-	dictionaries, err := s.dictionaryProviderReplays()
-	if err != nil {
-		return err
-	}
-	dictionaryStatements, err := planProviderReplay(dictionaries)
-	if err != nil {
-		return err
-	}
-	statements = append(statements, dictionaryStatements...)
 	configurations, err := s.configurationProviderReplays()
 	if err != nil {
 		return err
@@ -369,77 +351,25 @@ func (s *dumpScript) prepareProviderReplay() error {
 		return err
 	}
 	statements = append(statements, configurationStatements...)
-	operators, err := s.operatorProviderReplayStatements()
-	if err != nil {
-		return err
-	}
-	statements = append(statements, operators...)
-	if len(statements) == 0 {
-		return nil
-	}
 	s.providerStatements = statements
-	// Metadata must describe the reconstructed live slot, after real ALTER SQL.
-	s.extensionMetadata = make(map[ids.OID]string)
-	for address, d := range s.CatalogView.State().Descriptors() {
-		ext, ok := d.(*catalog.Extension)
-		if !ok {
-			continue
-		}
-		metadata, err := extension.OwnerMetadata(s.CatalogView, s.DomainRoles, ext)
-		if err != nil {
-			return err
-		}
-		s.extensionMetadata[address.ObjectID] = metadata
-		index := s.ViewIndices[address.ObjectID]
-		sql := s.Views[index].SQL
-		// Owner metadata is appended to the CREATE by the collector.
-		s.Views[index].SQL = strings.TrimSuffix(sql, metadata)
-	}
-	return nil
+	return s.prepareInstallationReplay(ctx)
 }
 
 func emitDumpProviderReplay(ctx context.Context, s *dumpScript, w *dumpWriter) error {
-	if len(s.providerStatements) == 0 {
+	if len(s.providerStatements) == 0 && len(s.installationStatements) == 0 {
 		return nil
-	}
-	// Keep extension prerequisite order, before any provider consumer.
-	for _, event := range s.eventOrder {
-		if event.Phase != dump.Declaration {
-			continue
-		}
-		if _, ok := s.extensionMetadata[event.OID]; !ok {
-			continue
-		}
-		declaration := s.Views[s.ViewIndices[event.OID]]
-		if err := w.setOwner(declaration.Owner); err != nil {
-			return err
-		}
-		if err := w.emit(declaration.SQL); err != nil {
-			return err
-		}
 	}
 	if err := w.setOwner("postgres"); err != nil {
 		return err
 	}
-	// This phase owns the extension declaration events, so it also owns their
-	// scalar-identity barrier. Routine arguments already use final type names.
-	if s.extensionTypeSQL != "" {
-		if err := w.emit(s.extensionTypeSQL); err != nil {
-			return err
-		}
-	}
 	if err := emitDumpLines(w, s.providerStatements); err != nil {
 		return err
 	}
-	for _, event := range s.eventOrder {
-		if event.Phase != dump.Declaration {
-			continue
-		}
-		if metadata, ok := s.extensionMetadata[event.OID]; ok {
-			if err := w.emit(metadata); err != nil {
-				return err
-			}
-		}
+	if err := emitDumpLines(w, s.installationStatements); err != nil {
+		return err
+	}
+	if err := emitDumpLines(w, s.installationACLStatements); err != nil {
+		return err
 	}
 	return ctx.Err()
 }

@@ -41,6 +41,11 @@ Name claims retain their original committed binding through waits and expose
 the ordinary transaction blocker; conflicting updates/first insertions fail
 without retry. A parameter-replacement incarnation follows stages and journals
 through private refresh and savepoints, including absent-to-absent Reset/Restore.
+Private preparation checks that incarnation before stale descriptor/name
+predecessors, so a genuine parameter replacement reports `ids.ErrCatalogReplaced`
+rather than an ordinary publication conflict. The extension CREATE authority
+fence still precedes those checks and retains its duplicate-name diagnostic;
+ordinary competing UPDATE publications remain conflicts.
 Replacement remints imported identities privately and prepares all peer roots
 before installation; local data, destination database authority and roles remain
 independent. Reader/writer I/O and lock waits stay outside the cluster mutex.
@@ -512,8 +517,10 @@ owners, separately from populated shared PostgreSQL preservation witnesses.
 
 ## Installed byte pageinspect runtime
 
-`pageinspect_capture.go` checks current installed identity and superuser
-authority after STRICT argument evaluation. BRIN item decoding opens the exact
+`pageinspect_capture.go` checks genuine immutable released routine identity,
+current reciprocal membership and superuser authority after STRICT argument
+evaluation. It does not require a live original pageinspect extension or infer
+capability from a receiving extension. BRIN item decoding opens the exact
 regclass descriptor with a temporary AccessShare contribution, waits outside
 metadata locks, and readmits the same descriptor before capturing per-column
 stored types. It never reads table rows or fabricates physical pages. The
@@ -554,6 +561,12 @@ materialized and closed before restoring outer scratch. An explicit frame stack 
 traversal; only a completely successful traversal publishes rows. SQL-boundary
 errors receive internal-query diagnostics; later descriptor, conversion and
 cycle errors remain outside that boundary.
+Routine capability comes from the sealed tablefunc installation's released
+declaration, never the current extension member count or receiving extension.
+Detached, renamed and foreign-member connectby routines remain genuine after
+the original extension is retired. Retained typed carriers resolve current
+owner/ACL through the ordinary routine validator, preserving domain/epoch,
+EXECUTE admission and caller-owned record-shape fences.
 Read-only SPI classification rejects utilities before their execution checks;
 optimizable statements retain ordinary analysis before the nonvolatile-function
 gate. Transaction commands and frontend COPY instead terminate the statement
@@ -1202,14 +1215,24 @@ with row effects; standalone utilities retain their ordinary publication boundar
   authority, with child types in the same dependency cell. Domains retain their
   domain-specific stamps.
   Reanalysis normally retires these casts alongside the existing cast group.
-  An installed hstore/lquery/ltree/ltxtquery/ISN owner/ACL-only invalidation in the same environment may
-  carry its nominal cast identity into a single candidate analysis. Executable
-  analysis is still invalidated; current lookup, authority and coercion run
-  before fresh captures publish. A failed candidate leaves the original casts
-  retired. No alias repairs obsolete source spelling.
-  Direct held hstore/lquery/ltree/ltxtquery/ISN literals use candidate-only datum reownership from the
-  exact captured analysis descriptor to the genuine current installed manifest
-  member, under the same environment and definition gates. A local pointer
+  An installed hstore/lquery/ltree/ltxtquery/ISN owner/ACL or membership-only
+  invalidation in the same environment may carry its nominal cast identity into
+  a single candidate analysis. Executable analysis is still invalidated; current
+  lookup, authority and coercion run before fresh captures publish. A failed
+  candidate leaves the original casts retired. No alias repairs obsolete source
+  spelling.
+  Direct held hstore/lquery/ltree/ltxtquery/ISN literals use candidate-only datum
+  reownership from the exact captured analysis descriptor to the genuine current
+  released type, under the same environment and definition gates. The shared
+  scalar admission authenticates the captured/current sealed origin and released
+  role, current mapped type/principal and actual input/output declarations,
+  independently of mutable e-links and the original header's lifetime. Only
+  Owner/ACL/Extension fields are normalized for nominal definition comparison;
+  domain/epoch/dependency-purpose and all other definition fences remain.
+  `TestPreparedInstalledScalarMembership` and
+  `TestReferenceExtensionOwnershipScalarLiteralCaptures` distinguish real held
+  captures before detach/foreign ADD/origin retirement from unchanged-pointer
+  cases using genuine type-renaming generations. A local pointer
   import preserves immutable payloads and NULL framing without weakening Retag
   or catalog import roots. Identity-only attempts leave original temporals
   intact; successful reanalysis publishes fresh temporals and analysis together.
@@ -1487,9 +1510,11 @@ serialize all namespace members. Ordinary table DROP acquires AX on every
 captured root before building its one dependency stage from grant-time
 authority. Waiting never adopts a same-named replacement.
 Routine DROP likewise holds captured procedure roots AX before dependency
-discovery. Checked standard-body/default/aggregate/operator providers hold real
-procedure AS through transaction end; grant-time identity checks never retarget
-a dropped provider. Type and definition-source reads join ordinary stage/journal
+discovery. Checked standard-body/default/aggregate/operator providers and genuine
+type I/O/support procedures hold real procedure AS through transaction end;
+grant-time identity checks never retarget a dropped provider. Type codec
+identities use the same authenticated metadata visitor as dependency projection
+and retirement. Type and definition-source reads join ordinary stage/journal
 fences. Quoted bodies do not acquire hard edges by scanning their source.
 Schema DROP carries an ordered namespace/name manifest, including conditional
 absences, across admission. Current bindings and ownership are validated in the
@@ -1600,6 +1625,15 @@ Producers, the OID registry and descriptor specs live in
   live capacity unchanged. Unlocked repair and final installation fence the
   live OID frontier, including aborted ordinary allocations without a new root.
   Failed candidates never reset another operation's consumed identities.
+- Replacement remaps installed origin, immutable canonical declarations and
+  current membership through one descriptor/procedure remap carrier. Captured
+  origin cohorts and deleted recipe addresses reserve logical identity capacity
+  even without live descriptors, so retained peer TEMP objects cannot collide
+  with a detached installation's provenance. Canonical snapshots never grant
+  current owner/ACL or descriptor authority and contain no physical handles.
+- Ordinary stages, private transaction commit and wholesale replacement all
+  validate reciprocal extension membership through the common catalog accessor;
+  provider-specific validation cannot silently omit an eligible object class.
 - Staged type identity changes (`type_generation.go`) authorize generation
   reownership only from the exact published source descriptor to the changed
   catalog-owned scalar, with unchanged extension and companion identity.
@@ -1876,6 +1910,10 @@ Prepared metadata identity, immutable buffers and token lifetime units use
 
 Text-search parser descriptor, staging, native capability and dependency owner
 units share `RUN='^TestTSParser'`.
+Genuine parser membership, supplied-view/callback authority, COW snapshots,
+lower relocation atomicity, shared callback/configuration remap and strict
+ordinary v3 replay use
+`make check RUN='^TestExtensionOwnershipIdentity$$/^parser_(membership_authority|remap)$$'`.
 
 Runtime work-policy handoff and terminal-owner mechanics use
 `RUN='^TestWorkAdmission'`; real SQL waits and operation lifecycle use reference.
@@ -1934,6 +1972,9 @@ must follow that boundary if its owning method is renamed.
 
 Connectby completion, reconstruction, remapping and descriptor units share
 `RUN='^TestConnectby'`; provider manifest/owner units use `RUN='^TestTablefunc'`.
+All four genuine connectby overloads' membership/origin separation, retained
+typed carriers, current owner/ACL and shared sealed remap are covered by
+`make check RUN='^TestExtensionOwnershipIdentity$$/^connectby_'`.
 `TestConnectbyAdmittedExecutionOwnership` observes the complete recursive
 source/RLS capture and local-view release on success, nested conversion failure,
 admitted sort cancellation and cancellation after child output accumulation.

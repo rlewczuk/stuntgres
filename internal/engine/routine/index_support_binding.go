@@ -90,16 +90,23 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 		}
 		if support.Provider == sqltype.CubeIndexSupport || support.Provider == sqltype.HstoreIndexSupport {
 			member, _ := view.FamilySupport(fact.Family, fact.InputType, fact.InputType, int16(slot))
-			if member == nil || member.InternalOwner != fact.Address() || fact.Extension == (ids.ObjectAddress{}) {
+			if member == nil || member.InternalOwner != fact.Address() || !fact.Origin.Valid(fact.Address()) {
 				return class, fmt.Errorf("stuntgres: cube support requires its installed class")
 			}
 		}
-		if support.Provider==sqltype.LtreeIndexSupport {
-			member,_:=view.FamilySupport(fact.Family,fact.InputType,fact.InputType,int16(slot))
-			owner:=fact.Address();if class.IsHash()&&slot==2{owner=ids.ObjectAddress{}}
-			if member==nil||member.InternalOwner!=owner||fact.Extension==(ids.ObjectAddress{}){return class,fmt.Errorf("stuntgres: ltree support requires its installed class/family")}
+		if support.Provider == sqltype.LtreeIndexSupport {
+			member, _ := view.FamilySupport(fact.Family, fact.InputType, fact.InputType, int16(slot))
+			owner := fact.Address()
+			if class.IsHash() && slot == 2 {
+				owner = ids.ObjectAddress{}
+			}
+			if member == nil || member.InternalOwner != owner || !fact.Origin.Valid(fact.Address()) {
+				return class, fmt.Errorf("stuntgres: ltree support requires its installed class/family")
+			}
 		}
-		if support.Provider!=sqltype.BuiltinIndexSupport{support.ClassRevision=uint64(fact.Revision())}
+		if support.Provider != sqltype.BuiltinIndexSupport {
+			support.ClassRevision = uint64(fact.Revision())
+		}
 		class = class.WithSupport(slot, support)
 	}
 	return class, nil
@@ -115,11 +122,17 @@ func BindIndexOrdering(view catalog.Read, usage sqltype.Usage, class sqltype.Ind
 
 // BindCapturedIndexOrdering retains the genuine source operation for stored
 // SortKey transport; the ordinary index execution path needs only the kernel.
-func BindCapturedIndexOrdering(view catalog.Read,usage sqltype.Usage,class sqltype.IndexClass)(sqltype.IndexComparison,*catalog.CapturedIndexOrdering,error){
-	class,err:=BindClassSupport(view,class);if err!=nil{return sqltype.IndexComparison{},nil,err}
-	kernel,err:=sqltype.BindIndexOrdering(usage,class);if err!=nil{return sqltype.IndexComparison{},nil,err}
-	capture,err:=catalog.CaptureIndexOrdering(view,usage,class,kernel)
-	return kernel,capture,err
+func BindCapturedIndexOrdering(view catalog.Read, usage sqltype.Usage, class sqltype.IndexClass) (sqltype.IndexComparison, *catalog.CapturedIndexOrdering, error) {
+	class, err := BindClassSupport(view, class)
+	if err != nil {
+		return sqltype.IndexComparison{}, nil, err
+	}
+	kernel, err := sqltype.BindIndexOrdering(usage, class)
+	if err != nil {
+		return sqltype.IndexComparison{}, nil, err
+	}
+	capture, err := catalog.CaptureIndexOrdering(view, usage, class, kernel)
+	return kernel, capture, err
 }
 func BindPartitionHash(view catalog.Read, usage sqltype.Usage, class sqltype.IndexClass) (sqltype.PartitionHash, error) {
 	class, err := BindClassSupport(view, class)
@@ -138,27 +151,71 @@ func selectNativeIndexSupport(view catalog.Read, family, left, right uint32, slo
 		return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: inconsistent index support member")
 	}
 	proc, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: member.Function})
-	if ok && extension.LtreeProviderOf(proc)==extension.StockLtree {
-		if err:=extension.StockLtree.ValidateProcedure(view,proc);err!=nil{return sqltype.IndexSupport{},err}
-		installation,_:=view.Extension(proc.Extension)
-		fact,exists:=view.OperatorFamily(ids.ObjectAddress{ClassID:ids.OperatorFamilyClassID,ObjectID:ids.OID(family)})
-		if !exists||left!=right||fact.Extension!=proc.Extension{return sqltype.IndexSupport{},fmt.Errorf("stuntgres: invalid ltree support family")}
-		fs,cs,kind:=extension.LtreeBtreeFamilySlot,extension.LtreeBtreeClassSlot,6
-		if fact.Method==405&&(slot==1||slot==2){fs,cs,kind=extension.LtreeHashFamilySlot,extension.LtreeHashClassSlot,6+int(slot)}else if fact.Method!=403||slot!=1{return sqltype.IndexSupport{},fmt.Errorf("stuntgres: invalid ltree support slot")}
-		class,exists:=view.OperatorClass(installation.Members[cs].ObjectID)
-		owner:=ids.ObjectAddress{};if exists && !(fact.Method==405&&slot==2){owner=class.Address()}
-		if !exists||installation.Members[fs]!=fact.Address()||member.InternalOwner!=owner||class.Family!=ids.OID(family)||class.InputType!=ids.OID(left)||class.Method!=fact.Method||installation.Members[extension.LtreeComparisonProcedureStart+kind]!=proc.Address(){return sqltype.IndexSupport{},fmt.Errorf("stuntgres: invalid installed ltree support class")}
-		return sqltype.IndexSupport{Provider:sqltype.LtreeIndexSupport,Family:family,Member:uint32(member.Address().ObjectID),Routine:uint32(member.Function),Left:left,Right:right,Revision:uint64(member.Revision()),FamilyRevision:uint64(fact.Revision()),RoutineRevision:uint64(proc.Revision())},nil
+	if ok && extension.LtreeProviderOf(proc) == extension.StockLtree {
+		if err := extension.StockLtree.ValidateProcedure(view, proc); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
+		installation, exists := catalog.OriginInstallation(proc)
+		if !exists || installation.Implementation != extension.StockLtree || len(installation.Members) != extension.LtreeMemberCount {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: missing ltree support installation")
+		}
+		fact, exists := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(family)})
+		if !exists || left != right || !catalog.SameInstallation(fact, installation) {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid ltree support family")
+		}
+		fs, cs, kind := extension.LtreeBtreeFamilySlot, extension.LtreeBtreeClassSlot, 6
+		if fact.Method == 405 && (slot == 1 || slot == 2) {
+			fs, cs, kind = extension.LtreeHashFamilySlot, extension.LtreeHashClassSlot, 6+int(slot)
+		} else if fact.Method != 403 || slot != 1 {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid ltree support slot")
+		}
+		class, exists := view.OperatorClass(installation.Members[cs].ObjectID)
+		owner := ids.ObjectAddress{}
+		if exists && !(fact.Method == 405 && slot == 2) {
+			owner = class.Address()
+		}
+		if !exists || !catalog.SameInstallation(class, installation) || installation.Members[fs] != fact.Address() || member.InternalOwner != owner || class.Family != ids.OID(family) || class.InputType != ids.OID(left) || class.Method != fact.Method || installation.Members[extension.LtreeComparisonProcedureStart+kind] != proc.Address() {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed ltree support class")
+		}
+		if err := catalog.ValidateInstalledClassOrigin(view, fact); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
+		if err := extension.ValidateLtreeClassBindings(view, class); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
+		if err := (catalog.OperatorFamilyProvider{Class: ids.AccessMethodProcedureClassID}).Validate(view, member); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
+		return sqltype.IndexSupport{Provider: sqltype.LtreeIndexSupport, Family: family, Member: uint32(member.Address().ObjectID), Routine: uint32(member.Function), Left: left, Right: right, Revision: uint64(member.Revision()), FamilyRevision: uint64(fact.Revision()), RoutineRevision: uint64(proc.Revision())}, nil
 	}
 	if ok && extension.HstoreProviderOf(proc) == extension.StockHstore {
-		if err := extension.StockHstore.ValidateProcedure(view, proc); err != nil { return sqltype.IndexSupport{}, err }
-		installation, _ := view.Extension(proc.Extension)
+		if err := extension.StockHstore.ValidateProcedure(view, proc); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
+		installation, exists := catalog.OriginInstallation(proc)
+		if !exists || installation.Implementation != extension.StockHstore {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: missing hstore support installation")
+		}
 		fact, exists := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(family)})
-		if !exists || left != right || fact.Extension != proc.Extension { return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid hstore support family") }
+		if !exists || left != right || !catalog.SameInstallation(fact, installation) {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid hstore support family")
+		}
 		fs, cs, kind := extension.HstoreBtreeFamilySlot, extension.HstoreBtreeClassSlot, 6
-		if fact.Method == 405 && (slot == 1 || slot == 2) { fs, cs, kind = extension.HstoreHashFamilySlot, extension.HstoreHashClassSlot, 6+int(slot) } else if fact.Method != 403 || slot != 1 { return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid hstore support slot") }
+		if fact.Method == 405 && (slot == 1 || slot == 2) {
+			fs, cs, kind = extension.HstoreHashFamilySlot, extension.HstoreHashClassSlot, 6+int(slot)
+		} else if fact.Method != 403 || slot != 1 {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid hstore support slot")
+		}
 		class, exists := view.OperatorClass(installation.Members[cs].ObjectID)
-		if !exists || installation.Members[fs] != fact.Address() || member.InternalOwner != class.Address() || class.Family != ids.OID(family) || class.InputType != ids.OID(left) || class.Method != fact.Method || installation.Members[extension.HstoreComparisonProcedureStart+kind] != proc.Address() { return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed hstore support class") }
+		if !exists || installation.Members[fs] != fact.Address() || member.InternalOwner != class.Address() || class.Family != ids.OID(family) || class.InputType != ids.OID(left) || class.Method != fact.Method || installation.Members[extension.HstoreComparisonProcedureStart+kind] != proc.Address() {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed hstore support class")
+		}
+		if err := catalog.ValidateInstalledClassOrigin(view, fact); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
+		if err := catalog.ValidateInstalledClassOrigin(view, class); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
 		return sqltype.IndexSupport{Provider: sqltype.HstoreIndexSupport, Family: family, Member: uint32(member.Address().ObjectID), Routine: uint32(member.Function), Left: left, Right: right, Revision: uint64(member.Revision()), FamilyRevision: uint64(fact.Revision()), RoutineRevision: uint64(proc.Revision())}, nil
 	}
 	var cube catalog.ExtensionImplementation
@@ -166,12 +223,9 @@ func selectNativeIndexSupport(view catalog.Read, family, left, right uint32, slo
 		cube = view.Owner().Extensions["cube"]
 	}
 	if cube != nil && proc.Implementation == cube {
-		installation, exists := view.Extension(proc.Extension)
-		if !exists {
+		installation, exists := catalog.OriginInstallation(proc)
+		if !exists || installation.Implementation != cube {
 			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: missing cube support installation")
-		}
-		if err := cube.ValidateExtension(view, installation); err != nil {
-			return sqltype.IndexSupport{}, err
 		}
 		symbol, err := extension.ProcedureSymbol(view, proc)
 		if err != nil {
@@ -179,11 +233,11 @@ func selectNativeIndexSupport(view catalog.Read, family, left, right uint32, slo
 		}
 		single := strconv.FormatUint(uint64(left), 10)
 		fact, exists := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(family)})
-		if !exists || fact.Method != 403 || fact.Extension != proc.Extension || slot != 1 || left != right || symbol != "cube_cmp" || string(proc.Signature) != single+","+single || proc.Result != 23 || member.InternalOwner.ClassID != ids.OperatorClassCatalogID || member.InternalOwner.ObjectID == 0 || member.InternalOwner.SubID != 0 {
+		if !exists || fact.Method != 403 || !catalog.SameInstallation(fact, installation) || slot != 1 || left != right || symbol != "cube_cmp" || string(proc.Signature) != single+","+single || proc.Result != 23 || member.InternalOwner.ClassID != ids.OperatorClassCatalogID || member.InternalOwner.ObjectID == 0 || member.InternalOwner.SubID != 0 {
 			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed cube support selection")
 		}
 		class, exists := view.OperatorClass(member.InternalOwner.ObjectID)
-		if !exists || class.Family != fact.Address().ObjectID || class.InputType != ids.OID(left) || class.Extension != fact.Extension || class.Method != 403 {
+		if !exists || class.Family != fact.Address().ObjectID || class.InputType != ids.OID(left) || !catalog.SameInstallation(class, installation) || class.Method != 403 {
 			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed cube support class")
 		}
 		return sqltype.IndexSupport{Provider: sqltype.CubeIndexSupport, Family: family, Member: uint32(member.Address().ObjectID), Routine: uint32(member.Function), Left: left, Right: right, Revision: uint64(member.Revision()), FamilyRevision: uint64(fact.Revision()), RoutineRevision: uint64(proc.Revision())}, nil

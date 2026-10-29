@@ -56,7 +56,7 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 			}
 		}
 		var failure error
-		catalog.VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+		catalog.VisitProcedureDefinitionDependencies(view, d, func(address ids.ObjectAddress) bool {
 			// Typed declaration prerequisites above already cover these types.
 			// Other body/default types still come from the shared visitor.
 			if address.ClassID == ids.TypeClassID && d.SQL != nil {

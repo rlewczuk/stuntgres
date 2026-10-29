@@ -62,7 +62,13 @@ func (d *Procedure) RowEstimate() float32 {
 }
 
 func (d *Procedure) Seeded() bool {
-	return d.SnowballHelper != NoSnowballHelper || d.PLHandler != NoPLHandler || d.Builtin != nil || d.Conversion.Name() != "" || d.BrinSupport != 0 || d.AccessMethod != NoAccessMethod && NativeHandler(d.Address().ObjectID) == d.AccessMethod
+	return d.SnowballHelper != NoSnowballHelper || d.Builtin != nil || d.Conversion.Name() != "" || d.BrinSupport != 0 || d.AccessMethod != NoAccessMethod && NativeHandler(d.Address().ObjectID) == d.AccessMethod
+}
+
+// Snowball helpers are allocated after initdb stops making pinned objects.
+// Seeded still identifies their intrinsic implementation and replay authority.
+func (d *Procedure) Pinned() bool {
+	return d.Seeded() && d.SnowballHelper == NoSnowballHelper
 }
 
 // Published descriptors are pointer-owned catalog payloads. They remain stable

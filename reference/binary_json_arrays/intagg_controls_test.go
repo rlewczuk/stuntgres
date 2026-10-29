@@ -203,20 +203,9 @@ func TestReferenceIntaggControls(t *testing.T) {
 
 func intaggRestoreFailures(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, dump string, checks []fixture.Step, held func()) {
 	t.Helper()
-	const prefix = "-- stuntgres-extension-owners-v2 "
-	start := strings.Index(dump, prefix)
-	if start < 0 {
-		t.Fatal("missing extension owners")
-	}
-	rel := strings.Index(dump[start:], "\n")
-	if rel < 0 {
-		t.Fatal("unterminated owners")
-	}
-	end := start + rel
-	data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(dump[start:end], prefix))
-	if err != nil {
-		t.Fatal(err)
-	}
+	const prefix = "-- stuntgres-extension-owners-v3 "
+	start, end, data := fixture.CatalogExtensionOwnerDirective(t, dump, "intagg", true)
+	var err error
 	var record map[string]any
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)

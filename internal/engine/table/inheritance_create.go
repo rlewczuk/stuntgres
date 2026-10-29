@@ -133,13 +133,29 @@ func StageInheritance(h Host, auth ddl.Authority, d *catalog.Relation, b analyze
 				return err
 			}
 			for _, ref := range dependencies {
-				address := ref.Address
-				address.SubID = 0
-				revision := d.Revision()
-				if provider, ok := view.Catalog.Descriptor(address); ok {
-					revision = provider.Revision()
+				dependency := catalog.ExpressionDependency{Ref: ref, Revision: d.Revision()}
+				// Row remapping does not recapture external declarations. Keep
+				// their original hard manifest, including a routine's captured
+				// revision across lawful identity/owner COW publications.
+				captured := false
+				for _, original := range old.Dependencies {
+					if original.Ref == ref {
+						dependency = original
+						captured = true
+						break
+					}
 				}
-				copied.Dependencies = append(copied.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})
+				if !captured {
+					if ref.Address.ClassID == ids.ProcedureClassID {
+						return fmt.Errorf("stuntgres: missing inherited check routine dependency")
+					}
+					address := ref.Address
+					address.SubID = 0
+					if provider, ok := view.Catalog.Descriptor(address); ok {
+						dependency.Revision = provider.Revision()
+					}
+				}
+				copied.Dependencies = append(copied.Dependencies, dependency)
 			}
 			d.Constraints.Check = append(d.Constraints.Check, copied)
 		}

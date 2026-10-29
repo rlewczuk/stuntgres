@@ -100,10 +100,17 @@ func (p *DictionaryPreparation) Compile(ctx context.Context) error {
 }
 func (p *DictionaryPreparation) Current(view catalog.Read) bool {
 	if p.Template != nil {
-		for _, address := range [2]ids.ObjectAddress{p.Template.Init, p.Template.Lexize} {
-			if address != (ids.ObjectAddress{}) && view.Get(address) != p.View.Get(address) { return false }
+		if err := (CatalogProvider{Class: ids.TSTemplateClassID}).Validate(view, p.Template); err != nil {
+			return false
 		}
-		if dictionaryCapability(view, p.Template) != dictionaryCapability(p.View, p.Template) { return false }
+		for _, address := range [2]ids.ObjectAddress{p.Template.Init, p.Template.Lexize} {
+			if address != (ids.ObjectAddress{}) && view.Get(address) != p.View.Get(address) {
+				return false
+			}
+		}
+		if dictionaryCapability(view, p.Template) != dictionaryCapability(p.View, p.Template) {
+			return false
+		}
 	}
 	return (p.Template == nil || view.Get(p.Template.Address()) == p.Template) && (p.Original == nil || view.Get(p.Original.Address()) == p.Original) && (p.Namespace == nil || view.Get(p.Namespace.Address()) == p.Namespace)
 }

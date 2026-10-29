@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-		"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -82,7 +82,7 @@ func TestHstoreComparisonRemap(t *testing.T) {
 			}
 			return view.Owner().Domain.Ref(view.Epoch(), address)
 		},
-		Procedure: extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil),
+		Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), replacementProcedurePolicyFixture(source, target), nil),
 	}
 	mapOriginal := func(node expr.Expr) (expr.Expr, error) {
 		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{node}}})
@@ -101,11 +101,15 @@ func TestHstoreComparisonRemap(t *testing.T) {
 			result, _ := sourceView.LookupType(sqltype.ID(captured.Result))
 			literal := plan.LiteralExpr{Info: expr.Info{Usage: sourceType.SQLType.Usage()}, Value: value}
 			args := []expr.Expr{literal, literal}
-			if kind == 7 { args = args[:1] }
+			if kind == 7 {
+				args = args[:1]
+			}
 			if kind == 8 {
 				int8Type, _ := sourceView.LookupType(sqltype.Int8)
 				seed, err := sqltype.Integer(int8Type, 1)
-				if err != nil { t.Fatal(err) }
+				if err != nil {
+					t.Fatal(err)
+				}
 				args[1] = plan.LiteralExpr{Info: expr.Info{Usage: int8Type.Usage()}, Value: seed}
 			}
 			original := plan.HstoreComparisonExpr{
@@ -137,15 +141,33 @@ func TestHstoreComparisonRemap(t *testing.T) {
 			}
 			for i, argument := range mapped.Args {
 				want := imported.SQLType
-				if kind == 8 && i == 1 { want, _ = view.LookupType(sqltype.Int8) }
-				if argument.ResultUsage().Type != want || argument.(plan.LiteralExpr).Value.Type() != want { t.Fatal("retained a source argument type", argument) }
+				if kind == 8 && i == 1 {
+					want, _ = view.LookupType(sqltype.Int8)
+				}
+				if argument.ResultUsage().Type != want || argument.(plan.LiteralExpr).Value.Type() != want {
+					t.Fatal("retained a source argument type", argument)
+				}
 			}
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: view}}
 			resultValue, err := mapped.Eval(&evaluation)
-			if err != nil || resultValue.Type() != result { t.Fatal("remapped scalar execution", resultValue, err) }
-			if kind == 6 { if n, err := resultValue.Integer(); err != nil || n != 0 { t.Fatal("remapped comparator", n, err) } }
-			if kind == 7 { if n, err := resultValue.Integer(); err != nil || n != -1077040027 { t.Fatal("remapped hash", n, err) } }
-			if kind == 8 { if n, err := resultValue.Integer(); err != nil || n != 7681866774737967775 { t.Fatal("remapped seeded hash", n, err) } }
+			if err != nil || resultValue.Type() != result {
+				t.Fatal("remapped scalar execution", resultValue, err)
+			}
+			if kind == 6 {
+				if n, err := resultValue.Integer(); err != nil || n != 0 {
+					t.Fatal("remapped comparator", n, err)
+				}
+			}
+			if kind == 7 {
+				if n, err := resultValue.Integer(); err != nil || n != -1077040027 {
+					t.Fatal("remapped hash", n, err)
+				}
+			}
+			if kind == 8 {
+				if n, err := resultValue.Integer(); err != nil || n != 7681866774737967775 {
+					t.Fatal("remapped seeded hash", n, err)
+				}
+			}
 			_, originalSignature, _ := extension.HstoreComparisonDeclaration(kind, sourceType.SQLType.ID())
 			if original.Ref == mappedRef || original.RoutineReference != captured || original.Args[0].ResultUsage().Type != sourceType.SQLType || original.Args[0].(plan.LiteralExpr).Value != value || captured.Signature != originalSignature {
 				t.Fatal("remapping changed the captured source")
@@ -346,4 +368,7 @@ func TestHstoreComparisonRemap(t *testing.T) {
 
 }
 
-func hstoreUnitComparisonSignature(id sqltype.ID) catalog.ProcedureSignature {s:=extension.HstoreSignature(id);return s+","+s}
+func hstoreUnitComparisonSignature(id sqltype.ID) catalog.ProcedureSignature {
+	s := extension.HstoreSignature(id)
+	return s + "," + s
+}

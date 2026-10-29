@@ -155,13 +155,16 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		}
 		return err
 	}})
-	if err != nil || len(records) != 1 || len(records[0].Members) != 10 || records[0].Members[0].Name != "daitch_mokotoff" || records[0].Members[0].Signature != "25" {
+	if len(records) == 1 {
+		records[0] = extensionOwnerRecipeOrder(records[0])
+	}
+	if err != nil || len(records) != 1 || len(records[0].Members) != 10 || records[0].Members[0].Name != "daitch_mokotoff" || records[0].Members[0].Signature != "pg_catalog.text" {
 		t.Fatal("symbolic ownership", records, err)
 	}
-	symbolic := map[string]bool{"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true, "levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true, "metaphone:25,23": true, "dmetaphone:25": true, "dmetaphone_alt:25": true, "soundex:25": true, "difference:25,25": true}
+	symbolic := map[string]bool{"daitch_mokotoff:pg_catalog.text": true, "levenshtein:pg_catalog.text, pg_catalog.text": true, "levenshtein:pg_catalog.text, pg_catalog.text, integer, integer, integer": true, "levenshtein_less_equal:pg_catalog.text, pg_catalog.text, integer": true, "levenshtein_less_equal:pg_catalog.text, pg_catalog.text, integer, integer, integer, integer": true, "metaphone:pg_catalog.text, integer": true, "dmetaphone:pg_catalog.text": true, "dmetaphone_alt:pg_catalog.text": true, "soundex:pg_catalog.text": true, "difference:pg_catalog.text, pg_catalog.text": true}
 	for slot, member := range records[0].Members {
 		key := member.Name + ":" + member.Signature
-		if member.Slot != slot || member.Schema != "public" || member.Kind != "procedure" || member.Owner != "postgres" || !symbolic[key] {
+		if member.Declaration == nil || *member.Declaration != slot || member.Schema != "public" || member.Kind != "procedure" || member.Owner != "postgres" || !symbolic[key] {
 			t.Fatal("symbolic member identity", member)
 		}
 		delete(symbolic, key)
@@ -355,7 +358,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 			t.Fatal("missing target type", d.ID())
 		}
 		return owned
-	}, Procedure: extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil)}
+	}, Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), replacementProcedurePolicyFixture(source, target), nil)}
 	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "codes", Usage: old.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{old}}
 	remapped, err := mapper.Query(query)
 	if err != nil {
@@ -412,9 +415,12 @@ func TestFuzzystrmatchManifestSlotAuthority(t *testing.T) {
 	if err := extension.StockFuzzystrmatch.ValidateExtension(view, &copy); err != nil {
 		t.Fatal("equivalent base manifest rejected", err)
 	}
-	// dmetaphone/dmetaphone_alt have the same signature/result.
-	// Supplied slot order must still match the authoritative inventory.
-	copy.Members[5], copy.Members[6] = copy.Members[6], copy.Members[5]
+	// Same-shaped declarations cannot be reordered in a fabricated immutable
+	// recipe; current SQL membership order is not executable authority.
+	forged := *copy.Installation
+	forged.Members = append([]ids.ObjectAddress(nil), forged.Members...)
+	forged.Members[5], forged.Members[6] = forged.Members[6], forged.Members[5]
+	copy.Installation = &forged
 	if err := extension.StockFuzzystrmatch.ValidateExtension(view, &copy); err == nil {
 		t.Fatal("same-shape supplied slots reordered")
 	}

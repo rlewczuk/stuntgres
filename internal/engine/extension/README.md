@@ -1,11 +1,12 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for the eighteen bundled extensions (amcheck, citext, cube,
-earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pageinspect, pgcrypto, pgrowlocks, seg, tablefunc, unaccent, uuid-ossp),
+and control data for bundled extensions (amcheck, citext, cube,
+earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pageinspect,
+pgcrypto, pgrowlocks, seg, tablefunc, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
-extension remap, provider staging, and the decisions of the CREATE, ALTER
-EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
+extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
+ownership/membership/relocation and Restore owner-import decisions.
 
 ## Imports
 
@@ -25,22 +26,40 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `CubeTypeContext`, `IntarrayInputContext`, `UnaccentTemplateContext`, …),
   signatures (`CubeSignature`, `CubeBinarySignature`, `QueryIntSignature`) and
   member tables (`FuzzystrmatchMembers`, `IntaggMembers`) are what staging needs.
+  PL/pgSQL staging uses catalog's `PLHandler.ReleasedProcedure`, the same released
+  declaration producer as bootstrap; neither path infers C library provenance
+  or parallel safety from current membership. The sealed recipe retains those
+  declaration facts while current owner/ACL, cost and parallel overrides remain
+  independent and survive native replay.
 - **Accessors** (`extension_implementation.go`): `CitextProviderOf` …
   `UnaccentDictionaryProviderOf` return a descriptor's implementation when it
   has that concrete type, and nil otherwise.
-- **Routine identity**: `ProcedureSymbol(view, procedure)` checks current
-  descriptor/address/index and typed owner provenance, installation/version,
-  unique member addresses and versioned slot signature/kind/result/capability.
-  `ProcedureInstallationName` applies the same checks to the original SQL name
-  used by installation replay; executable C symbols are not SQL call names.
-  Public name/namespace are presentation; `ProviderOf` alone is not installed
-  authority. Supplied COW manifests must match current identity, version,
-  revision, target namespace, owner and unique ordered inventory; pointer
-  equality neither proves authority nor excuses corruption. An individual move
-  changes no sibling or extension target. Fuzzystrmatch 1.1 omits slot-zero
-  daitch_mokotoff; 1.2 inserts it while retaining incumbent addresses. Detached
-  unaccent retains exact immutable metadata shape admission, not installed
-  execution or replay authority; `ProcedureSymbol` rejects detached declarations.
+- **Routine identity**: `ProcedureSymbol(view, procedure)` checks the current
+  descriptor/address/index, typed capability and immutable installed
+  release/declaration origin. Mutable names, schema, owner and SQL membership
+  never select executable symbols. `Installation.Members` and aligned canonical
+  `Declarations` form one sealed logical script recipe; `Extension.Members` and
+  reciprocal descriptor links independently describe current SQL membership.
+  Ordinary added objects gain no installed origin. Detached and foreign-attached
+  providers remain executable after origin-extension removal, subject to genuine
+  helper/type dependencies. Fuzzystrmatch UPDATE retains incumbent original
+  declarations and adds the genuinely scripted release declaration. Slots are
+  local to each release recipe: the 1.2 inventory prepends its new function,
+  while surviving 1.1 objects retain their original sealed recipe and slot.
+  Stored routine carriers compare that immutable release/declaration authority,
+  not current extension links. Replay may bind a consumer while its provider is
+  detached and complete the current membership afterward without staling the
+  consumer. Independently remapped sealed recipes compare by mapped cohort,
+  provider, implementation, release and slot; copied/unsealed recipes and changed
+  releases or declaration slots are not equivalent.
+  `ProcedureInstallationName` applies the same origin checks to the released SQL
+  name used by replay; executable C symbols are not SQL call names.
+  Script sealing and generated-membership admission revise already staged
+  creations through the extension host's identity-preserving candidate update;
+  they do not replace nonexistent base predecessors. The original CREATE
+  name/absence observations remain publication fences. Base-object revisions
+  still use ordinary replacement, and all candidates retain full provider,
+  reciprocal membership and current installed-declaration validation.
   The pgrowlocks, pageinspect and amcheck manifest builders also own immutable fixed OUT
   type IDs and complete formal names, including their input names. Their
   comparable installed declaration carries the shared immutable payload through
@@ -55,27 +74,66 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   parsed body recipes without granting SQL execution or checked-program authority.
   Earthdistance resolves the installed cube schema substitution once at staging;
   catalog capture never parses or evaluates an installed routine.
+  Replay reads that captured spelling through the private concrete syntax owner,
+  binding it to the sealed domain's actual cube type/cohort. It runs the genuine
+  Earth producer while that prerequisite is at the captured coordinates; current
+  cube placement never rewrites an old declaration tree. Earth has only the
+  represented 1.2 installation boundary, so no synthetic UPDATE is introduced.
+  The spelling is not lookup/execution authority and adds no owner-codec field.
+  Released Earth body dependencies use the shared read-aware definition visitor:
+  sec_to_gc/gc_to_sec, ll_to_earth and latitude retain their real radius edge;
+  ll_to_earth retains both genuine cube constructor overloads, and
+  latitude/longitude retain cube_ll_coord. The sealed Earth domain's base type
+  selects the genuine cube origin and declaration slots, never captured spelling
+  or current extension membership. Repeated written calls yield one direct edge.
+  Current callee identity and principal validation still gate callable authority.
+  UUID-ossp staging likewise preserves the released parallel-safe declaration
+  and the `namespace`, `name` input labels of v3/v5. These labels belong to the
+  sealed declaration, survive remapping and current membership changes, and
+  resolve named calls through the ordinary formal-argument binder.
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider` validates
   the extension, text search template and dictionary classes and installed
   member procedures; `ValidateProviderHeader` is the identity check it shares
   with `stored.ProcedureProvider`; a descriptor's owning extension is
   `catalog.ExtensionMembership`. `extension_type_validation.go` validates an
   installed codec's array through the type provider registered in the catalog
-  owner.
+  owner. Current installation validation checks both directions of membership,
+  including descriptors omitted from a supplied member bag, without requiring
+  current membership to equal the released recipe. Missing class providers in a
+  populated engine registry reject; registry-free identity units retain their
+  explicit typed validation path.
+  Extension-class admission requires the exact header resident in the supplied
+  view and a principal from that view's owner. Private install, transaction and
+  remap views may contain unpublished headers; this is not a committed-store
+  pointer fence. `ValidateExtension` checks the candidate's sealed installation
+  and reciprocal current graph without granting that candidate live-header
+  authority.
   Installed tablefunc procedures enter the same class validator and retain the
-  full provider manifest, composite/array reciprocity, explicit parallel-unsafe
+  full released recipe, composite/array reciprocity, explicit parallel-unsafe
   declarations and current owner checks; a recognized implementation alone never
-  bypasses installation validation. SQL replay reconstructs the three declared
-  composite identities and their generated arrays together. All six types remain
-  direct extension members with distinct symbolic ownership roles; array role
-  suffixes are not independently declared SQL identifiers.
+  bypasses origin validation. SQL replay reconstructs the three declared
+  composite identities and their generated arrays together. Their six immutable
+  type roles remain independent of mutable current extension membership; array
+  role suffixes are not independently declared SQL identifiers.
+  Installed operator admission retains its released restriction/join estimator
+  identities and current owner authority. Object-local membership validation
+  checks a nonzero parent link; parent installation validation owns the reverse
+  member bag, so a one-sided detach rejects there. Coherent detach or foreign
+  attachment preserves the sealed operator declaration and backer authority.
+  Text-search templates validate their captured callbacks through the registered
+  procedure provider, including exact intrinsic builtin declaration identity.
+  Ordinary templates remain ordinary creators even when extension members.
+  Installed unaccent templates authenticate the sealed released template role
+  and callback declarations from the same genuine cohort; detached, foreign and
+  absent-origin membership states do not change their execution capability.
+  Compilation and publication-current checks share this authority validation.
 - **Seg members** (`seg_provider.go`, `seg_stage.go`): the trusted relocatable
   1.4 provider owns the twelve-byte scalar and strict immutable C input/output
-  roles. Its reciprocal array is lookup-only, not an extension member. Staging,
-  validation, symbolic owner signatures and import use the shared installation
-  authority; mutable labels never grant codec execution.
+  roles. Its reciprocal array is internally dependent and a current direct
+  extension member, without an invented scalar recipe slot. Mutable labels and
+  membership never grant codec execution.
 - **Ltree members** (`ltree_provider.go`, `ltree_stage.go`, `ltree_arrays.go`):
-  the current 1.3 manifest preserves lquery, ltree and ltxtquery type/input/output
+  the immutable 1.3 recipe preserves lquery, ltree and ltxtquery type/input/output
   triples at slots 0–8. Sixteen strict immutable C array routines at 9–24 and
   their operators at 25–40 are staged and validated atomically. Staging resolves
   signatures against the privately constructed scalar/companion descriptors;
@@ -83,40 +141,54 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   predicates have reciprocal commutators and `matchingsel`/`matchingjoinsel`
   metadata, as set by the upstream 1.1-to-1.2 upgrade and retained in 1.3. The four
   extractors return the first ancestor, descendant, lquery or ltxtquery match as
-  installation-owned ltree or NULL. Ltree/lquery companions are
-  concrete and internally dependent, not direct extension members; ltxtquery's
-  companion stays lookup-only. Routine-name discovery is only a selector hint:
-  current catalog declarations, symbolic scalar/array roles and exact signatures,
-  never mutable labels or equal OIDs, authorize invocation and owner import.
-  Nine comparison/support routines and six standard operators follow the array
-  tail, with default B-tree and hash classes/families. Staging and validation keep
-  the complete sixty-member comparison graph atomic, preserving all earlier slots.
-  Two scalar hierarchy routines and reciprocal `@>`/`<@` operators append after
-  those classes, returning strict BOOL with inclusive equality and the genuine
-  `matchingsel`/`matchingjoinsel` catalog identities.
-  Nineteen path procedures and three typed concatenation operators append after
-  the explicitly bounded hierarchy tail, preserving slots 64–85.
-  One declaration table supplies exact overloads, C symbols, symbolic ownership
-  signatures and operator backers. Scalar LCA has separate arities two through
-  eight; array LCA uses the concrete installed companion. Builtin integer/text
-  formals retain their stock identities; text concatenation adds no implicit cast.
-  The three concatenation slots may move independently through
-  `LtreePathRelocatableOperator`, which authenticates their current manifest,
-  header, exact signature and backing declaration before placement admission.
-  Comparison and hierarchy roles keep their existing placement requirements.
+  installation-owned ltree or NULL. Reciprocal companions are internally
+  dependent current direct members, separate from immutable recipe slots.
+  Ltree/lquery companions are concrete; ltxtquery's stays lookup-only.
+  Routine-name discovery is only a selector hint: `ProcedureSymbol` and the
+  sealed origin's declaration slot select an operation. Scalar/array signatures
+  resolve the same sealed cohort and authenticate actual current type generations,
+  registered providers and principals. Current reciprocal e-membership is checked
+  separately: detach, foreign uuid-ossp attachment and retirement of the original
+  extension do not disable surviving routines/operators or grant a codec.
+  Nine comparison/support routines at 41–49 and six standard operators at 50–55
+  follow the array tail, with default B-tree and hash classes/families at 56–59.
+  Two scalar hierarchy routines at 60–61 and reciprocal `@>`/`<@` operators at
+  62–63 append after those classes, returning strict BOOL with inclusive equality
+  and genuine `matchingsel`/`matchingjoinsel` identities. Hierarchy selection uses
+  the sealed declaration slot and released symbol, validated against the current
+  registered provider, not the receiving extension's header or member order.
+  Nineteen path procedures at 64–82 and three typed concatenation operators at
+  83–85 preserve the explicitly bounded hierarchy tail. One declaration table
+  supplies exact overloads, C symbols, symbolic ownership signatures and operator
+  backers. Path and scalar-query selection authenticate the sealed origin's
+  declaration and released symbol, never current extension headers or member
+  positions. Scalar LCA has separate arities two through eight; array LCA uses the
+  genuine current companion of the origin's nominal ltree role. Builtin
+  integer/text formals retain their stock identities; text concatenation adds no
+  implicit cast.
   Scalar lquery backers occupy slots 86–87 and reciprocal `~` operators occupy
-  88–89, preserving the ninety-member prefix. These strict immutable C BOOL roles
-  retain `contsel`/`contjoinsel`, with no negator, hash or merge support.
+  88–89, preserving the ninety-declaration prefix. These strict immutable C BOOL
+  roles retain `contsel`/`contjoinsel`, with no negator, hash or merge support.
   Mixed scalar `ltxtq_exec` and `ltxtq_rexec` append at 90–91, with reciprocal
   `@` operators at 92–93; their symbolic signatures are `ltree,ltxtquery` and
   `ltxtquery,ltree`. They use the genuine `matchingsel`/`matchingjoinsel` identities.
-  Staging, validation and owner import require the complete 94-member graph,
-  preserving all prior roles and both installed scalar descriptor authorities.
-  Required strategy/support members have exact INTERNAL class ownership;
-  optional hash support2 has AUTO family/routine dependencies. Symbolic owner
-  signatures include exact B-tree/hash class and family method roles; encoding,
-  decoding and import retain the same genuine manifest authority.
-  Scalar storage metadata uses extended storage. This bounded manifest is not an
+  Current mixed-role admission resolves both actual types from the sealed cohort
+  and validates their registered provider and principal, rather than consulting
+  mutable extension membership or a surviving installation header.
+  Private staging resolves its own unpublished descriptors without requiring a
+  sealed installation. Complete recipe validation follows sealing, keeping all
+  94 declarations atomic and preserving earlier roles and both installed scalar
+  descriptor authorities; three generated companions yield 97 initial direct
+  members. Current reciprocal membership validation is separate and imposes no
+  original placement or member-count requirement. Symbolic owner import does not
+  impose a current member count. Required strategy/support members have exact
+  INTERNAL class ownership; optional hash support2 has AUTO family/routine
+  dependencies.
+  Operator bindings retain their released backer, operands, commutators and
+  selectivity identities independently of current names and membership. The sole
+  owner-v3 codec/shared remap preserve the full recipe and three generated
+  companions, retaining current names, owners and ACLs independently of origin.
+  Scalar storage metadata uses extended storage. This bounded recipe is not an
   inventory of every object in the upstream extension.
 - **Template definitions** (`template_*.go`): ownerless schema-bound identities
   hold an optional INIT and mandatory LEXIZE procedure link. Utility lookup
@@ -126,9 +198,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   and the installation namespace, without weakening reciprocal manifest checks.
   Explicit member DROP remains forbidden under both RESTRICT and CASCADE;
   only retirement through the owning extension consumes that membership.
+  Fixed pinned templates retain their independent DROP veto; its object
+  description uses the current dependency search path, not input qualification.
   Definition validity is separate from native dictionary execution. Compilation
   admits only the genuine stock-simple/synonym pairs, authenticated bootstrap
   Snowball helpers, or a currently authenticated unaccent installation's helper pair.
+  Intrinsic callback/template/dictionary capability does not require empty or
+  matching current extension membership or a live installation header. Each
+  current member edge still requires its own reciprocal parent validation.
   Standalone templates use the same actual helper authority. Missing INIT never
   fabricates initialized state, and unavailable native callback combinations fail
   before publication.
@@ -157,16 +234,17 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   ALTER removes all matching old options before appending replacements. Provider
   admission checks the immutable resource/case configuration and authenticated
   helper pair, not a mutable template name or an output-only comparison.
-  Installed dictionaries retain their genuine provider, template/helper links and
-  reciprocal manifest slot across supported name/schema changes. Their public
-  placement is not the installation namespace. Owner metadata accepts mutable
-  dictionary labels only for the unaccent dictionary slot and checks the exact
-  current name/schema/slot during import.
+  Snowball helper, template and dictionary current membership is independent:
+  distinct receivers and detachment preserve intrinsic capability, while class
+  admission still requires each nonzero current e-link's reciprocal parent.
+  Installed dictionaries retain genuine provider origin and template/helper links
+  across independent membership, name and schema changes. V3 import checks final
+  symbolic labels against the actual reconstructed immutable declaration.
   The one-argument unaccent function independently resolves literal `unaccent` in
   its current function schema at execution; the original member slot is provider
   provenance, not a permanent default-dictionary binding.
 - **Cube members** (`cube_provider.go`, `cube_coordinates.go`, `cube_spatial.go`,
-  `cube_spatial_call.go`): one atomic installation validates all 48 direct members.
+  `cube_spatial_call.go`): one atomic installation validates its 48 typed recipe declarations plus genuine generated companion membership.
   The comparison graph keeps its 18-member prefix; constructor/inquiry/coordinate
   and four transformation procedures and two coordinate operators precede the
   spatial procedure/operator tails. Starts and `CubeMemberCount` derive from the
@@ -193,9 +271,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `#>#`, `#>=#`) and default B-tree/hash families and classes. B-tree support
   retains its comparator; hash support retains distinct unseeded and seeded
   routines in slots one and two. Every family member has its exact INTERNAL
-  class owner. Named manifest slots govern identity and remapping; the ownerless,
-  namespaceless cast is omitted from portable ownership records and regenerated
-  by installation. Symbolic signatures preserve each hstore and builtin formal,
+  class owner. Immutable declaration slots govern provenance and remapping;
+  current membership independently includes the associated array and the
+  ownerless, namespaceless cast. The v3 record preserves both without inventing
+  cast ownership. Symbolic signatures preserve each builtin or hstore formal,
   never a source OID. Array, JSON and JSONB roles retain distinct result identities.
   Text-pair and array constructors, scalar/array lookups and presence/defined
   predicates append seven procedures and two binary `->` operators without
@@ -207,7 +286,8 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   resolves to the installation-local hstore in both staging and validation.
   Authenticated recipe operators may change schema independently; manifest,
   signature, result, backer and current header checks retain identity authority.
-  The manifest has sixty-six roles and sixty-five portable owners.
+  The sealed manifest has sixty-six declarations, independent of current
+  membership; its sixty-five owner-bearing roles retain their authority.
   Nonstrict `hstore(record)` and `populate_record(anyelement,hstore)` retain
   their released pseudo signatures; binary `#=` has ANYELEMENT left/result and
   the exact replacement backer. Symbolic ownership never substitutes a selected
@@ -233,12 +313,16 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   a record set. FSM has no named OUT parameter: its source label follows the
   SQL function name or range alias.
   Scalar, record and set results retain exact released declaration shapes and input
-  labels. `ValidatePageinspectCall` validates the selected symbol, formal slots
-  and descriptor-owned results independently of mutable public names. Explicit
-  source identities preserve `bt_page_items_bytea` through member renames.
-  The existing owner codec admits its exact version, nine append-only slots and manifest
-  signatures while preserving independent member owners, renames and schema
-  moves; import still validates each actual destination member identity.
+  labels. Complete private recipe validation runs at CREATE admission; current
+  installation validation accepts reciprocal membership changes without a fixed
+  member count. `ValidatePageinspectCall` validates the immutable released SQL
+  symbol, formal slots and descriptor-owned results independently of mutable
+  public names or the live original extension. Explicit C source identities
+  preserve `bt_page_items_bytea` through member renames. Detachment, foreign
+  membership and original-extension retirement do not change released capability.
+  The v3 owner codec preserves all nine declaration slots, symbolic signatures
+  and immutable OUT payload alongside current owners and membership; import
+  still validates each actual destination member identity.
 - **amcheck** (`amcheck_provider.go`): the untrusted/superuser/relocatable 1.5
   provider installs eight callable members. Slot zero is `verify_heapam`, with
   six canonical inputs and five trailing defaults, a non-STRICT volatile
@@ -262,17 +346,20 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   overload and `crosstab2`/`crosstab3`/`crosstab4` are STABLE, STRICT and
   set-returning. Generic calls use caller-owned record definitions, not provider
   OUT parameters; each fixed wrapper returns its genuine standalone text composite.
-  One ordered sixteen-member manifest contains ten procedures, three named
-  types and their three implicit arrays. Backing composite relations are not
-  extension members. Staging, immutable symbol checks and symbolic owner replay
-  share that inventory; mutable names never grant execution.
+  One sealed sixteen-declaration recipe contains ten procedures, three named
+  types and their three implicit arrays, independent of mutable reciprocal
+  membership. Backing composite relations are not extension members. Staging,
+  immutable symbol checks and symbolic v3 owner replay share that recipe;
+  mutable names never grant execution.
   `Stage.Composite` uses the ordinary relation allocator, row-type staging and
   type ACLs without SQL reentry. Validation checks current executable symbols,
   reciprocal primary/backing/array identities, stable attributes and coherent
-  owners. Portable type roles use `tablefunc_crosstab_N` and its `[]` companion,
-  never mutable names or allocator numbers; import reowns each real backing
-  together with its primary and array. Procedure remapping carries actual
-  named result identities.
+  owners. Portable identities use current symbolic type names and signatures,
+  never allocator numbers; import reowns each real backing together with its
+  primary and array. Procedure remapping carries actual named result identities.
+  Detachment, foreign membership and deletion of the original extension do not
+  change genuine routine capability. Current owner/ACL, domain/epoch and complete
+  released declaration checks still apply.
 - **pgrowlocks** (`pgrowlocks_provider.go`, `pgrowlocks_stage.go`): the
   nontrusted/superuser/relocatable 1.2 singleton installs exactly
   `pgrowlocks(text) RETURNS SETOF record` (STRICT, VOLATILE, parallel safe).
@@ -282,8 +369,8 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   is serialized.
 - **isn** (`isn_provider.go`, `isn_stage.go`): the trusted, relocatable 1.3
   provider installs `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13` and `upc`, each with a
-  reciprocal lookup-only associated array and immutable strict C-language codecs.
-  Twenty-four append-only manifest slots bind `ean13_in(cstring)`/`ean13_out(ean13)`,
+  reciprocal internally dependent associated array and immutable strict C-language codecs.
+  Twenty-four append-only recipe declarations bind `ean13_in(cstring)`/`ean13_out(ean13)`,
   `isbn_in(cstring)`/`isn_out(isbn)`,
   `isbn13_in(cstring)`/`ean13_out(isbn13)`,
   `ismn_in(cstring)`/`isn_out(ismn)`,
@@ -319,9 +406,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `translate(citext,citext,text)`, with unnamed arguments and INT4/TEXT results.
   Their symbolic owner signatures retain the distinct third formals; category
   bounds keep regexp membership independent of the complete 56-member manifest.
-  Incumbent comparison/operator slots remain fixed; the associated array is
-  lookup-only. Operator links and procedure authority come from exact manifest
-  slots and signatures. Comparison routine display declarations retain C
+  Incumbent comparison/operator declarations remain fixed; the associated array
+  has genuine internal/current-extension dependencies. Operator links and
+  procedure authority come from immutable recipe declarations and signatures.
+  Comparison routine display declarations retain C
   language and original source symbols; I/O routines retain INTERNAL language
   and text codec symbols. I/O helper names use `ScriptFunctions`; owner metadata
   serializes citext inputs symbolically and resolves destination descriptors
@@ -334,22 +422,21 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `geo_distance(point,point)` and its self-commuting `<@>` operator. Incumbent slots
   stay fixed. Operator admission validates its exact slot, formals, result and
   backing procedure against the current manifest. `Stage.EarthChecks` attaches the
-  three released domain recipes. Owner metadata records type roles `earth`/`earth[]`,
-  symbolic earth inputs and the fixed `600,600` point signature;
-  companion resolution uses the domain's actual Array identity, not `_earth`.
-  Routine labels, namespaces and owners can vary independently; domain and
-  companion retain matching namespace/owner. Legacy two-member records reject.
+  three released domain recipes. V3 owner metadata records final portable SQL
+  identities plus immutable release/declaration keys; companion resolution uses
+  the domain's actual Array identity, not `_earth`. Routine labels, namespaces,
+  owners and membership can vary independently; domain/companion owner coherence
+  remains the ordinary type owner's responsibility.
 - **lo** (`lo_provider.go`): the trusted, relocatable 1.2 provider stages a
   constraint-free concrete domain over the catalog's builtin OID generation and
   its lookup-only companion as two ordered extension members, each carrying a
   nonzero allocated catalog revision rather than a bootstrap fallback. Ordinary domain
   coercion, OID input/output and bind/result paths retain unsigned numeric
   payloads and typed NULLs; logical lo identity has physical OID result metadata.
-  No large-object lookup or reference-management trigger is attached. Symbolic
-  owner roles `lo`/`lo[]` resolve the actual reciprocal companion, independent
-  of its current spelling. The codec and import require the two role-to-slot
-  assignments, empty signatures and a common domain/companion owner; the
-  extension installer may differ from its bootstrap-owned trusted members.
+  No large-object lookup or reference-management trigger is attached. Immutable
+  domain/companion declarations retain origin across independent membership
+  mutation. V3 import resolves their final portable SQL identities, preserving
+  common domain/companion owner authority without source OIDs.
 - **Registry and update paths** (`extension_register.go`, `extension_paths.go`):
   `Register(registry, name, implementation)` checks one startup registration
   (name, control version, `ValidateActions`, duplicates, in that order) and
@@ -389,23 +476,46 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   callback). `ImportOwners` applies Restore's owner/installed-procedure ACL
   records to a private catalog clone and reports whether authority changed.
   Ownership import uses the shared immutable ACL-owner transform for types,
-  companions and procedures. Synthetic type baseline markers and raw NULL versus
-  explicit-empty ACL distinctions survive; malformed baselines still fail the
-  ordinary provider validator.
+  companions and procedures. Synthetic type baselines encode as raw NULL ACLs,
+  not historical-owner grants; import reconstructs that baseline for the current
+  named owner while keeping explicit-empty and explicit-default ACLs distinct.
+  Malformed synthetic baselines still fail the ordinary provider validator.
   Shared untrusted-extension creation rejects nonsuperusers with 42501.
-  Owner metadata v2 records current schema, portable signature, owner and
-  versioned manifest slot. Procedure entries retain current public names;
-  installed type entries retain validated recipe roles, not mutable spellings.
-  Restore replays actual routine alterations first; import validates labels
-  against that destination slot, not names in the extension target schema.
-  Output type signatures stay symbolic across OID remapping. Duplicate slots,
-  corrupt/unknown fields and obsolete name-only records fail.
-  Installed procedure ACL entries encode named grantors/grantees, PUBLIC,
-  EXECUTE and grant options, never borrowed principal references. Strict nested
-  decoding rejects duplicate/unknown/null fields and invalid grants. Import
-  validates the actual destination slot before resolving captured role names;
-  amcheck's initial owner-only ACL and arbitrary later grants use the same
-  explicit metadata, never a canonical-only restriction or PUBLIC-default bypass.
+  The sole owner metadata codec is **v3**, marker
+  `stuntgres-extension-owners-v3`; no older decoder/shim remains. Each installation
+  record distinguishes final extension presence from surviving provider origin.
+  Provider members carry immutable release/declaration keys plus final typed SQL
+  identities, named owner/ACL and independent current extension membership.
+  Portable type spellings come from the lower catalog naming owner shared with
+  regtype output and machine identities, including aliases, visibility, quoting
+  and generated arrays. The codec does not import regobj, execution, analysis or
+  pgcatalog, and does not maintain a parallel formatter/resolver.
+  Ordinary members carry only typed final identity and membership; their existing
+  serializers remain the sole owner/ACL authority. Globals have no fake schema.
+  Text-search configurations use kind `configuration` with final namespace/name
+  and empty signature. They remain ordinary owner-bearing objects without an
+  object ACL or fabricated installed origin: their parser, ordered mappings and
+  owner are reconstructed once by the existing serializer before membership.
+  Text-search parsers use ordinary kind `parser` with qualified namespace/name,
+  empty signature and no declaration/version/owner/ACL. Their ordinary CREATE
+  and genuine callback graph precede final ADD; seeded default3722 keeps ALTER
+  replay. Shared remap carries parser membership and all nonzero callbacks in
+  the same map as the configuration's Parser edge, preserving optional zero
+  HEADLINE. Final import validates each complete reciprocal parent graph;
+  early installed-owner replay admission does not require future ordinary SQL.
+  Duplicate/unknown/null/missing fields, invalid member identity, missing roles
+  and incompatible declarations reject before publication. Import preflights all
+  records before mutating even its private candidate. Named grantor/grantee
+  privilege masks preserve PUBLIC, grant options and absent/explicit-empty ACLs;
+  no source principal or physical handle crosses the codec.
+  Generated companions use their actual captured SQL labels, including numeric
+  and UTF-8-truncated collision history. Control replay reconstructs them through
+  existing type/relation owners and real temporary-domain displacement, sharing
+  the ordinary serializer's naming model; owner import never renames an array to
+  make a record fit. Ordinary range constructors retain their independent public
+  identity, owner and ACL authority. Their real private CREATE TYPE baseline is
+  finalized through typed constructor declarations and ordinary ALTER FUNCTION;
+  moving a type or refreshing its generation does not move/rename its routines.
 - **Owners, remap, errors**: the owner metadata codec (`OwnerMetadata`,
   `DecodeOwners`, `OwnerRecord`, `MemberOwner`, `OwnersMarker`;
   `extension_owners.go`), `RemapDescriptor` (`extension_remap.go`),
@@ -416,13 +526,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   membership and all type/procedure links. Each source maps once; a destination
   that is also a source does not trigger another mapping step.
 
-Type identity is its validated manifest role, not its mutable name or namespace.
-`InstalledTypes`/`MemberTypeRole` resolve seg/hstore/cube/query_int/lquery/ltree/ltxtquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo through the
-existing manifest/provider and reciprocal array checks. Member ALTER retains
-installation membership; direct DROP remains protected. The owner metadata codec
-keeps canonical type role keys (including earth[] and lo[]) across rename/move, preserving
-strict key/signature decoding and independent routine owners. Restore applies
-these roles to the actual destination descriptors, never a same-named loose type.
+Type execution identity is its immutable installed declaration, not its mutable
+name, namespace or membership. `InstalledTypes`/`MemberTypeRole` expose surviving
+typed recipe roles where needed; ordinary type owners enforce reciprocal arrays,
+concrete generation and genuine dependencies. V3 owner import uses final symbolic
+SQL identities and checks real reconstructed origin, never a same-named loose type.
 
 
 ## Invariants
@@ -497,14 +605,17 @@ make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```
 
 
-Routine slot/label/provenance proof (no SQL execution):
-`make check RUN='^Test(InstalledProcedure(RelabelIdentity|Forgery|VersionTransition|RemapIdentity)|DetachedUnaccentImmutableCapability|ExtensionOwner(SlotCodec|ImportCurrentSlotIdentity|ImportTransfer))$'`.
-The independently declared incumbent tablefunc procedure inventory (normal_rand
-slot zero, four connectby slots) is checked within the composed manifest;
-mutable-label identity, manifest rejection and symbolic owner codec use
+Routine origin/label and strict codec proof (no SQL execution):
+`make check RUN='^Test(InstalledProcedure(RelabelIdentity|Forgery|VersionTransition|RemapIdentity)|DetachedUnaccentImplementationIsNotOrigin|ExtensionOwner(DeclarationCodec|ImportCurrentSlotIdentity|ImportTransfer|V3.*|ImportLateFailureAtomic))$'`.
+The independently declared selected tablefunc inventory (normal_rand slot zero,
+four connectby declarations), mutable-label identity, forged-recipe rejection and
+strict v3 DecodeOwners plus ImportOwners authority are selected with
 `make check RUN='^TestTablefuncConnectby'`.
-Engine caller witnesses additionally cover current v2 metadata, unreplayed/
-foreign import labels, COW inventory corruption and genuine provider relabeling.
+All four overloads also have typed detached/foreign/absent-origin carrier and
+shared canonical-remap coverage under
+`make check RUN='^TestExtensionOwnershipIdentity$$/^connectby_'`.
+Engine caller witnesses cover v3 metadata, detached/foreign origins, invalid
+import labels, atomic late failures and genuine provider relabeling.
 Public provider/replay behavior uses shared `TestReferenceRoutineAlter*`
 definitions in native and `REFERENCE=1` modes; see
 [routine proof](../../../reference/query_core/README.md#routine-alter-proof).

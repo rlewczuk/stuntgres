@@ -6,7 +6,7 @@ ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION, CONVERSION, TEXT SEARCH CONFIGUR
 LANGUAGE; ALTER DOMAIN RENAME and SET SCHEMA; CREATE FUNCTION, PROCEDURE and
 AGGREGATE, ALTER and DROP ROUTINE; cast, operator, operator family, operator
 class and access method DDL; COMMENT; CREATE TABLESPACE and ALTER TABLE ALL IN
-TABLESPACE; LOAD; CREATE, ALTER EXTENSION UPDATE and DROP EXTENSION; the
+TABLESPACE; LOAD; CREATE, ALTER and DROP EXTENSION; the
 foreign-data DDL (wrappers, servers, user mappings, foreign tables, IMPORT
 FOREIGN SCHEMA) and its GRANT and REVOKE; the extension owner import of a
 native Restore; and the family hosts `RoutineHost`, `SchemaHost` and
@@ -95,8 +95,8 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
 - `ExecuteCreateTablespace` and `ExecuteLoad` keep the argument count, the
   mutex and a fresh authority capture around `ddl.CreateTablespace` and
   `ddl.Load`; neither publishes.
-- `ExecuteExtension`, `ExecuteExtensionUpdate` and `ExecuteDropExtension`
-  (see [Extensions](#extensions)).
+- `ExecuteExtension`, `ExecuteExtensionUpdate`, `ExecuteExtensionAlter` and
+  `ExecuteDropExtension` (see [Extensions](#extensions)).
 - `ExecuteForeignDDL` stages through `fdw.StageDDL` on `TableHost`, releases
   the replacement read before wrapper validations. Actual SQL validators
   enter core's common private-journal admission, also used by table ALTER and
@@ -139,17 +139,37 @@ Each family host carries a compile-time assertion; `RoutineHost` and
 than being a defined type over `CatalogStage`, so `Create` and `Replace` keep
 the stage's lifecycle checks. `BeginStage` stores it in
 `CatalogStage.ExtensionSlot`; `stageOf` gives the executors their stage back
-and `extensionNamespaceOf` the namespace it was begun in.
+and `extensionNamespaceOf` the exact namespace fenced for publication.
 
 ## Extensions
 
 Records, decisions and providers are [`extension`](../extension/README.md)'s.
 The executors keep the argument count, `Engine.Mu`, the authorization
-capture and the publication: CREATE and UPDATE share one final publication
-(`publishExtensionStage`), whose provider validation runs with the mutex
-released, and fence it with `extensionAuthorityFence`. UPDATE keeps its read
-fences (including ACLs) from the staged snapshot, not from descriptors
-observed after outside-lock provider validation. Retirement captures the
+capture and publication: CREATE, UPDATE, membership mutation and schema
+relocation share `publishExtensionStage`, whose provider validation runs with
+the mutex released, fenced by `extensionAuthorityFence`. Destination resolution
+includes CREATE admission before extension ownership and same-target handling.
+Successful membership ADD/DROP and real schema movement annotate one outer
+`ALTER EXTENSION` address on the gated command stage; recursive members and
+internal namespace movers do not emit separate command receipts. Publication
+transfers those annotations only after journal preflight. Same-target movement
+keeps an empty command bag and unchanged descriptors, but still passes through
+the statement journal, authority and extension-predecessor fences before Finish.
+Typed member resolution reuses actual routine/type/object identity owners; lower
+routine/type/relation mechanics preserve their distinct authority rules. Read
+fences, including ACLs, come from the staged snapshot, never a newer descriptor
+observed after outside-lock validation. Stage transfer checks that exact private
+predecessor through `session.JournalCapture`, while retaining committed
+descriptor and name predecessors in the journal. In particular, successive
+membership changes must not replace a transaction-created object's absence
+fence with its private name binding. Transfer preflights the completed journal.
+Private preparation checks the same committed originals and names again before
+constructing its provider-validation view, including a winner committed after
+transfer. Both preparation and final publication first check the existing
+extension authority fence, preserving CREATE's `pg_extension_name_index` 23505
+diagnostic for a competing installation. A competing UPDATE still reports
+ordinary `catalog.Conflict`, never a mixed reciprocal-membership graph.
+Retirement captures the
 complete target set, including automatic aliases, and rejects incoming
 dependencies with `catalog.Conflict` before mutation; DROP keeps its
 multi-target 2BP01 text and cascade notice.
@@ -158,8 +178,9 @@ Identity ALTER remints citext/EAN13 values through a transient exact
 source-descriptor-to-current-descriptor map, never an OID-only permission.
 Generation reownership restores the prior import map before returning and leaves
 retained catalog/storage roots unchanged. Base rename, move and ownership do not
-change installed I/O routine namespaces or owners; canonical manifest roles own
-portable ownership records and identity replay. `ImportExtensionOwners`
+change installed I/O routine namespaces or owners. Immutable release/declaration
+origin, rather than current membership position, owns portable provider identity.
+`ImportExtensionOwners`
 applies only to Restore's isolated catalog: it checks the import authority,
 clones the state, reowns the stored expressions and publishes.
 
@@ -185,8 +206,11 @@ extension constructors for declaration completeness, independent source
 bags, redaction, empty/canceled results and generation fences.
 Scalar hierarchy and positional-match manifest authority and atomic member
 conflicts use `RUN='^TestLtree(Hierarchy|Lquery)Provider'`.
-Path manifest, original SQL-name/C-symbol identity and atomic staged conflicts
-use `RUN='^TestLtreePathProvider'`.
+Path manifest, original SQL-name/C-symbol identity, atomic staged conflicts and
+path/query survivor authority use `RUN='^TestLtreePath(Provider|QuerySurvivor)'`.
+Survivor fixtures retain genuine sealed declarations while varying reciprocal
+membership and live origin headers; copied installation headers are negative
+inputs, never replacement installation authority.
 Mixed scalar label-query manifest/owner authority and late conflicts use
 `RUN='^TestLtreeLtxtqueryProvider'`.
 

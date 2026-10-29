@@ -28,6 +28,9 @@ type extensionHost struct {
 	Auth      core.AuthorizationView
 	Stage     *core.CatalogStage
 	namespace ids.ObjectAddress
+	// Membership and relocation, including same-target admission, retain the
+	// extension predecessor even when no descriptor is replaced.
+	predecessor *catalog.Extension
 }
 
 var (
@@ -78,13 +81,26 @@ func (h *extensionHost) BeginStage(namespace ids.ObjectAddress) extension.Stage 
 	return h
 }
 
-func (h *extensionHost) Read() catalog.Read { return h.Stage.Base }
+func (h *extensionHost) Read() catalog.Read                         { return h.Stage.Base }
+func (h *extensionHost) CurrentRead() catalog.Read                  { return h.Engine.StageRead(h.Stage) }
+func (h *extensionHost) Get(a ids.ObjectAddress) catalog.Descriptor { return h.Stage.Get(a) }
 func (h *extensionHost) LookupName(key ids.NameKey) ids.ObjectAddress {
 	return h.Stage.LookupName(key)
 }
-func (h *extensionHost) Create(d catalog.Descriptor) error  { return h.Stage.Create(d) }
-func (h *extensionHost) Replace(d catalog.Descriptor) error { return h.Stage.Replace(d) }
-func (h *extensionHost) AllocateOID() (ids.OID, error)      { return h.Engine.Catalog.AllocateOIDLocked() }
+func (h *extensionHost) Create(d catalog.Descriptor) error { return h.Stage.Create(d) }
+func (h *extensionHost) Replace(d catalog.Descriptor) error {
+	// Sealing a script and admitting its generated companions revise objects
+	// already created in this candidate, not predecessors in the base catalog.
+	// Keep their CREATE name/absence observations and canonical snapshots intact.
+	if d != nil && h.Stage != nil && h.Stage.Lifecycle == core.CatalogOpen && h.Stage.Invalid == nil && h.Stage.Base.Get(d.Address()) == nil {
+		if previous := h.Stage.Get(d.Address()); previous != nil && catalog.DescriptorNameKey(previous) == catalog.DescriptorNameKey(d) {
+			h.Stage.UpdateDescriptor(d)
+			return nil
+		}
+	}
+	return h.Stage.Replace(d)
+}
+func (h *extensionHost) AllocateOID() (ids.OID, error) { return h.Engine.Catalog.AllocateOIDLocked() }
 func (h *extensionHost) Revision() (ids.DefinitionRevision, error) {
 	return h.Engine.Catalog.RevisionLocked()
 }

@@ -11,6 +11,7 @@ import (
 // EventTrigger is database-local. Tags is immutable; nil means no filter.
 type EventTrigger struct {
 	ObjectAddress  ids.ObjectAddress
+	Extension      ids.ObjectAddress
 	ObjectRevision ids.DefinitionRevision
 	ObjectName     string
 	Owner          authorization.PrincipalRef

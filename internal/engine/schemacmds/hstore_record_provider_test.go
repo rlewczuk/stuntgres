@@ -28,7 +28,7 @@ func TestHstoreRecordProviderAuthority(t *testing.T) {
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
 	h := ext.Members[0].ObjectID
-	if extension.HstoreRecordConstructorSlot != 51 || extension.HstorePopulateRecordSlot != 52 || extension.HstorePopulateRecordOperatorSlot != 53 || len(ext.Members) != extension.HstoreMemberCount {
+	if extension.HstoreRecordConstructorSlot != 51 || extension.HstorePopulateRecordSlot != 52 || extension.HstorePopulateRecordOperatorSlot != 53 || len(ext.Members) != extension.HstoreMemberCount+1 || len(ext.Installation.Members) != extension.HstoreMemberCount {
 		t.Fatal("changed established member frontier")
 	}
 	for _, tc := range []struct {
@@ -69,16 +69,16 @@ func TestHstoreRecordProviderAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	owners, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
-	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount-1 {
+	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount+1 {
 		t.Fatal("owner inventory", err)
 	}
 	for _, tc := range []struct {
 		slot      int
 		signature string
-	}{{51, "2249"}, {52, "2283,hstore"}, {53, "2283,hstore"}} {
+	}{{51, "pg_catalog.record"}, {52, "pg_catalog.anyelement, public.hstore"}, {53, "pg_catalog.anyelement, public.hstore"}} {
 		found := false
 		for _, m := range owners.Members {
-			if m.Slot == tc.slot {
+			if m.Declaration != nil && *m.Declaration == tc.slot {
 				found = true
 				if m.Signature != tc.signature {
 					t.Fatal("dynamic OID in symbolic record signature", m)

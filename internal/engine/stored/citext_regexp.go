@@ -29,7 +29,7 @@ func validateCapturedCitextRegexp(call functions.RegexpCall, captured *catalog.P
 	}
 	capture := call.Citext
 	if capture == nil || captured == nil || call.RoutineReference != captured ||
-  int(capture.Member) < extension.CitextRegexpProcedureStart || int(capture.Member) >= extension.CitextRegexpProcedureEnd {
+		int(capture.Member) < extension.CitextRegexpProcedureStart || int(capture.Member) >= extension.CitextRegexpProcedureEnd {
 		return fmt.Errorf("stuntgres: invalid captured citext regexp declaration")
 	}
 	member := extension.CitextRegexpMembers[int(capture.Member)-extension.CitextRegexpProcedureStart]
@@ -55,7 +55,7 @@ func validateCitextRegexpDeclaration(view catalog.Read, original *catalog.Proced
 		return nil, fmt.Errorf("stuntgres: invalid stored citext regexp authority")
 	}
 	capture := call.Citext
- if capture == nil || int(capture.Member) < extension.CitextRegexpProcedureStart || int(capture.Member) >= extension.CitextRegexpProcedureEnd {
+	if capture == nil || int(capture.Member) < extension.CitextRegexpProcedureStart || int(capture.Member) >= extension.CitextRegexpProcedureEnd {
 		return invalid()
 	}
 	if capture.Ref.Epoch != view.Epoch() {
@@ -69,7 +69,7 @@ func validateCitextRegexpDeclaration(view catalog.Read, original *catalog.Proced
 	if current.Implementation != extension.StockCitext || symbol != member.Name || len(call.Args) != member.ArgCount || current.Installed != member.Declaration {
 		return invalid()
 	}
-	installation, ok := view.Extension(current.Extension)
+	installation, ok := catalog.OriginInstallation(current)
 	if !ok || len(installation.Members) != extension.CitextMemberCount || installation.Members[capture.Member] != current.Address() {
 		return invalid()
 	}

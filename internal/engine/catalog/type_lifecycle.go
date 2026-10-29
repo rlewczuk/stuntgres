@@ -92,9 +92,9 @@ func TypeDropProtection(v Read, typ *Type, path []ids.ObjectAddress, pending map
 	// An explicit companion root follows its internal owner before checking
 	// extension/relation ownership. The diagnostic still describes that root.
 	if typ.Extension != (ids.ObjectAddress{}) {
-		owner = "extension " + DependencyIdentifier(v.Get(typ.Extension).Name())
+		owner = "extension " + v.Get(typ.Extension).Name()
 	} else if required.Extension != (ids.ObjectAddress{}) {
-		owner = "extension " + DependencyIdentifier(v.Get(required.Extension).Name())
+		owner = "extension " + v.Get(required.Extension).Name()
 	} else {
 		if required.OwningRelation != (ids.ObjectAddress{}) {
 			r := v.MustRelation(required.OwningRelation)

@@ -21,7 +21,7 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 	}
 	a := &d.Aggregate.Definition
 	modeValid := func(mode string) bool { return mode == "r" || mode == "s" || mode == "w" }
-	if d.RoutineKind != catalog.AggregateRoutine || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Extension != (ids.ObjectAddress{}) || d.Strict || a.Function != d.Address().ObjectID || (a.Kind != "n" && a.Kind != "o" && a.Kind != "h") || a.DirectArgs < 0 || a.Kind == "n" && a.DirectArgs != 0 || !modeValid(a.FinalModify) || !modeValid(a.MovingFinalModify) || !a.HasInitial && a.Initial != "" || !a.HasMovingInitial && a.MovingInitial != "" {
+	if d.RoutineKind != catalog.AggregateRoutine || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Origin != nil || d.Strict || a.Function != d.Address().ObjectID || (a.Kind != "n" && a.Kind != "o" && a.Kind != "h") || a.DirectArgs < 0 || a.Kind == "n" && a.DirectArgs != 0 || !modeValid(a.FinalModify) || !modeValid(a.MovingFinalModify) || !a.HasInitial && a.Initial != "" || !a.HasMovingInitial && a.MovingInitial != "" {
 		return invalid()
 	}
 

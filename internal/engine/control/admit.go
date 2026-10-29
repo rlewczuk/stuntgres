@@ -42,6 +42,8 @@ func AdmitSchemaObject[R any](_ R, _ *session.Operation, stmt parser.Statement) 
 		return Admitted, nil
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.CreateCast, *parser.DropCast, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateRange, *parser.CreateEnum, *parser.CreateDomain, *parser.AlterType, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
 		return Admitted, nil
+	case *parser.DropType, *parser.DropDomain, *parser.DropRoutine:
+		return Admitted, nil
 	}
 	return NotHandled, nil
 }
@@ -57,4 +59,33 @@ func AdmitOperator[R any](_ R, _ *session.Operation, stmt parser.Statement) (Adm
 		return Admitted, nil
 	}
 	return NotHandled, nil
+}
+
+// AdmitExtension replays the installation planner's real membership, placement,
+// release and retirement operations. Ordinary execution still resolves every
+// object and enforces ownership, dependencies and registered provider authority.
+func AdmitExtension[R any](_ R, _ *session.Operation, stmt parser.Statement) (Admission, error) {
+	switch stmt.(type) {
+	case *parser.AlterExtension, *parser.AlterExtensionUpdate, *parser.DropExtension:
+		return Admitted, nil
+	}
+	return NotHandled, nil
+}
+
+// AdmitRelationIdentity admits the qualified parent operations used to replay
+// associated-array names. Protected rowtypes are never altered independently.
+func AdmitRelationIdentity[R any](_ R, _ *session.Operation, stmt parser.Statement) (Admission, error) {
+	switch s := stmt.(type) {
+	case *parser.AlterTableRenameTable:
+		if !s.IfExists && len(s.Name.Parts) == 2 && !stagesTemporary("", s.Name) {
+			return Admitted, nil
+		}
+	case *parser.AlterTableSetSchema:
+		if !s.IfExists && !s.Only && len(s.Name.Parts) == 2 && !stagesTemporary("", s.Name) {
+			return Admitted, nil
+		}
+	default:
+		return NotHandled, nil
+	}
+	return NotHandled, sqlError("0A000", "restore accepts only unconditional qualified relation identity ALTER")
 }

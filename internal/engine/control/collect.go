@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -54,6 +53,9 @@ type dumpCollection struct {
 // source.State to the Collect tables and returns the filled capture. ctx
 // carries the ACL output context the renderers read.
 func Collect(ctx context.Context, source Source) (*Capture, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	preamble, err := dumpBuiltinSchemaPreamble(source.State, source.DomainRoles)
 	if err != nil {
 		return nil, err
@@ -257,13 +259,13 @@ func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddre
 }
 
 func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
+	if catalog.DescriptorOrigin(d) != nil {
+		return (stored.ProcedureProvider{}).Validate(c.CatalogView, d)
+	}
 	t := d.(*catalog.Procedure)
 	if t.RangeConstructor != nil {
 		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
-		}
-		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
-			return fmt.Errorf("stuntgres: dump cannot serialize altered generated constructor authority")
 		}
 		return c.collectProvider(t)
 	}
@@ -313,9 +315,6 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		}
 		return c.collectProvider(t)
 	}
-	if catalog.ExtensionMembership(t) == (ids.ObjectAddress{}) {
-		return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
-	}
 	return c.collectProvider(t)
 }
 
@@ -323,7 +322,7 @@ func collectTextSearchDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 	if err := catalog.Validate(extension.CatalogProvider{Class: d.Address().ClassID}, c.CatalogView, d); err != nil {
 		return err
 	}
-	if catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
+	if catalog.DescriptorOrigin(d) != nil {
 		return nil
 	}
 	switch d := d.(type) {
@@ -374,15 +373,23 @@ func collectExtensionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 	if ns.Temporary != (ids.SessionToken{}) {
 		return fmt.Errorf("stuntgres: temporary extension installation is not portable")
 	}
+	for _, a := range t.Members {
+		member := c.CatalogView.Get(a)
+		if member == nil {
+			return extension.InvalidProviderDescriptor()
+		}
+		if temporaryDumpObject(c.source.State, member) {
+			return fmt.Errorf("stuntgres: temporary extension membership is not portable")
+		}
+		if namespace, ok := member.(*catalog.Namespace); ok && namespace.Temporary != (ids.SessionToken{}) {
+			return fmt.Errorf("stuntgres: temporary extension membership is not portable")
+		}
+	}
 	principal, err := c.DomainRoles.Descriptor(t.Owner)
 	if err != nil {
 		return err
 	}
-	metadata, err := extension.OwnerMetadata(c.CatalogView, c.DomainRoles, t)
-	if err != nil {
-		return err
-	}
-	text := "CREATE EXTENSION " + catalog.QuoteIdentifier(t.Name()) + " WITH SCHEMA " + catalog.QuoteIdentifier(ns.Name()) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
+	text := ""
 	c.Graph[dump.Event{OID: t.Address().ObjectID}] = nil
 	required, err := catalog.ExtensionPrerequisites(c.CatalogView, t)
 	if err != nil {
@@ -404,8 +411,8 @@ func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 	if err := catalog.Validate(stored.TypeProvider{}, c.CatalogView, t); err != nil {
 		return err
 	}
-	if t.SQLType.IsHstore() || t.SQLType.IsSeg() || t.SQLType.IsQueryInt() || (t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery()) || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() || t.Extension != (ids.ObjectAddress{}) {
-		return catalog.Validate(stored.TypeProvider{}, c.CatalogView, t)
+	if catalog.DescriptorOrigin(t) != nil {
+		return nil
 	}
 	if t.SQLType.IsUserDefined() && !t.SQLType.IsComposite() {
 		c.Domains = append(c.Domains, t)

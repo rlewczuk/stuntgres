@@ -132,7 +132,7 @@ func TestRoutineAggregateDependencyPurpose(t *testing.T) {
 			}
 			d := &catalog.Procedure{SQL: &proc.Definition{}, SQLBody: p}
 			directEdges := 0
-			catalog.VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+			catalog.VisitProcedureDefinitionDependencies(read, d, func(address ids.ObjectAddress) bool {
 				if address == provider.Support.Address() {
 					directEdges++
 				}
@@ -149,7 +149,7 @@ func TestRoutineAggregateDependencyPurpose(t *testing.T) {
 			if mixed {
 				d.SQLDefaults = &RoutineDefaults{dependencies: []catalog.ExpressionDependency{{Ref: read.Owner().Domain.Ref(read.Epoch(), provider.Support.Address()), Revision: provider.Support.Revision()}}}
 				n := 0
-				catalog.VisitProcedureDefinitionDependencies(d, func(a ids.ObjectAddress) bool {
+				catalog.VisitProcedureDefinitionDependencies(read, d, func(a ids.ObjectAddress) bool {
 					if a == provider.Support.Address() {
 						n++
 					}
@@ -188,7 +188,7 @@ func TestRoutineAggregateDependencyPurpose(t *testing.T) {
 			p.dependencies = normalized
 			d := &catalog.Procedure{SQL: &proc.Definition{}, SQLBody: p}
 			edges := 0
-			catalog.VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+			catalog.VisitProcedureDefinitionDependencies(read, d, func(address ids.ObjectAddress) bool {
 				if address == provider.Support.Address() {
 					edges++
 				}
@@ -708,7 +708,7 @@ func TestRoutineAggregatePurposeRemap(t *testing.T) {
 					t.Fatal("refresh unexpectedly relies on aggregate SQL bridge")
 				}
 			}
-			if !mixed && catalog.ProcedureDefinitionDependsOn(caller, provider.Support.Address()) {
+			if !mixed && catalog.ProcedureDefinitionDependsOn(read, caller, provider.Support.Address()) {
 				t.Fatal("refresh index leaked into semantic graph")
 			}
 		}

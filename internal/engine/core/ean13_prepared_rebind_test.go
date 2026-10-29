@@ -65,13 +65,13 @@ func testInstalledScalarPreparedAuthorityRebind(t *testing.T, e *core.Engine, ex
 		t.Fatal(err)
 	}
 	analysis := core.Analysis{Domain: e.Catalog.Domain, Epoch: auth.Catalog.Epoch(), Session: auth.Session.SessionToken, Private: auth.Session.Transactions.Catalog, Path: path, Namespace: auth.Catalog.State().NamespaceGeneration(), Types: map[ids.ObjectAddress]*catalog.Type{base.Address(): base}, Dependencies: []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address()), Revision: base.Revision()}}}
-	changed := *current
-	changed.ObjectRevision++
-	changed.Owner = authorization.PrincipalRef{}
-	changed.ACL.Explicit = !changed.ACL.Explicit
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := stage.Replace(&changed); err != nil {
+	owner, ok := e.Roles().Lookup("pg_read_all_data")
+	if !ok {
+		t.Fatal("missing predefined owner role")
+	}
+	if err := role.StageOwnership(stage, current, owner.Ref); err != nil {
 		t.Fatal(err)
 	}
 	auth.Catalog = e.StageRead(stage)
@@ -130,7 +130,7 @@ func testInstalledScalarPreparedAuthorityRebind(t *testing.T, e *core.Engine, ex
 		change func(*catalog.Type)
 	}{
 		{"physical", func(d *catalog.Type) { d.Dimensions++ }},
-		{"extension", func(d *catalog.Type) { d.Extension = ids.ObjectAddress{} }},
+		{"origin", func(d *catalog.Type) { d.Origin = nil }},
 		{"array", func(d *catalog.Type) { d.Array++ }},
 		{"family", func(d *catalog.Type) { d.SQLType = foreign }},
 	} {
@@ -185,13 +185,25 @@ func testInstalledScalarPreparedAuthorityRebind(t *testing.T, e *core.Engine, ex
 	}
 }
 
-func TestEan13PreparedLiteralReown(t *testing.T)  { testInstalledScalarPreparedLiteralReown(t, "ean13", 0) }
-func TestIsbnPreparedLiteralReown(t *testing.T)   { testInstalledScalarPreparedLiteralReown(t, "isbn", 3) }
-func TestIsmnPreparedLiteralReown(t *testing.T)   { testInstalledScalarPreparedLiteralReown(t, "ismn", 9) }
-func TestIsmn13PreparedLiteralReown(t *testing.T) { testInstalledScalarPreparedLiteralReown(t, "ismn13", 12) }
-func TestIssnPreparedLiteralReown(t *testing.T)   { testInstalledScalarPreparedLiteralReown(t, "issn", 15) }
-func TestIssn13PreparedLiteralReown(t *testing.T) { testInstalledScalarPreparedLiteralReown(t, "issn13", 18) }
-func TestUpcPreparedLiteralReown(t *testing.T)    { testInstalledScalarPreparedLiteralReown(t, "upc", 21) }
+func TestEan13PreparedLiteralReown(t *testing.T) {
+	testInstalledScalarPreparedLiteralReown(t, "ean13", 0)
+}
+func TestIsbnPreparedLiteralReown(t *testing.T) {
+	testInstalledScalarPreparedLiteralReown(t, "isbn", 3)
+}
+func TestIsmnPreparedLiteralReown(t *testing.T) {
+	testInstalledScalarPreparedLiteralReown(t, "ismn", 9)
+}
+func TestIsmn13PreparedLiteralReown(t *testing.T) {
+	testInstalledScalarPreparedLiteralReown(t, "ismn13", 12)
+}
+func TestIssnPreparedLiteralReown(t *testing.T) {
+	testInstalledScalarPreparedLiteralReown(t, "issn", 15)
+}
+func TestIssn13PreparedLiteralReown(t *testing.T) {
+	testInstalledScalarPreparedLiteralReown(t, "issn13", 18)
+}
+func TestUpcPreparedLiteralReown(t *testing.T) { testInstalledScalarPreparedLiteralReown(t, "upc", 21) }
 func TestLqueryPreparedLiteralReown(t *testing.T) {
 	testInstalledScalarPreparedLiteralReown(t, "lquery", 0)
 }
@@ -414,7 +426,7 @@ func testInstalledScalarPreparedLiteralReown(t *testing.T, family string, slot i
 			}
 		})
 	}
-	for _, name := range []string{"owner/ACL", "missing destination", "physical", "extension", "array", "family", "procedure", "procedure membership", "companion", "manifest"} {
+	for _, name := range []string{"owner/ACL", "missing destination", "physical", "type origin", "array", "family", "procedure", "procedure origin", "companion", "installation"} {
 		t.Run(name, func(t *testing.T) {
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
@@ -438,8 +450,8 @@ func testInstalledScalarPreparedLiteralReown(t *testing.T, family string, slot i
 				}
 			case "physical":
 				destination.Dimensions++
-			case "extension":
-				destination.Extension = ids.ObjectAddress{}
+			case "type origin":
+				destination.Origin = nil
 			case "array":
 				destination.Array++
 			case "family":
@@ -457,9 +469,9 @@ func testInstalledScalarPreparedLiteralReown(t *testing.T, family string, slot i
 				if err := stage.Replace(&proc); err != nil {
 					t.Fatal(err)
 				}
-			case "procedure membership":
+			case "procedure origin":
 				proc := *auth.Catalog.MustProcedure(ext.Members[slot+1])
-				proc.Extension = ids.ObjectAddress{}
+				proc.Origin = nil
 				if err := stage.Replace(&proc); err != nil {
 					t.Fatal(err)
 				}
@@ -469,12 +481,11 @@ func testInstalledScalarPreparedLiteralReown(t *testing.T, family string, slot i
 				if err := stage.Replace(&array); err != nil {
 					t.Fatal(err)
 				}
-			case "manifest":
-				broken := *ext
-				broken.Version = "invalid"
-				if err := stage.Replace(&broken); err != nil {
-					t.Fatal(err)
-				}
+			case "installation":
+				copied := *destination.Origin.Installation
+				origin := *destination.Origin
+				origin.Installation = &copied
+				destination.Origin = &origin
 			}
 			if name != "missing destination" {
 				if err := stage.Replace(&destination); err != nil {

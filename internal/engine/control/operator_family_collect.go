@@ -14,7 +14,7 @@ func isDumpOperatorFamily(d catalog.Descriptor) bool {
 	return false
 }
 func collectOperatorFamilyDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
-	if catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
+	if catalog.DescriptorOrigin(d) != nil {
 		return nil
 	}
 	var family ids.OID
@@ -26,7 +26,7 @@ func collectOperatorFamilyDump(_ context.Context, c *dumpCollection, _ ids.Objec
 	}
 	if family != 0 {
 		owner, ok := c.CatalogView.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: family})
-		if ok && owner.Extension != (ids.ObjectAddress{}) {
+		if ok && catalog.DescriptorOrigin(owner) != nil {
 			return nil
 		}
 		if ok {

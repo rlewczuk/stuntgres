@@ -19,8 +19,8 @@ func earthCheckSQL(view catalog.Read, n plan.EarthCheckExpr) (string, error) {
 	if !ok || base.SQLType != n.Value.Usage.Type {
 		return "", fmt.Errorf("stuntgres: foreign earth CHECK cube")
 	}
-	ext, ok := view.Extension(base.Extension)
-	if !ok || extension.StockCube.ValidateExtension(view, ext) != nil {
+	origin, ok := catalog.OriginInstallation(base)
+	if !ok || origin.Implementation != extension.StockCube || extension.ValidateTypeOrigin(view, base) != nil {
 		return "", fmt.Errorf("stuntgres: missing earth CHECK cube installation")
 	}
 	ns, ok := view.Namespace(base.Namespace())

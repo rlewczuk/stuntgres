@@ -50,116 +50,70 @@ func pgDependUnitBag(t *testing.T, got, want []pgcatalog.DependEdge) {
 		t.Fatalf("edge bag got %#v want %#v", counts(got), counts(want))
 	}
 }
-func TestPGDependShape(t *testing.T) {
-	e := engine.New()
-	view := e.CatalogRead()
-	address := pgDependUnitAddress(1259, 2608, 0)
-	source, ok := view.Relation(address)
+
+// PostgreSQL's initdb installs plpgsql 1.0 with three handlers and a global
+// language. Resolve their generated addresses by declaration, not membership or
+// collected edges: the expected graph is four e edges and three handler n edges.
+// The pg_catalog namespace and handler declaration types are pinned, so their
+// normal references are intentionally absent from pg_depend. The released COPY
+// view separately owns its metadata-only _RETURN rule through an internal edge.
+// Allocated Snowball bootstrap objects are not pins: their template callbacks,
+// dictionary template, and configuration dictionary retain normal dependencies.
+func pgDependUnitBootstrap(t *testing.T, view catalog.Read) []pgcatalog.DependEdge {
+	t.Helper()
+	extension, ok := view.LookupName(ids.NameKey{ClassID: 3079, Name: "plpgsql"})
 	if !ok {
-		t.Fatal("missing pg_depend descriptor")
+		t.Fatal("missing bootstrap plpgsql extension")
 	}
-	if source.Name() != "pg_depend" || source.Namespace().ObjectID != 11 || source.RelationKind != catalog.CatalogRelation || source.ColumnMeta.HighWater != 7 || len(source.Columns) != 7 {
-		t.Fatal(source)
+	language, ok := view.LookupName(ids.NameKey{ClassID: 2612, Name: "plpgsql"})
+	if !ok {
+		t.Fatal("missing bootstrap plpgsql language")
 	}
-	names := []string{"classid", "objid", "objsubid", "refclassid", "refobjid", "refobjsubid", "deptype"}
-	types := []sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Char}
-	for i, column := range source.Columns {
-		if column.Name != names[i] || column.Usage.Type.ID() != types[i] || column.Nullable || !column.NullabilityKnown || column.OriginTable != 2608 || column.OriginAttribute != int16(i+1) || source.Attributes[i] != int32(i+1) {
-			t.Fatal("descriptor", i, column)
-		}
-	}
-	if _, ok := source.Index["oid"]; ok {
-		t.Fatal("fabricated oid")
-	}
-	if err := (core.RelationProvider).Validate(view, source); err != nil {
-		t.Fatal(err)
-	}
-	ref := e.Catalog.Domain.Ref(view.State().Epoch(), address)
-	rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGDepend)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Each released progress view owns its metadata-only _RETURN rule;
-	// bootstrap-pinned backing references still produce no dependency rows.
-	owners := [][2]ids.OID{
-		{pgcatalog.ProgressCopyRuleOID, pgcatalog.ProgressCopyOID},
-		{pgcatalog.ProgressCreateIndexRuleOID, pgcatalog.ProgressCreateIndexOID},
-	}
-	want := make([][]sqltype.Value, len(owners))
-	for owner, pair := range owners {
-		row := make([]sqltype.Value, 7)
-		for i, n := range []int64{2618, int64(pair[0]), 0, 1259, int64(pair[1]), 0} {
-			if i == 2 || i == 5 {
-				row[i], err = sqltype.Integer(source.Columns[i].Usage.Type, n)
-			} else {
-				row[i], err = sqltype.OIDValue(source.Columns[i].Usage.Type, uint32(n))
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		row[6] = sqltype.String(source.Columns[6].Usage.Type, "i")
-		want[owner] = row
-	}
-	if len(rows.Anonymous) != 2 ||
-		!(reflect.DeepEqual(rows.Anonymous[0], want[0]) && reflect.DeepEqual(rows.Anonymous[1], want[1]) ||
-			reflect.DeepEqual(rows.Anonymous[0], want[1]) && reflect.DeepEqual(rows.Anonymous[1], want[0])) {
-		t.Fatal("released bootstrap ownership graph", rows.Anonymous, want)
-	}
-}
-func TestPGDependConstructionBags(t *testing.T) {
-	e, view, integer := pgDependUnitCatalog(t)
-	tableAddress := pgDependUnitAddress(1259, 41001, 0)
-	column := tableAddress
-	column.SubID = 2
-	ref := e.Catalog.Domain.Ref(view.State().Epoch(), column)
-	variable := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Origin: ref}
-	repeated := functions.Binary{Info: expr.Info{Usage: integer.Usage()}, Args: []expr.Expr{variable, variable}}
-	constant := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}}
-	uq := catalog.UniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}
-	table := &catalog.Relation{ObjectAddress: tableAddress, ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.TableRelation, Attributes: []int32{2, 3, 4, 5}, ColumnMeta: catalog.ColumnMetadata{HighWater: 5, Defaults: map[int32]catalog.ColumnDefault{3: {OID: 43001, Expression: constant}}, Generations: map[int32]catalog.ColumnGeneration{4: {Kind: catalog.GenerationStored, OID: 43002, Expression: repeated}}}, Columns: []catalog.Column{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, Constraints: catalog.RelationConstraints{NotNull: []catalog.NotNullConstraint{{OID: 42001, Attribute: 3}}, Check: []catalog.CheckConstraint{{OID: 42002, Expression: repeated}, {OID: 42004, Expression: constant}}, Unique: []catalog.UniqueConstraint{uq}}}
-	view.State().SetDescriptor(tableAddress, table)
-	simple := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44001, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: tableAddress, Keys: []catalog.IndexKey{{Attribute: 2}, {Attribute: 2}}, Include: []int32{3}}}
-	expression := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44002, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: tableAddress, Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: repeated}}}}}
-	backing := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44003, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: tableAddress, Unique: true, Keys: []catalog.IndexKey{{Attribute: 5}}, Include: []int32{3}, Constraint: index.UniqueBacking(&uq)}}
-	standalone := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44004, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: tableAddress, Unique: true, Keys: []catalog.IndexKey{{Attribute: 2}}, Include: []int32{3}}}
-	sequence := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 45001, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: column}}
-	identity := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 45002, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: column, Identity: true}}
-	for _, d := range []*catalog.Relation{simple, expression, backing, standalone, sequence, identity} {
-		view.State().SetDescriptor(d.Address(), d)
-	}
-	got, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	extensionAddress := pgDependUnitAddress(3079, extension.ObjectID, 0)
+	languageAddress := pgDependUnitAddress(2612, language.ObjectID, 0)
 	want := []pgcatalog.DependEdge{
+		{languageAddress, extensionAddress, 'e'},
 		pgDependUnitEdge(2618, pgcatalog.ProgressCopyRuleOID, 0, 1259, pgcatalog.ProgressCopyOID, 0, 'i'),
 		pgDependUnitEdge(2618, pgcatalog.ProgressCreateIndexRuleOID, 0, 1259, pgcatalog.ProgressCreateIndexOID, 0, 'i'),
-		pgDependUnitEdge(1259, 41001, 0, 2615, 2200, 0, 'n'),
-		pgDependUnitEdge(2606, 42001, 0, 1259, 41001, 3, 'a'),
-		pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'n'),
-		pgDependUnitEdge(2606, 42004, 0, 1259, 41001, 0, 'a'),
-		pgDependUnitEdge(2606, 42003, 0, 1259, 41001, 5, 'a'),
-		pgDependUnitEdge(2606, 42003, 0, 1259, 41001, 3, 'a'),
-		pgDependUnitEdge(2604, 43001, 0, 1259, 41001, 3, 'a'),
-		pgDependUnitEdge(2604, 43002, 0, 1259, 41001, 4, 'i'), pgDependUnitEdge(2604, 43002, 0, 1259, 41001, 2, 'n'),
-		pgDependUnitEdge(1259, 44001, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(1259, 44001, 0, 1259, 41001, 3, 'a'),
-		pgDependUnitEdge(1259, 44002, 0, 1259, 41001, 0, 'a'), pgDependUnitEdge(1259, 44002, 0, 1259, 41001, 2, 'a'),
-		pgDependUnitEdge(1259, 44003, 0, 2606, 42003, 0, 'i'),
-		pgDependUnitEdge(1259, 44004, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(1259, 44004, 0, 1259, 41001, 3, 'a'),
-		pgDependUnitEdge(1259, 45001, 0, 2615, 2200, 0, 'n'), pgDependUnitEdge(1259, 45001, 0, 1259, 41001, 2, 'a'),
-		pgDependUnitEdge(1259, 45002, 0, 2615, 2200, 0, 'n'), pgDependUnitEdge(1259, 45002, 0, 1259, 41001, 2, 'i'),
 	}
-	pgDependUnitBag(t, got, want)
-	source := view.MustRelation(pgDependUnitAddress(1259, 2608, 0))
-	captured, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ids.ObjectRef{}, Source: source, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGDepend)
-	if err != nil {
-		t.Fatal(err)
+	for _, declaration := range []struct {
+		name, signature string
+	}{
+		{"plpgsql_call_handler", ""},
+		{"plpgsql_inline_handler", "2281"},
+		{"plpgsql_validator", "26"},
+	} {
+		handler, ok := view.LookupName(ids.NameKey{ClassID: 1255, Namespace: pgDependUnitAddress(2615, 11, 0), Name: declaration.name, Signature: declaration.signature})
+		if !ok {
+			t.Fatal("missing bootstrap handler", declaration)
+		}
+		handlerAddress := pgDependUnitAddress(1255, handler.ObjectID, 0)
+		want = append(want, pgcatalog.DependEdge{handlerAddress, extensionAddress, 'e'}, pgcatalog.DependEdge{languageAddress, handlerAddress, 'n'})
 	}
-	view.State().RemoveDescriptor(tableAddress)
-	// Completed rows are owned values, not a later live-catalog enumeration.
-	decoded := make([]pgcatalog.DependEdge, 0, len(captured.Anonymous))
-	for _, row := range captured.Anonymous {
+	seed := func(class ids.OID, name, signature string) ids.ObjectAddress {
+		t.Helper()
+		ref, ok := view.LookupName(ids.NameKey{ClassID: class, Namespace: pgDependUnitAddress(2615, 11, 0), Name: name, Signature: signature})
+		if !ok {
+			t.Fatal("missing bootstrap declaration", class, name, signature)
+		}
+		return pgDependUnitAddress(class, ref.ObjectID, 0)
+	}
+	template := seed(3764, "snowball", "")
+	dictionary := seed(3600, "english_stem", "")
+	configuration := seed(3602, "english", "")
+	want = append(want,
+		pgcatalog.DependEdge{template, seed(1255, "dsnowball_init", "2281"), 'n'},
+		pgcatalog.DependEdge{template, seed(1255, "dsnowball_lexize", "2281,2281,2281,2281"), 'n'},
+		pgcatalog.DependEdge{dictionary, template, 'n'},
+		pgcatalog.DependEdge{configuration, dictionary, 'n'},
+	)
+	return want
+}
+
+func pgDependUnitDecode(t *testing.T, rows [][]sqltype.Value) []pgcatalog.DependEdge {
+	t.Helper()
+	decoded := make([]pgcatalog.DependEdge, 0, len(rows))
+	for _, row := range rows {
 		if len(row) != 7 {
 			t.Fatal("row width", row)
 		}
@@ -193,7 +147,96 @@ func TestPGDependConstructionBags(t *testing.T) {
 		}
 		decoded = append(decoded, pgDependUnitEdge(ids.OID(class), ids.OID(id), int32(sub), ids.OID(refclass), ids.OID(refid), int32(refsub), kind[0]))
 	}
-	pgDependUnitBag(t, decoded, want)
+	return decoded
+}
+func TestPGDependShape(t *testing.T) {
+	e := engine.New()
+	view := e.CatalogRead()
+	address := pgDependUnitAddress(1259, 2608, 0)
+	source, ok := view.Relation(address)
+	if !ok {
+		t.Fatal("missing pg_depend descriptor")
+	}
+	if source.Name() != "pg_depend" || source.Namespace().ObjectID != 11 || source.RelationKind != catalog.CatalogRelation || source.ColumnMeta.HighWater != 7 || len(source.Columns) != 7 {
+		t.Fatal(source)
+	}
+	names := []string{"classid", "objid", "objsubid", "refclassid", "refobjid", "refobjsubid", "deptype"}
+	types := []sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Char}
+	for i, column := range source.Columns {
+		if column.Name != names[i] || column.Usage.Type.ID() != types[i] || column.Nullable || !column.NullabilityKnown || column.OriginTable != 2608 || column.OriginAttribute != int16(i+1) || source.Attributes[i] != int32(i+1) {
+			t.Fatal("descriptor", i, column)
+		}
+	}
+	if _, ok := source.Index["oid"]; ok {
+		t.Fatal("fabricated oid")
+	}
+	if err := (core.RelationProvider).Validate(view, source); err != nil {
+		t.Fatal(err)
+	}
+	ref := e.Catalog.Domain.Ref(view.State().Epoch(), address)
+	rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGDepend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := pgDependUnitBootstrap(t, view)
+	pgDependUnitBag(t, pgDependUnitDecode(t, rows.Anonymous), want)
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pgDependUnitBag(t, edges, want)
+}
+func TestPGDependConstructionBags(t *testing.T) {
+	e, view, integer := pgDependUnitCatalog(t)
+	tableAddress := pgDependUnitAddress(1259, 41001, 0)
+	column := tableAddress
+	column.SubID = 2
+	ref := e.Catalog.Domain.Ref(view.State().Epoch(), column)
+	variable := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Origin: ref}
+	repeated := functions.Binary{Info: expr.Info{Usage: integer.Usage()}, Args: []expr.Expr{variable, variable}}
+	constant := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}}
+	uq := catalog.UniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}
+	table := &catalog.Relation{ObjectAddress: tableAddress, ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.TableRelation, Attributes: []int32{2, 3, 4, 5}, ColumnMeta: catalog.ColumnMetadata{HighWater: 5, Defaults: map[int32]catalog.ColumnDefault{3: {OID: 43001, Expression: constant}}, Generations: map[int32]catalog.ColumnGeneration{4: {Kind: catalog.GenerationStored, OID: 43002, Expression: repeated}}}, Columns: []catalog.Column{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, Constraints: catalog.RelationConstraints{NotNull: []catalog.NotNullConstraint{{OID: 42001, Attribute: 3}}, Check: []catalog.CheckConstraint{{OID: 42002, Expression: repeated}, {OID: 42004, Expression: constant}}, Unique: []catalog.UniqueConstraint{uq}}}
+	view.State().SetDescriptor(tableAddress, table)
+	simple := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44001, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: tableAddress, Keys: []catalog.IndexKey{{Attribute: 2}, {Attribute: 2}}, Include: []int32{3}}}
+	expression := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44002, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: tableAddress, Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: repeated}}}}}
+	backing := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44003, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: tableAddress, Unique: true, Keys: []catalog.IndexKey{{Attribute: 5}}, Include: []int32{3}, Constraint: index.UniqueBacking(&uq)}}
+	standalone := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44004, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: tableAddress, Unique: true, Keys: []catalog.IndexKey{{Attribute: 2}}, Include: []int32{3}}}
+	sequence := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 45001, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: column}}
+	identity := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 45002, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: column, Identity: true}}
+	for _, d := range []*catalog.Relation{simple, expression, backing, standalone, sequence, identity} {
+		view.State().SetDescriptor(d.Address(), d)
+	}
+	got, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []pgcatalog.DependEdge{
+		pgDependUnitEdge(1259, 41001, 0, 2615, 2200, 0, 'n'),
+		pgDependUnitEdge(2606, 42001, 0, 1259, 41001, 3, 'a'),
+		pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'n'),
+		pgDependUnitEdge(2606, 42004, 0, 1259, 41001, 0, 'a'),
+		pgDependUnitEdge(2606, 42003, 0, 1259, 41001, 5, 'a'),
+		pgDependUnitEdge(2606, 42003, 0, 1259, 41001, 3, 'a'),
+		pgDependUnitEdge(2604, 43001, 0, 1259, 41001, 3, 'a'),
+		pgDependUnitEdge(2604, 43002, 0, 1259, 41001, 4, 'i'), pgDependUnitEdge(2604, 43002, 0, 1259, 41001, 2, 'n'),
+		pgDependUnitEdge(1259, 44001, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(1259, 44001, 0, 1259, 41001, 3, 'a'),
+		pgDependUnitEdge(1259, 44002, 0, 1259, 41001, 0, 'a'), pgDependUnitEdge(1259, 44002, 0, 1259, 41001, 2, 'a'),
+		pgDependUnitEdge(1259, 44003, 0, 2606, 42003, 0, 'i'),
+		pgDependUnitEdge(1259, 44004, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(1259, 44004, 0, 1259, 41001, 3, 'a'),
+		pgDependUnitEdge(1259, 45001, 0, 2615, 2200, 0, 'n'), pgDependUnitEdge(1259, 45001, 0, 1259, 41001, 2, 'a'),
+		pgDependUnitEdge(1259, 45002, 0, 2615, 2200, 0, 'n'), pgDependUnitEdge(1259, 45002, 0, 1259, 41001, 2, 'i'),
+	}
+	want = append(want, pgDependUnitBootstrap(t, view)...)
+	pgDependUnitBag(t, got, want)
+	source := view.MustRelation(pgDependUnitAddress(1259, 2608, 0))
+	captured, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ids.ObjectRef{}, Source: source, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGDepend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view.State().RemoveDescriptor(tableAddress)
+	// Completed rows are owned values, not a later live-catalog enumeration.
+	pgDependUnitBag(t, pgDependUnitDecode(t, captured.Anonymous), want)
 }
 func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 	_, view, integer := pgDependUnitCatalog(t)
@@ -216,6 +259,9 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 	}
 	for _, typ := range []*sqltype.Descriptor{d1, d2, array, enum} {
 		d := &catalog.Type{SQLType: typ, ObjectNamespace: ns, ObjectRevision: 1}
+		if typ == d1 {
+			d.Array = array.ID()
+		}
 		view.State().SetDescriptor(d.Address(), d)
 	}
 	if !stored.DependPinned(view, nil, pgDependUnitAddress(1247, 23, 0)) || !stored.DependPinned(view, nil, pgDependUnitAddress(2615, 11, 0)) || stored.DependPinned(view, nil, pgDependUnitAddress(2615, 2200, 0)) || stored.DependPinned(view, nil, pgDependUnitAddress(1247, 47003, 0)) {
@@ -225,15 +271,9 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pgDependUnitBag(t, got, []pgcatalog.DependEdge{
-		pgDependUnitEdge(2618, pgcatalog.ProgressCopyRuleOID, 0, 1259, pgcatalog.ProgressCopyOID, 0, 'i'),
-		pgDependUnitEdge(2618, pgcatalog.ProgressCreateIndexRuleOID, 0, 1259, pgcatalog.ProgressCreateIndexOID, 0, 'i'),
-		pgDependUnitEdge(1247, 47001, 0, 2615, 47000, 0, 'n'),
-		pgDependUnitEdge(1247, 47002, 0, 2615, 47000, 0, 'n'),
-		pgDependUnitEdge(1247, 47002, 0, 1247, 47001, 0, 'n'),
-		pgDependUnitEdge(1247, 47003, 0, 1247, 47001, 0, 'i'),
-		pgDependUnitEdge(1247, 47004, 0, 2615, 47000, 0, 'n'),
-	})
+	want := []pgcatalog.DependEdge{pgDependUnitEdge(1247, 47001, 0, 2615, 47000, 0, 'n'), pgDependUnitEdge(1247, 47002, 0, 2615, 47000, 0, 'n'), pgDependUnitEdge(1247, 47002, 0, 1247, 47001, 0, 'n'), pgDependUnitEdge(1247, 47003, 0, 1247, 47001, 0, 'i'), pgDependUnitEdge(1247, 47004, 0, 2615, 47000, 0, 'n')}
+	want = append(want, pgDependUnitBootstrap(t, view)...)
+	pgDependUnitBag(t, got, want)
 }
 func TestPGDependDomainCheckDependencies(t *testing.T) {
 	e, op, ext, procedure := extensionDropUnitProvider(t, "domain_check")

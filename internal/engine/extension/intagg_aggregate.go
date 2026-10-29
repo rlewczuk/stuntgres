@@ -23,13 +23,23 @@ func validateOwnedAggregate(view catalog.Read, proc *catalog.Procedure) error {
 	if owned == nil || owned.Definition != IntaggDefinition(proc.Address().ObjectID, owned.Helpers[0].ID, owned.Helpers[1].ID) {
 		return invalid()
 	}
+	origin := proc.Origin
+	if origin == nil || !origin.Valid(proc.Address()) {
+		return invalid()
+	}
+	canonical, ok := origin.Installation.Declarations[origin.Declaration].(*catalog.Procedure)
+	if !ok || canonical.Aggregate == nil {
+		return invalid()
+	}
 	for i, helper := range owned.Helpers {
 		name, signature := "int_agg_state", catalog.ProcedureSignature("2281,23")
 		if i == 1 {
 			name, signature = "int_agg_final_array", "2281"
 		}
-		ext, ok := view.Extension(proc.Extension)
-		if !ok || helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper.Namespace != ext.TargetNamespace.ObjectID || helper.Name != name || helper.Signature != signature {
+		if helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper != canonical.Aggregate.Helpers[i] || helper.Name != name || helper.Signature != signature {
+			return invalid()
+		}
+		if _, ok := view.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.Namespace}); !ok {
 			return invalid()
 		}
 		if _, builtin := catalog.BuiltinRoutineIdentityByOID(helper.ID); builtin {

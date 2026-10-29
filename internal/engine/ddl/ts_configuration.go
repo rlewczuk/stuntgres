@@ -314,7 +314,7 @@ func StageDropConfiguration(h ConfigurationHost, auth Authority, s *parser.DropC
 		if err = configurationOwner(h, auth, d, name); err != nil {
 			return err
 		}
-		if d.Seeded() {
+		if d.Pinned() {
 			return configurationError("2BP01", "cannot drop text search configuration "+catalog.ObjectNameText(name)+" because it is required by the database system")
 		}
 		if !seen[d.Address()] {

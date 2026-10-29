@@ -66,20 +66,28 @@ func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 		if err := (catalog.StatisticsProvider{}).Validate(base, d); err != nil {
 			return err
 		}
+	case *catalog.Language:
+		language := d.(*catalog.Language)
+		if !language.Procedural {
+			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
+		}
+		if err := (catalog.LanguageProvider{}).Validate(base, language); err != nil {
+			return err
+		}
 	case *catalog.Subscription, *catalog.EventTrigger, *catalog.Cast, *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary, *catalog.TSConfiguration, *catalog.TSParser:
-		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Seeded() {
+		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Pinned() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
 		if p, ok := d.(*catalog.TSParser); ok && p.Seeded() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
-		if configuration, ok := d.(*catalog.TSConfiguration); ok && configuration.Seeded() {
+		if configuration, ok := d.(*catalog.TSConfiguration); ok && configuration.Pinned() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
-		if dictionary, ok := d.(*catalog.TSDictionary); ok && dictionary.Seeded() {
+		if dictionary, ok := d.(*catalog.TSDictionary); ok && dictionary.Pinned() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
-		if template, ok := d.(*catalog.TSTemplate); ok && template.Seeded() {
+		if template, ok := d.(*catalog.TSTemplate); ok && template.Pinned() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
 		objectProvider := base.Owner().Provider(ref.Address.ClassID)
@@ -107,7 +115,7 @@ func ClosureTargetClass(class ids.OID) bool {
 	switch class {
 	case ids.SubscriptionClassID, ids.StatisticExtClassID, ids.TSParserClassID:
 		return true
-	case ids.EventTriggerClassID, ids.AccessMethodClassID, ids.CastClassID, ids.OperatorClassCatalogID, ids.OperatorClassID, ids.OperatorFamilyClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TypeClassID, ids.ExtensionClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID, ids.TSConfigurationClassID:
+	case ids.EventTriggerClassID, ids.AccessMethodClassID, ids.CastClassID, ids.OperatorClassCatalogID, ids.OperatorClassID, ids.OperatorFamilyClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TypeClassID, ids.ExtensionClassID, ids.ProcedureClassID, ids.LanguageClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID, ids.TSConfigurationClassID:
 		return true
 	}
 	return ids.IsForeignCatalogClass(class)

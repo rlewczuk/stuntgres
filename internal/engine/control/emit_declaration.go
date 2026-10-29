@@ -62,25 +62,50 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 			return err
 		}
 		if scopedMethod {
-			if err := w.emit("SET default_table_access_method = 'heap';\n"); err != nil { return err }
-		}
-		if r, ok := s.OriginalCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); ok && r.RelationKind == catalog.MaterializedViewRelation {
-			if err := emitRelationColumnStorage(s, w, r); err != nil { return err }
-		}
-		if oid == s.extensionTypeAfter && s.extensionTypeSQL != "" {
-			if err := w.setOwner("postgres"); err != nil {
+			if err := w.emit("SET default_table_access_method = 'heap';\n"); err != nil {
 				return err
 			}
-			return w.emit(s.extensionTypeSQL)
 		}
-		return nil
+		if r, ok := s.OriginalCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); ok && r.RelationKind == catalog.MaterializedViewRelation {
+			if err := emitRelationColumnStorage(s, w, r); err != nil {
+				return err
+			}
+		}
+		return s.emitTypeReplayEpilogue(w, oid)
 	}
 	return emitDumpTable(ctx, s, w, s.table(oid))
+}
+
+// Normalization uses existing privileged SQL owners but never transfers the
+// source object's ownership. Restore the writer's exact authority boundary.
+func (s *dumpScript) emitTypeReplayEpilogue(w *dumpWriter, oid ids.OID) error {
+	sql := s.typeReplayEpilogues[oid]
+	if sql == "" {
+		return nil
+	}
+	previous := w.currentOwner
+	if err := w.setOwner("postgres"); err != nil {
+		return err
+	}
+	if err := w.emit(sql); err != nil {
+		return err
+	}
+	if previous != "" {
+		return w.setOwner(previous)
+	}
+	if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
+		return err
+	}
+	w.currentOwner = ""
+	return nil
 }
 
 // emitDumpStatement writes a domain, composite, routine or operator
 // declaration under its owner.
 func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration dump.Statement) error {
+	if err := s.emitRangeCreationPrelude(w, oid); err != nil {
+		return err
+	}
 	declaration.Binding = s.comparisonBindings[castConsumer{Event: dump.Event{OID: oid}}]
 	if declaration.PrivilegedCreation {
 		if declaration.FollowingSQL != "" && slices.ContainsFunc(s.Statistics, func(d *catalog.Statistics) bool { return d.Address().ObjectID == oid }) {
@@ -95,6 +120,9 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 		if err := w.emitDefinition(s.CatalogView, declaration); err != nil {
 			return err
 		}
+		if err := s.emitTypeReplayEpilogue(w, oid); err != nil {
+			return err
+		}
 		if err := w.setOwner(declaration.Owner); err != nil {
 			return err
 		}
@@ -107,9 +135,9 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 		return nil
 	}
 	if typ := s.domainNodes[oid]; typ != nil && (typ.SQLType.IsDomain() || typ.SQLType.IsRange()) && declaration.Owner != "postgres" {
-		// Owner metadata does not imply schema CREATE/USAGE. Preserve its
-		// captured identity, construct as bootstrap, then transfer only the
-		// exact fresh type through the ordinary owner executor.
+		// Owner metadata does not imply schema CREATE/USAGE. Preserve the
+		// exact fresh-owner pair at the real CREATE coordinates; subsequent
+		// identity normalization still executes under the bootstrap actor.
 		if err := w.forceOwner(declaration.Owner); err != nil {
 			return err
 		}
@@ -123,16 +151,25 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 		if err != nil {
 			return err
 		}
+		if creation := s.rangeCreations[oid]; creation != nil {
+			qualified = creation.coordinates.RootSQL
+		}
 		kind := "DOMAIN"
 		if typ.SQLType.IsRange() {
 			kind = "TYPE"
 		}
-		return w.emit("ALTER " + kind + " " + qualified + " OWNER TO " + catalog.Identifier(declaration.Owner) + ";\n")
+		if err := w.emit("ALTER " + kind + " " + qualified + " OWNER TO " + catalog.Identifier(declaration.Owner) + ";\n"); err != nil {
+			return err
+		}
+		return s.emitTypeReplayEpilogue(w, oid)
 	}
 	if err := w.setOwner(declaration.Owner); err != nil {
 		return err
 	}
-	return w.emitDefinition(s.CatalogView, declaration)
+	if err := w.emitDefinition(s.CatalogView, declaration); err != nil {
+		return err
+	}
+	return s.emitTypeReplayEpilogue(w, oid)
 }
 
 // emitDumpIndex writes an index definition, the physical primary-key
@@ -234,6 +271,9 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 		if err := s.emitLocalAttributeRetirements(w, t.Descriptor); err != nil {
 			return err
 		}
+	}
+	if err := s.emitTypeReplayEpilogue(w, t.Descriptor.Address().ObjectID); err != nil {
+		return err
 	}
 	if schedule != nil {
 		return nil

@@ -316,7 +316,7 @@ func routineExpressionChanged(view catalog.Read, node expr.Expr, typ func(*sqlty
 	analyze.WalkQueryArgumentExpression(node, func(child expr.Expr) {
 		changed = changed || child.ResultUsage().Type != typ(child.ResultUsage().Type)
 		if earth, ok := child.(plan.InstalledEarthExpr); ok {
-			changed = changed || earth.Plan.Earth() != typ(earth.Plan.Earth())
+			changed = changed || earth.Plan.Earth() != nil && earth.Plan.Earth() != typ(earth.Plan.Earth())
 		}
 		captured, err := exec.ExpressionRoutineDescriptor(child)
 		if err != nil {

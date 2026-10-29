@@ -190,5 +190,5 @@ type Runtime interface {
 	Pinned(catalog.Read, ids.ObjectAddress) bool
 	OperatorSeeded(*catalog.Operator) bool
 	OperatorDependencies(catalog.Read, *catalog.Operator) []ids.ObjectAddress
-	TypeProviderProcedure(*catalog.Procedure) bool
+	InstalledProcedure(*catalog.Procedure) bool
 }

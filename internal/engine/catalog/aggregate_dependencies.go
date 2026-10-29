@@ -9,10 +9,11 @@ import (
 )
 
 // OwnedAggregateDependencies exposes aggregate-owned support/type edges,
-// deduplicated within this definition recording pass.
+// deduplicated within this definition recording pass. Installed aggregates retain
+// these edges even when their support identities are lookup-only, not callable.
 func OwnedAggregateDependencies(d *Procedure) iter.Seq[ids.ObjectAddress] {
 	return func(yield func(ids.ObjectAddress) bool) {
-		if d == nil || !d.DynamicCallable() || d.Aggregate == nil {
+		if d == nil || d.Aggregate == nil {
 			return
 		}
 		for i, id := range d.Aggregate.Definition.Functions {
@@ -58,11 +59,14 @@ func OwnedAggregateDependencies(d *Procedure) iter.Seq[ids.ObjectAddress] {
 	}
 }
 
-// VisitProcedureDeclarationDependencies visits namespace, support and declared
-// result/formal dependencies. It returns false when yield stops visitation.
+// VisitProcedureDeclarationDependencies visits namespace, language, support and
+// declared result/formal dependencies. It returns false when yield stops visitation.
 // Checked body/default dependencies are separate capture passes.
 func VisitProcedureDeclarationDependencies(d *Procedure, yield func(ids.ObjectAddress) bool) bool {
 	if !yield(d.Namespace()) {
+		return false
+	}
+	if d.Language != (ids.ObjectAddress{}) && !yield(d.Language) {
 		return false
 	}
 	for address := range OwnedAggregateDependencies(d) {
@@ -88,9 +92,9 @@ func VisitProcedureDeclarationDependencies(d *Procedure, yield func(ids.ObjectAd
 // edges shared by pg_depend, publication admission and retirement preflight.
 // Quoted source and PL replay-order metadata are deliberately not hard edges.
 // Provider-specific generated/extension edges remain with their providers.
-func VisitProcedureDefinitionDependencies(d *Procedure, yield func(ids.ObjectAddress) bool) {
+func VisitProcedureDefinitionDependencies(view Read, d *Procedure, yield func(ids.ObjectAddress) bool) {
 	if VisitProcedureDeclarationDependencies(d, yield) {
-		VisitProcedureCapturedDefinitionDependencies(d, yield)
+		VisitProcedureCapturedDefinitionDependencies(view, d, yield)
 	}
 }
 
@@ -99,7 +103,12 @@ func VisitProcedureDefinitionDependencies(d *Procedure, yield func(ids.ObjectAdd
 // execution-only aggregate support captures never become caller edges.
 // Declaration projection is separate so consumers can deduplicate declarations
 // without collapsing independently recorded body/default rows.
-func VisitProcedureCapturedDefinitionDependencies(d *Procedure, yield func(ids.ObjectAddress) bool) bool {
+func VisitProcedureCapturedDefinitionDependencies(view Read, d *Procedure, yield func(ids.ObjectAddress) bool) bool {
+	if provider, ok := d.Implementation.(ProcedureDependencyProvider); ok {
+		if !provider.VisitProcedureDependencies(view, d, yield) {
+			return false
+		}
+	}
 	if d.SQL == nil {
 		return true
 	}
@@ -138,12 +147,12 @@ func visitDirectExpressionDependencies(dependencies []ExpressionDependency, yiel
 }
 
 // ProcedureDefinitionDependsOn is allocation-free and stops at the first edge.
-func ProcedureDefinitionDependsOn(d *Procedure, target ids.ObjectAddress) bool {
+func ProcedureDefinitionDependsOn(view Read, d *Procedure, target ids.ObjectAddress) bool {
 	if target.ObjectID == 0 {
 		return false
 	}
 	found := false
-	VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+	VisitProcedureDefinitionDependencies(view, d, func(address ids.ObjectAddress) bool {
 		found = address == target
 		return !found
 	})

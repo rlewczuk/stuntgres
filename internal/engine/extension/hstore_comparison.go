@@ -79,12 +79,8 @@ func validateHstoreComparisons(v catalog.Read, ext *catalog.Extension, base *cat
 	}
 	for _, hash := range []bool{false, true} {
 		familySlot, classSlot, method, name := HstoreBtreeFamilySlot, HstoreBtreeClassSlot, ids.OID(403), "btree_hstore_ops"
-		strategies := cubeStrategies[:]
-		supportKinds := []int{6}
 		if hash {
 			familySlot, classSlot, method, name = HstoreHashFamilySlot, HstoreHashClassSlot, 405, "hash_hstore_ops"
-			strategies = []int{0}
-			supportKinds = []int{7, 8}
 		}
 		f, ok := v.OperatorFamily(ext.Members[familySlot])
 		if !ok || f.Name() != name || f.Method != method || f.Extension != ext.Address() || f.Namespace() != ext.TargetNamespace {
@@ -100,17 +96,45 @@ func validateHstoreComparisons(v catalog.Read, ext *catalog.Extension, base *cat
 		if err := ValidateProviderHeader(v, c, ids.OperatorClassCatalogID); err != nil {
 			return err
 		}
-		for i, op := range strategies {
-			m, ok := v.FamilyOperator(c.Family, c.InputType, c.InputType, int16(i+1), 's')
-			if !ok || m.Operator != ext.Members[HstoreComparisonOperatorStart+op].ObjectID || m.Method != method || m.SortFamily != 0 || m.InternalOwner != c.Address() || m.Revision() == 0 {
-				return invalid()
-			}
+		if err := validateHstoreClassBindings(v, c, ext.Members); err != nil {
+			return err
 		}
-		for i, kind := range supportKinds {
-			m, ok := v.FamilySupport(c.Family, c.InputType, c.InputType, int16(i+1))
-			if !ok || m.Function != ext.Members[HstoreComparisonProcedureStart+kind].ObjectID || m.InternalOwner != c.Address() || !m.CatalogVisible || m.Revision() == 0 {
-				return invalid()
-			}
+	}
+	return nil
+}
+
+// Validate the actual AMOP/AMPROC graph of a surviving released class without
+// making current extension membership order or placement part of its ABI.
+func validateHstoreClassBindings(v catalog.Read, class *catalog.OperatorClass, members []ids.ObjectAddress) error {
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid installed hstore class binding") }
+	if len(members) != HstoreMemberCount {
+		return invalid()
+	}
+	method, classSlot := ids.OID(403), HstoreBtreeClassSlot
+	strategies := cubeStrategies[:]
+	supportKinds := [2]int{6}
+	supportCount := 1
+	if class.Address() == members[HstoreHashClassSlot] {
+		method, classSlot = 405, HstoreHashClassSlot
+		strategies = strategies[:1]
+		supportKinds, supportCount = [2]int{7, 8}, 2
+	}
+	if class.Address() != members[classSlot] || class.Method != method {
+		return invalid()
+	}
+	for index, kind := range strategies {
+		if method == 405 {
+			kind = 0
+		}
+		member, ok := v.FamilyOperator(class.Family, class.InputType, class.InputType, int16(index+1), 's')
+		if !ok || member.Operator != members[HstoreComparisonOperatorStart+kind].ObjectID || member.Method != method || member.SortFamily != 0 || member.InternalOwner != class.Address() || member.Revision() == 0 {
+			return invalid()
+		}
+	}
+	for index := range supportCount {
+		member, ok := v.FamilySupport(class.Family, class.InputType, class.InputType, int16(index+1))
+		if !ok || member.Function != members[HstoreComparisonProcedureStart+supportKinds[index]].ObjectID || member.InternalOwner != class.Address() || !member.CatalogVisible || member.Revision() == 0 {
+			return invalid()
 		}
 	}
 	return nil

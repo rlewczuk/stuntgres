@@ -220,7 +220,11 @@ func StageDropParser(h ConfigurationHost, auth Authority, s *parser.DropParser) 
 			}
 		}
 		if d.Seeded() {
-			return configurationError("2BP01", "cannot drop text search parser "+catalog.ObjectNameText(name)+" because it is required by the database system")
+			object, err := h.DependencyObject(auth, d.Address())
+			if err != nil {
+				return err
+			}
+			return configurationError("2BP01", "cannot drop "+object+" because it is required by the database system")
 		}
 		if !seen[d.Address()] {
 			seen[d.Address()] = true

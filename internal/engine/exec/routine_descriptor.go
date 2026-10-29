@@ -89,10 +89,23 @@ func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.DeclarationBody == captured.DeclarationBody &&
 		slices.Equal(current.DeclarationDependencies, captured.DeclarationDependencies) &&
 		current.Conversion == captured.Conversion && current.SQL == captured.SQL && current.SQLBody == captured.SQLBody &&
-		current.SQLDefaults == captured.SQLDefaults && current.RangeConstructor == captured.RangeConstructor && current.Extension == captured.Extension &&
+		current.SQLDefaults == captured.SQLDefaults && current.RangeConstructor == captured.RangeConstructor && sameRoutineOrigin(current, captured) &&
 		current.LiteralDefaults == captured.LiteralDefaults && current.InputNames == captured.InputNames &&
 		current.AccessMethod == captured.AccessMethod && current.Dictionary == captured.Dictionary &&
 		current.Foreign == captured.Foreign && sameRoutineBody(current.Body, captured.Body) && catalog.SameAggregateDefinition(current.Aggregate, captured.Aggregate)
+}
+
+// Current extension membership is mutable, including during replay completion.
+// Independently remapped sealed recipes retain the same logical release and slot.
+func sameRoutineOrigin(current, captured *catalog.Procedure) bool {
+	a, b := current.Origin, captured.Origin
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Valid(current.Address()) && b.Valid(captured.Address()) &&
+		a.Declaration == b.Declaration && a.Installation.Cohort == b.Installation.Cohort &&
+		a.Installation.Implementation == b.Installation.Implementation &&
+		a.Installation.Provider == b.Installation.Provider && a.Installation.Version == b.Installation.Version
 }
 
 func sameRoutineBody(a, b []catalog.RoutineBodyEdge) bool {

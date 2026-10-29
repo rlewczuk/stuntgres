@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
@@ -118,8 +119,15 @@ func TestTablefuncCrosstabProviderIdentity(t *testing.T) {
 		if extension.StockTablefunc.ValidateExtension(e.Catalog.Read(state), ext) == nil {
 			t.Fatal("missing type membership accepted")
 		}
-		if (extension.CatalogProvider{Class: ids.ProcedureClassID}).Validate(e.Catalog.Read(state), view.MustProcedure(ext.Members[12])) == nil {
-			t.Fatal("shared validator accepted missing type membership")
+		// A detached type is not itself an ABI violation. Preserve the
+		// reciprocal-inventory negative above, then independently forge this
+		// routine's actual nominal prerequisite for its callable-owner proof.
+		origin := *bad.Origin
+		installation := *origin.Installation
+		origin.Installation = &installation
+		bad.Origin = &origin
+		if (extension.CatalogProvider{Class: ids.ProcedureClassID}).Validate(e.Catalog.Read(state), view.MustProcedure(ext.Members[12+(slot-6)/2])) == nil {
+			t.Fatal("shared validator accepted unsealed nominal prerequisite")
 		}
 	}
 	for _, slot := range []int{6, 8, 10} {
@@ -133,7 +141,7 @@ func TestTablefuncCrosstabProviderIdentity(t *testing.T) {
 		if extension.StockTablefunc.ValidateExtension(e.Catalog.Read(state), ext) == nil {
 			t.Fatal("missing backing accepted")
 		}
-		if (extension.CatalogProvider{Class: ids.ProcedureClassID}).Validate(e.Catalog.Read(state), view.MustProcedure(ext.Members[12])) == nil {
+		if (extension.CatalogProvider{Class: ids.ProcedureClassID}).Validate(e.Catalog.Read(state), view.MustProcedure(ext.Members[12+(slot-6)/2])) == nil {
 			t.Fatal("shared validator accepted missing composite backing")
 		}
 	}
@@ -195,9 +203,11 @@ func TestTablefuncCrosstabControlIdentity(t *testing.T) {
 	for _, slot := range []int{6, 8, 10} {
 		typ := view.MustType(ext.Members[slot])
 		primary := *typ
+		primary.ACL = authorization.SchemaACLOwner(primary.ACL, primary.Owner, memberOwner.Ref)
 		primary.Owner = memberOwner.Ref
 		state.SetDescriptor(primary.Address(), &primary)
 		companion := *view.MustType(ext.Members[slot+1])
+		companion.ACL = authorization.SchemaACLOwner(companion.ACL, companion.Owner, memberOwner.Ref)
 		companion.Owner = memberOwner.Ref
 		state.SetDescriptor(companion.Address(), &companion)
 		backing := *view.MustRelation(typ.OwningRelation)
@@ -248,14 +258,44 @@ func TestTablefuncCrosstabControlIdentity(t *testing.T) {
 			t.Fatal("named result remap", p, mapped)
 		}
 	}
-	bad := record
-	bad.Members = append([]extension.MemberOwner(nil), record.Members...)
-	for i := range bad.Members {
-		if bad.Members[i].Slot == 7 {
-			bad.Members[i].Owner = "postgres"
+	for _, reversed := range []bool{false, true} {
+		ordered := extensionOwnerRecipeOrder(record)
+		if reversed {
+			for left, right := 0, len(ordered.Members)-1; left < right; left, right = left+1, right-1 {
+				ordered.Members[left], ordered.Members[right] = ordered.Members[right], ordered.Members[left]
+			}
 		}
-	}
-	if _, err := extension.ImportOwners(context.Background(), replay.Catalog.Read(catalog.CloneState(replayView.State())), replay.Roles(), []extension.OwnerRecord{bad}); err == nil {
-		t.Fatal("split composite/array ownership accepted")
+		coherent := catalog.CloneState(replayView.State())
+		if changed, err := extension.ImportOwners(context.Background(), replay.Catalog.Read(coherent), replay.Roles(), []extension.OwnerRecord{ordered}); err != nil || !changed {
+			t.Fatal("coherent requested owners depend on declaration order", reversed, changed, err)
+		}
+		if err := extension.StockTablefunc.ValidateExtension(replay.Catalog.Read(coherent), replayExt); err != nil {
+			t.Fatal("coherent owner import lost current nominal graph", reversed, err)
+		}
+		for slot := 6; slot <= 11; slot++ {
+			t.Run(fmt.Sprintf("reverse_%t_split_%d", reversed, slot), func(t *testing.T) {
+				bad := ordered
+				bad.Members = append([]extension.MemberOwner(nil), ordered.Members...)
+				found := false
+				for index := range bad.Members {
+					if bad.Members[index].Declaration != nil && *bad.Members[index].Declaration == slot {
+						bad.Members[index].Owner = "postgres"
+						found = true
+					}
+				}
+				if !found {
+					t.Fatal("missing actual released nominal declaration", slot)
+				}
+				failed := catalog.CloneState(replayView.State())
+				if changed, err := extension.ImportOwners(context.Background(), replay.Catalog.Read(failed), replay.Roles(), []extension.OwnerRecord{bad}); err == nil || changed {
+					t.Fatal("split composite/array ownership accepted", changed, err)
+				}
+				for address, original := range replayView.Descriptors() {
+					if failed.Get(address) != original {
+						t.Fatal("failed owner import changed candidate authority", address)
+					}
+				}
+			})
+		}
 	}
 }

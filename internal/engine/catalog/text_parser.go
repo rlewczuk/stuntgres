@@ -11,10 +11,10 @@ import (
 // TSParser has no owner or ACL. Published descriptors and callback identities
 // are immutable; rename and schema changes replace the descriptor.
 type TSParser struct {
-	ObjectAddress, ObjectNamespace       ids.ObjectAddress
-	ObjectRevision                       ids.DefinitionRevision
-	ObjectName                           string
-	Start, Token, End, Headline, LexType ids.OID
+	ObjectAddress, ObjectNamespace, Extension ids.ObjectAddress
+	ObjectRevision                            ids.DefinitionRevision
+	ObjectName                                string
+	Start, Token, End, Headline, LexType      ids.OID
 }
 
 func (d *TSParser) Address() ids.ObjectAddress       { return d.ObjectAddress }
@@ -72,6 +72,13 @@ type TSParserProvider struct{}
 
 func (TSParserProvider) ClassID() ids.OID { return ids.TSParserClassID }
 func (TSParserProvider) Validate(v Read, raw Descriptor) error {
+	if err := validateTSParser(v, raw); err != nil {
+		return err
+	}
+	return ValidateExtensionMembership(v, raw)
+}
+
+func validateTSParser(v Read, raw Descriptor) error {
 	d, ok := raw.(*TSParser)
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid text search parser descriptor authority") }
 	if !ok || d == nil || v.Owner() == nil || v.State() == nil || v.Get(d.Address()) != d ||
@@ -131,7 +138,7 @@ func InstallBuiltinTSParsers(s *State) {
 // ResolveParserRuntime certifies current descriptor authority before copying
 // callback identities into a catalog-free leaf capability.
 func ResolveParserRuntime(v Read, d *TSParser) (fts.ParserRuntime, error) {
-	if err := (TSParserProvider{}).Validate(v, d); err != nil {
+	if err := validateTSParser(v, d); err != nil {
 		return fts.ParserRuntime{}, err
 	}
 	return fts.NewParserRuntime(uint32(d.Start), uint32(d.Token), uint32(d.End), uint32(d.Headline), uint32(d.LexType)), nil

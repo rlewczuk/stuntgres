@@ -42,7 +42,7 @@ func TestHstoreArraysProviderIdentity(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
-	if len(ext.Members) != extension.HstoreMemberCount || ext.Version != "1.8" {
+	if len(ext.Members) != extension.HstoreMemberCount+1 || len(ext.Installation.Members) != extension.HstoreMemberCount || ext.Version != "1.8" {
 		t.Fatal("manifest")
 	}
 	for i, name := range []string{"hstore_in", "hstore_out", "hstore_to_array", "hstore_to_matrix"} {
@@ -66,7 +66,8 @@ func TestHstoreArraysProviderIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	owners, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
-	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount-1 || owners.Members[3].Signature != "hstore" || owners.Members[extension.HstoreArrayOperatorSlot].Signature != "0,hstore" {
+	owners = extensionOwnerRecipeOrder(owners)
+	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount+1 || owners.Members[3].Signature != "public.hstore" || owners.Members[extension.HstoreArrayOperatorSlot].Signature != "NONE, public.hstore" {
 		t.Fatal("portable roles", owners, err)
 	}
 	base := ext.Members[0].ObjectID
@@ -119,8 +120,8 @@ func TestHstoreArraysProviderIdentity(t *testing.T) {
 			t.Fatal("binary lookup backer graph")
 		}
 	}
-	for slot, signature := range []string{"25,25", "1009,1009", "1009", "hstore,25", "hstore,1009", "hstore,25", "hstore,25", "hstore,25", "hstore,1009"} {
-		if owners.Members[slot+extension.HstoreTextConstructorSlot-1].Signature != signature {
+	for slot, signature := range []string{"pg_catalog.text, pg_catalog.text", "pg_catalog.text[], pg_catalog.text[]", "pg_catalog.text[]", "public.hstore, pg_catalog.text", "public.hstore, pg_catalog.text[]", "public.hstore, pg_catalog.text", "public.hstore, pg_catalog.text", "public.hstore, pg_catalog.text", "public.hstore, pg_catalog.text[]"} {
+		if owners.Members[slot+extension.HstoreTextConstructorSlot].Signature != signature {
 			t.Fatal("mixed portable signature", slot+extension.HstoreTextConstructorSlot)
 		}
 	}

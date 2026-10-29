@@ -260,9 +260,13 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 		t.Fatal("immutable literal remap", id, original)
 	}
 	d := view.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000})
-	predecessor, err := control.Resolver{}.Predecessor(view, d.Address(), ids.ObjectAddress{})
-	if err != nil || predecessor != d.Extension.ObjectID {
-		t.Fatal("extension predecessor", predecessor, err)
+	if predecessor, err := (control.Resolver{}).Predecessor(view, d.Address(), ids.ObjectAddress{}); err != nil || predecessor != 0 {
+		t.Fatal("released declaration must replay in the installation prefix", predecessor, err)
+	}
+	installation := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
+	predecessor, err := (control.Resolver{}).Predecessor(view, installation.Address(), ids.ObjectAddress{})
+	if err != nil || predecessor == 0 || predecessor != installation.Address().ObjectID || d.Extension != installation.Address() {
+		t.Fatal("named extension predecessor", predecessor, err)
 	}
 	order, err := dump.Order(ctx, dump.Graph{{OID: 1}: {{OID: predecessor}}, {OID: predecessor}: nil}, nil)
 	if err != nil || len(order) != 2 || order[0].OID != predecessor {

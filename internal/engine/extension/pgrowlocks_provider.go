@@ -23,7 +23,7 @@ func PgrowlocksProviderOf(p *catalog.Procedure) *PgrowlocksProvider {
 	return provider
 }
 
-func (p *PgrowlocksProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *PgrowlocksProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid pgrowlocks manifest") }
 	if !currentManifest(v, ext) {
 		return invalid()
@@ -42,17 +42,7 @@ func (p *PgrowlocksProvider) ValidateExtension(v catalog.Read, ext *catalog.Exte
 }
 
 func (p *PgrowlocksProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing pgrowlocks installation")
-	}
-	if err := p.ValidateExtension(v, ext); err != nil {
-		return err
-	}
-	if v.Get(proc.Address()) != proc || ext.Members[0] != proc.Address() {
-		return fmt.Errorf("stuntgres: foreign pgrowlocks procedure")
-	}
-	return nil
+	return ValidateProcedureOrigin(v, proc, p)
 }
 
 func ValidatePgrowlocksIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef) error {

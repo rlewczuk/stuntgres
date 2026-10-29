@@ -3,6 +3,7 @@ package reference_test
 import (
 	"bytes"
 	"database/sql"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -86,6 +87,19 @@ func TestReferenceHstoreConstructPresentationReplay(t *testing.T) {
 func hstoreConstructPresentationReplaySQL(t *testing.T, dump []byte) {
 	t.Helper()
 	script := string(dump)
+	// The genuine recipe is created in collision-free coordinates, not
+	// necessarily its final public namespace. Capture that SQL identity from
+	// the one real CREATE; keep every subsequent rename/move exact.
+	installation := regexp.MustCompile(`(?m)^CREATE EXTENSION "hstore" WITH SCHEMA ("(?:[^"]|"")+") VERSION '1\.8';$`).FindAllStringSubmatchIndex(script, -1)
+	if len(installation) != 1 {
+		t.Fatalf("missing unique released hstore installation:\n%s", script)
+	}
+	created := installation[0]
+	schema := script[created[2]:created[3]]
+	consumer := strings.Index(script, `CREATE VIEW "public"."hs_construct_replay_view" `)
+	if consumer < 0 {
+		t.Fatal("missing actual stored presentation consumer")
+	}
 	for _, tc := range []struct{ name, arguments, renamed, symbol string }{
 		{"hstore", "pg_catalog.text, pg_catalog.text", "pair_now", "hstore_from_text"},
 		{"hstore", "pg_catalog.text[]", "single_now", "hstore_from_array"},
@@ -95,12 +109,12 @@ func hstoreConstructPresentationReplaySQL(t *testing.T, dump []byte) {
 		{"exist", "public.hstore, pg_catalog.text", "exist_now", "hstore_exists"},
 		{"defined", "public.hstore, pg_catalog.text", "defined_now", "hstore_defined"},
 	} {
-		rename := `ALTER FUNCTION "public"."` + tc.name + `"(` + tc.arguments + `) RENAME TO "` + tc.renamed + `";` + "\n"
-		move := `ALTER FUNCTION "public"."` + tc.renamed + `"(` + tc.arguments + `) SET SCHEMA "hs_construct_replay";` + "\n"
-		if strings.Count(script, rename) != 1 || strings.Count(script, move) != 1 || strings.Index(script, rename) >= strings.Index(script, move) {
+		rename := `ALTER FUNCTION ` + schema + `."` + tc.name + `"(` + tc.arguments + `) RENAME TO "` + tc.renamed + `";` + "\n"
+		move := `ALTER FUNCTION ` + schema + `."` + tc.renamed + `"(` + tc.arguments + `) SET SCHEMA "hs_construct_replay";` + "\n"
+		if strings.Count(script, rename) != 1 || strings.Count(script, move) != 1 || created[1] >= strings.Index(script, rename) || strings.Index(script, rename) >= strings.Index(script, move) || strings.Index(script, move) >= consumer {
 			t.Fatalf("missing exact ordered SQL identity replay:\n%s%s\nactual dump:\n%s", rename, move, script)
 		}
-		if strings.Contains(script, `ALTER FUNCTION "public"."`+tc.symbol+`"(`) || strings.Contains(script, `ALTER FUNCTION "hs_construct_replay"."`+tc.symbol+`"(`) {
+		if strings.Contains(script, `."`+tc.symbol+`"(`) {
 			t.Fatalf("replay used executable symbol %s as SQL identity:\n%s", tc.symbol, script)
 		}
 	}

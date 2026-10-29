@@ -41,7 +41,7 @@ func ValidateInstalledCube(n plan.InstalledCubeExpr, view catalog.Read) error {
 	if extension.CubeProviderOf(proc) != extension.StockCube || symbol != n.Name() || string(proc.Signature) != n.Signature() || proc.Result != ids.OID(n.ResultUsage().Type.ID()) {
 		return fmt.Errorf("stuntgres: invalid stored cube identity")
 	}
-	ext, ok := view.Extension(proc.Extension)
+	ext, ok := catalog.OriginInstallation(proc)
 	if !ok || len(ext.Members) == 0 {
 		return fmt.Errorf("stuntgres: missing cube installation")
 	}

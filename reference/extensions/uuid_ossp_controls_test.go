@@ -68,7 +68,7 @@ func uuidOsspControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 		t.Fatal("held value cached across restore")
 	}
 	before := extensionDump(t, p.Ctx, p.Native)
-	for _, bad := range []string{dump + "\nINVALID SQL;", strings.Replace(dump, "VERSION '1.1'", "VERSION 'missing'", 1), strings.ReplaceAll(dump, "uuid_generate_v4", "missing_uuid_v4"), strings.Replace(dump, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1)} {
+	for _, bad := range []string{dump + "\nINVALID SQL;", strings.Replace(dump, "VERSION '1.1'", "VERSION 'missing'", 1), strings.ReplaceAll(dump, "uuid_generate_v4", "missing_uuid_v4"), strings.Replace(dump, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1)} {
 		if bad == dump {
 			t.Fatal("malformed-restore fixture failed to alter dump")
 		}

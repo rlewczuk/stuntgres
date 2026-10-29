@@ -51,7 +51,7 @@ func TestReferenceLevenshteinControls(t *testing.T) {
 		run(check)
 		run(fixture.Prepared(check))
 		levenshteinInventory(t, p, b, c, "lev_owner")
-		extensionControlsFailures(t, p, c, b.Recorder, dump, check)
+		extensionControlsFailures(t, p, c, b.Recorder, "fuzzystrmatch", dump, check)
 		ioFailure := errors.New("levenshtein restore reader failure")
 		if err := stuntgres.Restore(p.Ctx, p.Native, fixture.CatalogControlFailingReader{Err: ioFailure}); !errors.Is(err, ioFailure) {
 			t.Fatal("reader error", err)

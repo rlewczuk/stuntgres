@@ -73,7 +73,7 @@ func AmcheckProviderOf(p *catalog.Procedure) *AmcheckProvider {
 	return provider
 }
 
-func (p *AmcheckProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *AmcheckProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	if p != StockAmcheck || v.Owner() == nil || !currentManifest(v, ext) || ext.Name() != "amcheck" || ext.Version != "1.5" || len(ext.Members) != 1+len(AmcheckMembers) {
 		return fmt.Errorf("stuntgres: invalid amcheck manifest")
 	}
@@ -89,19 +89,7 @@ func (p *AmcheckProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensi
 	return nil
 }
 func (p *AmcheckProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	ext, ok := v.Extension(proc.Extension)
-	if !ok || v.Get(proc.Address()) != proc {
-		return fmt.Errorf("stuntgres: foreign amcheck procedure")
-	}
-	if err := p.ValidateExtension(v, ext); err != nil {
-		return err
-	}
-	for _, address := range ext.Members {
-		if address == proc.Address() {
-			return nil
-		}
-	}
-	return fmt.Errorf("stuntgres: foreign amcheck procedure")
+	return ValidateProcedureOrigin(v, proc, p)
 }
 func ValidateVerifyHeapamIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef) error {
 	actual, ok := v.Procedure(ref.Address)

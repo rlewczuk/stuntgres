@@ -24,6 +24,23 @@ func heapACLRecord(t *testing.T, metadata string) extension.OwnerRecord {
 	return record
 }
 
+func extensionOwnerDeclarationIndex(t *testing.T, record extension.OwnerRecord, declaration int) int {
+	t.Helper()
+	index := -1
+	for i, member := range record.Members {
+		if member.Declaration != nil && *member.Declaration == declaration {
+			if index != -1 {
+				t.Fatal("duplicate owner declaration", declaration)
+			}
+			index = i
+		}
+	}
+	if index == -1 {
+		t.Fatal("missing owner declaration", declaration)
+	}
+	return index
+}
+
 func TestVerifyHeapamACLMetadata(t *testing.T) {
 	e, _, _ := typedUnitCatalog(t, false)
 	ext := heapUnitInstalled(t, e)
@@ -63,12 +80,13 @@ func TestVerifyHeapamACLMetadata(t *testing.T) {
 				t.Fatal(err)
 			}
 			record := heapACLRecord(t, metadata)
-			if len(record.Members) != 8 || record.Members[0].ACL == nil || record.Members[0].ACL.Explicit != tc.acl.Explicit {
+			member := extensionOwnerDeclarationIndex(t, record, proc.Origin.Declaration)
+			if len(record.Members) != 8 || record.Members[member].ACL == nil || record.Members[member].ACL.Explicit != tc.acl.Explicit {
 				t.Fatal("ACL distinction lost", record)
 			}
 			if tc.name == "nonowner-grantor" {
-				want := extension.MemberGrant{Grantor: "heap_acl_reader", Grantee: "heap_acl_third", Execute: true}
-				if entries := record.Members[0].ACL.Entries; len(entries) != 3 || entries[2] != want {
+				want := extension.MemberGrant{Grantor: "heap_acl_reader", Grantee: "heap_acl_third", Privileges: authorization.ExecutePrivilege}
+				if entries := record.Members[member].ACL.Entries; len(entries) != 3 || entries[2] != want {
 					t.Fatal("nonowner grantor was not encoded by role name", entries, want)
 				}
 			}
@@ -140,6 +158,8 @@ func TestVerifyHeapamACLMetadataRejects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	declaration := e.CatalogRead().MustProcedure(ext.Members[0]).Origin.Declaration
+	member := extensionOwnerDeclarationIndex(t, heapACLRecord(t, metadata), declaration)
 	for _, payload := range []string{
 		`{"explicit":true,"entries":null}`,
 		`{"explicit":true,"explicit":false,"entries":[]}`,
@@ -160,7 +180,7 @@ func TestVerifyHeapamACLMetadataRejects(t *testing.T) {
 		if err := json.Unmarshal(record["members"], &members); err != nil {
 			t.Fatal(err)
 		}
-		members[0]["acl"] = json.RawMessage(payload)
+		members[member]["acl"] = json.RawMessage(payload)
 		record["members"], err = json.Marshal(members)
 		if err != nil {
 			t.Fatal(err)
@@ -176,18 +196,24 @@ func TestVerifyHeapamACLMetadataRejects(t *testing.T) {
 		}
 	}
 	for _, mutate := range []func(*extension.OwnerRecord){
-		func(record *extension.OwnerRecord) { record.Members[0].Slot = 8 },
-		func(record *extension.OwnerRecord) { record.Members[0].Name = "foreign_same_signature" },
-		func(record *extension.OwnerRecord) { record.Members[0].ACL = nil },
-		func(record *extension.OwnerRecord) { record.Members[0].ACL.Entries[0].Grantor = "heap_missing_grantor" },
-		func(record *extension.OwnerRecord) { record.Members[0].ACL.Entries[0].Grantee = "heap_missing_grantee" },
+		func(record *extension.OwnerRecord) {
+			record.Members[member].Declaration = new(len(ext.Installation.Declarations))
+		},
+		func(record *extension.OwnerRecord) { record.Members[member].Name = "foreign_same_signature" },
+		func(record *extension.OwnerRecord) { record.Members[member].ACL = nil },
+		func(record *extension.OwnerRecord) {
+			record.Members[member].ACL.Entries[0].Grantor = "heap_missing_grantor"
+		},
+		func(record *extension.OwnerRecord) {
+			record.Members[member].ACL.Entries[0].Grantee = "heap_missing_grantee"
+		},
 	} {
 		record := heapACLRecord(t, metadata)
 		mutate(&record)
 		before := e.CatalogRead()
 		candidate := catalog.CloneState(before.State())
 		if _, err := extension.ImportOwners(context.Background(), e.Catalog.Read(candidate), e.Roles(), []extension.OwnerRecord{record}); err == nil {
-			t.Fatal("forged slot/role authority accepted", record)
+			t.Fatal("forged declaration/role authority accepted", record)
 		}
 		if e.Catalog.State != before.State() {
 			t.Fatal("failed detached ACL import published")

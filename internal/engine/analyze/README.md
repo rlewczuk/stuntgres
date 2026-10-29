@@ -70,25 +70,36 @@ provider identity rather than their original spelling.
 
 Installed ltree array routines enter the same catalog callable discovery and
 selection as their backing operators. Recipe spellings are discovery hints only;
-the selected declaration's genuine provider role, exact concrete companion
-formals, current dependencies and privileges authorize binding.
-Scalar hierarchy backers follow the same selection path with exact ltree/ltree
-formals and BOOL results; shared coercion handles unknown literals and domains,
-without granting implicit TEXT conversion or spelling-based execution authority.
- Path utilities and the three installed concatenation signatures use that same
- selected-call gateway, exact integer/text/installed formals and ordinary argument
- coercion. Bounded scalar LCA arities remain separate declarations. Genuine
- operator backers, not the `||` spelling or current routine label, authorize
- lowering; builtin TEXT concatenation keeps its existing provider.
+the selected declaration's sealed installed origin and released procedure symbol,
+exact current nominal/companion formals, dependencies and privileges authorize
+binding. The retained member number is an immutable recipe slot, never an index
+into current extension membership. A surviving renamed routine and its operator
+remain callable after detach, foreign attachment or original-header retirement.
+Scalar hierarchy functions and their operator backers follow the same sealed-slot
+selection path with exact current ltree/ltree formals and BOOL results, regardless
+of detach, foreign attachment or original-header retirement. Shared coercion
+handles unknown literals and domains without granting implicit TEXT conversion
+or spelling-based execution authority.
+Path utilities and the three installed concatenation signatures use that same
+sealed-origin selected-call gateway, exact integer/text/installed formals and
+ordinary argument coercion. Bounded scalar LCA arities remain separate
+declarations; array LCA resolves the genuine current nominal companion.
+Genuine operator backers, not `||`, current routine labels or current membership,
+authorize lowering; builtin TEXT concatenation keeps its existing provider.
 Scalar lquery backers retain ordered ltree/lquery or lquery/ltree formals and
-BOOL results through the same path. Shared overload resolution preserves
+BOOL results through the same sealed-slot path, independently of a live origin
+header or receiving extension. Shared overload resolution preserves
 unknown-operand ambiguity against array signatures before operand coercion.
-  The six installed scalar ltree comparisons lower through the shared comparison
-  carrier with authentic operator/backer dependencies. Ordering resolves the
-  current installed default B-tree class and support even for empty input.
-  Stored sort/window keys retain the genuine selected class, family, support
-  member and routine declarations with their exact effective revisions, independently
-  of the operand expression and executable datum-comparison projection.
+Mixed scalar label-query backers retain ordered ltree/ltxtquery or
+ltxtquery/ltree formals through this same gateway. Their released symbols and
+sealed declaration slots select the operation, independently of current
+membership, names or originating-header lifetime.
+The six installed scalar ltree comparisons lower through the shared comparison
+carrier with authentic operator/backer dependencies. Ordering resolves the
+current installed default B-tree class and support even for empty input.
+Stored sort/window keys retain the genuine selected class, family, support
+member and routine declarations with their exact effective revisions, independently
+of the operand expression and executable datum-comparison projection.
 
 Installed hstore comparisons and hashes use the same selected-call gateway,
 strict immutable property composition and frozen syntax. Actual operators lower
@@ -272,6 +283,13 @@ library, and never the root engine or `session`. The engine, the root driver
   `DefaultOrigin`. Exact anonymous constructor shapes are reused only after fresh
   member binding proves identical usages. `domain_casts.go` swaps refreshable type
   groups without mutating a shared map.
+  Held logical-literal input checks the catalog-lifetime public signature before
+  matching captured OIDs, so displaced restore identities retain the exact
+  cached-plan result/parameter diagnostic. Only full owner-proven reanalysis of
+  a builtin public signature may decode written private nominal input at a new
+  OID and replace its candidate capture key/value. Structural replay, enum input
+  and same-lifetime usage mismatches retain their existing rejection gates;
+  retired logical payloads are never retagged into the replacement catalog.
   Contextual INSERT query outputs capture only previously unknown literals after
   assignment establishes their final Usage, at the original raw target ordinal
   and actual producer frame. Already typed outputs are not recaptured. Frozen

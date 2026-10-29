@@ -28,8 +28,26 @@ func (h PLHandler) Declaration() (name string, signature ProcedureSignature, res
 	return "", "", 0
 }
 
+// ReleasedProcedure returns the stock PL/pgSQL 1.0 C declaration, before
+// catalog identity, ownership, membership and installation origin are assigned.
+// Bootstrap and CREATE EXTENSION must produce the same released metadata.
+func (h PLHandler) ReleasedProcedure() Procedure {
+	name, signature, result := h.Declaration()
+	return Procedure{
+		ObjectName: name, Signature: signature, Result: result,
+		RoutineKind: FunctionRoutine, Volatility: expr.Volatile,
+		Display: RoutineDisplay{Language: CRoutineLanguage, Source: name, Binary: "$libdir/plpgsql", HasBinary: true},
+		// The shipped C declarations omit PARALLEL: CREATE FUNCTION defaults
+		// to UNSAFE, independently of any later mutable Parallel override.
+		Installed: InstalledRoutineDeclaration{Parallel: 'u'},
+		Strict:    h != PLCallHandler, PLHandler: h,
+	}
+}
+
 type Language struct {
 	ObjectAddress           ids.ObjectAddress
+	Extension               ids.ObjectAddress
+	Origin                  *InstalledOrigin
 	ObjectRevision          ids.DefinitionRevision
 	ObjectName              string
 	Owner                   authorization.PrincipalRef
@@ -69,7 +87,7 @@ func (LanguageProvider) Validate(v Read, descriptor Descriptor) error {
 			return invalid()
 		}
 	case "plpgsql":
-		if !d.Procedural || !d.Trusted {
+		if !d.Procedural || !d.Trusted || !d.Origin.Valid(d.Address()) || d.Origin.Installation.Provider != "plpgsql" || d.Origin.Declaration != 3 || v.Owner().Extensions["plpgsql"] != d.Origin.Installation.Implementation {
 			return invalid()
 		}
 		for _, route := range []struct {
@@ -84,7 +102,7 @@ func (LanguageProvider) Validate(v Read, descriptor Descriptor) error {
 	default:
 		return invalid()
 	}
-	return nil
+	return ValidateExtensionMembership(v, d)
 }
 
 func ValidatePLHandler(v Read, d *Procedure) error {
@@ -92,16 +110,24 @@ func ValidatePLHandler(v Read, d *Procedure) error {
 		return fmt.Errorf("stuntgres: foreign PL handler authority")
 	}
 	name, signature, result := d.PLHandler.Declaration()
-	if name == "" || v.Get(d.Address()) != d || d.Address().ClassID != ids.ProcedureClassID || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() || d.Name() != name || d.Signature != signature || d.Result != result || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.RoutineKind != FunctionRoutine || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Foreign != nil || d.Implementation != nil || d.Aggregate != nil || d.AccessMethod != NoAccessMethod || d.Conversion.Name() != "" || len(d.Body) != 0 || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) {
+	if name == "" || v.Get(d.Address()) != d || d.Address().ClassID != ids.ProcedureClassID || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() || d.Name() != name || d.Signature != signature || d.Result != result || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.RoutineKind != FunctionRoutine || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Foreign != nil || d.Implementation != nil || d.Aggregate != nil || d.AccessMethod != NoAccessMethod || d.Conversion.Name() != "" || len(d.Body) != 0 || d.Dictionary != (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: invalid PL handler capability")
+	}
+	if !d.Origin.Valid(d.Address()) || d.Origin.Installation.Provider != "plpgsql" || d.Origin.Declaration != int(d.PLHandler)-1 || v.Owner().Extensions["plpgsql"] != d.Origin.Installation.Implementation {
+		return fmt.Errorf("stuntgres: invalid PL handler origin")
 	}
 	if len(d.DeclarationDependencies) != 0 {
 		return fmt.Errorf("stuntgres: PL handler carries declaration replay metadata")
 	}
+	released := d.PLHandler.ReleasedProcedure()
+	canonical, ok := d.Origin.Installation.Declarations[d.Origin.Declaration].(*Procedure)
+	if !ok || canonical.Display != released.Display || canonical.Installed != released.Installed || d.Display != canonical.Display || d.Installed != canonical.Installed {
+		return fmt.Errorf("stuntgres: invalid PL handler released metadata")
+	}
 	if d.Volatility != expr.Volatile || d.Strict != (d.PLHandler != PLCallHandler) || d.Language != (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: invalid PL handler declaration")
 	}
-	return nil
+	return ValidateExtensionMembership(v, d)
 }
 
 func LookupLanguage(v Read, name string) (*Language, error) {

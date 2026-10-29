@@ -5,27 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"stuntgres/reference/fixture"
 	"testing"
 )
 
 // Mutate only the selected role in the actual emitted ownership record.
 func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v2 "
+	const marker = "-- stuntgres-extension-owners-v3 "
 	script := string(dump)
-	if strings.Count(script, marker) != 1 {
-		t.Fatal("expected one actual hstore owner record")
-	}
-	start := strings.Index(script, marker)
-	endOffset := strings.IndexByte(script[start:], '\n')
-	if endOffset < 0 {
-		t.Fatal("unterminated actual owner record")
-	}
-	end := start + endOffset
-	data, err := base64.StdEncoding.DecodeString(script[start+len(marker) : end])
-	if err != nil {
-		t.Fatal(err)
-	}
+	start, end, data := fixture.CatalogExtensionOwnerDirective(t, script, "hstore", true)
+	var err error
 	var record map[string]json.RawMessage
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
@@ -34,21 +24,39 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		t.Fatal("wrong actual owner record", string(data))
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 65 {
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 67 {
 		t.Fatalf("actual bounded owner inventory %s/%v", data, err)
 	}
 	bySlot := make(map[int]map[string]json.RawMessage)
+	ordinary := 0
 	for _, member := range members {
+		if member["declaration"] == nil {
+			ordinary++
+			if string(member["kind"]) != `"type"` || string(member["name"]) != `"_hstore"` || string(member["extension"]) != `"hstore"` || string(member["owner"]) != `""` {
+				t.Fatal("generated array membership metadata", member)
+			}
+			continue
+		}
 		var slot int
-		if err := json.Unmarshal(member["slot"], &slot); err != nil || bySlot[slot] != nil {
+		if err := json.Unmarshal(member["declaration"], &slot); err != nil || bySlot[slot] != nil {
 			t.Fatal("invalid actual slot", slot, err)
 		}
 		bySlot[slot] = member
 	}
-	// Slot 11 is the ownerless hstore-to-jsonb cast, not an exported owner.
-	if bySlot[11] != nil {
-		t.Fatal("ownerless cast has an owner record")
+	if ordinary != 1 {
+		t.Fatal("generated companion membership count", ordinary)
 	}
+	if bySlot[11] == nil || string(bySlot[11]["kind"]) != `"cast"` || string(bySlot[11]["owner"]) != `""` || bySlot[11]["acl"] != nil {
+		t.Fatal("ownerless cast membership metadata", bySlot[11])
+	}
+	var schema, typeName string
+	if err := json.Unmarshal(bySlot[0]["schema"], &schema); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(bySlot[0]["name"], &typeName); err != nil {
+		t.Fatal(err)
+	}
+	portable := map[string]string{"hstore": schema + "." + typeName, "2275": "pg_catalog.cstring", "25": "pg_catalog.text", "1009": "pg_catalog.text[]", "20": "bigint", "2249": "pg_catalog.record", "2283": "pg_catalog.anyelement", "0": "NONE"}
 	for slot, want := range []struct{ kind, signature string }{
 		{"type", ""},
 		{"procedure", "2275"},
@@ -133,6 +141,17 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 				t.Fatal(err)
 			}
 		}
+		if want.kind == "procedure" || want.kind == "operator" {
+			parts := strings.Split(want.signature, ",")
+			for i, part := range parts {
+				spelling, ok := portable[part]
+				if !ok {
+					t.Fatal("missing independent symbolic formal", part)
+				}
+				parts[i] = spelling
+			}
+			want.signature = strings.Join(parts, ", ")
+		}
 		if kind != want.kind || signature != want.signature {
 			t.Fatalf("owner role %d=%s/%s want %s/%s", slot, kind, signature, want.kind, want.signature)
 		}
@@ -151,7 +170,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 	case "operator_signature":
 		bySlot[7]["signature"] = json.RawMessage(`"hstore,0"`)
 	case "operator_slot":
-		bySlot[8]["slot"] = json.RawMessage(`3`)
+		bySlot[8]["declaration"] = json.RawMessage(`3`)
 	case "json_signature":
 		bySlot[5]["signature"] = json.RawMessage(`"25"`)
 	case "json_loose_kind":
@@ -161,11 +180,14 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 	case "jsonb_loose_kind":
 		bySlot[10]["kind"] = json.RawMessage(`"type"`)
 	case "jsonb_duplicate":
-		bySlot[10]["slot"] = json.RawMessage(`9`)
+		bySlot[10]["declaration"] = json.RawMessage(`9`)
 	case "jsonb_missing":
 		for i, member := range members {
 			var slot int
-			if err := json.Unmarshal(member["slot"], &slot); err != nil {
+			if member["declaration"] == nil {
+				continue
+			}
+			if err := json.Unmarshal(member["declaration"], &slot); err != nil {
 				t.Fatal(err)
 			}
 			if slot == 10 {
@@ -174,7 +196,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 			}
 		}
 	case "jsonb_cast_owner":
-		members = append(members, map[string]json.RawMessage{"slot": json.RawMessage(`11`), "kind": json.RawMessage(`"cast"`), "name": json.RawMessage(`"hstore_jsonb"`)})
+		bySlot[11]["owner"] = bySlot[0]["owner"]
 	default:
 		mutated := false
 		for slot := 31; slot <= 65; slot++ {

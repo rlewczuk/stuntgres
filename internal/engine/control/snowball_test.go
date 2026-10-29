@@ -2,10 +2,12 @@ package control
 
 import (
 	"slices"
+	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 	"testing"
 )
 
@@ -20,6 +22,9 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err := store.InstallSnowballLocked(source.Bootstrap, runtime); err != nil {
 		t.Fatal(err)
 	}
+	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
+	catalog.InstallBuiltinTSParsers(source.State)
+	source.CatalogView.Owner().Providers[ids.TSDictionaryClassID] = extension.CatalogProvider{Class: ids.TSDictionaryClassID}
 	var seed *catalog.TSDictionary
 	for _, descriptor := range source.State.Descriptors() {
 		if d, ok := descriptor.(*catalog.TSDictionary); ok && d.SeedName() == "english_stem" {
@@ -92,5 +97,41 @@ func TestSnowballSeedReplay(t *testing.T) {
 	want := "ALTER TEXT SEARCH DICTIONARY \"pg_catalog\".\"simple\" (language, stopwords, language = 'english');\n"
 	if lines[3] != want {
 		t.Fatal(lines, want)
+	}
+	// Intrinsic helpers and the private-marker template replay their actual
+	// bootstrap identities, never ordinary CREATE declarations or release slots.
+	template, ok := source.CatalogView.TSTemplate(seed.Template)
+	if !ok {
+		t.Fatal("missing genuine Snowball template")
+	}
+	init := source.CatalogView.MustProcedure(template.Init)
+	renamedInit := *init
+	renamedInit.ObjectName = "saved_snowball_init"
+	source.State.UnbindName(catalog.DescriptorNameKey(init))
+	source.State.SetDescriptor(init.Address(), &renamedInit)
+	source.State.BindName(catalog.DescriptorNameKey(&renamedInit), init.Address())
+	renamedTemplate := *template
+	renamedTemplate.ObjectName = "saved_snowball_template"
+	source.State.UnbindName(catalog.DescriptorNameKey(template))
+	source.State.SetDescriptor(template.Address(), &renamedTemplate)
+	source.State.BindName(catalog.DescriptorNameKey(&renamedTemplate), template.Address())
+	templates, err := script.templateProviderReplays()
+	if err != nil {
+		t.Fatal(err)
+	}
+	templateLines, err := planProviderReplay(templates)
+	if err != nil || len(templateLines) != 1 || templateLines[0] != "ALTER TEXT SEARCH TEMPLATE \"pg_catalog\".\"snowball\" RENAME TO \"saved_snowball_template\";\n" {
+		t.Fatal("canonical intrinsic template replay", templateLines, err)
+	}
+	collection := &dumpCollection{Capture: script.Capture, source: source}
+	if err := collection.collectProvider(&renamedInit); err != nil {
+		t.Fatal(err)
+	}
+	helperLines, err := planProviderReplay(collection.Providers)
+	if err != nil || len(helperLines) != 1 || helperLines[0] != "ALTER FUNCTION \"pg_catalog\".\"dsnowball_init\"(pg_catalog.internal) RENAME TO \"saved_snowball_init\";\n" {
+		t.Fatal("canonical allocated helper replay", helperLines, err)
+	}
+	if strings.Contains(strings.Join(append(templateLines, helperLines...), ""), "CREATE") {
+		t.Fatal("intrinsic replay duplicated bootstrap identities")
 	}
 }

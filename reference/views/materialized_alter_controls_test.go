@@ -43,6 +43,10 @@ func TestReferenceMaterializedAlterControls(t *testing.T) {
 			run(fixture.Exec("ALTER MATERIALIZED VIEW alter_mv RENAME TO saved", 0))
 			run(fixture.Exec("ALTER MATERIALIZED VIEW saved SET SCHEMA alter_control", 0))
 			run(fixture.Exec("ALTER MATERIALIZED VIEW alter_control.saved OWNER TO alter_control_owner", 0))
+			// A real domain collision displaces the associated array. Replay must
+			// admit actual materialized rename/schema operations to retain it.
+			run(fixture.Exec("CREATE DOMAIN alter_control._saved AS integer", 0))
+			run(fixture.Exec("DROP DOMAIN alter_control._saved", 0))
 			run(fixture.Exec("ALTER MATERIALIZED VIEW alter_control.saved DEPENDS ON EXTENSION unaccent", 0))
 			run(fixture.Exec("ALTER MATERIALIZED VIEW indexed DEPENDS ON EXTENSION unaccent", 0))
 			run(fixture.Exec("INSERT INTO mv_base VALUES(3,'c')", 1))
@@ -58,6 +62,7 @@ func TestReferenceMaterializedAlterControls(t *testing.T) {
 				alterX(run, "alter_control.saved", 1)
 				alterX(run, "indexed", 1)
 				run(fixture.Select("SELECT matviewowner FROM pg_matviews WHERE matviewname='saved'", []string{"matviewowner"}, []string{"NAME"}, [][]any{{"alter_control_owner"}}))
+				run(fixture.Select("SELECT a.typname FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid='alter_control.saved'::regclass", []string{"typname"}, []string{"NAME"}, [][]any{{"__saved"}}))
 				run(fixture.Select("SELECT i,s FROM indexed ORDER BY i", []string{"i", "s"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "a"}, {int64(2), nil}}))
 				run(fixture.Select("SELECT pg_get_indexdef('mv_u'::regclass) AS d", []string{"d"}, []string{"TEXT"}, [][]any{{"CREATE UNIQUE INDEX mv_u ON public.indexed USING btree (i) INCLUDE (s)"}}))
 			}
@@ -197,21 +202,17 @@ func TestReferenceMaterializedAlterControlFailures(t *testing.T) {
 			for _, tc := range []struct {
 				name, stream string
 				want         fixture.Diagnostic
-				nativeOnly   bool
 			}{
-				{"missing_provider", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; ALTER MATERIALIZED VIEW public.imported DEPENDS ON EXTENSION absent_ext;", fixture.ControlsReferenceDiagnostic("42704", `extension "absent_ext" does not exist`), false},
-				{"missing_provider_remove", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; ALTER MATERIALIZED VIEW public.imported NO DEPENDS ON EXTENSION absent_ext;", fixture.ControlsReferenceDiagnostic("42704", `extension "absent_ext" does not exist`), false},
-				{"unauthorized_target", "CREATE SCHEMA imported_schema AUTHORIZATION alter_import_outsider; CREATE EXTENSION unaccent SCHEMA imported_schema; CREATE MATERIALIZED VIEW imported_schema.imported AS SELECT 1 AS i WITH NO DATA; SET SESSION AUTHORIZATION alter_import_outsider; ALTER MATERIALIZED VIEW imported_schema.imported DEPENDS ON EXTENSION unaccent;", fixture.ControlsReferenceDiagnostic("42501", "must be owner of materialized view imported"), false},
-				{"unauthorized_target_remove", "CREATE SCHEMA imported_schema AUTHORIZATION alter_import_outsider; CREATE EXTENSION unaccent SCHEMA imported_schema; CREATE MATERIALIZED VIEW imported_schema.imported AS SELECT 1 AS i WITH NO DATA; SET SESSION AUTHORIZATION alter_import_outsider; ALTER MATERIALIZED VIEW imported_schema.imported NO DEPENDS ON EXTENSION unaccent;", fixture.ControlsReferenceDiagnostic("42501", "must be owner of materialized view imported"), false},
-				{"wrong_kind", "CREATE EXTENSION unaccent; CREATE TABLE public.imported(i INT); ALTER MATERIALIZED VIEW public.imported DEPENDS ON EXTENSION unaccent;", fixture.ControlsReferenceDiagnostic("42809", `"imported" is not a materialized view`), false},
-				{"indexed_collision", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; CREATE UNIQUE INDEX imported_u ON public.imported(i); CREATE TABLE public.imported_u(i INT);", fixture.ControlsReferenceDiagnostic("42P07", `relation "imported_u" already exists`), false},
-				{"type_only_collision", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; CREATE TYPE public.imported AS ENUM ('ok');", fixture.ControlsReferenceDiagnostic("42710", `type "imported" already exists`), false},
-				{"excluded_metadata_replay", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; ALTER MATERIALIZED VIEW public.imported RENAME TO other;", fixture.ControlsReferenceDiagnostic("0A000", "restore accepts only materialized extension dependency ALTER"), true},
-				{"conditional_dependency_grammar", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; ALTER MATERIALIZED VIEW IF EXISTS public.imported DEPENDS ON EXTENSION unaccent;", fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "DEPENDS"`), false},
+				{"missing_provider", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; ALTER MATERIALIZED VIEW public.imported DEPENDS ON EXTENSION absent_ext;", fixture.ControlsReferenceDiagnostic("42704", `extension "absent_ext" does not exist`)},
+				{"missing_provider_remove", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; ALTER MATERIALIZED VIEW public.imported NO DEPENDS ON EXTENSION absent_ext;", fixture.ControlsReferenceDiagnostic("42704", `extension "absent_ext" does not exist`)},
+				{"unauthorized_target", "CREATE SCHEMA imported_schema AUTHORIZATION alter_import_outsider; CREATE EXTENSION unaccent SCHEMA imported_schema; CREATE MATERIALIZED VIEW imported_schema.imported AS SELECT 1 AS i WITH NO DATA; SET SESSION AUTHORIZATION alter_import_outsider; ALTER MATERIALIZED VIEW imported_schema.imported DEPENDS ON EXTENSION unaccent;", fixture.ControlsReferenceDiagnostic("42501", "must be owner of materialized view imported")},
+				{"unauthorized_target_remove", "CREATE SCHEMA imported_schema AUTHORIZATION alter_import_outsider; CREATE EXTENSION unaccent SCHEMA imported_schema; CREATE MATERIALIZED VIEW imported_schema.imported AS SELECT 1 AS i WITH NO DATA; SET SESSION AUTHORIZATION alter_import_outsider; ALTER MATERIALIZED VIEW imported_schema.imported NO DEPENDS ON EXTENSION unaccent;", fixture.ControlsReferenceDiagnostic("42501", "must be owner of materialized view imported")},
+				{"wrong_kind", "CREATE EXTENSION unaccent; CREATE TABLE public.imported(i INT); ALTER MATERIALIZED VIEW public.imported DEPENDS ON EXTENSION unaccent;", fixture.ControlsReferenceDiagnostic("42809", `"imported" is not a materialized view`)},
+				{"indexed_collision", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; CREATE UNIQUE INDEX imported_u ON public.imported(i); CREATE TABLE public.imported_u(i INT);", fixture.ControlsReferenceDiagnostic("42P07", `relation "imported_u" already exists`)},
+				{"type_only_collision", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; CREATE TYPE public.imported AS ENUM ('ok');", fixture.ControlsReferenceDiagnostic("42710", `type "imported" already exists`)},
+				{"renamed_relation_collision", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; CREATE TABLE public.other(i INT); ALTER MATERIALIZED VIEW public.imported RENAME TO other;", fixture.ControlsReferenceDiagnostic("42P07", `relation "other" already exists`)},
+				{"conditional_dependency_grammar", "CREATE MATERIALIZED VIEW public.imported AS SELECT 1 AS i WITH NO DATA; ALTER MATERIALIZED VIEW IF EXISTS public.imported DEPENDS ON EXTENSION unaccent;", fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "DEPENDS"`)},
 			} {
-				if b.PG && tc.nativeOnly {
-					continue
-				}
 				if tc.name == "conditional_dependency_grammar" {
 					tc.want.Position = strconv.Itoa(strings.Index(tc.stream, "DEPENDS") + 1)
 				}

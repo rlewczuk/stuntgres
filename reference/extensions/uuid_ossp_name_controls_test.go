@@ -78,7 +78,7 @@ func uuidNameControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 		dump + "\nINVALID SQL;",
 		strings.ReplaceAll(dump, "uuid_generate_v5", "missing_name_provider"),
 		strings.Replace(dump, "VERSION '1.1'", "VERSION 'missing'", 1),
-		strings.Replace(dump, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1),
+		strings.Replace(dump, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1),
 		uuidNameInvalidSignature(t, dump),
 	} {
 		if bad == dump {

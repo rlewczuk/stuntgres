@@ -46,8 +46,8 @@ var PageinspectMembers = [...]PageinspectMember{
 	{"gin_leafpage_items", "gin_leafpage_items", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{27, 21, 1010}, "page", "first_tid", "nbytes", "tids")}},
 }
 
-func (p *PageinspectProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
-	if p != StockPageinspect || !currentManifest(v, ext) || ext.Name() != "pageinspect" || ext.Version != "1.13" || len(ext.Members) != len(PageinspectMembers) {
+func (p *PageinspectProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
+	if p != StockPageinspect || v.Owner() == nil || !currentManifest(v, ext) || ext.Name() != "pageinspect" || ext.Version != "1.13" || len(ext.Members) != len(PageinspectMembers) {
 		return fmt.Errorf("stuntgres: invalid pageinspect manifest")
 	}
 	for _, address := range ext.Members {
@@ -61,18 +61,11 @@ func (p *PageinspectProvider) ValidateExtension(v catalog.Read, ext *catalog.Ext
 	}
 	return nil
 }
+func (p *PageinspectProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+	return ValidateCurrentInstallation(v, ext, p)
+}
 func (p *PageinspectProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing pageinspect installation")
-	}
-	if err := p.ValidateExtension(v, ext); err != nil {
-		return err
-	}
-	if v.Get(proc.Address()) != proc {
-		return fmt.Errorf("stuntgres: foreign pageinspect procedure")
-	}
-	return nil
+	return ValidateProcedureOrigin(v, proc, p)
 }
 func ValidatePageinspectIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef) error {
 	actual, ok := v.Procedure(ref.Address)

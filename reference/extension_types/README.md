@@ -13,6 +13,18 @@ multiranges, text search and UUID);
 [reference/types](../types/README.md#testing) (composite types, enums, `citext`,
 ACL values, TID, BOOLEAN and comparisons).
 
+`TestReferenceExtensionOwnershipPrerequisites` retains actual cube/earthdistance
+prerequisites, distinct nominal types and extension/schema dependency restrictions.
+Its cohort scenario lawfully detaches genuine old objects, retires their original
+extensions and installs a new same-named cube: earth must still use the original
+cube type, not the new installation's same-spelled type. Shared SQL precedes
+native same/independent Dump/Reset/Restore and no-phantom assertions. Each
+destination uses its own recorded SQL pool and recorder, separate from its raw
+control pool, so consumed-value and cursor-close evidence comes from that engine.
+Run the
+definition with both `make check RUN='^TestReferenceExtensionOwnershipPrerequisites$'`
+and the same command with `REFERENCE=1`.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
@@ -24,6 +36,9 @@ these are shared across families:
   checks across all eight roles. ISSN and ISSN13 expectations preserve invalid markers and
   nonzero issue digits, including full-number serialization in native controls.
   ISSN13 always displays the long form, independently of ISSN short output.
+  Held scalar-literal ownership witnesses reuse `issnOutput` for the documented
+  release-specific short display while retaining complete native marked issue
+  values across membership mutation, type generations and native controls.
   UPC expectations retain compact twelve-digit values and markers natively;
   independently specified PostgreSQL short display cropping never masks native
   marker loss. Typed EAN13 conversions witness the retained packed flag.
@@ -100,8 +115,12 @@ these are shared across families:
   admission and stored consumers survive native controls and emitted-SQL replay.
   Genuine rename/schema moves of all seven constructor/lookup/predicate
   procedures retain original SQL names and exact overload signatures in actual
-  Dump output. Displaced native Restore and replay of those identical emitted
-  SQL bytes on PostgreSQL exercise both stored consumers and current names.
+  Dump output. The exact rename-then-move witness starts at the namespace of the
+  one genuine released CREATE EXTENSION, not an assumed final `public` namespace,
+  and requires final identities before stored consumer creation. Executable C
+  symbols are forbidden as SQL identities in every namespace. Displaced native
+  Restore and replay of those identical emitted SQL bytes on PostgreSQL exercise
+  both stored consumers and current names.
   The same replay witness preserves escaped and whole-NULL inputs, multi-key and
   matrix construction, direct `_TEXT` metadata and nondefault request bounds,
   duplicates and NULL keys, plus destination-local procedure/arrow relationships.
@@ -142,6 +161,10 @@ these are shared across families:
   prepared authority and actual emitted-SQL replay share `RUN='^TestReferenceLtreeArray'`.
 - Scalar hierarchy fixtures independently specify inclusive path relationships,
   Boolean metadata, overload/privilege diagnostics and restored stored consumers.
+  Both direct `ltree_isparent`/`ltree_risparent` calls and `@>`/`<@` operators
+  retain their existing direct, prepared and held witnesses. The ownership
+  scenarios in `reference/extensions` additionally retain genuine detached and
+  foreign members after origin retirement through destination-recorded controls.
   The reusable selector is `RUN='^TestReferenceLtreeHierarchy'`.
  - Path utilities share `RUN='^TestReferenceLtreePath'`: independently specified
    slices, whole-label index, conversion, proper-ancestor scalar/array LCA and the

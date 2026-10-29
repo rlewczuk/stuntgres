@@ -49,6 +49,10 @@ type restoreRun struct {
 	attributePairs          control.AttributeConstructorPairs
 	attributeConstructors   map[control.AttributeDropTarget]ids.ObjectRef
 
+	// Installed declaration metadata is checked once at its first generated
+	// OWNER use. Finish still validates the complete final symbolic state.
+	extensionOwnerReplayValidated bool
+
 	// Table, NOT NULL and foreign key captures.
 	pendingForeignKeys      []table.RestoredForeignKeys
 	notNullOrigins          map[ids.OID]table.RestoredNotNull

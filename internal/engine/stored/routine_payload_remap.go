@@ -33,7 +33,7 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 	}
 	// Occurrence identity belongs to the entire operation, not to an individual
 	// declaration, expression, binding or frozen presentation.
-	r := &catalog.RoutineRemap{Type: analyze.RecordTypeMapper(typ, collation), Collation: collation}
+	r := &catalog.RoutineRemap{Type: analyze.RecordTypeMapper(typ, collation), Collation: collation, Descriptor: extension.DescriptorRemapper(mapping)}
 	definitions := make(map[*proc.Definition]*proc.Definition)
 	var programs map[*proc.PLProgram]*proc.PLProgram
 	usages := &ViewQueryRemapper{Type: r.Type, Collation: r.Collation}
@@ -97,20 +97,26 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 	attach := func(p *catalog.Procedure) error {
 		if original := p.RangeConstructor; original != nil {
 			mapped := r.Type(original.Type)
-			if mapped == nil { return fmt.Errorf("stuntgres: missing generated constructor destination type") }
+			if mapped == nil {
+				return fmt.Errorf("stuntgres: missing generated constructor destination type")
+			}
 			if mapped != original.Type {
 				provider := constructors[original]
 				if provider == nil {
 					copy := *original
 					copy.Type = mapped
 					provider = &copy
-					if constructors == nil { constructors = make(map[*catalog.RangeConstructor]*catalog.RangeConstructor) }
+					if constructors == nil {
+						constructors = make(map[*catalog.RangeConstructor]*catalog.RangeConstructor)
+					}
 					constructors[original], constructors[provider] = provider, provider
 				}
 				p.RangeConstructor = provider
 			}
 			signature, err := p.RangeConstructor.Signature(view)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			p.Signature, p.Result = signature, ids.OID(mapped.ID())
 		}
 		if p.SQL == nil {
@@ -171,7 +177,7 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 		declarations = nil
 		return nil
 	}
-	r.Procedure = extension.ProcedureRemapper(mapping, originalProcedureMapper(view, nil, principal), prepare)
+	r.Procedure = extension.ProcedureRemapper(r.Descriptor, originalProcedureMapper(view, nil, principal), prepare)
 	r.Finish = func() error {
 		if err := r.Declarations(); err != nil {
 			return err

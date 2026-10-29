@@ -196,23 +196,9 @@ func loFreshEngineControls(t *testing.T, p *fixture.Pair) {
 
 func loInvalidOwnerDump(t *testing.T, script string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v2 "
-	if strings.Count(script, marker) != 1 {
-		t.Fatal("expected exactly one actual lo owner record")
-	}
-	start := strings.Index(script, marker)
-	if start < 0 {
-		t.Fatal("missing actual lo owner metadata")
-	}
-	endOffset := strings.IndexByte(script[start:], '\n')
-	if endOffset < 0 {
-		t.Fatal("unterminated actual lo owner metadata")
-	}
-	end := start + endOffset
-	data, err := base64.StdEncoding.DecodeString(script[start+len(marker) : end])
-	if err != nil {
-		t.Fatal(err)
-	}
+	const marker = "-- stuntgres-extension-owners-v3 "
+	start, end, data := fixture.CatalogExtensionOwnerDirective(t, script, "lo", true)
+	var err error
 	var record map[string]json.RawMessage
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
@@ -228,7 +214,7 @@ func loInvalidOwnerDump(t *testing.T, script string) string {
 	changed := false
 	for _, member := range members {
 		var slot int
-		if err := json.Unmarshal(member["slot"], &slot); err != nil {
+		if err := json.Unmarshal(member["declaration"], &slot); err != nil {
 			t.Fatal(err)
 		}
 		if slot != 0 {
@@ -236,15 +222,15 @@ func loInvalidOwnerDump(t *testing.T, script string) string {
 		}
 		var role string
 		if err := json.Unmarshal(member["name"], &role); err != nil || role != "lo" || changed {
-			t.Fatal("actual slot-zero domain role", role, err)
+			t.Fatal("actual domain declaration", role, err)
 		}
-		// Valid JSON and a real member slot, but the companion role is never
-		// authority for the domain slot. All other emitted fields stay intact.
-		member["name"] = json.RawMessage(`"lo[]"`)
+		// Valid JSON and a real declaration index, but a different final type
+		// identity cannot authorize the domain. Preserve every other field.
+		member["name"] = json.RawMessage(`"_lo"`)
 		changed = true
 	}
 	if !changed {
-		t.Fatal("missing slot-zero mutation target")
+		t.Fatal("missing domain declaration mutation target")
 	}
 	record["members"], err = json.Marshal(members)
 	if err != nil {

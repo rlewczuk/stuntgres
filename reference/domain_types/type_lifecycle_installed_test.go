@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -355,12 +356,26 @@ func typeLifecycleEanControls(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 	if !bytes.Equal(dump.Bytes(), redump.Bytes()) {
 		t.Fatal("same-target identity Restore changed deterministic Dump")
 	}
-	target := fixture.NewFixture(t, false, true)
-	domainIdentityDDL(t, target, target.Memory, target.MemoryRecord, "CREATE ROLE tl_ean_spacer", "CREATE ROLE tl_ean_owner", "CREATE TABLE public.tl_ean_spacer(v integer)", "CREATE EXTENSION isn")
 	var sourceOID, destinationOID int64
 	if err := c.QueryRowContext(p.Ctx, "SELECT 'tl_dst.moved'::regtype::oid").Scan(&sourceOID); err != nil {
 		t.Fatal(err)
 	}
+	target := fixture.NewFixture(t, false, true)
+	domainIdentityDDL(t, target, target.Memory, target.MemoryRecord, "CREATE ROLE tl_ean_spacer", "CREATE ROLE tl_ean_owner", "CREATE TABLE public.tl_ean_spacer(v integer)")
+	// Consume genuine unrelated type identities beyond the captured source,
+	// rather than assuming a fixed setup offset still differs after seed growth.
+	for i := 0; ; i++ {
+		name := fmt.Sprintf("public.tl_ean_padding_%d", i)
+		domainIdentityDDL(t, target, target.Memory, target.MemoryRecord, "CREATE DOMAIN "+name+" AS integer")
+		var paddingOID int64
+		if err := target.Memory.QueryRowContext(target.Ctx, "SELECT $1::regtype::oid", name).Scan(&paddingOID); err != nil {
+			t.Fatal(err)
+		}
+		if paddingOID > sourceOID {
+			break
+		}
+	}
+	domainIdentityDDL(t, target, target.Memory, target.MemoryRecord, "CREATE EXTENSION isn")
 	if err := target.Memory.QueryRowContext(target.Ctx, "SELECT 'public.ean13'::regtype::oid").Scan(&destinationOID); err != nil {
 		t.Fatal(err)
 	}

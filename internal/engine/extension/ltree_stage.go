@@ -49,7 +49,9 @@ func (p *LtreeProvider) Stage(stage Stage, ext *catalog.Extension, owner authori
 			array = sqltype.LookupArray(sqltype.ID(arrayOID), arrayName, typ)
 		} else {
 			array, err = sqltype.Array(sqltype.ID(arrayOID), arrayName, typ)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 		}
 		types[family] = [2]*sqltype.Descriptor{typ, array}
 		revision, err := stage.Revision()
@@ -85,35 +87,64 @@ func (p *LtreeProvider) Stage(stage Stage, ext *catalog.Extension, owner authori
 		}
 	}
 	resolve := func(role string) (*sqltype.Descriptor, error) {
-  if role == "16" || role == "23" || role == "25" { return ltreeRoleType(stage.Read(), ext, role) }
+		if role == "16" || role == "23" || role == "25" {
+			return ltreeRoleType(stage.Read(), nil, role)
+		}
 		for family, recipe := range ltreeRecipes {
-			if role == recipe.name { return types[family][0], nil }
-			if role == recipe.name+"[]" { return types[family][1], nil }
+			if role == recipe.name {
+				return types[family][0], nil
+			}
+			if role == recipe.name+"[]" {
+				return types[family][1], nil
+			}
 		}
 		return nil, fmt.Errorf("invalid ltree symbolic type %s", role)
 	}
 	for index, recipe := range ltreeArrayRecipes {
 		signature, result, err := ltreeArraySignatureWith(resolve, index)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		revision, err := stage.Revision()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[LtreeArrayProcedureStart+index], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: recipe.name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: recipe.name, Binary: "$libdir/ltree", HasBinary: true}, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, recipe.name)}
 		}
-		if err := stage.Create(proc); err != nil { return err }
+		if err := stage.Create(proc); err != nil {
+			return err
+		}
 	}
 	for index, recipe := range ltreeArrayRecipes {
-		left, err := resolve(recipe.left); if err != nil { return err }
-		right, err := resolve(recipe.right); if err != nil { return err }
-		_, result, err := ltreeArraySignatureWith(resolve, index); if err != nil { return err }
-		revision, err := stage.Revision(); if err != nil { return err }
+		left, err := resolve(recipe.left)
+		if err != nil {
+			return err
+		}
+		right, err := resolve(recipe.right)
+		if err != nil {
+			return err
+		}
+		_, result, err := ltreeArraySignatureWith(resolve, index)
+		if err != nil {
+			return err
+		}
+		revision, err := stage.Revision()
+		if err != nil {
+			return err
+		}
 		op := &catalog.Operator{ObjectAddress: ext.Members[LtreeArrayOperatorStart+index], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: recipe.operator, Owner: owner, Left: ids.OID(left.ID()), Right: ids.OID(right.ID()), Result: result, Function: ext.Members[LtreeArrayProcedureStart+index].ObjectID}
-		if index < int(sqltype.LtreeArrayFirstAncestor) { op.Commutator = ext.Members[LtreeArrayOperatorStart+(index^1)].ObjectID; op.Restriction, op.Join = 5040, 5041 }
+		if index < int(sqltype.LtreeArrayFirstAncestor) {
+			op.Commutator = ext.Members[LtreeArrayOperatorStart+(index^1)].ObjectID
+			op.Restriction, op.Join = 5040, 5041
+		}
 		if stage.LookupName(catalog.DescriptorNameKey(op)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("operator %s already exists", recipe.operator)}
 		}
-		if err := stage.Create(op); err != nil { return err }
+		if err := stage.Create(op); err != nil {
+			return err
+		}
 	}
  if err := p.stageComparisons(stage, ext, owner, types[1][0]); err != nil { return err }
  if err := p.stageHierarchy(stage, ext, owner, types[1][0]); err != nil { return err }

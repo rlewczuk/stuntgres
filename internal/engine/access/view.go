@@ -164,7 +164,7 @@ func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
 	if d.Kind() == ids.StatisticsObject || d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
 		return 0
 	}
-	if d.Kind() == ids.TSParserObject {
+	if d.Kind() == ids.TSParserObject || d.Kind() == ids.CastObject || d.Kind() == ids.OperatorObject || d.Kind() == ids.OperatorClassObject || d.Kind() == ids.OperatorFamilyObject {
 		return 0
 	}
 	if d.Kind() == ids.ExtensionObject || d.Kind() == ids.TSDictionaryObject || d.Kind() == ids.TSTemplateObject || d.Kind() == ids.TSConfigurationObject {

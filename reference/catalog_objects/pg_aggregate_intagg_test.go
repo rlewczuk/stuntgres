@@ -127,6 +127,34 @@ func TestReferencePGAggregateIntaggIdentity(t *testing.T) {
 	})
 }
 
+func TestReferencePGAggregateHelperPlacement(t *testing.T) {
+	fixture.SchemaReferenceCleanup(t, "pga_helper_home", "pga_helper_parent")
+	pgAggregateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+		c := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
+		pgAggregateInstall(t, p, b, c, "pga_helper_home")
+		ids := pgAggregateIntaggIDs(t, p, c, "pga_helper_home")
+		for _, q := range []string{
+			"CREATE SCHEMA pga_helper_parent",
+			"ALTER AGGREGATE pga_helper_home.int_array_aggregate(integer) SET SCHEMA pga_helper_parent",
+		} {
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
+		}
+		// Moving only the aggregate does not move the two real installed helper
+		// functions. Their lookup-only native identities retain their own schema.
+		query := fmt.Sprintf("SELECT aggfnoid,aggtransfn,aggfinalfn FROM pg_aggregate WHERE aggfnoid::oid=%d", ids[0])
+		pgAggregateBoth(t, p, b, c, fixture.Select(query, []string{"aggfnoid", "aggtransfn", "aggfinalfn"}, []string{"REGPROC", "REGPROC", "REGPROC"}, [][]any{{"pga_helper_parent.int_array_aggregate", "pga_helper_home.int_agg_state", "pga_helper_home.int_agg_final_array"}}))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET search_path TO pga_helper_home,public", 0))
+		pgAggregateBoth(t, p, b, c, fixture.Select(query, []string{"aggfnoid", "aggtransfn", "aggfinalfn"}, []string{"REGPROC", "REGPROC", "REGPROC"}, [][]any{{"pga_helper_parent.int_array_aggregate", "int_agg_state", "int_agg_final_array"}}))
+		pgAggregateBoth(t, p, b, c, fixture.Select("SELECT 'int_agg_state'::regproc::oid AS state_id,'int_agg_final_array(internal)'::regprocedure::oid AS final_id", []string{"state_id", "final_id"}, []string{"OID", "OID"}, [][]any{{ids[1], ids[2]}}))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET search_path TO pga_helper_parent,public", 0))
+		pgAggregateBoth(t, p, b, c, fixture.Select(query, []string{"aggfnoid", "aggtransfn", "aggfinalfn"}, []string{"REGPROC", "REGPROC", "REGPROC"}, [][]any{{"int_array_aggregate", "pga_helper_home.int_agg_state", "pga_helper_home.int_agg_final_array"}}))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("DROP EXTENSION intagg", 0))
+		for _, id := range ids {
+			pgAggregateBoth(t, p, b, c, fixture.Select("SELECT $1::oid::regproc AS retired", []string{"retired"}, []string{"REGPROC"}, [][]any{{fmt.Sprint(id)}}, id))
+		}
+	})
+}
+
 // Read retained native Rows through public database/sql; do not manufacture
 // recorder events for a cursor captured before an owner-generation boundary.
 func pgAggregateRetained(t *testing.T, r *sql.Rows, want [][]any, types []string) {

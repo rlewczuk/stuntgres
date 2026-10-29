@@ -23,6 +23,7 @@ func extensionVersionOwnerImports(t *testing.T) {
 				t.Fatal(err)
 			}
 			record, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
+			record = extensionOwnerRecipeOrder(record)
 			want := 9
 			if version == "1.2" {
 				want = 10
@@ -35,11 +36,11 @@ func extensionVersionOwnerImports(t *testing.T) {
 				firstName = "daitch_mokotoff"
 			}
 			if record.Members[0].Name != firstName {
-				t.Fatal("version slot-zero symbol", record.Members[0])
+				t.Fatal("direct-install declaration zero lost", record.Members[0])
 			}
-			for slot, member := range record.Members {
-				if member.Slot != slot || member.Schema != "public" {
-					t.Fatal("versioned slot/schema lost", version, member)
+			for declaration, member := range record.Members {
+				if member.Declaration == nil || *member.Declaration != declaration || member.Version != version || member.Schema != "public" {
+					t.Fatal("versioned declaration/schema lost", version, member)
 				}
 			}
 			stage := e.RestoreStage()
@@ -73,11 +74,11 @@ func extensionVersionOwnerImports(t *testing.T) {
 				case "member_schema":
 					records[0].Members[0].Schema = "pg_catalog"
 				case "slot":
-					records[0].Members[0].Slot = want
+					records[0].Members[0].Declaration = new(want)
 				case "duplicate_slot":
-					records[0].Members[1].Slot = records[0].Members[0].Slot
+					records[0].Members[1].Declaration = records[0].Members[0].Declaration
 				case "swapped_slots":
-					records[0].Members[0].Slot, records[0].Members[1].Slot = records[0].Members[1].Slot, records[0].Members[0].Slot
+					records[0].Members[0].Declaration, records[0].Members[1].Declaration = records[0].Members[1].Declaration, records[0].Members[0].Declaration
 				}
 				if err := schemacmds.ImportExtensionOwners(stage, context.Background(), op, records); err == nil {
 					t.Fatal("invalid version owners admitted", kind)

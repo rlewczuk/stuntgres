@@ -28,6 +28,7 @@ type Type struct {
 	DomainPlanStamp ids.DefinitionRevision
 	Owner           authorization.PrincipalRef
 	Extension       ids.ObjectAddress
+	Origin          *InstalledOrigin
 	ACL             authorization.ACLValue
 	// ACLSyntheticDefault distinguishes effective baseline USAGE from raw NULL
 	// typacl. Copies/owner remaps retain it; genuine ACL replacement clears it.

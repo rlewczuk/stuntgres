@@ -47,7 +47,7 @@ func captureInfoRoutineRoutineUsage(in Input) ([][]sqltype.Value, error) {
 		var prefix [4]sqltype.Value
 		initialized := false
 		var failure error
-		catalog.VisitProcedureDefinitionDependencies(source, func(address ids.ObjectAddress) bool {
+		catalog.VisitProcedureDefinitionDependencies(in.Catalog, source, func(address ids.ObjectAddress) bool {
 			if failure = in.Context.Err(); failure != nil {
 				return false
 			}

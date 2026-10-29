@@ -108,6 +108,7 @@ func appendInternalTypeProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype
 		if err != nil {
 			return nil, err
 		}
+		row[22] = sqltype.Null(in.Source.Columns[22].Usage.Type)
 		rows = append(rows, row)
 	}
 	return rows, nil

@@ -44,7 +44,7 @@ func IsnSignature(id sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
 }
 
-func (p *IsnProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *IsnProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid isn manifest") }
 	if p != StockIsn || ext.Name() != "isn" || ext.Version != p.control.Version || len(ext.Members) != isnMemberCount {
 		return invalid()
@@ -110,13 +110,10 @@ func IsnCodecType(v catalog.Read, proc *catalog.Procedure) (*catalog.Type, bool,
 	if proc == nil || v.Get(proc.Address()) != proc {
 		return nil, false, fmt.Errorf("stuntgres: foreign isn codec")
 	}
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return nil, false, fmt.Errorf("stuntgres: missing isn installation")
-	}
-	if err := StockIsn.ValidateExtension(v, ext); err != nil {
+	if err := ValidateProcedureOrigin(v, proc, StockIsn); err != nil {
 		return nil, false, err
 	}
+	ext := proc.Origin.Installation
 	for _, recipe := range isnRecipes {
 		for i := range 2 {
 			if proc.Address() == ext.Members[recipe.slot+1+i] {
@@ -133,4 +130,32 @@ func (p *IsnProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure)
 	}
 	_, _, err := IsnCodecType(v, proc)
 	return err
+}
+
+// ValidateISNConversion authenticates the two current mapped released types,
+// independently of their mutable membership and original header's lifetime.
+func (p *IsnProvider) ValidateISNConversion(v catalog.Read, from, to *catalog.Type) error {
+	invalid := func() error { return fmt.Errorf("stuntgres: foreign ISN conversion endpoints") }
+	if p != StockIsn {
+		return invalid()
+	}
+	for _, endpoint := range [...]*catalog.Type{from, to} {
+		if err := ValidateTypeOrigin(v, endpoint); err != nil {
+			return err
+		}
+		if endpoint.Origin.Installation.Implementation != p {
+			return invalid()
+		}
+	}
+	if !catalog.SameInstallation(to, from.Origin.Installation) {
+		return invalid()
+	}
+	// These are released recipe roles, not names or current member positions.
+	if from.Origin.Declaration == isnRecipes[7].slot && from.SQLType.IsUpc() &&
+		to.Origin.Declaration == isnRecipes[0].slot && to.SQLType.IsEan13() ||
+		from.Origin.Declaration == isnRecipes[0].slot && from.SQLType.IsEan13() &&
+			to.Origin.Declaration == isnRecipes[7].slot && to.SQLType.IsUpc() {
+		return nil
+	}
+	return invalid()
 }

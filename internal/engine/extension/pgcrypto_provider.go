@@ -16,7 +16,7 @@ func (p *PgcryptoProvider) Versions() catalog.ExtensionVersions {
 
 var StockPgcrypto = &PgcryptoProvider{control: catalog.ExtensionControl{Version: "1.4", Trusted: true, Superuser: true, Relocatable: true, Comment: new("cryptographic functions")}}
 
-func (p *PgcryptoProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *PgcryptoProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid pgcrypto manifest") }
 	if !currentManifest(v, ext) {
 		return invalid()
@@ -37,15 +37,5 @@ func (p *PgcryptoProvider) ValidateExtension(v catalog.Read, ext *catalog.Extens
 }
 
 func (p *PgcryptoProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	if _, err := ProcedureSymbol(v, proc); err != nil {
-		return err
-	}
-	if v.Get(proc.Address()) != proc || PgcryptoProviderOf(proc) != p {
-		return fmt.Errorf("stuntgres: invalid pgcrypto procedure identity")
-	}
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing pgcrypto installation")
-	}
-	return p.ValidateExtension(v, ext)
+	return ValidateProcedureOrigin(v, proc, p)
 }

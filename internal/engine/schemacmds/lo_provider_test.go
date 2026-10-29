@@ -172,7 +172,7 @@ func TestLoManifestAdmission(t *testing.T) {
 		{"namespace", func(x *catalog.Extension, d, a *catalog.Type) {
 			a.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		}},
-		{"membership", func(x *catalog.Extension, d, a *catalog.Type) { d.Extension = ids.ObjectAddress{} }},
+		{"membership", func(x *catalog.Extension, d, a *catalog.Type) { d.Extension.ObjectID = 990001 }},
 		{"domain_revision", func(x *catalog.Extension, d, a *catalog.Type) { d.ObjectRevision = 0 }},
 		{"array_revision", func(x *catalog.Extension, d, a *catalog.Type) { a.ObjectRevision = 0 }},
 	} {
@@ -263,9 +263,10 @@ func TestLoOwnerMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
-	want := extension.OwnerRecord{Name: "lo", Schema: "public", Version: "1.2", Owner: "postgres", Members: []extension.MemberOwner{
-		{Slot: 0, Kind: "type", Schema: "public", Name: "lo", Owner: "postgres"},
-		{Slot: 1, Kind: "type", Schema: "public", Name: "lo[]", Owner: "postgres"},
+	record = extensionOwnerRecipeOrder(record)
+	want := extension.OwnerRecord{Name: "lo", Schema: "public", Version: "1.2", Owner: "postgres", Present: true, Members: []extension.MemberOwner{
+		{Declaration: new(0), Version: "1.2", Extension: "lo", Kind: "type", Schema: "public", Name: "lo", Owner: "postgres", ACL: &extension.MemberACL{Entries: []extension.MemberGrant{}}},
+		{Declaration: new(1), Version: "1.2", Extension: "lo", Kind: "type", Schema: "public", Name: "_lo", Owner: "postgres", ACL: &extension.MemberACL{Entries: []extension.MemberGrant{}}},
 	}}
 	if err != nil || !found || !reflect.DeepEqual(record, want) {
 		t.Fatal("lo symbolic owner record", record, err)
@@ -285,8 +286,8 @@ func TestLoOwnerMetadata(t *testing.T) {
 		{"missing", func(r *extension.OwnerRecord) { r.Members = r.Members[:1] }},
 		{"extra", func(r *extension.OwnerRecord) { r.Members = append(r.Members, r.Members[0]) }},
 		{"duplicate", func(r *extension.OwnerRecord) { r.Members[1] = r.Members[0] }},
-		{"role", func(r *extension.OwnerRecord) { r.Members[1].Name = "_lo" }},
-		{"slot_role", func(r *extension.OwnerRecord) { r.Members[0].Slot, r.Members[1].Slot = 1, 0 }},
+		{"role", func(r *extension.OwnerRecord) { r.Members[1].Name = "lo[]" }},
+		{"slot_role", func(r *extension.OwnerRecord) { r.Members[0].Declaration, r.Members[1].Declaration = new(1), new(0) }},
 		{"signature", func(r *extension.OwnerRecord) { r.Members[0].Signature = "26" }},
 		{"foreign_kind", func(r *extension.OwnerRecord) { r.Members[0].Kind = "procedure" }},
 		{"owner", func(r *extension.OwnerRecord) { r.Members[1].Owner = "pg_signal_backend" }},
@@ -295,7 +296,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 			bad := record
 			bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 			tc.mutate(&bad)
-			if _, found, err := extension.DecodeOwners(encode(bad)); !found || err == nil {
+			if err := extensionOwnerAdmissionError(e, encode(bad)); err == nil {
 				t.Fatal("corrupt owner record decoded", bad)
 			}
 			admission := e.Catalog.Read(catalog.CloneState(view.State()))
@@ -326,7 +327,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("lo owner import", changed, err)
 	}
-	if record.Members[0].Slot != 1 {
+	if record.Members[0].Declaration == nil || *record.Members[0].Declaration != 1 {
 		t.Fatal("import mutated caller record order")
 	}
 	for _, address := range ext.Members {
@@ -411,7 +412,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 			t.Fatal(err)
 		}
 		r, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
-		if err != nil || !found || r.Members[1].Name != "lo[]" {
+		if err != nil || !found || len(r.Members) != 2 || r.Members[0].Name != companion.Name() || r.Members[0].Declaration == nil || *r.Members[0].Declaration != 1 || r.Members[1].Name != "lo" || r.Members[1].Declaration == nil || *r.Members[1].Declaration != 0 {
 			t.Fatal("companion role derived from spelling", r, err)
 		}
 		candidate := e.Catalog.Read(catalog.CloneState(view.State()))

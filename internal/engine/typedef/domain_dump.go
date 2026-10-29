@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/engine/dump"
 )
 
-func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *DomainReplayNames) (dump.Statement, error) {
+func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *DomainReplayNames, creation TypeDumpCreation) (dump.Statement, error) {
 	if err := ctx.Err(); err != nil {
 		return dump.Statement{}, err
 	}
@@ -18,12 +18,15 @@ func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Rea
 	if err != nil {
 		return dump.Statement{}, err
 	}
+	if creation.RootSQL != "" {
+		qualified = creation.RootSQL
+	}
 	owner, err := roles.Descriptor(d.Owner)
 	if err != nil {
 		return dump.Statement{}, err
 	}
 	if d.SQLType.IsRange() {
-		text, err := rangeDumpSQL(ctx, p, view, d, qualified)
+		text, err := rangeDumpSQL(ctx, p, view, d, qualified, creation.CompanionSQL)
 		return dump.Statement{Owner: owner.Name, SQL: text}, err
 	}
 	if d.SQLType.IsEnum() {

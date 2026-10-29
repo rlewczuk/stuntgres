@@ -10,6 +10,7 @@ import (
 
 type Collation struct {
 	OID                                    ids.OID
+	Extension                              ids.ObjectAddress
 	ObjectName                             string
 	Encoding                               int32
 	ObjectNamespace                        ids.ObjectAddress
@@ -23,6 +24,7 @@ type Collation struct {
 
 type Conversion struct {
 	OID                 ids.OID
+	Extension           ids.ObjectAddress
 	ObjectName          string
 	ObjectNamespace     ids.ObjectAddress
 	ObjectRevision      ids.DefinitionRevision

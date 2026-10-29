@@ -32,7 +32,9 @@ func TestHstoreJSONBPreparedOwnership(t *testing.T) {
 			enginetest.SessionSQL(t, s, "CREATE EXTENSION hstore")
 			view := e.CatalogRead()
 			installation := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
-			if len(installation.Members) != extension.HstoreMemberCount { t.Fatal("missing hstore provider roles") }
+			if len(installation.Members) != extension.HstoreMemberCount+1 || len(installation.Installation.Members) != extension.HstoreMemberCount {
+				t.Fatal("missing hstore provider roles")
+			}
 			procedure := view.MustProcedure(installation.Members[tc.member])
 			query := "SELECT " + tc.expression + " AS v"
 			enginetest.SessionSQL(t, s, "BEGIN")

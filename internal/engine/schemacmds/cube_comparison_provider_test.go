@@ -19,7 +19,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-
 type cubeConflictStage struct {
 	extension.Stage
 	name  string
@@ -158,12 +157,13 @@ func cubeComparisonProviderRemap(t *testing.T) {
 	if err != nil || !found {
 		t.Fatal("portable owner decoding", err)
 	}
+	record = extensionOwnerRecipeOrder(record)
 	kinds := map[string]int{}
 	transforms := map[string]string{
-		"cube_subset": "cube,1007",
-		"cube_union": "cube,cube",
-		"cube_inter": "cube,cube",
-		"cube_enlarge": "cube,701,23",
+		"cube_subset":  "public.cube, integer[]",
+		"cube_union":   "public.cube, public.cube",
+		"cube_inter":   "public.cube, public.cube",
+		"cube_enlarge": "public.cube, double precision, integer",
 	}
 	seenTransforms := map[string]bool{}
 	for _, member := range record.Members {
@@ -178,7 +178,7 @@ func cubeComparisonProviderRemap(t *testing.T) {
 	if len(seenTransforms) != len(transforms) {
 		t.Fatal("missing transformation symbolic owners", seenTransforms)
 	}
-	for kind, want := range map[string]int{"type": 1, "procedure": 31, "operator": 14, "operator_class": 1, "operator_family": 1} {
+	for kind, want := range map[string]int{"type": 2, "procedure": 31, "operator": 14, "operator_class": 1, "operator_family": 1} {
 		if kinds[kind] != want {
 			t.Fatal("complete symbolic owner kinds", kind, kinds)
 		}

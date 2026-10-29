@@ -1,67 +1,395 @@
 package schemacmds_test
 
 import (
- "context"
- "strings"
- "testing"
- "stuntgres/internal/engine/catalog"
- "stuntgres/internal/engine/core"
- "stuntgres/internal/engine/extension"
- "stuntgres/internal/engine/ids"
- "stuntgres/internal/engine/routine"
- "stuntgres/internal/sqltype"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"slices"
+	"strings"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/sqltype"
+	"testing"
 )
 
-func ltreeUnitInstalled(t *testing.T)(*core.Engine,*catalog.Extension,*catalog.Type){
- t.Helper();e,_,ext,_:=lqueryProviderInstalled(t,false)
- return e,ext,e.CatalogRead().MustType(ext.Members[3])
+func ltreeUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension, *catalog.Type) {
+	t.Helper()
+	e, _, ext, _ := lqueryProviderInstalled(t, false)
+	return e, ext, e.CatalogRead().MustType(ext.Installation.Members[3])
 }
 
-func TestLtreeComparisonIndexSupport(t *testing.T){
- e,ext,base:=ltreeUnitInstalled(t);view:=e.CatalogRead()
- metadata,err:=extension.OwnerMetadata(view,e.RoleStore.PublishedRead(&e.Catalog.Owner,view),ext);if err!=nil{t.Fatal(err)}
- owners,found,err:=extension.DecodeOwners(strings.TrimPrefix(metadata,"-- "));if err!=nil||!found{t.Fatal("symbolic owners",err)}
- imported:=catalog.CloneState(view.State())
- roles:=e.RoleStore.PublishedRead(&e.Catalog.Owner,view)
- if _,err:=extension.ImportOwners(context.Background(),view.WithState(imported),roles,[]extension.OwnerRecord{owners});err!=nil{t.Fatal("authentic symbolic owners failed import",err)}
- for _,slot:=range []int{extension.LtreeBtreeClassSlot,extension.LtreeHashClassSlot,extension.LtreeBtreeFamilySlot,extension.LtreeHashFamilySlot}{
-  bad:=owners;bad.Members=append([]extension.MemberOwner(nil),owners.Members...)
-  for i:=range bad.Members{if bad.Members[i].Slot==slot{bad.Members[i].Signature="wrong_method"}}
-  candidate:=catalog.CloneState(view.State())
-  if _,err:=extension.ImportOwners(context.Background(),view.WithState(candidate),roles,[]extension.OwnerRecord{bad});err==nil{t.Fatal("corrupt class/family symbolic method accepted")}
- }
- classes,families:=0,0
- for _,m:=range owners.Members{switch m.Kind{case "operator_class":classes++;case "operator_family":families++};if m.Slot>=extension.LtreeComparisonProcedureStart&&m.Slot<extension.LtreeComparisonOperatorStart{want:="ltree,ltree";if m.Slot==extension.LtreeComparisonProcedureStart+7{want="ltree"};if m.Slot==extension.LtreeComparisonProcedureStart+8{want="ltree,20"};if m.Signature!=want{t.Fatal("symbolic routine signature",m)}}}
- if classes!=2||families!=2{t.Fatal("missing owner roles",classes,families)}
- for _,method:=range []ids.OID{403,405}{
-  class,ok,err:=view.DefaultIndexClass(method,base.SQLType);if err!=nil||!ok{t.Fatal("default class",method,err)}
-  bound,err:=routine.BindClassSupport(view,class);if err!=nil{t.Fatal(err)}
-  count:=1;first:=6;if method==405{count=2;first=7}
-  for slot:=1;slot<=count;slot++{s:=bound.Support(slot);if s.Provider!=sqltype.LtreeIndexSupport||s.Routine!=uint32(ext.Members[extension.LtreeComparisonProcedureStart+first+slot-1].ObjectID)||s.Member==0||s.Revision==0||s.FamilyRevision==0||s.RoutineRevision==0{t.Fatal("incomplete genuine support",s)}}
-  if method==403{order,err:=routine.BindIndexOrdering(view,base.SQLType.Usage(),class);if err!=nil{t.Fatal(err)};a,err:=base.SQLType.Input(context.Background(),"a.b",-1);if err!=nil{t.Fatal(err)};b,err:=base.SQLType.Input(context.Background(),"a-b",-1);if err!=nil{t.Fatal(err)};if n,err:=order.Compare(context.Background(),a,b,sqltype.InputEnvironment{});err!=nil||n!=-1{t.Fatal("typed ordering",n,err)}}
-  familySlot:=extension.LtreeBtreeFamilySlot;if method==405{familySlot=extension.LtreeHashFamilySlot}
-  for _,corrupt:=range []func(*catalog.State){
-   func(s *catalog.State){m,_:=view.FamilySupport(ext.Members[familySlot].ObjectID,ids.OID(base.SQLType.ID()),ids.OID(base.SQLType.ID()),1);n:=*m;n.Function=ext.Members[extension.LtreeComparisonProcedureStart].ObjectID;s.SetDescriptor(n.Address(),&n)},
-   func(s *catalog.State){m,_:=view.FamilySupport(ext.Members[familySlot].ObjectID,ids.OID(base.SQLType.ID()),ids.OID(base.SQLType.ID()),1);n:=*m;n.InternalOwner=ext.Members[familySlot];s.SetDescriptor(n.Address(),&n)},
-   func(s *catalog.State){p:=*view.MustProcedure(ext.Members[extension.LtreeComparisonProcedureStart+first]);p.Result=25;s.SetDescriptor(p.Address(),&p)},
-   func(s *catalog.State){p:=*view.MustProcedure(ext.Members[extension.LtreeComparisonProcedureStart+first]);p.Implementation=extension.StockCube;s.SetDescriptor(p.Address(),&p)},
-  }{candidate:=catalog.CloneState(view.State());corrupt(candidate);if _,err:=routine.BindClassSupport(view.WithState(candidate),class);err==nil{t.Fatal("invalid installed support accepted",method)}}
-  if method==405 {
-   hash,err:=sqltype.BindIndexHash(base.SQLType.Usage(),bound);if err!=nil{t.Fatal(err)}
-   // Independent REL_18_6 hashfn.c derivation: these unequal labels collide
-   // at 1761096310 in the unseeded hash index word.
-   a,err:=base.SQLType.Input(t.Context(),"c0K",-1);if err!=nil{t.Fatal(err)}
-   b,err:=base.SQLType.Input(t.Context(),"qek",-1);if err!=nil{t.Fatal(err)}
-   for _,value:=range []sqltype.Value{a,b}{if h,err:=hash.Hash(t.Context(),value);err!=nil||h!=1761096310{t.Fatal("independent collision word",h,err)}}
-   if equal,err:=hash.Equal(t.Context(),a,b);err!=nil||equal{t.Fatal("hash collision replaced typed equality",equal,err)}
-   candidate:=catalog.CloneState(view.State())
-   second,_:=view.FamilySupport(ext.Members[familySlot].ObjectID,ids.OID(base.SQLType.ID()),ids.OID(base.SQLType.ID()),2)
-   bad:=*second;bad.Function=ext.Members[extension.LtreeComparisonProcedureStart+7].ObjectID
-   candidate.SetDescriptor(bad.Address(),&bad)
-   if _,err:=routine.BindClassSupport(view.WithState(candidate),class);err==nil{t.Fatal("unseeded routine substituted for seeded support")}
-   p:=*view.MustProcedure(ext.Members[extension.LtreeComparisonProcedureStart+8]);p.Signature=extension.LquerySignature(base.SQLType.ID())+",23"
-   candidate=catalog.CloneState(view.State());candidate.SetDescriptor(p.Address(),&p)
-   if _,err:=routine.BindClassSupport(view.WithState(candidate),class);err==nil{t.Fatal("wrong seed formal accepted")}
-  }
- }
+func TestLtreeComparisonIndexSupport(t *testing.T) {
+	e, ext, base := ltreeUnitInstalled(t)
+	view := e.CatalogRead()
+	metadata, err := extension.OwnerMetadata(view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owners, found, err := extension.DecodeOwners(strings.TrimPrefix(metadata, "-- "))
+	if err != nil || !found {
+		t.Fatal("symbolic owners", err)
+	}
+	imported := catalog.CloneState(view.State())
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, view)
+	if _, err := extension.ImportOwners(context.Background(), view.WithState(imported), roles, []extension.OwnerRecord{owners}); err != nil {
+		t.Fatal("authentic symbolic owners failed import", err)
+	}
+	for _, slot := range []int{extension.LtreeBtreeClassSlot, extension.LtreeHashClassSlot, extension.LtreeBtreeFamilySlot, extension.LtreeHashFamilySlot} {
+		bad := owners
+		bad.Members = append([]extension.MemberOwner(nil), owners.Members...)
+		for i := range bad.Members {
+			if bad.Members[i].Declaration != nil && *bad.Members[i].Declaration == slot {
+				bad.Members[i].Signature = "wrong_method"
+			}
+		}
+		candidate := catalog.CloneState(view.State())
+		if _, err := extension.ImportOwners(context.Background(), view.WithState(candidate), roles, []extension.OwnerRecord{bad}); err == nil {
+			t.Fatal("corrupt class/family symbolic method accepted")
+		}
+	}
+	classes, families := 0, 0
+	for _, m := range owners.Members {
+		switch m.Kind {
+		case "operator_class":
+			classes++
+		case "operator_family":
+			families++
+		}
+		if m.Declaration != nil && *m.Declaration >= extension.LtreeComparisonProcedureStart && *m.Declaration < extension.LtreeComparisonOperatorStart {
+			want := "public.ltree, public.ltree"
+			if *m.Declaration == extension.LtreeComparisonProcedureStart+7 {
+				want = "public.ltree"
+			}
+			if *m.Declaration == extension.LtreeComparisonProcedureStart+8 {
+				want = "public.ltree, bigint"
+			}
+			if m.Signature != want {
+				t.Fatal("symbolic routine signature", m)
+			}
+		}
+	}
+	if classes != 2 || families != 2 {
+		t.Fatal("missing owner roles", classes, families)
+	}
+	for _, method := range []ids.OID{403, 405} {
+		class, ok, err := view.DefaultIndexClass(method, base.SQLType)
+		if err != nil || !ok {
+			t.Fatal("default class", method, err)
+		}
+		bound, err := routine.BindClassSupport(view, class)
+		if err != nil {
+			t.Fatal(err)
+		}
+		count := 1
+		first := 6
+		if method == 405 {
+			count = 2
+			first = 7
+		}
+		for slot := 1; slot <= count; slot++ {
+			s := bound.Support(slot)
+			if s.Provider != sqltype.LtreeIndexSupport || s.Routine != uint32(ext.Members[extension.LtreeComparisonProcedureStart+first+slot-1].ObjectID) || s.Member == 0 || s.Revision == 0 || s.FamilyRevision == 0 || s.RoutineRevision == 0 {
+				t.Fatal("incomplete genuine support", s)
+			}
+		}
+		if method == 403 {
+			order, err := routine.BindIndexOrdering(view, base.SQLType.Usage(), class)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a, err := base.SQLType.Input(context.Background(), "a.b", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := base.SQLType.Input(context.Background(), "a-b", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n, err := order.Compare(context.Background(), a, b, sqltype.InputEnvironment{}); err != nil || n != -1 {
+				t.Fatal("typed ordering", n, err)
+			}
+		}
+		familySlot := extension.LtreeBtreeFamilySlot
+		if method == 405 {
+			familySlot = extension.LtreeHashFamilySlot
+		}
+		for _, corrupt := range []func(*catalog.State){
+			func(s *catalog.State) {
+				m, _ := view.FamilySupport(ext.Members[familySlot].ObjectID, ids.OID(base.SQLType.ID()), ids.OID(base.SQLType.ID()), 1)
+				n := *m
+				n.Function = ext.Members[extension.LtreeComparisonProcedureStart].ObjectID
+				s.SetDescriptor(n.Address(), &n)
+			},
+			func(s *catalog.State) {
+				m, _ := view.FamilySupport(ext.Members[familySlot].ObjectID, ids.OID(base.SQLType.ID()), ids.OID(base.SQLType.ID()), 1)
+				n := *m
+				n.InternalOwner = ext.Members[familySlot]
+				s.SetDescriptor(n.Address(), &n)
+			},
+			func(s *catalog.State) {
+				p := *view.MustProcedure(ext.Members[extension.LtreeComparisonProcedureStart+first])
+				p.Result = 25
+				s.SetDescriptor(p.Address(), &p)
+			},
+			func(s *catalog.State) {
+				p := *view.MustProcedure(ext.Members[extension.LtreeComparisonProcedureStart+first])
+				p.Implementation = extension.StockCube
+				s.SetDescriptor(p.Address(), &p)
+			},
+		} {
+			candidate := catalog.CloneState(view.State())
+			corrupt(candidate)
+			if _, err := routine.BindClassSupport(view.WithState(candidate), class); err == nil {
+				t.Fatal("invalid installed support accepted", method)
+			}
+		}
+		if method == 405 {
+			hash, err := sqltype.BindIndexHash(base.SQLType.Usage(), bound)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Independent REL_18_6 hashfn.c derivation: these unequal labels collide
+			// at 1761096310 in the unseeded hash index word.
+			a, err := base.SQLType.Input(t.Context(), "c0K", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := base.SQLType.Input(t.Context(), "qek", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, value := range []sqltype.Value{a, b} {
+				if h, err := hash.Hash(t.Context(), value); err != nil || h != 1761096310 {
+					t.Fatal("independent collision word", h, err)
+				}
+			}
+			if equal, err := hash.Equal(t.Context(), a, b); err != nil || equal {
+				t.Fatal("hash collision replaced typed equality", equal, err)
+			}
+			candidate := catalog.CloneState(view.State())
+			second, _ := view.FamilySupport(ext.Members[familySlot].ObjectID, ids.OID(base.SQLType.ID()), ids.OID(base.SQLType.ID()), 2)
+			bad := *second
+			bad.Function = ext.Members[extension.LtreeComparisonProcedureStart+7].ObjectID
+			candidate.SetDescriptor(bad.Address(), &bad)
+			if _, err := routine.BindClassSupport(view.WithState(candidate), class); err == nil {
+				t.Fatal("unseeded routine substituted for seeded support")
+			}
+			p := *view.MustProcedure(ext.Members[extension.LtreeComparisonProcedureStart+8])
+			p.Signature = extension.LquerySignature(base.SQLType.ID()) + ",23"
+			candidate = catalog.CloneState(view.State())
+			candidate.SetDescriptor(p.Address(), &p)
+			if _, err := routine.BindClassSupport(view.WithState(candidate), class); err == nil {
+				t.Fatal("wrong seed formal accepted")
+			}
+		}
+	}
+}
+
+// The same genuine recipe must bind executable support with detached or foreign
+// reciprocal membership after its origin header has gone. The caller owns the
+// catalog mutation; these assertions never manufacture installation authority.
+func ltreeComparisonSurvivorSupport(t *testing.T, view catalog.Read, recipe, other *catalog.Installation) {
+	t.Helper()
+	base := view.MustType(recipe.Members[3])
+	for index, name := range extension.LtreeComparisonNames {
+		procedure := view.MustProcedure(recipe.Members[extension.LtreeComparisonProcedureStart+index])
+		symbol, err := extension.ProcedureSymbol(view, procedure)
+		if err != nil || symbol != name {
+			t.Fatal("surviving comparison role", name, symbol, err)
+		}
+		if err := extension.StockLtree.ValidateProcedure(view, procedure); err != nil {
+			t.Fatal("surviving comparison authority", name, err)
+		}
+		for _, cause := range []string{"copied_origin", "foreign_cohort", "missing_origin", "principal", "source", "signature", "result", "implementation"} {
+			state := catalog.CloneState(view.State())
+			bad := *procedure
+			switch cause {
+			case "copied_origin":
+				copied := *recipe
+				bad.Origin = &catalog.InstalledOrigin{Installation: &copied, Declaration: procedure.Origin.Declaration}
+			case "foreign_cohort":
+				bad.Origin = &catalog.InstalledOrigin{Installation: other, Declaration: procedure.Origin.Declaration}
+			case "missing_origin":
+				bad.Origin = nil
+			case "principal":
+				bad.Owner = (&authorization.Domain{}).Principal(procedure.Owner.ID())
+			case "source":
+				bad.Display.Source = "ltree_in"
+			case "signature":
+				bad.Signature = "25"
+			case "result":
+				bad.Result = 25
+			case "implementation":
+				bad.Implementation = extension.StockCube
+			}
+			state.SetDescriptor(bad.Address(), &bad)
+			broken := view.WithState(state)
+			if _, err := extension.ProcedureSymbol(broken, &bad); err == nil {
+				t.Fatal("forged surviving comparison authority", name, cause)
+			}
+			if index < 6 {
+				operator, _ := broken.Operator(recipe.Members[extension.LtreeComparisonOperatorStart+index])
+				if err := catalog.ValidateInstalledClassOrigin(broken, operator); err == nil {
+					t.Fatal("surviving operator ignored invalid current backer", name, cause)
+				}
+			} else {
+				method := ids.OID(403)
+				if index >= 7 {
+					method = 405
+				}
+				class, ok, err := view.DefaultIndexClass(method, base.SQLType)
+				if err != nil || !ok {
+					t.Fatal("missing genuine support class", err)
+				}
+				if _, err := routine.BindClassSupport(broken, class); err == nil {
+					t.Fatal("surviving class ignored invalid current backer", name, cause)
+				}
+			}
+		}
+	}
+	for index := range 6 {
+		operator, ok := view.Operator(recipe.Members[extension.LtreeComparisonOperatorStart+index])
+		if !ok {
+			t.Fatal("missing surviving comparison operator")
+		}
+		if err := catalog.ValidateInstalledClassOrigin(view, operator); err != nil {
+			t.Fatal("surviving comparison operator authority", err)
+		}
+	}
+	for _, method := range []ids.OID{403, 405} {
+		class, ok, err := view.DefaultIndexClass(method, base.SQLType)
+		if err != nil || !ok {
+			t.Fatal("surviving default class", method, err)
+		}
+		bound, err := routine.BindClassSupport(view, class)
+		if err != nil {
+			t.Fatal("surviving executable support", method, err)
+		}
+		currentClass, _ := view.OperatorClass(ids.OID(class.OID()))
+		currentFamily, _ := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: currentClass.Family})
+		for _, component := range []string{"class", "family"} {
+			for _, cause := range []string{"principal", "copied_origin", "missing_origin"} {
+				state := catalog.CloneState(view.State())
+				if component == "class" {
+					bad := *currentClass
+					switch cause {
+					case "principal":
+						bad.Owner = (&authorization.Domain{}).Principal(bad.Owner.ID())
+					case "copied_origin":
+						copied := *recipe
+						bad.Origin = &catalog.InstalledOrigin{Installation: &copied, Declaration: bad.Origin.Declaration}
+					case "missing_origin":
+						bad.Origin = nil
+					}
+					state.SetDescriptor(bad.Address(), &bad)
+				} else {
+					bad := *currentFamily
+					switch cause {
+					case "principal":
+						bad.Owner = (&authorization.Domain{}).Principal(bad.Owner.ID())
+					case "copied_origin":
+						copied := *recipe
+						bad.Origin = &catalog.InstalledOrigin{Installation: &copied, Declaration: bad.Origin.Declaration}
+					case "missing_origin":
+						bad.Origin = nil
+					}
+					state.SetDescriptor(bad.Address(), &bad)
+				}
+				if _, err := routine.BindClassSupport(view.WithState(state), class); err == nil {
+					t.Fatal("forged surviving index authority", method, component, cause)
+				}
+			}
+		}
+		if method == 403 {
+			order, err := routine.BindIndexOrdering(view, base.SQLType.Usage(), class)
+			if err != nil {
+				t.Fatal(err)
+			}
+			left, err := base.SQLType.Input(t.Context(), "a.b", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			right, err := base.SQLType.Input(t.Context(), "a-b", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if sign, err := order.Compare(t.Context(), left, right, sqltype.InputEnvironment{}); err != nil || sign != -1 {
+				t.Fatal("surviving comparison result", sign, err)
+			}
+		} else {
+			hash, err := sqltype.BindIndexHash(base.SQLType.Usage(), bound)
+			if err != nil {
+				t.Fatal(err)
+			}
+			left, err := base.SQLType.Input(t.Context(), "c0K", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			right, err := base.SQLType.Input(t.Context(), "qek", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, value := range []sqltype.Value{left, right} {
+				if word, err := hash.Hash(t.Context(), value); err != nil || word != 1761096310 {
+					t.Fatal("surviving released collision word", word, err)
+				}
+			}
+			if equal, err := hash.Equal(t.Context(), left, right); err != nil || equal {
+				t.Fatal("surviving hash equality recheck", equal, err)
+			}
+		}
+	}
+}
+
+func TestLtreeComparisonOwnerCodec(t *testing.T) {
+	e, ext, _ := ltreeUnitInstalled(t)
+	view := e.CatalogRead()
+	metadata, err := extension.OwnerMetadata(view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, present, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
+	if err != nil || !present || len(record.Members) != len(ext.Installation.Members)+3 {
+		t.Fatal("complete genuine comparison owner inventory", err)
+	}
+	for index, member := range record.Members {
+		if member.Declaration == nil || *member.Declaration < extension.LtreeComparisonProcedureStart {
+			continue
+		}
+		for _, cause := range []string{"declaration", "kind", "signature", "version", "principal", "membership", "duplicate"} {
+			bad := record
+			bad.Members = slices.Clone(record.Members)
+			changed := &bad.Members[index]
+			switch cause {
+			case "declaration":
+				changed.Declaration = new(extension.LtreeArrayProcedureStart)
+			case "kind":
+				changed.Kind = "type"
+			case "signature":
+				changed.Signature = member.Signature + ", pg_catalog.boolean"
+			case "version":
+				changed.Version = "1.2"
+			case "principal":
+				changed.Owner = "ltree_missing_principal"
+			case "membership":
+				changed.Extension = "ltree_missing_receiver"
+			case "duplicate":
+				bad.Members = append(bad.Members, *changed)
+			}
+			data, err := json.Marshal(bad)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := extensionOwnerAdmissionError(e, extension.OwnersMarker+" "+base64.StdEncoding.EncodeToString(data)); err == nil {
+				t.Fatal("forged comparison owner authority", *member.Declaration, cause)
+			}
+		}
+	}
+	if err := extension.StockLtree.ValidateExtension(view, ext); err != nil {
+		t.Fatal("failed owner import mutated genuine graph", err)
+	}
 }

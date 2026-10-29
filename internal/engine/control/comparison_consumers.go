@@ -190,7 +190,16 @@ func (s *dumpScript) visitBindingConsumers(visit func(castConsumer, authorizatio
 
 func (s *dumpScript) prepareComparisonBindings(ctx context.Context) error {
 	err := s.visitBindingConsumers(func(site castConsumer, owner authorization.PrincipalRef, node expr.Expr) error {
-		namespace, err := stored.ComparisonBindingNamespace(s.CatalogView, node)
+		namespace, err := stored.ComparisonBindingNamespace(s.CatalogView, node, func(procedure *catalog.Procedure) error {
+			oid, err := predecessor(s.CatalogView, procedure.Address(), ids.ObjectAddress{})
+			if err != nil {
+				return err
+			}
+			if _, ordered := s.Graph[site.Event]; ordered && oid != 0 {
+				s.Graph.Add(site.Event, dump.Event{OID: oid})
+			}
+			return nil
+		})
 		if err != nil {
 			return err
 		}
@@ -210,29 +219,12 @@ func (s *dumpScript) prepareComparisonBindings(ctx context.Context) error {
 			s.comparisonBindings = make(map[castConsumer]*dump.DefinitionBinding)
 		}
 		s.comparisonBindings[site] = &dump.DefinitionBinding{CubeNamespace: namespace}
-		addresses := [4]ids.ObjectAddress{namespace}
-		count := 1
-		for _, name := range []string{"cube", "hstore", "ltree"} {
-			installation, exists := s.CatalogView.Extension(s.CatalogView.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
-			if exists && installation.TargetNamespace == namespace {
-				// The typed capture above authenticates the provider. Retain
-				// every installed comparison provider in this namespace so a
-				// shared replay binding orders after all such installations.
-				addresses[count] = installation.Address()
-				count++
-			}
+		oid, err := predecessor(s.CatalogView, namespace, ids.ObjectAddress{})
+		if err != nil {
+			return err
 		}
-		if count == 1 {
-			return InvalidComparisonContext()
-		}
-		for _, address := range addresses[:count] {
-			oid, err := predecessor(s.CatalogView, address, ids.ObjectAddress{})
-			if err != nil {
-				return err
-			}
-			if _, ordered := s.Graph[site.Event]; ordered && oid != 0 {
-				s.Graph.Add(site.Event, dump.Event{OID: oid})
-			}
+		if _, ordered := s.Graph[site.Event]; ordered && oid != 0 {
+			s.Graph.Add(site.Event, dump.Event{OID: oid})
 		}
 		return nil
 	})

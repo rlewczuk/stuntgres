@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -78,22 +77,14 @@ func TestRoutineReleaseInventory(t *testing.T) {
 }
 
 func TestRoutinePathCandidateMasking(t *testing.T) {
-	e := engine.New()
-	view := e.CatalogRead()
+	e, op, _ := unaccentSQLInstalled(t)
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	catalogAddress := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.RoleStore.Domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: extension.StockUnaccent}
-	second := *first
-	second.ObjectAddress.ObjectID, second.ObjectNamespace, second.Signature = 90001, catalogAddress, catalog.UnaccentDictionarySignature
-	stage := e.BeginCatalogStage(view)
-	if err := stage.Create(first); err != nil {
-		t.Fatal(err)
-	}
-	if err := stage.Create(&second); err != nil {
-		t.Fatal(err)
-	}
-	collationUnitPublish(t, e, stage)
-	view = e.CatalogRead()
+	enginetest.RoleExecute(t, e, op, "ALTER EXTENSION unaccent DROP FUNCTION public.unaccent(regdictionary,text)")
+	enginetest.RoleExecute(t, e, op, "ALTER FUNCTION public.unaccent(regdictionary,text) SET SCHEMA pg_catalog")
+	view := e.CatalogRead()
+	first := view.MustProcedure(view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: public, Name: "unaccent", Signature: string(catalog.UnaccentTextSignature)}))
+	second := view.MustProcedure(view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: catalogAddress, Name: "unaccent", Signature: string(catalog.UnaccentDictionarySignature)}))
 	path := []ids.ObjectAddress{public, catalogAddress}
 	if _, count := regobj.SelectRoutine(view, analyze.NamespaceSelection{Path: path}, "unaccent", nil); count != 2 {
 		t.Fatal("distinct later signature masked", count)

@@ -281,3 +281,28 @@ func TestViewRoutineDenialKind(t *testing.T) {
 		})
 	}
 }
+
+func TestInstalledNonGrantClassPrivileges(t *testing.T) {
+	fixture := newAccessFixture(t)
+	for _, descriptor := range []catalog.Descriptor{
+		&catalog.Cast{},
+		&catalog.Operator{Owner: fixture.bootstrap},
+		&catalog.OperatorClass{Owner: fixture.bootstrap},
+		&catalog.OperatorFamily{Owner: fixture.bootstrap},
+	} {
+		if privileges := ClassPrivileges(descriptor); privileges != 0 {
+			t.Fatal("non-GRANT class acquired table privileges", descriptor.Kind(), privileges)
+		}
+		owner, acl, columns := DescriptorACL(descriptor)
+		if _, cast := descriptor.(*catalog.Cast); cast {
+			if owner != (authorization.PrincipalRef{}) {
+				t.Fatal("cast acquired an owner")
+			}
+		} else if owner != fixture.bootstrap {
+			t.Fatal("non-GRANT class lost its real owner", descriptor.Kind())
+		}
+		if acl.Explicit || len(acl.Entries) != 0 || columns != nil {
+			t.Fatal("non-GRANT class acquired ACL storage", descriptor.Kind())
+		}
+	}
+}

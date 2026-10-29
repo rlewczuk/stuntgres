@@ -13,6 +13,7 @@ import (
 type OperatorClass struct {
 	ObjectAddress, ObjectNamespace         ids.ObjectAddress
 	Extension                              ids.ObjectAddress
+	Origin                                 *InstalledOrigin
 	ObjectRevision                         ids.DefinitionRevision
 	ObjectName                             string
 	Owner                                  authorization.PrincipalRef
@@ -128,6 +129,9 @@ func (OperatorClassProvider) Validate(v Read, d Descriptor) error {
 		return fmt.Errorf("stuntgres: invalid operator class authority")
 	}
 	if err := ValidateExtensionMembership(v, c); err != nil {
+		return err
+	}
+	if err := ValidateInstalledClassOrigin(v, c); err != nil {
 		return err
 	}
 	if method, ok := v.AccessMethod(c.Method); !ok || method.MethodKind() != "i" {

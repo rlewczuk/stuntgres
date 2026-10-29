@@ -158,5 +158,5 @@ func originalProcedureMapper(view catalog.Read, mapping map[ids.ObjectAddress]id
 	policy := catalog.PrincipalRemap{Principal: principal, SeededOwner: func(ref authorization.PrincipalRef, _ bool) (authorization.PrincipalRef, error) {
 		return principal(ref)
 	}}
-	return extension.ProcedureRemapper(mapping, catalog.NewProcedureRemapper(policy), nil)
+	return extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), catalog.NewProcedureRemapper(policy), nil)
 }

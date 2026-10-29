@@ -6,17 +6,23 @@ DDL handlers, and operator/owned-routine dump statements. Immutable SQL routine
 definitions and invocation frames are in [`proc`](../proc/README.md); call
 resolution and SQL body binding stay in the engine.
 
-`OperatorProvider` validates reciprocal extension membership before ordinary
-operand, result and backer checks. Manifest-authenticated hstore recipe and
-ltree path concatenation operators may live outside the installation schema,
-through their bounded relocation predicates; full operator and extension
-validation still follows. Comparison families and other roles keep their placement gates.
-  Installed ltree B-tree/hash keys authenticate the complete stock graph and
-  selected support slots before binding typed kernels. Required members retain
-  exact INTERNAL class ownership; optional hash support2 retains AUTO family
-  ownership, with its exact seeded routine and effective revisions.
-  `BindCapturedIndexOrdering` additionally seals the actual source declarations
-  and typed support operation for immutable sort/window transport.
+`OperatorProvider` validates a nonzero current extension link against its parent
+before ordinary operand, result and backer checks. A zero link is locally
+detached; extension-class validation separately rejects any parent bag that
+still claims that object. Publication validates the complete reciprocal graph.
+Installed operators also retain their sealed released declaration authority
+independently of current membership, namespace and owner. Coherent detach or
+foreign attachment neither replaces the implementation nor relaxes normal type,
+current principal and backer dependencies.
+Installed ltree B-tree/hash keys authenticate the genuine released graph and
+selected support slots before binding typed kernels. Required members retain
+exact INTERNAL class ownership; optional hash support2 retains AUTO family
+ownership, with its exact seeded routine and effective revisions.
+Sealed origin authenticates the released class/family/routine graph separately
+from current reciprocal membership and current principals. Detach, foreign
+attachment or originating-header retirement does not revoke surviving support.
+`BindCapturedIndexOrdering` additionally seals the actual source declarations
+and typed support operation for immutable sort/window transport.
 
 SQL and PL declarations share formal/default/staging authority. DO and CREATE
 check language USAGE; calls check EXECUTE, not language USAGE again. Dump renders
@@ -142,6 +148,19 @@ metadata-only patches with ordinary cardinality and provider identity checks.
 ROWS admission uses the catalog's intrinsic `Procedure.ReturnsSet` fact, shared
 with projection; changing an estimate never changes that capability. These
 patches neither replace intrinsic strictness/volatility nor enable workers.
+
+`ResolveUtilityRoutine` supplies the same exact/bare/kind selection for extension
+membership without SQL rendering. `StageRoutineNamespace` is the shared mechanical
+move under the caller's existing candidate and captured authority; extension
+ownership does not bypass a routine's genuine ownership/CREATE gates. Current
+membership may change or disappear without changing a sealed installed origin.
+The four seeded BRIN minmax support declarations likewise retain their exact
+intrinsic capability when added to or detached from a real extension. Their
+released address, namespace, signature, result and internal implementation remain
+validated independently of the mutable reciprocal membership edge. Common
+membership validation still rejects missing or mismatched extension links.
+Membership neither creates a scalar INTERNAL ABI nor permits deletion of pinned
+system routines; detach these routines before dropping a receiving extension.
 
 Shipped function, aggregate and operator definitions and routine identity changes
 share explicit, autocommit and retained-message publication. Programs, providers
@@ -277,6 +296,10 @@ package or the engine.
   never merely a nonzero family/class owner. Hstore binds only its installed
   B-tree comparator or two distinct hash routines, with authenticated manifest
   roles, signatures and revisions; dynamic procedures are not builtin OIDs.
+  Hstore class, family and support roles come from the sealed installation,
+  not mutable extension member ordering or shared current membership. Detached
+  and foreign members retain those roles with current reciprocal membership
+  and principal validation; absent origin extensions supply no new authority.
   Restore binds destination members.
   `RangeTypeRebinder` rebuilds a range
   type's support capture with destination identities for

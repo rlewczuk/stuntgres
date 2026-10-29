@@ -17,7 +17,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/schemacmds"
@@ -149,10 +148,22 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			source := extensionUnitStage(t, e, op)
 			extensionAddress, _ := source.NameBinding(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 			ext := source.Get(extensionAddress).(*catalog.Extension)
+			if kind == "procedure" {
+				enginetest.RoleExecute(t, e, op, "CREATE FUNCTION public.unaccent(text) RETURNS text LANGUAGE SQL AS 'SELECT $1'")
+			} else if kind == "dictionary_procedure" {
+				enginetest.RoleExecute(t, e, op, "CREATE FUNCTION public.unaccent(regdictionary,text) RETURNS text LANGUAGE SQL AS 'SELECT $2'")
+			}
 			loose := e.BeginCatalogStage(e.CatalogRead())
+			defer e.DiscardCatalogStage(loose)
 			var conflict catalog.Descriptor
-			if kind == "procedure" || kind == "dictionary_procedure" || kind == "init" || kind == "lexize" {
-				index := map[string]int{"procedure": 1, "dictionary_procedure": 0, "init": 2, "lexize": 3}[kind]
+			if kind == "procedure" || kind == "dictionary_procedure" {
+				signature := catalog.ProcedureSignature("25")
+				if kind == "dictionary_procedure" {
+					signature = "3769,25"
+				}
+				conflict = e.CatalogRead().MustProcedure(e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: "unaccent", Signature: string(signature)}))
+			} else if kind == "init" || kind == "lexize" {
+				index := map[string]int{"init": 2, "lexize": 3}[kind]
 				n := *source.Get(ext.Members[index]).(*catalog.Procedure)
 				n.Extension = ids.ObjectAddress{}
 				n.Dictionary = ids.ObjectAddress{}
@@ -161,34 +172,31 @@ func TestExtensionProviderConflicts(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				catalogNS := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-				tmpl := *source.Get(ext.Members[4]).(*catalog.TSTemplate)
-				tmpl.Extension = ids.ObjectAddress{}
-				// A name collision needs a real standalone definition, not a
-				// detached claim to the installing extension's capability.
-				tmpl.Implementation = nil
-				tmpl.Init = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}
-				tmpl.Lexize = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726}
+				templateSchema := "public"
 				if kind == "dictionary" {
-					tmpl.ObjectNamespace = catalogNS
+					templateSchema = "pg_catalog"
 				}
-				if err := loose.Create(&tmpl); err != nil {
+				options := make([]parser.DictionaryOption, 2)
+				for i, callback := range []string{"init", "lexize"} {
+					name := parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "dsimple_" + callback}}}
+					options[i] = parser.DictionaryOption{CollationOption: parser.CollationOption{Name: parser.Identifier{Text: callback}, Source: &name}, Supplied: true}
+				}
+				if err := extensionUnitExecute(t, e, op, &parser.CreateTemplate{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: templateSchema}, {Text: "unaccent"}}}, Options: options}); err != nil {
 					t.Fatal(err)
 				}
-				conflict = &tmpl
 				if kind == "dictionary" {
-					dict := *source.Get(ext.Members[5]).(*catalog.TSDictionary)
-					dict.Extension = ids.ObjectAddress{}
-					dict.Implementation = nil
-					dict.Options = nil
-					dict.Runtime = functions.DefaultSimpleDictionary
-					conflict = &dict
-					if err := loose.Create(&dict); err != nil {
+					template := parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "unaccent"}}}
+					if err := extensionUnitExecute(t, e, op, &parser.CreateDictionary{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "unaccent"}}}, Options: []parser.DictionaryOption{{CollationOption: parser.CollationOption{Name: parser.Identifier{Text: "template"}, Source: &template}, Supplied: true}}}); err != nil {
 						t.Fatal(err)
 					}
+					conflict = e.CatalogRead().Get(e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ext.TargetNamespace, Name: "unaccent"}))
+				} else {
+					conflict = e.CatalogRead().Get(e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSTemplateClassID, Namespace: ext.TargetNamespace, Name: "unaccent"}))
 				}
 			}
-			extensionUnitPublish(t, e, op, loose)
+			if kind == "init" || kind == "lexize" {
+				extensionUnitPublish(t, e, op, loose)
+			}
 			before := e.Catalog.State
 			e.Mu.Lock()
 			_, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
@@ -292,12 +300,13 @@ func TestExtensionOwnerMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, recognized, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(encoded), "-- "))
-	if err != nil || !recognized || len(record.Members) != 5 || record.Owner != "postgres" {
+	record = extensionOwnerRecipeOrder(record)
+	if err != nil || !recognized || len(record.Members) != 6 || record.Owner != "postgres" {
 		t.Fatal("owner record", record, recognized, err)
 	}
-	for i, slot := range []int{0, 1, 2, 3, 5} {
-		if record.Members[i].Slot != slot || record.Members[i].Schema != "public" {
-			t.Fatal("owner record lost manifest slot/current schema", record.Members[i])
+	for i, declaration := range []int{0, 1, 2, 3, 4, 5} {
+		if record.Members[i].Declaration == nil || *record.Members[i].Declaration != declaration || record.Members[i].Version != "1.1" || record.Members[i].Schema != "public" {
+			t.Fatal("owner record lost immutable declaration/current schema", record.Members[i])
 		}
 	}
 	for _, payload := range []string{`{}`, `{"name":null}`, `{"name":"unaccent","name":"unaccent"}`, `[]`} {
@@ -411,18 +420,24 @@ func TestExtensionProviderRelabelIdentity(t *testing.T) {
 			if err := extension.StockUnaccent.ValidateExtension(current, &copy); err != nil {
 				t.Fatal("equivalent detached manifest rejected", err)
 			}
-			copy.Members[0], copy.Members[1] = copy.Members[1], copy.Members[0]
+			forged := *copy.Installation
+			forged.Members = slices.Clone(forged.Members)
+			forged.Members[0], forged.Members[1] = forged.Members[1], forged.Members[0]
+			copy.Installation = &forged
 			if err := extension.StockUnaccent.ValidateExtension(current, &copy); err == nil {
 				t.Fatal("reordered manifest accepted")
 			}
 			detached := renamed
-			detached.Extension, detached.Dictionary = ids.ObjectAddress{}, ids.ObjectAddress{}
+			detached.Extension = ids.ObjectAddress{}
+			detachedExt := *ext
+			detachedExt.Members = slices.Delete(slices.Clone(ext.Members), slot, slot+1)
+			state.SetDescriptor(detachedExt.Address(), &detachedExt)
 			state.SetDescriptor(detached.Address(), &detached)
 			if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(current, &detached); err != nil {
 				t.Fatal("incumbent detached metadata rejected", err)
 			}
-			if _, err := extension.ProcedureSymbol(current, &detached); err == nil {
-				t.Fatal("detached metadata acquired installed capability")
+			if symbol, err := extension.ProcedureSymbol(current, &detached); err != nil || symbol != want {
+				t.Fatal("genuine detached provider lost immutable capability", symbol, err)
 			}
 			detached.Strict = !detached.Strict
 			if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(current, &detached); err == nil {

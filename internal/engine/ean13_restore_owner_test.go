@@ -9,11 +9,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func TestEan13RestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "ean13", 0) }
-func TestIsbnRestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "isbn", 3) }
-func TestIsmnRestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "ismn", 9) }
+func TestEan13RestoreOwnerReplay(t *testing.T)  { testIsnRestoreOwnerReplay(t, "ean13", 0) }
+func TestIsbnRestoreOwnerReplay(t *testing.T)   { testIsnRestoreOwnerReplay(t, "isbn", 3) }
+func TestIsmnRestoreOwnerReplay(t *testing.T)   { testIsnRestoreOwnerReplay(t, "ismn", 9) }
 func TestIsmn13RestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "ismn13", 12) }
-func TestIssnRestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "issn", 15) }
+func TestIssnRestoreOwnerReplay(t *testing.T)   { testIsnRestoreOwnerReplay(t, "issn", 15) }
 func TestIssn13RestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "issn13", 18) }
 
 func testIsnRestoreOwnerReplay(t *testing.T, family string, slot int) {
@@ -21,7 +21,7 @@ func testIsnRestoreOwnerReplay(t *testing.T, family string, slot int) {
 	base := e.CatalogRead().MustType(ext.Members[slot])
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, q := range []string{"CREATE SCHEMA ean_owner_dst", "ALTER TYPE public."+family+" RENAME TO moved", "ALTER TYPE public.moved SET SCHEMA ean_owner_dst"} {
+	for _, q := range []string{"CREATE SCHEMA ean_owner_dst", "ALTER TYPE public." + family + " RENAME TO moved", "ALTER TYPE public.moved SET SCHEMA ean_owner_dst"} {
 		isnUnitExecute(t, e, op, q)
 	}
 	view := e.CatalogRead()
@@ -32,6 +32,16 @@ func testIsnRestoreOwnerReplay(t *testing.T, family string, slot int) {
 	record, recognized, err := extension.DecodeOwners(strings.TrimPrefix(metadata, "-- "))
 	if err != nil || !recognized {
 		t.Fatal("owner record", recognized, err)
+	}
+	memberIndex := -1
+	for i, member := range record.Members {
+		if member.Declaration != nil && *member.Declaration == base.Origin.Declaration && member.Kind == "type" {
+			memberIndex = i
+			break
+		}
+	}
+	if memberIndex < 0 || record.Members[memberIndex].Name != "moved" || record.Members[memberIndex].Schema != "ean_owner_dst" {
+		t.Fatal("v3 omitted current identity for the genuine installed declaration", record)
 	}
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
 	for _, tc := range []struct {
@@ -44,10 +54,12 @@ func testIsnRestoreOwnerReplay(t *testing.T, family string, slot int) {
 		{"wrong-install-schema", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Schema = "ean_owner_dst" }, false},
 		{"wrong-install-owner", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Owner = "pg_signal_backend" }, false},
 		{"wrong-extension", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Name = "citext" }, false},
-		{"missing-type-role", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Members = append(r.Members[:slot], r.Members[slot+1:]...) }, false},
-		{"mutable-spelling-not-role", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Members[slot].Name = "moved" }, false},
-		{"wrong-member-kind", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Members[slot].Kind = "procedure" }, false},
-		{"type-signature", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Members[slot].Signature = family }, false},
+		{"missing-type-role", func(_ *parser.AlterOwner, r *extension.OwnerRecord) {
+			r.Members = append(r.Members[:memberIndex], r.Members[memberIndex+1:]...)
+		}, false},
+		{"canonical-spelling-not-current", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Members[memberIndex].Name = family }, false},
+		{"wrong-member-kind", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Members[memberIndex].Kind = "procedure" }, false},
+		{"type-signature", func(_ *parser.AlterOwner, r *extension.OwnerRecord) { r.Members[memberIndex].Signature = family }, false},
 		{"mismatched-target", func(s *parser.AlterOwner, _ *extension.OwnerRecord) { s.Target.Name = "pg_signal_backend" }, false},
 		{"identity-role", func(s *parser.AlterOwner, _ *extension.OwnerRecord) { s.Target.Identity = "current" }, false},
 		{"empty-role", func(s *parser.AlterOwner, _ *extension.OwnerRecord) { s.Target.Name = "" }, false},

@@ -12,6 +12,7 @@ import (
 // names encode exact server/role identities, never role membership or SQL text.
 type ForeignObject struct {
 	ObjectAddress                       ids.ObjectAddress
+	Extension                           ids.ObjectAddress
 	ObjectRevision                      ids.DefinitionRevision
 	ObjectName                          string
 	Owner                               authorization.PrincipalRef

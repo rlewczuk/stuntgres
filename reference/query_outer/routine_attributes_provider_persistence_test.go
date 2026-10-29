@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/lib/pq"
 	"io"
 	"strconv"
 	"strings"
@@ -79,6 +80,26 @@ func TestReferenceRoutineAttributesProviderPersistence(t *testing.T) {
 						if err := pg.QueryRowContext(p.Ctx, "SELECT proparallel::text,procost,prorows FROM pg_proc WHERE oid=$1::regprocedure", tc.signature).Scan(&parallel, &cost, &rows); err != nil {
 							t.Fatal("real seeded signature", tc.signature, err)
 						}
+						// Seed extension replay can name every real handler owner,
+						// not just the routine whose estimates this case changes.
+						owners, err := pg.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.proowner::regrole::text FROM pg_proc p LEFT JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.refclassid='pg_extension'::regclass AND d.deptype='e' LEFT JOIN pg_extension e ON e.oid=d.refobjid WHERE p.oid=$1::regprocedure OR e.extname='plpgsql'", tc.signature)
+						if err != nil {
+							t.Fatal("capture genuine seed owners", err)
+						}
+						var restoreOwners []string
+						for owners.Next() {
+							var signature, owner string
+							if err := owners.Scan(&signature, &owner); err != nil {
+								owners.Close()
+								t.Fatal(err)
+							}
+							restoreOwners = append(restoreOwners, "ALTER FUNCTION "+signature+" OWNER TO "+pq.QuoteIdentifier(owner))
+						}
+						err = owners.Err()
+						owners.Close()
+						if err != nil {
+							t.Fatal("capture genuine seed owners", err)
+						}
 						q := "ALTER FUNCTION " + tc.signature + " PARALLEL " + map[string]string{"s": "SAFE", "r": "RESTRICTED", "u": "UNSAFE"}[parallel] + " COST " + attributesProviderNumber(cost)
 						if tc.sets {
 							q += " ROWS " + attributesProviderNumber(rows)
@@ -86,6 +107,11 @@ func TestReferenceRoutineAttributesProviderPersistence(t *testing.T) {
 						return func() {
 							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 							defer cancel()
+							for _, ownerSQL := range restoreOwners {
+								if _, err := pg.ExecContext(ctx, ownerSQL); err != nil {
+									t.Error("restore seeded owner", ownerSQL, err)
+								}
+							}
 							if _, err := pg.ExecContext(ctx, q); err != nil {
 								t.Error("restore seeded metadata", q, err)
 							}
@@ -134,12 +160,11 @@ func TestReferenceRoutineAttributesProviderPersistence(t *testing.T) {
 						attributesBoth(t, p, b, c, "SELECT proparallel::text AS parallel,procost+0::real AS cost,prorows+0::real AS rows,proretset OR false AS sets FROM pg_proc WHERE oid=$1::regprocedure",
 							[]string{"parallel", "cost", "rows", "sets"}, []string{"TEXT", "FLOAT4", "FLOAT4", "BOOL"}, [][]any{{"r", float64(9), rows, tc.sets}}, signature)
 						if !tc.moved {
-							// Native bootstrap is postgres; the oracle initializes and
-							// authenticates as stuntgres. Emitted extension declarations
-							// preserve their native named owner; seeded and generated
-							// PG providers retain the PG bootstrap owner.
+							// Installed declarations, including stock PL handlers, carry
+							// their native named owner in ordinary replay SQL. Other
+							// seeded/generated PG providers retain the oracle owner.
 							owner := "postgres"
-							if b.PG && (!emittedSQL || tc.extension == "") {
+							if b.PG && (!emittedSQL || tc.extension == "" && !strings.HasPrefix(tc.name, "pl_")) {
 								owner = "stuntgres"
 							}
 							reader := tc.extension != "amcheck"
@@ -163,13 +188,6 @@ func TestReferenceRoutineAttributesProviderPersistence(t *testing.T) {
 						if tc.moved {
 							denied := false
 							var acl any = "{ra_provider_owner=X/ra_provider_owner,ra_provider_reader=X/ra_provider_owner}"
-							if b.PG && emittedSQL {
-								// docs/FIXTURES.md: installed ACL repairs are native
-								// metadata comments, not executable PostgreSQL ACL SQL.
-								// The new PG extension member retains NULL/PUBLIC EXECUTE
-								// even after the ordinary named OWNER transfer.
-								denied, acl = true, nil
-							}
 							attributesBoth(t, p, b, c, "SELECT proowner::regrole::text AS owner,has_function_privilege('ra_provider_reader',$1,'EXECUTE') OR false AS reader,has_function_privilege('ra_provider_denied',$1,'EXECUTE') OR false AS denied_execute,proacl::text AS acl FROM pg_proc WHERE oid=$1::regprocedure",
 								[]string{"owner", "reader", "denied_execute", "acl"}, []string{"TEXT", "BOOL", "BOOL", "TEXT"}, [][]any{{"ra_provider_owner", true, denied, acl}}, signature)
 							attributesTextBoth(t, p, b, c, "SELECT ra_provider_moved.ra_provider_soundex('Ashcraft') AS v", "A226")

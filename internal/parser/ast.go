@@ -335,6 +335,27 @@ type AlterExtensionUpdate struct {
 
 func (*AlterExtensionUpdate) statement() {}
 
+// ExtensionMemberTarget retains utility syntax until its real identity owner
+// resolves it. Routine argument modes and type/operator identities are typed.
+type ExtensionMemberTarget struct {
+	Kind             string
+	Name             ObjectName
+	Routine          GrantRoutineTarget
+	Type, TargetType TypeName
+	Operator         OperatorSignature
+	Method           Identifier
+}
+
+type AlterExtension struct {
+	Name   Identifier
+	Action string
+	Schema Identifier
+	Member ExtensionMemberTarget
+	Pos    Position
+}
+
+func (*AlterExtension) statement() {}
+
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
 	Name        string

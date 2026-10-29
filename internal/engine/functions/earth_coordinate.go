@@ -150,7 +150,10 @@ func (e EarthCoordinate) Substitute(info expr.Info, children []expr.Expr) (expr.
 	return e.Rebuild(info, children)
 }
 func (e EarthCoordinate) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
-	earth := env.Type(e.Plan.Earth())
+	earth := e.Plan.Earth()
+	if earth != nil {
+		earth = env.Type(earth)
+	}
 	n, err := NewEarthCoordinate(info, e.Plan.Operation(), earth, children)
 	return n, changed || earth != e.Plan.Earth(), err
 }

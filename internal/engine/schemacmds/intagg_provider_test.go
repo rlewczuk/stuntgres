@@ -124,3 +124,62 @@ func TestIntaggProviderManifest(t *testing.T) {
 		})
 	}
 }
+
+func TestIntaggAggregateHelperDependencies(t *testing.T) {
+	e, ext := intaggUnitInstalled(t)
+	view := e.CatalogRead()
+	aggregate := view.MustProcedure(ext.Members[0])
+	if aggregate.DynamicCallable() || aggregate.Aggregate == nil {
+		t.Fatal("installed aggregate must retain its provider-owned definition")
+	}
+	helpers := aggregate.Aggregate.Helpers
+	want := map[ids.ObjectAddress]int{}
+	for _, helper := range helpers {
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}
+		if view.Get(address) != nil || helper.Namespace != aggregate.Namespace().ObjectID {
+			t.Fatal("helper must remain lookup-only at its creation namespace", helper)
+		}
+		want[address] = 0
+		if !catalog.ProcedureDefinitionDependsOn(view, aggregate, address) {
+			t.Fatal("missing aggregate definition dependency", helper)
+		}
+	}
+	if len(want) != 2 {
+		t.Fatal("state and final identities must be distinct", helpers)
+	}
+	catalog.VisitProcedureDeclarationDependencies(aggregate, func(address ids.ObjectAddress) bool {
+		if _, ok := want[address]; ok {
+			want[address]++
+		}
+		return true
+	})
+	for address, count := range want {
+		if count != 1 {
+			t.Fatal("helper declaration dependency", address, count)
+		}
+		want[address] = 0
+	}
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, edge := range edges {
+		if edge.Dependent != aggregate.Address() {
+			continue
+		}
+		if _, ok := want[edge.Referenced]; ok {
+			if edge.DepType != 'n' {
+				t.Fatal("helper dependency must be normal", edge)
+			}
+			want[edge.Referenced]++
+		}
+	}
+	for address, count := range want {
+		if count != 1 {
+			t.Fatal("projected helper dependency", address, count)
+		}
+	}
+	if aggregate.Aggregate.Helpers != helpers || aggregate.DynamicCallable() {
+		t.Fatal("dependency visitation changed helper identity or callability")
+	}
+}

@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -113,18 +112,33 @@ func (s *Store) InstallBuiltinLanguagesLocked(owner authorization.PrincipalRef) 
 	if err != nil {
 		return err
 	}
+	extensionOID, err := s.AllocateOIDLocked()
+	if err != nil {
+		return err
+	}
+	extension := &Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: extensionOID}, ObjectRevision: 1, ObjectName: "plpgsql", Version: "1.0", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Owner: owner, Members: make([]ids.ObjectAddress, 4)}
+	installation := &Installation{Cohort: extension.Address(), Provider: "plpgsql", Version: "1.0", Implementation: s.Extensions["plpgsql"], Members: make([]ids.ObjectAddress, 4), Declarations: make([]Descriptor, 4)}
+	extension.Installation = installation
 	language := &Language{ObjectAddress: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: languageOID}, ObjectRevision: 1, ObjectName: "plpgsql", Owner: owner, Procedural: true, Trusted: true}
-	for _, kind := range []PLHandler{PLCallHandler, PLInlineHandler, PLValidator} {
+	language.Extension = extension.Address()
+	language.Origin = &InstalledOrigin{Installation: installation, Declaration: 3}
+	for i, kind := range []PLHandler{PLCallHandler, PLInlineHandler, PLValidator} {
 		oid, err := s.AllocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		name, signature, result := kind.Declaration()
-		handler := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: name, Signature: signature, Result: result, Owner: owner, RoutineKind: FunctionRoutine, Volatility: expr.Volatile, Display: RoutineDisplay{Language: CRoutineLanguage, Source: name, Binary: "$libdir/plpgsql", HasBinary: true}, Strict: kind != PLCallHandler, PLHandler: kind}
-		// The shipped LANGUAGE C declarations omit PARALLEL, whose CREATE
-		// FUNCTION default is UNSAFE (unlike pg_proc bootstrap defaults).
-		handler.Installed.Parallel = 'u'
-		installSeedDescriptor(s.State, handler)
+		handler := kind.ReleasedProcedure()
+		handler.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
+		handler.ObjectNamespace = extension.TargetNamespace
+		handler.ObjectRevision = 1
+		handler.Owner = owner
+		handler.Extension = extension.Address()
+		canonical := handler
+		installation.Declarations[i] = &canonical
+		handler.Origin = &InstalledOrigin{Installation: installation, Declaration: i}
+		extension.Members[i] = handler.Address()
+		installation.Members[i] = handler.Address()
+		installSeedDescriptor(s.State, &handler)
 		switch kind {
 		case PLCallHandler:
 			language.Call = handler.Address()
@@ -134,6 +148,13 @@ func (s *Store) InstallBuiltinLanguagesLocked(owner authorization.PrincipalRef) 
 			language.Validator = handler.Address()
 		}
 	}
+	extension.Members[3] = language.Address()
+	installation.Members[3] = language.Address()
+	canonicalLanguage := *language
+	canonicalLanguage.Origin = nil
+	installation.Declarations[3] = &canonicalLanguage
+	installation.sealed = installation
+	installSeedDescriptor(s.State, extension)
 	installSeedDescriptor(s.State, language)
 	return nil
 }

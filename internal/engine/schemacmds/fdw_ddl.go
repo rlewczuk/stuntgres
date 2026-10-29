@@ -69,5 +69,11 @@ func ExecuteForeignDDL(e *core.Engine, scope *core.StatementScope, s *parser.For
 // stageForeignLocked stages WRAPPER, SERVER, USER MAPPING and CREATE or
 // DROP FOREIGN TABLE through fdw.StageDDL on the statement's ddlHost.
 func stageForeignLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, s *parser.ForeignDDL) ([]fdw.Validation, []ids.ObjectAddress, error) {
-	return fdw.StageDDL(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s, scope.Input)
+	host := tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
+	if s.Action == "drop" {
+		if err := host.RecordDependencyPath(auth); err != nil {
+			return nil, nil, err
+		}
+	}
+	return fdw.StageDDL(host, auth, s, scope.Input)
 }

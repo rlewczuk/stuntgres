@@ -105,8 +105,9 @@ func TestConnectbyCompletionRebuildAndRemap(t *testing.T) {
 			state.UnbindName(catalog.DescriptorNameKey(read.Get(address)))
 			state.RemoveDescriptor(address)
 		}
+		remapDescriptor := extension.DescriptorRemapper(mapping)
 		for address, destination := range mapping {
-			descriptor := extension.RemapDescriptor(read.Get(address), mapping)
+			descriptor := remapDescriptor(read.Get(address))
 			state.SetDescriptor(destination, descriptor)
 			state.BindName(catalog.DescriptorNameKey(descriptor), destination)
 		}
@@ -132,7 +133,7 @@ func TestConnectbyCompletionRebuildAndRemap(t *testing.T) {
 			}
 			return ref
 		}
-		mapper := stored.ViewQueryRemapper{Catalog: destination, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+		mapper := stored.ViewQueryRemapper{Catalog: destination, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(remapDescriptor, nil, nil)}
 		query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "walk", Usage: n.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{n}}
 		remapped, err := mapper.Query(query)
 		if err != nil {

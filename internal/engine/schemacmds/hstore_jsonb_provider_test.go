@@ -30,7 +30,7 @@ func TestHstoreJSONBProviderIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
 	base := view.MustType(ext.Members[extension.HstoreTypeSlot])
-	if len(ext.Members) != extension.HstoreMemberCount {
+	if len(ext.Members) != extension.HstoreMemberCount+1 || len(ext.Installation.Members) != extension.HstoreMemberCount {
 		t.Fatal("incomplete hstore manifest")
 	}
 	for i, symbol := range []string{"hstore_to_jsonb", "hstore_to_jsonb_loose"} {
@@ -91,7 +91,9 @@ func TestHstoreJSONBProviderPublication(t *testing.T) {
 			stage := hstoreArraysStage(t, e, op)
 			view := e.StageRead(stage)
 			ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
-			if len(ext.Members) != extension.HstoreMemberCount { t.Fatal("missing hstore provider roles") }
+			if len(ext.Members) != extension.HstoreMemberCount+1 || len(ext.Installation.Members) != extension.HstoreMemberCount {
+				t.Fatal("missing hstore provider roles")
+			}
 			view.MustProcedure(ext.Members[slot]).Result = 1009
 			if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 				t.Fatal("invalid JSON publication admitted")
@@ -112,20 +114,30 @@ func TestHstoreJSONBProviderPublication(t *testing.T) {
 			ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
 			base := view.MustType(ext.Members[extension.HstoreTypeSlot])
 			cast, ok := view.Cast(base.SQLType.ID(), 3802)
-			if !ok { t.Fatal("missing staged cast") }
+			if !ok {
+				t.Fatal("missing staged cast")
+			}
 			if cause == "canceled" {
 				ctx, cancel := context.WithCancel(context.Background())
 				cancel()
-				if _, err := e.ValidateCatalogStage(ctx, stage); err == nil { t.Fatal("canceled publication admitted") }
+				if _, err := e.ValidateCatalogStage(ctx, stage); err == nil {
+					t.Fatal("canceled publication admitted")
+				}
 			} else {
 				duplicate := *cast
 				duplicate.OID += 1000
-				if err := stage.Create(&duplicate); err == nil { t.Fatal("late same-pair collision overwrote authentic cast") }
+				if err := stage.Create(&duplicate); err == nil {
+					t.Fatal("late same-pair collision overwrote authentic cast")
+				}
 				current, ok := e.StageRead(stage).Cast(base.SQLType.ID(), 3802)
-				if !ok || current != cast { t.Fatal("failed collision changed staged pair index") }
+				if !ok || current != cast {
+					t.Fatal("failed collision changed staged pair index")
+				}
 			}
 			e.DiscardCatalogStage(stage)
-			if e.CatalogRead().State() != before { t.Fatal("failed stage leaked procedures/cast") }
+			if e.CatalogRead().State() != before {
+				t.Fatal("failed stage leaked procedures/cast")
+			}
 		})
 	}
 }

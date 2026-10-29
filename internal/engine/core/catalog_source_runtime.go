@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -501,8 +500,8 @@ func (r EngineCatalogRuntime) OperatorSeeded(d *catalog.Operator) bool {
 func (r EngineCatalogRuntime) OperatorDependencies(view catalog.Read, d *catalog.Operator) []ids.ObjectAddress {
 	return routine.OperatorDependencyAddresses(view, d)
 }
-func (r EngineCatalogRuntime) TypeProviderProcedure(d *catalog.Procedure) bool {
-	return extension.HstoreProviderOf(d) != nil && !extension.HstoreComparisonName(d.Display.Source) || extension.SegProviderOf(d) != nil || extension.IntarrayProviderOf(d) != nil || extension.LtreeProviderOf(d) != nil || extension.CubeProviderOf(d) != nil && !extension.CubeComparisonName(d.Name()) || extension.CitextProviderOf(d) != nil && (d.Signature == "2275" || d.Result == 2275) || extension.IsnProviderOf(d) != nil
+func (r EngineCatalogRuntime) InstalledProcedure(d *catalog.Procedure) bool {
+	return d.Implementation != nil
 }
 func CatalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
 	if auth.Session != nil {

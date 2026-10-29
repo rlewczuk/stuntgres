@@ -61,8 +61,12 @@ these are shared across families:
   unrelated namespace collisions must retain feasible noncolliding endpoints;
   only a genuinely impossible destination assignment rejects atomically. Routine
   owner scenarios alter each generated signature independently, retain the other
-  four owners, and require zero-output Dump rejection without losing authority,
-  dependencies or readers; restoring the original owner recovers roundtrip.
+  four bootstrap owners and all five INTERNAL dependencies, and preserve current
+  constructor owner and EXECUTE ACL through same/fresh-engine Restore and actual
+  dump SQL replay on PostgreSQL. Direct/prepared calls and retained readers remain
+  usable; genuine constructor signature validation is not relaxed. Companion ACL
+  repair follows private CREATE and final type identity/owner restoration before
+  nonowner table consumers.
   Select the shared scenarios with
   `make check RUN='^TestReferenceRangeType(CompanionACL|SchemaRetirement|RestoreRecipeCollisions|AliasOrdering|AliasNumericAnchor|UnrelatedCollisionFeasible|ConstructorOwnerPortability|Ownership|GeneratedCast)'`,
   then repeat with `REFERENCE=1`. Ordinary symbolic and large-numeric

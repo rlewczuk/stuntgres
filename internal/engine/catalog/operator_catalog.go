@@ -10,6 +10,7 @@ import (
 type Operator struct {
 	ObjectAddress, ObjectNamespace                           ids.ObjectAddress
 	Extension                                                ids.ObjectAddress
+	Origin                                                   *InstalledOrigin
 	ObjectRevision                                           ids.DefinitionRevision
 	ObjectName                                               string
 	Left, Right                                              ids.OID

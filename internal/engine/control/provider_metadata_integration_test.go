@@ -20,6 +20,7 @@ func TestProviderReplayActualFamilies(t *testing.T) {
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	for _, sql := range []string{
+		"CREATE ROLE replay_constructor_owner",
 		"CREATE TYPE replay_span AS RANGE (subtype=integer, multirange_type_name=replay_many)",
 		"CREATE EXTENSION unaccent",
 		"CREATE EXTENSION pgrowlocks",
@@ -81,15 +82,20 @@ func TestProviderReplayActualFamilies(t *testing.T) {
 			args = append(args, regobj.TypeSpelling(view, nil, ids.OID(oid)))
 		}
 		identity := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(p.Name()) + "(" + strings.Join(args, ", ") + ")"
+		parallel, rows := p.Parallel, p.Rows
 		alter := "ALTER FUNCTION " + identity + " PARALLEL RESTRICTED COST 9.25"
 		if p.ReturnsSet() {
 			alter += " ROWS 23"
 		}
 		enginetest.RoleExecute(t, e, op, alter)
-		if p.Parallel != 0 || p.Rows != 0 {
+		if p.Parallel != parallel || p.Rows != rows {
 			t.Fatalf("%s original descriptor changed during COW publication", family)
 		}
+		if p.RangeConstructor != nil {
+			enginetest.RoleExecute(t, e, op, "ALTER FUNCTION "+identity+" OWNER TO replay_constructor_owner")
+		}
 	}
+	enginetest.RoleExecute(t, e, op, "CREATE VIEW replay_span_consumer AS SELECT public.replay_span(1,2) AS span")
 	done()
 	for round := range 2 {
 		var out bytes.Buffer
@@ -100,7 +106,16 @@ func TestProviderReplayActualFamilies(t *testing.T) {
 		if create, alter := strings.Index(text, "CREATE TYPE"), strings.Index(text, "ALTER FUNCTION \"public\".\"replay_span\""); create < 0 || alter < create {
 			t.Fatalf("constructor metadata preceded type installation: %s", text)
 		}
+		owned := strings.Index(text, `OWNER TO "replay_constructor_owner"`)
+		consumer := strings.Index(text, `CREATE VIEW "public"."replay_span_consumer"`)
+		finalized := strings.Index(text, `DROP SCHEMA "__stuntgres_range_work_`)
+		if owned < 0 || finalized <= owned || consumer <= finalized {
+			t.Fatalf("constructor current owner/final identity must finish before consumers: %s", text)
+		}
 		target := engine.New()
+		targetOp, targetDone := enginetest.RoleOperation(t, target, "postgres")
+		enginetest.RoleExecute(t, target, targetOp, "CREATE ROLE replay_constructor_owner")
+		targetDone()
 		if err := engine.Restore(context.Background(), target, bytes.NewReader(out.Bytes())); err != nil {
 			t.Fatal(err)
 		}
@@ -133,11 +148,96 @@ func TestProviderReplayActualFamilies(t *testing.T) {
 			if found.RangeConstructor != nil && found.RangeConstructor.Type == old.RangeConstructor.Type {
 				t.Fatal("constructor retained source type generation")
 			}
+			if found.RangeConstructor != nil {
+				owner, ok := target.Roles().Lookup("replay_constructor_owner")
+				if !ok || found.Owner != owner.Ref {
+					t.Fatal("generated constructor current owner lost", family)
+				}
+			}
 		}
 		before := target.CatalogRead().State()
 		if err := engine.Restore(context.Background(), target, strings.NewReader(text+"ALTER FUNCTION pg_catalog.abs(integer) COST -1;")); err == nil || target.CatalogRead().State() != before {
 			t.Fatal("failed metadata replay published a prefix", err)
 		}
 		e = target
+	}
+}
+
+// Installed providers bypass collectProvider. Exercise their current estimates
+// and owner through real installation, lawful membership edits and native replay.
+func TestInstallationReplayActualSurvivorMetadata(t *testing.T) {
+	for _, membership := range []string{"attached", "detached", "foreign", "absent"} {
+		t.Run(membership, func(t *testing.T) {
+			e := engine.New()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
+			for _, q := range []string{
+				`CREATE ROLE replay_recipient`,
+				`CREATE SCHEMA replay_final`,
+				`CREATE EXTENSION pgrowlocks`,
+				`ALTER FUNCTION public.pgrowlocks(text) PARALLEL RESTRICTED COST 7.25 ROWS 13`,
+			} {
+				enginetest.RoleExecute(t, e, op, q)
+			}
+			if membership != "attached" {
+				enginetest.RoleExecute(t, e, op, `ALTER EXTENSION pgrowlocks DROP FUNCTION public.pgrowlocks(text)`)
+			}
+			if membership == "foreign" {
+				enginetest.RoleExecute(t, e, op, `CREATE EXTENSION "uuid-ossp"`)
+				enginetest.RoleExecute(t, e, op, `ALTER EXTENSION "uuid-ossp" ADD FUNCTION public.pgrowlocks(text)`)
+			}
+			if membership == "absent" {
+				enginetest.RoleExecute(t, e, op, `DROP EXTENSION pgrowlocks`)
+			}
+			for _, q := range []string{
+				`ALTER FUNCTION public.pgrowlocks(text) RENAME TO retained_locks`,
+				`ALTER FUNCTION public.retained_locks(text) SET SCHEMA replay_final`,
+				`ALTER FUNCTION replay_final.retained_locks(text) OWNER TO replay_recipient`,
+			} {
+				enginetest.RoleExecute(t, e, op, q)
+			}
+			done()
+			for round := range 2 {
+				var out bytes.Buffer
+				if err := engine.Dump(context.Background(), e, &out); err != nil {
+					t.Fatal(err)
+				}
+				target := engine.New()
+				targetOp, targetDone := enginetest.RoleOperation(t, target, "postgres")
+				enginetest.RoleExecute(t, target, targetOp, "CREATE ROLE replay_recipient")
+				targetDone()
+				if err := engine.Restore(context.Background(), target, bytes.NewReader(out.Bytes())); err != nil {
+					t.Fatal(err)
+				}
+				view := target.CatalogRead()
+				ns := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "replay_final"})
+				address := view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ns, Name: "retained_locks", Signature: "25"})
+				p, ok := view.Procedure(address)
+				if !ok || p.Parallel != 'r' || p.Cost != 7.25 || p.Rows != 13 || !p.ReturnsSet() || !p.Origin.Valid(address) {
+					t.Fatalf("round %d lost genuine current metadata: %+v", round, p)
+				}
+				owner, ok := target.Roles().Lookup("replay_recipient")
+				if !ok || p.Owner != owner.Ref {
+					t.Fatal("current procedure owner lost")
+				}
+				wantExtension := ""
+				if membership == "attached" {
+					wantExtension = "pgrowlocks"
+				} else if membership == "foreign" {
+					wantExtension = "uuid-ossp"
+				}
+				if wantExtension == "" {
+					if p.Extension != (ids.ObjectAddress{}) {
+						t.Fatal("detached survivor acquired membership")
+					}
+				} else if ext, ok := view.Extension(p.Extension); !ok || ext.Name() != wantExtension {
+					t.Fatal("survivor current membership lost")
+				}
+				origin := view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgrowlocks"})
+				if (origin == (ids.ObjectAddress{})) != (membership == "absent") {
+					t.Fatal("replay changed original extension presence")
+				}
+				e = target
+			}
+		})
 	}
 }

@@ -1,22 +1,23 @@
 package schemacmds_test
 
 import (
- "context"
- "encoding/base64"
- "encoding/json"
- "reflect"
- "testing"
- "stuntgres/internal/engine"
- "stuntgres/internal/engine/catalog"
- "stuntgres/internal/engine/core"
- "stuntgres/internal/engine/enginetest"
- "stuntgres/internal/engine/expr"
- "stuntgres/internal/engine/extension"
- "stuntgres/internal/engine/ids"
- "stuntgres/internal/engine/plan"
- "stuntgres/internal/engine/stored"
- "stuntgres/internal/parser"
- "stuntgres/internal/sqltype"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"reflect"
+	"strings"
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
 )
 func TestPageinspectBrinProviderIdentity(t *testing.T){
  e:=engine.New();op,done:=enginetest.RoleOperation(t,e,"postgres");defer done();enginetest.RoleExecute(t,e,op,"CREATE EXTENSION pageinspect")
@@ -50,44 +51,134 @@ func TestPageinspectBrinProviderIdentity(t *testing.T){
  copy.Args[0]=nil
  if n.Args[0]==nil{t.Fatal("rebuilt operands alias original backing")}
 }
-
-func TestPageinspectBrinOwnerCodec(t *testing.T){
- record:=extension.OwnerRecord{Name:"pageinspect",Schema:"brin_part",Version:"1.13",Owner:"postgres",Members:[]extension.MemberOwner{
-  {Slot:0,Schema:"brin_moved",Kind:"procedure",Name:"page_kind",Signature:"17",Owner:"pi_owner"},
-  {Slot:1,Schema:"brin_moved",Kind:"procedure",Name:"brin_metapage_info",Signature:"17",Owner:"postgres"},
-  {Slot:2,Schema:"brin_moved",Kind:"procedure",Name:"brin_revmap_data",Signature:"17",Owner:"postgres"},
-  {Slot:3,Schema:"brin_moved",Kind:"procedure",Name:"brin_page_items",Signature:"17,2205",Owner:"postgres"},
-  {Slot:4,Schema:"brin_moved",Kind:"procedure",Name:"bt_page_items",Signature:"17",Owner:"postgres"},
-  {Slot:5,Schema:"brin_moved",Kind:"procedure",Name:"fsm_page_contents",Signature:"17",Owner:"postgres"},
-  {Slot:6,Schema:"gin_moved",Kind:"procedure",Name:"meta_info",Signature:"17",Owner:"gin_owner"},
-  {Slot:7,Schema:"gin_moved",Kind:"procedure",Name:"opaque_info",Signature:"17",Owner:"postgres"},
-  {Slot:8,Schema:"gin_moved",Kind:"procedure",Name:"leaf_items",Signature:"17",Owner:"gin_owner"},
- }}
- encode:=func(record extension.OwnerRecord)string{
-  data,err:=json.Marshal(record);if err!=nil{t.Fatal(err)}
-  return extension.OwnersMarker+" "+base64.StdEncoding.EncodeToString(data)
- }
- decoded,present,err:=extension.DecodeOwners(encode(record))
- if err!=nil || !present || !reflect.DeepEqual(decoded,record){t.Fatal("valid moved member owners rejected",decoded,present,err)}
- for _,tc:=range []struct{name string;mutate func(*extension.OwnerRecord)}{
-  {"version",func(r *extension.OwnerRecord){r.Version="1.12"}},
-  {"missing_member",func(r *extension.OwnerRecord){r.Members=r.Members[:3]}},
-  {"extra_member",func(r *extension.OwnerRecord){r.Members=append(r.Members,r.Members[0])}},
-  {"duplicate_slot",func(r *extension.OwnerRecord){r.Members[3].Slot=0}},
-  {"negative_slot",func(r *extension.OwnerRecord){r.Members[0].Slot=-1}},
-  {"foreign_slot",func(r *extension.OwnerRecord){r.Members[3].Slot=len(extension.PageinspectMembers)}},
-  {"wrong_signature",func(r *extension.OwnerRecord){r.Members[3].Signature="17,26"}},
-  {"gin_wrong_signature",func(r *extension.OwnerRecord){r.Members[8].Signature="25"}},
-  {"wrong_kind",func(r *extension.OwnerRecord){r.Members[0].Kind="type"}},
-  {"missing_namespace",func(r *extension.OwnerRecord){r.Members[0].Schema=""}},
-  {"missing_owner",func(r *extension.OwnerRecord){r.Members[0].Owner=""}},
- }{
-  t.Run(tc.name,func(t *testing.T){
-   bad:=record;bad.Members=append([]extension.MemberOwner(nil),record.Members...);tc.mutate(&bad)
-   if _,present,err:=extension.DecodeOwners(encode(bad));err==nil || !present{t.Fatal("invalid owner metadata accepted",bad,present,err)}
-  })
- }
+func TestPageinspectBrinOwnerCodec(t *testing.T) {
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	for _, sql := range []string{
+		"CREATE SCHEMA brin_part",
+		"CREATE SCHEMA brin_moved",
+		"CREATE ROLE pi_owner",
+		"CREATE SCHEMA gin_moved",
+		"CREATE ROLE gin_owner",
+		"CREATE EXTENSION pageinspect SCHEMA brin_part",
+		"ALTER EXTENSION pageinspect SET SCHEMA brin_moved",
+		"ALTER FUNCTION brin_moved.brin_page_type(bytea) RENAME TO page_kind",
+		"ALTER FUNCTION brin_moved.page_kind(bytea) OWNER TO pi_owner",
+		"ALTER FUNCTION brin_moved.gin_metapage_info(bytea) SET SCHEMA gin_moved",
+		"ALTER FUNCTION gin_moved.gin_metapage_info(bytea) RENAME TO meta_info",
+		"ALTER FUNCTION gin_moved.meta_info(bytea) OWNER TO gin_owner",
+		"ALTER FUNCTION brin_moved.gin_page_opaque_info(bytea) SET SCHEMA gin_moved",
+		"ALTER FUNCTION gin_moved.gin_page_opaque_info(bytea) RENAME TO opaque_info",
+		"ALTER FUNCTION brin_moved.gin_leafpage_items(bytea) SET SCHEMA gin_moved",
+		"ALTER FUNCTION gin_moved.gin_leafpage_items(bytea) RENAME TO leaf_items",
+		"ALTER FUNCTION gin_moved.leaf_items(bytea) OWNER TO gin_owner",
+	} {
+		enginetest.RoleExecute(t, e, op, sql)
+	}
+	view := e.CatalogRead()
+	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pageinspect"}))
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, view)
+	metadata, err := extension.OwnerMetadata(view, roles, ext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, present, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
+	if err != nil || !present {
+		t.Fatal(record, present, err)
+	}
+	first, items, ginLeaf := -1, -1, -1
+	wants := []struct{ schema, name, signature, owner string }{
+		{"brin_moved", "page_kind", "pg_catalog.bytea", "pi_owner"},
+		{"brin_moved", "brin_metapage_info", "pg_catalog.bytea", "postgres"},
+		{"brin_moved", "brin_revmap_data", "pg_catalog.bytea", "postgres"},
+		{"brin_moved", "brin_page_items", "pg_catalog.bytea, pg_catalog.regclass", "postgres"},
+		{"brin_moved", "bt_page_items", "pg_catalog.bytea", "postgres"},
+		{"brin_moved", "fsm_page_contents", "pg_catalog.bytea", "postgres"},
+		{"gin_moved", "meta_info", "pg_catalog.bytea", "gin_owner"},
+		{"gin_moved", "opaque_info", "pg_catalog.bytea", "postgres"},
+		{"gin_moved", "leaf_items", "pg_catalog.bytea", "gin_owner"},
+	}
+	if len(record.Members) != len(wants) {
+		t.Fatal("incomplete released owner inventory", record)
+	}
+	seen := make([]bool, len(wants))
+	for i, member := range record.Members {
+		if member.Declaration == nil {
+			t.Fatal("released procedure lost its immutable declaration", member)
+		}
+		slot := *member.Declaration
+		if slot < 0 || slot >= len(wants) || seen[slot] {
+			t.Fatal("invalid released declaration identity", member)
+		}
+		seen[slot] = true
+		want := wants[slot]
+		if member.Kind != "procedure" || member.Schema != want.schema || member.Name != want.name || member.Signature != want.signature || member.Owner != want.owner || member.Version != "1.13" || member.Extension != "pageinspect" {
+			t.Fatal("released current authority changed", slot, member, want)
+		}
+		switch *member.Declaration {
+		case 0:
+			first = i
+		case 3:
+			items = i
+		case 8:
+			ginLeaf = i
+		}
+	}
+	if first < 0 || items < 0 || ginLeaf < 0 || record.Members[first].Name != "page_kind" || record.Members[first].Owner != "pi_owner" || record.Members[first].Schema != "brin_moved" {
+		t.Fatal("current owner identity lost after genuine relocation", record)
+	}
+	encode := func(record extension.OwnerRecord) string {
+		data, err := json.Marshal(record)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString(data)
+	}
+	decoded, present, err := extension.DecodeOwners(encode(record))
+	if err != nil || !present || !reflect.DeepEqual(decoded, record) {
+		t.Fatal("valid moved member owners rejected", decoded, present, err)
+	}
+	if _, err := extension.ImportOwners(context.Background(), catalog.NewRead(view.Owner(), catalog.CloneState(view.State())), roles, []extension.OwnerRecord{decoded}); err != nil {
+		t.Fatal("genuine current authority failed import", err)
+	}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*extension.OwnerRecord)
+	}{
+		{"version", func(r *extension.OwnerRecord) { r.Version = "1.12" }},
+		{"missing_member", func(r *extension.OwnerRecord) { r.Members = r.Members[:3] }},
+		{"extra_member", func(r *extension.OwnerRecord) { r.Members = append(r.Members, r.Members[0]) }},
+		{"duplicate_declaration", func(r *extension.OwnerRecord) { r.Members[items].Declaration = r.Members[first].Declaration }},
+		{"negative_declaration", func(r *extension.OwnerRecord) { declaration := -1; r.Members[first].Declaration = &declaration }},
+		{"foreign_declaration", func(r *extension.OwnerRecord) { declaration := len(wants); r.Members[items].Declaration = &declaration }},
+		{"wrong_signature", func(r *extension.OwnerRecord) { r.Members[items].Signature = "pg_catalog.bytea, pg_catalog.oid" }},
+		{"gin_wrong_signature", func(r *extension.OwnerRecord) { r.Members[ginLeaf].Signature = "pg_catalog.text" }},
+		{"wrong_kind", func(r *extension.OwnerRecord) { r.Members[first].Kind = "type" }},
+		{"missing_namespace", func(r *extension.OwnerRecord) { r.Members[first].Schema = "" }},
+		{"missing_owner", func(r *extension.OwnerRecord) { r.Members[first].Owner = "" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bad := record
+			bad.Members = append([]extension.MemberOwner(nil), record.Members...)
+			tc.mutate(&bad)
+			decoded, present, err := extension.DecodeOwners(encode(bad))
+			if !present {
+				t.Fatal("strict v3 marker was not recognized")
+			}
+			if err == nil {
+				_, err = extension.ImportOwners(context.Background(), catalog.NewRead(view.Owner(), catalog.CloneState(view.State())), roles, []extension.OwnerRecord{decoded})
+			}
+			if err == nil {
+				t.Fatal("invalid reconstructed owner authority accepted", bad)
+			}
+			if e.CatalogRead().State() != view.State() {
+				t.Fatal("owner rejection changed committed source")
+			}
+		})
+	}
 }
+
 
 func TestPageinspectBrinNamedValidation(t *testing.T){
  e:=engine.New();op,done:=enginetest.RoleOperation(t,e,"postgres");defer done()

@@ -158,10 +158,10 @@ type ownershipProviderMember struct {
 
 var ownershipProviderMembers = []ownershipProviderMember{
 	{"dictionary", "unaccent", "", "unaccent"},
-	{"procedure", "unaccent", "25", "unaccent(text)"},
-	{"procedure", "unaccent", "3769,25", "unaccent(regdictionary,text)"},
-	{"procedure", "unaccent_init", "2281", "unaccent_init(internal)"},
-	{"procedure", "unaccent_lexize", "2281,2281,2281,2281", "unaccent_lexize(internal,internal,internal,internal)"},
+	{"procedure", "unaccent", "pg_catalog.text", "unaccent(text)"},
+	{"procedure", "unaccent", "pg_catalog.regdictionary, pg_catalog.text", "unaccent(regdictionary,text)"},
+	{"procedure", "unaccent_init", "pg_catalog.internal", "unaccent_init(internal)"},
+	{"procedure", "unaccent_lexize", "pg_catalog.internal, pg_catalog.internal, pg_catalog.internal, pg_catalog.internal", "unaccent_lexize(internal,internal,internal,internal)"},
 }
 
 func ownershipProviderMemberOwners(s *fixture.RoleMembershipScenario, owner string, selected ...ownershipProviderMember) {
@@ -194,27 +194,16 @@ func ownershipProviderMemberOwners(s *fixture.RoleMembershipScenario, owner stri
 }
 func ownershipProviderOwnerScript(t *testing.T, script, memberOwner string, selected ...ownershipProviderMember) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v2 "
-	start := strings.Index(script, marker)
-	if start < 0 {
-		t.Fatal("missing real member owner metadata")
-	}
-	endOffset := strings.IndexByte(script[start:], '\n')
-	if endOffset < 0 {
-		t.Fatal("unterminated owner metadata")
-	}
-	end := start + endOffset
-	data, err := base64.StdEncoding.DecodeString(script[start+len(marker) : end])
-	if err != nil {
-		t.Fatal(err)
-	}
+	const marker = "-- stuntgres-extension-owners-v3 "
+	start, end, data := fixture.CatalogExtensionOwnerDirective(t, script, "unaccent", true)
+	var err error
 	var record map[string]json.RawMessage
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 5 {
-		t.Fatal("exact five owner-bearing members", members, err)
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 6 {
+		t.Fatal("six declarations including five owner-bearing members", members, err)
 	}
 	encoded, err := json.Marshal(memberOwner)
 	if err != nil {
@@ -230,6 +219,9 @@ func ownershipProviderOwnerScript(t *testing.T, script, memberOwner string, sele
 			if err := json.Unmarshal(member[field.key], field.value); err != nil {
 				t.Fatal("member owner identity", field.key, err)
 			}
+		}
+		if kind == "template" {
+			continue
 		}
 		match := len(selected) == 0
 		for _, target := range selected {

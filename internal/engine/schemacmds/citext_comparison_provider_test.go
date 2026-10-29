@@ -12,16 +12,16 @@ import (
 func TestCitextComparisonProviderManifest(t *testing.T) {
 	e, ext, base := citextUnitInstalled(t)
 	view := e.CatalogRead()
-	if len(ext.Members) != extension.CitextMemberCount {
+	if len(ext.Members) != extension.CitextMemberCount+1 || len(ext.Installation.Members) != extension.CitextMemberCount || catalog.ExtensionMembership(view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})) != ext.Address() {
 		t.Fatal(ext.Members)
 	}
 	for i, name := range extension.CitextComparisonNames {
-		p := view.State().MustProcedure(ext.Members[extension.CitextComparisonProcedureStart+i])
+		p := view.State().MustProcedure(ext.Installation.Members[extension.CitextComparisonProcedureStart+i])
 		symbol, err := extension.ProcedureSymbol(view, p)
 		if err != nil || symbol != name || p.Signature != extension.CitextComparisonSignature(base.SQLType.ID()) || p.Result != ids.OID(sqltype.Bool) {
 			t.Fatal(p, symbol, err)
 		}
-		op, ok := view.Operator(ext.Members[extension.CitextComparisonOperatorStart+i])
+		op, ok := view.Operator(ext.Installation.Members[extension.CitextComparisonOperatorStart+i])
 		if !ok || op.Function != p.Address().ObjectID || op.Hash || op.Merge {
 			t.Fatal(op)
 		}

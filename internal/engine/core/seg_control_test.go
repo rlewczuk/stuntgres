@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
@@ -303,17 +302,20 @@ func TestSegReplayAdmission(t *testing.T) {
 				t.Fatal("genuine exceptional admission", err)
 			}
 			base := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.Columns[0].Usage.Type.ID())})
-			installation := view.MustExtension(base.Extension)
+			installation := base.Origin.Installation
 			for _, corrupt := range []func(*catalog.State){
 				func(s *catalog.State) {
-					ext := *installation
-					ext.Members = append([]ids.ObjectAddress(nil), installation.Members[:2]...)
-					s.SetDescriptor(ext.Address(), &ext)
+					// A copied recipe is not the sealed scalar capability.
+					forged := *installation
+					origin := *base.Origin
+					origin.Installation = &forged
+					s.SetDescriptor(base.Address(), catalog.WithInstalledOrigin(base, &origin))
 				},
 				func(s *catalog.State) {
-					procedure := *view.MustProcedure(installation.Members[1])
-					procedure.Implementation = extension.StockIntarray
-					s.SetDescriptor(procedure.Address(), &procedure)
+					// A genuine recipe cannot authorize another declaration.
+					origin := *base.Origin
+					origin.Declaration = 1
+					s.SetDescriptor(base.Address(), catalog.WithInstalledOrigin(base, &origin))
 				},
 			} {
 				candidate := catalog.CloneState(view.State())

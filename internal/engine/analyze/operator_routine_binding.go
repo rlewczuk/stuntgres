@@ -57,7 +57,9 @@ func comparisonFormalID(d *sqltype.Descriptor) sqltype.ID {
 	if d.IsEnum() {
 		return 3500 // Released ANYENUM declaration; no concrete enum promotion.
 	}
-	if d.IsCatalogVector() && d.ID()==sqltype.OidVector { return sqltype.OidVector }
+	if d.IsCatalogVector() && d.ID() == sqltype.OidVector {
+		return sqltype.OidVector
+	}
 	if d.IsArray() {
 		return 2277 // Released ANYARRAY declaration after actual capability admission.
 	}
@@ -95,21 +97,31 @@ func (b *Binder) selectedComparisonRoutineInfo(info expr.Info, procedure *catalo
 	return info, ref, nil
 }
 
-// Only the installed stock manifest grants shared comparison consumers this
-// dynamic authority. Arbitrary user operators remain unsupported here.
+// Only a genuine installed declaration grants comparison consumers this
+// authority. Mutable namespace, label and membership never select its provider.
 func (b *Binder) cubeOperatorProcedure(name string, typ *sqltype.Descriptor) (*catalog.Procedure, error) {
 	view := b.BindingCatalog()
 	base, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 	if !ok || base.SQLType != typ {
 		return nil, fmt.Errorf("stuntgres: foreign cube comparison type")
 	}
-	probe := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: base.Namespace(), ObjectName: name, Left: ids.OID(typ.ID()), Right: ids.OID(typ.ID())}
-	operator, ok := view.Operator(view.NameAddress(catalog.DescriptorNameKey(probe)))
-	if !ok {
+	installation, valid := catalog.OriginInstallation(base)
+	if !valid || installation.Implementation != extension.StockCube {
+		return nil, fmt.Errorf("stuntgres: missing cube declaration origin")
+	}
+	var operator *catalog.Operator
+	for i, declaration := range installation.Declarations {
+		canonical, ok := declaration.(*catalog.Operator)
+		if ok && canonical.Name() == name && canonical.Left == ids.OID(typ.ID()) && canonical.Right == ids.OID(typ.ID()) {
+			operator, _ = view.Operator(installation.Members[i])
+			break
+		}
+	}
+	if operator == nil || !catalog.SameInstallation(operator, installation) {
 		return nil, fmt.Errorf("stuntgres: missing installed cube operator")
 	}
 	procedure, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: operator.Function})
-	if !ok || extension.CubeProviderOf(procedure) != extension.StockCube || operator.Extension != base.Extension {
+	if !ok || extension.CubeProviderOf(procedure) != extension.StockCube || !catalog.SameInstallation(procedure, installation) {
 		return nil, fmt.Errorf("stuntgres: invalid installed cube operator")
 	}
 	if err := extension.StockCube.ValidateProcedure(view, procedure); err != nil {
@@ -122,15 +134,42 @@ func (b *Binder) cubeOperatorProcedure(name string, typ *sqltype.Descriptor) (*c
 	return procedure, nil
 }
 
-func (b *Binder) ltreeOperatorProcedure(name string,typ *sqltype.Descriptor)(*catalog.Procedure,error){
-	view:=b.BindingCatalog()
-	base,ok:=view.Type(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(typ.ID())})
-	if !ok||base.SQLType!=typ{return nil,fmt.Errorf("stuntgres: foreign ltree comparison type")}
-	probe:=&catalog.Operator{ObjectAddress:ids.ObjectAddress{ClassID:ids.OperatorClassID},ObjectNamespace:base.Namespace(),ObjectName:name,Left:ids.OID(typ.ID()),Right:ids.OID(typ.ID())}
-	operator,ok:=view.Operator(view.NameAddress(catalog.DescriptorNameKey(probe)));if !ok{return nil,fmt.Errorf("stuntgres: missing installed ltree operator")}
-	procedure,ok:=view.Procedure(ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:operator.Function})
-	if !ok||extension.LtreeProviderOf(procedure)!=extension.StockLtree||operator.Extension!=base.Extension{return nil,fmt.Errorf("stuntgres: invalid installed ltree operator")}
-	if err:=extension.StockLtree.ValidateProcedure(view,procedure);err!=nil{return nil,err}
-	for _,d:=range []catalog.Descriptor{operator,procedure}{b.dependency(view.Owner().Domain.Ref(view.Epoch(),d.Address()),d.Revision())}
-	return procedure,nil
+func (b *Binder) ltreeOperatorProcedure(name string, typ *sqltype.Descriptor) (*catalog.Procedure, error) {
+	view := b.BindingCatalog()
+	base, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+	if !ok || base.SQLType != typ {
+		return nil, fmt.Errorf("stuntgres: foreign ltree comparison type")
+	}
+	installation, valid := catalog.OriginInstallation(base)
+	if !valid || installation.Implementation != extension.StockLtree {
+		return nil, fmt.Errorf("stuntgres: missing ltree declaration origin")
+	}
+	var operator *catalog.Operator
+	for i, declaration := range installation.Declarations {
+		canonical, ok := declaration.(*catalog.Operator)
+		if ok && canonical.Name() == name && canonical.Left == ids.OID(typ.ID()) && canonical.Right == ids.OID(typ.ID()) {
+			operator, _ = view.Operator(installation.Members[i])
+			break
+		}
+	}
+	if operator == nil || !catalog.SameInstallation(operator, installation) {
+		return nil, fmt.Errorf("stuntgres: missing installed ltree operator")
+	}
+	if err := catalog.ValidateInstalledClassOrigin(view, operator); err != nil {
+		return nil, err
+	}
+	if err := catalog.ValidateExtensionMembership(view, operator); err != nil {
+		return nil, err
+	}
+	procedure, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: operator.Function})
+	if !ok || extension.LtreeProviderOf(procedure) != extension.StockLtree || !catalog.SameInstallation(procedure, installation) {
+		return nil, fmt.Errorf("stuntgres: invalid installed ltree operator")
+	}
+	if err := extension.StockLtree.ValidateProcedure(view, procedure); err != nil {
+		return nil, err
+	}
+	for _, d := range []catalog.Descriptor{operator, procedure} {
+		b.dependency(view.Owner().Domain.Ref(view.Epoch(), d.Address()), d.Revision())
+	}
+	return procedure, nil
 }

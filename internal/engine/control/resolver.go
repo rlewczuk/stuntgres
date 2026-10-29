@@ -39,8 +39,10 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		}
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
 	}
-	if membership := catalog.ExtensionMembership(object); membership != (ids.ObjectAddress{}) {
-		return predecessor(view, membership, consumer)
+	if catalog.DescriptorOrigin(object) != nil {
+		// Released declarations are reconstructed before every consumer, even
+		// when their origin extension is absent or their membership is foreign.
+		return 0, nil
 	}
 	if owner := catalog.OperatorFamilyMemberOwner(object); owner != (ids.ObjectAddress{}) {
 		return predecessor(view, owner, consumer)
@@ -92,9 +94,6 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		if routine.OperatorSeeded(operator) {
 			return 0, nil
 		}
-		if operator.Extension != (ids.ObjectAddress{}) {
-			return predecessor(view, operator.Extension, consumer)
-		}
 		if operator.Function != 0 {
 			return operator.Address().ObjectID, nil
 		}
@@ -122,11 +121,7 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		if proc.DynamicCallable() {
 			return proc.Address().ObjectID, nil
 		}
-		ext, ok := view.Extension(proc.Extension)
-		if !ok {
-			return 0, fmt.Errorf("stuntgres: missing installed function dump predecessor")
-		}
-		return ext.Address().ObjectID, nil
+		return 0, nil
 	}
 	if template, ok := object.(*catalog.TSTemplate); ok {
 		if template.Seeded() {
@@ -150,9 +145,6 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		if dictionary.Seeded() {
 			return 0, nil
 		}
-		if dictionary.Extension != (ids.ObjectAddress{}) {
-			return predecessor(view, dictionary.Extension, consumer)
-		}
 		return dictionary.Address().ObjectID, nil
 	}
 	if typ, ok := object.(*catalog.Type); ok {
@@ -161,9 +153,6 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		}
 		if typ.SQLType.IsMultirange() && typ.SQLType.IsUserDefined() {
 			return predecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.RangeType().ID())}, consumer)
-		}
-		if typ.Extension != (ids.ObjectAddress{}) {
-			return predecessor(view, typ.Extension, consumer)
 		}
 		if typ.OwningRelation == (ids.ObjectAddress{}) && typ.SQLType.IsUserDefined() {
 			return typ.Address().ObjectID, nil
@@ -180,8 +169,8 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		return 0, nil
 	}
 	if source.RelationKind == catalog.CompositeRelation {
-		if typ, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}); ok && typ.Extension != (ids.ObjectAddress{}) {
-			return predecessor(view, typ.Extension, consumer)
+		if typ, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}); ok && catalog.DescriptorOrigin(typ) != nil {
+			return 0, nil
 		}
 	}
 	// Inline attachments collapse to their parent. INCLUDE UNIQUE/PK indexes

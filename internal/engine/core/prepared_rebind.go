@@ -5,8 +5,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
@@ -16,7 +14,6 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
 
 // Capture the resolution environment before any relation wait. A later path or
 // namespace change must not certify old resolution under a newer environment.
@@ -66,12 +63,14 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 // PreparedEnvironmentLocked captures one coherent prepared-runtime input. The
 // caller holds Engine.Mu and physical-session admission.
 func (e *Engine) PreparedEnvironmentLocked(auth AuthorizationView, rowSecurity bool) (PreparedEnvironment, error) {
- path, err := e.sequenceEnvironmentLocked(auth)
- if err != nil { return PreparedEnvironment{}, err }
- return e.preparedEnvironmentAtPathLocked(auth, path, rowSecurity), nil
+	path, err := e.sequenceEnvironmentLocked(auth)
+	if err != nil {
+		return PreparedEnvironment{}, err
+	}
+	return e.preparedEnvironmentAtPathLocked(auth, path, rowSecurity), nil
 }
 func (e *Engine) preparedEnvironmentAtPathLocked(auth AuthorizationView, path sequence.Environment, rowSecurity bool) PreparedEnvironment {
- return PreparedEnvironment{Domain:e.Catalog.Domain, Epoch:auth.Catalog.Epoch(), Session:auth.Session.SessionToken, Private:auth.PendingCatalog(), Path:path, Namespace:auth.Catalog.State().NamespaceGeneration(), Discard:auth.Session.DiscardPlansGeneration, RoleStamp:auth.Stamp(), Principal:auth.SessionRoleState.CurrentUser, RowSecurity:rowSecurity, Sequences:&PayloadOf(auth.Session).Sequences}
+	return PreparedEnvironment{Domain: e.Catalog.Domain, Epoch: auth.Catalog.Epoch(), Session: auth.Session.SessionToken, Private: auth.PendingCatalog(), Path: path, Namespace: auth.Catalog.State().NamespaceGeneration(), Discard: auth.Session.DiscardPlansGeneration, RoleStamp: auth.Stamp(), Principal: auth.SessionRoleState.CurrentUser, RowSecurity: rowSecurity, Sequences: &PayloadOf(auth.Session).Sequences}
 }
 
 func (e *Engine) preparedInstalledScalarAuthorityRebindLocked(auth AuthorizationView, expected *Description, path sequence.Environment) bool {
@@ -102,15 +101,27 @@ func (e *Engine) preparedInstalledScalarLiteralTemporalsLocked(auth Authorizatio
 			checked = true
 		}
 		if preparedLtreeArrayShape(source) {
-			if capture.TypeID != source.ID() { return original }
+			if capture.TypeID != source.ID() {
+				return original
+			}
 			array, scalar, ok := expected.Analysis.currentLtreeArray(auth.Catalog, source)
-			if !ok { return original }
-			if source == array.SQLType { continue }
-			if imports == nil { imports = make(map[*sqltype.Descriptor]*sqltype.Descriptor) }
+			if !ok {
+				return original
+			}
+			if source == array.SQLType {
+				continue
+			}
+			if imports == nil {
+				imports = make(map[*sqltype.Descriptor]*sqltype.Descriptor)
+			}
 			imports[source.Element()] = scalar.SQLType
 			value, err := typedef.ReownDomainDatum(capture.Value, array.SQLType, nil, imports, nil)
-			if err != nil { return original }
-			if candidate == nil { candidate = append([]analyze.TemporalConstant(nil), original...) }
+			if err != nil {
+				return original
+			}
+			if candidate == nil {
+				candidate = append([]analyze.TemporalConstant(nil), original...)
+			}
 			candidate[i].Value = value
 			continue
 		}
@@ -127,19 +138,7 @@ func (e *Engine) preparedInstalledScalarLiteralTemporalsLocked(auth Authorizatio
 			}
 		}
 		current, ok := auth.Catalog.Type(address)
-		if !captured || !ok || source.IsHstore() != current.SQLType.IsHstore() || source.IsLquery() != current.SQLType.IsLquery() || source.IsLtree() != current.SQLType.IsLtree() || source.IsLtxtquery() != current.SQLType.IsLtxtquery() || source.IsEan13() != current.SQLType.IsEan13() || source.IsIsbn() != current.SQLType.IsIsbn() || source.IsIsbn13() != current.SQLType.IsIsbn13() || source.IsIsmn() != current.SQLType.IsIsmn() || source.IsIsmn13() != current.SQLType.IsIsmn13() || source.IsIssn() != current.SQLType.IsIssn() || source.IsIssn13() != current.SQLType.IsIssn13() || source.IsUpc() != current.SQLType.IsUpc() || old.Extension != current.Extension || old.Array != current.Array {
-			return original
-		}
-		nominal := *old
-		nominal.Owner, nominal.ACL = current.Owner, current.ACL
-		if !catalog.SamePreparedTypeDefinition(&nominal, current) {
-			return original
-		}
-		ext, ok := auth.Catalog.Extension(current.Extension)
-		if !ok {
-			return original
-		}
-		if _, err := extension.MemberTypeRole(auth.Catalog, ext, current); err != nil {
+		if !captured || !ok || !samePreparedInstalledScalar(auth.Catalog, old, current) {
 			return original
 		}
 		if source == current.SQLType {
@@ -216,8 +215,6 @@ func (e *Engine) retirePreparedInstalledScalarLiteralTemporalsLocked(auth Author
 	return captures
 }
 
-
-
 // Build only on initial or invalidated analysis. Existing binder dependencies
 // cover analyzed types/columns; view traversal supplies recursively rewritten
 // sources and analysis-only dependencies without a second AST visitor.
@@ -226,26 +223,37 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	if b.ViewWrite != nil {
 		target = view.ViewWriteOf(b.ViewWrite).Logical.Ref
 	}
- input := AnalysisInput{Target:target, Binding:b, NeedsReanalysis:s.prepared.changedDuringAdmission}
- if len(s.mutations) != 0 {
-  input.Targets = make(map[parser.Statement]ids.ObjectRef, len(s.QueryLockAdmission.MutationTargets))
-  input.TargetOrder = make([]ids.ObjectRef,0,len(s.mutations))
-  for i := range s.mutations {
-   mutation := s.mutations[i]
-   if i == s.ActiveMutation { mutation = s.StatementMutation }
-   ref := mutation.LockedRef
-   if mutation.ViewWrite != nil { ref = mutation.ViewWrite.Logical.Ref }
-   if ref.Domain() != nil { input.Targets[mutation.Statement] = ref; input.TargetOrder = append(input.TargetOrder,ref) }
-  }
- }
- if len(s.QueryLockAdmission.TableQueries) != 0 { input.Sources = make(map[*parser.TableReference]analyze.PreparedSource,len(s.QueryLockAdmission.TableQueries)) }
- for _, leaf := range b.QuerySources {
-  if _, admitted := s.QueryLockAdmission.TableQueries[leaf.Table]; admitted { input.Sources[leaf.Table] = analyze.PreparedSource{Query:s.QueryLockAdmission.RetainedQuery(leaf.Table), Ref:leaf.Ref} }
- }
- input.AllSources = b.QuerySources
- env := e.preparedEnvironmentAtPathLocked(auth,s.prepared.path,s.RowSecurity)
- env.Epoch, env.Private, env.Namespace = s.prepared.epoch, s.prepared.private, s.prepared.namespace
- return CollectAnalysis(auth.Catalog,env,input)
+	input := AnalysisInput{Target: target, Binding: b, NeedsReanalysis: s.prepared.changedDuringAdmission}
+	if len(s.mutations) != 0 {
+		input.Targets = make(map[parser.Statement]ids.ObjectRef, len(s.QueryLockAdmission.MutationTargets))
+		input.TargetOrder = make([]ids.ObjectRef, 0, len(s.mutations))
+		for i := range s.mutations {
+			mutation := s.mutations[i]
+			if i == s.ActiveMutation {
+				mutation = s.StatementMutation
+			}
+			ref := mutation.LockedRef
+			if mutation.ViewWrite != nil {
+				ref = mutation.ViewWrite.Logical.Ref
+			}
+			if ref.Domain() != nil {
+				input.Targets[mutation.Statement] = ref
+				input.TargetOrder = append(input.TargetOrder, ref)
+			}
+		}
+	}
+	if len(s.QueryLockAdmission.TableQueries) != 0 {
+		input.Sources = make(map[*parser.TableReference]analyze.PreparedSource, len(s.QueryLockAdmission.TableQueries))
+	}
+	for _, leaf := range b.QuerySources {
+		if _, admitted := s.QueryLockAdmission.TableQueries[leaf.Table]; admitted {
+			input.Sources[leaf.Table] = analyze.PreparedSource{Query: s.QueryLockAdmission.RetainedQuery(leaf.Table), Ref: leaf.Ref}
+		}
+	}
+	input.AllSources = b.QuerySources
+	env := e.preparedEnvironmentAtPathLocked(auth, s.prepared.path, s.RowSecurity)
+	env.Epoch, env.Private, env.Namespace = s.prepared.epoch, s.prepared.private, s.prepared.namespace
+	return CollectAnalysis(auth.Catalog, env, input)
 }
 
 // Admission selects an exact identity before waiting. Analysis checks current

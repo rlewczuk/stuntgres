@@ -15,51 +15,44 @@ import (
 
 func crosstabBadRecipe(t *testing.T, dump, field string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v2 "
-	for _, line := range strings.Split(dump, "\n") {
-		if !strings.HasPrefix(line, marker) {
-			continue
-		}
-		data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(line, marker))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var record map[string]any
-		if err := json.Unmarshal(data, &record); err != nil {
-			t.Fatal(err)
-		}
-		if record["name"] != "tablefunc" {
-			continue
-		}
-		switch field {
-		case "owner":
-			record["owner"] = "ct_missing_owner"
-		case "version":
-			record["version"] = "missing"
-		case "signature", "type_role":
-			changed := false
-			for _, raw := range record["members"].([]any) {
-				m := raw.(map[string]any)
-				if (field == "signature" && m["kind"] == "procedure") || (field == "type_role" && m["kind"] == "type") {
-					m["signature"] = "ct_impossible_identity"
-					changed = true
-					break
-				}
-			}
-			if !changed {
-				t.Fatal("missing genuine recipe member", field)
-			}
-		default:
-			t.Fatal("unknown corruption", field)
-		}
-		data, err = json.Marshal(record)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return strings.Replace(dump, line, marker+base64.StdEncoding.EncodeToString(data), 1)
+	const marker = "-- stuntgres-extension-owners-v3 "
+	start, end, data := fixture.CatalogExtensionOwnerDirective(t, dump, "tablefunc", true)
+	var record map[string]any
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatal(err)
 	}
-	t.Fatal("missing tablefunc owner recipe")
-	return ""
+	switch field {
+	case "owner":
+		record["owner"] = "ct_missing_owner"
+	case "version":
+		record["version"] = "missing"
+	case "signature", "type_role":
+		kind, name, signature := "procedure", "crosstab", "pg_catalog.text"
+		if field == "type_role" {
+			kind, name, signature = "type", "tablefunc_crosstab_3", ""
+		}
+		var selected map[string]any
+		for _, raw := range record["members"].([]any) {
+			m := raw.(map[string]any)
+			if m["kind"] == kind && m["schema"] == "ct_addon" && m["name"] == name && m["signature"] == signature && m["version"] == "1.0" && m["declaration"] != nil {
+				if selected != nil {
+					t.Fatal("duplicate symbolic recipe member", field)
+				}
+				selected = m
+			}
+		}
+		if selected == nil {
+			t.Fatal("missing genuine recipe member", field)
+		}
+		selected["signature"] = "ct_impossible_identity"
+	default:
+		t.Fatal("unknown corruption", field)
+	}
+	data, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dump[:start] + marker + base64.StdEncoding.EncodeToString(data) + dump[end:]
 }
 
 func TestReferenceTablefuncCrosstabControls(t *testing.T) {
@@ -136,7 +129,8 @@ func TestReferenceTablefuncCrosstabControls(t *testing.T) {
 		run(fixture.Exec("CREATE TABLE ct_sentinel(id integer)", 0))
 		run(fixture.Exec("INSERT INTO ct_sentinel VALUES(71)", 1))
 		before := extensionDump(t, p.Ctx, p.Native)
-		badDumps := []string{dump + "\nINVALID SQL;", strings.Replace(dump, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1)}
+		start, end, payload := fixture.CatalogExtensionOwnerDirective(t, dump, "tablefunc", true)
+		badDumps := []string{dump + "\nINVALID SQL;", dump[:start] + "-- stuntgres-extension-owners-v999 " + base64.StdEncoding.EncodeToString(payload) + dump[end:]}
 		for _, field := range []string{"owner", "version", "signature", "type_role"} {
 			badDumps = append(badDumps, crosstabBadRecipe(t, dump, field))
 		}

@@ -88,7 +88,7 @@ func (*EarthdistanceProvider) Stage(stage Stage, ext *catalog.Extension, owner a
 	return StockEarthdistance.stageRoutines(stage, ext, owner, typ)
 }
 
-func (p *EarthdistanceProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *EarthdistanceProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid earthdistance manifest") }
 	if p != StockEarthdistance || !currentManifest(v, ext) || ext.Name() != "earthdistance" || ext.Version != "1.2" || len(ext.Members) != EarthMemberCount {
 		return invalid()
@@ -98,11 +98,33 @@ func (p *EarthdistanceProvider) ValidateExtension(v catalog.Read, ext *catalog.E
 		return err
 	}
 	d, ok := v.Type(ext.Members[0])
-	if !ok || !d.SQLType.IsDomain() || d.SQLType.DomainBase() != cube.SQLType.Usage() || !d.SQLType.HasDomainChecks() || d.SQLType.OwnDomainNotNull() || len(d.DomainChecks) != 3 || d.Extension != ext.Address() || d.Revision() == 0 {
+	if !ok || !d.SQLType.IsDomain() || d.Extension != ext.Address() || d.Revision() == 0 {
 		return invalid()
 	}
 	a, ok := v.Type(ext.Members[1])
 	if !ok || a.Address().ObjectID != ids.OID(d.Array) || !a.SQLType.IsArray() || a.SQLType.Concrete() || a.SQLType.Element() != d.SQLType || a.Owner != d.Owner || a.Namespace() != d.Namespace() || a.Extension != ext.Address() {
+		return invalid()
+	}
+	if err := validateEarthDomainChecks(d, cube.SQLType.Usage()); err != nil {
+		return err
+	}
+	for slot := 2; slot < EarthPointOperatorSlot; slot++ {
+		proc, ok := v.Procedure(ext.Members[slot])
+		if !ok || proc.Implementation != p {
+			return invalid()
+		}
+		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
+		}
+	}
+	return p.validatePoint(v, ext)
+}
+
+// The surviving domain retains the released CHECK recipe independently of
+// current extension membership and the originating extension's existence.
+func validateEarthDomainChecks(d *catalog.Type, base sqltype.Usage) error {
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid earthdistance domain recipe") }
+	if d.SQLType.DomainBase() != base || !d.SQLType.HasDomainChecks() || d.SQLType.OwnDomainNotNull() || len(d.DomainChecks) != 3 {
 		return invalid()
 	}
 	for i, name := range []string{"not_3d", "not_point", "on_surface"} {
@@ -121,7 +143,7 @@ func (p *EarthdistanceProvider) ValidateExtension(v catalog.Read, ext *catalog.E
 		if i == 2 {
 			kind, ordinal = sqltype.EarthOnSurface, 2
 		}
-		if !valid || actualBase != cube.SQLType.Usage() || actualKind != kind || check.Name != name || check.Ordinal != ordinal || check.NotValid || check.OID == 0 {
+		if !valid || actualBase != base || actualKind != kind || check.Name != name || check.Ordinal != ordinal || check.NotValid || check.OID == 0 {
 			return invalid()
 		}
 		for _, previous := range d.DomainChecks[:i] {
@@ -130,14 +152,5 @@ func (p *EarthdistanceProvider) ValidateExtension(v catalog.Read, ext *catalog.E
 			}
 		}
 	}
-	for slot := 2; slot < EarthPointOperatorSlot; slot++ {
-		proc, ok := v.Procedure(ext.Members[slot])
-		if !ok || proc.Implementation != p {
-			return invalid()
-		}
-		if _, err := ProcedureSymbol(v, proc); err != nil {
-			return err
-		}
-	}
-	return p.validatePoint(v, ext)
+	return nil
 }

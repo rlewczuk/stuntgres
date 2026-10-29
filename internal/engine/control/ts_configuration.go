@@ -15,6 +15,8 @@ func collectConfigurationDump(ctx context.Context, c *dumpCollection, _ ids.Obje
 	if err := (catalog.TSConfigurationProvider{}).Validate(c.CatalogView, d); err != nil {
 		return err
 	}
+	// Current extension membership is restored only after ordinary creators.
+	// It never replaces this configuration's parser/mapping dependency event.
 	if d.Seeded() && d.Revision() == 1 {
 		return nil
 	}

@@ -5,22 +5,78 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-// ComparisonBindingNamespace derives the binding requirement of implicit installed
-// comparisons from their selected captures, never from replay SQL spelling.
-func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAddress, error) {
+// ComparisonBindingNamespace derives implicit installed comparison lookup from
+// the authentic current operator, not its independently movable backing routine.
+// visitProcedure receives each authenticated current backing declaration.
+func ComparisonBindingNamespace(view catalog.Read, node expr.Expr, visitProcedure func(*catalog.Procedure) error) (ids.ObjectAddress, error) {
 	var namespace ids.ObjectAddress
 	var visit func(expr.Expr) error
-	add := func(captured *catalog.Procedure, capture cubeComparisonCapture) error {
-		if err := remapCubeComparisonRoutine(view, nil, captured, captured, capture, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }); err != nil {
-			return err
+	addCurrent := func(captured *catalog.Procedure, name string, left, right *sqltype.Descriptor) error {
+		current, ok := view.Procedure(captured.Address())
+		if !ok {
+			return fmt.Errorf("stuntgres: missing comparison binding procedure")
 		}
-		installation, _ := view.Extension(captured.Extension)
-		ns, ok := view.Namespace(installation.TargetNamespace)
+		installation, ok := catalog.OriginInstallation(current)
+		if !ok {
+			return fmt.Errorf("stuntgres: missing comparison binding installation")
+		}
+		var operator *catalog.Operator
+		for _, address := range installation.Members {
+			if address.ClassID != ids.OperatorClassID {
+				continue
+			}
+			candidate, exists := view.Operator(address)
+			if !exists || candidate.Function != current.Address().ObjectID {
+				continue
+			}
+			if operator != nil {
+				return fmt.Errorf("stuntgres: ambiguous comparison binding operator")
+			}
+			if err := (extension.CatalogProvider{Class: ids.OperatorClassID}).Validate(view, candidate); err != nil {
+				return err
+			}
+			if !catalog.SameInstallation(candidate, installation) || candidate.Result != current.Result ||
+				candidate.Left != ids.OID(left.ID()) || candidate.Right != ids.OID(right.ID()) {
+				return fmt.Errorf("stuntgres: invalid comparison binding operator")
+			}
+			operator = candidate
+		}
+		if operator == nil {
+			return fmt.Errorf("stuntgres: missing comparison binding operator")
+		}
+		var expected string
+		switch name {
+		case "cube_eq", "hstore_eq", "ltree_eq":
+			expected = "="
+		case "cube_ne", "hstore_ne", "ltree_ne":
+			expected = "<>"
+		case "cube_lt", "ltree_lt":
+			expected = "<"
+		case "cube_le", "ltree_le":
+			expected = "<="
+		case "cube_gt", "ltree_gt":
+			expected = ">"
+		case "cube_ge", "ltree_ge":
+			expected = ">="
+		case "hstore_lt":
+			expected = "#<#"
+		case "hstore_le":
+			expected = "#<=#"
+		case "hstore_gt":
+			expected = "#>#"
+		case "hstore_ge":
+			expected = "#>=#"
+		}
+		if expected == "" || operator.Name() != expected {
+			return fmt.Errorf("stuntgres: invalid comparison binding operator name")
+		}
+		ns, ok := view.Namespace(operator.Namespace())
 		if !ok || ns.Temporary != (ids.SessionToken{}) || ns.Name() == "$user" || ns.Name() == "pg_temp" {
 			return fmt.Errorf("stuntgres: invalid comparison binding namespace")
 		}
@@ -28,24 +84,28 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 			return fmt.Errorf("stuntgres: conflicting comparison binding namespaces")
 		}
 		namespace = ns.Address()
+		if visitProcedure != nil {
+			return visitProcedure(current)
+		}
 		return nil
+	}
+	add := func(captured *catalog.Procedure, capture cubeComparisonCapture) error {
+		if err := remapCubeComparisonRoutine(view, nil, captured, captured, capture, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }); err != nil {
+			return err
+		}
+		return addCurrent(captured, capture.name, capture.left, capture.right)
 	}
 	addHstore := func(captured *catalog.Procedure, capture hstoreComparisonCapture) error {
-		if err := remapHstoreComparisonRoutine(view, nil, captured, captured, capture, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }); err != nil { return err }
-		installation, _ := view.Extension(captured.Extension)
-		ns, ok := view.Namespace(installation.TargetNamespace)
-		if !ok || ns.Temporary != (ids.SessionToken{}) || ns.Name() == "$user" || ns.Name() == "pg_temp" { return fmt.Errorf("stuntgres: invalid comparison binding namespace") }
-		if namespace != (ids.ObjectAddress{}) && namespace != ns.Address() { return fmt.Errorf("stuntgres: conflicting comparison binding namespaces") }
-		namespace = ns.Address()
-		return nil
+		if err := remapHstoreComparisonRoutine(view, nil, captured, captured, capture, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }); err != nil {
+			return err
+		}
+		return addCurrent(captured, capture.name, capture.left, capture.right)
 	}
-	addLtree := func(captured *catalog.Procedure,capture ltreeComparisonCapture) error {
-		if err:=remapLtreeComparisonRoutine(view,nil,captured,captured,capture,func(d *sqltype.Descriptor)*sqltype.Descriptor{return d});err!=nil{return err}
-		installation,_:=view.Extension(captured.Extension)
-		ns,ok:=view.Namespace(installation.TargetNamespace)
-		if !ok||ns.Temporary!=(ids.SessionToken{})||ns.Name()=="$user"||ns.Name()=="pg_temp"{return fmt.Errorf("stuntgres: invalid comparison binding namespace")}
-		if namespace!=(ids.ObjectAddress{})&&namespace!=ns.Address(){return fmt.Errorf("stuntgres: conflicting comparison binding namespaces")}
-		namespace=ns.Address();return nil
+	addLtree := func(captured *catalog.Procedure, capture ltreeComparisonCapture) error {
+		if err := remapLtreeComparisonRoutine(view, nil, captured, captured, capture, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }); err != nil {
+			return err
+		}
+		return addCurrent(captured, capture.name, capture.left, capture.right)
 	}
 	visit = func(node expr.Expr) error {
 		if node == nil {
@@ -75,11 +135,15 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 			implicit = n.Namespace == ""
 		case plan.CaseExpr:
 			for _, arm := range n.Arms {
-				if arm.TestUsage.Type.IsLtree(){
-					if err:=addLtree(arm.Routine,ltreeComparisonCapture{ref:arm.RoutineRef,left:arm.TestUsage.Type,right:arm.Condition.ResultUsage().Type,name:"ltree_eq",result:sqltype.Bool});err!=nil{return err}
+				if arm.TestUsage.Type.IsLtree() {
+					if err := addLtree(arm.Routine, ltreeComparisonCapture{ref: arm.RoutineRef, left: arm.TestUsage.Type, right: arm.Condition.ResultUsage().Type, name: "ltree_eq", result: sqltype.Bool}); err != nil {
+						return err
+					}
 				}
 				if arm.TestUsage.Type.IsHstore() {
-					if err := addHstore(arm.Routine, hstoreComparisonCapture{ref: arm.RoutineRef, left: arm.TestUsage.Type, right: arm.Condition.ResultUsage().Type, name: "hstore_eq", result: sqltype.Bool}); err != nil { return err }
+					if err := addHstore(arm.Routine, hstoreComparisonCapture{ref: arm.RoutineRef, left: arm.TestUsage.Type, right: arm.Condition.ResultUsage().Type, name: "hstore_eq", result: sqltype.Bool}); err != nil {
+						return err
+					}
 				}
 				if arm.TestUsage.Type.IsCube() {
 					if err := add(arm.Routine, cubeComparisonCapture{ref: arm.RoutineRef, left: arm.TestUsage.Type, right: arm.Condition.ResultUsage().Type, name: "cube_eq", result: sqltype.Bool}); err != nil {
@@ -112,14 +176,23 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 				return failure
 			}
 		}
-		if capture,ltree:=ltreeComparisonCaptureOf(node);implicit&&ltree {
-			captured,ok:=expr.InfoOf(node).RoutineReference.(*catalog.Procedure);if !ok{return fmt.Errorf("stuntgres: missing comparison binding capture")}
-			if err:=addLtree(captured,capture);err!=nil{return err}
+		if capture, ltree := ltreeComparisonCaptureOf(node); implicit && ltree {
+			captured, ok := expr.InfoOf(node).RoutineReference.(*catalog.Procedure)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing comparison binding capture")
+			}
+			if err := addLtree(captured, capture); err != nil {
+				return err
+			}
 		}
 		if capture, hstore := hstoreComparisonCaptureOf(node); implicit && hstore {
 			captured, ok := expr.InfoOf(node).RoutineReference.(*catalog.Procedure)
-			if !ok { return fmt.Errorf("stuntgres: missing comparison binding capture") }
-			if err := addHstore(captured, capture); err != nil { return err }
+			if !ok {
+				return fmt.Errorf("stuntgres: missing comparison binding capture")
+			}
+			if err := addHstore(captured, capture); err != nil {
+				return err
+			}
 		}
 		if implicit && cube {
 			captured, ok := expr.InfoOf(node).RoutineReference.(*catalog.Procedure)

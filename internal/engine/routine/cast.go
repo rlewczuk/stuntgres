@@ -240,8 +240,8 @@ func StageDropCast(h DDLHost, a ddl.Authority, s *parser.DropCast) error {
 		if err != nil {
 			return err
 		}
-		diagnostic := sqlError("2BP01", "cannot drop "+object+" because extension "+catalog.DependencyIdentifier(ext.Name())+" requires it").(*sqlstate.Error)
-		diagnostic.Hint = "You can drop extension " + catalog.DependencyIdentifier(ext.Name()) + " instead."
+		diagnostic := sqlError("2BP01", "cannot drop "+object+" because extension "+ext.Name()+" requires it").(*sqlstate.Error)
+		diagnostic.Hint = "You can drop extension " + ext.Name() + " instead."
 		return diagnostic
 	}
 	if d.GeneratedRange != (ids.ObjectAddress{}) {

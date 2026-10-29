@@ -111,8 +111,15 @@ func TestAmcheckProviderManifest(t *testing.T) {
 	bad := *ext
 	bad.Members = append([]ids.ObjectAddress(nil), ext.Members...)
 	bad.Members[0], bad.Members[3] = bad.Members[3], bad.Members[0]
+	if err := extension.StockAmcheck.ValidateExtension(view, &bad); err != nil {
+		t.Fatal("current member order became implementation authority", err)
+	}
+	forged := *ext.Installation
+	forged.Members = append([]ids.ObjectAddress(nil), forged.Members...)
+	forged.Members[0], forged.Members[3] = forged.Members[3], forged.Members[0]
+	bad.Installation = &forged
 	state.SetDescriptor(ext.Address(), &bad)
 	if err := extension.StockAmcheck.ValidateExtension(e.Catalog.Read(state), &bad); err == nil {
-		t.Fatal("member order reinterpreted implementation")
+		t.Fatal("forged immutable amcheck recipe admitted")
 	}
 }

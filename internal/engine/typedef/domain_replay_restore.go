@@ -111,7 +111,7 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 		if !ok || declared.SQLType != u.Type || !u.Type.IsSeg() {
 			return bad()
 		}
-		installation, ok := env.Catalog.Extension(declared.Extension)
+		installation, ok := catalog.OriginInstallation(declared)
 		if !ok || installation.Name() != "seg" || len(installation.Members) != 3 || installation.Members[0] != declared.Address() {
 			return bad()
 		}

@@ -19,9 +19,17 @@ import (
 // A genuine replacement changes both catalog lifetime and installed descriptor
 // ownership. Only the successful reanalysis candidate may replace its capture.
 func TestHstoreRecordCapturedLiteralLifetime(t *testing.T) {
+	t.Run("same_oid", func(t *testing.T) { hstoreRecordCapturedLiteralLifetime(t, false) })
+	t.Run("displaced_oid", func(t *testing.T) { hstoreRecordCapturedLiteralLifetime(t, true) })
+}
+
+func hstoreRecordCapturedLiteralLifetime(t *testing.T, displaced bool) {
 	source, target := engine.New(), engine.New()
 	ss, ts := enginetest.StartSession(t, source, nil), enginetest.StartSession(t, target, nil)
 	enginetest.SessionSQL(t, ss, "CREATE EXTENSION hstore")
+	if displaced {
+		enginetest.SessionSQL(t, ts, "CREATE TYPE hs_capture_displaced AS (v text)")
+	}
 	enginetest.SessionSQL(t, ts, "CREATE EXTENSION hstore")
 	lookup := func(e *core.Engine) *sqltype.Descriptor {
 		v := e.CatalogRead()
@@ -29,6 +37,9 @@ func TestHstoreRecordCapturedLiteralLifetime(t *testing.T) {
 		return v.MustType(ext.Members[0]).SQLType
 	}
 	old, current := lookup(source), lookup(target)
+	if displaced && old.ID() == current.ID() {
+		t.Fatal("destination did not displace the installed nominal OID")
+	}
 	value, err := old.Input(context.Background(), "a=>1", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +51,7 @@ func TestHstoreRecordCapturedLiteralLifetime(t *testing.T) {
 	pos := parser.Position{Offset: 10, Character: 11}
 	binder := enginetest.ExpressionBinder(t, context.Background(), target, sqltype.InputEnvironment{}, &description)
 	fresh, err := binder.InputConstant("a=>2", current.Usage(), pos)
-	if err != nil || fresh.Type() != current || fresh == value || len(binder.Prepared.Temporals) != 1 || binder.Prepared.Temporals[0].Value != fresh {
+	if err != nil || fresh.Type() != current || fresh == value || len(binder.Prepared.Temporals) != 1 || binder.Prepared.Temporals[0].Value != fresh || binder.Prepared.Temporals[0].TypeID != current.ID() {
 		t.Fatal("replacement lost current private capture or duplicated stale capture", err)
 	}
 	if !reflect.DeepEqual(description.Temporals, before) {

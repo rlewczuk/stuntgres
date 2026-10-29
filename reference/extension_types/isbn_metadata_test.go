@@ -65,6 +65,10 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 		s := fixture.Select(q, []string{"typname", "typtype", "typcategory", "typlen", "typbyval", "typalign", "typstorage", "typtypmod", "typcollation", "reciprocal", "input_identity", "output_identity"}, []string{"NAME", "CHAR", "CHAR", "INT2", "BOOL", "CHAR", "CHAR", "INT4", "INT8", "BOOL", "BOOL", "BOOL"}, [][]any{{role.scalar, "b", "U", int64(8), true, "d", "p", int64(-1), int64(0), true, true, true}})
 		run(s)
 		run(fixture.Prepared(s))
+		// CREATE TYPE gives every stock generated array both its internal
+		// element dependency and direct membership in the installing extension.
+		run(fixture.Select(fmt.Sprintf("SELECT refobjid=%d::oid AS own_scalar,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=1247", oid, array), []string{"own_scalar", "deptype"}, []string{"BOOL", "CHAR"}, [][]any{{true, "i"}}))
+		run(fixture.Select(fmt.Sprintf("SELECT refobjid=(SELECT oid FROM pg_extension WHERE extname='isn') AS own_extension,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=3079", array), []string{"own_extension", "deptype"}, []string{"BOOL", "CHAR"}, [][]any{{true, "e"}}))
 		if role.scalar == "ismn13" {
 			run(fixture.Select(fmt.Sprintf("SELECT obj_description(%d::oid,'pg_type') AS description", oid), []string{"description"}, []string{"TEXT"}, [][]any{{"International Standard Music Number 13 (ISMN13)"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", input), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"ismn_in"}}))
@@ -74,50 +78,25 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 			run(fixture.Select(fmt.Sprintf("SELECT obj_description(%d::oid,'pg_type') AS description", oid), []string{"description"}, []string{"TEXT"}, [][]any{{"International Standard Serial Number (ISSN)"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", input), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"issn_in"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", output), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"isn_out"}}))
-			run(fixture.Select(fmt.Sprintf("SELECT refobjid=%d::oid AS own_scalar,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=1247", oid, array), []string{"own_scalar", "deptype"}, []string{"BOOL", "CHAR"}, [][]any{{true, "i"}}))
-			membership := [][]any{}
-			if b.PG {
-				membership = [][]any{{true, "e"}}
-			}
-			run(fixture.Select(fmt.Sprintf("SELECT refobjid=(SELECT oid FROM pg_extension WHERE extname='isn') AS own_extension,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=3079", array), []string{"own_extension", "deptype"}, []string{"BOOL", "CHAR"}, membership))
 		}
 		if role.scalar == "issn13" {
 			run(fixture.Select(fmt.Sprintf("SELECT obj_description(%d::oid,'pg_type') AS description", oid), []string{"description"}, []string{"TEXT"}, [][]any{{"International Standard Serial Number 13 (ISSN13)"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", input), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"issn_in"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", output), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"ean13_out"}}))
-			run(fixture.Select(fmt.Sprintf("SELECT refobjid=%d::oid AS own_scalar,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=1247", oid, array), []string{"own_scalar", "deptype"}, []string{"BOOL", "CHAR"}, [][]any{{true, "i"}}))
-			membership := [][]any{}
-			if b.PG {
-				membership = [][]any{{true, "e"}}
-			}
-			run(fixture.Select(fmt.Sprintf("SELECT refobjid=(SELECT oid FROM pg_extension WHERE extname='isn') AS own_extension,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=3079", array), []string{"own_extension", "deptype"}, []string{"BOOL", "CHAR"}, membership))
 		}
 		if role.scalar == "ismn" {
 			run(fixture.Select(fmt.Sprintf("SELECT obj_description(%d::oid,'pg_type') AS description", oid), []string{"description"}, []string{"TEXT"}, [][]any{{"International Standard Music Number (ISMN)"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", input), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"ismn_in"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", output), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"isn_out"}}))
-			run(fixture.Select(fmt.Sprintf("SELECT refobjid=%d::oid AS own_scalar,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=1247", oid, array), []string{"own_scalar", "deptype"}, []string{"BOOL", "CHAR"}, [][]any{{true, "i"}}))
-			// Upstream CREATE TYPE records both an internal element dependency
-			// and direct extension membership for its generated array. Native
-			// owner manifests retain the companion through the scalar instead.
-			companionMembership := [][]any{}
-			if b.PG {
-				companionMembership = [][]any{{true, "e"}}
-			}
-			run(fixture.Select(fmt.Sprintf("SELECT refobjid=(SELECT oid FROM pg_extension WHERE extname='isn') AS own_extension,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=3079", array), []string{"own_extension", "deptype"}, []string{"BOOL", "CHAR"}, companionMembership))
 		}
 		if role.scalar == "upc" {
 			run(fixture.Select(fmt.Sprintf("SELECT obj_description(%d::oid,'pg_type') AS description", oid), []string{"description"}, []string{"TEXT"}, [][]any{{"Universal Product Code (UPC)"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", input), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"upc_in"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", output), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"isn_out"}}))
-			run(fixture.Select(fmt.Sprintf("SELECT refobjid=%d::oid AS own_scalar,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=1247", oid, array), []string{"own_scalar", "deptype"}, []string{"BOOL", "CHAR"}, [][]any{{true, "i"}}))
-			membership := [][]any{}
-			if b.PG { membership = [][]any{{true, "e"}} }
-			run(fixture.Select(fmt.Sprintf("SELECT refobjid=(SELECT oid FROM pg_extension WHERE extname='isn') AS own_extension,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=3079", array), []string{"own_extension", "deptype"}, []string{"BOOL", "CHAR"}, membership))
 		}
 		run(fixture.Select(fmt.Sprintf("SELECT t.typnamespace=e.extnamespace AS same_namespace,t.typowner=e.extowner AS same_owner,d.deptype,e.extversion FROM (SELECT * FROM pg_type WHERE oid=%d) t JOIN (SELECT * FROM pg_depend WHERE objid=%d AND classid=1247 AND refclassid=3079) d ON d.objid=t.oid JOIN (SELECT * FROM pg_extension WHERE extname='isn') e ON e.oid=d.refobjid", oid, oid), []string{"same_namespace", "same_owner", "deptype", "extversion"}, []string{"BOOL", "BOOL", "CHAR", "TEXT"}, [][]any{{true, true, "e", "1.3"}}))
 		for _, codec := range []struct {
-			id int64
+			id                int64
 			name, arg, result string
 		}{{input, role.input, "cstring", name}, {output, role.output, name, "cstring"}} {
 			q := fmt.Sprintf("SELECT p.proname,p.pronargs,p.oid=%s::regprocedure::oid AS argument_identity,p.prorettype=%s::regtype::oid AS result_identity,p.proisstrict,p.provolatile,p.proparallel,l.lanname,p.proowner=e.extowner AS same_owner,d.deptype FROM (SELECT * FROM pg_proc WHERE oid=%d) p JOIN (SELECT * FROM pg_language WHERE lanname='c') l ON l.oid=p.prolang JOIN (SELECT * FROM pg_depend WHERE objid=%d AND classid=1255 AND refclassid=3079) d ON d.objid=p.oid JOIN (SELECT * FROM pg_extension WHERE extname='isn') e ON e.oid=d.refobjid", ean13Literal(ns+"."+codec.name+"("+codec.arg+")"), ean13Literal(codec.result), codec.id, codec.id)

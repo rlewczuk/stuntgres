@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dump"
@@ -17,6 +18,7 @@ import (
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typecmds"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
 
@@ -92,6 +94,9 @@ func restoreAdmitForeignDDL(r *restoreRun, op *session.Operation, stmt parser.St
 			return control.Admitted, nil
 		}
 	}
+	if s.Action == "alter" && s.Kind == "table" && s.Inner != nil && !s.IfExists && !s.IfNotExists && s.Owner == nil && len(s.Support) == 0 && !s.VersionSet && len(s.Options) == 0 && len(s.TableActions) == 0 && len(s.ColumnOptions) == 0 && s.NewName.Text == "" {
+		return control.AdmitRelationIdentity(r, op, s.Inner)
+	}
 	if alteration := restoreForeignDefault(s); alteration != nil {
 		if err := dump.RestoreScalar(alteration.Expression, true); err != nil {
 			return control.NotHandled, err
@@ -121,17 +126,22 @@ func restoreForeignDefault(s *parser.ForeignDDL) *parser.AlterTableDefault {
 // admitRestoreAlterOwner admits captured installed-type ownership or pairs an
 // ALTER OWNER with the exact fresh type or ordinary table its directive created.
 func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
-	if s.Kind == "domain" || s.Kind == "type" && r.cur.typeOwnerPair.Kind == "type" {
+	if (s.Kind == "domain" || s.Kind == "type") && r.cur.typeOwnerPair.Kind == s.Kind {
 		return typecmds.RestoreTypeOwner(r.stage, op, s, r.cur.typeOwnerPair)
 	}
-	if s.Kind == "type" {
+	if s.Kind == "type" || s.Kind == "domain" {
 		return admitRestoreInstalledTypeOwner(r, op, s)
 	}
 	return partitioncmds.RestoreInheritedOwner(r.stage, op, s, r.cur.ownerPair)
 }
 
 func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
-	reject := func() error { return core.SQLError("0A000", table.RestoreInheritedOwnerBoundary) }
+	reject := func() error {
+		if s.Kind == "domain" {
+			return core.SQLError("0A000", typedef.RestoreTypeOwnerBoundary(s.Kind))
+		}
+		return core.SQLError("0A000", table.RestoreInheritedOwnerBoundary)
+	}
 	if s.IfExists || len(s.Name.Parts) != 2 || s.Target.Identity != "" || s.Target.Name == "" {
 		return reject()
 	}
@@ -139,35 +149,48 @@ func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *par
 	if err != nil {
 		return err
 	}
+	namespace := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: s.Name.Parts[0].Text})
+	address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: s.Name.Parts[1].Text})
+	typ, ok := auth.Catalog.Type(address)
+	if !ok || typ.SQLType.IsArray() || s.Kind == "domain" && !typ.SQLType.IsDomain() {
+		return reject()
+	}
+	origin := catalog.DescriptorOrigin(typ)
+	if origin == nil || !origin.Valid(typ.Address()) {
+		return reject()
+	}
+	if !r.extensionOwnerReplayValidated {
+		if err := extension.ValidateOwnerReplay(op.Context(), auth.Catalog, auth.Roles, r.extensionOwners); err != nil {
+			return err
+		}
+		r.extensionOwnerReplayValidated = true
+	}
 	for _, record := range r.extensionOwners {
-		if record.Name != "isn" {
+		if record.Name != origin.Installation.Provider {
 			continue
 		}
-		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: record.Name})
-		ext, ok := auth.Catalog.Extension(address)
-		if !ok || ext.Version != record.Version || auth.Catalog.MustNamespace(ext.TargetNamespace).Name() != record.Schema {
+		ext, present := auth.Catalog.Extension(origin.Installation.Cohort)
+		if record.Present != present {
 			continue
 		}
-		owner, err := auth.Roles.Descriptor(ext.Owner)
-		if err != nil {
-			return err
-		}
-		if owner.Name != record.Owner {
-			continue
-		}
-		roles, err := extension.InstalledTypes(auth.Catalog, ext)
-		if err != nil {
-			return err
-		}
-		for _, role := range roles {
-			typ := role.Type
-			if typ.Name() != s.Name.Parts[1].Text || auth.Catalog.MustNamespace(typ.Namespace()).Name() != s.Name.Parts[0].Text {
+		if present {
+			ns, ok := auth.Catalog.Namespace(ext.TargetNamespace)
+			if !ok || ext.Version != record.Version || ns.Name() != record.Schema {
 				continue
 			}
-			for _, member := range record.Members {
-				if member.Kind == "type" && member.Name == role.Name && member.Signature == "" && member.Owner == s.Target.Name {
-					return nil
-				}
+			owner, err := auth.Roles.Descriptor(ext.Owner)
+			if err != nil {
+				return err
+			}
+			if owner.Name != record.Owner {
+				continue
+			}
+		} else if record.Schema != "" || record.Owner != "" {
+			continue
+		}
+		for _, member := range record.Members {
+			if member.Declaration != nil && *member.Declaration == origin.Declaration && member.Version == origin.Installation.Version && member.Kind == "type" && member.Schema == s.Name.Parts[0].Text && member.Name == typ.Name() && member.Signature == "" && member.Owner == s.Target.Name {
+				return nil
 			}
 		}
 	}

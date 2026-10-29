@@ -21,6 +21,7 @@ type Descriptor interface {
 
 type Namespace struct {
 	ObjectAddress  ids.ObjectAddress
+	Extension      ids.ObjectAddress
 	ObjectName     string
 	ObjectRevision ids.DefinitionRevision
 	Owner          authorization.PrincipalRef
@@ -47,6 +48,7 @@ func (*Namespace) Kind() ids.ObjectKind { return ids.NamespaceObject }
 // its top-level ones (copy-on-write).
 type Relation struct {
 	ObjectAddress, ObjectNamespace ids.ObjectAddress
+	Extension                      ids.ObjectAddress
 	ObjectName                     string
 	ObjectRevision                 ids.DefinitionRevision
 	RelationKind                   RelationKind

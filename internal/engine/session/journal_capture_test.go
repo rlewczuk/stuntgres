@@ -70,3 +70,31 @@ func TestJournalMergeCandidate(t *testing.T) {
 		t.Fatal("the merge did not record the change against the journal's original")
 	}
 }
+
+func TestJournalCaptureFenceNamesWithoutIndexes(t *testing.T) {
+	owner := &catalog.Owner{}
+	schema := journalTestSchema(20001, "s")
+	table := journalTestRelation(20010, "before", schema.Address())
+	committed := journalTestState(schema, table)
+	candidate := catalog.NewCandidate(catalog.NewRead(owner, committed))
+	next := *table
+	next.ObjectName = "after"
+	if err := candidate.Replace(&next); err != nil {
+		t.Fatal(err)
+	}
+	journal := NewJournal()
+	capture := JournalCapture{Journal: journal, Candidate: &candidate, Committed: committed, Current: committed}
+	if err := capture.FenceNames(nil); err != nil {
+		t.Fatal("a name-only stage needs no index-parent iterator", err)
+	}
+	before, after := catalog.DescriptorNameKey(table), catalog.DescriptorNameKey(&next)
+	if len(journal.Names) != 2 || journal.Names[before] != table.Address() || journal.Names[after] != (ids.ObjectAddress{}) {
+		t.Fatal("omitting index parents lost committed source/absence fences", journal.Names)
+	}
+	changed := catalog.CloneState(committed)
+	changed.BindName(after, table.Address())
+	capture.Current = changed
+	if err := capture.FenceNames(nil); !isConflict(err) {
+		t.Fatal("omitting index parents bypassed actual name conflict", err)
+	}
+}

@@ -216,7 +216,7 @@ func (b *Binder) selectCatalogOperator(set operatorCandidateSet, raw parser.Oper
 }
 
 func (b *Binder) requireBuiltinComparison(d *catalog.Operator, pos parser.Position) error {
-	if d.Extension != (ids.ObjectAddress{}) {
+	if d.Origin.Valid(d.Address()) {
 		typ := b.Type(sqltype.ID(d.Left))
 		if typ.IsLtree() && d.Left==d.Right {
 			procedure,err:=b.ltreeOperatorProcedure(d.Name(),typ);if err!=nil{return err}

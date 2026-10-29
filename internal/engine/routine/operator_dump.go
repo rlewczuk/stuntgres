@@ -19,7 +19,7 @@ func OperatorDumped(view catalog.Read, d *catalog.Operator) (bool, error) {
 	if err := catalog.Validate(OperatorProvider{}, view, d); err != nil {
 		return false, err
 	}
-	return !OperatorSeeded(d) && d.Extension == (ids.ObjectAddress{}), nil
+	return !OperatorSeeded(d) && d.Origin == nil, nil
 }
 
 // OperatorDumpDependencies adds each emitted operator's declaration event and

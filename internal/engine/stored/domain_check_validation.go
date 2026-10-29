@@ -67,8 +67,8 @@ func ValidateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) err
 	return nil
 }
 
-// Selected installed operators are real CHECK dependencies, not aliases for
-// procedures. Only their exact checked stock membership grants authority.
+// Selected installed operators are real CHECK dependencies. Their sealed
+// declaration and current reciprocal links/principals must both be authentic.
 func validateInstalledDomainCheckOperator(view catalog.Read, node expr.Expr, ref ids.ObjectRef) error {
 	if view.Owner() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address.ClassID != ids.OperatorClassID || ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: invalid domain CHECK operator reference")
@@ -76,6 +76,9 @@ func validateInstalledDomainCheckOperator(view catalog.Read, node expr.Expr, ref
 	operator, ok := view.Operator(ref.Address)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing domain CHECK operator")
+	}
+	if err := catalog.ValidateInstalledClassOrigin(view, operator); err != nil {
+		return err
 	}
 	found := false
 	var failure error
@@ -87,19 +90,30 @@ func validateInstalledDomainCheckOperator(view catalog.Read, node expr.Expr, ref
 		if capture,ltree:=ltreeComparisonCaptureOf(selected.Provider);ltree{
 			captured,ok:=expr.InfoOf(selected.Provider).RoutineReference.(*catalog.Procedure);if !ok{return}
 			if err:=remapLtreeComparisonRoutine(view,nil,captured,captured,capture,func(t *sqltype.Descriptor)*sqltype.Descriptor{return t});err!=nil{failure=err;return}
-			installation,exists:=view.Extension(captured.Extension)
-			if !exists||operator.Extension!=installation.Address()||operator.Namespace()!=installation.TargetNamespace||operator.Left!=ids.OID(capture.left.ID())||operator.Right!=ids.OID(capture.right.ID())||operator.Result!=ids.OID(sqltype.Bool)||operator.Function!=captured.Address().ObjectID{failure=fmt.Errorf("stuntgres: invalid domain CHECK ltree operator declaration");return}
+			installation,exists:=catalog.OriginInstallation(captured)
+			if !exists||!catalog.SameInstallation(operator,installation)||operator.Left!=ids.OID(capture.left.ID())||operator.Right!=ids.OID(capture.right.ID())||operator.Result!=ids.OID(sqltype.Bool)||operator.Function!=captured.Address().ObjectID{failure=fmt.Errorf("stuntgres: invalid domain CHECK ltree operator declaration");return}
 			for i:=range 6{if installation.Members[extension.LtreeComparisonProcedureStart+i]==captured.Address()&&installation.Members[extension.LtreeComparisonOperatorStart+i]==operator.Address(){found=true;return}}
 			failure=fmt.Errorf("stuntgres: invalid domain CHECK ltree operator member");return
 		}
 		if capture, hstore := hstoreComparisonCaptureOf(selected.Provider); hstore {
 			captured, ok := expr.InfoOf(selected.Provider).RoutineReference.(*catalog.Procedure)
-			if !ok { return }
-			if err := remapHstoreComparisonRoutine(view, nil, captured, captured, capture, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }); err != nil { failure = err; return }
-			installation, exists := view.Extension(captured.Extension)
-			if !exists || operator.Extension != installation.Address() || operator.Namespace() != installation.TargetNamespace || operator.Left != ids.OID(capture.left.ID()) || operator.Right != ids.OID(capture.right.ID()) || operator.Result != ids.OID(sqltype.Bool) || operator.Function != captured.Address().ObjectID { failure = fmt.Errorf("stuntgres: invalid domain CHECK hstore operator declaration"); return }
+			if !ok {
+				return
+			}
+			if err := remapHstoreComparisonRoutine(view, nil, captured, captured, capture, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }); err != nil {
+				failure = err
+				return
+			}
+			installation, exists := catalog.OriginInstallation(captured)
+			if !exists || !catalog.SameInstallation(operator, installation) || operator.Left != ids.OID(capture.left.ID()) || operator.Right != ids.OID(capture.right.ID()) || operator.Result != ids.OID(sqltype.Bool) || operator.Function != captured.Address().ObjectID {
+				failure = fmt.Errorf("stuntgres: invalid domain CHECK hstore operator declaration")
+				return
+			}
 			for i := range 6 {
-				if installation.Members[extension.HstoreComparisonProcedureStart+i] == captured.Address() && installation.Members[extension.HstoreComparisonOperatorStart+i] == operator.Address() { found = true; return }
+				if installation.Members[extension.HstoreComparisonProcedureStart+i] == captured.Address() && installation.Members[extension.HstoreComparisonOperatorStart+i] == operator.Address() {
+					found = true
+					return
+				}
 			}
 			failure = fmt.Errorf("stuntgres: invalid domain CHECK hstore operator member")
 			return
@@ -113,8 +127,8 @@ func validateInstalledDomainCheckOperator(view catalog.Read, node expr.Expr, ref
 			failure = err
 			return
 		}
-		installation, exists := view.Extension(captured.Extension)
-		if !exists || operator.Extension != installation.Address() || operator.Namespace() != installation.TargetNamespace || operator.Left != ids.OID(capture.left.ID()) || operator.Right != ids.OID(capture.right.ID()) || operator.Result != ids.OID(sqltype.Bool) || operator.Function != captured.Address().ObjectID {
+		installation, exists := catalog.OriginInstallation(captured)
+		if !exists || !catalog.SameInstallation(operator, installation) || operator.Left != ids.OID(capture.left.ID()) || operator.Right != ids.OID(capture.right.ID()) || operator.Result != ids.OID(sqltype.Bool) || operator.Function != captured.Address().ObjectID {
 			failure = fmt.Errorf("stuntgres: invalid domain CHECK cube operator declaration")
 			return
 		}

@@ -1,39 +1,39 @@
 package core
 
 import (
- "stuntgres/internal/engine/access"
- "stuntgres/internal/engine/analyze"
- "stuntgres/internal/engine/authorization"
- "stuntgres/internal/engine/catalog"
- "stuntgres/internal/engine/exec"
- "stuntgres/internal/engine/ids"
- "stuntgres/internal/engine/sequence"
- "stuntgres/internal/engine/session"
- "stuntgres/internal/parser"
- "stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // PreparedEnvironment is captured coherently under the engine mutex. It contains
 // identity and effective validity stamps, never retained authority or data roots.
 type PreparedEnvironment struct {
- Domain *ids.Domain
- Epoch ids.CatalogEpoch
- Session ids.SessionToken
- Private *session.Journal
- Path sequence.Environment
- Namespace uint64
- Discard uint64
- RoleStamp access.Stamp
- Principal authorization.PrincipalRef
- RowSecurity bool
- Sequences *sequence.SessionMemory
+	Domain      *ids.Domain
+	Epoch       ids.CatalogEpoch
+	Session     ids.SessionToken
+	Private     *session.Journal
+	Path        sequence.Environment
+	Namespace   uint64
+	Discard     uint64
+	RoleStamp   access.Stamp
+	Principal   authorization.PrincipalRef
+	RowSecurity bool
+	Sequences   *sequence.SessionMemory
 }
 
 func DefinitionStamp(d catalog.Descriptor, env PreparedEnvironment) ids.DefinitionRevision {
- if domain, ok := d.(*catalog.Type); ok && domain.UsesDomainPlanStamp() {
-  return domain.EffectiveDomainPlanStamp()
- }
- return sequence.DefinitionStamp(d, env.Sequences)
+	if domain, ok := d.(*catalog.Type); ok && domain.UsesDomainPlanStamp() {
+		return domain.EffectiveDomainPlanStamp()
+	}
+	return sequence.DefinitionStamp(d, env.Sequences)
 }
 
 // Only immutable analysis identities and definition stamps survive a statement.
@@ -58,17 +58,20 @@ type Analysis struct {
 }
 
 func (a *Analysis) EnvironmentValid(env PreparedEnvironment) bool {
- return a != nil && !a.NeedsReanalysis && a.Domain == env.Domain && a.Epoch == env.Epoch && a.Session == env.Session && a.Private == env.Private && a.Namespace == env.Namespace && sequence.SameEnvironment(a.Path, env.Path)
+	return a != nil && !a.NeedsReanalysis && a.Domain == env.Domain && a.Epoch == env.Epoch && a.Session == env.Session && a.Private == env.Private && a.Namespace == env.Namespace && sequence.SameEnvironment(a.Path, env.Path)
 }
 func (a *Analysis) Valid(read catalog.Read, env PreparedEnvironment) bool {
- return a.DefinitionsValid(read, env, false)
+	return a.DefinitionsValid(read, env, false)
 }
 func (a *Analysis) FoldEnvironmentValid(env PreparedEnvironment) bool {
- if a == nil { return false }
- checked := *a
- checked.NeedsReanalysis = false
- return checked.EnvironmentValid(env)
+	if a == nil {
+		return false
+	}
+	checked := *a
+	checked.NeedsReanalysis = false
+	return checked.EnvironmentValid(env)
 }
+
 // The rebind mode validates nominal installed-scalar occurrences only, never
 // reuse. Owner/ACL changes still require fresh analysis and authority checks.
 func (analysis *Analysis) DefinitionsValid(read catalog.Read, env PreparedEnvironment, installedScalarAuthorityRebind bool) bool {
@@ -96,8 +99,12 @@ func (analysis *Analysis) DefinitionsValid(read catalog.Read, env PreparedEnviro
 			}
 			if installedScalarAuthorityRebind && preparedLtreeArrayShape(current.SQLType) {
 				old := analysis.Types[dep.Ref.Address]
-				if old == nil { return false }
-				if _, _, ok := analysis.currentLtreeArray(read, old.SQLType); !ok { return false }
+				if old == nil {
+					return false
+				}
+				if _, _, ok := analysis.currentLtreeArray(read, old.SQLType); !ok {
+					return false
+				}
 				continue
 			}
 			if installedScalarAuthorityRebind && !current.SQLType.IsHstore() && !current.SQLType.IsLquery() && (!current.SQLType.IsLtree() && !current.SQLType.IsLtxtquery()) && !current.SQLType.IsEan13() && !current.SQLType.IsIsbn() && !current.SQLType.IsIsbn13() && !current.SQLType.IsIsmn() && !current.SQLType.IsIsmn13() && !current.SQLType.IsIssn() && !current.SQLType.IsIssn13() && !current.SQLType.IsUpc() {
@@ -107,14 +114,7 @@ func (analysis *Analysis) DefinitionsValid(read catalog.Read, env PreparedEnviro
 			if catalog.SamePreparedTypeDefinition(old, current) {
 				continue
 			}
-			if !installedScalarAuthorityRebind || old == nil || old.SQLType.IsHstore() != current.SQLType.IsHstore() || old.SQLType.IsLquery() != current.SQLType.IsLquery() || (old.SQLType.IsLtree() != current.SQLType.IsLtree() || old.SQLType.IsLtxtquery() != current.SQLType.IsLtxtquery()) || old.SQLType.IsEan13() != current.SQLType.IsEan13() || old.SQLType.IsIsbn() != current.SQLType.IsIsbn() || old.SQLType.IsIsbn13() != current.SQLType.IsIsbn13() || old.SQLType.IsIsmn() != current.SQLType.IsIsmn() || old.SQLType.IsIsmn13() != current.SQLType.IsIsmn13() || old.SQLType.IsIssn() != current.SQLType.IsIssn() || old.SQLType.IsIssn13() != current.SQLType.IsIssn13() || old.SQLType.IsUpc() != current.SQLType.IsUpc() || !old.SQLType.IsHstore() && !old.SQLType.IsLquery() && (!old.SQLType.IsLtree() && !old.SQLType.IsLtxtquery()) && !old.SQLType.IsEan13() && !old.SQLType.IsIsbn() && !old.SQLType.IsIsbn13() && !old.SQLType.IsIsmn() && !old.SQLType.IsIsmn13() && !old.SQLType.IsIssn() && !old.SQLType.IsIssn13() && !old.SQLType.IsUpc() {
-				return false
-			}
-			// Compare the same immutable definition while deliberately leaving
-			// authority to the fresh binder, not to retained executable analysis.
-			nominal := *old
-			nominal.Owner, nominal.ACL = current.Owner, current.ACL
-			if !catalog.SamePreparedTypeDefinition(&nominal, current) {
+			if !installedScalarAuthorityRebind || !samePreparedInstalledScalar(read, old, current) {
 				return false
 			}
 		}
@@ -167,4 +167,3 @@ func (a *Analysis) FoldsValid(read catalog.Read, env PreparedEnvironment) bool {
 	}
 	return true
 }
-

@@ -588,6 +588,7 @@ func TestExtensionDropDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.Catalog.State
+	target := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"})
 	stmt := extensionDropUnitStatement("fuzzystrmatch")
 	stmt.Mode = parser.DropRestrict
 	err := extensionUnitExecute(t, e, op, stmt)
@@ -603,9 +604,13 @@ func TestExtensionDropDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 	for a, d := range before.Descriptors() {
-		if _, ok := d.(*catalog.Extension); ok || catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) || d.Name() == "ext_drop_generic" {
+		if a == target || catalog.ExtensionMembership(d) == target || d.Name() == "ext_drop_generic" {
 			if e.CatalogRead().Get(a) != nil {
 				t.Fatal("generic dependency closure survived cascade", a)
+			}
+		} else if _, installed := d.(*catalog.Extension); installed || catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
+			if e.CatalogRead().Get(a) != d {
+				t.Fatal("unrelated installed authority changed during cascade", a)
 			}
 		}
 	}

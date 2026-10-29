@@ -57,7 +57,13 @@ type EarthCoordinatePlan struct {
 }
 
 func BindEarthCoordinate(o EarthOperation, earth, floating *Descriptor) (EarthCoordinatePlan, error) {
-	if o.Name() == "" || earth == nil || !earth.IsDomain() || !earth.DomainBase().Type.IsCube() || floating == nil || floating.ID() != Float8 {
+	if o.Name() == "" || floating == nil || floating.ID() != Float8 || !floating.Concrete() {
+		return EarthCoordinatePlan{}, fmt.Errorf("invalid earth coordinate types")
+	}
+	if o < EarthLL {
+		return EarthCoordinatePlan{operation: o, floating: floating}, nil
+	}
+	if earth == nil || !earth.IsDomain() || !earth.DomainBase().Type.IsCube() {
 		return EarthCoordinatePlan{}, fmt.Errorf("invalid earth coordinate types")
 	}
 	return EarthCoordinatePlan{o, earth, earth.DomainBase().Type, floating}, nil
@@ -79,7 +85,7 @@ func (p EarthCoordinatePlan) Formal() *Descriptor {
 }
 
 func (p EarthCoordinatePlan) Evaluate(ctx context.Context, args []Value, input InputEnvironment) (Value, error) {
-	if p.earth == nil || len(args) != p.operation.Arity() {
+	if p.operation.Name() == "" || p.floating == nil || p.operation >= EarthLL && p.earth == nil || len(args) != p.operation.Arity() {
 		return Value{}, fmt.Errorf("invalid earth coordinate plan")
 	}
 	for _, v := range args {

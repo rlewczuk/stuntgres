@@ -95,29 +95,123 @@ func validateLtreeComparisons(v catalog.Read, ext *catalog.Extension, base *cata
 				return invalid()
 			}
 		}
-		operators,supports:=0,0
-		for _,descriptor:=range v.Descriptors(){
-			switch member:=descriptor.(type){
+		operators, supports := 0, 0
+		for _, descriptor := range v.Descriptors() {
+			switch member := descriptor.(type) {
 			case *catalog.OperatorFamilyOperator:
-				if member.Family==c.Family{operators++}
+				if member.Family == c.Family {
+					operators++
+				}
 			case *catalog.OperatorFamilySupport:
-				if member.Family==c.Family{supports++}
+				if member.Family == c.Family {
+					supports++
+				}
 			}
 		}
-		if operators!=len(strategies)||supports!=len(supportKinds){return invalid()}
+		if operators != len(strategies) || supports != len(supportKinds) {
+			return invalid()
+		}
 	}
 	return nil
 }
 
 func ltreeSupportOwner(c *catalog.OperatorClass, hash bool, index int) ids.ObjectAddress {
- if hash && index==1 { return ids.ObjectAddress{} }; return c.Address()
+	if hash && index == 1 {
+		return ids.ObjectAddress{}
+	}
+	return c.Address()
+}
+
+// ValidateLtreeClassBindings checks the surviving released AMOP/AMPROC graph.
+// Current names and extension membership are not positions in that graph.
+func ValidateLtreeClassBindings(v catalog.Read, class *catalog.OperatorClass) error {
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid installed ltree class binding") }
+	installation, ok := catalog.OriginInstallation(class)
+	if !ok || installation.Implementation != StockLtree || len(installation.Members) != LtreeMemberCount {
+		return invalid()
+	}
+	if err := catalog.ValidateInstalledClassOrigin(v, class); err != nil {
+		return err
+	}
+	members := installation.Members
+	method, classSlot := ids.OID(403), LtreeBtreeClassSlot
+	strategies := cubeStrategies[:]
+	supportKinds, supportCount := [2]int{6}, 1
+	hash := class.Address() == members[LtreeHashClassSlot]
+	if hash {
+		method, classSlot = 405, LtreeHashClassSlot
+		strategies = strategies[:1]
+		supportKinds, supportCount = [2]int{7, 8}, 2
+	}
+	if class.Address() != members[classSlot] || class.Method != method {
+		return invalid()
+	}
+	family, ok := v.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: class.Family})
+	if !ok || !catalog.SameInstallation(family, installation) {
+		return invalid()
+	}
+	if err := (catalog.OperatorFamilyProvider{Class: ids.OperatorFamilyClassID}).Validate(v, family); err != nil {
+		return err
+	}
+	for index, kind := range strategies {
+		if hash {
+			kind = 0
+		}
+		member, ok := v.FamilyOperator(class.Family, class.InputType, class.InputType, int16(index+1), 's')
+		if !ok || member.Operator != members[LtreeComparisonOperatorStart+kind].ObjectID || member.Method != method || member.SortFamily != 0 || member.InternalOwner != class.Address() || member.Revision() == 0 {
+			return invalid()
+		}
+		if err := (catalog.OperatorFamilyProvider{Class: ids.AccessMethodOperatorClassID}).Validate(v, member); err != nil {
+			return err
+		}
+		operator, ok := v.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: member.Operator})
+		if !ok || !catalog.SameInstallation(operator, installation) {
+			return invalid()
+		}
+		if err := (CatalogProvider{Class: ids.OperatorClassID}).Validate(v, operator); err != nil {
+			return err
+		}
+	}
+	for index := range supportCount {
+		member, ok := v.FamilySupport(class.Family, class.InputType, class.InputType, int16(index+1))
+		if !ok || member.Function != members[LtreeComparisonProcedureStart+supportKinds[index]].ObjectID || member.InternalOwner != ltreeSupportOwner(class, hash, index) || !member.CatalogVisible || member.Revision() == 0 {
+			return invalid()
+		}
+		if err := (catalog.OperatorFamilyProvider{Class: ids.AccessMethodProcedureClassID}).Validate(v, member); err != nil {
+			return err
+		}
+		procedure, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: member.Function})
+		if !ok || !catalog.SameInstallation(procedure, installation) {
+			return invalid()
+		}
+		if _, err := ProcedureSymbol(v, procedure); err != nil {
+			return err
+		}
+	}
+	operators, supports := 0, 0
+	for _, descriptor := range v.Descriptors() {
+		switch member := descriptor.(type) {
+		case *catalog.OperatorFamilyOperator:
+			if member.Family == class.Family {
+				operators++
+			}
+		case *catalog.OperatorFamilySupport:
+			if member.Family == class.Family {
+				supports++
+			}
+		}
+	}
+	if operators != len(strategies) || supports != supportCount {
+		return invalid()
+	}
+	return nil
 }
 
 const (
- LtreeComparisonProcedureStart = LtreeArrayOperatorStart + int(sqltype.LtreeArrayOperationCount)
- LtreeComparisonOperatorStart = LtreeComparisonProcedureStart + len(LtreeComparisonNames)
- LtreeBtreeFamilySlot = LtreeComparisonOperatorStart + 6
- LtreeBtreeClassSlot = LtreeBtreeFamilySlot + 1
- LtreeHashFamilySlot = LtreeBtreeClassSlot + 1
- LtreeHashClassSlot = LtreeHashFamilySlot + 1
+	LtreeComparisonProcedureStart = LtreeArrayOperatorStart + int(sqltype.LtreeArrayOperationCount)
+	LtreeComparisonOperatorStart  = LtreeComparisonProcedureStart + len(LtreeComparisonNames)
+	LtreeBtreeFamilySlot          = LtreeComparisonOperatorStart + 6
+	LtreeBtreeClassSlot           = LtreeBtreeFamilySlot + 1
+	LtreeHashFamilySlot           = LtreeBtreeClassSlot + 1
+	LtreeHashClassSlot            = LtreeHashFamilySlot + 1
 )

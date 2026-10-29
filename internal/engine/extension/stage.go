@@ -17,6 +17,10 @@ type Stage interface {
 
 	// Read is the catalog the stage was begun from (its base).
 	Read() catalog.Read
+	// CurrentRead and Get expose the unpublished coherent candidate to the
+	// installation owner when sealing and validating a complete script.
+	CurrentRead() catalog.Read
+	Get(ids.ObjectAddress) catalog.Descriptor
 	LookupName(ids.NameKey) ids.ObjectAddress
 	Create(catalog.Descriptor) error
 	Replace(catalog.Descriptor) error

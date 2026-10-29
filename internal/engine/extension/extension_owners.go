@@ -6,142 +6,126 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
+	"unicode/utf8"
+
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/sqltype"
-	"unicode/utf8"
+	"stuntgres/internal/engine/ids"
 )
 
-const OwnersMarker = "stuntgres-extension-owners-v2"
+const OwnersMarker = "stuntgres-extension-owners-v3"
 
+// Declaration identifies an immutable release declaration, never a membership
+// position. Ordinary SQL members have no declaration or provider authority.
 type MemberOwner struct {
-	Slot      int        `json:"slot"`
-	Schema    string     `json:"schema"`
-	Kind      string     `json:"kind"`
-	Name      string     `json:"name"`
-	Signature string     `json:"signature"`
-	Owner     string     `json:"owner"`
-	ACL       *MemberACL `json:"acl,omitempty"`
+	Declaration *int       `json:"declaration,omitempty"`
+	Version     string     `json:"version"`
+	Schema      string     `json:"schema"`
+	Kind        string     `json:"kind"`
+	Name        string     `json:"name"`
+	Signature   string     `json:"signature"`
+	Extension   string     `json:"extension"`
+	Owner       string     `json:"owner"`
+	ACL         *MemberACL `json:"acl,omitempty"`
 }
 type OwnerRecord struct {
 	Name    string        `json:"name"`
 	Schema  string        `json:"schema"`
 	Version string        `json:"version"`
 	Owner   string        `json:"owner"`
+	Present bool          `json:"present"`
 	Members []MemberOwner `json:"members"`
 }
 
 func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Extension) (string, error) {
-	owner, err := roles.Descriptor(ext.Owner)
-	if err != nil {
+	if ext == nil || !ext.Installation.Valid() {
+		return "", InvalidProviderDescriptor()
+	}
+	if view.Owner() == nil {
+		return "", InvalidProviderDescriptor()
+	}
+	if err := ValidateCurrentInstallation(view, ext, ext.Installation.Implementation); err != nil {
 		return "", err
 	}
-	ns, ok := view.Namespace(ext.TargetNamespace)
-	if !ok {
-		return "", fmt.Errorf("stuntgres: missing extension target namespace")
+	return InstallationOwnerMetadata(view, roles, ext.Installation, ext)
+}
+
+// InstallationOwnerMetadata also describes survivors whose originating extension
+// no longer exists. The recipe is authority; the final extension name is not.
+func InstallationOwnerMetadata(view catalog.Read, roles authorization.Read, installation *catalog.Installation, ext *catalog.Extension) (string, error) {
+	if !installation.Valid() {
+		return "", InvalidProviderDescriptor()
 	}
-	record := OwnerRecord{Name: ext.Name(), Schema: ns.Name(), Version: ext.Version, Owner: owner.Name}
-	if ext.Name() == "earthdistance" {
-		if err := StockEarthdistance.ValidateExtension(view, ext); err != nil {
+	record := OwnerRecord{Name: installation.Provider, Version: installation.Version, Members: make([]MemberOwner, 0)}
+	if ext != nil {
+		ns, ok := view.Namespace(ext.TargetNamespace)
+		if !ok {
+			return "", InvalidProviderDescriptor()
+		}
+		owner, err := roles.Descriptor(ext.Owner)
+		if err != nil {
 			return "", err
 		}
+		record.Schema, record.Owner, record.Present = ns.Name(), owner.Name, true
 	}
-	if ext.Name() == "cube" {
-		if err := StockCube.ValidateExtension(view, ext); err != nil {
+	for _, d := range view.Descriptors() {
+		if namespace, ok := view.Namespace(d.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
+			continue
+		}
+		origin := catalog.DescriptorOrigin(d)
+		belongs := origin.Valid(d.Address()) && origin.Installation.Cohort == installation.Cohort
+		ordinary := origin == nil && ext != nil && catalog.ExtensionMembership(d) == ext.Address()
+		if !belongs && !ordinary {
+			continue
+		}
+		member, err := OwnerIdentity(view, d)
+		if err != nil {
 			return "", err
 		}
-	}
-	if ext.Name() == "hstore" {
-		if err := StockHstore.ValidateExtension(view, ext); err != nil {
-			return "", err
+		if belongs {
+			declaration := origin.Declaration
+			member.Declaration = &declaration
+			member.Version = origin.Installation.Version
 		}
-	}
-	for slot, a := range ext.Members {
-		d := view.Get(a)
-		var member MemberOwner
-		var principal authorization.PrincipalRef
-		switch d := d.(type) {
-		case *catalog.Procedure:
-			symbol, err := ProcedureSymbol(view, d)
-			if err != nil {
+		membership := catalog.ExtensionMembership(d)
+		if membership != (ids.ObjectAddress{}) {
+			current, ok := view.Extension(membership)
+			if !ok {
+				return "", InvalidProviderDescriptor()
+			}
+			member.Extension = current.Name()
+		}
+		// Ordinary serializers remain the sole owner/ACL authority for SQL objects.
+		if belongs {
+			if err := validateInstalledDeclaration(view, d); err != nil {
 				return "", err
 			}
-			member = MemberOwner{Kind: "procedure", Name: d.Name(), Signature: string(d.Signature)}
-			if IntarrayProviderOf(d) != nil && symbol == "bqarr_out" {
-				member.Signature = "query_int"
-			}
-			if SegProviderOf(d) != nil && symbol == "seg_out" {
-				member.Signature = "seg"
-			}
-			if LtreeProviderOf(d) != nil || HstoreProviderOf(d) != nil || CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil || IsnProviderOf(d) != nil {
-				var valid bool
-				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
-				if !valid {
-					return "", fmt.Errorf("stuntgres: invalid cube ownership signature")
+			principal, acl, _ := access.DescriptorACL(d)
+			if principal != (authorization.PrincipalRef{}) {
+				owner, err := roles.Descriptor(principal)
+				if err != nil {
+					return "", err
 				}
+				member.Owner = owner.Name
 			}
-			principal = d.Owner
-			if d.ACL.Explicit || len(d.ACL.Entries) != 0 || AmcheckProviderOf(d) != nil {
-				member.ACL, err = captureMemberACL(roles, d.ACL)
+			if access.ClassPrivileges(d) != 0 {
+				if typ, ok := d.(*catalog.Type); ok && typ.ACLSyntheticDefault {
+					// The stored baseline represents a SQL NULL ACL, not grants
+					// tied to the historical owner in this captured descriptor.
+					acl = authorization.ACLValue{}
+				}
+				member.ACL, err = captureMemberACL(roles, acl)
 				if err != nil {
 					return "", err
 				}
 			}
-		case *catalog.Operator:
-			name, signature, known := ownerOperatorIdentity(ext.Name(), slot)
-			if !known || d.Name() != name || d.Extension != ext.Address() {
-				return "", fmt.Errorf("stuntgres: invalid extension operator owner")
-			}
-			member = MemberOwner{Kind: "operator", Name: d.Name(), Signature: signature}
-			principal = d.Owner
-		case *catalog.OperatorClass:
-			if d.Method != 403 && !((ext.Name() == "hstore" || ext.Name()=="ltree") && d.Method == 405) {
-				return "", fmt.Errorf("stuntgres: unsupported extension class method")
-			}
-			member = MemberOwner{Kind: "operator_class", Name: d.Name(), Signature: "btree"}
-			if d.Method == 405 {
-				member.Signature = "hash"
-			}
-			principal = d.Owner
-		case *catalog.OperatorFamily:
-			if d.Method != 403 && !((ext.Name() == "hstore" || ext.Name()=="ltree") && d.Method == 405) {
-				return "", fmt.Errorf("stuntgres: unsupported extension family method")
-			}
-			member = MemberOwner{Kind: "operator_family", Name: d.Name(), Signature: "btree"}
-			if d.Method == 405 {
-				member.Signature = "hash"
-			}
-			principal = d.Owner
-		case *catalog.TSDictionary:
-			member = MemberOwner{Kind: "dictionary", Name: d.Name()}
-			principal = d.Owner
-		case *catalog.Type:
-			roleName, err := MemberTypeRole(view, ext, d)
-			if err != nil {
-				return "", err
-			}
-			member = MemberOwner{Kind: "type", Name: roleName}
-			principal = d.Owner
-		case *catalog.TSTemplate, *catalog.Cast:
-			continue
-		default:
-			return "", fmt.Errorf("stuntgres: missing extension owner member")
 		}
-		member.Slot = slot
-		namespace, ok := view.Namespace(d.Namespace())
-		if !ok {
-			return "", fmt.Errorf("stuntgres: missing member namespace")
-		}
-		member.Schema = namespace.Name()
-		role, err := roles.Descriptor(principal)
-		if err != nil {
-			return "", err
-		}
-		member.Owner = role.Name
 		record.Members = append(record.Members, member)
 	}
+	slices.SortFunc(record.Members, func(a, b MemberOwner) int { return strings.Compare(ownerIdentityKey(a), ownerIdentityKey(b)) })
 	data, err := json.Marshal(record)
 	if err != nil {
 		return "", err
@@ -149,12 +133,11 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 	return "-- " + OwnersMarker + " " + base64.StdEncoding.EncodeToString(data) + "\n", nil
 }
 
-// Decode JSON keys explicitly: DisallowUnknownFields alone accepts duplicates
-// and nulls, neither of which is valid ownership authority.
+// Decode JSON keys explicitly: encoding/json alone accepts duplicate keys and
+// nulls, neither of which can grant restore authority.
 func extensionOwnerFields(data []byte, keys ...string) (map[string]json.RawMessage, error) {
 	return extensionOwnerOptionalFields(data, nil, keys...)
 }
-
 func extensionOwnerOptionalFields(data []byte, optional []string, keys ...string) (map[string]json.RawMessage, error) {
 	invalid := func() (map[string]json.RawMessage, error) {
 		return nil, fmt.Errorf("stuntgres: invalid extension owner metadata")
@@ -171,14 +154,7 @@ func extensionOwnerOptionalFields(data []byte, optional []string, keys ...string
 		if err != nil || !ok || fields[key] != nil {
 			return invalid()
 		}
-		allowed := false
-		for _, name := range keys {
-			allowed = allowed || name == key
-		}
-		for _, name := range optional {
-			allowed = allowed || name == key
-		}
-		if !allowed {
+		if !slices.Contains(keys, key) && !slices.Contains(optional, key) {
 			return invalid()
 		}
 		var value json.RawMessage
@@ -219,401 +195,63 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	if err != nil || !utf8.Valid(data) {
 		return invalid()
 	}
-	fields, err := extensionOwnerFields(data, "name", "schema", "version", "owner", "members")
+	fields, err := extensionOwnerFields(data, "name", "schema", "version", "owner", "present", "members")
 	if err != nil {
 		return invalid()
 	}
 	for key, target := range map[string]*string{"name": &record.Name, "schema": &record.Schema, "version": &record.Version, "owner": &record.Owner} {
-		if err := json.Unmarshal(fields[key], target); err != nil || *target == "" {
+		if json.Unmarshal(fields[key], target) != nil {
 			return invalid()
 		}
 	}
-	expectedMembers := 0
-	switch {
-	case record.Name == "tablefunc" && record.Version == "1.0":
-		expectedMembers = tablefuncMemberCount
-	case record.Name == "unaccent" && record.Version == "1.1":
-		expectedMembers = 5
-	case record.Name == "hstore" && record.Version == "1.8":
-		expectedMembers = HstoreMemberCount - 1 // The cast has no owner or ACL.
-	case record.Name == "seg" && record.Version == "1.4":
-		expectedMembers = 3
-	case record.Name == "intarray" && record.Version == "1.5":
-		expectedMembers = 3
-	case record.Name == "ltree" && record.Version == "1.3":
-		expectedMembers = LtreeMemberCount
-	case record.Name == "cube" && record.Version == "1.5":
-		expectedMembers = CubeMemberCount
-	case record.Name == "citext" && record.Version == "1.8":
-		expectedMembers = CitextMemberCount
-	case record.Name == "isn" && record.Version == "1.3":
-		expectedMembers = isnMemberCount
-	case record.Name == "earthdistance" && record.Version == "1.2":
-		expectedMembers = EarthMemberCount
-	case record.Name == "lo" && record.Version == "1.2":
-		expectedMembers = 2
-	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
-		expectedMembers = len(FuzzystrmatchMembers)
-	case record.Name == "fuzzystrmatch" && record.Version == "1.1":
-		expectedMembers = len(FuzzystrmatchMembers) - 1
-	case record.Name == "intagg" && record.Version == "1.1":
-		expectedMembers = len(IntaggMembers)
-	case record.Name == "amcheck" && record.Version == "1.5":
-		expectedMembers = 1 + len(AmcheckMembers)
-	case record.Name == "pageinspect" && record.Version == "1.13":
-		expectedMembers = len(PageinspectMembers)
-	case record.Name == "pgrowlocks" && record.Version == "1.2":
-		expectedMembers = 1
-	case record.Name == "pgcrypto" && record.Version == "1.4":
-		expectedMembers = len(functions.PgcryptoMembers)
-	case record.Name == "uuid-ossp" && record.Version == "1.1":
-		expectedMembers = len(functions.UUIDOsspMembers)
-	default:
+	if record.Name == "" || record.Version == "" || json.Unmarshal(fields["present"], &record.Present) != nil || record.Present && (record.Owner == "" || record.Schema == "") || !record.Present && (record.Owner != "" || record.Schema != "") {
 		return invalid()
 	}
 	var members []json.RawMessage
-	if err := json.Unmarshal(fields["members"], &members); err != nil || len(members) != expectedMembers {
+	if json.Unmarshal(fields["members"], &members) != nil || members == nil {
 		return invalid()
 	}
 	seen := map[string]bool{}
+	declarations := map[string]bool{}
 	for _, data := range members {
-		fields, err := extensionOwnerOptionalFields(data, []string{"acl"}, "slot", "schema", "kind", "name", "signature", "owner")
+		// A missing declaration means ordinary SQL. Null is never accepted.
+		fields, err := extensionOwnerOptionalFields(data, []string{"declaration", "acl"}, "version", "schema", "kind", "name", "signature", "extension", "owner")
 		if err != nil {
 			return invalid()
 		}
 		var member MemberOwner
-		if err := json.Unmarshal(fields["slot"], &member.Slot); err != nil {
-			return invalid()
-		}
-		for key, target := range map[string]*string{"schema": &member.Schema, "kind": &member.Kind, "name": &member.Name, "signature": &member.Signature, "owner": &member.Owner} {
-			if err := json.Unmarshal(fields[key], target); err != nil {
+		for key, target := range map[string]*string{"version": &member.Version, "schema": &member.Schema, "kind": &member.Kind, "name": &member.Name, "signature": &member.Signature, "extension": &member.Extension, "owner": &member.Owner} {
+			if json.Unmarshal(fields[key], target) != nil {
 				return invalid()
 			}
 		}
-		if data, present := fields["acl"]; present {
-			if member.Kind != "procedure" {
+		if value, ok := fields["declaration"]; ok {
+			var declaration int
+			if json.Unmarshal(value, &declaration) != nil || declaration < 0 || member.Version == "" {
 				return invalid()
 			}
-			member.ACL, err = decodeMemberACL(data)
+			key := fmt.Sprint(member.Version, ":", declaration)
+			if declarations[key] {
+				return invalid()
+			}
+			declarations[key] = true
+			member.Declaration = &declaration
+		}
+		if value, ok := fields["acl"]; ok {
+			member.ACL, err = decodeMemberACL(value)
 			if err != nil {
 				return invalid()
 			}
 		}
-		if record.Name == "amcheck" && member.Kind == "procedure" && member.ACL == nil {
+		if !validOwnerIdentity(member) || member.Declaration == nil && (member.Version != "" || member.Owner != "" || member.ACL != nil || !record.Present || member.Extension != record.Name) {
 			return invalid()
 		}
-		identity := fmt.Sprint(member.Slot)
-		slots := expectedMembers
-		if record.Name == "unaccent" || record.Name == "hstore" {
-			slots++
-		}
-		if member.Slot < 0 || member.Slot >= slots || member.Schema == "" || member.Name == "" || member.Owner == "" || seen[identity] {
+		key := ownerIdentityKey(member)
+		if seen[key] {
 			return invalid()
 		}
-		seen[identity] = true
-		if record.Name == "tablefunc" {
-			if !validTablefuncOwnerMember(member) {
-				return invalid()
-			}
-			record.Members = append(record.Members, member)
-			continue
-		}
-		switch member.Kind {
-		case "procedure":
-			// Mutable procedure labels are checked against the current installed
-			// slot by ImportOwners, not used as installation identity.
-			if record.Name == "lo" || record.Name == "earthdistance" && member.Slot < 2 || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "seg" || record.Name == "hstore" || record.Name == "intarray" || record.Name == "ltree" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
-				return invalid()
-			}
-			if signature, ok := ownerProcedureSignature(record.Name, record.Version, member.Slot); !ok || signature != member.Signature {
-				return invalid()
-			}
-		case "operator":
-			name, signature, valid := ownerOperatorIdentity(record.Name, member.Slot)
-			if !valid || member.Name != name || member.Signature != signature {
-				return invalid()
-			}
-		case "operator_class", "operator_family":
-			slot := 16
-			if member.Kind == "operator_class" {
-				slot = 17
-			}
-			valid := record.Name == "cube" && member.Slot == slot && member.Name == "cube_ops" && member.Signature == "btree"
-			if record.Name == "hstore" {
-				class := member.Kind == "operator_class"
-				valid = member.Name == "btree_hstore_ops" && member.Signature == "btree" && ((!class && member.Slot == HstoreBtreeFamilySlot) || (class && member.Slot == HstoreBtreeClassSlot)) || member.Name == "hash_hstore_ops" && member.Signature == "hash" && ((!class && member.Slot == HstoreHashFamilySlot) || (class && member.Slot == HstoreHashClassSlot))
-			}
-			if record.Name=="ltree" {
-				class:=member.Kind=="operator_class"
-				valid=member.Name=="ltree_ops"&&member.Signature=="btree"&&(!class&&member.Slot==LtreeBtreeFamilySlot||class&&member.Slot==LtreeBtreeClassSlot)||member.Name=="hash_ltree_ops"&&member.Signature=="hash"&&(!class&&member.Slot==LtreeHashFamilySlot||class&&member.Slot==LtreeHashClassSlot)
-			}
-			if !valid {
-				return invalid()
-			}
-		case "dictionary":
-			// ImportOwners checks mutable labels against the current genuine slot.
-			if record.Name != "unaccent" || member.Slot != 5 || member.Signature != "" {
-				return invalid()
-			}
-		case "type":
-			if (record.Name != "seg" || member.Name != "seg") && (record.Name != "hstore" || member.Name != "hstore") && (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "ltree" || member.Name != "lquery" && member.Name != "ltree" && member.Name != "ltxtquery") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn" && member.Name != "isbn13" && member.Name != "ismn" && member.Name != "ismn13" && member.Name != "issn" && member.Name != "issn13" && member.Name != "upc") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
-				return invalid()
-			}
-			if record.Name == "isn" {
-				valid := false
-				for _, recipe := range isnRecipes {
-					if member.Slot == recipe.slot && member.Name == recipe.name {
-						valid = true
-					}
-				}
-				if !valid {
-					return invalid()
-				}
-			}
-			if record.Name == "ltree" && !((member.Slot == 0 && member.Name == "lquery") || (member.Slot == 3 && member.Name == "ltree") || (member.Slot == 6 && member.Name == "ltxtquery")) {
-				return invalid()
-			}
-			if (record.Name == "seg" || record.Name == "citext" || record.Name == "hstore") && member.Slot != 0 {
-				return invalid()
-			}
-			if record.Name == "lo" && member.Name != [...]string{"lo", "lo[]"}[member.Slot] {
-				return invalid()
-			}
-		default:
-			return invalid()
-		}
+		seen[key] = true
 		record.Members = append(record.Members, member)
 	}
-	if record.Name == "tablefunc" && !validTablefuncOwnerRoles(record) {
-		return invalid()
-	}
-	if record.Name == "earthdistance" && !validEarthOwnerRoles(record) || record.Name == "lo" && record.Members[0].Owner != record.Members[1].Owner {
-		return invalid()
-	}
 	return record, true, nil
-}
-
-// The codec admits mutable labels but never mutable executable declarations.
-func ownerProcedureSignature(name, version string, slot int) (string, bool) {
-	switch name {
-	case "tablefunc":
-		if version == "1.0" {
-			if slot >= 0 && slot < tablefuncCrosstabStart {
-				return string(tablefuncMembers[slot].signature), true
-			}
-			switch slot - tablefuncCrosstabStart {
-			case 0, 7, 8, 9:
-				return "25", true
-			case 10:
-				return "25,23", true
-			}
-		}
-	case "earthdistance":
-		if version != "1.2" || slot < 2 || slot >= EarthPointOperatorSlot {
-			return "", false
-		}
-		switch slot {
-		case EarthPointProcedureSlot:
-			return "600,600", true
-		case 2:
-			return "", true
-		case 5:
-			return "701,701", true
-		case 6, 7:
-			return "earth", true
-		default:
-			return "701", true
-		}
-	case "pgcrypto":
-		if slot < len(functions.PgcryptoMembers) {
-			return functions.PgcryptoMembers[slot].Signature, true
-		}
-	case "uuid-ossp":
-		if slot < len(functions.UUIDOsspMembers) {
-			return functions.UUIDOsspMembers[slot].Signature, true
-		}
-	case "intagg":
-		if slot < len(IntaggMembers) {
-			return string(IntaggMembers[slot].Signature), true
-		}
-	case "fuzzystrmatch":
-		if version == "1.1" {
-			slot++
-		}
-		if slot < len(FuzzystrmatchMembers) {
-			return string(FuzzystrmatchMembers[slot].Signature), true
-		}
-	case "amcheck":
-		if slot == 0 {
-			return string(VerifyHeapamSignature), true
-		}
-		if slot > 0 && slot <= len(AmcheckMembers) {
-			return string(AmcheckMembers[slot-1].Signature), true
-		}
-	case "pageinspect":
-		if version == "1.13" && slot >= 0 && slot < len(PageinspectMembers) {
-			return string(PageinspectMembers[slot].Signature), true
-		}
-	case "pgrowlocks":
-		return "25", slot == 0
-	case "unaccent":
-		signatures := [...]catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}
-		if slot < len(signatures) {
-			return string(signatures[slot]), true
-		}
-	case "cube":
-		if version != StockCube.control.Version {
-			return "", false
-		}
-		if spec, ok := cubeRoutineForMember(slot); ok {
-			return spec.ownerSignature(), true
-		}
-		if slot >= cubeSpatialProcedureStart && slot < cubeSpatialOperatorStart {
-			return "cube,cube", true
-		}
-	case "isn":
-		for _, recipe := range isnRecipes {
-			if slot == recipe.slot+1 {
-				return "2275", true
-			}
-			if slot == recipe.slot+2 {
-				return recipe.name, true
-			}
-		}
-	case "ltree":
-  if slot >= LtreePathProcedureStart && slot < LtreePathOperatorStart { return ltreePathRecipes[slot-LtreePathProcedureStart].signature, true }
-  if slot >= LtreeLqueryProcedureStart && slot < LtreeLqueryOperatorStart {
-   if slot == LtreeLqueryProcedureStart { return "ltree,lquery", true }
-   return "lquery,ltree", true
-  }
-  if slot >= LtreeLtxtqueryProcedureStart && slot < LtreeLtxtqueryOperatorStart { recipe := ltreeLtxtqueryRecipes[slot-LtreeLtxtqueryProcedureStart]; return recipe.left+","+recipe.right, true }
-		if slot >= LtreeHierarchyProcedureStart && slot < LtreeHierarchyOperatorStart { return "ltree,ltree", true }
-		if slot >= LtreeComparisonProcedureStart && slot < LtreeComparisonOperatorStart {
-			switch slot-LtreeComparisonProcedureStart {
-			case 7:return "ltree",true
-			case 8:return "ltree,20",true
-			default:return "ltree,ltree",true
-			}
-		}
-		if slot >= LtreeArrayProcedureStart && slot < LtreeArrayOperatorStart {
-			recipe := ltreeArrayRecipes[slot-LtreeArrayProcedureStart]
-			return recipe.left+","+recipe.right, true
-		}
-		for _, recipe := range ltreeRecipes {
-			if slot == recipe.slot+1 {
-				return "2275", true
-			}
-			if slot == recipe.slot+2 {
-				return recipe.name, true
-			}
-		}
-	case "seg", "hstore", "intarray", "citext":
-		if name == "hstore" {
-			if recipe, ok := hstoreRoutineAt(slot); ok {
-				return recipe.signature, true
-			}
-			return "", false
-		}
-		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
-			return "citext,citext", true
-		}
-		if name == "citext" && slot >= CitextConversionProcedureStart && slot < CitextPatternProcedureStart {
-			return []string{"1042", "16", "869"}[slot-CitextConversionProcedureStart], true
-		}
-		if name == "citext" && slot >= CitextPatternProcedureStart && slot < CitextPatternOperatorStart {
-			return [2]string{"citext,citext", "citext,25"}[(slot-CitextPatternProcedureStart)%2], true
-		}
-		if name == "citext" && slot >= CitextRegexpProcedureStart && slot < CitextRegexpProcedureEnd {
-			m := CitextRegexpMembers[slot-CitextRegexpProcedureStart]
-			signature := "citext,citext"
-			for i := 2; i < m.ArgCount; i++ {
-				signature += ",25"
-			}
-			return signature, true
-		}
-		if name == "citext" && slot >= CitextStringProcedureStart && slot < CitextMemberCount {
-			return CitextStringMembers[slot-CitextStringProcedureStart].OwnerSignature(), true
-		}
-		if slot == 1 {
-			return "2275", true
-		}
-		if slot == 2 {
-			if name == "intarray" {
-				return "query_int", true
-			}
-			return name, true
-		}
-	}
-	return "", false
-}
-
-func cubeOwnerOperatorIdentity(slot int) (string, string, bool) {
-	if slot >= 10 && slot < 10+len(cubeOperatorNames) {
-		return cubeOperatorNames[slot-10], "cube,cube", true
-	}
-	if slot >= cubeCoordinateOperatorStart && slot < cubeSpatialProcedureStart {
-		return cubeCoordinateOperators[slot-cubeCoordinateOperatorStart].name, "cube,23", true
-	}
-	if slot >= cubeSpatialOperatorStart && slot < CubeMemberCount {
-		return cubeSpatialMembers[slot-cubeSpatialOperatorStart].operator, "cube,cube", true
-	}
-	return "", "", false
-}
-
-func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
-	switch extension {
-	case "ltree":
-  if slot >= LtreeHierarchyOperatorStart && slot < LtreeHierarchyMemberEnd { return ltreeHierarchyOperators[slot-LtreeHierarchyOperatorStart], "ltree,ltree", true }
-  if slot >= LtreePathOperatorStart && slot < LtreePathMemberEnd { return "||", ltreePathRecipes[int(sqltype.LtreeConcat)+slot-LtreePathOperatorStart].signature, true }
-  if slot >= LtreeLqueryOperatorStart && slot < LtreeLqueryMemberEnd {
-   if slot == LtreeLqueryOperatorStart { return "~", "ltree,lquery", true }
-   return "~", "lquery,ltree", true
-  }
-  if slot >= LtreeLtxtqueryOperatorStart && slot < LtreeMemberCount { recipe := ltreeLtxtqueryRecipes[slot-LtreeLtxtqueryOperatorStart]; return recipe.operator, recipe.left+","+recipe.right, true }
-		if slot >= LtreeComparisonOperatorStart && slot < LtreeBtreeFamilySlot { return ltreeComparisonOperators[slot-LtreeComparisonOperatorStart],"ltree,ltree",true }
-		if slot >= LtreeArrayOperatorStart && slot < LtreeComparisonProcedureStart {
-			recipe := ltreeArrayRecipes[slot-LtreeArrayOperatorStart]
-			return recipe.operator, recipe.left+","+recipe.right, true
-		}
-	case "hstore":
-		if slot >= HstoreComparisonOperatorStart && slot < HstoreBtreeFamilySlot {
-			return hstoreComparisonOperators[slot-HstoreComparisonOperatorStart], "hstore,hstore", true
-		}
-		if slot == HstoreArrayOperatorSlot || slot == HstoreMatrixOperatorSlot {
-			return []string{"%%", "%#"}[slot-HstoreArrayOperatorSlot], "0,hstore", true
-		}
-		if slot == HstoreFetchOperatorSlot {
-			return "->", "hstore,25", true
-		}
-		if slot == HstoreSliceOperatorSlot {
-			return "->", "hstore,1009", true
-		}
-		if slot == HstorePopulateRecordOperatorSlot {
-			return "#=", "2283,hstore", true
-		}
-		for _, recipe := range hstoreOperators {
-			if recipe.slot == slot {
-				signature := "hstore," + string(HstoreSignature(recipe.right))
-				if recipe.rightHstore {
-					signature = "hstore,hstore"
-				}
-				return recipe.name, signature, true
-			}
-		}
-	case "cube":
-		return cubeOwnerOperatorIdentity(slot)
-	case "citext":
-		if slot >= CitextComparisonOperatorStart && slot < CitextConversionProcedureStart {
-			return citextOperatorNames[slot-CitextComparisonOperatorStart], "citext,citext", true
-		}
-		if slot >= CitextPatternOperatorStart && slot < CitextPatternOperatorEnd {
-			index := slot - CitextPatternOperatorStart
-			return citextPatternOperators[index%8], [2]string{"citext,citext", "citext,25"}[index/8], true
-		}
-	case "earthdistance":
-		if slot == EarthPointOperatorSlot {
-			return "<@>", "600,600", true
-		}
-	}
-	return "", "", false
 }

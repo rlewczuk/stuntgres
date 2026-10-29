@@ -214,7 +214,7 @@ rows:
 	for _, required := range requests {
 		for _, d := range required {
 			if final, exists := s.CatalogView.Cast(d.Source, d.Target); exists && !sameReplayCast(final, &d) {
-				if final.Extension != (ids.ObjectAddress{}) {
+				if final.Origin != nil {
 					return fmt.Errorf("stuntgres: historical cast conflicts with installed extension")
 				}
 				postponed[pair{d.Source, d.Target}] = true
@@ -240,7 +240,7 @@ rows:
 	}
 	for _, descriptor := range s.CatalogView.Descriptors() {
 		final, ok := descriptor.(*catalog.Cast)
-		if !ok || final.GeneratedRange != (ids.ObjectAddress{}) || final.Extension != (ids.ObjectAddress{}) || s.lateForeignCasts[final.OID] {
+		if !ok || final.GeneratedRange != (ids.ObjectAddress{}) || final.Origin != nil || s.lateForeignCasts[final.OID] {
 			continue
 		}
 		for oid := range s.lateForeignCasts {
@@ -274,35 +274,17 @@ rows:
 				continue
 			}
 			final, exists := s.CatalogView.Cast(d.Source, d.Target)
-			if exists && final.Extension != (ids.ObjectAddress{}) {
-				if !sameReplayCast(final, &d) || final.InputCast != d.InputCast || final.ResultCast != d.ResultCast || d.Extension != (ids.ObjectAddress{}) && d.Extension != final.Extension {
+			if exists && final.Origin != nil {
+				if !sameReplayCast(final, &d) || final.InputCast != d.InputCast || final.ResultCast != d.ResultCast {
 					return fmt.Errorf("stuntgres: stale extension cast replay")
 				}
 				if err := (catalog.CastProvider{}).Validate(s.CatalogView, final); err != nil {
 					return err
 				}
-				installation, ok := s.CatalogView.Extension(final.Extension)
-				if !ok {
-					return fmt.Errorf("stuntgres: missing cast extension")
-				}
-				provider, ok := s.CatalogView.Owner().Extensions[installation.Name()]
-				if !ok {
-					return fmt.Errorf("stuntgres: missing cast extension provider")
-				}
-				if err := provider.ValidateExtension(s.CatalogView, installation); err != nil {
-					return err
-				}
-				if !site.ForeignDefault {
-					oid, err := predecessor(s.CatalogView, final.Address(), ids.ObjectAddress{})
-					if err != nil {
-						return err
-					}
-					s.Graph.Add(event, dump.Event{OID: oid})
-				}
 				continue
 			}
-			if d.Extension != (ids.ObjectAddress{}) {
-				return fmt.Errorf("stuntgres: unavailable extension cast replay")
+			if d.Origin != nil {
+				return fmt.Errorf("stuntgres: unavailable installed cast replay")
 			}
 			raw := s.rawFloat4 && d.Source == sqltype.Xid && d.Target == sqltype.Float4
 			if raw && d.Method == "b" && d.Context == "e" {
@@ -351,6 +333,12 @@ rows:
 	if s.rawFloat4 && !s.rawFinalDeferred {
 		if final, ok := s.CatalogView.Cast(sqltype.Xid, sqltype.Float4); ok && final.Method == "b" {
 			for event := range s.Graph {
+				// Installation barriers are emitted in the prefix, before raw
+				// codec state. Making them wait for this ordinary CAST creates
+				// a cycle through the CAST's own installation predecessor.
+				if _, installation := s.CatalogView.Extension(ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: event.OID}); installation {
+					continue
+				}
 				if event.OID != final.OID {
 					s.Graph.Add(event, dump.Event{OID: final.OID})
 				}

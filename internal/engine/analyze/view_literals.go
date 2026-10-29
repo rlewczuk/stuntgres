@@ -927,7 +927,7 @@ func (b *Binder) captureRowComparisonFields(row parser.RowExpr, pairs []plan.Com
 // normalization. A separate immutable symbol checks capture substitution;
 // written names and syntax stay intact, while relabels follow the captured address.
 func (b *Binder) captureProviderReference(path ViewLiteralPath, raw parser.Expr, p *catalog.Procedure, ref ids.ObjectRef) error {
-	if p.Builtin == nil && (p.Implementation == nil || p.Extension == (ids.ObjectAddress{})) {
+	if p.Builtin == nil && (p.Implementation == nil || !p.Origin.Valid(p.Address())) {
 		return nil
 	}
 	read := b.BindingCatalog()

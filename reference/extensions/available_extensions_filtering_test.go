@@ -61,9 +61,11 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='seg' AND version='1.4'", true, [][]any{{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='tablefunc'", false, [][]any{{"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tablefunc' AND version='1.0'", true, [][]any{{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='plpgsql'", false, [][]any{{"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='plpgsql' AND version='1.0'", true, [][]any{{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"}}, pg))
 			if !pg {
-				// Native availability is its real embedded registry, not PostgreSQL's
-				// larger system package installation or bootstrap plpgsql descriptor.
+				// Native availability is its embedded registry, including the genuine
+				// installed bootstrap plpgsql extension.
 				wantAvailable := append([][]any{{"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"}, {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"}, {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"}, {"pgcrypto", "1.4", nil, "cryptographic functions"}, {"pgrowlocks", "1.2", nil, "show row-level locking information"}}, availableExtensionsRow(installedVersion)...)
 				wantVersions := append([][]any{{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}, {"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}, {"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}, {"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}, {"pgrowlocks", "1.2", false, true, false, true, nil, nil, "show row-level locking information"}}, availableVersionsRow(installed)...)
 				wantAvailable = append(wantAvailable[:3:3], append([][]any{{"isn", "1.3", nil, "data types for international product numbering standards"}}, wantAvailable[3:]...)...)
@@ -91,9 +93,11 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions[:15:15], append([][]any{{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}}, wantVersions[15:]...)...)
 				wantAvailable = append(wantAvailable[:11:11], append([][]any{{"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"}}, wantAvailable[11:]...)...)
 				wantVersions = append(wantVersions[:12:12], append([][]any{{"pageinspect", "1.13", false, true, false, true, nil, nil, "inspect the contents of database pages at a low level"}}, wantVersions[12:]...)...)
+				wantAvailable = append(wantAvailable, []any{"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"})
+				wantVersions = append(wantVersions, []any{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
-				for _, name := range []string{"file_fdw", "plpgsql"} {
+				for _, name := range []string{"file_fdw"} {
 					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name=$1", false, [][]any{}, pg, name))
 					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name=$1", true, [][]any{}, pg, name))
 				}

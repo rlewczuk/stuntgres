@@ -72,14 +72,14 @@ func ValidateSnowballHelper(v Read, d *Procedure) error {
 	if d.Display.Language != CRoutineLanguage || d.Display.Source != name || !d.Display.HasBinary || d.Display.Binary != "$libdir/dict_snowball" {
 		return invalid()
 	}
-	if d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Foreign != nil || d.Implementation != nil || d.Aggregate != nil || d.AccessMethod != NoAccessMethod || d.PLHandler != NoPLHandler || d.BrinSupport != 0 || d.RangeConstructor != nil || d.Conversion.Name() != "" || len(d.Body) != 0 || len(d.DeclarationDependencies) != 0 || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Language != (ids.ObjectAddress{}) {
+	if d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Foreign != nil || d.Implementation != nil || d.Aggregate != nil || d.AccessMethod != NoAccessMethod || d.PLHandler != NoPLHandler || d.BrinSupport != 0 || d.RangeConstructor != nil || d.Conversion.Name() != "" || len(d.Body) != 0 || len(d.DeclarationDependencies) != 0 || d.Dictionary != (ids.ObjectAddress{}) || d.Language != (ids.ObjectAddress{}) {
 		return invalid()
 	}
 	return nil
 }
 
 func ValidateSnowballTemplate(v Read, d *TSTemplate) error {
-	if d == nil || !d.snowball || d.Implementation != nil || d.Extension != (ids.ObjectAddress{}) {
+	if d == nil || !d.snowball || d.Implementation != nil {
 		return fmt.Errorf("stuntgres: invalid Snowball template authority")
 	}
 	for _, helper := range []struct {

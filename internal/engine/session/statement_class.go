@@ -230,7 +230,7 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "CREATE EXTENSION"
 	case *parser.DropExtension:
 		return "DROP EXTENSION"
-	case *parser.AlterExtensionUpdate:
+	case *parser.AlterExtensionUpdate, *parser.AlterExtension:
 		return "ALTER EXTENSION"
 	case *parser.CreateSchema:
 		return "CREATE SCHEMA"

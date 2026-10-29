@@ -52,12 +52,5 @@ func NamedObjectVisible(view catalog.Read, path []ids.ObjectAddress, d catalog.D
 
 // NamedObjectVisibleAt uses the same exact-name/signature selection over staged definitions.
 func NamedObjectVisibleAt(view catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, d catalog.Descriptor) bool {
-	for _, namespace := range path {
-		key := catalog.DescriptorNameKey(d)
-		key.Namespace = namespace
-		if found := catalog.DefinitionLookupAt(view, reader, key); found != (ids.ObjectAddress{}) {
-			return found == d.Address()
-		}
-	}
-	return false
+	return catalog.NamedObjectVisibleAt(view, reader, path, d)
 }

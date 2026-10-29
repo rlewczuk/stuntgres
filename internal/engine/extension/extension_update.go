@@ -69,10 +69,14 @@ func StageUpdate(host Host, auth ddl.Authority, view access.View, s *parser.Alte
 		owner = host.BootstrapSuperuser()
 	}
 	ext := *old
-	// The selected stock transition creates one new member. Reserve that slot
-	// while detaching, so the typed action needs no second slice allocation.
-	ext.Members = make([]ids.ObjectAddress, len(old.Members), len(old.Members)+1)
-	copy(ext.Members, old.Members)
+	if old.Installation == nil {
+		return nil, fmt.Errorf("stuntgres: missing extension installation recipe")
+	}
+	// Scripts address their released declarations, never the mutable member
+	// bag. Preserve SQL membership separately and add only genuinely new script
+	// objects; detached old declarations are not silently reclaimed.
+	ext.Members = make([]ids.ObjectAddress, len(old.Installation.Members), len(old.Installation.Members)+1)
+	copy(ext.Members, old.Installation.Members)
 	ext.ObjectRevision, err = host.Revision()
 	if err != nil {
 		return nil, err
@@ -82,6 +86,27 @@ func StageUpdate(host Host, auth ddl.Authority, view access.View, s *parser.Alte
 		return nil, err
 	}
 	if err := StagePath(host.Context(), stage, implementation, &ext, owner, path); err != nil {
+		return nil, err
+	}
+	recipe := ext.Members
+	ext.Members = make([]ids.ObjectAddress, len(old.Members), len(old.Members)+len(recipe)-len(old.Installation.Members))
+	copy(ext.Members, old.Members)
+	for _, a := range recipe {
+		found := false
+		for _, previous := range old.Installation.Members {
+			if a == previous {
+				found = true
+				break
+			}
+		}
+		if !found {
+			ext.Members = append(ext.Members, a)
+		}
+	}
+	if err := SealInstallation(stage, &ext, recipe); err != nil {
+		return nil, err
+	}
+	if err := ValidateCurrentInstallation(stage.CurrentRead(), &ext, implementation); err != nil {
 		return nil, err
 	}
 	return stage, nil

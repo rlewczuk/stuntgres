@@ -12,6 +12,7 @@ package parser
  configurationOptions []ConfigurationOption
  configurationOption ConfigurationOption
  alterConfiguration *AlterConfiguration
+ extensionMember ExtensionMemberTarget
  statements []Statement
  rule *CreateRule
  trigger *CreateTrigger
@@ -677,6 +678,8 @@ package parser
 %type <extensionOptions> extension_options extension_option_list extension_update_options
 %type <extensionOption> extension_option extension_update_option
 %type <tok> extension_version
+%type <extensionMember> extension_member_target
+%type <tok> extension_search_kind extension_invalid_kind
 %type <enumLabels> enum_labels enum_label_list
 %type <columns> composite_members composite_member_list
 %type <col> composite_member
@@ -4097,12 +4100,46 @@ extension_option_list: /* empty */ { $$=nil } | extension_option_list extension_
 extension_option: SCHEMA name { $$=ExtensionOption{Name:"schema",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | VERSION extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
 extension_version: name | STRING ;
-/* Keep excluded actions explicit: the UPDATE prefix now bypasses the generic
- * ALTER guard, but SET SCHEMA and member ADD/DROP remain command boundaries. */
 alter_extension_update: ALTER EXTENSION name UPDATE extension_update_options { $$=&AlterExtensionUpdate{Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$5,Pos:$1.pos} }
- | ALTER EXTENSION name SET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
- | ALTER EXTENSION name ADD {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
- | ALTER EXTENSION name DROP {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1} ;
+ | ALTER EXTENSION name SET SCHEMA name {$$=&AlterExtension{Name:Identifier{Text:$3.text,Pos:$3.pos},Action:"schema",Schema:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER EXTENSION name ADD extension_member_target {$$=&AlterExtension{Name:Identifier{Text:$3.text,Pos:$3.pos},Action:"add",Member:$5,Pos:$1.pos}}
+ | ALTER EXTENSION name DROP extension_member_target {$$=&AlterExtension{Name:Identifier{Text:$3.text,Pos:$3.pos},Action:"drop",Member:$5,Pos:$1.pos}} ;
+extension_member_target: grant_routine_kind grant_routine {$$=ExtensionMemberTarget{Kind:$1.text,Routine:$2}}
+ | AGGREGATE aggregate_utility_target {$$=ExtensionMemberTarget{Kind:"aggregate",Routine:$2}}
+ | TYPE declared_type {$$=ExtensionMemberTarget{Kind:"type",Type:standaloneType($2)}}
+ | DOMAIN declared_type {$$=ExtensionMemberTarget{Kind:"domain",Type:standaloneType($2)}}
+ | TABLE relation_name {$$=ExtensionMemberTarget{Kind:"table",Name:$2}}
+ | FOREIGN TABLE relation_name {$$=ExtensionMemberTarget{Kind:"foreign table",Name:$3}}
+ | VIEW relation_name {$$=ExtensionMemberTarget{Kind:"view",Name:$2}}
+ | MATERIALIZED VIEW relation_name {$$=ExtensionMemberTarget{Kind:"materialized view",Name:$3}}
+ | SEQUENCE relation_name {$$=ExtensionMemberTarget{Kind:"sequence",Name:$2}}
+ | OPERATOR operator_signature {$$=ExtensionMemberTarget{Kind:"operator",Operator:*$2}}
+ | OPERATOR class_word relation_name USING name {$$=ExtensionMemberTarget{Kind:"operator class",Name:$3,Method:Identifier{Text:$5.text,Pos:$5.pos}}}
+ | OPERATOR family_word relation_name USING name {$$=ExtensionMemberTarget{Kind:"operator family",Name:$3,Method:Identifier{Text:$5.text,Pos:$5.pos}}}
+ | TEXT SEARCH extension_search_kind relation_name {$$=ExtensionMemberTarget{Kind:"text search "+$3.text,Name:$4}}
+ | COLLATION relation_name {$$=ExtensionMemberTarget{Kind:"collation",Name:$2}}
+ | CONVERSION relation_name {$$=ExtensionMemberTarget{Kind:"conversion",Name:$2}}
+ | SCHEMA name {$$=ExtensionMemberTarget{Kind:"schema",Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}}}}
+ | LANGUAGE name {$$=ExtensionMemberTarget{Kind:"language",Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}}}}
+ | LANGUAGE_PROCEDURAL LANGUAGE name {$$=ExtensionMemberTarget{Kind:"language",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}}}}
+ | ACCESS method_word name {$$=ExtensionMemberTarget{Kind:"access method",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}}}}
+ | EVENT TRIGGER name {$$=ExtensionMemberTarget{Kind:"event trigger",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}}}}
+ | FOREIGN data_word wrapper_word name {$$=ExtensionMemberTarget{Kind:"foreign-data wrapper",Name:ObjectName{Parts:[]Identifier{{Text:$4.text,Pos:$4.pos}}}}}
+ | FDW_SERVER name {$$=ExtensionMemberTarget{Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}}}}
+ | CAST '(' declared_type AS declared_type ')' {$$=ExtensionMemberTarget{Kind:"cast",Type:standaloneType($3),TargetType:standaloneType($5)}}
+ | DATABASE name {$$=ExtensionMemberTarget{Kind:"invalid"}}
+ | EXTENSION name {$$=ExtensionMemberTarget{Kind:"invalid"}}
+ | INDEX relation_name {$$=ExtensionMemberTarget{Kind:"invalid"}}
+ | ROLE name {$$=ExtensionMemberTarget{Kind:"invalid"}}
+ | TABLESPACE name {$$=ExtensionMemberTarget{Kind:"invalid"}}
+ | extension_invalid_kind relation_name {$$=ExtensionMemberTarget{Kind:"invalid"}} ;
+extension_search_kind: KW_U {if $1.text!="dictionary"{sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1};$$=$1}
+ | TS_CONFIGURATION {$$=$1}
+ | TS_PARSER {$$=$1}
+ | TS_TEMPLATE {$$=$1} ;
+extension_invalid_kind: STATISTICS {$$=$1}
+ | PUBLICATION {$$=$1}
+ | SUBSCRIPTION {$$=$1} ;
 extension_update_options: /* empty */ { $$=nil } | extension_update_options extension_update_option { $$=append($1,$2) } ;
 extension_update_option: TO extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
 alter_owner: ALTER TYPE relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"type",Name:$3,Target:$6,Pos:$1.pos} }

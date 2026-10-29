@@ -188,8 +188,12 @@ func StageDropTemplate(h DictionaryHost, auth ddl.Authority, s *parser.DropTempl
 				return err
 			}
 		}
-		if d.Seeded() {
-			return dictionaryError("2BP01", "cannot drop text search template "+catalog.ObjectNameText(name)+" because it is required by the database system")
+		if d.Pinned() {
+			object, err := h.DependencyObject(auth, d.Address())
+			if err != nil {
+				return err
+			}
+			return dictionaryError("2BP01", "cannot drop "+object+" because it is required by the database system")
 		}
 		if d.Extension != (ids.ObjectAddress{}) {
 			object, err := h.DependencyObject(auth, d.Address())

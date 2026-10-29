@@ -41,7 +41,7 @@ func validateHstoreArrayDeclaration(view catalog.Read, original *catalog.Procedu
 	if current.Implementation != extension.StockHstore || symbol != want {
 		return invalid()
 	}
-	installation, ok := view.Extension(current.Extension)
+	installation, ok := catalog.OriginInstallation(current)
 	if !ok || len(installation.Members) != extension.HstoreMemberCount || installation.Members[call.Member] != current.Address() {
 		return invalid()
 	}

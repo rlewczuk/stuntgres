@@ -40,11 +40,9 @@ func SelectExactRoutine(view catalog.Read, path analyze.NamespaceSelection, name
 			return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, 1
 		}
 		for _, owner := range view.HelperOwners() {
-			if owner.Namespace() == namespace {
-				for _, helper := range owner.Aggregate.Helpers {
-					if helper.Name == name && helper.Signature == signature {
-						return helper, 1
-					}
+			for _, helper := range owner.Aggregate.Helpers {
+				if helper.Namespace == namespace.ObjectID && helper.Name == name && helper.Signature == signature {
+					return helper, 1
 				}
 			}
 		}
@@ -89,12 +87,12 @@ func SelectRoutine(view catalog.Read, path analyze.NamespaceSelection, name stri
 				if p.Name() == name && accept(catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}) {
 					return selected, count
 				}
-				if p.Aggregate != nil && p.Implementation != nil {
-					for _, helper := range p.Aggregate.Helpers {
-						if helper.Name == name && accept(helper) {
-							return selected, count
-						}
-					}
+			}
+		}
+		for _, owner := range view.HelperOwners() {
+			for _, helper := range owner.Aggregate.Helpers {
+				if helper.Namespace == namespace.ObjectID && helper.Name == name && accept(helper) {
+					return selected, count
 				}
 			}
 		}

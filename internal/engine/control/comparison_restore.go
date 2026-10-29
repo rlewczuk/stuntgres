@@ -150,21 +150,36 @@ func (c *ComparisonRestore) Before(index int, stmt parser.Statement, current cat
 			if c.state != comparisonOpen || !setting || set.Name.Text != "search_path" || set.Local || set.Default || set.Interval != nil || len(set.Values) != 2 || set.Values[0] != "pg_catalog" {
 				return false, InvalidComparisonContext()
 			}
-			var installation *catalog.Extension
-			for _, name := range []string{"cube", "hstore", "ltree"} {
-				candidate, exists := current.Extension(current.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
-				if !exists || current.Owner() == nil { continue }
-				provider := current.Owner().Extensions[name]
-				if name == "cube" && provider != extension.StockCube || name == "hstore" && provider != extension.StockHstore || name=="ltree" && provider!=extension.StockLtree { continue }
-				ns, exists := current.Namespace(candidate.TargetNamespace)
-				if !exists || ns.Name() != marker.Namespace { continue }
-				if err := provider.ValidateExtension(current, candidate); err != nil { return false, err }
-				installation = candidate
-				break
+			ns, exists := current.Namespace(current.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: marker.Namespace}))
+			if !exists || ns.Temporary != (ids.SessionToken{}) || ns.Name() == "$user" || ns.Name() == "pg_temp" || set.Values[1] != ns.Name() && set.Values[1] != catalog.QuoteIdentifier(ns.Name()) {
+				return false, InvalidComparisonContext()
 			}
-			if installation == nil { return false, InvalidComparisonContext() }
-			ns, exists := current.Namespace(installation.TargetNamespace)
-			if !exists || ns.Temporary != (ids.SessionToken{}) || ns.Name() == "$user" || ns.Name() == "pg_temp" || ns.Name() != marker.Namespace || set.Values[1] != ns.Name() && set.Values[1] != catalog.QuoteIdentifier(ns.Name()) {
+			authenticated := false
+			for _, descriptor := range current.Descriptors() {
+				operator, ok := descriptor.(*catalog.Operator)
+				if !ok || operator.Namespace() != ns.Address() {
+					continue
+				}
+				procedure, ok := current.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: operator.Function})
+				if !ok || procedure.Implementation != extension.StockCube && procedure.Implementation != extension.StockHstore && procedure.Implementation != extension.StockLtree {
+					continue
+				}
+				symbol, err := extension.ProcedureSymbol(current, procedure)
+				if err != nil {
+					return false, err
+				}
+				if procedure.Implementation == extension.StockCube && extension.CubeComparisonName(symbol) || procedure.Implementation == extension.StockHstore && extension.HstoreComparisonName(symbol) || procedure.Implementation == extension.StockLtree && extension.LtreeComparisonName(symbol) {
+					// The binding coordinate belongs to the operator. Its
+					// independently movable callee is declaration authority,
+					// never a substitute for an operator in this namespace.
+					if err := (extension.CatalogProvider{Class: ids.OperatorClassID}).Validate(current, operator); err != nil {
+						return false, err
+					}
+					authenticated = true
+					break
+				}
+			}
+			if !authenticated {
 				return false, InvalidComparisonContext()
 			}
 			c.namespace = ns.Address()

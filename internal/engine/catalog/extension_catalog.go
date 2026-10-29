@@ -29,7 +29,8 @@ type Extension struct {
 	ObjectName, Version string
 	TargetNamespace     ids.ObjectAddress
 	Owner               authorization.PrincipalRef
-	Members             []ids.ObjectAddress // immutable after detached staging
+	Installation        *Installation
+	Members             []ids.ObjectAddress // current SQL membership; immutable after publication
 }
 
 func (d *Extension) Address() ids.ObjectAddress { return d.ObjectAddress }
@@ -55,6 +56,7 @@ type InstalledRoutineDeclaration struct {
 
 type Procedure struct {
 	ObjectAddress, ObjectNamespace, Extension ids.ObjectAddress
+	Origin                                    *InstalledOrigin
 	ObjectRevision                            ids.DefinitionRevision
 	ObjectName                                string
 	Signature                                 ProcedureSignature
@@ -111,6 +113,7 @@ func (*Procedure) Kind() ids.ObjectKind { return ids.ProcedureObject }
 
 type TSTemplate struct {
 	ObjectAddress, ObjectNamespace, Extension, Init, Lexize ids.ObjectAddress
+	Origin                                                  *InstalledOrigin
 	ObjectRevision                                          ids.DefinitionRevision
 	ObjectName                                              string
 	Implementation                                          ExtensionImplementation
@@ -143,6 +146,7 @@ type DictionaryRuntime interface {
 
 type TSDictionary struct {
 	ObjectAddress, ObjectNamespace, Extension, Template ids.ObjectAddress
+	Origin                                              *InstalledOrigin
 	ObjectRevision                                      ids.DefinitionRevision
 	ObjectName                                          string
 	Owner                                               authorization.PrincipalRef
@@ -192,29 +196,70 @@ func ExtensionMembership(d Descriptor) ids.ObjectAddress {
 		return d.Extension
 	case *Operator:
 		return d.Extension
+	case *TSParser:
+		return d.Extension
 	case *TSTemplate:
 		return d.Extension
 	case *TSDictionary:
+		return d.Extension
+	case *TSConfiguration:
 		return d.Extension
 	case *OperatorClass:
 		return d.Extension
 	case *OperatorFamily:
 		return d.Extension
+	case *Namespace:
+		return d.Extension
+	case *Relation:
+		return d.Extension
+	case *Collation:
+		return d.Extension
+	case *Conversion:
+		return d.Extension
+	case *Language:
+		return d.Extension
+	case *AccessMethod:
+		return d.Extension
+	case *EventTrigger:
+		return d.Extension
 	case *Cast:
 		return d.Extension
+	case *ForeignObject:
+		if d.Address().ClassID == ids.ForeignWrapperClassID || d.Address().ClassID == ids.ForeignServerClassID {
+			return d.Extension
+		}
 	}
 	return ids.ObjectAddress{}
 }
 
 // ValidateExtensionMembership checks the reciprocal direct-member edge.
 func ValidateExtensionMembership(view Read, d Descriptor) error {
+	if ext, ok := d.(*Extension); ok {
+		seen := make(map[ids.ObjectAddress]bool, len(ext.Members))
+		for _, address := range ext.Members {
+			if seen[address] {
+				return fmt.Errorf("stuntgres: duplicate extension member")
+			}
+			seen[address] = true
+			member := view.Get(address)
+			if member == nil || ExtensionMembership(member) != ext.Address() {
+				return fmt.Errorf("stuntgres: invalid reciprocal extension member")
+			}
+		}
+		for address, member := range view.Descriptors() {
+			if ExtensionMembership(member) == ext.Address() && !seen[address] {
+				return fmt.Errorf("stuntgres: missing reciprocal extension membership")
+			}
+		}
+		return nil
+	}
 	address := ExtensionMembership(d)
 	if address == (ids.ObjectAddress{}) {
 		return nil
 	}
 	ext, ok := view.Extension(address)
-	if !ok || d.Address().ClassID != ids.TSDictionaryClassID && d.Address().ClassID != ids.CastClassID && ext.TargetNamespace != d.Namespace() {
-		return fmt.Errorf("stuntgres: invalid extension member placement")
+	if !ok {
+		return fmt.Errorf("stuntgres: missing extension member owner")
 	}
 	for _, member := range ext.Members {
 		if member == d.Address() {

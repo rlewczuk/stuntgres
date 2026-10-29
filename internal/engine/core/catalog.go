@@ -460,6 +460,9 @@ func (e *Engine) validateCatalogDescriptor(s *CatalogStage, read catalog.Read, d
 	if p == nil {
 		return fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
 	}
+	if err := catalog.ValidateExtensionMembership(read, d); err != nil {
+		return err
+	}
 	if err := p.Validate(read, d); err != nil {
 		return err
 	}
@@ -980,6 +983,9 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 		p := e.Catalog.Provider(d.Address().ClassID)
 		if p == nil {
 			return ChangeSet{}, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
+		}
+		if err := catalog.ValidateExtensionMembership(replacement, d); err != nil {
+			return ChangeSet{}, err
 		}
 		if err := catalog.Validate(p, replacement, d); err != nil {
 			return ChangeSet{}, err

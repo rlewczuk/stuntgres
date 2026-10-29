@@ -143,7 +143,7 @@ func PlanOwned(view access.View, stmt parser.Statement, describe func(ids.Object
 			extension := catalog.ExtensionMembership(view.Catalog.Get(a))
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
 				d := view.Catalog.MustExtension(extension)
-				return OwnedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + describe(a) + " because extension " + catalog.DependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + catalog.DependencyIdentifier(d.Name()) + " instead."}
+				return OwnedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + describe(a) + " because extension " + d.Name() + " requires it", Hint: "You can drop extension " + d.Name() + " instead."}
 			}
 		}
 		roots = extension.RemovalRoots(view.Catalog, roots)

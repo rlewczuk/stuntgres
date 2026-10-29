@@ -17,6 +17,9 @@ type InstalledTypeRole struct {
 // manifest, not mutable names. Generated companions follow their primary type
 // during SQL replay; MemberTypeRole also identifies direct-member companions.
 func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole, error) {
+	if ext == nil || ext.Installation == nil {
+		return nil, fmt.Errorf("stuntgres: missing installed type recipe")
+	}
 	name := ""
 	var err error
 	switch ext.Name() {
@@ -27,7 +30,11 @@ func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole
 		roles := make([]InstalledTypeRole, 0, 3)
 		for n := 2; n <= 4; n++ {
 			slot := tablefuncCrosstabStart + 1 + 2*(n-2)
-			roles = append(roles, InstalledTypeRole{tablefuncTypeRole(slot), v.MustType(ext.Members[slot])})
+			typ, ok := v.Type(ext.Installation.Members[slot])
+			if !ok || !catalog.SameInstallation(typ, ext.Installation) {
+				return nil, fmt.Errorf("stuntgres: missing installed type role")
+			}
+			roles = append(roles, InstalledTypeRole{tablefuncTypeRole(slot), typ})
 		}
 		return roles, nil
 	case "cube":
@@ -45,7 +52,11 @@ func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole
 		}
 		roles := make([]InstalledTypeRole, len(ltreeRecipes))
 		for i, recipe := range ltreeRecipes {
-			roles[i] = InstalledTypeRole{recipe.name, v.MustType(ext.Members[recipe.slot])}
+			t, ok := v.Type(ext.Installation.Members[recipe.slot])
+			if !ok {
+				return nil, fmt.Errorf("stuntgres: missing installed type role")
+			}
+			roles[i] = InstalledTypeRole{recipe.name, t}
 		}
 		return roles, nil
 	case "hstore":
@@ -60,7 +71,11 @@ func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole
 		}
 		roles := make([]InstalledTypeRole, len(isnRecipes))
 		for i, recipe := range isnRecipes {
-			roles[i] = InstalledTypeRole{recipe.name, v.MustType(ext.Members[recipe.slot])}
+			t, ok := v.Type(ext.Installation.Members[recipe.slot])
+			if !ok {
+				return nil, fmt.Errorf("stuntgres: missing installed type role")
+			}
+			roles[i] = InstalledTypeRole{recipe.name, t}
 		}
 		return roles, nil
 	case "earthdistance":
@@ -75,8 +90,8 @@ func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole
 	if err != nil {
 		return nil, err
 	}
-	t, ok := v.Type(ext.Members[0])
-	if !ok || t.Extension != ext.Address() {
+	t, ok := v.Type(ext.Installation.Members[0])
+	if !ok || !catalog.SameInstallation(t, ext.Installation) {
 		return nil, fmt.Errorf("stuntgres: missing installed type role")
 	}
 	return []InstalledTypeRole{{name, t}}, nil

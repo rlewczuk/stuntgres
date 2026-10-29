@@ -109,11 +109,36 @@ func rangeTypeCompanionAuthorization(t *testing.T) {
 				t.Fatal("dump omitted exact range ACL repair", script.String())
 			}
 			stream := script.String()
-			typeDefinition := strings.Index(stream, `CREATE TYPE "range_acl_source"."span"`)
+			typeDefinition := strings.Index(stream, "CREATE TYPE ")
+			finalIdentity := strings.Index(stream, `CREATE TYPE "range_acl_source"."span"`)
+			// A private creation recipe reaches the public identity only through
+			// the real ALTER TYPE epilogue, not through its scratch CREATE name.
+			for offset, rest := 0, stream; rest != ""; {
+				line, next, found := strings.Cut(rest, "\n")
+				if strings.HasPrefix(line, "ALTER TYPE ") && strings.HasSuffix(line, `."span" SET SCHEMA "range_acl_source";`) {
+					finalIdentity = offset
+				}
+				if !found {
+					break
+				}
+				offset += len(line) + 1
+				rest = next
+			}
+			// Ownership is the existing exact CREATE/immediate OWNER pair at
+			// creation coordinates. Privileged normalization then retains that
+			// owner while moving the genuine type to its final public identity.
+			ownerRepair := -1
+			if typeDefinition >= 0 {
+				declaration, rest, found := strings.Cut(stream[typeDefinition:], "\n")
+				creationName, _, rangeDefinition := strings.Cut(strings.TrimPrefix(declaration, "CREATE TYPE "), " AS RANGE ")
+				if found && rangeDefinition && strings.HasPrefix(rest, "ALTER TYPE "+creationName+" OWNER TO range_acl_creator;\n") {
+					ownerRepair = typeDefinition + len(declaration) + 1
+				}
+			}
 			readerTable := strings.Index(stream, `CREATE TABLE "range_acl_companion"."held"`)
 			firstRepair := strings.Index(stream, repair)
-			if typeDefinition < 0 || firstRepair <= typeDefinition || readerTable <= firstRepair {
-				t.Fatal("range authority must follow its declaration and precede nonowner consumers", stream)
+			if typeDefinition < 0 || finalIdentity < typeDefinition || ownerRepair <= typeDefinition || (finalIdentity != typeDefinition && ownerRepair >= finalIdentity) || firstRepair <= finalIdentity || firstRepair <= ownerRepair || readerTable <= firstRepair {
+				t.Fatal("range CREATE must immediately restore its owner before normalization, with final identity and ACL before nonowner consumers", stream)
 			}
 			for _, schema := range []string{"range_acl_source", "range_acl_companion"} {
 				namespaceRepair := "UPDATE pg_catalog.pg_namespace SET nspacl=E'{range_acl_creator=UC/range_acl_creator,range_acl_reader=UC/range_acl_creator,range_acl_outsider=UC/range_acl_creator}'::pg_catalog.aclitem[] WHERE nspname=E'" + schema + "'::pg_catalog.name;"

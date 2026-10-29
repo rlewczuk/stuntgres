@@ -157,7 +157,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			consumer := &catalog.Relation{ObjectAddress: address, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.Ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.Ref}}}}}
 			next.SetDescriptor(address, consumer)
 			next.SetEpoch(next.Epoch() + 1)
-			if err := stored.ReownExpressions(e.Catalog.Read(next), next, mapping, false, stored.NewRoutineRemap(e.Catalog.Read(next), mapping, nil, extension.ProcedureRemapper(mapping, nil, nil), false)); err != nil {
+			if err := stored.ReownExpressions(e.Catalog.Read(next), next, mapping, false, stored.NewRoutineRemap(e.Catalog.Read(next), mapping, nil, extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), nil, nil), false)); err != nil {
 				t.Fatal(err)
 			}
 			view := e.Catalog.Read(next)

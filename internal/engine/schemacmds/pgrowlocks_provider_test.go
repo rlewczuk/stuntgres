@@ -2,6 +2,7 @@ package schemacmds_test
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -103,8 +104,8 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 		t.Fatal("dump owner metadata", records, err)
 	}
 	record := records[0]
-	expectedMember := extension.MemberOwner{Slot: 0, Schema: "public", Kind: "procedure", Name: "pgrowlocks", Signature: "25", Owner: memberOwner.Name}
-	if record.Name != "pgrowlocks" || record.Schema != "public" || record.Version != "1.2" || record.Owner != "postgres" || len(record.Members) != 1 || record.Members[0] != expectedMember {
+	expectedMember := extension.MemberOwner{Declaration: new(0), Version: "1.2", Extension: "pgrowlocks", Schema: "public", Kind: "procedure", Name: "pgrowlocks", Signature: "pg_catalog.text", Owner: memberOwner.Name, ACL: &extension.MemberACL{Entries: []extension.MemberGrant{}}}
+	if record.Name != "pgrowlocks" || record.Schema != "public" || record.Version != "1.2" || record.Owner != "postgres" || !record.Present || len(record.Members) != 1 || !reflect.DeepEqual(record.Members[0], expectedMember) {
 		t.Fatal("dump owner metadata", record)
 	}
 	replay := e.RestoreStage()
@@ -148,7 +149,7 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 		}
 		return ref
 	}
-	mapper := stored.ViewQueryRemapper{Catalog: destination, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+	mapper := stored.ViewQueryRemapper{Catalog: destination, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), nil, nil)}
 	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "locks", Usage: n.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{n}}
 	remapped, err := mapper.Query(query)
 	if err != nil {

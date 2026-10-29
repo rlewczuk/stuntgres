@@ -23,11 +23,12 @@ func crosstabUnitInstalled(t *testing.T, e *core.Engine) {
 	t.Helper()
 	enginetest.Run(t, e, "CREATE EXTENSION tablefunc")
 }
-func crosstabUnitExpression(t *testing.T, e *core.Engine, name, source string) plan.InstalledTablefuncCrosstabExpr {
+func crosstabUnitExpression(t *testing.T, e *core.Engine, name, source string, extra ...parser.Expr) plan.InstalledTablefuncCrosstabExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: source}}}}
+	raw.Args = append(raw.Args, extra...)
 	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
@@ -73,6 +74,42 @@ func TestTablefuncCrosstabExpressionIdentity(t *testing.T) {
 	bad.Usage.Type = &result
 	if err := stored.ValidateInstalledTablefuncCrosstab(bad, e.CatalogRead()); err == nil {
 		t.Fatal("foreign named result generation accepted")
+	}
+	for _, mutate := range []func(*catalog.Procedure){
+		func(p *catalog.Procedure) { p.Strict = false },
+		func(p *catalog.Procedure) { p.Display.Source = "connectby_text" },
+		func(p *catalog.Procedure) { p.Owner = foreign.CatalogRead().MustProcedure(n.Ref.Address).Owner },
+		func(p *catalog.Procedure) {
+			installation := *p.Origin.Installation
+			origin := *p.Origin
+			origin.Installation = &installation
+			p.Origin = &origin
+		},
+	} {
+		proc := *n.Procedure
+		mutate(&proc)
+		bad := n
+		bad.Procedure, bad.RoutineReference = &proc, &proc
+		if err := stored.ValidateInstalledTablefuncCrosstab(bad, e.CatalogRead()); err == nil {
+			t.Fatal("forged crosstab declaration accepted")
+		}
+	}
+	for _, mutate := range []func(*plan.InstalledTablefuncCrosstabExpr){
+		func(call *plan.InstalledTablefuncCrosstabExpr) { call.Ref.Epoch++ },
+		func(call *plan.InstalledTablefuncCrosstabExpr) { call.RoutineReference = nil },
+		func(call *plan.InstalledTablefuncCrosstabExpr) {
+			info := expr.InfoOf(call.Args[0])
+			typ := *info.Usage.Type
+			info.Usage.Type = &typ
+			arg := plan.LiteralExpr{Info: info}
+			call.Args = []expr.Expr{arg}
+		},
+	} {
+		bad := n
+		mutate(&bad)
+		if err := stored.ValidateInstalledTablefuncCrosstab(bad, e.CatalogRead()); err == nil {
+			t.Fatal("forged crosstab carrier accepted")
+		}
 	}
 }
 
@@ -246,6 +283,84 @@ func TestTablefuncCrosstabControlExpressionIdentity(t *testing.T) {
 	retained := remapped.(plan.InstalledTablefuncCrosstabExpr)
 	if retained.Ref != next.Ref || retained.Procedure != next.Procedure || retained.RoutineReference != next.RoutineReference || retained.Usage != next.Usage {
 		t.Fatal("structural remap lost installed capture")
+	}
+}
+
+func TestTablefuncCrosstabMutableMembershipIdentity(t *testing.T) {
+	for _, tc := range []struct{ name, signature string }{
+		{"crosstab", "text"}, {"crosstab2", "text"}, {"crosstab3", "text"}, {"crosstab4", "text"}, {"crosstab", "text,integer"},
+	} {
+		t.Run(tc.name+"("+tc.signature+")", func(t *testing.T) {
+			name := tc.name
+			var extra []parser.Expr
+			if tc.signature != "text" {
+				extra = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 3}}}
+			}
+			e := engine.New()
+			crosstabUnitInstalled(t, e)
+			n := crosstabUnitExpression(t, e, name, "SELECT 'g'::text,0,'v'::text", extra...)
+			installation, ok := catalog.OriginInstallation(n.Procedure)
+			if !ok {
+				t.Fatal("missing genuine installation")
+			}
+			validate := func() {
+				t.Helper()
+				view := e.CatalogRead()
+				if err := stored.ValidateInstalledTablefuncCrosstab(n, view); err != nil {
+					t.Fatal("current membership invalidated retained capture", err)
+				}
+				current, ok := view.Procedure(n.Ref.Address)
+				if !ok || !exec.SameRoutineDeclaration(current, n.Procedure) || current.Origin.Installation != installation {
+					t.Fatal("membership changed released declaration authority")
+				}
+				mapped, changed, err := stored.MapExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, nil)
+				if err != nil || changed || !reflect.DeepEqual(mapped, n) {
+					t.Fatal("membership changed structural capture", changed, err)
+				}
+			}
+			// An ordinary member changes the mutable inventory, not the recipe.
+			enginetest.Run(t, e, "CREATE FUNCTION ct_member() RETURNS integer LANGUAGE SQL AS 'SELECT 1'")
+			enginetest.Run(t, e, "ALTER EXTENSION tablefunc ADD FUNCTION ct_member()")
+			validate()
+			enginetest.Run(t, e, "ALTER EXTENSION tablefunc DROP FUNCTION "+name+"("+tc.signature+")")
+			validate()
+			enginetest.Run(t, e, "ALTER FUNCTION "+name+"("+tc.signature+") RENAME TO ct_survivor")
+			validate()
+			enginetest.Run(t, e, "CREATE EXTENSION \"uuid-ossp\"")
+			enginetest.Run(t, e, "ALTER EXTENSION \"uuid-ossp\" ADD FUNCTION ct_survivor("+tc.signature+")")
+			validate()
+			if name != "crosstab" {
+				// The named result remains a real normal dependency after its
+				// extension membership (including the array) is detached.
+				enginetest.Run(t, e, "ALTER EXTENSION tablefunc DROP TYPE tablefunc_crosstab_"+name[len(name)-1:])
+			}
+			enginetest.Run(t, e, "DROP EXTENSION tablefunc")
+			validate()
+			rebound := crosstabUnitExpression(t, e, "ct_survivor", "SELECT 'g'::text,0,'v'::text", extra...)
+			if rebound.Ref.Address != n.Ref.Address || rebound.RoutineReference != rebound.Procedure || !exec.SameRoutineDeclaration(rebound.Procedure, n.Procedure) {
+				t.Fatal("renamed survivor lost synchronized routine authority")
+			}
+			if n.Procedure.Result == 2249 {
+				if !sqltype.SameRecordUsage(rebound.Usage, n.Usage) || !rebound.Usage.Type.IsDeferredRecord() || rebound.Usage.Type == n.Usage.Type {
+					t.Fatal("fresh anonymous-record bind lost its occurrence-owned logical result")
+				}
+			} else if rebound.Usage != n.Usage {
+				t.Fatal("renamed survivor replaced the genuine named result generation")
+			}
+			if err := stored.ValidateInstalledTablefuncCrosstab(rebound, e.CatalogRead()); err != nil {
+				t.Fatal(err)
+			}
+			reader, _ := blockingUnitOwner(t, e)
+			scope := pgrowlocksUnitScope(t, e, reader)
+			if err := scope.WriteHost().ValidateTablefuncCrosstab(n); err != nil {
+				t.Fatal("live host rejected genuine absent-origin capture", err)
+			}
+			bad := n
+			bad.Ref.Epoch++
+			if err := scope.WriteHost().ValidateTablefuncCrosstab(bad); err == nil {
+				t.Fatal("live host accepted stale epoch")
+			}
+		})
 	}
 }
 

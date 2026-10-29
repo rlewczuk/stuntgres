@@ -66,6 +66,18 @@ func TestDictionaryExtensionProviderValidation(t *testing.T) {
 	broken := *installation
 	broken.Members = append([]ids.ObjectAddress(nil), installation.Members...)
 	broken.Members[4], broken.Members[5] = broken.Members[5], broken.Members[4]
+	if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(view, &broken); err == nil {
+		t.Fatal("nonresident copied extension header admitted")
+	}
+	reordered := catalog.CloneState(state)
+	reordered.SetDescriptor(broken.Address(), &broken)
+	if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(view.WithState(reordered), &broken); err != nil {
+		t.Fatal("current member ordering became immutable provider authority", err)
+	}
+	forged := *installation.Installation
+	forged.Members = append([]ids.ObjectAddress(nil), forged.Members...)
+	forged.Members[4], forged.Members[5] = forged.Members[5], forged.Members[4]
+	broken.Installation = &forged
 	invalid := catalog.CloneState(state)
 	invalid.SetDescriptor(broken.Address(), &broken)
 	if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(view.WithState(invalid), &broken); err == nil {
@@ -79,26 +91,30 @@ func TestDictionaryExtensionProviderValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
-	if err != nil || !found || record.Members[4].Name != moved.Name() || record.Members[4].Schema != "pg_catalog" {
-		t.Fatal("mutable genuine dictionary owner slot did not decode", record, found, err)
+	if err != nil || !found {
+		t.Fatal("dictionary owner metadata did not decode", record, found, err)
+	}
+	member := extensionOwnerDeclarationIndex(t, record, dictionary.Origin.Declaration)
+	if record.Members[member].Name != moved.Name() || record.Members[member].Schema != "pg_catalog" {
+		t.Fatal("mutable genuine dictionary owner identity did not decode", record)
 	}
 	candidate := catalog.CloneState(state)
 	if changed, err := extension.ImportOwners(context.Background(), view.WithState(candidate), roles, []extension.OwnerRecord{record}); err != nil || changed {
-		t.Fatal("exact current dictionary slot did not import", changed, err)
+		t.Fatal("exact current dictionary identity did not import", changed, err)
 	}
-	for _, field := range []string{"name", "schema", "slot"} {
+	for _, field := range []string{"name", "schema", "declaration"} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 		switch field {
 		case "name":
-			bad.Members[4].Name = "unaccent"
+			bad.Members[member].Name = "unaccent"
 		case "schema":
-			bad.Members[4].Schema = "public"
-		case "slot":
-			bad.Members[4].Slot = 4
+			bad.Members[member].Schema = "public"
+		case "declaration":
+			bad.Members[member].Declaration = new(len(installation.Installation.Declarations))
 		}
 		if _, err := extension.ImportOwners(context.Background(), view.WithState(catalog.CloneState(state)), roles, []extension.OwnerRecord{bad}); err == nil {
-			t.Fatal("owner metadata bypassed current genuine slot", field)
+			t.Fatal("owner metadata bypassed current genuine identity", field)
 		}
 	}
 	if original.MustTSDictionary(dictionary.Address()) != dictionary || dictionary.Name() != "unaccent" || dictionary.Namespace() != installation.TargetNamespace {

@@ -72,7 +72,7 @@ func QueryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqlt
 					changed = changed || typ(step.Target) != step.Target
 				}
 			}
-			if earth, ok := expr.(plan.InstalledEarthExpr); ok && typ(earth.Plan.Earth()) != earth.Plan.Earth() {
+			if earth, ok := expr.(plan.InstalledEarthExpr); ok && earth.Plan.Earth() != nil && typ(earth.Plan.Earth()) != earth.Plan.Earth() {
 				changed = true
 			}
 			if child, ok := expr.(plan.SubqueryExpr); ok && QueryDescriptorsChanged(child.QueryPlan.Root, typ) {

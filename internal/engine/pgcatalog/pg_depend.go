@@ -58,6 +58,12 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			add(descriptor.Address(), membership, 'e')
 		}
 		switch d := descriptor.(type) {
+		case *catalog.Language:
+			if d.Procedural {
+				add(d.Address(), d.Call, 'n')
+				add(d.Address(), d.Inline, 'n')
+				add(d.Address(), d.Validator, 'n')
+			}
 		case *catalog.EventTrigger:
 			add(d.Address(), d.Function.Address, 'n')
 		case *catalog.AccessMethod:
@@ -125,43 +131,31 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				}
 			}
 			clear(procedureReferences)
-			catalog.VisitProcedureDeclarationDependencies(d, func(address ids.ObjectAddress) bool {
+			declaration := func(address ids.ObjectAddress) bool {
 				if _, exists := procedureReferences[address]; !exists {
 					procedureReferences[address] = struct{}{}
 					add(d.Address(), address, 'n')
 				}
 				return true
-			})
-			catalog.VisitProcedureCapturedDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+			}
+			catalog.VisitProcedureDeclarationDependencies(d, declaration)
+			catalog.VisitProcedureCapturedDefinitionDependencies(view, d, func(address ids.ObjectAddress) bool {
 				add(d.Address(), address, 'n')
 				return true
 			})
-			if runtime.TypeProviderProcedure(d) {
-				ext, ok := view.Extension(d.Extension)
-				if !ok || d.Implementation == nil {
+			if runtime.InstalledProcedure(d) {
+				if !d.Origin.Valid(d.Address()) || d.Implementation == nil || d.Origin.Installation.Implementation != d.Implementation {
 					return nil, fmt.Errorf("stuntgres: missing installed codec authority")
 				}
-				if err := d.Implementation.ValidateExtension(view, ext); err != nil {
-					return nil, err
-				}
-				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
+				declaration(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result})
 				for arguments := string(d.Signature); arguments != ""; {
 					argument, rest, _ := strings.Cut(arguments, ",")
 					id, err := strconv.ParseUint(argument, 10, 32)
 					if err != nil {
 						return nil, fmt.Errorf("stuntgres: invalid installed codec signature")
 					}
-					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}, 'n')
+					declaration(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 					arguments = rest
-				}
-			} else if d.Implementation != nil {
-				if ext, ok := view.Extension(d.Extension); ok && len(ext.Members) > 0 {
-					base, ok := view.Type(ext.Members[0])
-					left, right, pair := strings.Cut(string(d.Signature), ",")
-					id, err := strconv.ParseUint(left, 10, 32)
-					if ok && base.SQLType.IsCube() && pair && left == right && err == nil && ids.OID(id) == base.Address().ObjectID {
-						add(d.Address(), base.Address(), 'n')
-					}
 				}
 			}
 		case *catalog.TSTemplate:
@@ -193,6 +187,12 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 		case *catalog.Type:
 			if runtime.Pinned(view, d.Address()) {
 				continue
+			}
+			if err := VisitTypeProcedureDependencies(ctx, view, d, func(address ids.ObjectAddress) bool {
+				add(d.Address(), address, 'n')
+				return true
+			}); err != nil {
+				return nil, err
 			}
 			if d.SQLType.IsArray() && !d.SQLType.IsCatalogVector() {
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}, 'i')

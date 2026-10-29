@@ -179,6 +179,14 @@ func TestReferenceDictionaryExtensionControls(t *testing.T) {
 				if bytes.Count(emitted, []byte("CREATE EXTENSION \"unaccent\"")) != 1 || bytes.Contains(emitted, []byte("CREATE TEXT SEARCH DICTIONARY")) || installation < 0 || ownership <= installation || consumer <= ownership {
 					t.Fatal("member installation/owner/consumer ordering", string(emitted))
 				}
+				if mode == "seed_cycle" {
+					if !bytes.Contains(emitted, []byte(`CREATE EXTENSION "unaccent" WITH SCHEMA "pg_catalog"`)) ||
+						bytes.Contains(emitted, []byte(`CREATE SCHEMA "pg_catalog"`)) ||
+						bytes.Contains(emitted, []byte(`DROP SCHEMA "pg_catalog"`)) ||
+						bytes.Contains(emitted, []byte(`SET SCHEMA "pg_catalog"`)) {
+						t.Fatal("seed cycle must use genuine installation in the existing system namespace", string(emitted))
+					}
+				}
 				old, err := c.QueryContext(p.Ctx, "SELECT ts_lexize($1::regdictionary,'Hôtel') AS lexemes", qualified)
 				if err != nil {
 					t.Fatal(err)

@@ -10,7 +10,7 @@ func pgExtensionHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture
 	t.Helper()
 	for _, name := range []string{pgExtensionAbsent, "plpgsql", pgExtensionAbsent} {
 		want := [][]any{}
-		if b.PG && name == "plpgsql" {
+		if name == "plpgsql" {
 			want = [][]any{{oid, "plpgsql", int64(10), int64(11), false, "1.0", nil, nil}}
 		}
 		s := fixture.Select(pgExtensionProbe, fixture.PGExtensionColumns, pgExtensionTypes, want, name)

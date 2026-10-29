@@ -31,10 +31,11 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   `StageAlterEnumLabelLocked` and `StageAlterDomainLocked` stage one ALTER TYPE
   ... VALUE or ALTER DOMAIN action and return an edit record; the executors stay
   in the engine.
-  Range creation stages both type/array identities and five genuine generated
-  constructor declarations atomically. The constructors live in the range's
-  namespace even when its companion type lives elsewhere. Their finite native
-  declaration is type-owned, not a builtin alias or SQL-text body.
+  Range creation stages both type/array identities and five genuine bootstrap-owned
+  generated constructors in the range's creation namespace, even when its
+  companion type starts elsewhere. Their finite Type/Form declaration is
+  type-owned, not a builtin alias or SQL-text body; later type identity changes
+  refresh captured generations without renaming or relocating those routines.
   `StageHost.RangeClass` selects genuine catalog support in the engine;
   typedef does not import routine binding.
 - **ALTER resolvers** (`alter_resolve.go`): `ResolveAlterEnumLocked` and
@@ -114,6 +115,19 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   pure functions of the captured view; declaration, DEFAULT and CHECK text comes
   from the caller's `dump.Presenter`, so the package never names the stored-SQL
   renderer or `regobj`.
+  Mixed creation callbacks supply explicit private root/multirange coordinates
+  without rebuilding executable type generations or changing the captured
+  prerequisite view. After-create SQL remains part of the same declaration,
+  before its existing ownership transfer and before the next graph consumer.
+- **Associated-array replay** (`row_type.go`, `domain_replay_names.go`):
+  `ChooseAssociatedArrayName` and its candidate helper are the sole forward
+  naming rule, including UTF-8 clipping and numeric suffixes. `DomainReplayNames`
+  models actual creation, association, relocation and retirement occupancy;
+  captured final spelling is not proof that a name already exists in replay.
+  Private range creation and ordinary domain/relation completion share that same
+  model. Exact names are realized through real parent ALTER/domain displacement
+  and ordinary scratch cleanup, never protected direct array ALTER or imported
+  descriptor mutation.
 - **Slot structs**: `DomainAlterStage` and `TypedStage` (the type state of a
   `CatalogStage`; `TypedFieldCheckOwner` says whether its admitted typed-table
   closure owns a table's inherited CHECKs), `DomainJournal` and `EnumJournal` (`journal_slots.go`, the type
@@ -136,6 +150,12 @@ protection. Namespace-switch restrictions and destination base-name collisions
 precede table-rowtype rejection; companion-name collisions follow it. A
 same-schema move still rejects a protected rowtype without mutation. Array
 ownership diagnostics identify the actual element.
+`StageMoveTypeNamespace` reuses the type identity owner for extension relocation:
+direct member ownership is checked before automatic-array/rowtype ignore, while
+internal companion movement adds no public ALTER gates. A range move changes only
+the requested type and its array; reciprocal multirange generation rebuilding
+does not move that multirange or the generated constructor public identities.
+No constructor acquires extension membership merely through its type dependency.
 Direct catalog publication tolerates database maintenance-horizon drift only
 when identity, revision, owner and exact ACL authority remain unchanged. It
 composes against the current catalog root to retain the newest horizon; epoch,
@@ -149,8 +169,9 @@ internal owner; that owner still faces its own protection. All explicit roots
 remain in the shared closure for batch diagnostics and idempotent retirement.
 RESTRICT reports genuine consumers; CASCADE prunes dependent columns and objects
 while retaining unrelated columns, holder rows and zero-column table cardinality.
-Installed membership does not prohibit identity ALTER, but
-direct DROP still requires the owning extension. Custom range/multirange families
+Current extension membership does not prohibit identity ALTER, but direct DROP
+of a current member still requires its owning extension. Detached installed
+objects retain genuine providers, not a hidden DROP restriction. Custom range/multirange families
 reuse supported subtype providers; they do not introduce a general user-defined
 base-type provider or change installed-array codec policy.
 

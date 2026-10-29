@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -24,6 +25,50 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// Codec order is not SQL membership or declaration authority. Units that test
+// released roles arrange their detached local copy by immutable declaration;
+// ordinary members remain present after those roles.
+func extensionOwnerRecipeOrder(record extension.OwnerRecord) extension.OwnerRecord {
+	record.Members = slices.Clone(record.Members)
+	slices.SortFunc(record.Members, func(a, b extension.MemberOwner) int {
+		if a.Declaration == nil {
+			if b.Declaration != nil {
+				return 1
+			}
+			return strings.Compare(a.Kind+"\x00"+a.Name+"\x00"+a.Signature, b.Kind+"\x00"+b.Name+"\x00"+b.Signature)
+		}
+		if b.Declaration == nil {
+			return -1
+		}
+		if version := strings.Compare(a.Version, b.Version); version != 0 {
+			return version
+		}
+		if *a.Declaration < *b.Declaration {
+			return -1
+		}
+		if *a.Declaration > *b.Declaration {
+			return 1
+		}
+		return 0
+	})
+	return record
+}
+
+// Structural decoding and catalog/role admission are separate v3 boundaries;
+// either must reject corrupt authority before any candidate is published.
+func extensionOwnerAdmissionError(e *core.Engine, comment string) error {
+	record, found, err := extension.DecodeOwners(comment)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("owner metadata marker not recognized")
+	}
+	view := e.CatalogRead()
+	_, err = extension.ImportOwners(context.Background(), view.WithState(catalog.CloneState(view.State())), e.Roles(), []extension.OwnerRecord{record})
+	return err
+}
+
 func TestPgcryptoOwnerMetadata(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	metadata, err := extension.OwnerMetadata(e.CatalogRead(), e.Roles(), ext)
@@ -41,25 +86,31 @@ func TestPgcryptoOwnerMetadata(t *testing.T) {
 			return err
 		},
 	})
-	expected := extension.OwnerRecord{Name: "pgcrypto", Schema: "public", Version: "1.4", Owner: "postgres", Members: []extension.MemberOwner{
-		{Kind: "procedure", Name: "digest", Signature: "25,25", Owner: "postgres"},
-		{Kind: "procedure", Name: "digest", Signature: "17,25", Owner: "postgres"},
-		{Kind: "procedure", Name: "hmac", Signature: "25,25,25", Owner: "postgres"},
-		{Kind: "procedure", Name: "hmac", Signature: "17,17,25", Owner: "postgres"},
-		{Kind: "procedure", Name: "crypt", Signature: "25,25", Owner: "postgres"},
-		{Kind: "procedure", Name: "gen_salt", Signature: "25", Owner: "postgres"},
-		{Kind: "procedure", Name: "gen_salt", Signature: "25,23", Owner: "postgres"},
-		{Kind: "procedure", Name: "encrypt", Signature: "17,17,25", Owner: "postgres"},
-		{Kind: "procedure", Name: "decrypt", Signature: "17,17,25", Owner: "postgres"},
-		{Kind: "procedure", Name: "encrypt_iv", Signature: "17,17,17,25", Owner: "postgres"},
-		{Kind: "procedure", Name: "decrypt_iv", Signature: "17,17,17,25", Owner: "postgres"},
-		{Kind: "procedure", Name: "gen_random_bytes", Signature: "23", Owner: "postgres"},
+	expected := extension.OwnerRecord{Name: "pgcrypto", Schema: "public", Version: "1.4", Owner: "postgres", Present: true, Members: []extension.MemberOwner{
+		{Kind: "procedure", Name: "digest", Signature: "pg_catalog.text, pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "digest", Signature: "pg_catalog.bytea, pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "hmac", Signature: "pg_catalog.text, pg_catalog.text, pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "hmac", Signature: "pg_catalog.bytea, pg_catalog.bytea, pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "crypt", Signature: "pg_catalog.text, pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "gen_salt", Signature: "pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "gen_salt", Signature: "pg_catalog.text, integer", Owner: "postgres"},
+		{Kind: "procedure", Name: "encrypt", Signature: "pg_catalog.bytea, pg_catalog.bytea, pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "decrypt", Signature: "pg_catalog.bytea, pg_catalog.bytea, pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "encrypt_iv", Signature: "pg_catalog.bytea, pg_catalog.bytea, pg_catalog.bytea, pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "decrypt_iv", Signature: "pg_catalog.bytea, pg_catalog.bytea, pg_catalog.bytea, pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "gen_random_bytes", Signature: "integer", Owner: "postgres"},
 		{Kind: "procedure", Name: "gen_random_uuid", Signature: "", Owner: "postgres"},
 		{Kind: "procedure", Name: "fips_mode", Signature: "", Owner: "postgres"},
 	}}
 	for slot := range expected.Members {
-		expected.Members[slot].Slot = slot
+		expected.Members[slot].Declaration = new(slot)
+		expected.Members[slot].Version = "1.4"
+		expected.Members[slot].Extension = "pgcrypto"
+		expected.Members[slot].ACL = &extension.MemberACL{Entries: []extension.MemberGrant{}}
 		expected.Members[slot].Schema = "public"
+	}
+	if len(records) == 1 {
+		records[0] = extensionOwnerRecipeOrder(records[0])
 	}
 	if err != nil || len(records) != 1 || !reflect.DeepEqual(records[0], expected) {
 		t.Fatal("owner metadata", records, err)
@@ -85,6 +136,7 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 		if err != nil || !found {
 			t.Fatal("valid manifest rejected", installed.ext.Name(), err)
 		}
+		record = extensionOwnerRecipeOrder(record)
 		for _, kind := range []string{"version", "graph_only", "missing", "extra", "duplicate", "name", "signature", "foreign_procedure", "foreign_dictionary", "foreign_type", "owner", "dm_in_base"} {
 			t.Run(record.Name+"/"+record.Version+"/"+kind, func(t *testing.T) {
 				bad := record
@@ -136,8 +188,8 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 					t.Fatal("owner marker not recognized")
 				}
 				if kind == "name" {
-					// Labels are mutable; only the installed slot can authorize
-					// that label after actual replay reconstructs it.
+					// Labels are mutable; immutable declaration and exact replayed
+					// identity are checked together by the controlled importer.
 					if decodeErr != nil {
 						t.Fatal("mutable label rejected by codec", decodeErr)
 					}
@@ -145,11 +197,8 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 						t.Fatal("unreplayed label accepted by import", bad)
 					}
 				} else if decodeErr == nil {
-					// A foreign provider spelling with an identical declaration
-					// is indistinguishable from a rename until slot import.
-					if kind != "foreign_procedure" {
-						t.Fatal("invalid manifest accepted", bad)
-					}
+					// A structurally valid symbolic identity/version is resolved
+					// against the reconstructed cohort before any publication.
 					if _, err := extension.ImportOwners(context.Background(), catalog.NewRead(installed.e.CatalogRead().Owner(), catalog.CloneState(installed.e.CatalogRead().State())), installed.e.Roles(), []extension.OwnerRecord{decoded}); err == nil {
 						t.Fatal("foreign label accepted by import", bad)
 					}
@@ -268,7 +317,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		ref.Epoch = next.Epoch()
 		return ref
 	}
-	mapper := &stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+	mapper := &stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), nil, nil)}
 	query, err := mapper.Nested(project)
 	if err != nil {
 		t.Fatal("relocated query", err)

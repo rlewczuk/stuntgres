@@ -113,3 +113,25 @@ func (r *DomainReplayNames) Relocate(id sqltype.ID, key ids.NameKey, moving bool
 func (r *DomainReplayNames) Occupied(key ids.NameKey) bool {
 	return r.occupied[key] != 0
 }
+
+// RetireIdentity models ordinary DROP of a type and its generated companion.
+// It changes only rendering occupancy, never a catalog or executable type.
+func (r *DomainReplayNames) RetireIdentity(id sqltype.ID) {
+	if key, ok := r.Names[id]; ok {
+		if r.occupied[key] == id {
+			delete(r.occupied, key)
+		}
+		delete(r.Names, id)
+	}
+	if array := r.Arrays[id]; array != 0 {
+		if key, ok := r.Names[array]; ok {
+			if r.occupied[key] == array {
+				delete(r.occupied, key)
+			}
+			delete(r.Names, array)
+		}
+		delete(r.elements, array)
+	}
+	delete(r.Arrays, id)
+	delete(r.elements, id)
+}

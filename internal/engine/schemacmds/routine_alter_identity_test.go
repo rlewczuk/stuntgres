@@ -41,6 +41,10 @@ func TestRoutineAlterDeclarationIdentity(t *testing.T) {
 	if !exec.SameRoutineDeclaration(&current, captured) {
 		t.Fatal("mutable labels/revision changed declaration identity")
 	}
+	current.Extension = ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 99001}
+	if !exec.SameRoutineDeclaration(&current, captured) {
+		t.Fatal("current membership changed immutable declaration identity")
+	}
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) { p.ObjectAddress.SubID = 1 },
 		func(p *catalog.Procedure) { p.ObjectAddress.ObjectID++ },
@@ -52,7 +56,7 @@ func TestRoutineAlterDeclarationIdentity(t *testing.T) {
 		func(p *catalog.Procedure) { p.Strict = !p.Strict },
 		func(p *catalog.Procedure) { p.Foreign = &catalog.ForeignProcedure{} },
 		func(p *catalog.Procedure) {
-			p.Extension = ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 99001}
+			p.Display.Source = "foreign_internal_symbol"
 		},
 	} {
 		forged := current

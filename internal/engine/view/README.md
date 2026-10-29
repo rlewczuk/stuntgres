@@ -180,11 +180,23 @@ imports `view`.
   NORMAL edges, including staged replacements; dictionary-to-template edges
   retain the same NORMAL provenance. Extension automatic membership does not
   erase those incoming dependencies or permit explicit member deletion.
+  Type-to-procedure NORMAL discovery uses pgcatalog's shared authentic
+  `TypeFacts` visitor, including dependent types' own I/O/support facts, so
+  detaching a codec or retiring its origin cannot erase the retained type's
+  ordinary dependency. Arrays retain separate INTERNAL element ownership.
+  The provider's `RetirementRead` supplies one coherent retained catalog root:
+  genuine staged/prepared replacements own evolved type generations, while
+  removed input descriptors remain available for facts. The visitor's exact
+  type-generation fence is unchanged. This facts projection never substitutes
+  for the original relation/index payload owners consumed by AUTO effects.
   Discovery admits each reached object's genuine bootstrap pin before ordinary
   RESTRICT reporting or CASCADE effects, using the current staged definition
   input and the shared pin authority. A pinned dependent cannot be retired even
   when its current dependency points to an unpinned user provider; rejection
   names the pinned object without ordinary dependency DETAIL or HINT.
+  Explicit-root pin admission also precedes the e-member restriction: default
+  parser3722 may acquire membership, but standalone DROP still reports that it
+  is required by the database system, including under CASCADE.
   One classifier retains exact-address NORMAL/reverse reachability before
   retirement or result admission, including repeated paths and explicitly
   selected roots. Address expansion is independent of effect membership:
@@ -206,6 +218,20 @@ imports `view`.
   INTERNAL member reversal does not grant AUTO permission back to an already
   reached owner. Named composite DROP diagnostics retain the named type rather
   than substituting its backing relation.
+  Procedural language dependents follow their actual call, inline and validator
+  handler NORMAL edges, matching `pg_depend` even after extension detachment.
+  Handler CASCADE therefore retires a dependent language through the ordinary
+  closure; it does not bypass language validation or rewrite surviving handlers.
+  A reached current extension member redirects its incoming dependency to the
+  reciprocal extension owner unless that owner is already retiring. Visiting
+  the extension discovers all actual e members; RESTRICT reports that owner
+  and CASCADE retires its complete closure. Detached objects have no such
+  redirection, and unrelated ordinary dependents retain their own edges.
+  Explicit member roots instead reject standalone DROP, including CASCADE,
+  through the same reciprocal ownership gate for tables, foreign tables,
+  views, materialized views, sequences and other represented classes. An
+  already-retiring extension (or an explicit containing-owner root) consumes
+  its members normally; column roots do not inherit whole-relation membership.
   Ordinary routine edges come from the shared catalog definition visitor, not
   the complete runtime capture manifest. Exact positive relation-attribute roots,
   procedure-only roots and domains use descending discovery/reverse postorder:

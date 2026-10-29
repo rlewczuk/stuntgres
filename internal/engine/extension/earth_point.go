@@ -76,14 +76,8 @@ func ValidateEarthPointCall(v catalog.Read, proc *catalog.Procedure, call functi
 	if v.State() == nil || proc == nil || EarthdistanceProviderOf(proc) != StockEarthdistance || v.Get(proc.Address()) != proc || call.RoutineReference != proc {
 		return InvalidProviderDescriptor()
 	}
-	ext, installed := v.Extension(proc.Extension)
-	if !installed || ext.Name() != "earthdistance" || ext.Version != "1.2" || len(ext.Members) != EarthMemberCount || ext.Members[EarthPointProcedureSlot] != proc.Address() || !currentManifest(v, ext) {
+	if symbol, err := ProcedureSymbol(v, proc); err != nil || symbol != "geo_distance" {
 		return InvalidProviderDescriptor()
-	}
-	// Whole domain/cube validation belongs to bind/import admission, not each
-	// scalar evaluation. The bounded point tail still proves current links.
-	if err := StockEarthdistance.validatePoint(v, ext); err != nil {
-		return err
 	}
 	point, ok := v.LookupType(sqltype.Point)
 	result, resultOK := v.LookupType(sqltype.Float8)

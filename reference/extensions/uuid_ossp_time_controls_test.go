@@ -90,7 +90,7 @@ func uuidOsspTimeControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture
 		dump + "\nINVALID SQL;",
 		strings.Replace(dump, "VERSION '1.1'", "VERSION 'missing'", 1),
 		strings.ReplaceAll(dump, "uuid_generate_v1mc", "missing_uuid_v1mc"),
-		strings.Replace(dump, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1),
+		strings.Replace(dump, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1),
 	} {
 		if bad == dump {
 			t.Fatal("malformed fixture did not alter dump")

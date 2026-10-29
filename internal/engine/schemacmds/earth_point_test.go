@@ -53,14 +53,14 @@ func TestEarthPointProvider(t *testing.T) {
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Result = 16 },
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Strict = false },
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Implementation = extension.StockCube },
-		func(p *catalog.Procedure, _ *catalog.Operator) { p.Extension = ids.ObjectAddress{} },
+		func(p *catalog.Procedure, _ *catalog.Operator) { p.Extension.ObjectID = 990001 },
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Owner = foreignOwner },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Owner = foreignOwner },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Function = ext.Members[2].ObjectID },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Commutator = 0 },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Right = 701 },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Result = 16 },
-		func(_ *catalog.Procedure, o *catalog.Operator) { o.Extension = ids.ObjectAddress{} },
+		func(_ *catalog.Procedure, o *catalog.Operator) { o.Extension.ObjectID = 990001 },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Restriction = 139 },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Join = 140 },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Negator = o.Address().ObjectID },
@@ -164,9 +164,10 @@ func TestEarthPointOwners(t *testing.T) {
 	if err != nil || !found {
 		t.Fatal("owner codec", err)
 	}
+	record = extensionOwnerRecipeOrder(record)
 	for slot, kind := range map[int]string{extension.EarthPointProcedureSlot: "procedure", extension.EarthPointOperatorSlot: "operator"} {
 		member := record.Members[slot]
-		if member.Kind != kind || member.Signature != "600,600" {
+		if member.Kind != kind || member.Signature != "pg_catalog.point, pg_catalog.point" {
 			t.Fatal("point owner signature", member)
 		}
 	}
@@ -183,13 +184,13 @@ func TestEarthPointOwners(t *testing.T) {
 		func(r *extension.OwnerRecord) { r.Members[extension.EarthPointOperatorSlot].Signature = "cube,cube" },
 		func(r *extension.OwnerRecord) { r.Members[extension.EarthPointOperatorSlot].Kind = "procedure" },
 		func(r *extension.OwnerRecord) {
-			r.Members[extension.EarthPointOperatorSlot].Slot = extension.EarthPointProcedureSlot
+			r.Members[extension.EarthPointOperatorSlot].Declaration = new(extension.EarthPointProcedureSlot)
 		},
 	} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 		mutate(&bad)
-		if _, _, err := extension.DecodeOwners(encode(bad)); err == nil {
+		if err := extensionOwnerAdmissionError(e, encode(bad)); err == nil {
 			t.Fatal("forged point owner record admitted")
 		}
 		candidate := catalog.CloneState(view.State())
@@ -273,7 +274,7 @@ func TestEarthPointExpression(t *testing.T) {
 		n, _ := after.LookupType(d.ID())
 		return n
 	}
-	mapperProc := extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil)
+	mapperProc := extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), replacementProcedurePolicyFixture(source, target), nil)
 	for _, nullable := range []bool{false, true} {
 		call := earthPointUnitCall(t, source, ext, nullable)
 		proc := call.Procedure

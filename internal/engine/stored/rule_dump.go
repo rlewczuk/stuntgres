@@ -645,7 +645,7 @@ func RuleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 				if bindingFailure != nil {
 					return
 				}
-				namespace, failure := ComparisonBindingNamespace(view, node)
+				namespace, failure := ComparisonBindingNamespace(view, node, nil)
 				if failure != nil {
 					bindingFailure = failure
 					return

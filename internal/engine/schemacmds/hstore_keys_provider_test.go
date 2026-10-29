@@ -27,7 +27,7 @@ func TestHstoreKeysProvider(t *testing.T) {
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
 	base := ext.Members[0].ObjectID
-	if len(ext.Members) != extension.HstoreMemberCount || extension.HstoreRecordConstructorSlot != 51 || extension.HstorePopulateRecordSlot != 52 || extension.HstorePopulateRecordOperatorSlot != 53 {
+	if len(ext.Members) != extension.HstoreMemberCount+1 || len(ext.Installation.Members) != extension.HstoreMemberCount || extension.HstoreRecordConstructorSlot != 51 || extension.HstorePopulateRecordSlot != 52 || extension.HstorePopulateRecordOperatorSlot != 53 {
 		t.Fatal("append-only member roles")
 	}
 	for _, tc := range []struct {

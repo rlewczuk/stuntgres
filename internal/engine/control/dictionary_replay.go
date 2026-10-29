@@ -3,7 +3,6 @@ package control
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 )
@@ -56,31 +55,6 @@ func (s *dumpScript) dictionaryProviderReplays() ([]providerReplay, error) {
 		}
 		if err := add(dictionary, providerKey{originalNS.Name(), dictionary.SeedName(), ""}, s.CatalogView.Owner().Principals.Principal(authorization.BootstrapPrincipalID)); err != nil {
 			return nil, err
-		}
-	}
-	for _, event := range s.eventOrder {
-		if event.Phase != dump.Declaration {
-			continue
-		}
-		ext, ok := s.CatalogView.Extension(ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: event.OID})
-		if !ok {
-			continue
-		}
-		for _, address := range ext.Members {
-			dictionary, ok := s.CatalogView.TSDictionary(address)
-			if !ok {
-				continue
-			}
-			if ext.Name() != "unaccent" {
-				return nil, extension.InvalidProviderDescriptor()
-			}
-			ns, ok := s.CatalogView.Namespace(ext.TargetNamespace)
-			if !ok {
-				return nil, extension.InvalidProviderDescriptor()
-			}
-			if err := add(dictionary, providerKey{ns.Name(), "unaccent", ""}, ext.Owner); err != nil {
-				return nil, err
-			}
 		}
 	}
 	return providers, nil

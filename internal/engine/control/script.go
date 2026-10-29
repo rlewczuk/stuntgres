@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
@@ -29,8 +30,6 @@ type dumpScript struct {
 	castWindows                 map[castConsumer][]castReplay
 	comparisonBindings          map[castConsumer]*dump.DefinitionBinding
 	deferredDomainChecks        map[ids.OID]map[string]bool
-	extensionTypeAfter          ids.OID
-	extensionTypeSQL            string
 	providerEventStatements     map[ids.OID][]string
 
 	policyGroups, ruleGroups, securityGroups  []dump.Group
@@ -54,6 +53,14 @@ type dumpScript struct {
 	lateForeignCasts                          map[ids.OID]bool
 	providerStatements                        []string
 	extensionMetadata                         map[ids.OID]string
+	installationStatements                    []string
+	installationTypeReplay                    *installationTypeReplay
+	typeReplayEpilogues                       map[ids.OID]string
+	rangeCreations                            map[ids.OID]*rangeReplayCreation
+	membershipStatements                      []string
+	preservedSeedMembership                   map[ids.ObjectAddress]ids.ObjectAddress
+	installationMetadata                      []string
+	installationACLStatements                 []string
 	objectACLStatements                       []string
 	initialACLStatements                      []string
 	typeACLStatements                         map[ids.OID][]string
@@ -88,7 +95,7 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 	if err := s.separateForeignCastConsumers(ctx); err != nil {
 		return nil, err
 	}
-	if err := s.addDeclarationEdges(); err != nil {
+	if err := s.addDeclarationEdges(ctx); err != nil {
 		return nil, err
 	}
 	if err := s.renderTypeStatements(ctx); err != nil {
@@ -104,6 +111,9 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 	if err != nil {
 		return nil, err
 	}
+	if err := s.prepareProviderReplay(ctx); err != nil {
+		return nil, err
+	}
 	if err := s.renderDeclarations(ctx, viewOrder); err != nil {
 		return nil, err
 	}
@@ -112,9 +122,6 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if err := s.renderForeignDefaults(ctx); err != nil {
-		return nil, err
-	}
-	if err := s.prepareProviderReplay(); err != nil {
 		return nil, err
 	}
 	if err = prepareObjectACLs(ctx, s); err != nil {
@@ -164,7 +171,7 @@ func (s *dumpScript) renderForeignDefaults(ctx context.Context) error {
 
 // addDeclarationEdges adds the domain, operator and SQL routine declarations
 // to the graph and rewrites relation predecessors to their column sources.
-func (s *dumpScript) addDeclarationEdges() error {
+func (s *dumpScript) addDeclarationEdges(ctx context.Context) error {
 	s.domainNodes = make(map[ids.OID]*catalog.Type, len(s.Domains))
 	for _, method := range s.AccessMethods {
 		event := dump.Event{OID: method.Address().ObjectID}
@@ -228,6 +235,26 @@ func (s *dumpScript) addDeclarationEdges() error {
 					}
 				}
 			}
+		}
+		// Resolve genuine codec identities in the captured catalog, not the
+		// presentation-only type generations used to render final names.
+		var dependencyErr error
+		if err := pgcatalog.VisitTypeProcedureDependencies(ctx, s.OriginalCatalog, s.OriginalCatalog.MustType(d.Address()), func(address ids.ObjectAddress) bool {
+			predecessor, err := (Resolver{}).Predecessor(s.CatalogView, address, d.Address())
+			if err != nil {
+				dependencyErr = err
+				return false
+			}
+			event, dependencyEvent := dump.Event{OID: id}, dump.Event{OID: predecessor}
+			if predecessor != 0 && !slices.Contains(s.Graph[event], dependencyEvent) {
+				s.Graph[event] = append(s.Graph[event], dependencyEvent)
+			}
+			return true
+		}); err != nil {
+			return err
+		}
+		if dependencyErr != nil {
+			return dependencyErr
 		}
 	}
 	if err := index.OperatorFamilyDumpEvents(Resolver{}, s.CatalogView, s.OperatorFamilies, s.Graph); err != nil {
@@ -408,11 +435,12 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 		}
 		domains[oid] = &copy
 	}
-	replay, err := s.renderExtensionTypes(ctx, viewOrder)
-	if err != nil {
-		return err
-	}
-	if s.declarations, err = typedef.MixedDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, viewOrder, domains, s.Composites, replay); err != nil {
+	// The real installation prefix and ordinary creators share one predicted
+	// namespace state; never reseed generated arrays from idealized final roots.
+	replay := s.installationTypeReplay.names
+	s.typeReplayEpilogues = make(map[ids.OID]string)
+	s.rangeCreations = make(map[ids.OID]*rangeReplayCreation)
+	if s.declarations, err = typedef.MixedDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, viewOrder, domains, s.Composites, replay, s.beforeTypeCreate, s.ordinaryTypeArrayReplay); err != nil {
 		return err
 	}
 	for oid, statement := range s.ForeignDeclarations {

@@ -170,6 +170,15 @@ single-statement limit of driver calls) belong to callers.
 - Large-object ownership retains a positioned `NumericOnly` node in `AlterOwner`:
   scanner int32 integers keep their decoded value; larger and real spellings stay
   textual. OID input and role/object resolution belong to execution, never parsing.
+- Extension utilities retain typed schema/member targets, including routine
+  argument modes, nominal types, operator operands, access methods and represented
+  text-search parsers, dictionaries, templates and configurations through their contextual
+  keyword tokens. Semantic
+  resolution and ownership remain with utility owners; parsing consumes the
+  entire command without executing a recognized prefix.
+  Recognized but ineligible member classes, including the dedicated STATISTICS,
+  PUBLICATION and SUBSCRIPTION tokens, retain an invalid-member target for `42P17`
+  before object lookup; this does not admit their lifecycle or membership.
 
 ### Scratch receivers
 

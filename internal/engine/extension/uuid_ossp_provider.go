@@ -17,7 +17,7 @@ func (p *UUIDOsspProvider) Versions() catalog.ExtensionVersions {
 
 var StockUUIDOssp = &UUIDOsspProvider{control: catalog.ExtensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("generate universally unique identifiers (UUIDs)")}}
 
-func (p *UUIDOsspProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *UUIDOsspProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid uuid-ossp manifest") }
 	if !currentManifest(v, ext) {
 		return invalid()
@@ -38,15 +38,5 @@ func (p *UUIDOsspProvider) ValidateExtension(v catalog.Read, ext *catalog.Extens
 }
 
 func (p *UUIDOsspProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	if _, err := ProcedureSymbol(v, proc); err != nil {
-		return err
-	}
-	if v.Get(proc.Address()) != proc || UUIDOsspProviderOf(proc) != p {
-		return fmt.Errorf("stuntgres: invalid uuid-ossp procedure identity")
-	}
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing uuid-ossp installation")
-	}
-	return p.ValidateExtension(v, ext)
+	return ValidateProcedureOrigin(v, proc, p)
 }

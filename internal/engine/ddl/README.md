@@ -98,7 +98,9 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   ordinary user-CREATE namespace protection. ALTER superuser denial describes the
   current object using ordinary search-path visibility and dependency spelling.
   DROP permits containing-schema owners without inventing parser ownership;
-  unrelated users receive the ordinary superuser-required diagnostic. All names,
+  unrelated users receive the ordinary superuser-required diagnostic. A seeded
+  parser's DROP rejection uses the current dependency description's search-path
+  visibility and identifier quoting before membership restrictions. All names,
   callback dependencies and collisions validate privately before the ordinary
   single-stage publication.
 - **Text-search configurations** (`ts_configuration.go`): ordinary private stages
@@ -115,6 +117,18 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   dictionary/parser/operator lookup. Destination creation keeps its own policy.
   Schema dependency classification includes configuration descriptors, so
   RESTRICT reports their actual dependency and CASCADE retires their closure.
+- **Generic namespace movement** (`namespace.go`): `StageObjectNamespace` stages
+  operator/class/family, collation/conversion and text-search parser/template/
+  dictionary/configuration identities with
+  real owner or ownerless-superuser admission, destination CREATE and exact name
+  claims. Routine, type and relation mechanics remain with their actual owners.
+  `catalog.CheckSetNamespace` is shared mechanical admission, not authorization.
+  Parser movement checks namespace legality and same-namespace admission before
+  ownerless superuser authority, then destination permission/collision; its
+  immutable callback tuple and current e-link are retained. Extension membership
+  ADD/DROP requires bare `must be superuser` after extension ownership, not a
+  fabricated parser owner. Ordinary parser ALTER keeps its distinct existing
+  permission ordering.
 - **Tablespaces**: `CreateTablespace(ctx, view, s)` validates CREATE
   TABLESPACE over the `access.View` and, once valid, fails with 0A000
   (`TablespacePhysicalUnsupported`); it never stages. `TablespaceRef(view,

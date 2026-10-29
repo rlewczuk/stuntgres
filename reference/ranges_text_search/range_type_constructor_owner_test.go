@@ -60,12 +60,6 @@ func TestReferenceRangeTypeConstructorOwnerPortability(t *testing.T) {
 				if err := c.QueryRowContext(p.Ctx, "SELECT r.rolname FROM pg_roles r JOIN pg_proc p ON p.proowner=r.oid WHERE p.oid=$1::regprocedure::oid", tc.signature).Scan(&originalOwner); err != nil {
 					t.Fatal(err)
 				}
-				var baseline bytes.Buffer
-				if !b.PG {
-					if err := stuntgres.Dump(p.Ctx, p.Native, &baseline); err != nil {
-						t.Fatal(err)
-					}
-				}
 				run(fixture.Exec("ALTER FUNCTION "+tc.signature+" OWNER TO "+role, 0))
 				owner(true)
 				rangeTypeRemedyRoutes(t, p, b, c, callable)
@@ -80,47 +74,51 @@ func TestReferenceRangeTypeConstructorOwnerPortability(t *testing.T) {
 				dependency := fixture.ImplicitError("DROP ROLE "+role, fixture.Diagnostic{Code: "2BP01", Message: `role "` + role + `" cannot be dropped because some objects depend on it`, Detail: "owner of function " + tc.description})
 				dependency.ErrorStage = "execute"
 				rangeTypeRemedyRoutes(t, p, b, c, dependency)
-				if !b.PG {
-					statement, err := c.PrepareContext(p.Ctx, saved.Query)
-					if err != nil {
-						t.Fatal(err)
+				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+tc.signature+" FROM PUBLIC", 0))
+				check := func(backend fixture.Backend, executor fixture.Executor) {
+					checkRun := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, executor, backend.Recorder, s) }
+					checkRun(fixture.Select(ownerQuery, []string{"explicit_owner", "bootstrap_owner"}, []string{"BOOL", "BOOL"}, [][]any{{true, false}}))
+					rangeTypeRemedyRoutes(t, p, backend, executor, saved)
+					rangeTypeRemedyRoutes(t, p, backend, executor, callable)
+					rangeTypeRemedyRoutes(t, p, backend, executor, dependency)
+					checkRun(fixture.Select("SELECT has_function_privilege('"+role+"',$1::text,'EXECUTE') AS owner_exec,has_function_privilege('pg_monitor',$1::text,'EXECUTE') AS public_exec", []string{"owner_exec", "public_exec"}, []string{"BOOL", "BOOL"}, [][]any{{true, false}}, tc.signature))
+					checkRun(fixture.Select("SELECT unnest(proacl)::text AS acl FROM pg_proc WHERE oid=$1::regprocedure::oid", []string{"acl"}, []string{"TEXT"}, [][]any{{role + "=X/" + role}}, tc.signature))
+					resultType := "constructor_owner_span"
+					if strings.HasPrefix(tc.name, "multi_") {
+						resultType = "constructor_owner_many"
 					}
-					defer statement.Close()
-					held, err := statement.QueryContext(p.Ctx)
+					checkRun(fixture.Select("SELECT prorettype=$2::regtype AS result_type,prolang=(SELECT oid FROM pg_language WHERE lanname='internal') AS internal_language,provolatile='i' AS immutable,proparallel='s' AS parallel_safe,proisstrict AS strict FROM pg_proc WHERE oid=$1::regprocedure::oid", []string{"result_type", "internal_language", "immutable", "parallel_safe", "strict"}, []string{"BOOL", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, true, strings.HasPrefix(tc.name, "multi_")}}, tc.signature, resultType))
+					checkRun(fixture.Select("SELECT count(*) AS n FROM pg_proc p JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.refclassid='pg_type'::regclass AND d.deptype='i' WHERE p.pronamespace='public'::regnamespace AND p.proname IN ('constructor_owner_span','constructor_owner_many') AND d.refobjid IN ('constructor_owner_span'::regtype,'constructor_owner_many'::regtype)", []string{"n"}, []string{"INT8"}, [][]any{{int64(5)}}))
+					checkRun(fixture.Select("SELECT count(*) AS n FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('constructor_owner_span','constructor_owner_many') AND proowner=(SELECT typowner FROM pg_type WHERE oid='bool'::regtype)", []string{"n"}, []string{"INT8"}, [][]any{{int64(4)}}))
+				}
+				check(b, c)
+				if !b.PG {
+					held, err := c.QueryContext(p.Ctx, saved.Query)
 					if err != nil {
 						t.Fatal(err)
 					}
 					defer held.Close()
-					var rejected bytes.Buffer
-					err = stuntgres.Dump(p.Ctx, p.Native, &rejected)
-					if err == nil || !strings.Contains(err.Error(), "dump cannot serialize altered generated constructor authority") || rejected.Len() != 0 {
-						t.Fatal("independently owned constructor must reject before output", err, rejected.String())
+					var script bytes.Buffer
+					if err := stuntgres.Dump(p.Ctx, p.Native, &script); err != nil {
+						t.Fatal("current constructor owner and ACL Dump", err)
 					}
-					owner(true)
-					run(saved)
-					rangeTypeRemedyRoutes(t, p, b, c, dependency)
+					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(script.Bytes())); err != nil {
+						t.Fatal("same-engine constructor owner and ACL Restore", err)
+					}
+					check(b, c)
 					fixture.RangeConsumeHeld(t, held, saved)
-					again, err := statement.QueryContext(p.Ctx)
+					callRows, err := heldCall.QueryContext(p.Ctx)
 					if err != nil {
 						t.Fatal(err)
 					}
-					fixture.RangeConsumeHeld(t, again, saved)
+					fixture.RangeConsumeHeld(t, callRows, callable)
 				}
+				rangeTypeRemedyReplay(t, p, b, c, []string{role}, check, fixture.Step{}, nil)
+				run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+tc.signature+" TO PUBLIC", 0))
 				run(fixture.Exec("ALTER FUNCTION "+tc.signature+" OWNER TO "+`"`+strings.ReplaceAll(originalOwner, `"`, `""`)+`"`, 0))
 				owner(false)
 				run(saved)
-				if !b.PG {
-					var restored bytes.Buffer
-					if err := stuntgres.Dump(p.Ctx, p.Native, &restored); err != nil || !bytes.Equal(baseline.Bytes(), restored.Bytes()) {
-						t.Fatal("failed dump changed descriptors or baseline portability", err)
-					}
-					target := fixture.NewFixture(t, false, true)
-					if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(restored.Bytes())); err != nil {
-						t.Fatal("restored original constructor authority baseline", err)
-					}
-					fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, saved)
-					fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, callable)
-				}
+				rangeTypeRemedyRoutes(t, p, b, c, callable)
 				run(fixture.Exec("DROP ROLE "+role, 0))
 			})
 		})

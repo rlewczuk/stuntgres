@@ -3,7 +3,9 @@ package schemacmds
 import (
 	"fmt"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -34,5 +36,9 @@ func stageExtensionUpdateLocked(e *core.Engine, scope *core.StatementScope, s *p
 	if err != nil || staged == nil {
 		return nil, err
 	}
-	return stageOf(staged)
+	stage, err := stageOf(staged)
+	if err == nil {
+		ddl.RecordCommand(stage, "ALTER EXTENSION", stage.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text}))
+	}
+	return stage, err
 }

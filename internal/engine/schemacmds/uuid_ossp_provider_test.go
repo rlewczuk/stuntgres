@@ -214,6 +214,13 @@ func TestUUIDOsspManifestSlotAuthority(t *testing.T) {
 			bad.Members[1] = bad.Members[0]
 		case "reordered":
 			bad.Members[1], bad.Members[2] = bad.Members[2], bad.Members[1]
+			if err := extension.StockUUIDOssp.ValidateExtension(view, &bad); err != nil {
+				t.Fatal("current member order became UUID implementation authority", err)
+			}
+			forged := *ext.Installation
+			forged.Members = slices.Clone(forged.Members)
+			forged.Members[1], forged.Members[2] = forged.Members[2], forged.Members[1]
+			bad.Installation = &forged
 		case "foreign":
 			bad.Members[1].ObjectID++
 		}

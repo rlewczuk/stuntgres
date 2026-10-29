@@ -57,6 +57,12 @@ func StageCreate(host Host, auth ddl.Authority, view access.View, s *parser.Crea
 	if path == nil {
 		return nil, sqlError("22023", fmt.Sprintf(`extension "%s" has no installation script nor update path for version "%s"`, s.Name.Text, version))
 	}
+	if registration.Schema != nil {
+		if schema != nil && schema.Text != *registration.Schema {
+			return nil, sqlError("0A000", fmt.Sprintf("extension %q must be installed in schema %q", s.Name.Text, *registration.Schema))
+		}
+		schema = &parser.Identifier{Text: *registration.Schema}
+	}
 	var namespace ids.ObjectAddress
 	if schema != nil {
 		namespace = view.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema.Text})
@@ -115,6 +121,19 @@ func StageCreate(host Host, auth ddl.Authority, view access.View, s *parser.Crea
 		return nil, err
 	}
 	if err := StagePath(host.Context(), stage, implementation, ext, memberOwner, path); err != nil {
+		return nil, err
+	}
+	if err := SealInstallation(stage, ext, ext.Members); err != nil {
+		return nil, err
+	}
+	if validator, ok := implementation.(interface {
+		validateRecipe(catalog.Read, *catalog.Extension) error
+	}); ok {
+		if err := validator.validateRecipe(stage.CurrentRead(), ext); err != nil {
+			return nil, err
+		}
+	}
+	if err := AdmitInstallationCompanions(stage, ext); err != nil {
 		return nil, err
 	}
 	return stage, nil

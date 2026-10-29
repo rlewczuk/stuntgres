@@ -20,6 +20,9 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		if sub, ok := d.(*catalog.Subscription); ok {
 			return "subscription " + catalog.DependencyIdentifier(sub.Name())
 		}
+		if language, ok := d.(*catalog.Language); ok {
+			return "language " + catalog.DependencyIdentifier(language.Name())
+		}
 		if event, ok := d.(*catalog.EventTrigger); ok {
 			return "event trigger " + catalog.DependencyIdentifier(event.Name())
 		}
@@ -53,7 +56,8 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		return catalog.ForeignLabel(d.Address().ClassID) + " " + catalog.DependencyIdentifier(d.Name())
 	}
 	if d, ok := read.Extension(base); ok {
-		return "extension " + catalog.DependencyIdentifier(d.Name())
+		// getObjectDescription uses extname verbatim, not quote_identifier.
+		return "extension " + d.Name()
 	}
 	if _, ok := read.Operator(base); ok {
 		return "operator " + regobj.OperatorSpelling(read, path, regobj.CollectOperatorGroups(read), base.ObjectID, sqltype.Regoperator)

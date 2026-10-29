@@ -104,12 +104,12 @@ func currentLtreeComparisonProcedure(view catalog.Read, original *catalog.Proced
 	if current.Implementation != extension.StockLtree || symbol != capture.name || current.Signature != ltreeCaptureSignature(capture) || current.Result != ids.OID(capture.result) || current.RoutineKind != catalog.FunctionRoutine || !current.Strict || current.Volatility != expr.Immutable || current.Builtin != nil {
 		return nil, fmt.Errorf("stuntgres: invalid mapped ltree comparison declaration")
 	}
-	installation, exists := view.Extension(current.Extension)
+	installation, exists := catalog.OriginInstallation(current)
 	if !exists || len(installation.Members) != extension.LtreeMemberCount {
 		return nil, fmt.Errorf("stuntgres: missing mapped ltree comparison installation")
 	}
 	base, exists := view.Type(installation.Members[3])
-	if !exists || base.SQLType != capture.left || base.Extension != installation.Address() {
+	if !exists || base.SQLType != capture.left || !catalog.SameInstallation(base, installation) {
 		return nil, fmt.Errorf("stuntgres: foreign mapped ltree comparison type")
 	}
 	member := -1

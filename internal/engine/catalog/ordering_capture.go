@@ -12,32 +12,32 @@ import (
 // genuine catalog. It retains declarations, not a catalog, reader or authority
 // callback. Sort keys share this record across immutable graph copies.
 type CapturedIndexOrdering struct {
-	usage sqltype.Usage
-	kernel sqltype.IndexComparison
-	refs [4]ids.ObjectRef // class, family, support member, routine
-	originalClass *OperatorClass
-	originalFamily *OperatorFamily
-	originalMember *OperatorFamilySupport
+	usage           sqltype.Usage
+	kernel          sqltype.IndexComparison
+	refs            [4]ids.ObjectRef // class, family, support member, routine
+	originalClass   *OperatorClass
+	originalFamily  *OperatorFamily
+	originalMember  *OperatorFamilySupport
 	originalRoutine *Procedure
-	classStamp OperatorClass
-	familyStamp OperatorFamily
-	memberStamp OperatorFamilySupport
-	routineStamp orderingRoutineStamp
+	classStamp      OperatorClass
+	familyStamp     OperatorFamily
+	memberStamp     OperatorFamilySupport
+	routineStamp    orderingRoutineStamp
 }
 
 type orderingRoutineStamp struct {
-	revision ids.DefinitionRevision
-	namespace ids.ObjectAddress
-	signature ProcedureSignature
-	result ids.OID
-	kind RoutineKind
-	strict bool
-	volatility expr.Volatility
-	display RoutineDisplay
-	installed InstalledRoutineDeclaration
-	parallel byte
-	cost,rows float32
-	configuration *RoutineConfiguration
+	revision       ids.DefinitionRevision
+	namespace      ids.ObjectAddress
+	signature      ProcedureSignature
+	result         ids.OID
+	kind           RoutineKind
+	strict         bool
+	volatility     expr.Volatility
+	display        RoutineDisplay
+	installed      InstalledRoutineDeclaration
+	parallel       byte
+	cost, rows     float32
+	configuration  *RoutineConfiguration
 	implementation ExtensionImplementation
 }
 
@@ -76,7 +76,11 @@ func CaptureIndexOrdering(view Read, usage sqltype.Usage, class sqltype.IndexCla
 		return invalid()
 	}
 	fact, ok := view.OperatorClass(ids.OID(class.OID()))
-	if !ok || fact.Extension == (ids.ObjectAddress{}) {
+	if !ok {
+		return invalid()
+	}
+	installation, ok := OriginInstallation(fact)
+	if !ok {
 		return invalid()
 	}
 	current, ok := view.IndexClass(fact.Address().ObjectID)
@@ -84,7 +88,7 @@ func CaptureIndexOrdering(view Read, usage sqltype.Usage, class sqltype.IndexCla
 		return invalid()
 	}
 	family, ok := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: fact.Family})
-	if !ok || family.Extension != fact.Extension {
+	if !ok || !SameInstallation(family, installation) {
 		return invalid()
 	}
 	member, ok := view.FamilySupport(fact.Family, fact.InputType, fact.InputType, 1)
@@ -92,19 +96,21 @@ func CaptureIndexOrdering(view Read, usage sqltype.Usage, class sqltype.IndexCla
 		return invalid()
 	}
 	procedure, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: member.Function})
-	if !ok || !nativeOrderingRoutine(procedure) || procedure.Extension != fact.Extension {
+	if !ok || !nativeOrderingRoutine(procedure) || !SameInstallation(procedure, installation) {
 		return invalid()
 	}
-	installation, ok := view.Extension(fact.Extension)
-	if !ok {
+	provider := view.Owner().Extensions[installation.Provider]
+	if provider == nil || provider != installation.Implementation || provider != procedure.Implementation {
 		return invalid()
 	}
-	provider := view.Owner().Extensions[installation.Name()]
-	if provider == nil || provider != procedure.Implementation {
-		return invalid()
-	}
-	if err := provider.ValidateExtension(view, installation); err != nil {
-		return nil, err
+	for _, descriptor := range [4]Descriptor{fact, family, member, procedure} {
+		validator := view.Owner().Provider(descriptor.Address().ClassID)
+		if validator == nil {
+			return invalid()
+		}
+		if err := validator.Validate(view, descriptor); err != nil {
+			return nil, err
+		}
 	}
 	support := kernel.Support()
 	if support != class.Support(1) || support.Provider == sqltype.BuiltinIndexSupport ||
@@ -143,7 +149,7 @@ func (c *CapturedIndexOrdering) Validate(usage sqltype.Usage, comparison sqltype
 		*c.originalMember != c.memberStamp || orderingRoutineOf(c.originalRoutine) != c.routineStamp {
 		return invalid()
 	}
-	if c.originalRoutine.Address() != c.refs[3].Address || c.originalRoutine.Extension != c.classStamp.Extension {
+	if c.originalRoutine.Address() != c.refs[3].Address || !c.classStamp.Origin.Valid(c.classStamp.Address()) || !SameInstallation(c.originalFamily, c.classStamp.Origin.Installation) || !SameInstallation(c.originalRoutine, c.classStamp.Origin.Installation) {
 		return invalid()
 	}
 	for i, address := range [4]ids.ObjectAddress{c.classStamp.Address(), c.familyStamp.Address(), c.memberStamp.Address(), c.originalRoutine.Address()} {
@@ -158,4 +164,4 @@ func (c *CapturedIndexOrdering) Validate(usage sqltype.Usage, comparison sqltype
 
 // References exposes only the four source identities needed by the authorized
 // transport mapper; it does not refresh declarations from a destination graph.
-func (c *CapturedIndexOrdering) References() [4]ids.ObjectRef {return c.refs}
+func (c *CapturedIndexOrdering) References() [4]ids.ObjectRef { return c.refs }

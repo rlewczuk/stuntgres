@@ -89,7 +89,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			text(1, d.Name())
 			integer(2, int64(d.Owner.ID()))
 			integer(3, int64(d.TargetNamespace.ObjectID))
-			boolean(4, true)
+			boolean(4, view.Owner().Extensions[d.Name()].Control().Relocatable)
 			text(5, d.Version)
 			row[6] = sqltype.Null(source.Columns[6].Usage.Type)
 			row[7] = sqltype.Null(source.Columns[7].Usage.Type)

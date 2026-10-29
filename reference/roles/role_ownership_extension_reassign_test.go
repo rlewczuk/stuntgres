@@ -56,8 +56,8 @@ func TestReferenceRoleOwnershipExtensionReassign(t *testing.T) {
 		ownershipOwner(s, "own_provider_consumer", "own_other")
 		ownershipOwner(s, "own_provider_view", "own_other")
 		ownershipHotel(s, "SELECT v FROM own_provider_view")
-		// Independently owned members are set using genuine PG ALTER or the existing
-		// native public named-owner Restore codec; neither adds direct member grammar.
+		// Independently owned members use genuine PG ALTER or the native public
+		// named-owner Restore codec, retaining provider origin and current membership.
 		ownershipProviderMemberOwners(s, "own_source")
 		members := ownershipProviderIDs(s)
 		ownershipProviderOwners(s, "own_target", "own_source")

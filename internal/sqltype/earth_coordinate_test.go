@@ -25,6 +25,9 @@ func TestEarthCoordinateKernel(t *testing.T) {
 	}
 	plan := func(op EarthOperation) EarthCoordinatePlan {
 		p, err := BindEarthCoordinate(op, earth, types[Float8])
+		if op < EarthLL && (p.Earth() != nil || p.cube != nil) {
+			t.Fatal("float8-only kernel captured nominal type generations", op)
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -173,5 +176,64 @@ func TestEarthCoordinateKernel(t *testing.T) {
 	}
 	if _, err := BindEarthCoordinate(EarthLL, cube, types[Float8]); err == nil {
 		t.Fatal("nondomain descriptor admitted")
+	}
+}
+
+func TestEarthCoordinateScalarOwnership(t *testing.T) {
+	types := testTypes()
+	floating := types[Float8]
+	foreign := *floating
+	foreignZero, err := Float(&foreign, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zero, err := Float(floating, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, op := range []EarthOperation{EarthRadiusOperation, EarthSecToGC, EarthGCToSec} {
+		p, err := BindEarthCoordinate(op, nil, floating)
+		if err != nil || p.Earth() != nil || p.cube != nil || p.Float() != floating || p.Result() != floating || p.Formal() != floating {
+			t.Fatal("scalar ABI acquired absent nominal dependency", op, err)
+		}
+		var args []Value
+		if op != EarthRadiusOperation {
+			args = []Value{zero}
+		}
+		v, err := p.Evaluate(context.Background(), args, InputEnvironment{})
+		want := float64(0)
+		if op == EarthRadiusOperation {
+			want = 6378168
+		}
+		if n, valueErr := v.Float(); err != nil || valueErr != nil || v.Type() != floating || n != want {
+			t.Fatal("scalar result/generation", op, v, err, valueErr)
+		}
+		if _, err := p.Evaluate(context.Background(), append(args, zero), InputEnvironment{}); err == nil {
+			t.Fatal("invalid scalar arity admitted", op)
+		}
+		if op != EarthRadiusOperation {
+			if _, err := p.Evaluate(context.Background(), []Value{foreignZero}, InputEnvironment{}); err == nil {
+				t.Fatal("foreign FLOAT8 generation admitted", op)
+			}
+			v, err := p.Evaluate(context.Background(), []Value{Null(floating)}, InputEnvironment{})
+			if err != nil || !v.IsNull() || v.Type() != floating {
+				t.Fatal("scalar strict NULL lost type", op, v, err)
+			}
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if _, err := p.Evaluate(ctx, args, InputEnvironment{}); !errors.Is(err, context.Canceled) {
+			t.Fatal("scalar ignored cancellation", op, err)
+		}
+	}
+	for _, op := range []EarthOperation{EarthLL, EarthLatitude, EarthLongitude, EarthOperation(255)} {
+		if _, err := BindEarthCoordinate(op, nil, floating); err == nil {
+			t.Fatal("typed/invalid operation admitted without domain", op)
+		}
+	}
+	for _, floating := range []*Descriptor{nil, types[Int4]} {
+		if _, err := BindEarthCoordinate(EarthRadiusOperation, nil, floating); err == nil {
+			t.Fatal("scalar ignored concrete FLOAT8 ABI")
+		}
 	}
 }

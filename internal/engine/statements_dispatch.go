@@ -62,6 +62,8 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return dispatched(schemacmds.ExecuteDropExtension(e, scope, stmt.(*parser.DropExtension), count))
 	case *parser.AlterExtensionUpdate:
 		return dispatched(schemacmds.ExecuteExtensionUpdate(e, scope, stmt.(*parser.AlterExtensionUpdate), count))
+	case *parser.AlterExtension:
+		return dispatched(schemacmds.ExecuteExtensionAlter(e, scope, stmt.(*parser.AlterExtension), count))
 	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
 		return dispatched(viewcmds.ExecuteRule(e, scope, stmt, count))
 	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:

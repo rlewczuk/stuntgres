@@ -157,6 +157,10 @@ func (b *Binder) CaptureAt(offset int) (TemporalConstant, bool, error) {
 }
 
 func (b *Binder) Captured(offset int, usage sqltype.Usage) (TemporalConstant, bool, error) {
+	return b.captured(offset, usage, false)
+}
+
+func (b *Binder) captured(offset int, usage sqltype.Usage, recollectLogical bool) (TemporalConstant, bool, error) {
 	if b.Expected.Held {
 		captures := b.Expected.Temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].Offset >= offset })
@@ -164,11 +168,21 @@ func (b *Binder) Captured(offset int, usage sqltype.Usage) (TemporalConstant, bo
 			if b.Expected.RefreshTemporals && RefreshableTemporal(captures[i]) {
 				return TemporalConstant{}, false, nil
 			}
+			changedNominal := false
 			for ; i < len(captures) && captures[i].Offset == offset; i++ {
 				capture := captures[i]
+				if recollectLogical && capture.TypeID != usage.Type.ID() && capture.Typmod == usage.Typmod &&
+					StatementCatalogType(capture.Value.Type()) && StatementCatalogType(usage.Type) {
+					changedNominal = true
+				}
 				if capture.TypeID == usage.Type.ID() && capture.Typmod == usage.Typmod {
 					return capture, true, nil
 				}
+			}
+			if recollectLogical && changedNominal {
+				// Full owner-proven reanalysis may decode written logical input
+				// under a newly allocated nominal OID, never retag the old value.
+				return TemporalConstant{}, false, nil
 			}
 			return TemporalConstant{}, false, fmt.Errorf("stuntgres: captured temporal usage changed")
 		}
@@ -208,27 +222,29 @@ func (b *Binder) InputConstant(text string, u sqltype.Usage, pos parser.Position
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}
-		c, found, err := b.Captured(pos.Offset, u)
+		catalog := b.BindingCatalog()
+		foreignLifetime := b.Expected.Held && (b.Expected.CatalogOwner != catalog.Owner() || b.Expected.CatalogEpoch != catalog.Epoch())
+		if foreignLifetime {
+			// The fixed public signature belongs to the retired catalog even
+			// when replay allocated a different OID for this private literal.
+			// Fence it before comparing capture keys or touching old payloads.
+			if err := b.Expected.CheckLifetime(catalog.Owner(), catalog.Epoch()); err != nil {
+				if hasEnumInput(u.Type) {
+					return sqltype.Value{}, err
+				}
+				return sqltype.Value{}, literalLifetimeError{cause: err}
+			}
+			if hasEnumInput(u.Type) {
+				return sqltype.Value{}, ids.ErrCatalogReplaced
+			}
+		}
+		recollectLogical := foreignLifetime && b.Expected.CatalogOwner != nil && b.Expected.RefreshTemporals
+		c, found, err := b.captured(pos.Offset, u, recollectLogical)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if found {
-			catalog := b.BindingCatalog()
-			if b.Expected.CatalogOwner != catalog.Owner() || b.Expected.CatalogEpoch != catalog.Epoch() {
-				// Fence held catalog-owned results/parameters before touching a
-				// captured datum from the retired lifetime. Builtin signatures
-				// may rebind their written literals, never retag foreign payloads.
-				if err := b.Expected.CheckLifetime(catalog.Owner(), catalog.Epoch()); err != nil {
-					if hasEnumInput(u.Type) {
-						// Enum and constrained-domain inputs retain their original
-						// concrete error and literal-position provenance.
-						return sqltype.Value{}, err
-					}
-					return sqltype.Value{}, literalLifetimeError{cause: err}
-				}
-				if hasEnumInput(u.Type) {
-					return sqltype.Value{}, ids.ErrCatalogReplaced
-				}
+			if foreignLifetime {
 				if c.Value.Type() == u.Type {
 					return c.Value, nil
 				}
@@ -260,13 +276,14 @@ func (b *Binder) InputConstant(text string, u sqltype.Usage, pos parser.Position
 			i := sort.Search(len(b.Prepared.Temporals), func(i int) bool { return b.Prepared.Temporals[i].Offset >= pos.Offset })
 			existing := -1
 			for j := i; j < len(b.Prepared.Temporals) && b.Prepared.Temporals[j].Offset == pos.Offset; j++ {
-				if b.Prepared.Temporals[j].TypeID == u.Type.ID() && b.Prepared.Temporals[j].Typmod == u.Typmod {
+				if (b.Prepared.Temporals[j].TypeID == u.Type.ID() || recollectLogical) && b.Prepared.Temporals[j].Typmod == u.Typmod {
 					existing = j
 					break
 				}
 			}
 			if existing >= 0 {
 				b.Prepared.Temporals[existing].Value = value
+				b.Prepared.Temporals[existing].TypeID = u.Type.ID()
 			} else {
 				b.Prepared.Temporals = append(b.Prepared.Temporals, TemporalConstant{})
 				copy(b.Prepared.Temporals[i+1:], b.Prepared.Temporals[i:])

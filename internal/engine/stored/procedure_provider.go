@@ -29,6 +29,14 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	if ok && d.SQL == nil && (d.SecurityDefiner || d.Configuration != nil) {
 		return extension.InvalidProviderDescriptor()
 	}
+	if ok {
+		if err := catalog.ValidateExtensionMembership(v, d); err != nil {
+			return err
+		}
+		if d.Origin != nil && d.Implementation == nil && d.PLHandler == catalog.NoPLHandler {
+			return extension.InvalidProviderDescriptor()
+		}
+	}
 	if ok && d.RangeConstructor != nil && (d.Implementation != nil || d.AccessMethod != catalog.NoAccessMethod) {
 		return extension.InvalidProviderDescriptor()
 	}
@@ -63,7 +71,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	if d.AccessMethod != catalog.NoAccessMethod {
 		identity, known := catalog.BuiltinRoutineIdentityByOID(d.Address().ObjectID)
 		result, _ := catalog.BuiltinRoutineResultByOID(d.Address().ObjectID)
-		if !known || catalog.NativeHandler(d.Address().ObjectID) != d.AccessMethod || d.Signature != identity.Signature || d.Result != result || d.RoutineKind != catalog.FunctionRoutine || d.Volatility != expr.Volatile || !d.Strict || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 {
+		if !known || catalog.NativeHandler(d.Address().ObjectID) != d.AccessMethod || d.Signature != identity.Signature || d.Result != result || d.RoutineKind != catalog.FunctionRoutine || d.Volatility != expr.Volatile || !d.Strict || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 {
 			return invalid()
 		}
 		return nil
@@ -81,7 +89,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 		return routine.ValidateAggregateDefinition(v, d)
 	case d.Foreign != nil:
 		p := d.Foreign
-		if p.Name.Name == "" || d.Extension != (ids.ObjectAddress{}) || d.Conversion.Name() != "" || d.Builtin != nil {
+		if p.Name.Name == "" || d.Conversion.Name() != "" || d.Builtin != nil {
 			return invalid()
 		}
 		if p.Wrapper != nil {
@@ -94,7 +102,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 		return nil
 	case d.Builtin != nil:
 		declared := d.Builtin
-		if routine.BuiltinRoutine(d.Address().ObjectID) != declared || d.Signature != declared.Identity.Signature || d.RoutineKind != declared.Kind || d.Result != declared.Result || d.Strict != declared.Strict || d.Volatility != declared.Volatility || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Foreign != nil {
+		if routine.BuiltinRoutine(d.Address().ObjectID) != declared || d.Signature != declared.Identity.Signature || d.RoutineKind != declared.Kind || d.Result != declared.Result || d.Strict != declared.Strict || d.Volatility != declared.Volatility || d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) || d.Foreign != nil {
 			return invalid()
 		}
 		return nil
@@ -102,7 +110,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 		return invalid()
 	case d.Conversion.Name() != "":
 		registered, ok := sqltype.RegisteredEncodingConversion(d.Conversion.Name())
-		if !ok || d.Conversion != registered || d.Signature != catalog.ConversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || typedef.ConversionRoutineName(d.Address().ObjectID) != d.Conversion.Name() {
+		if !ok || d.Conversion != registered || d.Signature != catalog.ConversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Dictionary != (ids.ObjectAddress{}) || typedef.ConversionRoutineName(d.Address().ObjectID) != d.Conversion.Name() {
 			return invalid()
 		}
 		return nil
@@ -283,7 +291,7 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if d.RoutineKind == catalog.ProcedureRoutine && (d.Parallel != 'u' || d.Cost != 100) {
 		return invalid()
 	}
-	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine || d.SQL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine) || d.RoutineKind == catalog.ProcedureRoutine && (len(d.SQL.OutputFormals) == 0 && !d.SQL.Void() || d.Strict || d.Volatility != expr.Volatile) || d.Volatility != expr.Volatile && d.Volatility != expr.Stable && d.Volatility != expr.Immutable || d.Parallel != 's' && d.Parallel != 'r' && d.Parallel != 'u' || !(d.Cost > 0) || d.SQL.ReturnsSet && !(d.Rows > 0) || !d.SQL.ReturnsSet && d.Rows != 0 || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
+	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine || d.SQL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine) || d.RoutineKind == catalog.ProcedureRoutine && (len(d.SQL.OutputFormals) == 0 && !d.SQL.Void() || d.Strict || d.Volatility != expr.Volatile) || d.Volatility != expr.Volatile && d.Volatility != expr.Stable && d.Volatility != expr.Immutable || d.Parallel != 's' && d.Parallel != 'r' && d.Parallel != 'u' || !(d.Cost > 0) || d.SQL.ReturnsSet && !(d.Rows > 0) || !d.SQL.ReturnsSet && d.Rows != 0 || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
 		return invalid()
 	}
 	return nil

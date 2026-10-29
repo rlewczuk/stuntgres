@@ -65,6 +65,39 @@ func pgExtensionUnitShape(t *testing.T, e *core.Engine) *catalog.Relation {
 	return d
 }
 
+func pgExtensionUnitCapturedRow(t *testing.T, rows [][]sqltype.Value, ext *catalog.Extension, wantRelocatable bool) []sqltype.Value {
+	t.Helper()
+	var found []sqltype.Value
+	for _, row := range rows {
+		name, err := row[1].Text()
+		if err != nil {
+			t.Fatal("extension name", err)
+		}
+		if name != ext.Name() {
+			continue
+		}
+		if found != nil {
+			t.Fatal("duplicate extension row", name)
+		}
+		found = row
+	}
+	if found == nil {
+		t.Fatal("missing extension row", ext.Name())
+	}
+	for i, expected := range []ids.OID{ext.Address().ObjectID, ids.OID(ext.Owner.ID()), ext.TargetNamespace.ObjectID} {
+		actual, err := found[[]int{0, 2, 3}[i]].OID()
+		if err != nil || actual != uint32(expected) {
+			t.Fatal("descriptor-derived identity", i, actual, expected, err)
+		}
+	}
+	version, versionErr := found[5].Text()
+	relocatable, relocatableErr := found[4].Boolean()
+	if versionErr != nil || relocatableErr != nil || version != ext.Version || relocatable != wantRelocatable || !found[6].IsNull() || !found[7].IsNull() {
+		t.Fatal("extension descriptor attributes", found, versionErr, relocatableErr)
+	}
+	return found
+}
+
 func TestPGExtensionShapeAndOwnership(t *testing.T) {
 	e := engine.New()
 	d := pgExtensionUnitShape(t, e)
@@ -108,9 +141,11 @@ func TestPGExtensionCapture(t *testing.T) {
 	if err != nil || old == nil {
 		t.Fatal("capture", old, err)
 	}
-	if old.Ref != ref || old.Anonymous == nil || old.Count() != 0 || !maps.Equal(before, maps.Collect(e.Catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.Catalog.State.Names())) {
-		t.Fatal("empty immutable capture", old)
+	if old.Ref != ref || old.Anonymous == nil || old.Count() != 1 || !maps.Equal(before, maps.Collect(e.Catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.Catalog.State.Names())) {
+		t.Fatal("bootstrap immutable capture", old)
 	}
+	bootstrap := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "plpgsql"}))
+	pgExtensionUnitCapturedRow(t, old.Anonymous, bootstrap, false)
 	root := &plan.ProjectNode{QuerySchema: plan.QuerySchema(d.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: ref}}
 	for i, c := range d.Columns {
 		root.Expressions = append(root.Expressions, plan.ColumnExpr{Info: expr.Info{Usage: c.Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: i})
@@ -121,14 +156,17 @@ func TestPGExtensionCapture(t *testing.T) {
 	}
 	rows, count, err := exec.Finalize(context.Background(), root, executable, nil)
 	if err != nil {
-		t.Fatal("empty captured source must execute", err)
+		t.Fatal("bootstrap captured source must execute", err)
 	}
-	if count != 0 || !reflect.DeepEqual(rows.Schema(), d.Columns) {
-		t.Fatal("empty result shape/count", rows.Schema(), count)
+	if count != 1 || !reflect.DeepEqual(rows.Schema(), d.Columns) {
+		t.Fatal("bootstrap result shape/count", rows.Schema(), count)
 	}
-	var emptyDestination [8]sqltype.Value
-	if next, err := rows.Next(context.Background(), emptyDestination[:]); next || err != nil {
-		t.Fatal("empty result row", next, err)
+	var destination [8]sqltype.Value
+	if next, err := rows.Next(context.Background(), destination[:]); !next || err != nil || !reflect.DeepEqual(destination[:], old.Anonymous[0]) {
+		t.Fatal("bootstrap result row", next, err)
+	}
+	if next, err := rows.Next(context.Background(), destination[:]); next || err != nil {
+		t.Fatal("bootstrap result EOF", next, err)
 	}
 	if err := rows.Close(); err != nil {
 		t.Fatal(err)
@@ -156,7 +194,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		}
 	}
 	view := e.Catalog.Read(&state)
-	if rows, err := captureCatalogSourceLocked(e, context.Background(), view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ref, d); err != nil || rows == nil || rows.Count() != 0 {
+	if rows, err := captureCatalogSourceLocked(e, context.Background(), view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ref, d); err != nil || rows == nil || rows.Count() != 1 || !reflect.DeepEqual(rows.Anonymous, old.Anonymous) {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1028})
@@ -186,13 +224,15 @@ func TestPGExtensionCapture(t *testing.T) {
 		if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 			t.Fatal("old source accepted in replacement", rows, err)
 		}
-		if !reflect.DeepEqual(retained.Schema(), original) || old.Ref != ref || old.Count() != 0 {
+		if !reflect.DeepEqual(retained.Schema(), original) || old.Ref != ref || old.Count() != 1 {
 			t.Fatal("retained source/schema changed")
 		}
 	}
-	var destination [8]sqltype.Value
+	if next, err := retained.Next(context.Background(), destination[:]); !next || err != nil || !reflect.DeepEqual(destination[:], old.Anonymous[0]) {
+		t.Fatal("retained bootstrap row changed", next, err)
+	}
 	if next, err := retained.Next(context.Background(), destination[:]); next || err != nil {
-		t.Fatal("empty retained EOF", next, err)
+		t.Fatal("retained bootstrap EOF", next, err)
 	}
 	if err := retained.Close(); err != nil {
 		t.Fatal(err)
@@ -205,10 +245,12 @@ func TestPGExtensionCapture(t *testing.T) {
 func TestPGExtensionCaptureInstalled(t *testing.T) {
 	e := engine.New()
 	d, ref := pgExtensionUnitSource(t, e)
-	empty, err := captureCatalogSourceLocked(e, context.Background(), e.CatalogRead(), e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()), ref, d)
-	if err != nil || empty == nil || empty.Count() != 0 {
-		t.Fatal("fresh installed catalog", empty, err)
+	bootstrapRows, err := captureCatalogSourceLocked(e, context.Background(), e.CatalogRead(), e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()), ref, d)
+	if err != nil || bootstrapRows == nil || bootstrapRows.Count() != 1 {
+		t.Fatal("fresh installed catalog", bootstrapRows, err)
 	}
+	bootstrap := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "plpgsql"}))
+	pgExtensionUnitCapturedRow(t, bootstrapRows.Anonymous, bootstrap, false)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION unaccent")
@@ -216,23 +258,12 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	ext := e.Catalog.State.MustExtension(address)
 	d = pgExtensionUnitShape(t, e)
 	captured, err := captureCatalogSourceLocked(e, context.Background(), e.CatalogRead(), e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()), ref, d)
-	if err != nil || captured == nil || captured.Count() != 1 {
+	if err != nil || captured == nil || captured.Count() != 2 {
 		t.Fatal("installed descriptor not projected", captured, err)
 	}
-	row := captured.Anonymous[0]
-	for i, expected := range []ids.OID{ext.Address().ObjectID, ids.OID(ext.Owner.ID()), ext.TargetNamespace.ObjectID} {
-		actual, err := row[[]int{0, 2, 3}[i]].OID()
-		if err != nil || actual != uint32(expected) {
-			t.Fatal("descriptor-derived identity", i, actual, expected, err)
-		}
-	}
-	name, nameErr := row[1].Text()
-	version, versionErr := row[5].Text()
-	relocatable, relocatableErr := row[4].Boolean()
-	if nameErr != nil || versionErr != nil || relocatableErr != nil || name != ext.Name() || version != ext.Version || !relocatable || !row[6].IsNull() || !row[7].IsNull() {
-		t.Fatal("installed descriptor attributes", row, nameErr, versionErr, relocatableErr)
-	}
-	if empty.Count() != 0 || captured.Ref != ref {
-		t.Fatal("capture resampled or lost bound identity", empty, captured)
+	pgExtensionUnitCapturedRow(t, captured.Anonymous, ext, true)
+	pgExtensionUnitCapturedRow(t, captured.Anonymous, bootstrap, false)
+	if bootstrapRows.Count() != 1 || captured.Ref != ref || !reflect.DeepEqual(bootstrapRows.Anonymous[0], pgExtensionUnitCapturedRow(t, captured.Anonymous, bootstrap, false)) {
+		t.Fatal("capture resampled or lost bound identity", bootstrapRows, captured)
 	}
 }

@@ -21,6 +21,8 @@ pointer and no state between calls.
 The root's capture window (`captureDumpLocked`, under `Engine.Mu`) calls
 `CheckPortable` and `PreflightACLItems`, fills `Source` and calls
 `Collect(ctx, source)`; nothing in `Source` is read after the unlock.
+Collection rejects an already-canceled context before catalog preflight or capture
+allocation, retaining the ordinary context error and publishing no partial capture.
 `Dump(ctx, capture, dst)` (`dump.go`) then sorts and completes the `Capture` in
 place, builds the script and writes it; the root never reads the capture again.
 Table declarations retain logged/unlogged identity, including typed and partition
@@ -91,8 +93,9 @@ Restore recognizes that canonical typed literal and preserves ordinary default
 ACL semantics without reapplying the destination's restricted seed. Untyped
 catalog updates do not acquire this replay capability.
 
-PL bootstrap languages/handlers are validated and not recreated. Accepted
-handler parallel/cost metadata uses the existing provider ALTER replay.
+PL bootstrap languages/handlers retain genuine sealed installation authority.
+Unchanged bootstrap declarations need no replay; changed handler parallel/cost
+metadata follows installation identity replay, not builtin-provider collection.
 Changed retained language owners and raw ACLs replay through bounded catalog
 repairs. Restore compiles PL declarations on CREATE, preserves lazy expression
 binding, and remaps declaration source addresses once without converting replay
@@ -119,8 +122,9 @@ unrepresentable portable state and rejects Dump without an output prefix.
 Representable owners, qualified functions, ordered filters and O/D/R/A state
 replay unchanged. All ordinary DDL, data, defaults, attribute metadata and
 temporary raw-codec CAST cleanup precede this section. Each definition is created
-and immediately disabled, then terminal ENABLE, ENABLE REPLICA and ENABLE ALWAYS
-restore O/R/A after every declaration; D remains disabled.
+and immediately disabled; final extension membership and strict owner metadata
+follow, then terminal ENABLE, ENABLE REPLICA and ENABLE ALWAYS restore O/R/A
+after every declaration; D remains disabled.
 No eligible replay DDL follows activation. Source callback frames and private
 transaction definitions are not captured; replacement remaps global object and
 function references once into the destination authority.
@@ -173,35 +177,69 @@ database identity while retaining other databases' committed subscriptions.
   `dumpRelationCollectors` the same way. **Entry order is error precedence.**
   Feature packages own each entry's decision (`routine.OperatorDumped`,
   `stored.ProcedureProvider`, `stored.TypeProvider`).
-- **Installed operators** (`operator_provider_replay.go`): authenticated moved
-  hstore recipe and ltree path concatenation operators replay with genuine ALTER OPERATOR SET SCHEMA, in
-  extension-event and manifest-slot order. The existing provider phase runs
-  after extension/type identities exist and before owner metadata and stored
-  consumers. Unchanged installed operators emit no statement; none is recreated.
-- **Templates** (`template_replay.go`): standalone declarations precede their
-  dictionaries and depend on actual callback predecessors. Authenticated
-  builtin callbacks require no declaration; installed helpers await their
-  extension. Seed and installed template relabels use the common collision
-  planner in their own key family, before dictionary relabels and consumers.
-  Templates have no OWNER directive. Privileged creation restores optional INIT
-  as zero and re-establishes genuine callback capability from destination
-  descriptors; no initialized native pointers are serialized.
-- **Dictionaries** (`dictionary_replay.go`): builtin simple/English and installed members
-  never get duplicate CREATE statements. Their initialized identities use the
-  captured names of their installation namespaces, after namespace replay, and
-  share one dictionary collision plan, separate from routine keys; relabels
-  precede option refreshes and owner transfers. Admitted option removals replay explicitly,
-  preserving SQL NULL rather than equivalent default resource behavior; genuine
-  unaccent dictionaries require explicit Rules and cannot replay its removal.
-  English seed differences remove default options before replaying the exact
-  current ordered list, so removed StopWords cannot reappear on Restore.
-  Final slot metadata and stored references/defaults/views follow those changes.
-  Standalone dictionaries own declaration events after template installation.
-  Non-bootstrap owners use the shared `dump.Statement.PrivilegedCreation` protocol:
-  CREATE runs under authenticated `DEFAULT`, and `FollowingSQL` transfers to the
-  actual owner without assuming schema CREATE grants or a named administrator.
-  Restore executes the emitted SQL, recompiles real resources and remaps
-  dictionary/template links and stored regdictionary references.
+- **Installation actors** (`installation_schedule.go`): genuine CREATE EXTENSION
+  retains the captured owner. Replay restores its administrator actor immediately
+  afterward, before any genuine release UPDATE; destination role attributes need
+  not match the source. Final strict owner/principal import restores current
+  authority and still rejects a recreated captured principal.
+- **Immutable body coordinates** (`installation_schedule.go`): sealed Earth
+  declaration syntax supplies only the captured cube-schema spelling. The sealed
+  domain's base-type identity selects the actual prerequisite cohort. Replay
+  installs it directly at its first producer's coordinates, then repositions that
+  same still-canonical installation between dependent producers if necessary.
+  Detachment, type naming, provider identities and finalization consume the actual
+  planner coordinate. Source namespace shells are retained; replay-only historical
+  shells are retired after all producers/finalization, never with CASCADE.
+  Existing pg_catalog is neither created nor dropped, nor entered by SET SCHEMA.
+  Raw declaration trees, owner-v3 metadata and final import remain unchanged.
+  Source-absent constrained cube headers retire after in-place name parking,
+  before a later cube producer reuses their canonical keys. The single existing
+  final-placement owner runs queued survivor records after all producers and
+  active/new-cohort placement, before schema retirement and consumers. Temporary
+  parent/array and routine/class/family labels use the ordinary shared owners;
+  nominal-operand operators coexist by actual input identities, without an
+  invented operator RENAME. Retained pg_catalog types normalize in place.
+- **Installed operators** (`installation_replay.go`): immutable installation
+  declarations replay moved recipe operators, including ltree path concatenation,
+  with genuine ALTER OPERATOR SET SCHEMA after their operand type identities exist,
+  before final owner metadata and stored consumers. Replay follows the origin
+  cohort, including detached members and surviving objects whose original
+  extension was deleted, rather than mutable extension membership. Unchanged
+  operators emit no identity statement; none is recreated independently of its
+  installation.
+- **Templates** (`template_replay.go`): standalone declarations, including ordinary
+  templates added to extensions, precede their dictionaries and depend on actual
+  callback predecessors. Membership does not turn an ordinary declaration into
+  an installed provider. Authenticated builtin callbacks require no declaration;
+  installed helpers await their installation cohort. Seed template relabels use
+  the common collision planner in their own key family, before dictionary
+  relabels and consumers. Genuine installed templates retain immutable origin
+  authority and replay with their canonical installation cohort, independently
+  of current membership. Templates have no OWNER directive. Privileged creation
+  restores optional INIT as zero and re-establishes genuine callback capability
+  from destination descriptors; no initialized native pointers are serialized.
+- **Dictionaries** (`dictionary_replay.go`): initialized simple/English dictionaries
+  use their captured installation namespaces after namespace replay and share the
+  builtin dictionary collision planner. Installed dictionaries are reconstructed
+  with their immutable installation cohort; neither gets standalone duplicate
+  CREATE statements. Relabeling precedes option refresh and owner transfer.
+  Admitted option removals replay explicitly, preserving SQL NULL rather than
+  equivalent default resource behavior; genuine unaccent dictionaries require
+  explicit Rules and cannot replay its removal. English seed differences remove
+  default options before replaying the exact current ordered list, so removed
+  StopWords cannot reappear on Restore. Standalone dictionaries retain
+  dependency-ordered declaration events after template installation.
+  Ordinary Snowball dictionaries keep CREATE events even as extension members.
+  Allocated Snowball helpers/template and English dictionary/configuration instead
+  replay their canonical bootstrap identities with ordinary ALTER planners.
+  Current owners/ACLs and each independent e-link follow identity reconstruction;
+  intrinsic seeds never acquire installed-origin declaration slots.
+  Non-bootstrap owners use the shared `dump.Statement.PrivilegedCreation`
+  protocol: CREATE runs under authenticated `DEFAULT`, and `FollowingSQL`
+  transfers to the actual owner without assuming schema CREATE grants or a named
+  administrator. Restore executes the emitted SQL, recompiles real resources,
+  and remaps dictionary/template links and stored regdictionary references,
+  defaults and views.
 - **Statistics** (`statistics.go`) serialize canonical named declarations after
   all ordinary graph phases, in qualified-name order. This includes completed
   input attribute history and unrelated row events, so reminted OIDs cannot move
@@ -240,6 +278,12 @@ database identity while retaining other databases' committed subscriptions.
   Parser events precede dependent configurations and follow represented routine
   declarations. Replacement remaps real parser/callback/configuration identities
   through the existing private Restore candidate.
+  Current membership never suppresses ordinary parser CREATE or substitutes an
+  extension event for its callback/parser/configuration dependency chain. Final
+  symbolic ADD follows ordinary creators. Strict v3 kind `parser` carries only
+  qualified identity/current membership, with no signature, declaration, provider
+  version, owner or ACL; import requires the final reciprocal parent graph.
+  Seed3722 always retains its ALTER replay and never becomes a duplicate CREATE.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
   ADD MAPPING statements, never COPY provenance. Actual parser, namespace, mapped
   dictionary and stored alias/default/view dependencies use the ordinary graph.
@@ -248,24 +292,142 @@ database identity while retaining other databases' committed subscriptions.
   Seed edits replay current mappings after canonical initialization. Temporary
   retention and replacement remap configurations and REGCONFIG datums through
   existing owners.
+  Current extension membership never suppresses that ordinary creator or its
+  parser/mapping dependency event. The sole v3 codec carries the configuration's
+  final namespace/name and membership, not a second owner or nonexistent ACL;
+  final ALTER EXTENSION membership follows its actual creation and owner transfer.
 - **Provider differences** (`provider_replay.go`): immutable released builtin
-  identity and checked versioned extension slots, never mutable labels, select
-  real ALTER FUNCTION or ALTER TEXT SEARCH DICTIONARY replay. Original SQL
-  declaration names are distinct from executable C symbols. Required
-  schemas/extensions and every installed scalar identity relocation precede
-  differences; dependent definitions follow.
-  Free destinations move first; only occupied cycles or blocked intermediate keys
-  need collision-checked temporary names.
+  identity, never mutable labels, selects real ALTER FUNCTION replay. Original
+  SQL declaration names are distinct from executable C symbols.
   Canonical parallel/cost/rows patches follow final identities and precede
   owner transfers; builtin costs compare against immutable released defaults.
   Generated range/multirange constructor patches use the same replay planner,
-  but emit immediately after their actual parent type declaration, before type
-  ACL repairs and dependent events. Their identities are validated type-owned
-  capabilities, not builtin OIDs; seeded PL handlers use their real declarations.
-  Existing generated constructor/handler authority portability gates remain.
-  Owner changes follow relabeling, then stable-slot owner metadata. Authentic
-  installed routine ACLs use that metadata's named grantor/grantee codec during
-  native Restore, preserving absent/explicit-empty ACLs and grant options.
+  but emit immediately after their actual parent type declaration and identity
+  epilogue, before type ACL repairs and dependent events. Their identities are
+  validated type-owned capabilities, not builtin OIDs. The type epilogue owns
+  current constructor identity and owner replay; raw ACL repairs preserve
+  current authority. Seeded PL handlers use their real declarations.
+  Ordinary type declaration events also follow their genuine I/O/support
+  procedure predecessors through the shared metadata dependency visitor.
+  Codec identities come from the captured catalog, not render-only generations;
+  installed producers remain canonical cohort events, not duplicate function DDL.
+- **Installed state** (`installation_replay.go`, `provider_replay.go`): immutable
+  script-sealed declaration recipes, not mutable membership positions, identify
+  providers. Nonseed cohorts are recreated by real CREATE EXTENSION, detached using
+  real ALTER EXTENSION, and relabeled through existing SQL class owners before
+  any ordinary consumer. Restore admits these emitted membership, placement,
+  update and retirement statements to the ordinary executor, not an import-only
+  catalog mutation. The script-sealed prerequisite cohort/type graph keeps
+  canonical prerequisite identities available while dependent scripts install;
+  dependents finalize before prerequisite rename/removal. A required provider
+  with no surviving source cohort is installed genuinely and retired afterward.
+  CREATE versus CREATE+UPDATE preserves surviving release/declaration origins.
+  Source-absent declarations are retired, and absent origin extensions disappear
+  without deleting detached survivors. Same-name cohorts replay serially.
+  Isolated scratch schemas and collision-planned type/routine/template/dictionary/
+  class/family identity changes avoid occupied intermediate names. Builtin provider differences
+  likewise use immutable released identities, not mutable labels. Free
+  destinations move first; occupied cycles or blocked intermediate keys use
+  collision-checked temporary names. A reserved real uuid-ossp installation can
+  retire unwanted global languages through ordinary extension dependencies;
+  templates instead use their actual standalone ALTER/DROP owners.
+  Cleanup namespaces use the shared collision-reserving scratch-name allocator,
+  never a source namespace suffix that could create a reserved `pg_` name.
+  Installed templates detach at canonical coordinates, replay final rename/move
+  in their own collision family alongside the initialized template, and acquire
+  only their captured current membership after all ordinary creators finish.
+  Missing templates of a retained cohort use ordinary DROP TEXT SEARCH TEMPLATE;
+  absent-origin residual declarations retire with their genuine extension.
+  Surviving lookup-only aggregate helpers have fixed creation coordinates and no
+  independent SQL mover. Their cohort installs in the actual captured helper
+  namespace, reusing (never creating or retiring) that source schema. Parent
+  aggregate names/schemas still replay independently through ordinary ALTER;
+  no helper follows a parent-only move. Cohorts with no surviving helper carrier
+  retain normal temporary installation and retirement.
+  A genuine source installation with surviving objects in `pg_catalog` likewise
+  installs directly in that existing namespace; replay never creates/retires
+  the system schema or widens public namespace-mover admission. Initialized
+  dictionary identity replay joins the installed dictionary collision group
+  after actual installation, preserving the real `simple`/`unaccent` cycle.
+  Surviving origin procedures carry their current Parallel/Cost/Rows through
+  installation replay even though they bypass ordinary provider collection.
+  Generated constructor estimate replay is admitted by the existing pre-render
+  creator graph event, then emitted after actual creation and final identity/
+  current-owner normalization, before ACL repairs or dependent consumers.
+  Final symbolic membership waits for ordinary objects, then replays recursive
+  roots before reconciling each companion's independent detached/foreign
+  membership. Seeded plpgsql reconciles handlers/language and complete source
+  absence without duplicate installation or seed resurrection. Only its exact
+  unchanged membership, declaration identities, current planner metadata and
+  owner/ACL baseline are omitted; the final membership planner starts from
+  those preserved seed links. Handler Parallel/Cost/Rows overrides are compared
+  with the immutable released defaults and take genuine installation replay,
+  just like detached, foreign, renamed, missing or authority-modified state.
+  The owner baseline is the captured live bootstrap principal and absent raw
+  ACL, never a historical recipe owner's role-domain pointer. Principal remapping
+  therefore preserves unchanged-seed omission without rewriting immutable recipes.
+  Installed type/domain OWNER replay admits the exact current qualified identity,
+  immutable declaration/version and target owner from v3 metadata, including a
+  detached survivor with no live origin extension; it has no provider-name
+  exception or membership-slot authority. A live origin's header must also match
+  its current presence, release, installation schema and owner; an absent origin
+  carries no invented schema/owner header. Ordinary owner execution still runs.
+  At the first installed type/domain OWNER use, the shared importer validates
+  installed symbolic identities, headers, declaration coverage and owner/ACL
+  data without mutation; not-yet-created ordinary entries and final membership
+  are deferred. Complete ImportOwners remains mandatory after all statements.
+  Malformed v3 authority returns an ordinary codec error before generated SQL
+  can mask it with an owner-admission failure; unsupported raw SQL still has its
+  normal SQLSTATE boundary.
+  The sole owner codec is v3. Named owners/grants and immutable release/declaration
+  keys survive independent-driver remap; v2 and malformed authority reject
+  atomically. No sessions, resources, loaders or source callback handles serialize.
+  Generated-array labels are reconstructed, not inferred from idealized final
+  element names. `array_name_trace.go` solves finite exact/prefix constraints
+  with UTF-8 truncation guards against the type owner's shared candidate rule.
+  `array_identity_replay.go` realizes the trace through real parent operations
+  and temporary domain displacement, tracking and retiring each helper's own
+  array in the same `DomainReplayNames` model. Numeric, repeated-prefix and
+  removed-history collisions do not require protected-array ALTER or import
+  mutation. Installation rendering and every ordinary represented row/type
+  creator share this model before dependent declarations consume its names.
+  Released composite backing relations use their row type's immutable installed
+  origin to select that installation creator and its already-modeled root/array.
+  Detaching or attaching the type to another extension never adds an ordinary
+  composite CREATE event or changes its dependency barrier. Conversely, an
+  ordinary composite added to an extension retains its real CREATE event and
+  consumer ordering; mutable membership is not a declaration producer.
+  Ordinary normalization belongs to the existing creator event: after real
+  CREATE and final parent identity, before consumers. Relation-only epilogues
+  never replace table/view CREATE entries. Protected rowtypes use actual
+  TABLE/VIEW/MATERIALIZED VIEW/FOREIGN TABLE owners. The existing writer switches
+  to bootstrap only for normalization and restores the previous emitting role.
+  Nonbootstrap domain/range owners use the existing exact fresh-owner pair:
+  bootstrap CREATE is immediately followed by OWNER at the actual creation
+  coordinates, without an intervening directive or normalization statement.
+  Private range coordinates are not mistaken for their final names. The
+  bootstrap emitting actor then performs normalization through ordinary owners;
+  transferring the object first grants no extra schema CREATE/USAGE privilege.
+  Range families are created at explicit, distinct private coordinates while
+  subtype, diff, class and collation references retain their captured identities.
+  The private schema is emitted in the actual range declaration's prelude,
+  before its captured-owner directive, not in the global installation prefix.
+  Earlier source-bound relation allocations therefore retain their numeric
+  endpoint constraints, while the CREATE TYPE/immediate OWNER pair stays intact.
+  This avoids constructor collisions with prerequisite routines or later type
+  creators. Range and multirange parents/arrays then move separately; generated
+  constructor public labels, schemas and owners are restored through real ALTER
+  FUNCTION, not coupled to parent generation refresh. Mutable constructor owner
+  and routine ACL authority does not change the separate multirange parent
+  policy: that parent's ACL remains the synthetic type-default baseline from
+  genuine range creation. Replay units assert quoted SQL identities and the
+  dependency-safe order of cohort retirement, method cycles and independent
+  companion membership. The private schema retires after every type and
+  constructor has left. No second replay executor or
+  counterfeit executable generation is involved.
+  Raw-float4 CAST ordering never makes prefix installation barriers depend on
+  an ordinary CAST: that would invert their actual emission phases and create
+  an artificial cycle through the CAST's own installation predecessor.
   Other supported routine, language, wrapper, server, namespace, type,
   tablespace, relation and column raw ACLs use destination-resolved administrative
   catalog repairs
@@ -294,9 +456,10 @@ database identity while retaining other databases' committed subscriptions.
   functions, and does not accept zero-dimensional `'{}'` repairs.
   ACL capture shares declaration collection's temporary-namespace exclusion:
   omitted temporary objects never leave dangling raw-ACL repairs in the stream.
-  Installed extension slots retain their existing metadata path, without
-  duplicate raw replay. `object_acl_repair.go` admits only fixed generated shapes;
-  ordinary public UPDATE gains no catalog write capability.
+  Installed routine/type ACLs are available after reconstruction and before
+  consumers; final repairs and strict v3 import retain exact raw authority.
+  `object_acl_repair.go` admits only fixed generated shapes; ordinary public
+  UPDATE gains no catalog write capability.
   Restore/Reset starts from canonical destination providers and destination
   foreign registrations, not source callbacks. Missing/incompatible capabilities
   fail before publication. Replacement preserves provider-name tombstones so
@@ -346,11 +509,11 @@ database identity while retaining other databases' committed subscriptions.
   spelling: SQL keyword aliases remain keywords and other names are qualified.
   Routine overloads and table columns therefore retain builtin identities when
   replay runs with shadowing domains before `pg_catalog` in `search_path`.
-  Extension-member predecessors collapse to their actual owning extension;
-  internally owned family rows first collapse to their actual class or family
-  owner. Lifetime comes from the extension's target namespace: a missing namespace is invalid, while
-  a valid TEMP installation gets the same atomic nonportable rejection as
-  extension collection, independent of descriptor traversal order.
+  Immutable installed origins resolve to the early reconstruction barrier even
+  when detached or foreign-attached; ordinary added members retain their own
+  declaration events and dependencies. Internally owned family rows collapse to
+  their actual class/family owner. TEMP installation or membership is rejected
+  before writer I/O; otherwise omitted TEMP descriptors never become replay state.
 - **Large objects** (`largeobject.go`): a fixed-OID-sorted list outside the
   relation graph; owner and ACL formatting is preflighted before writer I/O.
 
@@ -414,9 +577,14 @@ database identity while retaining other databases' committed subscriptions.
   declarations. Every installed scalar role's renamed/moved identity is reconstructed with
   ordinary ALTERs under bootstrap authority. Ltree scalar roles include lquery,
   ltree and ltxtquery; codec ownership uses canonical roles even when ltxtq_out
-  refers to a renamed or moved scalar. Deterministic free temporary names break
-  cross-member cycles; moves preserve companion spelling and renames use
-  the shared generated-array predictor. This predictor seeds mixed domain/composite
+  refers to a renamed or moved scalar.
+  Absent declarations left attached to a retiring origin are removed by its real
+  DROP EXTENSION, without replaying their identities or requiring their generated
+  argument types in the source. Explicit standalone deletion still renders its
+  actual identity; surviving declarations retain full current provider validation.
+  Deterministic free temporary names break cross-member cycles; moves preserve
+  companion spelling and renames use the shared generated-array predictor.
+  This predictor seeds mixed domain/composite
   rendering, including domains over installed arrays. All four ISN scalars' captured
   owners are then restored with ordinary TYPE OWNER SQL, which transfers each
   companion without changing independent extension or I/O owners. Separate ordinary
@@ -454,13 +622,18 @@ database identity while retaining other databases' committed subscriptions.
   Dump writes (`emitDefinition`). `Decode` collects the marker comments,
   `Pair` ties each to the `SET`/`RESET search_path` right after it (only blank
   text between). `Before(index, stmt, current)` walks begin → bind → one DDL
-  → close, repeated, then finish: bind needs stock cube, hstore or ltree installed in the
-  named persistent namespace; any unmarked `search_path` change, a non-DDL or
-  second DDL in a window, or a statement after finish is invalid. A marked
-  statement returns `execute`, and the root runs it with no other entry.
-  Dump derives the namespace from authenticated typed captures and orders each
-  bound definition after the namespace's installed comparison providers, including
-  every installed cube, hstore and ltree provider when they share that namespace.
+  → close, repeated, then finish: bind needs a genuine released cube, hstore or ltree
+  comparison operator in the named persistent namespace, authenticated by its
+  current class/origin/principal and validated backing declaration. The backing
+  procedure may live elsewhere; a comparison procedure alone in the namespace
+  cannot authorize a window. Neither object's current extension membership
+  selects its immutable implementation authority.
+  Any unmarked `search_path` change, a non-DDL or second DDL in a window, or a
+  statement after finish is invalid. A marked statement returns `execute`, and
+  the root runs it with no other entry. Dump derives the namespace from current
+  authenticated typed captures and orders each bound definition after its actual
+  selected procedures and namespace. Detached, foreign-member and absent-origin
+  comparisons do not acquire a phantom dependency on the old extension.
   `After` hands the bound window's check to the root, which captures its
   authorization under `Engine.Mu`, checks USAGE on the namespace and calls
   `ValidateComparisonBinding`; `Bound` then closes the window. Only

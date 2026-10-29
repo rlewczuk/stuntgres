@@ -20,29 +20,39 @@ func validateTemplate(v catalog.Read, d *catalog.TSTemplate) error {
 		if err := ValidateProviderHeader(v, p, ids.ProcedureClassID); err != nil {
 			return err
 		}
-		if v.Owner() == nil || v.Owner().Provider(ids.ProcedureClassID) == nil {
+		if v.Owner() == nil || v.Owner().Principals == nil || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || v.Owner().Provider(ids.ProcedureClassID) == nil {
 			return InvalidProviderDescriptor()
 		}
 		if err := catalog.Validate(v.Owner().Provider(ids.ProcedureClassID), v, p); err != nil {
 			return err
 		}
 	}
-	if d.Extension == (ids.ObjectAddress{}) {
+	if d.Origin == nil {
 		if d.Implementation != nil {
 			return InvalidProviderDescriptor()
 		}
 		return nil
 	}
-	parent, ok := v.Extension(d.Extension)
-	if !ok || UnaccentTemplateProviderOf(d) != StockUnaccent || len(parent.Members) != 6 || parent.Members[4] != d.Address() {
+	installation, ok := catalog.OriginInstallation(d)
+	if !ok || v.Get(d.Address()) != d || v.Owner() == nil || v.Owner().Extensions[installation.Provider] != StockUnaccent || installation.Implementation != StockUnaccent || StockUnaccent.Versions().InstallPath(installation.Version) == nil || UnaccentTemplateProviderOf(d) != StockUnaccent || d.Origin.Declaration != 4 || len(installation.Members) != 6 {
 		return InvalidProviderDescriptor()
 	}
-	return StockUnaccent.ValidateExtension(v, parent)
+	canonical, ok := installation.Declarations[d.Origin.Declaration].(*catalog.TSTemplate)
+	if !ok || d.Init != canonical.Init || d.Lexize != canonical.Lexize {
+		return InvalidProviderDescriptor()
+	}
+	for i, a := range [2]ids.ObjectAddress{d.Init, d.Lexize} {
+		p, ok := v.Procedure(a)
+		if !ok || !catalog.SameInstallation(p, installation) || p.Origin.Declaration != i+2 {
+			return InvalidProviderDescriptor()
+		}
+	}
+	return nil
 }
 
-// dictionaryCapability checks the actual captured procedures, not the template's
-// public label, seed address or implementation claim. Zero means valid metadata
-// whose native callback combination is unavailable.
+// dictionaryCapability selects only validated intrinsic callbacks or released
+// callbacks from one genuine cohort. Current extension membership is unrelated.
+// Zero means valid metadata whose native callback combination is unavailable.
 func dictionaryCapability(v catalog.Read, d *catalog.TSTemplate) uint8 {
 	init, iok := v.Procedure(d.Init)
 	lexize, lok := v.Procedure(d.Lexize)
@@ -53,7 +63,7 @@ func dictionaryCapability(v catalog.Read, d *catalog.TSTemplate) uint8 {
 	synonym := d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3728}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3729})
 	if simple || synonym {
 		for _, p := range [2]*catalog.Procedure{init, lexize} {
-			if p.Builtin == nil || p.Builtin.Identity.ID != p.Address().ObjectID || p.Builtin.Identity.Signature != p.Signature || p.Builtin.Result != 2281 || p.Result != 2281 || p.Extension != (ids.ObjectAddress{}) || p.Implementation != nil || p.SQL != nil || p.Foreign != nil {
+			if p.Builtin == nil || p.Builtin.Identity.ID != p.Address().ObjectID || p.Builtin.Identity.Signature != p.Signature || p.Builtin.Result != 2281 || p.Result != 2281 || p.Implementation != nil || p.SQL != nil || p.Foreign != nil {
 				return 0
 			}
 			if err := ValidateProviderHeader(v, p, ids.ProcedureClassID); err != nil {
@@ -71,14 +81,11 @@ func dictionaryCapability(v catalog.Read, d *catalog.TSTemplate) uint8 {
 		}
 		return 3
 	}
-	if UnaccentProviderOf(init) != StockUnaccent || UnaccentProviderOf(lexize) != StockUnaccent || init.Extension != lexize.Extension {
+	if UnaccentProviderOf(init) != StockUnaccent || UnaccentProviderOf(lexize) != StockUnaccent {
 		return 0
 	}
-	parent, ok := v.Extension(init.Extension)
-	if !ok || len(parent.Members) != 6 || parent.Members[2] != init.Address() || parent.Members[3] != lexize.Address() {
-		return 0
-	}
-	if err := StockUnaccent.ValidateExtension(v, parent); err != nil {
+	installation, ok := catalog.OriginInstallation(init)
+	if !ok || !catalog.SameInstallation(lexize, installation) || init.Origin.Declaration != 2 || lexize.Origin.Declaration != 3 {
 		return 0
 	}
 	return 2

@@ -76,7 +76,7 @@ func TestReferenceMetaphoneControls(t *testing.T) {
 		run(metaphoneLiteralView())
 		run(fixture.Prepared(metaphoneLiteralView()))
 		metaphoneInventory(t, p, b, c, "phon_addon", "phon_owner", false)
-		extensionControlsFailures(t, p, c, b.Recorder, dump, check)
+		extensionControlsFailures(t, p, c, b.Recorder, "fuzzystrmatch", dump, check)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, frame)
 		ioFailure := errors.New("metaphone restore reader failure")
 		if err := stuntgres.Restore(p.Ctx, p.Native, fixture.CatalogControlFailingReader{Err: ioFailure}); !errors.Is(err, ioFailure) {

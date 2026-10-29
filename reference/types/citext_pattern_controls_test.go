@@ -200,7 +200,7 @@ func TestReferenceCitextPatternControls(t *testing.T) {
 					}
 					bad := "CREATE EXTENSION citext; CREATE TABLE citext_pattern_late(s citext,p citext,CHECK(s ~ p)); INSERT INTO citext_pattern_late VALUES ('ABC','abc'),('ABC','[');"
 					if phase == "owner_corruption" {
-						const marker = "-- stuntgres-extension-owners-v2 "
+						const marker = "-- stuntgres-extension-owners-v3 "
 						start := strings.Index(dump.String(), marker)
 						if start < 0 {
 							t.Fatal("missing genuine owner directive")

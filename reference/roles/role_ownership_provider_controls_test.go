@@ -84,9 +84,9 @@ func TestReferenceRoleOwnershipProviderControls(t *testing.T) {
 				}
 			})
 			s.Actor("")
-			// PostgreSQL ignores native member metadata comments. Trusted recreation by
-			// an ordinary target really gives bootstrap members, not target members.
-			ownershipProviderOwners(s, "own_target", s.Bootstrap)
+			// PostgreSQL ignores native metadata comments, but the ordinary owner
+			// statements in the dump still restore the captured target owners.
+			ownershipProviderOwners(s, "own_target", "own_target")
 			ownershipHotel(s, "SELECT v FROM own_provider_saved")
 			ownershipDatabaseOwner(s, "own_source")
 			ownershipBool(s, "SELECT has_database_privilege('own_reader',current_database(),'CREATE WITH GRANT OPTION')", true)

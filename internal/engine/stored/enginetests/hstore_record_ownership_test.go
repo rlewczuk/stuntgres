@@ -205,7 +205,7 @@ func TestHstoreRecordStoredRemap(t *testing.T) {
 			t.Fatal("remapped declared pseudo signature changed")
 		}
 	}
-	for _, cause := range []string{"current_signature", "current_member", "source_domain", "effective_generation"} {
+	for _, cause := range []string{"current_signature", "current_member", "current_membership_link", "source_domain", "effective_generation"} {
 		// Each authority attempt owns a fresh query memo. Copying the successful
 		// mapper would return its cached root without visiting forged declarations.
 		bad := stored.ViewQueryRemapper{Ref: reference, Type: types, Procedure: procedure}
@@ -220,6 +220,10 @@ func TestHstoreRecordStoredRemap(t *testing.T) {
 			ext.Members = append([]ids.ObjectAddress(nil), te.Members...)
 			ext.Members[51], ext.Members[52] = ext.Members[52], ext.Members[51]
 			state.SetDescriptor(ext.Address(), &ext)
+		case "current_membership_link":
+			p := *tv.MustProcedure(te.Members[51])
+			p.Extension = ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 999999}
+			state.SetDescriptor(p.Address(), &p)
 		case "source_domain":
 			bad.Ref = func(old ids.ObjectRef) ids.ObjectRef {
 				if old == (ids.ObjectRef{}) {
@@ -239,7 +243,11 @@ func TestHstoreRecordStoredRemap(t *testing.T) {
 			}
 		}
 		bad.Catalog = target.Catalog.Read(state)
-		if _, err := bad.Nested(bound); err == nil {
+		if _, err := bad.Nested(bound); cause == "current_member" {
+			if err != nil {
+				t.Fatal("lawful membership permutation changed released authority", err)
+			}
+		} else if err == nil {
 			t.Fatal("forged record remap accepted", cause)
 		}
 	}

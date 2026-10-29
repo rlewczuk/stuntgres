@@ -88,6 +88,33 @@ Both kinds retain committed values for the Driver's process-local lifetime,
 including pool close/reopen. These logical controls do not provide WAL, crash
 truncation, disk durability, standby replication or recovery across process exit.
 
+Current extension membership does not select a provider implementation. Native
+controls recreate genuine released declarations and dependencies, then restore
+final membership, symbolic identities, owners and ACLs, including detached
+survivors and stock `plpgsql` deltas. Ownership directives use the strict v3
+logical format; obsolete or malformed directives cannot publish a replacement.
+Lawful membership changes do not alter released `tablefunc`, `pageinspect` or
+`hstore` declarations, including record/SRF output and nullable library metadata.
+Stored consumers retain genuine selected identities and recheck current access;
+removing an extension link never removes the object's ordinary dependencies.
+Native replay preserves current routine parallel/cost/rows settings separately
+from immutable released implementation identity.
+Ordinary text-search parsers may be extension members without acquiring an owner,
+ACL or installed-provider provenance. Their genuine callback declarations and
+dependent nonmember configurations survive membership changes and relocation;
+native replay creates the parser before its configurations and final membership.
+Membership ADD/DROP requires superuser authority after extension ownership;
+actual extension relocation also retains the lower ownerless parser gate.
+The pinned default parser may acquire or detach membership, but actual DROP
+remains prohibited by its database-system pin, including while it is a member.
+Snowball's intrinsic helpers, template, English dictionary and configuration
+retain their bootstrap identities independently of current extension membership.
+Their current memberships may differ or be absent without changing callback
+capability. Native replay reuses those seeds through ordinary ALTER operations,
+preserving current names, placement, owners, ACLs, dictionary options and mappings;
+ordinary Snowball dictionaries still replay as genuine CREATE declarations.
+Database-system pins remain independent of membership and prohibit seed DROP.
+
 The engine core owns the [database and template contract](../internal/engine/core/README.md#cluster-and-logical-database-ownership).
 
 ## Physical sessions and pooling
@@ -157,6 +184,12 @@ ordinary SQL errors leave the connection reusable.
   `ErrCatalogReplaced` is an ordinary native error without SQLSTATE and clears
   explicit-transaction savepoints: fully roll back and begin a fresh transaction
   on the same connection before qualified recovery.
+- `ALTER EXTENSION` UPDATE, SET SCHEMA and member ADD/DROP share SQL and Go
+  transactions and retained messages. Schema relocation checks destination CREATE
+  before extension ownership, including same-target requests, and retains the
+  actual member-class authority. Recursive membership and mechanical relocation
+  publish atomically with ordinary dependencies; neither operation changes
+  executable provider origin, effective ownership or ACLs.
 - CREATE/DROP ACCESS METHOD and CREATE/ALTER/DROP OPERATOR FAMILY and OPERATOR
   CLASS also share autocommit, SQL transaction controls, Go `BeginTx` and retained
   messages. Later owner commands consume private methods, classes and members;

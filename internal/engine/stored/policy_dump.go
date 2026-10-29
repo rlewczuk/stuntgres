@@ -60,7 +60,7 @@ func PolicyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 				if clause.expr == nil {
 					continue
 				}
-				namespace, err := ComparisonBindingNamespace(view, clause.expr.Expression())
+				namespace, err := ComparisonBindingNamespace(view, clause.expr.Expression(), nil)
 				if err != nil {
 					return nil, err
 				}

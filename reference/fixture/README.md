@@ -41,6 +41,10 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
   the fixture DSN, so reopening a pool keeps the engine.
   `RecordedNativePool(t, connector)` applies that same recording adapter to a
   fresh native connector, such as a separate Driver's Restore destination.
+  Keep the raw pool for Reset/Restore and obtain SQL assertion connections from
+  the recorded pool over that same connector. Pass its returned recorder through
+  every nested value, metadata and cleanup callback; a source recorder cannot
+  prove consumed rows or recorded cursor closure on an independent destination.
   `RawBackend` selects codec assertions; it does not install recording middleware.
   `AssertRawValue` checks non-NULL arrays, including internal-char (`_CHAR`) and
   regtype (`_REGTYPE`) arrays, as native strings and pq byte slices before
@@ -299,6 +303,11 @@ production dependency is involved.
   Collation CREATE admission cases distinguish pre-SRX semantic errors and
   same-encoding duplicate/skip completion from protected cross-encoding checks
   and concurrent exact-key `23505`, including IF NOT EXISTS.
+- **Native extension controls.** `CatalogExtensionOwnerDirective` selects exactly
+  one emitted v3 logical cohort by provider and final presence, returning its
+  byte range and decoded payload. Stock `plpgsql` and absent older same-name
+  cohorts are real records, not aliases for the first directive. The helper
+  inspects public native Dump artifacts only and supplies no SQL expectations.
 - **Server.** `NewServerFixture(t)` builds and launches a real `cmd/stuntgres`
   subprocess (temporary userfile, dumps, logs and PID file; reduced-KDF build tag)
   for `reference/sessions` wire tests. Embedded scenarios never start a server.

@@ -59,7 +59,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.8" || len(ext.Members) != extension.CitextMemberCount || base.Extension != ext.Address() || !base.SQLType.IsCitext() || base.Owner != ext.Owner {
+	if ext.Version != "1.8" || len(ext.Members) != extension.CitextMemberCount+1 || len(ext.Installation.Members) != extension.CitextMemberCount || base.Extension != ext.Address() || !base.SQLType.IsCitext() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	facts, err := pgcatalog.TypeFacts(context.Background(), view, base, sqltype.OutputEnvironment{})
@@ -77,7 +77,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 	if !stored.DependPinned(view, nil, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1007}) {
 		t.Fatal("builtin int4 array lost bootstrap pinning")
 	}
-	for i, address := range ext.Members {
+	for _, address := range ext.Members {
 		member := view.Get(address)
 		if member == nil || member.Namespace() != ext.TargetNamespace || catalog.ExtensionMembership(member) != ext.Address() {
 			t.Fatal("membership", address)
@@ -86,7 +86,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 		if owner != ext.Owner {
 			t.Fatal("owner", address)
 		}
-		if i == 0 {
+		if member.Kind() == ids.TypeObject {
 			if err := (stored.TypeProvider{}).Validate(view, member); err != nil {
 				t.Fatal(err)
 			}
@@ -120,7 +120,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != extension.CitextMemberCount || !arrayInternal {
+	if len(members) != extension.CitextMemberCount+1 || !arrayInternal || !members[arrayAddress] {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -148,12 +148,16 @@ func TestCitextProviderIdentity(t *testing.T) {
 	if err != nil || len(records) != 1 {
 		t.Fatal("owner metadata comments", records, err)
 	}
-	record := records[0]
-	if record.Name != "citext" || record.Schema != "public" || record.Version != "1.8" || record.Owner != "postgres" || len(record.Members) != extension.CitextMemberCount {
+	record := extensionOwnerRecipeOrder(records[0])
+	if record.Name != "citext" || record.Schema != "public" || record.Version != "1.8" || record.Owner != "postgres" || len(record.Members) != extension.CitextMemberCount+1 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {
-		if member.Owner != "postgres" {
+		want := "postgres"
+		if member.Declaration == nil {
+			want = ""
+		}
+		if member.Owner != want {
 			t.Fatal("member owner", member)
 		}
 	}

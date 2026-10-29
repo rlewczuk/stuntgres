@@ -75,7 +75,7 @@ func TestCitextPatternStoredRemap(t *testing.T) {
 			}
 			return view.Owner().Domain.Ref(view.Epoch(), address)
 		},
-		Procedure: extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil),
+		Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), replacementProcedurePolicyFixture(source, target), nil),
 	}
 	mapOriginal := func(node expr.Expr) (expr.Expr, error) {
 		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{node}}})

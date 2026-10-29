@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func rangeDumpSQL(ctx context.Context, p dump.Presenter, view catalog.Read, d *catalog.Type, qualified string) (string, error) {
+func rangeDumpSQL(ctx context.Context, p dump.Presenter, view catalog.Read, d *catalog.Type, qualified, multirangeSQL string) (string, error) {
 	definition, ok := d.SQLType.RangeDefinition()
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing range dump definition")
@@ -46,6 +46,9 @@ func rangeDumpSQL(ctx context.Context, p dump.Presenter, view catalog.Read, d *c
 		}
 		out.WriteString(", SUBTYPE_DIFF = " + name(procedure))
 	}
-	out.WriteString(", MULTIRANGE_TYPE_NAME = " + name(multi) + ");\n")
+	if multirangeSQL == "" {
+		multirangeSQL = name(multi)
+	}
+	out.WriteString(", MULTIRANGE_TYPE_NAME = " + multirangeSQL + ");\n")
 	return out.String(), ctx.Err()
 }

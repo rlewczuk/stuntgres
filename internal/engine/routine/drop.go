@@ -93,7 +93,7 @@ func StageDropRoutine(h DDLHost, auth ddl.Authority, s *parser.DropRoutine) erro
 			diagnostic.Hint = "You can drop " + typeObject + " instead."
 			return diagnostic
 		}
-		if d.Seeded() {
+		if d.Pinned() {
 			return sqlError("2BP01", "cannot drop "+object+" because it is required by the database system")
 		}
 		if d.Extension != (ids.ObjectAddress{}) {
@@ -101,8 +101,8 @@ func StageDropRoutine(h DDLHost, auth ddl.Authority, s *parser.DropRoutine) erro
 			if !ok {
 				return fmt.Errorf("stuntgres: routine extension is absent")
 			}
-			diagnostic := sqlError("2BP01", "cannot drop "+object+" because extension "+catalog.DependencyIdentifier(ext.Name())+" requires it").(*sqlstate.Error)
-			diagnostic.Hint = "You can drop extension " + catalog.DependencyIdentifier(ext.Name()) + " instead."
+			diagnostic := sqlError("2BP01", "cannot drop "+object+" because extension "+ext.Name()+" requires it").(*sqlstate.Error)
+			diagnostic.Hint = "You can drop extension " + ext.Name() + " instead."
 			return diagnostic
 		}
 		if !seen[d.Address()] {

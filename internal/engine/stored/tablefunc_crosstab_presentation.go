@@ -30,8 +30,12 @@ func (v *View) tablefuncCrosstabRecipeProcedure(read catalog.Read, path analyze.
 	if !ok || extension.TablefuncProviderOf(proc) != extension.StockTablefunc {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen crosstab procedure")
 	}
-	if err := extension.StockTablefunc.ValidateProcedure(read, proc); err != nil {
+	symbol, err := extension.ProcedureSymbol(read, proc)
+	if err != nil {
 		return nil, err
+	}
+	if !tablefuncCrosstabSymbol(symbol) {
+		return nil, fmt.Errorf("stuntgres: mismatched frozen crosstab symbol")
 	}
 	return proc, nil
 }

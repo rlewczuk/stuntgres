@@ -56,20 +56,9 @@ func cubeCoordinatePGOwners(t *testing.T, p *fixture.Pair, db fixture.Executor, 
 
 func cubeCoordinateOwnerScript(t *testing.T, script string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v2 "
-	start := strings.Index(script, marker)
-	if start < 0 {
-		t.Fatal("missing cube owner manifest")
-	}
-	endOffset := strings.IndexByte(script[start:], '\n')
-	if endOffset < 0 {
-		t.Fatal("unterminated cube owner manifest")
-	}
-	end := start + endOffset
-	data, err := base64.StdEncoding.DecodeString(script[start+len(marker) : end])
-	if err != nil {
-		t.Fatal(err)
-	}
+	const marker = "-- stuntgres-extension-owners-v3 "
+	start, end, data := fixture.CatalogExtensionOwnerDirective(t, script, "cube", true)
+	var err error
 	var record map[string]json.RawMessage
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
@@ -86,12 +75,12 @@ func cubeCoordinateOwnerScript(t *testing.T, script string) string {
 		t.Fatal("decode cube owner members", err)
 	}
 	want := map[[3]string]bool{
-		{"procedure", "cube_ll_coord", "cube,23"}:   false,
-		{"procedure", "cube_ur_coord", "cube,23"}:   false,
-		{"procedure", "cube_coord", "cube,23"}:      false,
-		{"procedure", "cube_coord_llur", "cube,23"}: false,
-		{"operator", "->", "cube,23"}:               false,
-		{"operator", "~>", "cube,23"}:               false,
+		{"procedure", "cube_ll_coord", "public.cube, integer"}:   false,
+		{"procedure", "cube_ur_coord", "public.cube, integer"}:   false,
+		{"procedure", "cube_coord", "public.cube, integer"}:      false,
+		{"procedure", "cube_coord_llur", "public.cube, integer"}: false,
+		{"operator", "->", "public.cube, integer"}:               false,
+		{"operator", "~>", "public.cube, integer"}:               false,
 	}
 	for _, member := range members {
 		var key [3]string

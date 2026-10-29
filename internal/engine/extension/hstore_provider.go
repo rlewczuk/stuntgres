@@ -229,7 +229,7 @@ func (r hstoreOperator) commutatorOID(ext *catalog.Extension) ids.OID {
 	return ext.Members[r.commutator].ObjectID
 }
 
-func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *HstoreProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid hstore manifest") }
 	if !currentManifest(v, ext) || p != StockHstore || ext.Name() != "hstore" || ext.Version != p.control.Version || len(ext.Members) != HstoreMemberCount {
 		return invalid()
@@ -278,14 +278,7 @@ func (p *HstoreProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 }
 
 func (p *HstoreProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	if _, err := ProcedureSymbol(v, proc); err != nil {
-		return err
-	}
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing hstore codec installation")
-	}
-	return p.ValidateExtension(v, ext)
+	return ValidateProcedureOrigin(v, proc, p)
 }
 
 func validateHstoreOperator(v catalog.Read, ext *catalog.Extension, base *catalog.Type, slot int) error {
@@ -301,23 +294,4 @@ func validateHstoreOperator(v catalog.Read, ext *catalog.Extension, base *catalo
 		return ValidateProviderHeader(v, op, ids.OperatorClassID)
 	}
 	return fmt.Errorf("stuntgres: invalid hstore operator slot")
-}
-
-// HstoreRelocatableOperator authenticates recipe operators that may move
-// independently of installation. Comparison operators retain their existing
-// family/namespace contract. This does not replace full operator validation.
-func HstoreRelocatableOperator(v catalog.Read, ext *catalog.Extension, address ids.ObjectAddress) bool {
-	if ext == nil || ext.Name() != "hstore" || address.ClassID != ids.OperatorClassID || ext.Version != StockHstore.control.Version || v.Owner().Extensions[ext.Name()] != StockHstore || len(ext.Members) != HstoreMemberCount || !currentManifest(v, ext) {
-		return false
-	}
-	base, ok := v.Type(ext.Members[HstoreTypeSlot])
-	if !ok || base.SQLType == nil {
-		return false
-	}
-	for _, recipe := range hstoreOperators {
-		if ext.Members[recipe.slot] == address {
-			return validateHstoreOperator(v, ext, base, recipe.slot) == nil
-		}
-	}
-	return false
 }

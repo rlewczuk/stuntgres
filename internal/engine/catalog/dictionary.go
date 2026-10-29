@@ -7,10 +7,19 @@ import (
 )
 
 func (d *TSDictionary) Seeded() bool {
-	return d.english || d.Address() == (ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765})
+	return d.english || d.Pinned()
 }
 func (d *TSTemplate) Seeded() bool {
-	return d.snowball || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727}) || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3730})
+	return d.snowball || d.Pinned()
+}
+
+// Pinned distinguishes fixed bootstrap catalog identities from allocated initdb
+// Snowball seeds, which retain seed replay authority but ordinary dependencies.
+func (d *TSDictionary) Pinned() bool {
+	return d.Address() == (ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765})
+}
+func (d *TSTemplate) Pinned() bool {
+	return d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727}) || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3730})
 }
 
 func InstallBuiltinDictionaries(state *State, owner authorization.PrincipalRef, runtime DictionaryRuntime) {

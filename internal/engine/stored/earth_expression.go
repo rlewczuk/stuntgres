@@ -40,13 +40,17 @@ func ValidateInstalledEarth(n plan.InstalledEarthExpr, view catalog.Read) error 
 	if extension.EarthdistanceProviderOf(proc) != extension.StockEarthdistance || symbol != n.Name() || string(proc.Signature) != n.Signature() || proc.Result != ids.OID(n.ResultUsage().Type.ID()) {
 		return fmt.Errorf("invalid stored earth routine")
 	}
-	ext, ok := view.Extension(proc.Extension)
+	ext, ok := catalog.OriginInstallation(proc)
 	if !ok || len(ext.Members) != extension.EarthMemberCount {
 		return fmt.Errorf("missing earth installation")
 	}
-	earth, ok := view.Type(ext.Members[0])
-	if !ok || earth.SQLType != n.Plan.Earth() {
-		return fmt.Errorf("foreign stored earth generation")
+	if n.Plan.Operation() >= sqltype.EarthLL {
+		earth, ok := view.Type(ext.Members[0])
+		if !ok || earth.SQLType != n.Plan.Earth() {
+			return fmt.Errorf("foreign stored earth generation")
+		}
+	} else if n.Plan.Earth() != nil {
+		return fmt.Errorf("scalar earth call retained a nominal domain")
 	}
 	return extension.StockEarthdistance.ValidateProcedure(view, proc)
 }

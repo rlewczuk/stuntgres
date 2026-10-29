@@ -82,7 +82,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		*parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger,
 		*parser.CreateRule, *parser.AlterRule, *parser.DropRule,
 		*parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy,
-		*parser.CreateExtension, *parser.DropExtension, *parser.AlterExtensionUpdate,
+		*parser.CreateExtension, *parser.DropExtension, *parser.AlterExtensionUpdate, *parser.AlterExtension,
 		*parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary,
 		*parser.CreateTemplate, *parser.AlterTemplate, *parser.DropTemplate,
 		*parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration,

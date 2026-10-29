@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/routine"
 )
 
-// Pinning follows represented bootstrap authorities, never an OID cutoff.
+// Pinning follows represented fixed bootstrap authorities, not seed replay status.
 func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) bool {
 	if address.ClassID == ids.NamespaceClassID {
 		return address.ObjectID == ids.PGCatalogNamespaceOID || address.ObjectID == ids.PGToastNamespaceOID
@@ -34,13 +34,13 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 	case *catalog.TSParser:
 		return d.Seeded()
 	case *catalog.TSConfiguration:
-		return d.Seeded()
+		return d.Pinned()
 	case *catalog.TSDictionary:
-		return d.Seeded()
+		return d.Pinned()
 	case *catalog.TSTemplate:
-		return d.Seeded()
+		return d.Pinned()
 	case *catalog.Procedure:
-		return d.Seeded()
+		return d.Pinned()
 	case *catalog.OperatorClass:
 		return catalog.OperatorClassSeeded(d)
 	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:

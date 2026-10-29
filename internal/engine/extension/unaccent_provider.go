@@ -20,7 +20,7 @@ func (p *UnaccentProvider) Versions() catalog.ExtensionVersions {
 
 var StockUnaccent = &UnaccentProvider{control: catalog.ExtensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("text search dictionary that removes accents")}}
 
-func (p *UnaccentProvider) ValidateExtension(v catalog.Read, d *catalog.Extension) error {
+func (p *UnaccentProvider) validateRecipe(v catalog.Read, d *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid unaccent manifest") }
 	if !currentManifest(v, d) {
 		return invalid()

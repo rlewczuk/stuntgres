@@ -99,7 +99,7 @@ func uuidOsspNamespaceControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	post(c, r)
 	fixture.RunStep(t, p.Ctx, h, r, uuidOsspNamespaceSelect(q, uuidOsspNamespaces[4].value))
 	before := extensionDump(t, p.Ctx, p.Native)
-	for _, bad := range []string{dump + "\nINVALID SQL;", strings.Replace(dump, "VERSION '1.1'", "VERSION 'missing'", 1), strings.ReplaceAll(dump, "uuid_ns_x500", "missing_namespace"), strings.Replace(dump, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1)} {
+	for _, bad := range []string{dump + "\nINVALID SQL;", strings.Replace(dump, "VERSION '1.1'", "VERSION 'missing'", 1), strings.ReplaceAll(dump, "uuid_ns_x500", "missing_namespace"), strings.Replace(dump, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1)} {
 		if bad == dump {
 			t.Fatal("bad restore fixture unchanged")
 		}

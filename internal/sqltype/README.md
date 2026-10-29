@@ -587,8 +587,10 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   subset NULL elements precede length and index checks.
   Public point inquiry and cube output share the geometric endpoint predicate,
   recognizing coincident subset boxes without mutating their retained storage flag.
-- `EarthCoordinatePlan` captures actual earth/cube/FLOAT8 generations and shares
-  `EarthRadius` with the released domain checks. Checked binary64 arithmetic
+- `EarthCoordinatePlan` captures only actual FLOAT8 for radius/sec-to-gc/gc-to-sec;
+  those scalar kernels retain no earth/cube generation. Typed ll/latitude/longitude
+  retain the actual nominal graph. All share `EarthRadius` with released domain
+  checks. Checked binary64 arithmetic
   retains SQL NaN ordering, signed zero and underflow. Projection borrows private
   coordinates; ll construction owns one three-coordinate point allocation and
   checks the result through the ordinary domain input environment before wrapping.
@@ -767,7 +769,7 @@ match engine tests of the same mechanism):
 - Installed label-query codecs, identity and cancellation: `RUN='^Test(Lquery|Ltxtquery)'`
 - Installed ltree codecs, typed comparisons/keys, identity and cancellation: `RUN='^TestLtree'`
 - Installed interval scalar codec and exact representation: `RUN='^TestSeg'`
-- Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|PointKernel)$'`
+- Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|CoordinateScalarOwnership|PointKernel)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`

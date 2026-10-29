@@ -6,12 +6,14 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,16 +21,16 @@ import (
 // bindings, not another SQL-result fixture. Public outcomes live in reference/.
 func TestHstoreComparisonPreparedOwnership(t *testing.T) {
 	for _, tc := range []struct {
-        name, expression, want string
-        member, operator int
-        result sqltype.ID
-    }{
-        {"equal", "hstore_eq('a=>1'::hstore,'a=>1'::hstore)", "t", extension.HstoreComparisonProcedureStart, 0, sqltype.Bool},
-        {"compare", "hstore_cmp('a=>bc'::hstore,'ab=>c'::hstore)", "-1", extension.HstoreComparisonProcedureStart+6, 0, sqltype.Int4},
-        {"hash", "hstore_hash(''::hstore)", "-1524351049", extension.HstoreComparisonProcedureStart+7, 0, sqltype.Int4},
-        {"extended", "hstore_hash_extended(''::hstore,1::bigint)", "3044001184559810835", extension.HstoreComparisonProcedureStart+8, 0, sqltype.Int8},
-        {"support_order", "'a=>bc'::hstore #<# 'ab=>c'::hstore", "t", extension.HstoreComparisonProcedureStart+2, extension.HstoreComparisonOperatorStart+2, sqltype.Bool},
-    } {
+		name, expression, want string
+		member, operator       int
+		result                 sqltype.ID
+	}{
+		{"equal", "hstore_eq('a=>1'::hstore,'a=>1'::hstore)", "t", extension.HstoreComparisonProcedureStart, 0, sqltype.Bool},
+		{"compare", "hstore_cmp('a=>bc'::hstore,'ab=>c'::hstore)", "-1", extension.HstoreComparisonProcedureStart + 6, 0, sqltype.Int4},
+		{"hash", "hstore_hash(''::hstore)", "-1524351049", extension.HstoreComparisonProcedureStart + 7, 0, sqltype.Int4},
+		{"extended", "hstore_hash_extended(''::hstore,1::bigint)", "3044001184559810835", extension.HstoreComparisonProcedureStart + 8, 0, sqltype.Int8},
+		{"support_order", "'a=>bc'::hstore #<# 'ab=>c'::hstore", "t", extension.HstoreComparisonProcedureStart + 2, extension.HstoreComparisonOperatorStart + 2, sqltype.Bool},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
@@ -223,5 +225,49 @@ func TestHstoreComparisonPreparedOwnership(t *testing.T) {
 			}
 			enginetest.SessionSQL(t, s, "ROLLBACK")
 		})
+	}
+}
+
+func TestHstoreComparisonMutableOperatorAuthority(t *testing.T) {
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE EXTENSION hstore")
+	before := e.CatalogRead()
+	installation := before.MustExtension(before.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
+	operator, _ := before.Operator(installation.Installation.Members[extension.HstoreComparisonOperatorStart])
+	procedure := before.MustProcedure(installation.Installation.Members[extension.HstoreComparisonProcedureStart])
+	bind := func(namespace string) {
+		t.Helper()
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		raw := enginetest.Statement(t, "SELECT 'a=>1'::hstore OPERATOR("+namespace+".=) 'a=>1'::hstore").(*parser.Select).Targets[0]
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err != nil {
+			t.Fatal("genuine current operator rejected", err)
+		}
+		selected, ok := node.(plan.SelectedOperatorExpr)
+		current, _ := e.CatalogRead().Operator(operator.Address())
+		if !ok || selected.Operator != current || selected.Ref.Address != operator.Address() {
+			t.Fatal("binding replaced current selected operator authority")
+		}
+		operatorDependency, procedureDependency := false, false
+		for _, dependency := range b.Dependencies {
+			operatorDependency = operatorDependency || dependency.Ref.Address == operator.Address()
+			procedureDependency = procedureDependency || dependency.Ref.Address == procedure.Address()
+		}
+		if !operatorDependency || !procedureDependency {
+			t.Fatal("binding omitted current operator or backing procedure dependency")
+		}
+	}
+	bind("public")
+	enginetest.Run(t, e, "ALTER EXTENSION hstore DROP OPERATOR public.=(hstore,hstore)")
+	bind("public")
+	enginetest.Run(t, e, "CREATE EXTENSION \"uuid-ossp\"")
+	enginetest.Run(t, e, "ALTER EXTENSION \"uuid-ossp\" ADD OPERATOR public.=(hstore,hstore)")
+	enginetest.Run(t, e, "ALTER EXTENSION hstore DROP FUNCTION hstore_eq(hstore,hstore)")
+	bind("public")
+	enginetest.Run(t, e, "CREATE SCHEMA eo_ops")
+	enginetest.Run(t, e, "ALTER OPERATOR public.=(hstore,hstore) SET SCHEMA eo_ops")
+	bind("eo_ops")
+	if before.MustProcedure(procedure.Address()) != procedure || operator.Namespace() != procedure.Namespace() {
+		t.Fatal("operator mutation changed captured predecessors")
 	}
 }

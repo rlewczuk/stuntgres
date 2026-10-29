@@ -10,7 +10,7 @@ import (
 // Mutate the existing public dump owner recipe, never the catalog itself.
 func uuidNameInvalidSignature(t *testing.T, dump string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v2 "
+	const marker = "-- stuntgres-extension-owners-v3 "
 	for _, line := range strings.Split(dump, "\n") {
 		if !strings.HasPrefix(line, marker) {
 			continue
@@ -42,10 +42,10 @@ func uuidNameInvalidSignature(t *testing.T, dump string) string {
 				continue
 			}
 			var signature string
-			if err := json.Unmarshal(member["signature"], &signature); err != nil || signature != "2950,25" {
+			if err := json.Unmarshal(member["signature"], &signature); err != nil || signature != "pg_catalog.uuid, pg_catalog.text" {
 				t.Fatal("name signature", signature, err)
 			}
-			member["signature"] = json.RawMessage(`"25,25"`)
+			member["signature"] = json.RawMessage(`"pg_catalog.text, pg_catalog.text"`)
 			data, err := json.Marshal(members)
 			if err != nil {
 				t.Fatal(err)

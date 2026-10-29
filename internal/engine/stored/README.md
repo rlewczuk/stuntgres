@@ -5,6 +5,12 @@ descriptors carry (views, rules, policies, routine recipes), the renderers that
 turn them back into SQL, and the mappers that retag and remap them. View, rule
 and policy DDL decisions and rule rewriting live in [`view`](../view/README.md).
 
+Dependency diagnostics use PostgreSQL object descriptions, not SQL declaration
+spelling. In particular, extension descriptions retain the raw extension name
+(such as `extension uuid-ossp`) in dependency messages and hints. This does not
+change the explicit quoted extension names in membership or ownership errors,
+or identifier quoting for other object classes.
+
 The expression deparser is also the presentation owner for nonexecuting logical
 plans. Callers supply bound column/stage/subquery presentation through its
 existing callbacks; no callback evaluates an expression. Query remapping retains
@@ -90,8 +96,11 @@ capture/remap consumers. Builtin and installed strictness/volatility remain seal
 to their real declarations; allowed parallel/cost/rows changes do not relax them.
 Allocated Snowball C helpers use their typed bootstrap declaration capability,
 not the fixed builtin-OID registry or an externally callable INTERNAL ABI.
-Pinning follows actual seed authority, including renamed/moved English
-dictionaries/configurations; outgoing dependencies still follow current targets.
+Pinning follows fixed bootstrap authority, independently of seed replay markers:
+allocated Snowball helpers, template and English dictionary/configuration are
+not pinned, so their genuine normal dependency edges remain visible under
+rename and mixed extension membership. Fixed simple and default-parser
+identities remain pinned.
 
 Installed crosstab consumers retain their selected procedure and genuine named
 result generation, or their completed anonymous record definition. Reference,
@@ -101,26 +110,44 @@ remains text, not a frozen dependency on the relations it may later resolve.
 
 Installed ltree array calls retain both exact formal generations, operation and
 orientation, original procedure declaration and catalog-domain reference.
-Captured-source validation precedes authorized remapping; current destination
-manifest/signature/array associations are checked before retagging or rendering.
-Replay casts both operands to genuine destination formals. No matching scratch or
-caller authority is retained.
+Captured-source validation precedes authorized remapping; the sealed released
+procedure slot/symbol, current destination principal/provider and exact nominal
+and companion generations are checked before retagging or rendering. Mutable
+membership and a live originating extension are not execution authority. Current
+reciprocal membership remains independently validated. Replay casts both operands
+to genuine destination formals and preserves source occurrences/domain/epoch;
+no matching scratch, caller authority or result-array resource is serialized.
 Scalar hierarchy calls (`LtreeHierarchy`) and mixed scalar label-query calls
 (`LtreeLtxtquery`) use the same original/current declaration authentication,
 independently exact operand generations and destination-owned BOOL result.
-Both qualified operators and genuine backing calls survive authorized transport;
+The retained member is a sealed declaration slot, not a position in current
+extension membership. Both qualified operators and genuine direct calls survive
+detach, foreign attachment, original-header retirement and authorized transport;
 mutable names and equal numeric OIDs never authorize remapping.
+SQL dependency recording distinguishes explicit routine calls from selected
+operators: operators reference their operator identity and actual operands,
+including genuine nested function calls, while executable backing-procedure
+authority remains separately retained.
+Direct mixed scalar label-query calls record the actual selected procedure
+address; their operator form records only the operator plus recursively visited
+operands, without promoting its backing carrier into another SQL dependency.
 Unchanged-generation retagging rejects captures newer than the current routine
 revision, while historical presentation/ACL revisions remain valid. Authorized
 cross-generation import preserves source revisions independently.
- `LtreePath` retains an active count and inline ordered formal/operand generations,
- including every repeated scalar-LCA occurrence. Original source declarations and
- complete destination path manifests authenticate independently before remap,
- retag or current-name rendering. Qualified replay casts each active operand to its
- genuine destination formal; no caller scratch, array cursor or authority is stored.
+`LtreePath` retains an active count and inline ordered formal/operand generations,
+including every repeated scalar-LCA occurrence. Original source declarations and
+genuine destination sealed origins authenticate independently before remap,
+retag or current-name rendering. The retained member is the immutable declaration
+slot, not current SQL membership; path signatures and nominal array formals use
+the origin's current registered type authority. Qualified replay casts each active
+operand to its genuine destination formal; no caller scratch, array cursor or
+authority is stored.
 `LtreeLquery` authenticates scalar positional-match captures with the same
 source/current/destination fences, preserving both distinct formal generations,
-orientation, member ordinal and source-ordered operand occurrences.
+orientation, sealed member ordinal and source-ordered operand occurrences.
+Neither carrier requires a live origin header or matching current membership;
+current reciprocal links and principal/provider authority remain independently
+validated.
 Frozen lquery literals own their qualified typed annotation, like ltree and array
 datums. Query replay elides only a source leaf cast with the exact captured Usage;
 outer casts, domains and conversions remain intact. Formal operand annotations
@@ -128,21 +155,22 @@ and source capture provenance are retained independently of this presentation.
 Captured non-domain ltxtquery literals own their typed leaf annotation during
 replay. Reuse only an exact matching leaf usage; preserve outer casts, domain
 checks, typmods and real conversions so repeated transport remains deterministic.
-  Ltree comparisons use the existing scalar/row, distinctness, membership,
-  NULLIF and simple-CASE carriers. They retain both operand generations, selected
-  immutable routine, operation and catalog-domain/epoch reference. Transport
-  authenticates the original capture and destination manifest independently,
-  shares immutable operand backing and rebinds typed comparison in the destination.
-  Implicit comparison replay uses the authenticated installation namespace;
-  current names never replace captured identity.
-  Sort/window ordering first validates sealed original class/family/member/routine
-  declarations, support revisions and their exact kernel pairing. It maps all
-  four genuine references consistently and authenticates fresh destination support
-  with the shared index binder, never a builtin or current-default fallback.
-  Reference-only traversal shares both source comparator and original capture
-  until the typed remap can validate and rebuild destination ownership.
-  Dependency traversal retains those four captured support references as well as
-  the ordinary key-expression dependencies.
+Ltree comparisons use the existing scalar/row, distinctness, membership,
+NULLIF and simple-CASE carriers. They retain both operand generations, selected
+immutable routine, operation and catalog-domain/epoch reference. Transport
+authenticates the original capture and destination declaration independently,
+shares immutable operand backing and rebinds typed comparison in the destination.
+Implicit comparison replay uses the authenticated current operator namespace,
+independently of its movable backing routine; current names never replace
+captured identity.
+Sort/window ordering first validates sealed original class/family/member/routine
+declarations, support revisions and their exact kernel pairing. It maps all
+four genuine references consistently and authenticates fresh destination support
+with the shared index binder, never a builtin or current-default fallback.
+Reference-only traversal shares both source comparator and original capture
+until the typed remap can validate and rebuild destination ownership.
+Dependency traversal retains those four captured support references as well as
+the ordinary key-expression dependencies.
 
 Installed hstore array, JSON and JSONB calls retain exact formal/result generations,
 conversion mode and selected procedure/member references. Comparison and hash
@@ -681,8 +709,9 @@ host methods.
   readers (`view_row_marks.go`); `HasDynamicSourceDependency` (installed
   crosstab, pgrowlocks, pageinspect, connectby and amcheck capture); view validation and
   view-write shape; `ValidateRules`; and `DependencyObject` (object
-  descriptions for DROP and role diagnostics, including text-search templates
-  and dictionaries with class-specific search-path visibility).
+  descriptions for DROP and role diagnostics, including global procedural
+  languages and text-search templates, dictionaries and configurations with
+  class-specific search-path visibility).
   `ViewWriteShape` and `ViewUpdatabilityShape` share one automatic-admission
   implementation; only the write route collects execution predicates.
   Metadata shape inspection neither allocates that vector nor evaluates it.
@@ -822,9 +851,16 @@ ANY/ALL representation; no public cube-array provider/admission is added.
 
 Implicit installed-cube equality syntax (scalar IN/NOT IN, NULLIF and simple
 CASE) additionally requires a declaration binding context when rendered as SQL.
-The dump owner derives that context only from validated immutable typed captures,
-not SQL text or a familiar namespace name. Each actual owning DDL statement carries
-its optional cube-namespace binding separately from its SQL. The emitted private
+The dump owner derives that context only from validated immutable typed captures
+and the genuine operator in their sealed installation inventory, not SQL text,
+current membership, or a familiar namespace name. Lookup follows the operator's
+current namespace: renaming or moving its backing equality routine independently
+does not move the hidden `=` lookup. Exact operands, result, backing routine,
+installed origin and current operator owner authority remain checked; dependency
+ordering still visits the authenticated current backing routine. Simple CASE
+keeps its original syntax, once-only test and ordered, lazy per-arm conversions,
+including NULL and parameter semantics. Each actual owning DDL statement carries
+its optional comparison-namespace binding separately from its SQL. The emitted private
 comment/SET protocol admits exactly one eligible statement per window and restores
 the baseline after it; owner switches remain outside. Native Restore reconstructs
 current stock authority, validates the actual newly bound target captures and

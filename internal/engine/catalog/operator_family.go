@@ -11,6 +11,7 @@ import (
 type OperatorFamily struct {
 	ObjectAddress, ObjectNamespace ids.ObjectAddress
 	Extension                      ids.ObjectAddress
+	Origin                         *InstalledOrigin
 	ObjectRevision                 ids.DefinitionRevision
 	ObjectName                     string
 	Method                         ids.OID

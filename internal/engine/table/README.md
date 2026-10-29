@@ -52,6 +52,13 @@ call live here.
   Identity sequences default to the destination identity only when the
   declaration omits LOGGED/UNLOGGED. Explicit nontemporary choices win for
   CREATE and ADD IDENTITY; lower staging receives the resolved identity.
+
+  Inherited CHECK expressions remap parent columns to the child without
+  recapturing external providers. Their original dependency revisions and
+  purposes survive, including selected comparisons whose routines have since
+  undergone lawful identity or owner publication. Missing original routine
+  dependencies still reject; ordinary hard-manifest and current-authority
+  validation remain mandatory for the copied CHECK.
 - **ALTER TABLE** (`alter_*.go`, `rename.go`): `AlterActionPhase` (the
   provider-phase order), `AlterTableLockMode`, `AlterTablePreparation`, candidates
   over `AlterHost` (`AddColumnCandidate`, `AlterTypeCandidate`,
@@ -186,6 +193,10 @@ call live here.
   dictionary-dependent CASCADE and DROP OWNED; their genuine seeded simple
   configuration remains system-required. Captured REGCONFIG default operands
   are admitted as real configuration providers, not relation providers.
+  Genuine procedural languages also participate in this same retirement closure:
+  extension removal retires its language member, and handler-dependent CASCADE
+  reaches a detached language through its real normal dependencies. Built-in
+  internal/C/SQL languages remain system-required; no language DDL is added.
   `CascadeColumnDrops` consumes already captured columns, domain CHECKs and
   providers without re-entering a dependency controller. Each surviving relation
   cooks all selected stable attributes before remapping surviving CHECK/generation

@@ -69,7 +69,8 @@ func earthOwnerCodecUnits(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, found, err := extension.DecodeOwners(strings.TrimPrefix(metadata, "-- "))
-	if err != nil || !found || len(record.Members) != extension.EarthMemberCount || record.Members[0].Name != "earth" || record.Members[1].Name != "earth[]" {
+	record = extensionOwnerRecipeOrder(record)
+	if err != nil || !found || len(record.Members) != extension.EarthMemberCount || record.Members[0].Name != "earth" || record.Members[1].Name != array.Name() {
 		t.Fatal("symbolic companion roles", record, err)
 	}
 	candidate := *view.State()
@@ -93,13 +94,13 @@ func earthOwnerCodecUnits(t *testing.T) {
 		func(r *extension.OwnerRecord) { r.Members[extension.EarthPointOperatorSlot].Kind = "procedure" },
 		func(r *extension.OwnerRecord) { r.Members[extension.EarthPointOperatorSlot].Signature = "cube,cube" },
 		func(r *extension.OwnerRecord) {
-			r.Members[extension.EarthPointOperatorSlot].Slot = extension.EarthPointProcedureSlot
+			r.Members[extension.EarthPointOperatorSlot].Declaration = new(extension.EarthPointProcedureSlot)
 		},
 	} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 		mutate(&bad)
-		if _, found, err := extension.DecodeOwners(encode(bad)); !found || err == nil {
+		if err := extensionOwnerAdmissionError(e, encode(bad)); err == nil {
 			t.Fatal("malformed owner metadata admitted", bad)
 		}
 	}

@@ -109,12 +109,12 @@ func currentCubeComparisonProcedure(view catalog.Read, original *catalog.Procedu
 	if current.Implementation != extension.StockCube || symbol != capture.name || current.Signature != extension.CubeComparisonSignature(capture.left.ID()) || current.Result != ids.OID(capture.result) || current.RoutineKind != catalog.FunctionRoutine || !current.Strict || current.Volatility != expr.Immutable || current.Builtin != nil {
 		return nil, fmt.Errorf("stuntgres: invalid mapped cube comparison declaration")
 	}
-	installation, exists := view.Extension(current.Extension)
+	installation, exists := catalog.OriginInstallation(current)
 	if !exists || len(installation.Members) != extension.CubeMemberCount {
 		return nil, fmt.Errorf("stuntgres: missing mapped cube comparison installation")
 	}
 	base, exists := view.Type(installation.Members[0])
-	if !exists || base.SQLType != capture.left || base.Extension != installation.Address() {
+	if !exists || base.SQLType != capture.left || !catalog.SameInstallation(base, installation) {
 		return nil, fmt.Errorf("stuntgres: foreign mapped cube comparison type")
 	}
 	member := -1

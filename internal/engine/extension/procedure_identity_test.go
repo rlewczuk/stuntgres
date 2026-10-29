@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 	"testing"
 )
 
@@ -28,6 +29,8 @@ func identityFixture(version string) (catalog.Read, *catalog.Extension) {
 	principals := &authorization.Domain{}
 	owner := &catalog.Owner{Domain: &ids.Domain{}, Principals: principals, Extensions: map[string]catalog.ExtensionImplementation{"fuzzystrmatch": StockFuzzystrmatch, "pgcrypto": StockPgcrypto}}
 	state := catalog.NewState(1)
+	catalog.InstallBuiltinNamespaces(state, principals.Principal(10), principals.Principal(10))
+	catalog.InstallBuiltinTypes(state, sqltype.Builtins(), principals.Principal(10))
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 9000}
 	identityPut(state, &catalog.Namespace{ObjectAddress: ns, ObjectName: "installed", ObjectRevision: 1})
 	moved := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 9001}
@@ -41,6 +44,13 @@ func identityFixture(version string) (catalog.Read, *catalog.Extension) {
 		a := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(9100 + i)}
 		ext.Members = append(ext.Members, a)
 		identityPut(state, &catalog.Procedure{ObjectAddress: a, ObjectNamespace: ns, ObjectName: m.Name, ObjectRevision: 1, Extension: ext.Address(), Signature: m.Signature, Result: m.Result, RoutineKind: catalog.FunctionRoutine, Volatility: expr.Immutable, Strict: true, Owner: ext.Owner, Implementation: StockFuzzystrmatch})
+	}
+	ext.Installation = catalog.NewInstallation(ext.Address(), ext.Name(), ext.Version, StockFuzzystrmatch, append([]ids.ObjectAddress(nil), ext.Members...))
+	for _, a := range ext.Members {
+		ext.Installation.Declarations = append(ext.Installation.Declarations, state.Get(a))
+	}
+	for i, a := range ext.Members {
+		identityPut(state, catalog.WithInstalledOrigin(state.Get(a), &catalog.InstalledOrigin{Installation: ext.Installation, Declaration: i}))
 	}
 	identityPut(state, ext)
 	return catalog.NewRead(owner, state), ext
@@ -72,7 +82,7 @@ func TestInstalledProcedureRelabelIdentity(t *testing.T) {
 }
 
 func TestInstalledProcedureForgery(t *testing.T) {
-	for _, kind := range []string{"signature", "result", "kind", "owner", "duplicate", "reorder", "foreign", "payload", "outputs", "missing_namespace", "missing_index", "extension_owner"} {
+	for _, kind := range []string{"signature", "result", "kind", "owner", "duplicate", "reorder", "foreign", "payload", "outputs", "missing_namespace", "missing_index", "origin", "source", "binary", "installed", "handler", "support", "dependencies"} {
 		t.Run(kind, func(t *testing.T) {
 			v, ext := identityFixture("1.2")
 			p := *v.MustProcedure(ext.Members[0])
@@ -89,9 +99,15 @@ func TestInstalledProcedureForgery(t *testing.T) {
 			case "owner":
 				p.Owner = (&authorization.Domain{}).Principal(10)
 			case "duplicate":
-				ext.Members[1] = ext.Members[0]
+				forged := *ext.Installation
+				forged.Members = append([]ids.ObjectAddress(nil), forged.Members...)
+				forged.Members[1] = forged.Members[0]
+				p.Origin = &catalog.InstalledOrigin{Installation: &forged, Declaration: p.Origin.Declaration}
 			case "reorder":
-				ext.Members[0], ext.Members[1] = ext.Members[1], ext.Members[0]
+				forged := *ext.Installation
+				forged.Members = append([]ids.ObjectAddress(nil), forged.Members...)
+				forged.Members[0], forged.Members[1] = forged.Members[1], forged.Members[0]
+				p.Origin = &catalog.InstalledOrigin{Installation: &forged, Declaration: p.Origin.Declaration}
 			case "foreign":
 				p.Extension.ObjectID++
 			case "payload":
@@ -101,8 +117,21 @@ func TestInstalledProcedureForgery(t *testing.T) {
 			case "missing_namespace":
 				p.ObjectNamespace.ObjectID++
 				p.ObjectNamespace.ObjectID++
-			case "extension_owner":
-				ext.Owner = (&authorization.Domain{}).Principal(10)
+			case "origin":
+				forged := *ext.Installation
+				p.Origin = &catalog.InstalledOrigin{Installation: &forged, Declaration: p.Origin.Declaration}
+			case "source":
+				p.Display.Source = "foreign_symbol"
+			case "binary":
+				p.Display.Binary, p.Display.HasBinary = "$libdir/foreign", true
+			case "installed":
+				p.Installed.ReturnsSet = true
+			case "handler":
+				p.PLHandler = catalog.PLCallHandler
+			case "support":
+				p.BrinSupport = 1
+			case "dependencies":
+				p.DeclarationDependencies = []ids.ObjectAddress{ext.Members[1]}
 			}
 			identityPut(v.State(), &p)
 			if kind == "missing_index" {
@@ -126,6 +155,10 @@ func TestInstalledProcedureVersionTransition(t *testing.T) {
 	identityPut(v.State(), &catalog.Procedure{ObjectAddress: a, ObjectNamespace: ext.TargetNamespace, ObjectName: m.Name, ObjectRevision: 1, Extension: ext.Address(), Signature: m.Signature, Result: m.Result, RoutineKind: catalog.FunctionRoutine, Volatility: expr.Immutable, Strict: true, Owner: ext.Owner, Implementation: StockFuzzystrmatch})
 	ext.Members = append([]ids.ObjectAddress{a}, ext.Members...)
 	ext.Version = "1.2"
+	previous := ext.Installation
+	ext.Installation = catalog.NewInstallation(ext.Address(), ext.Name(), ext.Version, StockFuzzystrmatch, append([]ids.ObjectAddress(nil), ext.Members...))
+	ext.Installation.Declarations = append([]catalog.Descriptor{v.Get(a)}, previous.Declarations...)
+	identityPut(v.State(), catalog.WithInstalledOrigin(v.Get(a), &catalog.InstalledOrigin{Installation: ext.Installation, Declaration: 0}))
 	if symbol, err := ProcedureSymbol(v, &renamed); err != nil || symbol != "levenshtein" {
 		t.Fatal(symbol, err)
 	}
@@ -134,10 +167,10 @@ func TestInstalledProcedureVersionTransition(t *testing.T) {
 	}
 }
 
-func TestExtensionOwnerSlotCodec(t *testing.T) {
-	record := OwnerRecord{Name: "pgcrypto", Schema: "installed", Version: "1.4", Owner: "postgres"}
+func TestExtensionOwnerDeclarationCodec(t *testing.T) {
+	record := OwnerRecord{Name: "pgcrypto", Schema: "installed", Version: "1.4", Owner: "postgres", Present: true}
 	for i, m := range functions.PgcryptoMembers {
-		record.Members = append(record.Members, MemberOwner{Slot: i, Schema: "moved", Kind: "procedure", Name: "renamed_" + m.Name, Signature: m.Signature, Owner: "recipient"})
+		record.Members = append(record.Members, MemberOwner{Declaration: &i, Version: "1.4", Schema: "moved", Kind: "procedure", Name: "renamed_" + m.Name, Signature: m.Signature, Owner: "recipient", Extension: "pgcrypto"})
 	}
 	decode := func(r OwnerRecord) error {
 		data, err := json.Marshal(r)
@@ -153,11 +186,12 @@ func TestExtensionOwnerSlotCodec(t *testing.T) {
 	if err := decode(record); err != nil {
 		t.Fatal(err)
 	}
-	record.Members[1].Slot = 0
+	record.Members[1].Declaration = record.Members[0].Declaration
 	if err := decode(record); err == nil {
-		t.Fatal("duplicate slot accepted")
+		t.Fatal("duplicate declaration accepted")
 	}
-	record.Members[1].Slot = 1
+	declaration := 1
+	record.Members[1].Declaration = &declaration
 	record.Members[0].Schema = ""
 	if err := decode(record); err == nil {
 		t.Fatal("missing schema accepted")
@@ -177,7 +211,11 @@ func TestInstalledProcedureRemapIdentity(t *testing.T) {
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{}
 	for a := range v.Descriptors() {
 		next := a
-		next.ObjectID += 10000
+		// Released builtin type and namespace identities stay destination-local.
+		// The fixture remaps only its allocated extension/object graph.
+		if a.ClassID != ids.TypeClassID && (a.ClassID != ids.NamespaceClassID || a.ObjectID == 9000 || a.ObjectID == 9001) {
+			next.ObjectID += 10000
+		}
 		mapping[a] = next
 	}
 	state := catalog.NewState(2)
@@ -200,6 +238,15 @@ func TestInstalledProcedureRemapIdentity(t *testing.T) {
 		t.Fatal("source address accepted after remap")
 	}
 	parent := current.MustExtension(mapping[ext.Address()])
+	if parent.Installation == p.Origin.Installation || !parent.Installation.Valid() || !p.Origin.Valid(p.Address()) {
+		t.Fatal("fixture did not retain independent genuine remap recipes")
+	}
+	// Remapping individual descriptors legitimately seals independent recipe
+	// owners. Neither historical principal/namespace fields nor seal pointer
+	// equality may become a second current ABI.
+	if err := StockFuzzystrmatch.ValidateExtension(current, parent); err != nil {
+		t.Fatal("independent genuine remap rejected", err)
+	}
 	if parent.Members[0] != p.Address() || ext.Members[0] != selected.Address() {
 		t.Fatal("slot order or source changed")
 	}
@@ -221,6 +268,21 @@ func TestExtensionOwnerImportCurrentSlotIdentity(t *testing.T) {
 	if err != nil || !found {
 		t.Fatal(err)
 	}
+	// Owner-v3 records are sorted by current symbolic identity, not by
+	// installation declaration. Select the renamed, moved declaration explicitly.
+	memberIndex := -1
+	for i, member := range record.Members {
+		if member.Declaration != nil && *member.Declaration == p.Origin.Declaration && member.Version == p.Origin.Installation.Version {
+			memberIndex = i
+			break
+		}
+	}
+	if memberIndex < 0 || len(record.Members) < 2 {
+		t.Fatal("missing installed declaration or duplicate-test peer")
+	}
+	if member := record.Members[memberIndex]; member.Kind != "procedure" || member.Name != "renamed" || member.Schema != "moved" {
+		t.Fatalf("unexpected current declaration identity: %+v", member)
+	}
 	if _, err := ImportOwners(context.Background(), catalog.NewRead(v.Owner(), catalog.CloneState(v.State())), roles, []OwnerRecord{record}); err != nil {
 		t.Fatal(err)
 	}
@@ -230,15 +292,16 @@ func TestExtensionOwnerImportCurrentSlotIdentity(t *testing.T) {
 			bad.Members = append([]MemberOwner(nil), record.Members...)
 			switch kind {
 			case "name":
-				bad.Members[0].Name = "old_name"
+				bad.Members[memberIndex].Name = "old_name"
 			case "schema":
-				bad.Members[0].Schema = "installed"
+				bad.Members[memberIndex].Schema = "installed"
 			case "signature":
-				bad.Members[0].Signature = "23"
+				bad.Members[memberIndex].Signature = "23"
 			case "duplicate":
-				bad.Members[1].Slot = 0
+				bad.Members[(memberIndex+1)%len(bad.Members)].Declaration = bad.Members[memberIndex].Declaration
 			case "foreign_slot":
-				bad.Members[0].Slot = 99
+				declaration := 99
+				bad.Members[memberIndex].Declaration = &declaration
 			}
 			if _, err := ImportOwners(context.Background(), catalog.NewRead(v.Owner(), catalog.CloneState(v.State())), roles, []OwnerRecord{bad}); err == nil {
 				t.Fatal("corrupt current identity accepted")
@@ -247,27 +310,19 @@ func TestExtensionOwnerImportCurrentSlotIdentity(t *testing.T) {
 	}
 }
 
-func TestDetachedUnaccentImmutableCapability(t *testing.T) {
+func TestDetachedUnaccentImplementationIsNotOrigin(t *testing.T) {
 	v, _ := identityFixture("1.2")
 	for i, signature := range []catalog.ProcedureSignature{catalog.UnaccentTextSignature, catalog.UnaccentDictionarySignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature} {
 		p := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(9800 + i)}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 9001}, ObjectName: "renamed", ObjectRevision: 1, Owner: v.Owner().Principals.Principal(10), Implementation: StockUnaccent, Signature: signature, RoutineKind: catalog.FunctionRoutine, Result: 25, Strict: true, Volatility: expr.Stable}
-		want := "unaccent"
 		if i >= 2 {
 			p.Result, p.Strict, p.Volatility = 2281, false, expr.Volatile
-			want = "unaccent_init"
-			if i == 3 {
-				want = "unaccent_lexize"
-			}
 		}
 		identityPut(v.State(), p)
-		if symbol, err := procedureSymbol(v, p, true); err != nil || symbol != want {
-			t.Fatal(symbol, err)
-		}
 		if _, err := ProcedureSymbol(v, p); err == nil {
-			t.Fatal("detached metadata gained installed execution identity")
+			t.Fatal("provider pointer granted unauthenticated detached execution")
 		}
 		p.Result++
-		if _, err := procedureSymbol(v, p, true); err == nil {
+		if _, err := ProcedureSymbol(v, p); err == nil {
 			t.Fatal("forged detached shape accepted")
 		}
 		v.State().UnbindName(catalog.DescriptorNameKey(p))

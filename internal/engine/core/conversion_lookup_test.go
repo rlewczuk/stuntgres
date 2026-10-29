@@ -1,9 +1,10 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
+	"strconv"
+	"stuntgres/internal/engine/core"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -14,7 +15,6 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -214,24 +214,29 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 }
 
 func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
-	e := engine.New()
-	view := e.CatalogRead()
+	e, op, _ := unaccentSQLInstalled(t)
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	catalogAddress := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	// Use actual registered unaccent providers for overload/name shadowing, not
-	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.RoleStore.Domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: extension.StockUnaccent}
-	second := *first
-	second.ObjectAddress.ObjectID, second.ObjectNamespace = 90001, catalogAddress
-	stage := e.BeginCatalogStage(view)
-	if err := stage.Create(first); err != nil {
-		t.Fatal(err)
+	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: public, Name: "unaccent", Signature: string(catalog.UnaccentTextSignature)}
+	firstAddress := e.CatalogRead().NameAddress(key)
+	// Two genuine released installations supply the same signature. Detach,
+	// rename and move through the real owners while retaining sealed origins.
+	for _, query := range []string{
+		"ALTER EXTENSION unaccent DROP FUNCTION public.unaccent(text)",
+		"ALTER FUNCTION public.unaccent(text) RENAME TO unaccent_shadow",
+		"DROP EXTENSION unaccent",
+		"CREATE EXTENSION unaccent",
+		"ALTER EXTENSION unaccent DROP FUNCTION public.unaccent(text)",
+		"ALTER FUNCTION public.unaccent(text) SET SCHEMA pg_catalog",
+		"DROP EXTENSION unaccent",
+		"ALTER FUNCTION public.unaccent_shadow(text) RENAME TO unaccent",
+	} {
+		enginetest.RoleExecute(t, e, op, query)
 	}
-	if err := stage.Create(&second); err != nil {
-		t.Fatal(err)
-	}
-	collationUnitPublish(t, e, stage)
-	view = e.CatalogRead()
+	view := e.CatalogRead()
+	first := view.MustProcedure(firstAddress)
+	key.Namespace = catalogAddress
+	second := view.MustProcedure(view.NameAddress(key))
 	path := []ids.ObjectAddress{public, catalogAddress}
 	if actual := regobj.ProcSpelling(view, path, second.Address().ObjectID); actual != "pg_catalog.unaccent" {
 		t.Fatal("real namespace shadow output", actual)
@@ -248,20 +253,14 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	if err = regobj.CaptureProcOutputValue(rows, view, path, value); err != nil {
 		t.Fatal(err)
 	}
-	stage = e.BeginCatalogStage(view)
-	if err = stage.Remove(e.Catalog.Domain.Ref(view.Epoch(), first.Address())); err != nil {
-		t.Fatal(err)
-	}
-	collationUnitPublish(t, e, stage)
+	enginetest.RoleExecute(t, e, op, "DROP FUNCTION public.unaccent(text)")
 	if actual := regobj.ProcSpelling(e.CatalogRead(), path, second.Address().ObjectID); actual != "unaccent" {
 		t.Fatal("fresh routine output", actual)
 	}
 	if actual, err := rows.FormatRegproc(uint32(second.Address().ObjectID)); err != nil || actual != "pg_catalog.unaccent" {
 		t.Fatal("retained REGPROC presentation changed", actual, err)
 	}
-	// Remove the referent itself through real catalog publication. Native SQL
-	// DROP EXTENSION is unavailable; this supplements the public PostgreSQL
-	// drop/reinstall witness with the native captured-identity invariant.
+	// Remove the referent through its real owner after capturing its identity.
 	view = e.CatalogRead()
 	procedureType, _ := view.LookupType(sqltype.Regprocedure)
 	procedureValue, err := sqltype.RegprocValue(procedureType, uint32(second.Address().ObjectID))
@@ -272,11 +271,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	heldDescription := &core.Description{Regtypes: &regobj.Analysis{Constants: []analyze.RegtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}}
-	stage = e.BeginCatalogStage(view)
-	if err := stage.Remove(e.Catalog.Domain.Ref(view.Epoch(), second.Address())); err != nil {
-		t.Fatal(err)
-	}
-	collationUnitPublish(t, e, stage)
+	enginetest.RoleExecute(t, e, op, "DROP FUNCTION pg_catalog.unaccent(text)")
 	binder := &analyze.Binder{Ctx: context.Background(), Expected: core.ExpectedOf(heldDescription)}
 	heldValue, err := binder.RoutineConstant("pg_catalog.unaccent(text)", procedureType.Usage(), parser.Position{Offset: 7, Character: 8})
 	if err != nil {
@@ -302,7 +297,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 			t.Fatal("fresh removed-referent diagnostic", err)
 		}
 	}
-	if actual := regobj.RoutineSpelling(e.CatalogRead(), path, second.Address().ObjectID, true, false); actual != "90001" {
+	if actual := regobj.RoutineSpelling(e.CatalogRead(), path, second.Address().ObjectID, true, false); actual != strconv.FormatUint(uint64(second.Address().ObjectID), 10) {
 		t.Fatal("fresh removed-referent output", actual)
 	}
 	if actual, err := rows.FormatRegproc(uint32(second.Address().ObjectID)); err != nil || actual != "pg_catalog.unaccent" {

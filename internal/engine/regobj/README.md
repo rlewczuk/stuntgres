@@ -68,6 +68,11 @@ import it.
   suppresses stale aliases when that identity's current name, namespace or
   signature has changed, then continues the normal namespace path. Genuinely
   absent release identities remain lookup-only, not executable descriptors.
+  Intagg's lookup-only helpers use their own current namespace for both exact
+  and bare-name selection, not the aggregate descriptor's namespace. Moving
+  only the aggregate does not move its helpers. Live helper output retains its
+  qualified spelling outside that namespace's path; numeric output is for
+  unknown or retired identities, not a substitute for a missing live namespace.
 - **Captured input resolvers** (`reg*_input.go`, `captured_input_target.go`,
   `input_authority.go`): `ClassInput`, `TypeInput`, `OperatorInput`,
   `RoutineInput`, `TextSearchInput` and `ObjectInput`, built by `New*Input` over

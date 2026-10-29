@@ -43,9 +43,16 @@ func compositeDumpStatement(ctx context.Context, p dump.Presenter, view catalog.
 	return dump.Statement{Owner: owner.Name, SQL: sql.String()}, nil
 }
 
+// TypeDumpCreation changes only the SQL creation coordinates. Prerequisites
+// remain resolved from the captured view; no executable generation is forged.
+type TypeDumpCreation struct {
+	Root, Companion       ids.NameKey
+	RootSQL, CompanionSQL string
+}
+
 // Render from the captured graph only. All row creators reserve their implicit
 // array names here, so domain-on-array replay follows the actual mixed order.
-func MixedDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, order []ids.OID, domains map[ids.OID]*catalog.Type, composites map[ids.OID]*catalog.Relation, replay *DomainReplayNames) (map[ids.OID]dump.Statement, error) {
+func MixedDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, order []ids.OID, domains map[ids.OID]*catalog.Type, composites map[ids.OID]*catalog.Relation, replay *DomainReplayNames, beforeCreate func(*catalog.Type, *catalog.Type) (TypeDumpCreation, error), afterCreate func(ids.OID, *catalog.Type) error) (map[ids.OID]dump.Statement, error) {
 	result := make(map[ids.OID]dump.Statement, len(domains)+len(composites))
 	for _, id := range order {
 		if err := ctx.Err(); err != nil {
@@ -60,22 +67,28 @@ func MixedDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Rea
 		if d == nil {
 			continue
 		}
-		if err := replay.Reserve(d); err != nil {
-			return nil, err
-		}
 		var companion *catalog.Type
 		if _, custom := d.SQLType.RangeDefinition(); custom {
 			companion = view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.MultirangeType().ID())})
-			if err := replay.Reserve(companion); err != nil {
+		}
+		creation, err := beforeCreate(d, companion)
+		if err != nil {
+			return nil, err
+		}
+		if err := replay.ReserveIdentity(d.SQLType.ID(), creation.Root); err != nil {
+			return nil, err
+		}
+		if companion != nil {
+			if err := replay.ReserveIdentity(companion.SQLType.ID(), creation.Companion); err != nil {
 				return nil, err
 			}
 		}
 		var statement dump.Statement
-		var err error
+		err = nil
 		if composite := composites[id]; composite != nil {
 			statement, err = compositeDumpStatement(ctx, p, view, roles, composite)
 		} else if domains[id] != nil {
-			statement, err = domainDumpStatement(ctx, p, view, roles, d, replay)
+			statement, err = domainDumpStatement(ctx, p, view, roles, d, replay, creation)
 		}
 		if err != nil {
 			return nil, err
@@ -86,6 +99,14 @@ func MixedDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Rea
 		replay.Associate(d)
 		if companion != nil {
 			replay.Associate(companion)
+		}
+		if err := afterCreate(id, d); err != nil {
+			return nil, err
+		}
+		if companion != nil {
+			if err := afterCreate(id, companion); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return result, nil

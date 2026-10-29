@@ -256,9 +256,9 @@ func dropClosureRoutineCycleCatalog(t *testing.T, e *core.Engine, base catalog.R
 			t.Fatal("fixture reused a published descriptor")
 		}
 	}
-	if !catalog.ProcedureDefinitionDependsOn(procedures[0], addresses[1]) ||
-		!catalog.ProcedureDefinitionDependsOn(procedures[1], addresses[0]) ||
-		!catalog.ProcedureDefinitionDependsOn(procedures[2], addresses[1]) {
+	if !catalog.ProcedureDefinitionDependsOn(read, procedures[0], addresses[1]) ||
+		!catalog.ProcedureDefinitionDependsOn(read, procedures[1], addresses[0]) ||
+		!catalog.ProcedureDefinitionDependsOn(read, procedures[2], addresses[1]) {
 		t.Fatal("fixture lost mutual routine dependencies or live tail")
 	}
 	return read

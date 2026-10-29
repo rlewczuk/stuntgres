@@ -214,19 +214,20 @@ func TestReferenceConnectbyAuthorityAndPrepared(t *testing.T) {
 			defer stmt.Close()
 			ctx, cancel := context.WithCancel(p.Ctx)
 			cancel()
+			canceled := func(err error) {
+				t.Helper()
+				if err != nil && !errors.Is(err, context.Canceled) {
+					// lib/pq can deliver the server's cancellation response even
+					// for an already-canceled demand; this proves no admission.
+					fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request"})
+				}
+			}
 			rows, err := stmt.QueryContext(ctx, "row2", 0, "~")
 			if rows != nil {
-				closeErr := rows.Close()
-				if closeErr != nil && !errors.Is(closeErr, context.Canceled) {
-					t.Fatal("pre-canceled pq cursor close", closeErr)
-				}
-				if rowErr := rows.Err(); rowErr != nil && !errors.Is(rowErr, context.Canceled) {
-					t.Fatal("pre-canceled pq cursor", rowErr)
-				}
+				canceled(rows.Close())
+				canceled(rows.Err())
 			}
-			if err != nil && !errors.Is(err, context.Canceled) {
-				t.Fatal("pre-canceled pq demand", err)
-			}
+			canceled(err)
 			return
 		}
 		ctx, cancel := context.WithCancel(p.Ctx)

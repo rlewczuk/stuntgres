@@ -5,368 +5,300 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqltype"
 )
 
-// ImportOwners applies Restore's extension owner and installed-procedure ACL
-// records to a private catalog clone. Real catalog/role domains retain provider
-// provenance while named grants resolve to destination-owned principals.
-func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authorization.Read, records []OwnerRecord) (bool, error) {
+// ImportOwners validates every record against real reconstructed declarations
+// before changing even the private candidate. No label manufactures provenance.
+func ImportOwners(ctx context.Context, view catalog.Read, roles authorization.Read, records []OwnerRecord) (bool, error) {
+	return importOwners(ctx, view, roles, records, false)
+}
+
+// ValidateOwnerReplay checks installed declaration authority at its first SQL
+// OWNER use, after installation identities are final but before ordinary objects
+// and final symbolic membership exist. It shares the complete import validator;
+// it never changes even the private candidate. ImportOwners must still run after
+// all statements to validate ordinary targets, current membership and coverage.
+func ValidateOwnerReplay(ctx context.Context, view catalog.Read, roles authorization.Read, records []OwnerRecord) error {
+	_, err := importOwners(ctx, view, roles, records, true)
+	return err
+}
+
+func importOwners(ctx context.Context, view catalog.Read, roles authorization.Read, records []OwnerRecord, replay bool) (bool, error) {
 	if len(records) == 0 {
 		return false, nil
 	}
-	candidate := candidateView.State()
-	if candidate == nil || candidateView.Owner() == nil || !roles.BelongsTo(candidateView.Owner().Principals) {
+	if view.State() == nil || view.Owner() == nil || !roles.BelongsTo(view.Owner().Principals) {
 		return false, fmt.Errorf("stuntgres: invalid extension owner import authority")
 	}
+	invalid := func() (bool, error) { return false, fmt.Errorf("stuntgres: invalid extension owner metadata") }
+	identities := map[string]catalog.Descriptor{}
+	for _, d := range view.Descriptors() {
+		m, err := OwnerIdentity(view, d)
+		if err == nil {
+			key := ownerIdentityKey(m)
+			if identities[key] != nil {
+				return invalid()
+			}
+			identities[key] = d
+		}
+	}
+	replacements := map[ids.ObjectAddress]catalog.Descriptor{}
 	seen := map[ids.ObjectAddress]bool{}
-	ownersChanged := false
+	cohorts := map[ids.ObjectAddress]bool{}
 	for _, record := range records {
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
-		a := candidate.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: record.Name})
-		ext, ok := candidate.Extension(a)
-		if !ok || seen[a] || ext.Version != record.Version {
-			return false, fmt.Errorf("stuntgres: invalid extension owner import target")
+		implementation, ok := view.Owner().Extensions[record.Name]
+		if !ok || implementation.Versions().InstallPath(record.Version) == nil {
+			return invalid()
 		}
-		seen[a] = true
-		ns, ok := candidate.Namespace(ext.TargetNamespace)
-		if !ok || ns.Name() != record.Schema {
-			return false, fmt.Errorf("stuntgres: mismatching extension owner namespace")
-		}
-		owner, ok := roles.Lookup(record.Owner)
-		if !ok || owner.Ref != ext.Owner {
-			return false, fmt.Errorf("stuntgres: mismatching extension installation owner")
-		}
-		if record.Name == "tablefunc" && (len(ext.Members) != tablefuncMemberCount || !validTablefuncOwnerRoles(record)) {
-			return false, fmt.Errorf("stuntgres: inconsistent tablefunc ownership roles")
-		}
-		if record.Name == "earthdistance" && (len(ext.Members) != EarthMemberCount || !validEarthOwnerRoles(record)) {
-			return false, fmt.Errorf("stuntgres: invalid earthdistance ownership roles")
-		}
-		if record.Name == "lo" {
-			if ext.Version != "1.2" || len(record.Members) != 2 || len(ext.Members) != 2 || record.Members[0].Owner != record.Members[1].Owner {
-				return false, fmt.Errorf("stuntgres: inconsistent lo ownership roles")
+		var ext *catalog.Extension
+		if record.Present {
+			ext, ok = view.Extension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: record.Name}))
+			if !ok || ext.Version != record.Version {
+				return invalid()
 			}
-			for _, member := range record.Members {
-				if member.Slot < 0 || member.Slot >= 2 || member.Kind != "type" || member.Signature != "" || member.Name != [...]string{"lo", "lo[]"}[member.Slot] {
-					return false, fmt.Errorf("stuntgres: invalid lo ownership role")
+			ns, ok := view.Namespace(ext.TargetNamespace)
+			if !ok || ns.Name() != record.Schema {
+				return invalid()
+			}
+			owner, ok := roles.Lookup(record.Owner)
+			if !ok {
+				return invalid()
+			}
+			if ext.Owner != owner.Ref {
+				n := *ext
+				n.Owner = owner.Ref
+				replacements[ext.Address()] = &n
+			}
+		} else if record.Owner != "" || record.Schema != "" {
+			return invalid()
+		}
+		var cohort ids.ObjectAddress
+		declarations := map[string]bool{}
+		ordinary := map[ids.ObjectAddress]bool{}
+		for _, member := range record.Members {
+			if !validOwnerIdentity(member) {
+				return invalid()
+			}
+			if replay && member.Declaration == nil {
+				continue // Ordinary SQL creators have not necessarily run yet.
+			}
+			d := identities[ownerIdentityKey(member)]
+			if d == nil || seen[d.Address()] {
+				return invalid()
+			}
+			seen[d.Address()] = true
+			membership := catalog.ExtensionMembership(d)
+			if !replay && member.Extension == "" {
+				if membership != (ids.ObjectAddress{}) {
+					return invalid()
+				}
+			} else if !replay {
+				current, ok := view.Extension(membership)
+				if !ok || current.Name() != member.Extension {
+					return invalid()
 				}
 			}
-		}
-		if record.Name == "cube" && (len(record.Members) != CubeMemberCount || len(ext.Members) != CubeMemberCount) {
-			return false, fmt.Errorf("stuntgres: incomplete cube ownership manifest")
-		}
-		if record.Name == "hstore" {
-			if err := StockHstore.ValidateExtension(candidateView, ext); err != nil {
+			origin := catalog.DescriptorOrigin(d)
+			if member.Declaration == nil {
+				if origin != nil || ext == nil || membership != ext.Address() || member.Version != "" || member.Owner != "" || member.ACL != nil {
+					return invalid()
+				}
+				ordinary[d.Address()] = true
+				continue
+			}
+			declarationKey := fmt.Sprint(member.Version, ":", *member.Declaration)
+			if !origin.Valid(d.Address()) || origin.Installation.Provider != record.Name || origin.Installation.Version != member.Version || origin.Installation.Implementation != implementation || origin.Declaration != *member.Declaration || declarations[declarationKey] {
+				return invalid()
+			}
+			declarations[declarationKey] = true
+			if cohort == (ids.ObjectAddress{}) {
+				cohort = origin.Installation.Cohort
+			} else if cohort != origin.Installation.Cohort {
+				return invalid()
+			}
+			if err := validateInstalledDeclaration(view, d); err != nil {
 				return false, err
 			}
-		}
-		expected := len(ext.Members)
-		if record.Name == "unaccent" || record.Name == "hstore" {
-			expected--
-		}
-		if len(record.Members) != expected {
-			return false, fmt.Errorf("stuntgres: incomplete extension owners")
-		}
-		memberSlots := make(map[int]bool, expected)
-		membersSeen := make(map[ids.ObjectAddress]bool, expected)
-		for i, member := range record.Members {
-			// Reown lo's domain/companion pair together before validating the
-			// companion slot, even when a decoded record lists that slot first.
-			// Do not reorder or mutate the caller's immutable metadata slice.
-			if record.Name == "lo" && record.Members[0].Slot == 1 {
-				member = record.Members[1-i]
-			}
-			if record.Name == "tablefunc" {
-				// Apply primary and companion owners in canonical order even
-				// when portable metadata listed the companion first.
-				for _, selected := range record.Members {
-					if selected.Slot == i {
-						member = selected
-						break
-					}
+			principal, oldACL, _ := access.DescriptorACL(d)
+			if principal == (authorization.PrincipalRef{}) {
+				if member.Owner != "" || member.ACL != nil {
+					return invalid()
 				}
+				continue
 			}
 			owner, ok := roles.Lookup(member.Owner)
 			if !ok {
 				return false, fmt.Errorf("stuntgres: extension member owner %q does not exist", member.Owner)
 			}
-			if member.Slot < 0 || member.Slot >= len(ext.Members) || memberSlots[member.Slot] {
-				return false, fmt.Errorf("stuntgres: invalid extension ownership slot")
-			}
-			memberSlots[member.Slot] = true
-			a := ext.Members[member.Slot]
-			d := candidate.Get(a)
-			if d == nil || d.Address() != a || catalog.ExtensionMembership(d) != ext.Address() || membersSeen[a] {
-				return false, fmt.Errorf("stuntgres: invalid extension ownership member")
-			}
-			membersSeen[a] = true
-			namespace, ok := candidate.Namespace(d.Namespace())
-			if !ok || namespace.Name() != member.Schema {
-				return false, fmt.Errorf("stuntgres: mismatching member namespace")
-			}
-			name, signature, kind := d.Name(), "", ""
-			switch selected := d.(type) {
-			case *catalog.Procedure:
-				symbol, err := ProcedureSymbol(candidateView, selected)
-				if err != nil {
-					return false, err
-				}
-				kind, signature = "procedure", string(selected.Signature)
-				if IntarrayProviderOf(selected) != nil && symbol == "bqarr_out" {
-					signature = "query_int"
-				}
-				if SegProviderOf(selected) != nil && symbol == "seg_out" {
-					signature = "seg"
-				}
-				if LtreeProviderOf(selected) != nil || HstoreProviderOf(selected) != nil || CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil || IsnProviderOf(selected) != nil {
-					var valid bool
-					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
-					if !valid {
-						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
-					}
-				}
-			case *catalog.Operator:
-				if record.Name == "ltree" {
-					if err := StockLtree.ValidateExtension(candidateView, ext); err != nil { return false, err }
-					_, portable, valid := ownerOperatorIdentity(record.Name, member.Slot)
-					if !valid { return false, fmt.Errorf("stuntgres: invalid ltree ownership slot") }
-					kind, signature = "operator", portable
-					break
-				}
-				if record.Name == "hstore" {
-					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
-					_, portable, valid := ownerOperatorIdentity(record.Name, member.Slot)
-					if !ok || !valid {
-						return false, fmt.Errorf("stuntgres: invalid hstore ownership slot")
-					}
-					var err error
-					if member.Slot >= HstoreComparisonOperatorStart && member.Slot < HstoreBtreeFamilySlot {
-						err = validateHstoreComparisons(candidateView, ext, base)
-					} else {
-						err = validateHstoreOperator(candidateView, ext, base, member.Slot)
-					}
-					if err != nil {
-						return false, err
-					}
-					kind, signature = "operator", portable
-					break
-				}
-				if record.Name == "citext" {
-					base, ok := candidate.Type(ext.Members[0])
-					_, portable, valid := ownerOperatorIdentity(record.Name, member.Slot)
-					if !ok || !valid {
-						return false, fmt.Errorf("stuntgres: invalid citext ownership slot")
-					}
-					var err error
-					if member.Slot >= CitextPatternOperatorStart {
-						err = validateCitextPatternOperator(candidateView, ext, base, member.Slot-CitextPatternOperatorStart)
-					} else {
-						err = validateCitextOperator(candidateView, ext, base, member.Slot-CitextComparisonOperatorStart)
-					}
-					if err != nil {
-						return false, err
-					}
-					kind, signature = "operator", portable
-					break
-				}
-				if record.Name == "earthdistance" {
-					if member.Slot != EarthPointOperatorSlot || selected.Address() != ext.Members[EarthPointOperatorSlot] {
-						return false, fmt.Errorf("stuntgres: invalid earth operator ownership slot")
-					}
-					if err := StockEarthdistance.validatePoint(candidateView, ext); err != nil {
-						return false, err
-					}
-					kind, signature = "operator", "600,600"
-					break
-				}
-				expectedName, portableSignature, valid := cubeOwnerOperatorIdentity(member.Slot)
-				if record.Name != "cube" || !valid {
-					return false, fmt.Errorf("stuntgres: invalid extension operator owner")
-				}
-				base, ok := candidate.Type(ext.Members[0])
-				if !ok || base.SQLType == nil || !base.SQLType.IsCube() || selected.Namespace() != ext.TargetNamespace || selected.Name() != expectedName || selected.Left != ids.OID(base.SQLType.ID()) || candidate.NameAddress(catalog.DescriptorNameKey(selected)) != selected.Address() {
-					return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
-				}
-				switch {
-				case member.Slot >= cubeCoordinateOperatorStart && member.Slot < cubeSpatialProcedureStart:
-					i := member.Slot - cubeCoordinateOperatorStart
-					backing := ext.Members[cubeRoutineMember(cubeCoordinateOperators[i].routineIndex)]
-					if selected.Right != ids.OID(sqltype.Int4) || selected.Result != ids.OID(sqltype.Float8) || selected.Function != backing.ObjectID || selected.Commutator != 0 || selected.Negator != 0 || selected.Restriction != 0 || selected.Join != 0 || selected.Hash || selected.Merge {
-						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
-					}
-				case member.Slot >= cubeSpatialOperatorStart:
-					spatial := cubeSpatialMembers[member.Slot-cubeSpatialOperatorStart]
-					if selected.Right != selected.Left || selected.Result != ids.OID(spatial.operation.ResultID()) || selected.Function != ext.Members[cubeSpatialProcedureStart+member.Slot-cubeSpatialOperatorStart].ObjectID {
-						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
-					}
-				default:
-					i := member.Slot - 10
-					if selected.Right != selected.Left || selected.Result != 16 || selected.Function != ext.Members[i+3].ObjectID || selected.Commutator != ext.Members[10+cubeCommutators[i]].ObjectID || selected.Negator != ext.Members[10+cubeNegators[i]].ObjectID || selected.Hash || selected.Merge != (i == 0) || selected.Restriction != cubeRestrictions[i] || selected.Join != cubeJoins[i] {
-						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
-					}
-				}
-				kind, signature = "operator", portableSignature
-			case *catalog.OperatorClass:
-				if record.Name=="ltree" {
-					if member.Slot!=LtreeBtreeClassSlot&&member.Slot!=LtreeHashClassSlot{return false,fmt.Errorf("stuntgres: invalid ltree class ownership slot")}
-					if err:=StockLtree.ValidateExtension(candidateView,ext);err!=nil{return false,err}
-					kind,signature="operator_class","btree";if selected.Method==405{signature="hash"};break
-				}
-				if record.Name == "hstore" {
-					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
-					if !ok || member.Slot != HstoreBtreeClassSlot && member.Slot != HstoreHashClassSlot {
-						return false, fmt.Errorf("stuntgres: invalid hstore class ownership slot")
-					}
-					if err := validateHstoreComparisons(candidateView, ext, base); err != nil {
-						return false, err
-					}
-					kind, signature = "operator_class", "btree"
-					if selected.Method == 405 {
-						signature = "hash"
-					}
-					break
-				}
-				base, ok := candidate.Type(ext.Members[0])
-				if record.Name != "cube" || member.Slot != 17 || !ok || base.SQLType == nil || selected.Namespace() != ext.TargetNamespace || selected.Name() != "cube_ops" || selected.Method != 403 || selected.Family != ext.Members[16].ObjectID || selected.InputType != ids.OID(base.SQLType.ID()) || selected.StorageType != 0 || !selected.Default || candidate.NameAddress(catalog.DescriptorNameKey(selected)) != selected.Address() {
-					return false, fmt.Errorf("stuntgres: invalid extension ownership method")
-				}
-				kind, signature = "operator_class", "btree"
-			case *catalog.OperatorFamily:
-				if record.Name=="ltree" {
-					if member.Slot!=LtreeBtreeFamilySlot&&member.Slot!=LtreeHashFamilySlot{return false,fmt.Errorf("stuntgres: invalid ltree family ownership slot")}
-					if err:=StockLtree.ValidateExtension(candidateView,ext);err!=nil{return false,err}
-					kind,signature="operator_family","btree";if selected.Method==405{signature="hash"};break
-				}
-				if record.Name == "hstore" {
-					base, ok := candidate.Type(ext.Members[HstoreTypeSlot])
-					if !ok || member.Slot != HstoreBtreeFamilySlot && member.Slot != HstoreHashFamilySlot {
-						return false, fmt.Errorf("stuntgres: invalid hstore family ownership slot")
-					}
-					if err := validateHstoreComparisons(candidateView, ext, base); err != nil {
-						return false, err
-					}
-					kind, signature = "operator_family", "btree"
-					if selected.Method == 405 {
-						signature = "hash"
-					}
-					break
-				}
-				if record.Name != "cube" || member.Slot != 16 || selected.Namespace() != ext.TargetNamespace || selected.Name() != "cube_ops" || selected.Method != 403 || candidate.NameAddress(catalog.DescriptorNameKey(selected)) != selected.Address() {
-					return false, fmt.Errorf("stuntgres: invalid extension ownership method")
-				}
-				kind, signature = "operator_family", "btree"
-			case *catalog.Type:
-				kind = "type"
+			acl := authorization.SchemaACLOwner(oldACL, principal, owner.Ref)
+			if member.ACL != nil {
 				var err error
-				name, err = MemberTypeRole(candidateView, ext, selected)
+				acl, err = restoreMemberACL(roles, member.ACL)
 				if err != nil {
 					return false, err
 				}
-				if (record.Name == "earthdistance" || record.Name == "lo") && selected.SQLType.IsArray() {
-					domain, ok := candidate.Type(ext.Members[0])
-					if !ok || !domain.SQLType.IsDomain() || a != ext.Members[1] || ids.OID(domain.Array) != a.ObjectID || selected.SQLType.Element() != domain.SQLType || selected.Namespace() != domain.Namespace() {
-						return false, fmt.Errorf("stuntgres: invalid installed domain ownership companion")
+				if err := authorization.ValidateACL(roles, acl, access.ClassPrivileges(d)); err != nil {
+					return false, err
+				}
+			}
+			if access.ClassPrivileges(d) != 0 && member.ACL == nil {
+				return invalid()
+			}
+			synthetic := false
+			aclShapeChanged := false
+			if typ, ok := d.(*catalog.Type); ok {
+				synthetic = member.ACL != nil && !member.ACL.Explicit
+				aclShapeChanged = synthetic != typ.ACLSyntheticDefault
+				if synthetic {
+					if typ.ACLSyntheticDefault && principal == owner.Ref {
+						acl = oldACL
+					} else {
+						acl = authorization.DefaultBaseline(owner.Ref, authorization.DefaultTypes, false)
 					}
 				}
-			case *catalog.TSDictionary:
-				kind = "dictionary"
 			}
-			if member.Name != name || member.Signature != signature || member.Kind != kind || kind == "" {
-				return false, fmt.Errorf("stuntgres: mismatching extension ownership identity")
+			if principal != owner.Ref || aclShapeChanged || oldACL.Explicit != acl.Explicit || !slices.Equal(oldACL.Entries, acl.Entries) {
+				n, err := importMemberAuthority(d, owner.Ref, acl, synthetic)
+				if err != nil {
+					return false, err
+				}
+				replacements[d.Address()] = n
 			}
-			if member.ACL != nil && kind != "procedure" {
-				return false, fmt.Errorf("stuntgres: ACL on non-procedure extension member")
+			if typ, ok := d.(*catalog.Type); ok && record.Name == "tablefunc" && typ.SQLType.IsComposite() {
+				relation, ok := view.Relation(typ.OwningRelation)
+				if !ok || relation.RowType != typ.SQLType.ID() || relation.Owner != typ.Owner {
+					return invalid()
+				}
+				if relation.Owner != owner.Ref {
+					backing := *relation
+					backing.Owner = owner.Ref
+					replacements[backing.Address()] = &backing
+				}
 			}
-			if record.Name == "amcheck" && kind == "procedure" && member.ACL == nil {
-				return false, fmt.Errorf("stuntgres: missing amcheck member ACL")
-			}
-			switch d := d.(type) {
-			case *catalog.Type:
-				if d.Owner != owner.Ref {
-					n := *d
-					n.Owner = owner.Ref
-					n.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, owner.Ref)
-					candidate.SetDescriptor(a, &n)
-					if record.Name == "tablefunc" && d.SQLType.IsComposite() {
-						relation, ok := candidate.Relation(d.OwningRelation)
-						if !ok || relation.RowType != d.SQLType.ID() || relation.Owner != d.Owner {
-							return false, fmt.Errorf("stuntgres: invalid installed composite owner")
-						}
-						backing := *relation
-						backing.Owner = owner.Ref
-						candidate.SetDescriptor(backing.Address(), &backing)
+			if typ, ok := d.(*catalog.Type); ok && typ.Array != 0 {
+				array, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Array)})
+				if !ok || !array.SQLType.IsArray() || array.SQLType.Element() != typ.SQLType {
+					return invalid()
+				}
+				// A sealed array has its own mandatory declaration entry. Its
+				// explicit requested authority must not be overwritten by an
+				// implicit parent-owner transfer, regardless of record order.
+				// Only originless generated companions follow the parent here.
+				if array.Origin == nil {
+					mapped := *array
+					mapped.Owner = owner.Ref
+					mapped.ACL = authorization.SchemaACLOwner(array.ACL, array.Owner, owner.Ref)
+					if array.Owner != mapped.Owner || array.ACL.Explicit != mapped.ACL.Explicit || !slices.Equal(array.ACL.Entries, mapped.ACL.Entries) {
+						replacements[array.Address()] = &mapped
 					}
-					if d.Array != 0 {
-						arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}
-						array, ok := candidate.Type(arrayAddress)
-						if !ok || !array.SQLType.IsArray() || array.SQLType.Element() != d.SQLType {
-							return false, fmt.Errorf("stuntgres: invalid owned type array")
-						}
-						mapped := *array
-						mapped.Owner = owner.Ref
-						mapped.ACL = authorization.SchemaACLOwner(array.ACL, array.Owner, owner.Ref)
-						candidate.SetDescriptor(arrayAddress, &mapped)
-					}
-					ownersChanged = true
 				}
-			case *catalog.Procedure:
-				n := *d
-				n.Owner = owner.Ref
-				n.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, owner.Ref)
-				if member.ACL != nil {
-					acl, err := restoreMemberACL(roles, member.ACL)
-					if err != nil {
-						return false, err
-					}
-					n.ACL = acl
-				}
-				if n.Owner != d.Owner || n.ACL.Explicit != d.ACL.Explicit || !slices.Equal(n.ACL.Entries, d.ACL.Entries) {
-					candidate.SetDescriptor(a, &n)
-					ownersChanged = true
-				}
-			case *catalog.Operator:
-				if d.Owner != owner.Ref {
-					n := *d
-					n.Owner = owner.Ref
-					candidate.SetDescriptor(a, &n)
-					ownersChanged = true
-				}
-			case *catalog.TSDictionary:
-				if d.Owner != owner.Ref {
-					n := *d
-					n.Owner = owner.Ref
-					candidate.SetDescriptor(a, &n)
-					ownersChanged = true
-				}
-			case *catalog.OperatorClass:
-				if d.Owner != owner.Ref {
-					n := *d
-					n.Owner = owner.Ref
-					candidate.SetDescriptor(a, &n)
-					ownersChanged = true
-				}
-			case *catalog.OperatorFamily:
-				if d.Owner != owner.Ref {
-					n := *d
-					n.Owner = owner.Ref
-					candidate.SetDescriptor(a, &n)
-					ownersChanged = true
-				}
-			default:
-				return false, fmt.Errorf("stuntgres: ownerless extension metadata member")
 			}
 		}
-		if record.Name == "hstore" {
-			if err := StockHstore.ValidateExtension(candidateView, ext); err != nil {
-				return false, err
+		if ext != nil {
+			if cohort == (ids.ObjectAddress{}) {
+				cohort = ext.Installation.Cohort
+			}
+			if ext.Installation.Cohort != cohort {
+				return invalid()
+			}
+			if !replay {
+				if err := catalog.ValidateExtensionMembership(view, ext); err != nil {
+					return invalid()
+				}
+				for _, a := range ext.Members {
+					d := view.Get(a)
+					if catalog.DescriptorOrigin(d) == nil && !ordinary[a] {
+						return invalid()
+					}
+				}
+			}
+		}
+		if cohort == (ids.ObjectAddress{}) || cohorts[cohort] {
+			return invalid()
+		}
+		cohorts[cohort] = true
+		// Missing survivor entries cannot silently erase authority or membership.
+		for _, d := range view.Descriptors() {
+			origin := catalog.DescriptorOrigin(d)
+			if origin.Valid(d.Address()) && origin.Installation.Cohort == cohort && !seen[d.Address()] {
+				return invalid()
 			}
 		}
 	}
-	return ownersChanged, nil
+	prospective := func(a ids.ObjectAddress) catalog.Descriptor {
+		if d := replacements[a]; d != nil {
+			return d
+		}
+		return view.Get(a)
+	}
+	for _, d := range replacements {
+		typ, ok := d.(*catalog.Type)
+		if !ok {
+			continue
+		}
+		if typ.Array != 0 {
+			array, ok := prospective(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Array)}).(*catalog.Type)
+			if !ok || array.Owner != typ.Owner {
+				return invalid()
+			}
+		}
+		if typ.SQLType.IsArray() {
+			base, ok := prospective(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.Element().ID())}).(*catalog.Type)
+			if !ok || base.Owner != typ.Owner {
+				return invalid()
+			}
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if replay {
+		return false, nil
+	}
+	for a, d := range replacements {
+		view.State().SetDescriptor(a, d)
+	}
+	return len(replacements) != 0, nil
+}
+
+func importMemberAuthority(d catalog.Descriptor, owner authorization.PrincipalRef, acl authorization.ACLValue, synthetic bool) (catalog.Descriptor, error) {
+	switch d := d.(type) {
+	case *catalog.Procedure:
+		n := *d
+		n.Owner, n.ACL = owner, acl
+		return &n, nil
+	case *catalog.Type:
+		n := *d
+		n.Owner, n.ACL = owner, acl
+		n.ACLSyntheticDefault = synthetic
+		return &n, nil
+	case *catalog.Language:
+		n := *d
+		n.Owner, n.ACL = owner, acl
+		return &n, nil
+	case *catalog.Operator:
+		n := *d
+		n.Owner = owner
+		return &n, nil
+	case *catalog.OperatorClass:
+		n := *d
+		n.Owner = owner
+		return &n, nil
+	case *catalog.OperatorFamily:
+		n := *d
+		n.Owner = owner
+		return &n, nil
+	case *catalog.TSDictionary:
+		n := *d
+		n.Owner = owner
+		return &n, nil
+	}
+	return nil, fmt.Errorf("stuntgres: unsupported installed member authority")
 }

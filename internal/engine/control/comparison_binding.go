@@ -104,7 +104,7 @@ func ValidateComparisonBinding(current, before catalog.Read, stmt parser.Stateme
 			if node.SourcePosition().Offset < position {
 				return
 			}
-			required, err := stored.ComparisonBindingNamespace(current, node)
+			required, err := stored.ComparisonBindingNamespace(current, node, nil)
 			if err != nil {
 				failure = err
 				return

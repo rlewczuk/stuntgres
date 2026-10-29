@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -57,19 +59,62 @@ func TestReferenceExtensionVersionControls(t *testing.T) {
 				} // No fictitious PostgreSQL control API.
 				dump := extensionVersionRoundTrip(t, p, b, c, version, check)
 				extensionVersionBoth(t, p, b, c, base)
-				extensionControlsFailures(t, p, c, b.Recorder, dump, check)
+				extensionControlsFailures(t, p, c, b.Recorder, "fuzzystrmatch", dump, check)
+				// Replay may genuinely CREATE the base 1.1 recipe and UPDATE to
+				// 1.2 before applying current identity/ownership. The authoritative
+				// logical version is the strict owner record, not a CREATE literal.
+				start, end, payload := fixture.CatalogExtensionOwnerDirective(t, dump, "fuzzystrmatch", true)
+				var record map[string]any
+				if err := json.Unmarshal(payload, &record); err != nil {
+					t.Fatal(err)
+				}
+				if record["version"] != version {
+					t.Fatal("dump logical installed version", record["version"], version)
+				}
+				var create string
+				for _, line := range strings.Split(dump, "\n") {
+					if strings.HasPrefix(line, "CREATE EXTENSION ") && strings.Contains(line, "fuzzystrmatch") {
+						create = line
+						break
+					}
+				}
+				if create == "" || !strings.Contains(create, "VERSION '") {
+					t.Fatal("missing genuine versioned recipe creation", dump)
+				}
+				if version == "1.2" {
+					// Destination ev_owner may be NOSUPERUSER. Keep CREATE's
+					// captured owner but run the real update script as the replay
+					// administrator, before importing final member ownership.
+					update := "ALTER EXTENSION \"fuzzystrmatch\" UPDATE TO '1.2';"
+					if !strings.Contains(dump, create+"\nSET SESSION AUTHORIZATION postgres;\n"+update) {
+						t.Fatal("version replay did not restore administrator before UPDATE", dump)
+					}
+				}
+				versionStart := strings.Index(create, "VERSION '") + len("VERSION '")
+				versionEnd := versionStart + strings.Index(create[versionStart:], "'")
 				for _, invalid := range []string{"1.0", "missing"} {
-					bad := strings.Replace(dump, "VERSION '"+version+"'", "VERSION '"+invalid+"'", 1)
-					if bad == dump {
-						t.Fatal("dump has no installed-version literal", dump)
+					badCreate := create[:versionStart] + invalid + create[versionEnd:]
+					badSQL := strings.Replace(dump, create, badCreate, 1)
+					record["version"] = invalid
+					badPayload, err := json.Marshal(record)
+					if err != nil {
+						t.Fatal(err)
 					}
-					if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
-						t.Fatal("invalid installed version accepted", invalid)
+					badMetadata := dump[:start] + "-- stuntgres-extension-owners-v3 " + base64.StdEncoding.EncodeToString(badPayload) + dump[end:]
+					for _, bad := range []string{badSQL, badMetadata} {
+						if bad == dump {
+							t.Fatal("invalid version fixture unchanged")
+						}
+						if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
+							t.Fatal("invalid installed version accepted", invalid)
+						}
+						if extensionDump(t, p.Ctx, p.Native) != dump {
+							t.Fatal("invalid version changed complete state")
+						}
+						extensionVersionInventory(t, p, b, c, version)
+						extensionVersionBoth(t, p, b, c, check)
+						extensionVersionBoth(t, p, b, c, base)
 					}
-					if extensionDump(t, p.Ctx, p.Native) != dump {
-						t.Fatal("invalid version changed complete state")
-					}
-					run(check)
 				}
 				ctx, cancel := context.WithCancel(p.Ctx)
 				err := stuntgres.Restore(ctx, p.Native, &daitchRestoreCancelReader{cancel: cancel})

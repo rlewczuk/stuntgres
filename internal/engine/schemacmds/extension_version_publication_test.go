@@ -242,3 +242,165 @@ func TestExtensionVersionPublication(t *testing.T) {
 		extensionVersionUnitUnchanged(t, e.CatalogRead(), members)
 	})
 }
+
+// The competing update can commit after transfer to the statement journal,
+// not only while the provider callback is running. Preparation must reject
+// the captured predecessor before validating an overlaid, mixed-version graph.
+func TestExtensionVersionPublicationAfterTransfer(t *testing.T) {
+	e, admin, old := extensionVersionUnitInstalled(t, "1.1")
+	worker, closeWorker := enginetest.RoleOperation(t, e, "postgres")
+	defer closeWorker()
+	scope, err := e.StartStatement(worker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := false
+	defer func() {
+		if !finished {
+			_ = scope.Finish(errors.New("unfinished version transfer"))
+		}
+	}()
+	if _, err := scope.Execute(extensionVersionUnitUpdate(), 0, nil); err != nil {
+		t.Fatal("private version transfer", err)
+	}
+	if scope.Catalog == nil || scope.Catalog.Originals[old.Address()] != old || e.CatalogRead().MustExtension(old.Address()) != old {
+		t.Fatal("transfer lost committed predecessor or published prematurely")
+	}
+	if err := extensionUnitExecute(t, e, admin, extensionVersionUnitUpdate()); err != nil {
+		t.Fatal("competing committed version", err)
+	}
+	winner := e.CatalogRead()
+	members := extensionVersionUnitMembers(t, winner, winner.MustExtension(old.Address()))
+	finished = true
+	err = scope.Finish(nil)
+	var conflict catalog.Conflict
+	var state interface{ SQLState() string }
+	if !errors.As(err, &conflict) || errors.As(err, &state) {
+		t.Fatal("stale journal must fail before mixed-graph validation", err)
+	}
+	if e.CatalogRead().State() != winner.State() || old.Version != "1.1" {
+		t.Fatal("failed journal changed winner or retained predecessor")
+	}
+	extensionVersionUnitUnchanged(t, e.CatalogRead(), members)
+}
+
+// Genuine SQL stages reuse private predecessors without turning them into
+// committed originals. Rollback must discard the complete membership/rename/
+// relocation chain, including the original absence and vacant-name fences.
+func TestExtensionPrivateJournalPublication(t *testing.T) {
+	for _, finish := range []string{"ROLLBACK", "COMMIT"} {
+		t.Run(finish, func(t *testing.T) {
+			e, op, ext := extensionUnitInstalled(t)
+			enginetest.RoleExecute(t, e, op, "CREATE SCHEMA private_extension_target")
+			base := e.CatalogRead()
+			oldMembers := slices.Clone(ext.Members)
+			enginetest.RoleExecute(t, e, op, "BEGIN")
+			enginetest.RoleExecute(t, e, op, "CREATE FUNCTION public.private_extension_member(integer) RETURNS integer LANGUAGE SQL AS 'SELECT $1'")
+			key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: "private_extension_member", Signature: "23"}
+			e.Mu.Lock()
+			private := e.PrivateCatalogLocked(op.Session.Transactions.Catalog)
+			address := private.NameAddress(key)
+			e.Mu.Unlock()
+			if address.ObjectID == 0 {
+				t.Fatal("missing genuine private function")
+			}
+			for _, query := range []string{
+				"ALTER EXTENSION unaccent ADD FUNCTION public.private_extension_member(integer)",
+				"ALTER EXTENSION unaccent DROP FUNCTION public.private_extension_member(integer)",
+				"ALTER FUNCTION public.private_extension_member(integer) RENAME TO private_extension_renamed",
+				"ALTER EXTENSION unaccent ADD FUNCTION public.private_extension_renamed(integer)",
+				"ALTER EXTENSION unaccent SET SCHEMA private_extension_target",
+				"ALTER EXTENSION unaccent DROP FUNCTION private_extension_target.private_extension_renamed(integer)",
+			} {
+				enginetest.RoleExecute(t, e, op, query)
+				journal := op.Session.Transactions.Catalog
+				original, observed := journal.Originals[address]
+				if !observed || original != nil || journal.Originals[ext.Address()] != ext {
+					t.Fatal("private predecessor replaced committed original", query)
+				}
+				if originalName, observed := journal.Names[key]; !observed || originalName != (ids.ObjectAddress{}) {
+					t.Fatal("private rename replaced original name absence", query)
+				}
+				e.Mu.Lock()
+				private = e.PrivateCatalogLocked(journal)
+				err := e.CatalogPreflightLocked(journal)
+				e.Mu.Unlock()
+				if err != nil {
+					t.Fatal("lawful private predecessor conflicted", query, err)
+				}
+				if err := catalog.ValidateExtensionMembership(private, private.MustExtension(ext.Address())); err != nil {
+					t.Fatal("private reciprocal inventory", query, err)
+				}
+				if e.CatalogRead().State() != base.State() || !slices.Equal(ext.Members, oldMembers) {
+					t.Fatal("private change leaked into committed/retained state", query)
+				}
+			}
+			if catalog.ExtensionMembership(private.MustProcedure(address)) != (ids.ObjectAddress{}) || len(private.MustExtension(ext.Address()).Members) != len(oldMembers) {
+				t.Fatal("final detach retained a reciprocal member")
+			}
+			enginetest.RoleExecute(t, e, op, finish)
+			published := e.CatalogRead()
+			if finish == "ROLLBACK" {
+				if published.State() != base.State() || published.Get(address) != nil || published.NameAddress(key) != (ids.ObjectAddress{}) {
+					t.Fatal("rollback leaked private identity or names")
+				}
+			} else {
+				final := private.MustProcedure(address)
+				if published.Get(address) != final || published.NameAddress(catalog.DescriptorNameKey(final)) != address || published.NameAddress(key) != (ids.ObjectAddress{}) ||
+					published.MustExtension(ext.Address()).TargetNamespace != final.Namespace() || len(published.MustExtension(ext.Address()).Members) != len(oldMembers) {
+					t.Fatal("commit lost detached identity, final name or relocation")
+				}
+				if err := catalog.ValidateExtensionMembership(published, published.MustExtension(ext.Address())); err != nil {
+					t.Fatal("committed reciprocal inventory", err)
+				}
+			}
+			if base.Get(address) != nil || base.MustExtension(ext.Address()) != ext || !slices.Equal(ext.Members, oldMembers) {
+				t.Fatal("finalization mutated retained committed state")
+			}
+		})
+	}
+}
+
+// A schema member has one e edge, not recursive membership in its ordinary
+// children. Creating/dropping a child between membership operations must not
+// leave the schema's private predecessor attached after DROP membership.
+func TestExtensionPrivateSchemaMembership(t *testing.T) {
+	e, op, ext := extensionUnitInstalled(t)
+	enginetest.RoleExecute(t, e, op, "CREATE SCHEMA private_schema_member")
+	base := e.CatalogRead()
+	schema := base.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "private_schema_member"})
+	enginetest.RoleExecute(t, e, op, "BEGIN")
+	for _, query := range []string{
+		"ALTER EXTENSION unaccent ADD SCHEMA private_schema_member",
+		"CREATE TABLE private_schema_member.witness(v integer)",
+		"DROP TABLE private_schema_member.witness",
+		"ALTER EXTENSION unaccent DROP SCHEMA private_schema_member",
+	} {
+		enginetest.RoleExecute(t, e, op, query)
+		e.Mu.Lock()
+		private := e.PrivateCatalogLocked(op.Session.Transactions.Catalog)
+		e.Mu.Unlock()
+		current := private.MustExtension(ext.Address())
+		if err := catalog.ValidateExtensionMembership(private, current); err != nil {
+			t.Fatal("schema reciprocal inventory", query, err)
+		}
+		attached := query != "ALTER EXTENSION unaccent DROP SCHEMA private_schema_member"
+		want := len(ext.Members)
+		if attached {
+			want++
+		}
+		if len(current.Members) != want || slices.Contains(current.Members, schema) != attached ||
+			(catalog.ExtensionMembership(private.Get(schema)) == ext.Address()) != attached {
+			t.Fatal("schema/child operations changed actual membership", query, current.Members)
+		}
+		for _, address := range current.Members {
+			if address != schema && !slices.Contains(ext.Members, address) {
+				t.Fatal("schema child became a direct member", query, address)
+			}
+		}
+	}
+	enginetest.RoleExecute(t, e, op, "ROLLBACK")
+	if e.CatalogRead().State() != base.State() || catalog.ExtensionMembership(base.Get(schema)) != (ids.ObjectAddress{}) {
+		t.Fatal("schema rollback changed committed membership")
+	}
+}

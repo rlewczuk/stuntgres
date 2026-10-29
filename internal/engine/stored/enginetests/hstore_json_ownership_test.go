@@ -239,7 +239,7 @@ func TestHstoreJSONStoredRemapOwnership(t *testing.T) {
 		}
 	}
 
-	for _, cause := range []string{"current_member", "current_source", "current_formal", "result_generation", "source_domain"} {
+	for _, cause := range []string{"current_member", "current_membership_link", "current_source", "current_formal", "result_generation", "source_domain"} {
 		t.Run(cause, func(t *testing.T) {
 			candidate := catalog.CloneState(tv.State())
 			targetExt := *te
@@ -248,6 +248,10 @@ func TestHstoreJSONStoredRemapOwnership(t *testing.T) {
 			case "current_member":
 				targetExt.Members[extension.HstoreJSONProcedureSlot], targetExt.Members[extension.HstoreJSONLooseProcedureSlot] = targetExt.Members[extension.HstoreJSONLooseProcedureSlot], targetExt.Members[extension.HstoreJSONProcedureSlot]
 				candidate.SetDescriptor(targetExt.Address(), &targetExt)
+			case "current_membership_link":
+				p := *tv.MustProcedure(te.Members[extension.HstoreJSONProcedureSlot])
+				p.Extension = ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 999999}
+				candidate.SetDescriptor(p.Address(), &p)
 			case "current_source":
 				p := *tv.MustProcedure(te.Members[extension.HstoreJSONProcedureSlot])
 				p.Display.Source = "hstore_out"
@@ -277,7 +281,11 @@ func TestHstoreJSONStoredRemapOwnership(t *testing.T) {
 					return sv.Owner().Domain.Ref(next.Epoch, next.Address)
 				}
 			}
-			if _, err := mapper.Nested(bound); err == nil {
+			if _, err := mapper.Nested(bound); cause == "current_member" {
+				if err != nil {
+					t.Fatal("lawful membership permutation changed released authority", err)
+				}
+			} else if err == nil {
 				t.Fatal("unauthorized source/current remap accepted")
 			}
 			if tv.MustExtension(te.Address()) != te || sv.MustExtension(se.Address()) != se {

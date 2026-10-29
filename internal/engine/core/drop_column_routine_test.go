@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
@@ -88,6 +89,32 @@ func TestDropColumnRoutineOwnership(t *testing.T) {
 			if provider.Removed(routines["column_keep"].Address()) {
 				t.Fatal("unused-attribute routine retired")
 			}
+			rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(owner.RowType)}
+			originalRow := base.MustType(rowAddress)
+			projectedRow := provider.Descriptor(rowAddress).(*catalog.Type)
+			retained := provider.RetirementRead()
+			if projectedRow.SQLType == originalRow.SQLType || retained.MustType(rowAddress) != projectedRow || retained.MustRelation(owner.Address()) != current {
+				t.Fatal("retirement facts did not retain the genuine projected generation")
+			}
+			if retained.Owner() != base.Owner() || retained.Domain() != base.Domain() || retained.Epoch() != base.Epoch() || retained.MustProcedure(routines["column_use"].Address()) != routines["column_use"] || provider.RetirementDescriptor(owner.Address()) != owner {
+				t.Fatal("retirement projection replaced authority or original AUTO owners")
+			}
+			var originalCodec, projectedCodec []ids.ObjectAddress
+			if err := pgcatalog.VisitTypeProcedureDependencies(t.Context(), base, originalRow, func(a ids.ObjectAddress) bool { originalCodec = append(originalCodec, a); return true }); err != nil {
+				t.Fatal("original codec facts", err)
+			}
+			if err := pgcatalog.VisitTypeProcedureDependencies(t.Context(), retained, projectedRow, func(a ids.ObjectAddress) bool { projectedCodec = append(projectedCodec, a); return true }); err != nil || len(projectedCodec) == 0 || !slices.Equal(originalCodec, projectedCodec) {
+				t.Fatal("projected generation lost its actual codec facts", originalCodec, projectedCodec, err)
+			}
+			for _, pair := range []struct {
+				read catalog.Read
+				row  *catalog.Type
+			}{{base, projectedRow}, {retained, originalRow}} {
+				called := false
+				if err := pgcatalog.VisitTypeProcedureDependencies(t.Context(), pair.read, pair.row, func(ids.ObjectAddress) bool { called = true; return true }); err == nil || called {
+					t.Fatal("mismatched original/projected authority visited", called, err)
+				}
+			}
 			consumer := enginetest.RoleTableRef(t, e, "column_consumer")
 			if len(provider.Descriptor(consumer.Address).(*catalog.Relation).ColumnMeta.Defaults) != 0 {
 				t.Fatal("recursive surviving DEFAULT owner was not pruned")
@@ -101,6 +128,9 @@ func TestDropColumnRoutineOwnership(t *testing.T) {
 			}
 			if !slices.Equal(owner.Attributes, []int32{1, 2, 3}) || len(owner.Constraints.Check) != 2 || len(owner.Constraints.Unique) != 1 || e.CatalogRead().State() != before || base.Get(owner.Address()) != owner {
 				t.Fatal("retained root or committed state mutated")
+			}
+			if retained.MustType(rowAddress) != projectedRow || retained.MustRelation(owner.Address()) != current || !slices.Equal(current.Attributes, []int32{1, 2}) || len(current.Constraints.Unique) != 1 {
+				t.Fatal("consuming original AUTO payload mutated retained dependency facts")
 			}
 			if provider.Prepared != nil {
 				// Actual immutable projection lineage records only the recursive

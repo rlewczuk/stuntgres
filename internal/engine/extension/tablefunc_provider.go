@@ -45,6 +45,10 @@ func TablefuncProviderOf(p *catalog.Procedure) *TablefuncProvider {
 }
 
 func (p *TablefuncProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+	return ValidateCurrentInstallation(v, ext, p)
+}
+
+func (p *TablefuncProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid tablefunc manifest") }
 	if p != StockTablefunc || v.Owner() == nil || !currentManifest(v, ext) || ext.Name() != "tablefunc" || ext.Version != "1.0" || len(ext.Members) != tablefuncMemberCount || v.Owner().Extensions["tablefunc"] != p {
 		return invalid()
@@ -103,23 +107,8 @@ func (p *TablefuncProvider) ValidateExtension(v catalog.Read, ext *catalog.Exten
 	}
 	return nil
 }
-
 func (p *TablefuncProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	if proc == nil {
-		return fmt.Errorf("stuntgres: missing tablefunc procedure")
-	}
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing tablefunc installation")
-	}
-	if err := p.ValidateExtension(v, ext); err != nil {
-		return err
-	}
-	if v.Get(proc.Address()) != proc {
-		return fmt.Errorf("stuntgres: foreign tablefunc procedure")
-	}
-	_, err := ProcedureSymbol(v, proc)
-	return err
+	return ValidateProcedureOrigin(v, proc, p)
 }
 
 func ValidateTablefuncIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef) error {
@@ -128,4 +117,55 @@ func ValidateTablefuncIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.
 		return fmt.Errorf("stuntgres: invalid stored tablefunc identity")
 	}
 	return StockTablefunc.ValidateProcedure(v, proc)
+}
+
+// The three released result types and their arrays remain genuine nominal
+// capabilities after membership, spelling or ownership changes. Their current
+// backing relation and element generations, not historical owners, are authority.
+func validateTablefuncTypeOrigin(v catalog.Read, t *catalog.Type) error {
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid installed tablefunc type declaration") }
+	installation := t.Origin.Installation
+	offset := t.Origin.Declaration - tablefuncCrosstabStart - 1
+	if installation.Version != "1.0" || len(installation.Members) != tablefuncMemberCount || offset < 0 || offset >= 6 {
+		return invalid()
+	}
+	slot := tablefuncCrosstabStart + 1 + 2*(offset/2)
+	typ, ok := v.Type(installation.Members[slot])
+	if !ok {
+		return invalid()
+	}
+	array, ok := v.Type(installation.Members[slot+1])
+	if !ok {
+		return invalid()
+	}
+	for index, member := range [2]*catalog.Type{typ, array} {
+		if member.SQLType == nil || member.SQLType.ID() != sqltype.ID(member.Address().ObjectID) || !member.SQLType.Concrete() || member.Revision() == 0 || !catalog.SameInstallation(member, installation) || member.Origin.Declaration != slot+index || member.Owner.ID() == 0 || member.Owner != v.Owner().Principals.Principal(member.Owner.ID()) || member.Dimensions != 0 || len(member.DomainChecks) != 0 || member.DomainNotNull != nil || member.DomainDefault != nil || member.DomainDefaultOwn || member.DomainDefaultText != "" {
+			return invalid()
+		}
+		if err := ValidateProviderHeader(v, member, ids.TypeClassID); err != nil {
+			return err
+		}
+		if err := catalog.ValidateExtensionMembership(v, member); err != nil {
+			return err
+		}
+	}
+	width := 3 + offset/2
+	if !typ.SQLType.IsComposite() || typ.SQLType.CompositeLen() != width || !array.SQLType.IsArray() || array.SQLType.Element() != typ.SQLType || typ.Array != array.SQLType.ID() || array.Array != 0 || array.Owner != typ.Owner || array.Namespace() != typ.Namespace() {
+		return invalid()
+	}
+	relation, ok := v.Relation(typ.OwningRelation)
+	if !ok || relation.RelationKind != catalog.CompositeRelation || relation.RowType != typ.SQLType.ID() || relation.Owner != typ.Owner || relation.Namespace() != typ.Namespace() || relation.Name() != typ.Name() || array.OwningRelation != relation.Address() || relation.Revision() == 0 || len(relation.Columns) != width || len(relation.Attributes) != width || v.NameAddress(catalog.DescriptorNameKey(relation)) != relation.Address() {
+		return invalid()
+	}
+	text, ok := v.LookupType(sqltype.Text)
+	if !ok {
+		return invalid()
+	}
+	for index, column := range relation.Columns {
+		member := typ.SQLType.CompositeMember(index)
+		if column.Name != tablefuncColumnNames[index] || column.Usage != text.Usage() || !column.Nullable || !column.NullabilityKnown || relation.Attributes[index] != int32(index+1) || member.Name != column.Name || member.Attribute != relation.Attributes[index] || member.Usage != column.Usage {
+			return invalid()
+		}
+	}
+	return nil
 }

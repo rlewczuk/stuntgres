@@ -292,7 +292,7 @@ func testHstoreSelectedStoredRemap(t *testing.T, family string) {
 		}
 	}
 
-	for _, cause := range []string{"current_member", "current_source", "current_formal", "result_generation", "source_domain"} {
+	for _, cause := range []string{"current_member", "current_membership_link", "current_source", "current_formal", "result_generation", "source_domain"} {
 		t.Run(cause, func(t *testing.T) {
 			candidate := catalog.CloneState(tv.State())
 			targetExt := *te
@@ -301,12 +301,16 @@ func testHstoreSelectedStoredRemap(t *testing.T, family string) {
 			case "current_member":
 				targetExt.Members[extension.HstoreTextConstructorSlot], targetExt.Members[extension.HstoreFetchSlot] = targetExt.Members[extension.HstoreFetchSlot], targetExt.Members[extension.HstoreTextConstructorSlot]
 				candidate.SetDescriptor(targetExt.Address(), &targetExt)
+			case "current_membership_link":
+				p := *tv.MustProcedure(te.Installation.Members[hstoreConstructOwnershipCall(t, original[0]).Member])
+				p.Extension = ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 999999}
+				candidate.SetDescriptor(p.Address(), &p)
 			case "current_source":
-				p := *tv.MustProcedure(te.Members[extension.HstoreTextConstructorSlot])
+				p := *tv.MustProcedure(te.Installation.Members[hstoreConstructOwnershipCall(t, original[0]).Member])
 				p.Display.Source = "hstore_out"
 				candidate.SetDescriptor(p.Address(), &p)
 			case "current_formal":
-				p := *tv.MustProcedure(te.Members[extension.HstoreFetchSlot])
+				p := *tv.MustProcedure(te.Installation.Members[hstoreConstructOwnershipCall(t, original[len(original)-1]).Member])
 				p.Signature = "25"
 				candidate.SetDescriptor(p.Address(), &p)
 			}
@@ -330,7 +334,11 @@ func testHstoreSelectedStoredRemap(t *testing.T, family string) {
 					return sv.Owner().Domain.Ref(next.Epoch, next.Address)
 				}
 			}
-			if _, err := mapper.Nested(bound); err == nil {
+			if _, err := mapper.Nested(bound); cause == "current_member" {
+				if err != nil {
+					t.Fatal("lawful membership permutation changed released authority", err)
+				}
+			} else if err == nil {
 				t.Fatal("unauthorized source/current remap accepted")
 			}
 			if tv.MustExtension(te.Address()) != te || sv.MustExtension(se.Address()) != se {

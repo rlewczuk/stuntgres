@@ -28,7 +28,7 @@ var IntaggMembers = [...]struct {
 	{"int_array_enum", "1007", 23, true, catalog.FunctionRoutine},
 }
 
-func (p *IntaggProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *IntaggProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
 	if !currentManifest(v, ext) {
 		return invalid()
@@ -44,28 +44,10 @@ func (p *IntaggProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 		if _, err := ProcedureSymbol(v, proc); err != nil {
 			return err
 		}
-		if err := validateOwnedAggregate(v, proc); err != nil {
-			return err
-		}
 	}
 	return nil
 }
 
 func (p *IntaggProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing intagg installation")
-	}
-	if err := p.ValidateExtension(v, ext); err != nil {
-		return err
-	}
-	if v.Get(proc.Address()) != proc || IntaggProviderOf(proc) != p {
-		return fmt.Errorf("stuntgres: foreign intagg procedure")
-	}
-	for _, address := range ext.Members {
-		if address == proc.Address() {
-			return nil
-		}
-	}
-	return fmt.Errorf("stuntgres: nonmember intagg procedure")
+	return ValidateProcedureOrigin(v, proc, p)
 }

@@ -38,6 +38,7 @@ type RoutineDefaults interface {
 // RoutineRemap is one private replacement's original-payload mapping. The
 // callbacks share immutable payload identities between declarations and captures.
 type RoutineRemap struct {
+	Descriptor   func(Descriptor) Descriptor
 	Type         func(*sqltype.Descriptor) *sqltype.Descriptor
 	Collation    func(sqltype.CollationRef) (sqltype.CollationRef, error)
 	Procedure    ProcedureRemapper

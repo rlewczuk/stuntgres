@@ -101,12 +101,13 @@ func TestVerifyHeapamAuthority(t *testing.T) {
 		mapping[member] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + slot)}
 	}
 	state := catalog.CloneState(view.State())
+	descriptor := extension.DescriptorRemapper(mapping)
 	for old := range mapping {
 		state.UnbindName(catalog.DescriptorNameKey(view.Get(old)))
 		state.RemoveDescriptor(old)
 	}
 	for old, destination := range mapping {
-		d := extension.RemapDescriptor(view.Get(old), mapping)
+		d := descriptor(view.Get(old))
 		state.SetDescriptor(destination, d)
 		state.BindName(catalog.DescriptorNameKey(d), destination)
 	}
@@ -119,7 +120,7 @@ func TestVerifyHeapamAuthority(t *testing.T) {
 		}
 		return ref
 	}
-	mapper := stored.ViewQueryRemapper{Catalog: destination, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+	mapper := stored.ViewQueryRemapper{Catalog: destination, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(descriptor, nil, nil)}
 	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "findings", Usage: n.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{n}}
 	mapped, err := mapper.Query(query)
 	if err != nil {

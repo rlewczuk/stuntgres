@@ -20,6 +20,7 @@ func TestCitextComparisonProviderOwnerShape(t *testing.T) {
 	if err != nil || !found {
 		t.Fatal(found, err)
 	}
+	original = extensionOwnerRecipeOrder(original)
 	for _, mutate := range []func(*extension.OwnerRecord){
 		func(r *extension.OwnerRecord) { r.Members = r.Members[:3] },
 		func(r *extension.OwnerRecord) { r.Members[3].Signature = "citext,25" },
@@ -29,7 +30,7 @@ func TestCitextComparisonProviderOwnerShape(t *testing.T) {
 			r.Members[3].Name = "citext"
 			r.Members[3].Signature = ""
 		},
-		func(r *extension.OwnerRecord) { r.Members[3].Slot = 2 },
+		func(r *extension.OwnerRecord) { r.Members[3].Declaration = new(2) },
 	} {
 		bad := original
 		bad.Members = append([]extension.MemberOwner(nil), original.Members...)
@@ -38,11 +39,12 @@ func TestCitextComparisonProviderOwnerShape(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, found, err := extension.DecodeOwners(extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString(data)); !found || err == nil {
-			t.Fatal("malformed owner accepted", bad, err)
+		if err := extensionOwnerAdmissionError(e, extension.OwnersMarker+" "+base64.StdEncoding.EncodeToString(data)); err != nil {
+			continue
 		}
+		t.Fatal("malformed owner accepted", bad)
 	}
-	if len(original.Members) != extension.CitextMemberCount || original.Members[3].Signature != "citext,citext" {
+	if len(original.Members) != extension.CitextMemberCount+1 || original.Members[3].Signature != "public.citext, public.citext" {
 		t.Fatal("original inventory changed")
 	}
 }

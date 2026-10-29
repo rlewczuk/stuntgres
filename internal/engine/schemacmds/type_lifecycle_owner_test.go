@@ -44,7 +44,7 @@ func TestTypeLifecycleOwnerImportACL(t *testing.T) {
 				t.Fatal(record, err)
 			}
 			for i := range record.Members {
-				if record.Members[i].Kind == "type" {
+				if record.Members[i].Kind == "type" && record.Members[i].Declaration != nil {
 					record.Members[i].Owner = target.Name
 				}
 			}

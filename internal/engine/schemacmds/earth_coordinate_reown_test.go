@@ -59,6 +59,7 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 					if err != nil || !found {
 						t.Fatal(err)
 					}
+					record = extensionOwnerRecipeOrder(record)
 					if record.Members[2].Name != "radius_now" || record.Members[2].Owner != "earth_reown_owner" || record.Members[5].Schema != "pg_catalog" || record.Members[0].Owner == record.Members[2].Owner {
 						t.Fatal("lost independent labels/owners", record)
 					}
@@ -164,21 +165,51 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 					}
 					for i, source := range sourceCalls {
 						call := next.MustRelation(consumer.Address()).ColumnMeta.Defaults[int32(i+1)].Expression.(plan.InstalledEarthExpr)
-						if call.Plan.Earth() != current.SQLType {
+						expectedEarth := current.SQLType
+						if sqltype.EarthOperation(i) < sqltype.EarthLL {
+							expectedEarth = nil
+						}
+						if call.Plan.Earth() != expectedEarth {
 							t.Fatal("hidden earth generation retained", i)
 						}
 						if err := stored.ValidateInstalledEarth(call, view); err != nil {
 							t.Fatal(err)
 						}
-						if err := stored.ValidateInstalledEarth(source, view); err == nil {
-							t.Fatal("stale source capture accepted", i)
+						// Stored scalar calls retain only FLOAT8 and the genuine
+						// routine/domain identity, not the incidental Earth/Cube
+						// generation. An epoch change during stored reownership
+						// alone does not retire this unchanged scalar declaration.
+						err := stored.ValidateInstalledEarth(source, view)
+						unchangedScalar := sqltype.EarthOperation(i) < sqltype.EarthLL
+						if unchangedScalar && err != nil {
+							t.Fatal("unchanged scalar capture rejected", i, err)
+						}
+						if !unchangedScalar && err == nil {
+							t.Fatal("stale nominal source generation accepted", i)
+						}
+						foreignLifetime := call
+						foreignLifetime.Ref = (&ids.Domain{}).Ref(view.Epoch(), call.Ref.Address)
+						if err := stored.ValidateInstalledEarth(foreignLifetime, view); err == nil {
+							t.Fatal("foreign catalog lifetime accepted", i)
+						}
+						missingRoutine := call
+						missingRoutine.Ref.Address.ObjectID = ^ids.OID(0)
+						if err := stored.ValidateInstalledEarth(missingRoutine, view); err == nil {
+							t.Fatal("missing remapped routine accepted", i)
+						}
+						badPrincipal := catalog.CloneState(next)
+						backing := *next.MustProcedure(call.Procedure.Address())
+						backing.Owner = (&authorization.Domain{}).Principal(backing.Owner.ID())
+						badPrincipal.SetDescriptor(backing.Address(), &backing)
+						if err := stored.ValidateInstalledEarth(call, view.WithState(badPrincipal)); err == nil {
+							t.Fatal("foreign current routine principal accepted", i)
 						}
 						p := next.MustProcedure(userRoutines[i])
 						defaultCall, ok := p.SQLDefaults.Default(0)
 						if !ok {
 							t.Fatal("lost SQL declaration default")
 						}
-						if got := defaultCall.(plan.InstalledEarthExpr).Plan.Earth(); got != current.SQLType {
+						if got := defaultCall.(plan.InstalledEarthExpr).Plan.Earth(); got != expectedEarth {
 							t.Fatal("routine hidden earth generation retained", i)
 						}
 						if err := stored.ValidateInstalledEarth(defaultCall.(plan.InstalledEarthExpr), view); err != nil {

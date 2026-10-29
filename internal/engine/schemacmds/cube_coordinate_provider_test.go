@@ -146,7 +146,7 @@ func TestCubeCoordinateProviderIdentity(t *testing.T) {
 	seen := 0
 	for _, member := range record.Members {
 		if member.Kind == "operator" && (member.Name == "->" || member.Name == "~>") {
-			if member.Signature != "cube,23" {
+			if member.Signature != "public.cube, integer" {
 				t.Fatal("nonportable coordinate ownership", member)
 			}
 			seen++
@@ -164,7 +164,7 @@ func TestCubeCoordinateProviderConflicts(t *testing.T) {
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Signature = "23,23" },
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Result = 23 },
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Implementation = nil },
-		func(p *catalog.Procedure, _ *catalog.Operator) { p.Extension = ids.ObjectAddress{} },
+		func(p *catalog.Procedure, _ *catalog.Operator) { p.Extension.ObjectID = 990001 },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Right = o.Left },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Function = procedures[0].ObjectID },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Commutator = o.Address().ObjectID },

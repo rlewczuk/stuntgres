@@ -40,8 +40,18 @@ func TestSnowballSeedAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, a := range []ids.ObjectAddress{d.Address(), template.Address(), template.Init, template.Lexize} {
-		if a.ObjectID == 0 || !stored.DependPinned(v, nil, a) {
-			t.Fatal("unallocated/unpinned seed", a)
+		if a.ObjectID == 0 || stored.DependPinned(v, nil, a) {
+			t.Fatal("unallocated or incorrectly pinned seed", a)
+		}
+	}
+	for _, a := range []ids.ObjectAddress{
+		{ClassID: ids.TSTemplateClassID, ObjectID: 3727},
+		{ClassID: ids.TSDictionaryClassID, ObjectID: 3765},
+		{ClassID: ids.TSConfigurationClassID, ObjectID: 3748},
+		{ClassID: ids.TSParserClassID, ObjectID: 3722},
+	} {
+		if !stored.DependPinned(v, nil, a) {
+			t.Fatal("fixed bootstrap identity lost pin", a)
 		}
 	}
 	for _, a := range []ids.ObjectAddress{template.Init, template.Lexize} {
@@ -49,12 +59,30 @@ func TestSnowballSeedAuthority(t *testing.T) {
 		if err := (stored.ProcedureProvider{}).Validate(v, p); err != nil {
 			t.Fatal(err)
 		}
+		copy := *p
+		if err := catalog.ValidateSnowballHelper(v, &copy); err == nil {
+			t.Fatal("nonresident helper copy admitted")
+		}
 		if _, fixed := catalog.BuiltinRoutineIdentityByOID(a.ObjectID); fixed {
 			t.Fatal("allocated helper in fixed identity table")
 		}
+		current := *p
+		current.ObjectName = "current_" + p.Name()
+		current.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		current.ObjectRevision++
+		current.Owner = e.Roles().LookupRef("pg_monitor")
+		candidate := catalog.CloneState(v.State())
+		candidate.UnbindName(catalog.DescriptorNameKey(p))
+		candidate.SetDescriptor(a, &current)
+		candidate.BindName(catalog.DescriptorNameKey(&current), a)
+		if err := (stored.ProcedureProvider{}).Validate(v.WithState(candidate), &current); err != nil {
+			t.Fatal("current lawful placement/principal erased intrinsic authority", err)
+		}
 		for _, mutate := range []func(*catalog.Procedure){func(p *catalog.Procedure) { p.Result = 23 }, func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Display.Binary = "$libdir/unaccent" }, func(p *catalog.Procedure) {
 			p.Builtin = v.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}).Builtin
-		}, func(p *catalog.Procedure) { p.PLHandler = catalog.PLCallHandler }, func(p *catalog.Procedure) { p.Signature = "25" }} {
+		}, func(p *catalog.Procedure) { p.PLHandler = catalog.PLCallHandler }, func(p *catalog.Procedure) { p.Signature = "25" }, func(p *catalog.Procedure) { p.Display.Source = "dsnowball_counterfeit" }, func(p *catalog.Procedure) { p.Display.Language = catalog.InternalRoutineLanguage }, func(p *catalog.Procedure) { p.Owner = catalog.Procedure{}.Owner }, func(p *catalog.Procedure) { p.ObjectName = "unbound_helper" }, func(p *catalog.Procedure) { p.SnowballHelper = catalog.NoSnowballHelper }, func(p *catalog.Procedure) {
+			p.Extension = ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 999999}
+		}} {
 			bad := *p
 			mutate(&bad)
 			state := catalog.CloneState(v.State())
@@ -76,6 +104,26 @@ func TestSnowballSeedAuthority(t *testing.T) {
 		if err := (extension.CatalogProvider{Class: ids.TSDictionaryClassID}).Validate(v.WithState(state), &bad); err == nil {
 			t.Fatal("counterfeit dictionary admitted", bad)
 		}
+	}
+	for _, mutate := range []func(*catalog.TSTemplate){
+		func(d *catalog.TSTemplate) { d.Init = d.Lexize },
+		func(d *catalog.TSTemplate) { d.Lexize = ids.ObjectAddress{} },
+		func(d *catalog.TSTemplate) { d.Implementation = extension.StockUnaccent },
+		func(d *catalog.TSTemplate) {
+			d.Extension = ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 999999}
+		},
+	} {
+		bad := *template
+		mutate(&bad)
+		state := catalog.CloneState(v.State())
+		state.SetDescriptor(bad.Address(), &bad)
+		if err := (extension.CatalogProvider{Class: ids.TSTemplateClassID}).Validate(v.WithState(state), &bad); err == nil {
+			t.Fatal("counterfeit template or dangling current parent admitted", bad)
+		}
+	}
+	forged := &catalog.TSTemplate{ObjectAddress: template.Address(), ObjectNamespace: template.Namespace(), ObjectRevision: template.Revision(), ObjectName: template.Name(), Init: template.Init, Lexize: template.Lexize}
+	if err := catalog.ValidateSnowballTemplate(v, forged); err == nil {
+		t.Fatal("public fields manufactured private Snowball template marker")
 	}
 	a := v.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: d.Namespace(), Name: "english"})
 	c := v.MustTSConfiguration(a)
@@ -103,6 +151,9 @@ func TestSnowballPublication(t *testing.T) {
 		t.Run(fence, func(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE EXTENSION unaccent")
+			enginetest.SessionSQL(t, s, "ALTER EXTENSION unaccent ADD FUNCTION pg_catalog.dsnowball_init(internal)")
+			enginetest.SessionSQL(t, s, "ALTER EXTENSION plpgsql ADD TEXT SEARCH TEMPLATE pg_catalog.snowball")
 			enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY snowball_publication (TEMPLATE=snowball,Language=english,StopWords=english)")
 			enginetest.SessionSQL(t, s, "CREATE USER snowball_other")
 			op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -189,6 +240,8 @@ func TestSnowballPreparedOwnership(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.snowball_fold (TEMPLATE=snowball,Language=english,StopWords=english)")
+	enginetest.SessionSQL(t, s, "CREATE EXTENSION unaccent")
+	enginetest.SessionSQL(t, s, "ALTER EXTENSION unaccent ADD TEXT SEARCH DICTIONARY public.snowball_fold")
 	const q = "SELECT ts_lexize('public.snowball_fold'::regdictionary,'ONLY'::text) AS lexemes"
 	ast, d := sequencePreparedDescription(t, e, s, q)
 	if len(d.Folds.Current().Entries) != 0 {

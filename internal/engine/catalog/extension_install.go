@@ -1,5 +1,7 @@
 package catalog
 
+import "stuntgres/internal/engine/ids"
+
 // ExtensionControl is a registered extension's control-file metadata.
 type ExtensionControl struct {
 	Version                         string
@@ -32,4 +34,11 @@ type ExtensionImplementation interface {
 	Versions() ExtensionVersions
 	// ValidateExtension checks an installed extension's manifest.
 	ValidateExtension(Read, *Extension) error
+}
+
+// ProcedureDependencyProvider visits genuine released SQL-body references.
+// The read view resolves prerequisite identities from sealed declaration origins,
+// never current membership or names. False propagates the caller's early stop.
+type ProcedureDependencyProvider interface {
+	VisitProcedureDependencies(Read, *Procedure, func(ids.ObjectAddress) bool) bool
 }

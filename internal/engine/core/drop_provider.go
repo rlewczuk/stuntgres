@@ -559,6 +559,30 @@ func (p *DropProvider) RetirementDescriptor(address ids.ObjectAddress) catalog.D
 	return p.Base.Get(address)
 }
 
+// RetirementRead keeps removed input providers readable while projecting the
+// genuine replacements that own the current type generations. A live-only
+// stage read loses retired AUTO payloads; Base alone loses evolved row types.
+func (p *DropProvider) RetirementRead() catalog.Read {
+	var retained *catalog.Candidate
+	for address, descriptor := range p.Descriptors() {
+		if replacement := p.Replacement(address); replacement != nil {
+			descriptor = replacement
+		}
+		if descriptor == p.Base.Get(address) {
+			continue
+		}
+		if retained == nil {
+			candidate := catalog.NewCandidate(p.Base)
+			retained = &candidate
+		}
+		retained.UpdateDescriptor(descriptor)
+	}
+	if retained == nil {
+		return p.Base
+	}
+	return p.Base.WithState(retained.State())
+}
+
 func (p *DropProvider) InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	if p.Prepared != nil {
 		return p.Descriptors()

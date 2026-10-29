@@ -13,7 +13,7 @@ import (
 // ProcedureRemapper maps the original declaration graph without resolving its
 // addresses through a newer catalog root. The memo is shared by all consumers
 // in one replacement.
-func ProcedureRemapper(mapping map[ids.ObjectAddress]ids.ObjectAddress, principal catalog.ProcedureRemapper, prepare func(*catalog.Procedure) error) catalog.ProcedureRemapper {
+func ProcedureRemapper(descriptor func(catalog.Descriptor) catalog.Descriptor, principal catalog.ProcedureRemapper, prepare func(*catalog.Procedure) error) catalog.ProcedureRemapper {
 	procedures := make(map[*catalog.Procedure]*catalog.Procedure)
 	var procedure catalog.ProcedureRemapper
 	procedure = func(p *catalog.Procedure) (*catalog.Procedure, error) {
@@ -35,7 +35,7 @@ func ProcedureRemapper(mapping map[ids.ObjectAddress]ids.ObjectAddress, principa
 			procedures[original] = n
 			return n, nil
 		}
-		remapped := RemapDescriptor(p, mapping).(*catalog.Procedure)
+		remapped := descriptor(p).(*catalog.Procedure)
 		if len(p.Body) == 0 && prepare == nil {
 			procedures[original] = remapped
 			return remapped, nil
@@ -63,33 +63,53 @@ func ProcedureRemapper(mapping map[ids.ObjectAddress]ids.ObjectAddress, principa
 	return procedure
 }
 
-func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) catalog.Descriptor {
+func remapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, installation func(*catalog.Installation) *catalog.Installation) catalog.Descriptor {
 	address := func(a ids.ObjectAddress) ids.ObjectAddress {
 		if next, ok := mapping[a]; ok {
 			return next
 		}
 		return a
 	}
+	origin := func(o *catalog.InstalledOrigin) *catalog.InstalledOrigin {
+		if o == nil {
+			return nil
+		}
+		i := installation(o.Installation)
+		if i == o.Installation {
+			return o
+		}
+		n := *o
+		n.Installation = i
+		return &n
+	}
 	switch d := d.(type) {
 	case *catalog.EventTrigger:
 		n := *d
 		n.ObjectAddress = address(d.Address())
+		n.Extension = address(d.Extension)
+		if n.ObjectAddress == d.ObjectAddress && n.Extension == d.Extension {
+			return d
+		}
 		return &n
 	case *catalog.Language:
 		n := *d
 		n.ObjectAddress = address(d.Address())
+		n.Extension = address(d.Extension)
+		n.Origin = origin(d.Origin)
 		n.Call, n.Inline, n.Validator = address(d.Call), address(d.Inline), address(d.Validator)
-		if n.ObjectAddress == d.ObjectAddress && n.Call == d.Call && n.Inline == d.Inline && n.Validator == d.Validator {
+		if n.ObjectAddress == d.ObjectAddress && n.Call == d.Call && n.Inline == d.Inline && n.Validator == d.Validator && n.Extension == d.Extension && n.Origin == d.Origin {
 			return d
 		}
 		return &n
 	case *catalog.Type:
 		next := address(d.Extension)
-		if next == d.Extension {
+		o := origin(d.Origin)
+		if next == d.Extension && o == d.Origin {
 			return d
 		}
 		n := *d
 		n.Extension = next
+		n.Origin = o
 		return &n
 	case *catalog.Relation:
 		var addresses []ids.ObjectAddress
@@ -102,17 +122,23 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 				addresses[i] = next
 			}
 		}
-		if addresses == nil {
+		if addresses == nil && address(d.Extension) == d.Extension {
 			return d
 		}
-		sort.Slice(addresses, func(i, j int) bool { return addresses[i].ObjectID < addresses[j].ObjectID })
+		if addresses != nil {
+			sort.Slice(addresses, func(i, j int) bool { return addresses[i].ObjectID < addresses[j].ObjectID })
+		}
 		n := *d
-		n.AutoExtensions = addresses
+		n.Extension = address(d.Extension)
+		if addresses != nil {
+			n.AutoExtensions = addresses
+		}
 		return &n
 	case *catalog.Extension:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.TargetNamespace = address(n.TargetNamespace)
+		n.Installation = installation(d.Installation)
 		var members []ids.ObjectAddress
 		for i, a := range d.Members {
 			mapped := address(a)
@@ -126,7 +152,7 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		if members != nil {
 			n.Members = members
 		}
-		if n.Address() == d.Address() && n.TargetNamespace == d.TargetNamespace && members == nil {
+		if n.Address() == d.Address() && n.TargetNamespace == d.TargetNamespace && members == nil && n.Installation == d.Installation {
 			return d
 		}
 		return &n
@@ -135,6 +161,7 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())
 		n.Extension = address(n.Extension)
+		n.Origin = origin(d.Origin)
 		n.Dictionary = address(n.Dictionary)
 		n.Language = address(d.Language)
 		if len(d.DeclarationDependencies) != 0 {
@@ -224,19 +251,42 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 				n.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
 			}
 		}
-		if n.Address() == d.Address() && n.Namespace() == d.Namespace() && n.Extension == d.Extension && n.Dictionary == d.Dictionary && n.Signature == d.Signature && n.Result == d.Result && n.Aggregate == d.Aggregate {
+		if n.Address() == d.Address() && n.Namespace() == d.Namespace() && n.Extension == d.Extension && n.Dictionary == d.Dictionary && n.Signature == d.Signature && n.Result == d.Result && n.Aggregate == d.Aggregate && n.Origin == d.Origin {
 			return d
 		}
 		return &n
 	case *catalog.OperatorClass:
-		return catalog.RemapOperatorClass(d, mapping)
-	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+		n := catalog.RemapOperatorClass(d, mapping)
+		o := origin(d.Origin)
+		if o == d.Origin {
+			return n
+		}
+		if n == d {
+			copy := *d
+			n = &copy
+		}
+		n.Origin = o
+		return n
+	case *catalog.OperatorFamily:
+		n := catalog.RemapOperatorFamily(d, mapping).(*catalog.OperatorFamily)
+		o := origin(d.Origin)
+		if o == d.Origin {
+			return n
+		}
+		if n == d {
+			copy := *d
+			n = &copy
+		}
+		n.Origin = o
+		return n
+	case *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		return catalog.RemapOperatorFamily(d, mapping)
 	case *catalog.Operator:
 		n := *d
 		n.ObjectAddress = address(n.ObjectAddress)
 		n.ObjectNamespace = address(n.ObjectNamespace)
 		n.Extension = address(n.Extension)
+		n.Origin = origin(d.Origin)
 		n.Left = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Left}).ObjectID
 		n.Right = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Right}).ObjectID
 		n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
@@ -254,13 +304,18 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())
 		n.Extension = address(n.Extension)
+		n.Origin = origin(d.Origin)
 		n.Init = address(n.Init)
 		n.Lexize = address(n.Lexize)
+		if n.ObjectAddress == d.ObjectAddress && n.ObjectNamespace == d.ObjectNamespace && n.Extension == d.Extension && n.Origin == d.Origin && n.Init == d.Init && n.Lexize == d.Lexize {
+			return d
+		}
 		return &n
 	case *catalog.TSParser:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())
+		n.Extension = address(n.Extension)
 		n.Start = address(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Start}).ObjectID
 		n.Token = address(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Token}).ObjectID
 		n.End = address(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.End}).ObjectID
@@ -273,6 +328,7 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())
+		n.Extension = address(d.Extension)
 		n.Parser = address(n.Parser)
 		n.Mappings = catalog.CloneTSMappings(d.Mappings)
 		for i := range n.Mappings {
@@ -286,7 +342,63 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())
 		n.Extension = address(n.Extension)
+		n.Origin = origin(d.Origin)
 		n.Template = address(n.Template)
+		if n.ObjectAddress == d.ObjectAddress && n.ObjectNamespace == d.ObjectNamespace && n.Extension == d.Extension && n.Origin == d.Origin && n.Template == d.Template {
+			return d
+		}
+		return &n
+	case *catalog.Namespace:
+		e := address(d.Extension)
+		if e == d.Extension {
+			return d
+		}
+		n := *d
+		n.Extension = e
+		return &n
+	case *catalog.AccessMethod:
+		e := address(d.Extension)
+		if e == d.Extension {
+			return d
+		}
+		n := *d
+		n.Extension = e
+		return &n
+	case *catalog.Collation:
+		e := address(d.Extension)
+		if e == d.Extension {
+			return d
+		}
+		n := *d
+		n.Extension = e
+		return &n
+	case *catalog.Conversion:
+		e := address(d.Extension)
+		if e == d.Extension {
+			return d
+		}
+		n := *d
+		n.Extension = e
+		return &n
+	case *catalog.ForeignObject:
+		e := address(d.Extension)
+		if e == d.Extension {
+			return d
+		}
+		n := *d
+		n.Extension = e
+		return &n
+	case *catalog.Cast:
+		n := *d
+		n.OID = address(d.Address()).ObjectID
+		n.Source = sqltype.ID(address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Source)}).ObjectID)
+		n.Target = sqltype.ID(address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Target)}).ObjectID)
+		n.Function, n.InputCast, n.ResultCast = address(d.Function), address(d.InputCast), address(d.ResultCast)
+		n.GeneratedRange, n.Extension = address(d.GeneratedRange), address(d.Extension)
+		n.Origin = origin(d.Origin)
+		if n == *d {
+			return d
+		}
 		return &n
 	}
 	return d

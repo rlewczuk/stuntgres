@@ -27,7 +27,8 @@ func (h *statementHost) ValidateTablefuncCrosstab(n plan.InstalledTablefuncCross
 	if !ok || n.RoutineReference != n.Procedure || !exec.SameRoutineDeclaration(current, n.Procedure) {
 		return fmt.Errorf("stuntgres: stale installed crosstab declaration")
 	}
-	n.Procedure, n.RoutineReference = current, current
+	// Validate the retained capture as well as the current declaration. Replacing
+	// it here would erase its principal and sealed-origin provenance fences.
 	return stored.ValidateInstalledTablefuncCrosstab(n, auth.Catalog)
 }
 

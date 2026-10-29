@@ -37,12 +37,13 @@ func cubeSpatialUnitArguments(t *testing.T, e *core.Engine, base *catalog.Type) 
 
 // Spatial procedures precede the operator tail after the constructor prefix.
 func cubeSpatialUnitMembers(ext *catalog.Extension) ([]ids.ObjectAddress, []ids.ObjectAddress) {
-	firstOperator := len(ext.Members)
-	for firstOperator > 0 && ext.Members[firstOperator-1].ClassID == ids.OperatorClassID {
+	members := ext.Installation.Members
+	firstOperator := len(members)
+	for firstOperator > 0 && members[firstOperator-1].ClassID == ids.OperatorClassID {
 		firstOperator--
 	}
-	count := len(ext.Members) - firstOperator
-	return ext.Members[firstOperator-count : firstOperator], ext.Members[firstOperator:]
+	count := len(members) - firstOperator
+	return members[firstOperator-count : firstOperator], members[firstOperator:]
 }
 
 func TestCubeSpatialProviderIdentity(t *testing.T) {
@@ -117,7 +118,7 @@ func TestCubeSpatialProviderIdentity(t *testing.T) {
 	for _, member := range record.Members {
 		_, spatial := sqltype.CubeSpatialKind(member.Name)
 		if member.Kind == "operator" && member.Name != "->" && member.Name != "~>" || member.Kind == "procedure" && spatial {
-			if member.Signature != "cube,cube" {
+			if member.Signature != "public.cube, public.cube" {
 				t.Fatal("allocator identity leaked", member)
 			}
 			seen[member.Kind+":"+member.Name] = true
@@ -283,7 +284,7 @@ func TestCubeSpatialProviderControls(t *testing.T) {
 		}
 		return old
 	}
-	procedure := extension.ProcedureRemapper(mapping, nil, nil)
+	procedure := extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), nil, nil)
 	mapper := stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: typeMapper, Procedure: procedure}
 	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "distance", Usage: call.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{call}}
 	remapped, err := mapper.Query(query)

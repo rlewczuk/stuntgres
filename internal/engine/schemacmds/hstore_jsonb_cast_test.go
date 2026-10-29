@@ -29,11 +29,11 @@ func TestHstoreJSONBCastMembership(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
-	if len(ext.Members) != extension.HstoreMemberCount {
-		t.Fatalf("manifest roles %d want %d", len(ext.Members), extension.HstoreMemberCount)
+	if len(ext.Members) != extension.HstoreMemberCount+1 || len(ext.Installation.Members) != extension.HstoreMemberCount {
+		t.Fatalf("current and released roles %d/%d", len(ext.Members), len(ext.Installation.Members))
 	}
 	unique := map[ids.ObjectAddress]bool{}
-	for i, a := range ext.Members {
+	for i, a := range ext.Installation.Members {
 		class := ids.ProcedureClassID
 		if i == 0 {
 			class = ids.TypeClassID
@@ -79,16 +79,20 @@ func TestHstoreJSONBCastMembership(t *testing.T) {
 		t.Fatal(err)
 	}
 	owners, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
-	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount-1 {
-		t.Fatal("ownerless cast must not acquire portable ownership", owners, err)
+	owners = extensionOwnerRecipeOrder(owners)
+	if err != nil || !found || len(owners.Members) != extension.HstoreMemberCount+1 {
+		t.Fatal("ownerless cast must retain symbolic identity without portable ownership", owners, err)
 	}
-	for i, owner := range owners.Members {
-		slot := i
-		if slot >= extension.HstoreJSONBCastSlot {
-			slot++
+	for i, member := range owners.Members {
+		if i < extension.HstoreMemberCount {
+			if member.Declaration == nil || *member.Declaration != i {
+				t.Fatal("missing immutable declaration identity", i, member)
+			}
+		} else if member.Declaration != nil || member.Kind != "type" {
+			t.Fatal("generated array acquired released declaration authority", member)
 		}
-		if owner.Slot != slot || owner.Kind == "cast" {
-			t.Fatalf("portable owner role%d=%+v", slot, owner)
+		if member.Kind == "cast" && (member.Owner != "" || member.ACL != nil) {
+			t.Fatal("cast acquired owner or ACL", member)
 		}
 	}
 	foreign := engine.New()
@@ -109,7 +113,7 @@ func TestHstoreJSONBCastMembership(t *testing.T) {
 	if err := (catalog.CastProvider{}).Validate(foreign.CatalogRead(), cast); err == nil {
 		t.Fatal("equal numeric identities authorized foreign cast descriptor")
 	}
-	for _, cause := range []string{"context", "target", "function", "adapter", "result_adapter", "generated", "extension", "revision", "member"} {
+	for _, cause := range []string{"context", "target", "function", "adapter", "result_adapter", "generated", "extension", "revision", "member", "unsealed_origin"} {
 		t.Run(cause, func(t *testing.T) {
 			candidate := catalog.CloneState(view.State())
 			bad := *cast
@@ -134,6 +138,11 @@ func TestHstoreJSONBCastMembership(t *testing.T) {
 				bad.ObjectRevision = 0
 			case "member":
 				manifest.Members[11] = ext.Members[9]
+			case "unsealed_origin":
+				origin := *bad.Origin
+				installation := *origin.Installation
+				origin.Installation = &installation
+				bad.Origin = &origin
 			}
 			candidate.SetDescriptor(bad.Address(), &bad)
 			candidate.SetDescriptor(manifest.Address(), &manifest)
@@ -145,5 +154,44 @@ func TestHstoreJSONBCastMembership(t *testing.T) {
 				t.Fatal("candidate mutated retained catalog/index")
 			}
 		})
+	}
+}
+
+func TestHstoreJSONBCastMutableOriginAuthority(t *testing.T) {
+	e, ext, base := hstoreUnitInstalled(t)
+	before := e.CatalogRead()
+	original, ok := before.Cast(base.SQLType.ID(), sqltype.JSONB)
+	if !ok || !original.Origin.Valid(original.Address()) || original.Origin.Installation != ext.Installation || original.Origin.Declaration != extension.HstoreJSONBCastSlot {
+		t.Fatal("cast lacks genuine released declaration authority")
+	}
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	validate := func() {
+		t.Helper()
+		view := e.CatalogRead()
+		current, ok := view.Cast(base.SQLType.ID(), sqltype.JSONB)
+		if !ok || current.Address() != original.Address() || current.Origin != original.Origin || current.Function != original.Function {
+			t.Fatal("membership mutation replaced cast or backing authority")
+		}
+		if err := (catalog.CastProvider{}).Validate(view, current); err != nil {
+			t.Fatal("genuine surviving cast rejected", err)
+		}
+	}
+	validate()
+	for _, statement := range []string{
+		"ALTER EXTENSION hstore DROP CAST (hstore AS jsonb)",
+		"CREATE EXTENSION \"uuid-ossp\"",
+		"ALTER EXTENSION \"uuid-ossp\" ADD CAST (hstore AS jsonb)",
+		"ALTER EXTENSION hstore DROP FUNCTION hstore_to_jsonb(hstore)",
+		"ALTER EXTENSION hstore DROP FUNCTION hstore_in(cstring)",
+		"ALTER EXTENSION hstore DROP FUNCTION hstore_out(hstore)",
+		"ALTER EXTENSION hstore DROP TYPE hstore",
+		"DROP EXTENSION hstore",
+	} {
+		enginetest.RoleExecute(t, e, op, statement)
+		validate()
+	}
+	if before.MustExtension(ext.Address()) != ext || before.Get(original.Address()) != original {
+		t.Fatal("cast membership mutation changed retained catalog")
 	}
 }

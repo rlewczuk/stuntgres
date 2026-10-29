@@ -79,6 +79,13 @@ scenarios assert complete notice records through the shared notice-enabled pool.
   Boundary scenarios distinguish released lookup identities from executable
   rows: POINT-distance517 is an exact admitted control alongside TEXT/RECORD,
   while unsupported pattern-order and FTS aliases remain negative controls.
+  `TestReferencePGAggregateHelperPlacement` moves only the intagg aggregate and
+  independently checks that helper OIDs and regproc/regprocedure selection stay
+  in their original namespace, while the aggregate uses its new namespace.
+  Both direct and prepared reads cover visibility changes; genuine extension
+  removal separately checks retired numeric output. Selected proof is
+  `make check RUN='^TestReferencePGAggregate(HelperPlacement|Lifecycle)$'`
+  and the same command with `REFERENCE=1`.
 - Transactional comments share the seven-kind inventory and setup in
   `transactional_comment_helpers_test.go`, with direct/held SQL BEGIN and Go
   BeginTx routes. Keep literal, diagnostic and lifecycle assertions together

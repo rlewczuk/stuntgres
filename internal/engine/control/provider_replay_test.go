@@ -9,9 +9,10 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
-	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -110,13 +111,17 @@ func TestProviderReplayEmissionPrerequisites(t *testing.T) {
 		Views:       []OwnedStatement{{"postgres", "CREATE EXTENSION dependency;\n"}, {"postgres", "CREATE EXTENSION dependent;\n"}},
 		ViewIndices: map[ids.OID]int{10: 0, 20: 1},
 	}, eventOrder: []dump.Event{{OID: 10}, {OID: 20}, {OID: 30}},
-		extensionMetadata:  map[ids.OID]string{10: "-- dependency owners\n", 20: "-- dependent owners\n"},
-		providerStatements: []string{"ALTER FUNCTION public.digest(text,text) RENAME TO digest_new;\n"}}
+		extensionMetadata:      map[ids.OID]string{10: "", 20: ""},
+		installationStatements: []string{"CREATE EXTENSION dependency;\n", "CREATE EXTENSION dependent;\n", "ALTER FUNCTION public.digest(text,text) RENAME TO digest_new;\n"},
+		installationMetadata:   []string{"-- dependency owners\n", "-- dependent owners\n"}}
 	w := &dumpWriter{ctx: ctx, dst: &out}
 	if err := emitDumpProviderReplay(ctx, s, w); err != nil {
 		t.Fatal(err)
 	}
 	if err := emitDumpDeclaration(ctx, s, w, dump.Event{OID: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if err := emitDumpInstallationCompletion(ctx, s, w); err != nil {
 		t.Fatal(err)
 	}
 	text := out.String()
@@ -128,7 +133,7 @@ func TestProviderReplayEmissionPrerequisites(t *testing.T) {
 		t.Fatalf("wrong provider prerequisite/metadata ordering: %s", text)
 	}
 	// No provider changes means this section writes no bytes at all.
-	s.providerStatements = nil
+	s.installationStatements = nil
 	out.Reset()
 	if err := emitDumpProviderReplay(ctx, s, w); err != nil || out.Len() != 0 {
 		t.Fatalf("unchanged stream affected: %q, %v", out.String(), err)
@@ -160,10 +165,9 @@ func TestProviderReplayInstalledTypeOrdering(t *testing.T) {
 				Views:       []OwnedStatement{{"postgres", "CREATE EXTENSION isn SCHEMA isbn_src;\n"}},
 				ViewIndices: map[ids.OID]int{10: 0},
 			}, eventOrder: []dump.Event{{OID: 10}},
-				extensionTypeAfter: 10,
-				extensionTypeSQL:   schedule,
-				extensionMetadata:  map[ids.OID]string{10: "-- member owners\n"},
-				providerStatements: []string{alter},
+				extensionMetadata:      map[ids.OID]string{10: ""},
+				installationStatements: []string{"CREATE EXTENSION isn SCHEMA isbn_src;\n", schedule, alter},
+				installationMetadata:   []string{"-- member owners\n"},
 			}
 			w := &dumpWriter{ctx: ctx, dst: &out}
 			if err := emitDumpProviderReplay(ctx, s, w); err != nil {
@@ -172,23 +176,27 @@ func TestProviderReplayInstalledTypeOrdering(t *testing.T) {
 			if err := emitDumpDeclaration(ctx, s, w, dump.Event{OID: 10}); err != nil {
 				t.Fatal(err)
 			}
+			if err := emitDumpInstallationCompletion(ctx, s, w); err != nil {
+				t.Fatal(err)
+			}
 			text := out.String()
 			want := "CREATE EXTENSION isn SCHEMA isbn_src;\n" + schedule + alter + "-- member owners\n"
 			if !strings.HasSuffix(text, want) || strings.Count(text, schedule) != 1 || strings.Count(text, "CREATE EXTENSION") != 1 {
 				t.Fatalf("early replay must install, relocate both scalars, alter codecs, then apply metadata exactly once: %q", text)
 			}
-			// Without an early provider phase, the ordinary declaration keeps
-			// ownership of the same scalar barrier, also exactly once.
-			s.providerStatements, s.extensionMetadata = nil, nil
+			// The unified installation phase is the sole declaration/type owner.
+			// Ordinary events cannot reconstruct a second baseline or replay the
+			// identity schedule again.
 			out.Reset()
-			if err := emitDumpProviderReplay(ctx, s, w); err != nil || out.Len() != 0 {
-				t.Fatal("unexpected early emission", err)
-			}
 			if err := emitDumpDeclaration(ctx, s, w, dump.Event{OID: 10}); err != nil {
 				t.Fatal(err)
 			}
-			if got := out.String(); !strings.HasSuffix(got, s.Views[0].SQL+schedule) || strings.Count(got, schedule) != 1 {
-				t.Fatalf("ordinary declaration lost or duplicated scalar replay: %q", got)
+			if out.Len() != 0 {
+				t.Fatalf("ordinary event duplicated installed identities: %q", out.String())
+			}
+			s.installationStatements = nil
+			if err := emitDumpProviderReplay(ctx, s, w); err != nil || out.Len() != 0 {
+				t.Fatal("unexpected idle replay emission", err)
 			}
 		})
 	}
@@ -408,29 +416,58 @@ func TestProviderReplayCanonicalMetadataCapture(t *testing.T) {
 func TestProviderReplayPLHandlerMetadata(t *testing.T) {
 	source, _, _, _ := fdwUnitSource()
 	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
-	for i, kind := range []catalog.PLHandler{catalog.PLCallHandler, catalog.PLInlineHandler, catalog.PLValidator} {
-		name, signature, result := kind.Declaration()
-		p := &catalog.Procedure{
-			ObjectAddress:   fdwUnitAddress(ids.ProcedureClassID, ids.OID(99000+i)),
-			ObjectNamespace: fdwUnitAddress(ids.NamespaceClassID, ids.PGCatalogNamespaceOID),
-			ObjectRevision:  1, ObjectName: name, Signature: signature, Result: result,
-			Owner: source.Bootstrap, RoutineKind: catalog.FunctionRoutine,
-			Volatility: expr.Volatile, Strict: kind != catalog.PLCallHandler, PLHandler: kind,
-			Display:  catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/plpgsql", HasBinary: true},
-			Parallel: 'r', Cost: 9,
-		}
-		source.State.SetDescriptor(p.Address(), p)
-		source.State.BindName(catalog.DescriptorNameKey(p), p.Address())
-		c := &dumpCollection{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}, source: source}
-		if err := collectProcedureDump(context.Background(), c, p.Address(), p); err != nil {
+	owner := *source.CatalogView.Owner()
+	owner.Extensions = map[string]catalog.ExtensionImplementation{"plpgsql": extension.StockPLpgSQL}
+	owner.Providers = map[ids.OID]catalog.Provider{
+		ids.ProcedureClassID: stored.ProcedureProvider{},
+		ids.LanguageClassID:  catalog.LanguageProvider{},
+	}
+	store := catalog.NewStore(owner, 100000, 2)
+	store.PublishLocked(source.State)
+	if err := store.InstallBuiltinLanguagesLocked(source.Bootstrap); err != nil {
+		t.Fatal(err)
+	}
+	source.CatalogView = store.Current()
+	state := catalog.CloneState(source.CatalogView.State())
+	for _, kind := range []catalog.PLHandler{catalog.PLCallHandler, catalog.PLInlineHandler, catalog.PLValidator} {
+		name, signature, _ := kind.Declaration()
+		address := source.CatalogView.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: fdwUnitAddress(ids.NamespaceClassID, ids.PGCatalogNamespaceOID), Name: name, Signature: string(signature)})
+		original := source.CatalogView.MustProcedure(address)
+		patched := *original
+		patched.Parallel, patched.Cost = 'r', 9
+		state.SetDescriptor(address, &patched)
+	}
+	current := source.CatalogView.WithState(state)
+	c := &dumpCollection{Capture: &Capture{CatalogView: current, DomainRoles: source.DomainRoles}, source: source}
+	for _, kind := range []catalog.PLHandler{catalog.PLCallHandler, catalog.PLInlineHandler, catalog.PLValidator} {
+		name, signature, _ := kind.Declaration()
+		address := current.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: fdwUnitAddress(ids.NamespaceClassID, ids.PGCatalogNamespaceOID), Name: name, Signature: string(signature)})
+		if err := collectProcedureDump(context.Background(), c, address, current.MustProcedure(address)); err != nil {
 			t.Fatal(err)
 		}
-		if len(c.Providers) != 1 || c.Providers[0].readyAfter != 0 || c.Providers[0].original != c.Providers[0].current {
-			t.Fatal("handler lost actual seeded identity")
+	}
+	if len(c.Providers) != 0 {
+		t.Fatal("installed handlers entered builtin provider replay")
+	}
+	script := &dumpScript{Capture: &Capture{CatalogView: current, OriginalCatalog: source.CatalogView, DomainRoles: source.DomainRoles, OriginalRoles: source.OriginalRoles}}
+	if err := script.prepareInstallationReplay(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	text := strings.Join(script.installationStatements, "")
+	for _, kind := range []catalog.PLHandler{catalog.PLCallHandler, catalog.PLInlineHandler, catalog.PLValidator} {
+		name, signature, _ := kind.Declaration()
+		address := current.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: fdwUnitAddress(ids.NamespaceClassID, ids.PGCatalogNamespaceOID), Name: name, Signature: string(signature)})
+		identity, err := extension.MemberSQL(current, current.MustProcedure(address))
+		if err != nil {
+			t.Fatal(err)
 		}
-		got, err := planProviderReplay(c.Providers)
-		if err != nil || len(got) != 2 || !strings.Contains(got[0], name) || !strings.HasSuffix(got[1], " COST 9;\n") {
-			t.Fatalf("handler metadata=%q, %v", got, err)
+		parallel, cost := "ALTER "+identity+" PARALLEL RESTRICTED;\n", "ALTER "+identity+" COST 9;\n"
+		if strings.Count(text, parallel) != 1 || strings.Count(text, cost) != 1 || strings.Index(text, parallel) >= strings.Index(text, cost) {
+			t.Fatalf("handler metadata lost actual seeded identity or ordering: %s", text)
+		}
+		original := source.CatalogView.MustProcedure(address)
+		if original.Parallel != 0 || original.Cost != 0 {
+			t.Fatal("replay mutated genuine handler declaration")
 		}
 	}
 }
@@ -439,27 +476,32 @@ func TestProviderReplayConstructorDeclarationBoundary(t *testing.T) {
 	source, _, _, _ := fdwUnitSource()
 	p := replayProvider("public", "custom_range", "public", "custom_range")
 	p.cost, p.parallel, p.readyAfter = 9, 'r', 99000
-	s := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, OriginalCatalog: source.OriginalCatalog, DomainRoles: source.DomainRoles, Providers: []providerReplay{p}},
-		declarations: map[ids.OID]dump.Statement{99000: {Owner: "postgres", SQL: "CREATE TYPE public.custom_range AS RANGE (subtype=integer);\n"}},
-		eventOrder:   []dump.Event{{OID: 99000}},
+	s := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, OriginalCatalog: source.OriginalCatalog, DomainRoles: source.DomainRoles, Providers: []providerReplay{p},
+		Graph: dump.Graph{dump.Event{OID: 99000}: nil}},
+		eventOrder: []dump.Event{{OID: 99000}},
 	}
-	if err := s.prepareProviderReplay(); err != nil {
+	if err := s.prepareProviderReplay(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if len(s.providerStatements) != 0 || len(s.providerEventStatements[99000]) != 2 {
 		t.Fatal("constructor entered pre-install provider phase")
 	}
+	// Planning happens before declarations are rendered. The graph's actual
+	// creator event, not a render-time side effect, is the readiness proof.
+	s.declarations = map[ids.OID]dump.Statement{99000: {Owner: "postgres", SQL: "CREATE TYPE public.custom_range AS RANGE (subtype=integer);\n"}}
+	s.typeReplayEpilogues = map[ids.OID]string{99000: "ALTER FUNCTION public.custom_range(integer,integer) OWNER TO recipient;\n"}
 	var out bytes.Buffer
 	w := &dumpWriter{ctx: context.Background(), dst: &out}
 	if err := emitDumpEvents(context.Background(), s, w); err != nil {
 		t.Fatal(err)
 	}
 	text := out.String()
-	if strings.Index(text, "CREATE TYPE") < 0 || strings.Index(text, "ALTER FUNCTION") < strings.Index(text, "CREATE TYPE") {
-		t.Fatalf("constructor patch preceded creation: %q", text)
+	created, owned, metadata := strings.Index(text, "CREATE TYPE"), strings.Index(text, "OWNER TO recipient"), strings.Index(text, "PARALLEL RESTRICTED")
+	if created < 0 || owned <= created || metadata <= owned {
+		t.Fatalf("constructor metadata did not follow real creation and current owner finalization: %q", text)
 	}
-	delete(s.declarations, 99000)
-	if err := s.prepareProviderReplay(); err == nil {
+	delete(s.Graph, dump.Event{OID: 99000})
+	if err := s.prepareProviderReplay(context.Background()); err == nil {
 		t.Fatal("constructor with missing installation event accepted")
 	}
 }

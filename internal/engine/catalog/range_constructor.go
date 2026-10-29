@@ -96,24 +96,17 @@ func ValidateRangeConstructor(view Read, d *Procedure) error {
 	if !ok || t.SQLType != r.Type || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Aggregate != nil || d.Foreign != nil || d.RoutineKind != FunctionRoutine || d.Volatility != expr.Immutable || d.Strict != (r.Form >= MultirangeConstructorZero) {
 		return fmt.Errorf("invalid generated constructor capture")
 	}
-	if d.SQLBody != nil || d.SQLDefaults != nil || len(d.Body) != 0 || d.Conversion.Name() != "" || d.AccessMethod != NoAccessMethod || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) {
+	if d.SQLBody != nil || d.SQLDefaults != nil || len(d.Body) != 0 || d.Conversion.Name() != "" || d.AccessMethod != NoAccessMethod || d.Dictionary != (ids.ObjectAddress{}) || d.Origin != nil {
 		return fmt.Errorf("conflicting generated constructor provider")
 	}
 	signature, err := r.Signature(view)
 	if err != nil {
 		return err
 	}
-	owner := t
-	if r.Type.IsMultirange() {
-		owner, ok = view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.Type.RangeType().ID())})
-		if !ok {
-			return fmt.Errorf("missing range constructor namespace owner")
-		}
-	}
-	if d.Signature != signature || d.Name() != r.Type.Name() || d.Namespace() != owner.Namespace() || r.Source() == "" {
+	if d.Signature != signature || r.Source() == "" {
 		return fmt.Errorf("invalid generated constructor identity")
 	}
-	return nil
+	return ValidateExtensionMembership(view, d)
 }
 func RangeConstructorOwner(d *Procedure) ids.ObjectAddress {
 	if d == nil || d.RangeConstructor == nil || d.RangeConstructor.Type == nil {

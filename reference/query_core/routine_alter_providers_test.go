@@ -91,7 +91,7 @@ func TestReferenceRoutineAlterProviders(t *testing.T) {
 		fixture.SchemaReferenceCleanup(t, "ra_cube_source", "ra_cube_dest")
 		routineScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 			defer func() {
-				if _, err := c.ExecContext(p.Ctx, "DROP TABLE IF EXISTS public.ra_cube_ordered CASCADE; DROP EXTENSION IF EXISTS cube CASCADE"); err != nil {
+				if _, err := c.ExecContext(p.Ctx, "DROP TABLE IF EXISTS public.ra_cube_ordered CASCADE; DROP EXTENSION IF EXISTS cube CASCADE; DROP SEQUENCE IF EXISTS public.ra_cube_case_seq CASCADE"); err != nil {
 					t.Error(err)
 				}
 			}()
@@ -108,6 +108,9 @@ func TestReferenceRoutineAlterProviders(t *testing.T) {
 				"CREATE INDEX ra_cube_ordered_idx ON public.ra_cube_ordered(v)",
 				"CREATE VIEW public.ra_cube_compare_view AS SELECT ra_cube_source.cube_eq(v,'(2)'::ra_cube_source.cube) AS same,ra_cube_source.cube_cmp(v,'(2)'::ra_cube_source.cube) AS ordering,CASE v WHEN '(2)'::ra_cube_source.cube THEN 1 ELSE 0 END AS branch FROM public.ra_cube_ordered ORDER BY id",
 				"CREATE VIEW public.ra_cube_compare_operator_view AS SELECT v OPERATOR(ra_cube_source.=) '(2)'::ra_cube_source.cube AS same,v OPERATOR(ra_cube_source.<) '(2)'::ra_cube_source.cube AS earlier FROM public.ra_cube_ordered ORDER BY id")
+			routineExec(t, p, b, c,
+				"CREATE SEQUENCE public.ra_cube_case_seq",
+				"CREATE VIEW public.ra_cube_case_effect_view AS SELECT CASE ra_cube_source.cube(nextval('public.ra_cube_case_seq')::double precision) WHEN '(0)'::ra_cube_source.cube THEN nextval('public.ra_cube_case_seq') WHEN '(1)'::ra_cube_source.cube THEN 7::bigint ELSE nextval('public.ra_cube_case_seq') END AS branch,CASE NULL::ra_cube_source.cube WHEN '(1)'::ra_cube_source.cube THEN 0 ELSE 9 END AS null_branch")
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("INSERT INTO public.ra_cube_ordered VALUES(1,'(2)'),(2,'(1)'),(3,'(2)')", 3))
 			var equalOID, compareOID int64
 			if err := c.QueryRowContext(p.Ctx, "SELECT 'ra_cube_source.cube_eq(ra_cube_source.cube,ra_cube_source.cube)'::regprocedure::oid,'ra_cube_source.cube_cmp(ra_cube_source.cube,ra_cube_source.cube)'::regprocedure::oid").Scan(&equalOID, &compareOID); err != nil {
@@ -168,10 +171,21 @@ func TestReferenceRoutineAlterProviders(t *testing.T) {
 				routineAlterRows(t, p, backend, conn, "SELECT '(1)'::ra_cube_source.cube OPERATOR(ra_cube_source.&&) '(1)'::ra_cube_source.cube AS hit,'(1)'::ra_cube_source.cube OPERATOR(ra_cube_source.<->) '(2)'::ra_cube_source.cube AS distance", []string{"hit", "distance"}, []string{"BOOL", "FLOAT8"}, [][]any{{true, float64(1)}})
 				checkComparison(conn, backend)
 				routineAlterRows(t, p, backend, conn, "SELECT ra_cube_dest.ra_cube_equal('(1)'::ra_cube_source.cube,'(1)'::ra_cube_source.cube) AS same,ra_cube_dest.ra_cube_compare('(1)'::ra_cube_source.cube,'(2)'::ra_cube_source.cube) AS ordering", []string{"same", "ordering"}, []string{"BOOL", "INT4"}, [][]any{{true, int64(-1)}})
+				routineAlterRows(t, p, backend, conn, "SELECT oprcode::oid='ra_cube_dest.ra_cube_equal(ra_cube_source.cube,ra_cube_source.cube)'::regprocedure::oid AS current_callee FROM pg_operator WHERE oprnamespace='ra_cube_source'::regnamespace AND oprname='=' AND oprleft='ra_cube_source.cube'::regtype AND oprright='ra_cube_source.cube'::regtype", []string{"current_callee"}, []string{"BOOL"}, [][]any{{true}})
 				fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Exec("INSERT INTO public.ra_cube_ordered VALUES(4,'(0)')", 1))
 				routineAlterRows(t, p, backend, conn, "SELECT id FROM public.ra_cube_ordered ORDER BY v,id", []string{"id"}, []string{"INT4"}, [][]any{{int64(4)}, {int64(2)}, {int64(1)}, {int64(3)}})
 				fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Exec("DELETE FROM public.ra_cube_ordered WHERE id=4", 1))
 				routineAlterRows(t, p, backend, conn, "SELECT proname,proowner='ra_cube_owner'::regrole AS owned FROM pg_proc WHERE proname IN ('ra_cube_compare','ra_cube_dims','ra_cube_distance','ra_cube_equal','ra_cube_overlaps','ra_cube_point') ORDER BY proname", []string{"proname", "owned"}, []string{"NAME", "BOOL"}, [][]any{{"ra_cube_compare", true}, {"ra_cube_dims", true}, {"ra_cube_distance", true}, {"ra_cube_equal", true}, {"ra_cube_overlaps", true}, {"ra_cube_point", true}})
+				for _, prepared := range []bool{false, true} {
+					routineExec(t, p, backend, conn, "ALTER SEQUENCE public.ra_cube_case_seq RESTART WITH 1")
+					step := fixture.Select("SELECT branch,null_branch FROM public.ra_cube_case_effect_view WHERE $1::integer=1", []string{"branch", "null_branch"}, []string{"INT8", "INT4"}, [][]any{{int64(7), int64(9)}})
+					step.Args = []any{int64(1)}
+					if prepared {
+						step = fixture.Prepared(step)
+					}
+					fixture.RunStep(t, p.Ctx, conn, backend.Recorder, step)
+					fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Select("SELECT nextval('public.ra_cube_case_seq') AS n", []string{"n"}, []string{"INT8"}, [][]any{{int64(2)}}))
+				}
 			}
 			check(c, b)
 			if b.PG {
@@ -185,6 +199,28 @@ func TestReferenceRoutineAlterProviders(t *testing.T) {
 				t.Fatal(err)
 			}
 			check(c, b)
+			connector, err := stuntgres.NewDriver().OpenConnector(t.Name() + "/fresh_cube")
+			if err != nil {
+				t.Fatal(err)
+			}
+			func() {
+				fresh := sql.OpenDB(connector)
+				defer fresh.Close()
+				if _, err := fresh.ExecContext(p.Ctx, "CREATE ROLE ra_cube_owner"); err != nil {
+					t.Fatal(err)
+				}
+				if err := stuntgres.Restore(p.Ctx, fresh, bytes.NewReader(dump.Bytes())); err != nil {
+					t.Fatal(err)
+				}
+				recorded := sql.OpenDB(fixture.MigrationRecordedConnector(t, connector))
+				defer recorded.Close()
+				fc, err := recorded.Conn(p.Ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer fc.Close()
+				check(fc, fixture.Backend{Recorder: &fixture.Recorder{RawBackend: b.Recorder.RawBackend}})
+			}()
 			if p.Postgres != nil {
 				pg, err := p.Postgres.Conn(p.Ctx)
 				if err != nil {
@@ -192,7 +228,7 @@ func TestReferenceRoutineAlterProviders(t *testing.T) {
 				}
 				defer pg.Close()
 				defer func() {
-					if _, err := pg.ExecContext(p.Ctx, "DROP TABLE IF EXISTS public.ra_cube_ordered CASCADE; DROP EXTENSION IF EXISTS cube CASCADE; DROP SCHEMA IF EXISTS ra_cube_source CASCADE; DROP SCHEMA IF EXISTS ra_cube_dest CASCADE; DROP ROLE IF EXISTS ra_cube_owner"); err != nil {
+					if _, err := pg.ExecContext(p.Ctx, "DROP TABLE IF EXISTS public.ra_cube_ordered CASCADE; DROP EXTENSION IF EXISTS cube CASCADE; DROP SEQUENCE IF EXISTS public.ra_cube_case_seq CASCADE; DROP SCHEMA IF EXISTS ra_cube_source CASCADE; DROP SCHEMA IF EXISTS ra_cube_dest CASCADE; DROP ROLE IF EXISTS ra_cube_owner"); err != nil {
 						t.Error(err)
 					}
 				}()

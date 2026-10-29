@@ -3,8 +3,8 @@ package catalog
 import (
 	"fmt"
 
-	"stuntgres/internal/sqltype"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
 // SelectCoercion is effect-free. A declared pair that disallows the context
@@ -19,22 +19,20 @@ func SelectCoercion(view Read, source, target sqltype.Usage, mode sqltype.Coerci
 	if source.Type.IsUpc() && target.Type.IsEan13() || source.Type.IsEan13() && target.Type.IsUpc() {
 		from, fromOK := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.Type.ID())})
 		to, toOK := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.Type.ID())})
-		if !fromOK || !toOK || from.SQLType != source.Type || to.SQLType != target.Type || from.Extension != to.Extension {
+		if !fromOK || !toOK || from.SQLType != source.Type || to.SQLType != target.Type || view.owner == nil {
 			return nil, fmt.Errorf("stuntgres: foreign ISN conversion endpoints")
 		}
-		owner, ok := view.Extension(from.Extension)
-		if !ok || owner.Name() != "isn" || view.owner == nil {
-			return nil, fmt.Errorf("stuntgres: missing ISN conversion installation")
+		// The registered provider owns released endpoint roles. Current e-links
+		// and the lifetime of the original extension header are not capability.
+		provider, ok := view.owner.Extensions["isn"].(interface {
+			ValidateISNConversion(Read, *Type, *Type) error
+		})
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: missing ISN conversion provider")
 		}
-		provider := view.owner.Extensions["isn"]
-		if provider == nil { return nil, fmt.Errorf("stuntgres: missing ISN conversion provider") }
-		if err := provider.ValidateExtension(view, owner); err != nil { return nil, err }
-		fromMember, toMember := false, false
-		for _, member := range owner.Members {
-			fromMember = fromMember || member == from.Address()
-			toMember = toMember || member == to.Address()
+		if err := provider.ValidateISNConversion(view, from, to); err != nil {
+			return nil, err
 		}
-		if !fromMember || !toMember { return nil, fmt.Errorf("stuntgres: foreign ISN conversion members") }
 	}
 	if d, ok := view.Cast(source.Type.ID(), target.Type.ID()); ok {
 		if d.Context == "i" || d.Context == "a" && mode != sqltype.Implicit || mode == sqltype.Explicit {

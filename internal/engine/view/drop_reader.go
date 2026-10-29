@@ -38,6 +38,10 @@ type DropReader interface {
 	// RetirementDescriptor reads address even after the pass removed it, so
 	// a retired provider's automatic closure stays traversable.
 	RetirementDescriptor(ids.ObjectAddress) catalog.Descriptor
+	// RetirementRead supplies the coherent metadata graph for dependency facts:
+	// genuine replacements over the input, retaining removed input providers.
+	// It does not replace the original payload owners used by retirement effects.
+	RetirementRead() catalog.Read
 	Replacement(ids.ObjectAddress) catalog.Descriptor
 	Removed(ids.ObjectAddress) bool
 	Replace(catalog.Descriptor) error

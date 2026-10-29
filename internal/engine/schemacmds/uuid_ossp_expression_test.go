@@ -118,15 +118,19 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 }
 
 func TestUUIDOsspControls(t *testing.T) {
-	record := extension.OwnerRecord{Name: "uuid-ossp", Schema: "public", Version: "1.1", Owner: "installer", Members: []extension.MemberOwner{{Kind: "procedure", Name: "uuid_generate_v4", Signature: "", Owner: "postgres"}}}
+	e, _ := uuidOsspUnitInstalled(t)
+	record := extension.OwnerRecord{Name: "uuid-ossp", Schema: "public", Version: "1.1", Owner: "installer", Present: true, Members: []extension.MemberOwner{{Kind: "procedure", Name: "uuid_generate_v4", Signature: "", Owner: "postgres"}}}
 	for _, name := range []string{"uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500", "uuid_generate_v1", "uuid_generate_v1mc"} {
 		record.Members = append(record.Members, extension.MemberOwner{Kind: "procedure", Name: name, Signature: "", Owner: "postgres"})
 	}
 	for _, name := range []string{"uuid_generate_v3", "uuid_generate_v5"} {
-		record.Members = append(record.Members, extension.MemberOwner{Kind: "procedure", Name: name, Signature: "2950,25", Owner: "postgres"})
+		record.Members = append(record.Members, extension.MemberOwner{Kind: "procedure", Name: name, Signature: "pg_catalog.uuid, pg_catalog.text", Owner: "postgres"})
 	}
 	for slot := range record.Members {
-		record.Members[slot].Slot = slot
+		record.Members[slot].Declaration = new(slot)
+		record.Members[slot].Version = "1.1"
+		record.Members[slot].Extension = "uuid-ossp"
+		record.Members[slot].ACL = &extension.MemberACL{Entries: []extension.MemberGrant{}}
 		record.Members[slot].Schema = "public"
 	}
 	encode := func(r extension.OwnerRecord) string {
@@ -146,23 +150,28 @@ func TestUUIDOsspControls(t *testing.T) {
 	if got, recognized, err := extension.DecodeOwners(encode(renamed)); err != nil || !recognized || !reflect.DeepEqual(got, renamed) {
 		t.Fatal("mutable label/schema rejected by codec", got, err)
 	}
+	admissionBase := record
+	admissionBase.Owner = "postgres"
+	if err := extensionOwnerAdmissionError(e, encode(admissionBase)); err != nil {
+		t.Fatal("real UUID admission baseline", err)
+	}
 	for _, mutate := range []func(*extension.OwnerRecord){
 		func(r *extension.OwnerRecord) { r.Version = "missing" },
 		func(r *extension.OwnerRecord) { r.Members = nil },
 		func(r *extension.OwnerRecord) { r.Members = append(r.Members, r.Members[0]) },
 		func(r *extension.OwnerRecord) { r.Members[0].Name = "" },
 		func(r *extension.OwnerRecord) { r.Members[0].Schema = "" },
-		func(r *extension.OwnerRecord) { r.Members[0].Slot = -1 },
-		func(r *extension.OwnerRecord) { r.Members[0].Slot = len(r.Members) },
-		func(r *extension.OwnerRecord) { r.Members[1].Slot = r.Members[0].Slot },
+		func(r *extension.OwnerRecord) { r.Members[0].Declaration = new(-1) },
+		func(r *extension.OwnerRecord) { r.Members[0].Declaration = new(len(r.Members)) },
+		func(r *extension.OwnerRecord) { r.Members[1].Declaration = r.Members[0].Declaration },
 		func(r *extension.OwnerRecord) { r.Members[0].Signature = "25" },
 		func(r *extension.OwnerRecord) { r.Members[0].Kind = "dictionary" },
 		func(r *extension.OwnerRecord) { r.Members[0].Owner = "" },
 	} {
-		bad := record
-		bad.Members = slices.Clone(record.Members)
+		bad := admissionBase
+		bad.Members = slices.Clone(admissionBase.Members)
 		mutate(&bad)
-		if _, recognized, err := extension.DecodeOwners(encode(bad)); !recognized || err == nil {
+		if err := extensionOwnerAdmissionError(e, encode(bad)); err == nil {
 			t.Fatal("invalid owner metadata accepted", bad, err)
 		}
 	}
@@ -356,7 +365,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		}
 		return ref
 	}
-	mapper := stored.ViewQueryRemapper{Catalog: view, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+	mapper := stored.ViewQueryRemapper{Catalog: view, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), nil, nil)}
 	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "value", Usage: node.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{node}}
 	remapped, err := mapper.Query(query)
 	if err != nil {

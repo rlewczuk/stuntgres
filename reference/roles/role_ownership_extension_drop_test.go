@@ -1,7 +1,6 @@
 package reference_test
 
 import (
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -105,7 +104,7 @@ func ownershipExtensionMember(s *fixture.RoleMembershipScenario, member ownershi
 		}
 		ownershipSelect(c, "SELECT r.rolname FROM pg_ts_dict d JOIN pg_roles r ON r.oid=d.dictowner WHERE d.dictname='unaccent'", []string{"rolname"}, []string{"NAME"}, [][]any{{dictionaryOwner}})
 		if c.Backend.PG && member.kind == "procedure" {
-			ownershipSelect(c, "SELECT r.rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.proname='"+member.name+"' AND p.proargtypes::TEXT='"+strings.ReplaceAll(member.signature, ",", " ")+"'", []string{"rolname"}, []string{"NAME"}, [][]any{{"own_source"}})
+			ownershipSelect(c, "SELECT r.rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.oid='own_provider."+member.sqlIdentity+"'::regprocedure", []string{"rolname"}, []string{"NAME"}, [][]any{{"own_source"}})
 		}
 	}
 	checkOwners()

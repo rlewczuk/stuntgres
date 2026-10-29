@@ -42,3 +42,52 @@ func TestRestoreAdmitsForeignDefaultRepair(t *testing.T) {
 		})
 	}
 }
+
+// Admission must hand emitted installation SQL to ordinary stage execution,
+// rather than consume it as an import repair or reject it before resolution.
+func TestRestoreAdmitsExtensionReplay(t *testing.T) {
+	for _, sql := range []string{
+		`ALTER EXTENSION plpgsql DROP FUNCTION pg_catalog.plpgsql_call_handler()`,
+		`ALTER EXTENSION plpgsql DROP LANGUAGE plpgsql`,
+		`ALTER FUNCTION pg_catalog.plpgsql_call_handler() OWNER TO postgres`,
+		`ALTER EXTENSION plpgsql ADD FUNCTION pg_catalog.plpgsql_call_handler()`,
+		`ALTER EXTENSION plpgsql ADD LANGUAGE plpgsql`,
+		`ALTER EXTENSION cube SET SCHEMA restored`,
+		`ALTER EXTENSION earthdistance UPDATE TO '1.2'`,
+		`DROP EXTENSION plpgsql`,
+		`DROP EXTENSION unaccent CASCADE`,
+		`DROP FUNCTION restored.removed(integer) CASCADE`,
+		`DROP TYPE restored.removed CASCADE`,
+		`DROP DOMAIN restored.blocker`,
+		`ALTER DOMAIN restored.member RENAME TO retained`,
+		`ALTER DOMAIN restored.member SET SCHEMA working`,
+		`ALTER TABLE restored.member RENAME TO retained`,
+		`ALTER TABLE restored.member SET SCHEMA working`,
+		`ALTER VIEW restored.member RENAME TO retained`,
+		`ALTER MATERIALIZED VIEW restored.member SET SCHEMA working`,
+		`ALTER FOREIGN TABLE restored.member SET SCHEMA working`,
+	} {
+		t.Run(sql, func(t *testing.T) {
+			statements, err := parser.Parse(sql)
+			if err != nil {
+				t.Fatal(err)
+			}
+			answer := control.NotHandled
+			for _, hook := range restoreHooks {
+				if hook.Admit == nil {
+					continue
+				}
+				answer, err = hook.Admit(new(restoreRun), nil, statements[0])
+				if err != nil {
+					t.Fatal(err)
+				}
+				if answer != control.NotHandled {
+					break
+				}
+			}
+			if answer != control.Admitted {
+				t.Fatal("emitted SQL did not reach ordinary execution", answer)
+			}
+		})
+	}
+}

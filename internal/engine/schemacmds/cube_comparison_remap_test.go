@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
@@ -85,7 +86,7 @@ func cubeComparisonExpressionRemap(t *testing.T) {
 			}
 			return view.Owner().Domain.Ref(view.Epoch(), address)
 		},
-		Procedure: extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil),
+		Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), replacementProcedurePolicyFixture(source, target), nil),
 	}
 	mapOriginal := func(node expr.Expr) (expr.Expr, error) {
 		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{node}}})
@@ -381,6 +382,9 @@ func TestCubeDomainCheckOperatorProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	installer, closeInstaller := enginetest.RoleOperation(t, e, "postgres")
+	extensionUnitPublish(t, e, installer, cubeUnitStage(t, e, installer, "uuid-ossp", "public"))
+	closeInstaller()
 	view := e.CatalogRead()
 	domain := view.MustType(view.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: base.Namespace(), Name: "cube_check_provider"}))
 	if err := stored.ValidateDomainCheckDefinitions(view, domain); err != nil {
@@ -420,13 +424,14 @@ func TestCubeDomainCheckOperatorProviders(t *testing.T) {
 		})
 	}
 	operator, _ := view.Operator(selected.Address)
-	for _, kind := range []string{"namespace", "left_slot", "right_slot", "procedure", "extension"} {
+	for _, kind := range []string{"origin", "left_slot", "right_slot", "procedure", "extension", "principal", "backing_principal"} {
 		t.Run(kind, func(t *testing.T) {
 			candidate := catalog.CloneState(view.State())
 			wrong := *operator
 			switch kind {
-			case "namespace":
-				wrong.ObjectNamespace = view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).Namespace()
+			case "origin":
+				forged := *wrong.Origin.Installation
+				wrong.Origin = &catalog.InstalledOrigin{Installation: &forged, Declaration: wrong.Origin.Declaration}
 			case "left_slot":
 				wrong.Left = ids.OID(sqltype.Text)
 			case "right_slot":
@@ -434,13 +439,46 @@ func TestCubeDomainCheckOperatorProviders(t *testing.T) {
 			case "procedure":
 				wrong.Function = installation.Members[4].ObjectID
 			case "extension":
-				wrong.Extension = ids.ObjectAddress{}
+				wrong.Extension.ObjectID = 990001
+			case "principal":
+				wrong.Owner = (&authorization.Domain{}).Principal(wrong.Owner.ID())
+			case "backing_principal":
+				backing := *candidate.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: wrong.Function})
+				backing.Owner = (&authorization.Domain{}).Principal(backing.Owner.ID())
+				candidate.SetDescriptor(backing.Address(), &backing)
 			}
 			candidate.SetDescriptor(wrong.Address(), &wrong)
 			if err := stored.ValidateDomainCheckDefinitions(view.WithState(candidate), domain); err == nil {
 				t.Fatal("accepted corrupt stock operator")
 			}
 		})
+	}
+	for _, foreign := range []bool{false, true} {
+		candidate := catalog.CloneState(view.State())
+		current := *operator
+		current.ObjectName = "==="
+		current.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+		current.Extension = ids.ObjectAddress{}
+		parent := *installation
+		parent.Members = nil
+		for _, address := range installation.Members {
+			if address != operator.Address() {
+				parent.Members = append(parent.Members, address)
+			}
+		}
+		candidate.SetDescriptor(parent.Address(), &parent)
+		if foreign {
+			target := *view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"}))
+			target.Members = append(append([]ids.ObjectAddress(nil), target.Members...), operator.Address())
+			current.Extension = target.Address()
+			candidate.SetDescriptor(target.Address(), &target)
+		}
+		candidate.UnbindName(catalog.DescriptorNameKey(operator))
+		candidate.SetDescriptor(current.Address(), &current)
+		candidate.BindName(catalog.DescriptorNameKey(&current), current.Address())
+		if err := stored.ValidateDomainCheckDefinitions(view.WithState(candidate), domain); err != nil {
+			t.Fatal("lawful operator rename/schema/membership mutation rejected", foreign, err)
+		}
 	}
 	t.Run("retained_temp_import", func(t *testing.T) {
 		target := engine.New()
@@ -542,6 +580,7 @@ func TestCubeComparisonBindingWrittenProjection(t *testing.T) {
 	if _, err := source.Execute(op, enginetest.Statement(t, "CREATE FUNCTION public.cube_written_projection(p public.cube DEFAULT NULLIF('1'::public.cube,'1'::public.cube)) RETURNS boolean LANGUAGE SQL RETURN p IS NULL"), 0, nil); err != nil {
 		t.Fatal(err)
 	}
+	extensionUnitPublish(t, source, op, cubeUnitStage(t, source, op, "uuid-ossp", "public"))
 	view := source.CatalogRead()
 	bind := func(text string) plan.SQLRoutineExpr {
 		raw := enginetest.Statement(t, "SELECT "+text).(*parser.Select).Targets[0]
@@ -568,7 +607,7 @@ func TestCubeComparisonBindingWrittenProjection(t *testing.T) {
 	if omitted.WrittenCount != 0 || len(omitted.Args) != 1 {
 		t.Fatal("fixture did not expand a real omitted default")
 	}
-	namespace, err := stored.ComparisonBindingNamespace(view, omitted)
+	namespace, err := stored.ComparisonBindingNamespace(view, omitted, nil)
 	if err != nil || namespace != (ids.ObjectAddress{}) {
 		t.Fatal("omitted execution default became caller binding requirement", namespace, err)
 	}
@@ -576,24 +615,24 @@ func TestCubeComparisonBindingWrittenProjection(t *testing.T) {
 	if !ok {
 		t.Fatal("missing actual declaration default")
 	}
-	namespace, err = stored.ComparisonBindingNamespace(view, definition)
+	namespace, err = stored.ComparisonBindingNamespace(view, definition, nil)
 	if err != nil || namespace != base.Namespace() {
 		t.Fatal("declaration default lost its actual binding requirement", namespace, err)
 	}
 	explicit := bind("public.cube_written_projection(NULLIF('2'::public.cube,'1'::public.cube))")
-	namespace, err = stored.ComparisonBindingNamespace(view, explicit)
+	namespace, err = stored.ComparisonBindingNamespace(view, explicit, nil)
 	if err != nil || explicit.WrittenCount != 1 || namespace != base.Namespace() {
 		t.Fatal("explicit written comparison lost caller binding requirement", namespace, err)
 	}
 	plain := bind("public.cube_written_projection(NULL)")
-	namespace, err = stored.ComparisonBindingNamespace(view, plain)
+	namespace, err = stored.ComparisonBindingNamespace(view, plain, nil)
 	if err != nil || plain.WrittenCount != 1 || namespace != (ids.ObjectAddress{}) {
 		t.Fatal("ordinary written NULL acquired a comparison requirement", namespace, err)
 	}
 	for _, count := range []int{-1, len(omitted.Args) + 1} {
 		wrong := omitted
 		wrong.WrittenCount = count
-		if _, err := stored.ComparisonBindingNamespace(view, wrong); err == nil {
+		if _, err := stored.ComparisonBindingNamespace(view, wrong, nil); err == nil {
 			t.Fatal("accepted invalid written projection", count)
 		}
 	}
@@ -607,8 +646,90 @@ func TestCubeComparisonBindingWrittenProjection(t *testing.T) {
 	if _, found := dependencies.Addresses[installation.Members[3]]; dependencies.Err != nil || !found {
 		t.Fatal("omitted default lost executable comparison dependency", dependencies.Err)
 	}
-	namespace, err = stored.ComparisonBindingNamespace(view, definition)
+	namespace, err = stored.ComparisonBindingNamespace(view, definition, nil)
 	if err != nil || namespace != base.Namespace() {
 		t.Fatal("caller classification mutated declaration default", namespace, err)
+	}
+	selected := view.MustProcedure(installation.Members[3])
+	receiver := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"}))
+	for _, membership := range []string{"attached", "detached", "foreign"} {
+		t.Run(membership, func(t *testing.T) {
+			state := catalog.CloneState(view.State())
+			current := *selected
+			current.ObjectName = "comparison_now"
+			current.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+			if membership != "attached" {
+				parent := *installation
+				parent.Members = nil
+				for _, address := range installation.Members {
+					if address != selected.Address() {
+						parent.Members = append(parent.Members, address)
+					}
+				}
+				state.SetDescriptor(parent.Address(), &parent)
+				current.Extension = ids.ObjectAddress{}
+			}
+			if membership == "foreign" {
+				target := *receiver
+				target.Members = append(append([]ids.ObjectAddress(nil), receiver.Members...), selected.Address())
+				state.SetDescriptor(target.Address(), &target)
+				current.Extension = target.Address()
+			}
+			state.UnbindName(catalog.DescriptorNameKey(selected))
+			state.SetDescriptor(current.Address(), &current)
+			state.BindName(catalog.DescriptorNameKey(&current), current.Address())
+			visits := 0
+			namespace, err := stored.ComparisonBindingNamespace(view.WithState(state), definition, func(p *catalog.Procedure) error {
+				visits++
+				if p != &current {
+					t.Fatal("callback did not receive genuine current comparison", p)
+				}
+				return nil
+			})
+			if err != nil || visits == 0 || namespace != base.Namespace() || namespace == current.Namespace() {
+				t.Fatal("comparison binding followed independently moved backing routine instead of operator", membership, namespace, visits, err)
+			}
+			for _, corruption := range []string{"seal", "principal", "type"} {
+				broken := catalog.CloneState(state)
+				bad := current
+				switch corruption {
+				case "seal":
+					unsealed := *bad.Origin.Installation
+					bad.Origin = &catalog.InstalledOrigin{Installation: &unsealed, Declaration: bad.Origin.Declaration}
+				case "principal":
+					bad.Owner = (&authorization.Domain{}).Principal(bad.Owner.ID())
+				case "type":
+					bad.Signature = "25,25"
+				}
+				broken.SetDescriptor(bad.Address(), &bad)
+				if _, err := stored.ComparisonBindingNamespace(view.WithState(broken), definition, nil); err == nil {
+					t.Fatal("comparison binding admitted corrupt current authority", corruption)
+				}
+			}
+			operator := view.MustOperator(installation.Members[10])
+			for _, corruption := range []string{"seal", "principal", "operand", "function", "name"} {
+				broken := catalog.CloneState(state)
+				bad := *operator
+				switch corruption {
+				case "seal":
+					unsealed := *bad.Origin.Installation
+					bad.Origin = &catalog.InstalledOrigin{Installation: &unsealed, Declaration: bad.Origin.Declaration}
+				case "principal":
+					bad.Owner = (&authorization.Domain{}).Principal(bad.Owner.ID())
+				case "operand":
+					bad.Left = 25
+				case "function":
+					bad.Function = installation.Members[4].ObjectID
+				case "name":
+					broken.UnbindName(catalog.DescriptorNameKey(&bad))
+					bad.ObjectName = "==="
+					broken.BindName(catalog.DescriptorNameKey(&bad), bad.Address())
+				}
+				broken.SetDescriptor(bad.Address(), &bad)
+				if _, err := stored.ComparisonBindingNamespace(view.WithState(broken), definition, nil); err == nil {
+					t.Fatal("comparison binding admitted corrupt current operator authority", corruption)
+				}
+			}
+		})
 	}
 }

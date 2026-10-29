@@ -27,7 +27,8 @@ type lexer struct {
 	roleHead int
 	// Operator definition options share type syntax, including SETOF, without
 	// reserving that spelling in ordinary expression or identifier contexts.
-	operatorDDL bool
+	operatorDDL  bool
+	extensionDDL bool
 	// SQL EXTRACT admits a field word, not an ordinary scalar call head.
 	extractField        bool
 	jsonParenDepth      int
@@ -1523,7 +1524,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if token.lexeme.keyword != nil {
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
-			if l.previousToken == CREATE || l.previousToken == ALTER || l.previousToken == DROP {
+			if l.previousToken == CREATE || l.previousToken == ALTER || l.previousToken == DROP || l.extensionDDL && l.previousToken == ADD {
 				token.code = OPERATOR
 				l.operatorDDL = true
 			} else if next.code == '(' && l.qualifiedOperatorAhead() {
@@ -1877,9 +1878,13 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	case 2:
 		l.roleHead = 3
 	}
+	if token.code == EXTENSION && l.previousToken == ALTER {
+		l.extensionDDL = true
+	}
 	if token.code == int(';') {
 		l.roleHead = 0
 		l.operatorDDL = false
+		l.extensionDDL = false
 		l.viewQuery = false
 	}
 	if l.routineFormalDepth > 0 && l.jsonParenDepth == l.routineFormalDepth {

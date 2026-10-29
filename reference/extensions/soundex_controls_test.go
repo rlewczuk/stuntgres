@@ -108,7 +108,7 @@ func soundexControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	run(soundexLiteralView())
 	run(fixture.Prepared(soundexLiteralView()))
 	soundexInventory(t, p, b, c)
-	extensionControlsFailures(t, p, c, b.Recorder, dump, check)
+	extensionControlsFailures(t, p, c, b.Recorder, "fuzzystrmatch", dump, check)
 	bad := "CREATE SCHEMA sx_addon; CREATE EXTENSION fuzzystrmatch SCHEMA sx_addon VERSION 'missing';"
 	if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
 		t.Fatal("invalid version accepted")

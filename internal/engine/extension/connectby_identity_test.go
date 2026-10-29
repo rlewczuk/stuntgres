@@ -1,12 +1,14 @@
 package extension_test
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
@@ -15,7 +17,7 @@ import (
 )
 
 // This independently declared release inventory deliberately does not consume a
-// production connectby manifest; it can precede the implementation it constrains.
+// production connectby manifest.
 var tablefuncSelectedSignatures = []string{"23,701,701", "25,25,25,25,23,25", "25,25,25,25,23", "25,25,25,25,25,23,25", "25,25,25,25,25,23"}
 
 func connectbyCatalog(t *testing.T) (catalog.Read, *catalog.Extension) {
@@ -27,29 +29,23 @@ func connectbyCatalog(t *testing.T) (catalog.Read, *catalog.Extension) {
 	enginetest.RoleExecute(t, e, op, "CREATE SCHEMA moved")
 	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION tablefunc SCHEMA installed")
 	read := e.CatalogRead()
-	owner, state := read.Owner(), read.State()
-	put := func(d catalog.Descriptor) {
-		state.SetDescriptor(d.Address(), d)
-		state.BindName(catalog.DescriptorNameKey(d), d.Address())
+	ext := read.MustExtension(read.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "tablefunc"}))
+	if len(ext.Members) != 16 || !ext.Installation.Valid() || len(ext.Installation.Members) != 16 {
+		t.Fatal("incomplete genuine tablefunc recipe", ext)
 	}
-	ns := state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "installed"})
-	ext := read.MustExtension(state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "tablefunc"}))
-	for slot, sig := range tablefuncSelectedSignatures {
-		address := ext.Members[slot]
+	for slot, signature := range tablefuncSelectedSignatures {
+		proc := read.MustProcedure(ext.Installation.Members[slot])
 		name, source, result, volatility := "connectby", "connectby_text", ids.OID(2249), expr.Stable
 		if slot == 0 {
-			name = "normal_rand"
-			source = name
-			result = 701
-			volatility = expr.Volatile
-		}
-		if slot >= 3 {
+			name, source, result, volatility = "normal_rand", "normal_rand", 701, expr.Volatile
+		} else if slot >= 3 {
 			source = "connectby_text_serial"
 		}
-		put(&catalog.Procedure{ObjectAddress: address, ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Extension: ext.Address(), Signature: catalog.ProcedureSignature(sig), Result: result, RoutineKind: catalog.FunctionRoutine, Owner: ext.Owner, Volatility: volatility, Strict: true, Installed: catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000}, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source, Binary: "$libdir/tablefunc", HasBinary: true}, Implementation: extension.StockTablefunc})
+		if proc.Name() != name || string(proc.Signature) != signature || proc.Result != result || proc.Volatility != volatility || !proc.Strict || proc.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000}) || proc.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source, Binary: "$libdir/tablefunc", HasBinary: true}) || !proc.Origin.Valid(proc.Address()) {
+			t.Fatal("independent released declaration mismatch", slot, proc)
+		}
 	}
-	put(ext)
-	return catalog.NewRead(owner, state), ext
+	return read, ext
 }
 func TestTablefuncConnectbySelectedIdentity(t *testing.T) {
 	v, ext := connectbyCatalog(t)
@@ -98,12 +94,20 @@ func TestTablefuncConnectbyManifestForgery(t *testing.T) {
 				t.Fatal("invalid baseline", err)
 			}
 			switch kind {
-			case "count":
-				ext.Members = ext.Members[:4]
-			case "reorder":
-				ext.Members[1], ext.Members[2] = ext.Members[2], ext.Members[1]
-			case "duplicate":
-				ext.Members[2] = ext.Members[1]
+			case "count", "reorder", "duplicate":
+				recipe := *ext.Installation
+				recipe.Members = append([]ids.ObjectAddress(nil), recipe.Members...)
+				switch kind {
+				case "count":
+					recipe.Members = recipe.Members[:4]
+				case "reorder":
+					recipe.Members[1], recipe.Members[2] = recipe.Members[2], recipe.Members[1]
+				case "duplicate":
+					recipe.Members[2] = recipe.Members[1]
+				}
+				origin := *p.Origin
+				origin.Installation = &recipe
+				p.Origin = &origin
 			case "signature":
 				p.Signature = "25,25,25,25,23"
 			case "result":
@@ -127,42 +131,68 @@ func TestTablefuncConnectbyManifestForgery(t *testing.T) {
 	}
 }
 func TestTablefuncConnectbyOwnerCodec(t *testing.T) {
-	record := extension.OwnerRecord{Name: "tablefunc", Schema: "installed", Version: "1.0", Owner: "postgres"}
-	for slot, sig := range tablefuncSelectedSignatures {
-		record.Members = append(record.Members, extension.MemberOwner{Slot: slot, Schema: "moved", Kind: "procedure", Name: "renamed", Signature: sig, Owner: "recipient"})
+	v, ext := connectbyCatalog(t)
+	roleRoot := authorization.Seed(v.Owner().Principals)
+	roles := roleRoot.Read(ext.Owner)
+	metadata, err := extension.OwnerMetadata(v, roles, ext)
+	if err != nil {
+		t.Fatal(err)
 	}
-	// The incumbent procedure expectations remain independent; append the
-	// composed crosstab declarations rather than accepting a truncated provider.
-	record.Members = append(record.Members, extension.MemberOwner{Slot: 5, Schema: "installed", Kind: "procedure", Name: "crosstab", Signature: "25", Owner: "recipient"})
-	for n := 2; n <= 4; n++ {
-		slot := 6 + 2*(n-2)
-		name := fmt.Sprintf("tablefunc_crosstab_%d", n)
-		record.Members = append(record.Members,
-			extension.MemberOwner{Slot: slot, Schema: "installed", Kind: "type", Name: name, Owner: "recipient"},
-			extension.MemberOwner{Slot: slot + 1, Schema: "installed", Kind: "type", Name: name + "[]", Owner: "recipient"})
+	record, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
+	if err != nil || !found || len(record.Members) != 16 {
+		t.Fatal("genuine sixteen-declaration metadata", record, found, err)
 	}
-	for slot := 12; slot <= 15; slot++ {
-		signature := "25"
-		if slot == 15 {
-			signature = "25,23"
+	// The appended crosstab inventory is independent of production manifests.
+	wants := []struct{ kind, name, signature string }{
+		{"procedure", "crosstab", "pg_catalog.text"},
+		{"type", "tablefunc_crosstab_2", ""},
+		{"type", "_tablefunc_crosstab_2", ""},
+		{"type", "tablefunc_crosstab_3", ""},
+		{"type", "_tablefunc_crosstab_3", ""},
+		{"type", "tablefunc_crosstab_4", ""},
+		{"type", "_tablefunc_crosstab_4", ""},
+		{"procedure", "crosstab2", "pg_catalog.text"},
+		{"procedure", "crosstab3", "pg_catalog.text"},
+		{"procedure", "crosstab4", "pg_catalog.text"},
+		{"procedure", "crosstab", "pg_catalog.text, integer"},
+	}
+	seen := make([]bool, 16)
+	for _, member := range record.Members {
+		if member.Declaration == nil || *member.Declaration < 0 || *member.Declaration >= len(seen) || seen[*member.Declaration] {
+			t.Fatal("invalid immutable owner inventory", member)
 		}
-		record.Members = append(record.Members, extension.MemberOwner{Slot: slot, Schema: "installed", Kind: "procedure", Name: "renamed", Signature: signature, Owner: "recipient"})
+		slot := *member.Declaration
+		seen[slot] = true
+		if member.Version != "1.0" || member.Schema != "installed" || member.Extension != "tablefunc" || member.Owner != "postgres" {
+			t.Fatal("released current owner identity changed", member)
+		}
+		if slot >= 5 {
+			want := wants[slot-5]
+			if member.Kind != want.kind || member.Name != want.name || member.Signature != want.signature {
+				t.Fatal("appended crosstab owner identity changed", slot, member, want)
+			}
+		}
 	}
-	decode := func(r extension.OwnerRecord) error {
+	decodeImport := func(r extension.OwnerRecord) error {
 		data, err := json.Marshal(r)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, found, err := extension.DecodeOwners(extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString(data))
+		decoded, found, err := extension.DecodeOwners(extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString(data))
 		if !found {
 			t.Fatal("owner marker not recognized")
 		}
+		if err != nil {
+			return err
+		}
+		candidate := catalog.CloneState(v.State())
+		_, err = extension.ImportOwners(context.Background(), v.WithState(candidate), roles, []extension.OwnerRecord{decoded})
 		return err
 	}
-	if err := decode(record); err != nil {
+	if err := decodeImport(record); err != nil {
 		t.Fatal("composed sixteen-member owner record", err)
 	}
-	for _, kind := range []string{"count", "signature", "slot", "version"} {
+	for _, kind := range []string{"count", "signature", "declaration", "version"} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner{}, record.Members...)
 		switch kind {
@@ -170,12 +200,12 @@ func TestTablefuncConnectbyOwnerCodec(t *testing.T) {
 			bad.Members = bad.Members[:4]
 		case "signature":
 			bad.Members[1].Signature = "25"
-		case "slot":
-			bad.Members[1].Slot = 2
+		case "declaration":
+			bad.Members[1].Declaration = bad.Members[0].Declaration
 		case "version":
 			bad.Version = "missing"
 		}
-		if err := decode(bad); err == nil {
+		if err := decodeImport(bad); err == nil {
 			t.Fatal("invalid owner metadata accepted", kind)
 		}
 	}

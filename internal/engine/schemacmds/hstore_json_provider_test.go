@@ -30,7 +30,7 @@ func TestHstoreJSONProviderIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
 	base := view.MustType(ext.Members[extension.HstoreTypeSlot])
-	if len(ext.Members) != extension.HstoreMemberCount {
+	if len(ext.Members) != extension.HstoreMemberCount+1 || len(ext.Installation.Members) != extension.HstoreMemberCount {
 		t.Fatal("manifest size")
 	}
 	for i, symbol := range []string{"hstore_to_json", "hstore_to_json_loose"} {

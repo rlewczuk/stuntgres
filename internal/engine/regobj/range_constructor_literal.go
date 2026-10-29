@@ -6,24 +6,29 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 func rangeConstructorName(view catalog.Read, reader catalog.DefinitionReader, t *sqltype.Descriptor, form catalog.RangeConstructorForm) (string, error) {
-	owner, ok := catalog.DescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.RangeType().ID())})
-	if !ok {
-		return "", fmt.Errorf("missing range constructor namespace owner")
+	actual, ok := catalog.DefinitionTypeAt(view, reader, t.ID())
+	if !ok || actual != t {
+		return "", fmt.Errorf("missing generated range constructor type generation")
 	}
-	ns, ok := catalog.DescriptorAt(view, reader, owner.Namespace())
-	if !ok {
-		return "", fmt.Errorf("missing range constructor namespace")
+	definitions := view.Descriptors()
+	if reader != nil {
+		definitions = reader.Descriptors()
 	}
-	for d := range catalog.DefinitionProceduresNamedAt(view, reader, owner.Namespace(), t.Name()) {
-		if d.RangeConstructor != nil && d.RangeConstructor.Type == t && d.RangeConstructor.Form == form {
-			return catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name()), nil
+	for _, candidate := range definitions {
+		d, ok := candidate.(*catalog.Procedure)
+		if !ok || d.RangeConstructor == nil || d.RangeConstructor.Type != t || d.RangeConstructor.Form != form {
+			continue
 		}
+		ns, ok := catalog.DescriptorAt(view, reader, d.Namespace())
+		if !ok {
+			return "", fmt.Errorf("missing range constructor namespace")
+		}
+		return catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name()), nil
 	}
 	return "", fmt.Errorf("missing actual generated range constructor")
 }

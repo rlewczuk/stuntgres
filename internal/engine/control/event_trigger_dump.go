@@ -79,6 +79,9 @@ func emitDumpEventTriggers(ctx context.Context, s *dumpScript, w *dumpWriter) er
 			return err
 		}
 	}
+	if err := emitDumpInstallationCompletion(ctx, s, w); err != nil {
+		return err
+	}
 	for _, replay := range s.eventTriggerReplay {
 		if replay.mode == catalog.TriggerDisabled {
 			continue

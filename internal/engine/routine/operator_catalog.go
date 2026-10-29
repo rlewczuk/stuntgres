@@ -31,13 +31,8 @@ func (OperatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) 
 	if _, ok := v.Namespace(d.Namespace()); !ok {
 		return fmt.Errorf("stuntgres: invalid operator namespace")
 	}
-	if d.Extension != (ids.ObjectAddress{}) {
-		installation, _ := v.Extension(d.Extension)
-  if !extension.HstoreRelocatableOperator(v, installation, d.Address()) && !extension.LtreePathRelocatableOperator(v, installation, d.Address()) {
-			if err := catalog.ValidateExtensionMembership(v, d); err != nil {
-				return err
-			}
-		}
+	if err := catalog.ValidateExtensionMembership(v, d); err != nil {
+		return err
 	}
 	for _, id := range []ids.OID{d.Left, d.Right} {
 		if id != 0 {
@@ -101,7 +96,7 @@ func (OperatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) 
 			}
 		}
 	}
-	if d.Extension != (ids.ObjectAddress{}) {
+	if d.Origin != nil {
 		return (extension.CatalogProvider{Class: ids.OperatorClassID}).Validate(v, d)
 	}
 	return nil

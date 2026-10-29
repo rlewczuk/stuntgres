@@ -152,9 +152,10 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, slot := range []int{0, 1, 2, 3, 5} {
-		if record.Members[i].Slot != slot || record.Members[i].Schema != "public" {
-			t.Fatal("owner metadata lost installed slot/schema", record.Members[i])
+	record = extensionOwnerRecipeOrder(record)
+	for i, declaration := range []int{0, 1, 2, 3, 4, 5} {
+		if record.Members[i].Declaration == nil || *record.Members[i].Declaration != declaration || record.Members[i].Schema != "public" {
+			t.Fatal("owner metadata lost immutable declaration/schema", record.Members[i])
 		}
 	}
 	before := stage.Catalog.State
@@ -178,9 +179,9 @@ func extensionOwnershipImportUnits(t *testing.T) {
 		case "member_namespace":
 			records[0].Members[0].Schema = "pg_catalog"
 		case "member_slot":
-			records[0].Members[0].Slot = len(ext.Members)
+			records[0].Members[0].Declaration = new(len(ext.Installation.Members))
 		case "duplicate_slot":
-			records[0].Members[1].Slot = records[0].Members[0].Slot
+			records[0].Members[1].Declaration = records[0].Members[0].Declaration
 		case "missing_member":
 			records[0].Members = records[0].Members[1:]
 		}
@@ -232,7 +233,9 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	ownerRecord := record
 	ownerRecord.Members = append([]extension.MemberOwner(nil), record.Members...)
 	for i := range ownerRecord.Members {
-		ownerRecord.Members[i].Owner = originalOwner.Name
+		if ownerRecord.Members[i].Declaration != nil && ownerRecord.Members[i].Owner != "" {
+			ownerRecord.Members[i].Owner = originalOwner.Name
+		}
 	}
 	if err := schemacmds.ImportExtensionOwners(imported, context.Background(), replay, []extension.OwnerRecord{ownerRecord}); err != nil {
 		t.Fatal(err)

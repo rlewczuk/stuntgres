@@ -10,21 +10,25 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func ChooseAssociatedArrayName(name string, occupied func(string) bool) string {
+// AssociatedArrayNameCandidate is the single identifier construction rule used
+// both by the SQL owner and by logical replay's finite naming-trace solver.
+func AssociatedArrayNameCandidate(name string, suffix uint64) string {
+	tail := ""
+	if suffix != 0 {
+		tail = fmt.Sprintf("_%d", suffix)
+	}
 	prefix := name
-	for len(prefix) > 62 {
+	for len(prefix) > 62-len(tail) {
 		_, width := utf8.DecodeLastRuneInString(prefix)
 		prefix = prefix[:len(prefix)-width]
 	}
-	arrayName := "_" + prefix
-	for suffix := 1; occupied(arrayName); suffix++ {
-		tail := fmt.Sprintf("_%d", suffix)
-		prefix := name
-		for len(prefix) > 62-len(tail) {
-			_, width := utf8.DecodeLastRuneInString(prefix)
-			prefix = prefix[:len(prefix)-width]
-		}
-		arrayName = "_" + prefix + tail
+	return "_" + prefix + tail
+}
+
+func ChooseAssociatedArrayName(name string, occupied func(string) bool) string {
+	arrayName := AssociatedArrayNameCandidate(name, 0)
+	for suffix := uint64(1); occupied(arrayName); suffix++ {
+		arrayName = AssociatedArrayNameCandidate(name, suffix)
 	}
 	return arrayName
 }

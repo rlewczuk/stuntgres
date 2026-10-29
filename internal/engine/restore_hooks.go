@@ -47,6 +47,8 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "CREATE FUNCTION", Admit: control.AdmitKind[*restoreRun, *parser.CreateFunction]},
 	{Name: "CREATE AGGREGATE", Admit: control.AdmitKind[*restoreRun, *parser.CreateAggregate]},
 	{Name: "CREATE EXTENSION", Admit: control.AdmitKind[*restoreRun, *parser.CreateExtension]},
+	{Name: "extension replay DDL", Admit: control.AdmitExtension[*restoreRun]},
+	{Name: "relation identity replay", Admit: control.AdmitRelationIdentity[*restoreRun]},
 	{Name: "ALTER MATERIALIZED VIEW", Admit: control.AdmitStatement[*restoreRun](control.CheckAlterView)},
 	{Name: "CREATE VIEW", Admit: control.AdmitStatement[*restoreRun](control.CheckCreateView)},
 	{Name: "CREATE MATERIALIZED VIEW", Admit: control.AdmitStatement[*restoreRun](control.CheckCreateQueryTable)},

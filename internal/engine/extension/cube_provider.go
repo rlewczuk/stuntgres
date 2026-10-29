@@ -57,9 +57,12 @@ type cubeRoutineSpec struct {
 	source string
 }
 
-// Key the operator backings explicitly: later routine additions are not backings.
+// Key released dependency and operator backing roles independently of later additions.
 const (
-	cubeRawCoordinateRoutineIndex = 19
+	cubeFloat8RoutineIndex           = 9
+	cubeAppendFloat8RoutineIndex     = 13
+	cubeLowerCoordinateRoutineIndex  = 17
+	cubeRawCoordinateRoutineIndex    = 19
 	cubeSignedCoordinateRoutineIndex = 20
 )
 
@@ -73,17 +76,17 @@ var cubeRoutines = [...]cubeRoutineSpec{
 	{CubeComparisonNames[4], [3]sqltype.ID{0, 0}, 2, sqltype.Bool, "cube_gt"},
 	{CubeComparisonNames[5], [3]sqltype.ID{0, 0}, 2, sqltype.Bool, "cube_ge"},
 	{CubeComparisonNames[6], [3]sqltype.ID{0, 0}, 2, sqltype.Int4, "cube_cmp"},
-	{"cube", [3]sqltype.ID{sqltype.Float8}, 1, 0, "cube_f8"},
+	cubeFloat8RoutineIndex: {"cube", [3]sqltype.ID{sqltype.Float8}, 1, 0, "cube_f8"},
 	{"cube", [3]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, 0, "cube_f8_f8"},
 	{"cube", [3]sqltype.ID{1022}, 1, 0, "cube_a_f8"},
 	{"cube", [3]sqltype.ID{1022, 1022}, 2, 0, "cube_a_f8_f8"},
-	{"cube", [3]sqltype.ID{0, sqltype.Float8}, 2, 0, "cube_c_f8"},
+	cubeAppendFloat8RoutineIndex: {"cube", [3]sqltype.ID{0, sqltype.Float8}, 2, 0, "cube_c_f8"},
 	{"cube", [3]sqltype.ID{0, sqltype.Float8, sqltype.Float8}, 3, 0, "cube_c_f8_f8"},
 	{"cube_dim", [3]sqltype.ID{0}, 1, sqltype.Int4, "cube_dim"},
 	{"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool, "cube_is_point"},
-	{"cube_ll_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_ll_coord"},
+	cubeLowerCoordinateRoutineIndex: {"cube_ll_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_ll_coord"},
 	{"cube_ur_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_ur_coord"},
-	cubeRawCoordinateRoutineIndex: {"cube_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord"},
+	cubeRawCoordinateRoutineIndex:    {"cube_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord"},
 	cubeSignedCoordinateRoutineIndex: {"cube_coord_llur", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord_llur"},
 	{"cube_subset", [3]sqltype.ID{0, 1007}, 2, 0, "cube_subset"},
 	{"cube_union", [3]sqltype.ID{0, 0}, 2, 0, "cube_union"},
@@ -148,7 +151,7 @@ func (s cubeRoutineSpec) resultOID(cube sqltype.ID) ids.OID {
 	return ids.OID(s.result)
 }
 
-func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *CubeProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid cube manifest") }
 	if !currentManifest(v, ext) {
 		return invalid()
@@ -200,15 +203,8 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	if !ok || class.Address() != ext.Members[17] || class.Name() != "cube_ops" || class.Method != 403 || class.Family != family.Address().ObjectID || class.InputType != ids.OID(base.SQLType.ID()) || class.StorageType != 0 || !class.Default || class.Extension != ext.Address() || class.Namespace() != ext.TargetNamespace || class.Owner == (authorization.PrincipalRef{}) || class.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(class)) != class.Address() {
 		return invalid()
 	}
-	for i, operator := range cubeStrategies {
-		m, ok := v.FamilyOperator(class.Family, class.InputType, class.InputType, int16(i+1), 's')
-		if !ok || m.Family != class.Family || m.Left != class.InputType || m.Right != class.InputType || m.Number != int16(i+1) || m.Purpose != 's' || m.Operator != ext.Members[10+operator].ObjectID || m.Method != 403 || m.SortFamily != 0 || m.InternalOwner != class.Address() || m.Revision() == 0 {
-			return invalid()
-		}
-	}
-	support, ok := v.FamilySupport(class.Family, class.InputType, class.InputType, 1)
-	if !ok || support.Family != class.Family || support.Left != class.InputType || support.Right != class.InputType || support.Number != 1 || support.Function != ext.Members[9].ObjectID || support.InternalOwner != class.Address() || support.Revision() == 0 {
-		return invalid()
+	if err := validateCubeClassBindings(v, class, ext.Members); err != nil {
+		return err
 	}
 	if err := p.validateCoordinates(v, ext, base); err != nil {
 		return err
@@ -216,13 +212,24 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	return p.validateSpatial(v, ext, base)
 }
 
+func validateCubeClassBindings(v catalog.Read, class *catalog.OperatorClass, members []ids.ObjectAddress) error {
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid installed cube class binding") }
+	if len(members) != CubeMemberCount {
+		return invalid()
+	}
+	for i, operator := range cubeStrategies {
+		m, ok := v.FamilyOperator(class.Family, class.InputType, class.InputType, int16(i+1), 's')
+		if !ok || m.Family != class.Family || m.Left != class.InputType || m.Right != class.InputType || m.Number != int16(i+1) || m.Purpose != 's' || m.Operator != members[10+operator].ObjectID || m.Method != 403 || m.SortFamily != 0 || m.InternalOwner != class.Address() || m.Revision() == 0 {
+			return invalid()
+		}
+	}
+	support, ok := v.FamilySupport(class.Family, class.InputType, class.InputType, 1)
+	if !ok || support.Family != class.Family || support.Left != class.InputType || support.Right != class.InputType || support.Number != 1 || support.Function != members[9].ObjectID || support.InternalOwner != class.Address() || support.Revision() == 0 {
+		return invalid()
+	}
+	return nil
+}
+
 func (p *CubeProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	if _, err := ProcedureSymbol(v, proc); err != nil {
-		return err
-	}
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing cube routine installation")
-	}
-	return p.ValidateExtension(v, ext)
+	return ValidateProcedureOrigin(v, proc, p)
 }

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 )
@@ -92,12 +93,22 @@ func (s *StatementScope) AcquireRoutineDefinitionProviders(stage *CatalogStage) 
 		}
 		return true
 	}
+	view := stage.StageRead()
 	for address, descriptor := range stage.Descriptors() {
 		switch d := descriptor.(type) {
+		case *catalog.Type:
+			old, _ := stage.Base.Type(address)
+			if !stored.DependPinned(view, nil, address) && (old == nil || old.SQLType != d.SQLType || old.Origin != d.Origin) {
+				if err := pgcatalog.VisitTypeProcedureDependencies(s.Op.Context(), view, d, func(address ids.ObjectAddress) bool {
+					return stored.DependPinned(view, nil, address) || add(address)
+				}); err != nil {
+					return err
+				}
+			}
 		case *catalog.Procedure:
 			old, _ := stage.Base.Procedure(address)
 			if old == nil || old.SQL != d.SQL || old.SQLBody != d.SQLBody || old.SQLDefaults != d.SQLDefaults || old.Aggregate != d.Aggregate {
-				catalog.VisitProcedureDefinitionDependencies(d, add)
+				catalog.VisitProcedureDefinitionDependencies(view, d, add)
 			}
 		case *catalog.Operator:
 			old, _ := stage.Base.Operator(address)

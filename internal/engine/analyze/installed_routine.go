@@ -164,17 +164,13 @@ func (r installedExtensionRoutine) Validate() error {
 	case extension.EarthdistanceProviderOf(p) != nil:
 		return extension.StockEarthdistance.ValidateProcedure(r.catalog, p)
 	case extension.UnaccentProviderOf(p) == extension.StockUnaccent:
-		ext, ok := r.catalog.Extension(p.Extension)
-		if !ok {
-			return fmt.Errorf("stuntgres: missing unaccent installation")
-		}
-		return extension.StockUnaccent.ValidateExtension(r.catalog, ext)
+		return (extension.CatalogProvider{Class: ids.ProcedureClassID}).Validate(r.catalog, p)
 	}
 	return fmt.Errorf("stuntgres: invalid installed routine")
 }
 
 func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
-	ext, ok := r.catalog.Extension(r.procedure.Extension)
+	ext, ok := catalog.OriginInstallation(r.procedure)
 	if !ok || extension.CubeProviderOf(r.procedure) != extension.StockCube || len(ext.Members) == 0 {
 		return nil
 	}
@@ -186,7 +182,7 @@ func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
 }
 
 func (r installedExtensionRoutine) EarthDescriptor() *sqltype.Descriptor {
-	ext, ok := r.catalog.Extension(r.procedure.Extension)
+	ext, ok := catalog.OriginInstallation(r.procedure)
 	if !ok || extension.EarthdistanceProviderOf(r.procedure) != extension.StockEarthdistance || len(ext.Members) != extension.EarthMemberCount {
 		return nil
 	}
@@ -362,6 +358,5 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 }
 
 func (r installedExtensionRoutine) CubeType() *sqltype.Descriptor {
-	ext := r.catalog.MustExtension(r.procedure.Extension)
-	return r.catalog.MustType(ext.Members[0]).SQLType
+	return r.CubeDescriptor()
 }

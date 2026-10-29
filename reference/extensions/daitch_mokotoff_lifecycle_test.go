@@ -218,7 +218,7 @@ func TestReferenceDaitchMokotoffControls(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, check)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(check))
 		daitchInventory(t, p, b, c)
-		extensionControlsFailures(t, p, c, b.Recorder, dump, check)
+		extensionControlsFailures(t, p, c, b.Recorder, "fuzzystrmatch", dump, check)
 		// A valid staged prefix followed by a genuine invalid provider version
 		// must not replace the executable current table/view/provider.
 		bad := "CREATE SCHEMA dm_addon; CREATE EXTENSION fuzzystrmatch SCHEMA dm_addon VERSION 'missing';"

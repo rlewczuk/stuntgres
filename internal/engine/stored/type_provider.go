@@ -32,44 +32,15 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 	if len(found) != 1 || found[0] != descriptor.Address() {
 		return fmt.Errorf("stuntgres: invalid type identity")
 	}
-	if t.Extension != (ids.ObjectAddress{}) {
-		parent, ok := view.Extension(t.Extension)
-		if !ok {
-			return fmt.Errorf("stuntgres: invalid installed type membership")
-		}
-		var err error
-		switch {
-		case parent.Name() == "tablefunc" && (t.SQLType.IsComposite() || t.SQLType.IsArray()):
-			_, err = extension.MemberTypeRole(view, parent, t)
-		case parent.Name() == "hstore" && t.SQLType.IsHstore():
-			err = extension.StockHstore.ValidateExtension(view, parent)
-		case parent.Name() == "intarray" && t.SQLType.IsQueryInt():
-			err = extension.StockIntarray.ValidateExtension(view, parent)
-		case parent.Name() == "seg" && t.SQLType.IsSeg():
-			err = extension.StockSeg.ValidateExtension(view, parent)
-		case parent.Name() == "ltree" && (t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery()):
-			err = extension.StockLtree.ValidateExtension(view, parent)
-		case parent.Name() == "cube" && t.SQLType.IsCube():
-			err = extension.StockCube.ValidateExtension(view, parent)
-		case parent.Name() == "citext" && t.SQLType.IsCitext():
-			err = extension.StockCitext.ValidateExtension(view, parent)
-		case parent.Name() == "isn" && (t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc()):
-			_, err = extension.MemberTypeRole(view, parent, t)
-		case parent.Name() == "earthdistance" && (t.SQLType.IsDomain() || t.SQLType.IsArray()):
-			err = extension.StockEarthdistance.ValidateExtension(view, parent)
-		case parent.Name() == "lo" && (t.SQLType.IsDomain() || t.SQLType.IsArray()):
-			err = extension.StockLo.ValidateExtension(view, parent)
-			if err == nil && t.Address() != parent.Members[0] && t.Address() != parent.Members[1] {
-				return fmt.Errorf("stuntgres: invalid installed lo type membership")
-			}
-		default:
-			return fmt.Errorf("stuntgres: invalid installed type membership")
-		}
-		if err != nil {
+	if err := catalog.ValidateExtensionMembership(view, t); err != nil {
+		return err
+	}
+	if t.Origin != nil {
+		if err := extension.ValidateTypeOrigin(view, t); err != nil {
 			return err
 		}
-	} else if t.SQLType.IsSeg() || t.SQLType.IsHstore() || t.SQLType.IsQueryInt() || (t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery()) || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() {
-		return fmt.Errorf("stuntgres: installed scalar type has no installation")
+	} else if t.SQLType.IsSeg() || t.SQLType.IsHstore() || t.SQLType.IsQueryInt() || t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery() || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() {
+		return fmt.Errorf("stuntgres: installed scalar type has no installation provenance")
 	}
 	if t.OwningRelation != (ids.ObjectAddress{}) {
 		relation, ok := view.Relation(t.OwningRelation)

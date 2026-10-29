@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/sqltype"
 )
 
 // RemapReplacementIdentities moves the candidate's colliding imported
@@ -19,18 +18,26 @@ import (
 // address. current is the published catalog the caller holds under
 // Engine.mu; exact immutable providers retained for temporary consumers are
 // kept as they are. It does nothing when mapping is empty.
-func RemapReplacementIdentities(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, procedure catalog.ProcedureRemapper) error {
+func RemapReplacementIdentities(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, remap *catalog.RoutineRemap) error {
 	if len(mapping) == 0 {
 		return nil
 	}
 	catalog.RemapDefaultSchemas(next, mapping)
 	capacity := next.DescriptorCount() + len(temporary)
 	procedureNames := next.ProcedureNames()
+	var descriptor func(catalog.Descriptor) catalog.Descriptor
+	var procedure catalog.ProcedureRemapper
+	if remap == nil {
+		descriptor = extension.DescriptorRemapper(mapping)
+		procedure = extension.ProcedureRemapper(descriptor, nil, nil)
+	} else {
+		descriptor, procedure = remap.Descriptor, remap.Procedure
+		if descriptor == nil || procedure == nil {
+			return fmt.Errorf("stuntgres: missing coherent replacement remap")
+		}
+	}
 	originals := next.ResetMaps()
 	next.BeginBulkLoad(capacity)
-	if procedure == nil {
-		procedure = extension.ProcedureRemapper(mapping, nil, nil)
-	}
 	err := func() error {
 		defer next.EndBulkLoad()
 		for a, d := range originals {
@@ -54,7 +61,7 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 					return err
 				}
 			} else {
-				d = extension.RemapDescriptor(remapped, mapping)
+				d = descriptor(remapped)
 			}
 			next.SetDescriptor(target, d)
 			next.BindName(catalog.DescriptorNameKey(d), target)
@@ -106,20 +113,6 @@ func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddr
 		if target != a || n.Wrapper != r.Wrapper || n.Server != r.Server || n.Handler != r.Handler || n.Validator != r.Validator || n.ObjectName != r.ObjectName {
 			d = &n
 		}
-	case *catalog.Cast:
-		n := *r
-		n.OID = target.ObjectID
-		for _, field := range []*ids.ObjectAddress{&n.Function, &n.InputCast, &n.ResultCast, &n.GeneratedRange, &n.Extension} {
-			if mapped, ok := mapping[*field]; ok {
-				*field = mapped
-			}
-		}
-		for _, field := range []*sqltype.ID{&n.Source, &n.Target} {
-			if mapped, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(*field)}]; ok {
-				*field = sqltype.ID(mapped.ObjectID)
-			}
-		}
-		d = &n
 	case *catalog.Namespace:
 		if target == a && d == current.State().Get(a) && stored.DependPinned(current, nil, a) {
 			// Preflight retained this exact immutable namespace authority.

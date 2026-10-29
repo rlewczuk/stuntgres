@@ -26,7 +26,7 @@ func CitextSignature(id sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
 }
 
-func (p *CitextProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *CitextProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid citext manifest") }
 	if !currentManifest(v, ext) {
 		return invalid()
@@ -74,12 +74,5 @@ func (p *CitextProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 }
 
 func (p *CitextProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	if _, err := ProcedureSymbol(v, proc); err != nil {
-		return err
-	}
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing citext codec installation")
-	}
-	return p.ValidateExtension(v, ext)
+	return ValidateProcedureOrigin(v, proc, p)
 }

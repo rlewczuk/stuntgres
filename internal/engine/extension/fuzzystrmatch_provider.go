@@ -35,7 +35,7 @@ var FuzzystrmatchMembers = [...]struct {
 	{"difference", "25,25", 23, "difference"},
 }
 
-func (p *FuzzystrmatchProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *FuzzystrmatchProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
 	count := len(FuzzystrmatchMembers)
 	if ext.Version == "1.1" {
@@ -60,20 +60,5 @@ func (p *FuzzystrmatchProvider) ValidateExtension(v catalog.Read, ext *catalog.E
 }
 
 func (p *FuzzystrmatchProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing fuzzystrmatch installation")
-	}
-	if err := p.ValidateExtension(v, ext); err != nil {
-		return err
-	}
-	if v.Get(proc.Address()) != proc || FuzzystrmatchProviderOf(proc) != p {
-		return fmt.Errorf("stuntgres: foreign fuzzystrmatch procedure")
-	}
-	for _, address := range ext.Members {
-		if address == proc.Address() {
-			return nil
-		}
-	}
-	return fmt.Errorf("stuntgres: nonmember fuzzystrmatch procedure")
+	return ValidateProcedureOrigin(v, proc, p)
 }

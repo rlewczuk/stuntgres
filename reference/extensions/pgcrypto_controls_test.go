@@ -226,7 +226,7 @@ func pgcryptoReplayFailure(t *testing.T, script, name string) string {
 	case "version":
 		return strings.Replace(script, "VERSION '1.4'", "VERSION 'missing'", 1)
 	case "metadata":
-		return strings.Replace(script, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1)
+		return strings.Replace(script, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1)
 	case "provider":
 		return script + "\nCREATE EXTENSION nonexistent_provider;"
 	case "sql":
@@ -247,34 +247,26 @@ func pgcryptoInvalidOwnerKinds() []string {
 
 func pgcryptoInvalidOwnerDump(t *testing.T, dump, kind string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v2 "
-	var line string
-	for _, candidate := range strings.Split(dump, "\n") {
-		if strings.HasPrefix(candidate, marker) {
-			line = candidate
-			break
-		}
-	}
-	if line == "" {
-		t.Fatal("missing extension owner manifest")
-	}
-	payload, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(line, marker))
-	if err != nil {
-		t.Fatal(err)
-	}
+	const marker = "-- stuntgres-extension-owners-v3 "
+	start, end, payload := fixture.CatalogExtensionOwnerDirective(t, dump, "pgcrypto", true)
+	line := dump[start:end]
 	type member struct {
-		Kind      string `json:"kind"`
-		Slot      int    `json:"slot"`
-		Schema    string `json:"schema"`
-		Name      string `json:"name"`
-		Signature string `json:"signature"`
-		Owner     string `json:"owner"`
+		Kind        string          `json:"kind"`
+		Declaration *int            `json:"declaration,omitempty"`
+		Version     string          `json:"version"`
+		Extension   string          `json:"extension"`
+		ACL         json.RawMessage `json:"acl,omitempty"`
+		Schema      string          `json:"schema"`
+		Name        string          `json:"name"`
+		Signature   string          `json:"signature"`
+		Owner       string          `json:"owner"`
 	}
 	type manifest struct {
 		Name    string   `json:"name"`
 		Schema  string   `json:"schema"`
 		Version string   `json:"version"`
 		Owner   string   `json:"owner"`
+		Present bool     `json:"present"`
 		Members []member `json:"members"`
 	}
 	var record manifest
@@ -292,7 +284,7 @@ func pgcryptoInvalidOwnerDump(t *testing.T, dump, kind string) string {
 	case "duplicate":
 		record.Members[1] = record.Members[0]
 	case "slot":
-		record.Members[0].Slot = -1
+		record.Members[0].Declaration = new(-1)
 	case "schema":
 		record.Members[0].Schema = "pgcrypto_absent_schema"
 	case "name":

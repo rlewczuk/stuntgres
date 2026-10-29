@@ -250,7 +250,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		return old
 	}
 	root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "a", Usage: call.Provider.ResultUsage()}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{call}}
-	mapper := &stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+	mapper := &stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), nil, nil)}
 	mapped, err := mapper.Query(root)
 	if err != nil {
 		t.Fatal(err)

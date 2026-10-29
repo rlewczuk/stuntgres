@@ -285,6 +285,12 @@ type Producer func(Input) ([][]sqltype.Value, error)
   OIDVECTOR `proargtypes` built from each routine's input signature, and OID `provariadic`.
   Routine cost preserves explicit immutable builtin declaration costs, falling
   back to one for C/internal and one hundred for SQL/PL declarations.
+  Nullable `probin` projects immutable `RoutineDisplay.Binary` when `HasBinary`
+  is true, and SQL NULL otherwise; it never uses current extension membership
+  or a runtime library lookup. The selected
+  tablefunc and pageinspect producers retain their actual released
+  `$libdir/tablefunc` and `$libdir/pageinspect` paths; unrepresented library
+  declarations and internal routines project SQL NULL.
   SQL/PL formal names/types/modes come from `proc.Formals`; fixed native OUT
   types and complete names come from the actual builtin or installed declaration.
   Builtin input names have one immutable declaration owner. `parameters` and
@@ -664,7 +670,7 @@ backing use `make check RUN='^TestPGPolicies'`.
 | `ViewDefinition`, `IndexDefinition`, `VisitRuleDefinitions` | current-identity stored definition rendering; rule visitor omits exact `_RETURN` before rendering |
 | `ColumnExpression`, `ColumnUpdatable` | captured stored-expression display and metadata-only view/rule/foreign capability |
 | `ViewCapabilities` | structural event and actual trigger facts, bridging stored views and FDW handler interfaces without query execution |
-| `Pinned`, `OperatorSeeded`, `OperatorDependencies`, `TypeProviderProcedure` | pin decisions, the builtin operator inventory and operator dependencies owned by `routine`, extension type providers |
+| `Pinned`, `OperatorSeeded`, `OperatorDependencies`, `InstalledProcedure` | pin decisions, builtin operator inventory and dependencies owned by `routine`, and genuine installed routine ABI dependencies independent of current membership |
 | `VisitSequenceDefinitions` | sequence definitions with the statement's journal overlay (`pg_sequence`) |
 
 `VisitCopyProgress` supplies cluster-wide, command-lifetime facts captured under
@@ -725,6 +731,24 @@ catalog writes or bypass a provider's independent backing-source checks.
   default-expression dependencies retain their separate capture-pass rows,
   including column/subobject identities. Materialization suppresses pinned
   prerequisites without globally deduplicating these independent passes.
+  Released provider body helpers use that same lower catalog dependency visitor;
+  language-handler and common membership edges retain their separate meanings.
+  Installed scalar type facts validate through the catalog owner's registered
+  type and procedure class providers, including each genuine codec declaration.
+  `VisitTypeProcedureDependencies` shares the distinct nonzero input, output,
+  receive, send, typmod, analyze and subscript NORMAL references from those
+  authentic `TypeFacts` with DROP discovery and definition consumers. Visitation
+  uses fixed local storage, stops on request and propagates cancellation or
+  provider failure. Dependent domains and arrays contribute only their own
+  resulting facts; array-to-element INTERNAL ownership remains separate.
+  The supplied catalog must own the exact visited SQLType generation. Retirement
+  callers supply their coherent retained metadata projection, not a predecessor
+  catalog paired with a staged type; provider and codec validation still read
+  that same supplied graph, without admitting foreign or stale generations.
+  Missing registered owners are errors, not skipped validation. SRF and UUID
+  declaration metadata use that same procedure owner; the extension metadata
+  interface is not a callable-validation capability. This projection layer
+  does not import extension implementation packages.
 - `pg_largeobject` (2613): actual immutable stored chunks, each borrowed chunk
   copied once into an owned BYTEA; holes are never materialized and per-object
   ACLs are not consulted (ordinary relation SELECT protects it).
@@ -1039,6 +1063,8 @@ a hash root alone does not select that access method.
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
 - Column-domain usage producer units (core): `RUN='^TestInfoColumnDomainUsage'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
+- Type procedure dependency ownership and retirement (composed engine):
+  `RUN='^TestTypeProcedureDependencies'`.
 - Wait-event definition units: `RUN='^TestPGWaitEvents'`
 - Wait-event definition public scenarios: `RUN='^TestReferencePGWaitEvents'`
 - Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations)'`

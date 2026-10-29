@@ -62,19 +62,26 @@ func CheckCreateTable(s *parser.CreateTable) error {
 	return nil
 }
 
-// CheckAlterDomain admits a qualified named domain CHECK addition. A
-// historical cast recipe may require a valid CHECK after CREATE DOMAIN.
-// Admission preserves its validity flag; ordinary ALTER owns binding and
-// validation against existing rows before the private stage can be published.
+// CheckAlterDomain admits qualified identity replay and a named CHECK addition.
+// A historical cast recipe may require a valid CHECK after CREATE DOMAIN.
+// Ordinary ALTER owns authorization, binding and validation against existing rows
+// before the private stage can be published.
 func CheckAlterDomain(raw *parser.AlterDomain) error {
+	if raw != nil && (raw.Action == parser.DomainRename || raw.Action == parser.DomainSetSchema) && !raw.IfExists && len(raw.Name.Parts) == 2 && !stagesTemporary("", raw.Name) {
+		return nil
+	}
 	if raw == nil || raw.Action != parser.DomainAddCheck || raw.Check == nil || raw.Check.NoInherit || raw.Check.Name.Text == "" || raw.Constraint != raw.Check.Name || raw.IfExists || raw.Mode != 0 || len(raw.Name.Parts) != 2 || raw.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(raw.Name.Parts[0].Text, "pg_temp_") {
 		return sqlError("0A000", "restore accepts only qualified named domain CHECK additions")
 	}
 	return dump.RestoreScalar(raw.Check.Expression, true)
 }
 
-// CheckAlterView admits only a materialized view extension dependency.
+// CheckAlterView admits materialized extension dependencies and qualified parent
+// identity operations used by associated-array replay.
 func CheckAlterView(s *parser.AlterView) error {
+	if (s.Action == "rename" || s.Action == "schema") && !s.IfExists && len(s.Name.Parts) == 2 && !stagesTemporary("", s.Name) {
+		return nil
+	}
 	if !s.Materialized || (s.Action != "depends" && s.Action != "no_depends") || s.IfExists {
 		return sqlError("0A000", "restore accepts only materialized extension dependency ALTER")
 	}

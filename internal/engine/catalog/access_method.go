@@ -10,6 +10,7 @@ import (
 // existing operation authority; it is never a PostgreSQL handler return datum.
 type AccessMethod struct {
 	ObjectAddress  ids.ObjectAddress
+	Extension      ids.ObjectAddress
 	ObjectRevision ids.DefinitionRevision
 	ObjectName     string
 	Handler        ids.OID

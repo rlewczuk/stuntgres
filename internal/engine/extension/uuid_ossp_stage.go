@@ -24,7 +24,9 @@ func (p *UUIDOsspProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 			return err
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: catalog.ProcedureSignature(member.Signature), Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: 2950, Volatility: member.Volatility, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.Name}, Implementation: p}
+		declaration := catalog.InstalledRoutineDeclaration{Parallel: 's'}
+		copy(declaration.ArgumentNames[:], member.ArgumentNames[:])
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: catalog.ProcedureSignature(member.Signature), Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: 2950, Volatility: member.Volatility, Strict: true, Installed: declaration, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.Name}, Implementation: p}
 		proc.Display.Binary, proc.Display.HasBinary = "$libdir/uuid-ossp", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}

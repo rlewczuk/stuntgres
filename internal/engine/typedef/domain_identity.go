@@ -135,6 +135,19 @@ func stageTypeIdentity(h StageHost, auth ddl.Authority, source parser.ObjectName
 			return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 		}
 	}
+	if err := stageTypeIdentityReplacement(h, old, namespace, name, moving, domainOnly, path); err != nil {
+		return err
+	}
+	tag := "ALTER TYPE"
+	if domainOnly {
+		tag = "ALTER DOMAIN"
+	}
+	ddl.RecordCommand(h.Stage(), tag, old.Address())
+	return nil
+}
+
+func stageTypeIdentityReplacement(h StageHost, old *catalog.Type, namespace ids.ObjectAddress, name string, moving, domainOnly bool, path []ids.ObjectAddress) error {
+	var err error
 	current := h.StageRead()
 	// Displacement may already have rebuilt this exact generation.
 	old = current.MustType(old.Address())
@@ -155,11 +168,9 @@ func stageTypeIdentity(h StageHost, auth ddl.Authority, source parser.ObjectName
 			return sqlError("42710", fmt.Sprintf(`type "%s" already exists in schema "%s"`, array.Name(), current.MustNamespace(namespace).Name()))
 		}
 	}
-	tag := "ALTER TYPE"
-	if domainOnly {
-		tag = "ALTER DOMAIN"
+	if old.SQLType.IsRange() || old.SQLType.IsMultirange() {
+		return stageRangeIdentity(h, old, namespace, name, moving)
 	}
-	ddl.RecordCommand(h.Stage(), tag, old.Address())
 	if old.SQLType.IsComposite() {
 		relation := *current.MustRelation(old.OwningRelation)
 		relation.ObjectName, relation.ObjectNamespace = name, namespace

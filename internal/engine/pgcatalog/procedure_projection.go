@@ -2,7 +2,6 @@ package pgcatalog
 
 import (
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -188,12 +187,9 @@ func procedureRow(in Input, d *catalog.Procedure) ([]sqltype.Value, error) {
 			return nil, err
 		}
 	}
-	if ext, ok := view.Extension(d.Extension); ok && d.Implementation != nil && (ext.Name() == "pgrowlocks" || ext.Name() == "intagg" && d.RoutineKind == catalog.FunctionRoutine && d.Signature == "1007" && d.Result == 23) {
-		if err := d.Implementation.ValidateExtension(view, ext); err != nil {
+	if installation, ok := catalog.OriginInstallation(d); ok && d.Implementation != nil && (installation.Provider == "pgrowlocks" || installation.Provider == "intagg" && d.RoutineKind == catalog.FunctionRoutine && d.Signature == "1007" && d.Result == 23) {
+		if err := validateInstalledProcedureOwner(view, d); err != nil {
 			return nil, err
-		}
-		if !slices.Contains(ext.Members, d.Address()) {
-			return nil, fmt.Errorf("stuntgres: nonmember set routine declaration")
 		}
 	}
 	boolean(procReturnsSet, d.ReturnsSet())

@@ -54,7 +54,7 @@ func ismn13ControlTarget(t *testing.T, p *fixture.Pair, c *sql.Conn, script []by
 		t.Fatal(err)
 	}
 	return target, tb, conn
- }
+}
 
 // Each failure owns a fresh fixture and its unchanged 30-second context. Slow
 // inventories must not consume a single shared deadline across serial cases.
@@ -104,10 +104,10 @@ func ismn13FailedReplacement(t *testing.T, kind string) {
 				t.Fatalf("reader Restore = %v", err)
 			}
 		case "ismn13_wrong_input_name":
-			// Procedure labels are mutable: valid metadata shape reaches
-			// the importer, which rejects the mismatching installed identity.
+			// This alteration duplicates another current symbolic routine identity
+			// in strict v3 metadata, so the codec rejects it before SQL replay.
 			var state interface{ SQLState() string }
-			if err == nil || err.Error() != "stuntgres: mismatching extension ownership identity" || errors.As(err, &state) {
+			if err == nil || err.Error() != "stuntgres: invalid extension owner metadata" || errors.As(err, &state) {
 				t.Fatalf("wrong input identity Restore must return exact ordinary control error: %v", err)
 			}
 		default:

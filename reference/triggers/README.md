@@ -94,8 +94,13 @@ bag with enabled but unmatched end/drop/rewrite inventory and no callbacks.
 The unaccent1.1 witnesses use outer installation, ordinary same-member ALTER
 and same-version UPDATE: the exact already-installed notice accompanies an end
 callback with zero command rows and unchanged member definitions, identities
-and data. Arbitrary external SQL-script execution is a separate mechanism,
-not fabricated bundled-provider history.
+and data. Genuine extension ADD/DROP and relocation expose only the outer
+extension address, with a NULL schema and no synthetic per-member commands;
+same-schema relocation still calls the matching end trigger with an empty bag.
+The ownership seam retains ordinary member identity, callable behavior and
+normal dependencies, and checks failed duplicate membership without audit or
+catalog publication. Arbitrary external SQL-script execution is a separate
+mechanism, not fabricated bundled-provider history.
 Typed OID projections use the shared `OidReferenceRows`/`OidReferenceValue`
 contract: independently expected integers with raw native/pq carrier and OID
 metadata validation. Standalone maintenance witnesses do not introduce explicit
@@ -124,7 +129,7 @@ identities, exact internal/constraint/index/opposite-relation fields, both
 relations' trigger-presence flags and removal through held metadata reads.
 Select the family with `make check RUN='^TestReferencePGTrigger'` in either mode.
 
-Event-trigger family selector: `RUN='^TestReference(EventTrigger|PGEventTriggerCatalog)'`. Add
+Event-trigger family selector: `RUN='^TestReference(EventTrigger|PGEventTriggerCatalog|ExtensionOwnershipCommandInspection)'`. Add
 `REFERENCE=1` for the pinned PostgreSQL oracle. Direct, fresh-prepared and held
 utility handles share the same SQL definitions and independent expected rows,
 metadata, diagnostics and atomicity assertions.

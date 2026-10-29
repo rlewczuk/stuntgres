@@ -105,6 +105,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"tablefunc":     {"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"},
 					"pgrowlocks":    {"pgrowlocks", "1.2", nil, "show row-level locking information"},
 					"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
+					"plpgsql":       {"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"},
 					"pgcrypto":      {"pgcrypto", "1.4", nil, "cryptographic functions"},
 					"uuid-ossp":     {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
 				}
@@ -126,6 +127,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["pgrowlocks"] = []any{"pgrowlocks", "1.2", false, true, false, true, nil, nil, "show row-level locking information"}
 					expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 					expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}
+					expected["plpgsql"] = []any{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"}
 					expected["uuid-ossp"] = []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"}
 					versions := make(map[string][]any, len(expected)+1)
 					for name, row := range expected {
@@ -177,23 +179,14 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			}
 			assertAvailable(sources[12081], 12081, false)
 			assertAvailable(sources[12085], 12085, false)
-			if sources[ids.ExtensionClassID].Count() != 0 {
-				t.Error("old statement pg_extension must have no installed row")
-			}
+			assertInstalledExtensionFrontier(t, sources[ids.ExtensionClassID], map[string]string{"plpgsql": "1.0"})
 			for _, oid := range []ids.OID{12081, 12085, ids.ExtensionClassID} {
 				source := open(fresh, oid)
 				if oid != ids.ExtensionClassID {
 					assertAvailable(source, oid, true)
 					continue
 				}
-				if source.Count() != 1 {
-					t.Fatal("fresh statement must see exactly the genuine installation", source.Count())
-				}
-				name, nameErr := source.Anonymous[0][1].Text()
-				version, versionErr := source.Anonymous[0][5].Text()
-				if nameErr != nil || versionErr != nil || name != "unaccent" || version != "1.1" {
-					t.Fatal("fresh installed identity", name, version, nameErr, versionErr)
-				}
+				assertInstalledExtensionFrontier(t, source, map[string]string{"plpgsql": "1.0", "unaccent": "1.1"})
 			}
 		})
 	}
@@ -246,13 +239,7 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 			}
 			assert := func(source *exec.Source, oid ids.OID, version string) {
 				if oid == ids.ExtensionClassID {
-					if source.Count() != 1 {
-						t.Fatal("extension frontier count")
-					}
-					got, err := source.Anonymous[0][5].Text()
-					if err != nil || got != version {
-						t.Fatal("extension frontier", got, version, err)
-					}
+					assertInstalledExtensionFrontier(t, source, map[string]string{"plpgsql": "1.0", "fuzzystrmatch": version})
 					return
 				}
 				count := 0
@@ -294,6 +281,25 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 				assert(open(fresh, oid), oid, "1.2")
 			}
 		})
+	}
+}
+
+func assertInstalledExtensionFrontier(t *testing.T, source *exec.Source, expected map[string]string) {
+	t.Helper()
+	if source.Count() != len(expected) {
+		t.Fatal("extension frontier count", source.Count(), len(expected))
+	}
+	for _, row := range source.Anonymous {
+		name, nameErr := row[1].Text()
+		version, versionErr := row[5].Text()
+		want, ok := expected[name]
+		if nameErr != nil || versionErr != nil || !ok || version != want {
+			t.Fatal("installed extension frontier", name, version, want, nameErr, versionErr)
+		}
+		delete(expected, name)
+	}
+	if len(expected) != 0 {
+		t.Fatal("missing installed extension frontier", expected)
 	}
 }
 

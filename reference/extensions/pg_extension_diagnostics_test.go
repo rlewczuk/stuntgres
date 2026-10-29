@@ -10,6 +10,7 @@ import (
 
 func pgExtensionCanceled(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
+	oid := pgExtensionInstalled(t, p, b)
 	ctx, cancel := context.WithCancel(p.Ctx)
 	cancel()
 	rows, err := b.DB.QueryContext(ctx, pgExtensionProbe, pgExtensionAbsent)
@@ -41,7 +42,7 @@ func pgExtensionCanceled(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("Execute cancellation", err)
 	}
-	pgExtensionHeld(t, p, b, fixture.HeldStatement{Executor: b.DB, Statement: stmt, SQL: pgExtensionProbe}, 0)
+	pgExtensionHeld(t, p, b, fixture.HeldStatement{Executor: b.DB, Statement: stmt, SQL: pgExtensionProbe}, oid)
 }
 
 func pgExtensionMissing(t *testing.T, p *fixture.Pair, b fixture.Backend) {

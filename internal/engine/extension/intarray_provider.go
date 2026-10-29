@@ -26,7 +26,7 @@ func QueryIntSignature(id sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
 }
 
-func (p *IntarrayProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *IntarrayProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intarray manifest") }
 	if !currentManifest(v, ext) {
 		return invalid()
@@ -61,12 +61,5 @@ func (p *IntarrayProvider) ValidateExtension(v catalog.Read, ext *catalog.Extens
 }
 
 func (p *IntarrayProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	if _, err := ProcedureSymbol(v, proc); err != nil {
-		return err
-	}
-	ext, ok := v.Extension(proc.Extension)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing intarray codec installation")
-	}
-	return p.ValidateExtension(v, ext)
+	return ValidateProcedureOrigin(v, proc, p)
 }

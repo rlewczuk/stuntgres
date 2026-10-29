@@ -58,7 +58,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.5" || len(ext.Members) != 48 || base.Extension != ext.Address() || !base.SQLType.IsCube() || base.Owner != ext.Owner {
+	if ext.Version != "1.5" || len(ext.Members) != 49 || len(ext.Installation.Members) != 48 || base.Extension != ext.Address() || !base.SQLType.IsCube() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	array, ok := view.LookupArray(base.SQLType)
@@ -140,7 +140,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 48 || !arrayInternal {
+	if len(members) != 49 || !arrayInternal || !members[arrayAddress] {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -168,30 +168,35 @@ func TestCubeProviderIdentity(t *testing.T) {
 	if err != nil || len(records) != 1 {
 		t.Fatal("owner metadata comments", records, err)
 	}
-	record := records[0]
-	if record.Name != "cube" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 48 {
+	record := extensionOwnerRecipeOrder(records[0])
+	if record.Name != "cube" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 49 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {
-		if member.Owner != "postgres" {
+		want := "postgres"
+		if member.Declaration == nil {
+			want = ""
+		}
+		if member.Owner != want {
 			t.Fatal("member owner", member)
 		}
 	}
 	wantSignatures := map[string]bool{
-		"cube_in(2275)": true, "cube_out(cube)": true, "cube": true,
-		"cube(701)": true, "cube(701,701)": true, "cube(1022)": true, "cube(1022,1022)": true,
-		"cube(cube,701)": true, "cube(cube,701,701)": true,
-		"cube_dim(cube)": true, "cube_is_point(cube)": true,
-		"cube_ll_coord(cube,23)": true, "cube_ur_coord(cube,23)": true,
-		"cube_coord(cube,23)": true, "cube_coord_llur(cube,23)": true,
-		"cube_subset(cube,1007)": true, "cube_union(cube,cube)": true,
-		"cube_inter(cube,cube)": true, "cube_enlarge(cube,701,23)": true,
+		"cube_in(pg_catalog.cstring)": true, "cube_out(public.cube)": true, "cube": true, "_cube": true,
+		"cube(double precision)": true, "cube(double precision, double precision)": true,
+		"cube(double precision[])": true, "cube(double precision[], double precision[])": true,
+		"cube(public.cube, double precision)": true, "cube(public.cube, double precision, double precision)": true,
+		"cube_dim(public.cube)": true, "cube_is_point(public.cube)": true,
+		"cube_ll_coord(public.cube, integer)": true, "cube_ur_coord(public.cube, integer)": true,
+		"cube_coord(public.cube, integer)": true, "cube_coord_llur(public.cube, integer)": true,
+		"cube_subset(public.cube, integer[])": true, "cube_union(public.cube, public.cube)": true,
+		"cube_inter(public.cube, public.cube)": true, "cube_enlarge(public.cube, double precision, integer)": true,
 		"->": true, "~>": true,
-		"cube_overlap(cube,cube)": true, "cube_contains(cube,cube)": true, "cube_contained(cube,cube)": true,
-		"cube_distance(cube,cube)": true, "distance_taxicab(cube,cube)": true, "distance_chebyshev(cube,cube)": true,
+		"cube_overlap(public.cube, public.cube)": true, "cube_contains(public.cube, public.cube)": true, "cube_contained(public.cube, public.cube)": true,
+		"cube_distance(public.cube, public.cube)": true, "distance_taxicab(public.cube, public.cube)": true, "distance_chebyshev(public.cube, public.cube)": true,
 		"&&": true, "@>": true, "<@": true, "<->": true, "<#>": true, "<=>": true,
-		"cube_eq(cube,cube)": true, "cube_ne(cube,cube)": true, "cube_lt(cube,cube)": true,
-		"cube_le(cube,cube)": true, "cube_gt(cube,cube)": true, "cube_ge(cube,cube)": true, "cube_cmp(cube,cube)": true,
+		"cube_eq(public.cube, public.cube)": true, "cube_ne(public.cube, public.cube)": true, "cube_lt(public.cube, public.cube)": true,
+		"cube_le(public.cube, public.cube)": true, "cube_gt(public.cube, public.cube)": true, "cube_ge(public.cube, public.cube)": true, "cube_cmp(public.cube, public.cube)": true,
 		"=": true, "<>": true, "<": true, "<=": true, ">": true, ">=": true,
 		"operator_class:cube_ops(btree)": true, "operator_family:cube_ops(btree)": true,
 	}

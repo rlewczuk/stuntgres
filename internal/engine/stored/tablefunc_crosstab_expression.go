@@ -17,16 +17,20 @@ func ValidateInstalledTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr, v
 		if i == 1 {
 			id = sqltype.Int4
 		}
-		if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage().Type.ID() != id {
+		typ, ok := v.LookupType(id)
+		if !ok || arg == nil || arg.ResultUsage().Type != typ {
 			return fmt.Errorf("stuntgres: invalid crosstab argument")
 		}
 	}
-	current, _, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
+	current, symbol, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
 	if err != nil {
 		return err
 	}
 	if err := extension.ValidateTablefuncIdentity(v, current, n.Ref); err != nil {
 		return err
+	}
+	if !tablefuncCrosstabSymbol(symbol) {
+		return fmt.Errorf("stuntgres: invalid crosstab procedure symbol")
 	}
 	signature := catalog.ProcedureSignature("25")
 	if len(n.Args) == 2 {
@@ -48,4 +52,12 @@ func ValidateInstalledTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr, v
 		return fmt.Errorf("stuntgres: invalid crosstab record result")
 	}
 	return nil
+}
+
+func tablefuncCrosstabSymbol(symbol string) bool {
+	switch symbol {
+	case "crosstab", "crosstab2", "crosstab3", "crosstab4":
+		return true
+	}
+	return false
 }

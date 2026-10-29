@@ -98,6 +98,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			"pgrowlocks":    {"pgrowlocks", "1.2", nil, "show row-level locking information"},
 			"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
 			"pgcrypto":      {"pgcrypto", "1.4", nil, "cryptographic functions"},
+			"plpgsql":       {"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"},
 			"uuid-ossp":     {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
 		}
 		if oid == 12085 {
@@ -118,6 +119,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			expected["pgrowlocks"] = []any{"pgrowlocks", "1.2", false, true, false, true, nil, nil, "show row-level locking information"}
 			expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 			expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}
+			expected["plpgsql"] = []any{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"}
 			expected["uuid-ossp"] = []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"}
 			versions := make(map[string][]any, len(expected)+1)
 			for name, row := range expected {

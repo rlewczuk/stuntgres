@@ -104,9 +104,9 @@ func (p JournalCapture) observeNamespace(ns ids.ObjectAddress) error {
 }
 
 // FenceNames observes the candidate's touched names, then fences the
-// committed index set of each parent in indexParents, observing the parent's
-// current indexes first, and the committed members of each removed
-// namespace.
+// committed index set of each parent in indexParents (nil means no index
+// parents), observing the parent's current indexes first, and the committed
+// members of each removed namespace.
 func (p JournalCapture) FenceNames(indexParents iter.Seq[ids.ObjectAddress]) error {
 	c := p.Journal
 	for k, a := range p.Candidate.Touched() {
@@ -117,15 +117,17 @@ func (p JournalCapture) FenceNames(indexParents iter.Seq[ids.ObjectAddress]) err
 			c.Names[k] = p.Committed.NameAddress(k)
 		}
 	}
-	for parent := range indexParents {
-		for address, index := range p.Current.Relations() {
-			if index.SQLIndex != nil && index.SQLIndex.Parent == parent {
-				if err := p.Observe(address, index); err != nil {
-					return err
+	if indexParents != nil {
+		for parent := range indexParents {
+			for address, index := range p.Current.Relations() {
+				if index.SQLIndex != nil && index.SQLIndex.Parent == parent {
+					if err := p.Observe(address, index); err != nil {
+						return err
+					}
 				}
 			}
+			c.AddFence(NewIndexSetFence(p.Committed, parent))
 		}
-		c.AddFence(NewIndexSetFence(p.Committed, parent))
 	}
 	for a := range p.Candidate.Removals() {
 		if a.ClassID == ids.NamespaceClassID {

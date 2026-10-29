@@ -134,6 +134,9 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		if err := extension.StockIntagg.ValidateExtension(e.Catalog.Read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
 		}
+		if err := extension.StockIntagg.ValidateProcedure(e.Catalog.Read(state), &bad); err == nil {
+			t.Fatal("invalid owned aggregate procedure admitted", owned)
+		}
 	}
 	for _, member := range ext.Members {
 		bad := *view.MustProcedure(member)
@@ -158,6 +161,11 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	}
 	if err := catalog.ValidateDefinitionOIDs(e.Catalog.Read(collision)); err == nil {
 		t.Fatal("global definition collision omitted helper")
+	}
+	missingNamespace := catalog.CloneState(view.State())
+	missingNamespace.RemoveDescriptor(proc.Namespace())
+	if err := extension.StockIntagg.ValidateProcedure(e.Catalog.Read(missingNamespace), proc); err == nil {
+		t.Fatal("live helper with retired namespace admitted")
 	}
 }
 
@@ -262,6 +270,24 @@ func TestPGAggregateIntaggRelabelIdentity(t *testing.T) {
 	if renamed.Aggregate != original.Aggregate || renamed.Aggregate.Helpers[0].Namespace != ext.TargetNamespace.ObjectID {
 		t.Fatal("move rewrote hidden helper authority")
 	}
+	for _, helper := range renamed.Aggregate.Helpers {
+		helperNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.Namespace}
+		for _, signature := range []*catalog.ProcedureSignature{nil, &helper.Signature} {
+			selected, count := regobj.SelectRoutine(current, analyze.NamespaceSelection{Qualified: helperNamespace}, helper.Name, signature)
+			if count != 1 || selected != helper {
+				t.Fatal("parent-only move lost current helper identity", selected, count, helper)
+			}
+			if selected, count := regobj.SelectRoutine(current, analyze.NamespaceSelection{Qualified: renamed.Namespace()}, helper.Name, signature); count != 0 {
+				t.Fatal("parent namespace invented a helper alias", selected, count)
+			}
+		}
+		if got := regobj.ProcSpelling(current, []ids.ObjectAddress{helperNamespace}, helper.ID); got != helper.Name {
+			t.Fatal("visible helper did not retain its own namespace", got)
+		}
+		if got := regobj.ProcSpelling(current, []ids.ObjectAddress{renamed.Namespace()}, helper.ID); got != "public."+helper.Name {
+			t.Fatal("invisible live helper lost its qualified identity", got)
+		}
+	}
 	mapped := extension.RemapDescriptor(&renamed, map[ids.ObjectAddress]ids.ObjectAddress{
 		renamed.Namespace(): {ClassID: ids.NamespaceClassID, ObjectID: 910001},
 	}).(*catalog.Procedure)
@@ -274,8 +300,15 @@ func TestPGAggregateIntaggRelabelIdentity(t *testing.T) {
 		t.Fatal("equivalent COW manifest rejected", err)
 	}
 	copy.Members[0], copy.Members[1] = copy.Members[1], copy.Members[0]
+	if err := extension.StockIntagg.ValidateExtension(current, &copy); err != nil {
+		t.Fatal("current member order became execution authority", err)
+	}
+	forged := *ext.Installation
+	forged.Members = append([]ids.ObjectAddress(nil), forged.Members...)
+	forged.Members[0], forged.Members[1] = forged.Members[1], forged.Members[0]
+	copy.Installation = &forged
 	if err := extension.StockIntagg.ValidateExtension(current, &copy); err == nil {
-		t.Fatal("reordered manifest accepted")
+		t.Fatal("forged immutable aggregate recipe accepted")
 	}
 	if view.Get(original.Address()) != original || ext.TargetNamespace != original.Namespace() {
 		t.Fatal("source installation mutated")

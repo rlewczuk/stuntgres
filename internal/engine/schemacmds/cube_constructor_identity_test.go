@@ -89,7 +89,7 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 		}
 		return next
 	}
-	procedureMapper := extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil)
+	procedureMapper := extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), replacementProcedurePolicyFixture(source, target), nil)
 	for operation := first; operation <= last; operation++ {
 		formals, count := functions.CubeFormals(operation, base.SQLType, floating, array, integer, integers)
 		args := make([]expr.Expr, count)

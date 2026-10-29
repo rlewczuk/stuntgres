@@ -186,6 +186,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.LargeObjectProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.registerExtension("plpgsql", extension.StockPLpgSQL); err != nil {
+		return nil, err
+	}
 	for _, registration := range []struct {
 		name           string
 		implementation extension.Installer
@@ -332,7 +335,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, nil
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
 		return Description{}, nil
-	case *parser.CreateExtension, *parser.DropExtension, *parser.AlterExtensionUpdate:
+	case *parser.CreateExtension, *parser.DropExtension, *parser.AlterExtensionUpdate, *parser.AlterExtension:
 		return Description{}, nil
 	case *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
 		return Description{}, nil

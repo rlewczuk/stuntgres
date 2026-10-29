@@ -22,21 +22,13 @@ func extensionDump(t *testing.T, ctx context.Context, db *sql.DB) string {
 	}
 	return b.String()
 }
-func extensionControlsFailures(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, dump string, check fixture.Step) {
+func extensionControlsFailures(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, provider, dump string, check fixture.Step) {
 	t.Helper()
 	if again := extensionDump(t, p.Ctx, p.Native); again != dump {
 		t.Fatal("redump changed installed symbolic identities")
 	}
-	start := strings.Index(dump, "-- stuntgres-extension-owners-v2 ")
-	if start < 0 {
-		t.Fatal("missing owner metadata")
-	}
-	end := start + strings.Index(dump[start:], "\n")
-	payload := strings.TrimPrefix(dump[start:end], "-- stuntgres-extension-owners-v2 ")
-	data, err := base64.StdEncoding.DecodeString(payload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	const marker = "-- stuntgres-extension-owners-v3 "
+	start, end, data := fixture.CatalogExtensionOwnerDirective(t, dump, provider, true)
 	var record map[string]any
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
@@ -51,11 +43,11 @@ func extensionControlsFailures(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 		if err != nil {
 			t.Fatal(err)
 		}
-		return dump[:start] + "-- stuntgres-extension-owners-v2 " + base64.StdEncoding.EncodeToString(b) + dump[end:]
+		return dump[:start] + marker + base64.StdEncoding.EncodeToString(b) + dump[end:]
 	}
 	for _, script := range []string{
-		strings.Replace(dump, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1),
-		dump[:start] + "-- stuntgres-extension-owners-v2 !!!!" + dump[end:],
+		strings.Replace(dump, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1),
+		dump[:start] + marker + "!!!!" + dump[end:],
 		mutate("owner", "ext_missing_owner"), mutate("schema", "wrong_namespace"), mutate("version", "missing"), mutate("members", []any{}),
 		dump + dump[start:end] + "\n", "CREATE EXTENSION nonexistent_provider;",
 	} {

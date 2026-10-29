@@ -31,9 +31,12 @@ private frames, not catalog authority.
   COW identity/principal remaps share that immutable backing. Display is distinct
   from execution `Language` and supplies no capability. PL call handlers are nonstrict;
   inline and validator handlers are strict, all with zero execution Language.
-  Their shipped parallel-unsafe default belongs to immutable `Installed`
-  metadata; `Parallel` remains a mutable ALTER override, so native replay emits
-  only actual changes rather than restating bootstrap properties.
+  `PLHandler.ReleasedProcedure` supplies the single released C declaration for
+  both bootstrap and CREATE EXTENSION: explicit `$libdir/plpgsql` binary presence
+  and the immutable `Installed` parallel-unsafe default. Handler validation checks
+  these against the sealed canonical declaration. `Parallel` and `Cost` remain
+  mutable ALTER overrides, so native replay emits only actual changes rather than
+  restating bootstrap properties.
   `Procedure.ReturnsSet` reads intrinsic SQL/builtin/installed capability;
   `RowEstimate` applies positive canonical `Rows` overrides only to genuine set
   declarations, retaining released/provider defaults when no override exists.
@@ -256,8 +259,9 @@ private frames, not catalog authority.
   `InstallBuiltinProcedures` (then the native access methods),
   `InstallBuiltinDictionaries` (simple dictionary/runtime and simple/synonym templates),
   `InstallBuiltinTSConfigurations` (simple's genuine nineteen token mappings),
-  `Store.InstallBuiltinLanguagesLocked` (plpgsql and its handlers at allocated
-  OIDs, with creation-owned C display sources and canonical strictness),
+  `Store.InstallBuiltinLanguagesLocked` (the real nonrelocatable `plpgsql` 1.0
+  extension, its global language and three allocated C handlers with creation-owned
+  display sources, canonical strictness and genuine language-to-handler dependencies),
   `Store.InstallSnowballLocked` (allocated C helper/template/english_stem/english
   identities, compiled runtime supplied by core and real nineteen-token mapping),
   `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
@@ -282,6 +286,19 @@ private frames, not catalog authority.
   builds its own map. The helper binds and installs must not depend on engine
   options. Every store seeded with one share holds the same immutable index and
   name map.
+- **Extension authority** (`extension_origin.go`, `extension_membership.go`):
+  current `Extension.Members` and reciprocal descriptor links are separate from
+  immutable released `Installation`/`InstalledOrigin` execution provenance.
+  Membership mutation copies the entire recursive type/array/multirange or
+  relation/row-type set in one candidate. Canonical pre-origin declarations in
+  the same recipe spell deleted baseline objects during replay; they are never
+  live descriptors or current owner/ACL authority. Logical cohorts survive
+  origin-extension deletion and remap with one shared recipe backing, without
+  creating catalog dependencies or retaining sessions/resources.
+  Current type/operator/class/family authority validates destination principal
+  provenance and genuine backing routines. Immutable routine admission compares
+  the complete released declaration, including formal names and intrinsic body,
+  handler/support and dependency payloads; an e link or copied origin grants no ABI.
 - **Text-search descriptors** (`extension_catalog.go`, `dictionary.go`):
   dictionaries hold ordered decoded immutable options, actual owner/template and
   a catalog-free `DictionaryRuntime`. Its invocation-owned `fts.LexicalResult`
@@ -290,8 +307,15 @@ private frames, not catalog authority.
   from genuine extension membership; bootstrap simple and Snowball are not extensions.
   Allocated Snowball seeds retain private seed markers and typed helper authority
   across ordinary copies/remapping; canonical replay names/default options do not
-  derive from mutable labels. Seed classification excludes system roots from bulk
-  ownership and independent dump declarations.
+  derive from mutable labels. Helpers, template, dictionary and configuration may
+  have distinct current extension receivers or be detached; reciprocal membership
+  is checked by class admission, not intrinsic execution capability. Seed replay
+  authority is not pinning: allocated Snowball identities have ordinary normal
+  dependencies and DROP restrictions, whereas fixed simple/parser identities
+  remain pinned. Seed roots replay through their genuine initialized identities
+  rather than independent CREATE declarations.
+  This follows [REL_18_6 initdb setup_depend](https://github.com/postgres/postgres/blob/REL_18_6/src/bin/initdb/initdb.c):
+  `pg_stop_making_pinned_objects()` precedes loading `snowball_create.sql`.
   Templates are ownerless identities with mandatory LEXIZE and optional INIT;
   absent INIT is the zero address, never a synthetic dependency. Namespace and
   nonzero callback links are NORMAL dependencies. Public relabeling preserves
@@ -299,12 +323,17 @@ private frames, not catalog authority.
   Authorized installed-dictionary rename/schema changes preserve the original
   reciprocal extension member identity; mutable placement does not redefine the
   extension target namespace or the dictionary's template/provider authority.
-  `TSParser` owns current namespace/name/revision and five exact routine
-  identities, with no owner or ACL. The seeded default uses that same name index
-  and immutable replacement path as user parsers. Provider validation checks
-  signatures/results independently of native capability; checked descriptors
-  construct catalog-free, method-specific `fts.ParserRuntime` values. Namespace
-  and nonzero callback references are real declaration dependencies.
+  `TSParser` owns current namespace/name/revision, reciprocal extension membership
+  and five exact routine identities, with no owner, ACL or installed provenance.
+  Membership and namespace replacements retain the immutable callback payload;
+  callbacks and dependent configurations never become implicit members. The
+  seeded default3722 permits e-link changes while remaining pinned against DROP.
+  Provider validation checks supplied-view residency, exact signatures/results
+  and current reciprocal membership. Runtime admission retains the same intrinsic
+  descriptor/callback fences without a live extension-header or EXECUTE gate and
+  constructs catalog-free, method-specific `fts.ParserRuntime` values. Namespace
+  and nonzero callback references are real declaration dependencies; pg_depend
+  suppresses pinned referenced objects, not arbitrary pinned dependents.
   `TSConfiguration` owns parser identity and token-ID-sorted immutable mapping
   slices; each mapping owns its ordered dictionary identities, including repeats.
   COPY clones both slice levels, retains no source edge and shares only genuine
@@ -312,6 +341,10 @@ private frames, not catalog authority.
   principal domain, parser and dictionary authority; dependencies derive from the
   descriptor, so removing the final use releases a dictionary edge. Runtime
   filtering classification belongs to the immutable dictionary runtime, not names.
+  Configurations also carry the common reciprocal extension member link. Link
+  edits and mechanical namespace moves retain the exact parser and immutable
+  ordered mapping payload; parser/dictionary normal dependencies do not become
+  direct extension members. Current ownership remains independent of membership.
 - **Candidate** (`candidate.go`). The pure copy-on-write overlay of a catalog
   change over an immutable base `Read`; `CatalogStage` embeds it. `Create` and
   `Replace` run name-conflict and sticky relation-history checks;
@@ -372,7 +405,9 @@ private frames, not catalog authority.
   and native routine with their original declarations, effective revisions and
   domain/epoch references. It shares immutable backing across sort-key copies,
   retains no catalog/reader, and validates the original kernel pairing before
-  destination reconstruction.
+  destination reconstruction. Capture authenticates sealed class/family/routine
+  origin and current registered providers, principals and reciprocal membership
+  separately; no live originating extension or shared current e-header is required.
   Casts remain ownerless and namespaceless. A direct extension-owned cast carries
   reciprocal `Extension` membership independently of its endpoint/function
   dependencies, mutually exclusive with generated-range ownership.
@@ -380,8 +415,21 @@ private frames, not catalog authority.
   intrinsic `sqltype` metadata. `SelectCoercion` and `CanCoerce` are the effect-free
   coercion authority of the analyzer and routine feasibility probes: declared direct pairs
   take precedence, a context-ineligible pair blocks generic fallback, and there
-  is no transitive search. Aggregate binary adapters keep their own
-  `AggregateBinaryRecipe` and never borrow current cast rows.
+  is no transitive search. UPC/EAN13 intrinsic conversion admission delegates
+  released endpoint roles to the registered ISN provider through the existing
+  provider registry. Both endpoints must be exact current type pointers with
+  valid current descriptor/principal authority and genuine sealed origins in
+  one installation cohort. Current e-links, membership order and a surviving
+  original extension header are not conversion authority; detached and foreign
+  members retain their released conversions. Coercion contexts, array lifting,
+  NULL/payload semantics and reverse-conversion diagnostics remain with the
+  existing coercion owners. `TestExtensionOwnershipISNConversionAuthority`
+  covers actual SQL membership mutation and forged/stale/foreign admission;
+  `TestReferenceExtensionOwnershipISNConversions` reuses the UPC value corpus
+  for direct, prepared and stored conversions plus same/independent native
+  controls. `TestReferenceUpcConversions` remains the full affected baseline.
+  Aggregate binary adapters keep their own `AggregateBinaryRecipe` and never
+  borrow current cast rows.
   `SameAggregateDefinition` owns complete immutable aggregate declaration identity
   for admission and copy-on-change remapping: definitions, helper identities,
   retained binary-recipe ownership, variadic mode and canonical argument names.
@@ -418,14 +466,27 @@ private frames, not catalog authority.
   address. Each body/default pass deduplicates independently, preserving two
   physical rows when both phases reference the same procedure.
   `VisitProcedureDeclarationDependencies` exposes the declaration phase separately:
-  catalog projection deduplicates repeated result/formal/support declarations
+  a nonzero execution `Procedure.Language` is a real normal dependency, unlike
+  the display-only language label and replay-only declaration-order metadata.
+  Catalog projection deduplicates repeated result/formal/support declarations
   without collapsing independently captured body/default dependency rows.
   `VisitProcedureCapturedDefinitionDependencies` exposes the same checked
   body/default projection to catalog consumers after declaration deduplication;
   consumers never project the full execution manifests as semantic edges.
+  Genuine released bodies enter that same visitor through the optional lower
+  `ProcedureDependencyProvider` read-aware, early-stop owner contract. The
+  implementation resolves prerequisite identities through sealed origins in the
+  supplied catalog view and yields only real captured helpers; membership and
+  recipe siblings do not create extra edges. The same view follows definition
+  admission, projection, retirement and dump ordering. Catalog projection does
+  not import the higher extension package or maintain a second installed-body
+  walker.
   Aggregates depend on ordinary and moving supports and their declared input/result
-  types. State types are retained indirectly through support signatures, not
-  redundant state-only aggregate edges.
+  types, independently of dynamic callability or current extension membership.
+  Installed intagg's lookup-only state/final identities retain these normal edges
+  at their immutable creation coordinates without becoming callable descriptors.
+  State types are retained indirectly through support signatures, not redundant
+  state-only aggregate edges.
   Quoted source and PL replay-order metadata do not become hard edges.
   Generated and extension provider edges remain with their owning providers.
 - **Builtin routine identities** (`builtin_routine_identities.go`,

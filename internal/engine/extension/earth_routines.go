@@ -60,50 +60,5 @@ func (p *EarthdistanceProvider) stageRoutines(stage Stage, ext *catalog.Extensio
 	return p.stagePoint(stage, ext, owner)
 }
 func (p *EarthdistanceProvider) ValidateProcedure(v catalog.Read, d *catalog.Procedure) error {
-	if p != StockEarthdistance || EarthdistanceProviderOf(d) != p {
-		return InvalidProviderDescriptor()
-	}
-	if _, err := ProcedureSymbol(v, d); err != nil {
-		return err
-	}
-	ext, ok := v.Extension(d.Extension)
-	if !ok {
-		return InvalidProviderDescriptor()
-	}
-	return p.ValidateExtension(v, ext)
-}
-
-func validEarthOwnerRoles(record OwnerRecord) bool {
-	if record.Version != "1.2" || len(record.Members) != EarthMemberCount {
-		return false
-	}
-	var types [2]*MemberOwner
-	var seen [EarthMemberCount]bool
-	for i := range record.Members {
-		m := &record.Members[i]
-		if m.Slot < 0 || m.Slot >= EarthMemberCount || seen[m.Slot] {
-			return false
-		}
-		seen[m.Slot] = true
-		if m.Slot < 2 {
-			name := "earth"
-			if m.Slot == 1 {
-				name = "earth[]"
-			}
-			if m.Kind != "type" || m.Name != name || m.Signature != "" {
-				return false
-			}
-			types[m.Slot] = m
-		} else if m.Slot == EarthPointOperatorSlot {
-			if m.Kind != "operator" || m.Name != "<@>" || m.Signature != "600,600" {
-				return false
-			}
-		} else {
-			signature, ok := ownerProcedureSignature(record.Name, record.Version, m.Slot)
-			if !ok || m.Kind != "procedure" || m.Signature != signature {
-				return false
-			}
-		}
-	}
-	return types[0] != nil && types[1] != nil && types[0].Owner == types[1].Owner && types[0].Schema == types[1].Schema
+	return ValidateProcedureOrigin(v, d, p)
 }

@@ -238,7 +238,7 @@ func TestCreateAggregatePolymorphicTransitionRemap(t *testing.T) {
 		}
 	}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{aggregate.Address(): destination.Address()}
-	mapper := &ViewQueryRemapper{Catalog: next, Procedure: extension.ProcedureRemapper(mapping, nil, nil), Type: func(source *sqltype.Descriptor) *sqltype.Descriptor {
+	mapper := &ViewQueryRemapper{Catalog: next, Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), nil, nil), Type: func(source *sqltype.Descriptor) *sqltype.Descriptor {
 		target, _ := next.LookupType(source.ID())
 		return target
 	}, addressMapper: func(source ids.ObjectAddress) ids.ObjectAddress {
@@ -399,7 +399,7 @@ func TestAggregateFinalFrameRemap(t *testing.T) {
 				}
 				return source
 			}
-			mapper := &ViewQueryRemapper{Catalog: next, routineFormals: 64, Procedure: extension.ProcedureRemapper(mapping, nil, nil), Type: mapType}
+			mapper := &ViewQueryRemapper{Catalog: next, routineFormals: 64, Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), nil, nil), Type: mapType}
 			if kind == "references-only" || kind == "references-only-stale-final" {
 				mapper.referencesOnly = true
 				mapper.Type = func(source *sqltype.Descriptor) *sqltype.Descriptor { return source }

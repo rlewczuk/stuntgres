@@ -42,6 +42,9 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 	}
 	switch d := d.(type) {
 	case *OperatorFamily:
+		if err := ValidateInstalledClassOrigin(v, d); err != nil {
+			return err
+		}
 		method, exists := v.AccessMethod(d.Method)
 		if _, ok := v.Namespace(d.Namespace()); !ok || d.Name() == "" || !exists || method.MethodKind() != "i" {
 			return fmt.Errorf("stuntgres: invalid operator family")

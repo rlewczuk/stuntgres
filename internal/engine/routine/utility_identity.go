@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // selectUtilityRoutine uses only real descriptors. Filtering precedes namespace
@@ -124,4 +125,49 @@ func utilityRoutineSignatureDiagnostic(h DDLHost, auth ddl.Authority, signature 
 		text.WriteString(catalog.TypeDiagnosticNameAt(view, nil, typ, path))
 	}
 	return text.String(), nil
+}
+
+// ResolveUtilityRoutine is the shared typed utility identity path. Expression
+// lookup and pg_get_object_address do not own ALTER's bare-name/kind rules.
+func ResolveUtilityRoutine(h DDLHost, auth ddl.Authority, kind string, target parser.GrantRoutineTarget) (*catalog.Procedure, string, error) {
+	namespaces, err := h.SearchNamespaces(auth, target.Name, ids.ProcedureClassID)
+	if err != nil {
+		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "3F000" {
+			copy := *diagnostic
+			copy.Position = ""
+			err = &copy
+		}
+		return nil, "", err
+	}
+	var signature catalog.ProcedureSignature
+	var canonical string
+	var exact *catalog.ProcedureSignature
+	if target.SignatureSpecified {
+		signature, canonical, _, err = utilityRoutineArguments(h, auth, target)
+		if err != nil {
+			return nil, "", err
+		}
+		exact = &signature
+	}
+	d, count := selectUtilityRoutine(h.AccessView(auth).Catalog, namespaces, target.Name.Parts[len(target.Name.Parts)-1].Text, kind, exact)
+	display, noun := catalog.ObjectNameText(target.Name), utilityRoutineNoun(kind)
+	if count == 0 {
+		if !target.SignatureSpecified {
+			return nil, "", sqlError("42883", fmt.Sprintf(`could not find a %s named "%s"`, noun, display))
+		}
+		if kind == "aggregate" && canonical == "" {
+			canonical = "*"
+		}
+		return nil, "", sqlError("42883", noun+" "+display+"("+canonical+") does not exist")
+	}
+	if count > 1 {
+		return nil, "", &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42725", Message: fmt.Sprintf(`%s name "%s" is not unique`, kind, display), Hint: "Specify the argument list to select the " + kind + " unambiguously."}
+	}
+	if kind == "procedure" && d.RoutineKind != catalog.ProcedureRoutine || kind == "function" && d.RoutineKind == catalog.ProcedureRoutine {
+		return nil, "", sqlError("42809", display+"("+canonical+") is not a "+noun)
+	}
+	if kind == "aggregate" && d.RoutineKind != catalog.AggregateRoutine {
+		return nil, "", sqlError("42809", "function "+display+"("+canonical+") is not an aggregate")
+	}
+	return d, canonical, nil
 }

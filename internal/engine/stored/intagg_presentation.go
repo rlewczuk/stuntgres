@@ -66,7 +66,7 @@ func (v *View) ProviderRecipeProcedure(read catalog.Read, path analyze.ViewLiter
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen provider reference")
 	}
 	p, ok := read.Procedure(ref.Address)
-	if !ok || p.Builtin == nil && (p.Implementation == nil || p.Extension == (ids.ObjectAddress{})) {
+	if !ok || p.Builtin == nil && (p.Implementation == nil || !p.Origin.Valid(p.Address())) {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen provider procedure")
 	}
 	if err := (ProcedureProvider{}).Validate(read, p); err != nil {

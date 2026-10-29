@@ -94,9 +94,6 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 			}
 			continue
 		case *catalog.Procedure:
-			if catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
-				continue
-			}
 			if sharedMemoryACLReconstructed(d, bootstrap.Ref, stats.Ref) {
 				continue
 			}
@@ -181,13 +178,23 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 		switch table {
 		case "pg_namespace", "pg_tablespace":
 			s.initialACLStatements = append(s.initialACLStatements, statement)
+		case "pg_proc":
+			if catalog.DescriptorOrigin(d) != nil {
+				s.installationACLStatements = append(s.installationACLStatements, statement)
+			}
 		case "pg_type":
 			anchor, err := (Resolver{}).Predecessor(c.OriginalCatalog, d.Address(), ids.ObjectAddress{})
 			if err != nil {
 				return err
 			}
-			if _, extension := c.OriginalCatalog.Extension(ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: anchor}); extension && s.extensionTypeAfter != 0 {
-				anchor = s.extensionTypeAfter
+			installed := catalog.DescriptorOrigin(d) != nil
+			if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsArray() {
+				element := c.OriginalCatalog.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.Element().ID())})
+				installed = installed || catalog.DescriptorOrigin(element) != nil
+			}
+			if installed {
+				s.installationACLStatements = append(s.installationACLStatements, statement)
+				continue
 			}
 			if anchor == 0 {
 				s.initialACLStatements = append(s.initialACLStatements, statement)
@@ -209,6 +216,7 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 	}
 	slices.SortFunc(statements, compare)
 	slices.SortFunc(s.initialACLStatements, compare)
+	slices.SortFunc(s.installationACLStatements, compare)
 	for _, statements := range s.typeACLStatements {
 		slices.SortFunc(statements, compare)
 	}

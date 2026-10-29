@@ -11,7 +11,7 @@ import (
 // installedDomainCheckRecipes recognizes only closed, native provider recipes.
 // User CHECKs/defaults and SQL routine bodies are consumers, never bootstrap work.
 func installedDomainCheckRecipes(d *catalog.Type) bool {
-	if d.Extension == (ids.ObjectAddress{}) || !d.SQLType.IsDomain() || len(d.DomainChecks) == 0 {
+	if !d.Origin.Valid(d.Address()) || !d.SQLType.IsDomain() || len(d.DomainChecks) == 0 {
 		return false
 	}
 	for _, check := range d.DomainChecks {

@@ -20,6 +20,7 @@ type Cast struct {
 	Context, Method       string
 	GeneratedRange        ids.ObjectAddress // Canonical range owner; zero for ordinary user casts.
 	Extension             ids.ObjectAddress // Direct extension membership; casts remain ownerless.
+	Origin                *InstalledOrigin
 }
 
 func (d *Cast) Address() ids.ObjectAddress {
@@ -91,6 +92,9 @@ func (CastProvider) Validate(v Read, descriptor Descriptor) error {
 	d, ok := descriptor.(*Cast)
 	if !ok || d == nil || d.OID == 0 || d.Revision() == 0 {
 		return fmt.Errorf("stuntgres: invalid cast descriptor")
+	}
+	if err := ValidateInstalledClassOrigin(v, d); err != nil {
+		return err
 	}
 	if d.Context != "e" && d.Context != "a" && d.Context != "i" {
 		return fmt.Errorf("stuntgres: invalid cast context")

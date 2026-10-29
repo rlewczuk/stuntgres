@@ -241,11 +241,7 @@ func TestReferencePGTypeFamilies(t *testing.T) {
 					t.Error(err)
 				}
 				if relocatedSchema {
-					cleanup := "DROP SCHEMA pt18_qi_relocated"
-					if !b.PG {
-						cleanup = "ALTER SCHEMA pt18_qi_relocated RENAME TO public"
-					}
-					if _, err := b.DB.ExecContext(p.Ctx, cleanup); err != nil {
+					if _, err := b.DB.ExecContext(p.Ctx, "DROP SCHEMA pt18_qi_relocated"); err != nil {
 						t.Error(err)
 					}
 				}
@@ -264,34 +260,19 @@ func TestReferencePGTypeFamilies(t *testing.T) {
 			r := []any{id, "query_int", namespace, owner, int64(-1), false, "b", "U", false, true, ",", int64(0), int64(0), int64(0), array, input, output, int64(0), int64(0), int64(0), int64(0), int64(0), "i", "p", false, int64(0), int64(-1), int64(0), int64(0), nil, nil, nil}
 			pgTypeFamilyRow(t, p, b, r)
 			pgTypeFamilyRow(t, p, b, pgTypeDynamicArrayGolden(r, array, "_query_int"))
-			if b.PG {
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE SCHEMA pt18_qi_relocated", 0))
-				relocatedSchema = true
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("ALTER EXTENSION intarray SET SCHEMA pt18_qi_relocated", 0))
-			} else {
-				// Extension relocation remains outside this part; schema rename
-				// is the supported native installed-type namespace route.
-				for _, q := range []string{"ALTER EXTENSION intarray SET SCHEMA pt18_qi_relocated"} {
-					for _, prepared := range []bool{false, true} {
-						s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"})
-						s.Prepared, s.ErrorStage = prepared, "execute"
-						if prepared {
-							s.ErrorStage = "prepare"
-						}
-						fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-						pgTypeFamilyRow(t, p, b, r)
-						pgTypeFamilyRow(t, p, b, pgTypeDynamicArrayGolden(r, array, "_query_int"))
-					}
-				}
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("ALTER SCHEMA public RENAME TO pt18_qi_relocated", 0))
-				relocatedSchema = true
+			var extension int64
+			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_extension WHERE extname='intarray'").Scan(&extension); err != nil {
+				t.Fatal(err)
 			}
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE SCHEMA pt18_qi_relocated", 0))
+			relocatedSchema = true
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("ALTER EXTENSION intarray SET SCHEMA pt18_qi_relocated", 0))
 			var relocatedNamespace int64
 			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_namespace WHERE nspname='pt18_qi_relocated'").Scan(&relocatedNamespace); err != nil {
 				t.Fatal(err)
 			}
-			if !b.PG && relocatedNamespace != namespace {
-				t.Fatal("schema rename reminted namespace identity", namespace, relocatedNamespace)
+			if relocatedNamespace == namespace {
+				t.Fatal("extension relocation did not change namespace", namespace)
 			}
 			if pgTypeID(t, p, b, "pt18_qi_relocated.query_int") != id || pgTypeID(t, p, b, "pt18_qi_relocated.query_int[]") != array {
 				t.Fatal("extension relocation reminted type identities")
@@ -299,6 +280,23 @@ func TestReferencePGTypeFamilies(t *testing.T) {
 			r[2] = relocatedNamespace
 			pgTypeFamilyRow(t, p, b, r)
 			pgTypeFamilyRow(t, p, b, pgTypeDynamicArrayGolden(r, array, "_query_int"))
+			for _, identity := range []struct {
+				name string
+				id   int64
+			}{{"bqarr_in", input}, {"bqarr_out", output}} {
+				s := fixture.Select("SELECT oid,pronamespace FROM pg_proc WHERE oid=$1::oid AND oid=$2::regproc::oid", []string{"oid", "pronamespace"}, []string{"OID", "OID"}, [][]any{{identity.id, relocatedNamespace}}, identity.id, "pt18_qi_relocated."+identity.name)
+				fixture.PgDescriptionRows(t, p, b, s)
+				fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
+			}
+			for _, identity := range []struct{ class, id int64 }{{1247, id}, {1247, array}, {1255, input}, {1255, output}} {
+				s := fixture.Select("SELECT refobjid,deptype FROM pg_depend WHERE classid=$1::oid AND objid=$2::oid AND refclassid=3079::oid", []string{"refobjid", "deptype"}, []string{"OID", "CHAR"}, [][]any{{extension, "e"}}, identity.class, identity.id)
+				fixture.PgDescriptionRows(t, p, b, s)
+			}
+			fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid,extnamespace FROM pg_extension WHERE extname='intarray'", []string{"oid", "extnamespace"}, []string{"OID", "OID"}, [][]any{{extension, relocatedNamespace}}))
+			fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE typnamespace=$1::oid AND (oid=$2::oid OR oid=$3::oid)", []string{"oid"}, []string{"OID"}, nil, namespace, id, array))
+			call := fixture.Select("SELECT '1'::pt18_qi_relocated.query_int::text AS v", []string{"v"}, []string{"TEXT"}, [][]any{{"1"}})
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, call)
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Prepared(call))
 			retained, err := b.DB.QueryContext(p.Ctx, "SELECT oid FROM pg_type WHERE oid=$1::oid", id)
 			if err != nil {
 				t.Fatal(err)

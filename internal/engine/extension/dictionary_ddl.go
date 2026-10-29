@@ -200,7 +200,7 @@ func StageDropDictionary(h DictionaryHost, auth ddl.Authority, s *parser.DropDic
 		if err = dictionaryOwner(h, auth, d, name); err != nil {
 			return err
 		}
-		if d.Seeded() {
+		if d.Pinned() {
 			return dictionaryError("2BP01", "cannot drop text search dictionary "+catalog.ObjectNameText(name)+" because it is required by the database system")
 		}
 		if !seen[d.Address()] {

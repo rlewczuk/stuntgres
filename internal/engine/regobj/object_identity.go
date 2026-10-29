@@ -152,7 +152,25 @@ func ObjectAttributeName(view catalog.Read, d *catalog.Relation, sub int32) stri
 	return ""
 }
 func objectQualifiedType(view catalog.Read, id ids.OID, temporary ids.SessionToken) string {
-	return regtypeSpellingMode(view, nil, id, true, temporary)
+	spelling := catalog.TypeSpelling(view, nil, id)
+	if temporary == (ids.SessionToken{}) {
+		return spelling
+	}
+	typ, ok := view.LookupType(sqltype.ID(id))
+	if !ok {
+		return spelling
+	}
+	for typ.IsArray() && !typ.IsCatalogVector() {
+		typ = typ.Element()
+	}
+	d := view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+	actual, canonical := objectNamespace(view, d.Namespace(), temporary)
+	if actual != canonical {
+		if suffix, ok := strings.CutPrefix(spelling, catalog.Identifier(actual)+"."); ok {
+			return catalog.Identifier(canonical) + "." + suffix
+		}
+	}
+	return spelling
 }
 
 // Represented declarations own their kind, including released OIDs. A helper's

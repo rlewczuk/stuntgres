@@ -68,3 +68,40 @@ func TestExtensionHostBeginStageHandsBackRootStage(t *testing.T) {
 }
 
 type foreignExtensionStage struct{ *schemacmds.ExtensionHost }
+
+func TestExtensionHostRevisesOnlyOpenStagedIdentity(t *testing.T) {
+	e := engine.New()
+	base := e.CatalogRead()
+	stage := e.BeginCatalogStage(base)
+	host := &schemacmds.ExtensionHost{Engine: e, Stage: stage}
+	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectRevision: 1, ObjectName: "probe", Version: "1.0", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.RoleStore.Domain.Principal(10)}
+	if err := host.Create(ext); err != nil {
+		t.Fatal(err)
+	}
+	next := *ext
+	next.ObjectRevision++
+	if err := host.Replace(&next); err != nil {
+		t.Fatal("created identity could not acquire staged metadata", err)
+	}
+	if stage.Get(ext.Address()) != &next || base.Get(ext.Address()) != nil || ext.Revision() != 1 {
+		t.Fatal("staged revision mutated the predecessor or published catalog")
+	}
+	key := catalog.DescriptorNameKey(ext)
+	if observed, ok := stage.NameObservation(key); !ok || observed != (ids.ObjectAddress{}) {
+		t.Fatal("metadata revision lost CREATE's absence fence")
+	}
+	renamed := next
+	renamed.ObjectName = "other_probe"
+	if err := host.Replace(&renamed); err == nil {
+		t.Fatal("metadata revision silently rebound a created name")
+	}
+	missing := next
+	missing.ObjectAddress.ObjectID++
+	if err := host.Replace(&missing); err == nil {
+		t.Fatal("metadata revision created an absent identity")
+	}
+	e.DiscardCatalogStage(stage)
+	if err := host.Replace(ext); err == nil || stage.Get(ext.Address()) != &next {
+		t.Fatal("discarded stage accepted a metadata revision", err)
+	}
+}

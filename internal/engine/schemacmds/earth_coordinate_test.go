@@ -81,7 +81,8 @@ func TestEarthCoordinateOwners(t *testing.T) {
 	if err != nil || !found {
 		t.Fatal("owner codec", err)
 	}
-	for slot, signature := range map[int]string{2: "", 3: "701", 4: "701", 5: "701,701", 6: "earth", 7: "earth"} {
+	record = extensionOwnerRecipeOrder(record)
+	for slot, signature := range map[int]string{2: "", 3: "double precision", 4: "double precision", 5: "double precision, double precision", 6: "public.earth", 7: "public.earth"} {
 		if record.Members[slot].Signature != signature {
 			t.Fatal("nonportable signature", slot)
 		}
@@ -94,12 +95,12 @@ func TestEarthCoordinateOwners(t *testing.T) {
 		return extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString(data)
 	}
 	for _, mutate := range []func(*extension.OwnerRecord){
-		func(r *extension.OwnerRecord) { r.Members = r.Members[:2] }, func(r *extension.OwnerRecord) { r.Members = r.Members[:7] }, func(r *extension.OwnerRecord) { r.Members[6].Signature = "701" }, func(r *extension.OwnerRecord) { r.Members[5].Slot = 4 }, func(r *extension.OwnerRecord) { r.Members[0].Owner = "different" }, func(r *extension.OwnerRecord) { r.Members[1].Schema = "different" }, func(r *extension.OwnerRecord) { r.Members[7].Kind = "type" }, func(r *extension.OwnerRecord) { r.Version = "1.1" },
+		func(r *extension.OwnerRecord) { r.Members = r.Members[:2] }, func(r *extension.OwnerRecord) { r.Members = r.Members[:7] }, func(r *extension.OwnerRecord) { r.Members[6].Signature = "701" }, func(r *extension.OwnerRecord) { r.Members[5].Declaration = new(4) }, func(r *extension.OwnerRecord) { r.Members[0].Owner = "different" }, func(r *extension.OwnerRecord) { r.Members[1].Schema = "different" }, func(r *extension.OwnerRecord) { r.Members[7].Kind = "type" }, func(r *extension.OwnerRecord) { r.Version = "1.1" },
 	} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 		mutate(&bad)
-		if _, _, err := extension.DecodeOwners(encode(bad)); err == nil {
+		if err := extensionOwnerAdmissionError(e, encode(bad)); err == nil {
 			t.Fatal("invalid owner record admitted", bad)
 		}
 	}
@@ -173,7 +174,7 @@ func TestEarthCoordinateExpression(t *testing.T) {
 		n, _ := after.LookupType(d.ID())
 		return n
 	}
-	mapperProc := extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil)
+	mapperProc := extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), replacementProcedurePolicyFixture(source, target), nil)
 	for slot := 2; slot < extension.EarthPointProcedureSlot; slot++ {
 		op := sqltype.EarthOperation(slot - 2)
 		proc := before.MustProcedure(ext.Members[slot])
@@ -269,7 +270,11 @@ func TestEarthCoordinateExpression(t *testing.T) {
 			t.Fatal("coordinate remap", slot, err)
 		}
 		n := remapped.(*plan.ProjectNode).Expressions[0].(plan.InstalledEarthExpr)
-		if n.Plan.Earth() != imported.SQLType || n.Ref != mapRef(node.Ref) || !exec.SameRoutineDeclaration(after.MustProcedure(n.Ref.Address), n.Procedure) {
+		expectedEarth := imported.SQLType
+		if op < sqltype.EarthLL {
+			expectedEarth = nil
+		}
+		if n.Plan.Earth() != expectedEarth || n.Ref != mapRef(node.Ref) || !exec.SameRoutineDeclaration(after.MustProcedure(n.Ref.Address), n.Procedure) {
 			t.Fatal("remap shed destination authority")
 		}
 		if err := stored.ValidateInstalledEarth(n, after); err != nil {
@@ -280,7 +285,11 @@ func TestEarthCoordinateExpression(t *testing.T) {
 		if err := stored.ValidateInstalledEarth(stale, after); err == nil {
 			t.Fatal("source procedure accepted after remap")
 		}
-		if node.Plan.Earth() != earth.SQLType || node.Procedure != proc {
+		sourceEarth := earth.SQLType
+		if op < sqltype.EarthLL {
+			sourceEarth = nil
+		}
+		if node.Plan.Earth() != sourceEarth || node.Procedure != proc {
 			t.Fatal("remap mutated source")
 		}
 	}

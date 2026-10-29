@@ -61,7 +61,7 @@ func (*LoProvider) Stage(stage Stage, ext *catalog.Extension, owner authorizatio
 	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
-func (p *LoProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *LoProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid lo manifest") }
 	if p != StockLo || ext == nil || ext.Name() != "lo" || ext.Version != "1.2" || len(ext.Members) != 2 || v.Owner() == nil || v.Owner().Extensions["lo"] != p {
 		return invalid()

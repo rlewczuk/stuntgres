@@ -60,6 +60,10 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		return
 	}
 	switch n := expr.(type) {
+	case functions.String:
+		if n.Citext != nil {
+			r.Add(n.Citext.Ref.Address)
+		}
 	case functions.Regexp:
 		if n.Citext != nil {
 			r.Add(n.Citext.Ref.Address)
@@ -68,6 +72,26 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		if n.Citext != nil {
 			r.Add(n.Citext.Ref.Address)
 		}
+	case functions.HstoreArray:
+		r.Add(n.Ref.Address)
+	case functions.HstoreJSON:
+		r.Add(n.Ref.Address)
+	case functions.HstoreConstruct:
+		r.Add(n.Ref.Address)
+	case functions.HstoreRecord:
+		r.Add(n.Ref.Address)
+	case functions.HstoreRows:
+		r.Add(n.Ref.Address)
+	case functions.LtreeArray:
+		r.Add(n.Ref.Address)
+	case functions.LtreeHierarchy:
+		r.Add(n.Ref.Address)
+	case functions.LtreePath:
+		r.Add(n.Ref.Address)
+	case functions.LtreeLquery:
+		r.Add(n.Ref.Address)
+	case functions.LtreeLtxtquery:
+		r.Add(n.Ref.Address)
 	case plan.RangeConstructorExpr:
 		r.Add(n.Ref.Address)
 	case plan.SQLRoutineExpr:
@@ -99,6 +123,10 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		}
 	case plan.SelectedOperatorExpr:
 		r.Add(n.Ref.Address)
+		// The provider carries implementation authority, not another SQL call.
+		// Visit its operands normally so genuine nested calls still contribute.
+		plan.ExpressionChildren(n.Provider, r.Expression)
+		return
 	case plan.UnnestExpr:
 		if n.Procedure != nil {
 			r.Add(n.Ref.Address)
@@ -237,11 +265,25 @@ func (r *DependRefs) Query(node plan.Node) {
 	if source, ok := node.(*plan.SourceNode); ok {
 		r.Add(source.Ref.Address)
 	}
-	switch n:=node.(type){
+	switch n := node.(type) {
 	case *plan.SortNode:
-		for _,key:=range n.Keys{if key.Ordering!=nil{for _,ref:=range key.Ordering.References(){r.Add(ref.Address)}}}
+		for _, key := range n.Keys {
+			if key.Ordering != nil {
+				for _, ref := range key.Ordering.References() {
+					r.Add(ref.Address)
+				}
+			}
+		}
 	case *plan.WindowNode:
-		for _,spec:=range n.Specs{for _,key:=range spec.Order{if key.Ordering!=nil{for _,ref:=range key.Ordering.References(){r.Add(ref.Address)}}}}
+		for _, spec := range n.Specs {
+			for _, key := range spec.Order {
+				if key.Ordering != nil {
+					for _, ref := range key.Ordering.References() {
+						r.Add(ref.Address)
+					}
+				}
+			}
+		}
 	}
 	if aggregate, ok := node.(*plan.AggregateNode); ok {
 		for _, call := range aggregate.Calls {

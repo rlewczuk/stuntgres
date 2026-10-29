@@ -339,7 +339,10 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		if !ok || extension.EarthdistanceProviderOf(proc) != extension.StockEarthdistance {
 			return nil, false, fmt.Errorf("missing remapped earth function")
 		}
-		earth := retainedType(n.Plan.Earth())
+		earth := n.Plan.Earth()
+		if earth != nil {
+			earth = retainedType(earth)
+		}
 		changed = changed || proc != n.Procedure || earth != n.Plan.Earth()
 		n.EarthCoordinate, err = functions.NewEarthCoordinate(info, n.Plan.Operation(), earth, n.Args)
 		if err != nil {

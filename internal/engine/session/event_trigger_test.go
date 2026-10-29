@@ -84,7 +84,7 @@ func TestEventTriggerClassification(t *testing.T) {
 		{"ALTER POLICY", []parser.Statement{&parser.AlterPolicy{}}},
 		{"DROP POLICY", []parser.Statement{&parser.DropPolicy{}}},
 		{"CREATE EXTENSION", []parser.Statement{&parser.CreateExtension{}}},
-		{"ALTER EXTENSION", []parser.Statement{&parser.AlterExtensionUpdate{}}},
+		{"ALTER EXTENSION", []parser.Statement{&parser.AlterExtensionUpdate{}, &parser.AlterExtension{Action: "schema"}, &parser.AlterExtension{Action: "add"}, &parser.AlterExtension{Action: "drop"}}},
 		{"DROP EXTENSION", []parser.Statement{&parser.DropExtension{}}},
 		{"CREATE TEXT SEARCH DICTIONARY", []parser.Statement{&parser.CreateDictionary{}}},
 		{"ALTER TEXT SEARCH DICTIONARY", []parser.Statement{&parser.AlterDictionary{}}},

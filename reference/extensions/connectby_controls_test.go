@@ -105,7 +105,7 @@ func connectbyNativeControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c
 	connectbyControlRead(t, p, b, c)
 	connectbyRun(t, p, b, held, connectbySelect(3, held.SQL, connectbyTreeRows, "row2", 0, "~"))
 	before := extensionDump(t, p.Ctx, p.Native)
-	for _, bad := range []string{dump + "\nINVALID SQL;", strings.Replace(dump, "VERSION '1.0'", "VERSION 'missing'", 1), strings.Replace(dump, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1), connectbyBadOwnerDump(t, dump)} {
+	for _, bad := range []string{dump + "\nINVALID SQL;", strings.Replace(dump, "VERSION '1.0'", "VERSION 'missing'", 1), strings.Replace(dump, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1), connectbyBadOwnerDump(t, dump)} {
 		if bad == dump {
 			t.Fatal("malformed restore fixture unchanged")
 		}
@@ -188,7 +188,7 @@ func TestReferenceConnectbySmoke(t *testing.T) {
 
 func connectbyBadOwnerDump(t *testing.T, dump string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v2 "
+	const marker = "-- stuntgres-extension-owners-v3 "
 	for _, line := range strings.Split(dump, "\n") {
 		if !strings.HasPrefix(line, marker) {
 			continue
@@ -215,8 +215,26 @@ func connectbyBadOwnerDump(t *testing.T, dump string) string {
 		if len(members) != 16 {
 			t.Fatal("selected tablefunc owner inventory", len(members))
 		}
-		// Keep every other field, including ACL provenance, intact.
-		members[1]["owner"] = json.RawMessage(`"cb_absent_owner"`)
+		selected := -1
+		for i, member := range members {
+			var kind, schema, name, signature, version string
+			for key, target := range map[string]*string{"kind": &kind, "schema": &schema, "name": &name, "signature": &signature, "version": &version} {
+				if err := json.Unmarshal(member[key], target); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if kind == "procedure" && schema == "cb_part" && name == "connectby" && signature == "pg_catalog.text, pg_catalog.text, pg_catalog.text, pg_catalog.text, integer, pg_catalog.text" && version == "1.0" && member["declaration"] != nil {
+				if selected != -1 {
+					t.Fatal("duplicate symbolic connectby declaration")
+				}
+				selected = i
+			}
+		}
+		if selected == -1 {
+			t.Fatal("missing symbolic connectby declaration")
+		}
+		// Keep every other field, including ACL and immutable origin, intact.
+		members[selected]["owner"] = json.RawMessage(`"cb_absent_owner"`)
 		record["members"], err = json.Marshal(members)
 		if err != nil {
 			t.Fatal(err)

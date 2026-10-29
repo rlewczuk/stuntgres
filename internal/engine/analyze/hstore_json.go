@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
@@ -31,7 +32,7 @@ func (b *Binder) bindSelectedHstoreJSON(raw parser.FunctionExpr, selected sqlCal
 			return nil, err
 		}
 	}
-	installation, ok := view.Extension(procedure.Extension)
+	installation, ok := catalog.OriginInstallation(procedure)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing hstore JSON installation")
 	}

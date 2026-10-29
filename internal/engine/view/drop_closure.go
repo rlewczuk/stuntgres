@@ -27,10 +27,32 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	// An explicit hard-member deletion cannot bypass its class owner. A
-	// containing owner already in the retirement roots legitimately consumes it.
+	// Codec facts must read one owner-supplied graph, not pair an evolved
+	// descriptor with its predecessor catalog. Keep original AUTO payload
+	// discovery below separate from this retained metadata projection.
+	var retirementRead catalog.Read
+	typeRead := func() catalog.Read {
+		if retirementRead.State() == nil {
+			retirementRead = r.RetirementRead()
+		}
+		return retirementRead
+	}
+	// An explicit extension or hard-member deletion cannot bypass its owner,
+	// even under CASCADE. A containing owner already retiring consumes it.
 	for _, target := range targets {
-		owner := catalog.OperatorFamilyMemberOwner(r.RetirementDescriptor(target))
+		// A pinned target is rejected before inspecting extension ownership,
+		// including a seeded parser with a lawful mutable e-link.
+		if stored.DependPinned(base, r.DefinitionInput(), target) {
+			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + stored.DependencyObject(base, target, path) + " because it is required by the database system"}
+		}
+		descriptor := r.RetirementDescriptor(target)
+		var owner ids.ObjectAddress
+		if target.SubID == 0 {
+			owner = catalog.ExtensionMembership(descriptor)
+		}
+		if owner == (ids.ObjectAddress{}) {
+			owner = catalog.OperatorFamilyMemberOwner(descriptor)
+		}
 		if owner != (ids.ObjectAddress{}) && !slices.Contains(targets, owner) && !r.Removed(owner) {
 			object := stored.DependencyObject(base, target, path)
 			owning := stored.DependencyObject(base, owner, path)
@@ -41,9 +63,11 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 	// descriptor can depend on one, so the input walks skip seeded entries.
 	domains := make(map[ids.ObjectAddress]bool, len(targets))
 	newer := true
+	procedureTargets := false
 	for _, a := range targets {
 		domains[a] = true
 		newer = newer && !r.SeedMayReference(a)
+		procedureTargets = procedureTargets || a.ClassID == ids.ProcedureClassID
 	}
 	input := func() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 		if newer {
@@ -61,6 +85,15 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			depends := t.SQLType.IsDomain() && (domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Type.ID())}] || domains[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Collation.ID)}]) || t.SQLType.IsArray() && domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.Element().ID())}]
 			for _, dependency := range catalog.RangeDependencies(t) {
 				depends = depends || domains[dependency]
+			}
+			if !depends && procedureTargets && !stored.DependPinned(typeRead(), nil, a) {
+				read := typeRead()
+				if err := pgcatalog.VisitTypeProcedureDependencies(ctx, read, read.MustType(a), func(dependency ids.ObjectAddress) bool {
+					depends = domains[dependency]
+					return !depends
+				}); err != nil {
+					return nil, err
+				}
 			}
 			if depends {
 				domains[a] = true
@@ -239,6 +272,10 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: kind == 'a', Normal: kind == 'n', Label: stored.DependencyObject(base, a, path)})
 					}
 				})
+			case *catalog.Language:
+				if d.Procedural && (d.Call == target || d.Inline == target || d.Validator == target) {
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Normal: true, Label: stored.DependencyObject(base, a, path)})
+				}
 			case *catalog.EventTrigger:
 				if d.Function.Address == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
@@ -312,7 +349,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				if owner := catalog.RangeConstructorOwner(d); owner == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
-				catalog.VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+				catalog.VisitProcedureDefinitionDependencies(base, d, func(address ids.ObjectAddress) bool {
 					if address == target || target.SubID == 0 && address.ClassID == target.ClassID && address.ObjectID == target.ObjectID {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
 						direct[len(direct)-1].Normal = true
@@ -355,6 +392,18 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			case *catalog.Type:
 				if replacement, ok := r.Replacement(a).(*catalog.Type); ok {
 					d = replacement
+				}
+				if target.ClassID == ids.ProcedureClassID && !stored.DependPinned(typeRead(), nil, a) {
+					read := typeRead()
+					if err := pgcatalog.VisitTypeProcedureDependencies(ctx, read, read.MustType(a), func(dependency ids.ObjectAddress) bool {
+						if dependency == target {
+							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "type " + catalog.TypeDiagnosticNameAt(base, nil, d, path), Normal: true})
+							return false
+						}
+						return true
+					}); err != nil {
+						return err
+					}
 				}
 				for _, dependency := range catalog.RangeDependencies(d) {
 					if dependency == target {
@@ -612,6 +661,25 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				}
 			}
 		}
+		// An extension member reached through another dependency cannot retire
+		// independently of its owning extension. Redirect the incoming edge to
+		// that owner; visiting it discovers the complete reciprocal e closure.
+		// This is ownership traversal, not diagnostic label substitution.
+		for i := range direct {
+			edge := &direct[i]
+			member := r.RetirementDescriptor(edge.Address)
+			owner := catalog.ExtensionMembership(member)
+			if owner == (ids.ObjectAddress{}) || seen[owner] || r.Removed(owner) {
+				continue
+			}
+			extension, ok := r.RetirementDescriptor(owner).(*catalog.Extension)
+			if !ok || !slices.Contains(extension.Members, edge.Address) {
+				return fmt.Errorf("stuntgres: invalid reciprocal extension retirement owner")
+			}
+			edge.Address, edge.OID = owner, owner.ObjectID
+			edge.Relation, edge.Column, edge.Ordinal = nil, "", 0
+			edge.Label = stored.DependencyObject(base, owner, path)
+		}
 		reverse := columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder
 		sort.Slice(direct, func(i, j int) bool {
 			a, b := direct[i].Address, direct[j].Address
@@ -682,7 +750,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				result = append(result, edge)
 			}
 			seen[edge.Address] = true
-			if edge.Address.ClassID == ids.TSConfigurationClassID || edge.Address.ClassID == ids.TSParserClassID {
+			if edge.Address.ClassID == ids.TSConfigurationClassID || edge.Address.ClassID == ids.TSParserClassID || edge.Address.ClassID == ids.LanguageClassID {
 				if err := visit(edge.Address, root); err != nil {
 					return err
 				}

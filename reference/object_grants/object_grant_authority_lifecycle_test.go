@@ -173,10 +173,10 @@ func TestReferenceObjectGrantAuthorityLifecycle(t *testing.T) {
 }
 
 // Reuse the public named-owner Restore format to transfer selected members
-// while preserving their installed slot and current schema identities.
+// while preserving immutable declarations and final symbolic SQL identities.
 func objectGrantMemberOwnerScript(t *testing.T, script, owner string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v2 "
+	const marker = "-- stuntgres-extension-owners-v3 "
 	lines := strings.Split(script, "\n")
 	encodedOwner, err := json.Marshal(owner)
 	if err != nil {
@@ -208,9 +208,9 @@ func objectGrantMemberOwnerScript(t *testing.T, script, owner string) string {
 			if err := json.Unmarshal(data, &identity); err != nil {
 				t.Fatal(err)
 			}
-			if identity.Kind == "procedure" && (identity.Name == "unaccent" && identity.Signature == "25" ||
-				identity.Name == "digest" && identity.Signature == "25,25" ||
-				identity.Name == "daitch_mokotoff" && identity.Signature == "25") {
+			if identity.Kind == "procedure" && (identity.Name == "unaccent" && identity.Signature == "pg_catalog.text" ||
+				identity.Name == "digest" && identity.Signature == "pg_catalog.text, pg_catalog.text" ||
+				identity.Name == "daitch_mokotoff" && identity.Signature == "pg_catalog.text") {
 				member["owner"] = encodedOwner
 				changed++
 			}

@@ -10,53 +10,15 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // StageAlterRoutine changes a descriptor in place by address. Declaration and
 // provider payloads remain immutable; the shared stage owns publication/fences.
 func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) error {
 	target := s.Routine
-	namespaces, err := h.SearchNamespaces(auth, target.Name, ids.ProcedureClassID)
+	d, canonical, err := ResolveUtilityRoutine(h, auth, s.Kind, target)
 	if err != nil {
-		// This utility's catalog namespace lookup has no expression cursor.
-		// Preserve all other diagnostics, including argument type positions.
-		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "3F000" {
-			copy := *diagnostic
-			copy.Position = ""
-			err = &copy
-		}
 		return err
-	}
-	var signature catalog.ProcedureSignature
-	var canonical string
-	var exact *catalog.ProcedureSignature
-	if target.SignatureSpecified {
-		signature, canonical, _, err = utilityRoutineArguments(h, auth, target)
-		if err != nil {
-			return err
-		}
-		exact = &signature
-	}
-	d, count := selectUtilityRoutine(h.AccessView(auth).Catalog, namespaces, target.Name.Parts[len(target.Name.Parts)-1].Text, s.Kind, exact)
-	display, noun := catalog.ObjectNameText(target.Name), utilityRoutineNoun(s.Kind)
-	if count == 0 {
-		if !target.SignatureSpecified {
-			return sqlError("42883", fmt.Sprintf(`could not find a %s named "%s"`, noun, display))
-		}
-		if s.Kind == "aggregate" && canonical == "" {
-			canonical = "*"
-		}
-		return sqlError("42883", noun+" "+display+"("+canonical+") does not exist")
-	}
-	if count > 1 {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42725", Message: fmt.Sprintf(`%s name "%s" is not unique`, s.Kind, display), Hint: "Specify the argument list to select the " + s.Kind + " unambiguously."}
-	}
-	if s.Kind == "procedure" && d.RoutineKind != catalog.ProcedureRoutine || s.Kind == "function" && d.RoutineKind == catalog.ProcedureRoutine {
-		return sqlError("42809", display+"("+canonical+") is not a "+noun)
-	}
-	if s.Kind == "aggregate" && d.RoutineKind != catalog.AggregateRoutine {
-		return sqlError("42809", "function "+display+"("+canonical+") is not an aggregate")
 	}
 	next := *d
 	view := h.AccessView(auth)
@@ -80,28 +42,13 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 		if err = h.CheckCreateIn(auth, ns); err != nil {
 			return err
 		}
-		if ns.Address == d.Namespace() {
-			ddl.RecordCommand(h.Stage(), "ALTER "+strings.ToUpper(s.Kind), d.Address())
-			return nil
+		if _, err = StageRoutineNamespace(h, auth, d, ns.Address); err != nil {
+			return err
 		}
-		view = h.AccessView(auth)
-		source, destination := view.Catalog.MustNamespace(d.Namespace()), view.Catalog.MustNamespace(ns.Address)
-		if source.Temporary != (ids.SessionToken{}) || destination.Temporary != (ids.SessionToken{}) {
-			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
-		}
-		if source.Address().ObjectID == ids.PGToastNamespaceOID || destination.Address().ObjectID == ids.PGToastNamespaceOID {
-			return sqlError("0A000", "cannot move objects into or out of TOAST schema")
-		}
-		next.ObjectNamespace = ns.Address
+		ddl.RecordCommand(h.Stage(), "ALTER "+strings.ToUpper(s.Kind), d.Address())
+		return nil
 	}
-	if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
-		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
-			kind := "function"
-			if d.RoutineKind == catalog.ProcedureRoutine {
-				kind = "procedure"
-			}
-			return sqlError("42501", "must be owner of "+kind+" "+d.Name())
-		}
+	if err = checkRoutineOwner(h, auth, d); err != nil {
 		return err
 	}
 	switch s.Action {

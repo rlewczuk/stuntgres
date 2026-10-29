@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
@@ -18,7 +19,7 @@ func (b *Binder) bindSelectedHstoreConstruct(raw parser.FunctionExpr, selected s
 	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
-	installation, ok := view.Extension(procedure.Extension)
+	installation, ok := catalog.OriginInstallation(procedure)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing hstore installation")
 	}

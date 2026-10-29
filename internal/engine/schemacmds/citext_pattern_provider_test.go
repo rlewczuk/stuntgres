@@ -11,11 +11,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-
 func TestCitextPatternProviderIdentity(t *testing.T) {
 	e, ext, base := citextUnitInstalled(t)
 	view := e.CatalogRead()
- if len(ext.Members) != extension.CitextMemberCount {
+	if len(ext.Members) != extension.CitextMemberCount+1 || len(ext.Installation.Members) != extension.CitextMemberCount {
 		t.Fatal(ext.Members)
 	}
 	names := [4]string{"texticlike", "texticnlike", "texticregexeq", "texticregexne"}
@@ -78,13 +77,14 @@ func TestCitextPatternProviderIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	decoded, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
- if err != nil || !found || len(decoded.Members) != extension.CitextMemberCount {
+	decoded = extensionOwnerRecipeOrder(decoded)
+	if err != nil || !found || len(decoded.Members) != extension.CitextMemberCount+1 {
 		t.Fatal(decoded, found, err)
 	}
 	for i := 18; i < 26; i++ {
-		want := "citext,citext"
+		want := "public.citext, public.citext"
 		if i%2 == 1 {
-			want = "citext,25"
+			want = "public.citext, pg_catalog.text"
 		}
 		if decoded.Members[i].Signature != want {
 			t.Fatal(decoded.Members[i])

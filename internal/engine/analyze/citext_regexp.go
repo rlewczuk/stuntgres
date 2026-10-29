@@ -45,18 +45,8 @@ func (b *Binder) bindSelectedCitextRegexp(raw parser.FunctionExpr, selected sqlC
 		args[slot] = argument
 		properties = expr.MergeProperties(properties, argument.Properties())
 	}
-	installation, ok := view.Extension(procedure.Extension)
-	if !ok {
-		return nil, fmt.Errorf("stuntgres: missing citext regexp installation")
-	}
-	member := -1
-	for i, address := range installation.Members {
-		if address == procedure.Address() {
-			member = i
-			break
-		}
-	}
- if member < extension.CitextRegexpProcedureStart || member >= extension.CitextRegexpProcedureEnd {
+	member := procedure.Origin.Declaration
+	if member < extension.CitextRegexpProcedureStart || member >= extension.CitextRegexpProcedureEnd {
 		return nil, fmt.Errorf("stuntgres: invalid citext regexp member")
 	}
 	properties.StageDependent = properties.StageDependent || functions.RegexpStageDependent(symbol)

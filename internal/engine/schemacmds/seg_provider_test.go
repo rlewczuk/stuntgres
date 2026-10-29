@@ -50,7 +50,7 @@ func segProviderInstalled(t *testing.T) (*core.Engine, *session.Operation, *cata
 func TestSegProviderIdentity(t *testing.T) {
 	e, _, ext, base := segProviderInstalled(t)
 	view := e.CatalogRead()
-	if ext.Version != "1.4" || len(ext.Members) != 3 || !base.SQLType.IsSeg() {
+	if ext.Version != "1.4" || len(ext.Members) != 4 || len(ext.Installation.Members) != 3 || !base.SQLType.IsSeg() {
 		t.Fatal("manifest")
 	}
 	if err := (stored.TypeProvider{}).Validate(view, base); err != nil {
@@ -79,10 +79,11 @@ func TestSegProviderIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	owners, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
-	if err != nil || !found || owners.Version != "1.4" || len(owners.Members) != 3 || owners.Members[2].Signature != "seg" {
+	owners = extensionOwnerRecipeOrder(owners)
+	if err != nil || !found || owners.Version != "1.4" || len(owners.Members) != 4 || owners.Members[2].Signature != "public.seg" {
 		t.Fatal("portable roles", owners, err)
 	}
-	for _, corrupt := range []func(*catalog.State, *catalog.Extension){
+	for index, corrupt := range []func(*catalog.State, *catalog.Extension){
 		func(_ *catalog.State, d *catalog.Extension) { d.Members = d.Members[:2] },
 		func(_ *catalog.State, d *catalog.Extension) { d.Members[2] = d.Members[1] },
 		func(_ *catalog.State, d *catalog.Extension) { d.Version = "1.3" },
@@ -123,7 +124,7 @@ func TestSegProviderIdentity(t *testing.T) {
 		candidate.SetDescriptor(bad.Address(), &bad)
 		corrupt(candidate, &bad)
 		if err := extension.StockSeg.ValidateExtension(e.Catalog.Read(candidate), &bad); err == nil {
-			t.Fatal("corrupt provider accepted")
+			t.Fatal("corrupt provider accepted", index)
 		}
 		if view.MustType(base.Address()) != base {
 			t.Fatal("validation mutated graph")
@@ -201,7 +202,7 @@ func TestSegProviderRemap(t *testing.T) {
 	for i, a := range ext.Members {
 		mapping[a] = destination.Members[i]
 	}
-	for _, a := range ext.Members[1:] {
+	for _, a := range ext.Installation.Members[1:] {
 		old := source.CatalogRead().MustProcedure(a)
 		next := extension.RemapDescriptor(old, mapping).(*catalog.Procedure)
 		if next.Implementation != extension.StockSeg || next.Extension != destination.Address() {

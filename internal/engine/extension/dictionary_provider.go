@@ -25,7 +25,7 @@ func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog
 	if template == nil {
 		return nil, InvalidProviderDescriptor()
 	}
-	if err := validateTemplate(view, template); err != nil {
+	if err := (CatalogProvider{Class: ids.TSTemplateClassID}).Validate(view, template); err != nil {
 		return nil, err
 	}
 	if template.Init == (ids.ObjectAddress{}) && len(options) != 0 {
@@ -197,7 +197,7 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 	} else if dictionaryCapability(v, template) == 4 {
 		runtime, ok := d.Runtime.(*functions.SynonymDictionary)
 		resource, sensitive, err := synonymOptions(d.Options)
-		if !ok || err != nil || !runtime.Configured(resource, sensitive) || d.Implementation != nil || d.Extension != (ids.ObjectAddress{}) {
+		if !ok || err != nil || !runtime.Configured(resource, sensitive) || d.Implementation != nil {
 			return InvalidProviderDescriptor()
 		}
 	} else if dictionaryCapability(v, template) == 3 {
@@ -220,7 +220,7 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 				return InvalidProviderDescriptor()
 			}
 		}
-		if !ok || !seenLanguage || !runtime.Configured(language, stopwords) || d.Implementation != nil || d.Extension != (ids.ObjectAddress{}) {
+		if !ok || !seenLanguage || !runtime.Configured(language, stopwords) || d.Implementation != nil {
 			return InvalidProviderDescriptor()
 		}
 	} else if dictionaryCapability(v, template) == 2 {
@@ -230,7 +230,8 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 		if len(d.Options) != 1 || d.Options[0].Name != "rules" || !d.Options[0].Supplied || d.Options[0].Value != "unaccent" {
 			return InvalidProviderDescriptor()
 		}
-		if d.Extension != (ids.ObjectAddress{}) && (UnaccentDictionaryProviderOf(d) != StockUnaccent || d.Extension != template.Extension) {
+		installation, installed := catalog.OriginInstallation(d)
+		if d.Implementation != nil && (!installed || UnaccentDictionaryProviderOf(d) != StockUnaccent || d.Origin.Declaration != 5 || installation.Implementation != StockUnaccent || !catalog.SameInstallation(template, installation)) {
 			return InvalidProviderDescriptor()
 		}
 	} else {

@@ -39,7 +39,7 @@ func validateHstoreJSONDeclaration(view catalog.Read, original *catalog.Procedur
 	if current.Implementation != extension.StockHstore || symbol != want {
 		return invalid()
 	}
-	installation, ok := view.Extension(current.Extension)
+	installation, ok := catalog.OriginInstallation(current)
 	if !ok || len(installation.Members) != extension.HstoreMemberCount || installation.Members[call.Member] != current.Address() {
 		return invalid()
 	}

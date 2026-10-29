@@ -293,7 +293,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						}
 						return r
 					}
-					mapper := stored.ViewQueryRemapper{Catalog: view, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+					mapper := stored.ViewQueryRemapper{Catalog: view, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), nil, nil)}
 					query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "value", Usage: node.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{node}}
 					remapped, err := mapper.Query(query)
 					if err != nil {

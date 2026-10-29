@@ -15,6 +15,7 @@ type TSMapping struct {
 
 type TSConfiguration struct {
 	ObjectAddress, ObjectNamespace, Parser ids.ObjectAddress
+	Extension                              ids.ObjectAddress
 	ObjectRevision                         ids.DefinitionRevision
 	ObjectName                             string
 	Owner                                  authorization.PrincipalRef
@@ -28,7 +29,10 @@ func (d *TSConfiguration) Revision() ids.DefinitionRevision { return d.ObjectRev
 func (d *TSConfiguration) Name() string                     { return d.ObjectName }
 func (*TSConfiguration) Kind() ids.ObjectKind               { return ids.TSConfigurationObject }
 func (d *TSConfiguration) Seeded() bool {
-	return d.english || d.Address() == (ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: 3748})
+	return d.english || d.Pinned()
+}
+func (d *TSConfiguration) Pinned() bool {
+	return d.Address() == (ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: 3748})
 }
 func CloneTSMappings(in []TSMapping) []TSMapping {
 	out := slices.Clone(in)
@@ -120,7 +124,7 @@ func (TSConfigurationProvider) Validate(v Read, raw Descriptor) error {
 			}
 		}
 	}
-	return nil
+	return ValidateExtensionMembership(v, d)
 }
 func InstallBuiltinTSConfigurations(state *State, owner authorization.PrincipalRef) {
 	d := &TSConfiguration{ObjectAddress: ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: 3748}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Parser: ids.ObjectAddress{ClassID: 3601, ObjectID: 3722}, ObjectRevision: 1, ObjectName: "simple", Owner: owner}

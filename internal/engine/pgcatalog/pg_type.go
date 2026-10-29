@@ -44,20 +44,20 @@ func pgTypeAdmitted(catalog catalog.Read, d *catalog.Type) bool {
 	return ok
 }
 
-func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, output sqltype.OutputEnvironment) (sqltype.PGTypeMetadata, error) {
+func TypeFacts(ctx context.Context, view catalog.Read, d *catalog.Type, output sqltype.OutputEnvironment) (sqltype.PGTypeMetadata, error) {
 	if d.SQLType.IsCatalogVector() {
-		if !pgTypeAdmitted(catalog, d) {
+		if !pgTypeAdmitted(view, d) {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign catalog vector authority")
 		}
 		f, _ := d.SQLType.PGTypeMetadata()
 		return f, nil
 	}
 	if d.SQLType.IsArray() {
-		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
+		element, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if !ok || element.SQLType != d.SQLType.Element() || element.Array != d.SQLType.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign type array authority")
 		}
-		fact, err := TypeFacts(ctx, catalog, element, output)
+		fact, err := TypeFacts(ctx, view, element, output)
 		if err != nil {
 			return fact, err
 		}
@@ -65,11 +65,11 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 	}
 	if d.SQLType.IsDomain() && (d.SQLType.Concrete() || d.SQLType.IsUserDefined()) {
 		usage := d.SQLType.DomainBase()
-		base, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		base, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if !ok || base.SQLType != usage.Type {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign domain base authority")
 		}
-		fact, err := TypeFacts(ctx, catalog, base, output)
+		fact, err := TypeFacts(ctx, view, base, output)
 		if err != nil {
 			return fact, err
 		}
@@ -79,7 +79,7 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 		return result, nil
 	}
 	if d.OwningRelation != (ids.ObjectAddress{}) {
-		relation, ok := catalog.Relation(d.OwningRelation)
+		relation, ok := view.Relation(d.OwningRelation)
 		if !ok || relation.RowType != d.SQLType.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign row type authority")
 		}
@@ -90,37 +90,40 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 		return f, fmt.Errorf("stuntgres: missing admitted type metadata")
 	}
 	if d.SQLType.IsSeg() || d.SQLType.IsHstore() || d.SQLType.IsQueryInt() || (d.SQLType.IsLquery() || d.SQLType.IsLtree() || d.SQLType.IsLtxtquery()) || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() || d.SQLType.IsIssn() || d.SQLType.IsIssn13() || d.SQLType.IsUpc() {
-		ext, ok := catalog.Extension(d.Extension)
-		if !ok || len(ext.Members) < 3 {
-			return f, fmt.Errorf("stuntgres: missing installed type routines")
-		}
-		slot := -1
-		for i, address := range ext.Members {
-			if address == d.Address() {
-				slot = i
-			}
-		}
-		if slot < 0 || slot+2 >= len(ext.Members) {
+		installation, ok := catalog.OriginInstallation(d)
+		if !ok || d.Origin.Declaration+2 >= len(installation.Members) {
 			return f, fmt.Errorf("stuntgres: missing installed scalar role")
 		}
-		input, exists := catalog.Procedure(ext.Members[slot+1])
-		if !exists || input.Implementation == nil {
-			return f, fmt.Errorf("stuntgres: missing installed type provider")
+		owner := view.Owner()
+		if owner == nil || owner.Providers[ids.TypeClassID] == nil {
+			return f, fmt.Errorf("stuntgres: missing installed scalar provider owner")
 		}
-		if err := input.Implementation.ValidateExtension(catalog, ext); err != nil {
+		if err := owner.Providers[ids.TypeClassID].Validate(view, d); err != nil {
 			return f, err
 		}
-		out, exists := catalog.Procedure(ext.Members[slot+2])
-		if !exists || input.Signature != "2275" || input.Result != d.Address().ObjectID || out.Signature != catalogSignature(d.Address().ObjectID) || out.Result != 2275 {
+		slot := d.Origin.Declaration
+		input, exists := view.Procedure(installation.Members[slot+1])
+		if !exists || !catalog.SameInstallation(input, installation) {
+			return f, fmt.Errorf("stuntgres: missing installed type provider")
+		}
+		out, exists := view.Procedure(installation.Members[slot+2])
+		var signature [10]byte
+		expected := strconv.AppendUint(signature[:0], uint64(d.Address().ObjectID), 10)
+		if !exists || !catalog.SameInstallation(out, installation) || input.Signature != "2275" || input.Result != d.Address().ObjectID || string(out.Signature) != string(expected) || out.Result != 2275 {
 			return f, fmt.Errorf("stuntgres: invalid installed type codec relationship")
 		}
-		f.Input, f.Output = uint32(ext.Members[slot+1].ObjectID), uint32(ext.Members[slot+2].ObjectID)
+		if input.Implementation == nil || out.Implementation == nil {
+			return f, fmt.Errorf("stuntgres: missing installed codec declaration owner")
+		}
+		if err := validateInstalledProcedureOwner(view, input); err != nil {
+			return f, err
+		}
+		if err := validateInstalledProcedureOwner(view, out); err != nil {
+			return f, err
+		}
+		f.Input, f.Output = uint32(installation.Members[slot+1].ObjectID), uint32(installation.Members[slot+2].ObjectID)
 	}
 	return f, nil
-}
-
-func catalogSignature(oid ids.OID) catalog.ProcedureSignature {
-	return catalog.ProcedureSignature(strconv.FormatUint(uint64(oid), 10))
 }
 
 // Released builtin metadata preserves its existing nodeToString witness. User

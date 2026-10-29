@@ -190,7 +190,7 @@ func TestReferenceExtensionControls(t *testing.T) {
 				}
 				run(check)
 			}
-			extensionControlsFailures(t, p, c, r, dump.String(), check)
+			extensionControlsFailures(t, p, c, r, "unaccent", dump.String(), check)
 		}
 		run(fixture.Prepared(check))
 		extensionInventory(t, p, c)
