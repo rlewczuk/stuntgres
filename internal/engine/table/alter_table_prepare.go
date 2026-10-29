@@ -142,6 +142,8 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 		}
 		label = "ALTER COLUMN ... SET STORAGE"
 		if action == parser.SetCompression { label = "ALTER COLUMN ... SET COMPRESSION" }
+	case parser.SetReplicaIdentity:
+		return analyze.TableKindError(original, "REPLICA IDENTITY")
 	case parser.InheritTable:
 		return RelationshipChildKind(original, action)
 	case parser.NoInheritTable:

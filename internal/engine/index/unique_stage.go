@@ -124,6 +124,7 @@ func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.
 			*definition = *source.SQLIndex
 			definition.Parent, definition.Constraint = d.Address(), UniqueBacking(c)
 			definition.PartitionParent = ids.ObjectAddress{}
+			definition.ReplicaIdentity = false // LIKE creates an index on a new parent.
 			definition.Ready, definition.Valid, definition.Live = true, true, true
 			definition.Keys = slices.Clone(source.SQLIndex.Keys)
 			for j := range definition.Keys {

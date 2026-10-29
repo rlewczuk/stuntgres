@@ -224,6 +224,9 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 	if table.ColumnStorageOnly(s.Actions) && len(s.Actions) == 1 && s.Only && !s.IfExists && len(s.Name.Parts) == 2 {
 		return nil
 	}
+	if !s.IfExists && !s.Only && len(s.Name.Parts) == 2 && len(s.Actions) == 1 && s.Actions[0].Action == parser.SetReplicaIdentity {
+		return nil // Post-event identity uses ordinary eligibility and atomic staging.
+	}
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.DropColumn {
 		return r.admitAttributeRetirement(op, s)
 	}

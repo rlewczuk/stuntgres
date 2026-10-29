@@ -1115,6 +1115,17 @@ const (
 	SetWithoutOIDs
 	SetStorage
 	SetCompression
+	SetReplicaIdentity
+)
+
+// ReplicaIdentityMode is the catalog row-identity configuration, not replication.
+type ReplicaIdentityMode byte
+
+const (
+	ReplicaIdentityDefault ReplicaIdentityMode = 'd'
+	ReplicaIdentityFull    ReplicaIdentityMode = 'f'
+	ReplicaIdentityNothing ReplicaIdentityMode = 'n'
+	ReplicaIdentityIndex   ReplicaIdentityMode = 'i'
 )
 
 type TriggerSelector uint8
@@ -1138,6 +1149,8 @@ type AlterTableAction struct {
 	MethodDefault   bool
 	Parent          ObjectName
 	Action          AlterTableActionKind
+	ReplicaIdentity ReplicaIdentityMode
+	ReplicaIndex    Identifier
 	IfExists        bool
 	IfNotExists     bool
 	Definition      *Column

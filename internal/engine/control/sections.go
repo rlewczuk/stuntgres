@@ -41,6 +41,7 @@ var dumpSections = [...]dumpSection{
 	{"events", emitDumpEvents},
 	{"index options", emitDumpIndexOptions},
 	{"clustering preferences", emitDumpClusteringPreferences},
+	{"replica identity", emitDumpReplicaIdentity},
 	{"sequence completion", emitDumpSequenceCompletion},
 	{"large objects", emitDumpLargeObjects},
 	{"materialized snapshots", emitDumpMaterializedSnapshots},

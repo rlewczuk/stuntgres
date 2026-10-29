@@ -135,10 +135,7 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 			frozenXID = uint32(fact.FrozenXID)
 		}
 	}
-	replica := "n"
-	if relation.RelationKind != catalog.CatalogRelation && (kind == "r" || kind == "m" || kind == "p") {
-		replica = "d"
-	}
+	replica := string(byte(relation.EffectiveReplicaIdentity()))
 	acl, err := ClassACL(in.Owner, roles, source.Columns[31].Usage.Type, relation.Security.ACL)
 	if err != nil {
 		return nil, err

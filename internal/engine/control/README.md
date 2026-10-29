@@ -203,6 +203,13 @@ and saved rows, so Restore never transforms stored data twice. Partition clones
 are derived through catalog publication rather than serialized independently;
 definition OIDs, parent provenance and WHEN captures remap with the destination.
 
+Replica identity replays in a deterministic owner-qualified post-event section,
+after standalone and constraint-backed indexes have their final names. FULL,
+NOTHING and USING INDEX preserve ordinary SQL-representable persistent state.
+After dropping a selected index, live mode remains i with no selected index;
+this orphaned mode has no ordinary SQL replay record (as with pg_dump), and is
+not an exact round-trip state. TEMP identities are not part of persistent dumps.
+
 Unenforced foreign keys retain their constraint identity but have no internal
 trigger identities. Replacement remaps the constraint OID and leaves those
 absent trigger slots zero; it neither imports zero as an object identity nor

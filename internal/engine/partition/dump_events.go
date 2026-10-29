@@ -13,19 +13,28 @@ import (
 	"stuntgres/internal/engine/table"
 )
 
-// A preexisting incomplete manual index must not be present while ATTACH could
-// synthesize a missing child or replace a captured invalid child. Delay all
-// manual virtual indexes on that table, including the intended valid tree, so
-// physical backings cannot be consumed by the wrong equivalent parent index.
+// Delay manual virtual indexes when membership must precede their declarations.
+// A valid root must not exist while CREATE TABLE PARTITION OF could synthesize
+// a captured child index that the script declares separately. Existing incomplete
+// roots also stay absent while ATTACH could consume the wrong physical backing.
 func dumpLateIndexTables(view catalog.Read) map[ids.ObjectAddress]bool {
 	late := make(map[ids.ObjectAddress]bool)
 	for _, descriptor := range view.Descriptors() {
 		idx, ok := descriptor.(*catalog.Relation)
-		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Valid || idx.SQLIndex.Constraint != nil {
+		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Constraint != nil {
 			continue
 		}
 		table := view.MustRelation(idx.SQLIndex.Parent)
 		if table.Partition == nil || late[table.Address()] {
+			continue
+		}
+		if idx.SQLIndex.Valid {
+			for _, child := range table.Partition.Children {
+				if !DumpNeedsAttach(view, view.MustRelation(child)) {
+					late[table.Address()] = true
+					break
+				}
+			}
 			continue
 		}
 		if index.PartitionIndexPreservedInvalid(view, idx) {

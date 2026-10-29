@@ -163,7 +163,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, nil
 		}
 	}
-	if scope.Inheritance.Alter == nil && !table.ClusterActionsOnly(s.Actions) && !access.RowSecurityActions(s.Actions) && !table.TriggerModesOnly(s.Actions) && !table.RuleModesOnly(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
+	if scope.Inheritance.Alter == nil && !table.ClusterActionsOnly(s.Actions) && !table.ReplicaIdentityOnly(s.Actions) && !access.RowSecurityActions(s.Actions) && !table.TriggerModesOnly(s.Actions) && !table.RuleModesOnly(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
 		return alterInheritanceLocked(e, scope, op, auth, s, count, destination, prepared, preparation.AccessMethod)
 	}
 	if scope.Inheritance.Alter == nil || !scope.Inheritance.Alter.Descendant {
@@ -209,7 +209,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next)
 	}
-	validityOnly := table.ValidationOnly(s.Actions) || table.ColumnStorageOnly(s.Actions)
+	validityOnly := table.ValidationOnly(s.Actions) || table.ColumnStorageOnly(s.Actions) || table.ReplicaIdentityOnly(s.Actions)
 	changes := scope.PendingCatalog()
 	if scope.Inheritance.Alter == nil {
 		changes = changes.Clone()
@@ -327,6 +327,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		return a.Action == parser.ClusterOn || a.Action == parser.SetWithoutCluster
 	})
 	hasColumnStorage := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.ColumnStorageAction(a.Action) })
+	hasReplicaIdentity := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.SetReplicaIdentity })
 	for _, action := range s.Actions {
 		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
 	}
@@ -503,7 +504,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		FinishInheritance: func(o, n *catalog.Relation) (*catalog.Relation, error) {
 			return finishInheritanceAlterCandidate(scope, o, n)
 		},
-		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys, ValidateConstraints: hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage,
+		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys, ValidateConstraints: hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage || hasReplicaIdentity,
 		StageEmpty:  stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.Sequence.StagedGenerators()) == 0,
 		Destination: destination,
 	})
@@ -628,6 +629,16 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			}
 			continue
 		}
+		if action.Action == parser.SetReplicaIdentity {
+			if err := stage.ReplaceDescriptor(next, false, false); err != nil {
+				return core.Result{}, err
+			}
+			next, err = stageReplicaIdentity(e, stage, next, action)
+			if err != nil {
+				return core.Result{}, err
+			}
+			continue
+		}
 		if table.TriggerModeAction(action.Action) {
 			if err := stage.ReplaceDescriptor(next, false, false); err != nil {
 				return core.Result{}, err
@@ -745,7 +756,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		scope.Catalog = previousCatalog
 		return core.Result{}, nil
 	}
-	if (hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage) && next != old {
+	if (hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage || hasReplicaIdentity) && next != old {
 		if err := stage.Replace(next); err != nil {
 			return core.Result{}, err
 		}

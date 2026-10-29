@@ -92,6 +92,8 @@ func InheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog
 
 func InheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableAction, only bool) bool {
 	switch a.Action {
+	case parser.SetReplicaIdentity:
+		return false
 	case parser.AlterConstraintEnforcement, parser.AlterConstraintTiming:
 		return false // Ordinary inheritance never propagates foreign keys.
 	case parser.SetStorage:

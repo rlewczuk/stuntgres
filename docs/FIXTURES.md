@@ -85,6 +85,11 @@ ignores the native comment rather than importing its historical catalog state.
 - Not dumped: roles or their shared comments, passwords, memberships, settings,
   TEMP objects, uncommitted or prepared work, sequence `currval`/`lastval` session
   state, and commit timestamp history.
+- Row-identity modes FULL/NOTHING and explicit USING INDEX replay after all
+  indexes, including constraint-backed indexes, exist. DEFAULT is canonical
+  without a record. Live index mode with no selected index after DROP has no
+  ordinary SQL representation and is not an exact replay state; no temporary
+  index or replication stream is fabricated to reconstruct it.
 - Text-search template declarations preserve optional INIT, mandatory LEXIZE and
   actual callback dependencies before dictionary declarations. Seed and installed
   template relabels replay without duplicate CREATE or invented ownership.

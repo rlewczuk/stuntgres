@@ -42,6 +42,7 @@ type IndexDefinition struct {
 	Include            []int32
 	Unique             bool
 	NullsNotDistinct   bool
+	ReplicaIdentity    bool
 	Constraint         *BackingConstraint
 	Ready, Valid, Live bool
 	Clustered          bool

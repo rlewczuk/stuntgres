@@ -11,6 +11,10 @@ slots. Consequently every otherwise valid demanded request ends with truthful
 physical-decoding rejection reachable, and no empty successful stream stands in
 for decoding.
 
+`ALTER TABLE ... REPLICA IDENTITY` configures actual row-identity catalog state:
+the parent mode and selected real index bit. It does not create slots, generate
+WAL, load output plugins, publish changes or deliver network replication.
+
 This is an explicitly authorized interpretation of the physical-boundary
 requirement: a **physical-decoding `0A000` witness is publicly unreachable without
 real slots**. There is no unused decoder/provider interface or unreachable

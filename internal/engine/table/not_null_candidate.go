@@ -139,6 +139,9 @@ func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 		if identity {
 			return nil, sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, old.Columns[slot].Name, old.Name()))
 		}
+		if catalog.ReplicaIdentityKey(view, old, old.Attributes[slot]) {
+			return nil, sqlError("42P16", fmt.Sprintf(`column "%s" is in index used as replica identity`, old.Columns[slot].Name))
+		}
 	}
 	if adding && idx >= 0 {
 		if a.Action == parser.AddNotNull {

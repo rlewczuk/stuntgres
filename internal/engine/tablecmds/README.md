@@ -74,6 +74,14 @@ TEMP preservation, relation admission and publication.
   are OID-ordered outside `Engine.Mu`, then exact base descriptors are rechecked.
   Root MISC consumes the original ONLY intent; descendant structural candidates
   retain already staged modes. Finish publishes all owners together or none.
+  Replica identity is root-only MISC metadata: the parent mode and real child
+  index selection bits share that same stage and publication. Eligibility uses
+  current key attributes (not INCLUDE nullability); mode/index switches revise
+  dependencies without changing stored rows. Later failure or cancellation
+  publishes neither the mode nor any index bits.
+  An index created by an earlier ADD/TYPE pass retains its private creation and
+  name observations when MISC updates its selection bit; only existing base
+  indexes use predecessor replacement.
   Historical FK work is one ordered payload: ADD-time history-validating keys
   precede action-ordered MISC selections. ADD NOT VALID is not retroactively
   enrolled in the ADD prefix when MISC later promotes it. Resolution retains the

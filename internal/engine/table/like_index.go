@@ -51,6 +51,7 @@ func StageLikeIndexes(h Host, auth ddl.Authority, destination *catalog.Relation,
 			definition := *old
 			definition.Parent = destination.Address()
 			definition.PartitionParent = ids.ObjectAddress{}
+			definition.ReplicaIdentity = false // New parent, not a logical index replacement.
 			definition.Ready, definition.Valid, definition.Live = true, true, true
 			definition.Constraint = nil
 			definition.Keys = slices.Clone(old.Keys)

@@ -19,6 +19,12 @@ private frames, not catalog authority.
   procedures, operators, collations, conversions, extensions, foreign objects,
   large objects, access methods, casts, operator classes and families, ...) and
   their records. Read identity through the `Descriptor` methods.
+  Relation row identity is a parent mode plus a selection bit on the actual
+  index definition, not a name/OID cache. Effective defaults depend on kind.
+  Non-index modes have no selected children; index mode admits at most one,
+  including none after its index is dropped. Same-parent logical replacement
+  preserves selection; LIKE and newly constructed partition indexes start
+  unselected. Adopting an existing child index preserves that child's own bit.
   `Procedure.Display` holds immutable creation-owned language/source, optional
   dynamic-library provenance, support, leakproof and transform-list facts.
   Invalid zero language differs from legitimate empty source; explicit binary

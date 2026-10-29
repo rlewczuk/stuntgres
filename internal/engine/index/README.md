@@ -14,6 +14,13 @@ builds a binder.
 
 ## What it owns
 
+- **Row-identity eligibility** (`replica_identity.go`) validates actual parent
+  membership, uniqueness, actual constraint timing, expressions/predicate and physical
+  key NOT NULL flags in release order. INCLUDE attributes and index validity
+  do not add restrictions. ALTER owns the atomic parent/index replacement;
+  immutable definition copies retain selection across TYPE and rename.
+  Cross-parent LIKE/partition construction starts unselected; adoption copies
+  the existing child's own definition rather than the parent's selection.
 - **Operator-family and access-method DDL** (`operator_family_*.go`,
   `access_method_ddl.go`): items resolve through the shared namespace, type,
   routine and operator authorities, validate the complete ordered list

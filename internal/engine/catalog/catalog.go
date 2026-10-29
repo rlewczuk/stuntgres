@@ -64,11 +64,12 @@ type Relation struct {
 	RowType    sqltype.ID
 	OfType     ids.ObjectAddress
 
-	ColumnMeta     ColumnMetadata
-	Constraints    RelationConstraints
-	Security       RelationSecurity
-	History        PublicationHistory
-	StorageOptions RelationOptions
+	ColumnMeta      ColumnMetadata
+	Constraints     RelationConstraints
+	Security        RelationSecurity
+	History         PublicationHistory
+	StorageOptions  RelationOptions
+	ReplicaIdentity parser.ReplicaIdentityMode
 
 	// Kind payloads.
 	SQLIndex          *IndexDefinition

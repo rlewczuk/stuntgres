@@ -229,6 +229,10 @@ adapter; `partition_info_runtime.go` holds the
   constructor/replay paths through RANGE scratch parents. Independent provider
   terminal names precede promotion-gap cleanup explicitly, preserving exact bytes
   when replacement remints backing identities.
+  Standalone virtual indexes are delayed past captured PARTITION OF creation
+  when an earlier root would synthesize a separately declared child index.
+  The existing late-declaration and index-attachment events reconstruct the
+  saved names and memberships without duplicate child creation.
 
 ## Testing
 

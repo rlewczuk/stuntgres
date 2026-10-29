@@ -161,11 +161,14 @@ func TableKindError(d *catalog.Relation, operation string) error {
 	if d.RelationKind == catalog.TableRelation || d.RelationKind == catalog.PartitionedRelation {
 		return nil
 	}
+	if operation == "REPLICA IDENTITY" && d.RelationKind == catalog.MaterializedViewRelation {
+		return nil
+	}
 	triggerMode := strings.HasPrefix(operation, "ENABLE TRIGGER") || strings.HasPrefix(operation, "DISABLE TRIGGER") || strings.HasPrefix(operation, "ENABLE REPLICA TRIGGER") || strings.HasPrefix(operation, "ENABLE ALWAYS TRIGGER")
 	if triggerMode && d.RelationKind == catalog.ForeignRelation {
 		return nil
 	}
-	if d.RelationKind == catalog.CompositeRelation && !triggerMode {
+	if d.RelationKind == catalog.CompositeRelation && !triggerMode && operation != "REPLICA IDENTITY" {
 		if columnPolicy {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for composite types."}
 		}
@@ -174,7 +177,7 @@ func TableKindError(d *catalog.Relation, operation string) error {
 	if d.RelationKind == catalog.MaterializedViewRelation && operation == "change" {
 		return sqlError("42809", fmt.Sprintf(`cannot change materialized view "%s"`, d.Name()))
 	}
-	if columnPolicy || operation == "ADD COLUMN" || operation == "ENABLE RULE" || operation == "DISABLE RULE" || operation == "ENABLE REPLICA RULE" || operation == "ENABLE ALWAYS RULE" || triggerMode {
+	if columnPolicy || operation == "REPLICA IDENTITY" || operation == "ADD COLUMN" || operation == "ENABLE RULE" || operation == "DISABLE RULE" || operation == "ENABLE REPLICA RULE" || operation == "ENABLE ALWAYS RULE" || triggerMode {
 		kind := ""
 		switch d.RelationKind {
 		case catalog.ViewRelation:
@@ -188,7 +191,7 @@ func TableKindError(d *catalog.Relation, operation string) error {
 		case catalog.CompositeRelation:
 			kind = "composite types"
 		case catalog.ForeignRelation:
-			if columnPolicy {
+			if columnPolicy || operation == "REPLICA IDENTITY" {
 				kind = "foreign tables"
 			}
 		}

@@ -98,6 +98,7 @@ func MapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 	}
 	d := *old
 	d.Parent, d.PartitionParent, d.Constraint = child.Address(), ids.ObjectAddress{}, nil
+	d.ReplicaIdentity = false // A newly constructed child's selection is independent.
 	d.Keys, d.Include = slices.Clone(old.Keys), slices.Clone(old.Include)
 	for i := range d.Include {
 		a, err := in.Attribute(child, d.Include[i])
