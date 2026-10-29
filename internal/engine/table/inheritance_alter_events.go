@@ -66,7 +66,7 @@ func InheritanceParentActions(state *InheritanceAlterPlan, old *catalog.Relation
 			if state.Only && a.Action != parser.AlterConstraintInherit && a.Action != parser.DropColumn && a.Action != parser.DropConstraint && a.Action != parser.DropNotNull {
 				continue
 			}
-			if a.Action == parser.SetStorage || !slices.ContainsFunc(actions, func(previous parser.AlterTableAction) bool {
+			if a.Action == parser.SetStorage || a.Action == parser.SetColumnStatistics || !slices.ContainsFunc(actions, func(previous parser.AlterTableAction) bool {
 				return previous.Action == a.Action && inheritanceEventName(previous) == inheritanceEventName(a)
 			}) {
 				actions = append(actions, a)
@@ -116,7 +116,7 @@ func InheritancePreparatoryLocks(root *catalog.Relation, actions []parser.AlterT
 	}
 	for _, a := range actions {
 		switch a.Action {
-		case parser.SetStorage:
+		case parser.SetStorage, parser.SetColumnStatistics:
 			return true
 		case parser.AddCheck, parser.AddNotNull, parser.AddUnique, parser.AddForeignKey, parser.AddExclusion, parser.AlterColumnType, parser.SetExpression, parser.DropExpression:
 			return true

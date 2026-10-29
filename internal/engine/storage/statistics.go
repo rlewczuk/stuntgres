@@ -32,10 +32,13 @@ type ColumnStatistics struct {
 	Usage                          sqltype.Usage
 	Rows, NullCount, DistinctCount uint64
 	DistinctKnown                  bool
-	AverageWidth                   int32
-	MCV                            []StatisticMCV
-	Histogram                      []sqltype.Value
-	Hierarchy                      *StatisticsHierarchy
+	// DistinctOverride is a signed planner estimate, never a measured count.
+	// Zero uses the ordinary measured encoding.
+	DistinctOverride float64
+	AverageWidth     int32
+	MCV              []StatisticMCV
+	Histogram        []sqltype.Value
+	Hierarchy        *StatisticsHierarchy
 }
 
 type RelationStatistics struct {
@@ -54,6 +57,9 @@ func (s *ColumnStatistics) NullFraction() float64 {
 func (s *ColumnStatistics) EncodedDistinct() (float64, bool) {
 	if s == nil || !s.DistinctKnown {
 		return 0, false
+	}
+	if s.DistinctOverride != 0 {
+		return s.DistinctOverride, true
 	}
 	if s.Rows == 0 || s.DistinctCount == 0 {
 		return 0, true

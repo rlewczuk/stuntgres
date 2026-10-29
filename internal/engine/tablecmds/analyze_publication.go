@@ -94,7 +94,13 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		if relation.ColumnMeta.Generations[attribute].Kind == catalog.GenerationVirtual {
 			continue
 		}
-		columns = append(columns, storage.StatisticsColumn{Key: storage.StatisticsKey{Attribute: attribute}, Usage: column.Usage, Slot: slot, Target: s.Op.StatisticsTarget})
+		config := relation.ColumnMeta.Statistics[attribute]
+		columnTarget := s.Op.StatisticsTarget
+		if config.TargetSet {
+			columnTarget = int(config.Target)
+		}
+		input := storage.StatisticsColumn{Key: storage.StatisticsKey{Attribute: attribute}, Usage: column.Usage, Slot: slot, Target: max(1, columnTarget)}
+		columns = append(columns, input)
 	}
 	closure, err := analyzeClosure(auth.Catalog, relation, s.Op.Session.SessionToken)
 	if err != nil {
@@ -111,6 +117,16 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		e.Mu.Unlock()
 		return err
 	}
+	// Extended definitions own their own targets and captured column values.
+	// Compact only the scalar input list after that independent capture.
+	enabled := columns[:0]
+	for _, column := range columns {
+		config := relation.ColumnMeta.Statistics[column.Key.Attribute]
+		if !config.TargetSet || config.Target != 0 {
+			enabled = append(enabled, column)
+		}
+	}
+	columns = enabled
 	e.Mu.Unlock()
 	// Descendant DDL is fenced by real locks. Data roots are then captured in one
 	// short metadata window, and all typed comparison/collection runs detached.
@@ -231,6 +247,19 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		})
 		if err != nil {
 			return nil, 0, err
+		}
+		if stats != nil {
+			optionName := "n_distinct"
+			if inherited {
+				optionName = "n_distinct_inherited"
+			}
+			for key, fact := range stats.Columns {
+				for _, option := range relation.ColumnMeta.Statistics[key.Attribute].Options {
+					if option.Name == optionName {
+						fact.DistinctOverride, _ = catalog.ParseColumnDistinct(option.Value)
+					}
+				}
+			}
 		}
 		for i, collector := range collectors {
 			fact, err := collector.Finish(s.Op.Context())

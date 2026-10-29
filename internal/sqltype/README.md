@@ -493,6 +493,12 @@ or widen it.
 - FLOAT4 keeps exact IEEE binary32 words (`Float4FromBits`, `Value.Float4Bits`)
   through copies, Retag/import, nested leaves, binary transport and datum
   identity; constructors and arithmetic derive a fresh rounded word.
+- `StrtodUnderflow` owns the pinned glibc ERANGE boundary shared by ISO interval
+  input and column distinctness options. Callers validate syntax and overflow;
+  the helper distinguishes exact subnormals from ERANGE rather than rejecting
+  by magnitude. Normal results allocate nothing; only the rare tiny boundary
+  needs exact rational arithmetic. ISO interval input retains its existing
+  conversion and diagnostic contract.
 
 ## Binary providers
 
@@ -760,6 +766,7 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
 XML value ownership and codec units use `RUN='^TestXMLSQL'`.
+ISO interval lexical/ERANGE units use `RUN='^TestIntervalISO'`.
 Cooperative provider admission, class precision and failure ownership use
 `RUN='^Test(ScalarWorkAdmission|PgcryptoSHAAdmission|JSONWorkAdmission)'`;
 add `RACE=1` for cancellation and cursor-lifetime proof.

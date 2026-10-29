@@ -27,7 +27,7 @@ func PartitionConstraintActions(root *catalog.Relation, actions []parser.AlterTa
 		switch a.Action {
 		case parser.SetAccessMethod, parser.ClusterOn, parser.SetWithoutCluster, parser.SetWithoutOIDs, parser.SetReplicaIdentity:
 			// These intents belong only to the selected root, never its leaves.
-		case parser.SetStorage, parser.SetCompression:
+		case parser.SetStorage, parser.SetCompression, parser.SetColumnStatistics, parser.SetColumnOptions, parser.ResetColumnOptions:
 		case parser.SetRelationOptions, parser.ResetRelationOptions, parser.EnableRule, parser.DisableRule, parser.EnableReplicaRule, parser.EnableAlwaysRule, parser.EnableTrigger, parser.DisableTrigger, parser.EnableReplicaTrigger, parser.EnableAlwaysTrigger:
 			// Root-only metadata companions do not expand the shape whitelist.
 		case parser.AddCheck:
@@ -131,7 +131,7 @@ func partitionInheritedActions(state *InheritanceAlterPlan, old *catalog.Relatio
 	var actions []parser.AlterTableAction
 	for _, a := range InheritanceParentActions(state, old) {
 		switch a.Action {
-		case parser.SetStorage:
+		case parser.SetStorage, parser.SetColumnStatistics:
 			if !state.Only {
 				actions = append(actions, a)
 			}

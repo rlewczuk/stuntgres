@@ -221,7 +221,7 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 	if table.RestoreRuleMode(s) || table.RestoreTriggerMode(s) {
 		return nil // Canonical rule post-data ALTER; normal ownership/staging applies.
 	}
-	if table.ColumnStorageOnly(s.Actions) && len(s.Actions) == 1 && s.Only && !s.IfExists && len(s.Name.Parts) == 2 {
+	if (table.ColumnStorageOnly(s.Actions) || table.ColumnStatisticsOnly(s.Actions)) && len(s.Actions) == 1 && s.Only && !s.IfExists && len(s.Name.Parts) == 2 {
 		return nil
 	}
 	if !s.IfExists && !s.Only && len(s.Name.Parts) == 2 && len(s.Actions) == 1 && s.Actions[0].Action == parser.SetReplicaIdentity {

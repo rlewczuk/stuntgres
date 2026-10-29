@@ -11,27 +11,58 @@ import (
 )
 
 func storageMode(value string) string {
-	switch value { case "p": return "PLAIN"; case "e": return "EXTERNAL"; case "m": return "MAIN"; default: return "EXTENDED" }
+	switch value {
+	case "p":
+		return "PLAIN"
+	case "e":
+		return "EXTERNAL"
+	case "m":
+		return "MAIN"
+	default:
+		return "EXTENDED"
+	}
 }
 func compressionMethod(value string) string {
-	switch value { case "p": return "pglz"; case "l": return "lz4"; default: return "default" }
+	switch value {
+	case "p":
+		return "pglz"
+	case "l":
+		return "lz4"
+	default:
+		return "default"
+	}
 }
 func emitColumnProperties(w *dumpWriter, qualified, name string, value catalog.ColumnStorage, storage, compression bool) error {
 	prefix := "ALTER TABLE ONLY " + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(name)
-	if storage { if err := w.emit(prefix + " SET STORAGE " + storageMode(value.Storage) + ";\n"); err != nil { return err } }
-	if compression { return w.emit(prefix + " SET COMPRESSION " + compressionMethod(value.Compression) + ";\n") }
+	if storage {
+		if err := w.emit(prefix + " SET STORAGE " + storageMode(value.Storage) + ";\n"); err != nil {
+			return err
+		}
+	}
+	if compression {
+		return w.emit(prefix + " SET COMPRESSION " + compressionMethod(value.Compression) + ";\n")
+	}
 	return nil
 }
 func emitRelationColumnStorage(s *dumpScript, w *dumpWriter, r *catalog.Relation) error {
-	if r == nil || r.SQLIndex != nil || r.RelationKind == catalog.ViewRelation { return nil }
-	if s.deferredColumnStorage[r.Address()] { return nil }
+	if r == nil || r.SQLIndex != nil || r.RelationKind == catalog.ViewRelation {
+		return nil
+	}
+	if s.deferredColumnStorage[r.Address()] {
+		return nil
+	}
 	qualified := catalog.QuoteIdentifier(s.OriginalCatalog.Get(r.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Name())
 	for i, column := range r.Columns {
 		value := r.ColumnStorage(i)
 		// Inherited constructors can carry nondefault policies. Explicit default
 		// completions prevent a parent's saved policy leaking into a child.
 		inherited := r.Inheritance != nil || r.Membership != nil
-		if err := emitColumnProperties(w, qualified, column.Name, value, inherited || value.Storage != column.Usage.Type.AttributeFacts().Storage, r.RelationKind != catalog.ForeignRelation && (inherited || value.Compression != "")); err != nil { return err }
+		if err := emitColumnProperties(w, qualified, column.Name, value, inherited || value.Storage != column.Usage.Type.AttributeFacts().Storage, r.RelationKind != catalog.ForeignRelation && (inherited || value.Compression != "")); err != nil {
+			return err
+		}
+		if err := emitColumnStatistics(w, qualified, column.Name, r.ColumnMeta.Statistics[r.Attributes[i]]); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -49,14 +80,25 @@ func emitDumpDeferredColumnStorage(ctx context.Context, s *dumpScript, w *dumpWr
 		return catalog.QuoteIdentifier(s.OriginalCatalog.Get(r.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Name())
 	}
 	slices.SortFunc(relations, func(a, b *catalog.Relation) int { return strings.Compare(identity(a), identity(b)) })
-	if len(relations) == 0 { return nil }
-	if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil { return err }
+	if len(relations) == 0 {
+		return nil
+	}
+	if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
+		return err
+	}
 	w.currentOwner = ""
 	for _, r := range relations {
-		if err := ctx.Err(); err != nil { return err }
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		qualified := identity(r)
 		for i, column := range r.Columns {
-			if err := emitColumnProperties(w, qualified, column.Name, r.ColumnStorage(i), true, true); err != nil { return err }
+			if err := emitColumnProperties(w, qualified, column.Name, r.ColumnStorage(i), true, true); err != nil {
+				return err
+			}
+			if err := emitColumnStatistics(w, qualified, column.Name, r.ColumnMeta.Statistics[r.Attributes[i]]); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -76,12 +118,16 @@ func (s *dumpScript) retiredAttributeType(r *catalog.Relation, number int32) str
 			}
 		}
 	}
-	if h.policyTypes[h.names[attributeSlot{r.Address(), number}]] { return "pg_catalog.text" }
+	if h.policyTypes[h.names[attributeSlot{r.Address(), number}]] {
+		return "pg_catalog.text"
+	}
 	return "pg_catalog.int4"
 }
 func (s *dumpScript) emitRetiredStorage(w *dumpWriter, r *catalog.Relation, number int32) error {
 	fact := r.ColumnMeta.Dropped[number]
-	if s.retiredAttributeType(r, number) == "pg_catalog.int4" { return nil }
+	if s.retiredAttributeType(r, number) == "pg_catalog.int4" {
+		return nil
+	}
 	qualified := catalog.QuoteIdentifier(s.OriginalCatalog.Get(r.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Name())
 	return emitColumnProperties(w, qualified, s.attributeHistory.names[attributeSlot{r.Address(), number}], catalog.ColumnStorage{Storage: fact.Facts.Storage, Compression: fact.Compression}, true, true)
 }
@@ -93,8 +139,18 @@ func emitDumpIndexStorage(_ context.Context, s *dumpScript, w *dumpWriter) error
 			indexes = append(indexes, r)
 		}
 	}
-	identity := func(r *catalog.Relation) string { return catalog.QuoteIdentifier(s.OriginalCatalog.Get(r.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Name()) }
-	slices.SortFunc(indexes, func(a,b *catalog.Relation) int { if identity(a)<identity(b) { return -1 }; if identity(a)>identity(b) { return 1 }; return 0 })
+	identity := func(r *catalog.Relation) string {
+		return catalog.QuoteIdentifier(s.OriginalCatalog.Get(r.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Name())
+	}
+	slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
+		if identity(a) < identity(b) {
+			return -1
+		}
+		if identity(a) > identity(b) {
+			return 1
+		}
+		return 0
+	})
 	authority := false
 	for _, r := range indexes {
 		parent := s.OriginalCatalog.MustRelation(r.SQLIndex.Parent)
@@ -104,25 +160,43 @@ func emitDumpIndexStorage(_ context.Context, s *dumpScript, w *dumpWriter) error
 		repairNames := false
 		for i, column := range r.Columns {
 			attribute := int32(0)
-			if i < len(r.SQLIndex.Keys) { attribute = r.SQLIndex.Keys[i].Attribute } else { attribute = r.SQLIndex.Include[i-len(r.SQLIndex.Keys)] }
+			if i < len(r.SQLIndex.Keys) {
+				attribute = r.SQLIndex.Keys[i].Attribute
+			} else {
+				attribute = r.SQLIndex.Include[i-len(r.SQLIndex.Keys)]
+			}
 			if attribute != 0 {
 				slot := parent.IndexForAttribute(attribute)
-				if slot < 0 { return fmt.Errorf("stuntgres: missing index storage parent attribute") }
+				if slot < 0 {
+					return fmt.Errorf("stuntgres: missing index storage parent attribute")
+				}
 				repairNames = repairNames || column.Name != parent.Columns[slot].Name
 			}
-			if attribute == 0 { repairNames = true }
+			if attribute == 0 {
+				repairNames = true
+			}
 		}
 		if repairNames {
-			if !authority { if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil { return err }; authority = true; w.currentOwner = "" }
+			if !authority {
+				if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
+					return err
+				}
+				authority = true
+				w.currentOwner = ""
+			}
 			// Vacate every label first, so swaps and duplicate-name suffixes
 			// cannot collide with pg_attribute's unique name index on SQL replay.
 			prefix := indexAttributeReplayPrefix(parent, r)
 			for i := range r.Columns {
-				if err := w.emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attname=%s WHERE attrelid=%s::regclass AND attnum=%d;\n", dump.CommentLiteral(fmt.Sprintf("%s%d", prefix, i+1)), dump.CommentLiteral(identity(r)), r.Attributes[i])); err != nil { return err }
+				if err := w.emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attname=%s WHERE attrelid=%s::regclass AND attnum=%d;\n", dump.CommentLiteral(fmt.Sprintf("%s%d", prefix, i+1)), dump.CommentLiteral(identity(r)), r.Attributes[i])); err != nil {
+					return err
+				}
 			}
 			for i, column := range r.Columns {
 				value := r.ColumnStorage(i)
-				if err := w.emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attstorage=%s,attcompression=%s,attname=%s WHERE attrelid=%s::regclass AND attnum=%d;\n", dump.CommentLiteral(value.Storage), dump.CommentLiteral(value.Compression), dump.CommentLiteral(column.Name), dump.CommentLiteral(identity(r)), r.Attributes[i])); err != nil { return err }
+				if err := w.emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attstorage=%s,attcompression=%s,attname=%s WHERE attrelid=%s::regclass AND attnum=%d;\n", dump.CommentLiteral(value.Storage), dump.CommentLiteral(value.Compression), dump.CommentLiteral(column.Name), dump.CommentLiteral(identity(r)), r.Attributes[i])); err != nil {
+					return err
+				}
 			}
 			continue
 		}
@@ -130,11 +204,23 @@ func emitDumpIndexStorage(_ context.Context, s *dumpScript, w *dumpWriter) error
 			value := r.ColumnStorage(i)
 			if !s.deferredColumnStorage[parent.Address()] {
 				predicted, err := index.ConstructorColumnStorage(s.OriginalCatalog, parent, r, i)
-				if err != nil { return err }
-				if value == predicted { continue }
+				if err != nil {
+					return err
+				}
+				if value == predicted {
+					continue
+				}
 			}
-			if !authority { if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil { return err }; authority = true; w.currentOwner = "" }
-			if err := w.emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attstorage=%s,attcompression=%s WHERE attrelid=%s::regclass AND attnum=%d;\n", dump.CommentLiteral(value.Storage), dump.CommentLiteral(value.Compression), dump.CommentLiteral(identity(r)), r.Attributes[i])); err != nil { return err }
+			if !authority {
+				if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
+					return err
+				}
+				authority = true
+				w.currentOwner = ""
+			}
+			if err := w.emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attstorage=%s,attcompression=%s WHERE attrelid=%s::regclass AND attnum=%d;\n", dump.CommentLiteral(value.Storage), dump.CommentLiteral(value.Compression), dump.CommentLiteral(identity(r)), r.Attributes[i])); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -154,6 +240,8 @@ func indexAttributeReplayPrefix(parent, index *catalog.Relation) string {
 				}
 			}
 		}
-		if !occupied { return prefix }
+		if !occupied {
+			return prefix
+		}
 	}
 }

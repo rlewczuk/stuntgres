@@ -52,6 +52,16 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   independence. Unsupported expressions/authority preserve the caller's
   existing fallback. Probabilities are finite and bounded0..1; the ordinary
   logical estimator still caps row/cost estimates at1e12 and rounds only display.
+  Each column input carries its own admitted source population. Positive
+  distinctness overrides replace only the residual distinct estimate; negative
+  overrides scale that source population, never unrelated join/filter rows or
+  query-time heap counts. Measured MCV and NULL mass remain unchanged.
+  Override-derived distinct estimates are clamped to at least one and at most
+  1e100, then rounded nearest/ties-even before subtracting MCV groups. Raw signed
+  metadata and measured counts remain unchanged, as does the no-override path.
+  When an override leaves residual equality mass above the least-common measured
+  MCV frequency, that frequency is the ceiling before any inequality complement.
+  Exact MCV hits and NULL mass remain measured facts.
   `planner_costs.go` separately owns command-admitted CPU/parallel value records
   and detached scan decisions. Full traversal costs N*(tuple+operator); hash
   candidates cost one lookup plus N/2*(index-entry+tuple+2*operator).

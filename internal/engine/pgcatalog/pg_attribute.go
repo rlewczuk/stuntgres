@@ -190,6 +190,15 @@ func AttributeRow(owner *catalog.Owner, roles authorization.Read, source, relati
 	row := []sqltype.Value{
 		oid(0, uint32(relation.Address().ObjectID)), text(1, metadata.Name), oid(2, metadata.TypeID), integer(3, int64(metadata.Facts.Length)), integer(4, int64(metadata.Number)), integer(5, int64(metadata.Typmod)), integer(6, int64(metadata.Dimensions)), boolean(7, metadata.Facts.ByValue), text(8, metadata.Facts.Alignment), text(9, metadata.Facts.Storage), text(10, metadata.Compression), boolean(11, metadata.NotNull), boolean(12, metadata.HasDefault), boolean(13, false), text(14, metadata.Identity), text(15, metadata.Generated), boolean(16, metadata.Dropped), boolean(17, metadata.Local), integer(18, metadata.Inheritance), oid(19, metadata.Collation), null(20), acl, null(22), null(23), sqltype.CatalogResultNull(source.Columns[24].Usage),
 	}
+	if metadata.Number > 0 && !metadata.Dropped {
+		configuration := relation.ColumnMeta.Statistics[metadata.Number]
+		if configuration.TargetSet {
+			row[20] = integer(20, int64(configuration.Target))
+		}
+		if len(configuration.Options) != 0 {
+			row[22] = checked(foreignOptionsValue(source.Columns[22].Usage.Type, configuration.Options))
+		}
+	}
 	if definition := relation.SQLIndex; definition != nil && metadata.Number > 0 && !metadata.Dropped && int(metadata.Number) <= len(definition.Keys) {
 		if options := definition.Keys[metadata.Number-1].ClassOptions; options.Explicit {
 			row[22] = checked(foreignOptionsValue(source.Columns[22].Usage.Type, []catalog.ForeignOption{{Name: "siglen", Value: options.Text}}))

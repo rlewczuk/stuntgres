@@ -435,6 +435,15 @@ recaptures exact identities after waits before publishing their candidates.
   metadata enters the real journal before callbacks; fresh physical successors
   retain old tuple layouts and original fences. Final registered providers run
   once after the complete physical demand, without rebasing pending stages.
+  Column statistics candidates run in misc against the completed shape, without
+  heap work. Targets recurse unless ONLY; column option SET/RESET never recurse.
+  Whole option transformations validate privately before descriptor publication.
+  Column options reuse relation-option semantic text coercion: scanner INT4
+  values become decimal text, while quoted strings and Float-node spellings
+  remain intact. SET completes source-ordered namespace and structural-name
+  transformation checks across the entire list before validating parameter names,
+  duplicates, or numeric values. RESET keeps its independent name-removal and
+  value-rejection rules.
 - Constraint order: index attachments stage first; physical builds follow index
   declaration order, then CHECK scans in declaration order. Ordinary DML
   enforces NOT NULL first and CHECKs in constraint-name order. TYPE rewrites

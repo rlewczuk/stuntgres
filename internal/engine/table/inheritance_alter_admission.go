@@ -11,7 +11,7 @@ func InheritanceEntryOwner(actions []parser.AlterTableAction) bool {
 			if !action.NoInherit {
 				return true
 			}
-		case parser.SetStorage:
+		case parser.SetStorage, parser.SetColumnStatistics:
 			return true
 		case parser.AddColumn, parser.SetNotNull, parser.AddNotNull, parser.AddCheck, parser.AlterColumnType, parser.SetExpression, parser.DropExpression:
 			return true

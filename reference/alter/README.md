@@ -17,6 +17,12 @@ construction, exact diagnostics, current authority, atomic failures, held
 metadata/DML, deterministic cancellation and native replay. Invalid
 noninheritable NN replay uses a real atomic post-data declaration, not a
 privileged catalog UPDATE.
+Column statistics scenarios cover nullable targets, ordered distinctness options
+with SQL-integer semantic coercion and preserved quoted/Float spelling,
+exact subnormal acceptance versus ERANGE, whole-list transformation precedence,
+ANALYZE/planner refresh, measured MCV ceilings, actual inherited consumption,
+hierarchy locality, transactional ownership, cancellation, held consumers and
+native logical replay through public APIs.
 Transactional table/schema integration covers CREATE/ALTER/DROP lifecycle,
 private catalog/dependency visibility and atomic DDL/DML publication, savepoints,
 held prepared consumers, utility boundaries, conflict scheduling and native
@@ -97,6 +103,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - ADD COLUMN: `RUN='^TestReferenceAlterAddColumn'`
 - ADD CONSTRAINT: `RUN='^TestReferenceAlterAddConstraint'`
 - VALIDATE CONSTRAINT: `RUN='^TestReferenceAlterValidateConstraint'`
+- Column statistics: `RUN='^TestReferenceAlterStatistics'`
 - Constraint enforcement: `RUN='^TestReferenceConstraintEnforcement'`
   Review counterexamples are independently selected by the same prefix:
   `QueuedHistory`, `UnattachedDiagnostics`, `PropertyOrder`, `GeneratedNames`,

@@ -175,6 +175,19 @@ private frames, not catalog authority.
   absent storage is a real type-default contribution, independently of compression.
   Scalar dropped history retains effective storage and compression without a
   surviving type dependency.
+  `ColumnMeta.Statistics` independently owns sparse stable-attribute targets and
+  ordered distinctness options. Absence selects the session target; explicit zero
+  disables collection. Descriptor/touched-map COW preserves untouched option
+  backing; dropping a column removes configuration rather than retaining it in
+  scalar dropped history.
+  Distinctness conversion accepts signed hexadecimal significands with or without
+  a binary exponent; conversion-only normalization never changes option text
+  retained for catalog projection and logical replay.
+  Numeric conversion trims only C-locale ASCII whitespace; Unicode whitespace
+  remains invalid input. Accepted padding stays in stored option text.
+  Tiny values use the shared sqltype strtod ERANGE detector, not a magnitude
+  cutoff: exactly representable subnormals remain valid configured/imported
+  values, while conversion ERANGE remains invalid.
   `CatalogReturnRule` retains an explicitly registered bootstrap view's
   metadata-only `_RETURN` identity. `ReturnRuleOID` is the shared metadata
   accessor, preferring a genuine stored `View` payload when present. Reservation,

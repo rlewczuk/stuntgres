@@ -118,7 +118,11 @@ func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr,
 		facts := session.ResolveStatistics(r.scope.PendingCatalog(), address, metadata, relation, r.auth.Catalog)
 		if facts != nil {
 			if fact := facts.Columns[storage.StatisticsKey{Attribute: attribute, Inherited: inherited}]; fact != nil {
-				inputs = append(inputs, plan.ColumnStatisticInput{Column: column, Statistics: fact})
+				population := plannerSourceRows(r.statisticsStorage(address))
+				if inherited && metadata != nil && metadata.InheritedScanned {
+					population = min(plan.ExplainEstimateLimit, float64(metadata.InheritedTuples))
+				}
+				inputs = append(inputs, plan.ColumnStatisticInput{Column: column, Statistics: fact, SourceRows: population})
 			}
 		}
 	})

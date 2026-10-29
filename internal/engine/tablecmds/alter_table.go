@@ -18,6 +18,7 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // The strictest captured ALTER grant protects the incarnation until Finish.
@@ -223,7 +224,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next)
 	}
-	validityOnly := table.ValidationOnly(s.Actions) || table.ColumnStorageOnly(s.Actions) || table.ReplicaIdentityOnly(s.Actions)
+	validityOnly := table.ValidationOnly(s.Actions) || table.ColumnStorageOnly(s.Actions) || table.ColumnStatisticsOnly(s.Actions) || table.ReplicaIdentityOnly(s.Actions)
 	changes := scope.PendingCatalog()
 	if scope.Inheritance.Alter == nil {
 		changes = changes.Clone()
@@ -341,6 +342,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		return a.Action == parser.ClusterOn || a.Action == parser.SetWithoutCluster
 	})
 	hasColumnStorage := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.ColumnStorageAction(a.Action) })
+	hasColumnStatistics := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.ColumnStatisticsAction(a.Action) })
 	hasReplicaIdentity := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.SetReplicaIdentity })
 	for _, action := range s.Actions {
 		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
@@ -518,7 +520,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		FinishInheritance: func(o, n *catalog.Relation) (*catalog.Relation, error) {
 			return finishInheritanceAlterCandidate(scope, o, n)
 		},
-		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys, ValidateConstraints: hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage || hasReplicaIdentity,
+		RelationshipOnly: relationshipOnly, ForeignKeys: hasForeignKeys, ValidateConstraints: hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage || hasColumnStatistics || hasReplicaIdentity,
 		StageEmpty:  stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.Sequence.StagedGenerators()) == 0,
 		Destination: destination,
 	})
@@ -668,6 +670,18 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			}
 			continue
 		}
+		if table.ColumnStatisticsAction(action.Action) {
+			before := next
+			next, err = table.ColumnStatisticsCandidate(next, action)
+			if err != nil {
+				return core.Result{}, err
+			}
+			if action.Action == parser.SetColumnStatistics && action.StatisticsTarget > 10000 {
+				op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "lowering statistics target to 10000"})
+			}
+			inheritancePlan(scope).RecordAction(before, next, action)
+			continue
+		}
 		if table.ColumnStorageAction(action.Action) {
 			before := next
 			var slot int
@@ -795,7 +809,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		scope.Catalog = previousCatalog
 		return core.Result{}, nil
 	}
-	if (hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage || hasReplicaIdentity) && next != old {
+	if (hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage || hasColumnStatistics || hasReplicaIdentity) && next != old {
 		if err := stage.Replace(next); err != nil {
 			return core.Result{}, err
 		}

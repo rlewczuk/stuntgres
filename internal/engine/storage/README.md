@@ -70,8 +70,12 @@ and never the engine.
   `CollectStatistics` consumes caller-owned visible/layout-mapped borrowed rows
   outside engine locks. Actual grouping/hash/ordering bind once per column.
   Population, NULLs, supported non-NULL distinct and MCV counts are exact
-  full-data facts. Unknown distinct is not measured zero. Each StatisticsColumn
-  carries the admitted target (1..10000): at most target repeated MCV groups and
+  full-data facts. Unknown distinct is not measured zero.
+  `DistinctOverride` is a separate signed estimate: it never changes measured
+  distinct/NULL/MCV counts or histogram construction. Zero retains ordinary
+  measured encoding; negative estimates require current source-population
+  authority from the planner caller.
+  Each StatisticsColumn carries the admitted target (1..10000): at most target repeated MCV groups and
   target+1 weighted residual quantile endpoints are retained. Target1 still
   collects statistics. Deterministic membership/ties and residual summaries are
   approximations,

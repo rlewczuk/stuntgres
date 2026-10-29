@@ -62,7 +62,9 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if r.Populated && r.RelationKind != catalog.MaterializedViewRelation || r.View != nil && r.RelationKind != catalog.ViewRelation && r.RelationKind != catalog.MaterializedViewRelation {
 		return fmt.Errorf("stuntgres: invalid stored definition kind")
 	}
-	if err := catalog.ValidateRelationTableMethod(v, r); err != nil { return err }
+	if err := catalog.ValidateRelationTableMethod(v, r); err != nil {
+		return err
+	}
 	if len(r.AutoExtensions) != 0 && r.RelationKind != catalog.MaterializedViewRelation {
 		return fmt.Errorf("stuntgres: extension dependency requires a materialized view")
 	}
@@ -114,6 +116,11 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			properties.Storage != "" && properties.Storage != "p" && properties.Storage != "e" && properties.Storage != "x" && properties.Storage != "m" ||
 			properties.Compression != "" && properties.Compression != "p" && properties.Compression != "l" {
 			return fmt.Errorf("stuntgres: invalid column storage metadata")
+		}
+	}
+	for number, configuration := range r.ColumnMeta.Statistics {
+		if r.IndexForAttribute(number) < 0 || !configuration.Valid() || !configuration.TargetSet && len(configuration.Options) == 0 {
+			return fmt.Errorf("stuntgres: invalid column statistics metadata")
 		}
 	}
 	for i, c := range r.Columns {

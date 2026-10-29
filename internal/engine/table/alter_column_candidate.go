@@ -223,7 +223,15 @@ func dropColumnsMetadata(ctx context.Context, view catalog.Read, descriptor func
 	}
 	if len(old.ColumnMeta.Storage) != 0 {
 		next.ColumnMeta.Storage = maps.Clone(old.ColumnMeta.Storage)
-		for _, attribute := range attributes { delete(next.ColumnMeta.Storage, attribute) }
+		for _, attribute := range attributes {
+			delete(next.ColumnMeta.Storage, attribute)
+		}
+	}
+	if len(old.ColumnMeta.Statistics) != 0 {
+		next.ColumnMeta.Statistics = maps.Clone(old.ColumnMeta.Statistics)
+		for _, attribute := range attributes {
+			delete(next.ColumnMeta.Statistics, attribute)
+		}
 	}
 	TransitionPhysicalNotNull(old, &next)
 	return &next, nil

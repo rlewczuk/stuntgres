@@ -16,6 +16,7 @@ import (
 type ColumnStatisticInput struct {
 	Column     ColumnExpr
 	Statistics *storage.ColumnStatistics
+	SourceRows float64
 }
 
 type selectivityTruth struct {
@@ -39,18 +40,18 @@ func EstimateSelectivity(ctx context.Context, predicate expr.Expr, statistics []
 	return selectivityUnit(result.yes), result.known, err
 }
 
-func statisticForColumn(expression expr.Expr, inputs []ColumnStatisticInput) (*storage.ColumnStatistics, bool) {
+func statisticForColumn(expression expr.Expr, inputs []ColumnStatisticInput) (*storage.ColumnStatistics, float64, bool) {
 	column, ok := expression.(ColumnExpr)
 	if !ok || column.Virtual != nil || column.MergeSource {
-		return nil, false
+		return nil, 0, false
 	}
 	for _, input := range inputs {
 		c, s := input.Column, input.Statistics
 		if s != nil && s.Rows != 0 && column.Origin == c.Origin && column.Scope == c.Scope && column.Frame == c.Frame && column.Slot == c.Slot && column.QueryOccurrence == c.QueryOccurrence && column.Usage == c.Usage && s.Usage == column.Usage {
-			return s, true
+			return s, input.SourceRows, true
 		}
 	}
-	return nil, false
+	return nil, 0, false
 }
 
 func estimateStatisticsTruth(ctx context.Context, predicate expr.Expr, inputs []ColumnStatisticInput) (selectivityTruth, error) {
@@ -71,7 +72,7 @@ func estimateStatisticsTruth(ctx context.Context, predicate expr.Expr, inputs []
 		}
 		return r, nil
 	case NullTestExpr:
-		s, ok := statisticForColumn(p.Child, inputs)
+		s, _, ok := statisticForColumn(p.Child, inputs)
 		if !ok || (!p.Whole && s.Usage.Type.BaseType().IsComposite()) {
 			return selectivityTruth{}, nil
 		}
@@ -114,11 +115,11 @@ func estimateStatisticsComparison(ctx context.Context, p ComparisonExpr, inputs 
 	if p.Namespace != "" && p.Namespace != "pg_catalog" {
 		return selectivityTruth{}, nil
 	}
-	s, ok := statisticForColumn(p.Left, inputs)
+	s, sourceRows, ok := statisticForColumn(p.Left, inputs)
 	literal, literalOK := p.Right.(LiteralExpr)
 	reversed := false
 	if !ok || !literalOK {
-		s, ok = statisticForColumn(p.Right, inputs)
+		s, sourceRows, ok = statisticForColumn(p.Right, inputs)
 		literal, literalOK = p.Left.(LiteralExpr)
 		reversed = true
 	}
@@ -192,8 +193,25 @@ func estimateStatisticsComparison(ctx context.Context, p ComparisonExpr, inputs 
 			}
 		}
 		if !hit {
-			remaining := float64(s.DistinctCount) - float64(len(s.MCV))
+			distinct := float64(s.DistinctCount)
+			if s.DistinctOverride > 0 {
+				distinct = s.DistinctOverride
+			} else if s.DistinctOverride < 0 {
+				distinct = -s.DistinctOverride * sourceRows
+			}
+			if s.DistinctOverride != 0 {
+				// get_variable_numdistinct applies clamp_row_est before MCV
+				// subtraction: minimum one, finite ceiling, nearest/ties-even.
+				// Preserve the raw signed override and measured count.
+				distinct = math.RoundToEven(min(max(1, distinct), 1e100))
+			}
+			remaining := distinct - float64(len(s.MCV))
 			yes = float64(nonNull-mass) / max(1, remaining)
+			if s.DistinctOverride != 0 && len(s.MCV) != 0 {
+				// An unlisted value cannot be estimated as more frequent
+				// than the least-common measured MCV (var_eq_const).
+				yes = min(yes, float64(s.MCV[len(s.MCV)-1].Count))
+			}
 		}
 		if operator == sqltype.CompareNotEqual {
 			yes = max(0, float64(nonNull)-yes)

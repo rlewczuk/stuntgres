@@ -35,7 +35,7 @@ func (plan *InheritanceAlterPlan) RecordAction(before, after *catalog.Relation, 
 		return
 	}
 	switch a.Action {
-	case parser.SetStorage:
+	case parser.SetStorage, parser.SetColumnStatistics:
 		if !state.Only {
 			events = append(events, InheritanceAlterEvent{Action: a, Attribute: after.Attributes[after.Index[a.Column.Text]]})
 		}

@@ -136,6 +136,12 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 			return persistenceCompositeError(original)
 		}
 		return analyze.TableKindError(original, label)
+	case parser.SetColumnStatistics, parser.SetColumnOptions, parser.ResetColumnOptions:
+		switch original.RelationKind {
+		case catalog.TableRelation, catalog.PartitionedRelation, catalog.MaterializedViewRelation, catalog.ForeignRelation:
+			return nil
+		}
+		label = "ALTER COLUMN"
 	case parser.SetStorage, parser.SetCompression:
 		if original.RelationKind == catalog.TableRelation || original.RelationKind == catalog.PartitionedRelation || original.RelationKind == catalog.MaterializedViewRelation || action == parser.SetStorage && original.RelationKind == catalog.ForeignRelation {
 			return nil

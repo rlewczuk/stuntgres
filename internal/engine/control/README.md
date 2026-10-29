@@ -245,6 +245,11 @@ schedule. Their live saved pairs complete under authenticated DEFAULT authority
 after all constructor/retirement events and before late index repairs and event
 trigger activation. Retired policies instead remain after their last constructor
 consumer and before their own DROP. Other relation completions are unchanged.
+Live column statistics targets and ordered options use qualified ONLY ALTER
+completions at these same live-layout barriers. Constructors start with defaults;
+dropped attributes retain NULL statistics configuration and require no replay.
+Restore admits these canonical actions into its existing isolated staging and
+atomic replacement path; base-column physical samples are not serialized.
 For deferred components, late index repairs restore every saved attribute pair,
 including defaults: final table ONLY actions can themselves change first simple
 index attributes. Other indexes compare saved pairs with

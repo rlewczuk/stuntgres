@@ -1,5 +1,9 @@
 # Changes
 
+- Add transactional column statistics targets and distinctness overrides, typed
+  catalog metadata, per-column ANALYZE collection and signed planner estimates,
+  with immutable publication and native logical Dump/Restore.
+
 - Add installed extension comments with initial provider defaults, transactional
   COMMENT and inquiry/catalog identity, and exact native replay of custom text
   and removed defaults, including seeded plpgsql.

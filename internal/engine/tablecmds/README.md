@@ -73,6 +73,14 @@ TEMP preservation, relation admission and publication.
   INHERIT checks actually visited child owners and uses ordinary inherited SET.
   Compatible existing facts stop recursion without validation; missing facts
   acquire normal selected row scans. No descendant publishes independently.
+  Column statistics configuration uses the same metadata stage and revision
+  publication, never a row rewrite. Deferred statistics actions prevent pre-misc
+  no-op elision, and changed candidates receive final revision publication after
+  misc. Pure statistics lists omit heap capture. ANALYZE captures each effective
+  target once,
+  omits disabled scalar columns while retaining old facts, and collects extended
+  inputs independently. Flavor-specific distinctness overrides attach only after
+  distribution collection; descriptor changes alone never recompute statistics.
   Trigger-mode lists use one statement-private metadata stage across the addressed
   relation, partition clones and referenced-side FK owners. The target holds
   SHARE ROW EXCLUSIVE (or a stronger companion grant); additional owner grants
@@ -298,9 +306,14 @@ the root's `engine.New`, `Reset`, `Dump` and `Restore` and the
 [`enginetest`](../enginetest/README.md) helpers. `export_test.go` exports the
 internals they inspect; add a name there only when the test cannot assert
 through SQL or the exported API.
+Units exercising admitted session settings use `Session.AcquireCommand`;
+`enginetest.SessionSQL` deliberately uses plain `Acquire` for engine setup.
+Heap population assertions read physical `Maintenance`, while metadata-only
+relations use the canonical relation-metadata cardinality.
 
 ```sh
 make check RUN='^TestAlter'                                # ALTER TABLE passes, defaults, types, schema
+make check RUN='^TestAlterStatistics'                      # metadata ownership and publication
 make check RUN='^Test(InheritanceAlter|InheritanceMaint|InheritanceMetadata|TableInheritance)'  # inheritance ALTER admission
 make check RUN='^TestPartitionRenameColumn'               # hierarchy names, identity, locks and publication
 make check RUN='^Test(TableLike|TableCore|PartitionConstraints|PartitionExclusion|UsingIndex)'  # CREATE TABLE forms and constraints

@@ -42,7 +42,7 @@ func restoreTableDestination(stmt parser.Statement) bool {
 	case *parser.CreateTemplate, *parser.AlterTemplate, *parser.CreateDictionary, *parser.AlterDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration:
 		return true
 	case *parser.AlterTable:
-		return table.ColumnStorageOnly(s.Actions) && len(s.Actions) == 1 && s.Only && !s.IfExists && len(s.Name.Parts) == 2
+		return (table.ColumnStorageOnly(s.Actions) || table.ColumnStatisticsOnly(s.Actions)) && len(s.Actions) == 1 && s.Only && !s.IfExists && len(s.Name.Parts) == 2
 	case *parser.AlterTrigger:
 		return s.Action == "depends"
 	case *parser.CreateQueryTable:

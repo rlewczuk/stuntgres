@@ -23,7 +23,7 @@ func InheritedAlterActions(plan *InheritanceAlterPlan, view, retired catalog.Rea
 		switch a.Action {
 		case parser.AlterConstraintInherit:
 			// Exact parent events are applied below, without generic recursion.
-		case parser.SetStorage:
+		case parser.SetStorage, parser.SetColumnStatistics:
 			if !state.Only {
 				actions = append(actions, a)
 			}

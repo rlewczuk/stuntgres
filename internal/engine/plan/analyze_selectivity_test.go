@@ -27,7 +27,7 @@ func TestAnalyzeEstimateSelectivity(t *testing.T) {
 	}
 	column := ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: 2, Slot: 0, QueryOccurrence: 1}
 	stats := &storage.ColumnStatistics{Usage: integer.Usage(), Rows: 20, NullCount: 4, DistinctKnown: true, DistinctCount: 2, MCV: []storage.StatisticMCV{{Value: value(1), Count: 14}, {Value: value(2), Count: 2}}}
-	inputs := []ColumnStatisticInput{{Column: column, Statistics: stats}}
+	inputs := []ColumnStatisticInput{{Column: column, Statistics: stats, SourceRows: 20}}
 	comparison := func(op string, operator sqltype.ComparisonOperator, v sqltype.Value) ComparisonExpr {
 		predicate, err := sqltype.BindComparisonPredicate(operator, integer, integer, boolean, integer.Usage().Collation, false)
 		if err != nil {

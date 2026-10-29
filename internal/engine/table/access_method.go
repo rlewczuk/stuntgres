@@ -53,7 +53,7 @@ func PrepareAccessMethod(read catalog.Read, original *catalog.Relation, action p
 func MetadataOnlyActions(actions []parser.AlterTableAction) bool {
 	for _, action := range actions {
 		switch action.Action {
-		case parser.SetLogged, parser.SetUnlogged, parser.SetAccessMethod, parser.SetRelationOptions, parser.ResetRelationOptions, parser.ClusterOn, parser.SetWithoutCluster, parser.SetWithoutOIDs:
+		case parser.SetLogged, parser.SetUnlogged, parser.SetAccessMethod, parser.SetRelationOptions, parser.ResetRelationOptions, parser.ClusterOn, parser.SetWithoutCluster, parser.SetWithoutOIDs, parser.SetColumnStatistics, parser.SetColumnOptions, parser.ResetColumnOptions:
 		default:
 			return false
 		}
