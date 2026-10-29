@@ -92,6 +92,18 @@ var Specs = [...]Spec{
 		{"stxdmcv", sqltype.PgMCVList, true, 0, 0, -1},
 		{"stxdexpr", sqltype.ID(10028), true, 0, 1, -1},
 	}, false, true, true, true, "stuntgres: missing catalog source type"},
+	{PublicationOID, ids.PGCatalogNamespaceOID, "pg_publication", []ColumnSpec{
+		{"oid", sqltype.Oid, false, 0, 0, -1},
+		{"pubname", sqltype.Name, false, 950, 0, -1},
+		{"pubowner", sqltype.Oid, false, 0, 0, -1},
+		{"puballtables", sqltype.Bool, false, 0, 0, -1},
+		{"pubinsert", sqltype.Bool, false, 0, 0, -1},
+		{"pubupdate", sqltype.Bool, false, 0, 0, -1},
+		{"pubdelete", sqltype.Bool, false, 0, 0, -1},
+		{"pubtruncate", sqltype.Bool, false, 0, 0, -1},
+		{"pubviaroot", sqltype.Bool, false, 0, 0, -1},
+		{"pubgencols", sqltype.Char, false, 0, 0, -1},
+	}, false, CatalogHasIndexes(PublicationOID), true, false, "stuntgres: missing catalog source type"},
 	{SubscriptionOID, ids.PGCatalogNamespaceOID, "pg_subscription", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"subdbid", sqltype.Oid, false, 0, 0, -1},

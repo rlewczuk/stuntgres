@@ -30,6 +30,9 @@ for the administrator inventory, including `subconninfo`; PUBLIC column grants
 do not hide its administrator-visible metadata or turn the relation into a view.
 Database-local `pg_subscription_rel` contributes four ordered real-table columns,
 with nullable synchronization position and PUBLIC visibility from table SELECT.
+Database-local `pg_publication` contributes all ten ordered real-table columns,
+including the internal CHAR generated-column policy, with PUBLIC visibility from
+table SELECT.
 
 Every query of these views builds the whole view before filtering, so an
 inventory of builtin or installed objects (view definitions per display mode,

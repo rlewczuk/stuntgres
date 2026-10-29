@@ -159,6 +159,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.StatisticExtDataOID:                "pg_statistic_ext_data",
 	pgcatalog.SubscriptionOID:                    "pg_subscription",
 	pgcatalog.SubscriptionRelOID:                 "pg_subscription_rel",
+	pgcatalog.PublicationOID:                     "pg_publication",
 	pgcatalog.TablePrivilegesOID:                 "table_privileges",
 	pgcatalog.InfoEnabledRolesOID:                "enabled_roles",
 	pgcatalog.InfoCharacterSetsOID:               "character_sets",
@@ -207,7 +208,7 @@ func (r EngineCatalogRuntime) ValidateCapture(view catalog.Read, roles authoriza
 	a := r.Auth
 	// These readers require a backing engine with the captured owner, including
 	// legitimate transaction-private catalog roots.
-	if (oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engine == nil || a.Owner != &r.engine.Catalog.Owner) {
+	if (oid == pgcatalog.PublicationOID || oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engine == nil || a.Owner != &r.engine.Catalog.Owner) {
 		return fmt.Errorf("stuntgres: invalid %s capture", sharedCaptureNames[oid])
 	}
 	if name, ok := sharedCaptureNames[oid]; ok {

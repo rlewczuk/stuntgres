@@ -1,0 +1,29 @@
+package pgcatalog
+
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
+
+const PublicationOID ids.OID = 6104
+
+func capturePGPublication(in Input) ([][]sqltype.Value, error) {
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: PublicationOID}
+	if in.Context == nil || in.Owner == nil || in.Catalog.Owner() != in.Owner || !RegisteredSource(in.Catalog, in.Source) || in.Source.Address() != address || in.Ref.Domain() != in.Owner.Domain || in.Ref.Epoch != in.Catalog.Epoch() || in.Ref.Address != address || !in.Roles.BelongsTo(in.Owner.Principals) || in.Runtime == nil {
+		return nil, fmt.Errorf("stuntgres: invalid publication source")
+	}
+	if err := in.Context.Err(); err != nil {
+		return nil, err
+	}
+	if err := in.Runtime.ValidateCapture(in.Catalog, in.Roles, in.Ref, in.Source, PublicationOID); err != nil {
+		return nil, err
+	}
+	// Execute's current used-column manifest owns SELECT admission. Publication
+	// commands own local definitions; no local publications currently exist.
+	if err := in.Context.Err(); err != nil {
+		return nil, err
+	}
+	return [][]sqltype.Value{}, nil
+}

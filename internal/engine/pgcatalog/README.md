@@ -191,6 +191,17 @@ type Producer func(Input) ([][]sqltype.Value, error)
   mappings exist. Cancellation and invalid authority return no rows. Reads
   neither populate mappings nor simulate synchronization or contact publishers.
   Index presence is metadata, not a fabricated native physical index.
+- `pg_publication` (6104, row10107/array10106) is a real database-local catalog
+  with ten nonnullable owned attributes: OID identity/owner, C-collated NAME,
+  six BOOL options and internal CHAR generated-column policy. Its explicit ACL
+  grants all owner table privileges and PUBLIC SELECT, without grant options or
+  column grants. Current Execute admission governs direct and held reads.
+  Capture authenticates exact catalog/role roots, backing engine and owned type
+  generations, returning a nonnil empty rowset because no local publications
+  exist. Cancellation and invalid authority return no rows. Remote publication
+  names on subscriptions and ordinary tables never become publication rows.
+  Reads neither create definitions nor imply replication transport or contact
+  publishers. Index presence is metadata, not a fabricated physical index.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual

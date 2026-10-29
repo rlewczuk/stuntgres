@@ -68,6 +68,7 @@ var producers = [...]Registration{
 	{3764, capturePGTSTemplate},
 	{SubscriptionOID, capturePGSubscription},
 	{SubscriptionRelOID, capturePGSubscriptionRel},
+	{PublicationOID, capturePGPublication},
 	{6243, capturePGParameterACL},
 	{12000, captureTableViewSummary},
 	{12001, capturePreparedSource},
