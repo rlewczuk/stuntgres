@@ -97,6 +97,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			"tablefunc":     {"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"},
 			"tcn":           {"tcn", "1.0", nil, "Triggered change notifications"},
 			"pgrowlocks":    {"pgrowlocks", "1.2", nil, "show row-level locking information"},
+			"refint":        {"refint", "1.0", nil, "functions for implementing referential integrity (obsolete)"},
 			"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
 			"pgcrypto":      {"pgcrypto", "1.4", nil, "cryptographic functions"},
 			"plpgsql":       {"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"},
@@ -119,6 +120,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			expected["tablefunc"] = []any{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}
 			expected["tcn"] = []any{"tcn", "1.0", false, true, true, true, nil, nil, "Triggered change notifications"}
 			expected["pgrowlocks"] = []any{"pgrowlocks", "1.2", false, true, false, true, nil, nil, "show row-level locking information"}
+			expected["refint"] = []any{"refint", "1.0", false, true, false, true, nil, nil, "functions for implementing referential integrity (obsolete)"}
 			expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 			expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}
 			expected["plpgsql"] = []any{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"}

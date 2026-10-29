@@ -123,11 +123,13 @@ routine identity. Its runtime capability reads the executing invocation owner;
 reconstruction, stored capture and scalar sources retain no measured depth.
 
 `TriggerBuiltin` is a volatile, nonfoldable zero-child TRIGGER recipe for the
-three builtin DML trigger declarations. It retains selected routine provenance,
-never activation state. Ordinary SQL evaluation always reports the function's
-outside-trigger protocol error with complete ERROR severity diagnostics; installed
-firing belongs to the core trigger owner. Rebuild, rendering, scalar-source and
-stored capture use ordinary recipes.
+three builtin DML declarations and genuine installed refint helper declarations.
+The installed route first validates the immutable provider symbol and captures
+the selected procedure dependency; spelling alone never grants capability.
+It retains routine provenance, never activation state. Ordinary SQL evaluation
+always reports the function's outside-trigger protocol error with complete ERROR
+severity diagnostics; firing belongs to the shared core trigger owner. Rebuild,
+rendering, scalar-source and stored capture use ordinary recipes.
 `Tcn` uses the same zero-child protocol with an authenticated installed routine
 reference supplied by `InstalledRoutine.Attach`. Generic routine admission,
 retagging and current-name rendering retain authority without a separate wrapper.

@@ -8,8 +8,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// TriggerBuiltin retains immutable call provenance only. Ordinary SQL calls do
-// not borrow a trigger activation, even when nested inside a trigger body.
+// TriggerBuiltin retains immutable stock trigger call provenance only. Ordinary
+// SQL calls do not borrow a trigger activation, even inside a trigger body.
 type TriggerBuiltin struct {
 	expr.Info
 	Name string
@@ -65,7 +65,7 @@ func (n TriggerBuiltin) Validate() error {
 		return fmt.Errorf("stuntgres: invalid builtin trigger result")
 	}
 	switch n.Name {
-	case "suppress_redundant_updates_trigger", "tsvector_update_trigger", "tsvector_update_trigger_column":
+	case "suppress_redundant_updates_trigger", "tsvector_update_trigger", "tsvector_update_trigger_column", "check_primary_key", "check_foreign_key":
 		return nil
 	}
 	return fmt.Errorf("stuntgres: invalid builtin trigger recipe")
@@ -79,6 +79,9 @@ func (n TriggerBuiltin) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	if n.Name == "suppress_redundant_updates_trigger" {
 		return sqltype.Value{}, sqlError("39P01", "suppress_redundant_updates_trigger: must be called as trigger")
+	}
+	if n.Name == "check_primary_key" || n.Name == "check_foreign_key" {
+		return sqltype.Value{}, sqlError("XX000", n.Name+": not fired by trigger manager")
 	}
 	return sqltype.Value{}, sqlError("XX000", "tsvector_update_trigger: not fired by trigger manager")
 }

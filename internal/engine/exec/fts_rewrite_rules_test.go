@@ -7,8 +7,45 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
+
+func TestSPIStatementDiagnosticBoundary(t *testing.T) {
+	for _, original := range []sqlstate.Error{
+		{Code: "42601", Message: "syntax", Position: "8"},
+		{Code: "22012", Message: "division by zero"},
+		{Code: "42601", Message: "nested", InternalPosition: "8", InternalQuery: "inner", Context: "prior"},
+		{Code: "09000", Message: "trigger failure", Context: "prior"},
+	} {
+		t.Run(original.Message, func(t *testing.T) {
+			before := original
+			want := original
+			if want.Position != "" {
+				want.InternalPosition, want.InternalQuery, want.Position = want.Position, "outer", ""
+			} else if want.Context == "" {
+				want.Context = `SQL statement "outer"`
+			} else {
+				want.Context += "\n" + `SQL statement "outer"`
+			}
+			got := SPIStatementDiagnostic(&original, "outer").(*sqlstate.Error)
+			if got == &original || *got != want || original != before {
+				t.Fatal("SPI context ownership", got, want, original)
+			}
+			if original.InternalQuery != "" || original.Context != "" {
+				wrapped := fmt.Errorf("nested: %w", &original)
+				if RewriteSQLDiagnostic(wrapped, "outer") != wrapped {
+					t.Fatal("rewrite replaced nested diagnostic")
+				}
+			}
+		})
+	}
+	for _, err := range []error{nil, context.Canceled, errors.New("ordinary error")} {
+		if SPIStatementDiagnostic(err, "outer") != err {
+			t.Fatal("SPI wrapped non-SQL error", err)
+		}
+	}
+}
 
 // This is a low-level RowCursor demand trace, not a SQL rule executor or SQL
 // acceptance oracle. Public SQLDemand scenarios exercise actual query effects.

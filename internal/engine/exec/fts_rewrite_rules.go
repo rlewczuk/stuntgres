@@ -89,9 +89,20 @@ func ConsumeRewriteRules(ctx context.Context, rows RowCursor, accumulator *sqlty
 	return accumulator.Finish()
 }
 
-// RewriteSQLDiagnostic mirrors the SPI prepare/open boundary, not FETCH. Copy
-// before enrichment: errors from stored expressions may be shared immutable data.
+// RewriteSQLDiagnostic mirrors the SPI prepare/open boundary, not FETCH.
+// Diagnostics already owned by a nested query or context are left unchanged.
 func RewriteSQLDiagnostic(err error, text string) error {
+	return rewriteSQLDiagnostic(err, text, false)
+}
+
+// SPIStatementDiagnostic adds the context of an actual enclosing SPI command.
+// Unlike RewriteSQLDiagnostic, it stacks positionless nested diagnostics.
+func SPIStatementDiagnostic(err error, text string) error {
+	return rewriteSQLDiagnostic(err, text, true)
+}
+
+// Copy before enrichment: stored expressions may share immutable errors.
+func rewriteSQLDiagnostic(err error, text string, stack bool) error {
 	if err == nil {
 		return nil
 	}
@@ -99,14 +110,19 @@ func RewriteSQLDiagnostic(err error, text string) error {
 	if !errors.As(err, &original) {
 		return err
 	}
-	d := *original
-	if d.InternalQuery != "" {
+	if !stack && (original.InternalQuery != "" || original.Position == "" && original.Context != "") {
 		return err
 	}
+	d := *original
 	if d.Position != "" {
 		d.InternalPosition, d.InternalQuery, d.Position = d.Position, text, ""
-	} else if d.Context == "" {
-		d.Context = "SQL statement \"" + text + "\""
+	} else {
+		frame := "SQL statement \"" + text + "\""
+		if d.Context == "" {
+			d.Context = frame
+		} else {
+			d.Context += "\n" + frame
+		}
 	}
 	return &d
 }

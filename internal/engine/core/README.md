@@ -297,6 +297,28 @@ Routine environments, trigger depth and statement rollback retain their existing
 owners. C TriggerData/native ABI, heap/TOAST layout, WAL and process loading are
 outside this process-local logical execution and control boundary.
 
+Installed refint procedures join this checked native trigger boundary using
+their immutable provider symbols. `check_primary_key` probes ordinary SQL for
+the current referencing values; `check_foreign_key` executes restrict, cascade
+or setnull against OLD keys, preparing every listed reference before unchanged
+UPDATE detection. Any NULL local key short-circuits according to the stock
+protocol. Arguments naming local attributes use exact catalog spelling; remote
+relation/column arguments remain SQL text, including required identifier quotes.
+These are not dependency-bound relation names and renaming a table does not
+rewrite them. The generated SQL parser and typed binder share the same closed
+positional parameter count and local key type declarations; outer statement
+parameters never supply or bound a nested helper's frame.
+Generated SQL uses the ordinary nested command owner, invoker
+rights, RLS, inheritance and genuine child triggers. Effects share the outer
+statement journal and roll back atomically, while already delivered action
+notices remain observable. Per-invocation cascade UPDATE literals use current
+NEW output values with SQL quoting and explicit NULL, without a plan cache.
+Generated-SQL failures retain SPI-style internal positions/query or nested SQL
+contexts; helper-owned violations use 09000 rather than declarative-FK 23503.
+Native controls replay installed identities and postdata triggers, never frames
+or cached invocation values. PostgreSQL's SPI/fmgr C ABI and shared-library
+loading are external mechanisms, not exemptions from these logical SQL effects.
+
 Trigger-bearing admitted mutation targets also retain dynamic source roots at
 the calling command's initial data-view capture: lazy trigger-body reads are
 not outer expression dependencies. STABLE/IMMUTABLE trigger commands borrow

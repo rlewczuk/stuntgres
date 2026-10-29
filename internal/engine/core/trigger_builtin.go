@@ -37,6 +37,10 @@ func (s *StatementScope) invokeNativeTrigger(d *catalog.Procedure, relation *cat
 		err = s.notifyTriggerChange(relation, p, event, next, old)
 		return result, err
 	}
+	if extension.RefintProviderOf(d) == extension.StockRefint {
+		err = s.invokeRefint(d, relation, p, event, next, old)
+		return result, err
+	}
 	builtin := catalog.BuiltinDMLTrigger(d)
 	if err = builtinTriggerProtocol(builtin == 1291, p, event); err != nil {
 		return result, err

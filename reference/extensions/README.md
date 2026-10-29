@@ -133,3 +133,42 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 Extension membership and ownership tests (`TestReferenceExtensionOwnership*`) are in
 [reference/extension_ownership](../extension_ownership/README.md#testing).
+
+## Stock refint oracle contracts
+
+The `TestReferenceRefint*` scenarios specify the released `check_primary_key`
+and `check_foreign_key` trigger helpers, not declarative foreign keys. They cover
+literal argument protocol, partial-NULL shortcuts, exact generated SQL error
+locations, restrict/cascade/setnull effects, current prepared UPDATE values,
+notices, nested statement rollback, invoker privileges/RLS, inheritance, and
+binding identity. Installation includes untrusted denial and atomic late-member
+collision. Metadata checks distinguish native known nullability from pq's
+unknown nullability; native controls additionally exercise independent Drivers
+with the same opaque DSN.
+
+The shared scenarios run natively and, with `REFERENCE=1`, against pinned
+PostgreSQL 18.6. Diagnostics are complete records, including empty fields;
+duplicate-install notices use `42710`. Invoker-denial and held-revoke diagnostics
+include the nested SQL Context. Late-install collisions and nested-action
+cancellation retain their independently specified Context expectations.
+There is no oracle-only gate or diagnostic-discovery path.
+
+Cancellation uses a pool-level pre-canceled adapter query without assuming nil
+Rows, then observes the actual nested child-relation lock wait before canceling
+and joining the operation. PostgreSQL cancellation uses the server to preserve
+the physical notice owner for rollback/state checks and cleanup. Native uses
+ordinary context cancellation at the same admitted action boundary.
+
+Selected proof (external command deadline 900 seconds; run both modes):
+
+```sh
+make check RUN='^TestReferenceRefint(Installation|Primary|Arguments|QuotingDiagnostics|PreparationOrder|Atomicity|NestedAtomicity|Visibility|Privileges|Cancellation|Persistence|Identity)$'
+make check REFERENCE=1 RUN='^TestReferenceRefint(Installation|Primary|Arguments|QuotingDiagnostics|PreparationOrder|Atomicity|NestedAtomicity|Visibility|Privileges|Cancellation|Persistence|Identity)$'
+make check RUN='^TestReferenceRefintFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRefintFeatureSmoke$'
+make check RACE=1 RUN='^TestReferenceRefint(Cancellation|Persistence)$'
+```
+
+Actual PostgreSQL SPI/C ABI, shared-library loading and process-local allocator
+mechanisms are external. SQL effects, permissions, diagnostics, notices,
+statement atomicity and native persistent-object bindings are not excluded.

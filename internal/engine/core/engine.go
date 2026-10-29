@@ -192,6 +192,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.registerExtension("tcn", extension.StockTcn); err != nil {
 		return nil, err
 	}
+	if err := e.registerExtension("refint", extension.StockRefint); err != nil {
+		return nil, err
+	}
 	for _, registration := range []struct {
 		name           string
 		implementation extension.Installer

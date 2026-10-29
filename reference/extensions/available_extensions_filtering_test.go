@@ -99,6 +99,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"})
 				wantAvailable = append(wantAvailable, []any{"tcn", "1.0", nil, "Triggered change notifications"})
 				wantVersions = append(wantVersions, []any{"tcn", "1.0", false, true, true, true, nil, nil, "Triggered change notifications"})
+				wantAvailable = append(wantAvailable, []any{"refint", "1.0", nil, "functions for implementing referential integrity (obsolete)"})
+				wantVersions = append(wantVersions, []any{"refint", "1.0", false, true, false, true, nil, nil, "functions for implementing referential integrity (obsolete)"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

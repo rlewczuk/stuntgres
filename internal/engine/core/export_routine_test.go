@@ -130,6 +130,30 @@ func ScopeSQLRoutineScratch(x *StatementScope) sqlRoutineScratch {
 	return x.sqlRoutineScratch()
 }
 
+// ScopeSQLRoutineLexicalScratch excludes only presentation/authority values
+// deliberately recaptured by refreshRestrictedPresentation after nested SQL.
+// Keep the enclosing input boundary and output formatter owners in the proof.
+func ScopeSQLRoutineLexicalScratch(x *StatementScope) sqlRoutineScratch {
+	c := x.sqlRoutineScratch()
+	c.input = sqltype.InputEnvironment{
+		TransactionStart: c.input.TransactionStart,
+		LockedDomainInput: c.input.LockedDomainInput, DomainChecks: c.input.DomainChecks,
+		ExactSnapshot: c.input.ExactSnapshot, RawBoxReplay: c.input.RawBoxReplay,
+		EnumMemberSafe: c.input.EnumMemberSafe, FTS: c.input.FTS, XMLInput: c.input.XMLInput,
+	}
+	c.output = sqltype.OutputEnvironment{
+		Regclass: c.output.Regclass, Regtype: c.output.Regtype, Regproc: c.output.Regproc,
+		Regrole: c.output.Regrole, Operator: c.output.Operator,
+		Regcollation: c.output.Regcollation, Regnamespace: c.output.Regnamespace, RegTS: c.output.RegTS,
+		ACLItem: c.output.ACLItem,
+	}
+	c.routineAuth = AuthorizationView{}
+	c.identity = exec.IdentitySnapshot{}
+	c.inquiry.CurrentSchemaResult = sqltype.Value{}
+	c.inquiry.searchPathResults = [2]sqltype.Value{}
+	return c
+}
+
 // CommandRoutineProgramRi returns x.ri.
 func CommandRoutineProgramRi(x *commandRoutineProgram) bool { return x.ri }
 

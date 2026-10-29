@@ -168,7 +168,12 @@ typmods; naming is captured only on failure and is never retained in result tupl
   pointers restore independently of retained resource ownership.
   `ConsumeRewriteRules` reads rule rows in fetches
   of at most 100 into `sqltype.FTSRewriteRules` and closes the cursor;
-  `RewriteSQLDiagnostic` maps SPI prepare/open errors, never FETCH errors.
+  `RewriteSQLDiagnostic` maps SPI prepare/open errors, never FETCH errors, and
+  preserves diagnostics already owned by nested SQL or an existing context.
+  Actual refint SPI command boundaries instead use `SPIStatementDiagnostic`:
+  positioned errors become internal query locations; positionless errors append
+  the enclosing SQL statement to their context stack. Both copy before enrichment
+  and leave non-SQL errors untouched.
   Modifying CTEs with statement effects may retain activation and exhaustion
   callbacks on their existing invocation-owned producer. First source demand
   activates eager typed materialization; reading a RETURNING row does not complete

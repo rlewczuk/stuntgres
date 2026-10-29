@@ -84,7 +84,10 @@ private frames, not catalog authority.
   `Procedure.DeclarationDependencies` stores replay-only type/collation and
   `%TYPE`/`%ROWTYPE` sources, not `pg_depend` edges.
 - **DML trigger capability.** `SupportsDMLTrigger` selects zero-input PL
-  declarations, including deferred source, or the three genuine builtin declarations.
+  declarations, including deferred source, the three genuine builtin declarations,
+  or installed native declarations admitted through their provider's
+  `SupportsDMLTrigger` capability. TCN and refint share this native contract;
+  refint supplies its sealed two-function declaration.
   This structural predicate is not permission or provider authority: DDL/stored
   owners retain ordinary provider validation and firing validates the current
   routine carrier before dispatch. Literal trigger arguments carry no activation

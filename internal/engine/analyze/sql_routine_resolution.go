@@ -106,6 +106,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore" || name == "fetchval" || name == "slice_array" || name == "exist" || name == "defined" || name == "exists_all" || name == "exists_any" || name == "hs_contains" || name == "hs_contained" || name == "akeys" || name == "avals" || name == "skeys" || name == "svals" || name == "each" || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
 	providerOverride := b.hasProviderProcedureOverride(name)
+	if name == "check_primary_key" || name == "check_foreign_key" {
+		providerOverride = true
+	}
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
  if extension.LtreePathProcedureName(name) { providerOverride = true }
  if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !extension.LtreeLqueryProcedureName(name) && !extension.LtreeLtxtqueryProcedureName(name) && !extension.LtreeHierarchyProcedureName(name) && !extension.LtreeArrayProcedureName(name) && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
@@ -161,7 +164,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if (cubeFamily || extension.CubeComparisonName(name)) && (extension.CubeProviderOf(d) == extension.StockCube || extension.EarthdistanceProviderOf(d) == extension.StockEarthdistance) {
 				hasCube = true
 			}
-			if extension.CitextProviderOf(d) == extension.StockCitext || extension.HstoreProviderOf(d) == extension.StockHstore || extension.LtreeProviderOf(d) == extension.StockLtree {
+			if extension.RefintProviderOf(d) == extension.StockRefint || extension.CitextProviderOf(d) == extension.StockCitext || extension.HstoreProviderOf(d) == extension.StockHstore || extension.LtreeProviderOf(d) == extension.StockLtree {
 				hasSQL = true
 			}
 			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil && !internalSignature {
@@ -991,6 +994,31 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if err := functions.CallDecorationError(raw); err != nil {
 			return nil, err
 		}
+	}
+	if d != nil && extension.RefintProviderOf(d) == extension.StockRefint {
+		symbol, err := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+		if err != nil {
+			return nil, err
+		}
+		if err := functions.ValidateCallSyntax(b, raw); err != nil {
+			return nil, err
+		}
+		if err := functions.CallDecorationError(raw); err != nil {
+			return nil, err
+		}
+		ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
+		b.dependency(ref, d.Revision())
+		info := b.Info(b.Type(2279).Usage(), raw.Pos, selected.properties)
+		info.RoutineReference = d
+		if freezeSyntax {
+			frozen := raw
+			frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+			if b.Stored.Syntax == nil {
+				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+			}
+			b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+		}
+		return functions.TriggerBuiltin{Info: info, Name: symbol}, nil
 	}
 	if d != nil && d.SQL != nil {
 		modifier := ""

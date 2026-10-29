@@ -3,7 +3,7 @@
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, citext, cube,
 earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pageinspect,
-pgcrypto, pgrowlocks, seg, tablefunc, tcn, unaccent, uuid-ossp and seeded plpgsql),
+pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
 ownership/membership/relocation and Restore owner-import decisions.
@@ -414,6 +414,21 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   singleton manifest, not spelling. Owner metadata, transaction publication,
   dependency removal and remap use the shared extension lifecycle; no lock state
   is serialized.
+- **refint**: the untrusted/superuser-required, relocatable 1.0 provider installs
+  the two zero-input C-language functions `check_primary_key()` and
+  `check_foreign_key()`, both returning trigger. Immutable declaration slots and
+  current provider validation, not public names or mutable membership, grant
+  native trigger capability. Generic installation, owner import, transaction
+  publication and remapping preserve those identities. The shared trigger
+  owner executes the stock AFTER helper protocols and ordinary invoker SQL;
+  no native-FK authority or arbitrary C-library loader is implied.
+  A stock member name collision reports that member's actual CREATE FUNCTION
+  statement and location in the released installation script.
+  Extension creation publishes the control-file comment into the installed
+  descriptor once. The ordinary comment projection supplies both
+  `pg_description` and `obj_description`; it does not look up a default by
+  extension name at query time. Restore recreates this default through the
+  same installation path.
 - **isn** (`isn_provider.go`, `isn_stage.go`): the trusted, relocatable 1.3
   provider installs `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13` and `upc`, each with a
   reciprocal internally dependent associated array and immutable strict C-language codecs.
