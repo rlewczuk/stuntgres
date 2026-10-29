@@ -372,7 +372,7 @@ func (s *StatementScope) validateCursorPortal(c *sqlCursor, name string) error {
 	if c == nil || PayloadOf(s.Op.Session).Cursors.Entries[name] != c || (!c.promoted && c.tx != s.TxRef) {
 		return missingSQLCursor(name)
 	}
-	if c.epoch != s.TxRef.Epoch() {
+	if !c.promoted && c.epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if c.Place == exec.CursorFailed {

@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
@@ -14,7 +15,7 @@ import (
 // newDatabaseRuntime allocates only database-local execution state. Immutable
 // host provider configuration is retained; ReplaceCatalog remints the real seed
 // catalog and storage before this runtime can be registered.
-func newDatabaseRuntime(e *core.Engine, seed *core.Engine, name string, owner authorization.PrincipalRef) *core.Engine {
+func newDatabaseRuntime(e *core.Engine, seed *core.Engine, name string, owner authorization.PrincipalRef, options ddl.CreateDatabaseOptions) *core.Engine {
 	target := &core.Engine{Mu: e.Mu, RoleStore: e.RoleStore, Settings: e.Settings, Foreign: seed.Foreign, DatabaseName: name, DatabaseFrozenXID: 3, Statements: e.Statements, Factory: e.Factory}
 	target.Catalog = catalog.NewStore(catalog.Owner{Principals: &e.RoleStore.Domain, ACLAuthority: &e.RoleStore.ACLAuthority, Providers: make(map[ids.OID]catalog.Provider, len(e.Catalog.Providers)), Extensions: e.Catalog.Extensions}, seed.Catalog.NextOID(), seed.Catalog.NextRevision())
 	for _, registration := range seed.Catalog.HostRuntimes {
@@ -37,7 +38,7 @@ func newDatabaseRuntime(e *core.Engine, seed *core.Engine, name string, owner au
 	target.Catalog.PublishLocked(catalog.CloneState(seed.Catalog.State))
 	previous := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
 	target.Catalog.State.UnbindName(catalog.DescriptorNameKey(previous))
-	database := &catalog.Database{ObjectAddress: previous.Address(), ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: 3}
+	database := &catalog.Database{ObjectAddress: previous.Address(), ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: 3, AllowConnections: options.AllowConnections, ConnectionLimit: options.ConnectionLimit}
 	target.Catalog.State.SetDescriptor(database.Address(), database)
 	target.Catalog.State.BindName(catalog.DescriptorNameKey(database), database.Address())
 	return target

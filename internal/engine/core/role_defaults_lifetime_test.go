@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -51,7 +52,7 @@ func TestRoleSettingsStartupUnwind(t *testing.T) {
 				}
 				return "", false, nil
 			})
-			s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: provider})
+			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: provider})
 			if s != nil || err == nil {
 				t.Fatal("failed startup published a session", s, err)
 			}

@@ -15,7 +15,7 @@ import (
 func TestTransactionAttachmentIncarnationExcludesReusedSessionID(t *testing.T) {
 	e := engine.New()
 	start := func() *session.Session {
-		s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1000000})
+		s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: 1000000})
 		if err != nil {
 			t.Fatal(err)
 		}

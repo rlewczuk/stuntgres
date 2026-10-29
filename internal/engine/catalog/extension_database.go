@@ -10,12 +10,14 @@ import (
 var CurrentDatabaseAddress = ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 16383}
 
 type Database struct {
-	ObjectAddress  ids.ObjectAddress
-	ObjectRevision ids.DefinitionRevision
-	ObjectName     string
-	Owner          authorization.PrincipalRef
-	ACL            authorization.ACLValue
-	FrozenXID      uint64
+	ObjectAddress    ids.ObjectAddress
+	ObjectRevision   ids.DefinitionRevision
+	ObjectName       string
+	Owner            authorization.PrincipalRef
+	ACL              authorization.ACLValue
+	FrozenXID        uint64
+	AllowConnections bool
+	ConnectionLimit  int32
 }
 
 func (d *Database) Address() ids.ObjectAddress { return d.ObjectAddress }
@@ -41,6 +43,8 @@ func DatabaseAuthorityCompatible(current, observed Descriptor) bool {
 		a.ObjectRevision == b.ObjectRevision &&
 		a.ObjectName == b.ObjectName &&
 		a.Owner == b.Owner &&
+		a.AllowConnections == b.AllowConnections &&
+		a.ConnectionLimit == b.ConnectionLimit &&
 		authorization.EqualACL(a.ACL, b.ACL)
 }
 
@@ -50,7 +54,7 @@ func (DatabaseProvider) ClassID() ids.OID { return ids.DatabaseClassID }
 
 func (DatabaseProvider) Validate(v Read, d Descriptor) error {
 	db, ok := d.(*Database)
-	if !ok || db.Address().ClassID != ids.DatabaseClassID || db.Address().ObjectID == 0 || db.Address().SubID != 0 || db.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != db.Address() || db.Namespace() != (ids.ObjectAddress{}) {
+	if !ok || db.Address().ClassID != ids.DatabaseClassID || db.Address().ObjectID == 0 || db.Address().SubID != 0 || db.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != db.Address() || db.Namespace() != (ids.ObjectAddress{}) || db.ConnectionLimit < -1 {
 		return fmt.Errorf("stuntgres: invalid database descriptor")
 	}
 	return nil

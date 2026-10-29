@@ -40,7 +40,7 @@ func roleSwitchUnitSession(t *testing.T) (*core.Engine, *session.Session) {
 		enginetest.Run(t, e, q)
 	}
 	login, _ := e.Roles().Lookup("switch_login")
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestRoleSwitchInitializationAndCachedReset(t *testing.T) {
 		}
 		e.Mu.Unlock()
 	}}
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: provider}, login.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

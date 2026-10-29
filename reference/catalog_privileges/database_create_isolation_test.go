@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"database/sql"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -15,17 +16,38 @@ func TestReferenceDatabaseCreateIsolation(t *testing.T) {
 		original := c.scalar("SELECT current_database()")
 		c.create("dc_isolation_a", "", false)
 		c.create("dc_isolation_b", "", false)
+		c.run(fixture.Exec("CREATE TABLE dc_local(v integer)", 0))
+		c.run(fixture.Exec("INSERT INTO dc_local VALUES (7)", 1))
 		for i, name := range []string{"dc_isolation_a", "dc_isolation_b"} {
 			db, _, rec := c.pool(name, "")
 			fixture.RunStep(t, c.p.Ctx, db, rec, fixture.Exec("CREATE TABLE dc_local(v integer)", 0))
-			fixture.RunStep(t, c.p.Ctx, db, rec, fixture.Exec("INSERT INTO dc_local VALUES ($1)", 1, int64(i+1)))
+			fixture.RunStep(t, c.p.Ctx, db, rec, fixture.Exec("INSERT INTO dc_local VALUES ($1)", 1, []int64{11, 22}[i]))
 			if err := db.Close(); err != nil {
 				t.Fatal(err)
 			}
 		}
 		a, _, rec := c.pool("dc_isolation_a", "")
-		fixture.RunStep(t, c.p.Ctx, a, rec, fixture.Prepared(fixture.Select("SELECT v FROM dc_local", []string{"v"}, []string{"INT4"}, [][]any{{int64(1)}})))
-		fixture.RunStep(t, c.p.Ctx, a, rec, fixture.Select("SELECT v FROM public.dc_local", []string{"v"}, []string{"INT4"}, [][]any{{int64(1)}}))
+		for _, target := range []struct {
+			name  string
+			value int64
+		}{{"dc_isolation_a", 11}, {"dc_isolation_b", 22}} {
+			db, _, recorder := c.pool(target.name, "")
+			query := "SELECT v FROM public.dc_local"
+			want := fixture.Select(query, []string{"v"}, []string{"INT4"}, [][]any{{target.value}})
+			fixture.RunStep(t, c.p.Ctx, db, recorder, want)
+			fixture.RunStep(t, c.p.Ctx, db, recorder, fixture.Prepared(want))
+			stmt, err := db.PrepareContext(c.p.Ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			held := fixture.HeldStatement{Executor: db, Statement: stmt, SQL: query}
+			for range 2 {
+				fixture.RunStep(t, c.p.Ctx, held, recorder, want)
+			}
+			stmt.Close()
+			fixture.RunStep(t, c.p.Ctx, db, recorder, fixture.Select("SELECT current_database(),current_catalog", []string{"current_database", "current_catalog"}, []string{"NAME", "NAME"}, [][]any{{target.name, target.name}}))
+		}
+		fixture.RunStep(t, c.p.Ctx, a, rec, fixture.Select("SELECT v FROM public.dc_local", []string{"v"}, []string{"INT4"}, [][]any{{int64(11)}}))
 		cross := "SELECT v FROM dc_isolation_b.public.dc_local"
 		d := databaseCreateDiagnostic("0A000", "cross-database references are not implemented: \"dc_isolation_b.public.dc_local\"")
 		d.Position = "15"
@@ -34,7 +56,11 @@ func TestReferenceDatabaseCreateIsolation(t *testing.T) {
 			d.Position = databaseCreatePosition(cross, "dc_local", false)
 		}
 		fixture.RunStep(t, c.p.Ctx, a, rec, fixture.ErrorDiagnostic(cross, d))
-		c.run(fixture.Select("SELECT relname FROM pg_class WHERE relname='dc_local'", []string{"relname"}, []string{"NAME"}, nil))
+		c.run(fixture.Select("SELECT v FROM dc_local", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		exactName := " ds_Exact\"name\\path "
+		c.create(exactName, "", false)
+		exact, _, exactRec := c.pool(exactName, "")
+		fixture.RunStep(t, c.p.Ctx, exact, exactRec, fixture.Select("SELECT current_database(),current_catalog", []string{"current_database", "current_catalog"}, []string{"NAME", "NAME"}, [][]any{{exactName, exactName}}))
 		if c.scalar("SELECT current_database()") != original {
 			t.Fatal("default attachment retargeted")
 		}
@@ -45,6 +71,36 @@ func TestReferenceDatabaseCreateIsolation(t *testing.T) {
 		c.absent("dc_no_such_database")
 		if c.backend.PG {
 			return
+		}
+		c.run(fixture.Exec("CREATE ROLE dc_reader LOGIN", 0))
+		c.create("ds_copy", "OWNER dc_reader", false)
+		roleConnector, err := c.p.NativeConnector.Driver().(*stuntgres.Driver).OpenConnectorAs(c.p.NativeDSN, "dc_reader")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var notices []fixture.Diagnostic
+		configured := roleConnector.(*stuntgres.Connector).WithNoticeHandler(func(n stuntgres.Error) {
+			notices = append(notices, fixture.ExtractDiagnostic(t, &n))
+		})
+		selected := sql.OpenDB(configured.WithDatabase("ds_copy"))
+		defer selected.Close()
+		var user, database string
+		if err := selected.QueryRowContext(c.p.Ctx, "SELECT current_user,current_database()").Scan(&user, &database); err != nil || user != "dc_reader" || database != "ds_copy" {
+			t.Fatalf("selector lost role or target: %q %q: %v", user, database, err)
+		}
+		for _, q := range []string{"CREATE TABLE ds_copy_value(v integer)", "CREATE TABLE IF NOT EXISTS ds_copy_value(v integer)"} {
+			if _, err := selected.ExecContext(c.p.Ctx, q); err != nil {
+				t.Fatal(err)
+			}
+		}
+		wantNotices := []fixture.Diagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: "relation \"ds_copy_value\" already exists, skipping"}}
+		if !reflect.DeepEqual(notices, wantNotices) {
+			t.Fatalf("selector lost notice handler: %#v", notices)
+		}
+		unchanged := sql.OpenDB(configured)
+		defer unchanged.Close()
+		if err := unchanged.QueryRowContext(c.p.Ctx, "SELECT current_user,current_database()").Scan(&user, &database); err != nil || user != "dc_reader" || database != original {
+			t.Fatalf("selector mutated original: %q %q: %v", user, database, err)
 		}
 		// PostgreSQL libpq maps an empty dbname to its user default. The native
 		// decoded-name selector explicitly distinguishes empty from default.
@@ -187,9 +243,7 @@ func TestReferenceDatabaseCreateSharedAuthority(t *testing.T) {
 		c.run(fixture.Exec("REVOKE CONNECT ON DATABASE dc_authority FROM PUBLIC", 0))
 		reader, _, readerRec := c.pool("dc_authority", "dc_reader")
 		denied := databaseCreateDiagnostic("42501", "permission denied for database \"dc_authority\"")
-		if c.backend.PG {
-			denied.Severity, denied.SeverityUnlocalized = "FATAL", "FATAL"
-		}
+		denied.Severity, denied.SeverityUnlocalized = "FATAL", "FATAL"
 		denied.Detail = "User does not have CONNECT privilege."
 		fixture.AssertDiagnostic(t, reader.PingContext(c.p.Ctx), &denied)
 		c.run(fixture.Exec("GRANT CONNECT ON DATABASE dc_authority TO dc_reader", 0))

@@ -278,7 +278,7 @@ func TestSQLRoutineDomainRecipeTypeGeneration(t *testing.T) {
 					t.Fatal("missing real seeded bootstrap owner")
 				}
 				read.Owner().Principals = principals
-				database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "capture", Owner: bootstrap.Ref}
+				database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "capture", Owner: bootstrap.Ref, AllowConnections: true, ConnectionLimit: -1}
 				read.State().SetDescriptor(database.Address(), database)
 				read.State().BindName(catalog.DescriptorNameKey(database), database.Address())
 				if err := (catalog.DatabaseProvider{}).Validate(read, database); err != nil {

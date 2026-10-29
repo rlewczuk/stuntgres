@@ -51,12 +51,12 @@ func ExecuteCreateDatabase(e *core.Engine, scope *core.StatementScope, statement
 	if err := scope.RoleStillPresent(owner); err != nil {
 		return core.Result{}, err
 	}
-	return createDatabaseTarget(e, ctx, scope, statement.Name, options.Owner, owner)
+	return createDatabaseTarget(e, ctx, scope, statement.Name, options, owner)
 }
 
 // createDatabaseTarget constructs storage privately. Only the final no-failure
 // installation below can expose a name, descriptor, target or allocator advance.
-func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.StatementScope, name, ownerName string, owner authorization.PrincipalRef) (core.Result, error) {
+func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.StatementScope, name string, options ddl.CreateDatabaseOptions, owner authorization.PrincipalRef) (core.Result, error) {
 	e.Cluster.SeedOnce.Do(func() {
 		candidate, err := e.Factory(nil, "template1", e.Visibility.TracksCommitTimestamps())
 		if err == nil {
@@ -71,7 +71,7 @@ func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.State
 		return core.Result{}, e.Cluster.SeedError
 	}
 	seed := e.Cluster.Seed
-	target := newDatabaseRuntime(e, seed, name, owner)
+	target := newDatabaseRuntime(e, seed, name, owner, options)
 	if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
 		return core.Result{}, err
 	}
@@ -80,7 +80,7 @@ func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.State
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	currentOwner, err := databaseCreateOwnerLocked(e, scope, ownerName)
+	currentOwner, err := databaseCreateOwnerLocked(e, scope, options.Owner)
 	if err != nil {
 		return core.Result{}, err
 	}
@@ -117,7 +117,8 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 		return core.Result{}, err
 	}
 	address := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: oid}
-	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.DatabaseFrozenXID}
+	policy := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
+	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.DatabaseFrozenXID, AllowConnections: policy.AllowConnections, ConnectionLimit: policy.ConnectionLimit}
 	targets := make(map[string]*core.Engine, len(e.Cluster.Targets)+1)
 	roots := make(catalog.SharedProjection, len(e.Cluster.Targets)+1)
 	for key, runtime := range e.Cluster.Targets {

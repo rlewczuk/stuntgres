@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 // sleeps or a fake scheduler. Long real timers are stopped by bounded cleanup.
 func timeoutMechanicsSession(t *testing.T) *session.Session {
 	t.Helper()
-	s, err := engine.New().StartSession(context.Background(), session.SessionStart{ID: 1})
+	s, err := enginetest.OpenSession(context.Background(), engine.New(), session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +396,7 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 }
 
 func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
-	s, err := engine.New().StartSession(context.Background(), session.SessionStart{ID: 1})
+	s, err := enginetest.OpenSession(context.Background(), engine.New(), session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

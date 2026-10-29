@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
@@ -28,7 +29,7 @@ import (
 // independently constructed ASTs. No parser or public SQL adapter is involved.
 func databaseCreateUnitTarget(t *testing.T, e, seed *core.Engine, name string) *core.Engine {
 	t.Helper()
-	target := rolecmds.NewDatabaseRuntime(e, seed, name, e.Roles().LookupRef("postgres"))
+	target := rolecmds.NewDatabaseRuntime(e, seed, name, e.Roles().LookupRef("postgres"), ddl.CreateDatabaseOptions{AllowConnections: true, ConnectionLimit: -1})
 	if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
 		t.Fatal(err)
 	}
@@ -508,4 +509,34 @@ func primaryKeyUnitRelation(t *testing.T, e *core.Engine, name string) *catalog.
 		t.Fatal("missing relation", name)
 	}
 	return e.Catalog.State.MustRelation(address)
+}
+
+func TestDatabaseCreateAdmissionPolicy(t *testing.T) {
+	for _, policy := range []ddl.CreateDatabaseOptions{
+		{AllowConnections: false, ConnectionLimit: -1},
+		{AllowConnections: true, ConnectionLimit: 0},
+		{AllowConnections: true, ConnectionLimit: 1},
+	} {
+		e, seed := engine.New(), engine.New()
+		name := "database_policy"
+		target := rolecmds.NewDatabaseRuntime(e, seed, name, e.Roles().LookupRef("postgres"), policy)
+		private := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
+		if private.AllowConnections != policy.AllowConnections || private.ConnectionLimit != policy.ConnectionLimit {
+			t.Fatal("private target lost normalized policy", private)
+		}
+		if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := target.ReplaceCatalogInOperation(t.Context(), seed, seed.CatalogRead(), nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := databaseCreateUnitPublish(e, t.Context(), name, target); err != nil {
+			t.Fatal(err)
+		}
+		final := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
+		shared := e.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
+		if final != shared || final.AllowConnections != policy.AllowConnections || final.ConnectionLimit != policy.ConnectionLimit {
+			t.Fatal("publication diverged from private admission policy", final, shared)
+		}
+	}
 }

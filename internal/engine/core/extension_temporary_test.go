@@ -139,7 +139,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 	})
 	t.Run("private_authority", func(t *testing.T) {
 		e, _, _, ext, _ := extensionTemporaryInstalled(t)
-		private, err := core.EngineStartSession(e, context.Background(), session.SessionStart{Authenticated: e.RoleStore.Domain.Principal(10)}, true)
+		private, err := e.StartRestoreSession(context.Background(), e.RoleStore.Domain.Principal(10))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -552,7 +552,7 @@ func extensionTemporaryOperation(t *testing.T, e *core.Engine, name string) (*se
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -818,7 +818,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 func extensionTemporaryStructuralEnd(t *testing.T, mixed bool) {
 	t.Helper()
 	e := engine.New()
-	ownerSession, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.RoleStore.Domain.Principal(10)})
+	ownerSession, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, e.RoleStore.Domain.Principal(10))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -886,7 +886,7 @@ func extensionTemporaryLatePeer(t *testing.T, e *core.Engine, ext *catalog.Exten
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	peer, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.RoleStore.Domain.Principal(10)})
+	peer, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, e.RoleStore.Domain.Principal(10))
 	if err != nil {
 		t.Fatal("bounded independent peer start", err)
 	}

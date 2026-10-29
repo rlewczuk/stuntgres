@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 	"time"
 
@@ -247,7 +248,7 @@ func TestNotificationSavepointRoots(t *testing.T) {
 
 func TestNotificationIdentityAndAssignment(t *testing.T) {
 	e := engine.New()
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(1)<<48 | 17})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(1)<<48 | 17})
 	if err != nil {
 		t.Fatal(err)
 	}

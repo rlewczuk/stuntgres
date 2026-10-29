@@ -22,7 +22,7 @@ func resultProviderFixture(t *testing.T) (catalog.Read, *catalog.Procedure) {
 		t.Fatal("missing owner")
 	}
 	read.Owner().Principals = principals
-	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "capture", Owner: owner.Ref}
+	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "capture", Owner: owner.Ref, AllowConnections: true, ConnectionLimit: -1}
 	read.State().SetDescriptor(database.Address(), database)
 	read.State().BindName(catalog.DescriptorNameKey(database), database.Address())
 	language := &catalog.Language{ObjectAddress: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 14}, ObjectRevision: 1, ObjectName: "sql", Owner: owner.Ref, Trusted: true, Validator: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 2248}}

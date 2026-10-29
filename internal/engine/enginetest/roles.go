@@ -21,12 +21,34 @@ func RoleOperation(t testing.TB, e *core.Engine, name string) (*session.Operatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(sessionID.Add(1)), Authenticated: ref})
+	s, err := OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(sessionID.Add(1))}, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return roleSessionOperation(t, s)
+}
+
+// RestoreOperation initializes a private replay session, without a physical
+// database reservation or persisted user defaults.
+func RestoreOperation(t testing.TB, e *core.Engine, name string) (*session.Operation, func()) {
+	t.Helper()
+	ref, err := e.ResolveLogin(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := e.StartRestoreSession(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return roleSessionOperation(t, s)
+}
+
+func roleSessionOperation(t testing.TB, s *session.Session) (*session.Operation, func()) {
+	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
+		s.RequestEnd(session.InitFailure)
+		_ = s.WaitEnd(context.Background())
 		t.Fatal(err)
 	}
 	return op, func() {

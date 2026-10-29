@@ -226,7 +226,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 
 func sessionStart(t *testing.T, e *core.Engine, p settings.SessionDefaultProvider) *session.Session {
 	t.Helper()
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
 	if err != nil {
 		t.Fatal(err)
 	}

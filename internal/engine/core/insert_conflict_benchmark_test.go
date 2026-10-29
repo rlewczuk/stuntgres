@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
@@ -36,7 +37,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				f.e.Mu.Lock()
 				f.e.Storage.InstallIndexRootLocked(f.index.Address(), root)
 				f.e.Mu.Unlock()
-				sess, err := f.e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.parent.Owner})
+				sess, err := enginetest.OpenSession(context.Background(), f.e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, f.parent.Owner)
 				if err != nil {
 					b.Fatal(err)
 				}

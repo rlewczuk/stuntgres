@@ -175,7 +175,7 @@ func TestSessionIdentityConfiguredResetRole(t *testing.T) {
 func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 	ctx := context.Background()
 	e := engine.NewWithSettings(nil, "unit identity", false)
-	sess, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	sess, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
 	}

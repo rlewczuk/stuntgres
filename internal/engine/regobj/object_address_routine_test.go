@@ -31,7 +31,7 @@ func addressRoutineFixture(t *testing.T) (*catalog.State, AddressLookup, func(st
 	owner := &catalog.Owner{Domain: &ids.Domain{}, Principals: &authorization.Domain{}}
 	record := &access.RoleRecord{Root: authorization.Seed(owner.Principals), Revision: 1}
 	bootstrap := owner.Principals.Principal(authorization.BootstrapPrincipalID)
-	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectName: "memory", Owner: bootstrap}
+	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectName: "memory", Owner: bootstrap, AllowConnections: true, ConnectionLimit: -1}
 	state.SetDescriptor(database.Address(), database)
 	for _, typ := range sqltype.Builtins() {
 		d := &catalog.Type{SQLType: typ}

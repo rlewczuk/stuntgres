@@ -139,15 +139,13 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	target := c.engine
-	if c.explicitDatabase {
-		var err error
-		target, err = target.SelectDatabase(ctx, c.database)
-		if err != nil {
-			return nil, err
-		}
+	admission, err := c.engine.AdmitDatabase(ctx, principal, core.DatabaseSelector{Name: c.database, Explicit: c.explicitDatabase})
+	if err != nil {
+		return nil, err
 	}
-	sess, err := target.StartSession(ctx, session.SessionStart{ID: id, Authenticated: principal, NoticeHandler: c.noticeHandler})
+	defer admission.Release()
+	target := admission.Target()
+	sess, err := target.StartSession(ctx, admission, session.SessionStart{ID: id, NoticeHandler: c.noticeHandler})
 	if err != nil {
 		return nil, err
 	}

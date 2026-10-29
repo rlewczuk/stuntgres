@@ -58,7 +58,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Databases and role settings: `RUN='^TestReferencePGDatabase'`, `RUN='^TestReferencePGDBRoleSetting'`
 - Role views: `RUN='^TestReferencePGRoles'`, `RUN='^TestReferencePGUser'`, `RUN='^TestReferencePGShadow'`, `RUN='^TestReferencePGGroup'`
 - Protected all-role metadata: `RUN='^TestReferencePGAuthID'`
-- Database creation, selection and targeted controls: `RUN='^TestReferenceDatabaseCreate'`
+- Database creation, selection and targeted controls: `RUN='^TestReferenceDatabase(Create|Selection)'`
 - ACL catalogs and `pg_get_acl`: `RUN='^TestReferencePGDefaultACL'`, `RUN='^TestReferencePGParameterACL'`, `RUN='^TestReferenceObjectACL'`
 - Information schema: `RUN='^TestReferenceInfo'` (shared with `reference/information_schema`), `RUN='^TestReferenceDataTypePrivileges'`
 - Role table grants: `RUN='^TestReferenceInfoRoleTableGrants'`

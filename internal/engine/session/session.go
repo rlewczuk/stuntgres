@@ -56,7 +56,6 @@ type SessionResource interface {
 type SessionStart struct {
 	ID            ids.SessionID
 	Defaults      settings.SessionDefaultProvider
-	Authenticated authorization.PrincipalRef
 	NoticeHandler func(sqlstate.Error) // Startup delivery, outside all runtime locks.
 }
 type State uint8

@@ -93,7 +93,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal("reservation is not the actual unique provider", resource)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	sess, err := f.e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: reader.Ref})
+	sess, err := enginetest.OpenSession(ctx, f.e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, reader.Ref)
 	if err != nil {
 		cancel()
 		t.Fatal(err)

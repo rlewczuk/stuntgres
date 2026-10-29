@@ -51,7 +51,7 @@ func TestRoleSettingsPersistedNameNormalization(t *testing.T) {
 				if mode != "denied" {
 					login = e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
 				}
-				s := roleDefaultsStart(t, e, session.SessionStart{Authenticated: login})
+				s := roleDefaultsStart(t, e, session.SessionStart{}, login)
 				op, err := s.Acquire(t.Context())
 				if err != nil {
 					t.Fatal(err)
@@ -128,14 +128,14 @@ func TestRoleSettingsStartupNameNormalization(t *testing.T) {
 					})
 				}
 				var notices []sqlstate.Error
-				s := roleDefaultsStart(t, e, session.SessionStart{Authenticated: login, Defaults: provider, NoticeHandler: func(n sqlstate.Error) {
+				s := roleDefaultsStart(t, e, session.SessionStart{Defaults: provider, NoticeHandler: func(n sqlstate.Error) {
 					if !e.Mu.TryLock() {
 						t.Error("startup notice under cluster mutex")
 						return
 					}
 					e.Mu.Unlock()
 					notices = append(notices, n)
-				}})
+				}}, login)
 				want := []sqlstate.Error{roleNameClippingNotice(raw, accepted)}
 				if mode == "override" || mode == "none" {
 					want = nil

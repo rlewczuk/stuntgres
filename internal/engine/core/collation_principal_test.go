@@ -137,7 +137,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	enginetest.RoleExecute(t, e, admin, `CREATE TABLE coll_bootstrap_survivor(id INT,v TEXT COLLATE pg_temp.coll_bootstrap_temporary DEFAULT ('a' COLLATE pg_temp.coll_bootstrap_temporary))`)
 	enginetest.RoleExecute(t, e, admin, `INSERT INTO coll_bootstrap_survivor VALUES(7,'é')`)
 	done()
-	inspection, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: bootstrap})
+	inspection, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, bootstrap)
 	if err != nil {
 		t.Fatal(err)
 	}

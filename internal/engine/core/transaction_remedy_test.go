@@ -177,7 +177,7 @@ func BenchmarkTransactionAppend(b *testing.B) {
 			b.ReportAllocs()
 			for range b.N {
 				e := engine.New()
-				s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
+				s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: 1})
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -230,7 +230,7 @@ func BenchmarkTransactionRelationCapture(b *testing.B) {
 	for _, relations := range []int{1, 256, 512} {
 		b.Run(fmt.Sprint(relations), func(b *testing.B) {
 			e := engine.New()
-			s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
+			s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: 1})
 			if err != nil {
 				b.Fatal(err)
 			}

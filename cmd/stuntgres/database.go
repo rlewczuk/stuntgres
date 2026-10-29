@@ -92,7 +92,12 @@ func (d *database) provision(ctx context.Context, name string, users accounts, r
 	if err != nil {
 		return err
 	}
-	boot, err := d.engine.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: postgres, Defaults: settingNames(d.settings)})
+	admission, err := d.engine.AdmitDatabase(ctx, postgres, core.DatabaseSelector{})
+	if err != nil {
+		return err
+	}
+	defer admission.Release()
+	boot, err := admission.Target().StartSession(ctx, admission, session.SessionStart{ID: 1, Defaults: settingNames(d.settings)})
 	if err != nil {
 		return err
 	}
@@ -158,6 +163,11 @@ func (d *database) startSession(ctx context.Context, id uint32, user string, def
 	if err != nil {
 		return nil, nil, err
 	}
+	admission, err := d.engine.AdmitDatabase(ctx, principal, core.DatabaseSelector{})
+	if err != nil {
+		return nil, nil, err
+	}
+	defer admission.Release()
 	values := startupDefaultValues{startupDefaults: defaults}
 	var notice *sqlstate.Error
 	if raw, present := defaults["application_name"]; present {
@@ -167,7 +177,7 @@ func (d *database) startSession(ctx context.Context, id uint32, user string, def
 		}
 		values.applicationSet = true
 	}
-	s, err := d.engine.StartSession(ctx, session.SessionStart{ID: ids.SessionID(id), Authenticated: principal, Defaults: values})
+	s, err := admission.Target().StartSession(ctx, admission, session.SessionStart{ID: ids.SessionID(id), Defaults: values})
 	return s, notice, err
 }
 

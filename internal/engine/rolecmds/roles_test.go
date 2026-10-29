@@ -57,7 +57,7 @@ func roleOperation(t *testing.T, e *core.Engine, name string) (*session.Operatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,11 +181,11 @@ func TestRoleSessionAuthorizationAndStaleIdentity(t *testing.T) {
 	if _, err := e.Execute(a, enginetest.Statement(t, "SELECT current_user"), 0, nil); err == nil {
 		t.Fatal("stale session adopted recreated role")
 	}
-	if _, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: engine.New().RoleStore.Domain.Principal(10)}); err == nil {
+	if _, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, engine.New().RoleStore.Domain.Principal(10)); err == nil {
 		t.Fatal("foreign initialization")
 	}
 	nolog, _ := e.Roles().Lookup("nolog")
-	if _, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: nolog.Ref}); err == nil {
+	if _, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, nolog.Ref); err == nil {
 		t.Fatal("NOLOGIN admission")
 	}
 }
@@ -202,8 +202,8 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 			lookup := func(name string) authorization.PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
 			membershipOID := e.RoleStore.NextMembershipOID()
 			upstream := authorization.Membership{OID: uint32(membershipOID), Role: lookup("endpoint"), Member: lookup("grantor"), Grantor: lookup("postgres"), Admin: true, Inherit: true, Set: true}
-			downstream := authorization.Membership{OID: uint32(membershipOID+1), Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("grantor"), Inherit: true, Set: true}
-			unrelated := authorization.Membership{OID: uint32(membershipOID+2), Role: lookup("retained"), Member: lookup("member"), Grantor: lookup("postgres")}
+			downstream := authorization.Membership{OID: uint32(membershipOID + 1), Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("grantor"), Inherit: true, Set: true}
+			unrelated := authorization.Membership{OID: uint32(membershipOID + 2), Role: lookup("retained"), Member: lookup("member"), Grantor: lookup("postgres")}
 			seed := e.Roles().Memberships()
 			for _, edge := range []authorization.Membership{upstream, downstream, unrelated} {
 				if err := grantMembership(t, e, edge); err != nil {

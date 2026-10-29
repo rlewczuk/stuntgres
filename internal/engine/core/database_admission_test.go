@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -69,21 +70,24 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 				}
 			}}
 			id := ids.SessionID(testSessionID.Add(1))
-			s, err := e.StartSession(ctx, session.SessionStart{ID: id, Authenticated: login, Defaults: provider})
-			if s != nil {
-				s.RequestEnd(session.CleanClose)
-				_ = s.WaitEnd(context.Background())
-				t.Fatal("failed physical admission published a session")
-			}
+			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: id, Defaults: provider}, login)
 			if phase == "cancel" {
-				if !errors.Is(err, context.Canceled) {
-					t.Fatal("cancellation lost", err)
+				if s != nil || !errors.Is(err, context.Canceled) {
+					t.Fatal("canceled initialization published", s, err)
 				}
 			} else {
-				want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: `permission denied for database "` + e.DatabaseName + `"`, Detail: "User does not have CONNECT privilege."}
+				if err != nil || s == nil {
+					t.Fatal("retained admission was revalidated after defaults", s, err)
+				}
+				fresh, denial := enginetest.OpenSession(ctx, e, session.SessionStart{ID: id + 1}, login)
+				want := &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "42501", Message: `permission denied for database "` + e.DatabaseName + `"`, Detail: "User does not have CONNECT privilege."}
 				var diagnostic *sqlstate.Error
-				if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
-					t.Fatal("fresh captured CONNECT denial", err, want)
+				if fresh != nil || !errors.As(denial, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+					t.Fatal("subsequent admission ignored revoked CONNECT", fresh, denial)
+				}
+				s.RequestEnd(session.CleanClose)
+				if err := s.WaitEnd(context.Background()); err != nil {
+					t.Fatal(err)
 				}
 			}
 			if len(core.EngineSessions(e)) != 0 || core.EngineRoleSessionCountLocked(e, login) != 0 {
@@ -94,7 +98,7 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 			e.Mu.Unlock()
 			// Reusing the exact failed identity exercises advisory-ticket cleanup,
 			// not merely absence from the public session registry.
-			live, err := e.StartSession(context.Background(), session.SessionStart{ID: id, Authenticated: login})
+			live, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: id}, login)
 			if err != nil {
 				t.Fatal("failed admission retained lifecycle resources", err)
 			}
@@ -111,7 +115,7 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 
 func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 	e, login := databaseAdmissionFixture()
-	live, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
+	live, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +136,7 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 	if !live.IsLive() || live.CountedAuthenticated != login || core.EngineRoleSessionCountLocked(e, login) != 1 {
 		t.Fatal("revocation changed physical lifetime or authenticated count")
 	}
-	fresh, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
+	fresh, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login)
 	if fresh != nil {
 		fresh.RequestEnd(session.CleanClose)
 		_ = fresh.WaitEnd(context.Background())
@@ -162,8 +166,8 @@ func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 			grantee = login
 		}
 		databaseAdmissionPolicyLocked(e, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: authorization.ConnectPrivilege}}})
-		start := session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login, Defaults: roleSwitchDefaultProvider{value: fixtureRole(roles, reset).Name}}
-		s, err := e.StartSession(context.Background(), start)
+		start := session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: roleSwitchDefaultProvider{value: fixtureRole(roles, reset).Name}}
+		s, err := enginetest.OpenSession(context.Background(), e, start, login)
 		if !allowLogin {
 			if s != nil {
 				s.RequestEnd(session.CleanClose)

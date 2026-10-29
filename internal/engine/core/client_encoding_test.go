@@ -210,7 +210,7 @@ func TestClientEncodingAdmissionJournal(t *testing.T) {
 			t.Fatal("persisted validation changed issuer state")
 		}
 	}
-	failed, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(900001), Defaults: &clientEncodingDefaults{e: e}})
+	failed, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(900001), Defaults: &clientEncodingDefaults{e: e}})
 	if failed != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "conversion between LATIN1 and UTF8 is not supported" {
 		t.Fatal("failed startup admitted a session", failed, err)
 	}
@@ -301,7 +301,7 @@ func TestClientEncodingAdmissionJournal(t *testing.T) {
 	}
 	// Canceled provider initialization leaves no usable returned session.
 	ctx, cancel = context.WithCancel(context.Background())
-	failed, err = e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(900002), Defaults: &clientEncodingDefaults{e: e, cancel: cancel}})
+	failed, err = enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(900002), Defaults: &clientEncodingDefaults{e: e, cancel: cancel}})
 	if failed != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled startup publication", failed, err)
 	}

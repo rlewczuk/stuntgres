@@ -87,8 +87,8 @@ func capturePGDatabase(in Input) ([][]sqltype.Value, error) {
 		// the native semantic declaration, not a host locale or physical horizon.
 		row := []sqltype.Value{
 			oid(0, uint32(database.Address().ObjectID)), text(1, database.Name()), oid(2, uint32(database.Owner.ID())),
-			checked(sqltype.Integer(source.Columns[3].Usage.Type, nativeDatabaseEncodingID)), text(4, nativeDatabaseProvider), sqltype.Boolean(source.Columns[5].Usage.Type, false), sqltype.Boolean(source.Columns[6].Usage.Type, true),
-			sqltype.Boolean(source.Columns[7].Usage.Type, false), checked(sqltype.Integer(source.Columns[8].Usage.Type, -1)), null(9), null(10), null(11),
+			checked(sqltype.Integer(source.Columns[3].Usage.Type, nativeDatabaseEncodingID)), text(4, nativeDatabaseProvider), sqltype.Boolean(source.Columns[5].Usage.Type, false), sqltype.Boolean(source.Columns[6].Usage.Type, database.AllowConnections),
+			sqltype.Boolean(source.Columns[7].Usage.Type, false), checked(sqltype.Integer(source.Columns[8].Usage.Type, int64(database.ConnectionLimit))), null(9), null(10), null(11),
 			text(12, nativeDatabaseLocale), text(13, nativeDatabaseLocale), null(14), null(15), null(16), acl,
 		}
 		frozen := database.FrozenXID

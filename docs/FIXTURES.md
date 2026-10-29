@@ -35,13 +35,17 @@ if err := stuntgres.Restore(ctx, db, bytes.NewReader(seed.Bytes())); err != nil 
   exist; finish them first.
 - These are logical snapshots of one in-memory database, not `pg_dump` archives,
   WAL or crash durability.
+- Committed materialized WITH HOLD cursor output and returned Rows retain their
+  owned values and schema across replacement. Fetch held output from a fresh
+  transaction; old live transactions remain catalog-epoch fenced for execution
+  and commit. Replacement never reopens a cursor's original producer.
 
 ## Reset
 
 Atomically replaces the catalog with a freshly initialized one: user objects and
 data are removed and the built-in `pg_catalog`, `pg_toast`, `public` and
 `information_schema` namespaces are recreated. Database identity and attachment
-owner/ACL authority, roles and their committed shared comments and role/database
+owner/ACL and admission policy, roles and their committed shared comments and role/database
 defaults, live sessions and their captured settings, existing pools and
 non-reusable counters (such as transaction IDs) are kept.
 Shared memberships, their stable row OIDs and the nonreusable membership
@@ -147,7 +151,7 @@ ignores the native comment rather than importing its historical catalog state.
   replaces shared parameter authority across all destination database attachments,
   allocating identities beyond destination cluster frontiers without importing
   source OIDs. Dump excludes private grants and session setting values. Destination
-  database identity/owner/ACLs, roles and peer-local data survive replacement.
+  database identity/owner/ACLs/admission policy, roles and peer-local data survive replacement.
   Invalid/cancelled input or a Parameter-authority change racing the retained
   input predecessor changes no shared roots or replacement-reserved frontier.
   Unrelated subscription/statistics/local-object edits during reader I/O retain

@@ -27,6 +27,9 @@ func (h *sessionHost) Unregister(token ids.SessionToken, s *session.Session) {
 		delete(e.sessions, token)
 	}
 	e.sessionMu.Unlock()
+	if payload := PayloadOf(s); payload != nil {
+		payload.admission.release(true)
+	}
 }
 
 // Engine returns the engine that runs the statement.

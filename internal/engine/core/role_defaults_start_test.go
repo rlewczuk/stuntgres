@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
@@ -32,10 +33,10 @@ func roleDefaultsInstall(e *core.Engine, key access.RoleSettingKey, row []access
 	return next
 }
 
-func roleDefaultsStart(t *testing.T, e *core.Engine, start session.SessionStart) *session.Session {
+func roleDefaultsStart(t *testing.T, e *core.Engine, start session.SessionStart, principals ...authorization.PrincipalRef) *session.Session {
 	t.Helper()
 	start.ID = ids.SessionID(testSessionID.Add(1))
-	s, err := e.StartSession(t.Context(), start)
+	s, err := enginetest.OpenSession(t.Context(), e, start, principals...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +127,7 @@ func TestRoleSettingsStartupCapture(t *testing.T) {
 			t.Fatal("equal provider source", f)
 		}
 	}
-	private, err := core.EngineStartSession(e, t.Context(), session.SessionStart{}, true)
+	private, err := e.StartRestoreSession(t.Context(), e.RoleStore.Domain.Principal(10))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +182,7 @@ func TestRoleSettingsStartupNotices(t *testing.T) {
 				roleDefaultsInstall(e, access.RoleSettingKey{Role: target}, []access.RoleSetting{{Name: "application_name", Value: "not-recursive"}})
 			}
 			var notices []sqlstate.Error
-			s := roleDefaultsStart(t, e, session.SessionStart{Authenticated: login, NoticeHandler: func(n sqlstate.Error) {
+			s := roleDefaultsStart(t, e, session.SessionStart{NoticeHandler: func(n sqlstate.Error) {
 				if !e.Mu.TryLock() {
 					t.Error("notice callback under cluster mutex")
 					return
@@ -202,7 +203,7 @@ func TestRoleSettingsStartupNotices(t *testing.T) {
 				}
 				core.EngineSessionMuRef(e).Unlock()
 				notices = append(notices, n)
-			}})
+			}}, login)
 			want := login
 			valid := mode == "valid" || mode == "self"
 			if valid {

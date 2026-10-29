@@ -36,7 +36,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 					cancel()
 				}
 			}}
-			s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
+			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: provider}, login.Ref)
 			if s != nil || err == nil || len(core.EngineSessions(e)) != before {
 				t.Fatal("failed startup published", s, err)
 			}
@@ -54,7 +54,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 	for _, value := range []string{"none"} {
 		e, _ := roleSwitchUnitSession(t)
 		login, _ := e.Roles().Lookup("switch_login")
-		s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: roleSwitchDefaultProvider{value: value}})
+		s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: roleSwitchDefaultProvider{value: value}}, login.Ref)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +75,7 @@ func roleSwitchUnitSession(t *testing.T) (*core.Engine, *session.Session) {
 		enginetest.Run(t, e, q)
 	}
 	login, _ := e.Roles().Lookup("switch_login")
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

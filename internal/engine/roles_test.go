@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 
 	"stuntgres/internal/engine/core"
@@ -15,7 +16,7 @@ func roleOperation(t *testing.T, e *core.Engine, name string) (*session.Operatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, ref)
 	if err != nil {
 		t.Fatal(err)
 	}

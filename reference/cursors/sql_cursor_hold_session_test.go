@@ -124,6 +124,9 @@ func TestReferenceSQLCursorHoldSessionAndControls(t *testing.T) {
 					holdRun(t, p, b, c, "BEGIN")
 					holdRun(t, p, b, c, "ROLLBACK")
 					holdBatch(t, p, b, c, "FETCH 1 FROM control_h", []any{int64(1), "one"})
+					holdBatch(t, p, b, c, "FETCH 1 FROM control_h", []any{int64(2), nil})
+					holdBatch(t, p, b, c, "FETCH ALL FROM control_h", []any{int64(3), "three"})
+					holdBatch(t, p, b, c, "FETCH ALL FROM control_h")
 					return
 				}
 				query := "FETCH 1 FROM control_h"
@@ -157,15 +160,9 @@ func TestReferenceSQLCursorHoldSessionAndControls(t *testing.T) {
 					t.Fatal(err)
 				}
 				holdBatch(t, p, b, frozen, query, []any{int64(1), "one"})
-				if replacement == "failed-restore" {
-					holdBatch(t, p, b, c, query, []any{int64(2), nil})
-				} else {
-					result, err := c.ExecContext(p.Ctx, "FETCH ALL FROM control_h")
-					if result != nil {
-						t.Fatal("fenced FETCH exposed result")
-					}
-					fixture.TransactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
-				}
+				holdBatch(t, p, b, c, query, []any{int64(2), nil})
+				holdBatch(t, p, b, c, "FETCH ALL FROM control_h", []any{int64(3), "three"})
+				holdBatch(t, p, b, c, "FETCH ALL FROM control_h")
 			})
 		})
 	}

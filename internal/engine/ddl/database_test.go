@@ -4,13 +4,14 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // CheckCreateDatabase asks exists about a non-default template and, only after
 // every option check passed, about the new name.
 func TestCheckCreateDatabaseOrder(t *testing.T) {
-	valid := CreateDatabaseOptions{Template: "template1", Encoding: 6, Collate: "C", CType: "POSIX"}
+	valid := CreateDatabaseOptions{Template: "template1", Encoding: 6, Collate: "C", CType: "POSIX", AllowConnections: true, ConnectionLimit: -1}
 	registered := func(names ...string) func(string) bool {
 		return func(name string) bool {
 			for _, n := range names {
@@ -47,5 +48,27 @@ func TestCheckCreateDatabaseOrder(t *testing.T) {
 		case c.code != "" && (!errors.As(err, &got) || got.Code != c.code):
 			t.Fatal(c.label, err)
 		}
+	}
+}
+
+func TestParseCreateDatabaseAdmissionPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		options []parser.DatabaseOption
+		allow   bool
+		limit   int32
+	}{
+		{"defaults", nil, true, -1},
+		{"disabled", []parser.DatabaseOption{{Name: "allow_connections", Value: "off"}}, false, -1},
+		{"one", []parser.DatabaseOption{{Name: "allow_connections", Value: "yes"}, {Name: "connection_limit", Value: "1", Numeric: true}}, true, 1},
+		{"zero", []parser.DatabaseOption{{Name: "connection_limit", Value: "0", Numeric: true}}, true, 0},
+		{"explicit defaults", []parser.DatabaseOption{{Name: "allow_connections", Default: true}, {Name: "connection_limit", Default: true}}, true, -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			options, err := ParseCreateDatabaseOptions(tc.options)
+			if err != nil || options.Capability != "" || options.AllowConnections != tc.allow || options.ConnectionLimit != tc.limit {
+				t.Fatal("normalization lost admission policy", options, err)
+			}
+		})
 	}
 }

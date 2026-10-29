@@ -187,11 +187,6 @@ func EngineSerializableEligibleLocked(x *Engine, ref ids.ObjectRef, changes *ses
 	return x.serializableEligibleLocked(ref, changes)
 }
 
-// EngineStartSession calls x.startSession.
-func EngineStartSession(x *Engine, ctx context.Context, start session.SessionStart, private bool) (*session.Session, error) {
-	return x.startSession(ctx, start, private)
-}
-
 // EngineTransactionAgeLocked calls x.transactionAgeLocked.
 func EngineTransactionAgeLocked(x *Engine, ref ids.TxRef, xid uint32) (int32, error) {
 	return x.transactionAgeLocked(ref, xid)
@@ -505,4 +500,11 @@ func EngineValidateOperation(x *Engine, op *session.Operation) error {
 // ScopeAcquireDataViewLocked calls x.acquireDataViewLocked.
 func ScopeAcquireDataViewLocked(x *StatementScope, e *Engine, ref ids.ObjectRef) (*visibility.View, error) {
 	return x.acquireDataViewLocked(e, ref)
+}
+
+// EngineDatabaseAdmissionCount observes the transient physical reservation ledger.
+func EngineDatabaseAdmissionCount(e *Engine) int {
+	e.Cluster.AdmissionMu.Lock()
+	defer e.Cluster.AdmissionMu.Unlock()
+	return e.Cluster.admissions[e]
 }

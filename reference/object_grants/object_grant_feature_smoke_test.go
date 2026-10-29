@@ -258,9 +258,7 @@ func objectGrantSmokeDatabase(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 		}
 		want := fixture.ControlsReferenceDiagnostic("42501", `permission denied for database "`+database+`"`)
 		want.Detail = "User does not have CONNECT privilege."
-		if b.PG {
-			want.Severity, want.SeverityUnlocalized = "FATAL", "FATAL"
-		}
+		want.Severity, want.SeverityUnlocalized = "FATAL", "FATAL"
 		fixture.AssertDiagnostic(t, err, &want)
 	}
 	fresh(false)

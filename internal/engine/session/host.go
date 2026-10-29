@@ -12,10 +12,10 @@ type Host interface {
 	// never from inside a SessionResource callback. It takes Engine.mu and
 	// may start and end a private maintenance session.
 	EndMaintenance(s *Session) error
-	// Unregister removes s from the engine's session registry if it is
-	// still registered under token. The session calls it while holding
-	// Session.Mu; it takes only Engine.sessionMu (lock order Session.Mu,
-	// then Engine.sessionMu) and never Engine.mu or the lock manager.
+	// Unregister removes only s's exact registration and releases its physical
+	// admission after all owners drain. Called under Session.Mu, it takes local
+	// sessionMu, drops it, then takes cluster AdmissionMu; never metadata Mu or
+	// the lock manager. AdmissionMu has no path back to session/metadata locks.
 	Unregister(token ids.SessionToken, s *Session)
 	// NewOperation allocates an operation of s with Session and Self set,
 	// together with the engine's per-operation analysis state (the Analysis

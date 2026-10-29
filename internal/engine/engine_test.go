@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/enginetest"
 	"sync/atomic"
 	"testing"
 
@@ -21,7 +22,7 @@ import (
 var testSessionID atomic.Uint64
 
 func testOperation(e *core.Engine, ctx context.Context) (*session.Operation, func(), error) {
-	s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		return nil, nil, err
 	}

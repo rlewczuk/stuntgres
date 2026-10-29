@@ -22,7 +22,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	defer sourceDone()
 	enginetest.RoleExecute(t, source, sourceOp, "CREATE ROLE child_owner LOGIN")
 	stage := source.RestoreStage()
-	op, done := enginetest.RoleOperation(t, stage, "postgres")
+	op, done := enginetest.RestoreOperation(t, stage, "postgres")
 	defer done()
 	enginetest.RoleExecute(t, stage, op, "SET SESSION AUTHORIZATION child_owner")
 	core.OperationReplay(op).TableDestination = true
@@ -88,7 +88,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	if core.PartitionDefaultReplayAllowed(stage, op, auth, &dropped) {
 		t.Fatal("DROP DEFAULT passed SET DEFAULT whitelist")
 	}
-	actorOp, actorDone := enginetest.RoleOperation(t, stage, "child_owner")
+	actorOp, actorDone := enginetest.RestoreOperation(t, stage, "child_owner")
 	defer actorDone()
 	actorAuth, err := core.OperationAuthorization(actorOp)
 	if err != nil {

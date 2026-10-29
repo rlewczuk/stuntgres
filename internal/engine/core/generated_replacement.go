@@ -89,7 +89,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		return installedStage, err
 	}
 	if op == nil {
-		sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.RoleStore.Domain.Principal(10)})
+		sess, err := stage.StartRestoreSession(ctx, stage.RoleStore.Domain.Principal(10))
 		if err != nil {
 			return installedStage, err
 		}

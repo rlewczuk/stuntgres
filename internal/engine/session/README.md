@@ -446,9 +446,11 @@ nontransactional.
 - **Engine host** (`host.go`): `Host`, implemented by the root's `sessionHost`
   (a pointer conversion of `*Engine`). `EndMaintenance` runs after the
   Transaction resource callback returns, without `Session.Mu` and never inside a
-  `SessionResource` callback. `Unregister` runs under `Session.Mu` and takes
-  only `Engine.sessionMu`. `NewOperation` (possibly under `Session.Mu`) only
-  allocates the operation with its binding host.
+  `SessionResource` callback. `Unregister` runs under `Session.Mu`, removes the
+  exact local registration under `Engine.sessionMu`, drops that mutex, then
+  releases the physical reservation under cluster AdmissionMu. It never takes
+  metadata Mu. `NewOperation` (possibly under `Session.Mu`) only allocates the
+  operation with its binding host.
 
 ## Invariants
 

@@ -167,7 +167,7 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), error) {
 	stage := h.run.stage
 	// The isolated role snapshot retains exact target identities for final remapping.
-	sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.RoleStore.Domain.Principal(10)})
+	sess, err := stage.StartRestoreSession(ctx, stage.RoleStore.Domain.Principal(10))
 	if err != nil {
 		return nil, nil, err
 	}

@@ -31,7 +31,7 @@ func newSeedStore(share *SeedShare) *Store {
 // finishes the seed.
 func finishSeedFixture(s *Store, share *SeedShare, database string) {
 	domain := &authorization.Domain{}
-	db := &Database{ObjectAddress: s.DatabaseAddress(), ObjectRevision: 1, ObjectName: database, Owner: domain.Principal(authorization.BootstrapPrincipalID)}
+	db := &Database{ObjectAddress: s.DatabaseAddress(), ObjectRevision: 1, ObjectName: database, Owner: domain.Principal(authorization.BootstrapPrincipalID), AllowConnections: true, ConnectionLimit: -1}
 	s.State.SetDescriptor(db.Address(), db)
 	s.State.BindName(DescriptorNameKey(db), db.Address())
 	s.FinishSeedLocked(share)
@@ -117,5 +117,23 @@ func TestInstallCatalogSourceOwnsRowType(t *testing.T) {
 	}
 	if bound, ok := state.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: pgCatalog, Name: "pg_class"}); !ok || bound != d.Address() {
 		t.Fatal("catalog source name is not bound")
+	}
+}
+
+func TestDatabaseAuthorityAdmissionPolicy(t *testing.T) {
+	current := &Database{ObjectAddress: CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "policy", AllowConnections: true, ConnectionLimit: -1, FrozenXID: 3}
+	observed := *current
+	observed.FrozenXID++
+	if !DatabaseAuthorityCompatible(current, &observed) {
+		t.Fatal("maintenance horizon changed database authority")
+	}
+	observed.AllowConnections = false
+	if DatabaseAuthorityCompatible(current, &observed) {
+		t.Fatal("disabled admission was hidden as horizon drift")
+	}
+	observed = *current
+	observed.ConnectionLimit = 1
+	if DatabaseAuthorityCompatible(current, &observed) {
+		t.Fatal("connection policy was hidden as horizon drift")
 	}
 }

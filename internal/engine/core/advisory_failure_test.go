@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 18}
 		advisoryUnitGrant(t, s, ref, key, lock.AdvisoryExclusive)
 		injected := errors.New("advisory initialization default failed")
-		_, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: injected}})
+		_, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: injected}})
 		if !errors.Is(err, injected) {
 			t.Fatal("actual initialization failure", err)
 		}

@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -84,7 +85,7 @@ func TestDatabaseSettingsStartup(t *testing.T) {
 		if client.Settings.Defaults["application_name"] != "client" || !client.Settings.ProviderDefaults["application_name"] {
 			t.Fatal("client precedence lost")
 		}
-		private, err := core.EngineStartSession(e, t.Context(), session.SessionStart{}, true)
+		private, err := e.StartRestoreSession(t.Context(), e.RoleStore.Domain.Principal(10))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -114,7 +115,7 @@ func TestDatabaseSettingsStartup(t *testing.T) {
 				}
 				return "", false, nil
 			})
-			s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: provider})
+			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: provider})
 			want := failure
 			if mode == "cancel" {
 				want = context.Canceled

@@ -22,7 +22,7 @@ func newRoleStoreFixture(t *testing.T) roleStoreFixture {
 	f.store.Initialize()
 	f.owner = &catalog.Owner{Domain: &ids.Domain{}, Principals: &f.store.Domain, ACLAuthority: &f.store.ACLAuthority}
 	state := catalog.NewState(1)
-	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "memory", Owner: f.store.Domain.Principal(authorization.BootstrapPrincipalID)}
+	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "memory", Owner: f.store.Domain.Principal(authorization.BootstrapPrincipalID), AllowConnections: true, ConnectionLimit: -1}
 	state.SetDescriptor(database.Address(), database)
 	state.BindName(catalog.DescriptorNameKey(database), database.Address())
 	f.read = catalog.NewRead(f.owner, state)

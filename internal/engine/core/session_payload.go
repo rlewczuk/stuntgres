@@ -14,6 +14,7 @@ import (
 // Session.payload before the session is shared; the slot never changes.
 // Each field keeps the lock discipline it had as a Session field.
 type sessionPayload struct {
+	admission      *DatabaseAdmission // Terminal Unregister owns its once-only release.
 	Cursors        *cursorRegistry
 	PreparedSQL    *PreparedRegistry
 	sqlRoutines    map[ids.ObjectAddress]sqlRoutineAnalysis

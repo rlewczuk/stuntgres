@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 	"time"
 
@@ -86,7 +87,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 		notificationUnitListen(t, s)
 		// Duplicate identity fails after normal resource attachment; initialized
 		// resources must unwind without retiring the existing exact token owner.
-		if duplicate, err := e.StartSession(context.Background(), session.SessionStart{ID: s.SessionToken.ID()}); duplicate != nil || err == nil {
+		if duplicate, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: s.SessionToken.ID()}); duplicate != nil || err == nil {
 			t.Fatal("duplicate initialization succeeded")
 		}
 		notificationUnitNotify(t, s, "still-owned")

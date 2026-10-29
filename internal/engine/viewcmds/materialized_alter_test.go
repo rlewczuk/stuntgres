@@ -592,7 +592,7 @@ func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body 
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
+	sess, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -634,7 +634,7 @@ func extensionTemporaryOperation(t *testing.T, e *core.Engine, name string) (*se
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, ref)
 	if err != nil {
 		t.Fatal(err)
 	}

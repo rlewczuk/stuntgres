@@ -85,7 +85,9 @@ stage get a host with no stage.
 ## Database creation
 
 The create executor accepts OWNER, default/`template1` TEMPLATE, default/UTF8
-ENCODING (including numeric 6) and C/POSIX locale options. CREATEDB is the effective
+ENCODING (including numeric 6), C/POSIX locale options, ALLOW_CONNECTIONS and
+CONNECTION LIMIT. Normalized allow/limit policy is installed in both the private
+runtime and final shared descriptor, with true/−1 defaults. CREATEDB is the effective
 role's direct attribute (or superuser), with SET ROLE authority required for the
 new owner. Prepare is syntax-only; execution checks read-only/transaction
 admission and publishes one complete target or nothing. Option recognition
@@ -94,8 +96,7 @@ invalid locale providers return 42P17 before capability checks. Diagnostics
 interpolate decoded names without string-literal escaping. Arbitrary template
 sources (including `template0`), non-C/POSIX locales, provider and physical
 strategy mechanisms return explicit 0A000 rather than succeeding without their
-effects. DROP/RENAME, mutable template administration and database flags/settings
-are not supplied by this create path.
+effects. This CREATE path does not implement ALTER DATABASE policy mutation.
 
 ## Testing
 

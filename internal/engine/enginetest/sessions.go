@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -13,11 +14,32 @@ import (
 	"stuntgres/internal/engine/settings"
 )
 
+// OpenSession exercises public admission before startup and returns failures to
+// lifecycle tests. An omitted principal uses the engine's trusted postgres login.
+func OpenSession(ctx context.Context, e *core.Engine, start session.SessionStart, principals ...authorization.PrincipalRef) (*session.Session, error) {
+	var principal authorization.PrincipalRef
+	if len(principals) != 0 {
+		principal = principals[0]
+	} else {
+		var err error
+		principal, err = e.ResolveLogin("postgres")
+		if err != nil {
+			return nil, err
+		}
+	}
+	admission, err := e.AdmitDatabase(ctx, principal, core.DatabaseSelector{Name: e.DatabaseName, Explicit: true})
+	if err != nil {
+		return nil, err
+	}
+	defer admission.Release()
+	return e.StartSession(ctx, admission, start)
+}
+
 // StartSession starts a session with session defaults from p (nil for none)
 // and ends it at test cleanup.
 func StartSession(t testing.TB, e *core.Engine, p settings.SessionDefaultProvider) *session.Session {
 	t.Helper()
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(sessionID.Add(1)), Defaults: p})
+	s, err := OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(sessionID.Add(1)), Defaults: p})
 	if err != nil {
 		t.Fatal(err)
 	}

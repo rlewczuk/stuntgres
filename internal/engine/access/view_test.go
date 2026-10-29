@@ -27,7 +27,7 @@ func newAccessFixture(t *testing.T) accessFixture {
 	f := accessFixture{owner: &catalog.Owner{Domain: &ids.Domain{}, Principals: &authorization.Domain{}}}
 	f.bootstrap = f.owner.Principals.Principal(authorization.BootstrapPrincipalID)
 	state := catalog.NewState(1)
-	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "memory", Owner: f.bootstrap}
+	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "memory", Owner: f.bootstrap, AllowConnections: true, ConnectionLimit: -1}
 	f.public = &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 2200}, ObjectName: "public", ObjectRevision: 1, Owner: f.bootstrap}
 	f.temporary = &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 30000}, ObjectName: "pg_temp_1", ObjectRevision: 1, Owner: f.bootstrap, Temporary: sessions.Session(1)}
 	for _, d := range []catalog.Descriptor{database, f.public, f.temporary} {

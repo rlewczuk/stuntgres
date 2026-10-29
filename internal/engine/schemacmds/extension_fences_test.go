@@ -139,7 +139,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
 	// Actual isolated Restore stage supplies captured target-principal authority.
 	stage := e.RestoreStage()
-	op, done := enginetest.RoleOperation(t, stage, "postgres")
+	op, done := enginetest.RestoreOperation(t, stage, "postgres")
 	defer done()
 	if err := extensionUnitExecute(t, stage, op, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}}); err != nil {
 		t.Fatal(err)

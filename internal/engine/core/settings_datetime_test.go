@@ -49,7 +49,7 @@ func TestSettingsTimezoneAbbreviationsCapturedProvider(t *testing.T) {
 		t.Fatal("invalid exact-case name accepted")
 	}
 	bad := &settingsDefaultProviderForTest{values: map[string]string{"timezone_abbreviations": "default"}, calls: map[string]int{}}
-	if s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
+	if s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
 		t.Fatal("invalid provider default published", s, err)
 	}
 }

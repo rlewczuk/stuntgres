@@ -21,6 +21,11 @@ imports core and lower packages, and nothing imports it except tests.
   session with an identifier unique within the test binary; the first two
   return a cleanup that releases the operation and ends the session, and
   `StartSession` ends it at test cleanup.
+  `OpenSession(ctx, e, start, principal...)` exercises real reservation and startup
+  while returning errors to lifecycle tests. It selects e's exact database and
+  defaults to the trusted postgres login; callers own successful session cleanup.
+  `RestoreOperation` instead initializes an explicitly private replay owner without
+  a physical database slot or persisted startup-default capture.
 
 ## Helpers
 

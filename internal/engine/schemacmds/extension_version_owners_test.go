@@ -44,7 +44,7 @@ func extensionVersionOwnerImports(t *testing.T) {
 				}
 			}
 			stage := e.RestoreStage()
-			op, done := enginetest.RoleOperation(t, stage, "postgres")
+			op, done := enginetest.RestoreOperation(t, stage, "postgres")
 			defer done()
 			if err := extensionUnitExecute(t, stage, op, extensionVersionUnitCreate(version)); err != nil {
 				t.Fatal(err)

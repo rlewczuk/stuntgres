@@ -34,7 +34,7 @@ func TestRoleRenameWaitAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	hold.Done()
-	waiter, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor.Ref})
+	waiter, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, actor.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

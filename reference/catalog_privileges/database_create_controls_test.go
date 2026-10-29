@@ -3,6 +3,7 @@ package reference_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -15,14 +16,14 @@ func TestReferenceDatabaseCreateControls(t *testing.T) {
 	databaseCreateScenario(t, func(c *databaseCreateCase) {
 		t := c.t
 		c.run(fixture.Exec("CREATE ROLE dc_owner", 0))
-		c.create("dc_control_a", "OWNER dc_owner", false)
+		c.create("dc_control_a", "OWNER dc_owner CONNECTION LIMIT 1", false)
 		c.create("dc_control_b", "", false)
 		c.run(fixture.Exec("CREATE ROLE dc_reader", 0))
 		c.run(fixture.Exec("GRANT CREATE ON DATABASE dc_control_a TO dc_reader", 0))
 		c.run(fixture.Exec("CREATE TABLE dc_control_value(v integer)", 0))
 		c.run(fixture.Exec("INSERT INTO dc_control_value VALUES (7)", 1))
 		a, raw, ar := c.pool("dc_control_a", "")
-		b, _, br := c.pool("dc_control_b", "")
+		b, braw, br := c.pool("dc_control_b", "")
 		for _, target := range []struct {
 			dbName string
 			value  int64
@@ -30,6 +31,7 @@ func TestReferenceDatabaseCreateControls(t *testing.T) {
 			db, _, rec := c.pool(target.dbName, "")
 			fixture.RunStep(t, c.p.Ctx, db, rec, fixture.Exec("CREATE TABLE dc_control_value(v integer)", 0))
 			fixture.RunStep(t, c.p.Ctx, db, rec, fixture.Exec("INSERT INTO dc_control_value VALUES ($1)", 1, target.value))
+			fixture.RunStep(t, c.p.Ctx, db, rec, fixture.Exec("CREATE INDEX dc_control_idx ON dc_control_value(v)", 0))
 		}
 		query := "SELECT v FROM dc_control_value"
 		stmt, err := a.PrepareContext(c.p.Ctx, query)
@@ -40,8 +42,8 @@ func TestReferenceDatabaseCreateControls(t *testing.T) {
 		held := fixture.HeldStatement{Executor: a, Statement: stmt, SQL: query}
 		want := fixture.Select(query, []string{"v"}, []string{"INT4"}, [][]any{{int64(42)}})
 		fixture.RunStep(t, c.p.Ctx, held, ar, want)
-		metadata := "SELECT d.datname,r.rolname,d.datacl IS NOT NULL AS acl_present FROM pg_database d JOIN pg_roles r ON r.oid=d.datdba WHERE d.datname='dc_control_a'"
-		metaWant := fixture.Select(metadata, []string{"datname", "rolname", "acl_present"}, []string{"NAME", "NAME", "BOOL"}, [][]any{{"dc_control_a", "dc_owner", true}})
+		metadata := "SELECT d.datname,r.rolname,d.datacl IS NOT NULL AS acl_present,d.datallowconn,d.datconnlimit FROM pg_database d JOIN pg_roles r ON r.oid=d.datdba WHERE d.datname='dc_control_a'"
+		metaWant := fixture.Select(metadata, []string{"datname", "rolname", "acl_present", "datallowconn", "datconnlimit"}, []string{"NAME", "NAME", "BOOL", "BOOL", "INT4"}, [][]any{{"dc_control_a", "dc_owner", true, true, int64(1)}})
 		c.run(metaWant)
 		var originalOID int64
 		if err := a.QueryRowContext(c.p.Ctx, "SELECT oid FROM pg_database WHERE datname=current_database()").Scan(&originalOID); err != nil {
@@ -50,6 +52,12 @@ func TestReferenceDatabaseCreateControls(t *testing.T) {
 		// PG has no native replacement API. It still exercises all shared SQL,
 		// metadata, held-statement and isolation observations in this scenario.
 		if !c.backend.PG {
+			for _, target := range []*sql.DB{raw, braw} {
+				state, err := stuntgres.InspectIndex(c.p.Ctx, target, "public", "dc_control_idx")
+				if err != nil || !state.Ready || !state.Valid || !state.Live {
+					t.Fatal("selected index state", state, err)
+				}
+			}
 			old, err := raw.QueryContext(c.p.Ctx, query)
 			if err != nil {
 				t.Fatal(err)
@@ -66,8 +74,19 @@ func TestReferenceDatabaseCreateControls(t *testing.T) {
 				t.Fatal(err)
 			}
 			fixture.RunStep(t, c.p.Ctx, a, ar, fixture.Select("SELECT relname FROM pg_class WHERE relname='dc_control_value'", []string{"relname"}, []string{"NAME"}, nil))
+			if _, err := stuntgres.InspectIndex(c.p.Ctx, raw, "public", "dc_control_idx"); err == nil || err.Error() != "stuntgres: index \"public\".\"dc_control_idx\" does not exist" {
+				t.Fatal("Reset did not remove selected index", err)
+			}
+			state, err := stuntgres.InspectIndex(c.p.Ctx, braw, "public", "dc_control_idx")
+			if err != nil || !state.Ready || !state.Valid || !state.Live {
+				t.Fatal("Reset affected peer index", state, err)
+			}
 			if err := stuntgres.Restore(c.p.Ctx, raw, bytes.NewReader(dump.Bytes())); err != nil {
 				t.Fatal(err)
+			}
+			state, err = stuntgres.InspectIndex(c.p.Ctx, raw, "public", "dc_control_idx")
+			if err != nil || !state.Ready || !state.Valid || !state.Live {
+				t.Fatal("Restore lost selected index", state, err)
 			}
 			if !old.Next() {
 				t.Fatal("retained row missing", old.Err())

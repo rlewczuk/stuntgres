@@ -25,7 +25,7 @@ import (
 // exercise callback decisions without sleeps or callback scheduling assumptions.
 func timeoutPendingSession(t *testing.T, e *core.Engine, id ids.SessionID) *session.Session {
 	t.Helper()
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: id})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: id})
 	if err != nil {
 		t.Fatal(err)
 	}

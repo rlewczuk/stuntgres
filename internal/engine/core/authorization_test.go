@@ -280,7 +280,7 @@ func TestAuthorizationExhaustionAndCancellationDoNotPublish(t *testing.T) {
 	}
 	e.RoleStore.InstallPrincipalFrontierLocked(authorization.LastPredefinedRoleID + 1)
 	ctx, cancel := context.WithCancel(context.Background())
-	s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,7 +408,7 @@ func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: role.Ref, Defaults: gate})
+		s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: gate}, role.Ref)
 		result <- outcome{s, err}
 	}()
 	released, finished := false, false

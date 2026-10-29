@@ -14,11 +14,13 @@ import (
 // CreateDatabaseOptions are the parsed CREATE DATABASE options. Capability
 // names the first valid option the engine does not simulate.
 type CreateDatabaseOptions struct {
-	Owner          string
-	Template       string
-	Encoding       int
-	Collate, CType string
-	Capability     string
+	Owner            string
+	Template         string
+	Encoding         int
+	Collate, CType   string
+	Capability       string
+	AllowConnections bool
+	ConnectionLimit  int32
 }
 
 func databaseOptionError(option parser.DatabaseOption, code, message string) error {
@@ -32,7 +34,7 @@ func databaseOptionError(option parser.DatabaseOption, code, message string) err
 // ParseCreateDatabaseOptions validates the option list before any authority
 // check: duplicates, unknown names and malformed values.
 func ParseCreateDatabaseOptions(options []parser.DatabaseOption) (CreateDatabaseOptions, error) {
-	result := CreateDatabaseOptions{Template: "template1", Encoding: 6, Collate: "C", CType: "C"}
+	result := CreateDatabaseOptions{Template: "template1", Encoding: 6, Collate: "C", CType: "C", AllowConnections: true, ConnectionLimit: -1}
 	seen := make(map[string]parser.DatabaseOption, len(options))
 	for _, option := range options {
 		name := option.Name
@@ -80,14 +82,17 @@ func ParseCreateDatabaseOptions(options []parser.DatabaseOption) (CreateDatabase
 			return result, sqlError("42P17", "unrecognized locale provider: "+option.Value)
 		}
 	}
-	// These valid mechanisms are deliberately not simulated. Values with actual
-	// syntax/type errors are rejected before actor/owner authorization.
+	// Boolean syntax and limit validation precede actor/owner authorization.
 	for _, name := range []string{"is_template", "allow_connections"} {
 		if option, ok := seen[name]; ok && !option.Default {
 			switch strings.ToLower(option.Value) {
 			case "true", "false", "on", "off", "yes", "no", "1", "0":
 			default:
 				return result, databaseOptionError(option, "22023", fmt.Sprintf("%s requires a Boolean value", name))
+			}
+			if name == "allow_connections" {
+				value := strings.ToLower(option.Value)
+				result.AllowConnections = value == "true" || value == "on" || value == "yes" || value == "1"
 			}
 		}
 	}
@@ -99,8 +104,9 @@ func ParseCreateDatabaseOptions(options []parser.DatabaseOption) (CreateDatabase
 		if limit < -1 {
 			return result, sqlError("22023", fmt.Sprintf("invalid connection limit: %d", limit))
 		}
+		result.ConnectionLimit = int32(limit)
 	}
-	for _, name := range []string{"locale_provider", "strategy", "tablespace", "is_template", "allow_connections", "connection_limit", "icu_locale", "icu_rules", "builtin_locale", "collation_version", "oid"} {
+	for _, name := range []string{"locale_provider", "strategy", "tablespace", "is_template", "icu_locale", "icu_rules", "builtin_locale", "collation_version", "oid"} {
 		if _, ok := seen[name]; ok {
 			result.Capability = strings.ToUpper(name)
 			break

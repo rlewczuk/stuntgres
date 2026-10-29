@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"sort"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -235,7 +236,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 	t.Run("full_width_target_and_blocker_identity", func(t *testing.T) {
 		e := engine.New()
 		low, lt := blockingUnitOwner(t, e)
-		high, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(uint64(1)<<32) + math.MaxInt32})
+		high, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(uint64(1)<<32) + math.MaxInt32})
 		if err != nil {
 			t.Fatal(err)
 		}

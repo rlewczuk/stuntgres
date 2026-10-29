@@ -31,7 +31,7 @@ func aggregateRecipeFixture(t *testing.T) (catalog.Read, *View, parser.Aggregate
 		t.Fatal("missing real bootstrap principal")
 	}
 	read.Owner().Principals = principals
-	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "capture", Owner: bootstrap.Ref}
+	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "capture", Owner: bootstrap.Ref, AllowConnections: true, ConnectionLimit: -1}
 	read.State().SetDescriptor(database.Address(), database)
 	declaration := routine.BuiltinRoutine(177)
 	if declaration == nil {

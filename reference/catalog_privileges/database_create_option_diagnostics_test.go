@@ -19,6 +19,16 @@ func TestReferenceDatabaseCreateOptionDiagnostics(t *testing.T) {
 		accept, duplicate, selector                  bool
 	}{
 		{name: "quoted_lowercase", options: `"encoding" 'UTF8'`, accept: true},
+		{name: "allow_true", options: "ALLOW_CONNECTIONS true", accept: true},
+		{name: "allow_false", options: "ALLOW_CONNECTIONS false", accept: true},
+		{name: "allow_default", options: "ALLOW_CONNECTIONS DEFAULT", accept: true},
+		{name: "allow_on", options: "ALLOW_CONNECTIONS 'on'", accept: true},
+		{name: "allow_off", options: "ALLOW_CONNECTIONS 'off'", accept: true},
+		{name: "limit_unlimited", options: "CONNECTION LIMIT -1", accept: true},
+		{name: "limit_zero", options: "CONNECTION LIMIT 0", accept: true},
+		{name: "limit_one", options: "CONNECTION LIMIT 1", accept: true},
+		{name: "limit_default", options: "CONNECTION LIMIT DEFAULT", accept: true},
+		{name: "allow_duplicate", options: "ALLOW_CONNECTIONS true ALLOW_CONNECTIONS false", code: "42601", message: "conflicting or redundant options", position: "ALLOW_CONNECTIONS"},
 		{name: "quoted_uppercase", options: `"ENCODING" 'UTF8'`, code: "42601", message: `option "ENCODING" not recognized`, position: `"ENCODING"`},
 		{name: "recognized_then_distinct_uppercase", options: `ENCODING 'UTF8' "ENCODING" 'UTF8'`, code: "42601", message: `option "ENCODING" not recognized`, position: `"ENCODING"`},
 		{name: "unknown_before_redundant", options: `"ENCODING" 'UTF8' ENCODING 'UTF8' ENCODING 'UTF8'`, code: "42601", message: `option "ENCODING" not recognized`, position: `"ENCODING"`},

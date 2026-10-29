@@ -25,7 +25,7 @@ var sessionID atomic.Uint64
 // Operation starts a session and acquires its operation. The cleanup releases
 // the operation and ends the session.
 func Operation(e *core.Engine, ctx context.Context) (*session.Operation, func(), error) {
-	s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(sessionID.Add(1))})
+	s, err := OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(sessionID.Add(1))})
 	if err != nil {
 		return nil, nil, err
 	}

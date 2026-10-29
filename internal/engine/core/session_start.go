@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -15,19 +14,30 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) StartSession(ctx context.Context, start session.SessionStart) (*session.Session, error) {
-	if err := ctx.Err(); err != nil {
+func (e *Engine) StartSession(ctx context.Context, admission *DatabaseAdmission, start session.SessionStart) (*session.Session, error) {
+	if err := admission.claim(e); err != nil {
 		return nil, err
 	}
-	if start.ID == 0 {
-		return nil, errors.New("stuntgres: zero session identity")
-	}
-	return e.startSession(ctx, start, false)
+	return e.startSession(ctx, start, admission.principal, admission, false)
+}
+
+// StartRestoreSession initializes the private replay owner. It has real cleanup
+// but no public physical database reservation or persistent session identity.
+func (e *Engine) StartRestoreSession(ctx context.Context, principal authorization.PrincipalRef) (*session.Session, error) {
+	return e.startSession(ctx, session.SessionStart{}, principal, nil, true)
 }
 
 // Private maintenance sessions have genuine resources and leases, but a separate
 // pointer identity domain that cannot collide with the driver's public IDs.
-func (e *Engine) startSession(ctx context.Context, start session.SessionStart, private bool) (*session.Session, error) {
+func (e *Engine) startSession(ctx context.Context, start session.SessionStart, authenticated authorization.PrincipalRef, admission *DatabaseAdmission, private bool) (*session.Session, error) {
+	// Until the Session takes ownership, every early return releases the claimed
+	// reservation. Afterwards only terminal Unregister may release it.
+	owned := admission != nil
+	defer func() {
+		if owned {
+			admission.release(true)
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -37,29 +47,32 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	if start.ID == 0 && !private {
 		return nil, errors.New("stuntgres: zero session identity")
 	}
-	e.Mu.Lock()
-	authenticated := start.Authenticated
-	if authenticated == (authorization.PrincipalRef{}) {
-		authenticated = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	var startRoles authorization.Read
+	var roleDescriptor authorization.RoleDescriptor
+	var authErr error
+	var captured map[string]session.CapturedDefault
+	if admission != nil {
+		startRoles = admission.roles
+		roleDescriptor, authErr = startRoles.Descriptor(authenticated)
+		captured = admission.defaults()
+	} else {
+		e.Mu.Lock()
+		startRoles = e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current())
+		roleDescriptor, authErr = startRoles.Descriptor(authenticated)
+		e.Mu.Unlock()
 	}
-	roleDescriptor, authErr := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()).Descriptor(authenticated)
-	startRoles := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current())
-	startRecord, startDatabase := e.RoleStore.Published, e.Catalog.DatabaseAddress()
-	e.Mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
 	}
 	if !roleDescriptor.Login {
 		return nil, role.LoginError(roleDescriptor.Name)
 	}
-	var captured map[string]session.CapturedDefault
-	if !private {
-		captured = capturedRoleDefaults(startRecord, startDatabase, authenticated)
-	}
 	// One allocation holds the session, its root payload and the owner extension.
 	allocation := &sessionAllocation{session: session.Session{Host: (*sessionHost)(e), SessionToken: e.Catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}}
 	s, payload := &allocation.session, &allocation.payload
 	s.Payload = payload
+	payload.admission = admission
+	owned = false
 	if private {
 		s.SessionToken = e.Catalog.Domain.PrivateSession(s)
 	}
@@ -152,10 +165,6 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		}
 		if err == nil && resetRole != (authorization.PrincipalRef{}) {
 			err = authorization.ValidateInitialRole(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()), authenticated, resetRole)
-		}
-		if err == nil && !private {
-			view := e.Catalog.Current()
-			err = access.CheckDatabaseConnect(ctx, view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), authenticated)
 		}
 	}
 	if err == nil {

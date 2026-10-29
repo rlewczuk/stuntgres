@@ -119,7 +119,7 @@ func BenchmarkUpdateCoreSparse(b *testing.B) {
 			b.Run(name, func(b *testing.B) {
 				e := engine.New()
 				ctx := context.Background()
-				s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+				s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 				if err != nil {
 					b.Fatal(err)
 				}

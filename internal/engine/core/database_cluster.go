@@ -29,6 +29,10 @@ type DatabaseCluster struct {
 	Targets        map[string]*Engine
 	NextOID        ids.OID
 	Seed           *Engine
+	// AdmissionMu protects only reservation states/counts. Metadata admission
+	// takes Mu first; terminal cleanup takes AdmissionMu without Mu or sessionMu.
+	AdmissionMu sync.Mutex
+	admissions  map[*Engine]int
 	// Immutable queue head root; all runtimes use this cluster's mu.
 	notificationHead *session.NotificationQueuePosition
 	// Active commands across every target, guarded by the shared engine mutex.

@@ -259,6 +259,10 @@ neither owns catalog authority.
   `DatabaseProvider`, `TablespaceProvider`, `CollationProvider`,
   `ConversionProvider`, `ForeignCatalogProvider`, `LargeObjectProvider`) validate
   against a `Read`.
+  `Database` owns real allow-connections and connection-limit policy alongside
+  identity/owner/ACL. Initial and CREATE defaults are explicit true/−1. Authority
+  compatibility permits freezing-horizon drift but rejects admission-policy drift;
+  replacement retains destination policy rather than importing it from snapshots.
 - **Store** (`store.go`). `Store` is one engine's catalog state: it embeds the
   `Owner` and holds the published `State` and the OID, revision and enum member
   frontiers. `NewStore` gives it a fresh domain. `Current` reads the published

@@ -5,8 +5,8 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"strings"
-	"testing"
 	"sync"
+	"testing"
 	"time"
 
 	"stuntgres/internal/engine"
@@ -21,7 +21,7 @@ import (
 
 func collationPrivateSession(t *testing.T, e *core.Engine) *session.Session {
 	t.Helper()
-	s, err := core.EngineStartSession(e, context.Background(), session.SessionStart{Authenticated: e.RoleStore.Domain.Principal(10)}, true)
+	s, err := e.StartRestoreSession(context.Background(), e.RoleStore.Domain.Principal(10))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 
 func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	e := engine.New()
-	owner, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	owner, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,14 +176,16 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 // Locked admission/final checks cannot stop here or run a peer under Engine.Mu.
 type temporaryPublicationContext struct {
 	context.Context
-	engine *core.Engine
-	once sync.Once
+	engine  *core.Engine
+	once    sync.Once
 	entered chan struct{}
 	release chan struct{}
 }
 
 func (c *temporaryPublicationContext) Err() error {
-	if err := c.Context.Err(); err != nil { return err }
+	if err := c.Context.Err(); err != nil {
+		return err
+	}
 	if c.engine.Mu.TryLock() {
 		c.engine.Mu.Unlock()
 		c.once.Do(func() {
@@ -211,10 +213,16 @@ func TestClientEncodingTemporaryPublication(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	core.SetStageTerminalCleanup(stage, true)
 	defer e.DiscardCatalogStage(stage)
-	if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), provider.Address())); err != nil { t.Fatal(err) }
-	if err := core.StageExpressionDependencies(t.Context(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil { t.Fatal(err) }
+	if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), provider.Address())); err != nil {
+		t.Fatal(err)
+	}
+	if err := core.StageExpressionDependencies(t.Context(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+		t.Fatal(err)
+	}
 	prepared, err := e.ValidateCatalogStage(t.Context(), stage)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	barrier := &temporaryPublicationContext{Context: ctx, engine: e, entered: make(chan struct{}), release: make(chan struct{})}
@@ -223,9 +231,17 @@ func TestClientEncodingTemporaryPublication(t *testing.T) {
 	joined := false
 	defer func() {
 		cancel()
-		select { case <-barrier.release: default: close(barrier.release) }
+		select {
+		case <-barrier.release:
+		default:
+			close(barrier.release)
+		}
 		if !joined {
-			select { case <-done: case <-time.After(5*time.Second): t.Error("maintenance publication did not stop") }
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Error("maintenance publication did not stop")
+			}
 		}
 	}()
 	go func() {
@@ -255,7 +271,9 @@ func TestClientEncodingTemporaryPublication(t *testing.T) {
 	select {
 	case err := <-done:
 		joined = true
-		if err != nil { t.Fatal("maintenance publication failed", err) }
+		if err != nil {
+			t.Fatal("maintenance publication failed", err)
+		}
 	case <-ctx.Done():
 		t.Fatal("maintenance publication did not finish", ctx.Err())
 	}

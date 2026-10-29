@@ -27,8 +27,9 @@ later catalog replacement. Typed NULL operands still carry logical identity.
 - `OpenConnector` connects as the bootstrap superuser `postgres`.
   `d.OpenConnectorAs(name, role)` asserts an existing role by exact name: a trusted
   host assertion, not password authentication. Each physical connect checks
-  LOGIN (28000), CONNECTION LIMIT (53300) and database CONNECT. Stored passwords and
-  `VALID UNTIL` do not affect native admission.
+  LOGIN and database admission before initializing defaults; role connection
+  limits remain cluster-wide. Stored passwords and `VALID UNTIL` do not affect
+  native admission.
 - Configuration (`RegisterSetting`, `RegisterForeignDataWrapper`,
   `RegisterForeignValidator`, `RegisterHostLanguage`) must happen before the
   Driver's first connector; the registry then freezes.
@@ -135,16 +136,22 @@ defer db.Close()
 
 `WithDatabase` preserves role and notice configuration without retargeting the
 original connector or live sessions. Every physical Connect resolves the selector
-and checks current LOGIN, cluster-wide role connection limits and database
-CONNECT. Names are exact decoded names, not SQL-quoted, URL-decoded or trimmed.
+and atomically checks ALLOW_CONNECTIONS, CONNECT, then the database connection
+limit before defaults callbacks. Disabled databases reject everyone (FATAL 55000);
+superusers bypass CONNECT and limit rejection but occupy counted physical slots.
+Database limits count reservations, initialization, live sessions and terminal
+cleanup, not borrowers. Returning a borrower does not free a slot; physical close
+does so only after cleanup drains. Role limits are checked separately at session
+publication. Names are exact decoded names, not SQL-quoted, URL-decoded or trimmed.
 Explicit empty is not the default; missing names fail with FATAL 3D000 and are
-never created by connecting. CONNECT revocation does not disconnect admitted
-sessions; SET ROLE does not re-admit them.
+never created by connecting. CONNECT denial is FATAL 42501; an applicable full
+database limit is FATAL 53300. Revocation after reservation affects the next
+physical admission, not the retained admission; SET ROLE never re-admits.
 
 Reset/Dump/Restore and InspectIndex capture the selected database before releasing
 the borrower. Controls require an unwrapped native pool. Local data replacement
-affects only that database, preserving registrations, owners/ACLs, shared roles
-and other targets. Parameter ACL authority is the shared exception: Reset clears
+affects only that database, preserving registrations, owners/ACLs, admission
+policy, shared roles and other targets. Parameter ACL authority is the shared exception: Reset clears
 it cluster-wide and Restore replaces it cluster-wide with valid destination
 identities. Session setting values are not shared or imported. Dump excludes
 cluster registration and roles; see [FIXTURES.md](FIXTURES.md).

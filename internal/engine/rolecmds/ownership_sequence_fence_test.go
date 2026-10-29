@@ -83,7 +83,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*core.Engine, *s
 		changes.Descriptors[catalog.CurrentDatabaseAddress] = &database
 		changes.Originals[catalog.CurrentDatabaseAddress] = committed
 	}
-	sess, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
+	sess, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, actor)
 	if err != nil {
 		t.Fatal(err)
 	}

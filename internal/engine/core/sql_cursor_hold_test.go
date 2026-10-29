@@ -51,10 +51,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 	if err := engine.Reset(context.Background(), core.EngineOf(s)); err != nil {
 		t.Fatal(err)
 	}
-	result, err := cursorUnitExecute(t, s, context.Background(), "FETCH ALL FROM fenced")
-	if !errors.Is(err, ids.ErrCatalogReplaced) || result.Rows != nil {
-		t.Fatal("export loses original epoch fence", result, err)
-	}
+	cursorUnitBatch(t, s, "FETCH ALL FROM fenced", [][]driver.Value{{int64(7)}})
 	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil || len(core.PayloadOf(s).Cursors.Entries) != 0 {
 		t.Fatal("physical end retains store", err)

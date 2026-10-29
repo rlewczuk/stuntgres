@@ -219,7 +219,7 @@ func TestRoleAttributesValidityInput(t *testing.T) {
 	// Trusted admission ignores absent passwords and expired password metadata.
 	roleAttributeApply(t, e, op, roleAttributeAlter("expiry", parser.RoleOptions{Present: parser.RoleValidUntil, ValidUntil: "2000-01-01"}))
 	ref, _ := e.ResolveLogin("expiry")
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, ref)
 	if err != nil {
 		t.Fatal(err)
 	}

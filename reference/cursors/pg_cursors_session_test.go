@@ -93,14 +93,39 @@ func TestReferencePGCursorsSessionAndControls(t *testing.T) {
 				q := "DECLARE pgc_control NO SCROLL CURSOR WITH HOLD FOR SELECT 1 AS i"
 				sqlCursorStep(t, p, b, c, fixture.Exec(q, 0))
 				row := pgcOne(t, p, b, c, "pgc_control", q, true, false)
+				checkHeldOutput := func() {
+					t.Helper()
+					pgcSame(t, p, b, c, row)
+					sqlCursorStep(t, p, b, c, fixture.Select("FETCH ALL FROM pgc_control", []string{"i"}, []string{"INT4"}, [][]any{{int64(1)}}))
+					pgcSame(t, p, b, c, row)
+					sqlCursorStep(t, p, b, c, fixture.Select("FETCH ALL FROM pgc_control", []string{"i"}, []string{"INT4"}, nil))
+					pgcSame(t, p, b, c, row)
+				}
 				if b.PG {
 					// No synthetic PostgreSQL Reset/Restore API: ordinary rollback
 					// retains an already committed held cursor and its metadata.
 					sqlCursorStep(t, p, b, c, fixture.Exec("BEGIN", 0))
 					sqlCursorStep(t, p, b, c, fixture.Exec("ROLLBACK", 0))
-					pgcSame(t, p, b, c, row)
+					checkHeldOutput()
 					return
 				}
+				// A different physical owner's unpromoted producer retains its live
+				// transaction fence; the committed output above has no producer.
+				live, err := b.DB.Conn(p.Ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rolledBack := false
+				defer func() {
+					if !rolledBack {
+						_, _ = live.ExecContext(context.Background(), "ROLLBACK")
+					}
+					if err := live.Close(); err != nil {
+						t.Error(err)
+					}
+				}()
+				sqlCursorStep(t, p, b, live, fixture.Exec("BEGIN", 0))
+				sqlCursorStep(t, p, b, live, fixture.Exec("DECLARE pgc_live CURSOR WITHOUT HOLD FOR SELECT 2 AS i", 0))
 				r, err := c.QueryContext(p.Ctx, pgcQuery("pgc_control"))
 				if err != nil {
 					t.Fatal(err)
@@ -138,14 +163,22 @@ func TestReferencePGCursorsSessionAndControls(t *testing.T) {
 				if err := r.Close(); err != nil {
 					t.Fatal(err)
 				}
-				// Metadata survives replacement as immutable builtin scalar facts;
-				// the actual producer/store retains its original execution fence.
-				pgcSame(t, p, b, c, row)
-				result, err := c.QueryContext(p.Ctx, "FETCH ALL FROM pgc_control")
+				// Both the catalog facts and the promoted immutable output retain
+				// their physical-session identity through replacement.
+				checkHeldOutput()
+				result, err := live.QueryContext(p.Ctx, "FETCH ALL FROM pgc_live")
 				if result != nil {
-					t.Fatal("fenced FETCH published Rows")
+					closeErr := result.Close()
+					t.Fatalf("live fenced FETCH published Rows: %v (close: %v)", err, closeErr)
 				}
 				fixture.TransactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
+				commit, err := live.ExecContext(p.Ctx, "COMMIT")
+				if commit != nil {
+					t.Fatal("live fenced COMMIT published a result")
+				}
+				fixture.TransactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
+				sqlCursorStep(t, p, b, live, fixture.Exec("ROLLBACK", 0))
+				rolledBack = true
 			})
 		})
 	}

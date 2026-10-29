@@ -84,7 +84,7 @@ func TestDeveloperSettingsProviderLifecycle(t *testing.T) {
 			p.values["post_auth_delay"] = "60s"
 			p.cancel = cancel
 		}
-		failed, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(900001), Defaults: p})
+		failed, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(900001), Defaults: p})
 		cancel()
 		if failed != nil || err == nil {
 			t.Fatal("failed startup published", mode, failed, err)

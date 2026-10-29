@@ -590,6 +590,11 @@ holding it; the first strategy or materialization error stops promotion before
 publication. Query-FOR producers hold remaining rows; scrollable pinned bound
 cursors rewind to hold the entire result under their existing cursor semantics.
 Ordinary open cursors close; held loop storage belongs to loop cleanup.
+Promoted SQL held cursors likewise own typed output without producer authority.
+Their exact same-session portal identity and failure state remain checked after
+catalog replacement, but only unpromoted producers carry the old epoch fence.
+Fresh eligible transactions may move retained output; old live transaction
+execution and commit still fail at the ordinary replacement fence.
 
 
 Text-search conversion captures immutable configuration, checked parser capability
@@ -1170,6 +1175,16 @@ frontier (including unpublished DDL reservations) and skips imported definition 
 Local object allocation also reserves projected database identities; registering
 a target cannot invalidate stored definitions in an existing or newly copied root.
 
+`AdmitDatabase` resolves a trusted principal and exact selector under the shared
+metadata mutex, checks allow/CONNECT/database-limit in order, and reserves one
+physical slot before startup callbacks. Its pointer-owned `DatabaseAdmission`
+retains the target, principal and coherent role/default inputs; copies, foreign
+targets and repeated submissions confer no authority. `StartSession` consumes
+that token once. Caller `Release` abandons only an unsubmitted token; after
+submission, early failure or terminal Unregister owns release. Private maintenance
+and `StartRestoreSession` replay use real cleanup without a public database slot.
+Role limits remain a separate cluster-wide final-publication check.
+
 Persisted defaults share the immutable role publication and its existing
 transaction journal. Scope keys use principal references and cluster database
 identities, never names or local replacement epochs. Settings-only writes retain
@@ -1211,9 +1226,10 @@ The CREATE DATABASE executor and its option rules are in
 
 `pg_database` captures every registered target in this cluster, never other DSNs.
 Each row has its own stable identity, owner/ACL and runtime freezing horizon.
-Encoding 6, provider `c`, C/C locales, `datistemplate=false`, `datallowconn=true`
-and `datconnlimit=-1` are represented immutable defaults. Physical placement and
-multixact horizons, ICU locale/rules and collation versions remain typed NULL.
+Encoding 6, provider `c`, C/C locales and `datistemplate=false` are represented
+immutable defaults. `datallowconn` and `datconnlimit` project real CREATE policy
+(defaults true/−1), retained across replacement. Physical placement and multixact
+horizons, ICU locale/rules and collation versions remain typed NULL.
 Fresh/held executions capture current registry authority; returned Rows keep
 their original inventory and types. Named database grants and owner changes
 resolve registered noncurrent targets through that same authority; table access
@@ -1335,6 +1351,13 @@ the shared visibility-sensitive dependency labels, never a bare-name fallback.
 `Session.Mu`, `SettingsStore.Mu` and `Engine.sessionMu`; the lock manager's
 mutex is innermost and never taken under `Engine.Mu`. Callbacks and external I/O
 run outside these locks ([full rules](../lock/README.md#mutex-ownership-and-lock-order)).
+
+Cluster `AdmissionMu` protects only reservation state and per-target counts.
+Admission takes metadata Mu then AdmissionMu; claim/release take AdmissionMu alone
+and drop it before startup or cleanup. Terminal Unregister runs with Session.Mu,
+removes the exact local session under sessionMu, releases sessionMu, then releases
+its reservation under AdmissionMu. It never acquires metadata Mu. No path from
+AdmissionMu enters metadata, session, settings or local-registry locks.
 
 Workload-credit policies attach inertly to caller contexts. Known-unlocked
 preflight and runtime owners activate only local evaluation/pull contexts, never
@@ -2220,6 +2243,11 @@ ordinary v3 replay use
 
 Runtime work-policy handoff and terminal-owner mechanics use
 `RUN='^TestWorkAdmission'`; real SQL waits and operation lifecycle use reference.
+
+Physical database reservation, provenance and terminal cleanup units share
+`RUN='^TestDatabaseAdmission'` (also with `RACE=1` for concurrency witnesses).
+Held cursor store/producer ownership and replacement units share
+`RUN='^TestSQLCursorHold'`; public SQL/control observations stay in reference.
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.

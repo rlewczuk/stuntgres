@@ -21,7 +21,16 @@ func TestPLpgSQLProcedureInvocationSpecialization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
+	principal, err := e.ResolveLogin("postgres")
+	if err != nil {
+		t.Fatal(err)
+	}
+	admission, err := e.AdmitDatabase(context.Background(), principal, DatabaseSelector{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admission.Release()
+	s, err := e.StartSession(context.Background(), admission, session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

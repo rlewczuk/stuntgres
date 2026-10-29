@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"stuntgres/internal/engine/enginetest"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -14,7 +15,7 @@ import (
 func indexProgressLogin(t *testing.T, e *core.Engine, name string) *session.Session {
 	t.Helper()
 	roles := e.RoleStore.Published.Root.Read(e.RoleStore.Domain.Principal(10))
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: roles.LookupRef(name)})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, roles.LookupRef(name))
 	if err != nil {
 		t.Fatal(err)
 	}

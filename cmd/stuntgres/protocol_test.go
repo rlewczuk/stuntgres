@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -519,7 +520,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sess, err := e.StartSession(context.Background(), session.SessionStart{ID: 2, Authenticated: principal})
+		sess, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: 2}, principal)
 		if err != nil {
 			t.Fatal(err)
 		}

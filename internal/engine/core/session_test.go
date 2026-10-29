@@ -38,7 +38,7 @@ func (p *defaultProvider) SessionDefault(_ context.Context, d settings.Definitio
 }
 func sessionStart(t *testing.T, e *core.Engine, p settings.SessionDefaultProvider) *session.Session {
 	t.Helper()
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 		t.Fatal("snapshot lost")
 	}
 	failure := errors.New("provider failed")
-	if s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: failure}}); s != nil || !errors.Is(err, failure) {
+	if s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: failure}}); s != nil || !errors.Is(err, failure) {
 		t.Fatalf("init %v %v", s, err)
 	}
 	core.EngineSessionMuRef(e).Lock()
@@ -156,7 +156,7 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 }
 func TestSessionDetachEndInterleaving(t *testing.T) {
 	e := engine.New()
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestSessionDetachEndInterleaving(t *testing.T) {
 }
 func TestSessionTransferDrainAndOrder(t *testing.T) {
 	e := engine.New()
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +357,7 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 
 func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 	e := engine.New()
-	s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,13 +447,13 @@ func TestSessionProviderNormalizationAndInitializationCancellation(t *testing.T)
 	sessionValue(t, s, `\xc3\xa9`)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if session, err := e.StartSession(ctx, session.SessionStart{ID: 0}); session != nil || !errors.Is(err, context.Canceled) {
+	if session, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: 0}); session != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(session, err)
 	}
-	if session, err := e.StartSession(context.Background(), session.SessionStart{ID: 0}); session != nil || err == nil {
+	if session, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: 0}); session != nil || err == nil {
 		t.Fatal(session, err)
 	}
-	if session, err := e.StartSession(context.Background(), session.SessionStart{ID: s.Token().ID()}); session != nil || err == nil {
+	if session, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: s.Token().ID()}); session != nil || err == nil {
 		t.Fatal("duplicate initialization", session, err)
 	}
 	sessionValue(t, s, `\xc3\xa9`)

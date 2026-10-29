@@ -139,9 +139,7 @@ func transactionalPrivilegesConnect(t *testing.T) {
 						}
 						want := fixture.ControlsReferenceDiagnostic("42501", `permission denied for database "`+database+`"`)
 						want.Detail = "User does not have CONNECT privilege."
-						if b.PG {
-							want.Severity, want.SeverityUnlocalized = "FATAL", "FATAL"
-						}
+						want.Severity, want.SeverityUnlocalized = "FATAL", "FATAL"
 						fixture.AssertDiagnostic(t, err, &want)
 					}
 					// Keep a genuinely admitted physical session across committed revocation.
