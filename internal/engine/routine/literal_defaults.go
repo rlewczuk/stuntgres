@@ -33,7 +33,7 @@ func builtinLiteralDefaults(oid ids.OID) *catalog.RoutineLiteralDefaults {
 		return catalog.NewRoutineLiteralDefaults(literal(23, "0"), literal(23, "0"), literal(23, "0"), literal(23, "0"), literal(23, "0"), literal(23, "0"), literal(1700, "0.0"))
 	case 3579, 3261, 3960, 3961:
 		return catalog.NewRoutineLiteralDefaults(literal(16, "false"))
-	case 4005, 4006, 4007, 4008, 4009:
+	case 1177, 1179, 1180, 2023, 2030, 4005, 4006, 4007, 4008, 4009:
 		return catalog.NewRoutineLiteralDefaults(literal(3802, "{}"), literal(16, "false"))
 	case 4350, 4351:
 		return catalog.NewRoutineLiteralDefaults(literal(25, "NFC"))

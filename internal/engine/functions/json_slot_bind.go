@@ -2,6 +2,7 @@ package functions
 
 import (
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
@@ -158,6 +159,9 @@ var (
 func bindJSONPathSlots(b Binder, raw parser.FunctionExpr, admitted bool) ([4]expr.Expr, slotCall, error) {
 	var args [4]expr.Expr
 	spec, _ := jsonSlotSpecification("jsonb_path_query")
+	if strings.HasSuffix(raw.Name.Parts[len(raw.Name.Parts)-1].Text, "_tz") {
+		spec.volatility = expr.Stable
+	}
 	call, err := bindSlots(b, raw, admitted, spec)
 	if err != nil {
 		return args, call, err
@@ -180,6 +184,8 @@ func bindJSONPathSlots(b Binder, raw parser.FunctionExpr, admitted bool) ([4]exp
 
 func bindJSONBPathQuery(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	baseName := strings.TrimSuffix(name, "_tz")
+	timezone := baseName != name
 	args, call, err := bindJSONPathSlots(b, raw, visible && !raw.ResolutionOnly && JSONBPathQueryName(name))
 	if err != nil {
 		return nil, err
@@ -189,14 +195,14 @@ func bindJSONBPathQuery(b Binder, raw parser.FunctionExpr, visible bool) (expr.E
 	copy(slots[:], call.slots[:])
 	copy(labels[:], call.labels[:])
 	properties := call.properties
-	if name == "jsonb_path_query" {
+	if baseName == "jsonb_path_query" {
 		if err := b.AdmitSetReturning(raw.Pos); err != nil {
 			return nil, err
 		}
 		properties.StageDependent = true
 	}
 	resultID := sqltype.JSONB
-	if name == "jsonb_path_exists" || name == "jsonb_path_match" {
+	if baseName == "jsonb_path_exists" || baseName == "jsonb_path_match" {
 		resultID = sqltype.Bool
 	}
 	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(resultID).Usage(), raw.Pos, properties), JSONRoutineProvider, name, jsonPathFormals[:]...)
@@ -207,40 +213,41 @@ func bindJSONBPathQuery(b Binder, raw parser.FunctionExpr, visible bool) (expr.E
 	for i := range 4 {
 		usages[i] = args[i].ResultUsage()
 	}
-	switch name {
+	switch baseName {
 	case "jsonb_path_exists":
 		plan, err := sqltype.BindJSONBPathExists(b.Type(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return JSONBPathExists{Info: info, Plan: plan, Args: args, WrittenCount: call.count, WrittenSlots: slots, Labels: labels, Variadic: raw.Variadic}, nil
+		return JSONBPathExists{Info: info, Plan: plan, Args: args, WrittenCount: call.count, WrittenSlots: slots, Labels: labels, Variadic: raw.Variadic, Timezone: timezone}, nil
 	case "jsonb_path_match":
 		plan, err := sqltype.BindJSONBPathMatch(b.Type(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return JSONBPathMatch{Info: info, Plan: plan, Args: args, WrittenCount: call.count, WrittenSlots: slots, Labels: labels, Variadic: raw.Variadic}, nil
+		return JSONBPathMatch{Info: info, Plan: plan, Args: args, WrittenCount: call.count, WrittenSlots: slots, Labels: labels, Variadic: raw.Variadic, Timezone: timezone}, nil
 	case "jsonb_path_query_first":
 		plan, err := sqltype.BindJSONBPathQueryFirst(b.Type(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return JSONBPathQueryFirst{Info: info, Plan: plan, Args: args, WrittenCount: call.count, WrittenSlots: slots, Labels: labels, Variadic: raw.Variadic}, nil
+		return JSONBPathQueryFirst{Info: info, Plan: plan, Args: args, WrittenCount: call.count, WrittenSlots: slots, Labels: labels, Variadic: raw.Variadic, Timezone: timezone}, nil
 	case "jsonb_path_query":
 		plan, err := sqltype.BindJSONBPathQuery(b.Type(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return JSONBPathQuery{Info: info, Plan: plan, Args: args, WrittenCount: call.count, WrittenSlots: slots, Labels: labels, Variadic: raw.Variadic}, nil
+		return JSONBPathQuery{Info: info, Plan: plan, Args: args, WrittenCount: call.count, WrittenSlots: slots, Labels: labels, Variadic: raw.Variadic, Timezone: timezone}, nil
 	}
 	return nil, fmt.Errorf("invalid JSONPath query provider")
 }
 
-// JSONBPathQueryName reports the exact names of the four JSONPath query calls
-// that share one slot layout.
+// JSONBPathQueryName reports the exact scalar/set query provider names
+// that share one slot layout (the array consumer has its own route).
 func JSONBPathQueryName(name string) bool {
 	switch name {
-	case "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query":
+	case "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query",
+		"jsonb_path_exists_tz", "jsonb_path_match_tz", "jsonb_path_query_first_tz", "jsonb_path_query_tz":
 		return true
 	}
 	return false
@@ -248,11 +255,11 @@ func JSONBPathQueryName(name string) bool {
 
 func bindJSONBPathQueryArray(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	args, call, err := bindJSONPathSlots(b, raw, visible && !raw.ResolutionOnly && name == "jsonb_path_query_array")
+	args, call, err := bindJSONPathSlots(b, raw, visible && !raw.ResolutionOnly && (name == "jsonb_path_query_array" || name == "jsonb_path_query_array_tz"))
 	if err != nil {
 		return nil, err
 	}
-	e := JSONBPathQueryArray{Args: args, WrittenCount: call.count, Variadic: raw.Variadic}
+	e := JSONBPathQueryArray{Args: args, WrittenCount: call.count, Variadic: raw.Variadic, Timezone: name == "jsonb_path_query_array_tz"}
 	copy(e.WrittenSlots[:], call.slots[:])
 	copy(e.Labels[:], call.labels[:])
 	e.Info = b.Info(b.Type(sqltype.JSONB).Usage(), raw.Pos, call.properties)
@@ -426,6 +433,9 @@ func jsonSlotSpecification(name string) (slotSpec, bool) {
 		spec.labels, spec.formals, spec.required, spec.ordinalVariadic = jsonStripLabels[:], jsonStripFormals[:], 1, true
 	case "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_array", "jsonb_path_query_first", "jsonb_path_query":
 		spec.labels, spec.formals, spec.required, spec.ordinalVariadic = jsonPathLabels[:], jsonPathFormals[:], 2, true
+	case "jsonb_path_exists_tz", "jsonb_path_match_tz", "jsonb_path_query_array_tz", "jsonb_path_query_first_tz", "jsonb_path_query_tz":
+		spec.labels, spec.formals, spec.required, spec.ordinalVariadic = jsonPathLabels[:], jsonPathFormals[:], 2, true
+		spec.volatility = expr.Stable
 	default:
 		return spec, false
 	}

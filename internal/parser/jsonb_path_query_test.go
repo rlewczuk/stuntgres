@@ -7,7 +7,7 @@ import (
 
 func TestJSONBPathQueryParser(t *testing.T) {
 	for _, name := range []string{"jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query"} {
-		if !JSONBPathQueryFunctionName(strings.ToUpper(name)) || JSONBPathQueryFunctionName(name+"_tz") {
+		if !JSONBPathQueryFunctionName(strings.ToUpper(name)) || !JSONBPathQueryFunctionName(name+"_tz") || JSONBPathQueryFunctionName(name+"_unrelated") {
 			t.Fatal("unbounded admission", name)
 		}
 		for _, spelling := range []string{name, "pg_catalog." + name, `"` + strings.ToUpper(name) + `"`} {

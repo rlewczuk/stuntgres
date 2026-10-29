@@ -338,10 +338,14 @@ binding or execution authority; the selected descriptor and manifest are require
   through reconstruction and stored replay; evaluation borrows the statement
   inquiry runtime rather than retaining catalog or session authority.
   JSONPath functions, operators and SQL/JSON consumers pass the current captured
-  input through `JSONPathEnvironment`. Precision warnings borrow the current
-  statement's `FunctionJSONPathNotice` capability; neither plans nor parsed paths
-  retain a session, notice sink or execution scratch. Ordinary path operators
-  use the explicit environment-bearing `BinaryPlan.EvaluateJSONPath` entry point.
+  input through `JSONPathEnvironment`. The five path-query carriers retain only
+  immutable ordinary-versus-`_tz` provider identity through reconstruction,
+  grouping and replay; `_tz` is intrinsically STABLE and obtains the current
+  execution's zone rather than caching preparation settings. Precision warnings
+  borrow the current statement's `FunctionJSONPathNotice` capability; neither
+  plans nor parsed paths retain a session, notice sink or execution scratch.
+  Ordinary path operators use the explicit environment-bearing
+  `BinaryPlan.EvaluateJSONPath` entry point and retain disabled timezone policy.
 - `expr` owns `RoutineReference`, `RoutineRecipeReference`, `RandomOwner`,
   `IntrinsicPropertyRule` and the `RoutineProvider` representation;
   `routine_provider.go` aliases the type (so catalog declarations need not

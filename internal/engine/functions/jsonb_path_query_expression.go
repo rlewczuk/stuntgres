@@ -50,6 +50,7 @@ type JSONBPathExists struct {
 	WrittenSlots [4]uint8
 	Labels       [4]string
 	Variadic     bool
+	Timezone     bool
 }
 
 func (e JSONBPathExists) Eval(c expr.Context) (sqltype.Value, error) {
@@ -61,7 +62,9 @@ func (e JSONBPathExists) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
+	env := jsonpathEnvironment(c)
+	env.Timezone = e.Timezone
+	return e.Plan.Evaluate(ctx, values[:], env)
 }
 func (e JSONBPathExists) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathExists, error) {
 	var usages [4]sqltype.Usage
@@ -98,6 +101,7 @@ type JSONBPathMatch struct {
 	WrittenSlots [4]uint8
 	Labels       [4]string
 	Variadic     bool
+	Timezone     bool
 }
 
 func (e JSONBPathMatch) Eval(c expr.Context) (sqltype.Value, error) {
@@ -109,7 +113,9 @@ func (e JSONBPathMatch) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
+	env := jsonpathEnvironment(c)
+	env.Timezone = e.Timezone
+	return e.Plan.Evaluate(ctx, values[:], env)
 }
 func (e JSONBPathMatch) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathMatch, error) {
 	var usages [4]sqltype.Usage
@@ -146,6 +152,7 @@ type JSONBPathQueryFirst struct {
 	WrittenSlots [4]uint8
 	Labels       [4]string
 	Variadic     bool
+	Timezone     bool
 }
 
 func (e JSONBPathQueryFirst) Eval(c expr.Context) (sqltype.Value, error) {
@@ -157,7 +164,9 @@ func (e JSONBPathQueryFirst) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
+	env := jsonpathEnvironment(c)
+	env.Timezone = e.Timezone
+	return e.Plan.Evaluate(ctx, values[:], env)
 }
 func (e JSONBPathQueryFirst) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathQueryFirst, error) {
 	var usages [4]sqltype.Usage
@@ -194,6 +203,7 @@ type JSONBPathQuery struct {
 	WrittenSlots [4]uint8
 	Labels       [4]string
 	Variadic     bool
+	Timezone     bool
 }
 
 func (e JSONBPathQuery) EvalSet(c expr.Context) ([]sqltype.Value, error) {
@@ -205,7 +215,9 @@ func (e JSONBPathQuery) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
+	env := jsonpathEnvironment(c)
+	env.Timezone = e.Timezone
+	return e.Plan.Evaluate(ctx, values[:], env)
 }
 func (e JSONBPathQuery) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathQuery, error) {
 	var usages [4]sqltype.Usage
@@ -240,10 +252,28 @@ func (e JSONBPathQuery) Eval(c expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted JSONPath query set call")
 }
 
-func (e JSONBPathExists) IntrinsicVolatility() expr.Volatility     { return expr.Immutable }
-func (e JSONBPathMatch) IntrinsicVolatility() expr.Volatility      { return expr.Immutable }
-func (e JSONBPathQueryFirst) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
-func (e JSONBPathQuery) IntrinsicVolatility() expr.Volatility      { return expr.Immutable }
+func jsonbPathVolatility(timezone bool) expr.Volatility {
+	if timezone {
+		return expr.Stable
+	}
+	return expr.Immutable
+}
+
+func jsonbPathName(name string, timezone bool) string {
+	if timezone {
+		return name + "_tz"
+	}
+	return name
+}
+
+func (e JSONBPathExists) IntrinsicVolatility() expr.Volatility {
+	return jsonbPathVolatility(e.Timezone)
+}
+func (e JSONBPathMatch) IntrinsicVolatility() expr.Volatility { return jsonbPathVolatility(e.Timezone) }
+func (e JSONBPathQueryFirst) IntrinsicVolatility() expr.Volatility {
+	return jsonbPathVolatility(e.Timezone)
+}
+func (e JSONBPathQuery) IntrinsicVolatility() expr.Volatility { return jsonbPathVolatility(e.Timezone) }
 
 func (e JSONBPathQuery) PlanningFold() expr.Fold { return expr.FoldNever }
 
@@ -255,28 +285,28 @@ var _ expr.Renderable = JSONBPathExists{}
 
 // Render implements expr.Renderable.
 func (e JSONBPathExists) Render() (expr.Rendering, error) {
-	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_exists")
+	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, jsonbPathName("jsonb_path_exists", e.Timezone))
 }
 
 var _ expr.Renderable = JSONBPathMatch{}
 
 // Render implements expr.Renderable.
 func (e JSONBPathMatch) Render() (expr.Rendering, error) {
-	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_match")
+	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, jsonbPathName("jsonb_path_match", e.Timezone))
 }
 
 var _ expr.Renderable = JSONBPathQueryFirst{}
 
 // Render implements expr.Renderable.
 func (e JSONBPathQueryFirst) Render() (expr.Rendering, error) {
-	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_query_first")
+	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, jsonbPathName("jsonb_path_query_first", e.Timezone))
 }
 
 var _ expr.Renderable = JSONBPathQuery{}
 
 // Render implements expr.Renderable.
 func (e JSONBPathQuery) Render() (expr.Rendering, error) {
-	spec, err := jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_query")
+	spec, err := jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, jsonbPathName("jsonb_path_query", e.Timezone))
 	spec.Replay.Validate = unsupportedReplay
 	return spec, err
 }
@@ -296,7 +326,7 @@ func jsonbPathQueryRendering(args [4]expr.Expr, count int, slots [4]uint8, label
 func (e JSONBPathExists) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
 	o, ok := other.(JSONBPathExists)
 	// Redundant VARIADIC is presentation only for this nonvariadic routine.
-	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+	if !ok || e.Timezone != o.Timezone || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
 	for i, arg := range e.Args[:] {
@@ -311,7 +341,7 @@ func (e JSONBPathExists) SameGroup(other expr.Expr, same func(a, b expr.Expr) bo
 func (e JSONBPathMatch) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
 	o, ok := other.(JSONBPathMatch)
 	// Redundant VARIADIC is presentation only for this nonvariadic routine.
-	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+	if !ok || e.Timezone != o.Timezone || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
 	for i, arg := range e.Args[:] {
@@ -326,7 +356,7 @@ func (e JSONBPathMatch) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 func (e JSONBPathQueryFirst) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
 	o, ok := other.(JSONBPathQueryFirst)
 	// Redundant VARIADIC is presentation only for this nonvariadic routine.
-	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+	if !ok || e.Timezone != o.Timezone || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
 	for i, arg := range e.Args[:] {
@@ -341,7 +371,7 @@ func (e JSONBPathQueryFirst) SameGroup(other expr.Expr, same func(a, b expr.Expr
 func (e JSONBPathQuery) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
 	o, ok := other.(JSONBPathQuery)
 	// Redundant VARIADIC is presentation only for this nonvariadic routine.
-	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+	if !ok || e.Timezone != o.Timezone || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
 	for i, arg := range e.Args[:] {

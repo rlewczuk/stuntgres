@@ -14,6 +14,7 @@ var jsonCallNames = [...]string{
 	"to_json", "to_jsonb", "array_to_json", "row_to_json",
 	"json_build_array", "jsonb_build_array", "json_build_object", "jsonb_build_object",
 	"jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query",
+	"jsonb_path_query_array_tz", "jsonb_path_exists_tz", "jsonb_path_match_tz", "jsonb_path_query_first_tz", "jsonb_path_query_tz",
 	"jsonb_set", "jsonb_set_lax", "jsonb_insert", "json_strip_nulls",
 	"json_extract_path", "json_extract_path_text", "jsonb_extract_path", "jsonb_extract_path_text",
 	"jsonb_populate_record", "jsonb_populate_recordset", "jsonb_to_record", "jsonb_to_recordset", "jsonb_populate_record_valid",
@@ -27,7 +28,7 @@ var jsonCallNames = [...]string{
 // with its own comparison: JSON creation and JSONB record names are
 // lowercased, the processing names case-folded.
 func jsonCallClaims(name string) bool {
-	return JSONCreateKind(name) != 0 || strings.EqualFold(name, "jsonb_path_query_array") ||
+	return JSONCreateKind(name) != 0 || strings.EqualFold(name, "jsonb_path_query_array") || strings.EqualFold(name, "jsonb_path_query_array_tz") ||
 		parser.JSONBPathQueryFunctionName(name) || parser.JSONBSetFunctionName(name) || parser.JSONFunctionName(name)
 }
 
@@ -44,7 +45,7 @@ func bindJSONCall(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	switch {
-	case strings.EqualFold(name, "jsonb_path_query_array"):
+	case strings.EqualFold(name, "jsonb_path_query_array"), strings.EqualFold(name, "jsonb_path_query_array_tz"):
 		return bindJSONBPathQueryArray(b, raw, visible)
 	case parser.JSONBPathQueryFunctionName(name):
 		return bindJSONBPathQuery(b, raw, visible)

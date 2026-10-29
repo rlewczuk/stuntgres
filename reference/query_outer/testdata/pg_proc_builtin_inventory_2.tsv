@@ -1,5 +1,8 @@
 1175	justify_hours	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1186	1186	\N	\N	\N	false	\N	interval_justify_hours	\N	false	\N
+1177	jsonb_path_exists_tz	11	12	1	0	0	0	f	false	false	true	false	s	s	4	2	16	3802 4072 3802 16	\N	\N	{target,path,vars,silent}	true	\N	jsonb_path_exists_tz	\N	false	\N
 1178	date	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1082	1184	\N	\N	\N	false	\N	timestamptz_date	\N	false	\N
+1179	jsonb_path_query_tz	11	12	1	1000	0	0	f	false	false	true	true	s	s	4	2	3802	3802 4072 3802 16	\N	\N	{target,path,vars,silent}	true	\N	jsonb_path_query_tz	\N	false	\N
+1180	jsonb_path_query_array_tz	11	12	1	0	0	0	f	false	false	true	false	s	s	4	2	3802	3802 4072 3802 16	\N	\N	{target,path,vars,silent}	true	\N	jsonb_path_query_array_tz	\N	false	\N
 1181	age	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	23	28	\N	\N	\N	false	\N	xid_age	\N	false	\N
 1188	timestamptz_mi	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	1184 1184	\N	\N	\N	false	\N	timestamp_mi	\N	false	\N
 1189	timestamptz_pl_interval	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	1184	1184 1186	\N	\N	\N	false	\N	timestamptz_pl_interval	\N	false	\N
@@ -422,10 +425,12 @@
 2019	time	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1083	1184	\N	\N	\N	false	\N	timestamptz_time	\N	false	\N
 2020	date_trunc	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	25 1114	\N	\N	\N	false	\N	timestamp_trunc	\N	false	\N
 2021	date_part	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	25 1114	\N	\N	\N	false	\N	timestamp_part	\N	false	\N
+2023	jsonb_path_query_first_tz	11	12	1	0	0	0	f	false	false	true	false	s	s	4	2	3802	3802 4072 3802 16	\N	\N	{target,path,vars,silent}	true	\N	jsonb_path_query_first_tz	\N	false	\N
 2024	timestamp	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1114	1082	\N	\N	\N	false	\N	date_timestamp	\N	false	\N
 2027	timestamp	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1114	1184	\N	\N	\N	false	\N	timestamptz_timestamp	\N	false	\N
 2028	timestamptz	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1184	1114	\N	\N	\N	false	\N	timestamp_timestamptz	\N	false	\N
 2029	date	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1082	1114	\N	\N	\N	false	\N	timestamp_date	\N	false	\N
+2030	jsonb_path_match_tz	11	12	1	0	0	0	f	false	false	true	false	s	s	4	2	16	3802 4072 3802 16	\N	\N	{target,path,vars,silent}	true	\N	jsonb_path_match_tz	\N	false	\N
 2031	timestamp_mi	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1186	1114 1114	\N	\N	\N	false	\N	timestamp_mi	\N	false	\N
 2032	timestamp_pl_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	1114 1186	\N	\N	\N	false	\N	timestamp_pl_interval	\N	false	\N
 2033	timestamp_mi_interval	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	1114 1186	\N	\N	\N	false	\N	timestamp_mi_interval	\N	false	\N

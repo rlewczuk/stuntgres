@@ -8,7 +8,7 @@ func (e JSONBPathQuery) SourceAdmission() (bool, bool) { return true, true }
 
 func (e JSONBPathQuery) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(JSONBPathQuery)
-	return ok && e.ResultUsage() == o.ResultUsage()
+	return ok && e.Timezone == o.Timezone && e.ResultUsage() == o.ResultUsage()
 }
 
 func (e JSONBPathQuery) OpenSource(c expr.Context) (expr.SourceCursor, error) {

@@ -650,10 +650,12 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   permissive, and temporal input diagnostics retain the raw decoded string.
   Invocation-owned typed items retain parsed timestamp offsets until JSON
   materialization, without changing typed PASSING serialization. Path consumers
-  take an execution-owned `JSONPathEnvironment` for captured input and notices;
-  ordinary JSONB paths prohibit zone-dependent promotion while SQL/JSON retains
-  its own enabled policy. Private temporal headers never become result metadata
-  or persistent JSONB node kinds.
+  take an execution-owned `JSONPathEnvironment` for captured input, notices and
+  provider timezone policy. Ordinary JSONB paths prohibit zone-dependent
+  promotion; the five STABLE `_tz` consumers enable it on the same walker.
+  SQL/JSON retains its own enabled policy. Plans and parsed paths retain neither
+  session state nor policy from an earlier execution. Private temporal headers
+  never become result metadata or persistent JSONB node kinds.
 - Unicode tables come from `unicode16/`; there is no ICU, cgo or host-Go
   Unicode dependency.
 - `RegexpPlan` evaluation shares the statement-local `PGRegexExecution` (no

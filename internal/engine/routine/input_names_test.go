@@ -8,6 +8,11 @@ import (
 
 func TestRoutineInputNameDeclarations(t *testing.T) {
 	expected := map[ids.OID][]string{
+		1177: {"target", "path", "vars", "silent"},
+		1179: {"target", "path", "vars", "silent"},
+		1180: {"target", "path", "vars", "silent"},
+		2023: {"target", "path", "vars", "silent"},
+		2030: {"target", "path", "vars", "silent"},
 		1268: {"str", "strict"},
 		1686: {"word", "catcode", "barelabel", "catdesc", "baredesc"},
 		1689: {"acl", "grantor", "grantee", "privilege_type", "is_grantable"},

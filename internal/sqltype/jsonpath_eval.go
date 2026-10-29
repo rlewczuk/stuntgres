@@ -70,8 +70,9 @@ type jsonpathExecutor struct {
 
 // JSONPathEnvironment belongs to one execution, never a held plan or AST.
 type JSONPathEnvironment struct {
-	Input  InputEnvironment
-	Notice func(sqlstate.Error)
+	Input    InputEnvironment
+	Notice   func(sqlstate.Error)
+	Timezone bool // Provider policy, copied into this invocation's executor.
 }
 
 // The executor owns neither its inputs nor a result collection. Consumer stop
@@ -86,7 +87,7 @@ func executeJSONPath(ctx context.Context, document, path, variables Value, env J
 	if variables.jsonb.root.kind != jsonbObject {
 		return jsonpathExecStatus{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: `"vars" argument is not an object`, Detail: `Jsonpath parameters should be encoded as key-value pairs of "vars" object.`}
 	}
-	e := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, vars: &variables.jsonb.root, strict: path.jsonpath.strict, input: env.Input, notice: env.Notice}
+	e := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, vars: &variables.jsonb.root, strict: path.jsonpath.strict, input: env.Input, notice: env.Notice, timezone: env.Timezone}
 	return e.execute(path, emit)
 }
 

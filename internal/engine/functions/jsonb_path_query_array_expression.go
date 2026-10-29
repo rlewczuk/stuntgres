@@ -17,6 +17,7 @@ type JSONBPathQueryArray struct {
 	WrittenSlots [4]uint8
 	Labels       [4]string
 	Variadic     bool // Written presentation only; the selected routine is nonvariadic.
+	Timezone     bool
 }
 
 func (e JSONBPathQueryArray) Eval(c expr.Context) (sqltype.Value, error) {
@@ -45,7 +46,9 @@ func (e JSONBPathQueryArray) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
-	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
+	env := jsonpathEnvironment(c)
+	env.Timezone = e.Timezone
+	return e.Plan.Evaluate(ctx, values[:], env)
 }
 
 func (e JSONBPathQueryArray) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathQueryArray, error) {
@@ -74,7 +77,9 @@ func (e JSONBPathQueryArray) Rebuild(info expr.Info, children []expr.Expr) (expr
 	return rebuilt(e.Reconstruct(info, args))
 }
 
-func (e JSONBPathQueryArray) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e JSONBPathQueryArray) IntrinsicVolatility() expr.Volatility {
+	return jsonbPathVolatility(e.Timezone)
+}
 
 func (e JSONBPathQueryArray) ValidateStoredProvider() error { return nil }
 
@@ -89,14 +94,14 @@ func (e JSONBPathQueryArray) Render() (expr.Rendering, error) {
 	if err != nil {
 		return expr.Rendering{}, err
 	}
-	return writtenCall("JSONPath array query", e.Args[:], "jsonb_path_query_array", args, e.Variadic), nil
+	return writtenCall("JSONPath array query", e.Args[:], jsonbPathName("jsonb_path_query_array", e.Timezone), args, e.Variadic), nil
 }
 
 // SameGroup implements expr.GroupIdentity.
 func (e JSONBPathQueryArray) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
 	o, ok := other.(JSONBPathQueryArray)
 	// Redundant VARIADIC is presentation only for this nonvariadic routine.
-	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+	if !ok || e.Timezone != o.Timezone || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
 	for i, arg := range e.Args[:] {

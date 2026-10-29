@@ -53,6 +53,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - `@?`, `@@`: `RUN='^TestReferenceJSONBPathOps'`
 - `jsonb_path_query_array` and path navigation: `RUN='^TestReferenceJSONPathNavigate'`
 - `jsonb_path_exists`/`match`/`query`/`query_first`: `RUN='^TestReferenceJSONPathQuery'`
+- Timezone-aware JSONPath queries: `RUN='^TestReferenceJSONPathQueryTZ'`
 - JSONPath item methods: `RUN='^TestReferenceJSONPathMethods'`
 - JSONPath integer/bigint/decimal methods: `RUN='^TestReferenceJSONPathIntegerDecimal'`
 - JSONPath numeric methods: `RUN='^TestReferenceJSONPathNumericMethods'`

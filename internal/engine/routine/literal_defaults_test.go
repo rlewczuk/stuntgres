@@ -16,6 +16,11 @@ func TestRoutineDefaultDeclarations(t *testing.T) {
 		3464: {{SourceType: 23, Text: "0"}, {SourceType: 23, Text: "0"}, {SourceType: 23, Text: "0"}, {SourceType: 23, Text: "0"}, {SourceType: 23, Text: "0"}, {SourceType: 23, Text: "0"}, {SourceType: 1700, Text: "0.0"}},
 		3579: {{SourceType: 16, Text: "false"}}, 3261: {{SourceType: 16, Text: "false"}},
 		4005: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}}, 4006: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}}, 4007: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}}, 4008: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}}, 4009: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}},
+		1177: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}},
+		1179: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}},
+		1180: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}},
+		2023: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}},
+		2030: {{SourceType: 3802, Text: "{}"}, {SourceType: 16, Text: "false"}},
 		3960: {{SourceType: 16, Text: "false"}}, 3961: {{SourceType: 16, Text: "false"}},
 		4350: {{SourceType: 25, Text: "NFC"}}, 4351: {{SourceType: 25, Text: "NFC"}},
 		6212: {{SourceType: 23, Text: "0"}, {SourceType: 23, Text: "1"}},
@@ -51,7 +56,7 @@ func TestRoutineDefaultDeclarations(t *testing.T) {
 			t.Fatal("COW lost default authority")
 		}
 	}
-	if seen != 20 || defaults != 33 {
+	if seen != 25 || defaults != 43 {
 		t.Fatal("finite inventory", seen, defaults)
 	}
 	input := []catalog.RoutineLiteral{{SourceType: 16, Text: "true"}}

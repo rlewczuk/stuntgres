@@ -2241,9 +2241,10 @@ func JSONBSetFunctionName(name string) bool {
 	return strings.EqualFold(name, "jsonb_set") || strings.EqualFold(name, "jsonb_set_lax") || strings.EqualFold(name, "jsonb_insert")
 }
 
-// JSONBPathQueryFunctionName admits the four ordinary query-family calls.
+// JSONBPathQueryFunctionName admits the ordinary and timezone query families.
 func JSONBPathQueryFunctionName(name string) bool {
-	for _, selected := range [...]string{"jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query"} {
+	for _, selected := range [...]string{"jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query", "jsonb_path_query_array",
+		"jsonb_path_exists_tz", "jsonb_path_match_tz", "jsonb_path_query_first_tz", "jsonb_path_query_tz", "jsonb_path_query_array_tz"} {
 		if strings.EqualFold(name, selected) {
 			return true
 		}

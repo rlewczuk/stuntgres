@@ -21,10 +21,10 @@ import (
 type Presentation struct {
 	Deparse, Pretty    bool
 	Wrap               int64
-	Rule               bool // Catalog rule display, not replay or reduced-parenthesis pretty mode.
-	RoutineDeclaration bool // Metadata-only routine body, independent of executable replacements.
-	RoutineInputNames []string // Borrowed declaration input-slot names for body display.
-	Policy             bool // Policy expressions share rule sublink punctuation, not rule indentation.
+	Rule               bool     // Catalog rule display, not replay or reduced-parenthesis pretty mode.
+	RoutineDeclaration bool     // Metadata-only routine body, independent of executable replacements.
+	RoutineInputNames  []string // Borrowed declaration input-slot names for body display.
+	Policy             bool     // Policy expressions share rule sublink punctuation, not rule indentation.
 	Indent             int
 	HideLabels         bool // Nested expression/set-arm fallback names are not externally visible.
 	AnchorLabels       bool // Restore original labels hidden by recursive execution's output schema.
@@ -1910,7 +1910,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			}
 			return functionName + "(" + strings.Join(parts, ", ") + ")", nil
 		}
-		if name == "pg_wal_summary_contents" || parser.ACLValueFunctionName(name) || parser.ObjectAddressFunctionName(name) || parser.RegexpFunctionName(name) || name == "pg_get_acl" || name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || (name == "jsonb_path_query_array" || functions.JSONBPathQueryName(name)) || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
+		if name == "pg_wal_summary_contents" || parser.ACLValueFunctionName(name) || parser.ObjectAddressFunctionName(name) || parser.RegexpFunctionName(name) || name == "pg_get_acl" || name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || parser.JSONBPathQueryFunctionName(name) || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
 			functionName, identifier := "pg_catalog."+name, catalog.QuoteIdentifier
 			if v.Presentation.Deparse {
 				functionName, identifier = v.Presentation.identifier(name), v.Presentation.identifier
@@ -1924,7 +1924,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 				if len(e.ArgNames) > i && e.ArgNames[i].Text != "" {
 					text = identifier(e.ArgNames[i].Text) + " => " + text
 				}
-				if (parser.JSONBSetFunctionName(name) || (name == "jsonb_path_query_array" || functions.JSONBPathQueryName(name)) || name == "json_strip_nulls" || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text") && e.Variadic && i == len(e.Args)-1 {
+				if (parser.JSONBSetFunctionName(name) || parser.JSONBPathQueryFunctionName(name) || name == "json_strip_nulls" || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text") && e.Variadic && i == len(e.Args)-1 {
 					text = "VARIADIC " + text
 				}
 				parts[i] = text
