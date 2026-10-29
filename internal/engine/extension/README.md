@@ -80,6 +80,9 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   name/absence observations remain publication fences. Base-object revisions
   still use ordinary replacement, and all candidates retain full provider,
   reciprocal membership and current installed-declaration validation.
+  Initial CREATE copies the control comment into the immutable extension header;
+  skipped CREATE and UPDATE never reapply that default. Header copies preserve
+  current comment text across placement, membership and ownership changes.
   The pgrowlocks, pageinspect and amcheck manifest builders also own immutable fixed OUT
   type IDs and complete formal names, including their input names. Their
   comparable installed declaration carries the shared immutable payload through

@@ -117,6 +117,9 @@ func (s *Store) InstallBuiltinLanguagesLocked(owner authorization.PrincipalRef) 
 		return err
 	}
 	extension := &Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: extensionOID}, ObjectRevision: 1, ObjectName: "plpgsql", Version: "1.0", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Owner: owner, Members: make([]ids.ObjectAddress, 4)}
+	if control := s.Extensions["plpgsql"].Control(); control.Comment != nil {
+		extension.Comment = *control.Comment
+	}
 	installation := &Installation{Cohort: extension.Address(), Provider: "plpgsql", Version: "1.0", Implementation: s.Extensions["plpgsql"], Members: make([]ids.ObjectAddress, 4), Declarations: make([]Descriptor, 4)}
 	extension.Installation = installation
 	language := &Language{ObjectAddress: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: languageOID}, ObjectRevision: 1, ObjectName: "plpgsql", Owner: owner, Procedural: true, Trusted: true}

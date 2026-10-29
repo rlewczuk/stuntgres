@@ -35,6 +35,8 @@ No parallel language-permission table or cached grant decision exists.
     not the shared `ProcedureObject` class or the presence of a SQL body.
     Generic routine ownership denials retain the function noun used by
     CREATE OR REPLACE; statement-specific callers supply their own nouns.
+    Extension ownership denials use the canonical extension kind; extensions
+    have an owner but no grantable ACL privileges.
   - Identity: `Ref` mints a reference in the view's epoch, `Stamp` names the
     captured publication, `Recapture` binds a substituted catalog to the same
     role root.

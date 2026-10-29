@@ -277,7 +277,7 @@ func ModifyingTag(stmt parser.Statement) string {
 func ExplicitUtility(stmt parser.Statement) bool {
 	if c, ok := stmt.(*parser.Comment); ok {
 		switch c.Kind {
-		case parser.CommentTable, parser.CommentColumn, parser.CommentForeignTable, parser.CommentSchema, parser.CommentRole, parser.CommentSequence:
+		case parser.CommentTable, parser.CommentColumn, parser.CommentForeignTable, parser.CommentSchema, parser.CommentRole, parser.CommentSequence, parser.CommentExtension:
 			return false
 		}
 	}

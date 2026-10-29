@@ -121,9 +121,10 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   names and released legacy aliases without validating or creating providers.
 - **COMMENT** (`comment.go`): `PlanRoleComment` checks COMMENT ON ROLE
   (42704, the superuser rule) and returns the next role record;
-  `PlanObjectComment` resolves a schema, table, foreign table or column (the
-  relation through the engine's locked ref), checks kind, schema USAGE and
-  ownership and returns the commented descriptor with a new revision.
+  `PlanObjectComment` resolves a schema, extension, table, foreign table or column
+  (relations through the engine's locked ref), checks kind, schema USAGE where
+  applicable and live ownership, and returns an immutable replacement revision.
+  Extension headers have no schema-USAGE requirement.
   These existing kinds work in autocommit and explicit transactions. Object
   metadata is database-local; role text is cluster-shared, with private changes
   visible only to the transaction owner until commit. Role renaming remains a

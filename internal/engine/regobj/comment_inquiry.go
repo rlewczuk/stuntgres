@@ -48,6 +48,8 @@ func CommentText(view catalog.Read, roles authorization.Read, kind functions.Com
 		} else {
 			var class ids.OID
 			switch name {
+			case "pg_extension":
+				class = ids.ExtensionClassID
 			case "pg_class":
 				class = ids.RelationClassID
 			case "pg_namespace":

@@ -1841,6 +1841,7 @@ const (
 	CommentRole
 	CommentSequence
 	CommentForeignTable
+	CommentExtension
 )
 
 type Comment struct {

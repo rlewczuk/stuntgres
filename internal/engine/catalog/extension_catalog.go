@@ -27,6 +27,7 @@ type Extension struct {
 	ObjectAddress       ids.ObjectAddress
 	ObjectRevision      ids.DefinitionRevision
 	ObjectName, Version string
+	Comment             string // immutable; empty means absent
 	TargetNamespace     ids.ObjectAddress
 	Owner               authorization.PrincipalRef
 	Installation        *Installation

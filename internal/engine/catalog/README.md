@@ -299,6 +299,9 @@ private frames, not catalog authority.
 - **Extension authority** (`extension_origin.go`, `extension_membership.go`):
   current `Extension.Members` and reciprocal descriptor links are separate from
   immutable released `Installation`/`InstalledOrigin` execution provenance.
+  `Extension.Comment` is immutable local header metadata; empty means absent.
+  Initial installation and the plpgsql seed copy the registered control comment.
+  Header replacement, cloning and remapping preserve it independently of recipes.
   Membership mutation copies the entire recursive type/array/multirange or
   relation/row-type set in one candidate. Canonical pre-origin declarations in
   the same recipe spell deleted baseline objects during replay; they are never

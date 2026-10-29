@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -260,6 +261,9 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 		return err
 	}
 	s.installationMetadata = append(s.installationMetadata, metadata)
+	if item.ext != nil {
+		s.installationMetadata = append(s.installationMetadata, extensionCommentSQL(item.ext))
+	}
 	for _, d := range recipe.Declarations {
 		current := s.CatalogView.Get(d.Address())
 		if current == nil {
@@ -292,4 +296,13 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 	}
 	schedule.finish(placement.index)
 	return nil
+}
+
+// Every surviving header carries explicit state, including removal of a default.
+func extensionCommentSQL(ext *catalog.Extension) string {
+	literal := "NULL"
+	if ext.Comment != "" {
+		literal = dump.CommentLiteral(ext.Comment)
+	}
+	return "COMMENT ON EXTENSION " + catalog.QuoteIdentifier(ext.Name()) + " IS " + literal + ";\n"
 }

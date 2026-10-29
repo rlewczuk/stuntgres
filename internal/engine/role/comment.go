@@ -42,10 +42,9 @@ func PlanRoleComment(view access.View, name, text string) (*access.RoleRecord, e
 	return view.RoleRecord.WithRoot(next), nil
 }
 
-// PlanObjectComment decides COMMENT ON a schema, table, foreign table or
-// column: it resolves the target (a relation through locked, the relation
-// the engine locked for the statement), checks its kind, schema USAGE and
-// ownership, and returns the target's descriptor with the comment set to text
+// PlanObjectComment decides COMMENT ON a supported local object: it resolves
+// the target (relations through locked), checks schema USAGE where applicable
+// and ownership, and returns the target's descriptor with the comment set to text
 // (empty removes it) and a new revision from revision. domain mints the
 // references; the engine stages and publishes the result.
 func PlanObjectComment(view access.View, env access.Environment, domain *ids.Domain, s *parser.Comment, locked ids.ObjectRef, text string, revision func() (ids.DefinitionRevision, error), target *ids.ObjectAddress) (catalog.Descriptor, error) {
@@ -55,6 +54,12 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 		a, ok := view.Catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: s.Name.Parts[0].Text})
 		if !ok {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Name.Parts[0].Text))
+		}
+		ref = domain.Ref(view.Catalog.Epoch(), a)
+	case parser.CommentExtension:
+		a, ok := view.Catalog.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Parts[0].Text})
+		if !ok {
+			return nil, sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Name.Parts[0].Text))
 		}
 		ref = domain.Ref(view.Catalog.Epoch(), a)
 	case parser.CommentTable, parser.CommentForeignTable, parser.CommentColumn:
@@ -106,6 +111,11 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 	}
 	var updated catalog.Descriptor
 	switch d := view.Catalog.Get(a).(type) {
+	case *catalog.Extension:
+		n := *d
+		n.Comment = text
+		n.ObjectRevision = stamp
+		updated = &n
 	case *catalog.Namespace:
 		n := *d
 		n.Comment = text

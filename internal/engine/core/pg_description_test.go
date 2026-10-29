@@ -214,6 +214,11 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 		{ClassID: ids.NamespaceClassID, ObjectID: 99}:   "reserved schema for TOAST tables",
 		{ClassID: ids.NamespaceClassID, ObjectID: 2200}: "standard public schema",
 	}
+	plpgsql, found := e.Catalog.State.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "plpgsql"})
+	if !found {
+		t.Fatal("seeded plpgsql extension missing")
+	}
+	expected[plpgsql] = "PL/pgSQL procedural language"
 	for _, group := range []struct {
 		class ids.OID
 		seeds []pgDescriptionExpectedSeed
@@ -226,7 +231,7 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 			expected[ids.ObjectAddress{ClassID: group.class, ObjectID: seed.oid}] = seed.text
 		}
 	}
-	if len(bag) != 166 || !reflect.DeepEqual(bag, expected) {
+	if len(bag) != 167 || !reflect.DeepEqual(bag, expected) {
 		t.Fatal("complete independent baseline", bag, expected)
 	}
 	for _, oid := range []ids.OID{4401, 4450, 4451, 4532} {

@@ -490,7 +490,7 @@ func (l *lexer) excludePrimaryColumnAddition(add lexeme, column *Column) {
 var unsupportedCommands = wordSet("truncate drop alter with execute deallocate cluster refresh reset checkpoint")
 var unsupportedCreateObjects = wordSet("temporary temp unlogged view index unique function procedure")
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning group having window for using primary unique check references default constraint collate in")
-var unsupportedCommentKinds = wordSet("type database index view collation conversion extension language publication subscription tablespace trigger policy rule statistics")
+var unsupportedCommentKinds = wordSet("type database index view collation conversion language publication subscription tablespace trigger policy rule statistics")
 
 // Initial membership clauses are supported; legacy role options remain excluded.
 var unsupportedRoleOptions = wordSet("group granted by sysid")

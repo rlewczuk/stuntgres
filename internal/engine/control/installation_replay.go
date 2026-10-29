@@ -175,6 +175,13 @@ func (s *dumpScript) prepareInstallationReplay(ctx context.Context) error {
 		seeded := recipe.Provider == "plpgsql"
 		if seeded && s.unchangedSeedInstallation(item) {
 			s.extensionMetadata[item.ext.Address().ObjectID] = ""
+			baselineComment := ""
+			if control := recipe.Implementation.Control(); control.Comment != nil {
+				baselineComment = *control.Comment
+			}
+			if item.ext.Comment != baselineComment {
+				s.installationMetadata = append(s.installationMetadata, extensionCommentSQL(item.ext))
+			}
 			if s.preservedSeedMembership == nil {
 				s.preservedSeedMembership = make(map[ids.ObjectAddress]ids.ObjectAddress)
 			}

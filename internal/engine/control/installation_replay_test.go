@@ -104,10 +104,10 @@ func TestInstallationReplayAbsentAndRepeatedProvider(t *testing.T) {
 	if len(script.membershipStatements) != len(extension.FuzzystrmatchMembers) {
 		t.Fatal("mutable membership conflated with detached recipe", script.membershipStatements)
 	}
-	if len(script.installationMetadata) != 2 {
-		t.Fatal("absent cohort owner record missing", script.installationMetadata)
+	if len(script.installationMetadata) != 3 || script.installationMetadata[2] != "COMMENT ON EXTENSION \"fuzzystrmatch\" IS NULL;\n" {
+		t.Fatal("absent/present owner inventory or surviving header comment missing", script.installationMetadata)
 	}
-	for i, metadata := range script.installationMetadata {
+	for i, metadata := range script.installationMetadata[:2] {
 		record, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
 		if err != nil || !found {
 			t.Fatal(found, err)
@@ -226,6 +226,29 @@ func TestInstallationReplayUnchangedSeed(t *testing.T) {
 		t.Fatal("genuine seed cohort missing", items, err)
 	}
 	item := items[0]
+	for _, tc := range []struct {
+		name    string
+		comment string
+		want    string
+	}{
+		{"custom", "seed 雪 'quote'", "COMMENT ON EXTENSION \"plpgsql\" IS E'seed 雪 ''quote''';\n"},
+		{"removed", "", "COMMENT ON EXTENSION \"plpgsql\" IS NULL;\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			next := catalog.CloneState(source.State)
+			ext := *item.ext
+			ext.Comment = tc.comment
+			next.SetDescriptor(ext.Address(), &ext)
+			view := source.CatalogView.WithState(next)
+			changed := &dumpScript{Capture: &Capture{CatalogView: view, OriginalCatalog: view, DomainRoles: source.DomainRoles, OriginalRoles: source.OriginalRoles}}
+			if err := changed.prepareInstallationReplay(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if len(changed.installationStatements) != 0 || len(changed.membershipStatements) != 0 || len(changed.preservedSeedMembership) != 4 || !slices.Equal(changed.installationMetadata, []string{tc.want}) {
+				t.Fatal("comment delta must replay without reconstructing genuine seed", changed.installationStatements, changed.membershipStatements, changed.installationMetadata)
+			}
+		})
+	}
 	t.Run("remapped_live_authority", func(t *testing.T) {
 		target := new(authorization.Domain)
 		roles := authorization.Seed(target)

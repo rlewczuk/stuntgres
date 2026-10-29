@@ -101,6 +101,10 @@ func capturePGDescription(in Input) ([][]sqltype.Value, error) {
 
 func DescriptorComment(d catalog.Descriptor, sub int32) string {
 	switch d := d.(type) {
+	case *catalog.Extension:
+		if sub == 0 {
+			return d.Comment
+		}
 	case *catalog.Namespace:
 		if sub == 0 {
 			return d.Comment

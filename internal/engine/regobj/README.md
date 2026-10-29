@@ -203,7 +203,8 @@ import it.
   semantic type and namespace lookup. Missing zero-input aggregates use `(*)`.
 - **Comment inquiries** (`comment_inquiry.go`): `CommentText` answers
   `obj_description`, `col_description` and `shobj_description` over the
-  comment catalog and roles; an empty text is NULL.
+  comment catalog and roles; an empty text is NULL. Local extension lookups use
+  exact `pg_extension` class identity; shared inquiries never consume this text.
 
 ## Soft and hard input errors
 

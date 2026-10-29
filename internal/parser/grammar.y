@@ -1421,13 +1421,14 @@ comment: COMMENT ON TABLE relation_name IS comment_text { $$=&Comment{Kind:Comme
  | COMMENT ON SCHEMA name IS comment_text { $$=&Comment{Kind:CommentSchema,Name:ObjectName{Parts:[]Identifier{{Text:$4.text,Pos:$4.pos}}},Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON ROLE name IS comment_text { $$=&Comment{Kind:CommentRole,Name:ObjectName{Parts:[]Identifier{{Text:$4.text,Pos:$4.pos}}},Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON SEQUENCE relation_name IS comment_text { $$=&Comment{Kind:CommentSequence,Name:$4,Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
+ | COMMENT ON EXTENSION name IS comment_text { $$=&Comment{Kind:CommentExtension,Name:ObjectName{Parts:[]Identifier{{Text:$4.text,Pos:$4.pos}}},Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON comment_excluded_kind relation_name IS comment_text { sqllex.(*lexer).deferUnsupported($3,"COMMENT object kind is unsupported"); $$=nil } ;
 comment_column_name: name { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}} }
  | name '.' col_label { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}} }
  | name '.' col_label '.' col_label { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}} } ;
 comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
  | NULL { $$=Value{Kind:NullValue,Pos:$1.pos} } ;
-comment_excluded_word: IDENT | KW_U | XML | KW_T | KW_R | UNIQUE | VIEW | INDEX | TYPE | DATABASE | EXTENSION ;
+comment_excluded_word: IDENT | KW_U | XML | KW_T | KW_R | UNIQUE | VIEW | INDEX | TYPE | DATABASE ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 transaction_control: transaction_common | commit_word opt_transaction opt_chain { $$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos} } ;
 transaction_common: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }

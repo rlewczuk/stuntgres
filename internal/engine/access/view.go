@@ -337,6 +337,8 @@ func (v View) Check(env Environment, req Requirement) error {
 		}
 		if d.Kind() == ids.NamespaceObject {
 			kind = "schema"
+		} else if d.Kind() == ids.ExtensionObject {
+			kind = "extension"
 		} else if d.Kind() == ids.CollationObject {
 			kind = "collation"
 		} else if d.Kind() == ids.ConversionObject {

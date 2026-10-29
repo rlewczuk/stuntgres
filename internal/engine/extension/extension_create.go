@@ -113,6 +113,9 @@ func StageCreate(host Host, auth ddl.Authority, view access.View, s *parser.Crea
 		return nil, err
 	}
 	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, ObjectRevision: rev, ObjectName: s.Name.Text, Version: path[0], TargetNamespace: namespace, Owner: actor.Ref}
+	if registration.Comment != nil {
+		ext.Comment = *registration.Comment
+	}
 	stage := host.BeginStage(namespace)
 	if err := stage.Create(ext); err != nil {
 		return nil, err

@@ -427,6 +427,15 @@ database identity while retaining other databases' committed subscriptions.
   CREATE versus CREATE+UPDATE preserves surviving release/declaration origins.
   Source-absent declarations are retired, and absent origin extensions disappear
   without deleting detached survivors. Same-name cohorts replay serially.
+  Every surviving reconstructed extension header emits an explicit COMMENT after
+  its owner metadata, including IS NULL so reinstall cannot resurrect a removed
+  default. The unchanged plpgsql seed shortcut omits only text equal to its
+  registered control-file baseline, preserving the pristine canonical stream;
+  custom text and removed defaults emit COMMENT without reconstructing members.
+  Owner/member and other installation deltas still take normal replay and emit
+  explicit comment state even when it equals the default. Only trusted Restore's
+  local comment authority bypasses source-session ownership; ordinary SQL retains
+  live owner checks.
   Isolated scratch schemas and collision-planned type/routine/template/dictionary/
   class/family identity changes avoid occupied intermediate names. Builtin provider differences
   likewise use immutable released identities, not mutable labels. Free

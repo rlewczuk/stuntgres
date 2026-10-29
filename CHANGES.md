@@ -1,5 +1,9 @@
 # Changes
 
+- Add installed extension comments with initial provider defaults, transactional
+  COMMENT and inquiry/catalog identity, and exact native replay of custom text
+  and removed defaults, including seeded plpgsql.
+
 - Add atomic column rename across declarative partition hierarchies, preserving
   local attribute layouts, bound expressions and data while updating current-name
   diagnostics, prepared metadata and logical Dump/Restore presentation. Release

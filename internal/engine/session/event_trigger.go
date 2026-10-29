@@ -14,7 +14,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		return QueryCreationUtilityTag(s.Form), true
 	case *parser.Comment:
 		switch s.Kind {
-		case parser.CommentTable, parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentForeignTable:
+		case parser.CommentTable, parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentForeignTable, parser.CommentExtension:
 			return "COMMENT", true
 		default:
 			return "COMMENT", false
