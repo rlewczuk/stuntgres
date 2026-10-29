@@ -62,6 +62,9 @@ func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.State
 		if err == nil {
 			err = candidate.InstallForeignDefinitions(e.Foreign.Definitions())
 		}
+		if err == nil {
+			err = candidate.InstallHostDefinitions(e.Catalog.HostRuntimes)
+		}
 		e.Cluster.Seed, e.Cluster.SeedError = candidate, err
 	})
 	if e.Cluster.SeedError != nil {

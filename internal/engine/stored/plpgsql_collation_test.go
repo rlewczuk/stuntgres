@@ -135,7 +135,7 @@ func TestPLpgSQLLocalUsageReplacement(t *testing.T) {
 				return target.SQLType
 			}
 			remap := NewRoutineRemap(read, mapping, typ, nil, false)
-			if err := routine.RebindSQLDefinitions(read.State(), remap); err != nil {
+			if err := routine.RebindRoutineDefinitions(read.State(), remap); err != nil {
 				t.Fatal(err)
 			}
 			next, ok := read.Procedure(source.Address())
@@ -158,7 +158,7 @@ func TestPLpgSQLLocalUsageReplacement(t *testing.T) {
 		read, source, _, collations := plpgsqlLocalUsageFixture(t)
 		mapping := map[ids.ObjectAddress]ids.ObjectAddress{collations[0].Address(): {ClassID: ids.CollationClassID, ObjectID: 950}}
 		remap := NewRoutineRemap(read, mapping, func(old *sqltype.Descriptor) *sqltype.Descriptor { return old }, nil, false)
-		if err := routine.RebindSQLDefinitions(read.State(), remap); err == nil {
+		if err := routine.RebindRoutineDefinitions(read.State(), remap); err == nil {
 			t.Fatal("incompatible real collation provider accepted")
 		}
 		if current, ok := read.Procedure(source.Address()); !ok || current != source {

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -39,6 +40,7 @@ type Driver struct {
 	config            DriverConfig
 	foreignWrappers   []fdw.WrapperDefinition
 	foreignValidators []fdw.ValidatorDefinition
+	hostLanguages     []*host.Runtime
 }
 
 func NewDriver() *Driver { return NewDriverWithConfig(DriverConfig{}) }
@@ -72,6 +74,9 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 	if e == nil {
 		e = engine.NewWithSettings(d.settings, name, d.config.TrackCommitTimestamp)
 		if err := e.InstallForeignDefinitions(d.foreignWrappers, d.foreignValidators, importParameter, exportValue); err != nil {
+			return nil, err
+		}
+		if err := e.InstallHostDefinitions(d.hostLanguages); err != nil {
 			return nil, err
 		}
 		d.settingsFrozen = true

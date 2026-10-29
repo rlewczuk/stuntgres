@@ -12,7 +12,7 @@ func RoutineCallSchema(b Binding) []catalog.Column {
 		return nil
 	}
 	call, ok := b.Expressions[0][0].(plan.SQLRoutineExpr)
-	if !ok || len(call.Procedure.SQL.OutputFormals) == 0 {
+	if !ok || len(call.Procedure.RoutineDefinition().OutputFormals) == 0 {
 		return nil
 	}
 	tuple := call.Signature.Result.Type

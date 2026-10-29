@@ -207,7 +207,7 @@ func (b *Binder) ownedAggregateProvider(d *catalog.Procedure, args, direct []exp
 		}
 		conversions := make([]sqltype.CoercionPlan, len(actual))
 		var parameters []expr.Expr
-		if support.SQL == nil {
+		if support.RoutineDefinition() == nil {
 			parameters = make([]expr.Expr, len(actual))
 		}
 		for i, input := range actual {
@@ -226,7 +226,7 @@ func (b *Binder) ownedAggregateProvider(d *catalog.Procedure, args, direct []exp
 			}
 		}
 		var call expr.Expr
-		if support.SQL == nil {
+		if support.RoutineDefinition() == nil {
 			call, err = b.bindAggregateSupport(support, parameters, pos)
 			if err != nil {
 				return nil, nil, nil, nil, err

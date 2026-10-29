@@ -120,7 +120,7 @@ func captureInfoParameters(in Input) ([][]sqltype.Value, error) {
 			return nil, err
 		}
 		if owner {
-			if d.SQL != nil {
+			if d.RoutineDefinition() != nil {
 				if d.LiteralDefaults != nil {
 					return nil, fmt.Errorf("stuntgres: invalid checked default authority")
 				}

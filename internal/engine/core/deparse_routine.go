@@ -148,7 +148,7 @@ func (r routineInquiry) arguments(ctx context.Context, d *catalog.Procedure, def
 }
 
 func (r routineInquiry) result(ctx context.Context, d *catalog.Procedure) (string, error) {
-	if d.SQL != nil && d.SQL.TableResult {
+	if definition := d.RoutineDefinition(); definition != nil && definition.TableResult {
 		names, err := pgcatalog.ProcedureNameProjection(r.View, d)
 		if err != nil {
 			return "", err
@@ -221,25 +221,14 @@ func (r routineInquiry) definition(ctx context.Context, d *catalog.Procedure) (s
 		out.WriteByte('\n')
 	}
 	var language string
-	address := d.Language
-	if address == (ids.ObjectAddress{}) {
-		// Native declarations retain released identities, not mutable labels.
-		switch d.Display.Language {
-		case catalog.InternalRoutineLanguage:
-			address = ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 12}
-		case catalog.CRoutineLanguage:
-			address = ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 13}
-		case catalog.SQLRoutineLanguage:
-			address = ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 14}
-		}
+	address, err := catalog.ProcedureLanguageAddress(r.View, d)
+	if err != nil {
+		return "", err
 	}
 	if address != (ids.ObjectAddress{}) {
 		owned, ok := r.View.Get(address).(*catalog.Language)
 		if !ok {
-			return "", fmt.Errorf("stuntgres: missing routine declaration language")
-		}
-		if err := (catalog.LanguageProvider{}).Validate(r.View, owned); err != nil {
-			return "", err
+			return "", ids.ErrCatalogReplaced
 		}
 		language = owned.Name()
 	} else if d.Display.Language != catalog.GoRoutineLanguage {

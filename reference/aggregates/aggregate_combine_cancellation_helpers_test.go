@@ -40,7 +40,7 @@ func aggregateCombineActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backe
 				if created := bytes.Index(frames, []byte("\ncreated by ")); created >= 0 {
 					frames = frames[:created]
 				}
-				if bytes.Contains(frames, []byte("datetimeSleepWaitRemaining")) && bytes.Contains(frames, []byte("InvokeAggregateSQLRoutine")) && bytes.Contains(frames, []byte("runAggregatePartition")) {
+				if bytes.Contains(frames, []byte("datetimeSleepWaitRemaining")) && bytes.Contains(frames, []byte("InvokeAggregateRoutine")) && bytes.Contains(frames, []byte("runAggregatePartition")) {
 					return
 				}
 			}

@@ -271,7 +271,7 @@ func TestTriggerCoreWhenProvider(t *testing.T) {
 		state := catalog.CloneState(read.State())
 		destination := catalog.NewRead(read.Owner(), state)
 		remap := stored.NewRoutineRemap(destination, nil, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, false)
-		if err := routine.RebindSQLDefinitions(state, remap); err != nil {
+		if err := routine.RebindRoutineDefinitions(state, remap); err != nil {
 			t.Fatal(err)
 		}
 		owner := *relation

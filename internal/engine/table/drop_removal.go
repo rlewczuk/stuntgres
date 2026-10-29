@@ -17,6 +17,10 @@ import (
 func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.ObjectRef, namespace bool) error {
 	d := base.Get(ref.Address)
 	switch d.(type) {
+	case *catalog.Transform:
+		if err := (catalog.TransformProvider{}).Validate(base, d); err != nil {
+			return err
+		}
 	case *catalog.Relation:
 		if ref.Address.ClassID != ids.RelationClassID {
 			return fmt.Errorf("stuntgres: only user relations can be removed")
@@ -113,6 +117,8 @@ func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 // closure reaches becomes a drop target itself.
 func ClosureTargetClass(class ids.OID) bool {
 	switch class {
+	case ids.TransformClassID:
+		return true
 	case ids.SubscriptionClassID, ids.StatisticExtClassID, ids.TSParserClassID:
 		return true
 	case ids.EventTriggerClassID, ids.AccessMethodClassID, ids.CastClassID, ids.OperatorClassCatalogID, ids.OperatorClassID, ids.OperatorFamilyClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TypeClassID, ids.ExtensionClassID, ids.ProcedureClassID, ids.LanguageClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID, ids.TSConfigurationClassID:

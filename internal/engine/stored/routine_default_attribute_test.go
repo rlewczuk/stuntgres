@@ -318,7 +318,7 @@ func TestRoutineDefaultAttributeDefaultOnlyRemap(t *testing.T) {
 		},
 	})
 	remap := NewRoutineRemap(dest, mapping, typeMap, principal, false)
-	if err := routine.RebindSQLDefinitions(dest.State(), remap); err != nil {
+	if err := routine.RebindRoutineDefinitions(dest.State(), remap); err != nil {
 		t.Fatal(err)
 	}
 	if err := remap.Finish(); err != nil {

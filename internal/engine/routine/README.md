@@ -341,7 +341,7 @@ package or the engine.
   `alter.go`, `utility_identity.go`, `language.go`): `StageCreateFunction` binds checked defaults against the
   pre-declaration stage, then stages the declaration for body validation and
   self-recursion; Restore (`RestoreDirective`, `ReplayDirective`,
-  `RebindSQLDefinitions`) stabilizes all formal types before checked defaults.
+  `RebindRoutineDefinitions`) stabilizes all formal types before checked defaults.
   The private SQL-body directive leaves quoted source unchanged and defers its
   catalog-dependent analysis/result checks to reached invocation, including
   defaults invoked by replay data. Complete declaration parsing, checked
@@ -351,6 +351,10 @@ package or the engine.
   symbol.
 - **Ordinary, ordered-set, hypothetical and moving aggregates** (`aggregate_*.go`):
   stage genuine selected support routines with independent state/result types.
+  Eligibility and descriptor validation classify ordinary SQL/PL/host supports
+  through `RoutineDefinition()`, preserving the actual implementation token.
+  This permits registered concrete host scalars, not opaque INTERNAL state or
+  general aggregate-context implementations.
   Ordered declarations retain the direct/row split and canonical variadic
   identity. SFUNC receives state and row inputs; FINAL receives state, direct
   inputs and typed NULL row extras when requested. Support specialization never

@@ -151,7 +151,7 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 							t.Fatal("bootstrap remapped destination a second time", err)
 						}
 						if !typesOnly {
-							if err := routine.RebindSQLDefinitions(next, remap); err != nil {
+							if err := routine.RebindRoutineDefinitions(next, remap); err != nil {
 								t.Fatal("routine defaults before relation consumers", err)
 							}
 						}

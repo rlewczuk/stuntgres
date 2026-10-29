@@ -66,7 +66,7 @@ func TestPLpgSQLDiagnosticsRemapOwnership(t *testing.T) {
 	program := definition.PL
 	variables := append([]proc.PLVariable(nil), program.Variables...)
 	remap := NewRoutineRemap(read, mapping, mapType, nil, false)
-	if err := routine.RebindSQLDefinitions(read.State(), remap); err != nil {
+	if err := routine.RebindRoutineDefinitions(read.State(), remap); err != nil {
 		t.Fatal(err)
 	}
 	next, ok := read.Procedure(source.Address())

@@ -70,6 +70,11 @@ long-scalar and key-comparison cancellation remains independent.
   native Unicode APIs and immutable stored datums are not reinterpreted.
   Binary containers recurse through the same environment for textual leaves,
   keeping framing words, numeric fields, bytea and internal CHAR opaque.
+- `OwnedHstoreEntries` projects an exact genuine hstore descriptor generation
+  into a fresh plain entry slice. `HstoreFromEntries` validates the untrusted
+  carrier and constructs fresh private immutable pairs, preserving SQL NULL
+  versus empty nonnull values versus null entries. Neither lends SQL backing to
+  application converters or implements a text/cast substitute.
 - `Builtins()` returns a new builtin generation on every call: a copy of a
   template built once (`builtin_template.go`) whose descriptor pointers are
   moved into the copy. A new descriptor-pointer field must be listed in

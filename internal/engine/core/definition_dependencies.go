@@ -56,6 +56,10 @@ func visitDefinitionProviders(view catalog.Read, d catalog.Descriptor, visit fun
 	var family, left, right, method, implementation, sort ids.OID
 	var owner ids.ObjectAddress
 	switch d := d.(type) {
+	case *catalog.Transform:
+		var err error
+		d.Dependencies(func(address ids.ObjectAddress) bool { err = visit(address); return err == nil })
+		return err
 	case *catalog.Language:
 		if d.Procedural {
 			for _, handler := range [...]ids.ObjectAddress{d.Call, d.Inline, d.Validator} {

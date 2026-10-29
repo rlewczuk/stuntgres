@@ -770,6 +770,11 @@ database identity while retaining other databases' committed subscriptions.
   position, count as a receipt. `Finish` rejects unconsumed markers and an
   unfinished context. The state machine holds nothing; its hook entries keep
   their table positions, so error precedence is unchanged.
+  Checked routine defaults are collected through the common declaration input
+  layout, including compiled-host declarations. Comparison and retained cast
+  windows belong to that declaration, not to a caller omitting its argument.
+  The shared expression visitor validates the actual host default receipt;
+  SQL-standard body collection remains SQL-specific.
 
 ### Host contract
 

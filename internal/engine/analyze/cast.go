@@ -160,7 +160,7 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 		rawArgs = append(rawArgs, parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: mode == sqltype.Explicit, Pos: pos}})
 	}
 	var result expr.Expr
-	if p.SQL != nil {
+	if p.RoutineDefinition() != nil {
 		ref := b.Host.CatalogOwner().Domain.Ref(view.Epoch(), p.Address())
 		b.dependency(ref, p.Revision())
 		r, _ := view.LookupType(sqltype.ID(p.Result))
@@ -174,7 +174,7 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 		for slot := range assembly {
 			assembly[slot] = plan.RoutineInput{Start: slot, Count: 1}
 		}
-		node := plan.SQLRoutineExpr{Info: ri, Procedure: p, Ref: ref, Args: args, WrittenCount: len(args), InputMap: assembly, Signature: proc.InvocationSignature{Inputs: p.SQL.Inputs, Result: ri.Usage}}
+		node := plan.SQLRoutineExpr{Info: ri, Procedure: p, Ref: ref, Args: args, WrittenCount: len(args), InputMap: assembly, Signature: proc.InvocationSignature{Inputs: p.RoutineDefinition().Inputs, Result: ri.Usage}}
 		node, err = node.Collate(b.CollatedInfo)
 		if err != nil {
 			return nil, true, err
@@ -191,7 +191,7 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 	}
 	if raw != nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 		ns := view.Get(p.Namespace()).Name()
-		frozen := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns}, {Text: p.Name()}}}, Args: rawArgs, Pos: pos, StoredSQLRoutine: p.SQL != nil || p.RangeConstructor != nil}
+		frozen := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns}, {Text: p.Name()}}}, Args: rawArgs, Pos: pos, StoredSQLRoutine: p.RoutineDefinition() != nil || p.RangeConstructor != nil}
 		if b.Stored.Syntax == nil {
 			b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 		}

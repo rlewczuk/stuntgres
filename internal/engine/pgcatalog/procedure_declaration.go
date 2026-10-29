@@ -24,12 +24,12 @@ type ProcedureFormal struct {
 }
 
 func VisitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes sqltype.Value, visit func(ProcedureFormal) error) error {
-	if d.SQL != nil {
-		if len(d.SQL.Formals) != len(d.SQL.FormalInputs) || len(d.SQL.Inputs) != len(d.SQL.InputFormals) {
+	if d.RoutineDefinition() != nil {
+		if len(d.RoutineDefinition().Formals) != len(d.RoutineDefinition().FormalInputs) || len(d.RoutineDefinition().Inputs) != len(d.RoutineDefinition().InputFormals) {
 			return fmt.Errorf("stuntgres: invalid routine formal layout")
 		}
 		input := 0
-		for i, f := range d.SQL.Formals {
+		for i, f := range d.RoutineDefinition().Formals {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
@@ -48,14 +48,14 @@ func VisitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes
 			default:
 				return fmt.Errorf("stuntgres: invalid routine formal mode")
 			}
-			if d.SQL.FormalInputs[i] != slot || slot >= 0 && (slot >= len(d.SQL.InputFormals) || d.SQL.InputFormals[slot] != i || d.SQL.Inputs[slot] != f.Usage) {
+			if d.RoutineDefinition().FormalInputs[i] != slot || slot >= 0 && (slot >= len(d.RoutineDefinition().InputFormals) || d.RoutineDefinition().InputFormals[slot] != i || d.RoutineDefinition().Inputs[slot] != f.Usage) {
 				return fmt.Errorf("stuntgres: invalid routine input projection")
 			}
 			if err := visit(ProcedureFormal{ids.OID(f.Usage.Type.ID()), f.Usage, f.Mode, i, slot, f.HasDefault}); err != nil {
 				return err
 			}
 		}
-		if input != len(d.SQL.Inputs) {
+		if input != len(d.RoutineDefinition().Inputs) {
 			return fmt.Errorf("stuntgres: invalid routine input count")
 		}
 		return nil
@@ -163,10 +163,10 @@ func (n ProcedureNames) At(i int) string {
 }
 func ProcedureNameProjection(view catalog.Read, d *catalog.Procedure) (ProcedureNames, error) {
 	n := ProcedureNames{count: int(ProcedureArity(d))}
-	if d.SQL != nil {
-		n.sql = d.SQL
-		n.count = len(d.SQL.Formals)
-		for _, f := range d.SQL.Formals {
+	if d.RoutineDefinition() != nil {
+		n.sql = d.RoutineDefinition()
+		n.count = len(d.RoutineDefinition().Formals)
+		for _, f := range d.RoutineDefinition().Formals {
 			n.present = n.present || f.Name != ""
 		}
 	} else if d.Aggregate != nil && len(d.Aggregate.ArgumentNames) > 0 {

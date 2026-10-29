@@ -151,7 +151,7 @@ func (h RoutineHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input
 // Defaults never share quoted-body replay deferral. Their legitimate stage
 // includes prior staged objects, but not the declaration currently being built.
 func (h RoutineHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw []parser.RoutineParameter, input sqltype.InputEnvironment) error {
-	if d.SQL.DefaultCount() == 0 {
+	if d.RoutineDefinition().DefaultCount() == 0 {
 		return nil
 	}
 	previous := h.Op.Definition
@@ -162,13 +162,13 @@ func (h RoutineHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw 
 	b := core.NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
 	b.Query.Auth = &auth
 	b.Params.NoParameters = true
-	entries := make([]expr.Expr, len(d.SQL.Inputs))
+	entries := make([]expr.Expr, len(d.RoutineDefinition().Inputs))
 	for formal, syntax := range raw {
 		if syntax.Default == nil {
 			continue
 		}
-		slot := d.SQL.FormalInputs[formal]
-		node, err := b.BindRoutineDefault(syntax.Default, d.SQL.Inputs[slot])
+		slot := d.RoutineDefinition().FormalInputs[formal]
+		node, err := b.BindRoutineDefault(syntax.Default, d.RoutineDefinition().Inputs[slot])
 		if err != nil {
 			return err
 		}

@@ -532,7 +532,7 @@ func ValidateACL(r authorization.Read, d catalog.Descriptor) error {
 			}
 			return r.ValidatePrincipal(t.MappedRole)
 		}
-	case *catalog.AccessMethod, *catalog.Cast, *catalog.TSTemplate, *catalog.TSParser, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+	case *catalog.AccessMethod, *catalog.Cast, *catalog.Transform, *catalog.TSTemplate, *catalog.TSParser, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		return nil
 	}
 	owner, acl, cols := DescriptorACL(d)

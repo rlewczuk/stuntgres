@@ -62,6 +62,11 @@ func currentRoutineDeclaration(view catalog.Read, captured *catalog.Procedure) (
 	if !ok || !SameRoutineDeclaration(current, captured) {
 		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
 	}
+	if current.Host != nil || current.HostHandler != nil {
+		if err := catalog.ValidateHostProcedure(view, current); err != nil {
+			return nil, err
+		}
+	}
 	if current.SQL != nil {
 		language, exists := view.Get(current.Language).(*catalog.Language)
 		if !exists || (catalog.LanguageProvider{}).Validate(view, language) != nil {
@@ -99,6 +104,7 @@ func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.Display == captured.Display && current.Language == captured.Language && current.PLHandler == captured.PLHandler &&
 		current.DeclarationBody == captured.DeclarationBody &&
 		slices.Equal(current.DeclarationDependencies, captured.DeclarationDependencies) &&
+		sameHostRoutine(current.Host, captured.Host) && current.HostHandler == captured.HostHandler && current.HostConversion == captured.HostConversion &&
 		current.Conversion == captured.Conversion && current.SQL == captured.SQL && current.SQLBody == captured.SQLBody &&
 		current.SQLDefaults == captured.SQLDefaults && current.RangeConstructor == captured.RangeConstructor && sameRoutineOrigin(current, captured) &&
 		current.LiteralDefaults == captured.LiteralDefaults && current.InputNames == captured.InputNames &&
@@ -221,4 +227,11 @@ func WalkRoutineBody(outer *catalog.Procedure, node expr.Expr, visit func(*catal
 		}
 	}
 	return nil
+}
+
+func sameHostRoutine(a, b *catalog.HostRoutine) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Program == b.Program && a.Layout == b.Layout && slices.Equal(a.Converters, b.Converters) && slices.Equal(a.Pairs, b.Pairs) && slices.Equal(a.Tokens, b.Tokens)
 }

@@ -35,6 +35,11 @@ results, with explicit known-nullable native metadata and unchanged pq unknown
 nullability. `attributesTextBoth` keeps computed nullability unknown for wrappers,
 identity casts and user-routine results; profiles are selected by the caller, not
 by inspecting SQL text.
+`TestReferenceRoutineAttributesStrictPlanExecuteDemand` distinguishes planner-known
+literal/custom-bound NULL elimination from generic parameter invocation demand for
+both SQL and PL/pgSQL routines. Direct and same-held consumers check live EXECUTE
+revocation/regrant, exact admission diagnostics and genuine body effects. Run its
+anchored selector with `REFERENCE=1` first, then native.
 
 Routine formal-catalog scenarios read the complete represented non-IN builtin
 roster and explicit all-IN counterexamples through direct and prepared queries.

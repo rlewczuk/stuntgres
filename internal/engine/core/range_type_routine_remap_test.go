@@ -41,7 +41,7 @@ func rangeTypeUnitRemappedConstructor(t *testing.T) (*core.Engine, *catalog.Proc
 	}
 	view := target.Catalog.Read(next)
 	remap := stored.NewRoutineRemap(view, nil, nil, principal, false)
-	if err := routine.RebindSQLDefinitions(next, remap); err != nil {
+	if err := routine.RebindRoutineDefinitions(next, remap); err != nil {
 		t.Fatal("constructor declaration stabilization reapplied source principal policy", err)
 	}
 	current := next.MustProcedure(original.Address())

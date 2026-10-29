@@ -84,15 +84,15 @@ func (p *RoutineDefaults) DefaultSQL(ctx context.Context, view catalog.Read, slo
 	return (ScalarRenderer{RoutineDefault: true, CapturedChecks: p.dependencies}).SQL(ctx, view, node)
 }
 func (p *RoutineDefaults) ValidateDefinition(d *catalog.Procedure) error {
-	if d.SQL == nil || len(d.SQL.Inputs) != len(p.entries) || len(d.SQL.InputFormals) != len(p.entries) {
+	if d.RoutineDefinition() == nil || len(d.RoutineDefinition().Inputs) != len(p.entries) || len(d.RoutineDefinition().InputFormals) != len(p.entries) {
 		return fmt.Errorf("invalid routine default layout")
 	}
-	for slot, formal := range d.SQL.InputFormals {
-		if formal < 0 || formal >= len(d.SQL.Formals) || !d.SQL.Formals[formal].Input() {
+	for slot, formal := range d.RoutineDefinition().InputFormals {
+		if formal < 0 || formal >= len(d.RoutineDefinition().Formals) || !d.RoutineDefinition().Formals[formal].Input() {
 			return fmt.Errorf("invalid routine default formal projection")
 		}
 		node, ok := p.Default(slot)
-		if ok != d.SQL.Formals[formal].HasDefault || ok && (sqltype.PolymorphicFamily(d.SQL.Inputs[slot].Type.ID()) == 0 && node.ResultUsage() != d.SQL.Inputs[slot] || !node.ResultUsage().Valid()) {
+		if ok != d.RoutineDefinition().Formals[formal].HasDefault || ok && (sqltype.PolymorphicFamily(d.RoutineDefinition().Inputs[slot].Type.ID()) == 0 && node.ResultUsage() != d.RoutineDefinition().Inputs[slot] || !node.ResultUsage().Valid()) {
 			return fmt.Errorf("inconsistent routine declaration default")
 		}
 	}

@@ -71,10 +71,42 @@ and ATTACH conflicts, including failed replacement preservation.
 column-specific BEFORE hook alone and with an earlier broad hook, using exact
 direct/prepared final values rather than runtime changed-value inference.
 
+Compiled host-routine scenarios share independently specified object/null,
+authority, failure and cancellation outcomes with actual PL/Python scalar and
+hstore dict programs on the pinned oracle. Native setup explicitly registers real
+compiled Go programs and directional primitive/map/default converters; it does not
+interpret Python or execute TRANSFORM SQL. Primitive witnesses include ordered
+multiargument frames, range/text rejection, raw metadata, held-handle recovery and
+fresh-Driver replay. Compatible ordinary aggregate support consumes the same
+compiled scalar definition. Registration, carrier corruption, reentry,
+retained-object ownership and native logical-control phases remain distinct from
+the shared Python bodies.
+
+`TestReferenceRoutineHostCheckedDefaultReplay` installs genuine hstore in
+`host_types` and checks a host NULLIF default's implicit equality environment,
+explicit versus omitted caller ownership, default entry-list conversion, ACLs,
+and direct/SAME-held execution. An old INOUT assignment cast to text and a fresh
+function-backed implicit cast produce independently expected canonical versus
+`new:` results. Native controls inspect real declaration windows and replay
+twice through matching fresh Drivers, retaining held handles across replacement.
+`TestHostCheckedDefaultExpressionOwnership` in the private core suite supplements
+this public witness with genuine installed layouts, shared visitor receipts and
+actual cross-catalog RoutineRemap/RebindRoutineDefinitions ownership assertions.
+
+Primitive error witnesses keep language conversion behavior distinct from the Go
+carrier boundary: the pinned PL/Python text converter truncates returned embedded
+NUL text, whereas the native typed carrier rejects NUL and invalid UTF8 before
+publication. Recoverable conversion errors use malformed numeric text and a
+surrogate Unicode result. A Python class whose `__str__` raised an exception
+terminated the oracle backend during discovery; that upstream crash is retained
+in verification evidence, not rerun or presented as a recoverable SQL diagnostic
+or a native-runtime failure.
+
+
 ## Testing
 
-Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
-`fixture.Main(m)`.
+Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` opts into
+`fixture.WithHostPython()` provider provisioning for the genuine oracle cohort.
 
 - Helpers: `user_operator_execution_test.go` (`userOperatorScenario`,
   `userOperatorExec`, `userOperatorValue`, `userOperatorError`),
@@ -83,6 +115,20 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   helpers `castDefinitionSource`, `castDefinitionScore`, `castDefinitionEdge`,
   `castDefinitionCleanup`, `castDefinitionFrozenReplayChecks` and
   `castDefinitionReplaySQL`, which stay private to this package.
+- Host helpers: `hostScenario`/`hostNativeScenario`, `hostFunction`, `hostBag`,
+  `hostMetadata` and the distinct SQL/Python diagnostic versus native ABI error
+  helpers. Primitive scenarios use `hostPrimitiveDefinition`,
+  `hostPrimitiveScenario`, `hostPrimitiveFunction` and `hostPrimitiveMetadata`;
+  their registration has no hstore bootstrap dependency. The definition returns
+  fresh slices and supplies checked integer programs and actual bool/int64/string
+  conversions. Aggregate scenarios register that same definition through the
+  ordinary configured fixture. Use `make check RUN='^TestReferenceRoutineHost'` and the same selector
+  with `REFERENCE=1`; selected native concurrency controls also use `RACE=1`.
+  Fresh registration/replay controls use `hostNativePools`: the raw pool owns
+  public Dump/Restore operations, while SQL assertions and held statements use
+  the recorded backend over that same connector. Carry that backend's recorder
+  through nested replay checks; never reuse the source fixture's recorder for
+  an independent Driver.
 - Trigger helpers: `triggerScenario`/`triggerDDLScenario` own configured-backend
   loops, `triggerSetup` and `triggerDDLChain` provide shared definitions, and
   `triggerRows`, `triggerDDLHeld`, `triggerDDLError` and `triggerDDLX` assert
@@ -294,3 +340,19 @@ Capture/cursor status witnesses retain late conversion/cardinality boundaries:
 completed query frames are absent from those errors while status and target
 semantics remain unchanged. Private live-owner coverage observes actual static
 producer Begin/Next/End alongside dynamic execution and operand owners.
+
+The host-runtime native controls additionally distinguish real supplied FROM,
+handler, program, TO and SQL-carrier failures from Python's complete diagnostic
+records. They assert rollback of prior statement effects and settings, recovery
+through the original held handle, and actual cancellation before normal COMMIT:
+absence/original-callable assertions precede any explicit cleanup rollback.
+Persistence includes two fresh-driver round trips preserving missing/default
+directions, an alias predating a dropped direction (no pair) versus one created
+after it (the current surviving TO-only pair), renamed/retired registered
+providers, and atomic rejection of corrupt native absence boundaries.
+
+Host HSTORE metadata checks select computed expressions (including zero-row and
+strict-null projections). Like the existing hstore metadata family, both native
+and PostgreSQL report unknown computed nullability (`false,false`); declared
+table/view column nullability remains a separate contract. Type name, scan/raw
+carrier, labels, length and decimal metadata retain their exact backend checks.

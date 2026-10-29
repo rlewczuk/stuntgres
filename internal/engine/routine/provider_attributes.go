@@ -10,7 +10,7 @@ import (
 // execution clause promises runtime support. SQL/PL and checked installed native
 // trigger bodies own the shared environment; provider names grant no capability.
 func checkRoutineProviderAttributes(d *catalog.Procedure, attributes []parser.RoutineAttribute) error {
-	if d.SQL != nil {
+	if d.RoutineDefinition() != nil {
 		return nil
 	}
 	for _, attribute := range attributes {

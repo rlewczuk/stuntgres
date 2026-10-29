@@ -28,6 +28,10 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 	if err := fdw.RebindReplacementProviders(e.Catalog.Current(), e.Foreign, state); err != nil {
 		return nil, nil, err
 	}
+	mapHost, err := e.hostReplacementMapper(state)
+	if err != nil {
+		return nil, nil, err
+	}
 	var foreignTokens map[*catalog.ForeignProcedure]*catalog.ForeignProcedure
 	if len(foreignOriginals) != 0 {
 		foreignTokens = make(map[*catalog.ForeignProcedure]*catalog.ForeignProcedure, len(foreignOriginals))
@@ -41,8 +45,14 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 	var graph catalog.ProcedureRemapper
 	policy.Procedure = func(original *catalog.Procedure) (*catalog.Procedure, error) {
 		mapped, err := graph(original)
-		if err != nil || mapped == nil || original.Foreign == nil {
+		if err != nil || mapped == nil {
 			return mapped, err
+		}
+		if err = mapHost(mapped); err != nil {
+			return nil, err
+		}
+		if original.Foreign == nil {
+			return mapped, nil
 		}
 		destination := foreignTokens[original.Foreign]
 		if destination == nil {
@@ -80,6 +90,9 @@ func (e *Engine) RestoreStage() *Engine {
 		panic(err)
 	}
 	if err := stage.InstallForeignDefinitions(e.Foreign.Definitions()); err != nil {
+		panic(err)
+	}
+	if err := stage.InstallHostDefinitions(e.Catalog.HostRuntimes); err != nil {
 		panic(err)
 	}
 	stage.ImportTargets = stage.RoleStore.InstallCapture(sourceRoles)

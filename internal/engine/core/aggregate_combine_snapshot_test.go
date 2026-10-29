@@ -60,8 +60,8 @@ func (h *aggregateSnapshotHost) CTEInvocation() *exec.CTEInvocation {
 	return h.StatementHost.CTEInvocation()
 }
 
-func (h *aggregateSnapshotHost) InvokeAggregateSQLRoutine(ctx context.Context, d *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
-	value, err := h.StatementHost.InvokeAggregateSQLRoutine(&aggregateSnapshotContext{Context: ctx, host: h}, d, frame, usage, owner, collation)
+func (h *aggregateSnapshotHost) InvokeAggregateRoutine(ctx context.Context, d *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
+	value, err := h.StatementHost.InvokeAggregateRoutine(&aggregateSnapshotContext{Context: ctx, host: h}, d, frame, usage, owner, collation)
 	if h.active.Load() {
 		h.restoreOnce.Do(func() { close(h.restored) })
 	}
@@ -88,7 +88,7 @@ func (c *aggregateSnapshotContext) Err() error {
 		for {
 			frame, more := frames.Next()
 			sleep = sleep || strings.Contains(frame.Function, "datetimeSleepWaitRemaining")
-			support = support || strings.Contains(frame.Function, "InvokeAggregateSQLRoutine")
+			support = support || strings.Contains(frame.Function, "InvokeAggregateRoutine")
 			partition = partition || strings.Contains(frame.Function, "runAggregatePartition")
 			if !more {
 				break
@@ -396,7 +396,7 @@ func aggregateParallelInvocationOutcome(t *testing.T, outcomeKind string) {
 			if cut := strings.Index(stack, "\ncreated by "); cut >= 0 {
 				stack = stack[:cut]
 			}
-			if strings.Contains(stack, "datetimeSleepWaitRemaining") && strings.Contains(stack, "InvokeAggregateSQLRoutine") && strings.Contains(stack, "runAggregatePartition") {
+			if strings.Contains(stack, "datetimeSleepWaitRemaining") && strings.Contains(stack, "InvokeAggregateRoutine") && strings.Contains(stack, "runAggregatePartition") {
 				active = true
 				break
 			}

@@ -37,7 +37,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		return err
 	}
 	if createdRemap && !typesOnly {
-		if err := routine.RebindSQLDefinitions(next, routineRemap); err != nil {
+		if err := routine.RebindRoutineDefinitions(next, routineRemap); err != nil {
 			return err
 		}
 	}
@@ -58,7 +58,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		return retag(node)
 	}
 	if typesOnly {
-		if err := reownSQLRoutineTypes(view, next, typ, routineRemap); err != nil {
+		if err := reownRoutineTypes(view, next, typ, routineRemap); err != nil {
 			return err
 		}
 	}

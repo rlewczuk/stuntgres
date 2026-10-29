@@ -5,7 +5,6 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -90,45 +89,9 @@ func procedureRow(in Input, d *catalog.Procedure) ([]sqltype.Value, error) {
 	integer(procOwner, int64(d.Owner.ID()))
 	integer(procNArgs, ProcedureArity(d))
 	integer(procResult, int64(d.Result))
-	language := ""
-	switch d.Display.Language {
-	case catalog.InternalRoutineLanguage:
-		language = "internal"
-	case catalog.CRoutineLanguage:
-		language = "c"
-	case catalog.SQLRoutineLanguage:
-		language = "sql"
-	case catalog.PLpgSQLRoutineLanguage:
-		language = "plpgsql"
-	case catalog.GoRoutineLanguage:
-		// Native callbacks have no PostgreSQL language. This is the established
-		// native-only sentinel, never a fallback for a missing SQL language.
-	default:
-		return nil, fmt.Errorf("stuntgres: missing routine display language")
-	}
-	languageAddress := d.Language
-	if languageAddress == (ids.ObjectAddress{}) {
-		// Native declaration display names are released labels, not lookup
-		// keys: those fixed global identities survive ALTER LANGUAGE RENAME.
-		switch d.Display.Language {
-		case catalog.InternalRoutineLanguage:
-			languageAddress = ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 12}
-		case catalog.CRoutineLanguage:
-			languageAddress = ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 13}
-		case catalog.SQLRoutineLanguage:
-			languageAddress = ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 14}
-		}
-	}
-	if language != "" {
-		owned, ok := view.Get(languageAddress).(*catalog.Language)
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing routine declaration language")
-		}
-		if err := (catalog.LanguageProvider{}).Validate(view, owned); err != nil {
-			return nil, err
-		}
-	} else if languageAddress != (ids.ObjectAddress{}) {
-		return nil, fmt.Errorf("stuntgres: native routine has SQL language")
+	languageAddress, languageErr := catalog.ProcedureLanguageAddress(view, d)
+	if languageErr != nil {
+		return nil, languageErr
 	}
 	integer(procLanguage, int64(languageAddress.ObjectID))
 	vol := "v"

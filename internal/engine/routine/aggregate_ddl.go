@@ -363,7 +363,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 		if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, selected.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 			return err
 		}
-		if selected.SQL == nil && (selected.Builtin == nil || selected.Builtin.Providers == 0) && selected.Implementation == nil && !aggregateInternalSupport(selected, slot) {
+		if selected.RoutineDefinition() == nil && (selected.Builtin == nil || selected.Builtin.Providers == 0) && selected.Implementation == nil && !aggregateInternalSupport(selected, slot) {
 			return sqlError("0A000", "aggregate "+label+" function has no native implementation")
 		}
 		definition.Functions[slot] = selected.Address().ObjectID
@@ -406,7 +406,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 		if final.Strict && definition.FinalExtra {
 			return sqlError("42P13", "final function with extra arguments must not be declared STRICT")
 		}
-		if final.SQL == nil && (final.Builtin == nil || final.Builtin.Providers == 0) && final.Implementation == nil {
+		if final.RoutineDefinition() == nil && (final.Builtin == nil || final.Builtin.Providers == 0) && final.Implementation == nil {
 			return sqlError("0A000", "aggregate final function has no native implementation")
 		}
 		if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, final.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
@@ -430,7 +430,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	if inputs[0].Type.ID() == 2281 && !functions.IsAggregateContextSupport(uint32(function.Address().ObjectID)) && !aggregateInternalSupport(function, 0) {
 		return sqlError("0A000", "aggregate transition function has no aggregate-context implementation")
 	}
-	if function.SQL == nil && (function.Builtin == nil || function.Builtin.Providers == 0) && function.Implementation == nil && !aggregateInternalSupport(function, 0) {
+	if function.RoutineDefinition() == nil && (function.Builtin == nil || function.Builtin.Providers == 0) && function.Implementation == nil && !aggregateInternalSupport(function, 0) {
 		return sqlError("0A000", "aggregate transition function has no native implementation")
 	}
 	if movingSyntax.Name != "" {
@@ -454,7 +454,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 					return nil, result, sqlError("42804", "function "+diagnostic+" requires run-time type coercion")
 				}
 			}
-			if selected.SQL == nil && (selected.Builtin == nil || selected.Builtin.Providers == 0) && selected.Implementation == nil {
+			if selected.RoutineDefinition() == nil && (selected.Builtin == nil || selected.Builtin.Providers == 0) && selected.Implementation == nil {
 				return nil, result, sqlError("0A000", "aggregate support function has no native implementation")
 			}
 			e = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, selected.Address()), Privileges: authorization.ExecutePrivilege})

@@ -59,7 +59,7 @@ import this package directly.
   | `recursive_worktable_factor` | Logical worktable cardinality from that recursive definition's seed estimate, not its execution loop. |
   | `from_collapse_limit` | Exact stored value; derived-query flattening/pullup is absent. |
   | `join_collapse_limit` | Exact stored value; join reorder/search is absent. Written join trees and existing equality-hash execution remain. |
-  | `plan_cache_mode` | Exact stored value; no generic/custom optimizer chooser. Prepared definitions, accepted resources and immutable folds retain their existing ownership. |
+  | `plan_cache_mode` | `force_generic_plan` preserves call-site demand against imported parameter-NULL pruning; literal/custom pruning remains unchanged. No generic/custom optimizer chooser or new plan cache. Prepared definitions, accepted resources and immutable folds retain their existing ownership. |
   | `jit` | Exact stored permission; no native compiler/code generator or fictional JIT work. |
 
   Constraint Boolean aliases are hidden from enum metadata and hints. Collapse,

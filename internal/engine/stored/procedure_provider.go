@@ -17,16 +17,17 @@ import (
 
 // ProcedureProvider validates the procedure class. Routines installed by an
 // extension carry their implementation and are validated as extension
-// members; builtin, SQL, foreign and conversion routines are checked here.
+// members; builtin, SQL/PL, host, foreign and conversion routines are checked here.
 type ProcedureProvider struct{}
 
 func (ProcedureProvider) ClassID() ids.OID { return ids.ProcedureClassID }
 
 func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Procedure)
-	// Native installed trigger bodies also enter the shared routine environment;
-	// full installed provenance is still checked by the delegation below.
-	if ok && d.SQL == nil && !extension.StockInsertUsername.SupportsDMLTrigger(d) && (d.SecurityDefiner || d.Configuration != nil) {
+	// Executable SQL/PL, supplied host declarations and native installed trigger
+	// bodies enter the shared routine environment. Full installed provenance
+	// is still checked by the delegation below, before execution.
+	if ok && d.RoutineDefinition() == nil && !extension.StockInsertUsername.SupportsDMLTrigger(d) && (d.SecurityDefiner || d.Configuration != nil) {
 		return extension.InvalidProviderDescriptor()
 	}
 	if ok {
@@ -58,6 +59,26 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	}
 	if !ok {
 		return invalid()
+	}
+	if d.HostConversion != nil {
+		return catalog.ValidateHostConversion(v, d)
+	}
+	if d.Host != nil || d.HostHandler != nil {
+		if err := catalog.ValidateHostProcedure(v, d); err != nil {
+			return err
+		}
+		if d.Host != nil && d.SQLDefaults != nil {
+			if _, ok := d.SQLDefaults.(*RoutineDefaults); !ok {
+				return invalid()
+			}
+			if err := d.SQLDefaults.ValidateDefinition(d); err != nil {
+				return err
+			}
+			if err := d.SQLDefaults.Validate(v); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	if d.SQL == nil && len(d.DeclarationDependencies) != 0 {
 		return invalid()

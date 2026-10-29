@@ -54,7 +54,7 @@ func (b *Binder) SelectAggregateSupport(view catalog.Read, reader catalog.Defini
 				continue
 			}
 			// VARIADIC syntax asks the shared shape owner to retain its array formal.
-			raw.Variadic = d.SQL != nil || d.Builtin != nil && d.Builtin.Variadic != 0
+			raw.Variadic = d.RoutineDefinition() != nil || d.Builtin != nil && d.Builtin.Variadic != 0
 			candidate, ok := SQLCallableShape(view, reader, d, raw)
 			if !ok {
 				continue

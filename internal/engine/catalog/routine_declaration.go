@@ -34,8 +34,8 @@ type BuiltinRoutineDeclaration struct {
 // ReturnsSet describes the intrinsic result capability, independently of mutable
 // row estimates and the routine's current public name.
 func (d *Procedure) ReturnsSet() bool {
-	if d.SQL != nil {
-		return d.SQL.ReturnsSet
+	if d.RoutineDefinition() != nil {
+		return d.RoutineDefinition().ReturnsSet
 	}
 	if d.Builtin != nil {
 		return d.Builtin.ReturnsSet
@@ -52,7 +52,7 @@ func (d *Procedure) RowEstimate() float32 {
 	if d.Rows > 0 {
 		return d.Rows
 	}
-	if d.SQL != nil {
+	if d.RoutineDefinition() != nil {
 		return 1000
 	}
 	if d.Builtin != nil {

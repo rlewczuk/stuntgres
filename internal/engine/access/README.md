@@ -45,11 +45,11 @@ No parallel language-permission table or cached grant decision exists.
     inheritable role closure, preserves relation-kind absent ACL defaults and
     implicit owner options, and scans only live positive columns for any-column
     checks. Requested rights are not clipped to grant-admission class masks.
-  - Helpers: `DescriptorACL`, `ClassPrivileges`, `ValidateACL`. Global
-    access methods have no owner or ACL: `ValidateACL` classifies them with
-    the other ownerless descriptors, while their catalog provider validates
-    structural and handler authority. Owning descriptors reject every
-    zero or foreign principal.
+  - Helpers: `DescriptorACL`, `ClassPrivileges`, `ValidateACL`. Global access
+    methods and genuine type/language conversion pairs have no owner or ACL:
+    `ValidateACL` classifies them with the other ownerless descriptors, while
+    their catalog providers validate structural, handler and referenced-object
+    authority. Owning descriptors reject every zero or foreign principal.
 - **`Environment`**: the two session inputs of the checks.
   `TemporaryNamespace()` returns the session's own TEMP namespace, and
   `ReferencePath()` returns the search path that qualifies type names in

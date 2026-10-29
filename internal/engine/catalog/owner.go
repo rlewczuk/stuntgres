@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"stuntgres/internal/util"
@@ -23,7 +24,8 @@ type Owner struct {
 	Database ids.ObjectAddress
 	// Extensions is the registry of extension implementations. Like
 	// providers, it closes when construction ends.
-	Extensions map[string]ExtensionImplementation
+	Extensions   map[string]ExtensionImplementation
+	HostRuntimes []*host.Runtime
 	// seed holds the descriptors the builtin seed installed, except the
 	// database descriptor. FinishSeedLocked sets it once; see SeedIdentical.
 	seed util.PersistentMap[ids.ObjectAddress, Descriptor]

@@ -10,8 +10,8 @@ import (
 // Candidate maps are private and producer-free. Only supplied usages rank;
 // missing defaults are appended after the unique winner has been selected.
 func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader, d *catalog.Procedure, raw parser.FunctionExpr) (SQLCallable, bool) {
-	candidate := SQLCallable{Procedure: d, Inputs: make([]sqltype.Usage, len(raw.Args)), InputMap: make([]plan.RoutineInput, len(d.SQL.Inputs))}
-	for _, input := range d.SQL.Inputs {
+	candidate := SQLCallable{Procedure: d, Inputs: make([]sqltype.Usage, len(raw.Args)), InputMap: make([]plan.RoutineInput, len(d.RoutineDefinition().Inputs))}
+	for _, input := range d.RoutineDefinition().Inputs {
 		candidate.polymorphic = candidate.polymorphic || sqltype.PolymorphicFamily(input.Type.ID()) != 0 || input.Type.ID() == 2249
 	}
 	for i := range candidate.InputMap {
@@ -19,15 +19,15 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 	}
 	// CALL projects declaration positions for every kind before selecting a
 	// winner. Execution still receives only genuine input slots.
-	count := len(d.SQL.InputFormals)
+	count := len(d.RoutineDefinition().InputFormals)
 	if raw.ProcedureCall {
-		count = len(d.SQL.Formals)
+		count = len(d.RoutineDefinition().Formals)
 	}
 	formalAt := func(position int) int {
 		if raw.ProcedureCall {
 			return position
 		}
-		return d.SQL.InputFormals[position]
+		return d.RoutineDefinition().InputFormals[position]
 	}
 	sources := candidate.InputMap
 	if count != len(sources) {
@@ -39,7 +39,7 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 	variadic := -1
 	var variadicElement sqltype.Usage
 	for position := range count {
-		formal := d.SQL.Formals[formalAt(position)]
+		formal := d.RoutineDefinition().Formals[formalAt(position)]
 		if formal.Mode == "v" {
 			variadic = position
 			switch formal.Usage.Type.ID() {
@@ -76,7 +76,7 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 		if label != "" {
 			slot = -1
 			for position := range count {
-				if d.SQL.Formals[formalAt(position)].Name == label {
+				if d.RoutineDefinition().Formals[formalAt(position)].Name == label {
 					slot = position
 					break
 				}
@@ -91,7 +91,7 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 			return candidate, false
 		}
 		source := &sources[slot]
-		usage := d.SQL.Formals[formalAt(slot)].Usage
+		usage := d.RoutineDefinition().Formals[formalAt(slot)].Usage
 		if slot == variadic && !raw.Variadic {
 			if label != "" {
 				return candidate, false
@@ -121,16 +121,16 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 	}
 	for position, source := range sources {
 		formal := formalAt(position)
-		if source.Start < 0 && !d.SQL.Formals[formal].HasDefault {
+		if source.Start < 0 && !d.RoutineDefinition().Formals[formal].HasDefault {
 			return candidate, false
 		}
-		if input := d.SQL.FormalInputs[formal]; input >= 0 {
+		if input := d.RoutineDefinition().FormalInputs[formal]; input >= 0 {
 			candidate.InputMap[input] = source
 		}
 	}
 	if raw.ProcedureCall {
-		candidate.OutputMap = make([]plan.RoutineInput, len(d.SQL.OutputFormals))
-		for i, formal := range d.SQL.OutputFormals {
+		candidate.OutputMap = make([]plan.RoutineInput, len(d.RoutineDefinition().OutputFormals))
+		for i, formal := range d.RoutineDefinition().OutputFormals {
 			candidate.OutputMap[i] = sources[formal]
 		}
 	}

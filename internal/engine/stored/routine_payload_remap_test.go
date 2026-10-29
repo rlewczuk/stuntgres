@@ -57,7 +57,7 @@ func TestRoutineHistoricalPayloadRemap(t *testing.T) {
 		return old
 	}
 	remap := NewRoutineRemap(read, mapping, typ, nil, false)
-	if err := routine.RebindSQLDefinitions(read.State(), remap); err != nil {
+	if err := routine.RebindRoutineDefinitions(read.State(), remap); err != nil {
 		t.Fatal(err)
 	}
 	captured, err := remap.Procedure(original)

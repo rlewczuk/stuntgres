@@ -22,7 +22,7 @@ func (v *View) SQLRoutineRecipeProcedure(read catalog.Read, path analyze.ViewLit
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen SQL routine reference")
 	}
 	d, ok := read.Procedure(ref.Address)
-	if !ok || d.SQL == nil && d.RangeConstructor == nil || len(raw.Name.Parts) != 2 {
+	if !ok || d.RoutineDefinition() == nil && d.RangeConstructor == nil || len(raw.Name.Parts) != 2 {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen SQL routine procedure")
 	}
 	if _, valid := analyze.SQLCallableShape(read, nil, d, raw); !valid {
@@ -203,36 +203,36 @@ func (v *QueryRenderer) aggregateRecipeName(read catalog.Read, path analyze.View
 }
 
 func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation func(sqltype.CollationRef) (sqltype.CollationRef, error)) (bool, error) {
-	if current.SQL == nil || captured.SQL == nil || current.Strict != captured.Strict || current.Display != captured.Display || current.SQL.Kind != captured.SQL.Kind || current.SQL.Invocation != captured.SQL.Invocation || current.PLHandler != captured.PLHandler || current.SQL.Standard != captured.SQL.Standard || current.SQL.Source != captured.SQL.Source || !slices.Equal(current.SQL.Names, captured.SQL.Names) || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
+	if current.RoutineDefinition() == nil || captured.RoutineDefinition() == nil || current.Strict != captured.Strict || current.Display != captured.Display || current.RoutineDefinition().Kind != captured.RoutineDefinition().Kind || current.RoutineDefinition().Invocation != captured.RoutineDefinition().Invocation || current.PLHandler != captured.PLHandler || current.RoutineDefinition().Standard != captured.RoutineDefinition().Standard || current.RoutineDefinition().Source != captured.RoutineDefinition().Source || !slices.Equal(current.RoutineDefinition().Names, captured.RoutineDefinition().Names) || len(current.RoutineDefinition().Inputs) != len(captured.RoutineDefinition().Inputs) {
 		return false, nil
 	}
-	if current.SQL.StandardReturn != captured.SQL.StandardReturn {
+	if current.RoutineDefinition().StandardReturn != captured.RoutineDefinition().StandardReturn {
 		return false, nil
 	}
 	if current.Volatility != captured.Volatility || current.SecurityDefiner != captured.SecurityDefiner || current.Parallel != captured.Parallel || current.Cost != captured.Cost || current.Rows != captured.Rows || !catalog.SameRoutineConfiguration(current.Configuration, captured.Configuration) {
 		return false, nil
 	}
-	if current.SQL.Procedure != captured.SQL.Procedure || current.SQL.ReturnsSet != captured.SQL.ReturnsSet || current.SQL.TableResult != captured.SQL.TableResult {
+	if current.RoutineDefinition().Procedure != captured.RoutineDefinition().Procedure || current.RoutineDefinition().ReturnsSet != captured.RoutineDefinition().ReturnsSet || current.RoutineDefinition().TableResult != captured.RoutineDefinition().TableResult {
 		return false, nil
 	}
-	if captured.SQL.Standard && !slices.Equal(current.SQL.Statements, captured.SQL.Statements) {
+	if captured.RoutineDefinition().Standard && !slices.Equal(current.RoutineDefinition().Statements, captured.RoutineDefinition().Statements) {
 		return false, nil
 	}
-	result := typ(captured.SQL.Result.Type)
-	if result == nil || result.ID() != current.SQL.Result.Type.ID() {
+	result := typ(captured.RoutineDefinition().Result.Type)
+	if result == nil || result.ID() != current.RoutineDefinition().Result.Type.ID() {
 		return false, nil
 	}
-	for i, input := range captured.SQL.Inputs {
+	for i, input := range captured.RoutineDefinition().Inputs {
 		mapped := typ(input.Type)
-		if mapped == nil || mapped.ID() != current.SQL.Inputs[i].Type.ID() {
+		if mapped == nil || mapped.ID() != current.RoutineDefinition().Inputs[i].Type.ID() {
 			return false, nil
 		}
 	}
-	if len(current.SQL.Formals) != len(captured.SQL.Formals) {
+	if len(current.RoutineDefinition().Formals) != len(captured.RoutineDefinition().Formals) {
 		return false, nil
 	}
-	for i, formal := range captured.SQL.Formals {
-		next := current.SQL.Formals[i]
+	for i, formal := range captured.RoutineDefinition().Formals {
+		next := current.RoutineDefinition().Formals[i]
 		mapped := typ(formal.Usage.Type)
 		if mapped == nil || mapped.ID() != next.Usage.Type.ID() || formal.Mode != next.Mode || formal.Name != next.Name || formal.HasDefault != next.HasDefault {
 			return false, nil
@@ -249,18 +249,18 @@ func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltyp
 			return false, nil
 		}
 	}
-	if (current.SQL.PL == nil) != (captured.SQL.PL == nil) {
+	if (current.RoutineDefinition().PL == nil) != (captured.RoutineDefinition().PL == nil) {
 		return false, nil
 	}
-	if captured.SQL.PL != nil {
-		if !captured.SQL.PL.SameLayout(current.SQL.PL) {
+	if captured.RoutineDefinition().PL != nil {
+		if !captured.RoutineDefinition().PL.SameLayout(current.RoutineDefinition().PL) {
 			return false, nil
 		}
-		if len(current.SQL.PL.Variables) != len(captured.SQL.PL.Variables) {
+		if len(current.RoutineDefinition().PL.Variables) != len(captured.RoutineDefinition().PL.Variables) {
 			return false, nil
 		}
-		for i, variable := range captured.SQL.PL.Variables {
-			next := current.SQL.PL.Variables[i]
+		for i, variable := range captured.RoutineDefinition().PL.Variables {
+			next := current.RoutineDefinition().PL.Variables[i]
 			if variable.Name != next.Name || variable.Record != next.Record || variable.Constant != next.Constant || variable.NotNull != next.NotNull || variable.InheritInputCollation != next.InheritInputCollation {
 				return false, nil
 			}

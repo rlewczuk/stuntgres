@@ -47,6 +47,8 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 	remap, seedOwner := m.Principal, m.SeededOwner
 	for addr, d := range state.Descriptors() {
 		switch d := d.(type) {
+		case *Transform:
+			// Pairs have no principals; capability/type remapping owns them.
 		case *Subscription:
 			n := *d
 			var err error

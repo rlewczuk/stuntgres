@@ -50,9 +50,10 @@ func (h *statementHost) InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Fr
 	return values, nil
 }
 
-// The owner supplies only top-level support EXECUTE. The body still runs in
-// the invoking scope, with its ordinary caller identity and relation rights.
-func (h *statementHost) InvokeAggregateSQLRoutine(ctx context.Context, d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
+// InvokeAggregateRoutine supplies only the aggregate owner's support EXECUTE.
+// SQL/PL/host bodies still run in the invoking scope, with its ordinary caller
+// identity and relation rights.
+func (h *statementHost) InvokeAggregateRoutine(ctx context.Context, d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
 	s := h.scope()
 	if ctx.Value(aggregateInvocationKey{}) != s {
 		s.aggregateGateOnce.Do(func() { s.aggregateGate = make(chan struct{}, 1) })
@@ -128,7 +129,7 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	if err != nil {
 		return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
 	}
-	if d.SQL.Invocation != proc.OrdinaryInvocation {
+	if d.RoutineDefinition().Invocation != proc.OrdinaryInvocation {
 		return value, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "trigger functions can only be called as triggers", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", d.Name())}
 	}
 	if d.Strict {
@@ -151,7 +152,10 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	defer func() { err = leaveEnvironment(err) }()
 	leavePolicy := parent.activateRoutineCommandPolicy(d, constantPlanning)
 	defer leavePolicy()
-	if d.SQL.Kind == proc.PLpgSQLBody {
+	if d.Host != nil {
+		return parent.invokeHostRoutine(d, frame, resultUsage, auth)
+	}
+	if d.RoutineDefinition().Kind == proc.PLpgSQLBody {
 		return parent.invokePLRoutineSpecialized(d, frame, read, inputCollation, resultUsage, values)
 	}
 	// SQL-language body utilities run in an atomic query context, even when

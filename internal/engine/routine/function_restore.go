@@ -25,31 +25,47 @@ func ReplayDirective(data string, stmt parser.Statement) bool {
 	return start >= 0 && len(data)-start >= len(RestoreDirective) && data[start:start+len(RestoreDirective)] == RestoreDirective
 }
 
-// RebindSQLDefinitions rebinds the SQL routines of state to the mapped types.
-// Typed SQL definitions are recreated against the destination type generation;
-// syntax is immutable and text-body names remain runtime analysis, not edges.
+// RebindRoutineDefinitions stabilizes common scalar declaration layouts and
+// genuine host conversion generations before checked defaults/body captures.
+// Source syntax and immutable executable registration tokens remain distinct.
 // Complete formal, result and PL-local Usages belong to the shared definition
 // mapper, so current declarations and historical captures share one payload.
-func RebindSQLDefinitions(state *catalog.State, remap *catalog.RoutineRemap) error {
+func RebindRoutineDefinitions(state *catalog.State, remap *catalog.RoutineRemap) error {
 	for address, descriptor := range state.Descriptors() {
+		if pair, ok := descriptor.(*catalog.Transform); ok {
+			next := *pair
+			next.SQLType = remap.Type(pair.SQLType)
+			if next.SQLType == nil {
+				return fmt.Errorf("stuntgres: missing host pair destination type")
+			}
+			next.Type.ObjectID = ids.OID(next.SQLType.ID())
+			state.SetDescriptor(address, &next)
+			continue
+		}
 		d, ok := descriptor.(*catalog.Procedure)
-		if !ok || d.SQL == nil && d.RangeConstructor == nil && len(d.Body) == 0 {
+		if !ok || d.RoutineDefinition() == nil && d.HostConversion == nil && d.RangeConstructor == nil && len(d.Body) == 0 {
 			continue
 		}
 		mapped, err := remap.Procedure(d)
 		if err != nil {
 			return err
 		}
-		if mapped.SQL == nil {
+		if mapped.RoutineDefinition() == nil {
 			state.SetDescriptor(address, mapped)
 			continue
 		}
-		definition, err := remap.Definition(mapped.SQL)
+		definition, err := remap.Definition(mapped.RoutineDefinition())
 		if err != nil {
 			return err
 		}
 		next := *mapped
-		next.SQL = definition
+		if mapped.Host != nil {
+			host := *mapped.Host
+			host.Layout = definition
+			next.Host = &host
+		} else {
+			next.SQL = definition
+		}
 		next.Result = ids.OID(definition.Result.Type.ID())
 		parts := make([]string, len(definition.Inputs))
 		for i, input := range definition.Inputs {
@@ -68,7 +84,7 @@ func RebindSQLDefinitions(state *catalog.State, remap *catalog.RoutineRemap) err
 	// attaching payloads in place preserves the already-remapped call handles.
 	for _, descriptor := range state.Descriptors() {
 		d, ok := descriptor.(*catalog.Procedure)
-		if !ok || d.SQL == nil {
+		if !ok || d.RoutineDefinition() == nil {
 			continue
 		}
 		if d.SQLDefaults != nil {

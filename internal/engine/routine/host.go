@@ -37,4 +37,5 @@ type DDLHost interface {
 	// Restore SQL body replay.
 	BindSQLRoutine(auth ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error
 	BindSQLDefaults(ddl.Authority, *catalog.Procedure, []parser.RoutineParameter, sqltype.InputEnvironment) error
+	MaterializeHostConversions() error
 }

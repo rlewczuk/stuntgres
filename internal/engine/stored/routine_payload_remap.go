@@ -40,6 +40,8 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 	bodies := make(map[*RoutineProgram]catalog.RoutineProgram)
 	defaults := make(map[*RoutineDefaults]catalog.RoutineDefaults)
 	var constructors map[*catalog.RangeConstructor]*catalog.RangeConstructor
+	hostDeclarations := make(map[*catalog.HostRoutine]*catalog.HostRoutine)
+	hostConversions := make(map[*catalog.HostConversion]*catalog.HostConversion)
 	bodyUsers := make(map[*RoutineProgram][]*catalog.Procedure)
 	defaultUsers := make(map[*RoutineDefaults][]*catalog.Procedure)
 	r.Definition = func(original *proc.Definition) (*proc.Definition, error) {
@@ -95,6 +97,22 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 		return mapped, nil
 	}
 	attach := func(p *catalog.Procedure) error {
+		if c := p.HostConversion; c != nil {
+			mapped := hostConversions[c]
+			if mapped == nil {
+				copy := *c
+				copy.Type = r.Type(c.Type)
+				if copy.Type == nil {
+					return fmt.Errorf("stuntgres: missing host conversion destination type")
+				}
+				if address, ok := mapping[c.Handler]; ok {
+					copy.Handler = address
+				}
+				mapped = &copy
+				hostConversions[c], hostConversions[mapped] = mapped, mapped
+			}
+			p.HostConversion = mapped
+		}
 		if original := p.RangeConstructor; original != nil {
 			mapped := r.Type(original.Type)
 			if mapped == nil {
@@ -119,17 +137,40 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 			}
 			p.Signature, p.Result = signature, ids.OID(mapped.ID())
 		}
-		if p.SQL == nil {
+		if p.RoutineDefinition() == nil {
 			return nil
 		}
-		var err error
-		p.SQL, err = r.Definition(p.SQL)
+		definition, err := r.Definition(p.RoutineDefinition())
 		if err != nil {
 			return err
 		}
-		p.Result = ids.OID(p.SQL.Result.Type.ID())
-		parts := make([]string, len(p.SQL.Inputs))
-		for i, input := range p.SQL.Inputs {
+		if h := p.Host; h != nil {
+			mapped := hostDeclarations[h]
+			if mapped == nil {
+				copy := *h
+				copy.Layout = definition
+				copy.Converters = append([]ids.ObjectAddress(nil), h.Converters...)
+				copy.Pairs = append([]ids.ObjectAddress(nil), h.Pairs...)
+				for i, address := range copy.Converters {
+					if next, ok := mapping[address]; ok {
+						copy.Converters[i] = next
+					}
+				}
+				for i, address := range copy.Pairs {
+					if next, ok := mapping[address]; ok {
+						copy.Pairs[i] = next
+					}
+				}
+				mapped = &copy
+				hostDeclarations[h], hostDeclarations[mapped] = mapped, mapped
+			}
+			p.Host = mapped
+		} else {
+			p.SQL = definition
+		}
+		p.Result = ids.OID(definition.Result.Type.ID())
+		parts := make([]string, len(definition.Inputs))
+		for i, input := range definition.Inputs {
 			parts[i] = strconv.FormatUint(uint64(input.Type.ID()), 10)
 		}
 		p.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))

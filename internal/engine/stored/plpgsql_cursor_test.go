@@ -59,7 +59,7 @@ func TestPLpgSQLCursorRemap(t *testing.T) {
 				mapping[collations[0].Address()] = ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 950}
 			}
 			remap := NewRoutineRemap(read, mapping, nil, nil, false)
-			err = routine.RebindSQLDefinitions(read.State(), remap)
+			err = routine.RebindRoutineDefinitions(read.State(), remap)
 			if incompatible {
 				if err == nil {
 					t.Fatal("cursor argument collation mapping error swallowed")

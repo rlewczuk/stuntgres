@@ -87,6 +87,11 @@ activate = 1
 	}
 	ContainerID = Container.GetContainerID()
 	fmt.Fprintf(os.Stderr, "reference container: %s\n", ContainerID)
+	if hostPython {
+		if err := provisionHostPython(ctx); err != nil {
+			return err
+		}
+	}
 	DSN, err = Container.ConnectionString(ctx, "sslmode=disable", "application_name=")
 	if err != nil {
 		return fmt.Errorf("connection string: %w", err)

@@ -69,18 +69,35 @@ func VisitProcedureDeclarationDependencies(d *Procedure, yield func(ids.ObjectAd
 	if d.Language != (ids.ObjectAddress{}) && !yield(d.Language) {
 		return false
 	}
+	if c := d.HostConversion; c != nil {
+		if !yield(c.Handler) || !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Type.ID())}) {
+			return false
+		}
+	}
+	if h := d.Host; h != nil {
+		for _, address := range h.Converters {
+			if !yield(address) {
+				return false
+			}
+		}
+		for _, address := range h.Pairs {
+			if address.ObjectID != 0 && !yield(address) {
+				return false
+			}
+		}
+	}
 	for address := range OwnedAggregateDependencies(d) {
 		if !yield(address) {
 			return false
 		}
 	}
-	if d.SQL == nil {
+	if d.RoutineDefinition() == nil {
 		return true
 	}
 	if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}) {
 		return false
 	}
-	for _, formal := range d.SQL.Formals {
+	for _, formal := range d.RoutineDefinition().Formals {
 		if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(formal.Usage.Type.ID())}) {
 			return false
 		}
@@ -109,7 +126,7 @@ func VisitProcedureCapturedDefinitionDependencies(view Read, d *Procedure, yield
 			return false
 		}
 	}
-	if d.SQL == nil {
+	if d.RoutineDefinition() == nil {
 		return true
 	}
 	if d.SQLBody != nil {

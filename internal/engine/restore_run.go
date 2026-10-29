@@ -29,9 +29,12 @@ import (
 // running that call touches it. Every step runs against stage, the private
 // restore engine, never against the target engine.
 type restoreRun struct {
-	stage      *core.Engine
-	source     string
-	statements []parser.Statement
+	stage            *core.Engine
+	source           string
+	statements       []parser.Statement
+	hostRequirements map[string]bool
+	hostContext      context.Context
+	hostAbsences     *hostAbsenceState
 
 	// Records decoded from the script's line comments.
 	domainReplays            []typedef.PositionedDomainReplay
@@ -127,6 +130,9 @@ type restoreHost struct {
 func (h *restoreHost) Begin(source string, statements []parser.Statement) error {
 	r := h.run
 	r.source, r.statements = source, statements
+	if err := pairRestoreHostAbsences(r); err != nil {
+		return err
+	}
 	var err error
 	r.attributePairs, err = control.PairAttributeConstructors(r.statements)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/storage"
@@ -16,6 +17,13 @@ import (
 func newDatabaseRuntime(e *core.Engine, seed *core.Engine, name string, owner authorization.PrincipalRef) *core.Engine {
 	target := &core.Engine{Mu: e.Mu, RoleStore: e.RoleStore, Settings: e.Settings, Foreign: seed.Foreign, DatabaseName: name, DatabaseFrozenXID: 3, Statements: e.Statements, Factory: e.Factory}
 	target.Catalog = catalog.NewStore(catalog.Owner{Principals: &e.RoleStore.Domain, ACLAuthority: &e.RoleStore.ACLAuthority, Providers: make(map[ids.OID]catalog.Provider, len(e.Catalog.Providers)), Extensions: e.Catalog.Extensions}, seed.Catalog.NextOID(), seed.Catalog.NextRevision())
+	for _, registration := range seed.Catalog.HostRuntimes {
+		runtime, err := host.New(registration.Definition())
+		if err != nil {
+			panic("stuntgres: invalid immutable host registry: " + err.Error())
+		}
+		target.Catalog.HostRuntimes = append(target.Catalog.HostRuntimes, runtime)
+	}
 	for class, provider := range e.Catalog.Providers {
 		target.Catalog.Providers[class] = provider
 	}

@@ -8,7 +8,7 @@ import (
 // DynamicCallable distinguishes catalog-defined bodies, owned constructors and
 // transition aggregates from immutable builtin/extension providers.
 func (d *Procedure) DynamicCallable() bool {
-	return d != nil && (d.SQL != nil || d.RangeConstructor != nil || d.Aggregate != nil && d.Builtin == nil && d.Implementation == nil)
+	return d != nil && (d.RoutineDefinition() != nil || d.RangeConstructor != nil || d.Aggregate != nil && d.Builtin == nil && d.Implementation == nil)
 }
 
 // Membership only; callable descriptors and grants come from the captured root.

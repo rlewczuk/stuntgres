@@ -20,6 +20,13 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		if sub, ok := d.(*catalog.Subscription); ok {
 			return "subscription " + catalog.DependencyIdentifier(sub.Name())
 		}
+		if pair, ok := d.(*catalog.Transform); ok {
+			if typ, ok := read.Type(pair.Type); ok {
+				if language, ok := read.Get(pair.Language).(*catalog.Language); ok {
+					return "transform for " + catalog.TypeDiagnosticNameAt(read, nil, typ, path) + " language " + catalog.DependencyIdentifier(language.Name())
+				}
+			}
+		}
 		if language, ok := d.(*catalog.Language); ok {
 			return "language " + catalog.DependencyIdentifier(language.Name())
 		}

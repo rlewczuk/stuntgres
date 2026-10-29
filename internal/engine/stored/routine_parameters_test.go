@@ -132,7 +132,7 @@ func TestSQLRoutineParameterRemap(t *testing.T) {
 			return current
 		}
 		remap := NewRoutineRemap(read, mapping, typ, nil, false)
-		if err := routine.RebindSQLDefinitions(read.State(), remap); err != nil {
+		if err := routine.RebindRoutineDefinitions(read.State(), remap); err != nil {
 			t.Fatal(err)
 		}
 		next, ok := read.Procedure(source.Address())

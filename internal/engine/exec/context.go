@@ -91,6 +91,9 @@ type EvalStatement struct {
 	// Separate rule-program permission: actual supplied Param leaves may become
 	// typed constants during preparation. Ordinary imported-param barriers stay.
 	SpecializeRuleParameters bool
+	// Generic planning cannot erase call-site demand using imported parameter
+	// values. Literal NULL remains a planning constant in either mode.
+	PreserveParameterDemand bool
 	// Borrowed only while this evaluator computes a demanded planning value.
 	// Routine invocation uses this phase, not absence of a captured query View.
 	ConstantPlanning bool

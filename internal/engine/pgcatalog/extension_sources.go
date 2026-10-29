@@ -133,8 +133,8 @@ func ProcedureArity(p *catalog.Procedure) int64 {
 }
 
 func procedureDefaultCount(p *catalog.Procedure) int64 {
-	if p.SQL != nil {
-		return int64(p.SQL.DefaultCount())
+	if definition := p.RoutineDefinition(); definition != nil {
+		return int64(definition.DefaultCount())
 	}
 	if p.Builtin != nil {
 		return int64(p.Builtin.Defaults)
@@ -178,8 +178,8 @@ func ProcedureVariadic(p *catalog.Procedure) (ids.OID, error) {
 	if p.RangeConstructor != nil {
 		return p.RangeConstructor.Variadic(), nil
 	}
-	if p.SQL != nil {
-		for _, formal := range p.SQL.Formals {
+	if definition := p.RoutineDefinition(); definition != nil {
+		for _, formal := range definition.Formals {
 			if formal.Mode != "v" {
 				continue
 			}

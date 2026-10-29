@@ -121,3 +121,70 @@ func TestReferenceRoutineAttributesStrictEffectsAndVariadic(t *testing.T) {
 		})
 	})
 }
+
+func TestReferenceRoutineAttributesStrictPlanExecuteDemand(t *testing.T) {
+	for _, language := range []string{"sql", "plpgsql"} {
+		t.Run(language, func(t *testing.T) {
+			fixture.RoleReferenceCleanup(t, []string{"ra_plan_reader"})
+			proceduresScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				body := "AS $$INSERT INTO ra_plan_effect VALUES($1); SELECT 7$$"
+				if language == "plpgsql" {
+					body = "AS $$BEGIN INSERT INTO ra_plan_effect VALUES($1); RETURN 7; END$$"
+				}
+				resultsExec(t, p, b, c,
+					"CREATE ROLE ra_plan_reader",
+					"GRANT USAGE ON SCHEMA public TO ra_plan_reader",
+					"CREATE TABLE ra_plan_effect(v integer)",
+					"CREATE FUNCTION ra_plan_private(integer) RETURNS integer LANGUAGE "+language+" STRICT SECURITY DEFINER "+body,
+					"REVOKE ALL ON FUNCTION ra_plan_private(integer) FROM PUBLIC",
+					"GRANT EXECUTE ON FUNCTION ra_plan_private(integer) TO ra_plan_reader")
+				defer c.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
+				defer c.ExecContext(p.Ctx, "RESET plan_cache_mode")
+				const q = "SELECT ra_plan_private($1::integer) AS v"
+				const literal = "SELECT ra_plan_private(NULL::integer) AS v"
+				for _, mode := range []string{"force_custom_plan", "force_generic_plan"} {
+					t.Run(mode, func(t *testing.T) {
+						resultsExec(t, p, b, c, "SET plan_cache_mode="+mode)
+						stmt, err := c.PrepareContext(p.Ctx, q)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer stmt.Close()
+						held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
+						null := proceduresStep(b, q, []string{"v"}, []string{"INT4"}, [][]any{{nil}}, nil)
+						resultsExec(t, p, b, c, "SET SESSION AUTHORIZATION ra_plan_reader")
+						// Establish this SAME held consumer while EXECUTE is allowed.
+						fixture.RunStep(t, p.Ctx, held, b.Recorder, null)
+						resultsExec(t, p, b, c, "RESET SESSION AUTHORIZATION",
+							"REVOKE EXECUTE ON FUNCTION ra_plan_private(integer) FROM ra_plan_reader",
+							"SET SESSION AUTHORIZATION ra_plan_reader")
+						// Literal NULL is planner-known even in generic mode. A
+						// custom-bound NULL may likewise eliminate invocation.
+						proceduresBoth(t, p, b, c, literal, []string{"v"}, []string{"INT4"}, [][]any{{nil}})
+						if mode == "force_custom_plan" {
+							proceduresBoth(t, p, b, c, q, []string{"v"}, []string{"INT4"}, [][]any{{nil}}, nil)
+							fixture.RunStep(t, p.Ctx, held, b.Recorder, null)
+						} else {
+							// A generic parameter remains an invocation demand:
+							// admission checks current EXECUTE before strict dispatch,
+							// so no SQL or PL body context belongs to this diagnostic.
+							denied := fixture.ErrorDiagnostic(q, proceduresDiagnostic("42501", "permission denied for function ra_plan_private", 0), nil)
+							denied.SelectRows, denied.ErrorStage = true, "execute"
+							fixture.RunStep(t, p.Ctx, c, b.Recorder, denied)
+							fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(denied))
+							fixture.RunStep(t, p.Ctx, held, b.Recorder, denied)
+						}
+						resultsExec(t, p, b, c, "RESET SESSION AUTHORIZATION",
+							"GRANT EXECUTE ON FUNCTION ra_plan_private(integer) TO ra_plan_reader",
+							"SET SESSION AUTHORIZATION ra_plan_reader")
+						fixture.RunStep(t, p.Ctx, held, b.Recorder, null)
+						fixture.RunStep(t, p.Ctx, held, b.Recorder, proceduresStep(b, q, []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}, 9))
+						resultsExec(t, p, b, c, "RESET SESSION AUTHORIZATION")
+						resultsStoredBoth(t, p, b, c, "SELECT v FROM ra_plan_effect", []string{"v"}, []string{"INT4"}, [][]any{{int64(9)}})
+						fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("DELETE FROM ra_plan_effect", 1))
+					})
+				}
+			})
+		})
+	}
+}

@@ -403,7 +403,7 @@ Needs 203. Mode S.
   ...)`. Gate: with `-famseed=false`, the method model (`-fammeth=true`) and the
   item 189 model differ only by core methods (driver `ResolveLogin`,
   `ProtocolAuthorizationStatus`, `SelectDatabase`, `InspectIndex`, the `DDLHost`
-  core base and `statementHost.InvokeAggregateSQLRoutine`), so `ddl_host.go` is
+  core base and `statementHost.InvokeAggregateRoutine`), so `ddl_host.go` is
   wholly core in that model. Notes for later items: run `closure` without
   `-fammeth=false` from now on; item 195 must place the R3 shared sets (closure
   labels them `shared:…+roles`, not core) in core.

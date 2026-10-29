@@ -78,7 +78,7 @@ func (n SQLRoutineExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 
 func (n SQLRoutineExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, _ bool) bool {
 	o, ok := other.(SQLRoutineExpr)
-	if !ok || n.Ref != o.Ref || n.Procedure.SQL != o.Procedure.SQL || n.InputCollation != o.InputCollation || len(n.Args) != len(o.Args) || !n.SameArguments(o) {
+	if !ok || n.Ref != o.Ref || n.Procedure.RoutineDefinition() != o.Procedure.RoutineDefinition() || n.InputCollation != o.InputCollation || len(n.Args) != len(o.Args) || !n.SameArguments(o) {
 		return false
 	}
 	for i, arg := range n.Args {
@@ -90,15 +90,15 @@ func (n SQLRoutineExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Exp
 }
 
 func (n SQLRoutineExpr) ValidateStoredProvider() error {
-	if n.Procedure == nil || n.Procedure.SQL == nil || n.Info.RoutineReference != n.Procedure || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Usage.Type == nil || !n.Usage.Valid() || n.Signature.Result != n.Usage || !n.Signature.ValidFor(n.Procedure.SQL) {
+	if n.Procedure == nil || n.Procedure.RoutineDefinition() == nil || n.Info.RoutineReference != n.Procedure || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Usage.Type == nil || !n.Usage.Valid() || n.Signature.Result != n.Usage || !n.Signature.ValidFor(n.Procedure.RoutineDefinition()) {
 		return fmt.Errorf("invalid stored SQL routine provider")
 	}
 	// Fixed results retain their declaration-owned occurrence. Polymorphic
 	// outputs and unshaped RECORD instead retain the checked call's concrete
 	// signature; ValidFor above proves the original declaration's constraints.
-	declared := n.Procedure.SQL.Result.Type
+	declared := n.Procedure.RoutineDefinition().Result.Type
 	unshapedRecord := declared.ID() == 2249 && !declared.IsComposite()
-	if !unshapedRecord && (!n.Procedure.SQL.Polymorphic() || declared.Concrete()) && n.Usage.Type != declared {
+	if !unshapedRecord && (!n.Procedure.RoutineDefinition().Polymorphic() || declared.Concrete()) && n.Usage.Type != declared {
 		return fmt.Errorf("SQL routine call has a foreign result generation")
 	}
 	if n.InputCollation.ID != 0 && !n.InputCollation.Valid() {

@@ -2,6 +2,7 @@ package pgcatalog
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -25,7 +26,30 @@ func capturePGTransform(in Input) ([][]sqltype.Value, error) {
 			return nil, fmt.Errorf("stuntgres: foreign transform source type")
 		}
 	}
-	// Casts, codecs and SQL routines are not procedural-language transforms.
-	// A nonnil empty slice identifies an anonymous source to the executor.
-	return [][]sqltype.Value{}, nil
+	rows := make([][]sqltype.Value, 0)
+	for _, descriptor := range in.Catalog.Descriptors() {
+		pair, ok := descriptor.(*catalog.Transform)
+		if !ok {
+			continue
+		}
+		if err := (catalog.TransformProvider{}).Validate(in.Catalog, pair); err != nil {
+			return nil, err
+		}
+		row := make([]sqltype.Value, 5)
+		for i, id := range []ids.OID{pair.Address().ObjectID, pair.Type.ObjectID, pair.Language.ObjectID, pair.From.ObjectID, pair.To.ObjectID} {
+			var value sqltype.Value
+			var err error
+			if i < 3 {
+				value, err = sqltype.OIDValue(in.Source.Columns[i].Usage.Type, uint32(id))
+			} else {
+				value, err = sqltype.RegprocValue(in.Source.Columns[i].Usage.Type, uint32(id))
+			}
+			if err != nil {
+				return nil, err
+			}
+			row[i] = value
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
 }

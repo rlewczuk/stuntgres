@@ -21,7 +21,7 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 	}
 	a := &d.Aggregate.Definition
 	modeValid := func(mode string) bool { return mode == "r" || mode == "s" || mode == "w" }
-	if d.RoutineKind != catalog.AggregateRoutine || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Origin != nil || d.Strict || a.Function != d.Address().ObjectID || (a.Kind != "n" && a.Kind != "o" && a.Kind != "h") || a.DirectArgs < 0 || a.Kind == "n" && a.DirectArgs != 0 || !modeValid(a.FinalModify) || !modeValid(a.MovingFinalModify) || !a.HasInitial && a.Initial != "" || !a.HasMovingInitial && a.MovingInitial != "" {
+	if d.RoutineKind != catalog.AggregateRoutine || d.RoutineDefinition() != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Origin != nil || d.Strict || a.Function != d.Address().ObjectID || (a.Kind != "n" && a.Kind != "o" && a.Kind != "h") || a.DirectArgs < 0 || a.Kind == "n" && a.DirectArgs != 0 || !modeValid(a.FinalModify) || !modeValid(a.MovingFinalModify) || !a.HasInitial && a.Initial != "" || !a.HasMovingInitial && a.MovingInitial != "" {
 		return invalid()
 	}
 
@@ -91,7 +91,7 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 	}
 	check := func(oid ids.OID, arguments []sqltype.Usage, expected *sqltype.Descriptor) (*catalog.Procedure, error) {
 		support, found := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
-		if !found || support.RoutineKind != catalog.FunctionRoutine || support.Builtin != nil && support.Builtin.ReturnsSet || support.SQL == nil && (support.Builtin == nil || support.Builtin.Providers == 0) && support.Implementation == nil && !aggregateInternalSupport(support, 0) {
+		if !found || support.RoutineKind != catalog.FunctionRoutine || support.Builtin != nil && support.Builtin.ReturnsSet || support.RoutineDefinition() == nil && (support.Builtin == nil || support.Builtin.Providers == 0) && support.Implementation == nil && !aggregateInternalSupport(support, 0) {
 			return nil, invalid()
 		}
 		if functions.IsAggregateContextSupport(uint32(oid)) && len(arguments) != strings.Count(string(support.Signature), ",")+1 {

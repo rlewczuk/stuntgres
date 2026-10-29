@@ -17,6 +17,18 @@ retiring one owner's objects must preserve unrelated committed heap replacements
 and peer TEMP objects. Fallible preparation and expression evaluation stay
 outside the installation lock.
 
+Application-provisioned scalar host routines use the same typed frame, invocation
+depth, EXECUTE admission, security/settings environment, volatility policy and
+statement completion owner as SQL/PL routines. `host_routine.go` projects owned
+carriers, releases the replacement reservation and engine mutex for every
+application callback, and readmits the current operation/settings/session,
+catalog epoch, descriptor capabilities and original invoking actor before
+constructing detached SQL output. Callbacks receive no frame or authority object.
+`host_registry.go` performs pure prepublication token/descriptor installation;
+`host_materialize.go` distinguishes genuine new type generations from language
+alias events, so alias creation never reinstalls retired directional procedures.
+
+
 Routine declaration inquiry composes the statement-owned catalog and presentation
 settings with the shared formal projection and metadata-safe default/body
 renderers. It never invokes the target or checks its EXECUTE privilege. Actual
@@ -2008,7 +2020,7 @@ remapping, prepared invalidation and catalog-replacement fences.
 - Stored DEFAULT closure extends through a SQL routine only for a real checked
   call and never executes the callee body. The release identity index is
   diagnostic only (42883 versus 0A000); it never grants execution.
-- Aggregate SQL support enters `InvokeAggregateSQLRoutine` with its explicit
+- Aggregate frame-backed SQL/PL/host support enters `InvokeAggregateRoutine` with its explicit
   worker context. A cancellable, statement-owned gate in `sql_routine.go`
   protects routine depth, lexical scratch, descriptions and notices while
   independent aggregate scans and builtin state work remain concurrent.

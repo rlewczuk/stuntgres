@@ -44,6 +44,10 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	expressions := b.Expressions
 	expressionsChanged := false
 	foldCaptures := evaluation.FoldCaptures
+	store := op.EffectiveSettings()
+	store.Mu.Lock()
+	evaluation.PreserveParameterDemand = store.Value("plan_cache_mode") == "force_generic_plan"
+	store.Mu.Unlock()
 	_, inserting := stmt.(*parser.Insert)
 	_, calling := stmt.(*parser.Call)
 	var queryRoot plan.Node

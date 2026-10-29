@@ -96,6 +96,38 @@ engines inherit the same mode.
   oracle's existing startup arguments (`extensions`, `extension_ownership`). Startup verifies SHOW is
   off; packages without this option retain and verify on. This is physical-oracle
   configuration only, not a native setting-default change, reload or file write.
+- `WithHostPython()` provisions actual PL/Python in that same pinned container,
+  only in real-reference mode; it does not register a native language. Startup
+  first requires installed `postgresql-18` exactly `18.6-1.pgdg12+2` on amd64.
+  The provider is the genuine
+  `https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-plpython3-18_18.6-1.pgdg12+2_amd64.deb`,
+  independently pinned to SHA256
+  `6171e4838831eec91dc54c145e759372d2ba2542c9213bafdd026f82b67997af`.
+  The old exact provider need not remain in today's PGDG package index:
+  its HTTPS artifact/hash and archive identity are checked directly. Dependencies
+  come from signature-verified Debian/PGDG apt metadata in the pinned image.
+  Because this image lacks a CA bundle, startup first resolves and pins the exact
+  `ca-certificates` candidate from that authenticated apt snapshot. It audits the
+  prerequisite transaction (only CA certificates, OpenSSL and libssl may change),
+  downloads and verifies its archive hashes against authenticated metadata, and
+  installs without further downloads. It logs installed TLS package identities,
+  checks the CA bundle and unchanged server version, then obtains the provider
+  over certificate-verified HTTPS. TLS verification is never disabled and the
+  provider URL is never downgraded to HTTP. Both dependency transactions use the
+  same archive-integrity checks.
+  Startup logs signature verification, the simulated transaction, exact downloaded
+  dependency versions/architectures/SHA256 values checked against that metadata,
+  installed provider/libpython versions and the actual Python interpreter version.
+  It rejects untrusted sources, package removals and changes outside the bounded
+  Python dependency family, installs the already downloaded transaction, and
+  rechecks the unchanged server package version. No server package replacement,
+  image change, alternate server, host installation or silent provider skip is
+  permitted. All provisioning shares the existing three-minute startup context;
+  network/authentication/hash/dependency errors fail startup.
+  Scenarios explicitly install `hstore`, `plpython3u` and `hstore_plpython3u`;
+  genuine Python dict programs opt into the released hstore transform. Programs
+  without that opt-in and genuine one-direction pairs exercise PL/Python's
+  separate string/input defaults, not hypothetical Go-host defaults.
 
 ### Test-only legacy crypto oracle
 

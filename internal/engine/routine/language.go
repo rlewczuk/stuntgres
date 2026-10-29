@@ -111,6 +111,7 @@ func StageCreateLanguage(h DDLHost, auth ddl.Authority, s *parser.CreateLanguage
 		}
 		handlers[i] = p
 	}
+	var previous *catalog.Language
 	address := h.Stage().LookupName(catalog.DescriptorNameKey(d))
 	if address != (ids.ObjectAddress{}) {
 		if !s.Replace {
@@ -122,15 +123,36 @@ func StageCreateLanguage(h DDLHost, auth ddl.Authority, s *parser.CreateLanguage
 		}
 		d.ObjectAddress, d.Owner, d.ACL = old.Address(), old.Owner, old.ACL
 		d.Extension, d.Origin = old.Extension, old.Origin
+		d.HostRegistration = old.HostRegistration
+		previous = old
 	}
 	for i, p := range handlers {
 		if p == nil {
+			continue
+		}
+		if i == 0 && p.HostHandler != nil && catalog.ValidateHostProcedure(h.AccessView(auth).Catalog, p) == nil {
+			if handlers[1] != nil || handlers[2] != nil {
+				return sqlError("0A000", "host languages do not support inline or validator handlers")
+			}
+			d.Host = p.HostHandler
+			d.Origin = nil
 			continue
 		}
 		kind := catalog.PLHandler(i + 1)
 		if p.PLHandler != kind || catalog.ValidatePLHandler(h.AccessView(auth).Catalog, p) != nil {
 			role := []string{"call handler", "inline handler", "validator"}[i]
 			return sqlError("0A000", "language "+role+" has no implemented native capability")
+		}
+	}
+	if previous != nil && previous.Host != d.Host {
+		for _, descriptor := range h.StageRead().Descriptors() {
+			procedure, ok := descriptor.(*catalog.Procedure)
+			if !ok || procedure.Host == nil {
+				continue
+			}
+			if catalog.ProcedureDefinitionDependsOn(h.StageRead(), procedure, previous.Address()) {
+				return fmt.Errorf("stuntgres: incompatible host language replacement has dependent routines")
+			}
 		}
 	}
 	d.Call = handlers[0].Address()
@@ -157,6 +179,9 @@ func StageCreateLanguage(h DDLHost, auth ddl.Authority, s *parser.CreateLanguage
 		err = h.Stage().Replace(d)
 	}
 	if err != nil {
+		return err
+	}
+	if err = h.MaterializeHostConversions(); err != nil {
 		return err
 	}
 	return h.RecordDependencyPath(auth)

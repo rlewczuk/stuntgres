@@ -58,6 +58,8 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			add(descriptor.Address(), membership, 'e')
 		}
 		switch d := descriptor.(type) {
+		case *catalog.Transform:
+			d.Dependencies(func(address ids.ObjectAddress) bool { add(d.Address(), address, 'n'); return true })
 		case *catalog.Language:
 			if d.Procedural {
 				add(d.Address(), d.Call, 'n')

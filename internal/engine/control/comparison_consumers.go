@@ -151,8 +151,8 @@ func (s *dumpScript) visitBindingConsumers(visit func(castConsumer, authorizatio
 				}
 			}
 		case *catalog.Procedure:
-			if d.SQL != nil && d.SQLDefaults != nil {
-				for slot := range d.SQL.Inputs {
+			if layout := d.RoutineDefinition(); layout != nil && d.SQLDefaults != nil {
+				for slot := range layout.Inputs {
 					if node, ok := d.SQLDefaults.Default(slot); ok {
 						if err := visit(castConsumer{Event: event}, d.Owner, node); err != nil {
 							return err

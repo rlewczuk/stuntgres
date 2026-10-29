@@ -38,11 +38,11 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 		}
 		// Replay uses the typed declaration, including OUT formals and its
 		// result, independently of the ordinary semantic definition graph.
-		if d.SQL != nil {
-			for i := range len(d.SQL.Formals) + 1 {
-				usage := d.SQL.Result
-				if i < len(d.SQL.Formals) {
-					usage = d.SQL.Formals[i].Usage
+		if d.RoutineDefinition() != nil {
+			for i := range len(d.RoutineDefinition().Formals) + 1 {
+				usage := d.RoutineDefinition().Result
+				if i < len(d.RoutineDefinition().Formals) {
+					usage = d.RoutineDefinition().Formals[i].Usage
 				}
 				if err := appendPredecessor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}); err != nil {
 					return err
@@ -59,11 +59,11 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 		catalog.VisitProcedureDefinitionDependencies(view, d, func(address ids.ObjectAddress) bool {
 			// Typed declaration prerequisites above already cover these types.
 			// Other body/default types still come from the shared visitor.
-			if address.ClassID == ids.TypeClassID && d.SQL != nil {
-				if address.ObjectID == ids.OID(d.SQL.Result.Type.ID()) {
+			if address.ClassID == ids.TypeClassID && d.RoutineDefinition() != nil {
+				if address.ObjectID == ids.OID(d.RoutineDefinition().Result.Type.ID()) {
 					return true
 				}
-				for _, formal := range d.SQL.Formals {
+				for _, formal := range d.RoutineDefinition().Formals {
 					if address.ObjectID == ids.OID(formal.Usage.Type.ID()) {
 						return true
 					}
@@ -99,10 +99,10 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	// Current validator presence is not the declaration's admission history.
 	// Replay a genuine source-only declaration with its original no-validator
 	// admission, then restore the final routes before the next declaration.
-	validatorWindow := d.SQL.Kind == proc.PLpgSQLBody && d.SQL.PL == nil && d.SQL.PLSyntax == nil && language.Validator != (ids.ObjectAddress{})
-	checkedReplay := d.SQL.Kind == proc.PLpgSQLBody && d.SQL.PL != nil && language.Validator == (ids.ObjectAddress{})
+	validatorWindow := d.RoutineDefinition().Kind == proc.PLpgSQLBody && d.RoutineDefinition().PL == nil && d.RoutineDefinition().PLSyntax == nil && language.Validator != (ids.ObjectAddress{})
+	checkedReplay := d.RoutineDefinition().Kind == proc.PLpgSQLBody && d.RoutineDefinition().PL != nil && language.Validator == (ids.ObjectAddress{})
 	if checkedReplay {
-		if err := d.SQL.PL.ValidateDefinition(d.SQL); err != nil {
+		if err := d.RoutineDefinition().PL.ValidateDefinition(d.RoutineDefinition()); err != nil {
 			return dump.Statement{}, err
 		}
 	}
@@ -116,7 +116,7 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	var ownership strings.Builder
 	if privileged {
 		ownership.WriteString("ALTER " + kind + " " + qualified + "(")
-		for i, input := range d.SQL.Inputs {
+		for i, input := range d.RoutineDefinition().Inputs {
 			if i != 0 {
 				ownership.WriteString(", ")
 			}
@@ -139,7 +139,7 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	}
 	sql.WriteString("CREATE " + kind + " " + qualified + "(")
 	written := 0
-	for i, formal := range d.SQL.Formals {
+	for i, formal := range d.RoutineDefinition().Formals {
 		if formal.Mode == "t" {
 			continue
 		}
@@ -167,7 +167,7 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 			if d.SQLDefaults == nil {
 				return dump.Statement{}, fmt.Errorf("missing routine declaration defaults")
 			}
-			text, err := d.SQLDefaults.DefaultSQL(context.Background(), view, d.SQL.FormalInputs[i])
+			text, err := d.SQLDefaults.DefaultSQL(context.Background(), view, d.RoutineDefinition().FormalInputs[i])
 			if err != nil {
 				return dump.Statement{}, err
 			}
@@ -176,13 +176,13 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	}
 	sql.WriteString(")")
 	if d.RoutineKind != catalog.ProcedureRoutine {
-		if d.SQL.TableResult {
+		if d.RoutineDefinition().TableResult {
 			sql.WriteString(" RETURNS TABLE(")
-			for i, index := range d.SQL.OutputFormals {
+			for i, index := range d.RoutineDefinition().OutputFormals {
 				if i != 0 {
 					sql.WriteString(", ")
 				}
-				formal := d.SQL.Formals[index]
+				formal := d.RoutineDefinition().Formals[index]
 				declaration, err := p.ColumnDeclaration(view, catalog.Column{Usage: formal.Usage})
 				if err != nil {
 					return dump.Statement{}, err
@@ -192,19 +192,19 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 			sql.WriteString(")")
 		} else {
 			result := "pg_catalog.trigger"
-			if d.SQL.Invocation == proc.EventTriggerInvocation {
+			if d.RoutineDefinition().Invocation == proc.EventTriggerInvocation {
 				result = "pg_catalog.event_trigger"
-			} else if d.SQL.DerivedResult() {
+			} else if d.RoutineDefinition().DerivedResult() {
 				result = "pg_catalog.record"
-			} else if d.SQL.Invocation == proc.OrdinaryInvocation {
+			} else if d.RoutineDefinition().Invocation == proc.OrdinaryInvocation {
 				var err error
-				result, err = p.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
+				result, err = p.ColumnDeclaration(view, catalog.Column{Usage: d.RoutineDefinition().Result})
 				if err != nil {
 					return dump.Statement{}, err
 				}
 			}
 			sql.WriteString(" RETURNS ")
-			if d.SQL.ReturnsSet {
+			if d.RoutineDefinition().ReturnsSet {
 				sql.WriteString("SETOF ")
 			}
 			sql.WriteString(result)
@@ -234,7 +234,7 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 			return dump.Statement{}, fmt.Errorf("invalid routine parallel declaration")
 		}
 		sql.WriteString(" COST " + strconv.FormatFloat(float64(d.Cost), 'g', -1, 32))
-		if d.SQL.ReturnsSet {
+		if d.RoutineDefinition().ReturnsSet {
 			sql.WriteString(" ROWS " + strconv.FormatFloat(float64(d.Rows), 'g', -1, 32))
 		}
 	}
@@ -274,7 +274,7 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	if checkedReplay {
 		header = sql.String()
 	}
-	if d.SQL.Standard {
+	if d.RoutineDefinition().Standard {
 		if d.SQLBody == nil {
 			return dump.Statement{}, fmt.Errorf("missing checked SQL-standard routine body")
 		}
@@ -284,10 +284,10 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 		if err := d.SQLBody.Validate(view); err != nil {
 			return dump.Statement{}, err
 		}
-		if d.SQL.StandardReturn && d.SQLBody.Len() != 1 {
+		if d.RoutineDefinition().StandardReturn && d.SQLBody.Len() != 1 {
 			return dump.Statement{}, fmt.Errorf("invalid SQL-standard RETURN body")
 		}
-		if !d.SQL.StandardReturn {
+		if !d.RoutineDefinition().StandardReturn {
 			sql.WriteString("BEGIN ATOMIC\n")
 		}
 		for i := range d.SQLBody.Len() {
@@ -297,11 +297,11 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 			}
 			sql.WriteString(statement + ";\n")
 		}
-		if !d.SQL.StandardReturn {
+		if !d.RoutineDefinition().StandardReturn {
 			sql.WriteString("END;\n")
 		}
 	} else {
-		sql.WriteString("AS " + dump.CommentLiteral(d.SQL.Source) + ";\n")
+		sql.WriteString("AS " + dump.CommentLiteral(d.RoutineDefinition().Source) + ";\n")
 	}
 	if validatorWindow {
 		statement, err := LanguageDumpStatement(view, language, true)

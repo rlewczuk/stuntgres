@@ -40,6 +40,25 @@
   expression definitions and transactional default-child identities, with exact
   registered attribute nullability.
 
+- Add explicit preconnector compiled host routine registration, immutable program
+  identities, directional object callbacks and owned hstore transport. Host scalar
+  declarations use the common routine frame, authority and execution environment;
+  native capability diagnostics remain distinct from external interpreter errors.
+  Individual application callbacks have balanced live-authority readmission and
+  detached continuation cleanup. Native replay binds explicit destination
+  registrations and preserves provider/direction/pair retirement before consumers.
+  Alias replay authenticates detached SQL types by installation provenance rather
+  than temporary extension membership, preserving genuine surviving directions.
+  Generic-plan bound NULL preserves current routine EXECUTE admission; literal
+  strict NULL retains its no-demand path.
+  Ordinary aggregate support eligibility, descriptors and execution share the
+  SQL/PL/host frame layout and statement-owned invocation. Registered concrete
+  host transition/final programs retain live aggregate-owner EXECUTE, strict
+  NULL semantics and rollback/replay without widening INTERNAL/context support.
+  Checked host defaults retain their own comparison-binding and historical cast
+  replay windows through the common declaration layout, without acquiring SQL
+  bodies or transferring omitted-default lookup authority to calling views.
+
 - Add atomic column rename across declarative partition hierarchies, preserving
   local attribute layouts, bound expressions and data while updating current-name
   diagnostics, prepared metadata and logical Dump/Restore presentation. Release

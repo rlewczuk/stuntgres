@@ -24,30 +24,30 @@ func checkFunctionReplacement(h DDLHost, auth ddl.Authority, old *catalog.Proced
 	if old.Result != result {
 		return failure("cannot change return type of existing function")
 	}
-	if old.SQL == nil {
+	if old.RoutineDefinition() == nil {
 		return sqlError("0A000", "replacement of built-in or externally implemented functions is unsupported")
 	}
-	if old.SQL.ReturnsSet != layout.ReturnsSet {
+	if old.RoutineDefinition().ReturnsSet != layout.ReturnsSet {
 		return failure("cannot change return type of existing function")
 	}
-	if old.SQL.DerivedResult() && !layout.MatchesOutputTuple(old.SQL.Result.Type) {
+	if old.RoutineDefinition().DerivedResult() && !layout.MatchesOutputTuple(old.RoutineDefinition().Result.Type) {
 		err := failure("cannot change return type of existing function")
 		if diagnostic, ok := err.(*sqlstate.Error); ok {
 			diagnostic.Detail = "Row type defined by OUT parameters is different."
 		}
 		return err
 	}
-	if len(old.SQL.InputFormals) != len(layout.InputFormals) {
+	if len(old.RoutineDefinition().InputFormals) != len(layout.InputFormals) {
 		return fmt.Errorf("stuntgres: replacement input identity disagrees with its declaration")
 	}
-	for i, slot := range old.SQL.InputFormals {
-		name := old.SQL.Formals[slot].Name
+	for i, slot := range old.RoutineDefinition().InputFormals {
+		name := old.RoutineDefinition().Formals[slot].Name
 		if name != "" && name != layout.Formals[layout.InputFormals[i]].Name {
 			return failure(fmt.Sprintf("cannot change name of input parameter %q", name))
 		}
 	}
 	oldDefaults, newDefaults := 0, 0
-	for _, formal := range old.SQL.Formals {
+	for _, formal := range old.RoutineDefinition().Formals {
 		if formal.Input() && formal.HasDefault {
 			oldDefaults++
 		}

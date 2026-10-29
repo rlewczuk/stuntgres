@@ -29,8 +29,8 @@ func (r EngineCatalogRuntime) RoutineTrees(ctx context.Context, capture catalog.
 	if d.Builtin != nil {
 		count = int(d.Builtin.Defaults)
 	}
-	if d.SQL != nil {
-		count = d.SQL.DefaultCount()
+	if d.RoutineDefinition() != nil {
+		count = d.RoutineDefinition().DefaultCount()
 	}
 	if count != 0 {
 		if err = validateRoutineDefaultOwner(capture, d); err != nil {
@@ -67,7 +67,7 @@ func (r EngineCatalogRuntime) RoutineTrees(ctx context.Context, capture catalog.
 		}
 		body, err = sqltype.Tree(typ, d.SQLBody)
 	} else if d.DeclarationBody != nil {
-		if d.SQL != nil {
+		if d.RoutineDefinition() != nil {
 			return sqltype.Value{}, sqltype.Value{}, fmt.Errorf("stuntgres: invalid quoted routine body authority")
 		}
 		body, err = sqltype.Tree(typ, d.DeclarationBody)

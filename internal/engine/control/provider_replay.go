@@ -44,6 +44,7 @@ type providerReplay struct {
 	securityDefiner   bool
 	configuration     *catalog.RoutineConfiguration
 	readyAfter        ids.OID // Zero for seeded/installed providers; otherwise the creating type event.
+	hostConversion    bool    // Created by genuine type installation, before aliases.
 }
 
 func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
@@ -81,6 +82,18 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 		name, signature := p.SnowballHelper.Declaration()
 		originalNS := c.CatalogView.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
 		r.original = providerKey{originalNS.Name(), name, signature}
+	} else if p.HostHandler != nil {
+		name := p.HostHandler.HandlerName()
+		r.original = providerKey{name.Schema, name.Name, p.Signature}
+	} else if p.HostConversion != nil {
+		conversion := p.HostConversion
+		definition := conversion.Token.Definition()
+		name := definition.ToName
+		if conversion.From {
+			name = definition.FromName
+		}
+		r.original = providerKey{name.Schema, name.Name, p.Signature}
+		r.hostConversion = true
 	} else if p.Foreign != nil {
 		r.original = providerKey{p.Foreign.Name.Schema, p.Foreign.Name.Name, p.Signature}
 	} else {
@@ -348,8 +361,13 @@ func providerConfigurationSQL(entry string) (string, error) {
 
 func (s *dumpScript) prepareProviderReplay(ctx context.Context) error {
 	var early []providerReplay
+	var hostProviders []providerReplay
 	byEvent := make(map[ids.OID][]providerReplay)
 	for _, p := range s.Providers {
+		if p.hostConversion {
+			hostProviders = append(hostProviders, p)
+			continue
+		}
 		if p.readyAfter == 0 {
 			early = append(early, p)
 		} else {
@@ -381,14 +399,21 @@ func (s *dumpScript) prepareProviderReplay(ctx context.Context) error {
 	}
 	statements = append(statements, configurationStatements...)
 	s.providerStatements = statements
+	s.hostProviderStatements, err = planProviderReplay(hostProviders)
+	if err != nil {
+		return err
+	}
 	if err := s.prepareLanguageReplay(); err != nil {
+		return err
+	}
+	if err := s.prepareHostReplay(); err != nil {
 		return err
 	}
 	return s.prepareInstallationReplay(ctx)
 }
 
 func emitDumpProviderReplay(ctx context.Context, s *dumpScript, w *dumpWriter) error {
-	if len(s.providerStatements) == 0 && len(s.installationStatements) == 0 && len(s.languageStatements) == 0 {
+	if len(s.providerStatements) == 0 && len(s.installationStatements) == 0 && len(s.languageStatements) == 0 && s.hostAbsenceComment == "" {
 		return nil
 	}
 	if err := w.setOwner("postgres"); err != nil {
@@ -400,8 +425,27 @@ func emitDumpProviderReplay(ctx context.Context, s *dumpScript, w *dumpWriter) e
 	if err := emitDumpLines(w, s.installationStatements); err != nil {
 		return err
 	}
+	if err := emitDumpLines(w, s.hostConverterDrops); err != nil {
+		return err
+	}
+	if err := emitDumpLines(w, s.hostProviderStatements); err != nil {
+		return err
+	}
 	if err := emitDumpLines(w, s.languageStatements); err != nil {
 		return err
+	}
+	if err := emitDumpLines(w, s.hostHandlerDrops); err != nil {
+		return err
+	}
+	if s.hostAbsenceComment != "" {
+		if err := w.emit(s.hostAbsenceComment); err != nil {
+			return err
+		}
+		// This actual administrative command is the authenticated replay
+		// boundary for bootstrap pair removals, before any consumer DDL.
+		if err := w.forceOwner("postgres"); err != nil {
+			return err
+		}
 	}
 	if err := emitDumpLines(w, s.installationACLStatements); err != nil {
 		return err

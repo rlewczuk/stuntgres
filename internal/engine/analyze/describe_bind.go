@@ -117,7 +117,7 @@ func describe(ctx context.Context, host Host, stmt parser.Statement, auth Author
 			return b, err
 		}
 		if definition != nil {
-			if call, ok := node.(plan.SQLRoutineExpr); ok && len(call.Procedure.SQL.OutputFormals) != 0 {
+			if call, ok := node.(plan.SQLRoutineExpr); ok && len(call.Procedure.RoutineDefinition().OutputFormals) != 0 {
 				return b, sqlError("0A000", "calling procedures with output arguments is not supported in SQL functions")
 			}
 		}

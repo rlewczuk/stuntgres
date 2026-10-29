@@ -15,7 +15,7 @@ type plCallDatum struct {
 }
 
 func (b *Binder) capturePLCallOutputs(selected sqlCallableSelection) {
-	definition := selected.Procedure.SQL
+	definition := selected.Procedure.RoutineDefinition()
 	outputs := make([]PLCallOutput, len(definition.OutputFormals))
 	for i, formal := range definition.OutputFormals {
 		output := PLCallOutput{Target: proc.PLTarget{Slot: -1}, Name: definition.Formals[formal].Name, Formal: formal + 1}

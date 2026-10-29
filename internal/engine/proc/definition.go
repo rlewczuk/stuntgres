@@ -13,6 +13,7 @@ type BodyKind uint8
 const (
 	SQLBody BodyKind = iota
 	PLpgSQLBody
+	HostBody
 )
 
 // InvocationKind is the function's immutable call and result contract.

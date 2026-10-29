@@ -110,8 +110,10 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		providerOverride = true
 	}
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
- if extension.LtreePathProcedureName(name) { providerOverride = true }
- if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !extension.LtreeLqueryProcedureName(name) && !extension.LtreeLtxtqueryProcedureName(name) && !extension.LtreeHierarchyProcedureName(name) && !extension.LtreeArrayProcedureName(name) && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
+	if extension.LtreePathProcedureName(name) {
+		providerOverride = true
+	}
+	if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !extension.LtreeLqueryProcedureName(name) && !extension.LtreeLtxtqueryProcedureName(name) && !extension.LtreeHierarchyProcedureName(name) && !extension.LtreeArrayProcedureName(name) && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -367,10 +369,10 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		diagnostic.Hint = "To call a procedure, use CALL."
 		return selection, true, diagnostic
 	}
-	if selection.Procedure.SQL != nil && selection.polymorphic && selection.Signature.Result.Type == nil {
+	if selection.Procedure.RoutineDefinition() != nil && selection.polymorphic && selection.Signature.Result.Type == nil {
 		return selection, true, sqlError("42804", "could not determine polymorphic type because input has type unknown")
 	}
-	if selection.Procedure.SQL != nil && selection.polymorphic {
+	if selection.Procedure.RoutineDefinition() != nil && selection.polymorphic {
 		for _, input := range selection.Signature.Inputs {
 			if input.Type == nil {
 				return selection, true, sqlError("42804", "could not determine polymorphic type because input has type unknown")
@@ -813,15 +815,21 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return node, nil
 	}
 	if d != nil && extension.LtreeProviderOf(d) == extension.StockLtree {
-		if err := extension.StockLtree.ValidateProcedure(selected.auth.ReadCatalog(), d); err != nil { return nil, err }
+		if err := extension.StockLtree.ValidateProcedure(selected.auth.ReadCatalog(), d); err != nil {
+			return nil, err
+		}
 		if operation, ok := extension.LtreePathProcedure(selected.auth.ReadCatalog(), d); ok {
 			node, err := b.bindSelectedLtreePath(raw, selected, operation)
 			if err == nil && freezeSyntax {
 				symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
-				if failure != nil { return nil, failure }
+				if failure != nil {
+					return nil, failure
+				}
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
-				if b.Stored.Syntax == nil { b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr) }
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
 				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
 			}
 			return node, err
@@ -830,34 +838,46 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			node, err := b.bindSelectedLtreeLquery(raw, selected, operation)
 			if err == nil && freezeSyntax {
 				symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
-				if failure != nil { return nil, failure }
+				if failure != nil {
+					return nil, failure
+				}
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
-				if b.Stored.Syntax == nil { b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr) }
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
 				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
 			}
 			return node, err
 		}
-  if operation, ok := extension.LtreeLtxtqueryProcedure(selected.auth.ReadCatalog(), d); ok {
-   node, err := b.bindSelectedLtreeLtxtquery(raw, selected, operation)
-   if err == nil && freezeSyntax {
-    symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
-    if failure != nil { return nil, failure }
-    frozen := raw
-    frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
-    if b.Stored.Syntax == nil { b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr) }
-    b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
-   }
-   return node, err
-  }
+		if operation, ok := extension.LtreeLtxtqueryProcedure(selected.auth.ReadCatalog(), d); ok {
+			node, err := b.bindSelectedLtreeLtxtquery(raw, selected, operation)
+			if err == nil && freezeSyntax {
+				symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+				if failure != nil {
+					return nil, failure
+				}
+				frozen := raw
+				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
+				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+			}
+			return node, err
+		}
 		if operation, ok := extension.LtreeHierarchyProcedure(selected.auth.ReadCatalog(), d); ok {
 			node, err := b.bindSelectedLtreeHierarchy(raw, selected, operation)
 			if err == nil && freezeSyntax {
 				symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
-				if failure != nil { return nil, failure }
+				if failure != nil {
+					return nil, failure
+				}
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
-				if b.Stored.Syntax == nil { b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr) }
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
 				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
 			}
 			return node, err
@@ -866,10 +886,14 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			node, err := b.bindSelectedLtreeArray(raw, selected, operation)
 			if err == nil && freezeSyntax {
 				symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
-				if failure != nil { return nil, failure }
+				if failure != nil {
+					return nil, failure
+				}
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
-				if b.Stored.Syntax == nil { b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr) }
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
 				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
 			}
 			return node, err
@@ -1049,7 +1073,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		return functions.TriggerBuiltin{Info: info, Name: symbol}, nil
 	}
-	if d != nil && d.SQL != nil {
+	if d != nil && d.RoutineDefinition() != nil {
 		modifier := ""
 		if raw.Distinct {
 			modifier = "DISTINCT"
@@ -1067,18 +1091,18 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
 		b.dependency(ref, d.Revision())
-		resultUsage := d.SQL.Result
+		resultUsage := d.RoutineDefinition().Result
 		if selected.Signature.Result.Type != nil {
 			resultUsage = selected.Signature.Result
 		}
-		if !d.SQL.DerivedResult() && selected.Signature.Result.Type != nil {
-			id := d.SQL.Result.Type.ID()
+		if !d.RoutineDefinition().DerivedResult() && selected.Signature.Result.Type != nil {
+			id := d.RoutineDefinition().Result.Type.ID()
 			typ := resultUsage.Type
 			if id == 3500 && !typ.BaseType().IsEnum() {
 				return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "type matched to anyenum is not an enum type: " + typ.DiagnosticName()}
 			}
 			if (id == 2776 || id == 5079) && typ.BaseType().IsArray() {
-				return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "type matched to " + d.SQL.Result.Type.Name() + " is an array type: " + typ.DiagnosticName()}
+				return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "type matched to " + d.RoutineDefinition().Result.Type.Name() + " is an array type: " + typ.DiagnosticName()}
 			}
 		}
 		// The catalog RECORD identity is declaration-only. Give this call its
@@ -1093,7 +1117,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			}
 			resultUsage = sqltype.DeferredRecord().Usage()
 			if selected.Signature.Result.Type == nil {
-				selected.Signature = proc.InvocationSignature{Inputs: d.SQL.Inputs}
+				selected.Signature = proc.InvocationSignature{Inputs: d.RoutineDefinition().Inputs}
 			}
 			selected.Signature.Result = resultUsage
 		}
@@ -1120,7 +1144,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if raw.ProcedureCall && b.PL != nil {
 			b.capturePLCallOutputs(selected)
 		}
-		if raw.ProcedureCall && len(d.SQL.OutputFormals) != 0 {
+		if raw.ProcedureCall && len(d.RoutineDefinition().OutputFormals) != 0 {
 			// Analysis has coerced every position. Compact only the private
 			// winning arguments; OUT nodes never become executable/fold children.
 			remap := make([]int, len(args))
@@ -1184,14 +1208,14 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			}
 			info.Property = expr.MergeProperties(info.Property, node.Properties())
 		}
-		if d.SQL.ReturnsSet {
+		if d.RoutineDefinition().ReturnsSet {
 			if err := b.AdmitSetReturning(raw.Pos); err != nil {
 				return nil, err
 			}
 		}
 		signature := selected.Signature
 		if signature.Result.Type == nil {
-			signature = proc.InvocationSignature{Inputs: d.SQL.Inputs, Result: resultUsage}
+			signature = proc.InvocationSignature{Inputs: d.RoutineDefinition().Inputs, Result: resultUsage}
 		}
 		node := plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: args, WrittenCount: writtenCount, ArgNames: argNames, Variadic: raw.Variadic, InputMap: assembly, Signature: signature}
 		node, err := node.Collate(b.CollatedInfo)

@@ -908,6 +908,15 @@ arguments still require a caller window; declaration defaults are collected
 separately. Runtime evaluation, hard dependencies, refresh and remapping retain
 every expanded argument.
 
+Checked default roots use `Procedure.RoutineDefinition().Inputs` for SQL, PL and
+compiled-host declarations alike. `VisitDefinitionExpressions` exposes only
+present defaults, once in input-slot order, so comparison validation and range
+inspection share the actual payload owner. A host declaration still has no SQL
+program: SQL-standard action/query traversal remains guarded by its SQL body.
+The shared routine remapper reowns host layouts, typed default operands and
+dependency references in the destination catalog without mutating source
+artifacts or reparsing a substitute default.
+
 Domain CHECK manifests retain their actual selected cube operator reference as
 well as the procedure/type references. Their provider validator admits only the
 exact checked stock-cube operator: current reference lifetime, selected typed

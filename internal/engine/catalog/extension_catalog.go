@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/fts"
+	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
@@ -68,6 +69,9 @@ type Procedure struct {
 	Language                                  ids.ObjectAddress
 	Display                                   RoutineDisplay
 	PLHandler                                 PLHandler
+	HostHandler                               *host.Runtime
+	Host                                      *HostRoutine
+	HostConversion                            *HostConversion
 	RangeConstructor                          *RangeConstructor
 	// DeclarationDependencies order replay only; PL source is not an eager SQL
 	// body dependency manifest and these addresses do not create pg_depend edges.

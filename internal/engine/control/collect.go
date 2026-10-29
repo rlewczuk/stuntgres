@@ -97,6 +97,9 @@ type dumpCollector struct {
 // dumpCollectors lists the descriptor kinds Dump accepts, in check order.
 // A descriptor no entry matches is an unsupported kind.
 var dumpCollectors = [...]dumpCollector{
+	{"host conversion pair", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Transform); return ok }, func(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
+		return (catalog.TransformProvider{}).Validate(c.CatalogView, d)
+	}},
 	{"foreign object", isDumpForeign, collectForeignDump},
 	{"relation", isDumpRelation, collectRelationDump},
 	{"database", isDumpDatabase, collectDatabaseDump},
@@ -266,6 +269,12 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		return (stored.ProcedureProvider{}).Validate(c.CatalogView, d)
 	}
 	t := d.(*catalog.Procedure)
+	if t.HostHandler != nil || t.HostConversion != nil {
+		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
+			return err
+		}
+		return c.collectProvider(t)
+	}
 	if t.RangeConstructor != nil {
 		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
@@ -493,6 +502,9 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 			return err
 		}
 		_, configured := c.source.Foreign.NamespaceName(a)
+		for _, runtime := range c.CatalogView.Owner().HostRuntimes {
+			configured = configured || runtime.ConfiguredNamespace(ns.Name())
+		}
 		c.Schemas = append(c.Schemas, Schema{Name: ns.Name(), Owner: role.Name, Configured: configured})
 	}
 	return nil

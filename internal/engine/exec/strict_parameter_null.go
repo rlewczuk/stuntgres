@@ -74,7 +74,8 @@ func foldStrictParameterNull(c *Context, node expr.Expr, planChild func(expr.Exp
 // literal or the typed parameter frame alone, never by evaluating an
 // operator, function or domain.
 func ExecutionKnownNullArgument(c *Context, node expr.Expr) (bool, error) {
-	if node == nil || node.Properties().RuntimeDomainConversion {
+	if node == nil || node.Properties().RuntimeDomainConversion ||
+		c != nil && c.PreserveParameterDemand && node.Properties().ParameterDependent {
 		return false, nil
 	}
 	switch e := node.(type) {

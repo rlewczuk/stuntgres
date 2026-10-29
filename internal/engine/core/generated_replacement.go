@@ -72,7 +72,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		remap := stored.NewRoutineRemap(view, nil, typ, procedure, false)
 		err = stored.ReownInstalledDomainChecks(view, candidate, nil, false, remap)
 		if err == nil {
-			err = routine.RebindSQLDefinitions(candidate, remap)
+			err = routine.RebindRoutineDefinitions(candidate, remap)
 		}
 		if err == nil {
 			err = stored.ReownExpressions(view, candidate, nil, false, remap)

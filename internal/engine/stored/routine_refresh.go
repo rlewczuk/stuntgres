@@ -34,7 +34,7 @@ func currentRoutineCall(read catalog.Read, call plan.SQLRoutineExpr) (*catalog.P
 		return nil, ids.ErrCatalogReplaced
 	}
 	current, ok := read.Procedure(call.Ref.Address)
-	if !ok || current.SQL == nil || !exec.SameRoutineDeclaration(current, call.Procedure) || current.RoutineKind != call.Procedure.RoutineKind || !call.Signature.ValidFor(current.SQL) {
+	if !ok || current.RoutineDefinition() == nil || !exec.SameRoutineDeclaration(current, call.Procedure) || current.RoutineKind != call.Procedure.RoutineKind || !call.Signature.ValidFor(current.RoutineDefinition()) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	derived, err := call.Collate(func(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
@@ -67,7 +67,7 @@ func routineTypeDependents(state *catalog.State) map[ids.ObjectAddress][]routine
 	reverse := make(map[ids.ObjectAddress][]routineTypeDependent)
 	for _, descriptor := range state.Descriptors() {
 		d, ok := descriptor.(*catalog.Procedure)
-		if !ok || d.SQL == nil {
+		if !ok || d.RoutineDefinition() == nil {
 			continue
 		}
 		add := func(dependencies []catalog.ExpressionDependency, defaults bool) {
@@ -95,7 +95,7 @@ func routineTypeDependents(state *catalog.State) map[ids.ObjectAddress][]routine
 }
 
 // Unchanged declarations and payloads retain their immutable pointer identity.
-func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltype.Descriptor) *sqltype.Descriptor, remap *catalog.RoutineRemap) error {
+func reownRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltype.Descriptor) *sqltype.Descriptor, remap *catalog.RoutineRemap) error {
 	type refresh struct {
 		source         *catalog.Procedure
 		definition     *proc.Definition
@@ -104,8 +104,31 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 	var changes map[ids.ObjectAddress]*refresh
 	var queue []ids.ObjectAddress
 	for address, descriptor := range state.Descriptors() {
+		if pair, ok := descriptor.(*catalog.Transform); ok {
+			mapped := typ(pair.SQLType)
+			if mapped != pair.SQLType {
+				if mapped == nil {
+					return fmt.Errorf("stuntgres: missing host pair generation")
+				}
+				copy := *pair
+				copy.SQLType = mapped
+				copy.Type.ObjectID = ids.OID(mapped.ID())
+				state.SetDescriptor(address, &copy)
+			}
+			continue
+		}
 		d, ok := descriptor.(*catalog.Procedure)
 		if !ok {
+			continue
+		}
+		if d.HostConversion != nil {
+			if typ(d.HostConversion.Type) != d.HostConversion.Type {
+				if changes == nil {
+					changes = make(map[ids.ObjectAddress]*refresh)
+				}
+				changes[address] = &refresh{source: d}
+				queue = append(queue, address)
+			}
 			continue
 		}
 		if d.RangeConstructor != nil {
@@ -118,10 +141,10 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 			}
 			continue
 		}
-		if d.SQL == nil {
+		if d.RoutineDefinition() == nil {
 			continue
 		}
-		definition, err := remap.Definition(d.SQL)
+		definition, err := remap.Definition(d.RoutineDefinition())
 		if err != nil {
 			return err
 		}
@@ -147,7 +170,7 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 				}
 			}
 		}
-		if definition != d.SQL || defaults || body {
+		if definition != d.RoutineDefinition() || defaults || body {
 			if changes == nil {
 				changes = make(map[ids.ObjectAddress]*refresh)
 			}
@@ -167,7 +190,7 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 			address := edge.source.Address()
 			change := changes[address]
 			if change == nil {
-				change = &refresh{source: edge.source, definition: edge.source.SQL}
+				change = &refresh{source: edge.source, definition: edge.source.RoutineDefinition()}
 				changes[address] = change
 				queue = append(queue, address)
 			}
@@ -184,12 +207,18 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 		if err != nil {
 			return err
 		}
-		if change.source.RangeConstructor != nil {
+		if change.source.RangeConstructor != nil || change.source.HostConversion != nil {
 			state.SetDescriptor(address, mapped)
 			continue
 		}
 		next := *mapped
-		next.SQL = change.definition
+		if mapped.Host != nil {
+			host := *mapped.Host
+			host.Layout = change.definition
+			next.Host = &host
+		} else {
+			next.SQL = change.definition
+		}
 		state.SetDescriptor(address, &next)
 	}
 	if err := remap.Declarations(); err != nil {

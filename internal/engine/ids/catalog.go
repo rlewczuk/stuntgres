@@ -43,6 +43,7 @@ const (
 	TablespaceClassID            OID = 1213
 	LanguageClassID              OID = 2612
 	ProcedureClassID             OID = 1255
+	TransformClassID             OID = 3576
 	ExtensionClassID             OID = 3079
 	TSTemplateClassID            OID = 3764
 	TSDictionaryClassID          OID = 3600
@@ -104,4 +105,5 @@ const (
 	StatisticsObject
 	SubscriptionObject
 	TSParserObject
+	TransformObject
 )

@@ -54,7 +54,7 @@ func (c *Context) EvalPLAssignment(n plan.PLAssignmentExpr) (sqltype.Value, erro
 }
 
 func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (sqltype.Value, error) {
-	if n.Procedure.SQL.ReturnsSet {
+	if n.Procedure.RoutineDefinition().ReturnsSet {
 		return sqltype.Value{}, fmt.Errorf("set-returning SQL routine requires source evaluation")
 	}
 	return c.evalSQLRoutine(n, nil)
@@ -127,7 +127,7 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 	if err != nil {
 		return value, err // The body owner annotates its actual command ordinal.
 	}
-	if n.Procedure.RoutineKind == catalog.ProcedureRoutine && n.Procedure.SQL.Void() {
+	if n.Procedure.RoutineKind == catalog.ProcedureRoutine && n.Procedure.RoutineDefinition().Void() {
 		value = sqltype.VoidValue(n.Usage.Type)
 	}
 	return frame.Result(value, n.Usage)

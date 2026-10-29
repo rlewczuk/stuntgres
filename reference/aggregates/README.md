@@ -362,7 +362,7 @@ Add `REFERENCE=1` for the oracle.
   domain-input protocol and captured type diagnostic naming; it must retain CHECK
   diagnostics and search-path-aware qualification, never bypass checks.
   Active cancellation observes the native coordinator and then a real partial
-  worker inside `InvokeAggregateSQLRoutine` / `datetimeSleepWaitRemaining`,
+  worker inside `InvokeAggregateRoutine` / `datetimeSleepWaitRemaining`,
   with `runAggregatePartition` on that same live worker stack. PostgreSQL uses
   the shared fixture's actual PgSleep admission instead.
   Worker CTE inheritance is captured before launch, including absence; workers

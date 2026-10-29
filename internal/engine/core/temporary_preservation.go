@@ -108,7 +108,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := stored.ReownInstalledDomainChecks(candidate, next, mapping, false, routineRemap); err != nil {
 		return err
 	}
-	if err := routine.RebindSQLDefinitions(next, routineRemap); err != nil {
+	if err := routine.RebindRoutineDefinitions(next, routineRemap); err != nil {
 		return err
 	}
 	if err := stored.ReownExpressions(candidate, next, mapping, false, routineRemap); err != nil {

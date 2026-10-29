@@ -470,7 +470,7 @@ func (h finalUnitSQLHost) CaptureParallelEvaluation() func() *EvaluationCapture 
 	}
 }
 
-func (h finalUnitSQLHost) InvokeAggregateSQLRoutine(ctx context.Context, _ *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, _ *catalog.Procedure, _ sqltype.CollationRef) (sqltype.Value, error) {
+func (h finalUnitSQLHost) InvokeAggregateRoutine(ctx context.Context, _ *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, _ *catalog.Procedure, _ sqltype.CollationRef) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}

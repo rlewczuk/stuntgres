@@ -103,6 +103,11 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 	if len(script.foreignKeyModes) != 0 {
 		w.seal, w.sealBuffer = sha256.New(), make([]byte, 4096)
 	}
+	for _, runtime := range capture.CatalogView.Owner().HostRuntimes {
+		if err := w.emit(runtime.ReplayComment()); err != nil {
+			return err
+		}
+	}
 	if script.rawFloat4 {
 		final, exists := capture.CatalogView.Cast(sqltype.Xid, sqltype.Float4)
 		if !exists || final.Method != "b" || script.rawFinalDeferred {

@@ -32,43 +32,46 @@ type dumpScript struct {
 	deferredDomainChecks        map[ids.OID]map[string]bool
 	providerEventStatements     map[ids.OID][]string
 
-	policyGroups, ruleGroups, securityGroups  []dump.Group
-	triggerGroups                             []dump.Group
-	foreignKeyModes                           []stored.ForeignKeyModeReplay
-	eventTriggerReplay                        []eventTriggerReplay
-	subscriptionReplay                        []subscriptionReplay
-	domainNodes                               map[ids.OID]*catalog.Type
-	collationStatements, conversionStatements []dump.Statement
-	seedStatements, conversionSeeds           []string
-	familySeeds                               []string
-	familySeedFinal                           map[ids.OID]dump.Statement
-	conversionSchemas                         []string
-	sequenceCreation, sequenceCompletion      []string
-	invalidReplay                             map[ids.OID]partition.InvalidReplay
-	eventOrder                                []dump.Event
-	declarations                              map[ids.OID]dump.Statement
-	operatorLinks                             map[ids.OID]string
-	largeObjectRecords                        []largeObjectDump
-	foreignDefaultStatements                  []foreignDefaultStatement
-	lateForeignCasts                          map[ids.OID]bool
-	providerStatements                        []string
-	extensionMetadata                         map[ids.OID]string
-	installationStatements                    []string
-	languageReplayNames                       map[ids.ObjectAddress]string
-	languageStatements                        []string
-	installationTypeReplay                    *installationTypeReplay
-	typeReplayEpilogues                       map[ids.OID]string
-	rangeCreations                            map[ids.OID]*rangeReplayCreation
-	membershipStatements                      []string
-	preservedSeedMembership                   map[ids.ObjectAddress]ids.ObjectAddress
-	installationMetadata                      []string
-	installationACLStatements                 []string
-	objectACLStatements                       []string
-	initialACLStatements                      []string
-	typeACLStatements                         map[ids.OID][]string
-	attributeHistory                          *attributeHistory
-	attributeSchedules                        map[ids.ObjectAddress]*attributeSchedule
-	deferredColumnStorage                     map[ids.ObjectAddress]bool
+	policyGroups, ruleGroups, securityGroups   []dump.Group
+	triggerGroups                              []dump.Group
+	foreignKeyModes                            []stored.ForeignKeyModeReplay
+	eventTriggerReplay                         []eventTriggerReplay
+	subscriptionReplay                         []subscriptionReplay
+	domainNodes                                map[ids.OID]*catalog.Type
+	collationStatements, conversionStatements  []dump.Statement
+	seedStatements, conversionSeeds            []string
+	familySeeds                                []string
+	familySeedFinal                            map[ids.OID]dump.Statement
+	conversionSchemas                          []string
+	sequenceCreation, sequenceCompletion       []string
+	invalidReplay                              map[ids.OID]partition.InvalidReplay
+	eventOrder                                 []dump.Event
+	declarations                               map[ids.OID]dump.Statement
+	operatorLinks                              map[ids.OID]string
+	largeObjectRecords                         []largeObjectDump
+	foreignDefaultStatements                   []foreignDefaultStatement
+	lateForeignCasts                           map[ids.OID]bool
+	providerStatements                         []string
+	extensionMetadata                          map[ids.OID]string
+	installationStatements                     []string
+	languageReplayNames                        map[ids.ObjectAddress]string
+	languageStatements                         []string
+	hostProviderStatements, hostConverterDrops []string
+	hostHandlerDrops                           []string
+	hostAbsenceComment                         string
+	installationTypeReplay                     *installationTypeReplay
+	typeReplayEpilogues                        map[ids.OID]string
+	rangeCreations                             map[ids.OID]*rangeReplayCreation
+	membershipStatements                       []string
+	preservedSeedMembership                    map[ids.ObjectAddress]ids.ObjectAddress
+	installationMetadata                       []string
+	installationACLStatements                  []string
+	objectACLStatements                        []string
+	initialACLStatements                       []string
+	typeACLStatements                          map[ids.OID][]string
+	attributeHistory                           *attributeHistory
+	attributeSchedules                         map[ids.ObjectAddress]*attributeSchedule
+	deferredColumnStorage                      map[ids.ObjectAddress]bool
 }
 
 // buildDumpScript renders the captured groups and statements and orders

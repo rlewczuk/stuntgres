@@ -64,7 +64,7 @@ func TestPLpgSQLConditionalRemap(t *testing.T) {
 		return target.SQLType
 	}
 	remap := NewRoutineRemap(read, mapping, mapType, nil, false)
-	if err := routine.RebindSQLDefinitions(read.State(), remap); err != nil {
+	if err := routine.RebindRoutineDefinitions(read.State(), remap); err != nil {
 		t.Fatal(err)
 	}
 	next, ok := read.Procedure(source.Address())

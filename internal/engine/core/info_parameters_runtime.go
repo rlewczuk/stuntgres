@@ -40,7 +40,7 @@ func validateRoutineDefaultOwner(capture catalog.Read, d *catalog.Procedure) err
 	if d == nil || capture.Get(d.Address()) != d {
 		return ids.ErrCatalogReplaced
 	}
-	if d.SQL == nil {
+	if d.RoutineDefinition() == nil {
 		if d.SQLDefaults != nil {
 			return fmt.Errorf("stuntgres: invalid routine literal default authority")
 		}
@@ -61,7 +61,7 @@ func (r EngineCatalogRuntime) routineDefaultNode(ctx context.Context, capture ca
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if d.SQL != nil {
+	if d.RoutineDefinition() != nil {
 		node, ok := d.SQLDefaults.Default(slot)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing routine declaration default")

@@ -334,7 +334,7 @@ func SQLRoutineDefaultClosure(node expr.Expr) (valid, containsSQL bool) {
 			return false, false
 		}
 	case plan.SQLRoutineExpr:
-		if n.Procedure == nil || n.Procedure.SQL == nil || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Info.RoutineReference != n.Procedure || n.ValidateStoredProvider() != nil {
+		if n.Procedure == nil || n.Procedure.RoutineDefinition() == nil || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Info.RoutineReference != n.Procedure || n.ValidateStoredProvider() != nil {
 			return false, false
 		}
 		containsSQL = true

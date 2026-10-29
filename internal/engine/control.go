@@ -18,6 +18,9 @@ func Reset(ctx context.Context, e *core.Engine) error {
 	if err := fresh.InstallForeignDefinitions(e.Foreign.Definitions()); err != nil {
 		return err
 	}
+	if err := fresh.InstallHostDefinitions(e.Catalog.HostRuntimes); err != nil {
+		return err
+	}
 	_, err := e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
 	return err
 }
@@ -56,6 +59,6 @@ func Restore(ctx context.Context, e *core.Engine, src io.Reader) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	run := &restoreRun{stage: e.RestoreStage()}
+	run := &restoreRun{stage: e.RestoreStage(), hostContext: ctx}
 	return control.Restore(ctx, &restoreHost{target: e, run: run}, restoreHooks, run, src)
 }

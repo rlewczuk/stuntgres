@@ -15,15 +15,15 @@ import (
 func procedureFormalArrays(ctx context.Context, d *catalog.Procedure, types, modes *sqltype.Descriptor, variadic ids.OID, inputTypes sqltype.Value) (sqltype.Value, sqltype.Value, error) {
 	allTypes, allModes := sqltype.Null(types), sqltype.Null(modes)
 	count := 0
-	if d.SQL != nil {
+	if d.RoutineDefinition() != nil {
 		mixed := false
-		for _, formal := range d.SQL.Formals {
+		for _, formal := range d.RoutineDefinition().Formals {
 			mixed = mixed || formal.Mode != "i"
 		}
 		if !mixed {
 			return allTypes, allModes, nil
 		}
-		count = len(d.SQL.Formals)
+		count = len(d.RoutineDefinition().Formals)
 	} else {
 		outputs := d.OutputDeclaration()
 		if outputs == nil && variadic == 0 {

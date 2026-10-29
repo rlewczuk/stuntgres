@@ -7,10 +7,11 @@ copy-on-write overlay `Candidate`. "Catalog" here means the data, not DDL.
 ## Imports
 
 Layer L3 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `ids`, `expr`, `authorization`, `largeobject`, `proc`, the
-stateless `fts` leaf, `internal/util`, `sqltype`, `parser`, `sqlstate` and the standard library, never
-the engine or its sibling `functions`. `proc` owns immutable SQL definitions and
-private frames, not catalog authority.
+It imports only `ids`, `expr`, `authorization`, `largeobject`, `proc`, `host`, the
+stateless `fts` leaf, `internal/util`, `sqltype`, `parser`, `sqlstate` and the standard
+library, never the engine or its sibling `functions`. `proc` owns immutable typed
+declaration layouts and private frames; `host` owns immutable registered callbacks,
+neither owns catalog authority.
 
 ## What it owns
 
@@ -43,6 +44,21 @@ private frames, not catalog authority.
   these against the sealed canonical declaration. `Parallel` and `Cost` remain
   mutable ALTER overrides, so native replay emits only actual changes rather than
   restating bootstrap properties.
+  Host handlers, directional converters and scalar compiled declarations have
+  disjoint payloads, without forged PL handlers or installation origins.
+  `RoutineDefinition()` projects their common typed layout without granting
+  executable authority. `HostRoutine` captures actual program/conversion tokens
+  and genuine directional procedure/pair addresses. `Transform` owns a real
+  type/language pair and normal dependencies, not a principal or ACL. Shared
+  access validation treats the pair as ownerless; its provider validates
+  type/language/converter authority. Language defaults are not pair rows.
+  Registry tokens are engine-owned and immutable, and names never supply an
+  invocation-time callback fallback.
+  `ProcedureLanguageAddress` is the common declaration-language identity
+  projection for catalog snapshots and function-definition inquiries. A genuine
+  host scalar retains its actual language address despite its Go implementation
+  display; native Go utilities retain the zero-language sentinel. Display labels
+  cannot synthesize or replace language/callback authority.
   `Procedure.ReturnsSet` reads intrinsic SQL/builtin/installed capability;
   `RowEstimate` applies positive canonical `Rows` overrides only to genuine set
   declarations, retaining released/provider defaults when no override exists.

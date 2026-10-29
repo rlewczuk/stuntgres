@@ -425,7 +425,11 @@ members instead reach the constructor's `22004` check.
 
 After recursive child planning and typed-input validation, a strict scalar call
 with a literal NULL or a proven NULL in the current typed parameter frame becomes
-a result-typed NULL even when its declaration is STABLE or VOLATILE. Immutable
+a result-typed NULL even when its declaration is STABLE or VOLATILE. Commands
+capture `force_generic_plan` as a parameter-demand barrier: imported parameter
+NULL cannot erase the call before current EXECUTE admission, while literal NULL
+and custom-plan pruning retain their existing behavior. This does not add a
+generic/custom plan cache or change SQL/PL/host invocation owners. Immutable
 child errors and their current-actor EXECUTE checks still precede erasure; a
 runtime-only sibling, including a domain coercion, is discarded without execution.
 A domain conversion in the NULL-supplying argument is not a proof. Runtime row
@@ -554,6 +558,10 @@ sources never close them.
 independent state/result usages, seed and final mode. Each occurrence owns its
 state and forward/inverse/final `proc.Frame`s; immutable values need no speculative
 copying. Strict transitions distinguish never-seeded state from returned NULL.
+Frame-backed SQL/PL/host supports have no scalar expression call: their common
+`RoutineDefinition()` selects `InvokeAggregateRoutine` on the actual statement
+host. Builtin expression and separately owned aggregate-context paths remain
+distinct; the common layout does not manufacture either capability.
 All vectors use retained binary conversions, never current casts; strict
 transitions without a seed recheck compatibility once at startup. Admission
 checks current aggregate-owner EXECUTE on exactly the selected supports, with

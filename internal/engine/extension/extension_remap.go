@@ -83,6 +83,11 @@ func remapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		return &n
 	}
 	switch d := d.(type) {
+	case *catalog.Transform:
+		n := *d
+		n.ObjectAddress = address(d.Address())
+		n.Type, n.Language, n.From, n.To = address(d.Type), address(d.Language), address(d.From), address(d.To)
+		return &n
 	case *catalog.EventTrigger:
 		n := *d
 		n.ObjectAddress = address(d.Address())

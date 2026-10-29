@@ -35,6 +35,8 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	bodyKind := proc.SQLBody
 	if execution == catalog.PLpgSQLLanguage {
 		bodyKind = proc.PLpgSQLBody
+	} else if execution == catalog.HostLanguage {
+		bodyKind = proc.HostBody
 	}
 	arguments := s.Arguments
 	if s.TableResult != nil {
@@ -190,6 +192,63 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	if err = h.ValidateRoutineConfiguration(d); err != nil {
 		return err
+	}
+	if execution == catalog.HostLanguage {
+		if s.Procedure || layout.ReturnsSet || layout.TableResult || len(layout.OutputFormals) != 0 {
+			return sqlError("0A000", "host routines require ordinary scalar IN arguments and result")
+		}
+		for _, formal := range layout.Formals {
+			if formal.Mode != "i" {
+				return sqlError("0A000", "host routines require ordinary scalar IN arguments")
+			}
+		}
+		program := language.Host.Program(s.Body)
+		if program == nil {
+			return fmt.Errorf("stuntgres: host program %q is not registered", s.Body)
+		}
+		registered := program.Definition()
+		if len(registered.Inputs) != len(inputs) || registered.Result != catalog.HostLogicalType(result.Type) {
+			return fmt.Errorf("stuntgres: incompatible host program result/signature/direction")
+		}
+		for i, usage := range inputs {
+			if registered.Inputs[i] != catalog.HostLogicalType(usage.Type) {
+				return fmt.Errorf("stuntgres: incompatible host program input/signature/direction")
+			}
+		}
+		layout.Kind, layout.Source, layout.Name = proc.HostBody, s.Body, name
+		if err = h.MaterializeHostConversions(); err != nil {
+			return err
+		}
+		d.Host, err = catalog.ResolveHostRoutine(h.StageRead(), layout, program, language.Address())
+		if err != nil {
+			return err
+		}
+		d.Display = catalog.RoutineDisplay{Language: catalog.GoRoutineLanguage, Source: s.Body}
+		if previous == nil {
+			oid, failure := h.AllocateOID()
+			if failure != nil {
+				return failure
+			}
+			d.ObjectAddress.ObjectID = oid
+			d.ACL = h.CreationACL(d.Owner, d.Namespace(), authorization.DefaultRoutines)
+		}
+		d.ObjectRevision, err = h.Revision()
+		if err != nil {
+			return err
+		}
+		if err = h.BindSQLDefaults(auth, d, arguments, input); err != nil {
+			return err
+		}
+		if previous == nil {
+			err = h.Stage().Create(d)
+		} else {
+			err = h.Stage().Replace(d)
+		}
+		if err != nil {
+			return err
+		}
+		ddl.RecordCommand(h.Stage(), "CREATE FUNCTION", d.Address())
+		return nil
 	}
 	// Language validation follows replacement authority and compatibility.
 	// Catalog result safety above remains unconditional.

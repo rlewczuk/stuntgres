@@ -14,6 +14,8 @@ import (
 // replace it.
 var restoreHooks = []control.Hook[*restoreRun]{
 	// Line comment decoders.
+	{Name: "host runtime prerequisites", Decode: decodeRestoreHostRequirement},
+	{Name: "host pair absence boundary", Decode: decodeRestoreHostAbsences},
 	{Name: "typedef: domain replay records", Decode: decodeRestoreDomainReplay},
 	{Name: "typedef: domain default snapshots", Decode: decodeRestoreDomainDefault},
 	{Name: "extension: owner records", Decode: decodeRestoreExtensionOwners},
@@ -95,6 +97,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "table: physical foreign key provider", After: afterRestorePhysicalForeignKeyProvider},
 	{Name: "table: physical import index", After: afterRestorePhysicalImportIndex},
 	{Name: "owner directive", After: afterRestoreOwnerDirective},
+	{Name: "host pair absence application", After: afterRestoreHostAbsences},
 	{Name: "typedef: fresh type owner", After: afterRestoreTypeOwner},
 	{Name: "statistics: fresh owner", After: afterRestoreStatisticsOwner},
 	{Name: "inheritance: historical relation", After: afterRestoreHistoricalRelation},
@@ -109,6 +112,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "routine: checked PL admission consumed", After: afterRestorePLChecked},
 
 	// After the last statement.
+	{Name: "host runtime prerequisite closure", Finish: finishRestoreHostRequirements},
 	{Name: "comparison context closure", Finish: finishRestoreComparisonContext},
 	{Name: "routine: checked PL admission closure", Finish: finishRestorePLChecked},
 	{Name: "table: attribute retirements", Finish: finishRestoreAttributeRetirements},

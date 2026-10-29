@@ -123,7 +123,7 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	if StrictScalarRoutine(captured) {
 		null := false
 		StrictRoutineArguments(node, func(child expr.Expr) {
-			if child != nil && RandomLiteralNull(child) {
+			if child != nil && RandomLiteralNull(child) && (!c.PreserveParameterDemand || !child.Properties().ParameterDependent) {
 				null = true
 			}
 		})

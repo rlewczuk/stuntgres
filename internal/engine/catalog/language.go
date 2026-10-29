@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -54,6 +55,8 @@ type Language struct {
 	ACL                     authorization.ACLValue
 	Procedural, Trusted     bool
 	Call, Inline, Validator ids.ObjectAddress
+	Host                    *host.Runtime
+	HostRegistration        *host.Runtime // Original baseline identity; aliases have none.
 }
 
 func (d *Language) Address() ids.ObjectAddress       { return d.ObjectAddress }
@@ -73,6 +76,13 @@ func (LanguageProvider) Validate(v Read, descriptor Descriptor) error {
 	}
 	if v.Owner() == nil || v.Owner().Principals == nil || d.Owner.ID() == 0 || d.Owner != v.Owner().Principals.Principal(d.Owner.ID()) {
 		return invalid()
+	}
+	if d.Host != nil {
+		handler, ok := v.Get(d.Call).(*Procedure)
+		if !d.Procedural || d.Origin != nil || d.Inline != (ids.ObjectAddress{}) || d.Validator != (ids.ObjectAddress{}) || !ok || handler.HostHandler != d.Host || ValidateHostProcedure(v, handler) != nil {
+			return invalid()
+		}
+		return ValidateExtensionMembership(v, d)
 	}
 	if !d.Procedural {
 		validator := ids.OID(0)
@@ -113,6 +123,7 @@ const (
 	ExternalLanguage LanguageExecution = iota
 	SQLLanguage
 	PLpgSQLLanguage
+	HostLanguage
 )
 
 // ResolveLanguageExecution derives execution only from current genuine identity
@@ -120,6 +131,9 @@ const (
 func ResolveLanguageExecution(v Read, d *Language) (LanguageExecution, error) {
 	if err := (LanguageProvider{}).Validate(v, d); err != nil {
 		return ExternalLanguage, err
+	}
+	if d.Host != nil {
+		return HostLanguage, nil
 	}
 	if d.Procedural {
 		return PLpgSQLLanguage, nil

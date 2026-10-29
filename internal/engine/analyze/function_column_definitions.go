@@ -18,7 +18,7 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 	connectby, isConnectby := call.(plan.InstalledConnectbyExpr)
 	crosstab, isCrosstab := call.(plan.InstalledTablefuncCrosstabExpr)
 	// Formal-derived tuples already own their shape, despite prorettype RECORD.
-	isRoutine = isRoutine && routine.Procedure.Result == 2249 && !routine.Procedure.SQL.DerivedResult()
+	isRoutine = isRoutine && routine.Procedure.Result == 2249 && !routine.Procedure.RoutineDefinition().DerivedResult()
 	anonymous := (isRecord || isJSONB || isRoutine || isConnectby || isCrosstab) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
 		if isRecord && anonymous || JSONBRecordUnresolved(call) || isRoutine || isConnectby && !connectby.Defined || isCrosstab && anonymous {

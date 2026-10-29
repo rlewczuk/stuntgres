@@ -22,16 +22,90 @@ later catalog replacement. Typed NULL operands still carry logical identity.
   even after every pool closes; nothing persists across process exit.
   Use `sql.OpenDB(connector)`.
 - Importing the package registers one default Driver as `sql.Open("stuntgres", name)`.
-  It cannot be configured, so use `NewDriver` when registering settings or foreign
-  data wrappers, or when tests need isolation.
+  It cannot be configured, so use `NewDriver` when registering settings, foreign
+  data wrappers or compiled host routine languages, or when tests need isolation.
 - `OpenConnector` connects as the bootstrap superuser `postgres`.
   `d.OpenConnectorAs(name, role)` asserts an existing role by exact name: a trusted
   host assertion, not password authentication. Each physical connect checks
   LOGIN (28000), CONNECTION LIMIT (53300) and database CONNECT. Stored passwords and
   `VALID UNTIL` do not affect native admission.
 - Configuration (`RegisterSetting`, `RegisterForeignDataWrapper`,
-  `RegisterForeignValidator`) must happen before the Driver's first connector;
-  the registry then freezes.
+  `RegisterForeignValidator`, `RegisterHostLanguage`) must happen before the
+  Driver's first connector; the registry then freezes.
+
+### Application-supplied scalar routine languages
+
+`d.RegisterHostLanguage(HostLanguageDefinition)` registers compiled application
+code before opening a connector. It copies declaration slices, checks shape and
+duplicates atomically, and runs no application callback. Independent Drivers have
+independent registrations. This is a native Go callback ABI, not Go source
+interpretation, PL/Python, PL/Perl, PostgreSQL's C ABI or a shared-library loader.
+
+A definition supplies a stable `Provider`/`ABIVersion`, decoded language `Name`,
+exact `HostName{Schema, Name}` handler name, `Trusted` security decision and a
+non-nil `HostHandlerFunc`. Its handler receives the already-resolved immutable
+`HostProgramFunc` and actually invokes supplied compiled code. Program definitions
+carry exact `ID`, `Version`, ordered input/result `HostType`s, conversion selectors
+and non-nil executable functions. SQL `AS 'program-id'` selects that registered
+program; arbitrary source and symbol/library forms do not manufacture execution.
+The bounded declaration surface is ordinary scalar IN arguments and results.
+Existing SQL/PLpgSQL and absent external-runtime boundaries remain separate.
+
+`HostType` supports `HostBool`, `HostInt4`, `HostInt8`, `HostText` and the genuine
+extension-owned `HostHstore`. Registration does **not** install hstore. Explicit
+`CREATE EXTENSION hstore` supplies its actual type generation and materializes
+independent registered converter procedures and bootstrap associations, not extra
+released extension members. `HostConversionDefinition.Bootstrap` designates at
+most one actual pair per logical type in a language. Other conversion definitions
+may supply real defaults without creating pair rows.
+
+`InputConversions` has exactly one selector per input. A nonempty selector names
+the registered bootstrap pair; an empty selector chooses the actual registered
+language default for that direction. A missing selected direction can use only
+that direction's genuine registered default, never an implicit identity/text
+conversion. These are compiled program selectors, not SQL TRANSFORM clauses.
+
+Callbacks use only context and plain Go carriers:
+
+- `HostSQLValue` contains a logical type, SQL-null flag and one matching
+  Bool/Int64/Text/Hstore payload. Integer range, text and returned-carrier checks
+  precede publication into SQL values.
+- `HostHstoreEntry{Key, Value, Null}` is an owned pair projection.
+  `HostHstoreMap map[string]HostHstoreValue` distinguishes a missing key, a null
+  entry and a textual value; `HostHstoreValue{Text, Null}` allocates no per-value
+  string pointer. A genuine map converter traverses the owned entries into a
+  map, and its reverse validates/projects the returned map into entries.
+- `HostObject{Null, Value}` distinguishes top-level SQL NULL from language objects.
+  A map ABI must reject a nil nonnull map; an allocated empty map is nonnull.
+  STRICT calls retain the shared SQL invocation-demand and typed-null rules.
+
+FROM SQL, handler/program and TO SQL callbacks run synchronously outside engine,
+replacement-reservation, session and settings mutexes. Context cancellation is
+cooperative: arbitrary application Go code cannot safely be killed. Close any
+application-owned resources in the supplied callback's own defers. A separate
+connection may be used for reentry; recursively using the same busy physical
+connection is not promised. Balanced current operation/epoch/capability and
+EXECUTE readmission surrounds each individual callback, including the program
+invoked inside a handler, before another capability or returned carrier is used.
+The program capability lent to the handler is detached on unwind: retaining it
+cannot retain a live SQL frame/authority or execute it after invocation ends.
+The common routine environment owns settings/security unwind and statement
+rollback. Native callback/registration/capability errors are not fabricated
+Python diagnostics.
+
+Input carriers never expose immutable SQL backing. Returned storage must not be
+mutated concurrently during transfer; mutation after the SQL invocation completes
+cannot alter detached SQL results. Applications remain responsible for their own
+callback data races. Stable provider/ABI/program versions are application promises
+of compatible semantics and object representation, not function-pointer equality.
+Native logical replay requires explicit matching destination registration and
+never serializes executable closures or claims that a Go-host stream runs as
+Python SQL on PostgreSQL.
+Native replay rebinds to the destination's immutable registered capabilities and
+fresh catalog/type/pair generations. It preserves dropped/renamed providers and
+real surviving directions rather than re-installing them from names. A strict
+versioned native absence boundary preserves missing pairs before declarations
+consume them; it does not add SQL `TRANSFORM` DDL or persist runtime objects.
 
 
 ### Selecting a logical database

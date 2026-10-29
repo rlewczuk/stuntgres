@@ -44,6 +44,9 @@ func (s *dumpScript) prepareLanguageReplay() error {
 			}
 			original = d.Origin.Installation.Declarations[d.Origin.Declaration].Name()
 		}
+		if d.HostRegistration != nil {
+			original = d.HostRegistration.Name()
+		}
 		if original == "" || original == d.Name() {
 			continue
 		}
@@ -68,7 +71,7 @@ func (s *dumpScript) prepareLanguageReplay() error {
 		if !d.Procedural {
 			continue
 		}
-		baseline := d.Origin != nil || d.Address().ObjectID >= 12 && d.Address().ObjectID <= 14
+		baseline := d.HostRegistration != nil || d.Origin != nil || d.Address().ObjectID >= 12 && d.Address().ObjectID <= 14
 		if d.Origin != nil {
 			released, ok := d.Origin.Installation.Declarations[d.Origin.Declaration].(*catalog.Language)
 			if !ok {

@@ -256,7 +256,11 @@ type Producer func(Input) ([][]sqltype.Value, error)
   callable providers. SQL-backed routines require an actual language descriptor
   and project its address independently of its current label; native released
   internal/C/SQL declarations use fixed language identities, not name lookup.
-  Native Go callbacks retain their native-only language0 sentinel.
+  Host scalars likewise project their authentic associated language, while
+  handler/converter utilities keep native Go's zero-language sentinel. The shared
+  catalog projection also drives function-definition inquiry across language
+  renames. Common typed layouts supply host formal names, default counts and
+  checked parameter-default disclosure without a fabricated SQL body.
   Builtin/provider set capability remains intrinsic; estimates consume canonical
   positive `Procedure.Rows` overrides, otherwise retaining genuine released or
   installed defaults. Scalar estimates remain zero.
@@ -448,9 +452,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   retain UNION ALL multiplicity. The paired catalog/role/presentation frontier
   supplies both typed relation and validated owning-domain rendering.
 - `transforms` has eight nullable source-owned domains: seven `sql_identifier`
-  columns and one `character_data` column. Its inventory, like `pg_transform`,
-  is truthfully empty because no implemented objects own transform definitions;
-  ordinary types, languages, codecs and SQL routines never synthesize rows.
+  columns and one `character_data` column. Its inventory follows the genuine
+  `pg_transform` type/language/direction definitions. Without an explicitly
+  supplied host runtime and its materialized pairs it remains empty; ordinary
+  types, languages, codecs and SQL routines never synthesize rows.
   The bootstrap owner and ordinary schema-USAGE/view-SELECT admission govern
   reads. There is no default PUBLIC SELECT grant and no row privilege predicate.
   Its released definition retains the direction joins, including explicit OID
@@ -833,8 +838,11 @@ catalog writes or bypass a provider's independent backing-source checks.
   relation ACLs, schema USAGE, search path and another session's TEMP ownership
   do not filter rows. Captured presentation controls current-name SQL and own
   TEMP spelling; reads never authorize or execute rule actions.
-- `pg_transform` (3576): checks cancellation, then the five carrier types, and
-  returns a non-nil empty source.
+- `pg_transform` (3576): checks cancellation and the five carrier types, then
+  projects genuine provider-validated type/language pairs. Its first three fields
+  are OID values; FROM/TO procedure references are REGPROC values, including a
+  non-NULL REGPROC zero for an absent direction. Empty inventory still produces
+  a non-nil empty source. Reads never install or execute a callback.
 - `pg_settings`: projects registry metadata and one coherent typed snapshot;
   with `Keep` (a SELECT filtering its own scan by setting name) it builds only
   the named rows;

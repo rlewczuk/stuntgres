@@ -62,8 +62,8 @@ func VisitDefinitionExpressions(d catalog.Descriptor, visit func(expr.Expr)) err
 			visit(check.Expression)
 		}
 	case *catalog.Procedure:
-		if d.SQL != nil && d.SQLDefaults != nil {
-			for slot := range d.SQL.Inputs {
+		if layout := d.RoutineDefinition(); layout != nil && d.SQLDefaults != nil {
+			for slot := range layout.Inputs {
 				if node, ok := d.SQLDefaults.Default(slot); ok {
 					visit(node)
 				}

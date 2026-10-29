@@ -99,6 +99,9 @@ func stageExtensionLocked(e *core.Engine, scope *core.StatementScope, s *parser.
 	}
 	stage, err := stageOf(staged)
 	if err == nil {
+		err = e.MaterializeHostConversions(stage)
+	}
+	if err == nil {
 		ddl.RecordCommand(stage, "CREATE EXTENSION", stage.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text}))
 	}
 	return stage, err

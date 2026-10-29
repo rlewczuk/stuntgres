@@ -26,7 +26,7 @@ type aggregateEffectHost struct {
 	leaders atomic.Int64
 }
 
-func (h *aggregateEffectHost) InvokeAggregateSQLRoutine(ctx context.Context, d *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
+func (h *aggregateEffectHost) InvokeAggregateRoutine(ctx context.Context, d *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
 	if !exec.InParallelOperation(ctx) {
 		return sqltype.Value{}, errors.New("actual support lost parallel operation context")
 	}
@@ -41,7 +41,7 @@ func (h *aggregateEffectHost) InvokeAggregateSQLRoutine(ctx context.Context, d *
 		}
 		h.leaders.Add(1)
 	}
-	return h.StatementHost.InvokeAggregateSQLRoutine(ctx, d, frame, usage, owner, collation)
+	return h.StatementHost.InvokeAggregateRoutine(ctx, d, frame, usage, owner, collation)
 }
 
 func TestAggregateCombineParallelEffects(t *testing.T) {

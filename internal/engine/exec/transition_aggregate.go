@@ -336,14 +336,14 @@ func (p *TransitionAggregate) invoke(ctx context.Context, runtime *Context, supp
 	}
 	var result sqltype.Value
 	var err error
-	if support.SQL != nil {
+	if support.RoutineDefinition() != nil {
 		host, ok := runtime.LiveHost().(interface {
-			InvokeAggregateSQLRoutine(context.Context, *catalog.Procedure, *proc.Frame, sqltype.Usage, *catalog.Procedure, sqltype.CollationRef) (sqltype.Value, error)
+			InvokeAggregateRoutine(context.Context, *catalog.Procedure, *proc.Frame, sqltype.Usage, *catalog.Procedure, sqltype.CollationRef) (sqltype.Value, error)
 		})
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: aggregate support invocation has no statement owner")
 		}
-		result, err = host.InvokeAggregateSQLRoutine(ctx, support, frame, usage, p.Aggregate, p.InputCollation)
+		result, err = host.InvokeAggregateRoutine(ctx, support, frame, usage, p.Aggregate, p.InputCollation)
 	} else {
 		local := *runtime
 		local.Parameters = frame.Parameters
@@ -629,7 +629,7 @@ func (p *TransitionAggregate) Remap(r functions.ProviderRemap) (functions.Aggreg
 
 func validateTransitionCall(call expr.Expr, support *catalog.Procedure, result sqltype.Usage) error {
 	if call == nil {
-		if support.SQL == nil {
+		if support.RoutineDefinition() == nil {
 			return fmt.Errorf("stuntgres: missing transition scalar provider")
 		}
 		return nil
