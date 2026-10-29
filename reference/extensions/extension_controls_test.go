@@ -1,7 +1,6 @@
 package reference_test
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -14,17 +13,9 @@ import (
 	"testing"
 )
 
-func extensionDump(t *testing.T, ctx context.Context, db *sql.DB) string {
-	t.Helper()
-	var b bytes.Buffer
-	if err := stuntgres.Dump(ctx, db, &b); err != nil {
-		t.Fatal(err)
-	}
-	return b.String()
-}
 func extensionControlsFailures(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, provider, dump string, check fixture.Step) {
 	t.Helper()
-	if again := extensionDump(t, p.Ctx, p.Native); again != dump {
+	if again := fixture.ExtensionDump(t, p.Ctx, p.Native); again != dump {
 		t.Fatal("redump changed installed symbolic identities")
 	}
 	const marker = "-- stuntgres-extension-owners-v3 "
@@ -55,7 +46,7 @@ func extensionControlsFailures(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 			t.Fatal("invalid owner/provider replay accepted", script)
 		}
 		fixture.RunStep(t, p.Ctx, c, r, check)
-		if extensionDump(t, p.Ctx, p.Native) != dump {
+		if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump {
 			t.Fatal("failed replay changed target")
 		}
 	}
@@ -85,7 +76,7 @@ func extensionNamedOwnerControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *
 	if pg {
 		return
 	}
-	dump := extensionDump(t, p.Ctx, p.Native)
+	dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	other := fixture.CatalogControlPool(t, stuntgres.NewDriver(), "ext_owner_destination")
 	if _, err := other.ExecContext(p.Ctx, "CREATE USER ext_installer NOSUPERUSER"); err != nil {
 		t.Fatal(err)
@@ -104,7 +95,7 @@ func extensionNamedOwnerControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *
 	if err := target.QueryRowContext(p.Ctx, "SELECT ext_addon.unaccent('Hôtel')").Scan(&hotel); err != nil || hotel != "Hotel" {
 		t.Fatal(hotel, err)
 	}
-	if extensionDump(t, p.Ctx, other) != dump {
+	if fixture.ExtensionDump(t, p.Ctx, other) != dump {
 		t.Fatal("independent named-owner redump changed")
 	}
 	// A new Driver lacking the named principal must fail without replacing its
@@ -113,11 +104,11 @@ func extensionNamedOwnerControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *
 	if _, err := missing.ExecContext(p.Ctx, "CREATE EXTENSION unaccent"); err != nil {
 		t.Fatal(err)
 	}
-	before := extensionDump(t, p.Ctx, missing)
+	before := fixture.ExtensionDump(t, p.Ctx, missing)
 	if err := stuntgres.Restore(p.Ctx, missing, strings.NewReader(dump)); err == nil {
 		t.Fatal("missing owner accepted")
 	}
-	if extensionDump(t, p.Ctx, missing) != before {
+	if fixture.ExtensionDump(t, p.Ctx, missing) != before {
 		t.Fatal("missing owner replaced target")
 	}
 	// Target roles are captured before external I/O. Dropping/recreating a name
@@ -129,7 +120,7 @@ func extensionNamedOwnerControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *
 	if _, err := fresh.ExecContext(p.Ctx, "CREATE EXTENSION unaccent"); err != nil {
 		t.Fatal(err)
 	}
-	before = extensionDump(t, p.Ctx, fresh)
+	before = fixture.ExtensionDump(t, p.Ctx, fresh)
 	reader := &extensionMutationReader{reader: strings.NewReader(dump), mutate: func() error {
 		for _, q := range []string{"DROP USER ext_installer", "CREATE USER ext_installer"} {
 			if _, err := fresh.ExecContext(p.Ctx, q); err != nil {
@@ -141,7 +132,7 @@ func extensionNamedOwnerControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *
 	if err := stuntgres.Restore(p.Ctx, fresh, reader); err == nil {
 		t.Fatal("drop/recreated owner authority accepted")
 	}
-	if extensionDump(t, p.Ctx, fresh) != before {
+	if fixture.ExtensionDump(t, p.Ctx, fresh) != before {
 		t.Fatal("owner fence replaced target")
 	}
 	// Plain streams do not claim to preserve original member ownership: a trusted
@@ -172,7 +163,7 @@ func extensionNamedOwnerControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *
 	run(fixture.Exec("BEGIN", 0))
 	run(fixture.Exec("CREATE EXTENSION unaccent", 0))
 	extensionCount(t, p, c, r, 1)
-	if text := extensionDump(t, p.Ctx, p.Native); strings.Contains(text, "CREATE EXTENSION") {
+	if text := fixture.ExtensionDump(t, p.Ctx, p.Native); strings.Contains(text, "CREATE EXTENSION") {
 		t.Fatal("Dump exposed private installation")
 	}
 	run(fixture.Exec("ROLLBACK", 0))

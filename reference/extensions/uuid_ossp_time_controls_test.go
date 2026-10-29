@@ -47,7 +47,7 @@ func uuidOsspTimeControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture
 		oldRows = append(oldRows, rows)
 		oldTypes = append(oldTypes, cols)
 	}
-	dump := extensionDump(t, p.Ctx, p.Native)
+	dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func uuidOsspTimeControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture
 	for _, name := range uuidOsspTimeNames {
 		uuidOsspTimeUnique(t, seen, uuidOsspTimeRead(t, p, held[name], r, false, held[name].SQL, 1, 1, name == "uuid_generate_v1mc"))
 	}
-	before := extensionDump(t, p.Ctx, p.Native)
+	before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	for _, bad := range []string{
 		dump + "\nINVALID SQL;",
 		strings.Replace(dump, "VERSION '1.1'", "VERSION 'missing'", 1),
@@ -98,7 +98,7 @@ func uuidOsspTimeControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
 			t.Fatal("invalid restore accepted")
 		}
-		if extensionDump(t, p.Ctx, p.Native) != before {
+		if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 			t.Fatal("failed restore changed data/provider")
 		}
 		post(c, r)
@@ -106,7 +106,7 @@ func uuidOsspTimeControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture
 	ctx, cancel := context.WithCancel(p.Ctx)
 	err := stuntgres.Restore(ctx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
 	cancel()
-	if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, p.Native) != before {
+	if !errors.Is(err, context.Canceled) || fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 		t.Fatal("canceled restore", err)
 	}
 	post(c, r)

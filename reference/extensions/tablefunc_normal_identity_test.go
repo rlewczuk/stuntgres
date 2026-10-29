@@ -19,7 +19,7 @@ func normalInstallBoundaries(t *testing.T,p *fixture.Pair,b fixture.Backend,c *s
 	run(fixture.ImplicitError("CREATE EXTENSION tablefunc",fixture.Diagnostic{Code:"42710",Message:`extension "tablefunc" already exists`}))
 	run(fixture.Exec("DROP EXTENSION tablefunc",0))
 	missing:=normalMissing(q,"normal_part.normal_rand","15");run(missing);missing=fixture.Prepared(missing);missing.ErrorStage="prepare";run(missing)
-	run(fixture.Exec("BEGIN",0));run(fixture.Exec("CREATE EXTENSION tablefunc WITH SCHEMA normal_part",0));run(normalSelect(q,1,9));run(fixture.Exec("ROLLBACK",0));run(normalMissing(q,"normal_part.normal_rand","15"))
+	run(fixture.Exec("BEGIN",0));run(fixture.Exec("CREATE EXTENSION tablefunc WITH SCHEMA normal_part",0));run(fixture.TablefuncNormalSelect(q,1,9));run(fixture.Exec("ROLLBACK",0));run(normalMissing(q,"normal_part.normal_rand","15"))
 	run(fixture.Exec("CREATE EXTENSION tablefunc WITH SCHEMA normal_part",0))
 	var current int64
 	if err:=c.QueryRowContext(p.Ctx,"SELECT p.oid::bigint FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='normal_part' AND p.proname='normal_rand'").Scan(&current);err!=nil||current==original{t.Fatal("reinstall identity",original,current,err)}
@@ -35,5 +35,5 @@ func normalDropDependency(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.
 	run(fixture.Exec("DROP EXTENSION tablefunc CASCADE",0))
 	run(fixture.Select("SELECT count(*) AS n FROM pg_class WHERE relname='normal_saved'",[]string{"n"},[]string{"INT8"},[][]any{{int64(0)}}))
 	run(fixture.Exec("CREATE EXTENSION tablefunc WITH SCHEMA normal_part",0))
-	run(normalSelect("SELECT * FROM normal_part.normal_rand(3,9,0)",3,9))
+	run(fixture.TablefuncNormalSelect("SELECT * FROM normal_part.normal_rand(3,9,0)",3,9))
 }

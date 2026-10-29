@@ -101,13 +101,13 @@ func TestReferencePgcryptoReplayAtomicity(t *testing.T) {
 				if pg {
 					return
 				}
-				script := extensionDump(t, p.Ctx, p.Native)
+				script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 				fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_stored(id,v) VALUES(3,'abc')", 1))
-				before := extensionDump(t, p.Ctx, p.Native)
+				before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 				if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(pgcryptoReplayFailure(t, script, name))); err == nil {
 					t.Fatal("bad replay accepted")
 				}
-				if extensionDump(t, p.Ctx, p.Native) != before {
+				if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 					t.Fatal("bad replay changed target")
 				}
 				pgcryptoInventory(t, p, c, "pgcrypto_owner", "pgcrypto_owner")
@@ -122,26 +122,26 @@ func TestReferencePgcryptoReplayLifecycle(t *testing.T) {
 		if pg {
 			return
 		}
-		script := extensionDump(t, p.Ctx, p.Native)
+		script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_stored(id,v) VALUES(3,'abc')", 1))
-		before := extensionDump(t, p.Ctx, p.Native)
+		before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		ctx, cancel := context.WithCancel(p.Ctx)
 		if err := stuntgres.Restore(ctx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel}); !errors.Is(err, context.Canceled) {
 			t.Fatal("cancelled replay", err)
 		}
 		cancel()
-		if extensionDump(t, p.Ctx, p.Native) != before {
+		if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 			t.Fatal("cancelled replay changed target")
 		}
 		missing := fixture.CatalogControlPool(t, stuntgres.NewDriver(), "pgcrypto_missing_owner")
 		if _, err := missing.ExecContext(p.Ctx, "CREATE TABLE sentinel(v integer)"); err != nil {
 			t.Fatal(err)
 		}
-		missingBefore := extensionDump(t, p.Ctx, missing)
+		missingBefore := fixture.ExtensionDump(t, p.Ctx, missing)
 		if err := stuntgres.Restore(p.Ctx, missing, strings.NewReader(script)); err == nil {
 			t.Fatal("missing named owner accepted")
 		}
-		if extensionDump(t, p.Ctx, missing) != missingBefore {
+		if fixture.ExtensionDump(t, p.Ctx, missing) != missingBefore {
 			t.Fatal("missing named owner changed target")
 		}
 	})
@@ -152,7 +152,7 @@ func TestReferencePgcryptoControlDestination(t *testing.T) {
 		if pg {
 			return
 		}
-		dump := extensionDump(t, p.Ctx, p.Native)
+		dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		other, target, targetRecord := pgcryptoControlDestination(t, p, "pgcrypto_destination")
 		if _, err := other.ExecContext(p.Ctx, "CREATE USER pgcrypto_owner NOSUPERUSER"); err != nil {
 			t.Fatal(err)
@@ -176,7 +176,7 @@ func TestReferencePgcryptoForcedRelocation(t *testing.T) {
 				if pg {
 					return
 				}
-				script := extensionDump(t, p.Ctx, p.Native)
+				script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 				other, target, targetRecord := pgcryptoControlDestination(t, p, "pgcrypto_destination")
 				if _, err := other.ExecContext(p.Ctx, "CREATE USER pgcrypto_owner NOSUPERUSER"); err != nil {
 					t.Fatal(err)

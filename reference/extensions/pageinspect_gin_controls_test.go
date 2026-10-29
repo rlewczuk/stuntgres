@@ -18,29 +18,29 @@ func ginControls(t *testing.T,smoke bool) {
   for _,q:=range []string{
    "CREATE ROLE gin_owner SUPERUSER","CREATE SCHEMA gin_moved","CREATE TABLE gin_images(meta bytea,opaque bytea,leaf bytea)",
   } {run(fixture.Exec(q,0))}
-  run(fixture.Exec("INSERT INTO gin_images VALUES($1,$2,$3)",1,ginMeta(),ginPage(0xffff),ginPosting()))
+  run(fixture.Exec("INSERT INTO gin_images VALUES($1,$2,$3)",1,fixture.GINMeta(),fixture.GINPage(0xffff),fixture.GINPosting()))
   for _,q:=range []string{
    "CREATE VIEW gin_meta_view AS SELECT (gin_part.gin_metapage_info(meta)).* FROM gin_images",
    "CREATE VIEW gin_opaque_view AS SELECT (gin_part.gin_page_opaque_info(opaque)).* FROM gin_images",
    "CREATE VIEW gin_leaf_view AS SELECT l.* FROM gin_images CROSS JOIN LATERAL gin_part.gin_leafpage_items(leaf) AS l",
   } {run(fixture.Exec(q,0))}
-  held:=make([]fixture.HeldStatement,len(ginMembers))
-  for i:=range ginMembers {
+  held:=make([]fixture.HeldStatement,len(fixture.GINMembers))
+  for i:=range fixture.GINMembers {
    view:=ginViewStep(i,ginOrdinaryRows(i));st,err:=c.PrepareContext(p.Ctx,view.Query);if err!=nil {t.Fatal(err)};defer st.Close()
    held[i]=fixture.HeldStatement{Executor:c,Statement:st,SQL:view.Query}
-   fixture.RunStep(t,p.Ctx,held[i],b.Recorder,ginMetadata(view,b.PG,true))
+   fixture.RunStep(t,p.Ctx,held[i],b.Recorder,fixture.GINMetadata(view,b.PG,true))
    rawStatement,err:=c.PrepareContext(p.Ctx,ginQuery(i));if err!=nil {t.Fatal(err)}
    rawHeld:=fixture.HeldStatement{Executor:c,Statement:rawStatement,SQL:ginQuery(i)}
-   null:=ginNullRows(i);if i==2 {null=nil}
+   null:=fixture.GINNullRows(i);if i==2 {null=nil}
    changed,changedRows:=ginChanged(i)
-   steps:=[]fixture.Step{ginStep(i,ginOrdinary(i),ginOrdinaryRows(i)),ginStep(i,changed,changedRows),ginStep(i,nil,null),ginStep(i,make([]byte,8192),ginNullRows(i))}
-   if i==2 {steps=append(steps,ginStep(i,ginLeaf(),nil))};steps=append(steps,ginStep(i,ginOrdinary(i),ginOrdinaryRows(i)))
-   for _,s:=range steps {s=ginMetadata(s,b.PG,false);ginBoth(t,p,b,c,s);fixture.RunStep(t,p.Ctx,rawHeld,b.Recorder,s)}
+   steps:=[]fixture.Step{ginStep(i,ginOrdinary(i),ginOrdinaryRows(i)),ginStep(i,changed,changedRows),ginStep(i,nil,null),ginStep(i,make([]byte,8192),fixture.GINNullRows(i))}
+   if i==2 {steps=append(steps,ginStep(i,fixture.GINLeaf(),nil))};steps=append(steps,ginStep(i,ginOrdinary(i),ginOrdinaryRows(i)))
+   for _,s:=range steps {s=fixture.GINMetadata(s,b.PG,false);ginBoth(t,p,b,c,s);fixture.RunStep(t,p.Ctx,rawHeld,b.Recorder,s)}
    if smoke {
     bad:=ginError(i,[]byte{1,2,3},"22023","invalid page size","Expected 8192 bytes, got 3.")
     ginBoth(t,p,b,c,bad);fixture.RunStep(t,p.Ctx,rawHeld,b.Recorder,bad)
     if i==2 {
-     carry:=ginMetadata(ginStep(2,ginLeaf(ginSegment{4294967294,2047,[]byte{0x82,0x10}}),[][]any{{"(4294967294,2047)",int64(2),`{"(4294967294,2047)","(0,1)"}`}}),b.PG,false)
+     carry:=fixture.GINMetadata(ginStep(2,fixture.GINLeaf(fixture.GINSegment{4294967294,2047,[]byte{0x82,0x10}}),[][]any{{"(4294967294,2047)",int64(2),`{"(4294967294,2047)","(0,1)"}`}}),b.PG,false)
      ginBoth(t,p,b,c,carry);fixture.RunStep(t,p.Ctx,rawHeld,b.Recorder,carry)
     }
     fixture.RunStep(t,p.Ctx,rawHeld,b.Recorder,ginStep(i,ginOrdinary(i),ginOrdinaryRows(i)))
@@ -52,10 +52,10 @@ func ginControls(t *testing.T,smoke bool) {
   run(fixture.Exec("GRANT USAGE ON SCHEMA public,gin_part,gin_moved TO gin_reader",0))
   run(fixture.Exec("GRANT SELECT ON gin_meta_view,gin_opaque_view,gin_leaf_view TO gin_reader",0))
   ginControlCheck(t,p,b,c,false);ginStoredInputs(t,p,b,c,held)
-  defaultDump:="";if !b.PG {defaultDump=extensionDump(t,p.Ctx,p.Native)}
+  defaultDump:="";if !b.PG {defaultDump=fixture.ExtensionDump(t,p.Ctx,p.Native)}
   // Capture genuine procedure identities, not allocator values from another DB.
-  identities:=make([]int64,len(ginMembers))
-  for i,name:=range ginMembers {
+  identities:=make([]int64,len(fixture.GINMembers))
+  for i,name:=range fixture.GINMembers {
    query:="SELECT p.oid::bigint FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='gin_part' AND p.proname='"+name+"' AND p.proargtypes::text='17'"
    if err:=c.QueryRowContext(p.Ctx,query).Scan(&identities[i]);err!=nil || identities[i]<=0 {t.Fatal("initial GIN identity",identities[i],err)}
    for _,q:=range []string{
@@ -68,7 +68,7 @@ func ginControls(t *testing.T,smoke bool) {
   }
   checkOriginal:=func() {
    ginControlCheck(t,p,b,c,true)
-   for i:=range held {fixture.RunStep(t,p.Ctx,held[i],b.Recorder,ginMetadata(ginViewStep(i,ginOrdinaryRows(i)),b.PG,true))}
+   for i:=range held {fixture.RunStep(t,p.Ctx,held[i],b.Recorder,fixture.GINMetadata(ginViewStep(i,ginOrdinaryRows(i)),b.PG,true))}
   }
   checkOriginal();ginStoredInputs(t,p,b,c,held);checkOriginal()
   ginHeldViewAuthority(t,p,b,c,held);checkOriginal()
@@ -81,7 +81,7 @@ func ginControls(t *testing.T,smoke bool) {
    if !errors.Is(err,context.Canceled) {t.Fatal("pre-canceled GIN query",err)}
    var state interface{SQLState() string};if errors.As(err,&state) {t.Fatal("context error invented SQLSTATE",err)}
   }
-  dump:=extensionDump(t,p.Ctx,p.Native)
+  dump:=fixture.ExtensionDump(t,p.Ctx,p.Native)
   other,destination,r:=pgcryptoControlDestination(t,p,"gin_restore")
   for _,q:=range []string{"CREATE ROLE gin_owner SUPERUSER","CREATE ROLE gin_reader"} {if _,err:=other.ExecContext(p.Ctx,q);err!=nil {t.Fatal(err)}}
   restored:=fixture.Backend{DB:other,Recorder:r}
@@ -89,7 +89,7 @@ func ginControls(t *testing.T,smoke bool) {
   ginControlCheck(t,p,restored,destination,false);ginStoredInputs(t,p,restored,destination,nil)
   if err:=stuntgres.Restore(p.Ctx,other,strings.NewReader(dump));err!=nil {t.Fatal(err)}
   ginControlCheck(t,p,restored,destination,true);ginStoredInputs(t,p,restored,destination,nil)
-  if redump:=extensionDump(t,p.Ctx,other);redump!=dump {t.Fatal("symbolic GIN replay changed")}
+  if redump:=fixture.ExtensionDump(t,p.Ctx,other);redump!=dump {t.Fatal("symbolic GIN replay changed")}
   consumeOld:=ginRetainViews(t,p,b,c)
   ginStoredInputs(t,p,b,c,held)
   if err:=stuntgres.Reset(p.Ctx,p.Native);err!=nil {t.Fatal(err)}
@@ -99,10 +99,10 @@ func ginControls(t *testing.T,smoke bool) {
   if err:=stuntgres.Restore(p.Ctx,p.Native,strings.NewReader(dump));err!=nil {t.Fatal(err)}
   checkOriginal();ginStoredInputs(t,p,b,c,held);checkOriginal()
   ginHeldViewAuthority(t,p,b,c,held);checkOriginal()
-  before:=extensionDump(t,p.Ctx,p.Native)
+  before:=fixture.ExtensionDump(t,p.Ctx,p.Native)
   for _,bad:=range []string{"CREATE EXTENSION missing_pageinspect_provider;",ginBadOwner(t,dump)} {
    if err:=stuntgres.Restore(p.Ctx,p.Native,strings.NewReader(bad));err==nil {t.Fatal("invalid GIN restore accepted")}
-   if extensionDump(t,p.Ctx,p.Native)!=before {t.Fatal("failed restore replaced live GIN state")}
+   if fixture.ExtensionDump(t,p.Ctx,p.Native)!=before {t.Fatal("failed restore replaced live GIN state")}
    checkOriginal()
   }
  })

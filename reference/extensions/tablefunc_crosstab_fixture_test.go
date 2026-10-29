@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -50,42 +49,9 @@ func crosstabCase(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Bac
 	}
 }
 
-const crosstabSource = "SELECT k,category,v FROM ct_source ORDER BY seq"
-
 func crosstabSeed(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
-	crosstabSeedInSchema(t, p, b, c, "")
-}
-
-func crosstabSeedInSchema(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, schema string) {
-	t.Helper()
-	install := "CREATE EXTENSION tablefunc"
-	if schema != "" {
-		install += " SCHEMA " + schema
-	}
-	for _, s := range []fixture.Step{
-		fixture.Exec(install, 0),
-		fixture.Exec("CREATE TABLE ct_source(seq integer,k text,category text,v text)", 0),
-		fixture.Exec("INSERT INTO ct_source VALUES (1,'g1','z','A'),(2,'g1','a','C'),(3,'g2','x','B1'),(4,'g2','x','B2'),(5,'g2',NULL,'B3'),(6,'g2','q','B4'),(7,'g2','r','B5'),(8,'g3',NULL,NULL)", 8),
-	} {
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-	}
-}
-
-func crosstabQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
-
-func crosstabWant(q string, args ...any) fixture.Step {
-	return fixture.Select(q, []string{"k", "c1", "c2", "c3"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"g1", "A", "C", nil}, {"g2", "B1", "B2", "B3"}, {"g3", nil, nil, nil}}, args...)
-}
-
-func crosstabHeld(t *testing.T, p *fixture.Pair, c *sql.Conn, q string) fixture.HeldStatement {
-	t.Helper()
-	s, err := c.PrepareContext(p.Ctx, q)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { s.Close() })
-	return fixture.HeldStatement{Executor: c, Statement: s, SQL: q}
+	fixture.CrosstabSeedInSchema(t, p, b, c, "")
 }
 
 func crosstabFailure(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, q string, d fixture.Diagnostic, stage string, args ...any) {

@@ -43,15 +43,15 @@ func TestReferenceTSTemplateAtomicity(t *testing.T) {
 		run("DROP TEXT SEARCH TEMPLATE public.template_atomic CASCADE")
 		templateAbsent(t, p, c, r, "template_atomic")
 		if templateIdentity(t, p, peer, "template_atomic") != committed { t.Fatal("private DROP leaked") }
-		templateLexemes(t, p, peer, r, pg, "SELECT ts_lexize('public.template_atomic_dict','WORD') AS lexemes", "{word}")
+		fixture.TSTemplateLexemes(t, p, peer, r, pg, "SELECT ts_lexize('public.template_atomic_dict','WORD') AS lexemes", "{word}")
 		run("ROLLBACK TO before_drop")
 		if templateIdentity(t, p, c, "template_atomic") != committed { t.Fatal("drop savepoint replaced identity") }
 		run("COMMIT")
-		templateLexemes(t, p, c, r, pg, "SELECT ts_lexize('public.template_atomic_dict','WORD') AS lexemes", "{word}")
+		fixture.TSTemplateLexemes(t, p, c, r, pg, "SELECT ts_lexize('public.template_atomic_dict','WORD') AS lexemes", "{word}")
 		if !pg {
 			ctx, cancel := context.WithCancel(p.Ctx)
 			cancel()
-			for _, q := range []string{"CREATE TEXT SEARCH TEMPLATE public.template_cancel ("+templateSimpleMethods+")", "ALTER TEXT SEARCH TEMPLATE public.template_atomic RENAME TO template_cancel", "DROP TEXT SEARCH TEMPLATE public.template_atomic CASCADE"} {
+			for _, q := range []string{"CREATE TEXT SEARCH TEMPLATE public.template_cancel ("+fixture.TSTemplateSimpleMethods+")", "ALTER TEXT SEARCH TEMPLATE public.template_atomic RENAME TO template_cancel", "DROP TEXT SEARCH TEMPLATE public.template_atomic CASCADE"} {
 				_, err := c.ExecContext(ctx, q)
 				var state interface{ SQLState() string }
 				if !errors.Is(err,context.Canceled) || errors.As(err,&state) { t.Fatal("ordinary cancellation boundary",err) }

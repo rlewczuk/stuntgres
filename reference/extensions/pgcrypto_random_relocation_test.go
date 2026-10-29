@@ -26,7 +26,7 @@ func TestReferencePgcryptoRandomRelocation(t *testing.T) {
 		if pg {
 			return
 		}
-		script := extensionDump(t, p.Ctx, p.Native)
+		script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		baseline, base, baseRecord := pgcryptoControlDestination(t, p, "pgcrypto_random_relocation_baseline")
 		if err := stuntgres.Restore(p.Ctx, baseline, strings.NewReader(script)); err != nil {
 			t.Fatal(err)

@@ -19,12 +19,12 @@ func ginViewStep(i int, rows [][]any) fixture.Step {
 	if i == 2 {
 		q += " ORDER BY first_tid"
 	}
-	return fixture.Select(q, ginNames[i], ginTypes[i], rows)
+	return fixture.Select(q, fixture.GINNames[i], fixture.GINTypes[i], rows)
 }
 func ginChanged(i int) ([]byte, [][]any) {
 	switch i {
 	case 0:
-		p := ginMeta()
+		p := fixture.GINMeta()
 		for _, f := range []struct {
 			off   int
 			value uint32
@@ -35,31 +35,31 @@ func ginChanged(i int) ([]byte, [][]any) {
 		binary.LittleEndian.PutUint64(p[64:], 9)
 		return p, [][]any{{int64(1), int64(2), int64(3), int64(4), int64(5), int64(6), int64(7), int64(8), int64(9), int64(1)}}
 	case 1:
-		p := ginPage(0)
+		p := fixture.GINPage(0)
 		binary.LittleEndian.PutUint32(p[8184:], 7)
 		binary.LittleEndian.PutUint16(p[8188:], 9)
 		return p, [][]any{{int64(7), int64(9), "{}"}}
 	default:
-		return ginLeaf(ginSegment{77, 3, []byte{1}}), [][]any{{"(77,3)", int64(1), `{"(77,3)","(77,4)"}`}}
+		return fixture.GINLeaf(fixture.GINSegment{77, 3, []byte{1}}), [][]any{{"(77,3)", int64(1), `{"(77,3)","(77,4)"}`}}
 	}
 }
 func ginStoredInputs(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, held []fixture.HeldStatement) {
 	t.Helper()
 	for i, column := range []string{"meta", "opaque", "leaf"} {
 		raw, rows := ginChanged(i)
-		null := ginNullRows(i)
+		null := fixture.GINNullRows(i)
 		if i == 2 {
 			null = nil
 		}
 		steps := []struct {
 			raw  []byte
 			rows [][]any
-		}{{raw, rows}, {nil, null}, {make([]byte, 8192), ginNullRows(i)}}
+		}{{raw, rows}, {nil, null}, {make([]byte, 8192), fixture.GINNullRows(i)}}
 		if i == 2 {
 			steps = append(steps, struct {
 				raw  []byte
 				rows [][]any
-			}{ginLeaf(), nil})
+			}{fixture.GINLeaf(), nil})
 		}
 		steps = append(steps, struct {
 			raw  []byte
@@ -67,7 +67,7 @@ func ginStoredInputs(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 		}{ginOrdinary(i), ginOrdinaryRows(i)})
 		for _, tc := range steps {
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("UPDATE gin_images SET "+column+"=$1", 1, tc.raw))
-			s := ginMetadata(ginViewStep(i, tc.rows), b.PG, true)
+			s := fixture.GINMetadata(ginViewStep(i, tc.rows), b.PG, true)
 			ginBoth(t, p, b, c, s)
 			if held != nil {
 				fixture.RunStep(t, p.Ctx, held[i], b.Recorder, s)
@@ -81,43 +81,43 @@ func ginControlCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	if b.PG {
 		principal = "stuntgres"
 	}
-	for i, name := range ginMembers {
+	for i, name := range fixture.GINMembers {
 		schema, owner := "gin_part", principal
 		if moved {
 			name, schema, owner = ginMovedNames[i], "gin_moved", "gin_owner"
 		}
-		ginBoth(t, p, b, c, ginDeclaration(i, name, schema, owner))
-		ginBoth(t, p, b, c, ginMetadata(ginViewStep(i, ginOrdinaryRows(i)), b.PG, true))
+		ginBoth(t, p, b, c, fixture.GINDeclaration(i, name, schema, owner))
+		ginBoth(t, p, b, c, fixture.GINMetadata(ginViewStep(i, ginOrdinaryRows(i)), b.PG, true))
 		empty := ginViewStep(i, nil)
 		empty.Query = "SELECT * FROM " + ginViews[i] + " WHERE false"
-		ginBoth(t, p, b, c, ginMetadata(empty, b.PG, true))
-		null := ginNullRows(i)
+		ginBoth(t, p, b, c, fixture.GINMetadata(empty, b.PG, true))
+		null := fixture.GINNullRows(i)
 		if i == 2 {
 			null = nil
 		}
-		steps := []fixture.Step{ginStep(i, ginOrdinary(i), ginOrdinaryRows(i)), ginStep(i, nil, null), ginStep(i, make([]byte, 8192), ginNullRows(i))}
+		steps := []fixture.Step{ginStep(i, ginOrdinary(i), ginOrdinaryRows(i)), ginStep(i, nil, null), ginStep(i, make([]byte, 8192), fixture.GINNullRows(i))}
 		raw, want := ginChanged(i)
 		steps = append(steps, ginStep(i, raw, want))
 		if i == 2 {
-			steps = append(steps, ginStep(i, ginLeaf(), nil))
+			steps = append(steps, ginStep(i, fixture.GINLeaf(), nil))
 		}
 		for _, s := range steps {
 			s.Query = "SELECT * FROM " + schema + "." + name + "(page => $1)"
 			if i == 2 {
 				s.Query += " ORDER BY first_tid"
 			}
-			ginBoth(t, p, b, c, ginMetadata(s, b.PG, false))
+			ginBoth(t, p, b, c, fixture.GINMetadata(s, b.PG, false))
 		}
 		if i < 2 {
 			s := fixture.Select("SELECT "+schema+"."+name+"(page => $1)", []string{name}, []string{"RECORD"}, [][]any{{nil}}, nil)
-			ginBoth(t, p, b, c, ginMetadata(s, b.PG, false))
+			ginBoth(t, p, b, c, fixture.GINMetadata(s, b.PG, false))
 		}
 	}
-	ginBoth(t, p, b, c, fixture.Select("SELECT meta,opaque,leaf FROM gin_images", []string{"meta", "opaque", "leaf"}, []string{"BYTEA", "BYTEA", "BYTEA"}, [][]any{{string(ginMeta()), string(ginPage(0xffff)), string(ginPosting())}}))
+	ginBoth(t, p, b, c, fixture.Select("SELECT meta,opaque,leaf FROM gin_images", []string{"meta", "opaque", "leaf"}, []string{"BYTEA", "BYTEA", "BYTEA"}, [][]any{{string(fixture.GINMeta()), string(fixture.GINPage(0xffff)), string(fixture.GINPosting())}}))
 	ginBoth(t, p, b, c, fixture.Select("SELECT n.nspname::text AS target,r.rolname::text AS owner FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace JOIN pg_roles r ON r.oid=e.extowner WHERE e.extname='pageinspect'", []string{"target", "owner"}, []string{"TEXT", "TEXT"}, [][]any{{"gin_part", principal}}))
 	if !b.PG {
 		rows := [][]any{{"brin_page_type", "gin_part", principal}, {"brin_metapage_info", "gin_part", principal}, {"brin_revmap_data", "gin_part", principal}, {"brin_page_items", "gin_part", principal}, {"bt_page_items", "gin_part", principal}, {"fsm_page_contents", "gin_part", principal}}
-		for i, name := range ginMembers {
+		for i, name := range fixture.GINMembers {
 			schema, owner := "gin_part", principal
 			if moved {
 				name, schema, owner = ginMovedNames[i], "gin_moved", "gin_owner"
@@ -131,8 +131,8 @@ func ginControlCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 }
 func ginRetainViews(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) func() {
 	t.Helper()
-	snapshots := make([]*sql.Rows, len(ginMembers))
-	for i := range ginMembers {
+	snapshots := make([]*sql.Rows, len(fixture.GINMembers))
+	for i := range fixture.GINMembers {
 		r, err := c.QueryContext(p.Ctx, ginViewStep(i, nil).Query)
 		if err != nil {
 			t.Fatal(err)
@@ -147,10 +147,10 @@ func ginRetainViews(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 			if err != nil {
 				t.Fatal(err)
 			}
-			ginCheckColumns(t, columns, ginNames[i], ginTypes[i], false, true)
+			fixture.GINCheckColumns(t, columns, fixture.GINNames[i], fixture.GINTypes[i], false, true)
 			var rows [][]any
 			for r.Next() {
-				row := make([]any, len(ginNames[i]))
+				row := make([]any, len(fixture.GINNames[i]))
 				dest := make([]any, len(row))
 				for j := range row {
 					dest[j] = &row[j]
@@ -172,7 +172,7 @@ func ginRetainViews(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 			if !reflect.DeepEqual(rows, ginOrdinaryRows(i)) {
 				t.Fatal("retained GIN rows changed", i, rows, ginOrdinaryRows(i))
 			}
-			ginCheckColumns(t, columns, ginNames[i], ginTypes[i], false, true)
+			fixture.GINCheckColumns(t, columns, fixture.GINNames[i], fixture.GINTypes[i], false, true)
 		}
 	}
 }

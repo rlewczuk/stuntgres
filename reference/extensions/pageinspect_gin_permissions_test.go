@@ -12,7 +12,7 @@ func ginAuthority(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn) {
  t.Helper();run:=func(s fixture.Step) {fixture.RunStep(t,p.Ctx,c,b.Recorder,s)}
  run(fixture.Exec("CREATE ROLE gin_reader",0));run(fixture.Exec("GRANT USAGE ON SCHEMA gin_part TO gin_reader",0))
  defer func() {if _,err:=c.ExecContext(p.Ctx,"RESET SESSION AUTHORIZATION");err!=nil {t.Error(err)}}()
- for i,name:=range ginMembers {
+ for i,name:=range fixture.GINMembers {
   st,err:=c.PrepareContext(p.Ctx,ginQuery(i));if err!=nil {t.Fatal(err)}
   held:=fixture.HeldStatement{Executor:c,Statement:st,SQL:ginQuery(i)}
   run(fixture.Exec("SET SESSION AUTHORIZATION gin_reader",0))
@@ -24,7 +24,7 @@ func ginAuthority(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn) {
    s:=ginError(i,raw,"42501","must be superuser to use raw page functions","")
    ginBoth(t,p,b,c,s);fixture.RunStep(t,p.Ctx,held,b.Recorder,s)
   }
-  null:=ginNullRows(i);if i==2 {null=nil}
+  null:=fixture.GINNullRows(i);if i==2 {null=nil}
   ginBoth(t,p,b,c,ginStep(i,nil,null));fixture.RunStep(t,p.Ctx,held,b.Recorder,ginStep(i,nil,null))
   // The same session and held selection must consult current role authority.
   fixture.RunStep(t,p.Ctx,b.DB,b.Recorder,fixture.Exec("ALTER ROLE gin_reader SUPERUSER",0))
@@ -47,7 +47,7 @@ func ginAuthority(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn) {
  }
  run(fixture.Exec("REVOKE USAGE ON SCHEMA gin_part FROM gin_reader",0))
  run(fixture.Exec("SET SESSION AUTHORIZATION gin_reader",0))
- for i:=range ginMembers {
+ for i:=range fixture.GINMembers {
   denied:=fixture.ImplicitError(ginQuery(i),fixture.Diagnostic{Code:"42501",Message:"permission denied for schema gin_part",Position:fixture.Position(15)},nil)
   ginBoth(t,p,b,c,denied)
  }
@@ -74,10 +74,10 @@ func ginHeldViewAuthority(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.
  run(fixture.Exec("UPDATE gin_images SET meta=NULL,opaque=NULL,leaf=NULL",1))
  run(fixture.Exec("SET SESSION AUTHORIZATION gin_reader",0))
  for i:=range held {
-  null:=ginNullRows(i);if i==2 {null=nil}
-  fixture.RunStep(t,p.Ctx,held[i],b.Recorder,ginMetadata(ginViewStep(i,null),b.PG,true))
+  null:=fixture.GINNullRows(i);if i==2 {null=nil}
+  fixture.RunStep(t,p.Ctx,held[i],b.Recorder,fixture.GINMetadata(ginViewStep(i,null),b.PG,true))
  }
  run(fixture.Exec("RESET SESSION AUTHORIZATION",0))
- run(fixture.Exec("UPDATE gin_images SET meta=$1,opaque=$2,leaf=$3",1,ginMeta(),ginPage(0xffff),ginPosting()))
- for i:=range held {fixture.RunStep(t,p.Ctx,held[i],b.Recorder,ginMetadata(ginViewStep(i,ginOrdinaryRows(i)),b.PG,true))}
+ run(fixture.Exec("UPDATE gin_images SET meta=$1,opaque=$2,leaf=$3",1,fixture.GINMeta(),fixture.GINPage(0xffff),fixture.GINPosting()))
+ for i:=range held {fixture.RunStep(t,p.Ctx,held[i],b.Recorder,fixture.GINMetadata(ginViewStep(i,ginOrdinaryRows(i)),b.PG,true))}
 }

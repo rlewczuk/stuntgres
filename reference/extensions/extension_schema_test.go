@@ -11,9 +11,9 @@ import (
 // ownership traversal, not the native implementation's descriptor iteration.
 func TestReferenceExtensionSchemaDependencies(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, peer *sql.Conn, r *fixture.Recorder, pg bool) {
-		o := extensionTemporaryOwner(t, p, pg)
-		defer o.close(t)
-		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, o.conn, o.recorder, s) }
+		o := fixture.ExtensionTemporaryOwner(t, p, pg)
+		defer o.Close(t)
+		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, o.Conn, o.Recorder, s) }
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("CREATE TEMP TABLE ext_schema_peer_seed(v INT)", 0))
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("INSERT INTO ext_schema_peer_seed VALUES(73)", 1))
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec(`CREATE COLLATION pg_temp.ext_schema_peer_provider FROM pg_catalog."C"`, 0))
@@ -26,9 +26,9 @@ func TestReferenceExtensionSchemaDependencies(t *testing.T) {
 		run(fixture.Exec("CREATE TABLE ext_locked.keep(v INT)", 0))
 		run(fixture.Exec("INSERT INTO ext_locked.keep VALUES(77)", 1))
 		run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA ext_addon", 0))
-		id := extensionTempCapture(t, p, o.conn)
-		extensionNamespaceDependency(t, p, o.conn, o.recorder)
-		extensionTempConsumers(t, p, o.conn, o.recorder, "ext_addon")
+		id := extensionTempCapture(t, p, o.Conn)
+		extensionNamespaceDependency(t, p, o.Conn, o.Recorder)
+		extensionTempConsumers(t, p, o.Conn, o.Recorder, "ext_addon")
 		detail := "extension unaccent depends on schema ext_addon\n" +
 			"default value for column txt of table ext_temp_consumer depends on function ext_addon.unaccent(text)\n" +
 			"constraint ext_temp_check on table ext_temp_consumer depends on function ext_addon.unaccent(text)\n" +
@@ -40,8 +40,8 @@ func TestReferenceExtensionSchemaDependencies(t *testing.T) {
 		run(fixture.ImplicitError("DROP SCHEMA ext_addon, missing_ext_schema CASCADE", fixture.Diagnostic{Code: "3F000", Message: `schema "missing_ext_schema" does not exist`}))
 		extensionTempPresent(t, p, peer, r, id)
 		extensionTempConsumerState(t, p, peer, r, true)
-		if len(o.notices) != 0 {
-			t.Fatal("failed DROP SCHEMA emitted notices", o.notices)
+		if len(o.Notices) != 0 {
+			t.Fatal("failed DROP SCHEMA emitted notices", o.Notices)
 		}
 		run(fixture.Exec("DROP SCHEMA ext_addon CASCADE", 0))
 		want := []fixture.Diagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "drop cascades to 5 other objects", Detail: "drop cascades to extension unaccent\n" +
@@ -49,8 +49,8 @@ func TestReferenceExtensionSchemaDependencies(t *testing.T) {
 			"drop cascades to constraint ext_temp_check on table ext_temp_consumer\n" +
 			"drop cascades to view ext_temp_view\n" +
 			"drop cascades to view ext_temp_chain"}}
-		if !reflect.DeepEqual(o.notices, want) {
-			t.Fatalf("schema cascade notices %#v want %#v", o.notices, want)
+		if !reflect.DeepEqual(o.Notices, want) {
+			t.Fatalf("schema cascade notices %#v want %#v", o.Notices, want)
 		}
 		extensionTempGone(t, p, peer, r, id)
 		// Recreating the name proves retirement without requiring an unrelated

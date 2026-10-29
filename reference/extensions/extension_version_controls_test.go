@@ -108,7 +108,7 @@ func TestReferenceExtensionVersionControls(t *testing.T) {
 						if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
 							t.Fatal("invalid installed version accepted", invalid)
 						}
-						if extensionDump(t, p.Ctx, p.Native) != dump {
+						if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump {
 							t.Fatal("invalid version changed complete state")
 						}
 						extensionVersionInventory(t, p, b, c, version)
@@ -123,16 +123,16 @@ func TestReferenceExtensionVersionControls(t *testing.T) {
 					t.Fatal("staged-prefix cancellation", err)
 				}
 				run(check)
-				if extensionDump(t, p.Ctx, p.Native) != dump {
+				if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump {
 					t.Fatal("canceled Restore changed complete state")
 				}
 				extensionVersionRestoreOwnerConflict(t, p, b, version, dump)
 				if version == "1.1" {
-					committed := extensionDump(t, p.Ctx, p.Native)
+					committed := fixture.ExtensionDump(t, p.Ctx, p.Native)
 					run(fixture.Exec("BEGIN", 0))
 					run(fixture.Exec("ALTER EXTENSION fuzzystrmatch UPDATE", 0))
 					extensionVersionInventory(t, p, b, c, "1.2")
-					if extensionDump(t, p.Ctx, p.Native) != committed {
+					if fixture.ExtensionDump(t, p.Ctx, p.Native) != committed {
 						t.Fatal("private update leaked into Dump")
 					}
 					run(fixture.Exec("ROLLBACK", 0))
@@ -157,18 +157,18 @@ func TestReferenceExtensionVersionControls(t *testing.T) {
 					daitchNamedOwners(t, p.Ctx, oc, "ev_owner", "ev_owner")
 				}
 				oc.Close()
-				if extensionDump(t, p.Ctx, other) != dump {
+				if fixture.ExtensionDump(t, p.Ctx, other) != dump {
 					t.Fatal("independent Driver symbolic redump differs")
 				}
 				missing := fixture.CatalogControlPool(t, stuntgres.NewDriver(), "extension_version_missing_"+version)
 				if _, err := missing.ExecContext(p.Ctx, "CREATE TABLE ev_sentinel(v int); INSERT INTO ev_sentinel VALUES(77)"); err != nil {
 					t.Fatal(err)
 				}
-				missingBefore := extensionDump(t, p.Ctx, missing)
+				missingBefore := fixture.ExtensionDump(t, p.Ctx, missing)
 				if err := stuntgres.Restore(p.Ctx, missing, strings.NewReader(dump)); err == nil {
 					t.Fatal("missing named owner admitted")
 				}
-				if extensionDump(t, p.Ctx, missing) != missingBefore {
+				if fixture.ExtensionDump(t, p.Ctx, missing) != missingBefore {
 					t.Fatal("missing owner changed destination")
 				}
 				// SQL emitted by native controls must also replay actual released
@@ -206,12 +206,12 @@ func TestReferenceExtensionVersionControls(t *testing.T) {
 	}
 	t.Run("TemporaryPortability", func(t *testing.T) {
 		extensionVersionCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-			owner := extensionTemporaryOwner(t, p, b.PG)
-			namespace := extensionTempSeed(t, p, owner)
-			fixture.RunStep(t, p.Ctx, owner.conn, owner.recorder, fixture.Exec("CREATE EXTENSION fuzzystrmatch SCHEMA "+extensionTempIdentifier(namespace)+" VERSION '1.1'", 0))
-			fixture.RunStep(t, p.Ctx, owner.conn, owner.recorder, fixture.Exec("ALTER EXTENSION fuzzystrmatch UPDATE TO '1.2'", 0))
-			extensionVersionInventory(t, p, b, owner.conn, "1.2")
-			fixture.RunStep(t, p.Ctx, owner.conn, owner.recorder, daitchSelect("SELECT "+extensionTempIdentifier(namespace)+".daitch_mokotoff('John')", "{160000,460000}", b.PG))
+			owner := fixture.ExtensionTemporaryOwner(t, p, b.PG)
+			namespace := fixture.ExtensionTempSeed(t, p, owner)
+			fixture.RunStep(t, p.Ctx, owner.Conn, owner.Recorder, fixture.Exec("CREATE EXTENSION fuzzystrmatch SCHEMA "+fixture.ExtensionTempIdentifier(namespace)+" VERSION '1.1'", 0))
+			fixture.RunStep(t, p.Ctx, owner.Conn, owner.Recorder, fixture.Exec("ALTER EXTENSION fuzzystrmatch UPDATE TO '1.2'", 0))
+			extensionVersionInventory(t, p, b, owner.Conn, "1.2")
+			fixture.RunStep(t, p.Ctx, owner.Conn, owner.Recorder, daitchSelect("SELECT "+fixture.ExtensionTempIdentifier(namespace)+".daitch_mokotoff('John')", "{160000,460000}", b.PG))
 			if !b.PG {
 				var out bytes.Buffer
 				err := stuntgres.Dump(p.Ctx, p.Native, &out)
@@ -225,7 +225,7 @@ func TestReferenceExtensionVersionControls(t *testing.T) {
 
 func extensionVersionRoundTrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, version string, check fixture.Step) string {
 	t.Helper()
-	dump := extensionDump(t, p.Ctx, p.Native)
+	dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	rows, err := c.QueryContext(p.Ctx, check.Query)
 	if err != nil {
 		t.Fatal(err)
@@ -342,7 +342,7 @@ func extensionVersionRestoreOwnerConflict(t *testing.T, p *fixture.Pair, b fixtu
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	before := extensionDump(t, p.Ctx, target)
+	before := fixture.ExtensionDump(t, p.Ctx, target)
 	identity := extensionVersionInventory(t, p, b, conn, "1.1")
 	var ownerBefore, table, view int64
 	if err := conn.QueryRowContext(p.Ctx, "SELECT oid FROM pg_roles WHERE rolname='ev_owner'").Scan(&ownerBefore); err != nil {
@@ -378,7 +378,7 @@ func extensionVersionRestoreOwnerConflict(t *testing.T, p *fixture.Pair, b fixtu
 	if err := conn.QueryRowContext(p.Ctx, "SELECT oid FROM pg_roles WHERE rolname='ev_owner'").Scan(&ownerAfter); err != nil || ownerAfter == ownerBefore {
 		t.Fatal("owner was not genuinely recreated", ownerBefore, ownerAfter, err)
 	}
-	if extensionDump(t, p.Ctx, target) != before {
+	if fixture.ExtensionDump(t, p.Ctx, target) != before {
 		t.Fatal("failed owner-fenced Restore changed complete incumbent snapshot")
 	}
 	extensionVersionPreserved(t, identity, extensionVersionInventory(t, p, b, conn, "1.1"))

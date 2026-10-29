@@ -61,7 +61,7 @@ func TestReferenceTablefuncNormalCatalogCosts(t *testing.T) {
 				source := fixture.Select("SELECT p.prosrc,p.prorows,d.refobjid=e.oid AS member FROM pg_proc p JOIN pg_depend d ON d.objid=p.oid AND d.deptype='e' JOIN pg_extension e ON e.oid=d.refobjid WHERE p.oid=$1::oid AND e.extname='tablefunc'", []string{"prosrc", "prorows", "member"}, []string{"TEXT", "FLOAT4", "BOOL"}, [][]any{{"normal_rand", float64(1000), true}}, original)
 				run(source)
 				run(fixture.Prepared(source))
-				rows := normalSelect("SELECT * FROM normal_moved.normal_rand_renamed(2,9,0)", 2, 9)
+				rows := fixture.TablefuncNormalSelect("SELECT * FROM normal_moved.normal_rand_renamed(2,9,0)", 2, 9)
 				rows.Columns = []string{"normal_rand_renamed"}
 				run(rows)
 			}

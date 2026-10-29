@@ -8,11 +8,9 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-const templateSimpleMethods = "INIT=pg_catalog.dsimple_init, LEXIZE=pg_catalog.dsimple_lexize"
-
 func templateDefinition(t *testing.T, p *fixture.Pair, c fixture.Executor, r *fixture.Recorder, name string) {
 	t.Helper()
-	fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TEXT SEARCH TEMPLATE "+name+" ("+templateSimpleMethods+")", 0))
+	fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TEXT SEARCH TEMPLATE "+name+" ("+fixture.TSTemplateSimpleMethods+")", 0))
 }
 
 func templateAbsent(t *testing.T, p *fixture.Pair, c fixture.Executor, r *fixture.Recorder, name string) {
@@ -50,7 +48,7 @@ func TestReferenceTSTemplateDefinition(t *testing.T) {
 			templateDiagnostic(t, p, c, r, "CREATE TEXT SEARCH TEMPLATE public.template_bad ("+tc.options+")", tc.code, tc.message)
 			templateAbsent(t, p, c, r, "template_bad")
 		}
-		for i, options := range []string{templateSimpleMethods, "LEXIZE=pg_catalog.dsimple_lexize, INIT=pg_catalog.dsimple_init", "INIT=pg_catalog.dsimple_init, INIT=pg_catalog.dsimple_init, LEXIZE=pg_catalog.dsimple_lexize"} {
+		for i, options := range []string{fixture.TSTemplateSimpleMethods, "LEXIZE=pg_catalog.dsimple_lexize, INIT=pg_catalog.dsimple_init", "INIT=pg_catalog.dsimple_init, INIT=pg_catalog.dsimple_init, LEXIZE=pg_catalog.dsimple_lexize"} {
 			s := fixture.Exec(fmt.Sprintf("CREATE TEXT SEARCH TEMPLATE public.template_good_%d (%s)", i, options), 0)
 			s.Prepared = i%2 != 0
 			run(s)
@@ -67,9 +65,9 @@ func TestReferenceTSTemplateDefinition(t *testing.T) {
 		}
 		var namespace int64
 		if err := c.QueryRowContext(p.Ctx, "SELECT oid FROM pg_namespace WHERE nspname='public'").Scan(&namespace); err != nil { t.Fatal(err) }
-		q := "CREATE TEXT SEARCH TEMPLATE public.template_good_0 ("+templateSimpleMethods+")"
+		q := "CREATE TEXT SEARCH TEMPLATE public.template_good_0 ("+fixture.TSTemplateSimpleMethods+")"
 		run(fixture.ImplicitError(q, fixture.Diagnostic{Code:"23505", Message:`duplicate key value violates unique constraint "pg_ts_template_tmplname_index"`, Detail:fmt.Sprintf("Key (tmplname, tmplnamespace)=(template_good_0, %d) already exists.", namespace), Schema:"pg_catalog", Table:"pg_ts_template", Constraint:"pg_ts_template_tmplname_index"}))
-		q = "CREATE TEXT SEARCH TEMPLATE public.template_suffix ("+templateSimpleMethods+") junk"
+		q = "CREATE TEXT SEARCH TEMPLATE public.template_suffix ("+fixture.TSTemplateSimpleMethods+") junk"
 		run(fixture.ImplicitError(q, fixture.Diagnostic{Code:"42601", Message:`syntax error at or near "junk"`, Position:fmt.Sprint(len(q)-3)}))
 		templateAbsent(t, p, c, r, "template_suffix")
 		run(fixture.Exec(`DROP TEXT SEARCH TEMPLATE public.template_good_0,public.template_good_1,public.template_good_2,public."Quoted Template" RESTRICT`, 0))

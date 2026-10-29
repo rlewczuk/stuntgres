@@ -11,9 +11,9 @@ import (
 
 func connectbyAdmittedCancellation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE TABLE cb_cancel_target(v integer)", 0))
-	connectbyRun(t, p, b, c, fixture.Exec("INSERT INTO cb_cancel_target VALUES(99)", 1))
-	query := connectbyQuery(3, "'cb_tree','k','p','pos','row2',0,'~'")
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE TABLE cb_cancel_target(v integer)", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("INSERT INTO cb_cancel_target VALUES(99)", 1))
+	query := fixture.ConnectbyQuery(3, "'cb_tree','k','p','pos','row2',0,'~'")
 	for _, dml := range []bool{false, true} {
 		func() {
 			holder, err := b.DB.Conn(p.Ctx)
@@ -41,7 +41,7 @@ func connectbyAdmittedCancellation(t *testing.T, p *fixture.Pair, b fixture.Back
 			join := fixture.LockOperation(t, ctx, func(ctx context.Context) fixture.RelationOutcome {
 				defer close(finished)
 				if dml {
-					result, err := c.ExecContext(ctx, "INSERT INTO cb_cancel_target SELECT level FROM cb_part.connectby('cb_tree','k','p','pos','row2',0,'~') AS t("+connectbyDefs[3]+")")
+					result, err := c.ExecContext(ctx, "INSERT INTO cb_cancel_target SELECT level FROM cb_part.connectby('cb_tree','k','p','pos','row2',0,'~') AS t("+fixture.ConnectbyDefs[3]+")")
 					return fixture.RelationOutcome{Result: result, Err: err}
 				}
 				rows, err := c.QueryContext(ctx, query)
@@ -80,8 +80,8 @@ func connectbyAdmittedCancellation(t *testing.T, p *fixture.Pair, b fixture.Back
 				t.Fatal(err)
 			}
 			rolledBack = true
-			connectbyRun(t, p, b, c, fixture.Select("SELECT v FROM cb_cancel_target ORDER BY v", []string{"v"}, []string{"INT4"}, [][]any{{int64(99)}}))
-			connectbyRun(t, p, b, c, connectbySelect(3, query, connectbyTreeRows))
+			fixture.ConnectbyRun(t, p, b, c, fixture.Select("SELECT v FROM cb_cancel_target ORDER BY v", []string{"v"}, []string{"INT4"}, [][]any{{int64(99)}}))
+			fixture.ConnectbyRun(t, p, b, c, fixture.ConnectbySelect(3, query, fixture.ConnectbyTreeRows))
 		}()
 	}
 }

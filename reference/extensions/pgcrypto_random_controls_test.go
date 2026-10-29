@@ -151,7 +151,7 @@ func pgcryptoRandomVolatility(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fix
 
 func pgcryptoRandomRejectReplay(t *testing.T, p *fixture.Pair, db *sql.DB, script string, post func()) {
 	t.Helper()
-	before := extensionDump(t, p.Ctx, db)
+	before := fixture.ExtensionDump(t, p.Ctx, db)
 	for _, bad := range []string{script + "\nINVALID SQL;", strings.Replace(script, "VERSION '1.4'", "VERSION 'missing'", 1), strings.Replace(script, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1)} {
 		if bad == script {
 			t.Fatal("missing replay corruption target")
@@ -159,7 +159,7 @@ func pgcryptoRandomRejectReplay(t *testing.T, p *fixture.Pair, db *sql.DB, scrip
 		if err := stuntgres.Restore(p.Ctx, db, strings.NewReader(bad)); err == nil {
 			t.Fatal("invalid replay accepted")
 		}
-		if extensionDump(t, p.Ctx, db) != before {
+		if fixture.ExtensionDump(t, p.Ctx, db) != before {
 			t.Fatal("failed replay changed target")
 		}
 		post()
@@ -167,7 +167,7 @@ func pgcryptoRandomRejectReplay(t *testing.T, p *fixture.Pair, db *sql.DB, scrip
 	ctx, cancel := context.WithCancel(p.Ctx)
 	err := stuntgres.Restore(ctx, db, &fixture.CatalogControlCancelReader{Cancel: cancel})
 	cancel()
-	if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, db) != before {
+	if !errors.Is(err, context.Canceled) || fixture.ExtensionDump(t, p.Ctx, db) != before {
 		t.Fatal("cancelled replay changed target", err)
 	}
 	post()
@@ -203,7 +203,7 @@ func pgcryptoRandomConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixt
 	if err != nil {
 		t.Fatal(err)
 	}
-	script := extensionDump(t, p.Ctx, p.Native)
+	script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}
@@ -255,11 +255,11 @@ func pgcryptoRandomConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixt
 	post(target, record)
 	missing, missingConn, missingRecord := pgcryptoControlDestination(t, p, "pgcrypto_random_missing_owner")
 	fixture.RunStep(t, p.Ctx, missingConn, missingRecord, fixture.Exec("CREATE TABLE pgcrypto_random_sentinel(v integer)", 0))
-	before := extensionDump(t, p.Ctx, missing)
+	before := fixture.ExtensionDump(t, p.Ctx, missing)
 	if err := stuntgres.Restore(p.Ctx, missing, strings.NewReader(script)); err == nil {
 		t.Fatal("missing named owner accepted")
 	}
-	if extensionDump(t, p.Ctx, missing) != before {
+	if fixture.ExtensionDump(t, p.Ctx, missing) != before {
 		t.Fatal("missing owner changed destination")
 	}
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_random_stored(id) VALUES(3)", 1))

@@ -11,24 +11,24 @@ import (
 
 func TestReferenceConnectbyRawSQLAndQuoting(t *testing.T) {
 	connectbyCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := func(s fixture.Step) { connectbyRun(t, p, b, c, s) }
-		connectbyTree(t, p, b, c)
+		run := func(s fixture.Step) { fixture.ConnectbyRun(t, p, b, c, s) }
+		fixture.ConnectbyTree(t, p, b, c)
 		run(fixture.Exec(`CREATE SCHEMA "CB Schema"`, 0))
 		run(fixture.Exec(`CREATE TABLE "CB Schema"."Tree!"("Key" text,"Parent Key" text,"Order" integer)`, 0))
 		root := "O'Reilly\\雪"
 		child := "child'\\λ"
 		run(fixture.Exec(`INSERT INTO "CB Schema"."Tree!" VALUES($1,NULL,7),($2,$1,2)`, 2, root, child))
-		q := connectbyQuery(3, `'"CB Schema"."Tree!"','"Key"','"Parent Key"','"Order"',$1::text,0,'::'`)
+		q := fixture.ConnectbyQuery(3, `'"CB Schema"."Tree!"','"Key"','"Parent Key"','"Order"',$1::text,0,'::'`)
 		for _, setting := range []string{"on", "off"} {
 			run(fixture.Exec("SET standard_conforming_strings TO "+setting, 0))
-			s := connectbySelect(3, q, [][]any{{root, nil, int64(0), root, int64(1)}, {child, root, int64(1), root + "::" + child, int64(2)}}, root)
+			s := fixture.ConnectbySelect(3, q, [][]any{{root, nil, int64(0), root, int64(1)}, {child, root, int64(1), root + "::" + child, int64(2)}}, root)
 			run(s)
 			run(fixture.Prepared(s))
 		}
 		run(fixture.Exec("SET standard_conforming_strings TO on", 0))
-		q = connectbyQuery(0, "'cb_tree','k::text','p','row2',1")
-		run(connectbySelect(0, q, [][]any{{"row2", nil, int64(0)}, {"row5", "row2", int64(1)}, {"row4", "row2", int64(1)}}))
-		q = connectbyQuery(0, "'cb_tree','1; --','p','1',1")
+		q = fixture.ConnectbyQuery(0, "'cb_tree','k::text','p','row2',1")
+		run(fixture.ConnectbySelect(0, q, [][]any{{"row2", nil, int64(0)}, {"row5", "row2", int64(1)}, {"row4", "row2", int64(1)}}))
+		q = fixture.ConnectbyQuery(0, "'cb_tree','1; --','p','1',1")
 		run(connectbyError(q, "22023", "invalid connectby source data query", "The query must return at least two columns."))
 		for _, test := range []struct {
 			key          string
@@ -44,8 +44,8 @@ func TestReferenceConnectbyRawSQLAndQuoting(t *testing.T) {
 		// Raw fragments remain statement lists. SPI uses the last SELECT's
 		// descriptor/rows, not the earlier one-column result.
 		key := "1; SELECT 'child'::text, 'root'::text; --"
-		q = connectbyQuery(0, "'cb_tree',"+connectbyLiteral(key)+",'p','root',1")
-		run(connectbySelect(0, q, [][]any{{"root", nil, int64(0)}, {"child", "root", int64(1)}}))
+		q = fixture.ConnectbyQuery(0, "'cb_tree',"+connectbyLiteral(key)+",'p','root',1")
+		run(fixture.ConnectbySelect(0, q, [][]any{{"root", nil, int64(0)}, {"child", "root", int64(1)}}))
 		run(fixture.Exec("SET application_name TO 'cb_original'", 0))
 		run(fixture.Exec("CREATE TABLE cb_utility_guard(v integer)", 0))
 		run(fixture.Exec("INSERT INTO cb_utility_guard VALUES(99)", 1))
@@ -56,7 +56,7 @@ func TestReferenceConnectbyRawSQLAndQuoting(t *testing.T) {
 			{"COPY cb_missing TO '/cb_not_written'", "COPY"},
 		} {
 			key := "1; " + test.command + "; --"
-			q := connectbyQuery(0, "'cb_tree',"+connectbyLiteral(key)+",'p','root',1")
+			q := fixture.ConnectbyQuery(0, "'cb_tree',"+connectbyLiteral(key)+",'p','root',1")
 			internal := "SELECT " + key + ", p FROM cb_tree WHERE p = 'root' AND " + key + " IS NOT NULL AND " + key + " <> p"
 			s := connectbyNestedError(q, internal, "0A000", test.tag+" is not allowed in a non-volatile function", "")
 			run(s)
@@ -69,14 +69,14 @@ func TestReferenceConnectbyRawSQLAndQuoting(t *testing.T) {
 		// not the read-only SQL error, and abandon the rest of the list.
 		for _, command := range []string{"COMMIT", "SAVEPOINT cb_ignored", "COPY cb_missing TO STDOUT", "COPY cb_missing FROM STDIN"} {
 			key := "1; " + command + "; SELECT missing FROM cb_missing; --"
-			q := connectbyQuery(0, "'cb_tree',"+connectbyLiteral(key)+",'p','root',1")
-			run(connectbySelect(0, q, [][]any{{"root", nil, int64(0)}}))
-			run(fixture.Prepared(connectbySelect(0, q, [][]any{{"root", nil, int64(0)}})))
+			q := fixture.ConnectbyQuery(0, "'cb_tree',"+connectbyLiteral(key)+",'p','root',1")
+			run(fixture.ConnectbySelect(0, q, [][]any{{"root", nil, int64(0)}}))
+			run(fixture.Prepared(fixture.ConnectbySelect(0, q, [][]any{{"root", nil, int64(0)}})))
 		}
 		// Ordinary optimizable-command analysis still wins over read-only
 		// classification; utility execution checks do not run at all.
 		key = "1; INSERT INTO cb_missing VALUES(1); --"
-		q = connectbyQuery(0, "'cb_tree',"+connectbyLiteral(key)+",'p','root',1")
+		q = fixture.ConnectbyQuery(0, "'cb_tree',"+connectbyLiteral(key)+",'p','root',1")
 		internalSQL := "SELECT " + key + ", p FROM cb_tree WHERE p = 'root' AND " + key + " IS NOT NULL AND " + key + " <> p"
 		run(connectbyNestedError(q, internalSQL, "42P01", `relation "cb_missing" does not exist`, fmt.Sprint(strings.Index(internalSQL, "cb_missing")+1)))
 		connectbyReadOnlyLocks(t, p, b, c)
@@ -86,38 +86,38 @@ func TestReferenceConnectbyRawSQLAndQuoting(t *testing.T) {
 			{"'cb_tree','k /* 雪 */','missing','root',0", "SELECT k /* 雪 */, missing FROM cb_tree WHERE missing = 'root' AND k /* 雪 */ IS NOT NULL AND k /* 雪 */ <> missing", "42703", `column "missing" does not exist`, "19"},
 			{`'"CB Schema".Tree','"Key"','"Parent Key"','root',0`, `SELECT "Key", "Parent Key" FROM "CB Schema".Tree WHERE "Parent Key" = 'root' AND "Key" IS NOT NULL AND "Key" <> "Parent Key"`, "42P01", `relation "CB Schema.tree" does not exist`, "33"},
 		} {
-			q = connectbyQuery(0, test.args)
+			q = fixture.ConnectbyQuery(0, test.args)
 			s := connectbyNestedError(q, test.sql, test.code, test.message, test.pos)
 			run(s)
 			run(fixture.Prepared(s))
 		}
 		args := "'cb_tree','k','p','\"Absent\"','root',0"
 		internal := `SELECT k, p FROM cb_tree WHERE p = 'root' AND k IS NOT NULL AND k <> p ORDER BY "Absent"`
-		run(connectbyNestedError(connectbyQuery(2, args), internal, "42703", `column "Absent" does not exist`, "81"))
+		run(connectbyNestedError(fixture.ConnectbyQuery(2, args), internal, "42703", `column "Absent" does not exist`, "81"))
 	})
 }
 
 func connectbyReadOnlyLocks(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_locked AS SELECT k,p FROM cb_tree FOR SHARE NOWAIT", 0))
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_nested AS SELECT * FROM cb_readonly_locked", 0))
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_strong AS SELECT k,p FROM cb_tree FOR UPDATE NOWAIT", 0))
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_weak AS SELECT k,p FROM cb_readonly_strong FOR SHARE NOWAIT", 0))
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_weak_nested AS SELECT * FROM cb_readonly_weak", 0))
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_plain AS SELECT k,p FROM cb_tree", 0))
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_ordered AS SELECT k,p FROM cb_tree ORDER BY k", 0))
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_reversed AS SELECT a.k,a.p FROM cb_tree AS a CROSS JOIN cb_tree AS b FOR SHARE OF b NOWAIT FOR UPDATE OF a NOWAIT", 0))
-	connectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_reversed_nested AS SELECT * FROM cb_readonly_reversed", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_locked AS SELECT k,p FROM cb_tree FOR SHARE NOWAIT", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_nested AS SELECT * FROM cb_readonly_locked", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_strong AS SELECT k,p FROM cb_tree FOR UPDATE NOWAIT", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_weak AS SELECT k,p FROM cb_readonly_strong FOR SHARE NOWAIT", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_weak_nested AS SELECT * FROM cb_readonly_weak", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_plain AS SELECT k,p FROM cb_tree", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_ordered AS SELECT k,p FROM cb_tree ORDER BY k", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_reversed AS SELECT a.k,a.p FROM cb_tree AS a CROSS JOIN cb_tree AS b FOR SHARE OF b NOWAIT FOR UPDATE OF a NOWAIT", 0))
+	fixture.ConnectbyRun(t, p, b, c, fixture.Exec("CREATE VIEW cb_readonly_reversed_nested AS SELECT * FROM cb_readonly_reversed", 0))
 	holder, err := b.DB.Conn(p.Ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer holder.Close()
-	connectbyRun(t, p, b, holder, fixture.Exec("BEGIN", 0))
+	fixture.ConnectbyRun(t, p, b, holder, fixture.Exec("BEGIN", 0))
 	defer holder.ExecContext(p.Ctx, "ROLLBACK")
 	// Real conflicting tuple locks make NOWAIT an independent execution
 	// witness: executing any nested row mark would report 55P03, not 0A000.
-	connectbyRun(t, p, b, holder, fixture.Select("SELECT k FROM cb_tree ORDER BY k FOR UPDATE", []string{"k"}, []string{"TEXT"}, [][]any{{"row2"}, {"row4"}, {"row5"}, {"row6"}, {"row8"}, {"row9"}}))
+	fixture.ConnectbyRun(t, p, b, holder, fixture.Select("SELECT k FROM cb_tree ORDER BY k FOR UPDATE", []string{"k"}, []string{"TEXT"}, [][]any{{"row2"}, {"row4"}, {"row5"}, {"row6"}, {"row8"}, {"row9"}}))
 	for index, test := range []struct{ relation, key, clause string }{
 		{"(SELECT k,p FROM cb_tree FOR UPDATE NOWAIT) AS locked", "k", "FOR UPDATE"},
 		{"(SELECT k,p FROM cb_tree FOR NO KEY UPDATE NOWAIT) AS locked", "k", "FOR NO KEY UPDATE"},
@@ -146,30 +146,30 @@ func connectbyReadOnlyLocks(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 	} {
 		t.Run(fmt.Sprintf("locking_%02d", index), func(t *testing.T) {
 			args := connectbyLiteral(test.relation) + "," + connectbyLiteral(test.key) + ",'p','row2',1"
-			query := connectbyQuery(0, args)
+			query := fixture.ConnectbyQuery(0, args)
 			internal := "SELECT " + test.key + ", p FROM " + test.relation + " WHERE p = 'row2' AND " + test.key + " IS NOT NULL AND " + test.key + " <> p"
 			tag := "SELECT"
 			if test.clause != "" {
 				tag += " " + test.clause
 			}
 			step := connectbyNestedError(query, internal, "0A000", tag+" is not allowed in a non-volatile function", "")
-			t.Run("direct", func(t *testing.T) { connectbyRun(t, p, b, c, step) })
-			t.Run("prepared", func(t *testing.T) { connectbyRun(t, p, b, c, fixture.Prepared(step)) })
+			t.Run("direct", func(t *testing.T) { fixture.ConnectbyRun(t, p, b, c, step) })
+			t.Run("prepared", func(t *testing.T) { fixture.ConnectbyRun(t, p, b, c, fixture.Prepared(step)) })
 		})
 	}
 	// Analysis-only locking definitions are not planned row marks. This
 	// succeeds even while the same holder would reject an executed NOWAIT.
 	relation := "(WITH unused AS (SELECT k,p FROM cb_tree FOR UPDATE NOWAIT) SELECT k,p FROM cb_tree) AS unlocked"
-	query := connectbyQuery(0, connectbyLiteral(relation)+",'k','p','row2',1")
-	step := connectbySelect(0, query, [][]any{{"row2", nil, int64(0)}, {"row5", "row2", int64(1)}, {"row4", "row2", int64(1)}})
-	connectbyRun(t, p, b, c, step)
-	connectbyRun(t, p, b, c, fixture.Prepared(step))
+	query := fixture.ConnectbyQuery(0, connectbyLiteral(relation)+",'k','p','row2',1")
+	step := fixture.ConnectbySelect(0, query, [][]any{{"row2", nil, int64(0)}, {"row5", "row2", int64(1)}, {"row4", "row2", int64(1)}})
+	fixture.ConnectbyRun(t, p, b, c, step)
+	fixture.ConnectbyRun(t, p, b, c, fixture.Prepared(step))
 }
 
 func TestReferenceConnectbyReturnDiagnostics(t *testing.T) {
 	connectbyCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := func(s fixture.Step) { connectbyRun(t, p, b, c, s) }
-		connectbyTree(t, p, b, c)
+		run := func(s fixture.Step) { fixture.ConnectbyRun(t, p, b, c, s) }
+		fixture.ConnectbyTree(t, p, b, c)
 		args := []string{"'cb_tree','k','p','row2',0", "'cb_tree','k','p','row2',0,'~'", "'cb_tree','k','p','pos','row2',0", "'cb_tree','k','p','pos','row2',0,'~'"}
 		for v, a := range args {
 			for _, width := range []int{2, 3, 4, 5, 6} {
@@ -197,10 +197,10 @@ func TestReferenceConnectbyReturnDiagnostics(t *testing.T) {
 				{"branch text", "branch integer", "Fourth return column (branch) must be type text."},
 				{"serial integer", "serial text", map[bool]string{true: "Fifth return column (serial) must be type integer.", false: "Fourth return column (serial) must be type integer."}[v == 3]},
 			} {
-				if !strings.Contains(connectbyDefs[v], test.old) {
+				if !strings.Contains(fixture.ConnectbyDefs[v], test.old) {
 					continue
 				}
-				q := "SELECT * FROM cb_part.connectby(" + a + ") AS t(" + strings.Replace(connectbyDefs[v], test.old, test.new, 1) + ")"
+				q := "SELECT * FROM cb_part.connectby(" + a + ") AS t(" + strings.Replace(fixture.ConnectbyDefs[v], test.old, test.new, 1) + ")"
 				s := connectbyError(q, "42804", "invalid connectby return type", test.detail)
 				run(s)
 				run(fixture.Prepared(s))
@@ -224,7 +224,7 @@ func TestReferenceConnectbyReturnDiagnostics(t *testing.T) {
 			run(connectbyError(q, "42804", "invalid connectby return type", test.detail))
 		}
 		q = "SELECT * FROM cb_part.connectby('cb_numbers','k','p','9',0) AS t(node text,parent text,level integer)"
-		run(connectbySelect(0, q, [][]any{{"9", nil, int64(0)}}))
+		run(fixture.ConnectbySelect(0, q, [][]any{{"9", nil, int64(0)}}))
 		q = "SELECT * FROM cb_part.connectby('cb_missing','k','p','oops',0) AS t(node integer,parent integer,level integer)"
 		run(connectbyError(q, "22P02", `invalid input syntax for type integer: "oops"`, ""))
 		run(fixture.Exec("CREATE TABLE cb_varchar(k varchar(5),p varchar(5))", 0))

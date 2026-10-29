@@ -28,7 +28,7 @@ func TestReferenceTablefuncCrosstabAuthority(t *testing.T) {
 			run(fixture.Exec("INSERT INTO ct_secret VALUES(1,'secret','x','private')", 1))
 			q := "SELECT * FROM crosstab($1::text) AS t(k text,a text,b text)"
 			source := "SELECT k,category,v FROM ct_secret ORDER BY seq"
-			h := crosstabHeld(t, p, c, q)
+			h := fixture.CrosstabHeld(t, p, c, q)
 			want := fixture.Select(q, []string{"k", "a", "b"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"secret", "private", nil}}, source)
 			run(fixture.Exec("SET ROLE ct_reader", 0))
 			d := fixture.ControlsReferenceDiagnostic("42501", "permission denied for table ct_secret")
@@ -99,8 +99,8 @@ func TestReferenceTablefuncCrosstabAuthority(t *testing.T) {
 			// The ignored category may itself wait: observe inner execution before
 			// canceling, join the worker, and prove the caller activation is usable.
 			sleepSource := "SELECT k,pg_sleep(600),v FROM ct_secret ORDER BY seq"
-			sleepQuery := "SELECT * FROM crosstab(" + crosstabQuote(sleepSource) + ") AS t(k text,a text,b text)"
-			sleepHeld := crosstabHeld(t, p, c, sleepQuery)
+			sleepQuery := "SELECT * FROM crosstab(" + fixture.CrosstabQuote(sleepSource) + ") AS t(k text,a text,b text)"
+			sleepHeld := fixture.CrosstabHeld(t, p, c, sleepQuery)
 			for _, prepared := range []bool{false, true} {
 				fixture.SleepActiveCancelWithContext(t, p, b, c, sleepQuery, "SQL statement \""+sleepSource+"\"", nil, func(ctx context.Context) fixture.RelationOutcome {
 					var rows *sql.Rows
@@ -131,7 +131,7 @@ func TestReferenceTablefuncCrosstabAuthority(t *testing.T) {
 			// requiring unrelated extension relocation DDL.
 			run(fixture.Exec("CREATE ROLE ct_reader", 0))
 			run(fixture.Exec("CREATE SCHEMA ct_addon", 0))
-			crosstabSeedInSchema(t, p, b, c, "ct_addon")
+			fixture.CrosstabSeedInSchema(t, p, b, c, "ct_addon")
 			run(fixture.Exec("SET ROLE ct_reader", 0))
 			schemaDenied := fixture.ControlsReferenceDiagnostic("42501", "permission denied for schema ct_addon")
 			schemaDenied.Position = fixture.Position(15)
@@ -144,7 +144,7 @@ func TestReferenceTablefuncCrosstabAuthority(t *testing.T) {
 			if !b.PG {
 				ctx, cancel := context.WithCancel(p.Ctx)
 				cancel()
-				rows, err := c.QueryContext(ctx, "SELECT * FROM ct_addon.crosstab2($1::text)", crosstabSource)
+				rows, err := c.QueryContext(ctx, "SELECT * FROM ct_addon.crosstab2($1::text)", fixture.CrosstabSource)
 				if rows != nil {
 					rows.Close()
 					t.Error("pre-canceled query exposed rows")

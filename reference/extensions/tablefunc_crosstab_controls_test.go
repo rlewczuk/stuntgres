@@ -60,31 +60,31 @@ func TestReferenceTablefuncCrosstabControls(t *testing.T) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 		run(fixture.Exec("CREATE ROLE ct_owner", 0))
 		run(fixture.Exec("CREATE SCHEMA ct_addon", 0))
-		crosstabSeedInSchema(t, p, b, c, "ct_addon")
+		fixture.CrosstabSeedInSchema(t, p, b, c, "ct_addon")
 		run(fixture.Exec("CREATE VIEW ct_generic_view AS SELECT * FROM ct_addon.crosstab('SELECT k,category,v FROM public.ct_source ORDER BY seq') AS t(k text,c1 text,c2 text,c3 text)", 0))
 		run(fixture.Exec("CREATE VIEW ct_wrapper_view AS SELECT * FROM ct_addon.crosstab3('SELECT k,category,v FROM public.ct_source ORDER BY seq')", 0))
 		run(fixture.Exec("CREATE TABLE ct_composites(id integer,v ct_addon.tablefunc_crosstab_3)", 0))
 		run(fixture.Exec("INSERT INTO ct_composites VALUES(1,'(row,one,,three)'),(2,NULL)", 2))
 		run(fixture.Exec("ALTER TABLE ct_composites OWNER TO ct_owner", 0))
 		q := "SELECT * FROM ct_addon.crosstab($1::text) AS t(k text,c1 text,c2 text,c3 text) ORDER BY k"
-		h := crosstabHeld(t, p, c, q)
+		h := fixture.CrosstabHeld(t, p, c, q)
 		post := func(target *sql.Conn, rec *fixture.Recorder) {
-			fixture.RunStep(t, p.Ctx, target, rec, crosstabWant("SELECT * FROM ct_generic_view ORDER BY k"))
+			fixture.RunStep(t, p.Ctx, target, rec, fixture.CrosstabWant("SELECT * FROM ct_generic_view ORDER BY k"))
 			fixture.RunStep(t, p.Ctx, target, rec, fixture.Select("SELECT * FROM ct_wrapper_view ORDER BY row_name", []string{"row_name", "category_1", "category_2", "category_3"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"g1", "A", "C", nil}, {"g2", "B1", "B2", "B3"}, {"g3", nil, nil, nil}}))
 			fixture.RunStep(t, p.Ctx, target, rec, fixture.Select("SELECT id,v::text AS v FROM ct_composites ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "(row,one,,three)"}, {int64(2), nil}}))
 			fixture.RunStep(t, p.Ctx, target, rec, fixture.Select("SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE c.relname='ct_composites'", []string{"rolname"}, []string{"NAME"}, [][]any{{"ct_owner"}}))
 			// Ownership remains valid without current namespace lookup rights.
 			fixture.RunStep(t, p.Ctx, target, rec, fixture.Select("SELECT has_schema_privilege('ct_owner','ct_addon','USAGE') AS allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{false}}))
-			fixture.RunStep(t, p.Ctx, target, rec, crosstabWant(q, crosstabSource))
+			fixture.RunStep(t, p.Ctx, target, rec, fixture.CrosstabWant(q, fixture.CrosstabSource))
 			// Both generic overloads and every genuine named wrapper survive replay.
-			fixture.RunStep(t, p.Ctx, target, rec, crosstabWant("SELECT * FROM ct_addon.crosstab($1::text,-1) AS t(k text,c1 text,c2 text,c3 text) ORDER BY k", crosstabSource))
+			fixture.RunStep(t, p.Ctx, target, rec, fixture.CrosstabWant("SELECT * FROM ct_addon.crosstab($1::text,-1) AS t(k text,c1 text,c2 text,c3 text) ORDER BY k", fixture.CrosstabSource))
 			for _, n := range []string{"2", "3", "4"} {
-				fixture.RunStep(t, p.Ctx, target, rec, fixture.Select("SELECT count(*) AS n FROM ct_addon.crosstab"+n+"($1::text)", []string{"n"}, []string{"INT8"}, [][]any{{int64(3)}}, crosstabSource))
+				fixture.RunStep(t, p.Ctx, target, rec, fixture.Select("SELECT count(*) AS n FROM ct_addon.crosstab"+n+"($1::text)", []string{"n"}, []string{"INT8"}, [][]any{{int64(3)}}, fixture.CrosstabSource))
 			}
 		}
 		post(c, b.Recorder)
 		crosstabInventory(t, p, b, c, "ct_addon")
-		fixture.RunStep(t, p.Ctx, h, b.Recorder, crosstabWant(q, crosstabSource))
+		fixture.RunStep(t, p.Ctx, h, b.Recorder, fixture.CrosstabWant(q, fixture.CrosstabSource))
 		if b.PG {
 			return
 		}
@@ -97,7 +97,7 @@ func TestReferenceTablefuncCrosstabControls(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		dump := extensionDump(t, p.Ctx, p.Native)
+		dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}
@@ -125,10 +125,10 @@ func TestReferenceTablefuncCrosstabControls(t *testing.T) {
 		}
 		post(c, b.Recorder)
 		crosstabInventory(t, p, b, c, "ct_addon")
-		fixture.RunStep(t, p.Ctx, h, b.Recorder, crosstabWant(q, crosstabSource))
+		fixture.RunStep(t, p.Ctx, h, b.Recorder, fixture.CrosstabWant(q, fixture.CrosstabSource))
 		run(fixture.Exec("CREATE TABLE ct_sentinel(id integer)", 0))
 		run(fixture.Exec("INSERT INTO ct_sentinel VALUES(71)", 1))
-		before := extensionDump(t, p.Ctx, p.Native)
+		before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		start, end, payload := fixture.CatalogExtensionOwnerDirective(t, dump, "tablefunc", true)
 		badDumps := []string{dump + "\nINVALID SQL;", dump[:start] + "-- stuntgres-extension-owners-v999 " + base64.StdEncoding.EncodeToString(payload) + dump[end:]}
 		for _, field := range []string{"owner", "version", "signature", "type_role"} {
@@ -141,7 +141,7 @@ func TestReferenceTablefuncCrosstabControls(t *testing.T) {
 			if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
 				t.Fatal("corrupt restore accepted")
 			}
-			if extensionDump(t, p.Ctx, p.Native) != before {
+			if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 				t.Fatal("failed restore published")
 			}
 			post(c, b.Recorder)
@@ -150,7 +150,7 @@ func TestReferenceTablefuncCrosstabControls(t *testing.T) {
 		ctx, cancel := context.WithCancel(p.Ctx)
 		err = stuntgres.Restore(ctx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
 		cancel()
-		if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, p.Native) != before {
+		if !errors.Is(err, context.Canceled) || fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 			t.Fatal("canceled restore", err)
 		}
 		other, target, rec := pgcryptoControlDestination(t, p, "ct_destination")

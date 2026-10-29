@@ -87,17 +87,17 @@ func pgcryptoSHAConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture
 	}
 	post(c, r)
 	fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}, r, fixture.Select(q, []string{"value"}, []string{"TEXT"}, [][]any{{pgcryptoSHA256Hello}}, "Hello world!", "$5$saltstring"))
-	before := extensionDump(t, p.Ctx, p.Native)
+	before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump.String()+"\nINVALID SQL;")); err == nil {
 		t.Fatal("invalid SHA replay accepted")
 	}
-	if extensionDump(t, p.Ctx, p.Native) != before {
+	if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 		t.Fatal("failed SHA replay mutated state")
 	}
 	ctx, cancel := context.WithCancel(p.Ctx)
 	err = stuntgres.Restore(ctx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
 	cancel()
-	if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, p.Native) != before {
+	if !errors.Is(err, context.Canceled) || fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 		t.Fatal("cancelled SHA replay", err)
 	}
 	other, target, record := pgcryptoControlDestination(t, p, "pgcrypto_sha_destination")

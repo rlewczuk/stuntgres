@@ -22,7 +22,7 @@ func TestReferenceLevenshteinControls(t *testing.T) {
 		if b.PG {
 			return // Only the shared SQL phase is exercised by oracle discovery.
 		}
-		dump := extensionDump(t, p.Ctx, p.Native)
+		dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		q := "SELECT lev_addon.levenshtein_less_equal($1,$2,$3,$4,$5,$6)"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -89,7 +89,7 @@ func TestReferenceLevenshteinControls(t *testing.T) {
 		}
 		levenshteinControlMetadata(t, rows, check)
 		levenshteinControlRows(t, rows, check)
-		if got := extensionDump(t, p.Ctx, other); got != dump {
+		if got := fixture.ExtensionDump(t, p.Ctx, other); got != dump {
 			t.Fatal("independent symbolic redump changed")
 		}
 		var owner string
@@ -104,11 +104,11 @@ func TestReferenceLevenshteinControls(t *testing.T) {
 		if _, err := missing.ExecContext(p.Ctx, "CREATE TABLE lev_sentinel(v int); INSERT INTO lev_sentinel VALUES(77)"); err != nil {
 			t.Fatal(err)
 		}
-		before := extensionDump(t, p.Ctx, missing)
+		before := fixture.ExtensionDump(t, p.Ctx, missing)
 		if err := stuntgres.Restore(p.Ctx, missing, strings.NewReader(dump)); err == nil {
 			t.Fatal("missing named owner accepted")
 		}
-		if extensionDump(t, p.Ctx, missing) != before {
+		if fixture.ExtensionDump(t, p.Ctx, missing) != before {
 			t.Fatal("missing owner changed target")
 		}
 		run(fixture.Exec("UPDATE lev_source SET dst='a' WHERE id=2", 1))

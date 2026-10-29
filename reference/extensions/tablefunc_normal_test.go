@@ -34,16 +34,6 @@ func normalCase(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backe
 		})
 	}
 }
-func normalRows(n int, mean float64) [][]any {
-	rows := make([][]any, n)
-	for i := range rows { rows[i] = []any{mean} }
-	return rows
-}
-func normalSelect(q string, n int, mean float64, args ...any) fixture.Step {
-	s := fixture.Select(q, []string{"normal_rand"}, []string{"FLOAT8"}, normalRows(n, mean), args...)
-	s.Bag = true
-	return s
-}
 func normalNegative(q string, args ...any) fixture.Step {
 	s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "22023", Message: "number of rows cannot be negative"}, args...)
 	s.ErrorStage = "execute"
@@ -59,14 +49,14 @@ func TestReferenceTablefuncNormalRowsAndMetadata(t *testing.T) {
 		defer st.Close()
 		held := fixture.HeldStatement{Executor: c, Statement: st, SQL: q}
 		for _, n := range []int{0,1,2,3,7} {
-			run(normalSelect(fmt.Sprintf("SELECT * FROM normal_part.normal_rand(%d,-7,0)", n), n, -7))
-			s := normalSelect(q, n, -7, n, -7, 0)
+			run(fixture.TablefuncNormalSelect(fmt.Sprintf("SELECT * FROM normal_part.normal_rand(%d,-7,0)", n), n, -7))
+			s := fixture.TablefuncNormalSelect(q, n, -7, n, -7, 0)
 			run(s); run(fixture.Prepared(s))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 		}
-		run(normalSelect("SELECT normal_part.normal_rand(3,-7,0)", 3, -7))
+		run(fixture.TablefuncNormalSelect("SELECT normal_part.normal_rand(3,-7,0)", 3, -7))
 		run(fixture.Exec("SET search_path TO normal_part,public", 0))
-		run(normalSelect("SELECT * FROM normal_rand(2,-7,0)", 2, -7))
+		run(fixture.TablefuncNormalSelect("SELECT * FROM normal_rand(2,-7,0)", 2, -7))
 		catalogStep := fixture.Select("SELECT p.proargtypes::text AS args,p.prorettype::integer AS result,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='normal_part' AND p.proname='normal_rand'", []string{"args","result","proisstrict","provolatile","proretset","proparallel","procost","prorows","prosrc"}, []string{"TEXT","INT4","BOOL","CHAR","BOOL","CHAR","FLOAT4","FLOAT4","TEXT"}, [][]any{{"23 701 701",int64(701),true,"v",true,"u",float64(1),float64(1000),"normal_rand"}})
 		run(catalogStep)
 		run(fixture.Prepared(catalogStep))
@@ -80,13 +70,13 @@ func TestReferenceTablefuncNormalNullAndEvaluation(t *testing.T) {
 		held := fixture.HeldStatement{Executor:c, Statement:st, SQL:q}
 		for _, args := range [][]any{{nil,0,1},{3,nil,1},{3,0,nil},{nil,nil,nil},{-1,nil,1},{-1,0,nil},{0,math.Inf(1),math.NaN()},{3,-7,math.Copysign(0,-1)}} {
 			n := 0; if args[0] == 3 && args[1] == -7 { n = 3 }
-			s := normalSelect(q,n,-7,args...)
+			s := fixture.TablefuncNormalSelect(q,n,-7,args...)
 			fixture.RunStep(t,p.Ctx,c,b.Recorder,s)
 			fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Prepared(s))
 			fixture.RunStep(t,p.Ctx,held,b.Recorder,s)
 		}
 		for _, literal := range []string{"NULL::integer,0,1","3,NULL::float8,1","3,0,NULL::float8","-1,NULL::float8,1"} {
-			fixture.RunStep(t,p.Ctx,c,b.Recorder,normalSelect("SELECT * FROM normal_part.normal_rand("+literal+")",0,0))
+			fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.TablefuncNormalSelect("SELECT * FROM normal_part.normal_rand("+literal+")",0,0))
 		}
 		s := fixture.ImplicitError(q,fixture.Diagnostic{Code:"22P02",Message:`invalid input syntax for type double precision: "oops"`,Context:"unnamed portal parameter $2 = '...'"},nil,"oops",1)
 		fixture.RunStep(t,p.Ctx,held,b.Recorder,s)

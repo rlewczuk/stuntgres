@@ -35,14 +35,14 @@ func TestReferenceAvailableExtensionsVisibility(t *testing.T) {
 	})
 	t.Run("ForeignTemporaryNamespace", func(t *testing.T) {
 		availableExtensionsCase(t, func(t *testing.T, p *fixture.Pair, installer *sql.Conn, r *fixture.Recorder, pg bool) {
-			owner := extensionTemporaryOwner(t, p, pg)
-			defer owner.close(t)
-			name := extensionTempSeed(t, p, owner)
+			owner := fixture.ExtensionTemporaryOwner(t, p, pg)
+			defer owner.Close(t)
+			name := fixture.ExtensionTempSeed(t, p, owner)
 			// The authorized installer is a different real physical session from
 			// the TEMP owner; own-TEMP installation is deliberately not added.
-			fixture.RunStep(t, p.Ctx, installer, r, fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+extensionTempIdentifier(name), 0))
+			fixture.RunStep(t, p.Ctx, installer, r, fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+fixture.ExtensionTempIdentifier(name), 0))
 			availableExtensionsState(t, p, installer, r, pg, true)
-			availableExtensionsState(t, p, owner.conn, owner.recorder, pg, true)
+			availableExtensionsState(t, p, owner.Conn, owner.Recorder, pg, true)
 			fixture.RunStep(t, p.Ctx, installer, r, fixture.Exec("CREATE USER ext_installer", 0))
 			fixture.RunStep(t, p.Ctx, installer, r, fixture.Exec("SET SESSION AUTHORIZATION ext_installer", 0))
 			defer installer.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")

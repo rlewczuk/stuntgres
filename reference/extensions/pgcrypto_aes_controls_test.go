@@ -121,13 +121,13 @@ func TestReferencePgcryptoAESReplayAtomicity(t *testing.T) {
 				if pg {
 					return // Shared SQL above; native Restore has no PostgreSQL API.
 				}
-				script := extensionDump(t, p.Ctx, p.Native)
+				script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 				fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_aes_stored(id) VALUES(3)", 1))
-				before := extensionDump(t, p.Ctx, p.Native)
+				before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 				if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(pgcryptoReplayFailure(t, script, name))); err == nil {
 					t.Fatal("invalid replay accepted")
 				}
-				if extensionDump(t, p.Ctx, p.Native) != before {
+				if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 					t.Fatal("failed replay published changes")
 				}
 				pgcryptoResult(t, p, c, r, "encrypt", "SELECT pgcrypto_part.encrypt('foo','0123456789','aes')", "f397f03d2819b7172b68d0706fda4693")
@@ -142,24 +142,24 @@ func TestReferencePgcryptoAESReplayLifecycle(t *testing.T) {
 		if pg {
 			return
 		}
-		script := extensionDump(t, p.Ctx, p.Native)
+		script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_aes_stored(id) VALUES(3)", 1))
-		before := extensionDump(t, p.Ctx, p.Native)
+		before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		cancelCtx, cancel := context.WithCancel(p.Ctx)
 		err := stuntgres.Restore(cancelCtx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
 		cancel()
-		if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, p.Native) != before {
+		if !errors.Is(err, context.Canceled) || fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 			t.Fatal("canceled replay changed AES target", err)
 		}
 		missing := fixture.CatalogControlPool(t, stuntgres.NewDriver(), "pgcrypto_aes_missing_owner")
 		if _, err := missing.ExecContext(p.Ctx, "CREATE TABLE sentinel(v integer)"); err != nil {
 			t.Fatal(err)
 		}
-		missingBefore := extensionDump(t, p.Ctx, missing)
+		missingBefore := fixture.ExtensionDump(t, p.Ctx, missing)
 		if err := stuntgres.Restore(p.Ctx, missing, strings.NewReader(script)); err == nil {
 			t.Fatal("missing owner accepted")
 		}
-		if extensionDump(t, p.Ctx, missing) != missingBefore {
+		if fixture.ExtensionDump(t, p.Ctx, missing) != missingBefore {
 			t.Fatal("missing owner changed sentinel")
 		}
 	})
@@ -173,7 +173,7 @@ func TestReferencePgcryptoAESRelocation(t *testing.T) {
 				if pg {
 					return
 				}
-				script := extensionDump(t, p.Ctx, p.Native)
+				script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 				fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_aes_stored(id) VALUES(3)", 1))
 				pgcryptoAESRelocation(t, p, c, r, script, stored, view, nested, failure, name)
 			})

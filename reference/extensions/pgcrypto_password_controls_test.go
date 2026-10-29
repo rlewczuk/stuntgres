@@ -113,12 +113,12 @@ func pgcryptoPasswordConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	for _, v := range []struct{ salt, hash string }{{"NB", "NB53EGGqrrb5E"}, {"_J9..j2zz", "_J9..j2zzAYKMvO2BYRY"}, {"$1$Szzz0yzz", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"}} {
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: held, SQL: q}, r, fixture.Select(q, []string{"value"}, []string{"TEXT"}, [][]any{{v.hash}}, "foox", v.salt))
 	}
-	before := extensionDump(t, p.Ctx, p.Native)
+	before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	for _, bad := range []string{dump.String() + "\nINVALID SQL;", strings.Replace(dump.String(), "VERSION '1.4'", "VERSION 'missing'", 1)} {
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
 			t.Fatal("invalid password replay accepted")
 		}
-		if extensionDump(t, p.Ctx, p.Native) != before {
+		if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 			t.Fatal("failed replay changed stored salt/hash")
 		}
 		post(c, r)
@@ -126,7 +126,7 @@ func pgcryptoPasswordConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	ctx, cancel := context.WithCancel(p.Ctx)
 	err = stuntgres.Restore(ctx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
 	cancel()
-	if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, p.Native) != before {
+	if !errors.Is(err, context.Canceled) || fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 		t.Fatal("cancelled password replay", err)
 	}
 	other, target, record := pgcryptoControlDestination(t, p, "pgcrypto_password_destination")

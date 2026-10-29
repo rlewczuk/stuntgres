@@ -35,15 +35,15 @@ func brinMovedSteps()[]fixture.Step{
  meta:="SELECT * FROM brin_moved.brin_metapage_info($1)"
  revmap:="SELECT * FROM brin_moved.brin_revmap_data($1)"
  items:="SELECT * FROM brin_moved.brin_page_items($1,'pi_idx'::regclass) ORDER BY itemoffset,attnum"
- metadata:=brinMeta();metadata[28],metadata[32],metadata[36]=99,7,3
- reverse:=brinImage(0xf092);copy(reverse[24:],[]byte{1,0,2,0,1,2})
+ metadata:=fixture.BRINMeta();metadata[28],metadata[32],metadata[36]=99,7,3
+ reverse:=fixture.BRINImage(0xf092);copy(reverse[24:],[]byte{1,0,2,0,1,2})
  rows:=make([][]any,1360);for i:=range rows{rows[i]=[]any{"(0,0)"}};rows[0]=[]any{"(65538,513)"}
  rev:=fixture.Select(revmap,[]string{"pages"},[]string{"TID"},rows,reverse);rev.Bag=true
  return []fixture.Step{
-  fixture.Select(classifier,[]string{"page_kind"},[]string{"TEXT"},[][]any{{"regular"}},brinImage(0xf093)),
+  fixture.Select(classifier,[]string{"page_kind"},[]string{"TEXT"},[][]any{{"regular"}},fixture.BRINImage(0xf093)),
   fixture.Select(classifier,[]string{"page_kind"},[]string{"TEXT"},[][]any{{nil}},make([]byte,8192)),
   fixture.Select(classifier,[]string{"page_kind"},[]string{"TEXT"},[][]any{{nil}},nil),
-  fixture.Select(classifier+" WHERE false",[]string{"page_kind"},[]string{"TEXT"},nil,brinMeta()),
+  fixture.Select(classifier+" WHERE false",[]string{"page_kind"},[]string{"TEXT"},nil,fixture.BRINMeta()),
   fixture.Select(meta,brinMetaNames,brinMetaTypes,[][]any{{"0xA8109CFA",int64(99),int64(7),int64(3)}},metadata),
   fixture.Select(meta,brinMetaNames,brinMetaTypes,[][]any{{nil,nil,nil,nil}},make([]byte,8192)),
   fixture.Select(meta,brinMetaNames,brinMetaTypes,[][]any{{nil,nil,nil,nil}},nil),

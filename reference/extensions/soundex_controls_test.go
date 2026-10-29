@@ -27,7 +27,7 @@ func soundexControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	if b.PG {
 		return // Reset/Dump/Restore are native APIs, not PostgreSQL facilities.
 	}
-	dump := extensionDump(t, p.Ctx, p.Native)
+	dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	q := "SELECT sx_addon.soundex($1),sx_addon.difference($1,$2)"
 	stmt, err := c.PrepareContext(p.Ctx, q)
 	if err != nil {
@@ -123,7 +123,7 @@ func soundexControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	run(sentinel)
 	soundexInventory(t, p, b, c)
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, frame)
-	if extensionDump(t, p.Ctx, p.Native) != dump {
+	if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump {
 		t.Fatal("failed replacement changed provider or consumers")
 	}
 	other := fixture.CatalogControlPool(t, stuntgres.NewDriver(), "sx_destination")
@@ -138,7 +138,7 @@ func soundexControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 		metaphoneControlMetadata(t, rows, s)
 		levenshteinControlRows(t, rows, s)
 	}
-	if extensionDump(t, p.Ctx, other) != dump {
+	if fixture.ExtensionDump(t, p.Ctx, other) != dump {
 		t.Fatal("independent symbolic replay changed")
 	}
 }

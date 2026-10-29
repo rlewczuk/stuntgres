@@ -7,15 +7,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func templateRestrict(t *testing.T, p *fixture.Pair, c fixture.Executor, r *fixture.Recorder, name, dictionary string) {
-	t.Helper()
-	for _, prepared := range []bool{false, true} {
-		s := fixture.ImplicitError("DROP TEXT SEARCH TEMPLATE "+name+" RESTRICT", fixture.Diagnostic{Code:"2BP01", Message:"cannot drop text search template "+name+" because other objects depend on it", Detail:"text search dictionary "+dictionary+" depends on text search template "+name, Hint:"Use DROP ... CASCADE to drop the dependent objects too."})
-		s.Prepared, s.ErrorStage = prepared, "execute"
-		fixture.RunStep(t, p.Ctx, c, r, s)
-	}
-}
-
 func TestReferenceTSTemplateDependencies(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
@@ -28,7 +19,7 @@ func TestReferenceTSTemplateDependencies(t *testing.T) {
 		edges := fixture.Select("SELECT refclassid::bigint,refobjid::bigint,deptype FROM pg_depend WHERE classid=3764 AND objid=$1 ORDER BY refclassid,refobjid", []string{"refclassid","refobjid","deptype"}, []string{"INT8","INT8","CHAR"}, [][]any{{int64(2615),id.namespace,"n"}}, id.oid)
 		run(edges)
 		run(fixture.Prepared(edges))
-		templateRestrict(t, p, c, r, "template_dep", "template_dep_dict")
+		fixture.TSTemplateRestrict(t, p, c, r, "template_dep", "template_dep_dict")
 		templateDiagnostic(t, p, c, r, "DROP TEXT SEARCH TEMPLATE template_unused,template_missing CASCADE", "42704", `text search template "template_missing" does not exist`)
 		_ = templateIdentity(t, p, c, "template_unused")
 		run(fixture.Exec("CREATE TEXT SEARCH CONFIGURATION public.template_dep_config (PARSER=pg_catalog.default)", 0))
@@ -73,8 +64,8 @@ func TestReferenceTSTemplateDependencies(t *testing.T) {
 		run(edges)
 		run(fixture.Prepared(edges))
 		run(fixture.Exec("CREATE TEXT SEARCH DICTIONARY public.template_helper_dict (TEMPLATE=public.template_helper_dep,RULES=unaccent)", 0))
-		templateRestrict(t, p, c, r, "template_helper_dep", "template_helper_dict")
-		templateLexemes(t, p, c, r, pg, "SELECT ts_lexize('public.template_helper_dict','Hôtel') AS lexemes", "{Hotel}")
+		fixture.TSTemplateRestrict(t, p, c, r, "template_helper_dep", "template_helper_dict")
+		fixture.TSTemplateLexemes(t, p, c, r, pg, "SELECT ts_lexize('public.template_helper_dict','Hôtel') AS lexemes", "{Hotel}")
 		run(fixture.Exec("DROP EXTENSION unaccent CASCADE", 0))
 		templateAbsent(t, p, c, r, "template_helper_dep")
 		run(fixture.Select("SELECT count(*) FROM pg_ts_dict WHERE dictname='template_helper_dict'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))

@@ -1,81 +1,12 @@
 package reference_test
 
 import (
-	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"stuntgres/reference/fixture"
-	"sync"
 	"testing"
-	"time"
 )
-
-// A separate physical owner is essential: Conn.Close alone returns a pool lease.
-// The existing Joined fixture boundary keeps a failing close witness bounded;
-// every successful close joins its worker before inspecting the peer catalog.
-type extensionTempOwner struct {
-	db       *sql.DB
-	conn     *sql.Conn
-	recorder *fixture.Recorder
-	notices  []fixture.Diagnostic
-	once     sync.Once
-	done     chan struct{}
-	timedOut bool // Test-owner thread only; fixture fallback is failure-only.
-	err      error
-}
-
-func extensionTemporaryOwner(t *testing.T, p *fixture.Pair, pg bool) *extensionTempOwner {
-	t.Helper()
-	o := &extensionTempOwner{done: make(chan struct{})}
-	o.db, o.conn, o.recorder = fixture.NoticeReferencePool(t, p, pg, &o.notices, fixture.NoticeReferenceOption{Joined: func() bool { return !o.timedOut }})
-	t.Cleanup(func() { o.close(t) })
-	return o
-}
-func (o *extensionTempOwner) close(t *testing.T) bool {
-	t.Helper()
-	if o.timedOut {
-		return false
-	}
-	o.once.Do(func() {
-		go func() {
-			err := o.conn.Close()
-			if errors.Is(err, sql.ErrConnDone) {
-				err = nil
-			}
-			o.err = errors.Join(err, o.db.Close())
-			close(o.done)
-		}()
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	select {
-	case <-o.done:
-		if o.err != nil {
-			t.Error("physical TEMP owner close", o.err)
-			return false
-		}
-		return true
-	case <-ctx.Done():
-		o.timedOut = true
-		t.Error("physical TEMP owner close exceeded finite cleanup deadline", ctx.Err())
-		return false
-	}
-}
-func extensionTempIdentifier(name string) string {
-	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
-}
-func extensionTempSeed(t *testing.T, p *fixture.Pair, o *extensionTempOwner) string {
-	t.Helper()
-	fixture.RunStep(t, p.Ctx, o.conn, o.recorder, fixture.Exec("CREATE TEMP TABLE ext_temp_seed(id INT)", 0))
-	var name string
-	if err := o.conn.QueryRowContext(p.Ctx, "SELECT schemaname FROM pg_tables WHERE tablename='ext_temp_seed'").Scan(&name); err != nil || !strings.HasPrefix(name, "pg_temp_") {
-		t.Fatal("actual TEMP namespace", name, err)
-	}
-	return name
-}
 
 type extensionTempIdentity struct {
 	extension, namespace int64
@@ -140,7 +71,7 @@ func extensionTempGone(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Re
 }
 func extensionTempCall(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, name string) {
 	t.Helper()
-	step := fixture.Select("SELECT "+extensionTempIdentifier(name)+".unaccent($1::text)", []string{"unaccent"}, []string{"TEXT"}, [][]any{{"Hotel"}}, "Hôtel")
+	step := fixture.Select("SELECT "+fixture.ExtensionTempIdentifier(name)+".unaccent($1::text)", []string{"unaccent"}, []string{"TEXT"}, [][]any{{"Hotel"}}, "Hôtel")
 	fixture.RunStep(t, p.Ctx, c, r, step)
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(step))
 	step.Args = []any{nil}
@@ -159,47 +90,47 @@ func TestReferenceExtensionNamespaceDependency(t *testing.T) {
 }
 func TestReferenceExtensionTemporaryLookup(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, peer *sql.Conn, r *fixture.Recorder, pg bool) {
-		o := extensionTemporaryOwner(t, p, pg)
-		defer o.close(t)
-		name := extensionTempSeed(t, p, o)
-		installer := extensionTemporaryOwner(t, p, pg)
-		defer installer.close(t)
-		fixture.RunStep(t, p.Ctx, installer.conn, installer.recorder, fixture.Select("SELECT pg_advisory_lock(30790002)", []string{"pg_advisory_lock"}, []string{"VOID"}, [][]any{{""}}))
-		fixture.RunStep(t, p.Ctx, installer.conn, installer.recorder, fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+extensionTempIdentifier(name), 0))
-		if !installer.close(t) {
+		o := fixture.ExtensionTemporaryOwner(t, p, pg)
+		defer o.Close(t)
+		name := fixture.ExtensionTempSeed(t, p, o)
+		installer := fixture.ExtensionTemporaryOwner(t, p, pg)
+		defer installer.Close(t)
+		fixture.RunStep(t, p.Ctx, installer.Conn, installer.Recorder, fixture.Select("SELECT pg_advisory_lock(30790002)", []string{"pg_advisory_lock"}, []string{"VOID"}, [][]any{{""}}))
+		fixture.RunStep(t, p.Ctx, installer.Conn, installer.Recorder, fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+fixture.ExtensionTempIdentifier(name), 0))
+		if !installer.Close(t) {
 			t.FailNow()
 		}
 		fixture.ExtensionTempExitBarrier(t, p, peer, r, 30790002)
-		id := extensionTempCapture(t, p, o.conn)
+		id := extensionTempCapture(t, p, o.Conn)
 		extensionTempPresent(t, p, peer, r, id)
-		extensionTempCall(t, p, o.conn, o.recorder, name)
+		extensionTempCall(t, p, o.Conn, o.Recorder, name)
 		extensionTempCall(t, p, peer, r, name)
-		fixture.RunStep(t, p.Ctx, o.conn, o.recorder, fixture.Exec("SET search_path TO "+extensionTempIdentifier(name), 0))
-		fixture.RunStep(t, p.Ctx, o.conn, o.recorder, extensionMissing("SELECT unaccent('Hôtel'::text)", "unaccent", "text"))
-		extensionTempCall(t, p, o.conn, o.recorder, name)
-		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("SET search_path TO "+extensionTempIdentifier(name), 0))
+		fixture.RunStep(t, p.Ctx, o.Conn, o.Recorder, fixture.Exec("SET search_path TO "+fixture.ExtensionTempIdentifier(name), 0))
+		fixture.RunStep(t, p.Ctx, o.Conn, o.Recorder, extensionMissing("SELECT unaccent('Hôtel'::text)", "unaccent", "text"))
+		extensionTempCall(t, p, o.Conn, o.Recorder, name)
+		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("SET search_path TO "+fixture.ExtensionTempIdentifier(name), 0))
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Select("SELECT unaccent('Hôtel'::text)", []string{"unaccent"}, []string{"TEXT"}, [][]any{{"Hotel"}}))
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("RESET search_path", 0))
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("CREATE USER ext_installer", 0))
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("SET SESSION AUTHORIZATION ext_installer", 0))
-		query := "SELECT " + extensionTempIdentifier(name) + ".unaccent('Hôtel'::text)"
+		query := "SELECT " + fixture.ExtensionTempIdentifier(name) + ".unaccent('Hôtel'::text)"
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.ImplicitError(query, fixture.Diagnostic{Code: "42501", Message: "permission denied for schema " + name, Position: "8"}))
-		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("SET search_path TO "+extensionTempIdentifier(name), 0))
+		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("SET search_path TO "+fixture.ExtensionTempIdentifier(name), 0))
 		fixture.RunStep(t, p.Ctx, peer, r, extensionMissing("SELECT unaccent('Hôtel'::text)", "unaccent", "text"))
 		extensionCount(t, p, peer, r, 1)
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("RESET search_path", 0))
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-		extensionNamespaceDependency(t, p, o.conn, o.recorder)
-		fixture.RunStep(t, p.Ctx, o.conn, o.recorder, fixture.Exec("DISCARD TEMP", 0))
+		extensionNamespaceDependency(t, p, o.Conn, o.Recorder)
+		fixture.RunStep(t, p.Ctx, o.Conn, o.Recorder, fixture.Exec("DISCARD TEMP", 0))
 		extensionTempGone(t, p, peer, r, id)
-		if len(o.notices) != 0 {
-			t.Fatal("TEMP retirement notices", o.notices)
+		if len(o.Notices) != 0 {
+			t.Fatal("TEMP retirement notices", o.Notices)
 		}
 	})
 }
 func extensionTempConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, name string) {
 	t.Helper()
-	function := extensionTempIdentifier(name) + ".unaccent"
+	function := fixture.ExtensionTempIdentifier(name) + ".unaccent"
 	for _, q := range []string{
 		"CREATE TABLE public.ext_temp_consumer(id INT,txt TEXT DEFAULT " + function + "('Hôtel'::text),CONSTRAINT ext_temp_check CHECK(" + function + "(txt)=txt))",
 		"CREATE VIEW public.ext_temp_view AS SELECT " + function + "('Hôtel'::text) AS v",
@@ -258,13 +189,13 @@ func extensionTempSurvivingWrites(t *testing.T, p *fixture.Pair, c *sql.Conn, r 
 }
 func TestReferenceExtensionTemporaryDiscard(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, peer *sql.Conn, r *fixture.Recorder, pg bool) {
-		o := extensionTemporaryOwner(t, p, pg)
-		name := extensionTempSeed(t, p, o)
-		defer o.close(t)
-		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, o.conn, o.recorder, s) }
-		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+extensionTempIdentifier(name), 0))
-		id := extensionTempCapture(t, p, o.conn)
-		extensionTempConsumers(t, p, o.conn, o.recorder, name)
+		o := fixture.ExtensionTemporaryOwner(t, p, pg)
+		name := fixture.ExtensionTempSeed(t, p, o)
+		defer o.Close(t)
+		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, o.Conn, o.Recorder, s) }
+		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+fixture.ExtensionTempIdentifier(name), 0))
+		id := extensionTempCapture(t, p, o.Conn)
+		extensionTempConsumers(t, p, o.Conn, o.Recorder, name)
 		// Qualified function dependency does not make these persistent views TEMP.
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Select("SELECT v FROM public.ext_temp_chain", []string{"v"}, []string{"TEXT"}, [][]any{{"Hotel"}}))
 		run(fixture.Exec("BEGIN", 0))
@@ -276,19 +207,19 @@ func TestReferenceExtensionTemporaryDiscard(t *testing.T) {
 				run(fixture.Exec("SAVEPOINT before_temp", 0))
 			}
 			run(fixture.Exec("DISCARD TEMP", 0))
-			extensionTempGone(t, p, o.conn, o.recorder, id)
-			extensionTempConsumerState(t, p, o.conn, o.recorder, false)
+			extensionTempGone(t, p, o.Conn, o.Recorder, id)
+			extensionTempConsumerState(t, p, o.Conn, o.Recorder, false)
 			extensionTempPresent(t, p, peer, r, id)
 			extensionTempConsumerCatalog(t, p, peer, r, true)
 			if savepoint {
 				run(fixture.Exec("ROLLBACK TO before_temp", 0))
-				extensionTempPresent(t, p, o.conn, o.recorder, id)
-				extensionTempConsumerState(t, p, o.conn, o.recorder, true)
+				extensionTempPresent(t, p, o.Conn, o.Recorder, id)
+				extensionTempConsumerState(t, p, o.Conn, o.Recorder, true)
 			}
 			run(fixture.Exec("ROLLBACK", 0))
-			extensionTempPresent(t, p, o.conn, o.recorder, id)
-			extensionTempCall(t, p, o.conn, o.recorder, name)
-			extensionTempConsumerState(t, p, o.conn, o.recorder, true)
+			extensionTempPresent(t, p, o.Conn, o.Recorder, id)
+			extensionTempCall(t, p, o.Conn, o.Recorder, name)
+			extensionTempConsumerState(t, p, o.Conn, o.Recorder, true)
 			extensionTempConsumerState(t, p, peer, r, true)
 		}
 		run(fixture.Exec("BEGIN", 0))
@@ -300,12 +231,12 @@ func TestReferenceExtensionTemporaryDiscard(t *testing.T) {
 		extensionTempMissingViews(t, p, peer, r)
 		extensionTempSurvivingWrites(t, p, peer, r)
 		// DISCARD retains its namespace; a new install must not resurrect old IDs.
-		nextName := extensionTempSeed(t, p, o)
+		nextName := fixture.ExtensionTempSeed(t, p, o)
 		if nextName != name {
 			t.Fatal("DISCARD changed owned TEMP namespace", name, nextName)
 		}
-		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+extensionTempIdentifier(nextName), 0))
-		fresh := extensionTempCapture(t, p, o.conn)
+		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+fixture.ExtensionTempIdentifier(nextName), 0))
+		fresh := extensionTempCapture(t, p, o.Conn)
 		if fresh.extension == id.extension {
 			t.Fatal("reinstallation resurrected extension identity")
 		}
@@ -314,42 +245,42 @@ func TestReferenceExtensionTemporaryDiscard(t *testing.T) {
 				t.Fatal("reinstallation resurrected member identity", member)
 			}
 		}
-		extensionTempCall(t, p, o.conn, o.recorder, nextName)
+		extensionTempCall(t, p, o.Conn, o.Recorder, nextName)
 		run(fixture.Exec("DISCARD ALL", 0))
 		extensionTempGone(t, p, peer, r, fresh)
-		if len(o.notices) != 0 {
-			t.Fatal("TEMP cleanup notices", o.notices)
+		if len(o.Notices) != 0 {
+			t.Fatal("TEMP cleanup notices", o.Notices)
 		}
 	})
 }
 func TestReferenceExtensionTemporaryRollback(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, peer *sql.Conn, r *fixture.Recorder, pg bool) {
-		o := extensionTemporaryOwner(t, p, pg)
-		defer o.close(t)
-		ownerRun := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, o.conn, o.recorder, s) }
+		o := fixture.ExtensionTemporaryOwner(t, p, pg)
+		defer o.Close(t)
+		ownerRun := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, o.Conn, o.Recorder, s) }
 		// A private namespace cannot be seen by a foreign installer. Roll back its
 		// initialization separately, then exercise installation in a committed one.
 		ownerRun(fixture.Exec("BEGIN", 0))
-		extensionTempSeed(t, p, o)
+		fixture.ExtensionTempSeed(t, p, o)
 		ownerRun(fixture.Exec("ROLLBACK", 0))
 		ownerRun(fixture.Select("SELECT count(*) FROM pg_tables WHERE tablename='ext_temp_seed'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		name := extensionTempSeed(t, p, o)
+		name := fixture.ExtensionTempSeed(t, p, o)
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, peer, r, s) }
 		run(fixture.Exec("CREATE TABLE public.ext_temp_before(v INT)", 0))
 		run(fixture.Exec("BEGIN", 0))
-		run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+extensionTempIdentifier(name), 0))
+		run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+fixture.ExtensionTempIdentifier(name), 0))
 		first := extensionTempCapture(t, p, peer)
 		extensionTempCall(t, p, peer, r, name)
-		extensionCount(t, p, o.conn, o.recorder, 0)
+		extensionCount(t, p, o.Conn, o.Recorder, 0)
 		run(fixture.Exec("ROLLBACK", 0))
 		extensionTempGone(t, p, peer, r, first)
 		run(fixture.Exec("BEGIN", 0))
 		run(fixture.Exec("INSERT INTO public.ext_temp_before VALUES(9)", 1))
 		run(fixture.Exec("SAVEPOINT before_install", 0))
-		run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+extensionTempIdentifier(name), 0))
+		run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+fixture.ExtensionTempIdentifier(name), 0))
 		second := extensionTempCapture(t, p, peer)
 		extensionTempCall(t, p, peer, r, name)
-		extensionCount(t, p, o.conn, o.recorder, 0)
+		extensionCount(t, p, o.Conn, o.Recorder, 0)
 		run(fixture.Exec("ROLLBACK TO before_install", 0))
 		extensionTempGone(t, p, peer, r, second)
 		run(fixture.Exec("COMMIT", 0))

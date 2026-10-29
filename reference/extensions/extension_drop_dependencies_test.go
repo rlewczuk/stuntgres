@@ -68,10 +68,10 @@ func TestReferenceExtensionDropLists(t *testing.T) {
 		if err := owner.QueryRowContext(p.Ctx, "SELECT current_database()").Scan(&database); err != nil {
 			t.Fatal(err)
 		}
-		grant := "GRANT CREATE ON DATABASE " + extensionTempIdentifier(database) + " TO ext_drop_list_reader"
+		grant := "GRANT CREATE ON DATABASE " + fixture.ExtensionTempIdentifier(database) + " TO ext_drop_list_reader"
 		run(fixture.Exec(grant, 0))
 		run(fixture.Exec("GRANT USAGE ON SCHEMA public TO ext_drop_list_reader", 0))
-		defer owner.ExecContext(p.Ctx, "REVOKE CREATE ON DATABASE "+extensionTempIdentifier(database)+" FROM ext_drop_list_reader")
+		defer owner.ExecContext(p.Ctx, "REVOKE CREATE ON DATABASE "+fixture.ExtensionTempIdentifier(database)+" FROM ext_drop_list_reader")
 		run(fixture.Exec("DROP EXTENSION unaccent", 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION ext_drop_list_reader", 0))
 		defer owner.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")

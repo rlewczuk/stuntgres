@@ -33,7 +33,7 @@ func TestReferenceTSTemplatePrivileges(t *testing.T) {
 		templateDefinition(t, p, c, r, "ext_addon.template_foreign_schema")
 		run(fixture.Exec("SET ROLE ext_installer", 0))
 		defer c.ExecContext(p.Ctx, "RESET ROLE")
-		templateDiagnostic(t, p, c, r, "CREATE TEXT SEARCH TEMPLATE ext_locked.template_denied ("+templateSimpleMethods+")", "42501", "must be superuser to create text search templates")
+		templateDiagnostic(t, p, c, r, "CREATE TEXT SEARCH TEMPLATE ext_locked.template_denied ("+fixture.TSTemplateSimpleMethods+")", "42501", "must be superuser to create text search templates")
 		templateDiagnostic(t, p, c, r, "ALTER TEXT SEARCH TEMPLATE ext_locked.template_owned_schema RENAME TO template_denied", "42501", "must be superuser to rename text search template ext_locked.template_owned_schema")
 		templateDiagnostic(t, p, c, r, "ALTER TEXT SEARCH TEMPLATE ext_locked.template_owned_schema SET SCHEMA ext_addon", "42501", "must be superuser to set schema of text search template ext_locked.template_owned_schema")
 		run(fixture.Exec("ALTER TEXT SEARCH TEMPLATE ext_locked.template_owned_schema SET SCHEMA ext_locked", 0))
@@ -67,13 +67,13 @@ func TestReferenceTSTemplateIdentity(t *testing.T) {
 		templateDiagnostic(t, p, c, r, "ALTER TEXT SEARCH TEMPLATE public.template_identity RENAME TO template_identity", "42710", `text search template "template_identity" already exists in schema "public"`)
 		if templateIdentity(t, p, c, "template_identity") != before { t.Fatal("same-name rename changed identity") }
 		templateLink(t, p, c, r, "template_identity_dict", before.oid)
-		templateLexemes(t, p, held, r, pg, q, "{word}", "WORD")
+		fixture.TSTemplateLexemes(t, p, held, r, pg, q, "{word}", "WORD")
 		run(fixture.Prepared(fixture.Exec("ALTER TEXT SEARCH TEMPLATE public.template_identity RENAME TO template_renamed", 0)))
 		run(fixture.Exec("ALTER TEXT SEARCH TEMPLATE public.template_renamed SET SCHEMA ext_locked", 0))
 		after := templateIdentity(t, p, c, "template_renamed")
 		if after.oid != before.oid || after.init != before.init || after.lexize != before.lexize || after.namespace == before.namespace { t.Fatal("relabel replaced identity", before, after) }
 		templateLink(t, p, c, r, "template_identity_dict", before.oid)
-		templateLexemes(t, p, held, r, pg, q, "{word}", "WORD")
+		fixture.TSTemplateLexemes(t, p, held, r, pg, q, "{word}", "WORD")
 		templateDefinition(t, p, c, r, "ext_locked.template_collision")
 		templateDiagnostic(t, p, c, r, "ALTER TEXT SEARCH TEMPLATE ext_locked.template_renamed RENAME TO template_collision", "42710", `text search template "template_collision" already exists in schema "ext_locked"`)
 		if templateIdentity(t, p, c, "template_renamed") != after { t.Fatal("collision changed identity") }
@@ -84,7 +84,7 @@ func TestReferenceTSTemplateIdentity(t *testing.T) {
 		moved := templateIdentity(t, p, c, "template_member")
 		if moved.oid != member.oid || moved.init != member.init || moved.lexize != member.lexize { t.Fatal("member relabel changed manifest links", member, moved) }
 		templateLink(t, p, c, r, "unaccent", member.oid)
-		templateLexemes(t, p, c, r, pg, "SELECT ts_lexize('ext_addon.unaccent','Hôtel') AS lexemes", "{Hotel}")
+		fixture.TSTemplateLexemes(t, p, c, r, pg, "SELECT ts_lexize('ext_addon.unaccent','Hôtel') AS lexemes", "{Hotel}")
 		run(fixture.Select("SELECT n.nspname,p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE p.oid=$1", []string{"nspname","proname"}, []string{"NAME","NAME"}, [][]any{{"ext_addon","unaccent_init"}}, member.init))
 		run(fixture.Select("SELECT n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace WHERE e.extname='unaccent'", []string{"nspname"}, []string{"NAME"}, [][]any{{"ext_addon"}}))
 		for _, mode := range []string{"RESTRICT", "CASCADE"} {
@@ -94,7 +94,7 @@ func TestReferenceTSTemplateIdentity(t *testing.T) {
 				run(s)
 				if templateIdentity(t, p, c, "template_member") != moved { t.Fatal("denied member drop changed identity") }
 				templateLink(t, p, c, r, "unaccent", member.oid)
-				templateLexemes(t, p, c, r, pg, "SELECT ts_lexize('ext_addon.unaccent','Hôtel') AS lexemes", "{Hotel}")
+				fixture.TSTemplateLexemes(t, p, c, r, pg, "SELECT ts_lexize('ext_addon.unaccent','Hôtel') AS lexemes", "{Hotel}")
 			}
 		}
 		membership := fixture.Select("SELECT e.extname FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.classid=3764 AND d.objid=$1 AND d.refclassid=3079 AND d.deptype='e'", []string{"extname"}, []string{"NAME"}, [][]any{{"unaccent"}}, member.oid)

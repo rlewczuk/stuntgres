@@ -38,8 +38,8 @@ func TestReferencePageinspectBrinOutputEnvironment(t *testing.T){
    image:=brinItems(brinTuple(0,nil,brinPair(tc.datum,tc.align,tc.short)))
    for _,setting:=range tc.settings{
     fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec(setting.sql,0))
-    s:=brinMetadata(fixture.Select(q,brinItemNames,brinItemTypes,[][]any{{int64(1),int64(2147549186),int64(1),false,false,false,false,setting.want}},image),b.PG,false)
-    brinBoth(t,p,b,c,s)
+    s:=fixture.BRINMetadata(fixture.Select(q,brinItemNames,brinItemTypes,[][]any{{int64(1),int64(2147549186),int64(1),false,false,false,false,setting.want}},image),b.PG,false)
+    fixture.BRINBoth(t,p,b,c,s)
     fixture.RunStep(t,p.Ctx,held,b.Recorder,s)
    }
   })})

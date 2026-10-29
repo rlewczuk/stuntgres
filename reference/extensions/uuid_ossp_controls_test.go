@@ -34,7 +34,7 @@ func uuidOsspControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 	if err != nil {
 		t.Fatal(err)
 	}
-	dump := extensionDump(t, p.Ctx, p.Native)
+	dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func uuidOsspControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 	if v := uuidOsspRead(t, p, fixture.HeldStatement{Executor: c, Statement: held, SQL: q}, r, false, q, 1, 1)[0]; v == first {
 		t.Fatal("held value cached across restore")
 	}
-	before := extensionDump(t, p.Ctx, p.Native)
+	before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	for _, bad := range []string{dump + "\nINVALID SQL;", strings.Replace(dump, "VERSION '1.1'", "VERSION 'missing'", 1), strings.ReplaceAll(dump, "uuid_generate_v4", "missing_uuid_v4"), strings.Replace(dump, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1)} {
 		if bad == dump {
 			t.Fatal("malformed-restore fixture failed to alter dump")
@@ -75,7 +75,7 @@ func uuidOsspControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
 			t.Fatal("invalid restore accepted")
 		}
-		if extensionDump(t, p.Ctx, p.Native) != before {
+		if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 			t.Fatal("failed restore changed provider/data")
 		}
 		post(c, r)
@@ -83,7 +83,7 @@ func uuidOsspControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 	ctx, cancel := context.WithCancel(p.Ctx)
 	err = stuntgres.Restore(ctx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
 	cancel()
-	if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, p.Native) != before {
+	if !errors.Is(err, context.Canceled) || fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 		t.Fatal("canceled restore", err)
 	}
 	other, target, record := pgcryptoControlDestination(t, p, "uuid_ossp_destination")

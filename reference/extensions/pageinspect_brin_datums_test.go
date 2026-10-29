@@ -76,7 +76,7 @@ func TestReferencePageinspectBrinDatums(t *testing.T){
  for _,tc:=range cases{t.Run(tc.name,func(t *testing.T){brinCase(t,func(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn){
   for _,q:=range []string{"SET TIME ZONE 'UTC'","SET datestyle TO 'ISO, MDY'","SET intervalstyle TO 'postgres'","SET bytea_output TO 'hex'","CREATE TABLE pi_data(n "+tc.typ+")","CREATE INDEX pi_idx ON pi_data USING brin(n "+tc.class+")"}{fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec(q,0))}
   page:=brinItems(brinTuple(0,nil,brinPair(tc.datum,tc.align,tc.short)))
-  brinBoth(t,p,b,c,brinItemStep(page,[][]any{{int64(1),int64(2147549186),int64(1),false,false,false,false,"{"+tc.want+" .. "+tc.want+"}"}}))
+  fixture.BRINBoth(t,p,b,c,brinItemStep(page,[][]any{{int64(1),int64(2147549186),int64(1),false,false,false,false,"{"+tc.want+" .. "+tc.want+"}"}}))
  })})}
  t.Run("mixed_alignment",func(t *testing.T){brinCase(t,func(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn){
   for _,q:=range []string{"CREATE TABLE pi_data(a text,b bigint,c numeric,d text)","CREATE INDEX pi_idx ON pi_data USING brin(a,b,c,d)"}{fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec(q,0))}
@@ -87,12 +87,12 @@ func TestReferencePageinspectBrinDatums(t *testing.T){
   add(brinShort(brinWords(0x8000,7)),4,true);add(brinShort(brinWords(0x8000,42)),4,true)
   add(brinLong([]byte("normal")),4,false);add(brinLong([]byte("header")),4,false)
   rows:=make([][]any,4);for i,want:=range []string{"{x .. yz}","{7 .. 42}","{7 .. 42}","{normal .. header}"}{rows[i]=[]any{int64(1),int64(2147549186),int64(i+1),false,false,false,false,want}}
-  brinBoth(t,p,b,c,brinItemStep(brinItems(brinTuple(0,nil,data)),rows))
+  fixture.BRINBoth(t,p,b,c,brinItemStep(brinItems(brinTuple(0,nil,data)),rows))
  })})
  t.Run("domain",func(t *testing.T){brinCase(t,func(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn){
   for _,q:=range []string{"CREATE DOMAIN pi_domain AS integer CHECK (VALUE > 1000)","CREATE TABLE pi_data(n pi_domain)","CREATE INDEX pi_idx ON pi_data USING brin(n)"}{fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec(q,0))}
   // Stored output does not reapply a domain's input constraints to raw bytes.
-  brinBoth(t,p,b,c,brinItemStep(brinItems(brinInt4(-7,42)),[][]any{{int64(1),int64(2147549186),int64(1),false,false,false,false,"{-7 .. 42}"}}))
+  fixture.BRINBoth(t,p,b,c,brinItemStep(brinItems(brinInt4(-7,42)),[][]any{{int64(1),int64(2147549186),int64(1),false,false,false,false,"{-7 .. 42}"}}))
  })})
  t.Run("descriptor_lifetime",func(t *testing.T){brinCase(t,func(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn){
   for _,q:=range []string{"CREATE TABLE pi_first(n integer)","CREATE INDEX pi_first_idx ON pi_first USING brin(n)","CREATE TABLE pi_second(n text)","CREATE INDEX pi_second_idx ON pi_second USING brin(n)"}{fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec(q,0))}
@@ -104,7 +104,7 @@ func TestReferencePageinspectBrinDatums(t *testing.T){
    {"pi_first_idx",brinItems(brinInt4(42,-7)),"{42 .. -7}"},
   }{
    s:=fixture.Select(q,brinItemNames,brinItemTypes,[][]any{{int64(1),int64(2147549186),int64(1),false,false,false,false,tc.want}},tc.page,tc.index)
-   brinBoth(t,p,b,c,s);fixture.RunStep(t,p.Ctx,held,b.Recorder,s)
+   fixture.BRINBoth(t,p,b,c,s);fixture.RunStep(t,p.Ctx,held,b.Recorder,s)
   }
  })})
 }

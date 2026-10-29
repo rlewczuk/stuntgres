@@ -156,7 +156,7 @@ func bfRetainedControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.R
 	}
 	scanCopy[0] ^= 255
 	fixture.RunStep(t, p.Ctx, c, r, steps[0])
-	script := extensionDump(t, p.Ctx, p.Native)
+	script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}
@@ -192,11 +192,11 @@ func bfRetainedControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.R
 	pgcryptoResult(t, p, c, r, "g", "SELECT g FROM pgcrypto_bf_stored WHERE id=3", "95c7e89322525d59")
 	pgcryptoResult(t, p, c, r, "c", "SELECT c FROM pgcrypto_bf_stored WHERE id=3", "42f58af3b2c03f46")
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT count(*) FROM pgcrypto_bf_stored", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}}))
-	before := extensionDump(t, p.Ctx, p.Native)
+	before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(pgcryptoReplayFailure(t, script, "provider"))); err == nil {
 		t.Fatal("corrupted BF provider replay accepted")
 	}
-	if extensionDump(t, p.Ctx, p.Native) != before {
+	if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 		t.Fatal("failed BF replay published changes")
 	}
 	fixture.RunStep(t, p.Ctx, held, r, good)

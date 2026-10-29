@@ -70,7 +70,7 @@ func uuidOsspNamespaceControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	if err != nil {
 		t.Fatal(err)
 	}
-	dump := extensionDump(t, p.Ctx, p.Native)
+	dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func uuidOsspNamespaceControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	}
 	post(c, r)
 	fixture.RunStep(t, p.Ctx, h, r, uuidOsspNamespaceSelect(q, uuidOsspNamespaces[4].value))
-	before := extensionDump(t, p.Ctx, p.Native)
+	before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	for _, bad := range []string{dump + "\nINVALID SQL;", strings.Replace(dump, "VERSION '1.1'", "VERSION 'missing'", 1), strings.ReplaceAll(dump, "uuid_ns_x500", "missing_namespace"), strings.Replace(dump, "stuntgres-extension-owners-v3", "stuntgres-extension-owners-v999", 1)} {
 		if bad == dump {
 			t.Fatal("bad restore fixture unchanged")
@@ -106,7 +106,7 @@ func uuidOsspNamespaceControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
 			t.Fatal("bad restore accepted")
 		}
-		if extensionDump(t, p.Ctx, p.Native) != before {
+		if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 			t.Fatal("failed restore published state")
 		}
 		post(c, r)
@@ -114,7 +114,7 @@ func uuidOsspNamespaceControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	ctx, cancel := context.WithCancel(p.Ctx)
 	err = stuntgres.Restore(ctx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
 	cancel()
-	if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, p.Native) != before {
+	if !errors.Is(err, context.Canceled) || fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 		t.Fatal("canceled restore", err)
 	}
 	other, target, rec := pgcryptoControlDestination(t, p, "uuid_namespace_destination")

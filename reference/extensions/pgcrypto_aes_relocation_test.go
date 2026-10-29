@@ -98,14 +98,14 @@ func pgcryptoAESRelocation(t *testing.T, p *fixture.Pair, source *sql.Conn, sour
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("ROLLBACK", 0))
 	}
 	post()
-	before := extensionDump(t, p.Ctx, other)
+	before := fixture.ExtensionDump(t, p.Ctx, other)
 	// A complete collision replay and its refusal witness own this fixture.
 	// Repeating every manifest variant uses separate fixtures, not a renewed
 	// deadline or a shortened postcondition inside the same scenario.
 	if err := stuntgres.Restore(p.Ctx, other, strings.NewReader(pgcryptoReplayFailure(t, script, refusal))); err == nil {
 		t.Fatal("invalid AES relocation replay accepted")
 	}
-	if extensionDump(t, p.Ctx, other) != before {
+	if fixture.ExtensionDump(t, p.Ctx, other) != before {
 		t.Fatal("AES collision refusal changed target")
 	}
 	post()

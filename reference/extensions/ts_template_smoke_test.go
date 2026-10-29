@@ -27,10 +27,10 @@ func TestReferenceTSTemplateFeatureSmoke(t *testing.T) {
 		templateDiagnostic(t,p,c,r,"CREATE TEXT SEARCH TEMPLATE public.template_smoke_bad (INIT=pg_catalog.bthandler,LEXIZE=pg_catalog.dsimple_lexize)","42P17","function pg_catalog.bthandler(internal) should return type internal")
 		templateDiagnostic(t,p,c,r,"CREATE TEXT SEARCH TEMPLATE public.template_smoke_bad (LEXIZE=pg_catalog.brin_minmax_add_value)","42P17","function pg_catalog.brin_minmax_add_value(internal, internal, internal, internal) should return type internal")
 		templateAbsent(t,p,c,r,"template_smoke_bad")
-		templateRestrict(t,p,c,r,"ext_locked.template_smoke_renamed","template_smoke_dict")
+		fixture.TSTemplateRestrict(t,p,c,r,"ext_locked.template_smoke_renamed","template_smoke_dict")
 		templateTokens(t,p,c,r,pg,"public.template_smoke_dict")
 		if !pg {
-			dump := extensionDump(t,p.Ctx,p.Native)
+			dump := fixture.ExtensionDump(t,p.Ctx,p.Native)
 			old,err := c.QueryContext(p.Ctx,"SELECT ts_lexize('public.template_smoke_dict','WORD') AS lexemes")
 			if err != nil { t.Fatal(err) }
 			defer old.Close()
@@ -41,7 +41,7 @@ func TestReferenceTSTemplateFeatureSmoke(t *testing.T) {
 			if err := stuntgres.Restore(p.Ctx,p.Native,strings.NewReader(dump)); err != nil { t.Fatal(err) }
 			templateLink(t,p,c,r,"template_smoke_dict",templateIdentity(t,p,c,"template_smoke_renamed").oid)
 			templateTokens(t,p,c,r,false,"public.template_smoke_dict")
-			if extensionDump(t,p.Ctx,p.Native) != dump { t.Fatal("smoke redump changed") }
+			if fixture.ExtensionDump(t,p.Ctx,p.Native) != dump { t.Fatal("smoke redump changed") }
 			if !old.Next() { t.Fatal("retained smoke row",old.Err()) }
 			var value string
 			if err := old.Scan(&value); err != nil || value!="{word}" { t.Fatal(value,err) }

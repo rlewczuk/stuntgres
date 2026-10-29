@@ -12,7 +12,7 @@ func TestReferenceTablefuncCrosstabDiagnostics(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			crosstabCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 				crosstabSeed(t, p, b, c)
-				source := crosstabSource
+				source := fixture.CrosstabSource
 				decl := "k text,a text,b text"
 				d := fixture.ControlsReferenceDiagnostic("22023", "invalid crosstab source data query")
 				d.Detail = "The query must return 3 columns: row_name, category, and value."
@@ -41,8 +41,8 @@ func TestReferenceTablefuncCrosstabDiagnostics(t *testing.T) {
 						d.InternalPosition = fixture.Position(14)
 					}
 					if name == "late_failure" {
-						source = crosstabSource + "; SELECT missing_ct"
-						d.InternalPosition = fixture.Position(len(crosstabSource) + 10)
+						source = fixture.CrosstabSource + "; SELECT missing_ct"
+						d.InternalPosition = fixture.Position(len(fixture.CrosstabSource) + 10)
 					}
 					d.InternalQuery = source
 				case "syntax":
@@ -93,11 +93,11 @@ func TestReferenceTablefuncCrosstabDiagnostics(t *testing.T) {
 					stage = "prepare"
 				}
 				if q == "" {
-					q = "SELECT * FROM crosstab(" + crosstabQuote(source) + ") AS t(" + decl + ")"
+					q = "SELECT * FROM crosstab(" + fixture.CrosstabQuote(source) + ") AS t(" + decl + ")"
 				}
 				crosstabFailure(t, p, b, c, q, d, stage)
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) AS n FROM ct_source", []string{"n"}, []string{"INT8"}, [][]any{{int64(8)}}))
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, crosstabWant("SELECT * FROM crosstab($1::text) AS t(k text,c1 text,c2 text,c3 text) ORDER BY k", crosstabSource))
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.CrosstabWant("SELECT * FROM crosstab($1::text) AS t(k text,c1 text,c2 text,c3 text) ORDER BY k", fixture.CrosstabSource))
 			})
 		})
 	}

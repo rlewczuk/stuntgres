@@ -56,7 +56,7 @@ func TestReferenceMetaphoneFeatureSmoke(t *testing.T) {
 		if b.PG {
 			return
 		}
-		dump := extensionDump(t, p.Ctx, p.Native)
+		dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}

@@ -63,7 +63,7 @@ func normalAdmittedCancel(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.
 		if b.PG{want:=fixture.ControlsReferenceDiagnostic("57014","canceling statement due to user request");fixture.AssertDiagnostic(t,r.err,&want)} else if !errors.Is(r.err,context.Canceled){t.Fatal(r.err)}
 	case <-timer.C:t.Fatal("cancellation worker failed to join")
 	}
-	fixture.RunStep(t,p.Ctx,c,b.Recorder,normalSelect("SELECT * FROM normal_part.normal_rand(2,9,0)",2,9))
+	fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.TablefuncNormalSelect("SELECT * FROM normal_part.normal_rand(2,9,0)",2,9))
 }
 func TestReferenceTablefuncNormalCancellation(t *testing.T){
 	normalCase(t,func(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn){for _,prepared:=range []bool{false,true}{normalAdmittedCancel(t,p,b,c,prepared)}})

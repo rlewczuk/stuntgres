@@ -296,7 +296,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 	var blockingView *pgcryptoTempViewCapture
 	postcondition := func(before string) {
 		t.Helper()
-		if extensionDump(t, p.Ctx, other) != before || !reflect.DeepEqual(destination, pgcryptoProcedureIDs(t, p, c)) {
+		if fixture.ExtensionDump(t, p.Ctx, other) != before || !reflect.DeepEqual(destination, pgcryptoProcedureIDs(t, p, c)) {
 			t.Fatal("refused replay changed persistent destination")
 		}
 		pgcryptoInventory(t, p, c, "pgcrypto_owner", "pgcrypto_owner")
@@ -316,13 +316,13 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		}
 		pgcryptoReplayOverloads(t, p, c, r, false)
 		pgcryptoFreshConsumers(t, p, c, r, failure)
-		if extensionDump(t, p.Ctx, other) != before {
+		if fixture.ExtensionDump(t, p.Ctx, other) != before {
 			t.Fatal("consumer witness changed persistent data")
 		}
 	}
 	if refusal.script != nil {
 		bad := refusal.script(t, script, temp.schema)
-		before := extensionDump(t, p.Ctx, other)
+		before := fixture.ExtensionDump(t, p.Ctx, other)
 		unread := pgcryptoCaptureTemp(t, p, c)
 		err := stuntgres.Restore(p.Ctx, other, strings.NewReader(bad))
 		if err == nil {
@@ -338,7 +338,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		unread.unchanged(t, p, c, r)
 		unread.consume(t)
 	} else {
-		before := extensionDump(t, p.Ctx, other)
+		before := fixture.ExtensionDump(t, p.Ctx, other)
 		unread := pgcryptoCaptureTemp(t, p, c)
 		ctx, cancel := context.WithCancel(p.Ctx)
 		err = stuntgres.Restore(ctx, other, &fixture.CatalogControlCancelReader{Cancel: cancel})
@@ -361,7 +361,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		}
 		blockingView = &stale
 		blockingView.unchanged(t, p, c, r)
-		before := extensionDump(t, p.Ctx, other)
+		before := fixture.ExtensionDump(t, p.Ctx, other)
 		err := stuntgres.Restore(p.Ctx, other, strings.NewReader(script))
 		if err == nil || err.Error() != "stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported" {
 			t.Fatal("stale persistent consumer identity not refused", err)

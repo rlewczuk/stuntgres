@@ -19,7 +19,7 @@ func TestReferencePageinspectGINDiagnostics(t *testing.T) {ginCase(t,func(t *tes
  c=noticeConn;b.Recorder=recorder
  fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec("CREATE TABLE gin_sentinel(n integer)",0))
  fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec("INSERT INTO gin_sentinel VALUES(7)",1))
- for i:=range ginMembers {
+ for i:=range fixture.GINMembers {
   st,err:=c.PrepareContext(p.Ctx,ginQuery(i));if err!=nil {t.Fatal("body must not run during prepare",err)}
   held:=fixture.HeldStatement{Executor:c,Statement:st,SQL:ginQuery(i)}
   check:=func(s fixture.Step) {
@@ -41,11 +41,11 @@ func TestReferencePageinspectGINDiagnostics(t *testing.T) {ginCase(t,func(t *tes
   }}
   // PageIsNew precedes special-space/type inspection, but not length.
   raw=ginOrdinary(i);binary.LittleEndian.PutUint16(raw[14:],0);binary.LittleEndian.PutUint16(raw[16:],65535);binary.LittleEndian.PutUint16(raw[18:],0xffff)
-  ginBoth(t,p,b,c,ginStep(i,raw,ginNullRows(i)))
+  ginBoth(t,p,b,c,ginStep(i,raw,fixture.GINNullRows(i)))
   if err:=st.Close();err!=nil {t.Fatal(err)}
  }
  if len(notices)!=0 {t.Fatal("GIN controlled paths emitted notices",notices)}
- for i:=range ginMembers {null:=ginNullRows(i);if i==2 {null=nil};for _,s:=range []fixture.Step{
-  ginStep(i,ginOrdinary(i),ginOrdinaryRows(i)),ginStep(i,nil,null),ginStep(i,make([]byte,8192),ginNullRows(i)),ginError(i,[]byte{1,2,3},"22023","invalid page size","Expected 8192 bytes, got 3."),
+ for i:=range fixture.GINMembers {null:=fixture.GINNullRows(i);if i==2 {null=nil};for _,s:=range []fixture.Step{
+  ginStep(i,ginOrdinary(i),ginOrdinaryRows(i)),ginStep(i,nil,null),ginStep(i,make([]byte,8192),fixture.GINNullRows(i)),ginError(i,[]byte{1,2,3},"22023","invalid page size","Expected 8192 bytes, got 3."),
  } {for _,prepared:=range []bool{false,true} {notices=nil;step:=s;if prepared {step=fixture.Prepared(step)};fixture.RunStep(t,p.Ctx,noticeConn,recorder,step);if len(notices)!=0 {t.Fatal("GIN emitted notices",notices)}}}}
 })}

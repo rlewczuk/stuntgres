@@ -168,7 +168,7 @@ func TestReferenceDaitchMokotoffControls(t *testing.T) {
 			daitchDropSchema(t, p, b, c)
 			return // Native controls have no PostgreSQL API equivalent.
 		}
-		dump := extensionDump(t, p.Ctx, p.Native)
+		dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		heldQuery := "SELECT dm_addon.daitch_mokotoff('John')"
 		retainedStatement, err := c.PrepareContext(p.Ctx, heldQuery)
 		if err != nil {
@@ -294,7 +294,7 @@ func TestReferenceDaitchMokotoffControls(t *testing.T) {
 		if err := destinationRows.Close(); err != nil {
 			t.Fatal("destination close", err)
 		}
-		if extensionDump(t, p.Ctx, other) != dump {
+		if fixture.ExtensionDump(t, p.Ctx, other) != dump {
 			t.Fatal("independent Driver symbolic redump changed")
 		}
 		otherConn, err := other.Conn(p.Ctx)
@@ -307,11 +307,11 @@ func TestReferenceDaitchMokotoffControls(t *testing.T) {
 		if _, err := missing.ExecContext(p.Ctx, "CREATE TABLE dm_sentinel(v int); INSERT INTO dm_sentinel VALUES(77)"); err != nil {
 			t.Fatal(err)
 		}
-		before := extensionDump(t, p.Ctx, missing)
+		before := fixture.ExtensionDump(t, p.Ctx, missing)
 		if err := stuntgres.Restore(p.Ctx, missing, strings.NewReader(dump)); err == nil {
 			t.Fatal("missing named owner accepted")
 		}
-		if extensionDump(t, p.Ctx, missing) != before {
+		if fixture.ExtensionDump(t, p.Ctx, missing) != before {
 			t.Fatal("missing owner replacement changed target")
 		}
 		daitchDropSchema(t, p, b, c)

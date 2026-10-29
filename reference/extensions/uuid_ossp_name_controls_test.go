@@ -43,7 +43,7 @@ func uuidNameControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 	if err != nil {
 		t.Fatal(err)
 	}
-	dump := extensionDump(t, p.Ctx, p.Native)
+	dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func uuidNameControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 	fixture.RunStep(t, p.Ctx, h, r, uuidNameStep(q, f.example, uuidNameDNS, "www.example.com"))
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TABLE uuid_name_sentinel(id integer)", 0))
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO uuid_name_sentinel VALUES(7)", 1))
-	before := extensionDump(t, p.Ctx, p.Native)
+	before := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	for _, bad := range []string{
 		dump + "\nINVALID SQL;",
 		strings.ReplaceAll(dump, "uuid_generate_v5", "missing_name_provider"),
@@ -87,7 +87,7 @@ func uuidNameControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
 			t.Fatal("bad restore accepted")
 		}
-		if extensionDump(t, p.Ctx, p.Native) != before {
+		if fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 			t.Fatal("failed restore published state")
 		}
 		post(c, r)
@@ -96,7 +96,7 @@ func uuidNameControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Rec
 	ctx, cancel := context.WithCancel(p.Ctx)
 	err = stuntgres.Restore(ctx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
 	cancel()
-	if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, p.Native) != before {
+	if !errors.Is(err, context.Canceled) || fixture.ExtensionDump(t, p.Ctx, p.Native) != before {
 		t.Fatal("canceled restore", err)
 	}
 	fixture.RunStep(t, p.Ctx, h, r, uuidNameStep(q, f.example, uuidNameDNS, "www.example.com"))

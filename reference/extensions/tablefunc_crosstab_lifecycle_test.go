@@ -26,12 +26,12 @@ func TestReferenceTablefuncCrosstabLifecycle(t *testing.T) {
 		crosstabCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 			run(fixture.Exec("CREATE SCHEMA ct_addon", 0))
-			crosstabSeedInSchema(t, p, b, c, "ct_addon")
+			fixture.CrosstabSeedInSchema(t, p, b, c, "ct_addon")
 			run(fixture.Exec("CREATE VIEW ct_generic_view AS SELECT * FROM ct_addon.crosstab('SELECT k,category,v FROM public.ct_source ORDER BY seq') AS t(k text,c1 text,c2 text,c3 text)", 0))
 			run(fixture.Exec("CREATE VIEW ct_wrapper_view AS SELECT * FROM ct_addon.crosstab3('SELECT k,category,v FROM public.ct_source ORDER BY seq')", 0))
 			q := "SELECT * FROM ct_addon.crosstab($1::text) AS t(k text,c1 text,c2 text,c3 text) ORDER BY k"
-			h := crosstabHeld(t, p, c, q)
-			fixture.RunStep(t, p.Ctx, h, b.Recorder, crosstabWant(q, crosstabSource))
+			h := fixture.CrosstabHeld(t, p, c, q)
+			fixture.RunStep(t, p.Ctx, h, b.Recorder, fixture.CrosstabWant(q, fixture.CrosstabSource))
 			var proc, typ int64
 			if err := c.QueryRowContext(p.Ctx, "SELECT 'ct_addon.crosstab3(text)'::regprocedure::oid::bigint,'ct_addon.tablefunc_crosstab_3'::regtype::oid::bigint").Scan(&proc, &typ); err != nil {
 				t.Fatal(err)
@@ -39,17 +39,17 @@ func TestReferenceTablefuncCrosstabLifecycle(t *testing.T) {
 			run(fixture.Exec("ALTER FUNCTION ct_addon.crosstab3(text) RENAME TO pivot_three", 0))
 			run(fixture.Exec("ALTER TYPE ct_addon.tablefunc_crosstab_3 RENAME TO pivot_result", 0))
 			run(fixture.Select("SELECT 'ct_addon.pivot_three(text)'::regprocedure::oid::bigint AS p,'ct_addon.pivot_result'::regtype::oid::bigint AS t", []string{"p", "t"}, []string{"INT8", "INT8"}, [][]any{{proc, typ}}))
-			run(crosstabWant("SELECT * FROM ct_generic_view ORDER BY k"))
+			run(fixture.CrosstabWant("SELECT * FROM ct_generic_view ORDER BY k"))
 			wrapper := fixture.Select("SELECT * FROM ct_wrapper_view ORDER BY row_name", []string{"row_name", "category_1", "category_2", "category_3"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"g1", "A", "C", nil}, {"g2", "B1", "B2", "B3"}, {"g3", nil, nil, nil}})
 			run(wrapper)
 			run(fixture.Prepared(wrapper))
 			// Renaming the independent wrapper preserves the held generic call.
-			fixture.RunStep(t, p.Ctx, h, b.Recorder, crosstabWant(q, crosstabSource))
+			fixture.RunStep(t, p.Ctx, h, b.Recorder, fixture.CrosstabWant(q, fixture.CrosstabSource))
 			// Rollback retains the exact captured members and view definitions.
 			run(fixture.Exec("BEGIN", 0))
 			run(fixture.Exec("DROP EXTENSION tablefunc CASCADE", 0))
 			run(fixture.Exec("ROLLBACK", 0))
-			run(crosstabWant("SELECT * FROM ct_generic_view ORDER BY k"))
+			run(fixture.CrosstabWant("SELECT * FROM ct_generic_view ORDER BY k"))
 			run(wrapper)
 			run(fixture.Exec("ALTER FUNCTION ct_addon.pivot_three(text) RENAME TO crosstab3", 0))
 			run(fixture.Exec("ALTER TYPE ct_addon.pivot_result RENAME TO tablefunc_crosstab_3", 0))
@@ -59,7 +59,7 @@ func TestReferenceTablefuncCrosstabLifecycle(t *testing.T) {
 				run(fixture.Select("SELECT count(*) AS n FROM pg_class WHERE relname=$1", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}, name))
 			}
 			run(fixture.Exec("CREATE EXTENSION tablefunc SCHEMA ct_addon", 0))
-			run(crosstabWant("SELECT * FROM ct_addon.crosstab($1::text) AS t(k text,c1 text,c2 text,c3 text) ORDER BY k", crosstabSource))
+			run(fixture.CrosstabWant("SELECT * FROM ct_addon.crosstab($1::text) AS t(k text,c1 text,c2 text,c3 text) ORDER BY k", fixture.CrosstabSource))
 		})
 	})
 	t.Run("install_collision", func(t *testing.T) {

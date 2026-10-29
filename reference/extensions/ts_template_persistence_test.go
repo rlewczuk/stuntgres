@@ -22,7 +22,7 @@ func templatePersistenceCheck(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fix
 	fixture.RunStep(t,p.Ctx,c,r,fixture.Select("SELECT d='public.template_saved_dict'::regdictionary AS same FROM public.template_saved_view",[]string{"same"},[]string{"BOOL"},[][]any{{true}}))
 	zero := templateIdentity(t,p,c,"template_zero")
 	if zero.init != 0 { t.Fatal("absent INIT acquired state",zero) }
-	templateLexemes(t,p,c,r,pg,"SELECT ts_lexize('ext_addon.unaccent','Hôtel') AS lexemes","{Hotel}")
+	fixture.TSTemplateLexemes(t,p,c,r,pg,"SELECT ts_lexize('ext_addon.unaccent','Hôtel') AS lexemes","{Hotel}")
 	fixture.RunStep(t,p.Ctx,c,r,fixture.Select("SELECT n.nspname,p.proname FROM pg_ts_template t JOIN pg_proc p ON p.oid=t.tmplinit::oid JOIN pg_namespace n ON n.oid=p.pronamespace WHERE t.tmplname='template_installed'",[]string{"nspname","proname"},[]string{"NAME","NAME"},[][]any{{"ext_locked","template_init_saved"}}))
 }
 
@@ -55,7 +55,7 @@ func TestReferenceTSTemplatePersistence(t *testing.T) {
 			templatePersistenceCheck(t,p,c,r,true)
 			return
 		}
-		emitted = extensionDump(t,p.Ctx,p.Native)
+		emitted = fixture.ExtensionDump(t,p.Ctx,p.Native)
 		if !strings.Contains(emitted,"CREATE TEXT SEARCH TEMPLATE") || strings.Contains(emitted,`CREATE TEXT SEARCH TEMPLATE "pg_catalog"`) || strings.Contains(emitted,"ALTER TEXT SEARCH TEMPLATE \"ext_locked\".\"template_installed\" OWNER") { t.Fatal("template declaration classification",emitted) }
 		old,err := c.QueryContext(p.Ctx,"SELECT ts_lexize('public.template_saved_dict','WORD') AS lexemes")
 		if err != nil { t.Fatal(err) }
@@ -68,7 +68,7 @@ func TestReferenceTSTemplatePersistence(t *testing.T) {
 		var value string
 		if err := old.Scan(&value); err != nil || value != "{word}" { t.Fatal(value,err) }
 		if old.Next() || old.Err() != nil { t.Fatal("retained cardinality",old.Err()) }
-		if extensionDump(t,p.Ctx,p.Native) != emitted { t.Fatal("template redump is nondeterministic") }
+		if fixture.ExtensionDump(t,p.Ctx,p.Native) != emitted { t.Fatal("template redump is nondeterministic") }
 		committed := templateIdentity(t,p,c,"template_saved")
 		run("CREATE TABLE public.template_sentinel(v int)")
 		fixture.RunStep(t,p.Ctx,c,r,fixture.Exec("INSERT INTO public.template_sentinel VALUES(42)",1))

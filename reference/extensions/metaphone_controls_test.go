@@ -44,7 +44,7 @@ func TestReferenceMetaphoneControls(t *testing.T) {
 		if b.PG {
 			return
 		} // Public controls have no PostgreSQL equivalent.
-		dump := extensionDump(t, p.Ctx, p.Native)
+		dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		q := "SELECT phon_addon.metaphone($1,$2),phon_addon.dmetaphone($1),phon_addon.dmetaphone_alt($1)"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -117,7 +117,7 @@ func TestReferenceMetaphoneControls(t *testing.T) {
 		}
 		metaphoneControlMetadata(t, rows, literals)
 		levenshteinControlRows(t, rows, literals)
-		if extensionDump(t, p.Ctx, other) != dump {
+		if fixture.ExtensionDump(t, p.Ctx, other) != dump {
 			t.Fatal("independent symbolic replay changed")
 		}
 		run(fixture.Exec("UPDATE phon_source SET name='Schmidt' WHERE id=2", 1))

@@ -93,14 +93,15 @@ engines inherit the same mode.
   Logical-decoding scenarios also require a positive stock
   `max_replication_slots` before asserting SQL validation and missing-slot errors.
 - `WithAlterSystemDisabled()` adds `-c allow_alter_system=off` to the single
-  oracle's existing startup arguments (`extensions`). Startup verifies SHOW is
+  oracle's existing startup arguments (`extensions`, `extension_ownership`). Startup verifies SHOW is
   off; packages without this option retain and verify on. This is physical-oracle
   configuration only, not a native setting-default change, reload or file write.
 
 ### Test-only legacy crypto oracle
 
 `WithLegacyCryptoProvider()` (used only by the catalog packages `catalogs`,
-`catalog_objects`, `catalog_privileges`, `information_schema` and `extensions`) feeds an OpenSSL
+`catalog_objects`, `catalog_privileges`, `information_schema`, `extensions` and
+`extension_ownership`) feeds an OpenSSL
 configuration into the same container (`OPENSSL_CONF=/tmp/stuntgres-openssl.cnf`)
 activating both `default` and `legacy` providers, so BF/DES/CAST are available to
 the oracle. Legacy activation changes the oracle's DES/CAST initialization
@@ -109,6 +110,12 @@ production dependency is involved.
 
 ## Helpers
 
+- **Extension shared ownership.** `extension_controls.go` (`ExtensionDump`,
+  the physical TEMP owner `ExtensionTemporaryOwner`), `pageinspect_pages.go`
+  (released BRIN/BTREE/FSM/GIN page images and their metadata checkers),
+  `tablefunc_helpers.go` (connectby/crosstab/normal) and `ts_template_helpers.go`
+  serve [extensions](../extensions/README.md#testing) and
+  [extension_ownership](../extension_ownership/README.md#testing).
 - **Collections, binary and JSON shared ownership.** `array_agg_shared.go` owns
   `ArrayAggBoth`/`ArrayAggMetadata` for [cursors](../cursors/README.md#testing)
   and intagg in [binary_json_arrays](../binary_json_arrays/README.md#testing).

@@ -20,7 +20,7 @@ func TestReferenceTSTemplateControls(t *testing.T) {
 		tsTemplateCapability(t, p, c, r)
 		if pg { return }
 
-		dump := extensionDump(t, p.Ctx, p.Native)
+		dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		if dump == "" || !strings.Contains(dump, "CREATE EXTENSION") { t.Fatal("missing emitted extension dump") }
 		saved, err := c.QueryContext(p.Ctx, tsTemplateQuery, "unaccent")
 		if err != nil { t.Fatal(err) }
@@ -33,7 +33,7 @@ func TestReferenceTSTemplateControls(t *testing.T) {
 		tsTemplateLinked(t, p, c, r, false)
 		tsTemplateCapability(t, p, c, r)
 		if tsTemplateConsume(t, saved, false, true) != original { t.Fatal("retained template changed across Reset/Restore") }
-		if extensionDump(t, p.Ctx, p.Native) != dump { t.Fatal("restored template changed symbolic dump") }
+		if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump { t.Fatal("restored template changed symbolic dump") }
 
 		committed := tsTemplateRead(t, p, c, false, true)
 		handlers := tsTemplateNumeric(t, p, c)
@@ -41,7 +41,7 @@ func TestReferenceTSTemplateControls(t *testing.T) {
 			t.Helper()
 			if tsTemplateLinked(t, p, c, r, false) != committed || tsTemplateNumeric(t, p, c) != handlers { t.Fatal("failed replacement changed template/helper identities") }
 			tsTemplateCapability(t, p, c, r)
-			if extensionDump(t, p.Ctx, p.Native) != dump { t.Fatal("failed replacement changed emitted dump") }
+			if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump { t.Fatal("failed replacement changed emitted dump") }
 		}
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump+"\nCREATE EXTENSION unaccent SCHEMA ext_addon;\n")); err == nil { t.Fatal("duplicate extension replay accepted") }
 		preserved()

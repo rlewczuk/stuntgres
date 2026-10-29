@@ -53,7 +53,7 @@ func TestReferenceExtensionDropDiagnostics(t *testing.T) {
 		if err := owner.QueryRowContext(p.Ctx, "SELECT current_database()").Scan(&database); err != nil {
 			t.Fatal(err)
 		}
-		quoted := extensionTempIdentifier(database)
+		quoted := fixture.ExtensionTempIdentifier(database)
 		run(fixture.Exec("GRANT CREATE ON DATABASE "+quoted+" TO ext_drop_owner", 0))
 		defer owner.ExecContext(p.Ctx, "REVOKE CREATE ON DATABASE "+quoted+" FROM ext_drop_owner")
 		run(fixture.Exec("SET SESSION AUTHORIZATION ext_drop_owner", 0))

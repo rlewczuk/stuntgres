@@ -57,7 +57,7 @@ func TestReferencePgcryptoPasswordRelocation(t *testing.T) {
 		if pg {
 			return
 		}
-		script := extensionDump(t, p.Ctx, p.Native)
+		script := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		baseline, base, baseRecord := pgcryptoControlDestination(t, p, "pgcrypto_password_relocation_baseline")
 		if err := stuntgres.Restore(p.Ctx, baseline, strings.NewReader(script)); err != nil {
 			t.Fatal(err)
@@ -120,12 +120,12 @@ func TestReferencePgcryptoPasswordRelocation(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, conn, record, fixture.Exec("ROLLBACK", 0))
 		}
 		post()
-		before := extensionDump(t, p.Ctx, target)
+		before := fixture.ExtensionDump(t, p.Ctx, target)
 		for _, bad := range []string{script + "\nINVALID SQL;", strings.Replace(script, "VERSION '1.4'", "VERSION 'missing'", 1)} {
 			if err := stuntgres.Restore(p.Ctx, target, strings.NewReader(bad)); err == nil {
 				t.Fatal("invalid relocated replay accepted")
 			}
-			if extensionDump(t, p.Ctx, target) != before {
+			if fixture.ExtensionDump(t, p.Ctx, target) != before {
 				t.Fatal("refused replay changed password destination")
 			}
 			post()

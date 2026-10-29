@@ -70,7 +70,7 @@ func TestReferenceUUIDOsspTimeFeatureSmoke(t *testing.T) {
 		if pg {
 			return
 		}
-		dump := extensionDump(t, p.Ctx, p.Native)
+		dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}
