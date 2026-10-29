@@ -217,7 +217,15 @@ func TestReferenceConnectbyAuthorityAndPrepared(t *testing.T) {
 				if err != nil && !errors.Is(err, context.Canceled) {
 					// lib/pq can deliver the server's cancellation response even
 					// for an already-canceled demand; this proves no admission.
-					fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request"})
+					// When the cancel lands while connectby runs its per-node
+					// query, the server names that statement as the context.
+					got := fixture.ExtractDiagnostic(t, err)
+					if node, ok := strings.CutPrefix(got.Context, `SQL statement "SELECT k, p FROM cb_tree WHERE p = '`); ok && strings.HasSuffix(node, `' AND k IS NOT NULL AND k <> p ORDER BY pos"`) {
+						got.Context = ""
+					}
+					if want := (fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request"}); got != want {
+						t.Fatalf("diagnostic got %#v want %#v", got, want)
+					}
 				}
 			}
 			rows, err := stmt.QueryContext(ctx, "row2", 0, "~")
