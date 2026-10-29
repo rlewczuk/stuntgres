@@ -128,6 +128,11 @@ never activation state. Ordinary SQL evaluation always reports the function's
 outside-trigger protocol error with complete ERROR severity diagnostics; installed
 firing belongs to the core trigger owner. Rebuild, rendering, scalar-source and
 stored capture use ordinary recipes.
+`Tcn` uses the same zero-child protocol with an authenticated installed routine
+reference supplied by `InstalledRoutine.Attach`. Generic routine admission,
+retagging and current-name rendering retain authority without a separate wrapper.
+Its ordinary SQL evaluation always raises the outside-trigger error, including
+inside a PL trigger; only core's admitted native body stages notifications.
 
 The same `Deparse` typed path owns the four one-OID routine inquiries:
 `pg_get_functiondef`, `pg_get_function_arguments`,
@@ -586,7 +591,7 @@ reviewed decision:
 - `NoteCatalogText` / `NoteCatalogSnapshot` / `NoteVisibilitySnapshot`:
   statement-level snapshot demand; none captures eagerly.
 - `InstalledRoutine`: an opaque handle to an `Extension`'s installed routine;
-  `Attach` returns the engine's wrapper (installation is engine state).
+  `Attach` returns the engine-authenticated call (installation is engine state).
   `Amcheck` binds the seven installed B-tree scalar signatures through this
   same handle. Its lexical children remain in written order with checked
   written-to-formal slots; the plan wrapper, never the bare kernel, owns
@@ -689,9 +694,9 @@ host, which owns all locking and returns owned values.
    Check that no earlier chain predicate claims its names.
 4. Paths that avoid composite-recovery notes (regexp, string variadics) use
    `ResolutionError` directly, not `SignatureError` or `NotedResolutionError`.
-5. An installed extension family resolves through `InstalledRoutine`. The
-   wrapper node and its validation stay in the engine, with explicit wrapper
-   cases ahead of protocol branches.
+5. An installed extension family resolves through `InstalledRoutine`. Use generic
+   routine-reference protocols when sufficient; catalog-dependent execution uses
+   an engine wrapper with explicit cases ahead of protocol branches.
 6. Capture-admitted nodes implement `expr.Capturable` (fixed-storage nodes the
    value-receiver `expr.IndexedCapturable`, mapping written slots directly with
    checked bounds and no retained slices). Hooks never evaluate, render,

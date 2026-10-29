@@ -32,8 +32,21 @@ func BuiltinDMLTrigger(d *Procedure) ids.OID {
 	return 0
 }
 
+// NativeDMLTrigger identifies native bodies after ordinary provider admission.
+// Capability alone is not a substitute for current catalog authentication.
+func NativeDMLTrigger(d *Procedure) bool {
+	if BuiltinDMLTrigger(d) != 0 {
+		return true
+	}
+	if d == nil {
+		return false
+	}
+	p, ok := d.Implementation.(interface{ SupportsDMLTrigger(*Procedure) bool })
+	return ok && p.SupportsDMLTrigger(d)
+}
+
 // SupportsDMLTrigger is shared by installation, stored validation and firing.
 // It describes body capability, not permission or current catalog authority.
 func SupportsDMLTrigger(d *Procedure) bool {
-	return BuiltinDMLTrigger(d) != 0 || d != nil && d.RoutineKind == FunctionRoutine && d.Result == 2279 && d.Signature == "" && d.SQL != nil && d.SQL.Kind == proc.PLpgSQLBody && d.SQL.Invocation == proc.DMLTriggerInvocation && len(d.SQL.Inputs) == 0
+	return NativeDMLTrigger(d) || d != nil && d.RoutineKind == FunctionRoutine && d.Result == 2279 && d.Signature == "" && d.SQL != nil && d.SQL.Kind == proc.PLpgSQLBody && d.SQL.Invocation == proc.DMLTriggerInvocation && len(d.SQL.Inputs) == 0
 }

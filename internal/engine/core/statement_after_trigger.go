@@ -276,15 +276,15 @@ func (s *StatementScope) fireAfter(event afterTriggerEvent) error {
 			_, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
 		}
 	}
-	if err == nil && catalog.BuiltinDMLTrigger(d) == 0 {
+	if err == nil && !catalog.NativeDMLTrigger(d) {
 		d, err = e.PreparePLRoutineLocked(s.Op, auth, d)
 	}
 	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
-	if catalog.BuiltinDMLTrigger(d) != 0 {
-		_, err := s.invokeBuiltinTrigger(d, event.relation, p, event.event, event.next, event.old, nil)
+	if catalog.NativeDMLTrigger(d) {
+		_, err := s.invokeNativeTrigger(d, event.relation, p, event.event, event.next, event.old, nil)
 		return err
 	}
 	rel, err := plTriggerRelation(event.read, event.relation)

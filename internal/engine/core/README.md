@@ -272,10 +272,10 @@ routine safety depth and lexical scratch. Only admitted DML trigger bodies and
 individual internal RI callbacks enter it, with deferred unwind. WHEN and queue
 qualification read the surrounding level. Ordinary routines and event triggers
 borrow it without entering; rollback and native controls never serialize it.
-The three builtin DML trigger declarations share PL installation, stored
-validation and live invocation admission. Immediate and queued AFTER dispatch
-select the checked builtin identity before allocating any PL frame. Each body
-borrows OLD/current NEW and stable command UPDATE attributes; suppression uses
+The three builtin DML trigger declarations and authenticated stock tcn provider
+share PL installation, stored validation and live invocation admission. Immediate
+and queued AFTER dispatch select native capability before allocating any PL frame.
+Each body borrows OLD/current NEW and stable command UPDATE attributes; suppression uses
 cancellable typed payload comparison, not SQL equality. Vector bodies capture
 one immutable current FTS generation per invocation, resolving explicit names
 eagerly and row OIDs at the first non-NULL source. Parser, dictionary and notice
@@ -287,6 +287,12 @@ tuple: its tableoid is InvalidOid, not the producer relation's identity. Vector
 replacement preserves the destination's owned logical descriptor using the
 binary-compatible carrier, without introducing SQL assignment or fresh domain
 input checks. Ordinary input and subsequent table constraints retain their owners.
+The tcn body reads valid primary-index keys by stable attribute in key order,
+uses ordinary type output with exact payload quoting, and appends only validated
+events to the existing statement-local notification effects. UPDATE and DELETE
+borrow OLD; INSERT borrows NEW. Commit, rollback, deduplication and savepoints
+remain notification-owner responsibilities. Ordinary SQL helper calls retain
+installed routine authority but never borrow an enclosing trigger activation.
 Routine environments, trigger depth and statement rollback retain their existing
 owners. C TriggerData/native ABI, heap/TOAST layout, WAL and process loading are
 outside this process-local logical execution and control boundary.
@@ -2012,6 +2018,9 @@ Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDept
 Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead)'`.
 Builtin admission, borrowed payloads, streaming positions and unwind units share
 `RUN='^TestTriggerBuiltins'`; public SQL/control witnesses live in `reference/operators`.
+Native tcn payload quoting and shared-entry unwind units use `RUN='^TestTcn'`;
+provider-authority units share that family in `schemacmds`, and public SQL,
+notification ordering and controls belong to `reference/sessions`.
 Logical admission witnesses use distinct stored leaves: return-only invocation
 retains view RX without leaf replacement/row-write grants, while nested DML
 observes its own storage and grants inside the physical validation phase.

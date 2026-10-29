@@ -449,6 +449,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source, Binary: "$libdir/tablefunc", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
 			return invalid()
 		}
+	case StockTcn:
+		count = 1
+		name, result, volatility, strict = "triggered_change_notification", 2279, expr.Volatile, false
+		if ext.Version != "1.0" || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/tcn", HasBinary: true}) {
+			return invalid()
+		}
 	case StockPgrowlocks:
 		count = 1
 		name, signature, result, volatility = "pgrowlocks", "25", 2249, expr.Volatile

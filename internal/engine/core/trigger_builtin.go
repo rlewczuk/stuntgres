@@ -6,15 +6,16 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
-// invokeBuiltinTrigger borrows row slots for one admitted invocation. It enters
+// invokeNativeTrigger borrows row slots for one admitted invocation. It enters
 // the same balanced body boundary as PL without constructing a PL frame.
-func (s *StatementScope) invokeBuiltinTrigger(d *catalog.Procedure, relation *catalog.Relation, p stored.TriggerParts, event stored.TriggerEvent, next, old []sqltype.Value, targets []int32) (result dml.BeforeResult, err error) {
+func (s *StatementScope) invokeNativeTrigger(d *catalog.Procedure, relation *catalog.Relation, p stored.TriggerParts, event stored.TriggerEvent, next, old []sqltype.Value, targets []int32) (result dml.BeforeResult, err error) {
 	result = dml.BeforeResult{Row: next, Proceed: true}
 	if err = s.Op.Context().Err(); err != nil {
 		return result, err
@@ -32,6 +33,10 @@ func (s *StatementScope) invokeBuiltinTrigger(d *catalog.Procedure, relation *ca
 	defer func() { err = leave(err) }()
 	leavePolicy := s.activateRoutineCommandPolicy(d, false)
 	defer leavePolicy()
+	if extension.TcnProviderOf(d) == extension.StockTcn {
+		err = s.notifyTriggerChange(relation, p, event, next, old)
+		return result, err
+	}
 	builtin := catalog.BuiltinDMLTrigger(d)
 	if err = builtinTriggerProtocol(builtin == 1291, p, event); err != nil {
 		return result, err

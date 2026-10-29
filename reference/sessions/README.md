@@ -93,6 +93,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   `WaitForNotification` inside one bounded `sql.Conn.Raw` callback on PostgreSQL;
   the raw connection never escapes the callback
   ([driver contract](../../docs/DRIVER.md#notices-and-notifications)).
+  Stock tcn scenarios share these receivers and prove discarded events with a
+  later committed marker, rather than a timeout-based absence probe. Restored
+  provider/trigger bindings fire against an independent native engine.
 - Notification-info inquiries pin middleware-wrapped `backend.DB` connections
   through `notificationInfoConn`, including cross-database and independently
   restored pools, so SQL result assertions retain fixture recording. Only native
@@ -127,6 +130,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Schema and TEMP namespace identity: `RUN='^TestReferenceNamespaceIdentity'`
 - Version and Unicode inquiries: `RUN='^TestReferenceVersionInformation'`
 - LISTEN/NOTIFY session messages: `RUN='^TestReferenceSessionMessages'`
+- Stock triggered change notifications: `RUN='^TestReferenceTcn'`
 - Notification state inquiries: `RUN='^TestReferenceNotificationInfo'`
 - Recovery inquiries and physical registry admission: `RUN='^TestReferenceRecoveryInfo'`
 - WAL summary signatures, metadata and physical demand: `RUN='^TestReferenceWALSummary'`

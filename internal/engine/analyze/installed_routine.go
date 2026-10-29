@@ -101,6 +101,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	}
 	var installed bool
 	switch family {
+	case functions.TcnExtension:
+		installed = extension.TcnProviderOf(proc) == extension.StockTcn
 	case functions.PageinspectExtension:
 		installed = extension.PageinspectProviderOf(proc) == extension.StockPageinspect
 	case functions.UUIDOsspExtension:
@@ -143,6 +145,8 @@ type installedExtensionRoutine struct {
 func (r installedExtensionRoutine) Validate() error {
 	p := r.procedure
 	switch {
+	case extension.TcnProviderOf(p) != nil:
+		return extension.StockTcn.ValidateProcedure(r.catalog, p)
 	case extension.PageinspectProviderOf(p) != nil:
 		return extension.StockPageinspect.ValidateProcedure(r.catalog, p)
 	case extension.UUIDOsspProviderOf(p) != nil:
@@ -201,6 +205,13 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	ref := b.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision(), Purpose: b.dependencyPurpose}
 	switch c := call.(type) {
+	case functions.Tcn:
+		if extension.TcnProviderOf(p) != extension.StockTcn {
+			break
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return c, nil
 	case functions.Pageinspect:
 		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

@@ -61,6 +61,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='seg' AND version='1.4'", true, [][]any{{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='tablefunc'", false, [][]any{{"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tablefunc' AND version='1.0'", true, [][]any{{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='tcn'", false, [][]any{{"tcn", "1.0", nil, "Triggered change notifications"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tcn' AND version='1.0'", true, [][]any{{"tcn", "1.0", false, true, true, true, nil, nil, "Triggered change notifications"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='plpgsql'", false, [][]any{{"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='plpgsql' AND version='1.0'", true, [][]any{{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"}}, pg))
 			if !pg {
@@ -95,6 +97,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions[:12:12], append([][]any{{"pageinspect", "1.13", false, true, false, true, nil, nil, "inspect the contents of database pages at a low level"}}, wantVersions[12:]...)...)
 				wantAvailable = append(wantAvailable, []any{"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"})
 				wantVersions = append(wantVersions, []any{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"})
+				wantAvailable = append(wantAvailable, []any{"tcn", "1.0", nil, "Triggered change notifications"})
+				wantVersions = append(wantVersions, []any{"tcn", "1.0", false, true, true, true, nil, nil, "Triggered change notifications"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

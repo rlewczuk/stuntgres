@@ -15,6 +15,35 @@ import (
 // genuinely relabelled declaration replaces it with its checked current SQL
 // identity; unchanged provider formatting remains byte-for-byte unchanged.
 func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Rendering) (expr.Rendering, error) {
+	if call, installed := node.(functions.Tcn); installed {
+		captured, err := exec.ExpressionRoutineDescriptor(call)
+		if err != nil {
+			return spec, err
+		}
+		if captured == nil || extension.TcnProviderOf(captured) != extension.StockTcn {
+			return spec, fmt.Errorf("stuntgres: invalid tcn rendering identity")
+		}
+		current, err := exec.ValidateStoredRoutineDescriptor(view, captured)
+		if err != nil {
+			return spec, err
+		}
+		symbol, err := extension.ProcedureSymbol(view, current)
+		if err != nil {
+			return spec, err
+		}
+		if symbol != "triggered_change_notification" {
+			return spec, fmt.Errorf("stuntgres: invalid tcn rendering symbol")
+		}
+		if err := call.ValidateStoredProvider(); err != nil {
+			return spec, err
+		}
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing tcn rendering namespace")
+		}
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
 	if call, installed := node.(functions.HstoreJSON); installed {
 		current, err := currentHstoreJSON(view, call)
 		if err != nil {

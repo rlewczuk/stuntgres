@@ -336,7 +336,7 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		stock catalog.ExtensionImplementation
-	}{{"tablefunc", extension.StockTablefunc}, {"amcheck", extension.StockAmcheck}, {"hstore", extension.StockHstore}, {"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"lo", extension.StockLo}, {"unaccent", extension.StockUnaccent}, {"intarray", extension.StockIntarray}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgcrypto", extension.StockPgcrypto}, {"pgrowlocks", extension.StockPgrowlocks}, {"uuid-ossp", extension.StockUUIDOssp}} {
+	}{{"tcn", extension.StockTcn}, {"tablefunc", extension.StockTablefunc}, {"amcheck", extension.StockAmcheck}, {"hstore", extension.StockHstore}, {"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"lo", extension.StockLo}, {"unaccent", extension.StockUnaccent}, {"intarray", extension.StockIntarray}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgcrypto", extension.StockPgcrypto}, {"pgrowlocks", extension.StockPgrowlocks}, {"uuid-ossp", extension.StockUUIDOssp}} {
 		if registered, ok := e.Catalog.Extensions[tc.name].(extension.Installer); !ok || registered != tc.stock {
 			t.Fatal("registered implementation is not the stock installer", tc.name)
 		}

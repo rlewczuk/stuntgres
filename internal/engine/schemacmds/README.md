@@ -222,6 +222,8 @@ membership and live origin headers; copied installation headers are negative
 inputs, never replacement installation authority.
 Mixed scalar label-query manifest/owner authority and late conflicts use
 `RUN='^TestLtreeLtxtqueryProvider'`.
+Stock tcn declaration, immutable-origin and native capability authority units use
+`RUN='^TestTcn'`; SQL firing and native-control scenarios live in `reference/sessions`.
 
 Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing),

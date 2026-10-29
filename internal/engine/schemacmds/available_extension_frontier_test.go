@@ -103,6 +103,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"pageinspect":   {"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"},
 					"seg":           {"seg", "1.4", nil, "data type for representing line segments or floating-point intervals"},
 					"tablefunc":     {"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"},
+					"tcn":           {"tcn", "1.0", nil, "Triggered change notifications"},
 					"pgrowlocks":    {"pgrowlocks", "1.2", nil, "show row-level locking information"},
 					"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
 					"plpgsql":       {"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"},
@@ -124,6 +125,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["pageinspect"] = []any{"pageinspect", "1.13", false, true, false, true, nil, nil, "inspect the contents of database pages at a low level"}
 					expected["seg"] = []any{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}
 					expected["tablefunc"] = []any{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}
+					expected["tcn"] = []any{"tcn", "1.0", false, true, true, true, nil, nil, "Triggered change notifications"}
 					expected["pgrowlocks"] = []any{"pgrowlocks", "1.2", false, true, false, true, nil, nil, "show row-level locking information"}
 					expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 					expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}

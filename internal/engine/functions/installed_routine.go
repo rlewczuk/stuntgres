@@ -23,6 +23,7 @@ const (
 	CubeExtension
 	EarthdistanceExtension
 	PageinspectExtension
+	TcnExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

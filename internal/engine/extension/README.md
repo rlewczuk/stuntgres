@@ -3,7 +3,7 @@
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, citext, cube,
 earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pageinspect,
-pgcrypto, pgrowlocks, seg, tablefunc, unaccent, uuid-ossp and seeded plpgsql),
+pgcrypto, pgrowlocks, seg, tablefunc, tcn, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
 ownership/membership/relocation and Restore owner-import decisions.
@@ -91,6 +91,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   and the `namespace`, `name` input labels of v3/v5. These labels belong to the
   sealed declaration, survive remapping and current membership changes, and
   resolve named calls through the ordinary formal-argument binder.
+  Stock tcn owns one volatile, non-strict trigger declaration and exposes native
+  DML-trigger capability only for its immutable installed slot. Capability does
+  not replace procedure-origin validation; rename, relocation and replay retain
+  the same authority independently of public spelling and current membership.
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider` validates
   the extension, text search template and dictionary classes and installed
   member procedures; `ValidateProviderHeader` is the identity check it shares
