@@ -18,13 +18,18 @@ import (
 
 func temporaryProjectionFixture(t *testing.T) (*core.Engine, *session.Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
+	return temporaryProjectionFixtureWithIndexExpression(t, "z+0")
+}
+
+func temporaryProjectionFixtureWithIndexExpression(t *testing.T, expression string) (*core.Engine, *session.Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
+	t.Helper()
 	e := engine.New()
 	owner := sessionStart(t, e, nil)
 	for _, q := range []string{
 		"CREATE TEMP TABLE shape_provider(v INT)",
 		"CREATE TABLE public.shape_survivor(a INT,g BOOL GENERATED ALWAYS AS('shape_provider'::regclass IS NOT NULL) STORED,z INT)",
 		"CREATE INDEX shape_external ON public.shape_survivor(('shape_provider'::regclass IS NOT NULL))",
-		"CREATE INDEX shape_z_expr ON public.shape_survivor((z+0))",
+		"CREATE INDEX shape_z_expr ON public.shape_survivor((" + expression + "))",
 		"INSERT INTO public.shape_survivor(a,z) VALUES(7,9)",
 	} {
 		sessionSQL(t, owner, q)

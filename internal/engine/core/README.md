@@ -9,6 +9,14 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
+Detached ordinary catalog publication owns only its staged heap replacements
+and removals. At final installation under `Engine.Mu`, it refreshes borrowed
+heaps from the current committed map without mutating captured maps or retained
+row vectors. Physical-session TEMP collation maintenance uses this same path:
+retiring one owner's objects must preserve unrelated committed heap replacements
+and peer TEMP objects. Fallible preparation and expression evaluation stay
+outside the installation lock.
+
 Routine declaration inquiry composes the statement-owned catalog and presentation
 settings with the shared formal projection and metadata-safe default/body
 renderers. It never invokes the target or checks its EXECUTE privilege. Actual
