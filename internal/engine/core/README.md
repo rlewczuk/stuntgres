@@ -2090,6 +2090,13 @@ session, transaction, prepared-analysis and typed-frame authorities.
   before `StartStatement` fails its explicit block synchronously through
   `StatementScope.Finish`'s disposal; no timer callback mutates the transaction.
 
+Installed and fixed native DML trigger bodies use one balanced entry for
+routine depth, trigger depth, effective-user/configuration and command policy.
+The insert_username body borrows producer NEW, resolves its literal target
+against the admitted relation on each firing, requires exact declared TEXT and
+changes only that cell. Current-user capture occurs inside the routine
+environment; no PL frame, target-slot cache or retained borrowed row is created.
+
 ## Testing
 
 Aggregate SQL invocation ownership uses
@@ -2149,6 +2156,9 @@ provider-authority units share that family in `schemacmds`, and public SQL,
 notification ordering and controls belong to `reference/sessions`.
 Installed autoinc tuple ownership, sequence effects and frame-unwind units use
 `RUN='^TestAutoincTriggerFrames$'`.
+Installed trigger authority, borrowed-row and replay units use
+`RUN='^TestInsertUsername'`; public SQL/control cases share
+`RUN='^TestReferenceInsertUsername'` in reference/extensions.
 Logical admission witnesses use distinct stored leaves: return-only invocation
 retains view RX without leaf replacement/row-write grants, while nested DML
 observes its own storage and grants inside the physical validation phase.

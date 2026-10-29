@@ -103,6 +103,9 @@ func (h *statementHost) invokeImmediateRow(request dml.BeforeRow, timing stored.
 					err = fmt.Errorf("stuntgres: invalid installed trigger function")
 				} else {
 					_, err = exec.ValidateRoutineDescriptor(current.Catalog, current.Roles, d)
+					if err == nil && catalog.NativeDMLTrigger(d) && d.Builtin == nil {
+						err = (stored.ProcedureProvider{}).Validate(current.Catalog, d)
+					}
 				}
 			}
 		}

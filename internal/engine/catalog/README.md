@@ -92,8 +92,8 @@ private frames, not catalog authority.
 - **DML trigger capability.** `SupportsDMLTrigger` selects zero-input PL
   declarations, including deferred source, the three genuine builtin declarations,
   or installed native declarations admitted through their provider's
-  `SupportsDMLTrigger` capability. TCN, refint and autoinc share this native
-  contract with their sealed installed declarations.
+  `SupportsDMLTrigger` capability. TCN, refint, autoinc and insert_username share
+  this native contract with their sealed installed declarations.
   This structural predicate is not permission or provider authority: DDL/stored
   owners retain ordinary provider validation and firing validates the current
   routine carrier before dispatch. Literal trigger arguments carry no activation

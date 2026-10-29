@@ -26,7 +26,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
 		return invalid()
 	}
-	if p.SecurityDefiner || p.Configuration != nil {
+	if (p.SecurityDefiner || p.Configuration != nil) && !StockInsertUsername.SupportsDMLTrigger(p) {
 		return invalid()
 	}
 	// These providers own fixed OUT declarations. Their exact slot-owned
@@ -468,6 +468,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		count = 1
 		name, result, volatility, strict = "autoinc", 2279, expr.Volatile, false
 		if ext.Version != "1.0" || slot != 0 || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "autoinc", Binary: "$libdir/autoinc", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+			return invalid()
+		}
+	case StockInsertUsername:
+		count = 1
+		name, result, volatility, strict = "insert_username", 2279, expr.Volatile, false
+		if ext.Version != "1.0" || !p.Configuration.Valid() || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/insert_username", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 	case StockPgrowlocks:

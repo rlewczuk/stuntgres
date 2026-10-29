@@ -106,6 +106,9 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 			replay := providerReplay{original: providerKey{item.schema, originalName, signature}, current: providerKey{identity.Schema, identity.Name, signature}, arguments: identity.Signature, family: family, objectKind: kind}
 			if procedure, ok := current.(*catalog.Procedure); ok {
 				replay.parallel, replay.cost, replay.rows = procedure.Parallel, procedure.Cost, procedure.Rows
+				if extension.StockInsertUsername.SupportsDMLTrigger(procedure) {
+					replay.securityDefiner, replay.configuration = procedure.SecurityDefiner, procedure.Configuration
+				}
 			}
 			groups[kind] = append(groups[kind], replay)
 			continue

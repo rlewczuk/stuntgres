@@ -278,6 +278,9 @@ func (s *StatementScope) fireTrigger(event afterTriggerEvent) error {
 			err = fmt.Errorf("stuntgres: invalid installed trigger function")
 		} else {
 			_, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
+			if err == nil && catalog.NativeDMLTrigger(d) && d.Builtin == nil {
+				err = (stored.ProcedureProvider{}).Validate(auth.Catalog, d)
+			}
 		}
 	}
 	if err == nil && !catalog.NativeDMLTrigger(d) {

@@ -12,7 +12,7 @@ import (
 func unchangedRoutineEnvironment(err error) error { return err }
 
 // enterRoutineEnvironment runs after reached caller admission and strictness,
-// before either SQL or PL dispatch. It borrows the existing operation, actor
+// before SQL, PL or installed native trigger dispatch. It borrows the operation,
 // and setting journal: no transaction completion, safe path or detached store.
 func (s *StatementScope) enterRoutineEnvironment(d *catalog.Procedure) (leave func(error) error, err error) {
 	if !d.SecurityDefiner && d.Configuration == nil {

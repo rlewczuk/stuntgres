@@ -45,6 +45,10 @@ func (s *StatementScope) invokeNativeTrigger(d *catalog.Procedure, relation *cat
 		result.Row, err = s.autoincTrigger(relation, p, event, next)
 		return result, err
 	}
+	if extension.StockInsertUsername.SupportsDMLTrigger(d) {
+		err = s.insertTriggerUsername(relation, p, event, next)
+		return result, err
+	}
 	builtin := catalog.BuiltinDMLTrigger(d)
 	if err = builtinTriggerProtocol(builtin == 1291, p, event); err != nil {
 		return result, err

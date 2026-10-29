@@ -12,6 +12,8 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -39,6 +41,8 @@ type providerReplay struct {
 	options           string // Rendered dictionary ALTER clause, after identity replay.
 	parallel          byte
 	cost, rows        float32
+	securityDefiner   bool
+	configuration     *catalog.RoutineConfiguration
 	readyAfter        ids.OID // Zero for seeded/installed providers; otherwise the creating type event.
 }
 
@@ -134,7 +138,7 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 // collects every builtin provider, and usually none changed.
 func unchangedProviders(providers []providerReplay) bool {
 	for _, p := range providers {
-		if p.original != p.current || p.ownerChanged || p.options != "" || p.parallel != 0 || p.cost != 0 || p.rows > 0 {
+		if p.original != p.current || p.ownerChanged || p.options != "" || p.parallel != 0 || p.cost != 0 || p.rows > 0 || p.securityDefiner || p.configuration != nil {
 			return false
 		}
 	}
@@ -287,6 +291,14 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 		if p.options != "" {
 			statements = append(statements, alter(p, p.current)+p.options+";\n")
 		}
+		if p.securityDefiner {
+			statements = append(statements, alter(p, p.current)+" SECURITY DEFINER;\n")
+		}
+		for i := range p.configuration.Len() {
+			clause, err := providerConfigurationSQL(p.configuration.At(i))
+			if err != nil { return nil, err }
+			statements = append(statements, alter(p, p.current)+clause+";\n")
+		}
 		if p.parallel != 0 {
 			parallel := ""
 			switch p.parallel {
@@ -315,6 +327,23 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 		}
 	}
 	return statements, nil
+}
+
+func providerConfigurationSQL(entry string) (string, error) {
+	name, value, ok := strings.Cut(entry, "=")
+	if !ok { return "", fmt.Errorf("stuntgres: invalid provider configuration") }
+	clause := " SET "+catalog.QuoteIdentifier(name)+" TO "
+	if !parser.SettingQuotesIdentifiers(name) {
+		return clause+dump.CommentLiteral(value), nil
+	}
+	identifiers, err := settings.ParseIdentifierList(name, value)
+	if err != nil { return "", err }
+	if len(identifiers) == 0 { return clause+dump.CommentLiteral(""), nil }
+	for i, identifier := range identifiers {
+		if i != 0 { clause += ", " }
+		clause += dump.CommentLiteral(identifier)
+	}
+	return clause, nil
 }
 
 func (s *dumpScript) prepareProviderReplay(ctx context.Context) error {

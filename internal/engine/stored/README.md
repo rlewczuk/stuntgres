@@ -105,12 +105,14 @@ Procedure result policy remains declaration-owned through validation and remap:
 every OUT/INOUT tuple is RECORD even with one member, while no-output is VOID.
 The shared original-occurrence memo maps output shape, formals and child
 generations once; same-OID foreign/unshaped descriptors remain invalid.
-Only SQL/PL procedure descriptors may carry definer security or routine-local
-configuration. The common procedure validator rejects those impossible native
-states before installed-provider delegation or any intrinsic family early return.
-Installed symbol validation enforces the same invariant for direct provider and
-capture/remap consumers. Builtin and installed strictness/volatility remain sealed
-to their real declarations; allowed parallel/cost/rows changes do not relax them.
+SQL/PL declarations and the authentic installed insert_username trigger body may
+carry definer security and routine-local configuration. The common procedure
+validator rejects these states for native bodies that do not enter the shared
+environment, before delegation or intrinsic early returns. Installed symbol
+validation enforces the same boundary for capture/remap consumers. Scalar
+insert_username recipes retain the selected provider and object reference,
+never an enclosing trigger activation. Builtin/installed strictness and
+volatility remain sealed; parallel/cost/rows patches do not relax them.
 Allocated Snowball C helpers use their typed bootstrap declaration capability,
 not the fixed builtin-OID registry or an externally callable INTERNAL ABI.
 Pinning follows fixed bootstrap authority, independently of seed replay markers:

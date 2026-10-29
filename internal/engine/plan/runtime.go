@@ -57,6 +57,7 @@ type Runtime interface {
 	// engine's extension providers or catalog.
 	EvalInstalledText(InstalledTextExpr) (sqltype.Value, error)
 	EvalInstalledAutoinc(InstalledAutoincExpr) (sqltype.Value, error)
+	EvalInsertUsername(InsertUsernameExpr) (sqltype.Value, error)
 	EvalInstalledCubeSpatial(InstalledCubeSpatialExpr) (sqltype.Value, error)
 	EvalInstalledEarthPoint(InstalledEarthPointExpr) (sqltype.Value, error)
 	OpenExtensionPaths(ExtensionPathsExpr) ([]sqltype.Value, error)

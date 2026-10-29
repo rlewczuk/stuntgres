@@ -12,7 +12,7 @@ the public contract in [docs/FIXTURES.md](../../../docs/FIXTURES.md).
 It imports `access`, `analyze`, `authorization`, `catalog`, `dump`, `exec`,
 `expr`, `extension`, `fdw`, `ids`, `index`, `largeobject`, `partition`,
 `pgcatalog`, `plan`, `regobj`, `routine`, `sequence`, `session`, `storage`,
-`stored`, `table`, `typedef`, `view`, `visibility`, `parser`, `sqltype` and
+`settings`, `stored`, `table`, `typedef`, `view`, `visibility`, `parser`, `sqltype` and
 `sqlstate`. Only the root engine imports it. It holds no mutex, no engine
 pointer and no state between calls.
 
@@ -202,6 +202,11 @@ Row-trigger definitions are post-data SQL groups, after their functions/tables
 and saved rows, so Restore never transforms stored data twice. Partition clones
 are derived through catalog publication rather than serialized independently;
 definition OIDs, parent provenance and WHEN captures remap with the destination.
+Installed insert_username identity replay retains owner, SECURITY DEFINER and
+immutable routine configuration before post-data triggers are recreated. Literal
+target arguments and actual renamed/relocated provider addresses survive replay;
+saved stamp strings are data, never recomputed under the restoring role.
+
 
 Replica identity replays in a deterministic owner-qualified post-event section,
 after standalone and constraint-backed indexes have their final names. FULL,

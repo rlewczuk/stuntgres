@@ -184,6 +184,16 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
+	case plan.InsertUsernameExpr:
+		p, ok := n.RoutineReference.(*catalog.Procedure)
+		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, p) {
+			return "", fmt.Errorf("stuntgres: invalid stored insert_username reference")
+		}
+		if err := ValidateInsertUsername(n, view); err != nil { return "", err }
+		current := view.MustProcedure(p.Address())
+		namespace := view.MustNamespace(current.Namespace())
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(current.Name()), nil)
 	case plan.CitextComparisonExpr:
 		original, ok := n.RoutineReference.(*catalog.Procedure)
 		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, original) {

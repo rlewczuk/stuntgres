@@ -159,10 +159,12 @@ Released builtin/window and installed extension execution stays attached to its
 genuine provider. Moving one installed member changes neither membership nor
 the extension target namespace or siblings.
 
-Execution attribute actions (SECURITY DEFINER/INVOKER, SET/RESET/RESET ALL,
-strictness and volatility) are supported only by genuine SQL/PL declarations,
-including their ordinary, trigger and event-trigger entries. Native intrinsic
-and installed providers reject every such action, even semantic no-ops, with
+Genuine SQL/PL declarations support execution attribute actions, including
+their ordinary, trigger and event-trigger entries. The authentic installed
+insert_username body also supports SECURITY DEFINER/INVOKER and SET/RESET
+configuration through the same execution environment. Its strictness and
+volatility remain sealed. Other native providers reject execution clauses,
+even semantic no-ops, with
 `0A000: execution attributes are unsupported for native routine providers`.
 The action gate follows real lookup/kind/ownership checks and precedes setting
 normalization, revision allocation and replacement. Parallel/cost/rows remain

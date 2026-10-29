@@ -60,6 +60,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		return
 	}
 	switch n := expr.(type) {
+	case plan.InsertUsernameExpr:
+		r.Add(n.Ref.Address)
 	case functions.String:
 		if n.Citext != nil {
 			r.Add(n.Citext.Ref.Address)

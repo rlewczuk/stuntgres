@@ -100,6 +100,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   `SubqueryExpr`, `WindowExpr`, ...) with their `Eval` methods, and the
   set-returning `UnnestExpr`, `SeriesExpr` and `SubscriptsExpr` with their source
   protocol and cursors.
+  `InsertUsernameExpr` is a fold-never ordinary SQL call retaining installed
+  provider provenance. Its runtime authenticates the current concrete provider
+  and reference lifetime before reporting scalar misuse. It cannot borrow a
+  surrounding trigger frame; rebuild/capture retain its original occurrence.
   Literal evaluation requires exact descriptor identity and concrete values,
   except for the finite, canonically owned query-only pseudo NULL capability.
   A literal may retain `expr.UnknownInput` source provenance for selected argument

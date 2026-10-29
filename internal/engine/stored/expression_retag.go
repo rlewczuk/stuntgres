@@ -372,6 +372,19 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			return nil, false, err
 		}
 		rebound = n
+	case plan.InsertUsernameExpr:
+		n.Info = info
+		if p, ok := info.RoutineReference.(*catalog.Procedure); ok && view.State() != nil {
+			namespace, found := view.Namespace(p.Namespace())
+			if !found { return nil, false, fmt.Errorf("stuntgres: missing remapped insert_username namespace") }
+			changed = changed || n.Namespace != namespace.Name()
+			n.Namespace = namespace.Name()
+		}
+		if err := n.ValidateStoredProvider(); err != nil { return nil, false, err }
+		if view.State() != nil {
+			if err := ValidateInsertUsername(n, view); err != nil { return nil, false, err }
+		}
+		rebound = n
 	case plan.CitextComparisonExpr:
 		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
 		if err != nil {

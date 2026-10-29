@@ -105,7 +105,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore" || name == "fetchval" || name == "slice_array" || name == "exist" || name == "defined" || name == "exists_all" || name == "exists_any" || name == "hs_contains" || name == "hs_contained" || name == "akeys" || name == "avals" || name == "skeys" || name == "svals" || name == "each" || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
-	providerOverride := b.hasProviderProcedureOverride(name)
+	providerOverride := b.hasProviderProcedureOverride(name) || name == "insert_username"
 	if name == "check_primary_key" || name == "check_foreign_key" {
 		providerOverride = true
 	}
@@ -671,6 +671,20 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true, TypeNameCallPosition: raw.Pos})
 	}
 	d := selected.Procedure
+	if d != nil && extension.StockInsertUsername.SupportsDMLTrigger(d) {
+		if err := extension.StockInsertUsername.ValidateProcedure(selected.auth.ReadCatalog(), d); err != nil {
+			return nil, err
+		}
+		if err := functions.ValidateCallSyntax(b, raw); err != nil { return nil, err }
+		if err := functions.CallDecorationError(raw); err != nil { return nil, err }
+		namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
+		if !ok { return nil, fmt.Errorf("stuntgres: missing insert_username namespace") }
+		info := b.Info(b.Type(2279).Usage(), raw.Pos, expr.Properties{Volatility: expr.Volatile})
+		info.RoutineReference = d
+		ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
+		b.dependency(ref, d.Revision())
+		return plan.InsertUsernameExpr{Info: info, Ref: ref, Namespace: namespace.Name()}, nil
+	}
 	// Selected operator/cast dispatch passes already-bound arguments through
 	// negative binder-local slots. Only the owning written operator/cast may
 	// freeze their source recipes; a nested provider must not publish those

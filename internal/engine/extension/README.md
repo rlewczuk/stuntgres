@@ -2,7 +2,7 @@
 
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, citext, cube,
-earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pageinspect,
+earthdistance, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree, pageinspect,
 pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
@@ -51,6 +51,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   statement-local exact root/extension references and ADD/DROP action. It still
   executes ownership, closure and membership checks; ordinary SQL and unmatched
   replay flags use normal snapshot capture/removal.
+  The insert_username provider owns one zero-input volatile, non-strict C
+  trigger declaration. Its installed capability classifies dispatch only;
+  current sealed provenance and principal validation still grant authority.
+  Definer/configuration clauses are supported because its reached native body
+  enters the shared routine environment. Native C loading, SPI ABI/shared-library
+  files and PostgreSQL backend processes are external mechanisms, not alternate
+  execution paths for this embedded stock body.
 - **Accessors** (`extension_implementation.go`): `CitextProviderOf` …
   `UnaccentDictionaryProviderOf` return a descriptor's implementation when it
   has that concrete type, and nil otherwise.

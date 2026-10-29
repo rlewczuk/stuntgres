@@ -327,6 +327,8 @@ func ValidateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			}
 		}
 		return nil
+	case plan.InsertUsernameExpr:
+		return stored.ValidateInsertUsername(n, view)
 	case plan.ExtensionPathsExpr:
 		if err := n.Validate(); err != nil {
 			return err

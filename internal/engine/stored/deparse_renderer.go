@@ -956,6 +956,14 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing crypto function namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
+	case plan.InsertUsernameExpr:
+		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
+			return "", fmt.Errorf("stuntgres: invalid stored insert_username reference")
+		}
+		if err := ValidateInsertUsername(n, r.View); err != nil { return "", err }
+		current := r.View.MustProcedure(n.Ref.Address)
+		namespace := r.View.MustNamespace(current.Namespace())
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(current.Name()), nil, true)
 	case plan.CitextComparisonExpr:
 		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
 			return "", fmt.Errorf("stuntgres: invalid stored citext comparison reference")

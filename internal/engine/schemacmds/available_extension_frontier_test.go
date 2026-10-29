@@ -98,6 +98,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"unaccent":      {"unaccent", "1.1", unaccentVersion, "text search dictionary that removes accents"},
 					"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
 					"intagg":        {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
+					"insert_username": {"insert_username", "1.0", nil, "functions for tracking who changed a table"},
 					"isn":           {"isn", "1.3", nil, "data types for international product numbering standards"},
 					"lo":            {"lo", "1.2", nil, "Large Object maintenance"},
 					"ltree":         {"ltree", "1.3", nil, "data type for hierarchical tree-like structures"},
@@ -122,6 +123,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, "text search dictionary that removes accents"}
 					expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
 					expected["intagg"] = []any{"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}
+					expected["insert_username"] = []any{"insert_username", "1.0", false, true, false, true, nil, nil, "functions for tracking who changed a table"}
 					expected["isn"] = []any{"isn", "1.3", false, true, true, true, nil, nil, "data types for international product numbering standards"}
 					expected["lo"] = []any{"lo", "1.2", false, true, true, true, nil, nil, "Large Object maintenance"}
 					expected["ltree"] = []any{"ltree", "1.3", false, true, true, true, nil, nil, "data type for hierarchical tree-like structures"}

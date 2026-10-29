@@ -22,7 +22,10 @@ Layer L9.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-archi
 `access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate`,
 `pgcatalog` (projected relation-kind admission) and the standard library.
 Its `extension` imports validate genuine installed cube-spatial,
-earth-point and autoinc scalar calls before kernel evaluation. It never imports the engine,
+earth-point, autoinc and insert_username scalar calls before kernel evaluation.
+Insert_username authenticates current provider identity and reference domain/epoch
+before reporting scalar misuse; structural native-trigger capability grants no
+execution authority. It never imports the engine,
 `analyze`, `session` or another feature package (`routine`, ...).
 
 The shared checked routine call/frame contract also admits PL definitions.

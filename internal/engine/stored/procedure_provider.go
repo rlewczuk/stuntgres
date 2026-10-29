@@ -24,9 +24,9 @@ func (ProcedureProvider) ClassID() ids.OID { return ids.ProcedureClassID }
 
 func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Procedure)
-	// Only SQL/PL declarations enter the routine execution environment. Check
-	// this before installed-provider delegation and all intrinsic early returns.
-	if ok && d.SQL == nil && (d.SecurityDefiner || d.Configuration != nil) {
+	// Native installed trigger bodies also enter the shared routine environment;
+	// full installed provenance is still checked by the delegation below.
+	if ok && d.SQL == nil && !extension.StockInsertUsername.SupportsDMLTrigger(d) && (d.SecurityDefiner || d.Configuration != nil) {
 		return extension.InvalidProviderDescriptor()
 	}
 	if ok {
