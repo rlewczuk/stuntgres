@@ -203,7 +203,7 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 			if c.Parent != 0 {
 				builder.integer(row, 17, 1)
 			}
-			builder.boolean(row, 18, c.Parent == 0)
+			builder.boolean(row, 18, c.NoInherit)
 			index, ok := view.Relation(c.Index)
 			if !ok || index.SQLIndex == nil || len(index.SQLIndex.Keys) != len(c.Operators) {
 				return nil, fmt.Errorf("stuntgres: missing exclusion metadata provider")

@@ -74,14 +74,14 @@ func (s *dumpScript) emitStagedTableConstraints(ctx context.Context, w *dumpWrit
 			}
 		}
 		for _, constraint := range d.Constraints.Exclusion {
-			if constraint.Parent != 0 {
+			if constraint.Parent != 0 && !constraint.NoInherit {
 				continue
 			}
 			idx, ok := s.CatalogView.Relation(constraint.Index)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing exclusion dump index")
 			}
-			if index.PartitionReplaySeparateConstraint(s.CatalogView, idx) {
+			if index.PartitionReplayFreshOrigin(s.CatalogView, idx) != nil || index.PartitionReplaySeparateConstraint(s.CatalogView, idx) {
 				continue
 			}
 			text, err := index.DefinitionSQL(ctx, s.CatalogView, idx, index.Presentation{Dump: true, Exclusion: true})

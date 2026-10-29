@@ -170,6 +170,13 @@ actual constraint projection; successful overlay transfer alone admits the
 records. Validation, authorization, cancellation and database fences remain
 the ordinary catalog publication boundaries.
 
+Exclusion adoption preserves actual constraint/backing identity, operators and
+physical entries while revising owning relation metadata. Prepared ownership
+proof retains a real accepted protocol portal's graph, fold backing/generation
+and analysis dependencies across adoption and successor Bind. The definition's
+current reuse generation may retire after that legitimate revision; it is not
+the lifetime of the old accepted portal's immutable artifacts.
+
 ## VACUUM
 
 `vacuum.go` runs in one `StatementScope` and transaction/ticket; per-target
@@ -280,7 +287,7 @@ through SQL or the exported API.
 make check RUN='^TestAlter'                                # ALTER TABLE passes, defaults, types, schema
 make check RUN='^Test(InheritanceAlter|InheritanceMaint|InheritanceMetadata|TableInheritance)'  # inheritance ALTER admission
 make check RUN='^TestPartitionRenameColumn'               # hierarchy names, identity, locks and publication
-make check RUN='^Test(TableLike|TableCore|PartitionConstraints|UsingIndex)'  # CREATE TABLE forms and constraints
+make check RUN='^Test(TableLike|TableCore|PartitionConstraints|PartitionExclusion|UsingIndex)'  # CREATE TABLE forms and constraints
 make check RUN='^Test(TableHost|AlterHost|IndexHost)'      # the hosts
 make check RUN='^TestAlterValidateConstraint'               # selection, publication, admission and parser invariants
 make check RUN='^TestConstraintEnforcement'               # enforcement candidate, lifecycle, history and publication ownership

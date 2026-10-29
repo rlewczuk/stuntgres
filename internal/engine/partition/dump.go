@@ -150,6 +150,15 @@ func DumpNeedsAttach(view catalog.Read, d *catalog.Relation) bool {
 	if d.Membership == nil {
 		return false
 	}
+	for _, c := range d.Constraints.Exclusion {
+		if c.Parent != 0 && c.NoInherit && !freshAdoptedAfterMembership(view, view.MustRelation(c.Index)) || c.Parent == 0 && !c.NoInherit {
+			return true
+		}
+		idx := view.MustRelation(c.Index)
+		if origin := index.PartitionReplayFreshOrigin(view, idx); origin != nil && origin.Address() == idx.Address() {
+			return true
+		}
+	}
 	parent := view.MustRelation(d.Membership.Parent)
 	if len(d.ColumnMeta.Dropped) != 0 || !slices.Equal(d.Attributes, parent.Attributes) || d.ColumnMeta.HighWater != parent.ColumnMeta.HighWater {
 		return true

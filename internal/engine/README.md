@@ -64,6 +64,20 @@ The root keeps Dump's `Engine.Mu` window and Collect inputs
 with every `restoreHooks` entry (`restore_hooks.go`; an entry's position
 fixes when it runs within its phase).
 
+Generated partition scratch teardown stays in `restoreRun`'s one private capture
+map. Admission captures real pre-detach identities; the After hook records
+successful detach or invalid-child adoption through `partitioncmds`. Qualified
+reserved DROP still requires the exact completed empty lifecycle, destination
+refs, owners, epoch and backing/revision fences. The ordinary executor owns all
+dependency closure and deletion; retained target rows/backings are never waived
+or rewritten by an import repair.
+
+Before later seed or ONLY additions, Prepare validates the accepted invalid-child
+capture and leases that exact ordinary statement's immutable before-view in the
+same map. After publishes only an owned permitted successor; stale or vetoed
+extensions retain the previous authority. Execution failure and run disposal
+clear leases, and no scratch capture becomes an execution or origin registry.
+
 Dump emits current trigger definitions post-data followed by local dependency
 metadata; Restore admits only qualified positive trigger dependency ALTERs,
 never arbitrary rename/drop utilities.

@@ -9,14 +9,17 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/table"
 )
 
 const ReplayStem = "__stuntgres_partition_replay_"
 
 type InvalidReplay struct {
-	table   *catalog.Relation
-	Child   *catalog.Relation
-	Scratch string
+	Table        *catalog.Relation
+	Child        *catalog.Relation
+	Scratch      string
+	Fresh        *FreshReplay
+	PromotionGap bool
 }
 
 func preservedReplayBacking(view catalog.Read, idx *catalog.Relation) bool {
@@ -62,8 +65,9 @@ func replayIndexReady(view catalog.Read, graph dump.Graph, event dump.Event, idx
 
 // Existing declaration/data/attachment events remain the single replay scheduler.
 // Manual complete-invalid trees use one real valid child. ONLY exclusions use
-// a scratch gap even with saved children, avoiding non-adoptable EXCLUDE clones.
-func InvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndices map[ids.OID]int) map[ids.OID]InvalidReplay {
+// a scratch gap even with saved children. Fresh-local provenance uses the same
+// per-table preparation/completion pair with temporary parent recipes.
+func InvalidDumpEvents(r dump.Resolver, view catalog.Read, graph dump.Graph, indexIndices map[ids.OID]int, captured []table.DumpRelation) (map[ids.OID]InvalidReplay, error) {
 	groups := make(map[ids.ObjectAddress][]*catalog.Relation)
 	for oid := range indexIndices {
 		idx := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
@@ -71,8 +75,15 @@ func InvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndices map[ids
 			groups[idx.SQLIndex.Parent] = append(groups[idx.SQLIndex.Parent], idx)
 		}
 	}
-	if len(groups) == 0 {
-		return nil
+	var freshTables []*catalog.Relation
+	for i := range captured {
+		source := captured[i].Descriptor
+		if freshOriginTable(view, source) {
+			freshTables = append(freshTables, source)
+		}
+	}
+	if len(groups) == 0 && len(freshTables) == 0 {
+		return nil, nil
 	}
 	var tables []*catalog.Relation
 	for address := range groups {
@@ -89,11 +100,33 @@ func InvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndices map[ids
 		oid := table.Address().ObjectID
 		prepare := dump.Event{OID: oid, Phase: dump.InvalidIndexPreparation}
 		finish := dump.Event{OID: oid, Phase: dump.InvalidIndexCompletion}
-		item := InvalidReplay{table: table, Child: index.PartitionPreservedReplayChild(view, table)}
+		item := InvalidReplay{Table: table, Child: index.PartitionPreservedReplayChild(view, table)}
 		for _, idx := range groups[table.Address()] {
-			if index.PartitionReplayOnlyExclusion(idx) {
-				// Never detach a captured EXCLUDE child: reattachment clones
-				// fresh providers instead of adopting its independent locals.
+			for _, address := range table.Partition.Children {
+				if child := index.PartitionDumpIndexBacking(view, idx.Address(), address); child != nil && index.PartitionReplayCompetingExclusion(view, child) {
+					item.PromotionGap = true
+					member := dump.Event{OID: address.ObjectID}
+					if DumpNeedsAttach(view, view.MustRelation(address)) {
+						member.Phase = dump.TableAttachment
+					}
+					graph.Add(prepare, member)
+					graph.Add(finish, dump.Event{OID: child.Address().ObjectID, Phase: dump.IndexAttachment})
+					// Finish the coexisting independent names before removing
+					// this gap. OID remint must not choose their relative order.
+					owner := view.MustRelation(address)
+					for i := range owner.Constraints.Exclusion {
+						other := &owner.Constraints.Exclusion[i]
+						if other.Parent == 0 && !other.NoInherit {
+							graph.Add(finish, dump.Event{OID: other.Index.ObjectID, Phase: dump.Rename})
+						}
+					}
+				}
+			}
+		}
+		for _, idx := range groups[table.Address()] {
+			if index.PartitionReplayOnlyExclusion(view, idx) {
+				// A real scratch gap preserves ONLY invalidity without changing
+				// any captured child provider or declaration provenance.
 				item.Child = nil
 				break
 			}
@@ -109,8 +142,8 @@ func InvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndices map[ids
 					break
 				}
 			}
-			graph[prepare] = []dump.Event{{OID: oid}}
-			graph[finish] = []dump.Event{prepare}
+			graph.Add(prepare, dump.Event{OID: oid})
+			graph.Add(finish, prepare)
 			for _, index := range groups[table.Address()] {
 				declaration := dump.Event{OID: index.Address().ObjectID}
 				graph.Add(declaration, prepare)
@@ -118,6 +151,16 @@ func InvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndices map[ids
 			}
 			for _, address := range table.Partition.Children {
 				child := view.MustRelation(address)
+				if item.PromotionGap {
+					chosen := false
+					for _, idx := range groups[table.Address()] {
+						backing := index.PartitionDumpIndexBacking(view, idx.Address(), address)
+						chosen = chosen || backing != nil && index.PartitionReplayCompetingExclusion(view, backing)
+					}
+					if chosen {
+						continue
+					}
+				}
 				member := dump.Event{OID: address.ObjectID}
 				if DumpNeedsAttach(view, child) {
 					member.Phase = dump.TableAttachment
@@ -182,23 +225,130 @@ func InvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndices map[ids
 		graph.Add(dump.Event{OID: oid, Phase: dump.TableCompletion}, finish)
 		result[oid] = item
 	}
-	return result
+	slices.SortFunc(freshTables, func(a, b *catalog.Relation) int { return index.PartitionReplayNameCompare(view, a, b) })
+	for _, table := range freshTables {
+		stages, err := freshReplayGroups(view, table)
+		if err != nil {
+			return nil, err
+		}
+		name := func() string {
+			for {
+				ordinal++
+				value := fmt.Sprintf("%s%d", ReplayStem, ordinal)
+				key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: value}
+				if !reserved[key] {
+					reserved[key] = true
+					return value
+				}
+			}
+		}
+		for constraint := range catalog.ConstraintNames(view, table.Namespace(), table) {
+			reserved[ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: constraint}] = true
+		}
+		var previous dump.Event
+		var cleanup []string
+		for i := range stages {
+			stage := &stages[i]
+			anchor := stage.Indexes[0].Address().ObjectID
+			prepare := dump.Event{OID: anchor, Phase: dump.InvalidIndexPreparation}
+			finish := dump.Event{OID: anchor, Phase: dump.InvalidIndexCompletion}
+			if stage.Open {
+				stage.Scratch = name()
+			} else {
+				stage.Scratch = stages[i-1].Scratch
+			}
+			if stage.Open {
+				cleanup = nil
+			}
+			if freshStageInvalid(view, stage.Indexes[0]) {
+				stage.InvalidChild, stage.InvalidGap = name(), name()
+				stage.InvalidSeeds = make([]string, len(stage.Indexes))
+				stage.Created = make([]string, len(stage.Indexes))
+				for j, idx := range stage.Indexes {
+					if index.PartitionIndexPreservedInvalid(view, idx) {
+						stage.InvalidSeeds[j] = name()
+					}
+				}
+			}
+			for _, guard := range stage.Guards {
+				stage.GuardSeeds = append(stage.GuardSeeds, name())
+				graph.Add(prepare, constraintCreator(r, view, guard))
+			}
+			graph.Add(prepare, dump.Event{OID: table.Address().ObjectID})
+			if previous != (dump.Event{}) {
+				graph.Add(prepare, previous)
+			}
+			graph.Add(finish, prepare)
+			for _, key := range stage.Parent.Partition.Keys {
+				predecessor, err := r.Predecessor(view, ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(key.Class.OID())}, table.Address())
+				if err != nil {
+					return nil, err
+				}
+				if predecessor != 0 {
+					graph.Add(prepare, dump.Event{OID: predecessor})
+				}
+			}
+			for _, idx := range stage.Indexes {
+				stage.Seeds = append(stage.Seeds, name())
+				freshReplayReady(r, view, graph, prepare, idx)
+			}
+			cleanup = append(cleanup, stage.GuardSeeds...)
+			cleanup = append(cleanup, stage.Seeds...)
+			if stage.Close {
+				stage.CleanupSeeds = cleanup
+			}
+			if stage.InvalidChild != "" || !stage.Close {
+				for _, address := range table.Partition.Children {
+					child := view.MustRelation(address)
+					member := dump.Event{OID: address.ObjectID}
+					if DumpNeedsAttach(view, child) {
+						member.Phase = dump.TableAttachment
+					}
+					graph.Add(member, finish)
+				}
+			}
+			result[anchor] = InvalidReplay{Table: table, Fresh: stage}
+			previous = finish
+		}
+		if table.Membership != nil {
+			graph.Add(dump.Event{OID: table.Address().ObjectID, Phase: dump.TableAttachment}, previous)
+		}
+		graph.Add(dump.Event{OID: table.Address().ObjectID, Phase: dump.TableCompletion}, previous)
+		for indexOID := range indexIndices {
+			idx := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID})
+			if idx.SQLIndex.Parent == table.Address() && index.PartitionReplayDeferredExclusion(view, idx) {
+				graph.Add(dump.Event{OID: indexOID}, previous)
+			}
+		}
+	}
+	return result, nil
 }
 
 func (r InvalidReplay) SQL(ctx context.Context, view catalog.Read, phase dump.Phase) (string, error) {
 	qualified := func(d *catalog.Relation) string {
 		return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 	}
-	parent := qualified(r.table)
+	parent := qualified(r.Table)
 	if r.Child != nil {
 		if phase == dump.InvalidIndexPreparation {
 			return "ALTER TABLE " + parent + " DETACH PARTITION " + qualified(r.Child) + ";\n", nil
 		}
 		return AttachDumpSQL(ctx, view, r.Child)
 	}
-	child := catalog.QuoteIdentifier(view.Get(r.table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Scratch)
+	if r.Scratch == "" {
+		return "", nil
+	}
+	child := catalog.QuoteIdentifier(view.Get(r.Table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Scratch)
 	if phase == dump.InvalidIndexPreparation {
-		return "CREATE TABLE " + child + " PARTITION OF " + parent + " DEFAULT;\n", nil
+		bound := " DEFAULT"
+		if r.PromotionGap {
+			var err error
+			bound, err = ReplayPromotionBoundSQL(r.Table)
+			if err != nil {
+				return "", err
+			}
+		}
+		return "CREATE TABLE " + child + " PARTITION OF " + parent + bound + ";\n", nil
 	}
 	return "ALTER TABLE " + parent + " DETACH PARTITION " + child + ";\nDROP TABLE " + child + ";\n", nil
 }

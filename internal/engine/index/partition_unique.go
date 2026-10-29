@@ -271,7 +271,7 @@ func appendPartitionInlineIndexes(view catalog.Read, table *catalog.Relation, in
 				}
 			}
 			for _, constraint := range table.Constraints.Exclusion {
-				if constraint.Parent == inherited.SQLIndex.Constraint.OID {
+				if constraint.Parent == inherited.SQLIndex.Constraint.OID && !constraint.NoInherit {
 					indexes[write] = view.MustRelation(constraint.Index)
 					write++
 					break
@@ -287,7 +287,7 @@ func appendPartitionInlineIndexes(view catalog.Read, table *catalog.Relation, in
 		}
 	}
 	for _, constraint := range table.Constraints.Exclusion {
-		if constraint.Parent == 0 {
+		if constraint.Parent == 0 || constraint.NoInherit {
 			indexes = append(indexes, view.MustRelation(constraint.Index))
 		}
 	}
@@ -372,17 +372,13 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 		return 0
 	})
 	for _, candidate := range candidates {
-		// PostgreSQL 18.0 never adopts an independent exclusion backing.
-		if parentIndex.SQLIndex.IsExclusion() {
-			continue
-		}
 		// Recursive CREATE retains a reusable incomplete virtual tree. Table
 		// ATTACH requires valid existing backings and must not heal an invalid
 		// physical index left by a failed concurrent build.
 		if !candidate.SQLIndex.Ready || !candidate.SQLIndex.Live || !candidate.SQLIndex.Valid && (child.Partition == nil || !allowIncompleteVirtual) {
 			continue
 		}
-		if parentIndex.SQLIndex.Constraint != nil && (candidate.SQLIndex.Constraint == nil || candidate.SQLIndex.Constraint.Kind != catalog.UniqueBackingKind || candidate.SQLIndex.Constraint.Primary != parentIndex.SQLIndex.Constraint.Primary) {
+		if parentIndex.SQLIndex.Constraint != nil && (candidate.SQLIndex.Constraint == nil || !allowIncompleteVirtual && candidate.SQLIndex.Constraint.Kind != parentIndex.SQLIndex.Constraint.Kind || !parentIndex.SQLIndex.IsExclusion() && candidate.SQLIndex.Constraint.Primary != parentIndex.SQLIndex.Constraint.Primary) {
 			continue
 		}
 		if parentKey := UniqueDefinition(table, parentIndex); parentKey != nil {
@@ -404,12 +400,25 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 		next.ObjectRevision++
 		if parentIndex.SQLIndex.Constraint != nil {
 			changed := *child
-			changed.Constraints.Unique = slices.Clone(child.Constraints.Unique)
-			for i := range changed.Constraints.Unique {
-				c := &changed.Constraints.Unique[i]
-				if c.Index == candidate.Address() {
-					c.Parent = parentIndex.SQLIndex.Constraint.OID
-					c.IsLocal = false
+			changed.ObjectRevision++
+			if definition.IsExclusion() {
+				changed.Constraints.Exclusion = slices.Clone(child.Constraints.Exclusion)
+				for i := range changed.Constraints.Exclusion {
+					c := &changed.Constraints.Exclusion[i]
+					if c.Index == candidate.Address() {
+						c.Parent = parentIndex.SQLIndex.Constraint.OID
+						c.IsLocal = false
+						definition.Constraint = ExclusionBacking(c)
+					}
+				}
+			} else {
+				changed.Constraints.Unique = slices.Clone(child.Constraints.Unique)
+				for i := range changed.Constraints.Unique {
+					c := &changed.Constraints.Unique[i]
+					if c.Index == candidate.Address() {
+						c.Parent = parentIndex.SQLIndex.Constraint.OID
+						c.IsLocal = false
+					}
 				}
 			}
 			if err = StagePartitionDescriptor(h.DescriptorStage(), &changed); err != nil {
@@ -453,7 +462,9 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 		return nil, err
 	}
 	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: child.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: child.Owner, RelationKind: catalog.IndexRelation, SQLIndex: mapped, Columns: slices.Clone(parentIndex.Columns), Attributes: slices.Clone(parentIndex.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: parentIndex.ColumnMeta.HighWater}, Index: make(map[string]int, len(parentIndex.Columns)), StorageOptions: parentIndex.StorageOptions}
-	if err := CopyColumnStorage(view, child, idx); err != nil { return nil, err }
+	if err := CopyColumnStorage(view, child, idx); err != nil {
+		return nil, err
+	}
 	for i := range idx.Columns {
 		idx.Columns[i].OriginTable = uint32(oid)
 		idx.Columns[i].OriginAttribute = int16(i + 1)
@@ -465,6 +476,7 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 			return nil, err
 		}
 		changed := *child
+		changed.ObjectRevision++
 		if parentIndex.SQLIndex.IsExclusion() {
 			var source catalog.ExclusionConstraint
 			for _, c := range table.Constraints.Exclusion {

@@ -242,7 +242,9 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	if err = partition.DumpEvents(context.Background(), control.Resolver{}, view, graph, declarations, tables, indices, replay, false); err != nil {
 		t.Fatal(err)
 	}
-	partition.InvalidDumpEvents(view, graph, indices)
+	if _, err := partition.InvalidDumpEvents(control.Resolver{}, view, graph, indices, tables); err != nil {
+		t.Fatal(err)
+	}
 	order, err := dump.Order(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal("virtual definition closes initial membership cycle", err)

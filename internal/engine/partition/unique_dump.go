@@ -3,7 +3,6 @@ package partition
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
@@ -13,21 +12,33 @@ import (
 )
 
 func constraintCreator(r dump.Resolver, view catalog.Read, idx *catalog.Relation) dump.Event {
+	if origin := index.PartitionReplayFreshOrigin(view, idx); origin != nil {
+		if origin.Address() == idx.Address() || !freshStageInvalid(view, origin) && !freshEarlySplit(view, origin) {
+			return freshCreator(view, origin)
+		}
+		// Captured valid descendants follow the stale-root completion.
+	}
 	root := index.PartitionReplayVirtualUniqueRoot(view, idx)
-	if root != nil && (!index.PartitionReplayOnlyExclusion(root) || root.Address() == idx.Address()) {
+	if root != nil && (!index.PartitionReplayOnlyExclusion(view, root) || root.Address() == idx.Address()) {
 		return dump.Event{OID: root.Address().ObjectID}
 	}
-	// UNIQUE can adopt a provider declared on the standalone child before
-	// ATTACH. Its name is an attachment prerequisite, not an attachment output.
-	// Only EXCLUDE's mandatory fresh clones use membership creator readiness.
-	if !idx.SQLIndex.IsExclusion() || idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) || index.PartitionReplayUsingIndex(view, idx) {
+	// Independently declared providers exist before membership adopts them.
+	table := view.MustRelation(idx.SQLIndex.Parent)
+	local := index.ExclusionDefinition(table, idx)
+	if !idx.SQLIndex.IsExclusion() || idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) || local != nil && local.NoInherit || index.PartitionReplayUsingIndex(view, idx) {
 		oid, _ := r.Predecessor(view, idx.Address(), ids.ObjectAddress{})
 		return dump.Event{OID: oid}
 	}
-	table := view.MustRelation(idx.SQLIndex.Parent)
+	table = view.MustRelation(idx.SQLIndex.Parent)
 	creator := dump.Event{OID: table.Address().ObjectID}
 	for idx.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 		table = view.MustRelation(idx.SQLIndex.Parent)
+		if c := index.ExclusionDefinition(table, idx); c != nil && c.NoInherit {
+			break
+		}
+		if origin := index.PartitionReplayFreshOrigin(view, idx); origin != nil && origin.Address() == idx.Address() {
+			break
+		}
 		if DumpNeedsAttach(view, table) {
 			creator = dump.Event{OID: table.Address().ObjectID, Phase: dump.TableAttachment}
 		}
@@ -44,7 +55,7 @@ func exclusionDefaultBefore(view catalog.Read, gap, sibling *catalog.Relation) b
 	}
 	parent := view.MustRelation(gap.Membership.Parent)
 	for _, idx := range index.PartitionIndexDeclarationOrder(view, parent) {
-		if index.PartitionReplayOnlyExclusion(idx) && index.PartitionDumpIndexBacking(view, idx.Address(), gap.Address()) == nil && index.PartitionDumpIndexBacking(view, idx.Address(), sibling.Address()) != nil {
+		if index.PartitionReplayOnlyExclusion(view, idx) && index.PartitionDumpIndexBacking(view, idx.Address(), gap.Address()) == nil && index.PartitionDumpIndexBacking(view, idx.Address(), sibling.Address()) != nil {
 			return true
 		}
 	}
@@ -59,7 +70,7 @@ func VirtualUniqueDefinitionSQL(view catalog.Read, idx *catalog.Relation) (strin
 			return "", err
 		}
 		only := ""
-		if index.PartitionReplayOnlyExclusion(idx) {
+		if index.PartitionReplayOnlyExclusion(view, idx) {
 			only = "ONLY "
 		}
 		return "ALTER TABLE " + only + catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name()) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(idx.Name()) + " " + text + ";\n", nil
@@ -81,60 +92,20 @@ func VirtualUniqueDefinitionSQL(view catalog.Read, idx *catalog.Relation) (strin
 // exactly like existing inline partition constraint replay. Final names remain
 // owned by the scheduler's existing terminal rename barriers.
 func (r *ConstraintReplay) VirtualUniqueRenames(view catalog.Read, idx *catalog.Relation) string {
-	if index.PartitionReplayOnlyExclusion(idx) {
+	if index.PartitionReplayOnlyExclusion(view, idx) {
 		return ""
 	}
-	type rename struct {
-		index     *catalog.Relation
-		generated string
-	}
-	var renames []rename
-	var reserve func(*catalog.Relation)
-	reserve = func(parentIndex *catalog.Relation) {
-		table := view.MustRelation(parentIndex.SQLIndex.Parent)
-		if table.Partition == nil {
-			return
-		}
-		for _, address := range table.Partition.Children {
-			childIndex := index.PartitionDumpIndexBacking(view, parentIndex.Address(), address)
-			child := view.MustRelation(address)
-			used := r.Occupied[child.Namespace()]
-			if used == nil {
-				used = make(map[string]bool)
-				r.Occupied[child.Namespace()] = used
-			}
-			suffix, addition := "key", ""
-			if childIndex.SQLIndex.IsExclusion() {
-				suffix = "excl"
-			}
-			if childIndex.SQLIndex.Constraint.Primary {
-				suffix = "pkey"
-			} else {
-				labels := make([]string, len(childIndex.SQLIndex.Keys))
-				for i := range childIndex.SQLIndex.Keys {
-					labels[i] = childIndex.Columns[i].Name
-				}
-				addition = strings.Join(labels, "_")
-			}
-			name := catalog.GeneratedConstraintName(child.Name(), addition, suffix, used)
-			used[name] = true
-			renames = append(renames, rename{childIndex, name})
-			reserve(childIndex)
+	table := view.MustRelation(idx.SQLIndex.Parent)
+	var roots []*catalog.Relation
+	for _, address := range table.Partition.Children {
+		if child := index.PartitionDumpIndexBacking(view, idx.Address(), address); child != nil {
+			roots = append(roots, child)
 		}
 	}
-	reserve(idx)
-	var sql strings.Builder
-	for _, rename := range renames {
-		target := r.Temporary[rename.index.Address()]
-		sql.WriteString("ALTER INDEX " + catalog.QuoteIdentifier(view.Get(rename.index.Namespace()).Name()) + "." + catalog.QuoteIdentifier(rename.generated) + " RENAME TO " + catalog.QuoteIdentifier(target) + ";\n")
-		used := r.Occupied[rename.index.Namespace()]
-		delete(used, rename.generated)
-		used[target] = true
-	}
-	return sql.String()
+	return r.CreationRenames(view, roots, dump.Event{OID: idx.Address().ObjectID})
 }
 
-func virtualUniqueMembershipReady(view catalog.Read, graph dump.Graph, event dump.Event, table *catalog.Relation) {
+func virtualUniqueMembershipReady(r dump.Resolver, view catalog.Read, graph dump.Graph, event dump.Event, table, idx *catalog.Relation) {
 	member := dump.Event{OID: table.Address().ObjectID}
 	if DumpNeedsAttach(view, table) {
 		member.Phase = dump.TableAttachment
@@ -142,15 +113,29 @@ func virtualUniqueMembershipReady(view catalog.Read, graph dump.Graph, event dum
 	graph.Add(event, member)
 	if table.Partition != nil {
 		for _, address := range table.Partition.Children {
-			virtualUniqueMembershipReady(view, graph, event, view.MustRelation(address))
+			childTable := view.MustRelation(address)
+			var child *catalog.Relation
+			if idx != nil {
+				child = index.PartitionDumpIndexBacking(view, idx.Address(), address)
+			}
+			if child != nil {
+				if c := index.ExclusionDefinition(childTable, child); c != nil && c.NoInherit {
+					graph.Add(event, constraintCreator(r, view, child))
+				}
+			}
+			virtualUniqueMembershipReady(r, view, graph, event, childTable, child)
 		}
 	}
 }
 
+// A separate provider creator needs topology, not a completed data subtree,
+// before crossing table membership. Fresh-origin scratch creation has the same
+// requirement as delayed virtual declarations; waiting for completion would
+// make a later ONLY ancestor declaration depend on its own terminal-name rows.
 func replayTopologyReady(view catalog.Read, table *catalog.Relation) bool {
 	for _, descriptor := range view.Descriptors() {
 		idx, ok := descriptor.(*catalog.Relation)
-		if ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == table.Address() && (preservedReplayBacking(view, idx) || index.PartitionReplayVirtualUniqueRoot(view, idx) != nil) {
+		if ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == table.Address() && (preservedReplayBacking(view, idx) || index.PartitionReplayVirtualUniqueRoot(view, idx) != nil || index.PartitionReplayFreshOrigin(view, idx) != nil) {
 			return true
 		}
 	}

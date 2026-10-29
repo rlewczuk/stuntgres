@@ -39,7 +39,9 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 		}
 	}
 	if declaration, exists := s.declarations[oid]; exists {
-		if err := emitDumpStatement(s, w, oid, declaration); err != nil { return err }
+		if err := emitDumpStatement(s, w, oid, declaration); err != nil {
+			return err
+		}
 		if r, ok := s.OriginalCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); ok && r.RelationKind == catalog.ForeignRelation {
 			return emitRelationColumnStorage(s, w, r)
 		}
@@ -53,7 +55,9 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 		relation, _ := s.CatalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		scopedMethod := relation != nil && relation.RelationKind == catalog.MaterializedViewRelation && relation.TableMethod != 2
 		if scopedMethod {
-			if err := emitCreateTableMethod(s, w, relation); err != nil { return err }
+			if err := emitCreateTableMethod(s, w, relation); err != nil {
+				return err
+			}
 		}
 		if err := w.setOwner(view.Owner); err != nil {
 			return err
@@ -220,7 +224,9 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 	independentPhysical := t.Descriptor.RelationKind == catalog.TableRelation && (t.Descriptor.Membership == nil || partition.DumpNeedsAttach(s.CatalogView, t.Descriptor))
 	scopedMethod := independentPhysical && t.Descriptor.TableMethod != 2
 	if scopedMethod {
-		if err := emitCreateTableMethod(s, w, t.Descriptor); err != nil { return err }
+		if err := emitCreateTableMethod(s, w, t.Descriptor); err != nil {
+			return err
+		}
 	}
 	privilegedCreation := t.Owner != "postgres" && t.Descriptor.RelationKind == catalog.TableRelation && t.Descriptor.Partition == nil && t.Descriptor.Membership == nil
 	if privilegedCreation {
@@ -264,9 +270,13 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 		}
 	}
 	if scopedMethod {
-		if err := w.emit("SET default_table_access_method = 'heap';\n"); err != nil { return err }
+		if err := w.emit("SET default_table_access_method = 'heap';\n"); err != nil {
+			return err
+		}
 	}
-	if err := emitTableMethod(s,w,t.Descriptor); err != nil { return err }
+	if err := emitTableMethod(s, w, t.Descriptor); err != nil {
+		return err
+	}
 	if schedule == nil {
 		if err := s.emitLocalAttributeRetirements(w, t.Descriptor); err != nil {
 			return err
@@ -283,7 +293,9 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 
 func emitTableCompletion(ctx context.Context, s *dumpScript, w *dumpWriter, t table.DumpRelation, attachAfterCreate bool) error {
 	qualified := catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name)
-	if err := emitRelationColumnStorage(s, w, t.Descriptor); err != nil { return err }
+	if err := emitRelationColumnStorage(s, w, t.Descriptor); err != nil {
+		return err
+	}
 	if err := w.emit(dumpRelationOptionsSQL(qualified, t.Descriptor.StorageOptions)); err != nil {
 		return err
 	}
@@ -340,9 +352,13 @@ func emitTableCompletion(ctx context.Context, s *dumpScript, w *dumpWriter, t ta
 // Independent physical declarations use a scoped creation setting, preserving
 // the exact CREATE/OWNER pair even when the owner lacks schema USAGE.
 func emitCreateTableMethod(s *dumpScript, w *dumpWriter, relation *catalog.Relation) error {
-	if err := catalog.ValidateRelationTableMethod(s.CatalogView, relation); err != nil { return err }
+	if err := catalog.ValidateRelationTableMethod(s.CatalogView, relation); err != nil {
+		return err
+	}
 	actual, ok := s.CatalogView.AccessMethod(relation.TableMethod)
-	if !ok { return fmt.Errorf("stuntgres: missing table method during dump") }
+	if !ok {
+		return fmt.Errorf("stuntgres: missing table method during dump")
+	}
 	return w.emit("SET default_table_access_method = " + dump.CommentLiteral(actual.Name()) + ";\n")
 }
 
@@ -353,21 +369,29 @@ func emitTableMethod(s *dumpScript, w *dumpWriter, relation *catalog.Relation) e
 		(relation.RelationKind != catalog.TableRelation || relation.Membership == nil || partition.DumpNeedsAttach(s.CatalogView, relation)) {
 		return nil
 	}
-	if err := catalog.ValidateRelationTableMethod(s.CatalogView, relation); err != nil { return err }
+	if err := catalog.ValidateRelationTableMethod(s.CatalogView, relation); err != nil {
+		return err
+	}
 	var inherited ids.OID
 	if relation.Membership != nil && !partition.DumpNeedsAttach(s.CatalogView, relation) {
 		inherited = s.CatalogView.MustRelation(relation.Membership.Parent).TableMethod
 	}
-	if inherited == 0 && relation.RelationKind == catalog.TableRelation { inherited = 2 }
-	if relation.TableMethod == inherited { return nil }
+	if inherited == 0 && relation.RelationKind == catalog.TableRelation {
+		inherited = 2
+	}
+	if relation.TableMethod == inherited {
+		return nil
+	}
 	method := "DEFAULT"
 	if relation.TableMethod != 0 {
 		actual, ok := s.CatalogView.AccessMethod(relation.TableMethod)
-		if !ok { return fmt.Errorf("stuntgres: missing table method during dump") }
+		if !ok {
+			return fmt.Errorf("stuntgres: missing table method during dump")
+		}
 		method = catalog.QuoteIdentifier(actual.Name())
 	}
-	name := catalog.QuoteIdentifier(s.CatalogView.MustNamespace(relation.Namespace()).Name())+"."+catalog.QuoteIdentifier(relation.Name())
-	return w.emit("ALTER TABLE "+name+" SET ACCESS METHOD "+method+";\n")
+	name := catalog.QuoteIdentifier(s.CatalogView.MustNamespace(relation.Namespace()).Name()) + "." + catalog.QuoteIdentifier(relation.Name())
+	return w.emit("ALTER TABLE " + name + " SET ACCESS METHOD " + method + ";\n")
 }
 
 // dumpRelationOptionsSQL renders captured explicit intent with base entries
@@ -520,14 +544,14 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelatio
 			line.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(c.Name) + " " + text)
 		}
 		for _, c := range t.Descriptor.Constraints.Exclusion {
-			if c.Parent != 0 {
+			if c.Parent != 0 && !c.NoInherit {
 				continue
 			}
 			idx, ok := s.CatalogView.Relation(c.Index)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing exclusion dump index")
 			}
-			if index.PartitionReplaySeparateConstraint(s.CatalogView, idx) {
+			if index.PartitionReplayFreshOrigin(s.CatalogView, idx) != nil || index.PartitionReplaySeparateConstraint(s.CatalogView, idx) {
 				continue
 			}
 			text, err := index.DefinitionSQL(ctx, s.CatalogView, idx, index.Presentation{Dump: true, Exclusion: true})

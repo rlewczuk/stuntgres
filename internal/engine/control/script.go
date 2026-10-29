@@ -396,7 +396,10 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	if err := s.addSeparatedCheckEvents(); err != nil {
 		return nil, err
 	}
-	s.invalidReplay = partition.InvalidDumpEvents(s.OriginalCatalog, s.Graph, s.IndexIndices)
+	s.invalidReplay, err = partition.InvalidDumpEvents(Resolver{}, s.OriginalCatalog, s.Graph, s.IndexIndices, s.Tables)
+	if err != nil {
+		return nil, err
+	}
 	if err := regobj.DomainInvalidDumpEvents(ctx, Resolver{}, s.CatalogView, s.Graph, s.domainNodes); err != nil {
 		return nil, err
 	}

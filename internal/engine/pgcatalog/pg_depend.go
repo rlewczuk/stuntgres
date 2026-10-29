@@ -411,6 +411,10 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 					return nil, fmt.Errorf("stuntgres: missing exclusion dependency index")
 				}
 				owner := ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}
+				if c.Parent != 0 {
+					add(owner, ids.ObjectAddress{ClassID: 2606, ObjectID: c.Parent}, 'P')
+					add(owner, d.Address(), 'S')
+				}
 				for _, key := range index.SQLIndex.Keys {
 					if key.Derived == nil {
 						add(owner, attribute(d.Address(), key.Attribute), 'a')

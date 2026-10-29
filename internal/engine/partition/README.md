@@ -190,12 +190,45 @@ adapter; `partition_info_runtime.go` holds the
   predecessor/revision/root stamp permits only that one CHECK/pending transition
   across admitted-reader fences. Later revisions fail automatically; finalization
   clears this edge's proof, and replacement/import never carries it forward.
-- **Partitioned exclusions.** ATTACH clones a fresh inherited graph; DETACH
-  makes crossing providers local; DROP follows inherited edges only. Coverage
-  rules are in the [`index` README](../index/README.md).
+- **Partitioned exclusions.** ATTACH adopts eligible compatible providers or
+  clones a missing inherited graph; recursive ADD can adopt an invalid virtual
+  subtree without healing it. DETACH localizes crossing providers without
+  changing declaration provenance; parent DROP owns adopted descendants as well
+  as fresh clones. Independent incompatible providers remain outside that closure.
+  Coverage and candidate rules belong to [`index`](../index/README.md).
 - **Dump.** Output is byte-stable: the dump-event graph keeps its order and
-  never iterates maps into output. Each local exclusion provider is declared
-  once; inherited CHECKs and providers are not dumped.
+  never iterates maps into output. Originally local adopted providers are declared
+  before adoption; fresh providers use their actual creator. CHECK inheritance,
+  constraint names, scratch names and final rename barriers retain one scheduler.
+  Detached fresh-local exclusions use the existing scratch phases:
+  temporary-parent cloning and DETACH preserve false provenance. Equivalent
+  seeds share an ownership lifetime; actual source-index-anchored events allow
+  captured membership between early stale completion and later recursive ADD.
+  A false stale-invalid origin uses an empty invalid temporary child, drops it
+  before captured valid membership, and never heals the retained root. RANGE/LIST
+  use DEFAULT; HASH uses the existing modulus-one renderer. Captured adopted true
+  competitors are predeclared and protected by a matching scratch guard seed;
+  independent true competitors follow the inherited provider's actual creator,
+  including ordinary membership as well as scratch completion. Their separate
+  declarations follow the existing early definition/name chain. Ambiguous crossings use
+  the captured explicit index edge. Stale RANGE ancestors retain a real non-NULL
+  MINVALUE/MAXVALUE promotion gap through that edge, then remove it before rows.
+  The same creator, clone-name reservation and terminal rename authorities own
+  every stage; no source OID ordering or alternate scheduler decides ownership.
+  Fresh-origin crossing membership consumes topology readiness rather than the
+  completed data subtree, so a later ONLY ancestor cannot depend on its own
+  terminal-name row consumers.
+  Row consumers of a fresh origin wait its complete logical terminal-name group,
+  not just the physical leaf's rename; this barrier never becomes a prerequisite
+  of the memberships or seeds that create that group.
+  ONLY declarations use their own gap-before/covered-after frontier, not the
+  recursive all-memberships-before rule. A recursive ancestor's terminal name
+  follows its adopted virtual origin's completed naming subtree without delaying
+  that origin's required definition or early physical names.
+  Final TABLE ATTACH remains RANGE-only; LIST/HASH targets retain their admitted
+  constructor/replay paths through RANGE scratch parents. Independent provider
+  terminal names precede promotion-gap cleanup explicitly, preserving exact bytes
+  when replacement remints backing identities.
 
 ## Testing
 

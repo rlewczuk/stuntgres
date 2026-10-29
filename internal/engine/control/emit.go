@@ -21,8 +21,8 @@ type dumpWriter struct {
 	dst               io.Writer
 	currentOwner      string
 	comparisonContext bool
-	seal hash.Hash
-	sealBuffer []byte
+	seal              hash.Hash
+	sealBuffer        []byte
 }
 
 // emit writes one block of statements and honors cancellation before and
@@ -181,11 +181,23 @@ func emitDumpTableAttachment(ctx context.Context, s *dumpScript, w *dumpWriter, 
 }
 
 func emitDumpInvalidIndex(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
-	text, err := s.invalidReplay[event.OID].SQL(ctx, s.OriginalCatalog, event.Phase)
+	item := s.invalidReplay[event.OID]
+	if event.Phase == dump.InvalidIndexCompletion && item.Fresh != nil {
+		if err := emitFreshExclusionCompletion(s, w, item, item.Fresh); err != nil {
+			return err
+		}
+	}
+	text, err := item.SQL(ctx, s.OriginalCatalog, event.Phase)
 	if err != nil {
 		return err
 	}
-	return w.emit(text)
+	if err := w.emit(text); err != nil {
+		return err
+	}
+	if event.Phase == dump.InvalidIndexPreparation {
+		return emitFreshExclusionPreparation(ctx, s, w, item, event)
+	}
+	return nil
 }
 
 func emitDumpDefaults(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {

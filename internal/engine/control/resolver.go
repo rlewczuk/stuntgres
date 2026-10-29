@@ -191,7 +191,7 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		}
 		if root := index.PartitionReplayVirtualUniqueRoot(view, source); root != nil {
 			source = root
-		} else if !index.PartitionReplayUsingIndex(view, source) {
+		} else if !index.PartitionReplayUsingIndex(view, source) && !index.PartitionReplayDeferredExclusion(view, source) {
 			source = parent
 		}
 	}

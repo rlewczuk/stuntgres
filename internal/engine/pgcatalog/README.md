@@ -64,7 +64,11 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Only `indexprs` and `indpred` are nullable: their immutable definition nodes
   retain ordered expression-list or scalar carriers and native logical structure,
   not physical PostgreSQL node serialization. Attribute ordinals, provenance and
-  effective nullability follow this complete schema.
+  effective nullability follow this complete schema. `indisexclusion` projects
+  the actual index definition's exclusion capability as a non-null BOOL at
+  PostgreSQL attribute 8; `indisclustered` retains attribute 10.
+  Exclusion `pg_constraint.connoinherit` projects explicit declaration provenance,
+  not an inference from the current parent edge.
 - `pg_attribute` composes effective stable-attribute storage/compression with
   immutable type facts, including scalar dropped history. Index opclass storage
   types substitute representation facts without erasing simple-key policies.

@@ -97,6 +97,17 @@ func prepareRestorePartitionUnique(r *restoreRun, op *session.Operation, stmt pa
 	return nil
 }
 
+func prepareRestorePartitionTeardown(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
+	if alteration, ok := stmt.(*parser.AlterTable); ok {
+		return partitioncmds.PreparePartitionReplayExtension(r.stage, op, alteration, r.partitionTeardowns)
+	}
+	return nil
+}
+
+func afterRestorePartitionTeardown(r *restoreRun, op *session.Operation, stmt parser.Statement, _ control.Outcome) error {
+	return partitioncmds.CapturePartitionReplayAfter(r.stage, op, stmt, r.partitionTeardowns)
+}
+
 // afterRestoreTypeOwner pairs a domain or genuine range created under an owner
 // directive with the exact ALTER OWNER that immediately follows it.
 func afterRestoreTypeOwner(r *restoreRun, op *session.Operation, stmt parser.Statement, outcome control.Outcome) error {

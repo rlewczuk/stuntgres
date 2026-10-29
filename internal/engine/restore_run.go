@@ -177,6 +177,7 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 	core.OperationReplay(op).StagingEffects = true
 	end := func() {
 		clearRestoreMembershipHistory(op)
+		clear(h.run.partitionTeardowns)
 		core.OperationReplay(op).StagingEffects = false
 		core.OperationReplay(op).SQLBodies = false
 		core.OperationReplay(op).PLChecked = nil
@@ -245,5 +246,13 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (cont
 	}
 	core.OperationReplay(op).CommentAuthority = false
 	op.DetachNotices()
+	if err != nil {
+		for address, record := range r.partitionTeardowns {
+			if record.Extension != nil && record.Extension.Statement == stmt {
+				record.Extension = nil
+				r.partitionTeardowns[address] = record
+			}
+		}
+	}
 	return control.Outcome{Created: result.Created}, err
 }

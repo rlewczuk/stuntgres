@@ -432,6 +432,11 @@ recaptures exact identities after waits before publishing their candidates.
 - Restore replays separate ADD CHECK and DEFAULT statements through normal
   binding, ownership, propagation, row validation and cancellation, never a
   replay marker, and never promotes NOT VALID constraints.
+- Separate exclusion replay admits qualified single private constraint
+  declarations, including recursive captured declarations and temporary-parent
+  seed declarations restricted to their reserved scratch table/name shape.
+  Scalar keys/predicates retain the ordinary replay validator; execution still
+  uses normal constraint binding, checks and atomic catalog publication.
 - The package holds no engine state and no mutex. Functions may call the
   reader's waiting controllers only with no engine/session mutex held; the root
   owns admissions, mutex windows and publication.

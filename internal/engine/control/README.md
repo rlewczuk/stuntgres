@@ -28,6 +28,24 @@ place, builds the script and writes it; the root never reads the capture again.
 Table declarations retain logged/unlogged identity, including typed and partition
 children. Identity sequence completion states its own persistence explicitly in
 both directions, preserving independent table/sequence choices on replay.
+Partition constraint replay keeps one declaration/membership/name/data graph.
+The existing bootstrap-owned scratch phases also create detached fresh exclusion
+providers through ordinary temporary-parent DDL. Scratch columns share the normal
+column-type/collation renderer; captured table defaults, identities, ownership and
+layout stay with their ordinary declaration/completion authorities. Clone-name
+reservation covers the whole actual creation sequence, including transient
+children, before renames free stems. Stale-invalid false origins drop their
+captured empty invalid-child witness before reconciling generated root names;
+the private importer validates real completed lifecycle captures, not a blanket
+generated-name DROP exemption. Scratch identities are never imported as captured
+objects.
+Scratch phase dispatch reads its explicit captured target from the existing
+recipe record: the event anchor may be a real source backing index rather than
+the table OID. Equivalent seeds retain one scratch-parent ownership lifetime
+across intervening membership events; only the last completion detaches it.
+Guard seeds protect predeclared adopted true origins while creating separate
+false providers. Generated-name reservation remains with `ConstraintReplay`,
+not a second serializer or a source-allocation ordering table.
 Independent nonheap table/materialized declarations use a scoped
 `default_table_access_method` setting around CREATE and its immediately paired
 OWNER transfer, then reset to heap. Restore admits only this ordinary validated

@@ -92,8 +92,13 @@ func RestoreAlterConstraints(raw *parser.AlterTable) error {
 				return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
 			}
 		case parser.AddExclusion:
-			if action.Exclusion == nil || len(raw.Actions) != 1 || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || !strings.HasPrefix(action.Exclusion.Name.Text, "__stuntgres_partition_key_") {
-				return sqlError("0A000", "restore accepts only captured private ONLY exclusion definitions")
+			if action.Exclusion == nil || len(raw.Actions) != 1 || raw.IfExists || len(raw.Name.Parts) != 2 {
+				return sqlError("0A000", "restore accepts only captured private exclusion definitions")
+			}
+			captured := strings.HasPrefix(action.Exclusion.Name.Text, "__stuntgres_partition_key_")
+			scratch := strings.HasPrefix(raw.Name.Parts[1].Text, "__stuntgres_partition_replay_") && strings.HasPrefix(action.Exclusion.Name.Text, "__stuntgres_partition_replay_")
+			if !captured && !scratch {
+				return sqlError("0A000", "restore accepts only captured private exclusion definitions")
 			}
 			for _, key := range action.Exclusion.Index.Keys {
 				if err := dump.RestoreScalar(key.Expression, true); err != nil {

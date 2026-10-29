@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -24,9 +25,48 @@ func CheckReplayActions(raw *parser.AlterTable) bool {
 	return true
 }
 
-// ReplayTeardown names the private parent and child a Restore DETACH replay
-// tears down.
-type ReplayTeardown struct{ Child, Parent ids.ObjectRef }
+// ReplayTeardown is one importer's owned capture of an actual generated
+// lifecycle transition. It grants no authority from a name prefix alone.
+type ReplayTeardownKind uint8
+
+const (
+	ReplayDetachedGap ReplayTeardownKind = iota + 1
+	ReplaySeedParent
+	ReplayInvalidChild
+	ReplayPromotionGap
+)
+
+type ReplayTeardownBacking struct {
+	Constraint, Parent       ids.OID
+	Revision, ParentRevision ids.DefinitionRevision
+	Index, ParentIndex       ids.ObjectRef
+	NoInherit                bool
+}
+
+type ReplayTeardownIndex struct {
+	Ref      ids.ObjectRef
+	Revision ids.DefinitionRevision
+}
+
+type ReplayTeardown struct {
+	Target, Peer, Gap                         ids.ObjectRef
+	Owner, PeerOwner, GapOwner                authorization.PrincipalRef
+	Kind                                      ReplayTeardownKind
+	Backings                                  []ReplayTeardownBacking
+	Indexes                                   []ReplayTeardownIndex
+	TargetRevision, PeerRevision, GapRevision ids.DefinitionRevision
+	Complete                                  bool
+	Extension                                 *ReplayTeardownExtension
+	PeerDefinition                            *catalog.Relation
+}
+
+// ReplayTeardownExtension is a single ordinary statement's transient lease
+// against the immutable pre-execution catalog, owned by the same importer map.
+type ReplayTeardownExtension struct {
+	Statement *parser.AlterTable
+	Before    catalog.Read
+	Relation  ids.ObjectRef
+}
 
 // UniqueReplay is the leased Restore target of a partitioned UNIQUE replay.
 type UniqueReplay struct {

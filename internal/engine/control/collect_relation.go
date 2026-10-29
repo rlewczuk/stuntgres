@@ -91,6 +91,9 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	// Key declarations and their table constraints must use the same
 	// captured private-name projection, including deferred local keys.
 	r = c.CatalogView.MustRelation(r.Address())
+	if index.PartitionReplayFreshOrigin(c.CatalogView, r) != nil {
+		return nil
+	}
 	virtual := index.PartitionReplayVirtualUniqueRoot(c.CatalogView, r)
 	if virtual != nil && virtual.Address() != r.Address() {
 		return nil
@@ -100,7 +103,7 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	}
 	var sql string
 	var err error
-	if virtual != nil {
+	if virtual != nil || index.PartitionReplayDeferredExclusion(c.CatalogView, r) {
 		sql, err = partition.VirtualUniqueDefinitionSQL(c.CatalogView, r)
 	} else {
 		sql, err = index.DefinitionSQL(ctx, c.CatalogView, r, index.Presentation{Dump: true})

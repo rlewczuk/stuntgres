@@ -52,9 +52,13 @@ func TestReferencePartitionExclusionIncompleteControls(t *testing.T) {
 				if attached {
 					run(fixture.Exec("CREATE TABLE pie_cov(id INT,tenant INET,site INET,during INT4RANGE,CONSTRAINT pie_cov_local EXCLUDE USING gist("+keys+")) PARTITION BY RANGE("+key+")", 0))
 					run(fixture.Exec("CREATE TABLE pie_leaf PARTITION OF pie_cov DEFAULT", 0))
+					middleIDs := partitionAdoptionIdentity(t, p, b.DB, "pie_cov")
+					leafIDs := partitionAdoptionIdentity(t, p, b.DB, "pie_leaf")
 					run(fixture.Exec("INSERT INTO pie_cov VALUES(3,'10.0.0.129','10.0.0.129','[1,5)')", 1))
 					run(fixture.Exec("ALTER TABLE "+target+" ATTACH PARTITION pie_cov DEFAULT", 0))
-					run(fixture.Exec("ALTER INDEX pie_leaf_tenant_during_excl1 RENAME TO pie_saved", 0))
+					run(partitionAdoptionSame("pie_cov", middleIDs))
+					run(partitionAdoptionSame("pie_leaf", leafIDs))
+					run(fixture.Exec("ALTER INDEX pie_leaf_tenant_during_excl RENAME TO pie_saved", 0))
 				} else {
 					run(fixture.Exec("CREATE TABLE pie_cov PARTITION OF "+target+" "+coveredBound+" PARTITION BY RANGE("+key+")", 0))
 					run(fixture.Exec("CREATE TABLE pie_leaf PARTITION OF pie_cov DEFAULT", 0))
@@ -98,9 +102,7 @@ func TestReferencePartitionExclusionIncompleteControls(t *testing.T) {
 				if covered {
 					name := "pie_leaf_" + key + "_during_excl"
 					if attached {
-						// Snapshot/replay retained both local and inherited trees.
-						// Isolate the inherited provider for this future-write proof.
-						apply(fixture.Exec("ALTER TABLE pie_cov DROP CONSTRAINT pie_cov_local", 0))
+						// The original leaf is now the sole adopted provider.
 						name = "pie_saved"
 					}
 					apply(fixture.ErrorDiagnostic("INSERT INTO pie_root VALUES(11,'10.0.0.129','10.0.0.129','[3,7)')", fixture.ExclusionReferenceConflict("pie_leaf", name, key+", during", "10.0.0.129, [3,7)", "10.0.0.129, [1,5)")))
@@ -133,6 +135,14 @@ func TestReferencePartitionExclusionIncompleteControls(t *testing.T) {
 			var redump bytes.Buffer
 			if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil || !bytes.Equal(dump.Bytes(), redump.Bytes()) {
 				t.Fatal("incomplete topology canonical redump changed", err, "before:", dump.String(), "after:", redump.String())
+			}
+			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
+				t.Fatal("repeated replacement", err)
+			}
+			snapshot(b.DB, b.Recorder, false)
+			redump.Reset()
+			if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil || !bytes.Equal(dump.Bytes(), redump.Bytes()) {
+				t.Fatal("repeated incomplete canonical bytes", err, dump.String(), redump.String())
 			}
 			if p.Postgres != nil {
 				oracle, err := p.Postgres.Conn(p.Ctx)
@@ -178,9 +188,12 @@ func partitionIncompleteGraph(target, key string, gap, covered, complete, attach
 	rows := [][]any{}
 	if covered {
 		if attached {
-			rows = append(rows, row("pie_cov", "pie_cov_local", nil, true, "I", true, keys))
+			adopted := row("pie_cov", "pie_cov_local", "pie_ex", false, "I", true, keys)
+			adopted[5] = true
+			rows = append(rows, adopted)
+		} else {
+			rows = append(rows, row("pie_cov", "pie_cov_"+key+"_during_excl", "pie_ex", false, "I", true, keys))
 		}
-		rows = append(rows, row("pie_cov", "pie_cov_"+key+"_during_excl", "pie_ex", false, "I", true, keys))
 		if complete {
 			rows = append(rows, row("pie_cov", "pie_cov_tenant_id_excl", "pie_complete", false, "I", true, "{2,1}"))
 		}
@@ -195,8 +208,7 @@ func partitionIncompleteGraph(target, key string, gap, covered, complete, attach
 	}
 	if covered {
 		if attached {
-			rows = append(rows, row("pie_leaf", "pie_leaf_"+key+"_during_excl", "pie_cov_local", false, "i", true, keys))
-			rows = append(rows, row("pie_leaf", "pie_saved", "pie_cov_"+key+"_during_excl", false, "i", true, keys))
+			rows = append(rows, row("pie_leaf", "pie_saved", "pie_cov_local", false, "i", true, keys))
 		} else {
 			rows = append(rows, row("pie_leaf", "pie_leaf_"+key+"_during_excl", "pie_cov_"+key+"_during_excl", false, "i", true, keys))
 		}

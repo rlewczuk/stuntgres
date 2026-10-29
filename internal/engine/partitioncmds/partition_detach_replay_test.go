@@ -48,7 +48,10 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 			if err := partition.DumpEvents(context.Background(), control.Resolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
-			plans := partition.InvalidDumpEvents(f.view, graph, indices)
+			plans, err := partition.InvalidDumpEvents(control.Resolver{}, f.view, graph, indices, tables)
+			if err != nil {
+				t.Fatal(err)
+			}
 			order, err := dump.Order(context.Background(), graph, nil)
 			if err != nil {
 				t.Fatal("replay introduced cycle", err)
@@ -144,7 +147,9 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	if err := partition.DumpEvents(context.Background(), control.Resolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 		t.Fatal(err)
 	}
-	partition.InvalidDumpEvents(f.view, graph, indices)
+	if _, err := partition.InvalidDumpEvents(control.Resolver{}, f.view, graph, indices, tables); err != nil {
+		t.Fatal(err)
+	}
 	order, err := dump.Order(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal("deferred local origin created cycle", err)

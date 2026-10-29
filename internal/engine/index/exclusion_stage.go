@@ -152,7 +152,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	if err != nil {
 		return err
 	}
-	c := catalog.ExclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
+	c := catalog.ExclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}, IsLocal: true, NoInherit: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
 	definition.Constraint = ExclusionBacking(&c)
 	definition.Exclusion = operators
 	if err := PartitionUniqueCoverage(h.StageRead(), parent, definition); err != nil {
@@ -187,7 +187,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 			definition.Valid = len(parent.Partition.Children) == 0
 			return nil
 		}
-		return DefaultClassDiagnostic(h, auth, StagePartitionIndexChildren(h, parent, backing, false))
+		return DefaultClassDiagnostic(h, auth, StagePartitionIndexChildren(h, parent, backing, true))
 	}
 	return nil
 }

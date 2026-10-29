@@ -19,27 +19,74 @@ func PartitionReplayVirtualUniqueRoot(view catalog.Read, index *catalog.Relation
 	if index.SQLIndex == nil || index.SQLIndex.Constraint == nil {
 		return nil
 	}
+	if PartitionReplayFreshOrigin(view, index) != nil {
+		return nil
+	}
 	for index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
+		if index.SQLIndex.IsExclusion() {
+			table := view.MustRelation(index.SQLIndex.Parent)
+			if c := ExclusionDefinition(table, index); c != nil && c.NoInherit {
+				break
+			}
+		}
 		index = view.MustRelation(index.SQLIndex.PartitionParent)
 		if index.SQLIndex.Constraint == nil {
 			return nil
 		}
 	}
 	table := view.MustRelation(index.SQLIndex.Parent)
-	if table.Partition != nil && (PartitionReplayOnlyExclusion(index) || PartitionPreservedReplayLocal(view, index)) {
+	if table.Partition != nil && index.SQLIndex.IsExclusion() {
+		for _, address := range table.Partition.Children {
+			child := PartitionDumpIndexBacking(view, index.Address(), address)
+			if child != nil {
+				owner := view.MustRelation(address)
+				if c := ExclusionDefinition(owner, child); c != nil && c.NoInherit {
+					return index
+				}
+			}
+		}
+	}
+	if table.Partition != nil && (PartitionReplayOnlyExclusion(view, index) || PartitionPreservedReplayLocal(view, index) || PartitionReplayDeferredExclusion(view, index)) {
 		return index
 	}
 	return nil
 }
 
 func PartitionReplaySeparateConstraint(view catalog.Read, index *catalog.Relation) bool {
-	return PartitionReplayUsingIndex(view, index) || PartitionReplayVirtualUniqueRoot(view, index) != nil
+	return PartitionReplayUsingIndex(view, index) || PartitionReplayVirtualUniqueRoot(view, index) != nil || PartitionReplayDeferredExclusion(view, index)
 }
 
-// ONLY declarations create just the local origin. Captured covered providers
-// are created later by their table membership, never by index attachment.
-func PartitionReplayOnlyExclusion(index *catalog.Relation) bool {
-	return index.SQLIndex != nil && index.SQLIndex.IsExclusion() && !index.SQLIndex.Valid && index.SQLIndex.PartitionParent == (ids.ObjectAddress{})
+// ONLY retains a declaration origin's direct gaps or complete-invalid state.
+// A matching invalid subtree instead needs recursive ADD after its declaration:
+// table ATTACH would skip that candidate and silently create a different tree.
+func PartitionReplayOnlyExclusion(view catalog.Read, index *catalog.Relation) bool {
+	if index.SQLIndex == nil || !index.SQLIndex.IsExclusion() {
+		return false
+	}
+	table := view.MustRelation(index.SQLIndex.Parent)
+	if table.Partition != nil {
+		for _, address := range table.Partition.Children {
+			if child := PartitionDumpIndexBacking(view, index.Address(), address); child != nil && PartitionReplayCompetingExclusion(view, child) {
+				return true
+			}
+		}
+	}
+	if index.SQLIndex.Valid {
+		return false
+	}
+	c := ExclusionDefinition(table, index)
+	if table.Partition == nil || c == nil || c.Parent != 0 && !c.NoInherit {
+		return false
+	}
+	invalidChild := false
+	for _, address := range table.Partition.Children {
+		child := PartitionDumpIndexBacking(view, index.Address(), address)
+		if child == nil {
+			return true
+		}
+		invalidChild = invalidChild || !child.SQLIndex.Valid
+	}
+	return !invalidChild
 }
 
 // Replay identity-sensitive rows through their highest HASH ancestor; RANGE-only
@@ -112,6 +159,92 @@ func PartitionPreservedReplayLocal(view catalog.Read, index *catalog.Relation) b
 			if err == nil && match {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+// PartitionReplayFreshOrigin finds the detached, freshly inherited declaration
+// that must be created by a temporary parent rather than a local declaration.
+// Originally local adopted providers stop this search: they own their own tree.
+func PartitionReplayFreshOrigin(view catalog.Read, idx *catalog.Relation) *catalog.Relation {
+	for idx.SQLIndex != nil && idx.SQLIndex.IsExclusion() {
+		table := view.MustRelation(idx.SQLIndex.Parent)
+		c := ExclusionDefinition(table, idx)
+		if c == nil || c.NoInherit {
+			return nil
+		}
+		if c.Parent == 0 || PartitionReplayExplicitExclusion(view, idx) {
+			return idx
+		}
+		if idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
+			return nil
+		}
+		idx = view.MustRelation(idx.SQLIndex.PartitionParent)
+	}
+	return nil
+}
+
+// Equivalent independent locals follow the inherited provider's real creator,
+// whether ordinary membership or scratch cloning. Otherwise constructor-time
+// adoption would erase the captured distinction between declaration origins.
+func PartitionReplayDeferredExclusion(view catalog.Read, idx *catalog.Relation) bool {
+	if idx.SQLIndex == nil || !idx.SQLIndex.IsExclusion() {
+		return false
+	}
+	table := view.MustRelation(idx.SQLIndex.Parent)
+	c := ExclusionDefinition(table, idx)
+	if c == nil || !c.NoInherit || PartitionReplayCompetingExclusion(view, idx) {
+		return false
+	}
+	for _, other := range table.Constraints.Exclusion {
+		inherited := c.Parent == 0 && !other.NoInherit && other.Parent != 0
+		origin := PartitionReplayFreshOrigin(view, view.MustRelation(other.Index))
+		if !inherited && (origin == nil || origin.Address() != other.Index) {
+			continue
+		}
+		match, err := PartitionIndexEquivalent(context.Background(), view, table, idx.SQLIndex, view.MustRelation(other.Index).SQLIndex)
+		if err == nil && match {
+			return true
+		}
+	}
+	return false
+}
+
+// An invalid child cannot be adopted by TABLE ATTACH. When the parent retains
+// its own gaps with ONLY, an explicit index attachment supplies the crossing
+// edge after table membership and both captured provider definitions exist.
+func PartitionReplayExplicitExclusion(view catalog.Read, idx *catalog.Relation) bool {
+	if idx.SQLIndex == nil || !idx.SQLIndex.IsExclusion() || idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
+		return false
+	}
+	if PartitionReplayCompetingExclusion(view, idx) {
+		return true
+	}
+	parent := view.MustRelation(idx.SQLIndex.PartitionParent)
+	return !idx.SQLIndex.Valid && PartitionReplayOnlyExclusion(view, parent)
+}
+
+// A captured adopted origin can coexist with an equivalent independent false
+// provider. Recreating that provider first must not redirect the chosen edge.
+// This policy uses actual owning slices and the shared comparator, never OIDs.
+func PartitionReplayCompetingExclusion(view catalog.Read, idx *catalog.Relation) bool {
+	if idx.SQLIndex == nil || !idx.SQLIndex.IsExclusion() || idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
+		return false
+	}
+	table := view.MustRelation(idx.SQLIndex.Parent)
+	c := ExclusionDefinition(table, idx)
+	if c == nil || !c.NoInherit || c.Parent == 0 {
+		return false
+	}
+	for i := range table.Constraints.Exclusion {
+		other := &table.Constraints.Exclusion[i]
+		if other.Parent != 0 || other.NoInherit {
+			continue
+		}
+		match, err := PartitionIndexEquivalent(context.Background(), view, table, idx.SQLIndex, view.MustRelation(other.Index).SQLIndex)
+		if err == nil && match {
+			return true
 		}
 	}
 	return false

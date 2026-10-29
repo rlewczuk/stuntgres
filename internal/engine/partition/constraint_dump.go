@@ -35,7 +35,7 @@ func ConstraintDumpCatalog(r dump.Resolver, view catalog.Read) (catalog.Read, *C
 	}
 	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)
-		if ok && catalog.HierarchyRelation(table) && (len(table.Constraints.Unique) != 0 || len(table.Constraints.Exclusion) != 0) {
+		if ok && (catalog.HierarchyRelation(table) || freshOriginTable(view, table)) && (len(table.Constraints.Unique) != 0 || len(table.Constraints.Exclusion) != 0) {
 			tables = append(tables, table)
 		}
 	}
@@ -115,7 +115,7 @@ func (r *ConstraintReplay) TableRenames(view catalog.Read, table *catalog.Relati
 		used[c.Name] = true
 	}
 	for _, idx := range index.PartitionIndexDeclarationOrder(view, table) {
-		if idx.SQLIndex.Constraint != nil && idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && !index.PartitionReplaySeparateConstraint(view, idx) {
+		if idx.SQLIndex.Constraint != nil && (idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) || idx.SQLIndex.IsExclusion() && index.ExclusionDefinition(table, idx).NoInherit) && index.PartitionReplayFreshOrigin(view, idx) == nil && !index.PartitionReplaySeparateConstraint(view, idx) {
 			used[idx.Name()] = true
 		}
 	}
@@ -128,64 +128,85 @@ func (r *ConstraintReplay) TableRenames(view catalog.Read, table *catalog.Relati
 // A populated ATTACH can create an entire inherited subtree in one SQL event.
 // Reserve that complete creation sequence before freeing any generated name.
 func (r *ConstraintReplay) MembershipRenames(view catalog.Read, table *catalog.Relation, event dump.Event) string {
+	parent := r.Original.MustRelation(table.Membership.Parent)
+	var roots []*catalog.Relation
+	for _, idx := range index.PartitionIndexDeclarationOrder(r.Original, parent) {
+		if child := index.PartitionDumpIndexBacking(r.Original, idx.Address(), table.Address()); child != nil {
+			roots = append(roots, child)
+		}
+	}
+	return r.CreationRenames(view, roots, event)
+}
+
+// CreationRenames reserves the actual automatic clone sequence before freeing
+// any generated stem. Membership and temporary-parent recipes share this owner;
+// an adopted origin and its subtree are never mistaken for newly created keys.
+func (r *ConstraintReplay) CreationRenames(view catalog.Read, roots []*catalog.Relation, event dump.Event) string {
 	type rename struct {
 		index     *catalog.Relation
 		generated string
 	}
 	var renames []rename
-	var reserve func(*catalog.Relation, *catalog.Relation)
-	reserve = func(child, parentIndex *catalog.Relation) {
-		idx := index.PartitionDumpIndexBacking(r.Original, parentIndex.Address(), child.Address())
-		if idx == nil || idx.SQLIndex.Constraint == nil {
+	var reserve func(*catalog.Relation)
+	reserve = func(idx *catalog.Relation) {
+		if idx == nil || idx.SQLIndex.Constraint == nil || constraintCreator(r.resolver, r.Original, idx) != event {
 			return
 		}
-		if root := index.PartitionReplayVirtualUniqueRoot(r.Original, idx); root != nil && !index.PartitionReplayOnlyExclusion(root) {
-			return
-		}
-		if constraintCreator(r.resolver, r.Original, idx) != event {
-			return
-		}
-		used := r.Occupied[idx.Namespace()]
-		if used == nil {
-			used = make(map[string]bool)
-			r.Occupied[idx.Namespace()] = used
-		}
-		suffix, addition := "key", ""
-		if idx.SQLIndex.IsExclusion() {
-			suffix = "excl"
-		}
-		if idx.SQLIndex.Constraint.Primary {
-			suffix = "pkey"
-		} else {
-			labels := make([]string, len(idx.SQLIndex.Keys))
-			for i := range labels {
-				labels[i] = idx.Columns[i].Name
-			}
-			addition = strings.Join(labels, "_")
-		}
-		name := catalog.GeneratedConstraintName(child.Name(), addition, suffix, used)
-		used[name] = true
+		child := r.Original.MustRelation(idx.SQLIndex.Parent)
+		name := r.ReserveCloneName(idx, child.Name())
 		renames = append(renames, rename{idx, name})
-		if event.Phase == dump.TableAttachment && child.Partition != nil {
+		if child.Partition != nil {
 			for _, address := range child.Partition.Children {
-				reserve(r.Original.MustRelation(address), idx)
+				reserve(index.PartitionDumpIndexBacking(r.Original, idx.Address(), address))
 			}
 		}
 	}
-	parent := r.Original.MustRelation(table.Membership.Parent)
-	for _, index := range index.PartitionIndexDeclarationOrder(r.Original, parent) {
-		reserve(table, index)
+	for _, root := range roots {
+		reserve(root)
 	}
 	var sql strings.Builder
 	for _, rename := range renames {
-		target := r.Temporary[rename.index.Address()]
-		schema := catalog.QuoteIdentifier(view.Get(rename.index.Namespace()).Name())
-		sql.WriteString("ALTER INDEX " + schema + "." + catalog.QuoteIdentifier(rename.generated) + " RENAME TO " + catalog.QuoteIdentifier(target) + ";\n")
-		used := r.Occupied[rename.index.Namespace()]
-		delete(used, rename.generated)
-		used[target] = true
+		sql.WriteString(r.RenameCreated(view, rename.index, rename.generated))
 	}
 	return sql.String()
+}
+
+// ReserveCloneName is the same native automatic-name authority for captured
+// outputs and transient children. Callers reserve the complete creation sequence
+// before a rename or teardown makes any stem available again.
+func (r *ConstraintReplay) ReserveCloneName(idx *catalog.Relation, tableName string) string {
+	used := r.Occupied[idx.Namespace()]
+	if used == nil {
+		used = make(map[string]bool)
+		r.Occupied[idx.Namespace()] = used
+	}
+	suffix, addition := "idx", ""
+	if idx.SQLIndex.Constraint != nil {
+		suffix = "key"
+	}
+	if idx.SQLIndex.IsExclusion() {
+		suffix = "excl"
+	}
+	if idx.SQLIndex.Constraint != nil && idx.SQLIndex.Constraint.Primary {
+		suffix = "pkey"
+	} else {
+		labels := make([]string, len(idx.SQLIndex.Keys))
+		for i := range labels {
+			labels[i] = idx.Columns[i].Name
+		}
+		addition = strings.Join(labels, "_")
+	}
+	name := catalog.GeneratedConstraintName(tableName, addition, suffix, used)
+	used[name] = true
+	return name
+}
+
+func (r *ConstraintReplay) RenameCreated(view catalog.Read, idx *catalog.Relation, generated string) string {
+	target := r.Temporary[idx.Address()]
+	schema := catalog.QuoteIdentifier(view.Get(idx.Namespace()).Name())
+	delete(r.Occupied[idx.Namespace()], generated)
+	r.Occupied[idx.Namespace()][target] = true
+	return "ALTER INDEX " + schema + "." + catalog.QuoteIdentifier(generated) + " RENAME TO " + catalog.QuoteIdentifier(target) + ";\n"
 }
 
 func (r *ConstraintReplay) FinalRenameOrder() []*catalog.Relation {

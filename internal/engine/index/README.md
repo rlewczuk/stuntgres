@@ -292,6 +292,14 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
   target and descendants with actual equality; virtual (partitioned) indexes own
   metadata only and leaf providers enforce conflicts. CREATE and EXCLUDE
   ADD/DROP reuse staged recursive index production.
+  Compatible unowned exclusion providers are adopted without changing identities,
+  owned operators, timing or physical roots. Table ATTACH requires valid matching
+  constraint-backed providers; recursive ADD can retain an invalid virtual subtree
+  without healing its gaps. Explicit matching index ATTACH is idempotent and
+  preserves diagnostic precedence for genuine mismatch and earlier ancestry errors.
+  Exclusion `NoInherit` is declaration provenance, independent of current locality:
+  local declarations start true, fresh inherited providers false, and attachment,
+  detachment and immutable copies preserve it.
 - **BRIN ranges.** A storage version-vector slot is one logical page; range
   ordinal divides the actual publication slot by the root's effective width.
   Summarized keys retain conservative independent extrema and NULL flags.

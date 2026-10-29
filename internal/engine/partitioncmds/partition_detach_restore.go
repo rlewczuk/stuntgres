@@ -12,14 +12,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// CapturePartitionReplayTeardown records the empty generated DEFAULT
-// partition a Restore DETACH PARTITION leaves for a later DROP TABLE; any
-// other detachment yields the zero record.
-//
-// Only the private importer records exact empty DEFAULT identities before an
-// emitted detach. A name prefix alone cannot grant arbitrary DROP admission.
+// CapturePartitionReplayTeardown captures exact generated identities before an
+// ordinary detach. The successful-execution hook completes its revision fence.
+// A prefix alone never authorizes DROP, and target data is never waived.
 func CapturePartitionReplayTeardown(e *core.Engine, op *session.Operation, s *parser.AlterTableDetachPartition) (partition.ReplayTeardown, error) {
-	if !strings.HasPrefix(s.Partition.Parts[len(s.Partition.Parts)-1].Text, partition.ReplayStem) {
+	if len(s.Name.Parts) != 2 || len(s.Partition.Parts) != 2 || !strings.HasPrefix(s.Name.Parts[1].Text, partition.ReplayStem) && !strings.HasPrefix(s.Partition.Parts[1].Text, partition.ReplayStem) {
 		return partition.ReplayTeardown{}, nil
 	}
 	e.Mu.Lock()
@@ -41,18 +38,27 @@ func CapturePartitionReplayTeardown(e *core.Engine, op *session.Operation, s *pa
 	}
 	p := auth.Catalog.MustRelation(parent.Address)
 	c := auth.Catalog.MustRelation(child.Address)
-	if p.Partition == nil || len(p.Partition.Children) != 1 || c.Partition != nil || c.Membership == nil || !c.Membership.DefaultBound || c.Membership.Parent != p.Address() {
+	if strings.HasPrefix(p.Name(), partition.ReplayStem) {
+		if record := captureSeedParentLocked(e, auth.Catalog, parent, child, p, c); record.Kind != 0 {
+			return record, nil
+		}
+	}
+	kind := partition.ReplayDetachedGap
+	if promotionReplayGap(auth.Catalog, p, c) {
+		kind = partition.ReplayPromotionGap
+	}
+	if !strings.HasPrefix(c.Name(), partition.ReplayStem) || p.Partition == nil || kind == partition.ReplayDetachedGap && (len(p.Partition.Children) != 1 || !wholeReplayMember(p, c)) || c.Partition != nil {
 		return partition.ReplayTeardown{}, nil
 	}
 	store := e.Storage.Relations[child.Address]
 	if store == nil || len(store.Versions) != 0 {
 		return partition.ReplayTeardown{}, nil
 	}
-	return partition.ReplayTeardown{Child: child, Parent: parent}, nil
+	return partition.ReplayTeardown{Target: child, Peer: parent, Owner: c.Owner, PeerOwner: p.Owner, Kind: kind}, nil
 }
 
-// ValidatePartitionReplayTeardown admits a Restore DROP TABLE only of a
-// teardown partition its DETACH recorded, and consumes the record.
+// ValidatePartitionReplayTeardown consumes only a completed current capture.
+// Successful admission still executes ordinary dependency-aware DROP TABLE.
 func ValidatePartitionReplayTeardown(e *core.Engine, op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partition.ReplayTeardown) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -65,24 +71,37 @@ func ValidatePartitionReplayTeardown(e *core.Engine, op *session.Operation, name
 		return err
 	}
 	record, ok := records[ref.Address]
-	if !ok || record.Child != ref || e.ImportTargets == nil {
-		return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
+	if !ok || record.Target != ref || e.ImportTargets == nil || !record.Complete {
+		return replayTeardownError()
 	}
-	child, ok := auth.Catalog.Relation(ref.Address)
-	parent, live := auth.Catalog.Relation(record.Parent.Address)
-	if !ok || !live || record.Parent.Epoch != auth.Catalog.Epoch() || child.Membership != nil || child.Partition != nil || parent.Partition == nil || len(parent.Partition.Children) != 0 {
-		return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
+	target, ok := auth.Catalog.Relation(ref.Address)
+	peer, live := auth.Catalog.Relation(record.Peer.Address)
+	if !ok || !live || e.Catalog.Domain.Ref(auth.Catalog.Epoch(), peer.Address()) != record.Peer || target.Owner != record.Owner || peer.Owner != record.PeerOwner || target.Revision() != record.TargetRevision || peer.Revision() != record.PeerRevision {
+		return replayTeardownError()
 	}
-	store := e.Storage.Relations[ref.Address]
-	if store == nil || len(store.Versions) != 0 {
-		return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
-	}
-	for _, descriptor := range auth.Catalog.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent.Address() && !index.SQLIndex.Valid && index.SQLIndex.Ready && index.SQLIndex.Live {
-			delete(records, ref.Address)
-			return nil
+	valid := false
+	switch record.Kind {
+	case partition.ReplayDetachedGap:
+		if target.Membership != nil || target.Partition != nil || peer.Partition == nil || len(peer.Partition.Children) != 0 || !emptyReplayLeaf(e, target) {
+			break
 		}
+		for _, descriptor := range auth.Catalog.Descriptors() {
+			idx, ok := descriptor.(*catalog.Relation)
+			if ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == peer.Address() && !idx.SQLIndex.Valid && idx.SQLIndex.Ready && idx.SQLIndex.Live {
+				valid = true
+				break
+			}
+		}
+	case partition.ReplayPromotionGap:
+		valid = target.Membership == nil && target.Partition == nil && peer.Partition != nil && len(peer.Partition.Children) != 0 && emptyReplayLeaf(e, target) && replayIndexesMatch(e, auth.Catalog, &record) && promotionReplayParent(auth.Catalog, peer, ids.ObjectAddress{})
+	case partition.ReplaySeedParent:
+		valid = validateSeedParentLocked(e, auth.Catalog, target, peer, &record)
+	case partition.ReplayInvalidChild:
+		valid = validateInvalidChildLocked(e, auth.Catalog, target, peer, &record)
 	}
-	return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
+	if !valid {
+		return replayTeardownError()
+	}
+	delete(records, ref.Address)
+	return nil
 }

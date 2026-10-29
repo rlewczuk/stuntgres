@@ -331,19 +331,29 @@ with matching collation and the partition equality's actual canonical signature.
 Each declaration owns target-plus-descendant scope. An independent child-local
 declaration is not widened by unrelated ancestor partition keys.
 
-Each exclusion owns immediate Parent and IsLocal provenance, a distinct backing
-and its own immutable rebound operator slice. Virtual roots own no membership;
-physical leaves retain runtime conflict diagnostics and actual logical GiST roots.
-The shared structural comparator validates generated provider structure, while
-PostgreSQL18.0 automatic adoption refuses all independent exclusion candidates.
-Explicit exclusion index ATTACH preserves earlier55000 checks before42P17.
+Each exclusion owns immediate Parent and IsLocal ancestry, explicit NoInherit
+declaration provenance, a distinct backing and immutable owned operators.
+Adoption preserves the existing constraint/backing identities, names, timing,
+operators and physical entries; only immediate attachment and locality change.
+Originally local providers retain NoInherit=true after adoption; fresh inherited
+providers retain false, including after DETACH localizes them.
+The shared structural comparator and candidate order select compatible unowned
+providers. Table ATTACH requires valid candidates and matching constraint kind;
+recursive ADD may adopt an invalid virtual subtree without filling its gaps and
+propagates that invalidity. Incompatible and already-owned providers remain
+independent. Matching explicit index ATTACH succeeds and is idempotent; genuine
+definition mismatch retains42P17 after the earlier55000 membership/ownership checks.
 Selected ONLY ADD leaves an incomplete virtual index rather than cloning children.
 
-DETACH severs crossing edges only; scoped DROP follows inherited edges and retains
-independent local constraints. Dump projects names through the existing constraint
-scheduler, declares local providers once, and restores inherited names without
-explicit exclusion index ATTACH. Destination operator rebinding and constraint
-Parent remapping use the installed replacement pipeline.
+DETACH severs crossing edges only, retaining internal ancestry and provenance.
+Parent DROP removes adopted descendants rather than resurrecting former locals;
+genuinely independent providers survive outside that closure. Each provider keeps
+its own deferral timing. Naming a nondeferrable parent IMMEDIATE does not force a
+deferrable adopted child; selecting the child or ALL uses the existing event owner.
+Dump projects names through the existing constraint scheduler. Originally local
+adopted providers are declared before adoption; fresh inherited providers are
+created by their actual ancestor or membership event. Destination operator
+rebinding and constraint Parent remapping use the installed replacement pipeline.
 
 Temporary constraint names are allocated in schema/table-name order, then by the
 original backing index's schema/name within each table, across both unique and
@@ -355,19 +365,81 @@ naming projection preserves captured constraint slices, provenance, definitions
 and addresses; the existing generated-name reconciliation and final rename
 barriers still own PostgreSQL replay.
 
-Invalid local virtual exclusions are separate existing declaration events,
-rendered as captured `ALTER TABLE ONLY ... ADD CONSTRAINT`. Gap memberships precede
-the declaration; covered memberships follow it and create only the saved
-inherited providers. A captured DEFAULT gap may precede bounded children while
-empty, so only contradictory DEFAULT-last dependencies are omitted. Existing
-data-readiness edges remain authoritative.
+An originally-local invalid virtual origin keeps its own declaration even after
+adoption. Direct gaps require `ALTER TABLE ONLY ... ADD CONSTRAINT`: gap
+memberships precede it and fresh covered memberships follow it. A gap-free origin
+above an adopted invalid subtree instead uses recursive ADD after that subtree's
+definition and membership, preserving invalidity without healing its gaps. Mixed
+direct gaps and an invalid child use existing membership before ONLY, then the
+existing explicit index-attachment event. A captured DEFAULT gap may precede
+bounded children while empty; only contradictory DEFAULT-last edges are omitted.
 
 Without a captured gap, existing collision-reserved scratch preparation and
 completion events retain complete-invalid or childless-invalid state. Scratch
-is removed before captured DEFAULT membership and rows. Actual child
-detach/reattach is not a substitute: PostgreSQL18.0 exclusion nonadoption would
-duplicate independent providers. Membership and populated ATTACH own clone
+is removed before captured DEFAULT membership and rows. Reattachment may adopt
+a compatible detached provider, preserving its provenance rather than creating
+a second tree. Declaration, membership and recursive ADD own their actual clone
 creation, name reservation and rename readiness. Terminal names follow logical
 final-name order rather than original provider OIDs; existing ATTACH preload
 dependencies remain intact, without a global row/name barrier.
+
+A detached fresh-local provider, or a false-provenance subtree recreated before
+an explicit invalid crossing edge, cannot be declared locally without changing
+NoInherit. The existing scratch preparation/completion phases create a temporary
+parent using the shared captured column-type/collation renderer and an
+actual compatible simple equality partition key. Valid provider seeds precede one
+ATTACH; an invalid adopted subtree requires ATTACH first and recursive seed ADD.
+Comparator-equivalent false providers share that attachment. Independent true
+competitors follow scratch completion; a captured adopted true competitor is
+instead predeclared and owned by a matching guard seed before the fresh seed
+creates its distinct false provider. DETACH preserves both provenance bits.
+Ambiguous final crossings use the actual captured provider through the existing
+ONLY/explicit index edge, not allocator order. A stale RANGE ancestor retains
+a sentinel-free MINVALUE/MAXVALUE gap through explicit promotion, then removes
+it before rows. The same clone reservation owner reconciles whole creation
+sequences and terminal names. Scratch carries no captured object identities and
+introduces no parallel scheduler or origin registry. Private name allocation
+includes standalone false-local providers.
+
+A false-provenance invalid root with no retained invalid child needs an actual
+temporary invalid child, not a valid recursive clone. Create an empty partitioned
+child and uncovered grandchild under the standalone target; add the corresponding
+ONLY invalid provider; attach the target to the temporary parent before recursive
+seed ADD. The real invalid child is adopted without healing. DROP removes that
+child and grandchild, leaving the false target invalid, then DETACH/DROP removes
+the seed parent. Captured valid child memberships follow this completion and do
+not promote the retained invalid target. RANGE/LIST whole-space children use
+DEFAULT; HASH uses modulus one/remainder zero through the existing bound renderer.
+One importer-owned lifecycle map captures real refs, owners, epoch, constraint/
+backing identities and revision fences. DROP admission consumes only the exact
+completed empty scope and still delegates all effects to ordinary dependency
+closure. Parent cleanup never requires or pretends that the retained target's
+physical data is empty.
+
+Completed invalid-child captures remain accepted revision authority, not inputs
+to later recapture. Before an additional seed or ONLY origin, the existing
+importer Prepare phase validates the previous graph/backing fences and retains
+the exact statement and immutable before-view transiently in the same record.
+After accepts only the permitted new providers/adoptions into owned successor
+slices. Partial adoption may yield a new incomplete successor; old retained
+captures stay immutable, and stale/vetoed attempts publish no successor. The
+initial pending peer's ordinary scratch attachment is checked against its
+captured definition; completed peers have no such revision exception. Statement
+failure and importer disposal release transient authority.
+
+Different prerequisite frontiers use the same preparation/completion phase kinds
+anchored to actual captured source backing indexes. An early stale seed drops
+its temporary invalid child at completion but keeps the scratch-parent edge and
+provider ownership alive. Captured membership then creates the first inherited
+providers before a later local origin and recursive seed adopt the retained
+invalid subtree. The final completion alone detaches the target and drops the
+seed parent. Final crossing, names and rows consume the appropriate last event;
+each creation event remains the sole authority for its clone-name sequence.
+
+These recipes retain the existing admission boundary: final TABLE ATTACH is
+RANGE-only. LIST/HASH target construction and canonical replay through an admitted
+RANGE scratch parent remain covered; adoption does not implement their adjacent
+final ATTACH surface. Promotion-gap teardown and independent provider terminal
+renames have an explicit dependency, not a source-allocation tie-break.
+
 

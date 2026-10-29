@@ -22,17 +22,8 @@ func writeDumpColumn(ctx context.Context, s *dumpScript, t *table.DumpRelation, 
 	if typed {
 		line.WriteString(" WITH OPTIONS")
 	} else {
-		declaration, err := regobj.ColumnDeclaration(s.CatalogView, c)
-		if err != nil {
+		if err := writeDumpColumnType(s.CatalogView, c, line); err != nil {
 			return err
-		}
-		line.WriteString(" " + declaration)
-		if c.Usage.Collation.ID != c.Usage.Type.Usage().Collation.ID {
-			name := typedef.CollationSQLName(s.CatalogView, c.Usage.Collation.ID)
-			if name == "" {
-				return fmt.Errorf("stuntgres: unsupported stored collation")
-			}
-			line.WriteString(" COLLATE " + name)
 		}
 	}
 	if definition, exists := t.Defaults[t.Attributes[i]]; exists && provenance.ExplicitDefault && !(s.DeferDefaults && t.DeferredDefinitions[t.Attributes[i]]) {
@@ -77,6 +68,24 @@ func writeDumpColumn(ctx context.Context, s *dumpScript, t *table.DumpRelation, 
 				break
 			}
 		}
+	}
+	return nil
+}
+
+// Column type spelling and collation have one declaration authority, including
+// the temporary parent that creates a detached fresh exclusion provider.
+func writeDumpColumnType(view catalog.Read, column catalog.Column, line *strings.Builder) error {
+	declaration, err := regobj.ColumnDeclaration(view, column)
+	if err != nil {
+		return err
+	}
+	line.WriteString(" " + declaration)
+	if column.Usage.Collation.ID != column.Usage.Type.Usage().Collation.ID {
+		name := typedef.CollationSQLName(view, column.Usage.Collation.ID)
+		if name == "" {
+			return fmt.Errorf("stuntgres: unsupported stored collation")
+		}
+		line.WriteString(" COLLATE " + name)
 	}
 	return nil
 }

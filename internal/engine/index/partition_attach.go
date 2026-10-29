@@ -82,9 +82,6 @@ func PartitionIndexAttachCheck(ctx context.Context, view catalog.Read, parent, c
 	if child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 		return diagnostic("55000", fmt.Sprintf(`Index "%s" is already attached to another index.`, child.Name()))
 	}
-	if parent.SQLIndex.IsExclusion() || child.SQLIndex.IsExclusion() {
-		return diagnostic("42P17", "The index definitions do not match.")
-	}
 	mapped, err := MapPartitionIndex(ctx, view, table, childTable, parent.SQLIndex)
 	if err != nil {
 		return err
@@ -97,7 +94,7 @@ func PartitionIndexAttachCheck(ctx context.Context, view catalog.Read, parent, c
 		return diagnostic("42P17", "The index definitions do not match.")
 	}
 	if parent.SQLIndex.Constraint != nil {
-		if child.SQLIndex.Constraint == nil || child.SQLIndex.Constraint.Kind != catalog.UniqueBackingKind {
+		if child.SQLIndex.Constraint == nil || child.SQLIndex.Constraint.Kind != parent.SQLIndex.Constraint.Kind {
 			return diagnostic("42P17", fmt.Sprintf(`The index "%s" belongs to a constraint in table "%s" but no constraint exists for index "%s".`, parent.Name(), table.Name(), child.Name()))
 		}
 		if parent.SQLIndex.Constraint.Primary {
@@ -107,9 +104,11 @@ func PartitionIndexAttachCheck(ctx context.Context, view catalog.Read, parent, c
 				}
 			}
 		}
-		source, target := UniqueDefinition(table, parent), UniqueDefinition(childTable, child)
-		if source == nil || target == nil || source.Deferrable != target.Deferrable || source.InitiallyDeferred != target.InitiallyDeferred {
-			return diagnostic("42P17", "The index definitions do not match.")
+		if !parent.SQLIndex.IsExclusion() {
+			source, target := UniqueDefinition(table, parent), UniqueDefinition(childTable, child)
+			if source == nil || target == nil || source.Deferrable != target.Deferrable || source.InitiallyDeferred != target.InitiallyDeferred {
+				return diagnostic("42P17", "The index definitions do not match.")
+			}
 		}
 	}
 	return nil
@@ -186,8 +185,7 @@ func ValidatePartitionIndex(view catalog.Read, index, table *catalog.Relation) e
 		}
 		for _, c := range table.Constraints.Exclusion {
 			if c.Index == index.Address() && c.Parent == expected && c.IsLocal == (expected == 0) {
-				source := ExclusionDefinition(parentTable, parent)
-				found = source != nil && c.Deferrable == source.Deferrable && c.InitiallyDeferred == source.InitiallyDeferred
+				found = true
 			}
 		}
 		if !found {
@@ -273,24 +271,36 @@ func StagePartitionIndexAttach(h Host, parent, child *catalog.Relation) error {
 		definition.PartitionParent = parent.Address()
 		next.SQLIndex = &definition
 		next.ObjectRevision++
-		if err := h.Stage().Replace(&next); err != nil {
-			return err
-		}
 		if parent.SQLIndex.Constraint != nil {
 			table := view.MustRelation(child.SQLIndex.Parent)
 			changed := *table
-			changed.Constraints.Unique = slices.Clone(table.Constraints.Unique)
 			changed.ObjectRevision++
-			for i := range changed.Constraints.Unique {
-				c := &changed.Constraints.Unique[i]
-				if c.Index == child.Address() {
-					c.Parent = parent.SQLIndex.Constraint.OID
-					c.IsLocal = false
+			if definition.IsExclusion() {
+				changed.Constraints.Exclusion = slices.Clone(table.Constraints.Exclusion)
+				for i := range changed.Constraints.Exclusion {
+					c := &changed.Constraints.Exclusion[i]
+					if c.Index == child.Address() {
+						c.Parent = parent.SQLIndex.Constraint.OID
+						c.IsLocal = false
+						definition.Constraint = ExclusionBacking(c)
+					}
+				}
+			} else {
+				changed.Constraints.Unique = slices.Clone(table.Constraints.Unique)
+				for i := range changed.Constraints.Unique {
+					c := &changed.Constraints.Unique[i]
+					if c.Index == child.Address() {
+						c.Parent = parent.SQLIndex.Constraint.OID
+						c.IsLocal = false
+					}
 				}
 			}
 			if err := h.Stage().Replace(&changed); err != nil {
 				return err
 			}
+		}
+		if err := h.Stage().Replace(&next); err != nil {
+			return err
 		}
 	}
 	return PartitionIndexValidity(h.ValidityTarget(), parent.Address())

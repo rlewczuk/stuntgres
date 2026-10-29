@@ -50,8 +50,32 @@ and the partition parts of the DML path are core's.
   `BeginPartitionCheckReplay`, `BeginPartitionUniqueReplay` and
   `BeginPartitionUsingIndexReplay` record on the private import operation
   what the ordinary ALTER TABLE then executes;
-  `CapturePartitionReplayTeardown` and `ValidatePartitionReplayTeardown`
-  pair a generated DETACH with its DROP TABLE. The inheritance repairs are
+  `CapturePartitionReplayTeardown`, `CapturePartitionReplayAfter` and
+  `ValidatePartitionReplayTeardown` pair actual generated lifecycle transitions
+  with their ordinary dependency-aware DROP TABLE. The one private-import map
+  distinguishes detached empty gap children, childless seed parents, empty
+  two-level invalid-child witnesses and completed RANGE promotion gaps.
+  Guard-seed captures retain the actual true/false provenance of both providers.
+  Promotion captures require a real MINVALUE/MAXVALUE bound and an invalid parent
+  with every retained child actually covered; all parent backing revisions join
+  the same fence. Captures retain destination refs, owners,
+  epoch, actual owning constraint/backing identities and definition revisions;
+  prefixes alone grant no DROP authority. A seed parent must have no remaining
+  crossing links; an invalid child must retain its exact adopted invalid roots
+  and uncovered empty grandchild. Replaced, stale, foreign, populated or unpaired
+  scopes fail without catalog mutation.
+  Invalid-child extensions first validate accepted refs, owners, revisions and
+  inventory in `PreparePartitionReplayExtension`. The same record temporarily
+  leases the exact ADD statement and immutable before-view; its successful After
+  accepts only that seed's new providers and actual local-root adoptions. A new
+  validated provider also owns its ordinary sticky `HasIndexes` publication;
+  every other history field stays exact. Owned candidate slices preserve retained
+  captures on success and veto. A permitted
+  partial adoption publishes a new incomplete capture, never DROP authority.
+  Initial pending peer attachment is checked against its saved immutable
+  definition; completed fences are never refreshed by later seed activity.
+  Statement failure and importer disposal clear transient leases.
+  The inheritance repairs are
   `RestoreCheck`, `PairRestoredGeneration`, `CaptureRestoredGeneration`,
   `CloseRestoredRecipesForData`, `RestoreRetiredConstraint`,
   `CaptureInheritedForeignKey`, `CaptureInheritedOwner` and
@@ -84,6 +108,7 @@ through SQL or the exported API. Public SQL lives in
 ```sh
 make check RUN='^TestPartition(Attach|Detach)'             # ATTACH and DETACH, overlays, fences, Restore replays
 make check RUN='^Test(RangePartition|ListPartition|HashPartition|PartitionExclusion|PartitionInherited|PartitionHost)'  # strategies, publication, remap
+make check RUN='^TestPartitionExclusionReplay(Teardown|Capture)' # private captures, owned extension deltas, closure and rejection fences
 make check RUN='^TestInheritance(Merge|Graph|Guards|Dependency|UsingIndex|Retained|Generation|Prospective|Maint(Candidate|Ordinals|History|Review))'  # inheritance graphs, maintenance
 make check RUN='^Test(RestoreInherited|RestoreConstraintHistory|InheritanceForeignKey|CastDefinition(Restore|PlainGeneration))'  # inheritance Restore repairs
 make check RACE=1 RUN='^TestPartition(Attach|Detach)(TransactionOverlay|LockFences|PublicationFences|Growth)'  # overlays, lock fences

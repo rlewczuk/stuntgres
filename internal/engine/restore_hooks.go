@@ -86,10 +86,12 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "partition: CHECK replay", Prepare: prepareRestorePartitionCheck},
 	{Name: "partition: USING INDEX replay", Prepare: prepareRestorePartitionUsingIndex},
 	{Name: "partition: UNIQUE replay", Prepare: prepareRestorePartitionUnique},
+	{Name: "partition: generated teardown extension", Prepare: prepareRestorePartitionTeardown},
 	{Name: "routine: checked PL admission", Prepare: prepareRestorePLChecked},
 
 	// After execution.
 	{Name: "comparison bound definition", After: afterRestoreComparisonContext},
+	{Name: "partition: generated teardown capture", After: afterRestorePartitionTeardown},
 	{Name: "table: attribute constructor capture", After: afterRestoreAttributeConstructor},
 	{Name: "table: physical NOT NULL constructor capture", After: afterRestorePhysicalConstructor},
 	{Name: "table: physical foreign key provider", After: afterRestorePhysicalForeignKeyProvider},

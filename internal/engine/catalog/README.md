@@ -140,6 +140,9 @@ private frames, not catalog authority.
   `History`, and the kind payloads (`SQLIndex`, `Partition`, `Sequence`, `View`,
   ...). Sub-records are values, never pointers, so copying a `Relation` shares
   their slices and maps exactly like its top-level ones.
+  Exclusion `Parent`/`IsLocal` describe current ancestry; `NoInherit` independently
+  records declaration provenance. Adoption, detachment, prepared ownership and
+  replacement copies preserve that scalar and the immutable owned operators.
   Ordinary table `Persistence` is logged when empty and otherwise records its
   logged/unlogged identity. TEMP lifetime remains namespace-owned; sequences
   retain their independent identity in `SequenceOptions`, and indexes derive

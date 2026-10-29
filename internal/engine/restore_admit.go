@@ -259,8 +259,8 @@ func admitRestoreDetachPartition(r *restoreRun, op *session.Operation, s *parser
 	if err != nil {
 		return err
 	}
-	if record.Child.Domain() != nil {
-		r.partitionTeardowns[record.Child.Address] = record
+	if record.Target.Domain() != nil {
+		r.partitionTeardowns[record.Target.Address] = record
 	}
 	return nil
 }
