@@ -3,6 +3,7 @@ package table
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -74,22 +75,38 @@ type VacuumPass struct {
 	Catalog    *catalog.State
 }
 
-// PrepareVacuumPass runs one work pass over c for store with nothing held:
-// inspect, materialize when it removes or freezes a version, bump the
-// generation when the heap changes, remap the index roots that need it and
-// clear the relation's HasIndexes once no index is attached. phase reports
-// each progress phase in order with the total and processed index counts,
-// including one update per processed index; it takes Engine.mu itself.
-func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Relation, phase func(name string, total, processed int64)) (VacuumPass, error) {
-	total := int64(len(c.Indexes))
-	phase("scanning heap", total, 0)
-	candidate, err := storage.InspectVacuum(ctx, c.Rows, c.Ends, c.Frontier, c.Cutoff, c.Retire)
+// VacuumProgress is a detached pass snapshot. Prefixes count completed version
+// work, DeadItems describes this collection, and IndexCycles counts full loops.
+type VacuumProgress struct {
+	Phase                                       string
+	Scanned, Vacuumed                           int
+	DeadItems                                   int64
+	Capacity                                    int64
+	IndexesTotal, IndexesProcessed, IndexCycles int64
+}
+
+// PrepareVacuumPass runs detached work with nothing held. progress publishes
+// complete value snapshots outside engine/session/install locks.
+func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Relation, progress func(VacuumProgress)) (VacuumPass, error) {
+	if int64(len(c.Rows)) > math.MaxInt64/8 {
+		return VacuumPass{}, fmt.Errorf("stuntgres: vacuum collection capacity exceeds bigint range")
+	}
+	state := VacuumProgress{Phase: "scanning heap", Capacity: int64(len(c.Rows)) * 8}
+	progress(state)
+	candidate, err := storage.InspectVacuum(ctx, c.Rows, c.Ends, c.Frontier, c.Cutoff, c.Retire, func(completed int, dead int64) {
+		state.Scanned, state.DeadItems = completed, dead
+		progress(state)
+	})
 	if err != nil {
 		return VacuumPass{}, err
 	}
 	if candidate.Removed != 0 || candidate.Frozen != 0 {
-		phase("vacuuming heap", total, 0)
-		candidate, err = storage.MaterializeVacuum(ctx, c.Rows, c.Ends, c.Frontier, c.Cutoff, candidate)
+		state.Phase = "vacuuming heap"
+		progress(state)
+		candidate, err = storage.MaterializeVacuum(ctx, c.Rows, c.Ends, c.Frontier, c.Cutoff, candidate, func(completed int) {
+			state.Vacuumed = completed
+			progress(state)
+		})
 		if err != nil {
 			return VacuumPass{}, err
 		}
@@ -102,7 +119,6 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 		}
 		pass.Generation++
 	}
-	processed := int64(0)
 	indexWork := 0
 	if changed {
 		if candidate.Positions != nil {
@@ -116,7 +132,8 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 		}
 	}
 	if indexWork != 0 {
-		phase("vacuuming indexes", total, 0)
+		state.Phase, state.IndexesTotal = "vacuuming indexes", int64(indexWork)
+		progress(state)
 		pass.Roots = make(map[ids.ObjectAddress]*storage.IndexRoot, indexWork)
 		for address, root := range c.Indexes {
 			if candidate.Positions == nil && root.Hash == nil && root.Brin == nil {
@@ -136,17 +153,20 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 				return VacuumPass{}, err
 			}
 			pass.Roots[address] = remapped
-			processed++
-			phase("vacuuming indexes", total, processed)
+			state.IndexesProcessed++
+			progress(state)
 		}
+		state.IndexCycles++
 	}
+	state.Phase = "performing final cleanup"
+	state.IndexesTotal, state.IndexesProcessed, state.DeadItems = 0, 0, 0
+	progress(state)
 	if c.Relation.History.HasIndexes && c.Attached == 0 {
 		pass.Catalog = catalog.CloneState(c.Catalog)
 		d := *c.Relation
 		d.History.HasIndexes = false
 		pass.Catalog.SetDescriptor(d.Address(), &d)
 	}
-	phase("performing final cleanup", total, processed)
 	return pass, nil
 }
 

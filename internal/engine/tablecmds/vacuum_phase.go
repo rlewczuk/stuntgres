@@ -3,6 +3,7 @@ package tablecmds
 import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 )
 
 func vacuumDatabasePreflightLocked(e *core.Engine, s *core.StatementScope) error {
@@ -17,14 +18,33 @@ func vacuumDatabasePreflightLocked(e *core.Engine, s *core.StatementScope) error
 	return s.Op.Context().Err()
 }
 
-func vacuumPhaseLocked(e *core.Engine, s *core.StatementScope, phase string, total, processed int64) {
+// Completed blocks are high-water estimates over the first capture's extent.
+func vacuumProgressBlocks(completed, extent int) int64 {
+	if completed >= extent {
+		blocks := int64(extent / 128)
+		if extent%128 != 0 {
+			blocks++
+		}
+		return blocks
+	}
+	return int64(completed / 128)
+}
+
+func vacuumProgressLocked(e *core.Engine, s *core.StatementScope, progress table.VacuumProgress, extent int, cycles int64) {
 	p, ok := e.VacuumProgress[s.TxRef]
 	if !ok {
 		return
 	}
-	p.Fact.Phase = phase
-	p.Fact.IndexesTotal = total
-	p.Fact.IndexesProcessed = processed
+	p.Fact.Phase = progress.Phase
+	p.Fact.HeapBlocksTotal = vacuumProgressBlocks(extent, extent)
+	p.Fact.HeapBlocksScanned = max(p.Fact.HeapBlocksScanned, vacuumProgressBlocks(progress.Scanned, extent))
+	p.Fact.HeapBlocksVacuumed = max(p.Fact.HeapBlocksVacuumed, vacuumProgressBlocks(progress.Vacuumed, extent))
+	p.Fact.IndexVacuumCount = cycles
+	p.Fact.MaxDeadTupleBytes = progress.Capacity
+	p.Fact.NumDeadItemIDs = progress.DeadItems
+	p.Fact.DeadTupleBytes = progress.DeadItems * 8
+	p.Fact.IndexesTotal = progress.IndexesTotal
+	p.Fact.IndexesProcessed = progress.IndexesProcessed
 	e.VacuumProgress[s.TxRef] = p
 }
 

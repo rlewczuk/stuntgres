@@ -26,35 +26,40 @@ func vacuumEnded(row RowVersion, ends *DeletionRoot, frontier ids.CommitSeq) boo
 func vacuumFreeze(row RowVersion, frontier ids.CommitSeq, cutoff uint64) bool {
 	return row.Born != 0 && row.Born <= frontier && !row.Frozen && row.InsertFullXID >= 3 && row.InsertFullXID < cutoff
 }
-func InspectVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, frontier ids.CommitSeq, cutoff uint64, retire bool) (VacuumCandidate, error) {
+
+// progress reports completed prefixes, batched at logical block boundaries.
+func InspectVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, frontier ids.CommitSeq, cutoff uint64, retire bool, progress func(int, int64)) (VacuumCandidate, error) {
 	c := VacuumCandidate{Versions: rows, Ends: ends, Horizon: cutoff}
-	for _, row := range rows {
+	for i, row := range rows {
 		if err := ctx.Err(); err != nil {
 			return VacuumCandidate{}, err
 		}
 		dead := vacuumEnded(row, ends, frontier)
 		if dead && retire {
 			c.Removed++
-			continue
-		}
-		if dead {
-			c.Dead++
-		} else if row.Born != 0 && row.Born <= frontier {
-			c.Live++
-		}
-		if vacuumFreeze(row, frontier, cutoff) {
-			c.Frozen++
-		} else if !row.Frozen {
-			if row.InsertFullXID == 0 || row.Born == 0 {
-				c.Horizon = 0
-			} else if c.Horizon != 0 && row.InsertFullXID < c.Horizon {
-				c.Horizon = row.InsertFullXID
+		} else {
+			if dead {
+				c.Dead++
+			} else if row.Born != 0 && row.Born <= frontier {
+				c.Live++
 			}
+			if vacuumFreeze(row, frontier, cutoff) {
+				c.Frozen++
+			} else if !row.Frozen {
+				if row.InsertFullXID == 0 || row.Born == 0 {
+					c.Horizon = 0
+				} else if c.Horizon != 0 && row.InsertFullXID < c.Horizon {
+					c.Horizon = row.InsertFullXID
+				}
+			}
+		}
+		if progress != nil && ((i+1)%128 == 0 || i+1 == len(rows)) {
+			progress(i+1, c.Removed)
 		}
 	}
 	return c, ctx.Err()
 }
-func MaterializeVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, frontier ids.CommitSeq, cutoff uint64, c VacuumCandidate) (VacuumCandidate, error) {
+func MaterializeVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, frontier ids.CommitSeq, cutoff uint64, c VacuumCandidate, progress func(int)) (VacuumCandidate, error) {
 	if c.Removed == 0 && c.Frozen == 0 {
 		return c, ctx.Err()
 	}
@@ -75,15 +80,18 @@ func MaterializeVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoo
 		if c.Removed > 0 && vacuumEnded(row, ends, frontier) {
 			c.Positions[i] = -1
 			delete(c.Ends.Rows, row.Row)
-			continue
+		} else {
+			if c.Positions != nil {
+				c.Positions[i] = len(c.Versions)
+			}
+			if vacuumFreeze(row, frontier, cutoff) {
+				row.Frozen = true
+			}
+			c.Versions = append(c.Versions, row)
 		}
-		if c.Positions != nil {
-			c.Positions[i] = len(c.Versions)
+		if progress != nil && ((i+1)%128 == 0 || i+1 == len(rows)) {
+			progress(i + 1)
 		}
-		if vacuumFreeze(row, frontier, cutoff) {
-			row.Frozen = true
-		}
-		c.Versions = append(c.Versions, row)
 	}
 	return c, ctx.Err()
 }

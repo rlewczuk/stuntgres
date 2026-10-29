@@ -96,17 +96,19 @@ func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.Vacuu
 	if e.VacuumProgress == nil {
 		e.VacuumProgress = make(map[ids.TxRef]core.VacuumProgress)
 	}
-	e.VacuumProgress[s.TxRef] = core.VacuumProgress{Fact: pgcatalog.VacuumProgressFact{PID: int64(s.Op.Session.SessionToken.ID()), Database: table.VacuumDatabaseOID(auth.Catalog), DatabaseName: s.Op.Session.DatabaseName, Relation: target.ref.Address.ObjectID, Phase: "initializing", IndexesTotal: int64(len(first.Indexes))}, Owner: auth.State.Authenticated}
+	e.VacuumProgress[s.TxRef] = core.VacuumProgress{Fact: pgcatalog.VacuumProgressFact{PID: int64(s.Op.Session.SessionToken.ID()), Database: table.VacuumDatabaseOID(auth.Catalog), DatabaseName: s.Op.Session.DatabaseName, Relation: target.ref.Address.ObjectID, Phase: "initializing"}, Owner: auth.State.Authenticated}
 	e.Mu.Unlock()
 	defer endVacuumProgress(e, s.TxRef)
-	phase := func(name string, total, processed int64) {
-		e.Mu.Lock()
-		vacuumPhaseLocked(e, s, name, total, processed)
-		e.Mu.Unlock()
-	}
 	capture := first
+	var cycles int64
 	for {
-		pass, err := table.PrepareVacuumPass(s.Op.Context(), capture, target.store, phase)
+		baseCycles := cycles
+		pass, err := table.PrepareVacuumPass(s.Op.Context(), capture, target.store, func(progress table.VacuumProgress) {
+			cycles = baseCycles + progress.IndexCycles
+			e.Mu.Lock()
+			vacuumProgressLocked(e, s, progress, len(first.Rows), cycles)
+			e.Mu.Unlock()
+		})
 		if err != nil {
 			return err
 		}

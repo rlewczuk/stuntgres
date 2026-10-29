@@ -125,6 +125,13 @@ coverage; existing `pg_class` and table-statistics views publish real maintenanc
 facts. Logical Dump/Restore transports data and checked extended statistics
 state; it does not import ordinary single-column planner distributions.
 
+The fifteen-column read-only `pg_stat_progress_vacuum` view reports real admitted
+VACUUM workers, actual phases and completed logical work. Authorized counters
+are numeric (including zero); restricted observers retain only worker/database
+identity. Rows end with their target, including cancellation and failure.
+See [VACUUM progress](docs/DRIVER.md#vacuum-progress) for estimate formulas,
+phase-local reset rules, visibility and lifetime.
+
 The six-column read-only `pg_stat_progress_basebackup` view is genuinely empty:
 there are no physical base-backup workers, and native logical Dump never
 fabricates a progress row, even during blocked output. Ordinary SQL

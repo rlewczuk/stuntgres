@@ -74,7 +74,5 @@ func TestReferenceVacuumProgress(t *testing.T) {
 		run(fixture.Exec("SET ROLE vacuum_observer", 0))
 		run(s)
 		run(fixture.Exec("RESET ROLE", 0))
-		// Actual native in-flight phase/role redaction is a deterministic engine
-		// producer witness (U9), not an assumed opportunity to catch a tiny table.
 	})
 }

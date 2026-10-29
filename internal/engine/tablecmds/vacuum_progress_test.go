@@ -2,6 +2,8 @@ package tablecmds_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,45 +13,54 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
 func vacuumProgressCapture(t *testing.T, e *core.Engine, observer *session.Session) [][]sqltype.Value {
 	t.Helper()
-	op := transactionOperation(t, observer)
-	defer op.Done()
-	scope, err := e.StartStatement(op)
+	rows, err := captureVacuumProgress(e, observer)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return rows
+}
+
+// Error-returning capture is safe inside an admitted Context callback: assertions
+// must run only after Execute has unwound and released statement admission.
+func captureVacuumProgress(e *core.Engine, observer *session.Session) (rows [][]sqltype.Value, err error) {
+	op, err := observer.Acquire(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	defer op.Done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		return nil, err
+	}
 	defer func() {
-		if err := scope.Finish(nil); err != nil {
-			t.Error(err)
-		}
+		err = errors.Join(err, scope.Finish(nil))
 	}()
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		e.Mu.Unlock()
-		t.Fatal(err)
+		return nil, err
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ProgressVacuumOID}
 	source, ok := auth.Catalog.Relation(address)
 	if !ok {
 		e.Mu.Unlock()
-		t.Fatal("unregistered real progress descriptor")
+		return nil, fmt.Errorf("unregistered real progress descriptor")
 	}
 	producer, ok := pgcatalog.ProducerFor(address.ObjectID)
 	if !ok {
 		e.Mu.Unlock()
-		t.Fatal("unregistered progress producer")
+		return nil, fmt.Errorf("unregistered progress producer")
 	}
-	rows, err := producer(pgcatalog.Input{Context: context.Background(), Catalog: auth.Catalog, Roles: auth.Roles, Owner: &e.Catalog.Owner, Ref: auth.Ref(address), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: auth})})
+	rows, err = producer(pgcatalog.Input{Context: context.Background(), Catalog: auth.Catalog, Roles: auth.Roles, Owner: &e.Catalog.Owner, Ref: auth.Ref(address), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: auth})})
 	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return rows
+	return rows, err
 }
 func TestVacuumProgressLifecycle(t *testing.T) {
 	t.Run("empty_sources", func(t *testing.T) {
@@ -81,7 +92,8 @@ func TestVacuumProgressLifecycle(t *testing.T) {
 				sessionSQL(t, worker, "SET ROLE progress_worker")
 				task := startVacuumBarrier(t, e, worker, "VACUUM progress", tc.function)
 				rows := vacuumProgressCapture(t, e, observer)
-				ref, _ := vacuumStore(t, e, "progress")
+				ref, store := vacuumStore(t, e, "progress")
+				root, ends, generation, stats := store.Versions, store.Ends, store.Generation, store.Maintenance
 				if len(rows) != 1 || len(rows[0]) != 15 {
 					t.Fatalf("actual in-flight rows %#v", rows)
 				}
@@ -97,25 +109,22 @@ func TestVacuumProgressLifecycle(t *testing.T) {
 				if err != nil || relation != uint32(ref.Address.ObjectID) {
 					t.Fatal("wrong actual relation", relation, err)
 				}
-				total, err := rows[0][12].Integer()
-				if err != nil || total != 1 {
-					t.Fatal("not actual attached logical root count", total, err)
+				wantTotal := int64(0)
+				if tc.phase == "vacuuming indexes" {
+					wantTotal = 1
 				}
-				processed, err := rows[0][13].Integer()
-				wantProcessed := int64(0)
-				if tc.phase == "performing final cleanup" {
-					wantProcessed = 1
-				}
-				if err != nil || processed != wantProcessed {
-					t.Fatal("processed count did not follow actual completed remap", processed, wantProcessed, err)
-				}
-				// Native has no physical heap blocks, dead-item byte accounting or physical
-				// index vacuum cycle. Those supported-schema columns remain unavailable.
-				for _, i := range []int{5, 6, 7, 8, 9, 10, 11} {
-					if !rows[0][i].IsNull() {
-						t.Fatal("fabricated physical progress", i, rows[0][i])
+				vacuumProgressInteger(t, rows[0], 12, wantTotal)
+				vacuumProgressInteger(t, rows[0], 13, 0)
+				for i := 5; i < 15; i++ {
+					if rows[0][i].IsNull() {
+						t.Fatalf("authorized progress column %d is NULL", i)
 					}
 				}
+				wantCycles := int64(0)
+				if tc.phase == "performing final cleanup" {
+					wantCycles = 1
+				}
+				vacuumProgressInteger(t, rows[0], 8, wantCycles)
 				// Neither actual table ownership nor inheriting the maintenance session's
 				// current role substitutes for its startup authenticated backend identity.
 				for _, role := range []string{"progress_reader", "progress_worker"} {
@@ -155,6 +164,13 @@ func TestVacuumProgressLifecycle(t *testing.T) {
 				}
 				if rows := vacuumProgressCapture(t, e, observer); len(rows) != 0 {
 					t.Fatal("completed/canceled progress retained", rows)
+				}
+				if completion != "complete" && (!storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != stats) {
+					t.Fatal("canceled/session-ended progress claimed installation or completion")
+				}
+				retainedPhase, err := rows[0][4].Text()
+				if err != nil || retainedPhase != tc.phase {
+					t.Fatal("detached typed snapshot mutated after cleanup", retainedPhase, err)
 				}
 				lockEmpty(t, e)
 			})

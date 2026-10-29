@@ -119,8 +119,8 @@ func brinProducedVacuum(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	indexPhase := false
-	pass, err := table.PrepareVacuumPass(ctx, capture, store, func(phase string, _, processed int64) {
-		if phase == "vacuuming indexes" && processed == 0 {
+	pass, err := table.PrepareVacuumPass(ctx, capture, store, func(progress table.VacuumProgress) {
+		if progress.Phase == "vacuuming indexes" && progress.IndexesProcessed == 0 {
 			// The real heap candidate has already been materialized. Interrupt
 			// before its BRIN work can return an installable pass.
 			indexPhase = true

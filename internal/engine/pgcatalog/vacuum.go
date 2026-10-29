@@ -34,13 +34,15 @@ type MaintenanceFact struct {
 	InheritedTuples                                        int64
 }
 type VacuumProgressFact struct {
-	PID                            int64
-	Database                       ids.OID
-	DatabaseName                   string
-	Relation                       ids.OID
-	Phase                          string
-	IndexesTotal, IndexesProcessed int64
-	Visible                        bool
+	PID                                                                 int64
+	Database                                                            ids.OID
+	DatabaseName                                                        string
+	Relation                                                            ids.OID
+	Phase                                                               string
+	HeapBlocksTotal, HeapBlocksScanned, HeapBlocksVacuumed              int64
+	IndexVacuumCount, MaxDeadTupleBytes, DeadTupleBytes, NumDeadItemIDs int64
+	IndexesTotal, IndexesProcessed                                      int64
+	Visible                                                             bool
 }
 
 // ProgressViewer decides which active progress rows the current user reads
@@ -211,13 +213,12 @@ func captureVacuumProgress(in Input) ([][]sqltype.Value, error) {
 				return err
 			}
 			row[4] = sqltype.String(in.Source.Columns[4].Usage.Type, f.Phase)
-			row[12], err = sqltype.Integer(in.Source.Columns[12].Usage.Type, f.IndexesTotal)
-			if err != nil {
-				return err
-			}
-			row[13], err = sqltype.Integer(in.Source.Columns[13].Usage.Type, f.IndexesProcessed)
-			if err != nil {
-				return err
+			values := [...]int64{f.HeapBlocksTotal, f.HeapBlocksScanned, f.HeapBlocksVacuumed, f.IndexVacuumCount, f.MaxDeadTupleBytes, f.DeadTupleBytes, f.NumDeadItemIDs, f.IndexesTotal, f.IndexesProcessed}
+			for i, value := range values {
+				row[i+5], err = sqltype.Integer(in.Source.Columns[i+5].Usage.Type, value)
+				if err != nil {
+					return err
+				}
 			}
 			row[14], err = sqltype.Float(in.Source.Columns[14].Usage.Type, 0)
 			if err != nil {

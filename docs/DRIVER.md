@@ -725,6 +725,58 @@ termination, restart or plugin-loading effects. Logical data and constraints
 remain active. `DriverConfig.TrackCommitTimestamp` and its genuine native
 commit-timestamp tracking remain unchanged.
 
+## VACUUM progress
+
+`pg_catalog.pg_stat_progress_vacuum` is a read-only, unordered view of actual
+admitted VACUUM work. Its 15 nullable columns, in order, are `pid integer`,
+`datid oid`, `datname name`, `relid oid`, `phase text`, then bigint
+`heap_blks_total`, `heap_blks_scanned`, `heap_blks_vacuumed`,
+`index_vacuum_count`, `max_dead_tuple_bytes`, `dead_tuple_bytes`,
+`num_dead_item_ids`, `indexes_total`, `indexes_processed`, and
+`delay_time double precision`.
+
+PID/database/relation identify the real worker and its current target, not the
+observer. Superusers, inherited members of the worker's authenticated role, and
+inherited `pg_read_all_stats` members see details. Other observers retain only
+pid/datid/datname; all other twelve cells are typed NULL. Table privileges and
+the worker's current SET ROLE alone do not grant visibility. Each execution,
+including a held prepared SELECT, uses current observer privileges. Authorized
+numeric fields are zero when not populated or inapplicable, never unknown NULL.
+
+Native blocks are deterministic logical estimates, not PostgreSQL physical
+pages: for first-capture version count N0, total is ceil(N0/128), fixed at scan
+entry. Completed inspect/materialize prefixes use floor(prefix/128), except the
+complete N0 prefix reports the total. Prefixes are capped at N0 and retain their
+high-water values across real recaptures, including discarded detached work.
+An empty extent reports zero; no materialization means zero vacuumed blocks.
+Updates are batched at 128-version boundaries and flush the final prefix.
+The current collection's exact retirement-eligible dead-version count is
+`num_dead_item_ids`; `dead_tuple_bytes` estimates eight bytes per identifier,
+and `max_dead_tuple_bytes` is eight times the current capture's version count.
+Retirement-blocked versions do not enter that collection. Native `delay_time`
+is always floating-point zero: there is no cost-delay scheduler or wall-time
+substitution.
+
+Phases follow actual native work: initializing, scanning heap, optional
+vacuuming heap, optional vacuuming indexes, then performing final cleanup.
+Materialization precedes index remapping; no synthetic phases are emitted.
+Index gauges are zero outside an actual root-maintenance loop; inside it,
+total counts only roots needing work and processed counts successful roots.
+`index_vacuum_count` counts completed nonempty loops, not individual indexes,
+including real freeze-only hash/BRIN work and completed recapture attempts.
+Dead-item gauges reset when consumed or when a new collection starts; index
+gauges reset on leaving index work. Only heap high-water estimates and completed
+cycles are target-global monotone; phase/collection gauges may reset.
+
+Rows start after admission and bound-storage checks, never during a pre-work
+lock wait. They disappear on success, cancellation, failure, session end or
+catalog replacement; late work cannot resurrect removed rows. Multi-target
+commands expose their current target only. Retained results remain immutable;
+progress is not persisted by Dump/Restore. Cancellation does not install a
+candidate or record maintenance completion. INSERT/UPDATE/DELETE, direct or
+prepared and even with a false predicate, reject with SQLSTATE55000 and the
+standard non-automatically-updatable-view detail and matching trigger/rule hint.
+
 ## Physical base-backup progress
 
 `pg_catalog.pg_stat_progress_basebackup` (also available unqualified on the

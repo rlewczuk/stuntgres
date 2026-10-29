@@ -24,6 +24,7 @@ type vacuumBarrierContext struct {
 	function          string
 	arrived, release  chan struct{}
 	once, releaseOnce sync.Once
+	skip              int
 }
 
 func (c *vacuumBarrierContext) Err() error {
@@ -33,6 +34,10 @@ func (c *vacuumBarrierContext) Err() error {
 	for {
 		frame, more := frames.Next()
 		if strings.Contains(frame.Function, c.function) {
+			if c.skip > 0 {
+				c.skip--
+				break
+			}
 			c.once.Do(func() {
 				close(c.arrived)
 				select {
@@ -58,6 +63,10 @@ type vacuumTask struct {
 }
 
 func startVacuumBarrier(t *testing.T, e *core.Engine, s *session.Session, q, function string) *vacuumTask {
+	return startVacuumBarrierAfter(t, e, s, q, function, 0)
+}
+
+func startVacuumBarrierAfter(t *testing.T, e *core.Engine, s *session.Session, q, function string, skip int) *vacuumTask {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	op, err := s.Acquire(ctx)
@@ -65,7 +74,7 @@ func startVacuumBarrier(t *testing.T, e *core.Engine, s *session.Session, q, fun
 		cancel()
 		t.Fatal(err)
 	}
-	barrier := &vacuumBarrierContext{Context: op.Context(), function: function, arrived: make(chan struct{}), release: make(chan struct{})}
+	barrier := &vacuumBarrierContext{Context: op.Context(), function: function, arrived: make(chan struct{}), release: make(chan struct{}), skip: skip}
 	// Wrap the actual admitted operation context, not its parent: Session's
 	// cancelable child otherwise intentionally does not delegate Err to parents.
 	op.Ctx = barrier

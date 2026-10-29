@@ -157,6 +157,16 @@ holds return to lock manager checkpoints outside engine and session locks.
 tokens before atomic installation; peer DML causes recapture, never SQL
 replay. The VACUUM barrier and progress tests park the statement at the
 `vacuumCompletion` frame and at `storage`'s scan frames: keep those names.
+Progress snapshots flow from actual completed storage prefixes and index loops
+through `table.VacuumProgress`, outside engine/session/install locks. The existing
+engine-owned row is updated coherently, never reinserted after replacement.
+Fixed first-capture block high-water estimates and completed cycles survive
+recapture; dead-item and index gauges belong to the current collection/phase.
+`TestVacuumProgress` covers boundary prefixes, retirement, selective freeze
+roots, recapture, independent workers, target turnover and terminal cleanup.
+Context callbacks collect errors/results; assertions run after admission unwinds.
+See [the driver contract](../../../docs/DRIVER.md#vacuum-progress).
+
 
 ## ANALYZE
 
