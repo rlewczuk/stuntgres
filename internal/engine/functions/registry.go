@@ -81,6 +81,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property"}, ExactSpelling: true, SharedGates: true, Bind: bindIndexProperty},
 	{Names: []string{"pg_identify_object", "pg_identify_object_as_address", "pg_get_object_address", "pg_describe_object"}, Claims: parser.ObjectAddressFunctionName, Bind: bindObjectAddress, NamedCall: namedObjectAddress},
 	{Names: []string{"pg_get_userbyid", "pg_get_catalog_foreign_keys"}, Bind: bindCatalogRelation},
+	{Names: []string{"pg_char_to_encoding", "pg_encoding_to_char", "pg_get_keywords"}, Bind: bindEncodingKeywords},
 	{Names: []string{"pg_tablespace_location", "pg_tablespace_databases"}, Bind: bindTablespaceInfo},
 	{Names: sizeNames[:], Bind: bindRelationSize},
 	{Names: genericFileListNames[:], ExactSpelling: true, Bind: bindGenericFileList, NamedCall: namedGenericFileList},

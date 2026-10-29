@@ -3259,10 +3259,13 @@ function_argument: operand { if !scalarGrammarOperand($1) {sqllex.(*lexer).synta
 function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
  | name '.' OVERLAPS '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
+ | SELECTED_FUNC '(' '*' ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Star:true,Pos:$1.pos} }
+ | name '.' SELECTED_FUNC '(' '*' ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Star:true,Pos:$1.pos} }
+ | name '.' OVERLAPS '(' '*' ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Star:true,Pos:$1.pos} }
  | function WITHIN GROUP '(' ORDER BY order_keys ')' { var ok bool;$$,ok=withinCall(sqllex,$1,$2,$7);if !ok{return 1} }
-/* Ordinary selected calls must consume the FILTER opener before reaching their
- * unsupported-modifier frontier; incomplete input keeps its natural error. */
- | function FILTER '(' { sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset);return 1 }
+/* Retain complete decorations for ordinary binder diagnostics; incomplete
+ * FILTER input keeps its natural syntax error. */
+ | function FILTER '(' WHERE target_or ')' { call:=$1.(FunctionExpr);if call.Filter!=nil||call.Window!=nil {sqllex.(*lexer).syntax($2);return 1};call.Filter=$5;$$=call }
  | function over_clause { call:=$1.(FunctionExpr);if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call } ;
 function_args: /* empty */ { $$=FunctionExpr{} }
  | function_argument_list { $$=$1 }

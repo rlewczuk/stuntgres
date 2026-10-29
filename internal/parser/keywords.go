@@ -23,6 +23,23 @@ type keyword struct {
 	token     int
 }
 
+// KeywordMetadata is a by-value view of the grammar's immutable vocabulary.
+type KeywordMetadata struct {
+	Word string
+	Category byte
+	BareLabel bool
+}
+
+func KeywordCount() int { return len(keywords) }
+
+func KeywordAt(index int) (KeywordMetadata, bool) {
+	if index < 0 || index >= len(keywords) {
+		return KeywordMetadata{}, false
+	}
+	k := keywords[index]
+	return KeywordMetadata{k.word, byte(k.category), k.bareLabel}, true
+}
+
 func (k *keyword) columnName() bool {
 	return k == nil || k.category == Unreserved || k.category == ColumnName
 }

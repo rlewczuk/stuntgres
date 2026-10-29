@@ -26,6 +26,8 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 		return 100
 	case 6159: // pg_get_catalog_foreign_keys
 		return 250
+	case 1686: // pg_get_keywords
+		return 500
 	default:
 		return 1000
 	}

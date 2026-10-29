@@ -2,3 +2,6 @@
 2162	pg_get_function_arguments	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_function_arguments	\N	false	\N
 2165	pg_get_function_result	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_function_result	\N	false	\N
 2232	pg_get_function_identity_arguments	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_function_identity_arguments	\N	false	\N
+1264	pg_char_to_encoding	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	23	19	\N	\N	\N	false	\N	PG_char_to_encoding	\N	false	\N
+1597	pg_encoding_to_char	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	19	23	\N	\N	\N	false	\N	PG_encoding_to_char	\N	false	\N
+1686	pg_get_keywords	11	12	10	500	0	0	f	false	false	true	true	s	s	0	0	2249		{25,18,16,25,25}	{o,o,o,o,o}	{word,catcode,barelabel,catdesc,baredesc}	false	\N	pg_get_keywords	\N	false	\N

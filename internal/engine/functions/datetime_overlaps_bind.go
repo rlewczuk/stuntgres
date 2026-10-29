@@ -23,8 +23,8 @@ func BindDatetimeOverlaps(b Binder, raw parser.FunctionExpr, visible bool) (expr
 			operands[i] = o
 		}
 	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	if err := ValidateCallSyntax(b, raw); err != nil {
+		return nil, err
 	}
 	resolution := func(ambiguous bool) (expr.Expr, error) {
 		names := make([]string, len(operands))
@@ -37,6 +37,9 @@ func BindDatetimeOverlaps(b Binder, raw parser.FunctionExpr, visible bool) (expr
 	selection := ResolveDatetimeOverlaps(prepared, operands, TemporalTypesFor(b, prepared.Demand))
 	if selection.Resolution != Resolved {
 		return resolution(selection.Resolution == Ambiguous)
+	}
+	if err := CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	signature := selection.Signature
 	e := DatetimeOverlaps{Syntax: raw.Syntax}

@@ -48,6 +48,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Table privileges: `RUN='^TestReferenceInfoTablePrivileges'`
 - Tablespaces: `RUN='^TestReferenceTablespace'`
 - Size formatting: `RUN='^TestReferenceSize'`; logical relation/database/tablespace allocation: `RUN='^TestReferenceRelationSize'`
+  Size diagnostic scenarios include retained FILTER predicate analysis and
+  resolved-scalar rejection, with direct/prepared failure publication and
+  same-connection recovery.
 - VACUUM: `RUN='^TestReferenceVacuum'`
 - VACUUM progress: `RUN='^TestReferenceVacuumProgress'`; Active, Privileges,
   ActiveWorkers and ActiveTargets require real second-session SQL rows from

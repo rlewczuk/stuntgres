@@ -102,8 +102,8 @@ func bindDeparse(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 			unknown[i] = arg.ResultUsage().Type == nil
 		}
 	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	if err := ValidateCallSyntax(b, raw); err != nil {
+		return nil, err
 	}
 	var candidates [len(deparseSignatures)]DeparseSignature
 	count, best := 0, -1
@@ -209,6 +209,9 @@ func bindDeparse(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	}
 	if count != 1 {
 		return nil, DirectResolutionError(b, raw, args, unknown, count > 1)
+	}
+	if err := CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	signature := candidates[0]
 	properties := expr.Properties{Volatility: expr.Stable}

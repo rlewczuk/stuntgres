@@ -343,6 +343,11 @@ library, and never the root engine or `session`. The engine, the root driver
   provider/aggregate gateway; nested expression/provider entries suspend it.
   This avoids rebinding aggregate FILTER children without lending an outer
   call's proof to a nested call or retaining it for a later statement.
+  Ordinary null-count and size fallbacks use the same call-syntax and
+  resolved-scalar decoration checks; retained FILTER/OVER syntax never becomes
+  executable scalar behavior, and signature failures precede resolved-decoration
+  rejection. Providers analyze FILTER predicates before rejecting a resolved
+  nonaggregate call, without publishing an executable node on either failure.
 - **Captured input retargeting** (`captured_inputs.go`): `IdentifierTarget` and
   the `*Retarget` interfaces.
 - **Privilege walkers** (`binding_privileges.go`): `CheckBinding` and

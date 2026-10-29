@@ -30,8 +30,8 @@ func (b *Binder) bindSize(raw parser.FunctionExpr, visible bool) (expr.Expr, err
 			}
 		}
 	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
+		return nil, err
 	}
 	var types functions.SizeTypes
 	demand := functions.NeededSizeTypes(name, visible, len(raw.Args), operand.Usage)
@@ -57,6 +57,9 @@ func (b *Binder) bindSize(raw parser.FunctionExpr, visible bool) (expr.Expr, err
 	}
 	arg, err := functions.CoerceSizeArgument(b, operand, target.Usage())
 	if err != nil {
+		return nil, err
+	}
+	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	id := functions.SizeResult(name)

@@ -128,8 +128,8 @@ func BindVisibilityInquiryStructure(b Binder, raw parser.FunctionExpr) (Visibili
 			}
 		}
 	}
-	if len(raw.Args) > 100 {
-		return VisibilityInquiry{}, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	if err := ValidateCallSyntax(b, raw); err != nil {
+		return VisibilityInquiry{}, err
 	}
 	visible, err := b.BuiltinVisible(raw.Name)
 	if err != nil {
@@ -174,6 +174,9 @@ func BindVisibilityInquiryStructure(b Binder, raw parser.FunctionExpr) (Visibili
 		if err != nil {
 			return VisibilityInquiry{}, err
 		}
+	}
+	if err := CallDecorationError(raw); err != nil {
+		return VisibilityInquiry{}, err
 	}
 	properties := arg.Properties()
 	properties.Volatility = max(kind.volatility(), properties.Volatility)

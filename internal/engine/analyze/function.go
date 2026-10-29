@@ -137,8 +137,8 @@ func (b *Binder) BindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error
 			b.Params.AnyParameters = append(b.Params.AnyParameters, parameter)
 		}
 	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
+		return nil, err
 	}
 	if !functions.NullCountAllowed(visible, raw.Variadic, len(args)) {
 		types := make([]string, len(args))
@@ -153,6 +153,9 @@ func (b *Binder) BindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error
 			}
 		}
 		return nil, functions.ResolutionError(raw.Name, raw.Pos, types, false)
+	}
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	// Ordinary arguments count whole-value nullness, including arrays. Explicit
 	// VARIADIC array expansion remains outside this provider's capability.

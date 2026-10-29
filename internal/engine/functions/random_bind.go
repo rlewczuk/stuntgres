@@ -21,8 +21,8 @@ func bindRandom(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	if err := ValidateCallSyntax(b, raw); err != nil {
+		return nil, err
 	}
 	prepared := PrepareRandom(name, visible, raw.Variadic, len(args), unknown)
 	var types NumericTypes
@@ -41,6 +41,12 @@ func bindRandom(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	selected, resolution := SelectRandom(prepared, args, unknown, types)
 	if resolution != Resolved {
 		return nil, DirectResolutionError(b, raw, args, unknown, resolution == Ambiguous)
+	}
+	if raw.Star {
+		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+	}
+	if err := CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	if err := CoerceRandomArguments(b, raw.Args, args, unknown, selected); err != nil {
 		return nil, err

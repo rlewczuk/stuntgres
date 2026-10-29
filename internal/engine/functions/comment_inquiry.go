@@ -47,15 +47,46 @@ func BindCommentInquiryStructure(b Binder, raw parser.FunctionExpr, visible bool
 	if b.DefaultConsumer() {
 		return CommentInquiry{}, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
-	if len(raw.Args) > 100 {
-		// Argument transformation precedes PostgreSQL's global limit check.
-		// Discard analyzed children; this call cannot produce an executable node.
-		for _, child := range raw.Args {
-			if _, err := b.AnalyzeArgument(child, AnalysisRequest{Intent: BareProjectionArgument}); err != nil {
-				return CommentInquiry{}, err
+	var small [2]Argument
+	var operands []Argument
+	var names []string
+	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
+		names = make([]string, len(raw.Args))
+	}
+	if len(raw.Args) <= len(small) {
+		operands = small[:len(raw.Args)]
+	}
+	for i, child := range raw.Args {
+		arg, err := b.AnalyzeArgument(child, AnalysisRequest{Intent: DirectDeferredArgument})
+		if err != nil {
+			return CommentInquiry{}, err
+		}
+		if operands != nil {
+			operands[i] = arg
+		}
+		if names != nil {
+			names[i] = "unknown"
+			if arg.Usage.Type != nil {
+				names[i] = b.DiagnosticTypeName(arg.Usage.Type)
+			}
+			names[i] = NamedArgumentType(raw, i, names[i])
+		}
+	}
+	if err := ValidateCallSyntax(b, raw); err != nil {
+		return CommentInquiry{}, err
+	}
+	signatureError := func() error {
+		if names == nil {
+			names = make([]string, len(operands))
+			for i, operand := range operands {
+				names[i] = "unknown"
+				if operand.Usage.Type != nil {
+					names[i] = b.DiagnosticTypeName(operand.Usage.Type)
+				}
+				names[i] = NamedArgumentType(raw, i, names[i])
 			}
 		}
-		return CommentInquiry{}, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind, second := ObjectDescription, sqltype.Name
@@ -71,19 +102,19 @@ func BindCommentInquiryStructure(b Binder, raw parser.FunctionExpr, visible bool
 	}
 	// PostgreSQL ignores VARIADIC decoration on a matching fixed signature.
 	if !visible || len(raw.Args) != arity {
-		return CommentInquiry{}, b.CallSignatureError(raw)
+		return CommentInquiry{}, signatureError()
 	}
 	args := make([]expr.Expr, arity)
 	properties := expr.Properties{Volatility: expr.Stable}
-	for i, child := range raw.Args {
+	for i, operand := range operands {
 		id := sqltype.Oid
 		if i == 1 {
 			id = second
 		}
-		arg, err := b.CoerceArgument(Argument{Raw: child}, CoercionRequest{Intent: DirectFormalArgument, Target: b.Type(id).Usage()})
+		arg, err := b.CoerceArgument(operand, CoercionRequest{Intent: DirectFormalArgument, Target: b.Type(id).Usage()})
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok && (d.Code == "42804" || d.Code == "42846") {
-				return CommentInquiry{}, b.CallSignatureError(raw)
+				return CommentInquiry{}, signatureError()
 			}
 			return CommentInquiry{}, err
 		}
@@ -95,6 +126,9 @@ func BindCommentInquiryStructure(b Binder, raw parser.FunctionExpr, visible bool
 		properties.StageDependent = properties.StageDependent || p.StageDependent
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
+	}
+	if err := CallDecorationError(raw); err != nil {
+		return CommentInquiry{}, err
 	}
 	formal := [2]sqltype.ID{sqltype.Oid, second}
 	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(sqltype.Text).Usage(), raw.Pos, properties), CatalogRoutineProvider, name, formal[:arity]...)

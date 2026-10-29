@@ -34,6 +34,17 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Encoding-name and parser-keyword scenarios use `RUN='^TestReferenceEncodingKeywords'`.
+Their independent release inventories cover all canonical encodings/aliases and
+the complete keyword bag. Shared direct/prepared bodies cover typed metadata,
+routine declarations, diagnostics, invocation-local cursors, cancellation,
+mutation atomicity and symbolic native-control replay.
+
+Ordinary selected-provider decoration diagnostics use
+`RUN='^TestReferenceSelectedFunctionFilterDiagnostics$'`. Shared direct/prepared
+cases assert complete FILTER errors before any scalar result, including predicate
+analysis, failed cursor/statement publication and same-connection recovery.
+
 Subscription lifecycle scenarios exercise disconnected definitions, options and
 connection syntax, ordered remote publications, metadata-only desired enabled
 state, role dependencies, transactions, real blocked cancellation, shared

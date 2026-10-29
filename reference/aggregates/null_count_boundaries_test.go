@@ -25,6 +25,17 @@ func TestReferenceNullCountCapabilityBoundaries(t *testing.T) {
 		}
 	}
 	nullCountReferenceError(t, p, "SELECT *", fixture.Diagnostic{Code: "42601", Message: "SELECT * with no tables specified is not valid", Position: "8"})
+	// These ordinary-call forms parse successfully. Both execution routes must
+	// reject them semantically, without publishing a cursor or prepared handle.
+	for _, tc := range []struct {
+		query string
+		want  fixture.Diagnostic
+	}{
+		{"SELECT num_nulls(*) FROM t", fixture.Diagnostic{Code: "42883", Message: "function num_nulls() does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
+		{"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", fixture.Diagnostic{Code: "42809", Message: "FILTER specified, but num_nulls is not an aggregate function", Position: "8"}},
+	} {
+		nullCountReferenceError(t, p, tc.query, tc.want)
+	}
 	// Replace obsolete no-FROM rejections with a genuine whole-input failure,
 	// retaining nil cursor/statement/result and no-prefix-effects obligations.
 	for _, prepared := range []bool{false, true} {
@@ -65,8 +76,7 @@ func TestReferenceNullCountCapabilityBoundaries(t *testing.T) {
 		"SELECT num_nulls(NULL)::int FROM t",
 		"SELECT num_nulls FROM t WHERE num_nulls(NULL)",
 		"INSERT INTO t VALUES(num_nulls(NULL),1)",
-		"SELECT num_nulls(DISTINCT 1) FROM t", "SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
-		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t",
+		"SELECT num_nulls(DISTINCT 1) FROM t", "SELECT num_nulls(1 ORDER BY 1) FROM t",
 		"SELECT num_nulls(a => 1) FROM t", "SELECT current_setting(num_nulls(NULL))",
 	} {
 		t.Run(q, func(t *testing.T) {
@@ -101,8 +111,6 @@ func nullCountPostgresBoundaries(t *testing.T, p *fixture.Pair) {
 		fixture.ImplicitError("SELECT num_nulls FROM t WHERE num_nulls(NULL)", fixture.Diagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "31"}),
 		fixture.ImplicitError("SELECT num_nulls(DISTINCT 1) FROM t", fixture.Diagnostic{Code: "42809", Message: "DISTINCT specified, but num_nulls is not an aggregate function", Position: "8"}),
 		fixture.ImplicitError("SELECT num_nulls(1 ORDER BY 1) FROM t", fixture.Diagnostic{Code: "42809", Message: "ORDER BY specified, but num_nulls is not an aggregate function", Position: "8"}),
-		fixture.ImplicitError("SELECT num_nulls(*) FROM t", fixture.Diagnostic{Code: "42883", Message: "function num_nulls() does not exist", Hint: hint, Position: "8"}),
-		fixture.ImplicitError("SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", fixture.Diagnostic{Code: "42809", Message: "FILTER specified, but num_nulls is not an aggregate function", Position: "8"}),
 		fixture.ImplicitError("SELECT num_nulls(a => 1) FROM t", fixture.Diagnostic{Code: "42883", Message: "function num_nulls(a => integer) does not exist", Hint: hint, Position: "8"}),
 		fixture.ImplicitError("SELECT current_setting(num_nulls(NULL))", fixture.Diagnostic{Code: "42883", Message: "function current_setting(integer) does not exist", Hint: hint, Position: "8"}),
 	}

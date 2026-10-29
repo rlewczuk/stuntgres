@@ -132,3 +132,52 @@ func TestReferenceSizeSignatures(t *testing.T) {
 		sizeBoth(t, p, b, c, fixture.Select("SELECT pg_size_pretty(1024::size_i8),pg_size_pretty(10.5000::size_num)", []string{"pg_size_pretty", "pg_size_pretty"}, []string{"TEXT", "TEXT"}, [][]any{{"1024 bytes", "10.5000 bytes"}}), false)
 	})
 }
+
+func TestReferenceSizeFilterDiagnostics(t *testing.T) {
+	sizeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		for _, fn := range []struct{ name, argument string }{
+			{"pg_size_bytes", "'1 MB'"},
+			{"pg_size_pretty", "1024::bigint"},
+		} {
+			for _, predicate := range []string{"false", "true", "missing", "1"} {
+				query := "SELECT " + fn.name + "(" + fn.argument + ") FILTER (WHERE " + predicate + ")"
+				want := sizeDiagnostic("42809", "FILTER specified, but "+fn.name+" is not an aggregate function", "", "8")
+				position := fixture.Position(strings.Index(query, predicate) + 1)
+				switch predicate {
+				case "missing":
+					want = sizeDiagnostic("42703", `column "missing" does not exist`, "", position)
+				case "1":
+					position = fixture.Position(strings.LastIndex(query, "1") + 1)
+					want = sizeDiagnostic("42804", "argument of FILTER must be type boolean, not type integer", "", position)
+				}
+				for _, prepared := range []bool{false, true} {
+					step := fixture.ErrorDiagnostic(query, want)
+					step.SelectRows, step.Prepared, step.ErrorStage = true, prepared, "execute"
+					if prepared {
+						step.ErrorStage = "prepare"
+					}
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+					recovery := fixture.Select("SELECT pg_size_bytes('1 MB') AS bytes,pg_size_pretty(1024::bigint) AS pretty", []string{"bytes", "pretty"}, []string{"INT8", "TEXT"}, [][]any{{int64(1048576), "1024 bytes"}})
+					recovery.Prepared = prepared
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, recovery)
+				}
+			}
+		}
+		for _, tc := range []struct{ query, code, message, hint string }{
+			{"SELECT pg_size_bytes(1) FILTER (WHERE false)", "42883", "function pg_size_bytes(integer) does not exist", sizeMissingHint},
+			{"SELECT pg_size_pretty(1) FILTER (WHERE false)", "42725", "function pg_size_pretty(integer) is not unique", sizeAmbiguousHint},
+		} {
+			for _, prepared := range []bool{false, true} {
+				step := fixture.ErrorDiagnostic(tc.query, sizeDiagnostic(tc.code, tc.message, tc.hint, "8"))
+				step.SelectRows, step.Prepared, step.ErrorStage = true, prepared, "execute"
+				if prepared {
+					step.ErrorStage = "prepare"
+				}
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+				recovery := fixture.Select("SELECT pg_size_bytes('1 MB') AS bytes,pg_size_pretty(1024::bigint) AS pretty", []string{"bytes", "pretty"}, []string{"INT8", "TEXT"}, [][]any{{int64(1048576), "1024 bytes"}})
+				recovery.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, recovery)
+			}
+		}
+	})
+}

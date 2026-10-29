@@ -32,8 +32,8 @@ func bindMath(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	if err := ValidateCallSyntax(b, raw); err != nil {
+		return nil, err
 	}
 	if !visible {
 		return nil, DirectResolutionError(b, raw, args, unknown, false)
@@ -41,9 +41,6 @@ func bindMath(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if name == "trunc" && len(args) == 1 && !unknown[0] && !raw.Variadic {
 		typ := args[0].ResultUsage().Type.BaseType()
 		if typ.ID() == sqltype.Macaddr || typ.ID() == sqltype.Macaddr8 {
-			if err := ValidateCallSyntax(b, raw); err != nil {
-				return nil, err
-			}
 			if err := CallDecorationError(raw); err != nil {
 				return nil, err
 			}
@@ -81,20 +78,8 @@ func bindMath(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if resolution != Resolved {
 		return nil, DirectResolutionError(b, raw, args, unknown, resolution == Ambiguous)
 	}
-	// Trunc shares ordinary scalar admission with its MAC overloads; numeric
-	// calls must not silently discard decorations admitted by that route.
-	if name == "trunc" {
-		if err := ValidateCallSyntax(b, raw); err != nil {
-			return nil, err
-		}
-		if err := CallDecorationError(raw); err != nil {
-			return nil, err
-		}
-	}
-	if selectedLogPower(name) {
-		if err := mathModifiers(raw, name); err != nil {
-			return nil, err
-		}
+	if err := mathModifiers(raw, name); err != nil {
+		return nil, err
 	}
 	if err := CoerceMathArguments(b, name, raw.Args, args, unknown, signature, types); err != nil {
 		return nil, err
@@ -132,16 +117,8 @@ func mathModifiers(raw parser.FunctionExpr, name string) error {
 	switch {
 	case raw.Star:
 		return expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
-	case raw.Distinct:
-		return expr.ErrorAt("42809", "DISTINCT specified, but "+name+" is not an aggregate function", raw.Pos)
-	case len(raw.Order) != 0:
-		return expr.ErrorAt("42809", "ORDER BY specified, but "+name+" is not an aggregate function", raw.Pos)
-	case raw.Filter != nil:
-		return expr.ErrorAt("42809", "FILTER specified, but "+name+" is not an aggregate function", raw.Pos)
-	case raw.Window != nil:
-		return expr.ErrorAt("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
 	}
-	return nil
+	return CallDecorationError(raw)
 }
 
 func bindThresholdBucket(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {

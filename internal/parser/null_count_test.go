@@ -88,6 +88,11 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 		{"SELECT num_nulls(1,)", `syntax error at or near ")"`, "20"},
 		{"SELECT num_nulls(", "syntax error at end of input", "18"},
 		{"SELECT /*é*/ num_nulls(1,)", `syntax error at or near ")"`, "26"},
+		{"SELECT num_nulls(1) FILTER (WHERE true) FILTER (WHERE false)", `syntax error at or near "FILTER"`, "41"},
+		{"SELECT num_nulls(1) OVER () FILTER (WHERE true)", `syntax error at or near "FILTER"`, "29"},
+		{"SELECT num_nulls(1) FILTER (WHERE true) FILTER (WHERE missing)", `syntax error at or near "FILTER"`, "41"},
+		{"SELECT num_nulls(1) OVER () FILTER (WHERE missing)", `syntax error at or near "FILTER"`, "29"},
+		{"SELECT 1; SELECT num_nulls(1) FILTER (WHERE true) FILTER (WHERE false)", `syntax error at or near "FILTER"`, "51"},
 	} {
 		statements, err := Parse(tc.q)
 		var got *sqlstate.Error
@@ -99,12 +104,36 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 	for _, q := range []string{
 		"INSERT INTO t VALUES(num_nulls(NULL))",
 		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(DISTINCT 1) FROM t",
-		"SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
-		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t",
+		"SELECT num_nulls(1 ORDER BY 1) FROM t",
 	} {
 		statements, err := Parse(q)
 		if err == nil || len(statements) != 0 {
 			t.Fatal("excluded syntax admitted", q, statements, err)
+		}
+	}
+	// Ordinary call syntax preserves decorations; signature and aggregate-kind
+	// rejection belong to the binder, not a function-name parser whitelist.
+	for _, tc := range []struct {
+		query string
+		star  bool
+	}{
+		{"SELECT num_nulls(*) FROM t", true},
+		{"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", false},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(tc.query, statements, err)
+		}
+		call, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
+		if !ok || call.Pos.Character != 8 || call.Star != tc.star {
+			t.Fatal("lost null-count call decoration", tc.query, call)
+		}
+		if tc.star {
+			if len(call.Args) != 0 || call.Filter != nil {
+				t.Fatal("star call gained arguments or filter", call)
+			}
+		} else if len(call.Args) != 1 || call.Filter == nil || call.Filter.SourcePosition().Character != 35 {
+			t.Fatal("lost null-count FILTER or position", call)
 		}
 	}
 	statements, err := Parse("SELECT current_setting(num_nulls(NULL))")

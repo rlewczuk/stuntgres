@@ -27,6 +27,9 @@ single-statement limit of driver calls) belong to callers.
 - `lexer.go`: the scanner and lexer state; `keywords.go`: the PostgreSQL 18
   keyword list with its categories (`Unreserved`, `ColumnName`,
   `TypeFunctionName`, `Reserved`) and bare-label flags.
+  `KeywordCount`/`KeywordAt` expose indexed, by-value word/category/bare-label
+  metadata from that same inventory, without tokens or mutable backing. Invalid
+  indices return zero/false; consumers never own or copy the vocabulary.
 - `grammar.y`: edit it, then run `make generate`. Never hand-edit
   `grammar_gen.go`. Generator details and the rule against publishing goyacc
   semantic-cell addresses (`&$n`) are in
@@ -79,12 +82,12 @@ single-statement limit of driver calls) belong to callers.
   a following pattern operand instead produces the ordinary operator expression.
   `TestSettingsCallOutputLabelsGrammar` covers this current-owner boundary,
   complete-input rejection and independently retained concurrent parse results.
-  Ordinary selected calls require the FILTER opener before rejecting unsupported
-  modifiers; incomplete FILTER reports its natural syntax error. Supported
-  aggregate/window FILTER syntax and quoted or AS labels remain independent.
-  Recovery registry calls retain the same failure-only star/decorator syntax
-  for ordinary binder diagnostics; this lexical admission grants no aggregate
-  capability and preserves quoted function spelling and bare identifiers.
+  Ordinary selected calls retain star and one complete FILTER decoration for
+  signature/decorator diagnostics in the binder. Repeated FILTER and FILTER
+  after OVER fail at the new FILTER token; incomplete FILTER reports its natural
+  syntax error. This syntax admission grants no aggregate capability.
+  Supported aggregate/window FILTER syntax and quoted or AS labels remain
+  independent, and quoted function spelling and bare identifiers are preserved.
 - Standalone `Call` retains the command position and the positioned shared
   `FunctionExpr` argument/notation syntax. Raw expression visitors include every
   actual, including pure OUT placeholders; CALL remains an unreserved name.

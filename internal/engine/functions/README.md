@@ -12,6 +12,14 @@ the authority behind evaluation capabilities in the root
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
 
+`EncodingNameCall` binds the strict NAME/INT4 encoding conversions through the
+ordinary routine owner and reuses `sqltype.EncodingID`/`EncodingName` after formal
+coercion. `Keywords` binds a fixed five-OUT record and streams the parser's sole
+vocabulary through an invocation-private inline cursor. Both retain only typed
+operands/descriptors, remain STABLE and planning-unfolded, and need no runtime
+capability, catalog snapshot or dump serializer. Keyword category uses internal
+CHAR; computed source columns retain ordinary unknown nullability.
+
 `Setting` resolves `pg_settings_get_flags` through live statement settings
 authority with a typed TEXT[] result, never a retained settings snapshot or
 restricted value read. `OptionsToTable` binds one named TEXT[] input and an
@@ -351,8 +359,13 @@ Bind code lives in `<family>_bind.go` or beside the family's node. Calls reached
 by syntax or by the operator binder (SQL value functions, OVERLAPS, SIMILAR,
 `||`, JSON operators, SQL/JSON, sequence calls through `BindSequenceCall`)
 enter through exported `Bind*`, `Finish*` and `Select*` functions and bypass the
-registry. Shared diagnostics: `call_syntax.go` (`ValidateCallSyntax`),
-`resolution_error.go` and `operator_error.go`.
+registry. Shared diagnostics: `call_syntax.go` (`ValidateCallSyntax` and
+`CallDecorationError`), `resolution_error.go` and `operator_error.go`. Ordinary
+selected-call providers analyze written children before the shared FILTER/count/
+label envelope, then reject retained scalar decorations after signature
+selection and before executable publication. This also applies to math, random,
+comment/visibility/deparse inquiries and qualified OVERLAPS; catalog-selected
+callable validation does not replace the ordinary provider's responsibility.
 `ComparisonError` uses `Binder.DiagnosticTypeName` for both missing and ambiguous
 binary operators: visible types are unqualified, while hidden or shadowed types
 retain their schema qualification. The shared operator diagnostic owns the hint
@@ -835,6 +848,9 @@ publication and lock-manager tickets stay in the engine.
   logical replay.
 
 ## Testing
+
+Encoding-name and keyword binding, protocol and cursor units use
+`RUN='^TestEncodingKeywords'`; public scenarios live in `reference/catalogs`.
 
 Session activity leaf and composed authority units use `RUN='^TestSessionActivity'`.
 Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.

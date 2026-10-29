@@ -72,6 +72,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 - **Client metadata.** The pinned lib/pq OID map lacks some types (for example
   REGCOLLATION and XID8): assert their pq database type name separately from the
   native name.
+- **Selected-call decoration syntax.** `RUN='^TestReferenceSelectedFunctionFilterSyntax$'`
+  checks duplicate FILTER and FILTER after OVER before binding, including complete
+  diagnostics, direct/prepared publication failures, same-owner recovery and
+  unchanged sentinel data after a malformed script.
 
 Add `REFERENCE=1` for the oracle.
 
@@ -322,6 +326,8 @@ Add `REFERENCE=1` for the oracle.
 - `min`, `max`: `RUN='^TestReferenceExtrema'`
 - GROUPING SETS, ROLLUP, CUBE: `RUN='^TestReferenceGroupingSets'`
 - `num_nulls`, `num_nonnulls`: `RUN='^TestReferenceNullCount'`
+  Capability boundaries assert retained ordinary-call star/FILTER syntax through
+  exact shared semantic diagnostics, including direct and prepared failure stages.
 - Variance, stddev, `regr_s*`: `RUN='^TestReferenceStatisticalAggregate'`
 - `corr`, `covar_*`, remaining `regr_*`: `RUN='^TestReferenceCorrelationRegression'`
 - Hypothetical-set (`rank`, `dense_rank`, `percent_rank`, `cume_dist`): `RUN='^TestReferenceHypotheticalAggregate'`
