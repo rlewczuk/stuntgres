@@ -302,6 +302,16 @@ from stored-view nullability and lib/pq's INT2 scan type. Direct, fresh-prepared
 and owner-prepared catalog writes recheck reader authority before effects;
 native privileged writes remain unsupported.
 
+`pg_opfamily` now shares the execution-time catalog mutation guard with its
+membership catalogs: prepared statements bind before checking current reader
+authority, while native owner writes remain unsupported and effect-free.
+Dedicated dual-mode coverage specifies all five column descriptors, fixed and
+method-qualified family identities, cross-type/search/hash/support membership,
+family rename/move/rollback/drop, index invariance, full diagnostics, cancellation
+and native logical control replacement. Private capture proofs retain immutable
+owner/type/backing facts across generations without inventing per-index families
+or exposing unsupported callbacks.
+
 `ALTER TABLE ... VALIDATE CONSTRAINT` validates historical CHECK, NOT NULL and
 foreign-key rows atomically while preserving ongoing write enforcement. Validation
 retains constraint identities, propagates inheritable CHECK/NOT NULL validity,

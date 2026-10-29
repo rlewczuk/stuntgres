@@ -110,6 +110,17 @@ advertised implementation. Catalog reads do not imply PostgreSQL physical
 storage or callback ABI support; see the
 [operator-family contract](docs/design/PG18-INDEX-OPERATOR-FAMILY.md).
 
+`pg_catalog.pg_opfamily` exposes the five OID/OID/NAME/OID/OID identity
+columns from immutable family owners. Method-qualified identity distinguishes
+B-tree and hash families with the same name; `pg_opclass`, `pg_amop` and
+`pg_amproc` retain their actual family/type/member relationships. Index creation
+and removal do not manufacture builtin families. Family metadata is not an
+advertisement of unsupported algorithms or callbacks. Preparation of catalog
+mutations succeeds, but execution rechecks current authority: reader writes
+fail with `42501` (`permission denied for table pg_opfamily`), and native owner
+writes fail with `0A000` (`catalog source mutation is unsupported`), including
+empty predicates. See the [catalog proof selectors](reference/catalog_objects/README.md#testing).
+
 Standalone `ANALYZE`/`ANALYSE` collects actual statement-visible table values
 and refreshes metadata consumed by logical `EXPLAIN`, without changing query
 results. It supports selected columns, inheritance/partition populations,

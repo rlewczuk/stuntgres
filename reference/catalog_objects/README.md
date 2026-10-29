@@ -2,7 +2,7 @@
 
 Schema-object catalogs: `pg_namespace`, schemas and `search_path`, visibility
 inquiry functions, `pg_operator` (with the geometric and `lseg` operator
-catalogs), `pg_cast`, `pg_aggregate`, `pg_am`, `pg_opclass`, `pg_amop`, `pg_collation`,
+catalogs), `pg_cast`, `pg_aggregate`, `pg_am`, `pg_opclass`, `pg_opfamily`, `pg_amop`, `pg_amproc`, `pg_collation`,
 `pg_language`, `pg_transform`, `pg_ts_config`, `pg_ts_config_map`, `pg_ts_parser`, `pg_largeobject`, and comments
 (`pg_description`, `pg_shdescription`, comment inquiry functions and
 transactional comments). The other catalog families are listed in
@@ -74,6 +74,20 @@ scenarios assert complete notice records through the shared notice-enabled pool.
   Reader writes fail with `42501`; native owner writes separately fail with
   `0A000`, without changing memberships or the sentinel. The guard admits
   preparation, not catalog writes or additional support implementations.
+  `pg_opfamily` projects the immutable family owners' five identity columns.
+  Same-name families are distinguished by method and namespace; class/operator/
+  support links retain real associated types rather than inferred per-index
+  rows. Genuine released metadata is distinct from executable admission:
+  catalog presence does not authorize an algorithm or unsupported callback.
+  Its shared guard likewise admits semantic preparation, never writes. Reader
+  direct/fresh/reader-held/owner-held writes (including empty predicates) fail
+  at execution with `42501 / permission denied for table pg_opfamily`; native
+  owner routes fail with `0A000 / catalog source mutation is unsupported`.
+  Qualified public sentinel reads use explicit schema USAGE and table SELECT,
+  independently of catalog privileges. Private `TestPGOpfamilyCaptureOwnership`
+  and `TestPGOpfamilyCaptureCancellation` protect actual producer projection,
+  current-generation descriptors, detached backing, Reset retention and
+  deterministic cancellation without partial publication.
   `TestReferenceGeometryRelationOperatorCatalog` restricts these shared facts by
   selected spellings and geometric formals, independently asserts all15 fields
   and symbolic procedure links, and couples required rows to typed-column
@@ -118,6 +132,26 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `REFERENCE=1`. It checks exact search/hash/cross-type/ordering facts, typed
   empty reads, real member ADD/DROP/rollback through a held read, stable
   memberships through index DDL, and exact diagnostics followed by recovery.
+- Operator-family identity and membership, selected pairs (run each command both
+  as shown and with `REFERENCE=1`, using the current pinned PostgreSQL 18.6 fixture):
+  - `make check RUN='^TestReferencePGOpfamily(Shape|Identity|Membership)$'`
+  - `make check RUN='^TestReferencePGOpfamily(Diagnostics|Permissions)$'`
+  - `make check RUN='^TestReferencePGOpfamily(Lifecycle|Controls|Cancellation)$'`
+  - Feature smoke: `make check RUN='^TestReferencePGOpfamilyFeatureSmoke$'`.
+    It composes exact direct/fresh/held identity and typed empty reads,
+    search/hash/cross-type/support membership, unchanged builtin bags through
+    B-tree/hash index DDL, custom method-qualified rename/move/rollback/drop and
+    full missing-column/OID diagnostics with recovery. Controls are a separate
+    scenario: logical table/index/view/custom-family replay, retained rows and
+    prepared reads across Reset/Restore, deterministic redump and failed/canceled
+    replacement atomicity. No PostgreSQL equivalent of native controls is claimed.
+  - Private capture proof:
+    `make check RUN='^(TestPGOpfamilyCaptureOwnership|TestPGOpfamilyCaptureCancellation|TestPGAmopCaptureValidation)$'`.
+  - Existing finite-support boundary:
+    `make check RUN='^(TestPGAmprocImplementedProjection|TestOperatorFamilySupportVisibility|TestOperatorFamilySupportVisibilityRemap)$'`.
+  - Existing family semantics:
+    `make check RUN='^TestReferenceOperatorFamily(Definitions|Metadata|BuiltinMetadata)$'`
+    and the same command with `REFERENCE=1`.
 - Operators: `RUN='^TestReferencePGOperator'`, `RUN='^TestReferenceLsegOperatorCatalog$'`
 - Aggregates: `RUN='^TestReferencePGAggregate'`
 - <a id="geometric-relation-operator-catalog-proof"></a>Geometric relation catalogs: `RUN='^TestReferenceGeometryRelationOperatorCatalog$'`
