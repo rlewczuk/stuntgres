@@ -1,10 +1,10 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/core"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -48,7 +48,7 @@ func TestFTSQueryFunctionsDiagnosticPhases(t *testing.T) {
 		{&parser.Insert{Returning: &parser.Returning{}}, true, "INSERT"},
 		{&parser.Select{With: []parser.CommonTableExpression{{Query: &parser.Insert{}}}}, true, "SELECT"},
 	} {
-		if core.RewriteTupleStatement(tc.statement) != tc.tuple || core.RewriteReadOnlyViolation(tc.statement) != tc.violation {
+		if core.NestedTupleStatement(tc.statement) != tc.tuple || core.NestedReadOnlyViolation(tc.statement) != tc.violation {
 			t.Fatal("cursor/read-only admission", tc)
 		}
 	}
@@ -138,18 +138,17 @@ func TestFTSQueryFunctionsScratchRestoration(t *testing.T) {
 	innerDependencies := []catalog.ExpressionDependency{{Revision: 9}}
 	s.RoutineDependencies = innerDependencies
 	core.SetRoutineDemandScalar(core.ScopeSQLRoutineRef(s), false)
-	core.SetRoutineDemandRewrite(core.ScopeSQLRoutineRef(s), true)
+	core.SetRoutineDemandNestedCursor(core.ScopeSQLRoutineRef(s), true)
 	if len(s.OwnWrites[address]) != 2 || len(prior) != 1 {
 		t.Fatal("private staged visibility")
 	}
 	nested := s.ActivateSQLRoutine(nil, catalog.Read{})
-	core.SetRoutineDemandRewrite(core.ScopeSQLRoutineRef(s), false)
-	if err := nested(nil); err != nil || !core.RoutineDemandRewrite(core.ScopeSQLRoutineRef(s)) || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &innerDependencies[0] {
+	core.SetRoutineDemandNestedCursor(core.ScopeSQLRoutineRef(s), false)
+	if err := nested(nil); err != nil || !core.RoutineDemandNestedCursor(core.ScopeSQLRoutineRef(s)) || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &innerDependencies[0] {
 		t.Fatal("stackwise restore", err)
 	}
 	failure := errors.New("primary")
-	if restore(failure) != failure || s.Expected != expected || !core.RoutineDemandScalar(core.ScopeSQLRoutineRef(s)) || core.RoutineDemandRewrite(core.ScopeSQLRoutineRef(s)) || len(s.OwnWrites[address]) != 1 || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &dependencies[0] {
+	if restore(failure) != failure || s.Expected != expected || !core.RoutineDemandScalar(core.ScopeSQLRoutineRef(s)) || core.RoutineDemandNestedCursor(core.ScopeSQLRoutineRef(s)) || len(s.OwnWrites[address]) != 1 || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &dependencies[0] {
 		t.Fatal("error scratch restoration")
 	}
 }
-

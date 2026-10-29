@@ -268,6 +268,12 @@ package or the engine.
   current parser's single-target SELECT representation. Recipes are parsed once
   at declaration setup and attached as readonly `DeclarationBody`, not fake
   checked `SQLBody` programs; missing or extra release body facts fail setup.
+  The two debug overloads retain actual multi-column SELECT declaration bodies,
+  including a readonly array-subquery carrier with the complete inner SELECT.
+  `fts_debug_body.go` supplies analyzed canonical display slots while retaining
+  genuine released source for parsing; identifier policy and current formal/
+  routine names apply through the ordinary recipe renderer, not SQL rewriting.
+  Their native fixed-record provider, not this metadata syntax, owns execution.
   User standard bodies retain their existing checked program owner. Native tree
   text deliberately differs from PostgreSQL `nodeToString`, while defaults
   deparse semantically through the existing expression owner.

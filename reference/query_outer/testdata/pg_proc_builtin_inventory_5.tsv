@@ -9,3 +9,7 @@
 6211	pg_input_error_info	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	2249	25 25	{25,25,25,25,25,25}	{i,i,o,o,o,o}	{value,type_name,message,detail,hint,sql_error_code}	false	\N	pg_input_error_info	\N	false	\N
 3352	pg_get_partkeydef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_partkeydef	\N	false	\N
 3408	pg_get_partition_constraintdef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_partition_constraintdef	\N	false	\N
+3689	ts_stat	11	12	10	10000	0	0	f	false	false	true	true	v	u	1	0	2249	25	{25,25,23,23}	{i,o,o,o}	{query,word,ndoc,nentry}	false	\N	ts_stat1	\N	false	\N
+3690	ts_stat	11	12	10	10000	0	0	f	false	false	true	true	v	u	2	0	2249	25 25	{25,25,25,23,23}	{i,i,o,o,o}	{query,weights,word,ndoc,nentry}	false	\N	ts_stat2	\N	false	\N
+6183	ts_debug	11	14	100	1000	0	0	f	false	false	true	true	s	s	2	0	2249	3734 25	{3734,25,25,25,25,3770,3769,1009}	{i,i,o,o,o,o,o,o}	{config,document,alias,description,token,dictionaries,dictionary,lexemes}	false	\N		\N	true	\N
+6184	ts_debug	11	14	100	1000	0	0	f	false	false	true	true	s	s	1	0	2249	25	{25,25,25,25,3770,3769,1009}	{i,o,o,o,o,o,o}	{document,alias,description,token,dictionaries,dictionary,lexemes}	false	\N		\N	true	\N

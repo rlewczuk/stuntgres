@@ -16,11 +16,14 @@ import (
 // authority, and catalog reads never bind or prepare these statements.
 type routineDeclarationBody struct {
 	statements []parser.Statement
-	recipe DeclarationRecipe
+	recipe     DeclarationRecipe
 }
 
 func NewRoutineDeclarationBody(recipe DeclarationRecipe) (sqltype.StructuralTree, error) {
 	source := recipe.source()
+	if recipe.Source != "" {
+		source = recipe.Source
+	}
 	statements, err := parser.ParseRoutineDeclarationBody(source)
 	if err != nil {
 		return nil, err
@@ -35,13 +38,14 @@ func NewRoutineDeclarationBody(recipe DeclarationRecipe) (sqltype.StructuralTree
 // DeclarationParts exposes immutable values without copying the retained list
 // or leaking mutable parser syntax.
 type DeclarationParts struct{ body *routineDeclarationBody }
-func (p DeclarationParts) Return() bool { return p.body.recipe.Return }
-func (p DeclarationParts) Len() int { return len(p.body.recipe.Parts) }
+
+func (p DeclarationParts) Return() bool             { return p.body.recipe.Return }
+func (p DeclarationParts) Len() int                 { return len(p.body.recipe.Parts) }
 func (p DeclarationParts) At(i int) DeclarationPart { return p.body.recipe.Parts[i] }
 
 func RoutineDeclarationRecipe(tree sqltype.StructuralTree) (DeclarationParts, bool) {
 	body, ok := tree.(*routineDeclarationBody)
-	return DeclarationParts{body:body}, ok && body != nil
+	return DeclarationParts{body: body}, ok && body != nil
 }
 
 // EarthDeclarationCubeSchema reads placement from the private parsed owner.

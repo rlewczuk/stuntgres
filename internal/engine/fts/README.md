@@ -8,6 +8,12 @@ stateless default document tokenizer. It does not
 own SQL descriptors, NULL, source positions, portal context, notices, catalogs,
 sessions, dictionaries, ranking or indexes.
 
+`Vector.AccumulateStatistics` reads private retained positions into an
+invocation-owned `Statistics` map. It neither copies/exposes positions nor
+reconstructs vectors from rendered text. Weight masks count stored positions;
+stripped lexemes count once only with mask zero. Source vectors remain immutable
+on success and cancellation.
+
 ## Parsing and rendering
 
 Parse functions check cancellation and consume all input. Vector/query payload

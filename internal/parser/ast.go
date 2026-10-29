@@ -929,6 +929,16 @@ type ArrayExpr struct {
 func (ArrayExpr) expression()                {}
 func (e ArrayExpr) SourcePosition() Position { return e.Pos }
 
+// DeclarationArraySubqueryExpr retains genuine ARRAY(SELECT ...) syntax only
+// for readonly release metadata. Ordinary SQL parsing never admits this node.
+type DeclarationArraySubqueryExpr struct {
+	Query *Select
+	Pos   Position
+}
+
+func (DeclarationArraySubqueryExpr) expression()                {}
+func (e DeclarationArraySubqueryExpr) SourcePosition() Position { return e.Pos }
+
 type ArraySubscript struct {
 	Lower, Upper Expr
 	Slice        bool

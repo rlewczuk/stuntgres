@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -20,38 +19,10 @@ import (
 // actual ordered chain, never every mapping or a category prewarm.
 func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
-	if err := ctx.Err(); err != nil {
+	captured, err := h.captureTextSearchInput(ctx, explicit, value, false)
+	if err != nil {
 		return sqltype.Value{}, err
 	}
-	var oid uint32
-	var err error
-	if explicit {
-		oid, err = value.RegTSOID()
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-	}
-	e := s.Engine()
-	e.Mu.Lock()
-	changes := s.Catalog
-	if changes == nil {
-		changes = s.Owner.Catalog
-	}
-	read := e.PrivateCatalogLocked(changes)
-	if !explicit {
-		var auth AuthorizationView
-		auth, err = s.namespaceAuthorizationLocked(e)
-		if err == nil {
-			name, _ := s.Op.Setting("default_text_search_config")
-			oid, err = regobj.NewTextSearchInput(inputCapture(auth, nil)).ResolveRegconfig(ctx, name)
-		}
-	}
-	var captured textSearchCapture
-	if err == nil {
-		captured, err = captureTextSearch(ctx, read, oid)
-	}
-	e.Mu.Unlock()
-	if err != nil { return sqltype.Value{}, err }
 	capture := captured.acquisition
 	walk := func(input string, emit func(fts.LexicalPosition)) error {
 		position := 0
@@ -109,8 +80,8 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 // textSearchCapture owns one immutable configuration generation. Capturing
 // requires Engine.Mu; walking never holds it across parser/dictionary callbacks.
 type textSearchCapture struct {
-	config       *catalog.TSConfiguration
-	parser       fts.ParserRuntime
+	config      *catalog.TSConfiguration
+	parser      fts.ParserRuntime
 	acquisition *tsAcquisition
 }
 
@@ -135,12 +106,16 @@ func (c textSearchCapture) walk(ctx context.Context, s *StatementScope, input st
 		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
 	}
 	tokens, err := parser.Parse(ctx, input)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	// Lookahead can revisit a suffix after an earlier completion. Token
 	// cursors scan forward, so one high-water mark prevents notice replay.
 	lastLongToken := -1
 	for head := 0; head < len(tokens); {
-		if err := workadmission.Admit(ctx, workadmission.WorkTSVectorConvert); err != nil { return err }
+		if err := workadmission.Admit(ctx, workadmission.WorkTSVectorConvert); err != nil {
+			return err
+		}
 		token := tokens[head]
 		if len(token.Text) >= 2047 {
 			if head > lastLongToken {
@@ -153,19 +128,27 @@ func (c textSearchCapture) walk(ctx context.Context, s *StatementScope, input st
 		word := token.Text
 		nextHead := head + 1
 		for _, address := range config.Mapping(token.ID) {
-			if err := ctx.Err(); err != nil { return err }
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			dictionary, err := capture.dictionary(h, address)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			if phrase, ok := dictionary.(catalog.PhraseDictionaryRuntime); ok {
 				matcher := phrase.NewMatcher()
 				words, more, err := matcher.Step(ctx, word, false)
-				if err != nil { return err }
+				if err != nil {
+					return err
+				}
 				saved, consumed := words, head+1
 				continued := more
-				for cursor := head+1; more; cursor++ {
+				for cursor := head + 1; more; cursor++ {
 					if cursor == len(tokens) {
 						_, _, err = matcher.Step(ctx, "", true)
-						if err != nil { return err }
+						if err != nil {
+							return err
+						}
 						break
 					}
 					continuation := tokens[cursor]
@@ -177,15 +160,26 @@ func (c textSearchCapture) walk(ctx context.Context, s *StatementScope, input st
 						continue
 					}
 					mapping := config.Mapping(continuation.ID)
-					if len(mapping) == 0 { continue }
-					if !slices.Contains(mapping, address) { saved = nil; break }
+					if len(mapping) == 0 {
+						continue
+					}
+					if !slices.Contains(mapping, address) {
+						saved = nil
+						break
+					}
 					words, more, err = matcher.Step(ctx, continuation.Text, false)
-					if err != nil { return err }
-					if words != nil { saved, consumed = words, cursor+1 }
+					if err != nil {
+						return err
+					}
+					if words != nil {
+						saved, consumed = words, cursor+1
+					}
 				}
 				matcher.Reset()
 				if saved == nil {
-					if continued { word = token.Text }
+					if continued {
+						word = token.Text
+					}
 					continue
 				}
 				nextHead = consumed
@@ -198,23 +192,35 @@ func (c textSearchCapture) walk(ctx context.Context, s *StatementScope, input st
 						// Query normalization can retain previously emitted slices.
 						lexemes = lexemes[len(lexemes):len(lexemes):cap(lexemes)]
 					}
-					if len(replacement.Text) > 2047 { noticeLong(); continue }
+					if len(replacement.Text) > 2047 {
+						noticeLong()
+						continue
+					}
 					lexemes = append(lexemes, fts.Lexeme{Text: replacement.Text, Prefix: replacement.Prefix, Variant: replacement.Variant})
 				}
 				emit(fts.LexicalPosition{Position: *position, Lexemes: lexemes})
 				break
 			}
 			lexical, err := dictionary.Lexize(ctx, word)
-			if err != nil { return err }
-			if !lexical.Recognized { continue }
+			if err != nil {
+				return err
+			}
+			if !lexical.Recognized {
+				continue
+			}
 			if dictionary.Filtering() && len(lexical.Lexemes) > 0 {
 				word = lexical.Lexemes[0].Text
 				continue
 			}
 			words := lexical.Lexemes[:0]
 			for _, lexeme := range lexical.Lexemes {
-				if err := ctx.Err(); err != nil { return err }
-				if len(lexeme.Text) > 2047 { noticeLong(); continue }
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if len(lexeme.Text) > 2047 {
+					noticeLong()
+					continue
+				}
 				words = append(words, lexeme)
 			}
 			*position++

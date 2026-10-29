@@ -56,7 +56,7 @@ func (h *statementHost) TablefuncCrosstab(text string, result *sqltype.Descripto
 	}
 	// SPI prepares the entire string before executing any of its plans.
 	for _, statement := range statements {
-		if err := s.prepareRewriteStatement(statement, read); err != nil {
+		if err := s.prepareNestedStatement(statement, read); err != nil {
 			return nil, exec.RewriteSQLDiagnostic(err, text)
 		}
 	}
@@ -83,7 +83,7 @@ func (h *statementHost) tablefuncCrosstabStatement(statement parser.Statement, r
 		}
 	}()
 	s.View, s.rlsDataRefs = view, refs
-	s.sqlRoutine.scalar, s.sqlRoutine.rewrite = false, true
+	s.sqlRoutine.scalar, s.sqlRoutine.nestedCursor = false, true
 	if err := s.AcquireRelation(statement, true); err != nil {
 		return nil, exec.RewriteSQLDiagnostic(err, text)
 	}
@@ -92,7 +92,7 @@ func (h *statementHost) tablefuncCrosstabStatement(statement parser.Statement, r
 		return nil, exec.RewriteSQLDiagnostic(e2, text)
 	}
 	s.Expected = &description
-	tag := rewriteReadOnlyViolation(statement)
+	tag := nestedReadOnlyViolation(statement)
 	if tag == "" {
 		if _, ok := statement.(*parser.Select); !ok {
 			tag = RoutineCommandTag(statement)

@@ -2991,6 +2991,11 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | grouped_primary { $$=$1.Expr }
  | grouped_primary array_subscripts { $$=SubscriptExpr{Base:$1.Expr,Subscripts:$2,Pos:$1.Pos} }
  | ARRAY array_bracket { n:=$2.(ArrayExpr);n.Pos=$1.pos;$$=n }
+ | ARRAY select_with_parens {
+   l:=sqllex.(*lexer)
+   if !l.readonlyRecipe {l.failAt("42601","syntax error at or near \"(\"",$2.Pos.Offset);return 1}
+   $$=DeclarationArraySubqueryExpr{Query:$2.Query,Pos:$1.pos}
+ }
  | column_reference array_subscripts { $$=SubscriptExpr{Base:$1,Subscripts:$2,Pos:$1.SourcePosition()} }
  | PARAM array_subscripts { $$=SubscriptExpr{Base:ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos},Subscripts:$2,Pos:$1.pos} }
  | string_function { $$=$1 }

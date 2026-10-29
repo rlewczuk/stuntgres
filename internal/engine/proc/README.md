@@ -17,11 +17,14 @@ Checked standard-body and declaration-default recipes live in `stored`, above
 this package, never as cached values or catalog dependencies in proc.
 `NewRoutineDeclarationBody` acquires one closed release-analyzed typed-parts
 recipe for every represented builtin/installed SQL-standard declaration. The
-same owner assembles canonical parse source, retains its private structural AST,
-and records RETURN versus atomic wrapper and display parts. Formal slots,
-routine/operator identities, types, relation attributes, catalog-alias literals
-and installation-member identities are explicit metadata, not token replacement
-or a second per-name SQL output table. `RoutineDeclarationRecipe` exposes only
+same owner retains its private structural AST and records RETURN versus atomic
+wrapper and analyzed display parts. An explicit genuine released `Source` keeps
+original syntax separate when analyzed display expands stars or qualifies
+formals; otherwise source is assembled from the parts. Formal slots, the current
+routine-name qualifier, routine/operator identities, types, relation attributes,
+catalog-alias literals and installation-member identities remain explicit metadata,
+not token replacement or a second per-name SQL output table.
+`RoutineDeclarationRecipe` exposes only
 immutable part values; `stored.RoutineDeclarationSQL` applies the current
 catalog/search path, names and captured quoting/string policy without binding,
 execution, target EXECUTE checks or executable provider authority.

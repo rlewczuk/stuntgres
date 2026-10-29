@@ -180,6 +180,8 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			return expressions(e.Args)
 		case ArrayExpr:
 			return expressions(e.Elements)
+		case DeclarationArraySubqueryExpr:
+			return expression(SubqueryExpr{Query: e.Query, Pos: e.Pos})
 		case SubscriptExpr:
 			var storage [13]Expr
 			return expressions(e.Children(&storage))

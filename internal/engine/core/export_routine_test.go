@@ -136,7 +136,7 @@ func ScopeSQLRoutineScratch(x *StatementScope) sqlRoutineScratch {
 func ScopeSQLRoutineLexicalScratch(x *StatementScope) sqlRoutineScratch {
 	c := x.sqlRoutineScratch()
 	c.input = sqltype.InputEnvironment{
-		TransactionStart: c.input.TransactionStart,
+		TransactionStart:  c.input.TransactionStart,
 		LockedDomainInput: c.input.LockedDomainInput, DomainChecks: c.input.DomainChecks,
 		ExactSnapshot: c.input.ExactSnapshot, RawBoxReplay: c.input.RawBoxReplay,
 		EnumMemberSafe: c.input.EnumMemberSafe, FTS: c.input.FTS, XMLInput: c.input.XMLInput,
@@ -174,12 +174,12 @@ func NewRoutineDemand(f RoutineDemandFields) sqlRoutineDemand {
 func ScopeAdmitSQLRoutineCommand(s *StatementScope, d *catalog.Procedure, program *stored.RoutineProgram, index int) error {
 	return s.admitSQLRoutineCommand(d, program, index)
 }
-func RewriteTupleStatement(stmt parser.Statement) bool { return rewriteTupleStatement(stmt) }
+func NestedTupleStatement(stmt parser.Statement) bool { return nestedTupleStatement(stmt) }
 
-func RewriteReadOnlyViolation(stmt parser.Statement) string { return rewriteReadOnlyViolation(stmt) }
+func NestedReadOnlyViolation(stmt parser.Statement) string { return nestedReadOnlyViolation(stmt) }
 
-func RoutineDemandRewrite(x *sqlRoutineDemand) bool { return x.rewrite }
+func RoutineDemandNestedCursor(x *sqlRoutineDemand) bool { return x.nestedCursor }
 
 func SetRoutineDemandScalar(x *sqlRoutineDemand, v bool) { x.scalar = v }
 
-func SetRoutineDemandRewrite(x *sqlRoutineDemand, v bool) { x.rewrite = v }
+func SetRoutineDemandNestedCursor(x *sqlRoutineDemand, v bool) { x.nestedCursor = v }

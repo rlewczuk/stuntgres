@@ -14,9 +14,10 @@ single-statement limit of driver calls) belong to callers.
   during parsing. Readonly declaration acquisition retains its own initial
   cancellation guard without moving the ordinary admission frontier.
   `ParseRoutineDeclarationBody` uses the same complete-input lexer/grammar with a
-  private per-parse readonly recipe mode. Only the selected-call scalar execution
-  frontier is relaxed so genuine released declaration arithmetic can be retained
-  as metadata. Ordinary `Parse`, `ParseWithOptions`, their options and prewalk
+  private per-parse readonly recipe mode. It retains released declaration
+  arithmetic outside the selected-call scalar frontier and ARRAY subqueries in
+  a declaration-only node with the actual inner SELECT. Ordinary SQL rejects
+  that node's syntax. Ordinary `Parse`, `ParseWithOptions`, their options and prewalk
   behavior remain unchanged; this entry grants no executable admission or
   provider authority. The proc owner privately retains its syntax behind an
   immutable structural carrier rather than submitting it for execution.

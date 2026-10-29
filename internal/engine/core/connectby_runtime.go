@@ -277,7 +277,7 @@ func (s *StatementScope) activateConnectbySource(read catalog.Read) func(error) 
 func (s *StatementScope) connectbyStatement(statement parser.Statement, read catalog.Read) (children connectbyChildren, stop bool, err error) {
 	restore := s.activateConnectbySource(read)
 	defer func() { err = restore(err) }()
-	s.sqlRoutine.scalar, s.sqlRoutine.rewrite, s.sqlRoutine.readOnlySPI = false, true, true
+	s.sqlRoutine.scalar, s.sqlRoutine.nestedCursor, s.sqlRoutine.readOnlySPI = false, true, true
 	// SPI rejects transaction commands and frontend COPY with a negative
 	// result, terminating the list without throwing an SQL error. connectby
 	// consumes only SPI_OK_SELECT, so that outcome supplies no children.

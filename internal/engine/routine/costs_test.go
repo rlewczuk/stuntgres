@@ -12,6 +12,7 @@ func TestBuiltinRoutineCosts(t *testing.T) {
 	// REL_18_6 pg_proc.dat and system_functions.sql (including SQL COST 1).
 	// All other represented declarations retain their actual language default.
 	explicit := map[ids.OID]float32{
+		3689: 10, 3690: 10, 6183: 100, 6184: 100,
 		879: 1, 880: 1, 1215: 100, 1216: 100, 1296: 1, 1298: 1,
 		1305: 1, 1306: 1, 1307: 1, 1309: 1, 1310: 1, 1311: 1,
 		1348: 100, 1384: 1, 1426: 1, 1481: 1, 1544: 1, 1686: 10,

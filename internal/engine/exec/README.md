@@ -157,8 +157,8 @@ typmods; naming is captured only on failure and is never retained in result tupl
   driver), the foreign scan stage (`foreign_*.go`) and the `pg_sequences` stage.
 - **Private row owners** (`nested_query_rows.go`, `cte_owned_rows.go`,
   `fts_rewrite_rules.go`). `OpenNestedQueryRows` is the all-row producer that
-  PL/pgSQL static query loops, bounded static SELECT capture and `ts_rewrite` SQL
-  borrow. It reads the live host's environments for its whole lifetime, owns its
+  PL/pgSQL static query loops, bounded static SELECT capture, `ts_rewrite` and
+  `ts_stat` borrow. It reads the live host's environments for its whole lifetime, owns its
   source from the call on, and keeps open errors distinct from row-demand errors.
   Streaming SELECT CTE resources transfer to `CTEOwnedRows`, including pending
   writable auxiliaries under static capture. `Finish(primary)` closes the main
@@ -171,6 +171,10 @@ typmods; naming is captured only on failure and is never retained in result tupl
   pointers restore independently of retained resource ownership.
   `ConsumeRewriteRules` reads rule rows in fetches
   of at most 100 into `sqltype.FTSRewriteRules` and closes the cursor;
+  statistics shares the bounded fetch helper, but validates one binary TSVECTOR
+  column (including domains) after the first fetch and consumes every later batch.
+  Its invocation-local typed accumulator counts retained positions without text
+  re-input. Both consumers close before their caller restores lexical scratch.
   `RewriteSQLDiagnostic` maps SPI prepare/open errors, never FETCH errors, and
   preserves diagnostics already owned by nested SQL or an existing context.
   Actual refint SPI command boundaries instead use `SPIStatementDiagnostic`:

@@ -375,6 +375,13 @@ descriptor, so rewritten plans retain no stale composites or invocation state.
 Each descriptor cursor owns a pointer to its checked token-type array; advancing
 copies only the selected entry, never the complete inventory.
 
+`FTSInspection` owns the four strict fixed-OUT `ts_debug`/`ts_stat` sources,
+including written-order named operands and checked record descriptors. Debug is
+stable in both forms; statistics is volatile. Neither retains computed rows or
+folds at planning time. The statement capability returns invocation-owned records
+after complete debug acquisition or nested SQL consumption, including typed empty
+sources for strict NULL. Dictionary arrays retain REGDICTIONARY identities.
+
 `FTSConversion` binds all five text-search constructors with explicit or omitted
 configuration. Both forms are strict; explicit REGCONFIG/TEXT is immutable and
 omitted TEXT is stable. The node owns checked children and routine authority,

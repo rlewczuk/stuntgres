@@ -200,7 +200,7 @@ type sqlRoutineDemand struct {
 	assignmentPlanning   bool                  // Borrowed PL origin for a called SQL body, not its destination.
 	scalar               bool                  // Internal single-row SELECT demand, never public finalization.
 	plArgumentRow        bool                  // NonSTRICT bound-argument projection: one row, always SPI.
-	rewrite              bool                  // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
+	nestedCursor         bool                  // Nested all-row cursor demand with separate open/fetch diagnostics.
 	readOnlySPI          bool                  // Connectby classifies the canonical executable binding before execution.
 	policy               routineCommandPolicy  // Lexical invocation policy, shared by its reached commands only.
 	rows                 bool                  // Private all-row PL demand; no rewrite policy or scalar cardinality.

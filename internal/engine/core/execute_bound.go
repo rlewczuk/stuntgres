@@ -48,7 +48,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	_, calling := stmt.(*parser.Call)
 	var queryRoot plan.Node
 	_, deleting := stmt.(*parser.Delete)
-	if scope.protocolOrZero().bind != nil || scope.protocolOrZero().execute != nil || ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && session.ProtocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite || scope.sqlRoutine.lexical != nil || scope.sqlRoutine.cursor != nil || scope.sqlRoutine.assignment != nil || scope.sqlRoutine.assignmentPlanning {
+	if scope.protocolOrZero().bind != nil || scope.protocolOrZero().execute != nil || ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && session.ProtocolPlainSelect(stmt)) || scope.sqlRoutine.nestedCursor || scope.sqlRoutine.lexical != nil || scope.sqlRoutine.cursor != nil || scope.sqlRoutine.assignment != nil || scope.sqlRoutine.assignmentPlanning {
 		// Plan closed immutable recipes before executor startup, retaining
 		// imported-parameter, PL-local, row, domain and volatile demand barriers.
 		// The private folded graph is also the graph retained by live portals.
@@ -734,7 +734,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if scope.protocolOrZero().bind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)
 		}
-		if scope.sqlRoutine.plCapture || scope.sqlRoutine.rewrite || scope.sqlRoutine.rows && !parser.HasModifyingCTE(stmt) {
+		if scope.sqlRoutine.plCapture || scope.sqlRoutine.nestedCursor || scope.sqlRoutine.rows && !parser.HasModifyingCTE(stmt) {
 			rows, err := exec.OpenNestedQueryRows(ctx, queryRoot, source, canonical)
 			return Result{Rows: rows}, err
 		}

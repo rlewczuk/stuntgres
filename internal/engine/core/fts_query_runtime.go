@@ -16,14 +16,28 @@ func (h *statementHost) RewriteQuerySQL(query sqltype.Value, text string, result
 }
 
 func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (value sqltype.Value, err error) {
-	if err := s.enterSQLRoutine(); err != nil {
-		return value, err
-	}
-	defer s.leaveSQLRoutine()
 	accumulator, err := sqltype.NewFTSRewriteRules(s.Op.Context(), query, result)
 	if err != nil {
 		return value, err
 	}
+	err = s.consumeTextSearchSQL(text, false, func(rows exec.RowCursor) error {
+		var failure error
+		value, failure = exec.ConsumeRewriteRules(s.Op.Context(), rows, accumulator)
+		return failure
+	})
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return value, nil
+}
+
+// One lexical nested-SQL owner is shared by rewrite and statistics consumers.
+// Consumers close the cursor before scratch restoration; FETCH errors pass through.
+func (s *StatementScope) consumeTextSearchSQL(text string, readOnlySPI bool, consume func(exec.RowCursor) error) (err error) {
+	if err := s.enterSQLRoutine(); err != nil {
+		return err
+	}
+	defer s.leaveSQLRoutine()
 	e := s.Engine()
 	e.Mu.Lock()
 	changes := s.Catalog
@@ -37,45 +51,50 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 	s.Op.EffectiveSettings().Mu.Unlock()
 	statements, err := parser.ParseWithOptions(text, parser.Options{Context: s.Op.Context(), StandardConformingStrings: standard, Notice: s.Op.ParseNotice, ClosedRoutineFormals: true})
 	if err != nil {
-		return value, exec.RewriteSQLDiagnostic(err, text)
+		return exec.RewriteSQLDiagnostic(err, text)
 	}
 	if len(statements) != 1 {
 		// SPI prepares every statement before checking cursor plan count.
 		for _, statement := range statements {
-			if err := s.prepareRewriteStatement(statement, read); err != nil {
-				return value, exec.RewriteSQLDiagnostic(err, text)
+			if err := s.prepareNestedStatement(statement, read); err != nil {
+				return exec.RewriteSQLDiagnostic(err, text)
 			}
 		}
-		return value, SQLError("42P11", "cannot open multi-query plan as cursor")
+		return SQLError("42P11", "cannot open multi-query plan as cursor")
 	}
 	statement := statements[0]
+	tuple := nestedTupleStatement(statement)
 	view, refs := s.View, s.rlsDataRefs
 	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	s.View, s.rlsDataRefs = view, refs
-	s.sqlRoutine.scalar, s.sqlRoutine.rewrite = false, true
+	s.sqlRoutine.scalar, s.sqlRoutine.nestedCursor = false, true
+	// SPI rejects non-cursor command kinds before its read-only plan check.
+	// Tuple-producing stat queries use canonical executable binding admission;
+	// rewrite retains its independently established syntax-gate contract.
+	s.sqlRoutine.readOnlySPI = readOnlySPI && tuple
 	if err := s.AcquireRelation(statement, true); err != nil {
-		return value, exec.RewriteSQLDiagnostic(err, text)
+		return exec.RewriteSQLDiagnostic(err, text)
 	}
 	description, err := e.describeOperation(s, statement)
 	if err != nil {
-		return value, exec.RewriteSQLDiagnostic(err, text)
+		return exec.RewriteSQLDiagnostic(err, text)
 	}
 	s.Expected = &description
-	if !rewriteTupleStatement(statement) {
-		return value, SQLError("42P11", "cannot open "+RoutineCommandTag(statement)+" query as cursor")
+	if !tuple {
+		return SQLError("42P11", "cannot open "+RoutineCommandTag(statement)+" query as cursor")
 	}
-	if tag := rewriteReadOnlyViolation(statement); tag != "" {
-		return value, exec.RewriteSQLDiagnostic(SQLError("0A000", tag+" is not allowed in a non-volatile function"), text)
+	if tag := nestedReadOnlyViolation(statement); tag != "" {
+		return exec.RewriteSQLDiagnostic(SQLError("0A000", tag+" is not allowed in a non-volatile function"), text)
 	}
 	rowsResult, err := e.executeStatement(s, statement, 0, func(_ context.Context, info analyze.ParameterInfo, _ []sqltype.Value, _ sqltype.InputEnvironment) error {
 		if info.Count != 0 {
-			return fmt.Errorf("stuntgres: rewrite SQL parameter frame is not empty")
+			return fmt.Errorf("stuntgres: text search SQL parameter frame is not empty")
 		}
 		return nil
 	})
 	if err != nil {
-		return value, exec.RewriteSQLDiagnostic(err, text)
+		return exec.RewriteSQLDiagnostic(err, text)
 	}
 	defer func() {
 		for _, rows := range rowsResult.RowSets {
@@ -85,12 +104,12 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 		}
 	}()
 	if rowsResult.Rows == nil {
-		return value, fmt.Errorf("stuntgres: tuple-producing rewrite SQL returned no row cursor")
+		return fmt.Errorf("stuntgres: tuple-producing text search SQL returned no row cursor")
 	}
-	return exec.ConsumeRewriteRules(s.Op.Context(), rowsResult.Rows, accumulator)
+	return consume(rowsResult.Rows)
 }
 
-func (s *StatementScope) prepareRewriteStatement(statement parser.Statement, read catalog.Read) (err error) {
+func (s *StatementScope) prepareNestedStatement(statement parser.Statement, read catalog.Read) (err error) {
 	view, refs := s.View, s.rlsDataRefs
 	restore := s.ActivateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
@@ -103,7 +122,7 @@ func (s *StatementScope) prepareRewriteStatement(statement parser.Statement, rea
 	return err
 }
 
-func rewriteTupleStatement(statement parser.Statement) bool {
+func nestedTupleStatement(statement parser.Statement) bool {
 	switch s := statement.(type) {
 	case *parser.Select:
 		return s.Into == nil
@@ -118,7 +137,7 @@ func rewriteTupleStatement(statement parser.Statement) bool {
 	}
 	return false
 }
-func rewriteReadOnlyViolation(statement parser.Statement) string {
+func nestedReadOnlyViolation(statement parser.Statement) string {
 	if parser.ModifyingStatement(statement) {
 		return RoutineCommandTag(statement)
 	}

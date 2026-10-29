@@ -8,14 +8,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const rewriteFetchSize = 100
+const textSearchFetchSize = 100
 
-// fetchRewriteBatch requests at most one released SPI fetch, without probing
-// row 101 to discover EOF. Valid rule rows retain their immutable typed cells;
+// fetchTextSearchBatch requests at most one released SPI fetch, without probing
+// row 101 to discover EOF. Valid rows retain their immutable typed cells;
 // invalid result shapes reuse one exact-width scratch row for their initial
 // fetch, so a competing row error still precedes the shape diagnostic.
-func fetchRewriteBatch(ctx context.Context, rows RowCursor, buffer []sqltype.Value, width int, retain bool) (int, error) {
-	for i := range rewriteFetchSize {
+func fetchTextSearchBatch(ctx context.Context, rows RowCursor, buffer []sqltype.Value, width int, retain bool) (int, error) {
+	for i := range textSearchFetchSize {
 		if err := ctx.Err(); err != nil {
 			return i, err
 		}
@@ -31,7 +31,7 @@ func fetchRewriteBatch(ctx context.Context, rows RowCursor, buffer []sqltype.Val
 			return i, nil
 		}
 	}
-	return rewriteFetchSize, nil
+	return textSearchFetchSize, nil
 }
 
 // ConsumeRewriteRules owns and closes the cursor before the caller restores
@@ -48,13 +48,13 @@ func ConsumeRewriteRules(ctx context.Context, rows RowCursor, accumulator *sqlty
 	}()
 	schema := rows.Schema()
 	if len(schema) != 2 || schema[0].Usage.Type.ID() != sqltype.TSQuery || schema[1].Usage.Type.ID() != sqltype.TSQuery {
-		if _, err := fetchRewriteBatch(ctx, rows, make([]sqltype.Value, len(schema)), len(schema), false); err != nil {
+		if _, err := fetchTextSearchBatch(ctx, rows, make([]sqltype.Value, len(schema)), len(schema), false); err != nil {
 			return value, err
 		}
 		return value, sqlError("22023", "ts_rewrite query must return two tsquery columns")
 	}
-	var batch [rewriteFetchSize * 2]sqltype.Value
-	count, err := fetchRewriteBatch(ctx, rows, batch[:], 2, true)
+	var batch [textSearchFetchSize * 2]sqltype.Value
+	count, err := fetchTextSearchBatch(ctx, rows, batch[:], 2, true)
 	if err != nil {
 		return value, err
 	}
@@ -81,7 +81,7 @@ func ConsumeRewriteRules(ctx context.Context, rows RowCursor, accumulator *sqlty
 				return value, err
 			}
 		}
-		count, err = fetchRewriteBatch(ctx, rows, batch[:], 2, true)
+		count, err = fetchTextSearchBatch(ctx, rows, batch[:], 2, true)
 		if err != nil {
 			return value, err
 		}

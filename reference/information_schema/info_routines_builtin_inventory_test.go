@@ -54,6 +54,10 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 	facts = append(facts, irBuiltinFacts3...)
 	facts = append(facts, irBuiltinCastFacts...)
 	facts = append(facts,
+		irBuiltinFact{6183, "ts_debug", "", "SQL", "INVOKER"},
+		irBuiltinFact{6184, "ts_debug", "", "SQL", "INVOKER"},
+		irBuiltinFact{3689, "ts_stat", "ts_stat1", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3690, "ts_stat", "ts_stat2", "INTERNAL", "INVOKER"},
 		irBuiltinFact{1081, "format_type", "format_type", "INTERNAL", "INVOKER"},
 		irBuiltinFact{1619, "pg_typeof", "pg_typeof", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6315, "pg_basetype", "pg_basetype", "INTERNAL", "INVOKER"},
@@ -92,8 +96,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3752, "tsvector_update_trigger", "tsvector_update_trigger_byid", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3753, "tsvector_update_trigger_column", "tsvector_update_trigger_bycolumn", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1746 {
-		t.Fatalf("released represented inventory: got %d, want 1746", len(facts))
+	if len(facts) != 1750 {
+		t.Fatalf("released represented inventory: got %d, want 1750", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

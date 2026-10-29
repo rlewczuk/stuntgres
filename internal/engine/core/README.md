@@ -562,6 +562,26 @@ resource compilation, lexization or notice callbacks. Capture does not initializ
 mapped dictionaries. Omitted configuration reads the operation's effective
 `default_text_search_config` at execution, with Engine-before-settings lock order.
 Mapping changes publish through ordinary schema stages and definition locks.
+Debug borrows the same coherent capture/default resolver and acquisition fence,
+but independently lexizes every mapped dictionary against each original token.
+Its complete ordered mapping arrays and recognized-empty/unknown distinctions
+never inherit conversion's filtering, phrase or token-suppression walk.
+Debug rows and acquired dictionary runtimes belong to one invocation; nothing
+is published before currentness and cancellation are checked.
+Provider failures inside debug acquire the actual SQL-standard function's
+statement context through the shared immutable SQL routine diagnostic helper;
+caller argument-input failures remain outside that body frame.
+
+`consumeTextSearchSQL` owns the shared rewrite/statistics nested cursor scope:
+ordinary settings-aware parse, complete preparation, ACL/planning and read-only
+cursor admission use the caller's private catalog/data with no outer parameters.
+Stat enables canonical executable-binding `readOnlySPI` classification before
+description: derived/stored row marks are rejected, while unused analysis-only
+locking CTEs are not executable marks. Non-cursor command-kind precedence remains
+separate. Rewrite keeps its existing syntax-gate admission rather than inheriting
+stat's stronger SPI demand; lexical restoration includes both demand flags.
+The consumer closes rows before lexical restoration; only prepare/open failures
+gain SPI diagnostic enrichment. `nestedCursor` is all-row demand, not cached SQL.
 Generic folds retain immutable explicit vector/query results and their first
 execution notices are not replayed. Stable omitted forms and runtime arguments
 consume current defaults/mappings without local result caches. Rich lexical metadata

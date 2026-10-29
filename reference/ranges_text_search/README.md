@@ -133,6 +133,17 @@ COPY test in reference/dml.
 - Text search types: `RUN='^TestReferenceFTSTypes'`
 - Text search operators: `RUN='^TestReferenceFTSOps'`
 - Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
+- Text search configuration debugging: `RUN='^TestReferenceFTSDebug'`.
+  Shared inspection helpers assert fixed record metadata, original parser tokens,
+  ordered real dictionary mappings and full phase-specific diagnostics.
+  Declaration-body scenarios inspect actual SQL-standard definitions through
+  direct, fresh-prepared and held metadata inquiries without executing the body.
+- Text search query statistics: `RUN='^TestReferenceFTSStat'`.
+  Actual nested SQL, retained position/weight counts and prepared private-data
+  visibility share independently specified direct, fresh and held routes.
+  Read-only admission distinguishes derived/stored executable row marks from
+  unused locking CTEs under a real conflicting tuple holder; complete Exec/Query
+  diagnostics and held-statement recovery use the same independent contract.
 - Text search conversion: `RUN='^TestReferenceFTSConvert'`; shared configuration
   callbacks own pinned-session settings, typed metadata and held statements.
   Exact diagnostics distinguish input/coercion from constructor execution;

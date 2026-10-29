@@ -556,6 +556,9 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   substitutes without exposing private query payloads or converting through text.
   Its checked `Empty` inquiry reads accumulator state without finalizing,
   rendering or reconstructing a query between SQL rule batches.
+- `Value.AccumulateFTSStatistics` validates a binary TSVECTOR payload, including
+  domain wrappers, before reading immutable retained positions. `FTSStatisticsRows`
+  publishes owned fixed-record TEXT/INT4/INT4 results only after accumulation.
 - `FTSVectorPlan` checks same-generation vector, scalar and array companions
   and exact typmods before strict NULL evaluation. TEXT and TEXT[] selectors
   retain valid usage collations while matching lexemes byte-exactly. Conversion

@@ -82,7 +82,7 @@ func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
 		return q.Close(planningError(err))
 	}
 	s.Expected = &description
-	if !rewriteTupleStatement(query) {
+	if !nestedTupleStatement(query) {
 		return q.Close(q.queryError(SQLError("42P11", "cannot open "+RoutineCommandTag(query)+" query as cursor")))
 	}
 	finishCommand, err := s.BeginRoutineCommand()

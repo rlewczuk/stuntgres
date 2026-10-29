@@ -17,6 +17,10 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
+	6183: {Language: catalog.SQLRoutineLanguage, Source: "", Cost: 100},
+	6184: {Language: catalog.SQLRoutineLanguage, Source: "", Cost: 100},
+	3689: {Language: catalog.InternalRoutineLanguage, Source: "ts_stat1", Cost: 10},
+	3690: {Language: catalog.InternalRoutineLanguage, Source: "ts_stat2", Cost: 10},
 	40:   {Language: catalog.InternalRoutineLanguage, Source: "int2vectorin"},
 	41:   {Language: catalog.InternalRoutineLanguage, Source: "int2vectorout"},
 	54:   {Language: catalog.InternalRoutineLanguage, Source: "oidvectorin"},
