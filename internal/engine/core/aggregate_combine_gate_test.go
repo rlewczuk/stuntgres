@@ -41,6 +41,7 @@ func TestAggregateCombineSQLGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertWaitingOwner := core.CaptureAggregateScratchOwnership(s)
 	done := make(chan error, 1)
 	go func() { done <- p.Advance(ctx, state, []sqltype.Value{one}, &local) }()
 	joined := false
@@ -64,6 +65,9 @@ func TestAggregateCombineSQLGate(t *testing.T) {
 	}
 	if core.ScopeActiveSQLRoutineDepth(s) != 0 || core.ScopeAggregateInvocationContext(s) != nil {
 		t.Fatal("canceled waiter mutated SQL host")
+	}
+	if err := assertWaitingOwner(); err != nil {
+		t.Fatal(err)
 	}
 	value, err := p.Finalize(evaluation.Context, state)
 	if err != nil || !value.IsNull() {

@@ -213,7 +213,7 @@ func (s *State) Evaluation(ctx context.Context) Context {
 	if frame == 0 {
 		frame = 1
 	}
-	evaluation := Context{EvalFrame: EvalFrame{Scope: 1, Frame: frame, Outer: s.Outer, Query: s}, EvalStatement: EvalStatement{Parameters: s.Parameters, Input: s.Input, Output: s.Output}}
+	evaluation := Context{EvalFrame: EvalFrame{Scope: 1, Frame: frame, Outer: s.Outer, Query: s}, EvalStatement: EvalStatement{Parameters: s.Parameters, Input: s.Input, Output: s.Output, ClosedEvaluation: s.ClosedEvaluation}}
 	if s.Outer != nil {
 		evaluation.Catalog = s.Outer.Catalog
 	}

@@ -66,7 +66,7 @@ func (h *statementHost) InvokeAggregateSQLRoutine(ctx context.Context, d *catalo
 			return sqltype.Value{}, err
 		}
 		saved := s.invocationContext
-		s.invocationContext = context.WithValue(workadmission.Suspend(ctx), aggregateInvocationKey{}, s)
+		s.invocationContext = context.WithValue(exec.SQLInvocationContext(workadmission.Suspend(ctx)), aggregateInvocationKey{}, s)
 		defer func() { s.invocationContext = saved }()
 	}
 	return s.invokeSQLRoutine(d, frame, resultUsage, owner, collation, false, false, nil)

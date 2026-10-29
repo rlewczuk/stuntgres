@@ -81,10 +81,15 @@ typmods; naming is captured only on failure and is never retained in result tupl
   per producer row/round step. Refusal uses the existing private-stage and CTE
   failure/close owners; no policy or lifetime grant is retained by the plan.
   Aggregate partial workers capture the leader's outer CTE owner before launch,
-  including a real nil owner. Their partial-state sink marks closed inheritance:
-  repeated worker Evaluation must never consult a shared SQL host whose lexical
-  CTE scratch may be installed/restored by a sibling support body. Ordinary and
-  nested SQL query states retain their existing live lexical inheritance.
+  including a real nil owner. `State.ClosedEvaluation` closes environment and
+  presentation inheritance for each evaluator and its synchronous derived
+  frames, including authoritative nil resolvers/formatters/CTEs. The host's
+  `CaptureParallelEvaluation` factory shares immutable admitted facts while
+  giving each worker and the leader private lazy caches and diagnostic sinks.
+  Capture happens before support invocation, never per row. Workers must not
+  reread XML mode, coercion resolver fallbacks or presentation from a sibling's
+  mutable SQL host. Nested SQL bodies retain their own gate-owned live lexical
+  inheritance, not their caller's outer closed capture.
   `State.Methods` is a value-only admission snapshot. Child, correlated, CTE,
   view and worker states copy it; retained streams capture before host rebinding.
   Hashjoin off avoids the join hash structure, indexscan off avoids candidate
@@ -102,6 +107,18 @@ typmods; naming is captured only on failure and is never retained in result tupl
   nested SQL write admission use the operation marker, so leader support cannot
   escape restrictions that apply to worker support. The derived context retains
   request cancellation and does not mark subsequent ordinary executions.
+  `SQLInvocationContext` is separate synchronous lexical ownership, not worker
+  or effect identity. `FinalizeSelect` never launches nested work within it or
+  within an existing parallel operation; eligible outer partial scans remain
+  concurrent. Captured evaluator diagnostics flush once after joined workers
+  and leader completion on success, SQL error and cancellation; source pins and
+  membership release retain their original lifetimes.
+  This includes ACL-state INITCOND decoding in `TransitionAggregate.initialize`,
+  which runs outside the SQL gate: its captured ACL resolver must use that
+  evaluator's private sink, not append to the shared Operation notice list.
+  The coordinator's existing drain is the sole publication boundary; repeated
+  drains are empty. Literal/parameter specialization preserves provenance and
+  immutable role/ACL authority without changing ordinary lexical input.
   Sources retain admitted typed CPU/parallel costs and detached maintenance
   cardinality, never a settings-store pointer. Each opening selects its scan
   decision before hashing or allocating candidates; the original predicate
@@ -181,7 +198,8 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Session activity forwards through `LiveHost`: FETCH borrows its current client
   source without replacing or depending on the cursor's clock snapshots.
   Neither source nor live session authority enters `CursorExpressionData`.
-  `FunctionInput` overlays only XML input mode from the current admitted host:
+  For ordinary, noncaptured execution, `FunctionInput` overlays only XML input
+  mode from the current admitted host:
   already-open cursor stages therefore use current FETCH/Execute mode for
   runtime character casts, without changing accepted XML datums or their other
   captured presentation. XML warning input follows the detachable authority;

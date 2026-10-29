@@ -84,7 +84,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		routineDependencies: s.RoutineDependencies,
 		prepared:            s.prepared, admissionWaited: s.admissionWaited,
 		initialParameters: s.initialParameters, input: s.Input, output: s.Output,
-		methods: s.PlannerMethods,
+		methods:    s.PlannerMethods,
 		sqlRoutine: s.sqlRoutine, inquiry: s.Inquiry,
 		protocol: s.protocolSlot,
 		view:     s.View, partitionView: s.PartitionsOrZero().ValidationView, ownWrites: s.OwnWrites, ownDeletes: s.OwnDeletes,
@@ -174,7 +174,7 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 			saved = s.rebaseRoutineScratch(saved)
 		}
 		s.installSQLRoutineScratch(saved)
-		if policy.active {
+		if policy.active && !exec.InParallelOperation(s.executionContext()) {
 			// A reached SET may escape this lexical command. Restoring query
 			// scratch must not restore its obsolete codecs, lookup inputs or
 			// identity over the operation's current effective environment.
@@ -190,34 +190,34 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 
 // sqlRoutineDemand is the internal SQL routine result demand of a statement.
 type sqlRoutineDemand struct {
-	lexical            *proc.PLFrame
-	plDiagnostic       string                // Invocation-private cached PL signature; balanced with lexical scratch.
-	plPlanning         bool                  // PL diagnostic provenance; cleared at the real executor handoff.
-	closedParameters   bool                  // Reached dynamic USING frame, including an empty frame.
-	plSimpleExpression  bool                  // Actual admitted scalar provenance at executor handoff.
-	plExpressionFallback bool                 // Same checked expression site already active in this operation.
-	assignment         *analyze.PLAssignment // Reached semantic-datum projection, never retained.
-	assignmentPlanning bool                  // Borrowed PL origin for a called SQL body, not its destination.
-	scalar             bool                  // Internal single-row SELECT demand, never public finalization.
-	plArgumentRow      bool                  // NonSTRICT bound-argument projection: one row, always SPI.
-	rewrite            bool                  // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
-	readOnlySPI        bool                  // Connectby classifies the canonical executable binding before execution.
-	policy             routineCommandPolicy  // Lexical invocation policy, shared by its reached commands only.
-	rows               bool                  // Private all-row PL demand; no rewrite policy or scalar cardinality.
-	plCapture          bool                  // Bounded primary SELECT capture, including after writable CTE completion.
-	sourceBase         *visibility.Data      // Borrowed coherent roots for runtime-named nested sources; saved outer View owns them.
-	result             sqltype.Usage
-	resultPlan         proc.ResultPlan
-	definition         *proc.Definition
-	name               string // Live declaration qualifier, separate from immutable body syntax.
-	terminal           bool
-	binding            *analyze.Binding
-	plCallBinding      *analyze.Binding     // One reached winner; never a frozen SQL-body recipe.
-	inputCollation     sqltype.CollationRef // Only quoted aggregate-support formal annotation.
-	cursor             *parser.DeclareCursor
-	cursorName         *string // nil means allocate only at actual installation; explicit empty stays distinct.
-	openedCursor       *sqlCursor
-	openedCursorName   string
+	lexical              *proc.PLFrame
+	plDiagnostic         string                // Invocation-private cached PL signature; balanced with lexical scratch.
+	plPlanning           bool                  // PL diagnostic provenance; cleared at the real executor handoff.
+	closedParameters     bool                  // Reached dynamic USING frame, including an empty frame.
+	plSimpleExpression   bool                  // Actual admitted scalar provenance at executor handoff.
+	plExpressionFallback bool                  // Same checked expression site already active in this operation.
+	assignment           *analyze.PLAssignment // Reached semantic-datum projection, never retained.
+	assignmentPlanning   bool                  // Borrowed PL origin for a called SQL body, not its destination.
+	scalar               bool                  // Internal single-row SELECT demand, never public finalization.
+	plArgumentRow        bool                  // NonSTRICT bound-argument projection: one row, always SPI.
+	rewrite              bool                  // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
+	readOnlySPI          bool                  // Connectby classifies the canonical executable binding before execution.
+	policy               routineCommandPolicy  // Lexical invocation policy, shared by its reached commands only.
+	rows                 bool                  // Private all-row PL demand; no rewrite policy or scalar cardinality.
+	plCapture            bool                  // Bounded primary SELECT capture, including after writable CTE completion.
+	sourceBase           *visibility.Data      // Borrowed coherent roots for runtime-named nested sources; saved outer View owns them.
+	result               sqltype.Usage
+	resultPlan           proc.ResultPlan
+	definition           *proc.Definition
+	name                 string // Live declaration qualifier, separate from immutable body syntax.
+	terminal             bool
+	binding              *analyze.Binding
+	plCallBinding        *analyze.Binding     // One reached winner; never a frozen SQL-body recipe.
+	inputCollation       sqltype.CollationRef // Only quoted aggregate-support formal annotation.
+	cursor               *parser.DeclareCursor
+	cursorName           *string // nil means allocate only at actual installation; explicit empty stays distinct.
+	openedCursor         *sqlCursor
+	openedCursorName     string
 }
 
 // A saved lexical activation owns its views, but no authority over a successor

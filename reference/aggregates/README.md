@@ -79,6 +79,61 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 
 Add `REFERENCE=1` for the oracle.
 
+- Parallel SQL invocation ownership:
+  `RUN='^TestReferenceAggregateParallelOwnership$'`. A physical16384-row,
+  1024-byte-padding source admits actual PostgreSQL Partial/Finalize plans for
+  bigint, BOOL and numeric SQL-final variants, with SQL transition/combine and
+  nested regclass/regtype/regrole spelling/cast helpers. FILTER retains four
+  genuine transition inputs; bounded unfiltered NULL input is checked separately.
+  Direct, fresh-prepared and same-held queries assert exact NULL/5/30,
+  NULL/false/true and NULL/numeric5/numeric30 values and `v` metadata through
+  ceilings0/2/7, empty/all-NULL states, grouping, live support/aggregate EXECUTE
+  revocation and same-handle recovery at serial/parallel ceilings. Revocation
+  targets active SFUNC, including empty-input admission; revoked unused combine
+  remains a serial positive. A held generic plan may remain serial, so a separate
+  EXPLAIN never implies that execution reached combine. Each variant restores
+  shared support ACLs/session authorization even after a failed assertion.
+  Native logical EXPLAIN does not claim physical PostgreSQL topology; composed
+  `TestAggregateParallelInvocationOwnership` observes two actual production
+  workers overlapping real SQL support with environment/coercion/presentation,
+  private cache owners, diagnostic queues, exact scratch/definition restoration,
+  cancellation/join and ordinary/parallel reuse. Run native and `REFERENCE=1`
+  modes, plus the selected owner/public `RACE=1` checks. The incumbent Combine
+  authority/cancellation/value/state/codec assertions and all22 reached effects
+  remain separate required proofs, not replaced by this scenario.
+- Parallel ACL-input diagnostic ownership:
+  `RUN='^TestReferenceAggregateParallelACLNotices$'`, in native and `REFERENCE=1`
+  modes, plus selected `RACE=1`. The real aclitem-state aggregate validates
+  missing-grantor INITCOND once at declaration, rejects malformed seeds without
+  publishing pg_proc rows, and admits actual PostgreSQL Partial/Finalize over
+  the physical padded source. Explicit-grantor ACL parameters demand immutable
+  root input authority without another warning. Direct/fresh/same-held serial
+  and parallel reuse returns exact `=r/<bootstrap-role>` TEXT even on empty
+  input; every seed warning has exact WARNING/0L000/message/provenance.
+  Bags retain multiplicity from both planning and execution. PG `prepagg.c`
+  inputs INITCOND once per planning pass, separately from each executor state:
+  new direct/fresh serial queries therefore require two plain warnings
+  (planning1 + runtime1), including empty input. A matching positive-input
+  Partial/Finalize query requires three plain warnings (planning1 + leader2)
+  plus zero to two exact `parallel worker` warnings; empty custom plans permit
+  the finite serial/partial union. Non-ANALYZE EXPLAIN also requires three plain
+  warnings, because it plans and initializes two leader states without workers.
+  Native has no planning input: serial requires one, partial three, never two.
+  The first five PG held executions use one custom planning pass under the
+  default auto policy and retain the corresponding exact topology counts.
+  Later PG held executions explicitly permit planning P=0 for cached generic
+  reuse, P=1 for a custom/new generic plan, or P=2 for rejected generic followed
+  by custom. Allowed pairs are serial `(P+1,0)` or partial `(P+2,W)` with W=0..2;
+  retained topology is not inferred from settings or the separate EXPLAIN.
+  Native held ceiling0 still requires one via the current execution cutoff.
+  No cross-worker order or particular launched PG worker count is pinned.
+  Separate ordinary literal and parameter routes pin exact counts, prepare/bind
+  phases, position8/portal context, warning-before-error, same-handle recovery
+  and client filtering/drain.
+  Retain `RUN='^TestReferenceACLItemNotices$'` in both modes. The composed owner
+  test separately proves six paired real initializer decodes under actual
+  worker overlap, exact30 total diagnostics and no live/duplicate delivery.
+
 - Parallel support effects: `RUN='^TestReferenceAggregateCombineParallelEffects$'`.
   Falsely SAFE transition, nested-body and modifying-CTE writes, plus leader
   combine/final writes and sequence effects, must fail with complete `25000`

@@ -91,6 +91,14 @@ import it.
   already-parsed type syntax. The `Retarget*` methods implement the `analyze`
   retarget interfaces, and `DetachCursorInput` rebinds a cursor's resolvers to
   its execution authority.
+  `CaptureEvaluationInput` instead closes parallel evaluator inputs over their
+  immutable captured authority and an evaluator-private notice sink, removing
+  identifier-observation sinks and live cursor-host notice fallback. It also
+  specializes `ACLItemInput`, retaining Roles, exact ACLAuthority and copied
+  literal/parameter provenance while clearing Op and binding the private sink.
+  Actual ACL INITCOND warning input is not protected by the SQL routine gate.
+  It copies resolver values, never catalog/plan graphs; ordinary cursor rebinding
+  and ordinary operation notice delivery remain live and unchanged.
   `TypeInput.ResolveInputUsage` parses a SQL declaration and returns the actual
   catalog descriptor plus encoded typmod (including array element typmods).
   It shares resolution/modifier validation with OID-facing REGTYPE and parsed

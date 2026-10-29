@@ -323,6 +323,7 @@ type State struct {
 	Parameters             []sqltype.Value
 	Input                  sqltype.InputEnvironment
 	Output                 sqltype.OutputEnvironment
+	ClosedEvaluation       *EvaluationCapture
 	Locking                bool
 	IdentityReads          bool
 	inherited              plan.RowMark

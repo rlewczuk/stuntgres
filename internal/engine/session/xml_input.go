@@ -16,6 +16,7 @@ type XMLInput struct {
 	portal     string
 	textSuffix string
 	label      string
+	notice     func(sqlstate.Error)
 }
 
 func (r XMLInput) XMLInputDiagnostic(d sqlstate.Error) sqlstate.Error {
@@ -33,7 +34,18 @@ func (r XMLInput) XMLInputDiagnostic(d sqlstate.Error) sqlstate.Error {
 	}
 	return d
 }
+
+// WithNotice gives an evaluator its own diagnostic sink without changing input
+// provenance or retaining another lexical owner.
+func (r XMLInput) WithNotice(notice func(sqlstate.Error)) XMLInput {
+	r.notice = notice
+	return r
+}
 func (r XMLInput) XMLInputWarning(d sqlstate.Error) {
+	if r.notice != nil {
+		r.notice(r.XMLInputDiagnostic(d))
+		return
+	}
 	if r.Op != nil {
 		r.Op.EmitNotice(LevelWarning, r.XMLInputDiagnostic(d))
 	}

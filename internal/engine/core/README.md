@@ -329,6 +329,17 @@ and operation policy refresh after effective changes and restoration; demanded
 catalog/visibility snapshots and output spellings remain query-owned.
 Entry recaptures presentation after the complete configuration list, independently
 of whether a routine command is already active.
+Within an actual parallel operation, leave checks both original-operation and
+active-invocation cancellation before recapture and after a successful capture.
+Authorization can still read coherent facts after cancellation; that is not
+permission to replace the closed caller's saved owners. Canceled parallel or
+failed recapture restores exact caller codecs, callback/lookup-path backing,
+inquiry, identity/authority, row-security policy and presentation cache.
+Ordinary serial leave retains live recapture even during cancellation: trigger
+entry may have demanded coherent caller RI-actor/domain/ACL/type-name inputs
+absent before Execute. A lexical SQL-invocation marker alone does not close that
+ordinary contract. Successful serial recapture also follows legitimately
+changed settings; no extra pre-trigger capture is added.
 `is_superuser` reads the effective current role's own attribute under that same
 authority for current_setting, SHOW and pg_settings, never inherited membership.
 Nested commands resolve the first temporary namespace from their shared
@@ -1912,6 +1923,34 @@ remapping, prepared invalidation and catalog-replacement fences.
   context without replacing `Operation.Context`, acquiring another transaction
   admission lease, starting a root command or calling `Finish`. Context scratch
   restores before the gate releases, including cancellation and failure.
+  `parallel_presentation.go` closes outside-gate worker evaluation before any
+  support invocation: immutable catalog/role/path and input facts are shared,
+  but leader and each worker own separate lazy spelling caches and diagnostic
+  queues. All reg*/ACL formatters bind to that owner, never StatementScope.
+  Resolver observation sinks are detached and XML/FTS/type-name/ACL-input notices
+  flush once after join, including error/cancellation, without cross-worker
+  ordering. ACL input retains its immutable roles, exact ACLAuthority and copied
+  literal/parameter provenance, but not direct Operation notice access.
+  Callback audit: class/role/object resolvers share only captured read authority;
+  type/operator/routine/text-search observer pointers are cleared. Type naming
+  and enum safety retain immutable catalog/path/provenance closures. Binder-only
+  LockedDomainInput and live DomainChecks are removed, and Output.XMLNotice is
+  rebound to the captured XML adapter. Locale/encoding/time facts have no live
+  operation callbacks; every catalog output formatter uses the private owner.
+  Missing captured capabilities stay missing. Nested SQL bodies still use the
+  gate-owned live lexical scope, original WriteStage and command journal; actual
+  descriptor/EXECUTE checks remain live. Unwind restores the complete lexical
+  bundle before releasing context/gate. Parallel bodies cannot change persistent
+  settings, so their saved scratch needs no redundant environment recapture;
+  ordinary serial setting recapture remains intact. Parallel cancellation or
+  failed environment recapture restores caller codecs, callbacks, lookup-path/
+  cache ownership and row-security policy with identity/authority. Actual
+  parallel membership, not the lexical invocation marker, enables the operation
+  and invocation cancellation fences; ordinary canceled trigger leave still
+  recaptures its coherently demanded caller inputs.
+  A separate synchronous SQL-invocation context prevents a support body's
+  nonterminal SELECT from spawning workers that inherit the gate token. It does
+  not mark serial support as a parallel operation or forbid legal serial effects.
 - Parallel-operation context covers leader support work as well as workers.
   `parallelExecutionEligibility` reuses `session.ModifyingTag` to reject reached
   modifying commands with `25000` before nested command admission/effects and
@@ -1919,12 +1958,12 @@ remapping, prepared invalidation and catalog-replacement fences.
   and TEMP writes; a falsely SAFE declaration does not grant write permission.
   Ordinary serial support commands retain their existing behavior. Rejection
   keeps the incumbent reached SQL routine statement context.
-- Aggregate domain seeds enter `schemacmds.RoutineHost.ValidateAggregateInitial`
-  through `BindingHost.DecodeDomainLiteral` and the existing
-  `DecodeLockedDomainInput` bridge. CHECK evaluation runs outside `Engine.Mu`
-  against captured input/providers; context, caller authority, catalog epoch and
-  provider identity are readmitted before publication. Ordinary seed input and
-  domain diagnostic provenance retain their existing paths.
+- Aggregate seeds first capture demanded type diagnostics/ACL authority in
+  `schemacmds.RoutineHost.ValidateAggregateInitial`. Ordinary seeds retain
+  `InputWithEnvironment`; domain seeds enter `BindingHost.DecodeDomainLiteral`
+  and the existing `DecodeLockedDomainInput` bridge. CHECK evaluation runs
+  outside `Engine.Mu` against captured input/providers; context, caller authority,
+  catalog epoch and provider identity are readmitted before publication.
 
 ## Server protocol and timeouts
 
@@ -1993,6 +2032,29 @@ session, transaction, prepared-analysis and typed-frame authorities.
   `StatementScope.Finish`'s disposal; no timer callback mutates the transaction.
 
 ## Testing
+
+Aggregate SQL invocation ownership uses
+`make check RUN='^(TestAggregateParallelInvocationOwnership|TestAggregateCombineSQLGate)$'`;
+add `RACE=1` for the same real-worker regression. Its context observer parks
+inside the actual SQL sleep provider before the large nested physical scan,
+avoiding repeated stack inspection in that scan's per-row cancellation checks.
+The complete provider/support/partition stack witness still precedes sibling
+environment/presentation access. Failure cleanup cancels and releases the
+observer before joining with an independent bounded five-second interval, even
+when the execution deadline has already expired.
+The second actual worker also initializes a real declared/bound ACL-state
+aggregate outside the gate, using six paired literal43/parameter2 seed decodes.
+It checks exact authority/PUBLIC/default grantor/read mask, an empty live
+Operation notice list before join, all30 XML/FTS/type/ACL diagnostics afterward,
+and no second-drain delivery across success, SQL error and cancellation.
+The definer cancellation matrix distinguishes a canceled original request from
+a canceled worker invocation whose original operation remains live; both assert
+exact fallback ownership, while only the former requires fresh-operation
+recovery on the same session.
+Retain `TestRoutineTriggerAttributeEnvironment` and
+`TestRoutineEventTriggerAttributeEnvironment` alongside that matrix: their
+ordinary canceled entry/exit contract requires live coherent caller captures,
+not restoration of a sparse pre-Execute Input.
 
 Shared parameter authority backing, admission, publication and replacement
 units use `make check RUN='^TestParameterACLShared'`; add `RACE=1` for the same

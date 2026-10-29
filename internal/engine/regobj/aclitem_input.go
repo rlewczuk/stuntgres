@@ -16,6 +16,7 @@ type ACLItemInput struct {
 	Roles     authorization.Read
 	Authority *sqltype.ACLAuthority
 	Op        *session.Operation
+	notice    typeNotices // Captured evaluator sink; ordinary input uses Op.
 	position  int
 	portal    string
 }
@@ -37,14 +38,18 @@ func (r ACLItemInput) ResolveACLRole(ctx context.Context, name string) (uint32, 
 }
 
 func (r ACLItemInput) WarnACLGrantor(ctx context.Context) {
-	if r.Op == nil || ctx.Err() != nil {
+	if (r.Op == nil && r.notice == nil) || ctx.Err() != nil {
 		return
 	}
 	warning := sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0L000", Message: "defaulting grantor to user ID 10", Context: r.portal}
 	if r.position > 0 {
 		warning.Position = strconv.Itoa(r.position)
 	}
-	r.Op.EmitNotice(session.LevelWarning, warning)
+	if r.notice != nil {
+		r.notice(session.LevelWarning, warning)
+	} else {
+		r.Op.EmitNotice(session.LevelWarning, warning)
+	}
 }
 
 func (r ACLItemInput) ACLItemParameter(slot int, empty bool) sqltype.ACLItemResolver {

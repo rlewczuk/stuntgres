@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 )
 
@@ -20,6 +21,8 @@ func (s *StatementScope) enterRoutineEnvironment(d *catalog.Procedure) (leave fu
 	op, e := s.Op, s.Engine()
 	previous := op.EffectiveUser
 	identity, inquiry, authority := s.Identity, s.Inquiry, s.RoutineAuth
+	input, output, presentation := s.Input, s.Output, s.presentationSlot
+	rowSecurity := s.RowSecurity
 	foreignActor := s.ForeignActionAuth
 	restricted := op.Restricted
 	safePath := restricted != nil && restricted.SafePath
@@ -56,12 +59,37 @@ func (s *StatementScope) enterRoutineEnvironment(d *catalog.Procedure) (leave fu
 		}
 		op.EffectiveUser = previous
 		s.ForeignActionAuth = foreignActor
-		s.presentationSlot = nil
-		cleanup := s.refreshRestrictedPresentation()
+		// Parallel evaluation already owns closed caller facts. Cancellation
+		// must restore those exact owners, not rebuild them from readable
+		// authorization. Ordinary serial leave instead retains live recapture:
+		// trigger entry may have demanded caller resolvers absent before entry.
+		// Lexical SQL invocation ownership alone does not close that contract.
+		parallel := exec.InParallelOperation(s.executionContext())
+		var cleanup error
+		if parallel {
+			cleanup = op.Context().Err()
+			if cleanup == nil {
+				cleanup = s.executionContext().Err()
+			}
+		}
+		if cleanup == nil {
+			s.presentationSlot = nil
+			cleanup = s.refreshRestrictedPresentation()
+			// Cancellation during a successful capture also restores the exact
+			// original owners, rather than retaining newly built resolver paths.
+			if cleanup == nil && parallel {
+				cleanup = op.Context().Err()
+			}
+			if cleanup == nil && parallel {
+				cleanup = s.executionContext().Err()
+			}
+		}
 		if cleanup != nil {
 			// A canceled publication can refuse recapture; never retain the
 			// callee's cached identity/authority on this error path.
 			s.Identity, s.Inquiry, s.RoutineAuth = identity, inquiry, authority
+			s.Input, s.Output, s.presentationSlot = input, output, presentation
+			s.RowSecurity = rowSecurity
 		}
 		if primary != nil {
 			return primary

@@ -4,6 +4,33 @@
   COMMENT and inquiry/catalog identity, and exact native replay of custom text
   and removed defaults, including seeded plpgsql.
 
+- Isolate SQL aggregate support invocation ownership across genuinely concurrent
+  partial workers: capture immutable inputs/presentation before support runs,
+  keep evaluator-private lazy caches and diagnostic queues, and preserve live
+  support authority plus the original command journal. Close nil/XML/coercion
+  host fallbacks, keep nested support SELECTs synchronous under their lexical
+  gate, and restore full scratch/callback ownership on error or cancellation.
+  Fence parallel routine-environment recapture by both operation and invocation
+  cancellation, restoring exact caller resolver/cache and row-security ownership
+  rather than rebuilding it from still-readable authorization facts. Preserve
+  ordinary canceled trigger leave's live coherent caller-input capture.
+  Add channel-scheduled real-worker overlap/restoration with bounded cancellation
+  joins and public bigint/BOOL/numeric partial
+  value, metadata, active-support authority and same-held recovery regressions,
+  distinguishing reached transition support from an unused combine in a retained
+  serial prepared plan.
+  Route ACL-state INITCOND warnings through the same private evaluator queues,
+  preserving immutable ACL authority and literal/parameter provenance without
+  unsynchronized operation notice writes. Capture demanded seed input authority
+  before ordinary/domain validation splits, preserving domain CHECK admission.
+  Add real-worker ACL initializer overlap/exact-drain coverage and public
+  declaration, malformed-seed atomicity, partial-plan warning/input and held
+  recovery contracts without fixing PostgreSQL worker counts or warning order.
+  Constrain seed-warning multiplicity by planner and execution phases: one
+  input per serial runtime state plus PostgreSQL planning input, bounded
+  leader/worker pairs for partial execution, and explicit finite planning/
+  topology alternatives for retained PostgreSQL statements.
+
 - Add atomic column rename across declarative partition hierarchies, preserving
   local attribute layouts, bound expressions and data while updating current-name
   diagnostics, prepared metadata and logical Dump/Restore presentation. Release

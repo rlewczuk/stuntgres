@@ -65,6 +65,15 @@ nontransactional.
   captured filtering threshold; a fresh `OutputNoticeCollector` records actual
   typed output before unlocked delivery, including warnings before later errors.
   Retained rows keep sink-free output presentation, never a completed operation.
+  XMLInput and FTSInput can value-specialize their notice sink for a parallel
+  evaluator while preserving literal/parameter provenance. Such sinks collect
+  privately; the aggregate coordinator alone drains them after join, including
+  failure/cancellation. Outside-gate evaluation never appends directly to
+  Operation.Notices; the sole gated SQL runner retains ordinary notice delivery.
+  The complete capture also specializes regobj type-name and ACL-input callbacks;
+  ACL INITCOND decoding outside the SQL gate must retain authority and provenance
+  while queueing privately. XML/FTS adapters give their private sink precedence;
+  ordinary unspecialized adapters still deliver through their live operation.
   Command admission captures typed CPU/parallel planner costs, statistics target,
   constraint-exclusion mode, cursor fraction and recursive-worktable factor under
   the existing settings mutex alongside the worker ceiling. Consumers receive

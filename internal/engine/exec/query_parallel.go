@@ -16,7 +16,9 @@ import (
 // Positive permission belongs only to the eager top-level SELECT entry. Generic
 // finalization remains serial for writes, cursors, nested queries and controls.
 func FinalizeSelect(ctx context.Context, root plan.Node, source *Source, parameters []sqltype.Value, ceiling int) (RowResult, int, error) {
-	if ceiling < 2 {
+	// A support body borrows synchronous invocation ownership. Its nonterminal
+	// SELECT must not fan out that lexical gate token to other goroutines.
+	if ceiling < 2 || InParallelOperation(ctx) || WithinSQLInvocation(ctx) {
 		return Finalize(ctx, root, source, parameters)
 	}
 	workers := QueryParallelWorkers(ceiling, source.Count())

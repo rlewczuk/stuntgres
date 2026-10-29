@@ -28,6 +28,7 @@ type TypeInput struct {
 	portal    string
 	qualified *[]ids.ObjectAddress
 	resolved  *[]catalog.ExpressionDependency
+	notice    typeNotices // Captured evaluator sink; ordinary cursors use authority.
 }
 
 // NewTypeInput returns the regtype resolver over c. Without an execution
@@ -68,13 +69,16 @@ func (r TypeInput) ResolveRegtype(ctx context.Context, text string) (uint32, err
 	return r.resolveTypeName(ctx, text)
 }
 
-// typeNotices emits one type-name notice or type-modifier warning.
+// typeNotices emits an input notice or warning, including ACL grantor defaults.
 type typeNotices func(session.NoticeLevel, sqlstate.Error)
 
 // notices returns where this resolver's notices go: the captured operation
 // without an execution authority, otherwise the authority's current host if
 // it takes notices. The host is read at each call, never at capture.
 func (r TypeInput) notices() typeNotices {
+	if r.notice != nil {
+		return r.notice
+	}
 	if r.authority == nil {
 		return operationNotices(r.op)
 	}

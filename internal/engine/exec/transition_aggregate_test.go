@@ -463,6 +463,13 @@ func (h finalUnitSQLHost) Environments() (sqltype.InputEnvironment, sqltype.Outp
 	return h.input, sqltype.OutputEnvironment{}
 }
 
+func (h finalUnitSQLHost) CaptureParallelEvaluation() func() *EvaluationCapture {
+	input, output := h.Environments()
+	return func() *EvaluationCapture {
+		return &EvaluationCapture{Input: input, Output: output, Presentation: DetachedPresentation{}}
+	}
+}
+
 func (h finalUnitSQLHost) InvokeAggregateSQLRoutine(ctx context.Context, _ *catalog.Procedure, frame *proc.Frame, usage sqltype.Usage, _ *catalog.Procedure, _ sqltype.CollationRef) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err

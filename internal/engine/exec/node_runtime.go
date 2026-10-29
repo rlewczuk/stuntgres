@@ -30,7 +30,7 @@ func (c *Context) presentedOutput() sqltype.OutputEnvironment {
 func (c *Context) ApplyCoercion(plan sqltype.CoercionPlan, value sqltype.Value, domainChecks bool) (sqltype.Value, error) {
 	output := c.presentedOutput()
 	input := c.FunctionInput()
-	if input.Regrole == nil || input.Regcollation == nil || input.Regnamespace == nil {
+	if c.ClosedEvaluation == nil && (input.Regrole == nil || input.Regcollation == nil || input.Regnamespace == nil) {
 		if host := c.LiveHost(); host != nil {
 			borrowed, _ := host.Environments()
 			if input.Regrole == nil {

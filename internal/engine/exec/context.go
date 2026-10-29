@@ -73,7 +73,10 @@ type EvalStatement struct {
 	Host       Host
 	Input      sqltype.InputEnvironment
 	Output     sqltype.OutputEnvironment
-	Catalog    catalog.Read // Current imported request/view authority for local lowering.
+	// ClosedEvaluation is nonnil only for an evaluator admitted before parallel
+	// fanout. Its nil capabilities are authoritative, not live-host fallbacks.
+	ClosedEvaluation *EvaluationCapture
+	Catalog          catalog.Read // Current imported request/view authority for local lowering.
 	// Stored CHECK syntax stays immutable; command-private expressions and
 	// consumed actor phases belong to the live statement, never catalog nodes.
 	PreparedChecks       map[*catalog.Relation]CheckProgram
@@ -134,6 +137,9 @@ func (c *Context) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
 
 func (c *Context) FunctionInput() sqltype.InputEnvironment {
 	input := c.Input
+	if c.ClosedEvaluation != nil {
+		return input
+	}
 	if host := c.LiveHost(); host != nil {
 		current, _ := host.Environments()
 		// Retained stages keep their other captured presentation. Runtime XML
@@ -327,6 +333,12 @@ func (s *Source) LiveHost() Host {
 // Presentation formats reg* and aclitem output from the statement snapshot,
 // or reports the missing snapshot when the record is detached.
 func (c *Context) Presentation() PresentationFormatters {
+	if c != nil && c.ClosedEvaluation != nil {
+		if p := c.ClosedEvaluation.Presentation; p != nil {
+			return p
+		}
+		return DetachedPresentation{}
+	}
 	if host := c.LiveHost(); host != nil {
 		return host
 	}

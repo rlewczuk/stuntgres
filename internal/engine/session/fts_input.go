@@ -16,17 +16,28 @@ type FTSInput struct {
 	Op       *Operation
 	position int
 	portal   string
+	notice   func(sqlstate.Error)
+}
+
+// WithNotice preserves provenance and binds warnings to one evaluator.
+func (r FTSInput) WithNotice(notice func(sqlstate.Error)) FTSInput {
+	r.notice = notice
+	return r
 }
 
 func (r FTSInput) EmptyQuery(ctx context.Context, text string) {
-	if r.Op == nil || ctx.Err() != nil {
+	if (r.Op == nil && r.notice == nil) || ctx.Err() != nil {
 		return
 	}
 	n := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "text-search query doesn't contain lexemes: \"" + text + "\"", Context: r.portal}
 	if r.position > 0 {
 		n.Position = strconv.Itoa(r.position)
 	}
-	r.Op.EmitNotice(LevelNotice, n)
+	if r.notice != nil {
+		r.notice(n)
+	} else {
+		r.Op.EmitNotice(LevelNotice, n)
+	}
 }
 func (r FTSInput) FTSLiteral(position int) sqltype.FTSInputNotices {
 	r.position = position

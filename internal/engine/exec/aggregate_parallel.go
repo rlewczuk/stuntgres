@@ -40,6 +40,21 @@ func InParallelWorker(ctx context.Context) bool {
 	return ctx != nil && ctx.Value(parallelWorkerKey{}) == true
 }
 
+type sqlInvocationKey struct{}
+
+// SQLInvocationContext marks synchronous lexical SQL ownership, independently
+// of parallel effect membership. A nested SELECT cannot fan out this owner.
+func SQLInvocationContext(ctx context.Context) context.Context {
+	if WithinSQLInvocation(ctx) {
+		return ctx
+	}
+	return context.WithValue(ctx, sqlInvocationKey{}, true)
+}
+
+func WithinSQLInvocation(ctx context.Context) bool {
+	return ctx != nil && ctx.Value(sqlInvocationKey{}) == true
+}
+
 // The worker retains immutable admission evidence, not the SQL host's lexical
 // scratch, which a nested support body may replace under its invocation gate.
 type parallelAggregateAdmission struct {
@@ -151,11 +166,29 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 		return nil, 0, err
 	}
 	ctx = ParallelOperationContext(ctx)
-	input, output := sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}
+	newEvaluation := func() *EvaluationCapture { return &EvaluationCapture{} }
 	if host := source.LiveHost(); host != nil {
-		input, output = host.Environments()
+		newEvaluation = host.CaptureParallelEvaluation()
 	}
-	leader := &State{Methods: sourcePlannerMethods(source), methodsCaptured: true, Source: source, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx}
+	capture := newEvaluation()
+	leader := &State{Methods: sourcePlannerMethods(source), methodsCaptured: true, Source: source, Parameters: parameters, Input: capture.Input, Output: capture.Output, ExecutionContext: ctx}
+	leader.inheritCTEs()
+	leader.ClosedEvaluation = capture
+	// Construct evaluator-private caches before any support invocation/fanout.
+	captures := make([]*EvaluationCapture, workers)
+	for i := range captures {
+		captures[i] = newEvaluation()
+	}
+	defer func() {
+		for _, c := range captures {
+			if c.FlushDiagnostics != nil {
+				c.FlushDiagnostics()
+			}
+		}
+		if capture.FlushDiagnostics != nil {
+			capture.FlushDiagnostics()
+		}
+	}()
 	defer leader.ReleaseMemberships()
 	evaluation := leader.Evaluation(ctx)
 	auth, dependencies, err := RoutineAdmissionAuthority(&evaluation)
@@ -188,12 +221,12 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	var first error
 	n := source.Count()
 	inheritedCTEs := leader.Ctes // Capture even nil before any support body can mutate host scratch.
-	methods := leader.Methods // Capture before any sibling support changes lexical scope.
+	methods := leader.Methods    // Capture before any sibling support changes lexical scope.
 	for i := range workers {
 		joined.Add(1)
 		go func(i int) {
 			defer joined.Done()
-			groups, failure := runAggregatePartition(workerCtx, aggregate, source, parameters, i*n/workers, (i+1)*n/workers, input, output, admission, inheritedCTEs, methods)
+			groups, failure := runAggregatePartition(workerCtx, aggregate, source, parameters, i*n/workers, (i+1)*n/workers, captures[i], admission, inheritedCTEs, methods)
 			if failure != nil {
 				errorMu.Lock()
 				if first == nil {
@@ -249,14 +282,14 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	return result, count, nil
 }
 
-func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, source *Source, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, admission *parallelAggregateAdmission, ctes *CTEInvocation, methods plan.PlannerMethods) ([]QueryGroup, error) {
+func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, source *Source, parameters []sqltype.Value, start, end int, capture *EvaluationCapture, admission *parallelAggregateAdmission, ctes *CTEInvocation, methods plan.PlannerMethods) ([]QueryGroup, error) {
 	worker, err := ParallelQuerySource(source)
 	if err != nil {
 		return nil, err
 	}
 	defer worker.Close()
 	var groups []QueryGroup
-	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end, aggregatePartials: &groups, aggregateAdmission: admission, Ctes: ctes}
+	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: capture.Input, Output: capture.Output, ClosedEvaluation: capture, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end, aggregatePartials: &groups, aggregateAdmission: admission, Ctes: ctes, asyncCaptured: true}
 	defer state.ReleaseMemberships()
 	evaluation := state.Evaluation(ctx)
 	for _, call := range aggregate.Calls {

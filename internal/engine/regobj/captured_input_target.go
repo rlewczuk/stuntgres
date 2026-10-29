@@ -3,6 +3,8 @@ package regobj
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -79,5 +81,35 @@ func DetachCursorInput(in *sqltype.InputEnvironment, authority *exec.Authority) 
 	if reader, ok := in.RegTS.(TextSearchInput); ok {
 		reader.qualified, reader.resolved = nil, nil
 		in.RegTS = reader
+	}
+}
+
+// CaptureEvaluationInput closes resolver execution over immutable facts and
+// one evaluator's notice sink. Analysis-observation sinks must not escape into
+// workers, and retained cursor authority must not supply live scratch.
+func CaptureEvaluationInput(in *sqltype.InputEnvironment, notice func(session.NoticeLevel, sqlstate.Error)) {
+	types := func(r TypeInput) TypeInput {
+		r.op, r.authority, r.qualified, r.resolved = nil, nil, nil, nil
+		r.notice = notice
+		return r
+	}
+	if r, ok := in.Regtype.(TypeInput); ok {
+		in.Regtype = types(r)
+	}
+	if r, ok := in.Operator.(OperatorInput); ok {
+		r.types, r.qualified, r.operands = types(r.types), nil, nil
+		in.Operator = r
+	}
+	if r, ok := in.Regproc.(RoutineInput); ok {
+		r.types, r.operands = types(r.types), nil
+		in.Regproc = r
+	}
+	if r, ok := in.RegTS.(TextSearchInput); ok {
+		r.qualified, r.resolved = nil, nil
+		in.RegTS = r
+	}
+	if r, ok := in.ACLItem.(ACLItemInput); ok {
+		r.Op, r.notice = nil, notice
+		in.ACLItem = r
 	}
 }

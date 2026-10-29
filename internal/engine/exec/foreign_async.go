@@ -161,6 +161,9 @@ func (s *State) asyncAppendEligible() bool {
 func (s *State) inheritAsyncAdmission(parent *State) {
 	parent.CapturePlannerAdmission()
 	s.Methods, s.methodsCaptured = parent.Methods, true
+	s.ClosedEvaluation = parent.ClosedEvaluation
+	s.ExecutionContext = parent.ExecutionContext
+	s.aggregateAdmission = parent.aggregateAdmission
 	s.AsyncAppend, s.asyncCaptured = parent.AsyncAppend, parent.asyncCaptured
 	s.asyncInvocation = s.asyncInvocation || parent.asyncInvocation ||
 		parent.Outer != nil || parent.Invocation != nil || s.Outer != nil || s.Invocation != nil

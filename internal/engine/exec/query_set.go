@@ -14,7 +14,7 @@ func (s *State) inheritCTEs() {
 	// Partial workers already own the outer CTE snapshot selected before any
 	// support body enters the shared SQL host. A captured nil is authoritative:
 	// never inherit that host's temporarily installed/restored lexical scratch.
-	if s.aggregatePartials != nil {
+	if s.aggregatePartials != nil || s.ClosedEvaluation != nil {
 		return
 	}
 	if s.Ctes == nil && s.Source != nil {

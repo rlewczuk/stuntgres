@@ -26,6 +26,9 @@ type Host interface {
 	// cursor detaches the host between fetches.
 	Context() context.Context
 	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
+	// CaptureParallelEvaluation captures immutable facts before support can
+	// replace lexical scratch. Each factory call owns fresh mutable caches.
+	CaptureParallelEvaluation() func() *EvaluationCapture
 	StatementStart() time.Time
 	// CTEInvocation is the innermost data-modifying CTE owner of the statement.
 	CTEInvocation() *CTEInvocation
@@ -167,4 +170,15 @@ type PresentationFormatters interface {
 	sqltype.RegnamespaceFormatter
 	sqltype.RegTSFormatter
 	sqltype.ACLItemFormatter
+}
+
+// EvaluationCapture closes outside-gate expression input and presentation.
+// One evaluator and its synchronous derived frames own each instance.
+type EvaluationCapture struct {
+	Input        sqltype.InputEnvironment
+	Output       sqltype.OutputEnvironment
+	Presentation PresentationFormatters
+	// FlushDiagnostics is called once by the coordinator after workers join,
+	// including failure/cancellation. Derived states never flush their owner.
+	FlushDiagnostics func()
 }

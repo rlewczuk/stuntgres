@@ -73,6 +73,12 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   grant-time candidate recapture after epoch, identity and authorization fences;
   dependency-closure roots are not promoted to explicit SQL targets. Global
   language identities use ordinary definition-object locks, not relation aliases.
+  `RoutineHost.ValidateAggregateInitial` captures demanded type diagnostics and
+  ACL authority before splitting ordinary input from domain input. A real
+  aclitem INITCOND can therefore validate through `InputWithEnvironment`, emit
+  its exact default-grantor warning, and reject malformed input before catalog
+  publication. Domains retain `DecodeDomainLiteral`'s captured unlock/readmit
+  CHECK boundary, never direct CHECK execution under the DDL mutex.
 - `StageDictionaryDetached` captures dictionary inputs and authority under
   `Engine.Mu`, compiles real shipped resources with it released, then calls
   `CompleteDictionaryLocked` under the mutex. Completion fences captured
